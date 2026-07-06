@@ -1,6 +1,7 @@
 import { useStudio } from '../../state/StudioContext';
 import { TALENT_BY_ROLE } from '../../data/talentPool';
 import { computeCommittedSpend } from '../../state/selectors';
+import { BudgetTracker } from '../common/BudgetTracker';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
@@ -70,23 +71,16 @@ export function HireTalent() {
   return (
     <div className="stack">
       <WizardSteps current="talent" />
+      <BudgetTracker />
       <h1>Hire Talent</h1>
       <p>Higher fame boosts marketing reach. Higher skill boosts quality. Low reliability and high ego raise production risk.</p>
 
       {MANDATORY_ROLES.map((role) => renderRoleSection(role, false))}
       {OPTIONAL_ROLES.map((role) => renderRoleSection(role, true))}
 
-      <div className="card row-between">
-        <div>
-          <div className="stat-label">Total Cast Salary</div>
-          <div className="stat-value"><Money amount={totalSalary} /></div>
-        </div>
-        <div>
-          <div className="stat-label">Cash After This Film So Far</div>
-          <div className="stat-value">
-            <Money amount={state.studio.cash - committedSpend} signColor />
-          </div>
-        </div>
+      <div className="card">
+        <div className="stat-label">Total Cast Salary</div>
+        <div className="stat-value"><Money amount={totalSalary} /></div>
       </div>
 
       {missingMandatory.length > 0 && (

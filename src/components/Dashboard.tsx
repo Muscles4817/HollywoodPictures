@@ -7,6 +7,13 @@ export function Dashboard() {
   const { state, dispatch } = useStudio();
   const { studio } = state;
 
+  function handleReset() {
+    const confirmed = window.confirm(
+      `Reset ${studio.name}? This wipes all cash, reputation, and film history and starts a brand new studio. This can't be undone.`,
+    );
+    if (confirmed) dispatch({ type: 'RESET_SAVE' });
+  }
+
   return (
     <div className="stack">
       <div className="row-between">
@@ -14,9 +21,12 @@ export function Dashboard() {
           <h1>{studio.name}</h1>
           <p>Year {studio.year} &middot; {studio.filmsReleased.length} film{studio.filmsReleased.length === 1 ? '' : 's'} released</p>
         </div>
-        <Button variant="primary" onClick={() => dispatch({ type: 'START_NEW_FILM' })}>
-          Start New Film
-        </Button>
+        <div className="row">
+          <Button onClick={handleReset}>Reset Studio</Button>
+          <Button variant="primary" onClick={() => dispatch({ type: 'START_NEW_FILM' })}>
+            Start New Film
+          </Button>
+        </div>
       </div>
 
       <div className="row">

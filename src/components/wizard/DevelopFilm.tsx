@@ -1,6 +1,7 @@
 import { useStudio } from '../../state/StudioContext';
 import { GENRES } from '../../data/genres';
 import { TARGET_AUDIENCES } from '../../data/audiences';
+import { BudgetTracker } from '../common/BudgetTracker';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
@@ -22,6 +23,7 @@ export function DevelopFilm() {
   return (
     <div className="stack">
       <WizardSteps current="develop" />
+      <BudgetTracker />
       <h1>Develop Your Film</h1>
 
       <div className="card stack">

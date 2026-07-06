@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { MARKETING_SPEND_PROFILES, RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS } from '../../data/release';
 import { computeMarketingCost } from '../../engine/cost';
-import { computeCommittedSpend } from '../../state/selectors';
+import { BudgetTracker } from '../common/BudgetTracker';
 import { ChoiceGroup } from '../common/ChoiceGroup';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
@@ -22,28 +22,28 @@ const DEFAULT_CHOICES: MarketingChoices = {
 export function MarketingRelease() {
   const { state, dispatch } = useStudio();
   const draft = state.draft!;
-  const [choices, setChoices] = useState<MarketingChoices>(draft.marketingChoices ?? DEFAULT_CHOICES);
+  const choices = draft.marketingChoices ?? DEFAULT_CHOICES;
+
+  useEffect(() => {
+    if (!draft.marketingChoices) {
+      dispatch({ type: 'SET_MARKETING_CHOICES', choices: DEFAULT_CHOICES });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function update<K extends keyof MarketingChoices>(key: K, value: MarketingChoices[K]) {
-    setChoices((prev) => ({ ...prev, [key]: value }));
+    dispatch({ type: 'SET_MARKETING_CHOICES', choices: { ...choices, [key]: value } });
   }
 
   const marketingCost = computeMarketingCost(choices);
-  const committedSoFar = computeCommittedSpend(draft);
-  const projectedCash = state.studio.cash - committedSoFar - marketingCost;
-
   const releaseTypeProfile = RELEASE_TYPE_PROFILES[choices.releaseType];
   const weakMarketingWarning = releaseTypeProfile.needsMarketing && (choices.marketingSpend === 'None' || choices.marketingSpend === 'Low');
   const genreBonus = draft.genre ? RELEASE_WINDOW_GENRE_BONUS[choices.releaseWindow][draft.genre] : undefined;
 
-  function handleRelease() {
-    dispatch({ type: 'SET_MARKETING_CHOICES', choices });
-    dispatch({ type: 'RELEASE_FILM' });
-  }
-
   return (
     <div className="stack">
       <WizardSteps current="marketing" />
+      <BudgetTracker />
       <h1>Marketing &amp; Release</h1>
 
       <div className="card stack">
@@ -71,22 +71,14 @@ export function MarketingRelease() {
         <p style={{ color: 'var(--green)' }}>{choices.releaseWindow} is a strong window for {draft.genre} - box office bonus expected.</p>
       )}
 
-      <div className="card row-between">
-        <div>
-          <div className="stat-label">Marketing Cost</div>
-          <div className="stat-value"><Money amount={marketingCost} /></div>
-        </div>
-        <div>
-          <div className="stat-label">Cash After This Film So Far</div>
-          <div className="stat-value">
-            <Money amount={projectedCash} signColor />
-          </div>
-        </div>
+      <div className="card">
+        <div className="stat-label">Marketing Cost</div>
+        <div className="stat-value"><Money amount={marketingCost} /></div>
       </div>
 
       <div className="row-between">
         <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'post-production' })}>Back</Button>
-        <Button variant="primary" onClick={handleRelease}>
+        <Button variant="primary" onClick={() => dispatch({ type: 'RELEASE_FILM' })}>
           Release Film
         </Button>
       </div>

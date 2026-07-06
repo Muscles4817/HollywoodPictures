@@ -1,5 +1,6 @@
 import { useStudio } from '../../state/StudioContext';
 import { computeProductionRiskScore } from '../../engine/production';
+import { BudgetTracker } from '../common/BudgetTracker';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { WizardSteps } from '../common/WizardSteps';
@@ -20,6 +21,7 @@ export function ProductionRun() {
   return (
     <div className="stack">
       <WizardSteps current="production" />
+      <BudgetTracker />
       <h1>Production</h1>
 
       {!hasFilmed && (

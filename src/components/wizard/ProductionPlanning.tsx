@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import {
   BUDGET_LEVEL_PROFILES,
@@ -11,6 +11,7 @@ import {
 import { GENRE_PROFILES } from '../../data/genres';
 import { computeProductionBudgetCost } from '../../engine/cost';
 import { computeCommittedSpend } from '../../state/selectors';
+import { BudgetTracker } from '../common/BudgetTracker';
 import { ChoiceGroup } from '../common/ChoiceGroup';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
@@ -36,26 +37,30 @@ const DEFAULT_CHOICES: ProductionChoices = {
 export function ProductionPlanning() {
   const { state, dispatch } = useStudio();
   const draft = state.draft!;
-  const [choices, setChoices] = useState<ProductionChoices>(draft.productionChoices ?? DEFAULT_CHOICES);
+  const choices = draft.productionChoices ?? DEFAULT_CHOICES;
+
+  // Seed the draft with defaults immediately so the budget tracker (and every
+  // other screen reading the draft) reflects this screen's choices from the
+  // very first render, not just after the player touches a button.
+  useEffect(() => {
+    if (!draft.productionChoices) {
+      dispatch({ type: 'SET_PRODUCTION_CHOICES', choices: DEFAULT_CHOICES });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function update<K extends keyof ProductionChoices>(key: K, value: ProductionChoices[K]) {
-    setChoices((prev) => ({ ...prev, [key]: value }));
+    dispatch({ type: 'SET_PRODUCTION_CHOICES', choices: { ...choices, [key]: value } });
   }
 
   const estimatedCost = computeProductionBudgetCost(choices);
-  const committedBeforeThisStep = computeCommittedSpend(draft); // script + talent already locked in
-  const projectedCash = state.studio.cash - committedBeforeThisStep - estimatedCost;
-  const canAfford = projectedCash >= 0;
+  const canAfford = state.studio.cash - computeCommittedSpend(draft) >= 0;
   const genreProfile = draft.genre ? GENRE_PROFILES[draft.genre] : null;
-
-  function handleContinue() {
-    dispatch({ type: 'SET_PRODUCTION_CHOICES', choices });
-    dispatch({ type: 'GO_TO_STEP', step: 'production' });
-  }
 
   return (
     <div className="stack">
       <WizardSteps current="production-planning" />
+      <BudgetTracker />
       <h1>Production Planning</h1>
       {genreProfile && draft.genre && (
         <p>
@@ -74,23 +79,15 @@ export function ProductionPlanning() {
         <ChoiceGroup label="Runtime Target" options={RUNTIME_TARGETS} value={choices.runtimeTarget} onChange={(v) => update('runtimeTarget', v)} />
       </div>
 
-      <div className="card row-between">
-        <div>
-          <div className="stat-label">Estimated Production Cost</div>
-          <div className="stat-value"><Money amount={estimatedCost} /></div>
-        </div>
-        <div>
-          <div className="stat-label">Cash After This Film So Far</div>
-          <div className="stat-value">
-            <Money amount={projectedCash} signColor />
-          </div>
-        </div>
+      <div className="card">
+        <div className="stat-label">Estimated Production Cost</div>
+        <div className="stat-value"><Money amount={estimatedCost} /></div>
       </div>
       {!canAfford && <p style={{ color: 'var(--red)' }}>This plan costs more than the studio has on hand.</p>}
 
       <div className="row-between">
         <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'talent' })}>Back</Button>
-        <Button variant="primary" disabled={!canAfford} onClick={handleContinue}>
+        <Button variant="primary" disabled={!canAfford} onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'production' })}>
           Continue to Filming
         </Button>
       </div>
