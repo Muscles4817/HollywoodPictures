@@ -1,5 +1,5 @@
 import type { Film } from '../types';
-import { type GameAction, type GameState, createEmptyDraft } from './gameState';
+import { type GameAction, type GameState, createEmptyDraft, INITIAL_STUDIO } from './gameState';
 import { createRng, randInt, type RandomFn } from '../engine/random';
 import { generateScriptOptions } from '../engine/scriptGenerator';
 import { simulateProduction } from '../engine/production';
@@ -157,13 +157,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
 
     case 'RESET_SAVE':
       return {
-        studio: {
-          name: 'Silver Reel Pictures',
-          cash: 5_000_000,
-          reputation: 20,
-          year: 1,
-          filmsReleased: [],
-        },
+        studio: { ...INITIAL_STUDIO, filmsReleased: [] },
         screen: 'dashboard',
         draft: null,
         rngSeed: Date.now(),

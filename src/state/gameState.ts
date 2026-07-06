@@ -23,7 +23,7 @@ export interface GameState {
 
 export const INITIAL_STUDIO: Studio = {
   name: 'Silver Reel Pictures',
-  cash: 5_000_000,
+  cash: 10_000_000,
   reputation: 20,
   year: 1,
   filmsReleased: [],
