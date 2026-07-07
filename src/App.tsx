@@ -1,4 +1,5 @@
 import { StudioProvider, useStudio } from './state/StudioContext';
+import { ThemeToggle } from './components/common/ThemeToggle';
 import { Dashboard } from './components/Dashboard';
 import { DevelopFilm } from './components/wizard/DevelopFilm';
 import { HireTalent } from './components/wizard/HireTalent';
@@ -36,6 +37,7 @@ function Screens() {
 function App() {
   return (
     <StudioProvider>
+      <ThemeToggle />
       <Screens />
     </StudioProvider>
   );
