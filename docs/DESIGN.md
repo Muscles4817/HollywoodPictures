@@ -26,8 +26,9 @@ need a rewrite to grow - it should need new `data/` entries and maybe a new
 ```
 Studio Dashboard
    -> Develop Film       (title, genre, target audience, buy a script)
-   -> Hire Talent        (director, lead actor, supporting actor, writer, composer, editor, +VFX supervisor)
-   -> Production Planning(budget tier, shooting style, sets, effects, VFX, runtime)
+   -> Hire Talent        (director, lead actor, supporting actor, writer, composer, editor, +VFX supervisor -
+                          each a price slider over procedurally generated candidates)
+   -> Production Planning(six continuous sliders: budget, shooting pace, sets, effects, VFX, runtime)
    -> Filming             (roll 3-5 production events)
    -> Post-Production     (edit style, music focus, test screening, marketing cut)
    -> Marketing & Release (spend, release type, release window)
@@ -54,9 +55,10 @@ Defined in `src/types/index.ts`. The five nouns that matter:
   `marketability`, `complexity` (all 1-100), plus a `cost`. Generated
   procedurally per genre (see `engine/scriptGenerator.ts`).
 - **Talent** - `role`, `fame`, `skill`, `reliability`, `ego` (all 1-100),
-  `salary`, and a sparse `genreAffinities` map. A static roster in
-  `data/talentPool.ts` - every talent is always hireable (no scheduling
-  conflicts yet, see [Section 8](#8-known-limitations--next-steps)).
+  `salary`, and a sparse `genreAffinities` map. Procedurally generated per
+  role whenever genre is set (see [Section 5.8](#58-procedural-talent-generation-enginetalentgeneratorts)) -
+  there's no persistent named roster, and no scheduling conflicts yet (see
+  [Section 8](#8-known-limitations--next-steps)).
 - **FilmDraft** - the film *in progress*. Every wizard screen reads and
   writes one field of this (`script`, `talent`, `productionChoices`, ...).
   Once released it's promoted into a `Film` and the draft is thrown away.
@@ -105,7 +107,7 @@ Six 0-100 sub-scores feed the Final Quality Score:
 | **Script** | `originality*.3 + structure*.3 + dialogue*.25 + marketability*.15` | Independent of genre fit. |
 | **Direction** | `director.skill*.6 + genreAffinity(director)*.4` | No director hired -> flat 35. |
 | **Acting** | `lead*.7 + support*.3`, each `skill*.65 + genreAffinity*.35` | No actor hired -> flat 30 for that slot. |
-| **Production** | Weighted blend of budget/shooting-style/set/effects "quality scores" (`data/production.ts`), with VFX vs. practical-effects weighted per genre (`data/genres.ts` `vfxImportance` / `practicalEffectsImportance`) | This is where "Action/Sci-Fi/Fantasy benefit from VFX" and "Drama/Romance don't" actually happens. |
+| **Production** | Weighted blend of budget/shooting/set/effects "quality scores", each read off a continuous curve (`engine/productionDials.ts`) rather than a fixed tier, with VFX vs. practical-effects weighted per genre (`data/genres.ts` `vfxImportance` / `practicalEffectsImportance`) | This is where "Action/Sci-Fi/Fantasy benefit from VFX" and "Drama/Romance don't" actually happens. |
 | **Post-production** | `55 + testScreeningDelta + musicDelta + (Balanced edit ? 5 : 0)` | See `data/postProduction.ts`. |
 | **Events** | `50 + sum(event.qualityDelta) * 2` | Amplified because each rolled event's raw delta is small (~-10..+10 across 3-5 events). |
 
@@ -116,8 +118,9 @@ Six 0-100 sub-scores feed the Final Quality Score:
 Two more scores exist alongside quality but aren't part of it:
 
 - **Genre Fit Score** = `script.genreFit*.4 + avg(directorAffinity, leadAffinity)*.35 + budgetFit*.25`,
-  where `budgetFit` is 85 for anything above Cheap, and for Cheap it's
-  `30 + genre.lowBudgetFriendly*60` - this is why Horror can go cheap and
+  where `budgetFit` ramps linearly from `30 + genre.lowBudgetFriendly*60` at
+  the very bottom of the budget slider up to 85 by 35% of the way up it, then
+  stays at 85 the rest of the way - this is why Horror can go cheap and
   Sci-Fi/Fantasy/Action really can't (`genres.ts:lowBudgetFriendly`).
 - **Marketability Score** = `script.marketability*.5 + avgCastFame*.45 + runtimeDelta` -
   informational for now; feeds nothing downstream yet (a natural hook for a
@@ -164,7 +167,7 @@ raw = BASE_MARKET_POTENTIAL (£60,000,000)
     * releaseType.reachMultiplier
     * marketingSpend.boxOfficeMultiplier
     * reputationFactor        (0.7 - 1.3, from studio reputation)
-    * budgetScaleFactor       (0.55 Cheap - 1.25 Excessive; wider prints, independent of quality)
+    * budgetScaleFactor       (0.55 - 1.25, scales linearly with the budget slider; wider prints, independent of quality)
     * audienceConversion      (0.1 - 1.4, from audience score)
     * criticLegsFactor        (0.75 - 1.15, from critic score, "legs" / word of mouth)
 
@@ -178,19 +181,24 @@ The two low floors - `audienceConversion` bottoming out at 0.1 and
 `criticLegsFactor` at 0.75 - are the load-bearing numbers for the game's
 central promise ("revenue shouldn't be too punishing, but expensive bad films
 should flop"). They were tuned by running scenario scripts through the real
-engine (not by hand-calculation) until:
+engine (not by hand-calculation), then re-verified after the production
+model moved from four fixed tiers to a continuous slider:
 
 | Scenario | Total cost | Box office | Profit ratio | Outcome |
 |---|---|---|---|---|
-| Cheap + mediocre (58/52) | ~£6.8M | ~£17.4M | +1.57 | Hit |
-| Cheap + bad (25/20) | ~£6.8M | ~£7.5M | +0.11 | barely breaks even |
-| Cheap + great (85/85) | ~£6.8M | ~£28M | +3.13 | Blockbuster-tier |
-| Premium + bad (25/20) | £30M | ~£14.3M | **-0.52** | **Flop** |
-| Excessive + bad (25/20) | £55M | ~£17M | **-0.69** | **Flop** |
+| Rock-bottom indie, everything at the floor (Horror) | £839,750 | £3,141,000 | +2.74 | Hit |
+| Money-no-object blockbuster, everything near the ceiling (Sci-Fi) | £103,095,000 | £232,219,000 | +1.25 | Hit |
+| Mid-budget + bad (25 audience / 20 critic) | £30,000,000 | £15,495,000 | **-0.48** | **Flop** |
+| Top-of-the-slider budget + bad (25 / 20) | £90,000,000 | £17,059,000 | **-0.81** | **Flop** |
 
-That last two rows are the point: an expensive, bad film loses real money.
-A cheap, bad film just doesn't turn a profit - it doesn't need to bankrupt a
-new studio for a single misjudged genre pick.
+The middle two rows are the point: an expensive, bad film loses real money -
+that still holds at the top of the continuous slider exactly as it did with
+the old fixed "Excessive" tier. At the very bottom of the slider, profit
+*ratios* can look enormous (a bad film can occasionally return 10x+ on a
+true shoestring budget) simply because the denominator is so small - the
+`outcome` classifier's quality gates (see 5.5) keep that from reading as
+anything better than "Hit", so a lucky cheap flop-that-wasn't doesn't get
+mislabeled as a Blockbuster or Masterpiece it didn't earn.
 
 ### 5.5 Outcome label (`engine/outcome.ts`)
 
@@ -209,13 +217,86 @@ Flat delta per outcome (Flop -8, Cult Hit +2, Modest Success +3, Hit +6,
 Blockbuster +10, Masterpiece +15) plus a small critic-score nudge
 (`round((criticScore-50)/10)`, roughly -5..+5), clamped to 0-100.
 
-### 5.7 Production risk & events (`engine/production.ts`, `data/productionEvents.ts`)
+### 5.7 Continuous production dials (`engine/interpolate.ts`, `engine/productionDials.ts`, `data/production.ts`)
 
-Before filming, a risk score (5-95) is computed from cast reliability/ego,
-script complexity, and the chosen shooting style/budget risk:
+All six Production Planning sliders (budget, shooting pace, set quality,
+practical effects, VFX spend, runtime) are genuinely continuous - dragging
+one changes cost and quality/risk smoothly across the whole range, not in
+4-ish discrete jumps. The pattern is the same for all six:
+
+1. `data/production.ts` declares a **range** (for the four currency dials,
+   e.g. `BUDGET_RANGE = { min: 100_000, max: 40_000_000 }`) and a handful of
+   **anchors** - calibration points at a slider position `t` (0-1) with the
+   quality/risk/cost-multiplier values that apply there, plus a description.
+2. `engine/interpolate.ts` has the generic math: `logT`/`logAmount` convert
+   between a currency amount and its 0-1 slider position on a *log* scale
+   (so the cheap end - where a real indie budget lives - gets just as much
+   slider resolution as the expensive end), and `interpolateScale` does
+   piecewise-linear interpolation of a named value between whichever two
+   anchors bracket the current `t`.
+3. `engine/productionDials.ts` wires the two together into named functions
+   (`budgetQuality`, `shootingCostMultiplier`, `vfxScore`, ...) that
+   `engine/cost.ts`, `engine/scoring.ts` and `engine/production.ts` all call.
+
+Flavor text still comes in a handful of qualitative bands (`describeScale`
+picks whichever anchor's description is closest to the current `t`) - there
+isn't infinite unique English for infinite slider positions, and there
+doesn't need to be. The numbers are what actually needed to stop jumping;
+the words were never the problem.
+
+This is also what makes a true shoestring film possible: the budget range's
+floor is £100,000 (not the old "Cheap" tier's £900,000 base cost), and the
+same log-scale treatment applies to set quality, practical effects and VFX
+spend, so a genuinely bare-bones production - all six dials at the bottom -
+costs about £98,750 in production spend alone (see the scenario table in
+5.4: a full indie film, script and cast included, lands around £840,000
+total).
+
+### 5.8 Procedural talent generation (`engine/talentGenerator.ts`, `data/talentGeneration.ts`)
+
+There's no fixed roster of named actors anymore - every candidate is
+generated fresh, the same way scripts are. `generateTalentCandidates(role,
+genre, rng)` draws 10 candidates per role, each sampling a salary on a log
+scale across that role's own range (`data/talentGeneration.ts:ROLE_GENERATION_PROFILES` -
+e.g. Lead Actor spans £40,000 - £15,000,000, Editor spans £10,000 -
+£1,200,000) so a real shoestring hire and a blockbuster star are both
+represented and reachable via a price slider.
+
+Given a candidate's position `t` on that log scale:
 
 ```
-risk = (100-avgReliability)*.3 + avgEgo*.2 + script.complexity*.2 + shootingStyleRisk*.2 + budgetRisk*.1
+fame        = 10 + (roleFameCeiling - 10) * t   + noise(±12)
+skill       = 25 + 65 * t                        + noise(±20)
+reliability = 45 + 25 * t                        + noise(±30)
+ego         = 15 + fame * 0.45                    + noise(±20)
+genreAffinity = random(15, 100), independent of price
+```
+
+Fame and skill scale up with price *on average*, but the noise bands are
+wide on purpose: a cheap unknown can be a hidden gem, an expensive hire can
+still disappoint. Reliability and ego are only loosely tied to price -
+professionalism isn't for sale, and neither is a diva-free set. `roleFameCeiling`
+caps how famous a role can plausibly get even at the top of its pay scale -
+98 for Director/Lead Actor, down to 45 for Editor - since below-the-line
+crew don't become household names the way stars do.
+
+On the Hire Talent screen, each role gets its own price slider (`SET_TALENT_TARGET_PRICE`)
+that filters the 10 generated candidates down to the 6 closest to that
+price - moving the slider changes who's shown, it doesn't regenerate
+anyone. A "Reroll Candidates" button (`REROLL_TALENT_CANDIDATES`) draws a
+fresh 10 if the current slate doesn't have anyone appealing. A master
+"Target Cast & Crew Budget" slider (`SET_TALENT_BUDGET_SPLIT`) splits a
+total evenly across the six mandatory roles as a starting point - the
+player is free to tilt any individual role's slider up or down afterward to
+over- or under-spend relative to that split.
+
+### 5.9 Production risk & events (`engine/production.ts`, `data/productionEvents.ts`)
+
+Before filming, a risk score (5-95) is computed from cast reliability/ego,
+script complexity, and the chosen shooting pace/budget position:
+
+```
+risk = (100-avgReliability)*.3 + avgEgo*.2 + script.complexity*.2 + shootingRisk(shootingIntensity)*.2 + budgetRisk(budgetAmount)*.1
 ```
 
 3-5 events are then rolled; each roll is negative with probability
@@ -231,8 +312,9 @@ on-set incident.
 Final results break costs into two headline numbers:
 
 - **Final production cost** = script cost + total cast salary + production
-  budget cost (budget tier x shooting style x runtime multipliers, plus flat
-  set/practical-effects/VFX spend) + net event cost delta + test-screening cost.
+  budget cost (`budgetAmount x shootingCostMultiplier x runtimeCostMultiplier`,
+  plus the set/practical-effects/VFX spend amounts directly) + net event cost
+  delta + test-screening cost.
 - **Marketing cost** = marketing spend tier x release-type cost multiplier
   (Wide costs more to support than Limited).
 
@@ -246,10 +328,11 @@ lives in `src/data/`:
 | File | Contents |
 |---|---|
 | `genres.ts` | Popularity, VFX/practical/acting/script importance, low-budget tolerance per genre |
-| `audiences.ts` | Critic/audience weighting and market size per target audience |
-| `talentPool.ts` | The full hireable roster - fame/skill/reliability/ego/salary/affinities |
+| `audiences.ts` | Market size per target audience |
+| `talentGeneration.ts` | Per-role salary range and fame ceiling for procedural talent, plus the mandatory/optional role lists |
+| `talentNames.ts` | First/last name word banks for procedurally generated talent |
 | `scriptWords.ts` | Per-genre title word banks for procedural script titles |
-| `production.ts` | Cost + quality-score tables for every production choice |
+| `production.ts` | Ranges and anchors for the six continuous production dials (see 5.7) |
 | `postProduction.ts` | Cost/score deltas for edit style, music, test screening, final cut |
 | `release.ts` | Marketing spend tiers, release type profiles, release window bonuses |
 | `productionEvents.ts` | The pool of on-set event templates |
@@ -257,24 +340,34 @@ lives in `src/data/`:
 | `scoringWeights.ts` | The weighted-sum tables for quality/critic/audience |
 
 Rebalancing the game should almost always mean editing a table in this
-folder, not a formula in `engine/`.
+folder, not a formula in `engine/`. The one exception is the interpolation
+math itself (`engine/interpolate.ts`, `engine/productionDials.ts`,
+`engine/talentGenerator.ts`) - that's engine code because it's genuinely
+logic (log-scale conversion, piecewise interpolation), not just numbers, but
+it's written so every number it needs comes from `data/`.
 
 ## 8. Known limitations / next steps
 
 Things noticed during build/playtest that are worth flagging rather than
 quietly leaving implicit:
 
-- **Talent has no scheduling.** Every hire is always available; nothing
-  stops you re-hiring the same lead actor film after film. A natural next
-  step (mentioned in the original brief) is per-talent availability/cooldown
-  and persistent relationships (an actor you keep hiring gets loyalty; one
-  you burn gets pricier or refuses).
+- **Talent has no persistence, scheduling, or relationships.** Every
+  candidate is generated fresh per genre selection and thrown away with the
+  rest of the draft - there's no "same actor across films" concept anymore
+  to build loyalty or grudges on top of. A future relationship/contract
+  system would need talent to persist in `Studio` the way `filmsReleased`
+  does, generated once and then drawn from (with availability/cooldown)
+  rather than regenerated every time.
+- **Candidate sampling is randomized, not exhaustive.** Each role only
+  draws 10 candidates log-uniformly across its range, so the single cheapest
+  (or single best) possible hire for a role won't always appear in a given
+  slate - a player chasing the exact floor may need to hit "Reroll
+  Candidates" a few times. This is deliberate (real casting doesn't offer
+  infinite options either) but worth knowing when reasoning about "why
+  didn't I see anyone under £X".
 - **Buzz and Marketability scores are computed but not fully load-bearing.**
   Buzz shows on the results screen; Marketability doesn't surface anywhere
   yet. Both are clean hooks for a pre-release hype mechanic.
-- **The talent roster is static and hand-tuned**, not procedurally generated
-  like scripts are. Fine for an MVP roster size; would need generation (or a
-  much bigger hand-authored pool) if the game runs many in-game years.
 - **No AI rival studios, awards, franchises, scandals, or physical
   facilities** - all explicitly out of scope for the MVP per the brief, and
   all should slot in as new `data/` + `engine/` modules plus one more studio
