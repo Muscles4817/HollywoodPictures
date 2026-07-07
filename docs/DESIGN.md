@@ -106,7 +106,7 @@ Six 0-100 sub-scores feed the Final Quality Score:
 |---|---|---|
 | **Script** | `originality*.3 + structure*.3 + dialogue*.25 + marketability*.15` | Independent of genre fit. |
 | **Direction** | `director.skill*.6 + genreAffinity(director)*.4` | No director hired -> flat 35. |
-| **Acting** | `lead*.7 + support*.3`, each `skill*.65 + genreAffinity*.35` | No actor hired -> flat 30 for that slot. |
+| **Acting** | `lead*.7 + avg(supports)*.3`, each `skill*.65 + genreAffinity*.35` | No actor hired -> flat 30 for that slot. Supporting Actor can be an ensemble (see 5.8/5.9) - more of them *averages* the group's quality, it doesn't add up. |
 | **Production** | Weighted blend of budget/shooting/set/effects "quality scores", each read off a continuous curve (`engine/productionDials.ts`) rather than a fixed tier, with VFX vs. practical-effects weighted per genre (`data/genres.ts` `vfxImportance` / `practicalEffectsImportance`) | This is where "Action/Sci-Fi/Fantasy benefit from VFX" and "Drama/Romance don't" actually happens. |
 | **Post-production** | `55 + testScreeningDelta + musicDelta + (Balanced edit ? 5 : 0)` | See `data/postProduction.ts`. |
 | **Events** | `50 + sum(event.qualityDelta) * 2` | Amplified because each rolled event's raw delta is small (~-10..+10 across 3-5 events). |
@@ -256,11 +256,17 @@ total).
 
 There's no fixed roster of named actors anymore - every candidate is
 generated fresh, the same way scripts are. `generateTalentCandidates(role,
-genre, rng)` draws 10 candidates per role, each sampling a salary on a log
-scale across that role's own range (`data/talentGeneration.ts:ROLE_GENERATION_PROFILES` -
-e.g. Lead Actor spans £40,000 - £15,000,000, Editor spans £10,000 -
-£1,200,000) so a real shoestring hire and a blockbuster star are both
-represented and reachable via a price slider.
+genre, rng)` draws 50 candidates per role, each sampling a salary from a
+stratified band on a log scale across that role's own range
+(`data/talentGeneration.ts:ROLE_GENERATION_PROFILES` - e.g. Lead Actor spans
+£40,000 - £15,000,000, Editor spans £10,000 - £1,200,000) so a real
+shoestring hire and a blockbuster star are both represented and reachable
+via a price slider. Stratifying (one candidate per even slice of the range,
+with random jitter inside each slice) rather than pure random sampling
+guarantees coverage across the whole spectrum instead of leaving it to
+chance - generation is cheap enough (a handful of arithmetic/RNG ops per
+candidate, ~55KB of localStorage for a full set of pools) that there's no
+real reason to ration it.
 
 Given a candidate's position `t` on that log scale:
 
@@ -281,14 +287,31 @@ caps how famous a role can plausibly get even at the top of its pay scale -
 crew don't become household names the way stars do.
 
 On the Hire Talent screen, each role gets its own price slider (`SET_TALENT_TARGET_PRICE`)
-that filters the 10 generated candidates down to the 6 closest to that
+that filters the 50 generated candidates down to the 9 closest to that
 price - moving the slider changes who's shown, it doesn't regenerate
 anyone. A "Reroll Candidates" button (`REROLL_TALENT_CANDIDATES`) draws a
-fresh 10 if the current slate doesn't have anyone appealing. A master
+fresh 50 if the current slate doesn't have anyone appealing. A master
 "Target Cast & Crew Budget" slider (`SET_TALENT_BUDGET_SPLIT`) splits a
 total evenly across the six mandatory roles as a starting point - the
 player is free to tilt any individual role's slider up or down afterward to
 over- or under-spend relative to that split.
+
+**Role capacity** (`data/talentGeneration.ts:ROLE_CAPACITY`) governs how many
+people a role can hold: `{ min, max }`, checked in two places - the reducer
+(`TOGGLE_TALENT_FOR_ROLE` refuses to add past `max`; `min` drives the "still
+need to hire" validation on the Continue button) and the Hire Talent screen
+(cards for candidates you haven't hired grey out and show "Cast full" once
+`max` is reached, but an already-hired card stays clickable so you can
+un-hire them). Every role is currently `{1,1}` (hire one, replacing swaps
+who) except Supporting Actor at `{1,4}` - the first role that supports an
+ensemble. Hiring more people into an ensemble role doesn't add their
+contributions up; it *averages* them (see the Acting sub-score, 5.1) - a
+bigger supporting cast is about hedging and flavor (spreading genre-affinity
+risk, more reliability data points feeding production risk in 5.9), not a
+free quality multiplier. Two singular-role actions exist because the
+semantics genuinely differ: `SET_TALENT_FOR_ROLE` replaces/toggles a `{1,1}`
+role in place, `TOGGLE_TALENT_FOR_ROLE` adds-or-removes against a role that
+can hold more than one.
 
 ### 5.9 Production risk & events (`engine/production.ts`, `data/productionEvents.ts`)
 
@@ -329,7 +352,7 @@ lives in `src/data/`:
 |---|---|
 | `genres.ts` | Popularity, VFX/practical/acting/script importance, low-budget tolerance per genre |
 | `audiences.ts` | Market size per target audience |
-| `talentGeneration.ts` | Per-role salary range and fame ceiling for procedural talent, plus the mandatory/optional role lists |
+| `talentGeneration.ts` | Per-role salary range and fame ceiling for procedural talent, the mandatory/optional role lists, and per-role hiring capacity (`{min, max}`) |
 | `talentNames.ts` | First/last name word banks for procedurally generated talent |
 | `scriptWords.ts` | Per-genre title word banks for procedural script titles |
 | `production.ts` | Ranges and anchors for the six continuous production dials (see 5.7) |
@@ -358,13 +381,13 @@ quietly leaving implicit:
   system would need talent to persist in `Studio` the way `filmsReleased`
   does, generated once and then drawn from (with availability/cooldown)
   rather than regenerated every time.
-- **Candidate sampling is randomized, not exhaustive.** Each role only
-  draws 10 candidates log-uniformly across its range, so the single cheapest
-  (or single best) possible hire for a role won't always appear in a given
-  slate - a player chasing the exact floor may need to hit "Reroll
-  Candidates" a few times. This is deliberate (real casting doesn't offer
-  infinite options either) but worth knowing when reasoning about "why
-  didn't I see anyone under £X".
+- **Candidate sampling is randomized, not exhaustive.** 50 stratified
+  candidates per role gives dense coverage, but it's still finite - the
+  single cheapest (or single best) possible hire for a role won't always
+  appear in a given slate, so a player chasing the exact floor may
+  occasionally need to hit "Reroll Candidates". This is deliberate (real
+  casting doesn't offer infinite options either) but worth knowing when
+  reasoning about "why didn't I see anyone under £X".
 - **Buzz and Marketability scores are computed but not fully load-bearing.**
   Buzz shows on the results screen; Marketability doesn't surface anywhere
   yet. Both are clean hooks for a pre-release hype mechanic.
