@@ -11,16 +11,15 @@ function randomName(rng: RandomFn): string {
 }
 
 /**
- * Generates one candidate for a role at a random point along that role's
- * salary range. Fame and skill scale up with price on average, but with
+ * Generates one candidate for a role at a given point along that role's
+ * salary range (t, 0-1 on the log scale - see generateTalentCandidates for
+ * how t is chosen). Fame and skill scale up with price on average, but with
  * enough noise that a cheap unknown can be a hidden gem and an expensive
  * hire can disappoint. Reliability and ego are only loosely tied to price -
  * professionalism isn't for sale, and neither is a diva-free set.
  */
-function generateTalent(role: TalentRole, genre: Genre, rng: RandomFn): Talent {
+function generateTalent(role: TalentRole, genre: Genre, rng: RandomFn, t: number): Talent {
   const profile = ROLE_GENERATION_PROFILES[role];
-  const t = rng(); // log-scale position within this role's salary range
-
   const salary = Math.round(logAmount(t, profile.salaryRange) / 1000) * 1000;
 
   const fameMean = 10 + (profile.fameCeiling - 10) * t;
@@ -49,7 +48,19 @@ function generateTalent(role: TalentRole, genre: Genre, rng: RandomFn): Talent {
   };
 }
 
-/** Generates a slate of candidates for one role, spanning the whole salary range. */
-export function generateTalentCandidates(role: TalentRole, genre: Genre, rng: RandomFn, count = 10): Talent[] {
-  return Array.from({ length: count }, () => generateTalent(role, genre, rng));
+/**
+ * Generates a slate of candidates for one role. Salary positions are
+ * stratified - the 0-1 salary-range scale is split into `count` equal bands
+ * and one candidate is drawn (with random jitter) from each - rather than
+ * pure random sampling, which tends to clump and leave gaps. That guarantees
+ * a genuinely cheap option and a genuinely expensive one always show up,
+ * and that wherever a price slider is pointed, there's someone nearby.
+ */
+export function generateTalentCandidates(role: TalentRole, genre: Genre, rng: RandomFn, count = 18): Talent[] {
+  return Array.from({ length: count }, (_, i) => {
+    const bandStart = i / count;
+    const bandEnd = (i + 1) / count;
+    const t = randFloat(rng, bandStart, bandEnd);
+    return generateTalent(role, genre, rng, t);
+  });
 }

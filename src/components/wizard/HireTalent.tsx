@@ -17,7 +17,7 @@ const MASTER_BUDGET_RANGE = { min: 300_000, max: 30_000_000 };
 const DEFAULT_MASTER_BUDGET = 3_000_000;
 
 /** How many candidates (closest to the target price) to actually display per role. */
-const VISIBLE_CANDIDATE_COUNT = 6;
+const VISIBLE_CANDIDATE_COUNT = 9;
 
 export function HireTalent() {
   const { state, dispatch } = useStudio();
