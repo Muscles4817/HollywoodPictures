@@ -4,7 +4,7 @@ import { createRng, randInt, clamp, type RandomFn } from '../engine/random';
 import { generateScriptOptions } from '../engine/scriptGenerator';
 import { generateTalentCandidates } from '../engine/talentGenerator';
 import { logAmount } from '../engine/interpolate';
-import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
+import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_CAPACITY, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { simulateProduction } from '../engine/production';
 import { computeReleaseResults } from '../engine/releaseFilm';
 import { applyReputationChange } from '../engine/reputation';
@@ -96,6 +96,26 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       if (!state.draft) return state;
       const withoutRole = state.draft.talent.filter((t) => t.role !== action.role);
       const nextTalent = action.talent ? [...withoutRole, action.talent] : withoutRole;
+      return { ...state, draft: { ...state.draft, talent: nextTalent } };
+    }
+
+    // For roles that can hold more than one person (Supporting Actor): add
+    // this candidate if there's room, or remove them if already hired.
+    // Silently no-ops at capacity rather than erroring - the UI disables
+    // unhired candidates once a role is full, so this is a defensive guard.
+    case 'TOGGLE_TALENT_FOR_ROLE': {
+      if (!state.draft) return state;
+      const current = state.draft.talent.filter((t) => t.role === action.role);
+      const alreadyHired = current.some((t) => t.id === action.talent.id);
+
+      let nextTalent: Talent[];
+      if (alreadyHired) {
+        nextTalent = state.draft.talent.filter((t) => t.id !== action.talent.id);
+      } else if (current.length < ROLE_CAPACITY[action.role].max) {
+        nextTalent = [...state.draft.talent, action.talent];
+      } else {
+        return state;
+      }
       return { ...state, draft: { ...state.draft, talent: nextTalent } };
     }
 

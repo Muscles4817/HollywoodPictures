@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { MANDATORY_TALENT_ROLES, OPTIONAL_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
+import { MANDATORY_TALENT_ROLES, OPTIONAL_TALENT_ROLES, ROLE_CAPACITY, ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
 import { logAmount } from '../../engine/interpolate';
 import { computeCommittedSpend } from '../../state/selectors';
 import { Card } from '../common/Card';
@@ -23,17 +23,24 @@ export function HireTalent() {
   const draft = state.draft!;
   const [masterBudget, setMasterBudget] = useState(DEFAULT_MASTER_BUDGET);
 
-  function talentForRole(role: TalentRole): Talent | undefined {
-    return draft.talent.find((t) => t.role === role);
+  function talentsForRole(role: TalentRole): Talent[] {
+    return draft.talent.filter((t) => t.role === role);
   }
 
   function selectTalent(role: TalentRole, talent: Talent) {
-    const current = talentForRole(role);
-    dispatch({ type: 'SET_TALENT_FOR_ROLE', role, talent: current?.id === talent.id ? null : talent });
+    const capacity = ROLE_CAPACITY[role];
+    if (capacity.max === 1) {
+      const current = talentsForRole(role)[0];
+      dispatch({ type: 'SET_TALENT_FOR_ROLE', role, talent: current?.id === talent.id ? null : talent });
+      return;
+    }
+    // Multi-hire role: toggling an unhired candidate once the role is full is a no-op
+    // on the reducer side too, but the UI disables those cards so this shouldn't fire.
+    dispatch({ type: 'TOGGLE_TALENT_FOR_ROLE', role, talent });
   }
 
   const totalSalary = draft.talent.reduce((sum, t) => sum + t.salary, 0);
-  const missingMandatory = MANDATORY_TALENT_ROLES.filter((role) => !talentForRole(role));
+  const missingMandatory = MANDATORY_TALENT_ROLES.filter((role) => talentsForRole(role).length < ROLE_CAPACITY[role].min);
   const committedSpend = computeCommittedSpend(draft);
   const canAfford = state.studio.cash >= committedSpend;
   const canContinue = missingMandatory.length === 0 && canAfford;
@@ -45,22 +52,29 @@ export function HireTalent() {
 
   function renderRoleSection(role: TalentRole, optional: boolean) {
     const range = ROLE_GENERATION_PROFILES[role].salaryRange;
+    const capacity = ROLE_CAPACITY[role];
     const targetPrice = draft.talentTargetPriceByRole[role] ?? logAmount(0.5, range);
     const candidates = draft.talentCandidatesByRole[role] ?? [];
-    const hired = talentForRole(role);
+    const hired = talentsForRole(role);
+    const atCap = hired.length >= capacity.max;
     const showVfxHint = role === 'VFX Supervisor' && draft.genre && VFX_RECOMMENDED_GENRES.has(draft.genre);
 
     const sortedByProximity = [...candidates].sort(
       (a, b) => Math.abs(a.salary - targetPrice) - Math.abs(b.salary - targetPrice),
     );
     const visible = sortedByProximity.slice(0, VISIBLE_CANDIDATE_COUNT);
-    // Never let the currently hired pick silently vanish from view just because the slider moved on.
-    const displayList = hired && !visible.some((c) => c.id === hired.id) ? [hired, ...visible] : visible;
+    // Never let a currently hired pick silently vanish from view just because the slider moved on.
+    const hiredNotVisible = hired.filter((h) => !visible.some((v) => v.id === h.id));
+    const displayList = [...hiredNotVisible, ...visible];
+
+    const roleLabel = capacity.max > 1
+      ? `${role}${optional ? ' (optional)' : ''} - ${hired.length}/${capacity.max} hired`
+      : `${role}${optional ? ' (optional)' : ''}`;
 
     return (
       <RangeSlider
         key={role}
-        label={`${role}${optional ? ' (optional)' : ''}`}
+        label={roleLabel}
         min={range.min}
         max={range.max}
         logScale
@@ -75,16 +89,24 @@ export function HireTalent() {
             <div className="row-between">
               <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
                 Showing candidates closest to your target price.
+                {capacity.max > 1 && ` Hire up to ${capacity.max} for this role.`}
               </span>
               <Button onClick={() => dispatch({ type: 'REROLL_TALENT_CANDIDATES', role })}>Reroll Candidates</Button>
             </div>
             {showVfxHint && <p style={{ margin: 0 }}>This genre benefits strongly from VFX - consider hiring a supervisor.</p>}
             <div className="grid">
               {displayList.map((talent) => {
-                const selected = hired?.id === talent.id;
+                const selected = hired.some((h) => h.id === talent.id);
+                const disabled = !selected && atCap;
                 const affinity = draft.genre ? talent.genreAffinities[draft.genre] ?? 50 : null;
                 return (
-                  <Card key={talent.id} selectable selected={selected} onClick={() => selectTalent(role, talent)}>
+                  <Card
+                    key={talent.id}
+                    selectable
+                    selected={selected}
+                    disabled={disabled}
+                    onClick={() => selectTalent(role, talent)}
+                  >
                     <div className="card-title">{talent.name}</div>
                     <div className="card-subtitle"><Money amount={talent.salary} /></div>
                     <div style={{ fontSize: '0.85em' }}>
@@ -95,6 +117,7 @@ export function HireTalent() {
                       {affinity !== null && <div>Genre Affinity ({draft.genre}): {affinity}</div>}
                     </div>
                     {selected && <p style={{ color: 'var(--green)', marginTop: 6 }}>Hired</p>}
+                    {disabled && <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>Cast full</p>}
                   </Card>
                 );
               })}
@@ -113,7 +136,8 @@ export function HireTalent() {
         Fame boosts box office appeal - especially your lead actor's. Skill drives quality, most directly through your
         director and cast. Genre Affinity shows how well someone suits this specific genre, and matters most for your
         director and lead actor. Reliability and Ego apply across everyone you hire: an unreliable, high-ego crew
-        raises the odds of a costly incident once filming starts.
+        raises the odds of a costly incident once filming starts. Supporting Actor can be an ensemble - hiring more
+        people there averages their acting quality and fame together, it doesn't stack.
       </p>
 
       <RangeSlider

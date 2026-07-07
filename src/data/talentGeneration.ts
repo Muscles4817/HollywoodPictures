@@ -36,3 +36,22 @@ export const MANDATORY_TALENT_ROLES: TalentRole[] = [
 ];
 export const OPTIONAL_TALENT_ROLES: TalentRole[] = ['VFX Supervisor'];
 export const ALL_TALENT_ROLES: TalentRole[] = [...MANDATORY_TALENT_ROLES, ...OPTIONAL_TALENT_ROLES];
+
+// How many people a role can hold. Most roles are one-in, one-out (hiring
+// someone new replaces whoever's there); Supporting Actor is the first role
+// that supports an ensemble - up to 4, at least 1. min applies only to
+// mandatory roles; OPTIONAL_TALENT_ROLES ignore it (0 hired is fine).
+export interface RoleCapacity {
+  min: number;
+  max: number;
+}
+
+export const ROLE_CAPACITY: Record<TalentRole, RoleCapacity> = {
+  Director: { min: 1, max: 1 },
+  'Lead Actor': { min: 1, max: 1 },
+  'Supporting Actor': { min: 1, max: 4 },
+  Writer: { min: 1, max: 1 },
+  Composer: { min: 1, max: 1 },
+  Editor: { min: 1, max: 1 },
+  'VFX Supervisor': { min: 0, max: 1 },
+};

@@ -26,9 +26,19 @@ function getTalent(talent: Talent[], role: Talent['role']): Talent | undefined {
   return talent.find((t) => t.role === role);
 }
 
+/** For roles that can hold more than one person (Supporting Actor). */
+function getTalentsForRole(talent: Talent[], role: Talent['role']): Talent[] {
+  return talent.filter((t) => t.role === role);
+}
+
 function genreAffinity(t: Talent | undefined, genre: Genre): number {
   if (!t) return 50; // no one hired for this role -> neutral default
   return t.genreAffinities[genre] ?? 50;
+}
+
+function average(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
 
 /** Script quality independent of genre fit (originality/structure/dialogue/marketability). */
@@ -43,13 +53,20 @@ export function computeDirectionScore(talent: Talent[], genre: Genre): number {
   return director.skill * 0.6 + genreAffinity(director, genre) * 0.4;
 }
 
-/** Combined lead + supporting acting quality, weighted toward the lead. */
+/**
+ * Combined lead + supporting acting quality, weighted toward the lead.
+ * Supporting Actor can hold an ensemble (see data/talentGeneration.ts
+ * ROLE_CAPACITY) - a bigger cast doesn't automatically raise this score,
+ * it's the *average* skill/fit of everyone hired, same as one person would.
+ */
 export function computeActingScore(talent: Talent[], genre: Genre): number {
   const lead = getTalent(talent, 'Lead Actor');
-  const support = getTalent(talent, 'Supporting Actor');
+  const supports = getTalentsForRole(talent, 'Supporting Actor');
+
   const leadScore = lead ? lead.skill * 0.65 + genreAffinity(lead, genre) * 0.35 : 30;
-  const supportScore = support ? support.skill * 0.65 + genreAffinity(support, genre) * 0.35 : 30;
-  return leadScore * 0.7 + supportScore * 0.3;
+  const supportScoreAvg = average(supports.map((s) => s.skill * 0.65 + genreAffinity(s, genre) * 0.35));
+
+  return leadScore * 0.7 + (supportScoreAvg ?? 30) * 0.3;
 }
 
 /**
@@ -110,8 +127,9 @@ export function computeGenreFitScore(script: Script, talent: Talent[], genre: Ge
 /** How sellable the film looks, independent of how it eventually gets marketed. */
 export function computeMarketabilityScore(script: Script, talent: Talent[], choices: ProductionChoices): number {
   const lead = getTalent(talent, 'Lead Actor');
-  const support = getTalent(talent, 'Supporting Actor');
-  const fameAvg = ((lead?.fame ?? 30) + (support?.fame ?? 30)) / 2;
+  const supports = getTalentsForRole(talent, 'Supporting Actor');
+  const supportFameAvg = average(supports.map((s) => s.fame)) ?? 30;
+  const fameAvg = ((lead?.fame ?? 30) + supportFameAvg) / 2;
   const runtimeDelta = runtimeMarketabilityDelta(choices.runtimeIntensity);
   return clamp(script.marketability * 0.5 + fameAvg * 0.45 + runtimeDelta, 0, 100);
 }

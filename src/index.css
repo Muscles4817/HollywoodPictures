@@ -115,6 +115,11 @@ button {
   box-shadow: 0 0 0 2px rgba(36, 81, 201, 0.25);
 }
 
+.card-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .card-title {
   font-weight: 600;
   margin-bottom: 4px;

@@ -56,6 +56,7 @@ export type GameAction =
   | { type: 'REROLL_SCRIPTS' }
   | { type: 'SELECT_SCRIPT'; script: Script }
   | { type: 'SET_TALENT_FOR_ROLE'; role: TalentRole; talent: Talent | null }
+  | { type: 'TOGGLE_TALENT_FOR_ROLE'; role: TalentRole; talent: Talent }
   | { type: 'SET_TALENT_TARGET_PRICE'; role: TalentRole; price: number }
   | { type: 'SET_TALENT_BUDGET_SPLIT'; totalBudget: number }
   | { type: 'REROLL_TALENT_CANDIDATES'; role: TalentRole }
