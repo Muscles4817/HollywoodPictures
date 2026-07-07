@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { MARKETING_SPEND_PROFILES, RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS } from '../../data/release';
+import { MARKETING_SPEND_PROFILES, RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS, RELEASE_WINDOW_DESCRIPTIONS } from '../../data/release';
+import { pluckDescriptions } from '../../data/describe';
 import { computeMarketingCost } from '../../engine/cost';
 import { BudgetTracker } from '../common/BudgetTracker';
 import { ChoiceGroup } from '../common/ChoiceGroup';
@@ -12,6 +13,9 @@ import type { MarketingChoices, MarketingSpend, ReleaseType, ReleaseWindow } fro
 const MARKETING_SPENDS = Object.keys(MARKETING_SPEND_PROFILES) as MarketingSpend[];
 const RELEASE_TYPES = Object.keys(RELEASE_TYPE_PROFILES) as ReleaseType[];
 const RELEASE_WINDOWS = Object.keys(RELEASE_WINDOW_GENRE_BONUS) as ReleaseWindow[];
+
+const MARKETING_SPEND_DESCRIPTIONS = pluckDescriptions(MARKETING_SPEND_PROFILES);
+const RELEASE_TYPE_DESCRIPTIONS = pluckDescriptions(RELEASE_TYPE_PROFILES);
 
 const DEFAULT_CHOICES: MarketingChoices = {
   marketingSpend: 'Medium',
@@ -46,23 +50,27 @@ export function MarketingRelease() {
       <BudgetTracker />
       <h1>Marketing &amp; Release</h1>
 
-      <div className="card stack">
-        <ChoiceGroup label="Marketing Spend" options={MARKETING_SPENDS} value={choices.marketingSpend} onChange={(v) => update('marketingSpend', v)} />
-        <ChoiceGroup
-          label="Release Type"
-          options={RELEASE_TYPES}
-          value={choices.releaseType}
-          onChange={(v) => update('releaseType', v)}
-          hint="Wide needs strong marketing behind it. Festival First helps critics. Streaming is lower upside but safer. Limited is cheaper but caps revenue."
-        />
-        <ChoiceGroup
-          label="Release Window"
-          options={RELEASE_WINDOWS}
-          value={choices.releaseWindow}
-          onChange={(v) => update('releaseWindow', v)}
-          hint="Halloween boosts Horror. Summer boosts Action/Sci-Fi/Fantasy. Christmas boosts Fantasy/Romance/Comedy. Awards Season boosts Drama/Thriller."
-        />
-      </div>
+      <ChoiceGroup
+        label="Marketing Spend"
+        options={MARKETING_SPENDS}
+        value={choices.marketingSpend}
+        onChange={(v) => update('marketingSpend', v)}
+        descriptions={MARKETING_SPEND_DESCRIPTIONS}
+      />
+      <ChoiceGroup
+        label="Release Type"
+        options={RELEASE_TYPES}
+        value={choices.releaseType}
+        onChange={(v) => update('releaseType', v)}
+        descriptions={RELEASE_TYPE_DESCRIPTIONS}
+      />
+      <ChoiceGroup
+        label="Release Window"
+        options={RELEASE_WINDOWS}
+        value={choices.releaseWindow}
+        onChange={(v) => update('releaseWindow', v)}
+        descriptions={RELEASE_WINDOW_DESCRIPTIONS}
+      />
 
       {weakMarketingWarning && (
         <p style={{ color: 'var(--red)' }}>A wide release with little marketing behind it will badly underperform.</p>

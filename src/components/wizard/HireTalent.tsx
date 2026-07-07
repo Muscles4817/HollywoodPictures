@@ -73,7 +73,12 @@ export function HireTalent() {
       <WizardSteps current="talent" />
       <BudgetTracker />
       <h1>Hire Talent</h1>
-      <p>Higher fame boosts marketing reach. Higher skill boosts quality. Low reliability and high ego raise production risk.</p>
+      <p className="choice-description">
+        Fame boosts box office appeal - especially your lead actor's. Skill drives quality, most directly through your
+        director and cast. Genre Affinity shows how well someone suits this specific genre, and matters most for your
+        director and lead actor. Reliability and Ego apply across everyone you hire: an unreliable, high-ego crew
+        raises the odds of a costly incident once filming starts.
+      </p>
 
       {MANDATORY_ROLES.map((role) => renderRoleSection(role, false))}
       {OPTIONAL_ROLES.map((role) => renderRoleSection(role, true))}

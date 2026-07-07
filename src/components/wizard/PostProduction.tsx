@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../../data/postProduction';
+import { pluckDescriptions } from '../../data/describe';
 import { BudgetTracker } from '../common/BudgetTracker';
 import { ChoiceGroup } from '../common/ChoiceGroup';
 import { Button } from '../common/Button';
@@ -12,6 +13,11 @@ const EDIT_STYLES = Object.keys(EDIT_STYLE_PROFILES) as EditStyle[];
 const MUSIC_FOCUSES = Object.keys(MUSIC_FOCUS_PROFILES) as MusicFocus[];
 const TEST_SCREENING_RESPONSES = Object.keys(TEST_SCREENING_PROFILES) as TestScreeningResponse[];
 const FINAL_CUT_FOCUSES = Object.keys(FINAL_CUT_FOCUS_PROFILES) as FinalCutFocus[];
+
+const EDIT_STYLE_DESCRIPTIONS = pluckDescriptions(EDIT_STYLE_PROFILES);
+const MUSIC_FOCUS_DESCRIPTIONS = pluckDescriptions(MUSIC_FOCUS_PROFILES);
+const TEST_SCREENING_DESCRIPTIONS = pluckDescriptions(TEST_SCREENING_PROFILES);
+const FINAL_CUT_FOCUS_DESCRIPTIONS = pluckDescriptions(FINAL_CUT_FOCUS_PROFILES);
 
 const DEFAULT_CHOICES: PostProductionChoices = {
   editStyle: 'Balanced',
@@ -44,12 +50,36 @@ export function PostProduction() {
       <BudgetTracker />
       <h1>Post-Production</h1>
 
-      <div className="card stack">
-        <ChoiceGroup label="Edit Style" options={EDIT_STYLES} value={choices.editStyle} onChange={(v) => update('editStyle', v)} hint="Artistic wins over critics; Commercial wins over audiences." />
-        <ChoiceGroup label="Music Focus" options={MUSIC_FOCUSES} value={choices.musicFocus} onChange={(v) => update('musicFocus', v)} />
-        <ChoiceGroup label="Test Screening Response" options={TEST_SCREENING_RESPONSES} value={choices.testScreeningResponse} onChange={(v) => update('testScreeningResponse', v)} hint="Acting on test screening feedback costs money but improves quality." />
-        <ChoiceGroup label="Final Marketing Cut" options={FINAL_CUT_FOCUSES} value={choices.finalCutFocus} onChange={(v) => update('finalCutFocus', v)} />
-      </div>
+      <ChoiceGroup
+        label="Edit Style"
+        options={EDIT_STYLES}
+        value={choices.editStyle}
+        onChange={(v) => update('editStyle', v)}
+        hint="Artistic wins over critics; Commercial wins over audiences."
+        descriptions={EDIT_STYLE_DESCRIPTIONS}
+      />
+      <ChoiceGroup
+        label="Music Focus"
+        options={MUSIC_FOCUSES}
+        value={choices.musicFocus}
+        onChange={(v) => update('musicFocus', v)}
+        descriptions={MUSIC_FOCUS_DESCRIPTIONS}
+      />
+      <ChoiceGroup
+        label="Test Screening Response"
+        options={TEST_SCREENING_RESPONSES}
+        value={choices.testScreeningResponse}
+        onChange={(v) => update('testScreeningResponse', v)}
+        hint="Acting on test screening feedback costs money but improves quality."
+        descriptions={TEST_SCREENING_DESCRIPTIONS}
+      />
+      <ChoiceGroup
+        label="Final Marketing Cut"
+        options={FINAL_CUT_FOCUSES}
+        value={choices.finalCutFocus}
+        onChange={(v) => update('finalCutFocus', v)}
+        descriptions={FINAL_CUT_FOCUS_DESCRIPTIONS}
+      />
 
       <div className="card">
         <div className="stat-label">Test Screening Cost</div>

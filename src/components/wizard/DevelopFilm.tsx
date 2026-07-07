@@ -1,12 +1,16 @@
 import { useStudio } from '../../state/StudioContext';
-import { GENRES } from '../../data/genres';
-import { TARGET_AUDIENCES } from '../../data/audiences';
+import { GENRES, GENRE_PROFILES } from '../../data/genres';
+import { TARGET_AUDIENCES, AUDIENCE_PROFILES } from '../../data/audiences';
+import { pluckDescriptions } from '../../data/describe';
 import { BudgetTracker } from '../common/BudgetTracker';
 import { Card } from '../common/Card';
+import { ChoiceGroup } from '../common/ChoiceGroup';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { WizardSteps } from '../common/WizardSteps';
-import type { Genre, TargetAudience } from '../../types';
+
+const GENRE_DESCRIPTIONS = pluckDescriptions(GENRE_PROFILES);
+const AUDIENCE_DESCRIPTIONS = pluckDescriptions(AUDIENCE_PROFILES);
 
 export function DevelopFilm() {
   const { state, dispatch } = useStudio();
@@ -27,7 +31,7 @@ export function DevelopFilm() {
       <h1>Develop Your Film</h1>
 
       <div className="card stack">
-        <h2>Title</h2>
+        <h3 style={{ margin: 0 }}>Title</h3>
         <input
           type="text"
           placeholder="Working title..."
@@ -37,42 +41,32 @@ export function DevelopFilm() {
         />
       </div>
 
-      <div className="card stack">
-        <h2>Genre</h2>
-        <div className="row">
-          {GENRES.map((genre: Genre) => (
-            <Button
-              key={genre}
-              variant={draft.genre === genre ? 'primary' : 'secondary'}
-              onClick={() => dispatch({ type: 'SET_GENRE', genre })}
-            >
-              {genre}
-            </Button>
-          ))}
-        </div>
-      </div>
+      <ChoiceGroup
+        label="Genre"
+        options={GENRES}
+        value={draft.genre}
+        onChange={(genre) => dispatch({ type: 'SET_GENRE', genre })}
+        descriptions={GENRE_DESCRIPTIONS}
+      />
 
-      <div className="card stack">
-        <h2>Target Audience</h2>
-        <div className="row">
-          {TARGET_AUDIENCES.map((audience: TargetAudience) => (
-            <Button
-              key={audience}
-              variant={draft.targetAudience === audience ? 'primary' : 'secondary'}
-              onClick={() => dispatch({ type: 'SET_TARGET_AUDIENCE', targetAudience: audience })}
-            >
-              {audience}
-            </Button>
-          ))}
-        </div>
-      </div>
+      <ChoiceGroup
+        label="Target Audience"
+        options={TARGET_AUDIENCES}
+        value={draft.targetAudience}
+        onChange={(targetAudience) => dispatch({ type: 'SET_TARGET_AUDIENCE', targetAudience })}
+        descriptions={AUDIENCE_DESCRIPTIONS}
+      />
 
       {draft.genre && (
         <div className="card stack">
           <div className="row-between">
-            <h2>Script Options</h2>
+            <h3 style={{ margin: 0 }}>Script Options</h3>
             <Button onClick={() => dispatch({ type: 'REROLL_SCRIPTS' })}>Reroll Scripts</Button>
           </div>
+          <p style={{ margin: 0 }}>
+            Genre Fit and Marketability drive audience appeal and box office reach. Originality and Direction quality
+            matter most to critics. Structure and Dialogue are overall craft. Higher Complexity raises production risk.
+          </p>
           <div className="grid">
             {draft.scriptOptions.map((script) => {
               const selected = draft.script?.id === script.id;
