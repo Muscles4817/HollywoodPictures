@@ -55,8 +55,14 @@ function generateTalent(role: TalentRole, genre: Genre, rng: RandomFn, t: number
  * pure random sampling, which tends to clump and leave gaps. That guarantees
  * a genuinely cheap option and a genuinely expensive one always show up,
  * and that wherever a price slider is pointed, there's someone nearby.
+ *
+ * 50 is generous on purpose: generation is cheap (a handful of arithmetic
+ * ops and RNG calls each, no rendering cost since only the closest few are
+ * ever displayed - see HireTalent.tsx's VISIBLE_CANDIDATE_COUNT), so there's
+ * no real reason to ration it. The whole slate serializes to well under
+ * 100KB of localStorage even at this size.
  */
-export function generateTalentCandidates(role: TalentRole, genre: Genre, rng: RandomFn, count = 18): Talent[] {
+export function generateTalentCandidates(role: TalentRole, genre: Genre, rng: RandomFn, count = 50): Talent[] {
   return Array.from({ length: count }, (_, i) => {
     const bandStart = i / count;
     const bandEnd = (i + 1) / count;
