@@ -1,10 +1,30 @@
-import type { Film } from '../types';
+import type { Film, Genre, Talent, TalentRole } from '../types';
 import { type GameAction, type GameState, createEmptyDraft, INITIAL_STUDIO } from './gameState';
-import { createRng, randInt, type RandomFn } from '../engine/random';
+import { createRng, randInt, clamp, type RandomFn } from '../engine/random';
 import { generateScriptOptions } from '../engine/scriptGenerator';
+import { generateTalentCandidates } from '../engine/talentGenerator';
+import { logAmount } from '../engine/interpolate';
+import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { simulateProduction } from '../engine/production';
 import { computeReleaseResults } from '../engine/releaseFilm';
 import { applyReputationChange } from '../engine/reputation';
+
+function generateAllTalentCandidates(genre: Genre, rng: RandomFn): Partial<Record<TalentRole, Talent[]>> {
+  const result: Partial<Record<TalentRole, Talent[]>> = {};
+  for (const role of ALL_TALENT_ROLES) {
+    result[role] = generateTalentCandidates(role, genre, rng);
+  }
+  return result;
+}
+
+/** Seeds every role's target price at the midpoint of its own salary range. */
+function defaultTalentTargetPrices(): Partial<Record<TalentRole, number>> {
+  const result: Partial<Record<TalentRole, number>> = {};
+  for (const role of ALL_TALENT_ROLES) {
+    result[role] = logAmount(0.5, ROLE_GENERATION_PROFILES[role].salaryRange);
+  }
+  return result;
+}
 
 /** Runs `fn` with a deterministic RNG seeded from state, returning the advanced seed to store back. */
 function withRng<T>(seed: number, fn: (rng: RandomFn) => T): { result: T; nextSeed: number } {
@@ -36,13 +56,21 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
 
     case 'SET_GENRE': {
       if (!state.draft) return state;
-      const { result: scriptOptions, nextSeed } = withRng(state.rngSeed, (rng) =>
-        generateScriptOptions(action.genre, rng),
-      );
+      const { result, nextSeed } = withRng(state.rngSeed, (rng) => ({
+        scriptOptions: generateScriptOptions(action.genre, rng),
+        talentCandidatesByRole: generateAllTalentCandidates(action.genre, rng),
+      }));
       return {
         ...state,
         rngSeed: nextSeed,
-        draft: { ...state.draft, genre: action.genre, scriptOptions, script: null },
+        draft: {
+          ...state.draft,
+          genre: action.genre,
+          scriptOptions: result.scriptOptions,
+          script: null,
+          talentCandidatesByRole: result.talentCandidatesByRole,
+          talentTargetPriceByRole: defaultTalentTargetPrices(),
+        },
       };
     }
 
@@ -69,6 +97,45 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const withoutRole = state.draft.talent.filter((t) => t.role !== action.role);
       const nextTalent = action.talent ? [...withoutRole, action.talent] : withoutRole;
       return { ...state, draft: { ...state.draft, talent: nextTalent } };
+    }
+
+    case 'SET_TALENT_TARGET_PRICE': {
+      if (!state.draft) return state;
+      return {
+        ...state,
+        draft: {
+          ...state.draft,
+          talentTargetPriceByRole: { ...state.draft.talentTargetPriceByRole, [action.role]: action.price },
+        },
+      };
+    }
+
+    case 'SET_TALENT_BUDGET_SPLIT': {
+      if (!state.draft) return state;
+      const perRole = action.totalBudget / MANDATORY_TALENT_ROLES.length;
+      const updated = { ...state.draft.talentTargetPriceByRole };
+      for (const role of MANDATORY_TALENT_ROLES) {
+        const range = ROLE_GENERATION_PROFILES[role].salaryRange;
+        updated[role] = clamp(perRole, range.min, range.max);
+      }
+      return { ...state, draft: { ...state.draft, talentTargetPriceByRole: updated } };
+    }
+
+    case 'REROLL_TALENT_CANDIDATES': {
+      if (!state.draft || !state.draft.genre) return state;
+      const { result: candidates, nextSeed } = withRng(state.rngSeed, (rng) =>
+        generateTalentCandidates(action.role, state.draft!.genre!, rng),
+      );
+      return {
+        ...state,
+        rngSeed: nextSeed,
+        draft: {
+          ...state.draft,
+          talentCandidatesByRole: { ...state.draft.talentCandidatesByRole, [action.role]: candidates },
+          // A fresh slate invalidates any previous pick for this role.
+          talent: state.draft.talent.filter((t) => t.role !== action.role),
+        },
+      };
     }
 
     case 'SET_PRODUCTION_CHOICES': {

@@ -37,6 +37,8 @@ export function createEmptyDraft(): FilmDraft {
     scriptOptions: [],
     script: null,
     talent: [],
+    talentCandidatesByRole: {},
+    talentTargetPriceByRole: {},
     productionChoices: null,
     events: [],
     postProductionChoices: null,
@@ -54,6 +56,9 @@ export type GameAction =
   | { type: 'REROLL_SCRIPTS' }
   | { type: 'SELECT_SCRIPT'; script: Script }
   | { type: 'SET_TALENT_FOR_ROLE'; role: TalentRole; talent: Talent | null }
+  | { type: 'SET_TALENT_TARGET_PRICE'; role: TalentRole; price: number }
+  | { type: 'SET_TALENT_BUDGET_SPLIT'; totalBudget: number }
+  | { type: 'REROLL_TALENT_CANDIDATES'; role: TalentRole }
   | { type: 'SET_PRODUCTION_CHOICES'; choices: ProductionChoices }
   | { type: 'BEGIN_FILMING' }
   | { type: 'SET_POST_PRODUCTION_CHOICES'; choices: PostProductionChoices }

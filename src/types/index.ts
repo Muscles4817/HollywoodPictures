@@ -154,6 +154,10 @@ export interface FilmDraft {
   scriptOptions: Script[];
   script: Script | null;
   talent: Talent[];
+  /** Procedurally generated candidates per role, regenerated whenever genre changes. */
+  talentCandidatesByRole: Partial<Record<TalentRole, Talent[]>>;
+  /** The price the player is currently targeting for each role - filters which candidates are shown. */
+  talentTargetPriceByRole: Partial<Record<TalentRole, number>>;
   productionChoices: ProductionChoices | null;
   events: ProductionEvent[];
   postProductionChoices: PostProductionChoices | null;
