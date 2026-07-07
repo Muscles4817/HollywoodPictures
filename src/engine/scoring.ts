@@ -17,7 +17,7 @@ import {
   VFX_SPEND_PROFILES,
 } from '../data/production';
 import { EDIT_STYLE_PROFILES, FINAL_CUT_FOCUS_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES } from '../data/postProduction';
-import { MARKETING_SPEND_PROFILES } from '../data/release';
+import { MARKETING_SPEND_PROFILES, RELEASE_TYPE_PROFILES } from '../data/release';
 import { AUDIENCE_WEIGHTS, CRITIC_WEIGHTS, QUALITY_WEIGHTS } from '../data/scoringWeights';
 import { clamp } from './random';
 
@@ -148,15 +148,22 @@ export function computeQualityBreakdown(
   return { scriptScore, directionScore, actingScore, productionScore, postProductionScore, eventsScore, qualityScore };
 }
 
-/** Critic Score: craft-driven - quality, originality, direction, edit style. */
-export function computeCriticScore(quality: QualityBreakdown, script: Script, postProductionChoices: PostProductionChoices): number {
+/** Critic Score: craft-driven - quality, originality, direction, edit style, release type. */
+export function computeCriticScore(
+  quality: QualityBreakdown,
+  script: Script,
+  postProductionChoices: PostProductionChoices,
+  marketingChoices: MarketingChoices,
+): number {
   const editStyleScore = clamp(60 + EDIT_STYLE_PROFILES[postProductionChoices.editStyle].criticDelta * 3, 0, 100);
   const score =
     quality.qualityScore * CRITIC_WEIGHTS.quality +
     script.originality * CRITIC_WEIGHTS.originality +
     quality.directionScore * CRITIC_WEIGHTS.direction +
     editStyleScore * CRITIC_WEIGHTS.editStyle;
-  return clamp(score, 0, 100);
+  // Festival First courts critics directly; other release types are neutral.
+  const releaseTypeBonus = RELEASE_TYPE_PROFILES[marketingChoices.releaseType].criticBonus;
+  return clamp(score + releaseTypeBonus, 0, 100);
 }
 
 /** Audience Score: entertainment-driven - genre fit, star power, marketing reach. */

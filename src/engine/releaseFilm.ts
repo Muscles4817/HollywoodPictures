@@ -44,7 +44,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     input.postProductionChoices,
     input.events,
   );
-  const criticScore = computeCriticScore(quality, input.script, input.postProductionChoices);
+  const criticScore = computeCriticScore(quality, input.script, input.postProductionChoices, input.marketingChoices);
   const audienceScore = computeAudienceScore(
     quality,
     input.script,

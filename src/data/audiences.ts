@@ -1,11 +1,9 @@
 import type { TargetAudience } from '../types';
 
-// How forgiving/demanding each target audience is, and how it weights
-// critic vs audience appeal when judging marketability.
+// How big a reachable box office pool each target audience represents.
 export interface AudienceProfile {
-  criticWeight: number; // 0-1, extra weight on critic score for marketability
-  audienceWeight: number; // 0-1, extra weight on mass audience score
   marketSize: number; // 0-1, relative size of reachable box office pool
+  description: string; // shown to the player when they pick this audience
 }
 
 export const TARGET_AUDIENCES: TargetAudience[] = [
@@ -18,10 +16,28 @@ export const TARGET_AUDIENCES: TargetAudience[] = [
 ];
 
 export const AUDIENCE_PROFILES: Record<TargetAudience, AudienceProfile> = {
-  'Mass Market': { criticWeight: 0.3, audienceWeight: 0.7, marketSize: 1.0 },
-  Critics: { criticWeight: 0.85, audienceWeight: 0.15, marketSize: 0.55 },
-  Teens: { criticWeight: 0.2, audienceWeight: 0.8, marketSize: 0.8 },
-  Families: { criticWeight: 0.35, audienceWeight: 0.65, marketSize: 0.85 },
-  Adults: { criticWeight: 0.55, audienceWeight: 0.45, marketSize: 0.75 },
-  Niche: { criticWeight: 0.7, audienceWeight: 0.3, marketSize: 0.4 },
+  'Mass Market': {
+    marketSize: 1.0,
+    description: 'The biggest possible audience. Safe, but you’re competing with everything else aiming for the same crowd.',
+  },
+  Critics: {
+    marketSize: 0.55,
+    description: 'A smaller box office ceiling, but strong reviews travel further and boost reputation more with this crowd.',
+  },
+  Teens: {
+    marketSize: 0.8,
+    description: 'A large, enthusiastic audience that shows up for fun over prestige - forgiving of a rough edge or two.',
+  },
+  Families: {
+    marketSize: 0.85,
+    description: 'A big, reliable audience - repeat viewings and word-of-mouth from parents drive strong turnout.',
+  },
+  Adults: {
+    marketSize: 0.75,
+    description: 'A solid mid-sized audience that expects a bit more craft than the mass market does.',
+  },
+  Niche: {
+    marketSize: 0.4,
+    description: 'The smallest reachable audience by far - only worth it if you’re confident the film is genuinely excellent.',
+  },
 };
