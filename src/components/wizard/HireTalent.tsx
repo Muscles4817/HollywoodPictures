@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { MANDATORY_TALENT_ROLES, OPTIONAL_TALENT_ROLES, ROLE_CAPACITY, ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
 import { logAmount } from '../../engine/interpolate';
+import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { computeCommittedSpend } from '../../state/selectors';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
@@ -59,13 +60,11 @@ export function HireTalent() {
     const atCap = hired.length >= capacity.max;
     const showVfxHint = role === 'VFX Supervisor' && draft.genre && VFX_RECOMMENDED_GENRES.has(draft.genre);
 
-    const sortedByProximity = [...candidates].sort(
-      (a, b) => Math.abs(a.salary - targetPrice) - Math.abs(b.salary - targetPrice),
-    );
-    const visible = sortedByProximity.slice(0, VISIBLE_CANDIDATE_COUNT);
+    const { candidates: visible, toleranceUsed } = findCandidatesNearPrice(candidates, targetPrice, VISIBLE_CANDIDATE_COUNT);
     // Never let a currently hired pick silently vanish from view just because the slider moved on.
     const hiredNotVisible = hired.filter((h) => !visible.some((v) => v.id === h.id));
     const displayList = [...hiredNotVisible, ...visible];
+    const tolerancePercent = Math.round(toleranceUsed * 100);
 
     const roleLabel = capacity.max > 1
       ? `${role}${optional ? ' (optional)' : ''} - ${hired.length}/${capacity.max} hired`
@@ -88,8 +87,9 @@ export function HireTalent() {
           <>
             <div className="row-between">
               <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
-                Showing candidates closest to your target price.
+                Showing candidates within {tolerancePercent}% of your target price.
                 {capacity.max > 1 && ` Hire up to ${capacity.max} for this role.`}
+                {displayList.length === 0 && ' Nobody available at this price - try adjusting the slider or rerolling.'}
               </span>
               <Button onClick={() => dispatch({ type: 'REROLL_TALENT_CANDIDATES', role })}>Reroll Candidates</Button>
             </div>
@@ -156,21 +156,23 @@ export function HireTalent() {
       {MANDATORY_TALENT_ROLES.map((role) => renderRoleSection(role, false))}
       {OPTIONAL_TALENT_ROLES.map((role) => renderRoleSection(role, true))}
 
-      <div className="card">
-        <div className="stat-label">Total Cast Salary</div>
-        <div className="stat-value"><Money amount={totalSalary} /></div>
-      </div>
-
-      {missingMandatory.length > 0 && (
-        <p style={{ color: 'var(--red)' }}>Still need to hire: {missingMandatory.join(', ')}</p>
-      )}
-      {!canAfford && <p style={{ color: 'var(--red)' }}>You can't afford this so far. Adjust your picks.</p>}
-
-      <div className="row-between">
-        <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'develop' })}>Back</Button>
-        <Button variant="primary" disabled={!canContinue} onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'production-planning' })}>
-          Confirm Cast & Continue
-        </Button>
+      <div className="sticky-footer">
+        <div className="row-between">
+          <div>
+            <div className="stat-label">Total Cast Salary</div>
+            <div className="stat-value"><Money amount={totalSalary} /></div>
+          </div>
+          <div className="row">
+            <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'develop' })}>Back</Button>
+            <Button variant="primary" disabled={!canContinue} onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'production-planning' })}>
+              Confirm Cast & Continue
+            </Button>
+          </div>
+        </div>
+        {missingMandatory.length > 0 && (
+          <p style={{ color: 'var(--red)', margin: '8px 0 0' }}>Still need to hire: {missingMandatory.join(', ')}</p>
+        )}
+        {!canAfford && <p style={{ color: 'var(--red)', margin: '8px 0 0' }}>You can't afford this so far. Adjust your picks.</p>}
       </div>
     </div>
   );

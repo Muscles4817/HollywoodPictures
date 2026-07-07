@@ -344,6 +344,16 @@ button {
   border-bottom: 1px solid var(--border);
 }
 
+.sticky-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 40;
+  background: var(--bg);
+  padding-top: 12px;
+  padding-bottom: 16px;
+  border-top: 1px solid var(--border);
+}
+
 .wizard-steps {
   display: flex;
   gap: 6px;
