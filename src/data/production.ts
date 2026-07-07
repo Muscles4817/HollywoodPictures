@@ -1,84 +1,86 @@
-import type {
-  BudgetLevel,
-  ShootingStyle,
-  SetQuality,
-  EffectsLevel,
-  VfxSpend,
-  RuntimeTarget,
-} from '../types';
+import type { Range, ScaleAnchor } from '../engine/interpolate';
 
-// Every production lever contributes both a cost and a 0-100 "quality score"
-// component (and sometimes a risk score used for production-event odds),
-// plus a plain-English description shown to the player when they select it.
-// Tune these tables to rebalance production planning.
+// Every production dial is a continuous slider from 0 (cheapest/fastest/
+// shortest) to 1 (priciest/most-meticulous/longest), or for the four spend
+// dials, a currency amount on a log scale (so the cheap end - where a real
+// indie budget lives - gets just as much slider resolution as the expensive
+// end). Anchors calibrate quality/risk/cost-multiplier at a few reference
+// points; engine/productionDials.ts interpolates between them for every
+// point in between, so nothing here "jumps" - see docs/DESIGN.md.
 
-export const BUDGET_LEVEL_PROFILES: Record<
-  BudgetLevel,
-  { baseCost: number; qualityScore: number; riskScore: number; description: string }
-> = {
-  // Kept low enough that a shoestring first film (cheap script + cheapest
-  // mandatory cast) always fits comfortably inside the £5M starting cash.
-  Cheap: {
-    baseCost: 900_000, qualityScore: 30, riskScore: 60,
-    description: 'Bare-bones budget. Cheapest option by far, but low quality and a rushed, risk-prone shoot.',
+export const BUDGET_RANGE: Range = { min: 100_000, max: 40_000_000 };
+
+export const BUDGET_ANCHORS: ScaleAnchor<'quality' | 'risk'>[] = [
+  {
+    t: 0, values: { quality: 22, risk: 68 },
+    description: 'Guerrilla filmmaking - the cheapest possible shoot. Quality suffers and things are more likely to go wrong, but a true indie hit can still come from here.',
   },
-  Standard: {
-    baseCost: 6_000_000, qualityScore: 55, riskScore: 35,
-    description: 'A normal, well-resourced production. Balanced cost, quality and risk.',
+  {
+    t: 0.35, values: { quality: 52, risk: 38 },
+    description: 'A modest, normal production. Balanced cost, quality and risk.',
   },
-  Premium: {
-    baseCost: 15_000_000, qualityScore: 75, riskScore: 20,
-    description: 'A serious budget that buys real quality and a safer shoot - but the cost is serious too.',
+  {
+    t: 0.65, values: { quality: 76, risk: 20 },
+    description: 'A serious, well-resourced budget. Real quality and a safer shoot - at a real cost.',
   },
-  Excessive: {
-    baseCost: 35_000_000, qualityScore: 85, riskScore: 30,
+  {
+    t: 1, values: { quality: 88, risk: 34 },
     // Excessive budgets buy quality but invite hubris/bloat risk to creep back up.
     description: 'Money-no-object filmmaking. The highest quality ceiling, but bloat and hubris creep the risk back up - and it needs a genuine hit to pay off.',
   },
-};
+];
 
-export const SHOOTING_STYLE_PROFILES: Record<
-  ShootingStyle,
-  { costMultiplier: number; qualityScore: number; riskScore: number; description: string }
-> = {
-  Fast: {
-    costMultiplier: 0.8, qualityScore: 40, riskScore: 55,
-    description: 'Shoot quick and cheap. Cuts cost, but rushed schedules mean more can go wrong on set.',
+export const SHOOTING_ANCHORS: ScaleAnchor<'quality' | 'risk' | 'costMultiplier'>[] = [
+  {
+    t: 0, values: { quality: 40, risk: 55, costMultiplier: 0.75 },
+    description: 'Shoot fast and loose. Cuts cost, but rushed schedules mean more can go wrong on set.',
   },
-  Balanced: {
-    costMultiplier: 1.0, qualityScore: 60, riskScore: 30,
-    description: 'A normal shooting pace - no cost discount, no particular rush.',
+  {
+    t: 0.5, values: { quality: 60, risk: 30, costMultiplier: 1.0 },
+    description: 'A normal shooting pace - no particular rush, no particular luxury.',
   },
-  Perfectionist: {
-    costMultiplier: 1.35, qualityScore: 85, riskScore: 15,
+  {
+    t: 1, values: { quality: 85, risk: 15, costMultiplier: 1.4 },
     description: 'Take after take until it’s right. Costs more and takes longer, but the safest, highest-quality way to shoot.',
   },
-};
+];
 
-export const SET_QUALITY_PROFILES: Record<SetQuality, { cost: number; qualityScore: number; description: string }> = {
-  Basic: { cost: 150_000, qualityScore: 35, description: 'Minimal sets and locations. Cheap, but it shows on screen.' },
-  Good: { cost: 1_000_000, qualityScore: 60, description: 'Solid, professional-looking sets at a moderate cost.' },
-  Great: { cost: 2_500_000, qualityScore: 85, description: 'Lavish, detailed sets - expensive, but they elevate every scene.' },
-};
+export const SET_QUALITY_RANGE: Range = { min: 20_000, max: 3_000_000 };
 
-export const PRACTICAL_EFFECTS_PROFILES: Record<EffectsLevel, { cost: number; qualityScore: number; description: string }> = {
-  Low: { cost: 100_000, qualityScore: 30, description: 'Bare minimum practical effects work - fine for genres that don’t lean on it.' },
-  Medium: { cost: 800_000, qualityScore: 60, description: 'Solid stunts, makeup and physical effects work.' },
-  High: { cost: 2_000_000, qualityScore: 85, description: 'Top-tier practical effects - the genre that needs this will really show it off.' },
-};
+export const SET_QUALITY_ANCHORS: ScaleAnchor<'quality'>[] = [
+  { t: 0, values: { quality: 32 }, description: 'Bare walls and borrowed locations. Cheap, but it shows on screen.' },
+  { t: 0.5, values: { quality: 60 }, description: 'Solid, professional-looking sets at a moderate cost.' },
+  { t: 1, values: { quality: 88 }, description: 'Lavish, detailed sets - expensive, but they elevate every scene.' },
+];
 
-export const VFX_SPEND_PROFILES: Record<VfxSpend, { cost: number; qualityScore: number; description: string }> = {
-  None: { cost: 0, qualityScore: 10, description: 'No visual effects budget at all. Fine for grounded stories, a real problem for anything that needs spectacle.' },
-  Low: { cost: 1_000_000, qualityScore: 40, description: 'A handful of simple effects shots - noticeable, but not spectacular.' },
-  Medium: { cost: 4_000_000, qualityScore: 65, description: 'A real visual effects budget capable of convincing set-pieces.' },
-  High: { cost: 10_000_000, qualityScore: 90, description: 'Blockbuster-grade VFX. Very expensive, but it can carry a whole film on spectacle alone.' },
-};
+export const PRACTICAL_EFFECTS_RANGE: Range = { min: 10_000, max: 2_500_000 };
 
-export const RUNTIME_TARGET_PROFILES: Record<
-  RuntimeTarget,
-  { costMultiplier: number; marketabilityDelta: number; description: string }
-> = {
-  Short: { costMultiplier: 0.9, marketabilityDelta: -5, description: 'A tight runtime. Cheaper to make, but feels slight and hurts marketability a touch.' },
-  Standard: { costMultiplier: 1.0, marketabilityDelta: 5, description: 'A conventional feature length - the safest choice for marketability.' },
-  Long: { costMultiplier: 1.15, marketabilityDelta: 0, description: 'An epic runtime. Costs more to shoot and edit, with no particular marketability upside.' },
-};
+export const PRACTICAL_EFFECTS_ANCHORS: ScaleAnchor<'quality'>[] = [
+  { t: 0, values: { quality: 28 }, description: 'Whatever the crew can rig up for free. Fine for genres that don’t lean on it.' },
+  { t: 0.5, values: { quality: 60 }, description: 'Solid stunts, makeup and physical effects work.' },
+  { t: 1, values: { quality: 88 }, description: 'Top-tier practical effects - the genre that needs this will really show it off.' },
+];
+
+export const VFX_RANGE: Range = { min: 5_000, max: 12_000_000 };
+
+export const VFX_ANCHORS: ScaleAnchor<'quality'>[] = [
+  { t: 0, values: { quality: 8 }, description: 'Essentially no visual effects budget. Fine for grounded stories, a real problem for anything that needs spectacle.' },
+  { t: 0.4, values: { quality: 40 }, description: 'A handful of simple effects shots - noticeable, but not spectacular.' },
+  { t: 0.7, values: { quality: 65 }, description: 'A real visual effects budget capable of convincing set-pieces.' },
+  { t: 1, values: { quality: 92 }, description: 'Blockbuster-grade VFX. Very expensive, but it can carry a whole film on spectacle alone.' },
+];
+
+export const RUNTIME_ANCHORS: ScaleAnchor<'costMultiplier' | 'marketabilityDelta'>[] = [
+  {
+    t: 0, values: { costMultiplier: 0.85, marketabilityDelta: -6 },
+    description: 'A tight runtime. Cheaper to make, but feels slight and hurts marketability a touch.',
+  },
+  {
+    t: 0.5, values: { costMultiplier: 1.0, marketabilityDelta: 5 },
+    description: 'A conventional feature length - the safest choice for marketability.',
+  },
+  {
+    t: 1, values: { costMultiplier: 1.15, marketabilityDelta: 0 },
+    description: 'An epic runtime. Costs more to shoot and edit, with no particular marketability upside.',
+  },
+];

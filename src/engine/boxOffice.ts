@@ -1,7 +1,8 @@
-import type { Genre, MarketingChoices, ProductionChoices, ReleaseType, TargetAudience } from '../types';
+import type { Genre, MarketingChoices, ReleaseType, TargetAudience } from '../types';
 import { GENRE_PROFILES } from '../data/genres';
 import { AUDIENCE_PROFILES } from '../data/audiences';
 import { MARKETING_SPEND_PROFILES, RELEASE_TYPE_PROFILES, RELEASE_WINDOW_BASE_MULTIPLIER, RELEASE_WINDOW_GENRE_BONUS } from '../data/release';
+import { budgetT } from './productionDials';
 import { randFloat, type RandomFn } from './random';
 
 // Total addressable box office if every dial were maxed out. Tuned so a
@@ -17,14 +18,13 @@ const OPENING_WEEKEND_FRACTION: Record<ReleaseType, number> = {
   'Festival First': 0.12,
 };
 
-// Coarse box-office scale factor per budget level - bigger budgets buy wider
-// prints/distribution independent of quality.
-const BUDGET_SCALE_FACTOR: Record<ProductionChoices['budgetLevel'], number> = {
-  Cheap: 0.55,
-  Standard: 0.85,
-  Premium: 1.05,
-  Excessive: 1.25,
-};
+// Bigger budgets buy wider prints/distribution independent of quality -
+// scales smoothly from 0.55x at the cheapest budget to 1.25x at the priciest.
+const BUDGET_SCALE_MIN = 0.55;
+const BUDGET_SCALE_MAX = 1.25;
+function budgetScaleFactor(budgetAmount: number): number {
+  return BUDGET_SCALE_MIN + (BUDGET_SCALE_MAX - BUDGET_SCALE_MIN) * budgetT(budgetAmount);
+}
 
 export interface BoxOfficeInput {
   audienceScore: number; // 0-100
@@ -35,7 +35,7 @@ export interface BoxOfficeInput {
   releaseType: ReleaseType;
   marketingSpend: MarketingChoices['marketingSpend'];
   studioReputation: number; // 0-100
-  budgetLevel: ProductionChoices['budgetLevel'];
+  budgetAmount: number;
 }
 
 export interface BoxOfficeResult {
@@ -56,7 +56,7 @@ export function computeBoxOffice(input: BoxOfficeInput, rng: RandomFn): BoxOffic
   const windowBase = RELEASE_WINDOW_BASE_MULTIPLIER[input.releaseWindow];
   const releaseTypeProfile = RELEASE_TYPE_PROFILES[input.releaseType];
   const marketingProfile = MARKETING_SPEND_PROFILES[input.marketingSpend];
-  const budgetScale = BUDGET_SCALE_FACTOR[input.budgetLevel];
+  const budgetScale = budgetScaleFactor(input.budgetAmount);
 
   const reputationFactor = 0.7 + (input.studioReputation / 100) * 0.6; // 0.7 - 1.3
   // Low floors here are what make a genuinely bad film actually flop instead

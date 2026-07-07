@@ -2,7 +2,10 @@ import type { GameState } from './gameState';
 import { INITIAL_STUDIO } from './gameState';
 import { randomSeed } from '../engine/random';
 
-const SAVE_KEY = 'hollywood-pictures-save-v1';
+// Bump this whenever a persisted shape changes incompatibly (e.g. the v1 -> v2
+// move from enum-tier production choices to continuous ones) so old saves are
+// cleanly ignored instead of partially loading with missing/mismatched fields.
+const SAVE_KEY = 'hollywood-pictures-save-v2';
 
 export function loadState(): GameState {
   try {

@@ -1,49 +1,44 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import {
-  BUDGET_LEVEL_PROFILES,
-  SHOOTING_STYLE_PROFILES,
-  SET_QUALITY_PROFILES,
-  PRACTICAL_EFFECTS_PROFILES,
-  VFX_SPEND_PROFILES,
-  RUNTIME_TARGET_PROFILES,
+  BUDGET_RANGE,
+  SET_QUALITY_RANGE,
+  PRACTICAL_EFFECTS_RANGE,
+  VFX_RANGE,
 } from '../../data/production';
-import { pluckDescriptions } from '../../data/describe';
+import {
+  budgetDescription,
+  setQualityDescription,
+  practicalEffectsDescription,
+  vfxDescription,
+  shootingDescription,
+  runtimeDescription,
+} from '../../engine/productionDials';
+import { logAmount } from '../../engine/interpolate';
 import { GENRE_PROFILES } from '../../data/genres';
 import { computeProductionBudgetCost } from '../../engine/cost';
 import { computeCommittedSpend } from '../../state/selectors';
 import { BudgetTracker } from '../common/BudgetTracker';
-import { TierSlider } from '../common/TierSlider';
+import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
-import { Money } from '../common/Money';
+import { Money, formatMoney } from '../common/Money';
 import { WizardSteps } from '../common/WizardSteps';
-import type { BudgetLevel, EffectsLevel, ProductionChoices, RuntimeTarget, SetQuality, ShootingStyle, VfxSpend } from '../../types';
-
-const BUDGET_LEVELS = Object.keys(BUDGET_LEVEL_PROFILES) as BudgetLevel[];
-const SHOOTING_STYLES = Object.keys(SHOOTING_STYLE_PROFILES) as ShootingStyle[];
-const SET_QUALITIES = Object.keys(SET_QUALITY_PROFILES) as SetQuality[];
-const EFFECTS_LEVELS = Object.keys(PRACTICAL_EFFECTS_PROFILES) as EffectsLevel[];
-const VFX_SPENDS = Object.keys(VFX_SPEND_PROFILES) as VfxSpend[];
-const RUNTIME_TARGETS = Object.keys(RUNTIME_TARGET_PROFILES) as RuntimeTarget[];
-
-const BUDGET_LEVEL_DESCRIPTIONS = pluckDescriptions(BUDGET_LEVEL_PROFILES);
-const SHOOTING_STYLE_DESCRIPTIONS = pluckDescriptions(SHOOTING_STYLE_PROFILES);
-const SET_QUALITY_DESCRIPTIONS = pluckDescriptions(SET_QUALITY_PROFILES);
-const PRACTICAL_EFFECTS_DESCRIPTIONS = pluckDescriptions(PRACTICAL_EFFECTS_PROFILES);
-const VFX_SPEND_DESCRIPTIONS = pluckDescriptions(VFX_SPEND_PROFILES);
-const RUNTIME_TARGET_DESCRIPTIONS = pluckDescriptions(RUNTIME_TARGET_PROFILES);
+import type { ProductionChoices } from '../../types';
 
 const DEFAULT_CHOICES: ProductionChoices = {
-  budgetLevel: 'Standard',
-  shootingStyle: 'Balanced',
-  setQuality: 'Good',
-  practicalEffects: 'Medium',
-  vfxSpend: 'Low',
-  runtimeTarget: 'Standard',
+  budgetAmount: logAmount(0.5, BUDGET_RANGE),
+  shootingIntensity: 0.5,
+  setQualityAmount: logAmount(0.5, SET_QUALITY_RANGE),
+  practicalEffectsAmount: logAmount(0.5, PRACTICAL_EFFECTS_RANGE),
+  vfxAmount: logAmount(0.5, VFX_RANGE),
+  runtimeIntensity: 0.5,
 };
 
-function MutedLabel({ children }: { children: ReactNode }) {
-  return <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>{children}</span>;
+/** Picks a rough qualitative label for a 0-1 "pace" dial without needing bespoke text for every point. */
+function nearestLabel(t: number, labels: readonly [string, string, string]): string {
+  if (t < 1 / 3) return labels[0];
+  if (t < 2 / 3) return labels[1];
+  return labels[2];
 }
 
 export function ProductionPlanning() {
@@ -76,53 +71,75 @@ export function ProductionPlanning() {
       <h1>Production Planning</h1>
       {genreProfile && draft.genre && <p className="choice-description">{genreProfile.description}</p>}
 
-      <TierSlider
+      <RangeSlider
         label="Production Budget"
-        tiers={BUDGET_LEVELS}
-        value={choices.budgetLevel}
-        onChange={(v) => update('budgetLevel', v)}
-        descriptions={BUDGET_LEVEL_DESCRIPTIONS}
-        valueLabel={<MutedLabel>Base <Money amount={BUDGET_LEVEL_PROFILES[choices.budgetLevel].baseCost} /></MutedLabel>}
+        min={BUDGET_RANGE.min}
+        max={BUDGET_RANGE.max}
+        logScale
+        value={choices.budgetAmount}
+        onChange={(v) => update('budgetAmount', v)}
+        formatValue={formatMoney}
+        description={budgetDescription(choices.budgetAmount)}
+        lowLabel="Shoestring"
+        highLabel="Blockbuster"
       />
-      <TierSlider
+      <RangeSlider
         label="Shooting Style"
-        tiers={SHOOTING_STYLES}
-        value={choices.shootingStyle}
-        onChange={(v) => update('shootingStyle', v)}
-        descriptions={SHOOTING_STYLE_DESCRIPTIONS}
-        valueLabel={<MutedLabel>&times;{SHOOTING_STYLE_PROFILES[choices.shootingStyle].costMultiplier} cost</MutedLabel>}
+        min={0}
+        max={1}
+        value={choices.shootingIntensity}
+        onChange={(v) => update('shootingIntensity', v)}
+        formatValue={(v) => nearestLabel(v, ['Fast', 'Balanced', 'Perfectionist'])}
+        description={shootingDescription(choices.shootingIntensity)}
+        lowLabel="Fast"
+        highLabel="Perfectionist"
       />
-      <TierSlider
+      <RangeSlider
         label="Set Quality"
-        tiers={SET_QUALITIES}
-        value={choices.setQuality}
-        onChange={(v) => update('setQuality', v)}
-        descriptions={SET_QUALITY_DESCRIPTIONS}
-        valueLabel={<MutedLabel><Money amount={SET_QUALITY_PROFILES[choices.setQuality].cost} /></MutedLabel>}
+        min={SET_QUALITY_RANGE.min}
+        max={SET_QUALITY_RANGE.max}
+        logScale
+        value={choices.setQualityAmount}
+        onChange={(v) => update('setQualityAmount', v)}
+        formatValue={formatMoney}
+        description={setQualityDescription(choices.setQualityAmount)}
+        lowLabel="Bare Walls"
+        highLabel="Lavish"
       />
-      <TierSlider
+      <RangeSlider
         label="Practical Effects"
-        tiers={EFFECTS_LEVELS}
-        value={choices.practicalEffects}
-        onChange={(v) => update('practicalEffects', v)}
-        descriptions={PRACTICAL_EFFECTS_DESCRIPTIONS}
-        valueLabel={<MutedLabel><Money amount={PRACTICAL_EFFECTS_PROFILES[choices.practicalEffects].cost} /></MutedLabel>}
+        min={PRACTICAL_EFFECTS_RANGE.min}
+        max={PRACTICAL_EFFECTS_RANGE.max}
+        logScale
+        value={choices.practicalEffectsAmount}
+        onChange={(v) => update('practicalEffectsAmount', v)}
+        formatValue={formatMoney}
+        description={practicalEffectsDescription(choices.practicalEffectsAmount)}
+        lowLabel="Minimal"
+        highLabel="Top-Tier"
       />
-      <TierSlider
+      <RangeSlider
         label="VFX Spend"
-        tiers={VFX_SPENDS}
-        value={choices.vfxSpend}
-        onChange={(v) => update('vfxSpend', v)}
-        descriptions={VFX_SPEND_DESCRIPTIONS}
-        valueLabel={<MutedLabel><Money amount={VFX_SPEND_PROFILES[choices.vfxSpend].cost} /></MutedLabel>}
+        min={VFX_RANGE.min}
+        max={VFX_RANGE.max}
+        logScale
+        value={choices.vfxAmount}
+        onChange={(v) => update('vfxAmount', v)}
+        formatValue={formatMoney}
+        description={vfxDescription(choices.vfxAmount)}
+        lowLabel="None"
+        highLabel="Blockbuster-Grade"
       />
-      <TierSlider
+      <RangeSlider
         label="Runtime Target"
-        tiers={RUNTIME_TARGETS}
-        value={choices.runtimeTarget}
-        onChange={(v) => update('runtimeTarget', v)}
-        descriptions={RUNTIME_TARGET_DESCRIPTIONS}
-        valueLabel={<MutedLabel>&times;{RUNTIME_TARGET_PROFILES[choices.runtimeTarget].costMultiplier} cost</MutedLabel>}
+        min={0}
+        max={1}
+        value={choices.runtimeIntensity}
+        onChange={(v) => update('runtimeIntensity', v)}
+        formatValue={(v) => nearestLabel(v, ['Short', 'Standard', 'Long'])}
+        description={runtimeDescription(choices.runtimeIntensity)}
+        lowLabel="Short"
+        highLabel="Long"
       />
 
       <div className="card">

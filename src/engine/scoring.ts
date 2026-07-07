@@ -9,13 +9,14 @@ import type {
 } from '../types';
 import { GENRE_PROFILES } from '../data/genres';
 import {
-  BUDGET_LEVEL_PROFILES,
-  PRACTICAL_EFFECTS_PROFILES,
-  RUNTIME_TARGET_PROFILES,
-  SET_QUALITY_PROFILES,
-  SHOOTING_STYLE_PROFILES,
-  VFX_SPEND_PROFILES,
-} from '../data/production';
+  budgetT,
+  budgetQuality,
+  shootingQuality,
+  setQualityScore,
+  practicalEffectsScore,
+  vfxScore,
+  runtimeMarketabilityDelta,
+} from './productionDials';
 import { EDIT_STYLE_PROFILES, FINAL_CUT_FOCUS_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES } from '../data/postProduction';
 import { MARKETING_SPEND_PROFILES, RELEASE_TYPE_PROFILES } from '../data/release';
 import { AUDIENCE_WEIGHTS, CRITIC_WEIGHTS, QUALITY_WEIGHTS } from '../data/scoringWeights';
@@ -57,11 +58,11 @@ export function computeActingScore(talent: Talent[], genre: Genre): number {
  */
 export function computeProductionScore(choices: ProductionChoices, genre: Genre): number {
   const profile = GENRE_PROFILES[genre];
-  const budget = BUDGET_LEVEL_PROFILES[choices.budgetLevel].qualityScore;
-  const style = SHOOTING_STYLE_PROFILES[choices.shootingStyle].qualityScore;
-  const set = SET_QUALITY_PROFILES[choices.setQuality].qualityScore;
-  const practical = PRACTICAL_EFFECTS_PROFILES[choices.practicalEffects].qualityScore;
-  const vfx = VFX_SPEND_PROFILES[choices.vfxSpend].qualityScore;
+  const budget = budgetQuality(choices.budgetAmount);
+  const style = shootingQuality(choices.shootingIntensity);
+  const set = setQualityScore(choices.setQualityAmount);
+  const practical = practicalEffectsScore(choices.practicalEffectsAmount);
+  const vfx = vfxScore(choices.vfxAmount);
 
   const effectsWeightTotal = profile.vfxImportance + profile.practicalEffectsImportance;
   const effectsScore =
@@ -96,8 +97,12 @@ export function computeGenreFitScore(script: Script, talent: Talent[], genre: Ge
   const lead = getTalent(talent, 'Lead Actor');
   const talentFit = (genreAffinity(director, genre) + genreAffinity(lead, genre)) / 2;
 
-  // A cheap budget only suits genres tagged as low-budget-friendly (e.g. Horror).
-  const budgetFit = choices.budgetLevel === 'Cheap' ? 30 + profile.lowBudgetFriendly * 60 : 85;
+  // A low budget only suits genres tagged as low-budget-friendly (e.g. Horror);
+  // the penalty tapers off linearly and is gone entirely by a third of the way up the budget scale.
+  const CHEAP_PENALTY_CUTOFF_T = 0.35;
+  const t = budgetT(choices.budgetAmount);
+  const cheapFit = 30 + profile.lowBudgetFriendly * 60;
+  const budgetFit = t >= CHEAP_PENALTY_CUTOFF_T ? 85 : cheapFit + (85 - cheapFit) * (t / CHEAP_PENALTY_CUTOFF_T);
 
   return script.genreFit * 0.4 + talentFit * 0.35 + budgetFit * 0.25;
 }
@@ -107,7 +112,7 @@ export function computeMarketabilityScore(script: Script, talent: Talent[], choi
   const lead = getTalent(talent, 'Lead Actor');
   const support = getTalent(talent, 'Supporting Actor');
   const fameAvg = ((lead?.fame ?? 30) + (support?.fame ?? 30)) / 2;
-  const runtimeDelta = RUNTIME_TARGET_PROFILES[choices.runtimeTarget].marketabilityDelta;
+  const runtimeDelta = runtimeMarketabilityDelta(choices.runtimeIntensity);
   return clamp(script.marketability * 0.5 + fameAvg * 0.45 + runtimeDelta, 0, 100);
 }
 

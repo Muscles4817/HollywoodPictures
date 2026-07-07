@@ -53,20 +53,18 @@ export interface Script {
   cost: number;
 }
 
-export type BudgetLevel = 'Cheap' | 'Standard' | 'Premium' | 'Excessive';
-export type ShootingStyle = 'Fast' | 'Balanced' | 'Perfectionist';
-export type SetQuality = 'Basic' | 'Good' | 'Great';
-export type EffectsLevel = 'Low' | 'Medium' | 'High';
-export type VfxSpend = 'None' | 'Low' | 'Medium' | 'High';
-export type RuntimeTarget = 'Short' | 'Standard' | 'Long';
-
+// Every production dial is continuous rather than a fixed tier: the four
+// spend dials are plain currency amounts (interpreted on a log scale - see
+// engine/productionDials.ts), and the two "pace" dials are a 0-1 intensity
+// from their low extreme (Fast / Short) to their high extreme (Perfectionist
+// / Long).
 export interface ProductionChoices {
-  budgetLevel: BudgetLevel;
-  shootingStyle: ShootingStyle;
-  setQuality: SetQuality;
-  practicalEffects: EffectsLevel;
-  vfxSpend: VfxSpend;
-  runtimeTarget: RuntimeTarget;
+  budgetAmount: number;
+  shootingIntensity: number; // 0 = Fast, 1 = Perfectionist
+  setQualityAmount: number;
+  practicalEffectsAmount: number;
+  vfxAmount: number;
+  runtimeIntensity: number; // 0 = Short, 1 = Long
 }
 
 export interface ProductionEvent {

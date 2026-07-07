@@ -1,6 +1,6 @@
 import type { ProductionChoices, ProductionEvent, Script, Talent } from '../types';
 import { POSITIVE_EVENT_TEMPLATES, NEGATIVE_EVENT_TEMPLATES, type ProductionEventTemplate } from '../data/productionEvents';
-import { SHOOTING_STYLE_PROFILES, BUDGET_LEVEL_PROFILES } from '../data/production';
+import { shootingRisk, budgetRisk as budgetRiskScore } from './productionDials';
 import { clamp, randFloat, randInt, type RandomFn } from './random';
 
 /**
@@ -17,11 +17,11 @@ export function computeProductionRiskScore(talent: Talent[], script: Script, cho
   const unreliabilityRisk = 100 - avgReliability; // low reliability -> high risk
   const egoRisk = avgEgo; // high ego -> high risk (drama on set)
   const complexityRisk = script.complexity;
-  const styleRisk = SHOOTING_STYLE_PROFILES[choices.shootingStyle].riskScore;
-  const budgetRisk = BUDGET_LEVEL_PROFILES[choices.budgetLevel].riskScore;
+  const styleRisk = shootingRisk(choices.shootingIntensity);
+  const budgetRiskValue = budgetRiskScore(choices.budgetAmount);
 
   const weighted =
-    unreliabilityRisk * 0.3 + egoRisk * 0.2 + complexityRisk * 0.2 + styleRisk * 0.2 + budgetRisk * 0.1;
+    unreliabilityRisk * 0.3 + egoRisk * 0.2 + complexityRisk * 0.2 + styleRisk * 0.2 + budgetRiskValue * 0.1;
 
   return clamp(Math.round(weighted), 5, 95);
 }

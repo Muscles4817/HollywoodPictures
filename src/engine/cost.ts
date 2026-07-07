@@ -1,12 +1,5 @@
 import type { MarketingChoices, ProductionChoices, ProductionEvent, Talent } from '../types';
-import {
-  BUDGET_LEVEL_PROFILES,
-  PRACTICAL_EFFECTS_PROFILES,
-  RUNTIME_TARGET_PROFILES,
-  SET_QUALITY_PROFILES,
-  SHOOTING_STYLE_PROFILES,
-  VFX_SPEND_PROFILES,
-} from '../data/production';
+import { shootingCostMultiplier, runtimeCostMultiplier } from './productionDials';
 import { MARKETING_SPEND_PROFILES, RELEASE_TYPE_PROFILES } from '../data/release';
 
 /** Sum of all hired talent salaries. */
@@ -14,17 +7,14 @@ export function computeTalentCost(talent: Talent[]): number {
   return talent.reduce((sum, t) => sum + t.salary, 0);
 }
 
-/** Base production spend from budget level, shooting style, sets, effects and runtime. */
+/** Base production spend from budget, shooting pace, sets, effects and runtime. */
 export function computeProductionBudgetCost(choices: ProductionChoices): number {
   const base =
-    BUDGET_LEVEL_PROFILES[choices.budgetLevel].baseCost *
-    SHOOTING_STYLE_PROFILES[choices.shootingStyle].costMultiplier *
-    RUNTIME_TARGET_PROFILES[choices.runtimeTarget].costMultiplier;
+    choices.budgetAmount *
+    shootingCostMultiplier(choices.shootingIntensity) *
+    runtimeCostMultiplier(choices.runtimeIntensity);
 
-  const extras =
-    SET_QUALITY_PROFILES[choices.setQuality].cost +
-    PRACTICAL_EFFECTS_PROFILES[choices.practicalEffects].cost +
-    VFX_SPEND_PROFILES[choices.vfxSpend].cost;
+  const extras = choices.setQualityAmount + choices.practicalEffectsAmount + choices.vfxAmount;
 
   return Math.round(base + extras);
 }
