@@ -256,7 +256,7 @@ total).
 
 There's no fixed roster of named actors anymore - every candidate is
 generated fresh, the same way scripts are. `generateTalentCandidates(role,
-genre, rng)` draws 50 candidates per role, each sampling a salary from a
+genre, rng)` draws 100 candidates per role, each sampling a salary from a
 stratified band on a log scale across that role's own range
 (`data/talentGeneration.ts:ROLE_GENERATION_PROFILES` - e.g. Lead Actor spans
 £40,000 - £15,000,000, Editor spans £10,000 - £1,200,000) so a real
@@ -265,8 +265,10 @@ via a price slider. Stratifying (one candidate per even slice of the range,
 with random jitter inside each slice) rather than pure random sampling
 guarantees coverage across the whole spectrum instead of leaving it to
 chance - generation is cheap enough (a handful of arithmetic/RNG ops per
-candidate, ~55KB of localStorage for a full set of pools) that there's no
-real reason to ration it.
+candidate, ~110KB of localStorage for a full set of pools) that there's no
+real reason to ration it. Density matters here specifically because of how
+filtering works (next paragraph) - a sparser pool would make a tight
+percentage band come up empty more often.
 
 Given a candidate's position `t` on that log scale:
 
@@ -287,14 +289,24 @@ caps how famous a role can plausibly get even at the top of its pay scale -
 crew don't become household names the way stars do.
 
 On the Hire Talent screen, each role gets its own price slider (`SET_TALENT_TARGET_PRICE`)
-that filters the 50 generated candidates down to the 9 closest to that
-price - moving the slider changes who's shown, it doesn't regenerate
-anyone. A "Reroll Candidates" button (`REROLL_TALENT_CANDIDATES`) draws a
-fresh 50 if the current slate doesn't have anyone appealing. A master
-"Target Cast & Crew Budget" slider (`SET_TALENT_BUDGET_SPLIT`) splits a
-total evenly across the six mandatory roles as a starting point - the
-player is free to tilt any individual role's slider up or down afterward to
-over- or under-spend relative to that split.
+that filters the 100 generated candidates down to whoever's genuinely close
+to that price - moving the slider changes who's shown, it doesn't
+regenerate anyone. `engine/talentFilter.ts:findCandidatesNearPrice` does the
+filtering: start at a ±10% band around the target and take up to 9 of
+whoever's in it, sorted by proximity; only widen the band (to ±20%, ±35%,
+±60%, ±100%) if that leaves fewer than 3 candidates, so a sparse patch of
+the range doesn't leave the screen empty. This replaced an earlier "always
+show the 9 closest regardless of how close" version that could surface
+candidates 60%+ away from the target with nothing nearby to show instead -
+that's a real difference in kind, not just a tuning tweak: the old version
+could never come up short of 9 results, the new one can (and should) show
+fewer when fewer genuinely qualify. A "Reroll Candidates" button
+(`REROLL_TALENT_CANDIDATES`) draws a fresh 100 if the current slate doesn't
+have anyone appealing. A master "Target Cast & Crew Budget" slider
+(`SET_TALENT_BUDGET_SPLIT`) splits a total evenly across the six mandatory
+roles as a starting point - the player is free to tilt any individual
+role's slider up or down afterward to over- or under-spend relative to that
+split.
 
 **Role capacity** (`data/talentGeneration.ts:ROLE_CAPACITY`) governs how many
 people a role can hold: `{ min, max }`, checked in two places - the reducer
@@ -381,7 +393,7 @@ quietly leaving implicit:
   system would need talent to persist in `Studio` the way `filmsReleased`
   does, generated once and then drawn from (with availability/cooldown)
   rather than regenerated every time.
-- **Candidate sampling is randomized, not exhaustive.** 50 stratified
+- **Candidate sampling is randomized, not exhaustive.** 100 stratified
   candidates per role gives dense coverage, but it's still finite - the
   single cheapest (or single best) possible hire for a role won't always
   appear in a given slate, so a player chasing the exact floor may
