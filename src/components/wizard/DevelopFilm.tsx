@@ -2,12 +2,11 @@ import { useStudio } from '../../state/StudioContext';
 import { GENRES, GENRE_PROFILES } from '../../data/genres';
 import { TARGET_AUDIENCES, AUDIENCE_PROFILES } from '../../data/audiences';
 import { pluckDescriptions } from '../../data/describe';
-import { BudgetTracker } from '../common/BudgetTracker';
 import { Card } from '../common/Card';
 import { ChoiceGroup } from '../common/ChoiceGroup';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
-import { WizardSteps } from '../common/WizardSteps';
+import { WizardHeader } from '../common/WizardHeader';
 
 const GENRE_DESCRIPTIONS = pluckDescriptions(GENRE_PROFILES);
 const AUDIENCE_DESCRIPTIONS = pluckDescriptions(AUDIENCE_PROFILES);
@@ -26,8 +25,7 @@ export function DevelopFilm() {
 
   return (
     <div className="stack">
-      <WizardSteps current="develop" />
-      <BudgetTracker />
+      <WizardHeader current="develop" />
       <h1>Develop Your Film</h1>
 
       <div className="card stack">

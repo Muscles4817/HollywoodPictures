@@ -18,11 +18,10 @@ import { logAmount } from '../../engine/interpolate';
 import { GENRE_PROFILES } from '../../data/genres';
 import { computeProductionBudgetCost } from '../../engine/cost';
 import { computeCommittedSpend } from '../../state/selectors';
-import { BudgetTracker } from '../common/BudgetTracker';
 import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
 import { Money, formatMoney } from '../common/Money';
-import { WizardSteps } from '../common/WizardSteps';
+import { WizardHeader } from '../common/WizardHeader';
 import type { ProductionChoices } from '../../types';
 
 const DEFAULT_CHOICES: ProductionChoices = {
@@ -66,8 +65,7 @@ export function ProductionPlanning() {
 
   return (
     <div className="stack">
-      <WizardSteps current="production-planning" />
-      <BudgetTracker />
+      <WizardHeader current="production-planning" />
       <h1>Production Planning</h1>
       {genreProfile && draft.genre && <p className="choice-description">{genreProfile.description}</p>}
 

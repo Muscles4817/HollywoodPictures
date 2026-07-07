@@ -3,12 +3,11 @@ import { useStudio } from '../../state/StudioContext';
 import { MANDATORY_TALENT_ROLES, OPTIONAL_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
 import { logAmount } from '../../engine/interpolate';
 import { computeCommittedSpend } from '../../state/selectors';
-import { BudgetTracker } from '../common/BudgetTracker';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
 import { Money, formatMoney } from '../common/Money';
-import { WizardSteps } from '../common/WizardSteps';
+import { WizardHeader } from '../common/WizardHeader';
 import type { Talent, TalentRole } from '../../types';
 
 const VFX_RECOMMENDED_GENRES = new Set(['Action', 'Sci-Fi', 'Fantasy']);
@@ -108,8 +107,7 @@ export function HireTalent() {
 
   return (
     <div className="stack">
-      <WizardSteps current="talent" />
-      <BudgetTracker />
+      <WizardHeader current="talent" />
       <h1>Hire Talent</h1>
       <p className="choice-description">
         Fame boosts box office appeal - especially your lead actor's. Skill drives quality, most directly through your

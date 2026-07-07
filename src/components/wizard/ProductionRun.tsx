@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { computeProductionRiskScore } from '../../engine/production';
-import { BudgetTracker } from '../common/BudgetTracker';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
-import { WizardSteps } from '../common/WizardSteps';
+import { WizardHeader } from '../common/WizardHeader';
 
 const REVEAL_INTERVAL_MS = 900;
 
@@ -40,8 +39,7 @@ export function ProductionRun() {
 
   return (
     <div className="stack">
-      <WizardSteps current="production" />
-      <BudgetTracker />
+      <WizardHeader current="production" />
       <h1>Production</h1>
 
       {!hasFilmed && (

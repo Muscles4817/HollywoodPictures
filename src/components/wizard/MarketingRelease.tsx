@@ -3,11 +3,10 @@ import { useStudio } from '../../state/StudioContext';
 import { MARKETING_SPEND_PROFILES, RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS, RELEASE_WINDOW_DESCRIPTIONS } from '../../data/release';
 import { pluckDescriptions } from '../../data/describe';
 import { computeMarketingCost } from '../../engine/cost';
-import { BudgetTracker } from '../common/BudgetTracker';
 import { ChoiceGroup } from '../common/ChoiceGroup';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
-import { WizardSteps } from '../common/WizardSteps';
+import { WizardHeader } from '../common/WizardHeader';
 import type { MarketingChoices, MarketingSpend, ReleaseType, ReleaseWindow } from '../../types';
 
 const MARKETING_SPENDS = Object.keys(MARKETING_SPEND_PROFILES) as MarketingSpend[];
@@ -46,8 +45,7 @@ export function MarketingRelease() {
 
   return (
     <div className="stack">
-      <WizardSteps current="marketing" />
-      <BudgetTracker />
+      <WizardHeader current="marketing" />
       <h1>Marketing &amp; Release</h1>
 
       <ChoiceGroup

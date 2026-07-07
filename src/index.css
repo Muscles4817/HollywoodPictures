@@ -330,6 +330,15 @@ button {
 }
 
 /* --- Wizard --- */
+.wizard-header-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--bg);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
 .wizard-steps {
   display: flex;
   gap: 6px;

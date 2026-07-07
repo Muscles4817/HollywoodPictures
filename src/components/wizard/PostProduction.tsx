@@ -2,11 +2,10 @@ import { useEffect } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../../data/postProduction';
 import { pluckDescriptions } from '../../data/describe';
-import { BudgetTracker } from '../common/BudgetTracker';
 import { ChoiceGroup } from '../common/ChoiceGroup';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
-import { WizardSteps } from '../common/WizardSteps';
+import { WizardHeader } from '../common/WizardHeader';
 import type { EditStyle, FinalCutFocus, MusicFocus, PostProductionChoices, TestScreeningResponse } from '../../types';
 
 const EDIT_STYLES = Object.keys(EDIT_STYLE_PROFILES) as EditStyle[];
@@ -46,8 +45,7 @@ export function PostProduction() {
 
   return (
     <div className="stack">
-      <WizardSteps current="post-production" />
-      <BudgetTracker />
+      <WizardHeader current="post-production" />
       <h1>Post-Production</h1>
 
       <ChoiceGroup
