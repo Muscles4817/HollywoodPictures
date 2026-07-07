@@ -126,11 +126,16 @@ Two more scores exist alongside quality but aren't part of it:
 ### 5.2 Critic & Audience Score
 
 ```
-Critic  = quality*.45 + script.originality*.2 + direction*.2 + editStyleScore*.15
+Critic  = quality*.45 + script.originality*.2 + direction*.2 + editStyleScore*.15 + releaseType.criticBonus
 Audience = genreFit*.25 + leadActor.fame*.2 + entertainment*.25 + marketingScore*.15 + production*.15
 ```
 (`data/scoringWeights.ts:CRITIC_WEIGHTS` / `AUDIENCE_WEIGHTS`, computed in
 `scoring.ts:computeCriticScore` / `computeAudienceScore`.)
+
+`releaseType.criticBonus` is a small flat addend, not a weighted term - it's
+how Festival First delivers on "helps critics and awards-style films"
+(`data/release.ts:RELEASE_TYPE_PROFILES`, +6 for Festival First, 0 for
+Streaming/Wide, +2 for Limited).
 
 `entertainment` folds in edit-style and final-cut-focus audience deltas plus
 a slice of the quality score. `marketingScore` is a flat lookup by spend tier
