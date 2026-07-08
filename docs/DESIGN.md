@@ -862,3 +862,29 @@ quietly leaving implicit:
   film still flops regardless of budget (confirmed at both a cheap £2.5M
   and an expensive £41M budget), and Buzz now has a clean, single-cause
   relationship with Opening Weekend instead of a diluted one.
+- **History: studio cash was being credited with `totalBoxOffice` instead
+  of `studioRevenue` at release time, silently undercutting the revenue
+  split above.** `RELEASE_FILM` in `state/studioReducer.ts` computed
+  `profit` correctly from `studioRevenue` for display, but the actual cash
+  mutation (`cashAfter = cash - totalCost + totalBoxOffice`) used the full
+  headline gross - so a studio's cash grew roughly 2.4x faster than the
+  profit figure shown on the Results screen implied, reintroducing the same
+  kind of overpowering the two rebuilds above were fixing, just one level
+  removed from the formula itself. Found incidentally while wiring up the
+  Studio Report feature below; fixed to use `studioRevenue`, matching
+  `profit`'s formula exactly.
+- **Results screen narration ("Studio Report").** A short templated
+  paragraph above the Reviews card, read in an omniscient trade-press voice
+  rather than the in-world critic quotes below it -
+  `data/storyBeats.ts` + `engine/storyReport.ts`. Deliberately not
+  freeform/LLM-generated text: a beat is chosen *conditionally* from what
+  actually happened (an `openingTier` from Buzz Score crossed with a
+  `receptionTier` from the same audience-weighted critic/audience blend
+  `reviewLegsFactor` uses), then one of several pre-written phrasings for
+  that outcome is picked at random - closer to a sports-commentary
+  generator than either a fixed template or free text. Built as the first
+  of a planned three "beats" (trajectory now; a named critic/audience
+  highlight and a studio-milestone/budget-framing beat are follow-ups, not
+  yet built) that `generateStoryReport` already joins from an internal
+  `beats: string[]` array for exactly that reason, even though only one
+  beat exists today.
