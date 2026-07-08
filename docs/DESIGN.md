@@ -579,14 +579,43 @@ per candidate card rather than the full breakdown, so a card stays
 scannable at a glance - showing every number on every card at once is
 exactly the wall-of-stats micromanagement this game avoids elsewhere. Click
 or hover it (`components/common/CompatibilityBadge.tsx`) to reveal the
-talent's own stats as mini score bars - a Director's six-axis tone profile,
-an Actor's five-axis acting style, or (on the Develop screen, no score
-attached since there's no talent yet to compare against) a script's own
-tone profile. `CompatibilityBadge` takes a generic `breakdown` list rather
-than a `ToneProfile` specifically, precisely so it can serve all three
-without caring which. The toggle button stops its click from bubbling to
-the card's own `onClick`, so inspecting a candidate's breakdown never
+talent's own stats - a Director's six-axis tone profile, an Actor's
+five-axis acting style, or (on the Develop screen, no score attached since
+there's no talent yet to compare against) a script's own tone profile.
+`CompatibilityBadge` takes a generic `breakdown` list rather than a
+`ToneProfile` specifically, precisely so it can serve all three without
+caring which. The toggle button stops its click from bubbling to the
+card's own `onClick`, so inspecting a candidate's breakdown never
 accidentally hires or un-hires them.
+
+Each axis in that expanded breakdown renders as a 5-star rating
+(`components/common/StarRating.tsx`) rather than a raw number -
+`Math.round((value/max)*10)/2` snaps the underlying 0-100 value to the
+nearest half star, so there are still 10 effective levels of resolution,
+just read as "3.5 stars" instead of "just do 74." A precise 0-100 figure
+reads as noise once there are six-plus of them stacked in one card; a star
+rating reads as an actual opinion. This is presentation-only - nothing
+about the underlying numbers, formulas, or generation changed, `StarRating`
+just renders whatever 0-100 value it's given (two stacked star strings, a
+muted track and a colour-clipped fill, rather than swapping in a half-star
+glyph that not every font renders consistently). The same component is
+used for Critic Score on the Results screen, both because real film
+reviews are conventionally a star rating and because it's the one
+top-level score that reads more like a single opinion than a value worth
+tracking precisely over time - Quality/Audience/Buzz and the Department
+Breakdown stay as bars, since those benefit from comparing several values
+against each other at a glance, which stars are worse at than a bar chart.
+
+Two generation ranges were pulled in from the 1/100 extremes specifically
+so this coarse display has room to show texture: genre `canonicalTone`
+vectors now span roughly 20-80 rather than 10-95 (`data/genres.ts`), and
+`talentGenerator.ts`'s signature/base tone-generation ranges moved from
+`[70,100]`/`[10,55]` to `[65,90]`/`[15,50]`. Left at the old extremes, a
+coarse 5-star bucket would mostly just flip between "empty" and "full"
+with nothing in between - compressing the source range first means the
+star display actually earns its granularity. Script generation
+(`engine/scriptGenerator.ts`) also grew from 4 to 12 options per genre, and
+`TONE_JITTER` came down from ±20 to ±15 to match the tighter source range.
 
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
