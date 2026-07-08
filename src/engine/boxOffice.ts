@@ -2,7 +2,6 @@ import type { Genre, ReleaseType, ReleaseWindow, TargetAudience } from '../types
 import { GENRE_PROFILES } from '../data/genres';
 import { AUDIENCE_PROFILES } from '../data/audiences';
 import { RELEASE_TYPE_PROFILES, RELEASE_WINDOW_BASE_MULTIPLIER, RELEASE_WINDOW_GENRE_BONUS } from '../data/release';
-import { budgetT } from './productionDials';
 import { randFloat, type RandomFn } from './random';
 
 /**
@@ -18,26 +17,28 @@ import { randFloat, type RandomFn } from './random';
  * badly-reviewed film can still open big and then die; a small film with
  * little hype behind it but great word of mouth can have a modest opening
  * and a long, profitable run.
+ *
+ * Production budget deliberately has NO direct multiplier here, even
+ * though an earlier version of this formula gave it one ("bigger budgets
+ * buy wider prints"). Audiences can't see how nice your sets or effects
+ * look before they've bought a ticket, so it isn't something that should
+ * draw an opening-weekend crowd - it's something that affects whether
+ * they enjoyed what they saw once they did. Budget already has a real,
+ * better-motivated path to box office: it feeds Production Score, which
+ * feeds Quality, which feeds Critic/Audience Score, which feeds legs
+ * (below). Giving it a second, independent lever on Opening Weekend on
+ * top of that was redundant, and diluted Buzz's effect on the one number
+ * it should dominate.
  */
 
-// Total addressable OPENING WEEKEND potential with every reach factor maxed
-// out - budget scale, hype, genre popularity, market size, release reach.
-// Total lifetime gross isn't set directly at all; it's always derived from
-// this via the legs multiplier below. Tuned (see the balance scenarios in
+// Total addressable OPENING WEEKEND potential with every reach factor
+// maxed out - hype, genre popularity, market size, release reach. Total
+// lifetime gross isn't set directly at all; it's always derived from this
+// via the legs multiplier below. Tuned (see the balance scenarios in
 // docs/DESIGN.md) so a mid-budget, well-buzzed, well-reviewed film nets a
 // real but not absurd profit once the studio revenue share is applied, and
 // a mediocre film genuinely risks a loss.
-const OPENING_BASE_POTENTIAL = 12_000_000;
-
-// Bigger budgets buy wider prints/distribution independent of quality or
-// hype - scales smoothly from the cheapest budget to the priciest. Wider
-// than reach alone used to be, so going ultra-cheap has real teeth on the
-// box office side too, not just the on-screen-quality side.
-const BUDGET_SCALE_MIN = 0.4;
-const BUDGET_SCALE_MAX = 1.6;
-function budgetScaleFactor(budgetAmount: number): number {
-  return BUDGET_SCALE_MIN + (BUDGET_SCALE_MAX - BUDGET_SCALE_MIN) * budgetT(budgetAmount);
-}
+const OPENING_BASE_POTENTIAL = 24_000_000;
 
 // How much pre-release hype (Buzz Score) turns into opening-weekend
 // turnout. Buzz is already hard to max on its own (needs fame, reputation
@@ -80,7 +81,6 @@ export interface BoxOfficeInput {
   genre: Genre;
   releaseWindow: ReleaseWindow;
   releaseType: ReleaseType;
-  budgetAmount: number;
 }
 
 export interface BoxOfficeResult {
@@ -95,7 +95,6 @@ export function computeBoxOffice(input: BoxOfficeInput, rng: RandomFn): BoxOffic
   const windowGenreBonus = RELEASE_WINDOW_GENRE_BONUS[input.releaseWindow][input.genre] ?? 1;
   const windowBase = RELEASE_WINDOW_BASE_MULTIPLIER[input.releaseWindow];
   const releaseTypeProfile = RELEASE_TYPE_PROFILES[input.releaseType];
-  const budgetScale = budgetScaleFactor(input.budgetAmount);
 
   const varianceBand = 0.2 * releaseTypeProfile.varianceMultiplier;
   const variance = randFloat(rng, 1 - varianceBand, 1 + varianceBand);
@@ -107,7 +106,6 @@ export function computeBoxOffice(input: BoxOfficeInput, rng: RandomFn): BoxOffic
     windowBase *
     windowGenreBonus *
     releaseTypeProfile.reachMultiplier *
-    budgetScale *
     hypeFactor(input.buzzScore) *
     variance;
 

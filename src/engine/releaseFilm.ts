@@ -82,7 +82,6 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
       genre: input.genre,
       releaseWindow: input.marketingChoices.releaseWindow,
       releaseType: input.marketingChoices.releaseType,
-      budgetAmount: input.productionChoices.budgetAmount,
     },
     rng,
   );
