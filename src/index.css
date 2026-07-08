@@ -45,7 +45,7 @@ body {
 }
 
 #root {
-  max-width: 1080px;
+  max-width: 1320px;
   margin: 0 auto;
   padding: 24px 20px 80px;
 }
@@ -218,6 +218,48 @@ button {
   border: none;
   color: var(--primary);
   padding: 4px 8px;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 0.85em;
+}
+
+/* --- Script comparison (Develop screen) ---
+   Splits into a main column plus a fixed-width sticky rail once at least
+   one script is pinned, rather than reserving the space unconditionally -
+   the page uses the full width when there's nothing to compare, and gives
+   room to a persistent side-by-side view once there is. */
+.develop-compare-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+}
+
+.compare-panel {
+  position: sticky;
+  top: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.compare-slot-empty {
+  color: var(--text-muted);
+  font-size: 0.9em;
+  text-align: center;
+  padding: 28px 16px;
+}
+
+@media (max-width: 900px) {
+  .develop-compare-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .compare-panel {
+    position: static;
+  }
 }
 
 /* --- Stat tiles --- */
