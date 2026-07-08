@@ -8,6 +8,7 @@ import type {
   Talent,
 } from '../types';
 import { GENRE_PROFILES } from '../data/genres';
+import { computeCompatibility } from './compatibility';
 import {
   budgetT,
   budgetQuality,
@@ -32,9 +33,10 @@ function getTalentsForRole(talent: Talent[], role: Talent['role']): Talent[] {
   return talent.filter((t) => t.role === role);
 }
 
-function genreAffinity(t: Talent | undefined, genre: Genre): number {
+/** How well a hired talent suits this specific script's tone, not just its genre label. */
+function compatibility(t: Talent | undefined, script: Script): number {
   if (!t) return 50; // no one hired for this role -> neutral default
-  return t.genreAffinities[genre] ?? 50;
+  return computeCompatibility(script.toneProfile, t.toneProfile);
 }
 
 function average(values: number[]): number | null {
@@ -47,11 +49,11 @@ export function computeScriptScore(script: Script): number {
   return script.originality * 0.3 + script.structure * 0.3 + script.dialogue * 0.25 + script.marketability * 0.15;
 }
 
-/** Director's contribution: raw skill plus how well they suit this genre. */
-export function computeDirectionScore(talent: Talent[], genre: Genre): number {
+/** Director's contribution: raw skill plus how well their style suits this script. */
+export function computeDirectionScore(talent: Talent[], script: Script): number {
   const director = getTalent(talent, 'Director');
   if (!director) return 35; // no director hired is a serious quality hit
-  return director.skill * 0.6 + genreAffinity(director, genre) * 0.4;
+  return director.skill * 0.6 + compatibility(director, script) * 0.4;
 }
 
 /**
@@ -60,12 +62,12 @@ export function computeDirectionScore(talent: Talent[], genre: Genre): number {
  * ROLE_CAPACITY) - a bigger cast doesn't automatically raise this score,
  * it's the *average* skill/fit of everyone hired, same as one person would.
  */
-export function computeActingScore(talent: Talent[], genre: Genre): number {
+export function computeActingScore(talent: Talent[], script: Script): number {
   const lead = getTalent(talent, 'Lead Actor');
   const supports = getTalentsForRole(talent, 'Supporting Actor');
 
-  const leadScore = lead ? lead.skill * 0.65 + genreAffinity(lead, genre) * 0.35 : 30;
-  const supportScoreAvg = average(supports.map((s) => s.skill * 0.65 + genreAffinity(s, genre) * 0.35));
+  const leadScore = lead ? lead.skill * 0.65 + compatibility(lead, script) * 0.35 : 30;
+  const supportScoreAvg = average(supports.map((s) => s.skill * 0.65 + compatibility(s, script) * 0.35));
 
   return leadScore * 0.7 + (supportScoreAvg ?? 30) * 0.3;
 }
@@ -113,7 +115,7 @@ export function computeGenreFitScore(script: Script, talent: Talent[], genre: Ge
   const profile = GENRE_PROFILES[genre];
   const director = getTalent(talent, 'Director');
   const lead = getTalent(talent, 'Lead Actor');
-  const talentFit = (genreAffinity(director, genre) + genreAffinity(lead, genre)) / 2;
+  const talentFit = (compatibility(director, script) + compatibility(lead, script)) / 2;
 
   // A low budget only suits genres tagged as low-budget-friendly (e.g. Horror);
   // the penalty tapers off linearly and is gone entirely by a third of the way up the budget scale.
@@ -155,8 +157,8 @@ export function computeQualityBreakdown(
   events: ProductionEvent[],
 ): QualityBreakdown {
   const scriptScore = computeScriptScore(script);
-  const directionScore = computeDirectionScore(talent, genre);
-  const actingScore = computeActingScore(talent, genre);
+  const directionScore = computeDirectionScore(talent, script);
+  const actingScore = computeActingScore(talent, script);
   const productionScore = computeProductionScore(productionChoices, genre);
   const postProductionScore = computePostProductionScore(postProductionChoices);
   const eventsScore = computeEventsScore(events);

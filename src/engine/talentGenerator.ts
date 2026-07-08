@@ -1,9 +1,9 @@
-import type { Genre, Talent, TalentRole } from '../types';
-import { GENRES } from '../data/genres';
+import type { Talent, TalentRole, ToneProfile } from '../types';
 import { ALL_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { TALENT_FIRST_NAMES, TALENT_LAST_NAMES } from '../data/talentNames';
+import { TONES } from '../data/tones';
 import { logAmount } from './interpolate';
-import { clamp, pick, randFloat, randInt, type RandomFn } from './random';
+import { clamp, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
 
 let nextTalentId = 1;
 
@@ -11,12 +11,29 @@ function randomName(rng: RandomFn): string {
   return `${pick(rng, TALENT_FIRST_NAMES)} ${pick(rng, TALENT_LAST_NAMES)}`;
 }
 
-function generateGenreAffinities(rng: RandomFn): Record<Genre, number> {
-  const affinities = {} as Record<Genre, number>;
-  for (const genre of GENRES) {
-    affinities[genre] = randInt(rng, 15, 100);
+const SIGNATURE_TONE_RANGE: [number, number] = [70, 100];
+const BASE_TONE_RANGE: [number, number] = [10, 55];
+
+/**
+ * Rolls a tone profile with 1-2 "signature" tones (rolled high) and the rest
+ * rolled from a lower, noisier base - independent uniform rolls across all
+ * six tones would regress everyone toward a flat, unmemorable middle, which
+ * loses the "brilliant at suspense, hopeless at comedy" specialist flavor
+ * a real cast/crew has. Every candidate gets a profile for every tone, not
+ * just whatever genre happens to be selected - talent is a persistent studio
+ * resource (see state/gameState.ts:createInitialStudio), generated once at
+ * the start of the game, so it needs a complete, permanent profile.
+ */
+function generateToneProfile(rng: RandomFn): ToneProfile {
+  const signatureCount = randInt(rng, 1, 2);
+  const signatures = new Set(pickMany(rng, TONES, signatureCount));
+  const profile = {} as ToneProfile;
+  for (const tone of TONES) {
+    profile[tone] = signatures.has(tone)
+      ? randInt(rng, ...SIGNATURE_TONE_RANGE)
+      : randInt(rng, ...BASE_TONE_RANGE);
   }
-  return affinities;
+  return profile;
 }
 
 /**
@@ -26,12 +43,6 @@ function generateGenreAffinities(rng: RandomFn): Record<Genre, number> {
  * enough noise that a cheap unknown can be a hidden gem and an expensive
  * hire can disappoint. Reliability and ego are only loosely tied to price -
  * professionalism isn't for sale, and neither is a diva-free set.
- *
- * Genre affinity is rolled independently for every genre, not just whatever
- * genre happens to be selected right now - talent is a persistent studio
- * resource (see state/gameState.ts:createInitialStudio), generated once at
- * the start of the game, so it needs a complete, permanent profile rather
- * than one tied to a genre that might not even be picked again this game.
  */
 function generateTalent(role: TalentRole, rng: RandomFn, t: number): Talent {
   const profile = ROLE_GENERATION_PROFILES[role];
@@ -57,7 +68,7 @@ function generateTalent(role: TalentRole, rng: RandomFn, t: number): Talent {
     reliability,
     ego,
     salary,
-    genreAffinities: generateGenreAffinities(rng),
+    toneProfile: generateToneProfile(rng),
   };
 }
 

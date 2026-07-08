@@ -9,6 +9,8 @@ import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
 import { Money, formatMoney } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
+import { CompatibilityBadge } from '../common/CompatibilityBadge';
+import { computeCompatibility } from '../../engine/compatibility';
 import type { Talent, TalentRole } from '../../types';
 
 const VFX_RECOMMENDED_GENRES = new Set(['Action', 'Sci-Fi', 'Fantasy']);
@@ -95,7 +97,7 @@ export function HireTalent() {
               {displayList.map((talent) => {
                 const selected = hired.some((h) => h.id === talent.id);
                 const disabled = !selected && atCap;
-                const affinity = draft.genre ? talent.genreAffinities[draft.genre] ?? 50 : null;
+                const compatScore = draft.script ? computeCompatibility(draft.script.toneProfile, talent.toneProfile) : null;
                 return (
                   <Card
                     key={talent.id}
@@ -111,8 +113,8 @@ export function HireTalent() {
                       <div>Skill: {talent.skill}</div>
                       <div>Reliability: {talent.reliability}</div>
                       <div>Ego: {talent.ego}</div>
-                      {affinity !== null && <div>Genre Affinity ({draft.genre}): {affinity}</div>}
                     </div>
+                    {compatScore !== null && <CompatibilityBadge score={compatScore} toneProfile={talent.toneProfile} />}
                     {selected && <p style={{ color: 'var(--green)', marginTop: 6 }}>Hired</p>}
                     {disabled && <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>Cast full</p>}
                   </Card>
@@ -131,8 +133,9 @@ export function HireTalent() {
       <h1>Hire Talent</h1>
       <p className="choice-description">
         Fame boosts box office appeal - especially your lead actor's. Skill drives quality, most directly through your
-        director and cast. Genre Affinity shows how well someone suits this specific genre, and matters most for your
-        director and lead actor. Reliability and Ego apply across everyone you hire: an unreliable, high-ego crew
+        director and cast. Compatibility shows how well someone's own strengths suit this specific script - click or
+        hover it to see their full breakdown - and matters most for your director and lead actor. Reliability and Ego
+        apply across everyone you hire: an unreliable, high-ego crew
         raises the odds of a costly incident once filming starts. Supporting Actor can be an ensemble - hiring more
         people there averages their acting quality and fame together, it doesn't stack.
       </p>

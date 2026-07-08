@@ -28,6 +28,14 @@ export type TalentRole =
   | 'Editor'
   | 'VFX Supervisor';
 
+// The emotional/tonal axes every script and every talent are scored on -
+// replaces a single per-genre affinity number with a small profile shared
+// by scripts, directors and actors, so "does this director suit this
+// script" is a genuine compatibility question instead of one flat lookup
+// (see engine/compatibility.ts).
+export type Tone = 'action' | 'comedy' | 'romance' | 'suspense' | 'drama' | 'spectacle';
+export type ToneProfile = Record<Tone, number>; // 1-100 per tone
+
 export interface Talent {
   id: string;
   name: string;
@@ -37,7 +45,7 @@ export interface Talent {
   reliability: number; // 1-100
   ego: number; // 1-100
   salary: number;
-  genreAffinities: Partial<Record<Genre, number>>; // 1-100 per genre, missing = neutral (50)
+  toneProfile: ToneProfile;
 }
 
 export interface Script {
@@ -51,6 +59,7 @@ export interface Script {
   marketability: number; // 1-100
   complexity: number; // 1-100, drives production difficulty/risk
   cost: number;
+  toneProfile: ToneProfile;
 }
 
 // Every production dial is continuous rather than a fixed tier: the four

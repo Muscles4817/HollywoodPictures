@@ -1,12 +1,32 @@
-import type { Genre, Script } from '../types';
+import type { Genre, Script, ToneProfile } from '../types';
+import { GENRE_PROFILES } from '../data/genres';
 import { SCRIPT_TITLE_WORDS } from '../data/scriptWords';
-import { type RandomFn, pick, randInt } from './random';
+import { TONES } from '../data/tones';
+import { type RandomFn, clamp, pick, randFloat, randInt } from './random';
 
 let nextScriptId = 1;
 
 function randomTitle(genre: Genre, rng: RandomFn): string {
   const bank = SCRIPT_TITLE_WORDS[genre];
   return `${pick(rng, bank.adjectives)} ${pick(rng, bank.nouns)}`;
+}
+
+const TONE_JITTER = 20;
+
+/**
+ * A script's tone profile jitters around its genre's canonical vector
+ * (data/genres.ts:GENRE_PROFILES) rather than copying it exactly - this is
+ * what lets multi-genre blending happen for free, with no separate
+ * secondary-genre field: a Horror script that happens to jitter high on
+ * comedy and low on suspense is, mechanically, already a horror-comedy.
+ */
+function generateToneProfile(genre: Genre, rng: RandomFn): ToneProfile {
+  const canonical = GENRE_PROFILES[genre].canonicalTone;
+  const profile = {} as ToneProfile;
+  for (const tone of TONES) {
+    profile[tone] = clamp(Math.round(canonical[tone] + randFloat(rng, -TONE_JITTER, TONE_JITTER)), 1, 100);
+  }
+  return profile;
 }
 
 /**
@@ -40,6 +60,7 @@ function generateScript(genre: Genre, rng: RandomFn): Script {
     marketability,
     complexity,
     cost: estimateScriptCost({ originality, structure, dialogue, marketability }),
+    toneProfile: generateToneProfile(genre, rng),
   };
 }
 
