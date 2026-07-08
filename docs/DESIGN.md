@@ -111,9 +111,48 @@ Six 0-100 sub-scores feed the Final Quality Score:
 | **Post-production** | `55 + testScreeningDelta + musicDelta + (Balanced edit ? 5 : 0)` | See `data/postProduction.ts`. |
 | **Events** | `50 + sum(event.qualityDelta) * 2` | Amplified because each rolled event's raw delta is small (~-10..+10 across 3-5 events). |
 
-**Final Quality Score** = weighted average per the spec's brief:
-`script .2 + direction .2 + acting .2 + postProduction .2 + production .1 + events .1`
-(`data/scoringWeights.ts:QUALITY_WEIGHTS`).
+**Final Quality Score** = a weighted average of the six sub-scores above -
+but unlike everything else in this section, the *weights themselves* are
+genre-dependent, not fixed. `data/scoringWeights.ts:BASE_QUALITY_WEIGHTS`
+(`script .2, direction .2, acting .2, postProduction .2, production .1,
+randomEvents .1`) is the reference point for a genre of exactly-average
+importance; `engine/genreWeights.ts:computeQualityWeights(genre)` tilts it:
+
+```
+scriptWeight     = BASE.script * (genre.scriptImportance / avgScriptImportance)
+actingWeight     = BASE.acting * (genre.actingImportance / avgActingImportance)
+productionWeight = BASE.production * (productionImportance / avgProductionImportance)
+  where productionImportance = (genre.vfxImportance + genre.practicalEffectsImportance) / 2
+direction / postProduction / randomEvents stay at BASE
+-> all six renormalized to sum to 1
+```
+
+`productionImportance` is deliberately *derived* from fields that already
+exist (`vfxImportance`/`practicalEffectsImportance`) rather than a new one -
+a genre that leans on effects within the production sub-score (5.1's
+Production row) also leans on production quality at this top level. The
+averages are computed once from the live `GENRE_PROFILES` data, not
+hardcoded, so retuning genre data keeps everything self-consistent.
+Concretely, this is the difference between a Drama and an Action film:
+
+| Genre | script | direction | acting | post | production | events |
+|---|---|---|---|---|---|---|
+| Drama | 25% | 18% | 27% | 18% | 2% | 9% |
+| Comedy | 22% | 19% | 27% | 19% | 3% | 10% |
+| Action | 11% | 22% | 15% | 22% | 20% | 11% |
+| Sci-Fi / Fantasy | 17% | 20% | 15% | 20% | 18% | 10% |
+| Horror | 22% | 22% | 12% | 22% | 12% | 11% |
+
+Drama/Comedy barely care about production values at all - script and
+acting alone are more than half the score. Action/Sci-Fi/Fantasy pull real
+weight into production. Horror is the interesting one: it doesn't shift
+much on script, but pulls extra weight into *direction and post-production*
+specifically (tension and pacing are an editing/directing job) at acting's
+expense - which matches horror's reputation as a director's genre more than
+a star vehicle. `actingImportance` and `scriptImportance` were declared on
+every `GenreProfile` from early on but never actually read anywhere until
+this - the game had genre-flavored *inputs* (VFX mix, genre affinity,
+low-budget tolerance) without genre-flavored *priorities*.
 
 Two more scores exist alongside quality but aren't part of it:
 
@@ -372,7 +411,7 @@ lives in `src/data/`:
 | `release.ts` | Marketing spend tiers, release type profiles, release window bonuses |
 | `productionEvents.ts` | The pool of on-set event templates |
 | `reviewBlurbs.ts` | Flavor-text review snippets, bucketed by critic/audience reception |
-| `scoringWeights.ts` | The weighted-sum tables for quality/critic/audience |
+| `scoringWeights.ts` | The weighted-sum tables for critic/audience, and the base (genre-average) quality weights that `engine/genreWeights.ts` tilts per genre |
 
 Rebalancing the game should almost always mean editing a table in this
 folder, not a formula in `engine/`. The one exception is the interpolation
