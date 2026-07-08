@@ -815,7 +815,15 @@ quietly leaving implicit:
   every released film's full script/cast/choices/results as one JSON file,
   so a specific confusing result (e.g. "buzz was high, why was opening
   weekend still small?") can be checked against the actual recorded inputs
-  instead of guessed at from the Results screen alone.
+  instead of guessed at from the Results screen alone. The same Dashboard
+  also has a "How It Works" button (`components/common/GameGuide.tsx`) - a
+  plain-language walkthrough of the mechanics for players, deliberately
+  separate from this document rather than a rendering of it, since this
+  document is written for whoever's maintaining the code (raw formulas,
+  file paths, historical postmortems) and would be the wrong thing to hand
+  a player trying to understand why their last film flopped. Kept in sync
+  by hand, not generated from this file - worth remembering to update both
+  when a mechanic changes.
 - **History: the box office formula was rebuilt once already, for being
   badly overpowered.** The original single-stage version (`raw =
   BASE_MARKET_POTENTIAL x <chain of ~10 multipliers>`, `totalBoxOffice` computed

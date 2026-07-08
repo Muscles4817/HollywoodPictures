@@ -1,18 +1,25 @@
+import { useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { exportFilmHistory } from '../state/exportFilmHistory';
 import { Button } from './common/Button';
 import { StatTile } from './common/StatTile';
 import { Money } from './common/Money';
+import { GameGuide } from './common/GameGuide';
 
 export function Dashboard() {
   const { state, dispatch } = useStudio();
   const { studio } = state;
+  const [showGuide, setShowGuide] = useState(false);
 
   function handleReset() {
     const confirmed = window.confirm(
       `Reset ${studio.name}? This wipes all cash, reputation, and film history and starts a brand new studio. This can't be undone.`,
     );
     if (confirmed) dispatch({ type: 'RESET_SAVE' });
+  }
+
+  if (showGuide) {
+    return <GameGuide onBack={() => setShowGuide(false)} />;
   }
 
   return (
@@ -23,6 +30,7 @@ export function Dashboard() {
           <p>Year {studio.year} &middot; {studio.filmsReleased.length} film{studio.filmsReleased.length === 1 ? '' : 's'} released</p>
         </div>
         <div className="row">
+          <Button onClick={() => setShowGuide(true)}>How It Works</Button>
           <Button onClick={handleReset}>Reset Studio</Button>
           <Button variant="primary" onClick={() => dispatch({ type: 'START_NEW_FILM' })}>
             Start New Film
