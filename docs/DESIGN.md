@@ -699,6 +699,47 @@ star display actually earns its granularity. Script generation
 (`engine/scriptGenerator.ts`) also grew from 4 to 12 options per genre, and
 `TONE_JITTER` came down from ±20 to ±15 to match the tighter source range.
 
+### 5.12 Script synopsis (`engine/premiseGenerator.ts`, `data/premises.ts`)
+
+Every script gets a one-sentence log-line (`Script.synopsis`), shown in
+italics under the title on the Develop screen. This is deliberately built
+the same way as the Results screen's Studio Report (5.10-adjacent, see
+`engine/storyReport.ts`): a curated bank of pre-written sentences,
+conditionally selected from real data, with randomness only in *which*
+phrasing gets used - not a compositional slot-filler ("A {protagonist} must
+stop {antagonist} before {stakes}"), which was considered and rejected
+because freely recombining independently-written fragments risks nonsense
+pairings that a hand-written sentence never would.
+
+The selection key is genre plus whichever tone (if any) got a flavor boost
+during tone-profile generation (5.11) - `generateToneProfile` now returns
+the rolled `flavorTones` alongside the profile itself specifically so this
+doesn't have to re-derive "was this flavored" from the finished numbers.
+An Action script that rolled a comedy flavor boost pulls from
+`PREMISE_BANKS.Action.comedy` instead of `PREMISE_BANKS.Action.straight`,
+so a buddy-cop-flavored action script reads like one. Only a handful of
+genre/flavor combinations are authored so far (the common pairings - e.g.
+Action+comedy, Action+suspense, Comedy+action, Comedy+romance,
+Horror+comedy, Romance+comedy, Sci-Fi+suspense); anything without an
+authored bucket falls back to that genre's `straight` bucket, the same
+incremental-coverage approach already taken with the script title word
+banks (5.11) - fill in gaps if repetition becomes noticeable in play,
+rather than trying to cover every combination up front.
+
+**This is presentation only, on purpose.** `Script.synopsis` feeds nothing
+in `engine/scoring.ts` and nothing in `engine/compatibility.ts` - the same
+boundary `title` already sits behind. The alternative (turning protagonist/
+antagonist archetypes into a second, parallel "does this actor suit this
+character" scoring system) was considered and explicitly rejected: casting
+already has one clean, unified answer to "does this person suit this
+script" - tone-vector compatibility, identical for Director and Actor
+(5.11). A second, archetype-based compatibility system running alongside
+it would give every casting decision two numbers that could disagree,
+which is a regression, not a refinement - the same shape of problem as the
+`budgetScaleFactor` double-multiplier bug in 5.4's history notes. If
+character-level casting fit ever becomes a real feature, it should extend
+the existing tone system, not fork a second one next to it.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
