@@ -670,6 +670,17 @@ sometimes expands unevens out its grid row) more robustly than the toggle
 did: every card in a row now renders the same amount of content, so row
 heights stay consistent without needing a hover-flyout trick.
 
+Each axis originally reused the generic `.row-between` layout (label left,
+stars right, wrapping if the row ran out of space) - but the shared
+`.score-bar-label` class it borrowed is a fixed 130px, which doesn't fit
+next to a star rating in a narrow card, so it wrapped onto two lines with
+no distinguishing spacing, and it read ambiguously which label a wrapped
+star row belonged to. Fixed by giving the breakdown its own dedicated
+`.compat-axis`/`.compat-axis-label` layout (label always stacked directly
+above its own stars, small gap within a pair, bigger gap between pairs)
+instead of reusing `.row-between`/`.score-bar-label`, which stay untouched
+for their many other unrelated uses elsewhere in the app.
+
 Each axis in that expanded breakdown renders as a 5-star rating
 (`components/common/StarRating.tsx`) rather than a raw number -
 `Math.round((value/max)*10)/2` snaps the underlying 0-100 value to the
