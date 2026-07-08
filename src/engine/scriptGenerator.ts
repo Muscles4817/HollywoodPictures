@@ -1,7 +1,8 @@
-import type { Genre, Script, ToneProfile } from '../types';
+import type { Genre, Script, Tone, ToneProfile } from '../types';
 import { GENRE_PROFILES, GENRE_TYPICAL_AUDIENCES } from '../data/genres';
 import { SCRIPT_TITLE_WORDS } from '../data/scriptWords';
 import { TONES } from '../data/tones';
+import { generatePremise } from './premiseGenerator';
 import { type RandomFn, clamp, pick, pickMany, randFloat, randInt } from './random';
 
 let nextScriptId = 1;
@@ -46,7 +47,19 @@ const FLAVOR_BOOST_RANGE: [number, number] = [20, 35];
  * dark comedy or tragedy alongside the scares. Being "Action" doesn't mean
  * everything except spectacle has to be low.
  */
-function generateToneProfile(genre: Genre, rng: RandomFn): ToneProfile {
+interface ToneGenerationResult {
+  profile: ToneProfile;
+  /**
+   * Which tone(s), if any, got a flavor boost on top of the genre's
+   * canonical vector - what actually produces sub-genre variety (an
+   * action-comedy, a horror-comedy). Returned alongside the profile so
+   * engine/premiseGenerator.ts can pick a matching synopsis bucket directly,
+   * rather than re-deriving "was this flavored" from the final numbers.
+   */
+  flavorTones: Tone[];
+}
+
+function generateToneProfile(genre: Genre, rng: RandomFn): ToneGenerationResult {
   const canonical = GENRE_PROFILES[genre].canonicalTone;
   const profile = {} as ToneProfile;
   for (const tone of TONES) {
@@ -59,7 +72,7 @@ function generateToneProfile(genre: Genre, rng: RandomFn): ToneProfile {
     profile[tone] = clamp(Math.round(profile[tone] + randFloat(rng, ...FLAVOR_BOOST_RANGE)), 1, 100);
   }
 
-  return profile;
+  return { profile, flavorTones };
 }
 
 // Mostly a single protagonist; occasionally a pair or a true ensemble lead.
@@ -86,6 +99,7 @@ function generateScript(genre: Genre, rng: RandomFn, title: string): Script {
   const dialogue = randInt(rng, 20, 100);
   const marketability = randInt(rng, 15, 100);
   const complexity = randInt(rng, 10, 100);
+  const { profile: toneProfile, flavorTones } = generateToneProfile(genre, rng);
 
   return {
     id: `script-${nextScriptId++}`,
@@ -98,7 +112,8 @@ function generateScript(genre: Genre, rng: RandomFn, title: string): Script {
     marketability,
     complexity,
     cost: estimateScriptCost({ originality, structure, dialogue, marketability }),
-    toneProfile: generateToneProfile(genre, rng),
+    toneProfile,
+    synopsis: generatePremise(genre, flavorTones[0] ?? null, rng),
     requiredLeads: pick(rng, LEAD_COUNT_WEIGHTS),
     requiredSupporting: pick(rng, SUPPORTING_COUNT_WEIGHTS),
     intendedAudience: pick(rng, GENRE_TYPICAL_AUDIENCES[genre]),

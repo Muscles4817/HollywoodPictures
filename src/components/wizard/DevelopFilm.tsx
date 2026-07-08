@@ -79,6 +79,7 @@ export function DevelopFilm() {
                   onClick={() => dispatch({ type: 'SELECT_SCRIPT', script })}
                 >
                   <div className="card-title">{script.title}</div>
+                  <p className="card-synopsis">{script.synopsis}</p>
                   <div className="card-subtitle">Cost: <Money amount={script.cost} /></div>
                   <div style={{ fontSize: '0.85em' }}>
                     <div>Genre Fit: {script.genreFit}</div>

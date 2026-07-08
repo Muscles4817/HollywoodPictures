@@ -134,6 +134,13 @@ button {
   margin-bottom: 8px;
 }
 
+.card-synopsis {
+  font-size: 0.9em;
+  font-style: italic;
+  color: var(--text);
+  margin: 0 0 10px;
+}
+
 /* --- Compatibility badge (always-visible score + tone/style breakdown) --- */
 .compat-badge {
   margin-top: 8px;

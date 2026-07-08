@@ -96,6 +96,10 @@ export interface Script {
   complexity: number; // 1-100, drives production difficulty/risk
   cost: number;
   toneProfile: ToneProfile;
+  // A one-sentence log-line generated from genre + tone flavor
+  // (engine/premiseGenerator.ts, data/premises.ts) - presentation only,
+  // doesn't feed any scoring, same as title.
+  synopsis: string;
   // How many named Lead/Supporting roles this script actually has - a
   // buddy-cop script calls for two leads, an ensemble drama might want a
   // bigger supporting cast. Drives Hire Talent's capacity for those two
