@@ -7,6 +7,7 @@ import { ChoiceGroup } from '../common/ChoiceGroup';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
+import { CompatibilityBadge } from '../common/CompatibilityBadge';
 
 const GENRE_DESCRIPTIONS = pluckDescriptions(GENRE_PROFILES);
 const AUDIENCE_DESCRIPTIONS = pluckDescriptions(AUDIENCE_PROFILES);
@@ -64,6 +65,8 @@ export function DevelopFilm() {
           <p style={{ margin: 0 }}>
             Genre Fit and Marketability drive audience appeal and box office reach. Originality and Direction quality
             matter most to critics. Structure and Dialogue are overall craft. Higher Complexity raises production risk.
+            Each script also has its own Tone Profile (click or hover to see it) - that's what determines which
+            director and cast actually suit it once you're hiring.
           </p>
           <div className="grid">
             {draft.scriptOptions.map((script) => {
@@ -86,6 +89,7 @@ export function DevelopFilm() {
                     <div>Marketability: {script.marketability}</div>
                     <div>Complexity: {script.complexity}</div>
                   </div>
+                  <CompatibilityBadge toneProfile={script.toneProfile} />
                   {!affordable && (
                     <p style={{ color: 'var(--red)', marginTop: 6 }}>Can't afford this script</p>
                   )}

@@ -4,12 +4,15 @@ import { TONES, TONE_LABELS } from '../../data/tones';
 import { ScoreBar } from './ScoreBar';
 
 interface CompatibilityBadgeProps {
-  score: number; // 0-100, the collapsed script-weighted compatibility figure
-  toneProfile: ToneProfile; // the talent's own profile, for the expanded breakdown
+  toneProfile: ToneProfile; // the owner's own profile, for the expanded breakdown
+  // 0-100 script-weighted compatibility figure. Omit on a script's own card,
+  // where there's no talent yet to compare against - the badge falls back
+  // to just labeling this as the script's tone profile.
+  score?: number;
 }
 
 /**
- * Collapsed to a single number by default so a card stays scannable - the
+ * Collapsed to a single line by default so a card stays scannable - the
  * six-axis breakdown is genuinely useful for a borderline casting call, but
  * showing it on every card at once is exactly the wall-of-stats
  * micromanagement this game is trying to avoid. Click to pin it open,
@@ -17,6 +20,7 @@ interface CompatibilityBadgeProps {
  */
 export function CompatibilityBadge({ score, toneProfile }: CompatibilityBadgeProps) {
   const [expanded, setExpanded] = useState(false);
+  const label = score !== undefined ? `Compatibility: ${Math.round(score)}` : 'Tone Profile';
 
   return (
     <div className="compat-badge">
@@ -29,7 +33,7 @@ export function CompatibilityBadge({ score, toneProfile }: CompatibilityBadgePro
           setExpanded((v) => !v);
         }}
       >
-        Compatibility: {Math.round(score)} {expanded ? '▴' : '▾'}
+        {label} {expanded ? '▴' : '▾'}
       </button>
       <div className={`compat-detail${expanded ? ' compat-detail-expanded' : ''}`}>
         {TONES.map((tone) => (
