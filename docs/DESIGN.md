@@ -717,14 +717,30 @@ the rolled `flavorTones` alongside the profile itself specifically so this
 doesn't have to re-derive "was this flavored" from the finished numbers.
 An Action script that rolled a comedy flavor boost pulls from
 `PREMISE_BANKS.Action.comedy` instead of `PREMISE_BANKS.Action.straight`,
-so a buddy-cop-flavored action script reads like one. Only a handful of
-genre/flavor combinations are authored so far (the common pairings - e.g.
-Action+comedy, Action+suspense, Comedy+action, Comedy+romance,
-Horror+comedy, Romance+comedy, Sci-Fi+suspense); anything without an
-authored bucket falls back to that genre's `straight` bucket, the same
-incremental-coverage approach already taken with the script title word
-banks (5.11) - fill in gaps if repetition becomes noticeable in play,
-rather than trying to cover every combination up front.
+so a buddy-cop-flavored action script reads like one. Every genre's
+`straight` bucket now has 9 entries, and 18 of the 48 possible genre/flavor
+combinations are authored (2-3 per genre, the pairings common enough to be
+worth writing - e.g. Action+comedy/suspense/drama, Fantasy+romance/comedy),
+each with 5-6 entries; anything without an authored bucket falls back to
+that genre's `straight` bucket, the same incremental-coverage approach
+already taken with the script title word banks (5.11) - fill in more if
+repetition is still noticeable in play, rather than trying to cover every
+combination up front.
+
+169 hand-written entries surfaced their own lesson worth recording: several
+early entries reused `{antagonist}` twice in one sentence, or built a
+sentence around a long descriptive antagonist phrase (`"a king who keeps
+declaring wars without checking with him first"`) the way one would around
+a short name - both read fine individually but produced either a broken
+trailing possessive (`...first's latest crusade`) or the same long phrase
+repeated verbatim seconds apart once substituted. A `.replace()` call was
+also silently only replacing the *first* `{antagonist}` occurrence,
+compounding the double-use case further (fixed to `.replaceAll()` in
+`premiseGenerator.ts`). Caught by actually rendering and reading every
+entry, not by the mechanical checks (no leftover token, no `null`, correct
+capitalization) that all still passed - worth remembering that the
+generator producing *valid* output isn't the same as producing *readable*
+output.
 
 **This is presentation only, on purpose.** `Script.synopsis` feeds nothing
 in `engine/scoring.ts` and nothing in `engine/compatibility.ts` - the same
