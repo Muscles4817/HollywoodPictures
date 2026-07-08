@@ -15,7 +15,7 @@ import { TEST_SCREENING_PROFILES } from '../data/postProduction';
 import { computeBoxOffice } from './boxOffice';
 import { determineOutcome } from './outcome';
 import { computeReputationChange } from './reputation';
-import { pickReviewBlurbs } from './reviews';
+import { pickReviewBlurbs, pickDepartmentBlurb } from './reviews';
 import type { RandomFn } from './random';
 
 export interface ReleaseComputationInput {
@@ -85,7 +85,8 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   const profit = totalBoxOffice - totalCost;
   const outcome = determineOutcome(profit, totalCost, quality.qualityScore, criticScore, audienceScore);
   const reputationChange = computeReputationChange(outcome, criticScore);
-  const reviewBlurbs = pickReviewBlurbs(criticScore, audienceScore, rng);
+  const departmentBlurb = pickDepartmentBlurb(quality, input.genre, rng);
+  const reviewBlurbs = [...pickReviewBlurbs(criticScore, audienceScore, rng), ...(departmentBlurb ? [departmentBlurb] : [])];
 
   return {
     productionCost,
@@ -98,6 +99,12 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     audienceScore: Math.round(audienceScore),
     buzzScore: Math.round(buzzScore),
     qualityScore: Math.round(quality.qualityScore),
+    scriptScore: Math.round(quality.scriptScore),
+    directionScore: Math.round(quality.directionScore),
+    actingScore: Math.round(quality.actingScore),
+    productionScore: Math.round(quality.productionScore),
+    postProductionScore: Math.round(quality.postProductionScore),
+    eventsScore: Math.round(quality.eventsScore),
     reputationChange,
     reviewBlurbs,
     outcome,

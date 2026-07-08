@@ -41,6 +41,17 @@ export function ReleaseResults() {
       </div>
 
       <div className="card stack">
+        <h2>Department Breakdown</h2>
+        <p className="choice-description">What actually drove the Quality Score above.</p>
+        <ScoreBar label="Screenplay" value={results.scriptScore} />
+        <ScoreBar label="Direction" value={results.directionScore} />
+        <ScoreBar label="Acting" value={results.actingScore} />
+        <ScoreBar label="Production" value={results.productionScore} />
+        <ScoreBar label="Post-Production" value={results.postProductionScore} />
+        <ScoreBar label="On-Set Events" value={results.eventsScore} />
+      </div>
+
+      <div className="card stack">
         <h2>Reviews</h2>
         {results.reviewBlurbs.map((blurb, i) => (
           <p key={i}>{blurb}</p>

@@ -117,6 +117,15 @@ export interface FilmResults {
   audienceScore: number; // 0-100
   buzzScore: number; // 0-100
   qualityScore: number; // 0-100, internal weighted quality
+  // Per-department breakdown behind qualityScore, surfaced on the results
+  // screen so the player can see WHY the film scored the way it did instead
+  // of just a single number.
+  scriptScore: number;
+  directionScore: number;
+  actingScore: number;
+  productionScore: number;
+  postProductionScore: number;
+  eventsScore: number;
   reputationChange: number;
   reviewBlurbs: string[];
   outcome: OutcomeLabel;

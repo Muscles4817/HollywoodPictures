@@ -129,9 +129,9 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'BEGIN_FILMING': {
-      if (!state.draft || !state.draft.script || !state.draft.productionChoices) return state;
+      if (!state.draft || !state.draft.script || !state.draft.productionChoices || !state.draft.genre) return state;
       const { result: simResult, nextSeed } = withRng(state.rngSeed, (rng) =>
-        simulateProduction(state.draft!.talent, state.draft!.script!, state.draft!.productionChoices!, rng),
+        simulateProduction(state.draft!.talent, state.draft!.script!, state.draft!.productionChoices!, state.draft!.genre!, rng),
       );
       return { ...state, rngSeed: nextSeed, draft: { ...state.draft, events: simResult.events } };
     }

@@ -1,5 +1,10 @@
-import type { ProductionChoices, ProductionEvent, Script, Talent } from '../types';
-import { POSITIVE_EVENT_TEMPLATES, NEGATIVE_EVENT_TEMPLATES, type ProductionEventTemplate } from '../data/productionEvents';
+import type { Genre, ProductionChoices, ProductionEvent, Script, Talent } from '../types';
+import {
+  POSITIVE_EVENT_TEMPLATES,
+  NEGATIVE_EVENT_TEMPLATES,
+  GENRE_EVENT_TEMPLATES,
+  type ProductionEventTemplate,
+} from '../data/productionEvents';
 import { shootingRisk, budgetRisk as budgetRiskScore } from './productionDials';
 import { clamp, randFloat, randInt, type RandomFn } from './random';
 
@@ -43,28 +48,32 @@ function rollEvent(template: ProductionEventTemplate, rng: RandomFn): Production
 
 /**
  * Simulates a shoot: picks 3-5 events, each rolled positive or negative based
- * on the overall risk score, without repeating the same template twice.
+ * on the overall risk score, without repeating the same template twice. The
+ * genre's own event templates (data/productionEvents.ts:GENRE_EVENT_TEMPLATES)
+ * are mixed into the generic pool rather than replacing it, so a Horror shoot
+ * can still hit ordinary set drama, not just horror-flavored beats.
  */
 export function simulateProduction(
   talent: Talent[],
   script: Script,
   choices: ProductionChoices,
+  genre: Genre,
   rng: RandomFn,
 ): { events: ProductionEvent[]; riskScore: number } {
   const riskScore = computeProductionRiskScore(talent, script, choices);
   const eventCount = randInt(rng, 3, 5);
+
+  const genreTemplates = GENRE_EVENT_TEMPLATES[genre] ?? [];
+  const positivePool = [...POSITIVE_EVENT_TEMPLATES, ...genreTemplates.filter((t) => t.polarity === 'positive')];
+  const negativePool = [...NEGATIVE_EVENT_TEMPLATES, ...genreTemplates.filter((t) => t.polarity === 'negative')];
 
   const usedIds = new Set<string>();
   const events: ProductionEvent[] = [];
 
   for (let i = 0; i < eventCount; i++) {
     const rollNegative = rng() * 100 < riskScore;
-    const pool = (rollNegative ? NEGATIVE_EVENT_TEMPLATES : POSITIVE_EVENT_TEMPLATES).filter(
-      (t) => !usedIds.has(t.id),
-    );
-    const fallbackPool = (rollNegative ? POSITIVE_EVENT_TEMPLATES : NEGATIVE_EVENT_TEMPLATES).filter(
-      (t) => !usedIds.has(t.id),
-    );
+    const pool = (rollNegative ? negativePool : positivePool).filter((t) => !usedIds.has(t.id));
+    const fallbackPool = (rollNegative ? positivePool : negativePool).filter((t) => !usedIds.has(t.id));
     const candidates = pool.length > 0 ? pool : fallbackPool;
     if (candidates.length === 0) break; // exhausted all templates
 

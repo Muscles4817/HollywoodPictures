@@ -1,9 +1,14 @@
 import type { Genre } from '../types';
-import { GENRE_PROFILES } from '../data/genres';
+import { GENRE_PROFILES, type GenreProfile } from '../data/genres';
 import { BASE_QUALITY_WEIGHTS, type QualityWeights } from '../data/scoringWeights';
 
 function average(values: number[]): number {
   return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+/** A genre's VFX and practical-effects importance collapsed into one production-importance figure. */
+export function productionImportance(profile: GenreProfile): number {
+  return (profile.vfxImportance + profile.practicalEffectsImportance) / 2;
 }
 
 // Cross-genre averages, computed once from the live genre data rather than
@@ -13,7 +18,7 @@ function average(values: number[]): number {
 const ALL_PROFILES = Object.values(GENRE_PROFILES);
 const AVG_SCRIPT_IMPORTANCE = average(ALL_PROFILES.map((p) => p.scriptImportance));
 const AVG_ACTING_IMPORTANCE = average(ALL_PROFILES.map((p) => p.actingImportance));
-const AVG_PRODUCTION_IMPORTANCE = average(ALL_PROFILES.map((p) => (p.vfxImportance + p.practicalEffectsImportance) / 2));
+const AVG_PRODUCTION_IMPORTANCE = average(ALL_PROFILES.map(productionImportance));
 
 /**
  * Final Quality Score weights, tilted per genre instead of fixed for every
@@ -28,12 +33,11 @@ const AVG_PRODUCTION_IMPORTANCE = average(ALL_PROFILES.map((p) => (p.vfxImportan
  */
 export function computeQualityWeights(genre: Genre): QualityWeights {
   const profile = GENRE_PROFILES[genre];
-  const productionImportance = (profile.vfxImportance + profile.practicalEffectsImportance) / 2;
 
   const raw: QualityWeights = {
     script: BASE_QUALITY_WEIGHTS.script * (profile.scriptImportance / AVG_SCRIPT_IMPORTANCE),
     acting: BASE_QUALITY_WEIGHTS.acting * (profile.actingImportance / AVG_ACTING_IMPORTANCE),
-    production: BASE_QUALITY_WEIGHTS.production * (productionImportance / AVG_PRODUCTION_IMPORTANCE),
+    production: BASE_QUALITY_WEIGHTS.production * (productionImportance(profile) / AVG_PRODUCTION_IMPORTANCE),
     direction: BASE_QUALITY_WEIGHTS.direction,
     postProduction: BASE_QUALITY_WEIGHTS.postProduction,
     randomEvents: BASE_QUALITY_WEIGHTS.randomEvents,
@@ -49,4 +53,23 @@ export function computeQualityWeights(genre: Genre): QualityWeights {
     production: raw.production / total,
     randomEvents: raw.randomEvents / total,
   };
+}
+
+/**
+ * Which craft department a genre leans on hardest - script, acting, or
+ * production (VFX/practical effects combined). Used to pick genre-flavored
+ * review commentary: praise or criticism lands harder when it's aimed at the
+ * department a genre's audience actually cares about (e.g. cheap effects
+ * sting more on a Sci-Fi film than a Drama).
+ */
+export function genreSignatureDepartment(genre: Genre): 'script' | 'acting' | 'production' {
+  const profile = GENRE_PROFILES[genre];
+  const scores: Record<'script' | 'acting' | 'production', number> = {
+    script: profile.scriptImportance,
+    acting: profile.actingImportance,
+    production: productionImportance(profile),
+  };
+  return (Object.keys(scores) as Array<'script' | 'acting' | 'production'>).reduce((best, key) =>
+    scores[key] > scores[best] ? key : best,
+  );
 }
