@@ -46,8 +46,9 @@ one thing at a time, always know what's next.
 
 Defined in `src/types/index.ts`. The five nouns that matter:
 
-- **Studio** - `name`, `cash`, `reputation` (0-100), `year`, `filmsReleased[]`.
-  This is the only thing that persists between films.
+- **Studio** - `name`, `cash`, `reputation` (0-100), `year`, `filmsReleased[]`,
+  `talentPool` (the persistent hireable roster, one array per role). This is
+  the only thing that persists between films.
 - **Film** - a fully-resolved, released film: its script, its cast, every
   choice made producing it, its rolled events, and its final `FilmResults`.
   Immutable once created; lives forever in `studio.filmsReleased`.
@@ -55,9 +56,11 @@ Defined in `src/types/index.ts`. The five nouns that matter:
   `marketability`, `complexity` (all 1-100), plus a `cost`. Generated
   procedurally per genre (see `engine/scriptGenerator.ts`).
 - **Talent** - `role`, `fame`, `skill`, `reliability`, `ego` (all 1-100),
-  `salary`, and a sparse `genreAffinities` map. Procedurally generated per
-  role whenever genre is set (see [Section 5.8](#58-procedural-talent-generation-enginetalentgeneratorts)) -
-  there's no persistent named roster, and no scheduling conflicts yet (see
+  `salary`, and a `genreAffinities` map covering every genre. Generated once
+  per role when a `Studio` is created and kept for the life of the save in
+  `studio.talentPool` (see [Section 5.8](#58-procedural-talent-generation-enginetalentgeneratorts)) -
+  the same named roster is drawn from across every film, though there's
+  still no scheduling conflicts or relationships yet (see
   [Section 8](#8-known-limitations--next-steps)).
 - **FilmDraft** - the film *in progress*. Every wizard screen reads and
   writes one field of this (`script`, `talent`, `productionChoices`, ...).
@@ -293,21 +296,21 @@ total).
 
 ### 5.8 Procedural talent generation (`engine/talentGenerator.ts`, `data/talentGeneration.ts`)
 
-There's no fixed roster of named actors anymore - every candidate is
-generated fresh, the same way scripts are. `generateTalentCandidates(role,
-genre, rng)` draws 100 candidates per role, each sampling a salary from a
-stratified band on a log scale across that role's own range
-(`data/talentGeneration.ts:ROLE_GENERATION_PROFILES` - e.g. Lead Actor spans
-£40,000 - £15,000,000, Editor spans £10,000 - £1,200,000) so a real
-shoestring hire and a blockbuster star are both represented and reachable
-via a price slider. Stratifying (one candidate per even slice of the range,
-with random jitter inside each slice) rather than pure random sampling
-guarantees coverage across the whole spectrum instead of leaving it to
-chance - generation is cheap enough (a handful of arithmetic/RNG ops per
-candidate, ~110KB of localStorage for a full set of pools) that there's no
-real reason to ration it. Density matters here specifically because of how
-filtering works (next paragraph) - a sparser pool would make a tight
-percentage band come up empty more often.
+There's a fixed roster, but it's procedurally generated rather than
+hand-authored. `generateTalentPool(rng)` runs once, when a `Studio` is first
+created (`state/gameState.ts:createInitialStudio`), and produces ~100
+candidates per role, each sampling a salary from a stratified band on a log
+scale across that role's own range (`data/talentGeneration.ts:ROLE_GENERATION_PROFILES` -
+e.g. Lead Actor spans £40,000 - £15,000,000, Editor spans £10,000 -
+£1,200,000) so a real shoestring hire and a blockbuster star are both
+represented and reachable via a price slider. Stratifying (one candidate per
+even slice of the range, with random jitter inside each slice) rather than
+pure random sampling guarantees coverage across the whole spectrum instead
+of leaving it to chance. The resulting pool lives in `studio.talentPool` for
+the life of the save (~170KB of localStorage including it) and is drawn from
+by every film - the same named people are available film after film, so a
+player can come to recognise (and build a mental model of) individual
+actors and crew rather than meeting an entirely fresh cast each time.
 
 Given a candidate's position `t` on that log scale:
 
@@ -316,7 +319,7 @@ fame        = 10 + (roleFameCeiling - 10) * t   + noise(±12)
 skill       = 25 + 65 * t                        + noise(±20)
 reliability = 45 + 25 * t                        + noise(±30)
 ego         = 15 + fame * 0.45                    + noise(±20)
-genreAffinity = random(15, 100), independent of price
+genreAffinities[genre] = random(15, 100) for every genre, independent of price
 ```
 
 Fame and skill scale up with price *on average*, but the noise bands are
@@ -325,12 +328,17 @@ still disappoint. Reliability and ego are only loosely tied to price -
 professionalism isn't for sale, and neither is a diva-free set. `roleFameCeiling`
 caps how famous a role can plausibly get even at the top of its pay scale -
 98 for Director/Lead Actor, down to 45 for Editor - since below-the-line
-crew don't become household names the way stars do.
+crew don't become household names the way stars do. Every candidate rolls
+an affinity for *every* genre at creation time, not just one - this is what
+makes the pool genre-agnostic and reusable: switching a film's genre
+mid-draft (`SET_GENRE`) just changes which affinity number is displayed and
+which script slate gets regenerated, it doesn't touch who's hireable or who
+you've already hired.
 
 On the Hire Talent screen, each role gets its own price slider (`SET_TALENT_TARGET_PRICE`)
-that filters the 100 generated candidates down to whoever's genuinely close
-to that price - moving the slider changes who's shown, it doesn't
-regenerate anyone. `engine/talentFilter.ts:findCandidatesNearPrice` does the
+that filters that role's ~100 pool members down to whoever's genuinely close
+to that price - moving the slider changes who's shown, it doesn't generate
+or discard anyone. `engine/talentFilter.ts:findCandidatesNearPrice` does the
 filtering: start at a ±10% band around the target and take up to 9 of
 whoever's in it, sorted by proximity; only widen the band (to ±20%, ±35%,
 ±60%, ±100%) if that leaves fewer than 3 candidates, so a sparse patch of
@@ -339,9 +347,11 @@ show the 9 closest regardless of how close" version that could surface
 candidates 60%+ away from the target with nothing nearby to show instead -
 that's a real difference in kind, not just a tuning tweak: the old version
 could never come up short of 9 results, the new one can (and should) show
-fewer when fewer genuinely qualify. A "Reroll Candidates" button
-(`REROLL_TALENT_CANDIDATES`) draws a fresh 100 if the current slate doesn't
-have anyone appealing. A master "Target Cast & Crew Budget" slider
+fewer when fewer genuinely qualify. There's no "Reroll Candidates" button
+any more - with a persistent named pool, rerolling would mean discarding
+people the player may already have hired elsewhere, which defeats the
+point; "Reset Studio" is the only way to get a fresh pool, because it starts
+an entirely new save. A master "Target Cast & Crew Budget" slider
 (`SET_TALENT_BUDGET_SPLIT`) splits a total evenly across the six mandatory
 roles as a starting point - the player is free to tilt any individual
 role's slider up or down afterward to over- or under-spend relative to that
@@ -425,20 +435,22 @@ it's written so every number it needs comes from `data/`.
 Things noticed during build/playtest that are worth flagging rather than
 quietly leaving implicit:
 
-- **Talent has no persistence, scheduling, or relationships.** Every
-  candidate is generated fresh per genre selection and thrown away with the
-  rest of the draft - there's no "same actor across films" concept anymore
-  to build loyalty or grudges on top of. A future relationship/contract
-  system would need talent to persist in `Studio` the way `filmsReleased`
-  does, generated once and then drawn from (with availability/cooldown)
-  rather than regenerated every time.
-- **Candidate sampling is randomized, not exhaustive.** 100 stratified
+- **Talent persists but still has no scheduling or relationships.** The
+  roster now lives in `studio.talentPool` and is the same across every film
+  in a save (Section 5.8), so "the same actor across films" exists as a
+  concept - but nothing yet tracks whether someone's "busy" on another
+  project, builds loyalty/grudges from repeat collaboration, or lets an
+  actor's fame/skill drift over time based on how their films performed. All
+  natural next layers on top of a persistent roster.
+- **Candidate sampling is randomized, not exhaustive.** ~100 stratified
   candidates per role gives dense coverage, but it's still finite - the
-  single cheapest (or single best) possible hire for a role won't always
-  appear in a given slate, so a player chasing the exact floor may
-  occasionally need to hit "Reroll Candidates". This is deliberate (real
-  casting doesn't offer infinite options either) but worth knowing when
-  reasoning about "why didn't I see anyone under £X".
+  single cheapest (or single best) possible hire for a role won't always be
+  in the pool. Unlike before, there's no reroll to fall back on (rerolling a
+  persistent named roster would discard whoever's already been hired
+  elsewhere) - what's in the pool for that save is what's available, for the
+  life of that save. This is deliberate (real casting doesn't offer infinite
+  options either) but worth knowing when reasoning about "why didn't I see
+  anyone under £X".
 - **Buzz and Marketability scores are computed but not fully load-bearing.**
   Buzz shows on the results screen; Marketability doesn't surface anywhere
   yet. Both are clean hooks for a pre-release hype mechanic.
