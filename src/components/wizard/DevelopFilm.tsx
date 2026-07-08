@@ -54,14 +54,6 @@ export function DevelopFilm() {
         descriptions={GENRE_DESCRIPTIONS}
       />
 
-      <ChoiceGroup
-        label="Target Audience"
-        options={TARGET_AUDIENCES}
-        value={draft.targetAudience}
-        onChange={(targetAudience) => dispatch({ type: 'SET_TARGET_AUDIENCE', targetAudience })}
-        descriptions={AUDIENCE_DESCRIPTIONS}
-      />
-
       {draft.genre && (
         <div className="card stack">
           <div className="row-between">
@@ -72,7 +64,8 @@ export function DevelopFilm() {
             Genre Fit and Marketability drive audience appeal and box office reach. Originality and Direction quality
             matter most to critics. Structure and Dialogue are overall craft. Higher Complexity raises production risk.
             Each script also has its own Tone Profile (click or hover to see it) - that's what determines which
-            director and cast actually suit it once you're hiring.
+            director and cast actually suit it once you're hiring. Picking a script also sets how many Lead and
+            Supporting roles you'll need to cast, and suggests a Target Audience below.
           </p>
           <div className="grid">
             {draft.scriptOptions.map((script) => {
@@ -94,6 +87,9 @@ export function DevelopFilm() {
                     <div>Dialogue: {script.dialogue}</div>
                     <div>Marketability: {script.marketability}</div>
                     <div>Complexity: {script.complexity}</div>
+                    <div>Leads: {script.requiredLeads}</div>
+                    <div>Supporting Roles: {script.requiredSupporting}</div>
+                    <div>Written For: {script.intendedAudience}</div>
                   </div>
                   <CompatibilityBadge breakdown={toneBreakdown(script)} />
                   {!affordable && (
@@ -105,6 +101,17 @@ export function DevelopFilm() {
             })}
           </div>
         </div>
+      )}
+
+      {draft.script && (
+        <ChoiceGroup
+          label="Target Audience"
+          options={TARGET_AUDIENCES}
+          value={draft.targetAudience}
+          onChange={(targetAudience) => dispatch({ type: 'SET_TARGET_AUDIENCE', targetAudience })}
+          descriptions={AUDIENCE_DESCRIPTIONS}
+          hint={`Pre-filled from "${draft.script.title}"'s intended audience - change it if you'd rather position the film differently.`}
+        />
       )}
 
       <div className="row-between">

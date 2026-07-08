@@ -1,4 +1,4 @@
-import type { Genre, ToneProfile } from '../types';
+import type { Genre, TargetAudience, ToneProfile } from '../types';
 
 // Data-driven genre profile: describes how much each production lever matters
 // for a genre, plus its baseline audience popularity. Tweak these numbers to
@@ -75,4 +75,20 @@ export const GENRE_PROFILES: Record<Genre, GenreProfile> = {
     description: 'A dependable mid-budget genre - decent writing and acting go a long way, and it tolerates a leaner budget reasonably well.',
     canonicalTone: { action: 45, comedy: 20, romance: 25, suspense: 80, drama: 45, spectacle: 35 },
   },
+};
+
+// Which target audiences a script in this genre would plausibly be written
+// for (engine/scriptGenerator.ts picks one at random per script) - a rough
+// real-world sense of who each genre is typically aimed at, not a hard
+// rule. The player can always override Target Audience after picking a
+// script; this only sets where it starts.
+export const GENRE_TYPICAL_AUDIENCES: Record<Genre, TargetAudience[]> = {
+  Action: ['Mass Market', 'Teens'],
+  Comedy: ['Mass Market', 'Teens', 'Families'],
+  Drama: ['Critics', 'Adults'],
+  Horror: ['Teens', 'Adults', 'Niche'],
+  Romance: ['Adults', 'Mass Market'],
+  'Sci-Fi': ['Mass Market', 'Teens', 'Niche'],
+  Fantasy: ['Families', 'Teens', 'Mass Market'],
+  Thriller: ['Adults', 'Mass Market'],
 };

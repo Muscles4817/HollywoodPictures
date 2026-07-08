@@ -7,9 +7,11 @@ import { randomSeed, withRng } from '../engine/random';
 // field; v3 -> v4 replaced Talent.genreAffinities with Talent/Script
 // toneProfile; v4 -> v5 split Talent into a discriminated union - Director
 // keeps toneProfile, Actors got actingStyle instead of skill+toneProfile,
-// crew roles lost their unused toneProfile) so old saves are cleanly
-// ignored instead of partially loading with missing/mismatched fields.
-const SAVE_KEY = 'hollywood-pictures-save-v5';
+// crew roles lost their unused toneProfile; v5 -> v6 added
+// requiredLeads/requiredSupporting/intendedAudience to Script) so old saves
+// are cleanly ignored instead of partially loading with missing/mismatched
+// fields.
+const SAVE_KEY = 'hollywood-pictures-save-v6';
 
 export function loadState(): GameState {
   try {

@@ -1,8 +1,8 @@
 import type { Genre, Script, ToneProfile } from '../types';
-import { GENRE_PROFILES } from '../data/genres';
+import { GENRE_PROFILES, GENRE_TYPICAL_AUDIENCES } from '../data/genres';
 import { SCRIPT_TITLE_WORDS } from '../data/scriptWords';
 import { TONES } from '../data/tones';
-import { type RandomFn, clamp, pick, randFloat, randInt } from './random';
+import { type RandomFn, clamp, pick, pickMany, randFloat, randInt } from './random';
 
 let nextScriptId = 1;
 
@@ -13,12 +13,20 @@ function randomTitle(genre: Genre, rng: RandomFn): string {
 
 const TONE_JITTER = 15;
 
+// 0 flavor tones ~25% of the time (a "straight" genre film), 1 ~50%, 2 ~25%.
+const FLAVOR_COUNT_WEIGHTS = [0, 1, 1, 2];
+const FLAVOR_BOOST_RANGE: [number, number] = [20, 35];
+
 /**
- * A script's tone profile jitters around its genre's canonical vector
- * (data/genres.ts:GENRE_PROFILES) rather than copying it exactly - this is
- * what lets multi-genre blending happen for free, with no separate
- * secondary-genre field: a Horror script that happens to jitter high on
- * comedy and low on suspense is, mechanically, already a horror-comedy.
+ * A script's tone profile starts as its genre's canonical vector plus
+ * jitter, then gets 0-2 "flavor" tones boosted on top of that. This is what
+ * produces real sub-genre variety - an action-comedy, an action-romance, a
+ * low-budget action-revenge drama - instead of every script in a genre
+ * reading as a pure, undiluted version of it. Most real films aren't just
+ * their headline genre: buddy-cop action is action-comedy, most romantic
+ * comedies are romance-comedy, plenty of horror leans hard into either
+ * dark comedy or tragedy alongside the scares. Being "Action" doesn't mean
+ * everything except spectacle has to be low.
  */
 function generateToneProfile(genre: Genre, rng: RandomFn): ToneProfile {
   const canonical = GENRE_PROFILES[genre].canonicalTone;
@@ -26,8 +34,20 @@ function generateToneProfile(genre: Genre, rng: RandomFn): ToneProfile {
   for (const tone of TONES) {
     profile[tone] = clamp(Math.round(canonical[tone] + randFloat(rng, -TONE_JITTER, TONE_JITTER)), 1, 100);
   }
+
+  const flavorCount = pick(rng, FLAVOR_COUNT_WEIGHTS);
+  const flavorTones = pickMany(rng, TONES, flavorCount);
+  for (const tone of flavorTones) {
+    profile[tone] = clamp(Math.round(profile[tone] + randFloat(rng, ...FLAVOR_BOOST_RANGE)), 1, 100);
+  }
+
   return profile;
 }
+
+// Mostly a single protagonist; occasionally a pair or a true ensemble lead.
+const LEAD_COUNT_WEIGHTS = [1, 1, 1, 1, 1, 2, 2, 2, 3];
+// A typical-sized supporting cast is the common case; small and large ensembles both happen.
+const SUPPORTING_COUNT_WEIGHTS = [1, 2, 2, 3, 3, 3, 4];
 
 /**
  * Cost scales with the average of the script's quality attributes -
@@ -61,6 +81,9 @@ function generateScript(genre: Genre, rng: RandomFn): Script {
     complexity,
     cost: estimateScriptCost({ originality, structure, dialogue, marketability }),
     toneProfile: generateToneProfile(genre, rng),
+    requiredLeads: pick(rng, LEAD_COUNT_WEIGHTS),
+    requiredSupporting: pick(rng, SUPPORTING_COUNT_WEIGHTS),
+    intendedAudience: pick(rng, GENRE_TYPICAL_AUDIENCES[genre]),
   };
 }
 

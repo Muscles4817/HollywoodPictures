@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { MANDATORY_TALENT_ROLES, OPTIONAL_TALENT_ROLES, ROLE_CAPACITY, ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
+import { MANDATORY_TALENT_ROLES, OPTIONAL_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
+import { effectiveRoleCapacity } from '../../engine/castRequirements';
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { computeCommittedSpend } from '../../state/selectors';
@@ -59,7 +60,7 @@ export function HireTalent() {
   }
 
   function selectTalent(role: TalentRole, talent: Talent) {
-    const capacity = ROLE_CAPACITY[role];
+    const capacity = effectiveRoleCapacity(role, draft.script);
     if (capacity.max === 1) {
       const current = talentsForRole(role)[0];
       dispatch({ type: 'SET_TALENT_FOR_ROLE', role, talent: current?.id === talent.id ? null : talent });
@@ -71,7 +72,9 @@ export function HireTalent() {
   }
 
   const totalSalary = draft.talent.reduce((sum, t) => sum + t.salary, 0);
-  const missingMandatory = MANDATORY_TALENT_ROLES.filter((role) => talentsForRole(role).length < ROLE_CAPACITY[role].min);
+  const missingMandatory = MANDATORY_TALENT_ROLES.filter(
+    (role) => talentsForRole(role).length < effectiveRoleCapacity(role, draft.script).min,
+  );
   const committedSpend = computeCommittedSpend(draft);
   const canAfford = state.studio.cash >= committedSpend;
   const canContinue = missingMandatory.length === 0 && canAfford;
@@ -83,7 +86,7 @@ export function HireTalent() {
 
   function renderRoleSection(role: TalentRole, optional: boolean) {
     const range = ROLE_GENERATION_PROFILES[role].salaryRange;
-    const capacity = ROLE_CAPACITY[role];
+    const capacity = effectiveRoleCapacity(role, draft.script);
     const targetPrice = draft.talentTargetPriceByRole[role] ?? logAmount(0.5, range);
     const candidates = state.studio.talentPool[role];
     const hired = talentsForRole(role);

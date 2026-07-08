@@ -101,6 +101,7 @@ button {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px;
+  position: relative;
 }
 
 .card-selectable {
@@ -152,11 +153,25 @@ button {
   text-decoration: underline;
 }
 
+/*
+ * Flies out to the right of the card rather than pushing it taller - a
+ * card that grows on hover unevens out the whole grid row (siblings stay
+ * short, the hovered one gets tall, everything below jumps around). The
+ * grid already leaves slack to the right of a card in most rows, so this
+ * uses that space instead of fighting the layout for vertical room.
+ */
 .compat-detail {
   display: none;
-  margin-top: 8px;
-  padding-top: 6px;
-  border-top: 1px solid var(--border);
+  position: absolute;
+  top: 0;
+  left: calc(100% + 10px);
+  width: 210px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  z-index: 30;
 }
 
 .compat-badge:hover .compat-detail,

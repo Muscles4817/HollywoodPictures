@@ -30,8 +30,9 @@ function getDirector(talent: Talent[]): DirectorTalent | undefined {
   return talent.find((t): t is DirectorTalent => t.role === 'Director');
 }
 
-function getLeadActor(talent: Talent[]): ActorTalent | undefined {
-  return talent.find((t): t is ActorTalent => t.role === 'Lead Actor');
+/** A script can call for more than one lead (Script.requiredLeads) - see castRequirements.ts. */
+function getLeadActors(talent: Talent[]): ActorTalent[] {
+  return talent.filter((t): t is ActorTalent => t.role === 'Lead Actor');
 }
 
 function getSupportingActors(talent: Talent[]): ActorTalent[] {
@@ -62,23 +63,24 @@ export function computeDirectionScore(talent: Talent[], script: Script): number 
 }
 
 /**
- * Combined lead + supporting acting quality, weighted toward the lead.
+ * Combined lead + supporting acting quality, weighted toward the leads.
  * Unlike Direction, this is compatibility alone - an actor's ActingStyle
  * has no separate "skill" number sitting next to it (see types/index.ts),
  * so how well their specific strengths suit this script IS their
- * contribution. Supporting Actor can hold an ensemble (see
- * data/talentGeneration.ts ROLE_CAPACITY) - a bigger cast doesn't
- * automatically raise this score, it's the *average* fit of everyone hired,
- * same as one person would give.
+ * contribution. Both Lead Actor and Supporting Actor can now hold more than
+ * one person - a script's requiredLeads/requiredSupporting sets exactly how
+ * many (see engine/castRequirements.ts) - and either ensemble is *averaged*,
+ * not summed: a two-lead buddy film doesn't automatically outscore a
+ * one-lead film, it's the average fit of whoever's cast in those roles.
  */
 export function computeActingScore(talent: Talent[], script: Script): number {
-  const lead = getLeadActor(talent);
+  const leads = getLeadActors(talent);
   const supports = getSupportingActors(talent);
 
-  const leadScore = lead ? compatibility(lead, script) : 30;
+  const leadScoreAvg = average(leads.map((l) => compatibility(l, script)));
   const supportScoreAvg = average(supports.map((s) => compatibility(s, script)));
 
-  return leadScore * 0.7 + (supportScoreAvg ?? 30) * 0.3;
+  return (leadScoreAvg ?? 30) * 0.7 + (supportScoreAvg ?? 30) * 0.3;
 }
 
 /**
@@ -123,8 +125,9 @@ export function computePostProductionScore(choices: PostProductionChoices): numb
 export function computeGenreFitScore(script: Script, talent: Talent[], genre: Genre, choices: ProductionChoices): number {
   const profile = GENRE_PROFILES[genre];
   const director = getDirector(talent);
-  const lead = getLeadActor(talent);
-  const talentFit = (compatibility(director, script) + compatibility(lead, script)) / 2;
+  const leads = getLeadActors(talent);
+  const leadFit = average(leads.map((l) => compatibility(l, script))) ?? 50;
+  const talentFit = (compatibility(director, script) + leadFit) / 2;
 
   // A low budget only suits genres tagged as low-budget-friendly (e.g. Horror);
   // the penalty tapers off linearly and is gone entirely by a third of the way up the budget scale.
@@ -138,10 +141,11 @@ export function computeGenreFitScore(script: Script, talent: Talent[], genre: Ge
 
 /** How sellable the film looks, independent of how it eventually gets marketed. */
 export function computeMarketabilityScore(script: Script, talent: Talent[], choices: ProductionChoices): number {
-  const lead = getLeadActor(talent);
+  const leads = getLeadActors(talent);
   const supports = getSupportingActors(talent);
+  const leadFameAvg = average(leads.map((l) => l.fame)) ?? 30;
   const supportFameAvg = average(supports.map((s) => s.fame)) ?? 30;
-  const fameAvg = ((lead?.fame ?? 30) + supportFameAvg) / 2;
+  const fameAvg = (leadFameAvg + supportFameAvg) / 2;
   const runtimeDelta = runtimeMarketabilityDelta(choices.runtimeIntensity);
   return clamp(script.marketability * 0.5 + fameAvg * 0.45 + runtimeDelta, 0, 100);
 }
@@ -213,8 +217,8 @@ export function computeAudienceScore(
   marketingChoices: MarketingChoices,
 ): number {
   const genreFitScore = computeGenreFitScore(script, talent, genre, productionChoices);
-  const lead = getLeadActor(talent);
-  const actorFameScore = lead?.fame ?? 30;
+  const leads = getLeadActors(talent);
+  const actorFameScore = average(leads.map((l) => l.fame)) ?? 30;
 
   const entertainmentScore = clamp(
     55 +

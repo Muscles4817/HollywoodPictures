@@ -96,6 +96,16 @@ export interface Script {
   complexity: number; // 1-100, drives production difficulty/risk
   cost: number;
   toneProfile: ToneProfile;
+  // How many named Lead/Supporting roles this script actually has - a
+  // buddy-cop script calls for two leads, an ensemble drama might want a
+  // bigger supporting cast. Drives Hire Talent's capacity for those two
+  // roles directly (see engine/castRequirements.ts) rather than every film
+  // offering the same fixed slots.
+  requiredLeads: number;
+  requiredSupporting: number;
+  // The audience this script was written for - pre-fills Target Audience
+  // when the script is picked, but stays fully overridable.
+  intendedAudience: TargetAudience;
 }
 
 // Every production dial is continuous rather than a fixed tier: the four
