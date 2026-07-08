@@ -385,11 +385,60 @@ risk = (100-avgReliability)*.3 + avgEgo*.2 + script.complexity*.2 + shootingRisk
 
 3-5 events are then rolled; each roll is negative with probability
 `risk / 100`, drawn from `NEGATIVE_EVENT_TEMPLATES` or
-`POSITIVE_EVENT_TEMPLATES` (`data/productionEvents.ts`) without repeats. Each
-event contributes a small, randomised cost/quality/buzz/delay delta. This is
-the one place ego and reliability actually bite - a high-ego, unreliable cast
-doesn't lower skill, it raises the odds of an expensive, quality-sapping
-on-set incident.
+`POSITIVE_EVENT_TEMPLATES` (`data/productionEvents.ts`), merged with that
+film's `GENRE_EVENT_TEMPLATES[genre]` entries (one positive, one negative per
+genre - a Horror shoot might roll "a practical gore effect looked so
+convincing a crew member actually flinched" or "a key prop malfunctioned
+mid-scare"), without repeats. Genre events sit *inside* the same pool as the
+generic ones rather than replacing them, so a Sci-Fi shoot can still hit
+ordinary set drama (bad weather, an over-schedule director) alongside its
+VFX-flavored beats - genre nudges the flavor of what can happen, it doesn't
+wall off a separate experience. Each event contributes a small, randomised
+cost/quality/buzz/delay delta. This is the one place ego and reliability
+actually bite - a high-ego, unreliable cast doesn't lower skill, it raises
+the odds of an expensive, quality-sapping on-set incident.
+
+### 5.10 Department breakdown & review blurbs (`engine/reviews.ts`, `data/reviewBlurbs.ts`)
+
+`computeQualityBreakdown` (5.1) already produces six per-department
+sub-scores on its way to the single Quality Score, but until now only the
+final number survived to `FilmResults` - the breakdown was computed and then
+thrown away. `FilmResults` now carries all six (`scriptScore`,
+`directionScore`, `actingScore`, `productionScore`, `postProductionScore`,
+`eventsScore`) and the Results screen shows them as their own "Department
+Breakdown" card, so a player can see *why* a film scored the way it did -
+weak acting on an otherwise well-made film, or a great script undercut by a
+cheap production - rather than reasoning backward from one number.
+
+`engine/reviews.ts:pickDepartmentBlurb` turns that same breakdown into one
+extra line of review prose, appended after the usual critic/audience-quadrant
+blurbs (`pickReviewBlurbs`, unchanged). It finds the single weakest and
+single strongest of the five *craft* departments (script/direction/acting/
+production/post-production - `eventsScore` is excluded here, since bad luck
+on set isn't a craft failing worth a critic blaming someone for) and:
+
+- If the weakest department scores below 45, it gets criticized.
+- Else if the strongest scores 70+ *and* nothing is weaker than 55 (i.e.
+  there's genuinely no soft spot to call out), the strongest gets praised
+  instead.
+- Otherwise - nothing stands out enough either way - no department line is
+  added, rather than manufacturing an opinion the numbers don't support.
+
+When the department in question (script/acting/production only - direction
+and post-production have no per-genre importance weighting to key off, see
+5.1) happens to be that genre's **signature department**
+(`engine/genreWeights.ts:genreSignatureDepartment` - whichever of
+script/acting/production importance is highest in that genre's
+`GenreProfile`, reusing the same derived-not-hardcoded pattern as
+`computeQualityWeights`), the line is drawn from a genre-flavored bank
+instead of the generic one (`data/reviewBlurbs.ts:GENRE_SIGNATURE_CRITICISM`/
+`GENRE_SIGNATURE_PRAISE`) - cheap effects sting harder in a critic's voice on
+a Sci-Fi film than a Drama, and a script's emotional stakes matter more to a
+Horror or Drama review than an Action one. Concretely: Action/Sci-Fi/Fantasy
+signature is production, Comedy/Romance signature is acting, and
+Drama/Horror/Thriller signature is script - computed from each genre's
+existing importance fields, not hand-mapped, so retuning `data/genres.ts`
+automatically keeps the signature assignments correct.
 
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
@@ -419,8 +468,8 @@ lives in `src/data/`:
 | `production.ts` | Ranges and anchors for the six continuous production dials (see 5.7) |
 | `postProduction.ts` | Cost/score deltas for edit style, music, test screening, final cut |
 | `release.ts` | Marketing spend tiers, release type profiles, release window bonuses |
-| `productionEvents.ts` | The pool of on-set event templates |
-| `reviewBlurbs.ts` | Flavor-text review snippets, bucketed by critic/audience reception |
+| `productionEvents.ts` | The generic pool of on-set event templates, plus `GENRE_EVENT_TEMPLATES` (one positive/negative pair per genre, merged into the generic pool for that film's shoot) |
+| `reviewBlurbs.ts` | Flavor-text review snippets bucketed by critic/audience reception, plus per-department criticism/praise lines (generic and genre-signature-flavored) used to call out a film's clear weak or strong point |
 | `scoringWeights.ts` | The weighted-sum tables for critic/audience, and the base (genre-average) quality weights that `engine/genreWeights.ts` tilts per genre |
 
 Rebalancing the game should almost always mean editing a table in this
