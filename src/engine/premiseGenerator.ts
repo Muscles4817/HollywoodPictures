@@ -20,6 +20,6 @@ export function generatePremise(genre: Genre, flavorTone: Tone | null, rng: Rand
   const bucket = (flavorTone && genreBank[flavorTone]) || genreBank.straight!;
   const premise = pick(rng, bucket);
   return premise.synopsis
-    .replace('{protagonist}', capitalize(premise.protagonist))
-    .replace('{antagonist}', premise.antagonist ?? '');
+    .replaceAll('{protagonist}', capitalize(premise.protagonist))
+    .replaceAll('{antagonist}', premise.antagonist ?? '');
 }
