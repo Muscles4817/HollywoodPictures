@@ -25,7 +25,8 @@ need a rewrite to grow - it should need new `data/` entries and maybe a new
 
 ```
 Studio Dashboard
-   -> Develop Film       (title, genre, target audience, buy a script)
+   -> Develop Film       (title, genre, buy a script, then Target Audience -
+                          pre-filled from the script's own intended audience)
    -> Hire Talent        (director, lead actor, supporting actor, writer, composer, editor, +VFX supervisor -
                           each a price slider over procedurally generated candidates)
    -> Production Planning(six continuous sliders: budget, shooting pace, sets, effects, VFX, runtime)
@@ -54,9 +55,13 @@ Defined in `src/types/index.ts`. The five nouns that matter:
   choice made producing it, its rolled events, and its final `FilmResults`.
   Immutable once created; lives forever in `studio.filmsReleased`.
 - **Script** - `genreFit`, `originality`, `structure`, `dialogue`,
-  `marketability`, `complexity` (all 1-100), a `cost`, and a `toneProfile`
-  (see [Section 5.11](#511-tone-profiles--compatibility-enginecompatibilityts-datatonests)).
-  Generated procedurally per genre (see `engine/scriptGenerator.ts`).
+  `marketability`, `complexity` (all 1-100), a `cost`, a `toneProfile`
+  (see [Section 5.11](#511-tone-profiles--compatibility-enginecompatibilityts-datatonests)),
+  `requiredLeads`/`requiredSupporting` (how many Lead/Supporting Actor slots
+  this script actually has - drives Hire Talent's capacity for those two
+  roles, see `engine/castRequirements.ts`), and an `intendedAudience` that
+  pre-fills (but doesn't lock) Target Audience once picked. Generated
+  procedurally per genre (see `engine/scriptGenerator.ts`).
 - **Talent** - a discriminated union by role, not one flat shape (see
   [Section 5.11](#511-tone-profiles--compatibility-enginecompatibilityts-datatonests)):
   `fame`, `reliability`, `ego`, `salary` (all 1-100 except salary) are
@@ -380,22 +385,32 @@ roles as a starting point - the player is free to tilt any individual
 role's slider up or down afterward to over- or under-spend relative to that
 split.
 
-**Role capacity** (`data/talentGeneration.ts:ROLE_CAPACITY`) governs how many
-people a role can hold: `{ min, max }`, checked in two places - the reducer
-(`TOGGLE_TALENT_FOR_ROLE` refuses to add past `max`; `min` drives the "still
-need to hire" validation on the Continue button) and the Hire Talent screen
-(cards for candidates you haven't hired grey out and show "Cast full" once
-`max` is reached, but an already-hired card stays clickable so you can
-un-hire them). Every role is currently `{1,1}` (hire one, replacing swaps
-who) except Supporting Actor at `{1,4}` - the first role that supports an
-ensemble. Hiring more people into an ensemble role doesn't add their
-contributions up; it *averages* them (see the Acting sub-score, 5.1) - a
-bigger supporting cast is about hedging and flavor (spreading compatibility
-risk, more reliability data points feeding production risk in 5.9), not a
-free quality multiplier. Two singular-role actions exist because the
-semantics genuinely differ: `SET_TALENT_FOR_ROLE` replaces/toggles a `{1,1}`
-role in place, `TOGGLE_TALENT_FOR_ROLE` adds-or-removes against a role that
-can hold more than one.
+**Role capacity** (`RoleCapacity`, `{ min, max }`) governs how many people a
+role can hold, checked in two places - the reducer (`TOGGLE_TALENT_FOR_ROLE`
+refuses to add past `max`; `min` drives the "still need to hire" validation
+on the Continue button) and the Hire Talent screen (cards for candidates you
+haven't hired grey out and show "Cast full" once `max` is reached, but an
+already-hired card stays clickable so you can un-hire them). Director,
+Writer, Composer and Editor are fixed at `{1,1}` (hire one, replacing swaps
+who); VFX Supervisor is `{0,1}` (optional). Lead Actor and Supporting Actor
+are different: their capacity isn't a static number at all, it comes from
+the chosen script's own `requiredLeads`/`requiredSupporting`
+(`engine/castRequirements.ts:effectiveRoleCapacity`) - a script that calls
+for two leads makes Lead Actor a `{2,2}` role for that film, the same
+toggle-based multi-hire UI Supporting Actor already used generalizing to
+cover it with no new reducer action needed. `data/talentGeneration.ts:ROLE_CAPACITY`
+is still the fallback these two roles use before a script is picked, and
+the only source of truth for every other role. Hiring more people into a
+multi-slot role doesn't add their contributions up; it *averages* them
+(see the Acting sub-score, 5.1) - a bigger cast is about hedging and
+flavor (spreading compatibility risk, more reliability data points feeding
+production risk in 5.9), not a free quality multiplier. Two singular-role
+actions exist because the semantics genuinely differ: `SET_TALENT_FOR_ROLE`
+replaces/toggles a `{1,1}` role in place, `TOGGLE_TALENT_FOR_ROLE`
+adds-or-removes against a role that can hold more than one - which of the
+two fires is decided purely by whether `capacity.max === 1` at the moment
+of the click, so Lead Actor transparently switches behavior film-to-film
+based on what that film's script needs.
 
 ### 5.9 Production risk & events (`engine/production.ts`, `data/productionEvents.ts`)
 
@@ -553,17 +568,22 @@ much it matters.
 - **Actors** roll their `actingStyle` the same shape, just over the
   five-axis list instead of the six-tone one.
 - **Scripts** get a `toneProfile` centered on their genre's `canonicalTone`
-  (`data/genres.ts`) with ±20 random jitter per axis
-  (`engine/scriptGenerator.ts`). This is also how multi-genre blending
-  happens, with no separate secondary-genre field: a Horror script
-  (canonical tone leans hard on `suspense`) that happens to jitter unusually
-  high on `comedy` and low on `suspense` is, mechanically, already most of
-  the way to being a horror-comedy - genre is a starting point in
-  tone-space, not a hard category. This was deliberately scoped as the
-  *only* multi-genre mechanism for now, in place of a dedicated
-  primary/secondary-genre picker - simpler, and free once the tone system
-  exists; an explicit picker remains a natural addition later if emergent
-  variance alone doesn't feel controllable enough in play.
+  (`data/genres.ts`) with ±15 random jitter per axis, *then* 0-2 "flavor"
+  tones get boosted by a further +20..+35 on top (`engine/scriptGenerator.ts`,
+  `FLAVOR_COUNT_WEIGHTS` - roughly 25% of scripts stay a "straight" genre
+  film, 50% get one flavor, 25% get two). This is deliberate, not
+  incidental: jitter alone mostly just adds noise around one point, so an
+  "Action" script stayed close to pure action nearly every time, which
+  doesn't match how genre actually works - most action films aren't *just*
+  action (buddy-cop action is action-comedy, plenty of action leans hard
+  into romance or revenge-drama alongside the stunts). Flavor boosts are
+  what actually produce that variety: a Horror script that rolls a comedy
+  flavor boost is, mechanically, a horror-comedy; one that rolls a drama
+  boost reads as a tragedy with scares. This is also the *only* multi-genre
+  mechanism, in place of a dedicated primary/secondary-genre picker -
+  simpler, free once the tone system exists, and (per playtesting) already
+  produces enough variety that an explicit picker hasn't felt necessary; one
+  remains a natural addition later if that changes.
 
 Genre as a categorical field (`Genre`, the wizard's genre step,
 `GENRE_PROFILES`'s non-tone fields) is otherwise untouched -
@@ -584,9 +604,14 @@ five-axis acting style, or (on the Develop screen, no score attached since
 there's no talent yet to compare against) a script's own tone profile.
 `CompatibilityBadge` takes a generic `breakdown` list rather than a
 `ToneProfile` specifically, precisely so it can serve all three without
-caring which. The toggle button stops its click from bubbling to the
-card's own `onClick`, so inspecting a candidate's breakdown never
-accidentally hires or un-hires them.
+caring which. The expanded breakdown is a `position: absolute` panel that
+flies out to the right of the card (`.card` is the positioned ancestor,
+`.compat-detail` sits at `left: calc(100% + 10px)`) rather than pushing the
+card taller - a card that grows on hover unevens out its whole grid row,
+while the panel floating over whatever's to its right uses space that's
+usually going unused anyway. The toggle button stops its click from
+bubbling to the card's own `onClick`, so inspecting a candidate's
+breakdown never accidentally hires or un-hires them.
 
 Each axis in that expanded breakdown renders as a 5-star rating
 (`components/common/StarRating.tsx`) rather than a raw number -
@@ -637,7 +662,7 @@ lives in `src/data/`:
 
 | File | Contents |
 |---|---|
-| `genres.ts` | Popularity, VFX/practical/acting/script importance, low-budget tolerance, and canonical tone profile per genre |
+| `genres.ts` | Popularity, VFX/practical/acting/script importance, low-budget tolerance, canonical tone profile, and typical target audiences (`GENRE_TYPICAL_AUDIENCES`) per genre |
 | `tones.ts` | The six tone axes (`TONES`) and their display labels, used by Script and Director (see 5.11) |
 | `actingStyle.ts` | The five acting-style axes (`ACTING_STYLE_AXES`), their labels, and the weighted mapping (`ACTING_STYLE_TONE_WEIGHTS`) that translates an Actor's style into tone-space for compatibility scoring (see 5.11) |
 | `audiences.ts` | Market size per target audience |
@@ -690,10 +715,17 @@ quietly leaving implicit:
   Buzz shows on the results screen; Marketability doesn't surface anywhere
   yet. Both are clean hooks for a pre-release hype mechanic.
 - **Multi-genre blending is emergent only, not player-directed.** A script's
-  tone profile (5.11) can drift toward a second genre through jitter alone,
-  but there's no secondary-genre picker giving the player deliberate control
-  over that blend - a natural addition if the random variance doesn't feel
-  controllable enough in practice.
+  tone profile (5.11) picks up its variety from jitter plus 0-2 randomly
+  rolled flavor-tone boosts, but there's no secondary-genre picker giving the
+  player deliberate control over *which* flavor a script leans into - a
+  natural addition if wanting a specific combination (rather than rolling
+  the slate until one shows up) starts to feel necessary.
+- **requiredLeads/requiredSupporting don't vary by genre.** Every genre
+  draws from the same weighted distribution (`engine/scriptGenerator.ts:LEAD_COUNT_WEIGHTS`/
+  `SUPPORTING_COUNT_WEIGHTS`) - an ensemble-heavy genre and a two-hander
+  genre are equally likely to produce a 3-lead script right now. Genre-flavoring
+  these the way `canonicalTone` and `GENRE_TYPICAL_AUDIENCES` already are
+  would be a natural follow-up.
 - **No AI rival studios, awards, franchises, scandals, or physical
   facilities** - all explicitly out of scope for the MVP per the brief, and
   all should slot in as new `data/` + `engine/` modules plus one more studio
