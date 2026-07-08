@@ -56,11 +56,16 @@ Defined in `src/types/index.ts`. The five nouns that matter:
   `marketability`, `complexity` (all 1-100), a `cost`, and a `toneProfile`
   (see [Section 5.11](#511-tone-profiles--compatibility-enginecompatibilityts-datatonests)).
   Generated procedurally per genre (see `engine/scriptGenerator.ts`).
-- **Talent** - `role`, `fame`, `skill`, `reliability`, `ego` (all 1-100),
-  `salary`, and a `toneProfile` (six-axis emotional/tonal profile, replacing
-  the old flat per-genre affinity number). Generated once per role when a
-  `Studio` is created and kept for the life of the save in
-  `studio.talentPool` (see [Section 5.8](#58-procedural-talent-generation-enginetalentgeneratorts)) -
+- **Talent** - a discriminated union by role, not one flat shape (see
+  [Section 5.11](#511-tone-profiles--compatibility-enginecompatibilityts-datatonests)):
+  `fame`, `reliability`, `ego`, `salary` (all 1-100 except salary) are
+  common to every role, but Director additionally carries `skill` and a
+  `toneProfile` shared with Script, Lead/Supporting Actor carry an
+  `actingStyle` (their own five-axis vocabulary) instead of `skill` or
+  `toneProfile`, and everyone else (Writer/Composer/Editor/VFX Supervisor)
+  just has `skill`. Generated once per role when a `Studio` is created and
+  kept for the life of the save in `studio.talentPool` (see
+  [Section 5.8](#58-procedural-talent-generation-enginetalentgeneratorts)) -
   the same named roster is drawn from across every film, though there's
   still no scheduling conflicts or relationships yet (see
   [Section 8](#8-known-limitations--next-steps)).
@@ -111,7 +116,7 @@ Six 0-100 sub-scores feed the Final Quality Score:
 |---|---|---|
 | **Script** | `originality*.3 + structure*.3 + dialogue*.25 + marketability*.15` | Independent of genre fit. |
 | **Direction** | `director.skill*.6 + compatibility(director, script)*.4` | No director hired -> flat 35. `compatibility` is the tone-profile match against this specific script, not a genre lookup - see 5.11. |
-| **Acting** | `lead*.7 + avg(supports)*.3`, each `skill*.65 + compatibility(actor, script)*.35` | No actor hired -> flat 30 for that slot. Supporting Actor can be an ensemble (see 5.8/5.9) - more of them *averages* the group's quality, it doesn't add up. |
+| **Acting** | `lead*.7 + avg(supports)*.3`, each just `compatibility(actor, script)` | No actor hired -> flat 30 for that slot. Unlike Direction, there's no separate skill term - an actor's ActingStyle *is* their skill (see 5.11). Supporting Actor can be an ensemble (see 5.8/5.9) - more of them *averages* the group's fit, it doesn't add up. |
 | **Production** | Weighted blend of budget/shooting/set/effects "quality scores", each read off a continuous curve (`engine/productionDials.ts`) rather than a fixed tier, with VFX vs. practical-effects weighted per genre (`data/genres.ts` `vfxImportance` / `practicalEffectsImportance`) | This is where "Action/Sci-Fi/Fantasy benefit from VFX" and "Drama/Romance don't" actually happens. |
 | **Post-production** | `55 + testScreeningDelta + musicDelta + (Balanced edit ? 5 : 0)` | See `data/postProduction.ts`. |
 | **Events** | `50 + sum(event.qualityDelta) * 2` | Amplified because each rolled event's raw delta is small (~-10..+10 across 3-5 events). |
@@ -314,32 +319,43 @@ by every film - the same named people are available film after film, so a
 player can come to recognise (and build a mental model of) individual
 actors and crew rather than meeting an entirely fresh cast each time.
 
-Given a candidate's position `t` on that log scale:
+Given a candidate's position `t` on that log scale, the common stats:
 
 ```
 fame        = 10 + (roleFameCeiling - 10) * t   + noise(±12)
-skill       = 25 + 65 * t                        + noise(±20)
 reliability = 45 + 25 * t                        + noise(±30)
 ego         = 15 + fame * 0.45                    + noise(±20)
-toneProfile = 1-2 random "signature" tones at random(70,100), the rest at random(10,55)
 ```
 
-Fame and skill scale up with price *on average*, but the noise bands are
-wide on purpose: a cheap unknown can be a hidden gem, an expensive hire can
-still disappoint. Reliability and ego are only loosely tied to price -
-professionalism isn't for sale, and neither is a diva-free set. `roleFameCeiling`
-caps how famous a role can plausibly get even at the top of its pay scale -
-98 for Director/Lead Actor, down to 45 for Editor - since below-the-line
-crew don't become household names the way stars do. Every candidate gets a
-full `toneProfile` at creation time (see 5.11), not one tied to whatever
+Fame scales up with price *on average*, but the noise band is wide on
+purpose: a cheap unknown can be a hidden gem, an expensive hire can still
+disappoint. Reliability and ego are only loosely tied to price -
+professionalism isn't for sale, and neither is a diva-free set.
+`roleFameCeiling` caps how famous a role can plausibly get even at the top
+of its pay scale - 98 for Director/Lead Actor, down to 45 for Editor - since
+below-the-line crew don't become household names the way stars do.
+
+What else gets rolled depends on the role, since `Talent` is a discriminated
+union (5.11 explains why):
+
+```
+skill = 25 + 65*t + noise(±20)     - Director and crew roles only
+toneProfile / actingStyle = 1-2 random "signature" axes at random(70,100), the rest at random(10,55)
+                                    - Director gets toneProfile (6 axes, shared with Script)
+                                    - Actors get actingStyle (5 axes, their own vocabulary) instead of skill
+```
+
+Both `toneProfile` and `actingStyle` share the same generation shape
+(`talentGenerator.ts:generateSignatureProfile`, generic over the axis list)
+- 1-2 signature axes rolled high, the rest low and noisy, rather than
+sampling every axis independently. Independent uniform rolls regress
+everyone toward an unmemorable middle, which loses the "brilliant at
+suspense, hopeless at comedy" specialist feel a real cast/crew has. Every
+candidate gets a full profile at creation time, not one tied to whatever
 genre happens to be selected - this is what makes the pool genre-agnostic
 and reusable: switching a film's genre mid-draft (`SET_GENRE`) just changes
 which script slate gets regenerated, it doesn't touch who's hireable or who
-you've already hired. Rolling 1-2 signature tones high and the rest low
-rather than sampling every tone independently is deliberate: six
-independent uniform rolls regress everyone toward an unmemorable middle,
-which loses the "brilliant at suspense, hopeless at comedy" specialist feel
-a real cast/crew has.
+you've already hired.
 
 On the Hire Talent screen, each role gets its own price slider (`SET_TALENT_TARGET_PRICE`)
 that filters that role's ~100 pool members down to whoever's genuinely close
@@ -446,7 +462,7 @@ Drama/Horror/Thriller signature is script - computed from each genre's
 existing importance fields, not hand-mapped, so retuning `data/genres.ts`
 automatically keeps the signature assignments correct.
 
-### 5.11 Tone profiles & compatibility (`engine/compatibility.ts`, `data/tones.ts`)
+### 5.11 Tone profiles, acting style & compatibility (`engine/compatibility.ts`, `data/tones.ts`, `data/actingStyle.ts`)
 
 Casting used to be a single genre-affinity lookup: every talent had one
 number per genre, and "does this director suit this film" only ever meant
@@ -454,9 +470,8 @@ number per genre, and "does this director suit this film" only ever meant
 the same question, and made a talent's fit about the genre label rather
 than the specific script. It's been replaced with a shared six-axis tone
 profile (`types/index.ts:Tone` - `action`, `comedy`, `romance`, `suspense`,
-`drama`, `spectacle`, each 1-100) that scripts, directors, and actors all
-carry, plus a compatibility function that measures how well two profiles
-match:
+`drama`, `spectacle`, each 1-100) plus a compatibility function that
+measures how well two profiles match:
 
 ```
 compatibility(scriptTone, talentTone) =
@@ -473,18 +488,69 @@ highest average stat": a director who's a suspense/drama specialist and
 mediocre everywhere else can still be a near-perfect match for a
 suspense-and-drama-heavy script (`engine/compatibility.ts`).
 
-`compatibility()` replaced the single `genreAffinity()` lookup at every one
-of its call sites in `engine/scoring.ts` - `computeDirectionScore`,
-`computeActingScore`, and `computeGenreFitScore`'s `talentFit` term - with
-no other change to those formulas' shape or weights, so this was a
-drop-in swap of what "fit" means, not a rebalance of how much it matters.
+**Only Director shares tone-space directly with Script.** Actors have their
+own, deliberately different, five-axis vocabulary -
+`types/index.ts:ActingStyle`: Character Transformation, Emotional
+Performance, Charisma, Comedy, Physical Performance - reached the same way
+Director's stats are (1-2 signature axes high, the rest low and noisy, see
+5.8), but it isn't compared to a script directly. Instead
+`engine/compatibility.ts:deriveToneFromActingStyle` translates it into a
+synthetic `ToneProfile` first, via a weighted-average mapping
+(`data/actingStyle.ts:ACTING_STYLE_TONE_WEIGHTS`):
 
-**Where the two vectors come from:**
+| Tone | Pulls from (weighted) |
+|---|---|
+| action | Physical Performance ×3, Charisma ×1 |
+| comedy | Comedy ×3, Charisma ×1 |
+| romance | Emotional Performance ×2, Charisma ×2 |
+| suspense | Character Transformation ×2, Emotional Performance ×2, Charisma ×1 |
+| drama | Character Transformation ×3, Emotional Performance ×2, Charisma ×1 |
+| spectacle | Physical Performance ×1, Charisma ×2 |
 
-- **Talent** rolls its `toneProfile` at generation time the same way as
-  everything else about them (see 5.8) - 1-2 signature tones high, the rest
-  low and noisy - independent of genre entirely, since talent is a
-  persistent studio resource that outlives any one film's genre choice.
+Comedy and Physical Performance are clean specialists, each speaking to
+essentially one tone. Character Transformation and Emotional Performance
+both lean into the "serious" cluster (drama/suspense/romance) but in
+different proportions - Transformation is more drama-coded (the classic
+"disappears into the role" performance), Emotional Performance spreads more
+evenly. Charisma is the one generalist, contributing a smaller share of
+*every* tone rather than owning one - including spectacle, so a genuinely
+charismatic, physically committed star still earns some credit for
+anchoring a blockbuster even though acting style otherwise has little to do
+with production scale. Once translated, the exact same `computeCompatibility`
+formula runs - actors don't get a second scoring formula, just a translation
+step in front of the same one. `engine/compatibility.ts:computeTalentCompatibility`
+is the single entry point that dispatches on role: Director compares its
+`toneProfile` directly, Actors go through the translation first, and crew
+roles (Writer/Composer/Editor/VFX Supervisor) have neither, so it returns
+`null` for them rather than a meaningless number.
+
+One consequence worth stating plainly: **actors have no separate `skill`
+stat.** Director's contribution is `skill*.6 + compatibility*.4` - two
+distinct signals, general craft and specific fit. An actor's contribution
+is `compatibility` alone (5.1) - their five ActingStyle numbers are both
+their skill and their fit, together, so a Comedy specialist with Comedy=95
+simply *is* very good at comedy, full stop, rather than having a separate
+generic "acting skill" moderating that. This was a deliberate choice over
+keeping `skill` alongside the five axes: two overlapping "how good are they"
+signals would have made the new axes redundant with the thing they were
+meant to replace.
+
+`compatibility()`/`computeTalentCompatibility()` replaced the single
+`genreAffinity()` lookup at every one of its call sites in
+`engine/scoring.ts` - `computeDirectionScore`, `computeActingScore`, and
+`computeGenreFitScore`'s `talentFit` term - with no other change to those
+formulas' shape or weights beyond dropping the actor skill term above, so
+this was mostly a drop-in swap of what "fit" means, not a rebalance of how
+much it matters.
+
+**Where the profiles come from:**
+
+- **Director** rolls its `toneProfile` at generation time the same way as
+  everything else about them (see 5.8) - independent of genre entirely,
+  since talent is a persistent studio resource that outlives any one film's
+  genre choice.
+- **Actors** roll their `actingStyle` the same shape, just over the
+  five-axis list instead of the six-tone one.
 - **Scripts** get a `toneProfile` centered on their genre's `canonicalTone`
   (`data/genres.ts`) with ±20 random jitter per axis
   (`engine/scriptGenerator.ts`). This is also how multi-genre blending
@@ -508,15 +574,18 @@ person suit this specific script" question moved from genre-keyed to
 tone-vector-keyed.
 
 **UI:** the Hire Talent screen shows a collapsed `Compatibility: NN` figure
-per candidate card rather than the full six-axis breakdown, so a card stays
-scannable at a glance - showing all six numbers on every card at once is
+per candidate card rather than the full breakdown, so a card stays
+scannable at a glance - showing every number on every card at once is
 exactly the wall-of-stats micromanagement this game avoids elsewhere. Click
 or hover it (`components/common/CompatibilityBadge.tsx`) to reveal the
-talent's own tone profile as six mini score bars, for the borderline
-casting calls where "why is this number what it is" actually matters. The
-toggle button stops its click from bubbling to the card's own `onClick`, so
-inspecting a candidate's breakdown never accidentally hires or un-hires
-them.
+talent's own stats as mini score bars - a Director's six-axis tone profile,
+an Actor's five-axis acting style, or (on the Develop screen, no score
+attached since there's no talent yet to compare against) a script's own
+tone profile. `CompatibilityBadge` takes a generic `breakdown` list rather
+than a `ToneProfile` specifically, precisely so it can serve all three
+without caring which. The toggle button stops its click from bubbling to
+the card's own `onClick`, so inspecting a candidate's breakdown never
+accidentally hires or un-hires them.
 
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
@@ -539,7 +608,8 @@ lives in `src/data/`:
 | File | Contents |
 |---|---|
 | `genres.ts` | Popularity, VFX/practical/acting/script importance, low-budget tolerance, and canonical tone profile per genre |
-| `tones.ts` | The six tone axes (`TONES`) and their display labels, shared by scripts and talent (see 5.11) |
+| `tones.ts` | The six tone axes (`TONES`) and their display labels, used by Script and Director (see 5.11) |
+| `actingStyle.ts` | The five acting-style axes (`ACTING_STYLE_AXES`), their labels, and the weighted mapping (`ACTING_STYLE_TONE_WEIGHTS`) that translates an Actor's style into tone-space for compatibility scoring (see 5.11) |
 | `audiences.ts` | Market size per target audience |
 | `talentGeneration.ts` | Per-role salary range and fame ceiling for procedural talent, the mandatory/optional role lists, and per-role hiring capacity (`{min, max}`) |
 | `talentNames.ts` | First/last name word banks for procedurally generated talent |
@@ -568,8 +638,15 @@ quietly leaving implicit:
   in a save (Section 5.8), so "the same actor across films" exists as a
   concept - but nothing yet tracks whether someone's "busy" on another
   project, builds loyalty/grudges from repeat collaboration, or lets an
-  actor's fame/skill drift over time based on how their films performed. All
-  natural next layers on top of a persistent roster.
+  talent's fame or stats drift over time based on how their films performed.
+  All natural next layers on top of a persistent roster.
+- **No trait/sub-skill layer under ActingStyle yet.** The five acting-style
+  axes (5.11) are deliberately clean, single-purpose specialists partly so a
+  future trait system has something uncrowded to attach to - narrower
+  buffs/debuffs like dance, guns, swords, singing, or physical attributes
+  that would nudge specific roles rather than a whole axis. Not built yet;
+  noted here so the current axis shapes aren't mistaken for the finished
+  picture.
 - **Candidate sampling is randomized, not exhaustive.** ~100 stratified
   candidates per role gives dense coverage, but it's still finite - the
   single cheapest (or single best) possible hire for a role won't always be
