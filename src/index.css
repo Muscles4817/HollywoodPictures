@@ -159,6 +159,28 @@ button {
   display: block;
 }
 
+/* Each axis is label-above-stars rather than side-by-side, so it never
+   depends on the card being wide enough to fit both on one line - a fixed
+   130px label (.score-bar-label, shared with ScoreBar) plus a star rating
+   doesn't fit in a narrow card, and letting flexbox wrap it produced
+   uniform gaps that made it unclear whether a wrapped star row belonged to
+   the label above or below it. Tight spacing within a pair plus a bigger
+   gap between pairs removes that ambiguity outright. */
+.compat-axis {
+  margin-bottom: 6px;
+}
+
+.compat-axis:last-child {
+  margin-bottom: 0;
+}
+
+.compat-axis-label {
+  display: block;
+  font-size: 0.8em;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
 /* --- Buttons --- */
 .btn {
   border: 1px solid var(--border);

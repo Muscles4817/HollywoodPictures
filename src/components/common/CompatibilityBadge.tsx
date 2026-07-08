@@ -30,8 +30,8 @@ export function CompatibilityBadge({ score, breakdown, defaultLabel = 'Tone Prof
       <div className="compat-label">{label}</div>
       <div className="compat-detail">
         {breakdown.map(({ label: axisLabel, value }) => (
-          <div className="row-between" key={axisLabel}>
-            <span className="score-bar-label">{axisLabel}</span>
+          <div className="compat-axis" key={axisLabel}>
+            <span className="compat-axis-label">{axisLabel}</span>
             <StarRating value={value} />
           </div>
         ))}
