@@ -184,8 +184,8 @@ Two more scores exist alongside quality but aren't part of it:
 ### 5.2 Critic & Audience Score
 
 ```
-Critic  = quality*.45 + script.originality*.2 + direction*.2 + editStyleScore*.15 + releaseType.criticBonus
-Audience = genreFit*.25 + leadActor.fame*.2 + entertainment*.25 + marketingScore*.15 + production*.15
+Critic   = quality*.45 + script.originality*.2 + direction*.2 + editStyleScore*.15 + releaseType.criticBonus
+Audience = genreFit*.3 + leadActorFame*.2 + entertainment*.3 + production*.2
 ```
 (`data/scoringWeights.ts:CRITIC_WEIGHTS` / `AUDIENCE_WEIGHTS`, computed in
 `scoring.ts:computeCriticScore` / `computeAudienceScore`.)
@@ -193,67 +193,104 @@ Audience = genreFit*.25 + leadActor.fame*.2 + entertainment*.25 + marketingScore
 `releaseType.criticBonus` is a small flat addend, not a weighted term - it's
 how Festival First delivers on "helps critics and awards-style films"
 (`data/release.ts:RELEASE_TYPE_PROFILES`, +6 for Festival First, 0 for
-Streaming/Wide, +2 for Limited).
+Streaming/Wide, +2 for Limited). `entertainment` folds in edit-style and
+final-cut-focus audience deltas plus a slice of the quality score.
 
-`entertainment` folds in edit-style and final-cut-focus audience deltas plus
-a slice of the quality score. `marketingScore` is a flat lookup by spend tier
-(None=15 ... Huge=95) - deliberately coarse, since marketing's real
-box-office effect is in the box office formula itself, not here.
+Audience Score has **no marketing term**, on purpose. That's a deliberate
+cut, not an oversight: marketing builds awareness of a film, it doesn't make
+the people who actually watch it enjoy it any more than they otherwise
+would - so it has no business informing how much an audience liked what
+they saw. Marketing's entire effect lives in Buzz instead (below), which
+only ever touches Opening Weekend, never the audience's actual verdict.
 
-### 5.3 Buzz Score
+### 5.3 Buzz Score (`scoring.ts:computeBuzzScore`)
 
-`40 + sum(event.buzzDelta) + musicBuzz + finalCutBuzz + marketingBuzz + (script.marketability-50)*.2`,
-clamped 0-100 (`scoring.ts:computeBuzzScore`). Buzz is currently cosmetic on
-the results screen - a clean hook for a future "pre-release hype affects
-opening weekend" mechanic.
+Buzz is **pre-release hype, not reception** - a completely different
+question from Critic/Audience Score, and it drives a different half of box
+office (Opening Weekend, see 5.4) for exactly that reason: hype gets people
+into a seat on day one whether or not the film is any good; whether they
+liked it is a separate question that Buzz has no opinion on.
+
+```
+Buzz = 10 + (avgFame(director, leads) - 50)*.5 + (studioReputation - 50)*.4
+          + marketingBuzzContribution(marketingSpend) + eventsBuzz + musicBuzz + finalCutBuzz
+          + (script.marketability - 50)*.2
+```
+clamped 0-100. Three things dominate on purpose - fame, reputation and
+marketing spend - because those are the three real levers a studio actually
+has over hype. Crucially, **only one of the three is for sale**: marketing
+spend is pure cash, but fame and reputation aren't - fame comes from who
+you cast (itself a function of prior success funding better hires), and
+reputation is earned by how your past films were received
+(`engine/reputation.ts`). A wealthy but unknown studio with an anonymous
+cast still can't buy its way past roughly a fame+reputation-less ceiling
+(base + max marketing contribution alone, before the fame/reputation terms
+even engage) - buzz above that requires an actual track record, not just a
+bigger cheque. `marketingBuzzContribution` reads off a log-scale anchor
+curve (`data/release.ts:MARKETING_SPEND_ANCHORS`), the same interpolation
+pattern as every other spend dial.
 
 ### 5.4 Box office (`engine/boxOffice.ts`)
 
-This is *not* a weighted sum - it's a multiplicative chain against a base
-market size, because box office in reality compounds factors rather than
-averaging them (a great film in the wrong genre window in a market too small
-for it still underperforms, no matter how good the individual scores are):
+Box office is computed in **two stages, not one lump sum** - this was a
+deliberate rebuild (see the earlier single-stage version's balance problems
+in Section 8) modeled on how box office actually behaves: an opening
+weekend driven by hype, and a "legs" multiplier - how many further multiples
+of that opening the film goes on to earn - driven by whether audiences
+(and, to a lesser extent, critics) actually liked it.
 
 ```
-raw = BASE_MARKET_POTENTIAL (£60,000,000)
+Opening Weekend = OPENING_BASE_POTENTIAL (£12,000,000)
     * targetAudience.marketSize
     * (genre.popularity / 100)
     * releaseWindow.baseMultiplier * releaseWindow.genreBonus (e.g. Halloween x Horror = 1.45)
     * releaseType.reachMultiplier
-    * marketingSpend.boxOfficeMultiplier
-    * reputationFactor        (0.7 - 1.3, from studio reputation)
-    * budgetScaleFactor       (0.55 - 1.25, scales linearly with the budget slider; wider prints, independent of quality)
-    * audienceConversion      (0.1 - 1.4, from audience score)
-    * criticLegsFactor        (0.75 - 1.15, from critic score, "legs" / word of mouth)
+    * budgetScaleFactor    (0.4 - 1.6, scales with the budget slider; wider prints, independent of quality or hype)
+    * hypeFactor(buzzScore) (0.15 - 1.5)
+    * variance              (band scaled by releaseType.varianceMultiplier)
 
-if (Wide release && marketing spend is None/Low): raw *= 0.55   // "wide needs strong marketing"
+reviewWeighted    = audienceScore*.65 + criticScore*.35   // audience matters more than critics for legs
+reviewLegsFactor  = 0.25 + (reviewWeighted / 100) * 1.6    // 0.25 - 1.85
+legs              = max(1, releaseType.baseLegsMultiplier * reviewLegsFactor)  // never less than 1x - the floor is "died after opening", not negative legs
+totalBoxOffice    = openingWeekend * legs
 
-totalBoxOffice = raw * variance   // variance band scaled by releaseType.varianceMultiplier
-openingWeekend = totalBoxOffice * openingWeekendFraction[releaseType]  // Wide .35, Streaming .25, Limited .15, Festival First .12
+studioRevenue     = totalBoxOffice * 0.42   // the studio's actual cut after theatrical/international splits
+profit            = studioRevenue - totalCost
 ```
 
-The two low floors - `audienceConversion` bottoming out at 0.1 and
-`criticLegsFactor` at 0.75 - are the load-bearing numbers for the game's
-central promise ("revenue shouldn't be too punishing, but expensive bad films
-should flop"). They were tuned by running scenario scripts through the real
-engine (not by hand-calculation), then re-verified after the production
-model moved from four fixed tiers to a continuous slider:
+`releaseType.baseLegsMultiplier` (Limited 6.5, Wide 2.9, Streaming 4.0,
+Festival First 8.0) is "how many multiples of the opening does an
+*average*-reviewed film in this release type end up grossing" - a wide
+release front-loads hard by design; a limited release that catches on can
+expand for months, hence the much bigger multiple. `totalBoxOffice` stays
+the big number the game reports everywhere (matching how box office is
+always reported in the real world); `studioRevenue` is the smaller number
+profit actually comes from, reflecting that theaters and international
+distributors keep the majority of ticket revenue - real-world studio
+rentals average roughly 40% of worldwide gross, which is where the 0.42
+figure comes from, not an arbitrary tuning choice.
 
-| Scenario | Total cost | Box office | Profit ratio | Outcome |
-|---|---|---|---|---|
-| Rock-bottom indie, everything at the floor (Horror) | £839,750 | £3,141,000 | +2.74 | Hit |
-| Money-no-object blockbuster, everything near the ceiling (Sci-Fi) | £103,095,000 | £232,219,000 | +1.25 | Hit |
-| Mid-budget + bad (25 audience / 20 critic) | £30,000,000 | £15,495,000 | **-0.48** | **Flop** |
-| Top-of-the-slider budget + bad (25 / 20) | £90,000,000 | £17,059,000 | **-0.81** | **Flop** |
+The split has a genuine gameplay payoff, not just a realism one - hype and
+reception can now pull in opposite directions:
 
-The middle two rows are the point: an expensive, bad film loses real money -
-that still holds at the top of the continuous slider exactly as it did with
-the old fixed "Excessive" tier. At the very bottom of the slider, profit
-*ratios* can look enormous (a bad film can occasionally return 10x+ on a
-true shoestring budget) simply because the denominator is so small - the
-`outcome` classifier's quality gates (see 5.5) keep that from reading as
-anything better than "Hit", so a lucky cheap flop-that-wasn't doesn't get
-mislabeled as a Blockbuster or Masterpiece it didn't earn.
+| Scenario (same budget/release, only buzz vs. reviews vary) | Opening | Total | Total/Opening |
+|---|---|---|---|
+| High hype (buzz 90), bad reviews (critic 30, audience 25) | £20.2M | £39.7M | 1.97x - opens big, dies fast |
+| Low hype (buzz 25), great reviews (critic 85, audience 90) | £7.2M | £34.7M | 4.82x - modest opening, real legs |
+| High hype **and** great reviews | £20.2M | £97.2M | 4.82x - the actual blockbuster case |
+| Low hype **and** bad reviews | £6.2M | £12.2M | 1.97x - a non-event |
+
+The first two rows land at similar *totals* through completely different
+paths - a marketing-and-star-power play versus a word-of-mouth sleeper -
+which is the whole point: buying hype and making something people love are
+two different skills, and this is what lets either one work without making
+the other pointless.
+
+These numbers (`OPENING_BASE_POTENTIAL`, the hype/legs floor-ceiling pairs,
+the budget-scale range) were tuned by running scenario scripts through the
+real engine, the same way the original single-stage formula was - see
+Section 8 for the specific before/after comparison that motivated the
+rebuild.
 
 ### 5.5 Outcome label (`engine/outcome.ts`)
 
@@ -650,10 +687,19 @@ Final results break costs into two headline numbers:
   budget cost (`budgetAmount x shootingCostMultiplier x runtimeCostMultiplier`,
   plus the set/practical-effects/VFX spend amounts directly) + net event cost
   delta + test-screening cost.
-- **Marketing cost** = marketing spend tier x release-type cost multiplier
-  (Wide costs more to support than Limited).
+- **Marketing cost** = marketing spend amount x release-type cost multiplier
+  (Wide costs more to support than Limited). Marketing spend is a continuous
+  currency amount (`data/release.ts:MARKETING_SPEND_RANGE`, £10,000 -
+  £150,000,000 on a log-scale slider, same pattern as every other spend
+  dial), not a named tier - a flat, absolute cost was a deliberate choice
+  over scaling it with production budget: what a given level of exposure
+  costs doesn't change based on how cheap or expensive the film itself was,
+  and a flat cost is what makes the top of the range naturally unreachable
+  for a small studio, without needing an artificial rule to lock it out.
 
-`profit = totalBoxOffice - (productionCost + marketingCost)`.
+`profit = studioRevenue - (productionCost + marketingCost)` - see 5.4 for
+why it's `studioRevenue` (the studio's cut after the theatrical split) and
+not the flashier `totalBoxOffice` figure.
 
 ## 7. Data-driven config
 
@@ -671,7 +717,7 @@ lives in `src/data/`:
 | `scriptWords.ts` | Per-genre title word banks for procedural script titles |
 | `production.ts` | Ranges and anchors for the six continuous production dials (see 5.7) |
 | `postProduction.ts` | Cost/score deltas for edit style, music, test screening, final cut |
-| `release.ts` | Marketing spend tiers, release type profiles, release window bonuses |
+| `release.ts` | Marketing spend range/anchors (continuous, log-scale), release type profiles (incl. `baseLegsMultiplier`), release window bonuses |
 | `productionEvents.ts` | The generic pool of on-set event templates, plus `GENRE_EVENT_TEMPLATES` (one positive/negative pair per genre, merged into the generic pool for that film's shoot) |
 | `reviewBlurbs.ts` | Flavor-text review snippets bucketed by critic/audience reception, plus per-department criticism/praise lines (generic and genre-signature-flavored) used to call out a film's clear weak or strong point |
 | `scoringWeights.ts` | The weighted-sum tables for critic/audience, and the base (genre-average) quality weights that `engine/genreWeights.ts` tilts per genre |
@@ -711,9 +757,17 @@ quietly leaving implicit:
   life of that save. This is deliberate (real casting doesn't offer infinite
   options either) but worth knowing when reasoning about "why didn't I see
   anyone under £X".
-- **Buzz and Marketability scores are computed but not fully load-bearing.**
-  Buzz shows on the results screen; Marketability doesn't surface anywhere
-  yet. Both are clean hooks for a pre-release hype mechanic.
+- **Marketability score is computed but not fully load-bearing.** It doesn't
+  surface anywhere yet - a clean hook for a future mechanic. (Buzz *used* to
+  be in this bullet too, but as of the box office rebuild below it directly
+  drives Opening Weekend - no longer a cosmetic number.)
+- **Marketing is a single spend dial, not distinct channels.** Trailers,
+  press/interviews, brand collabs etc. would be a thematically richer way to
+  spend a marketing budget than one slider, and came up when this area got
+  rebuilt - deliberately deferred rather than designed alongside the
+  Buzz/Opening/Legs restructure, since that rework was about fixing economic
+  scale, not adding decision-richness. Worth revisiting now that a real Buzz
+  mechanic exists for channels to feed into.
 - **Multi-genre blending is emergent only, not player-directed.** A script's
   tone profile (5.11) picks up its variety from jitter plus 0-2 randomly
   rolled flavor-tone boosts, but there's no secondary-genre picker giving the
@@ -735,3 +789,23 @@ quietly leaving implicit:
   representative inputs by hand - there's no automated test suite pinning
   these numbers yet. Worth adding before any serious rebalancing pass, so
   future tuning doesn't silently break the "expensive bad films flop" promise.
+- **History: the box office formula was rebuilt once already, for being
+  badly overpowered.** The original single-stage version (`raw =
+  BASE_MARKET_POTENTIAL x <chain of ~10 multipliers>`, `totalBoxOffice` computed
+  directly, `profit = totalBoxOffice - totalCost` with no revenue split) had
+  several compounding problems found by actually running it: the worst
+  possible cast on a mid-budget film still netted **+£26M profit**; playing
+  8 mediocre-but-not-terrible films in a row, reinvesting everything, took
+  starting cash from £10M to **£295M** with every single film landing as a
+  "Hit"; and marketing spend alone (a flat tier, decoupled from the film's
+  own budget) could more than triple box office for a small fraction of the
+  film's cost. Root causes: no theatrical revenue split (treating
+  `totalBoxOffice` as 100% studio profit, when real studios keep roughly
+  40%), floors on the quality-to-multiplier curves shallow enough that
+  mediocre scores still landed 80-98% of the way to the maximum multiplier,
+  and marketing acting as a second, redundant box-office multiplier on top
+  of an already-generous base. The current two-stage Opening/Legs model
+  (5.4) with a studio revenue split fixed this - the same worst-cast
+  scenario now nets a modest +£1.55M, and the 8-film trajectory grows
+  roughly 3.7x instead of 30x. Documented here so a future rebalancing pass
+  has the actual failure mode on record, not just "it felt off."
