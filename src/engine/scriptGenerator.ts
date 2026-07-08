@@ -11,7 +11,7 @@ function randomTitle(genre: Genre, rng: RandomFn): string {
   return `${pick(rng, bank.adjectives)} ${pick(rng, bank.nouns)}`;
 }
 
-const TONE_JITTER = 20;
+const TONE_JITTER = 15;
 
 /**
  * A script's tone profile jitters around its genre's canonical vector
@@ -65,6 +65,6 @@ function generateScript(genre: Genre, rng: RandomFn): Script {
 }
 
 /** Generates a slate of script options for the player to choose from. */
-export function generateScriptOptions(genre: Genre, rng: RandomFn, count = 4): Script[] {
+export function generateScriptOptions(genre: Genre, rng: RandomFn, count = 12): Script[] {
   return Array.from({ length: count }, () => generateScript(genre, rng));
 }

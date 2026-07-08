@@ -14,6 +14,7 @@
   --radius: 8px;
   --track-bg: #e7e9ed;
   --info-bg: #eef2fb;
+  --star: #c8871e;
 }
 
 :root[data-theme='dark'] {
@@ -30,6 +31,7 @@
   --red: #ff6b60;
   --track-bg: #2a2d36;
   --info-bg: #1b2540;
+  --star: #e0ab3d;
 }
 
 * {
@@ -267,6 +269,28 @@ button {
   width: 32px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* --- Star rating (5 stars, half-star granularity via a clipped overlay) --- */
+.star-rating {
+  position: relative;
+  display: inline-block;
+  line-height: 1;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.star-rating-track {
+  color: var(--track-bg);
+}
+
+.star-rating-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--star);
 }
 
 /* --- On-set event reveal --- */

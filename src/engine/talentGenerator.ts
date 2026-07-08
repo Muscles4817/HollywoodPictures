@@ -12,8 +12,12 @@ function randomName(rng: RandomFn): string {
   return `${pick(rng, TALENT_FIRST_NAMES)} ${pick(rng, TALENT_LAST_NAMES)}`;
 }
 
-const SIGNATURE_RANGE: [number, number] = [70, 100];
-const BASE_RANGE: [number, number] = [10, 55];
+// Kept off the 1/100 extremes on purpose (see data/genres.ts for the same
+// reasoning on the script side) - a coarse 5-star display (5.11) needs the
+// underlying numbers to actually spread across the middle of the scale,
+// not just flip between "empty" and "full".
+const SIGNATURE_RANGE: [number, number] = [65, 90];
+const BASE_RANGE: [number, number] = [15, 50];
 
 /**
  * Rolls 1-2 "signature" axes high and the rest from a lower, noisier base -

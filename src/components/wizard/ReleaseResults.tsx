@@ -2,6 +2,7 @@ import { useStudio } from '../../state/StudioContext';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { ScoreBar } from '../common/ScoreBar';
+import { StarRating } from '../common/StarRating';
 import { StatTile } from '../common/StatTile';
 
 export function ReleaseResults() {
@@ -35,7 +36,10 @@ export function ReleaseResults() {
       <div className="card stack">
         <h2>Reception</h2>
         <ScoreBar label="Quality Score" value={results.qualityScore} />
-        <ScoreBar label="Critic Score" value={results.criticScore} />
+        <div className="row-between">
+          <span className="score-bar-label">Critic Score</span>
+          <StarRating value={results.criticScore} />
+        </div>
         <ScoreBar label="Audience Score" value={results.audienceScore} />
         <ScoreBar label="Buzz Score" value={results.buzzScore} />
       </div>

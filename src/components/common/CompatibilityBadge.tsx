@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScoreBar } from './ScoreBar';
+import { StarRating } from './StarRating';
 
 interface CompatibilityBadgeProps {
   // The owner's own stats, for the expanded breakdown - a Director's
@@ -40,7 +40,10 @@ export function CompatibilityBadge({ score, breakdown, defaultLabel = 'Tone Prof
       </button>
       <div className={`compat-detail${expanded ? ' compat-detail-expanded' : ''}`}>
         {breakdown.map(({ label: axisLabel, value }) => (
-          <ScoreBar key={axisLabel} label={axisLabel} value={value} />
+          <div className="row-between" key={axisLabel}>
+            <span className="score-bar-label">{axisLabel}</span>
+            <StarRating value={value} />
+          </div>
         ))}
       </div>
     </div>
