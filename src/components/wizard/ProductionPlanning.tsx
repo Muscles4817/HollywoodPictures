@@ -34,7 +34,7 @@ const DEFAULT_CHOICES: ProductionChoices = {
 };
 
 /** Picks a rough qualitative label for a 0-1 "pace" dial without needing bespoke text for every point. */
-function nearestLabel(t: number, labels: readonly [string, string, string]): string {
+export function nearestLabel(t: number, labels: readonly [string, string, string]): string {
   if (t < 1 / 3) return labels[0];
   if (t < 2 / 3) return labels[1];
   return labels[2];

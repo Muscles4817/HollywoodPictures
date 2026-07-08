@@ -29,7 +29,8 @@ Studio Dashboard
    -> Hire Talent        (director, lead actor, supporting actor, writer, composer, editor, +VFX supervisor -
                           each a price slider over procedurally generated candidates)
    -> Production Planning(six continuous sliders: budget, shooting pace, sets, effects, VFX, runtime)
-   -> Filming             (roll 3-5 production events)
+   -> Filming             (full recap of script/cast/crew/production plan and their
+                          costs before you commit, then roll 3-5 production events)
    -> Post-Production     (edit style, music focus, test screening, marketing cut)
    -> Marketing & Release (spend, release type, release window)
    -> Results             (box office, scores, reputation change, reviews)
