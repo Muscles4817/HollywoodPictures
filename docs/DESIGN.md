@@ -349,7 +349,11 @@ total).
 There's a fixed roster, but it's procedurally generated rather than
 hand-authored. `generateTalentPool(rng)` runs once, when a `Studio` is first
 created (`state/gameState.ts:createInitialStudio`), and produces ~100
-candidates per role, each sampling a salary from a stratified band on a log
+candidates per role (200 for Lead Actor and Supporting Actor specifically -
+`talentGenerator.ts:ROLE_POOL_SIZE` - since a script can now require several
+leads or a big supporting ensemble at once, see 5.11's castRequirements
+note, and a price band needs enough genuinely distinct people in it to cast
+an ensemble from), each sampling a salary from a stratified band on a log
 scale across that role's own range (`data/talentGeneration.ts:ROLE_GENERATION_PROFILES` -
 e.g. Lead Actor spans £40,000 - £15,000,000, Editor spans £10,000 -
 £1,200,000) so a real shoestring hire and a blockbuster star are both
@@ -401,7 +405,7 @@ which script slate gets regenerated, it doesn't touch who's hireable or who
 you've already hired.
 
 On the Hire Talent screen, each role gets its own price slider (`SET_TALENT_TARGET_PRICE`)
-that filters that role's ~100 pool members down to whoever's genuinely close
+that filters that role's pool members down to whoever's genuinely close
 to that price - moving the slider changes who's shown, it doesn't generate
 or discard anyone. `engine/talentFilter.ts:findCandidatesNearPrice` does the
 filtering: start at a ±10% band around the target and take up to 9 of
@@ -631,24 +635,21 @@ doesn't answer any better than a category does. Only the "does this specific
 person suit this specific script" question moved from genre-keyed to
 tone-vector-keyed.
 
-**UI:** the Hire Talent screen shows a collapsed `Compatibility: NN` figure
-per candidate card rather than the full breakdown, so a card stays
-scannable at a glance - showing every number on every card at once is
-exactly the wall-of-stats micromanagement this game avoids elsewhere. Click
-or hover it (`components/common/CompatibilityBadge.tsx`) to reveal the
-talent's own stats - a Director's six-axis tone profile, an Actor's
-five-axis acting style, or (on the Develop screen, no score attached since
-there's no talent yet to compare against) a script's own tone profile.
-`CompatibilityBadge` takes a generic `breakdown` list rather than a
-`ToneProfile` specifically, precisely so it can serve all three without
-caring which. The expanded breakdown is a `position: absolute` panel that
-flies out to the right of the card (`.card` is the positioned ancestor,
-`.compat-detail` sits at `left: calc(100% + 10px)`) rather than pushing the
-card taller - a card that grows on hover unevens out its whole grid row,
-while the panel floating over whatever's to its right uses space that's
-usually going unused anyway. The toggle button stops its click from
-bubbling to the card's own `onClick`, so inspecting a candidate's
-breakdown never accidentally hires or un-hires them.
+**UI:** the Hire Talent and Develop screens show the full breakdown on every
+card, always - a Director's six-axis tone profile, an Actor's five-axis
+acting style, or (on the Develop screen, no score attached since there's no
+talent yet to compare against) a script's own tone profile
+(`components/common/CompatibilityBadge.tsx`). `CompatibilityBadge` takes a
+generic `breakdown` list rather than a `ToneProfile` specifically, precisely
+so it can serve all three without caring which. This used to be collapsed
+behind a click-to-pin/hover-to-peek toggle, on the theory that showing every
+number on every card at once would be too much at a glance - in practice
+the toggle target was too small to comfortably hit and didn't work at all
+on touch, so it came out. Always-showing it also sidesteps the layout
+problem the toggle was originally built to dodge (a card that only
+sometimes expands unevens out its grid row) more robustly than the toggle
+did: every card in a row now renders the same amount of content, so row
+heights stay consistent without needing a hover-flyout trick.
 
 Each axis in that expanded breakdown renders as a 5-star rating
 (`components/common/StarRating.tsx`) rather than a raw number -
@@ -714,7 +715,7 @@ lives in `src/data/`:
 | `audiences.ts` | Market size per target audience |
 | `talentGeneration.ts` | Per-role salary range and fame ceiling for procedural talent, the mandatory/optional role lists, and per-role hiring capacity (`{min, max}`) |
 | `talentNames.ts` | First/last name word banks for procedurally generated talent |
-| `scriptWords.ts` | Per-genre title word banks for procedural script titles |
+| `scriptWords.ts` | Per-genre title word banks (12 adjectives x 12 nouns) for procedural script titles - `engine/scriptGenerator.ts` also dedupes titles within a single slate on top of this |
 | `production.ts` | Ranges and anchors for the six continuous production dials (see 5.7) |
 | `postProduction.ts` | Cost/score deltas for edit style, music, test screening, final cut |
 | `release.ts` | Marketing spend range/anchors (continuous, log-scale), release type profiles (incl. `baseLegsMultiplier`), release window bonuses |
@@ -749,7 +750,8 @@ quietly leaving implicit:
   noted here so the current axis shapes aren't mistaken for the finished
   picture.
 - **Candidate sampling is randomized, not exhaustive.** ~100 stratified
-  candidates per role gives dense coverage, but it's still finite - the
+  candidates per role (200 for Lead/Supporting Actor) gives dense coverage,
+  but it's still finite - the
   single cheapest (or single best) possible hire for a role won't always be
   in the pool. Unlike before, there's no reroll to fall back on (rerolling a
   persistent named roster would discard whoever's already been hired
