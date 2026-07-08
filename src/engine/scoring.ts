@@ -19,9 +19,10 @@ import {
   practicalEffectsScore,
   vfxScore,
   runtimeMarketabilityDelta,
+  marketingBuzzContribution,
 } from './productionDials';
 import { EDIT_STYLE_PROFILES, FINAL_CUT_FOCUS_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES } from '../data/postProduction';
-import { MARKETING_SPEND_PROFILES, RELEASE_TYPE_PROFILES } from '../data/release';
+import { RELEASE_TYPE_PROFILES } from '../data/release';
 import { AUDIENCE_WEIGHTS, CRITIC_WEIGHTS } from '../data/scoringWeights';
 import { computeQualityWeights } from './genreWeights';
 import { clamp } from './random';
@@ -206,7 +207,13 @@ export function computeCriticScore(
   return clamp(score + releaseTypeBonus, 0, 100);
 }
 
-/** Audience Score: entertainment-driven - genre fit, star power, marketing reach. */
+/**
+ * Audience Score: entertainment-driven - genre fit, star power, pacing.
+ * Deliberately has no marketing term - marketing builds awareness, not
+ * affection; whether the people who actually saw the film enjoyed it isn't
+ * something a bigger ad spend can buy (see computeBuzzScore for where
+ * marketing actually belongs).
+ */
 export function computeAudienceScore(
   quality: QualityBreakdown,
   script: Script,
@@ -214,7 +221,6 @@ export function computeAudienceScore(
   genre: Genre,
   productionChoices: ProductionChoices,
   postProductionChoices: PostProductionChoices,
-  marketingChoices: MarketingChoices,
 ): number {
   const genreFitScore = computeGenreFitScore(script, talent, genre, productionChoices);
   const leads = getLeadActors(talent);
@@ -229,37 +235,48 @@ export function computeAudienceScore(
     100,
   );
 
-  const marketingScoreMap: Record<MarketingChoices['marketingSpend'], number> = {
-    None: 15,
-    Low: 40,
-    Medium: 60,
-    High: 80,
-    Huge: 95,
-  };
-  const marketingScore = marketingScoreMap[marketingChoices.marketingSpend];
-
   const score =
     genreFitScore * AUDIENCE_WEIGHTS.genreFit +
     actorFameScore * AUDIENCE_WEIGHTS.actorFame +
     entertainmentScore * AUDIENCE_WEIGHTS.entertainment +
-    marketingScore * AUDIENCE_WEIGHTS.marketing +
     quality.productionScore * AUDIENCE_WEIGHTS.production;
 
   return clamp(score, 0, 100);
 }
 
-/** Buzz Score: word-of-mouth momentum from events, post-production and marketing. */
+/**
+ * Buzz Score: pre-release hype, not reception - this is what drives Opening
+ * Weekend (engine/boxOffice.ts), separately from whether the film is
+ * actually any good. Dominated by three things a studio can genuinely
+ * build: how famous the director/leads are, how reputable the studio
+ * itself is, and how much is spent getting the word out. Money alone
+ * (marketing) caps out well short of 100 - fame and reputation aren't for
+ * sale, they're earned by who you cast and what you've already released -
+ * so a wealthy but unknown studio with no-name talent still can't buy its
+ * way to a phenomenon. Events/music/final-cut/script-marketability stay as
+ * smaller flavor modifiers on top, same as before.
+ */
 export function computeBuzzScore(
   script: Script,
+  talent: Talent[],
   events: ProductionEvent[],
   postProductionChoices: PostProductionChoices,
   marketingChoices: MarketingChoices,
+  studioReputation: number,
 ): number {
+  const director = getDirector(talent);
+  const leads = getLeadActors(talent);
+  const buzzworthyFame = [director?.fame, ...leads.map((l) => l.fame)].filter((f): f is number => f !== undefined);
+  const fameAvg = average(buzzworthyFame) ?? 30;
+
+  const fameBuzz = (fameAvg - 50) * 0.5;
+  const reputationBuzz = (studioReputation - 50) * 0.4;
+  const marketingBuzz = marketingBuzzContribution(marketingChoices.marketingSpend);
+
   const eventsBuzz = events.reduce((sum, e) => sum + e.buzzDelta, 0);
   const musicBuzz = MUSIC_FOCUS_PROFILES[postProductionChoices.musicFocus].buzzDelta;
   const finalCutBuzz = FINAL_CUT_FOCUS_PROFILES[postProductionChoices.finalCutFocus].buzzDelta;
-  const marketingBuzz = MARKETING_SPEND_PROFILES[marketingChoices.marketingSpend].buzzBonus;
   const scriptBuzz = (script.marketability - 50) * 0.2;
 
-  return clamp(40 + eventsBuzz + musicBuzz + finalCutBuzz + marketingBuzz + scriptBuzz, 0, 100);
+  return clamp(10 + fameBuzz + reputationBuzz + marketingBuzz + eventsBuzz + musicBuzz + finalCutBuzz + scriptBuzz, 0, 100);
 }

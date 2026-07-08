@@ -1,4 +1,5 @@
-import type { Genre, ReleaseWindow, ReleaseType, MarketingSpend } from '../types';
+import type { Genre, ReleaseWindow, ReleaseType } from '../types';
+import type { Range, ScaleAnchor } from '../engine/interpolate';
 
 // Multiplier applied to box office when a genre matches the seasonal window.
 // Missing entries default to 1.0 (no bonus/penalty) in the engine.
@@ -29,46 +30,58 @@ export const RELEASE_WINDOW_DESCRIPTIONS: Record<ReleaseWindow, string> = {
 };
 
 export interface ReleaseTypeProfile {
-  reachMultiplier: number; // scales addressable box office pool
+  reachMultiplier: number; // scales the addressable opening-weekend pool
   costMultiplier: number; // scales distribution/marketing overhead
   criticBonus: number; // flat critic score bonus/penalty
-  needsMarketing: boolean; // wide release punished hard by weak marketing
-  varianceMultiplier: number; // safer (streaming) vs riskier releases
+  // Whether this release type's box office lives or dies on marketing -
+  // informational only (drives a UI warning); the actual mechanical effect
+  // of weak marketing happens naturally through Buzz -> Opening Weekend,
+  // there's no separate hand-coded penalty here anymore.
+  needsMarketing: boolean;
+  varianceMultiplier: number; // safer (streaming) vs riskier releases, applied to the opening-weekend roll
+  // How many multiples of the opening weekend an *average*-reviewed film
+  // (see engine/boxOffice.ts:reviewLegsFactor) ends up grossing in total. A
+  // wide release front-loads hard; a limited release that catches on can
+  // expand for months, so its multiple is much bigger.
+  baseLegsMultiplier: number;
   description: string;
 }
 
 export const RELEASE_TYPE_PROFILES: Record<ReleaseType, ReleaseTypeProfile> = {
   Limited: {
     reachMultiplier: 0.45, costMultiplier: 0.5, criticBonus: 2, needsMarketing: false, varianceMultiplier: 0.8,
-    description: 'A small number of theaters. Cheaper to support and lower risk, but caps how big the box office can get.',
+    baseLegsMultiplier: 6.5,
+    description: 'A small number of theaters. Cheaper to support and lower risk, but caps how big the opening can get - everything rides on legs.',
   },
   Wide: {
     reachMultiplier: 1.3, costMultiplier: 1.2, criticBonus: 0, needsMarketing: true, varianceMultiplier: 1.15,
-    description: 'Everywhere at once - the biggest reach and the biggest variance. Needs real marketing spend behind it or it badly underperforms.',
+    baseLegsMultiplier: 2.9,
+    description: 'Everywhere at once - the biggest opening and the biggest variance. Needs real marketing spend behind it or it badly underperforms.',
   },
   Streaming: {
     reachMultiplier: 0.7, costMultiplier: 0.6, criticBonus: 0, needsMarketing: false, varianceMultiplier: 0.5,
+    baseLegsMultiplier: 4.0,
     description: 'Lower box office ceiling, but the safest, most predictable option - the smallest swing between a good and bad outcome.',
   },
   'Festival First': {
     reachMultiplier: 0.6, costMultiplier: 0.7, criticBonus: 6, needsMarketing: false, varianceMultiplier: 0.7,
-    description: 'Premiere on the festival circuit before wider release. A direct critic score boost - the strongest option for a prestige/awards play.',
+    baseLegsMultiplier: 8.0,
+    description: 'Premiere on the festival circuit before wider release. A direct critic score boost and the longest potential legs - the strongest option for a prestige/awards play.',
   },
 };
 
-export interface MarketingSpendProfile {
-  cost: number; // flat cost in currency
-  buzzBonus: number; // 0-100 scale contribution to buzz
-  boxOfficeMultiplier: number; // multiplier applied when reach is calculated
-  description: string;
-}
+// A continuous currency amount, not a fixed tier - what a given level of
+// exposure costs doesn't scale with how expensive the film itself was (see
+// types/index.ts:MarketingChoices). Spans the real range: a token indie
+// push up to a genuine global blockbuster blitz, which only a studio
+// that's already accumulated real wealth could ever afford - the top of
+// the range gatekeeps itself by cost, no artificial rule needed.
+export const MARKETING_SPEND_RANGE: Range = { min: 10_000, max: 150_000_000 };
 
-// Cost scales with a film's production budget elsewhere; these are the
-// baseline spend tiers players choose from.
-export const MARKETING_SPEND_PROFILES: Record<MarketingSpend, MarketingSpendProfile> = {
-  None: { cost: 0, buzzBonus: 0, boxOfficeMultiplier: 0.55, description: 'No marketing spend at all. Free, but box office reach is badly hurt - and a Wide release needs this to succeed.' },
-  Low: { cost: 500_000, buzzBonus: 10, boxOfficeMultiplier: 0.75, description: 'A minimal campaign. Cheap, but still well below what a Wide release needs to perform.' },
-  Medium: { cost: 1_500_000, buzzBonus: 22, boxOfficeMultiplier: 1.0, description: 'A standard, solid campaign - the baseline reach multiplier.' },
-  High: { cost: 3_500_000, buzzBonus: 35, boxOfficeMultiplier: 1.25, description: 'A big push. Meaningfully boosts reach and buzz for a serious cost.' },
-  Huge: { cost: 7_000_000, buzzBonus: 48, boxOfficeMultiplier: 1.5, description: 'An all-out campaign. The biggest reach and buzz boost available, at the biggest cost.' },
-};
+export const MARKETING_SPEND_ANCHORS: ScaleAnchor<'buzzContribution'>[] = [
+  { t: 0, values: { buzzContribution: 0 }, description: 'Essentially no marketing - whatever word of mouth happens on its own.' },
+  { t: 0.25, values: { buzzContribution: 15 }, description: 'A modest local campaign - some posters, some social media.' },
+  { t: 0.5, values: { buzzContribution: 32 }, description: 'A real regional campaign - trailers, press, a genuine media buy.' },
+  { t: 0.75, values: { buzzContribution: 52 }, description: 'A national blitz - the kind of campaign a major theatrical release actually needs.' },
+  { t: 1, values: { buzzContribution: 75 }, description: 'A global blockbuster campaign - the biggest possible push, at a cost only a genuinely wealthy studio can absorb.' },
+];

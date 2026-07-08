@@ -10,6 +10,7 @@ import {
   VFX_ANCHORS,
   RUNTIME_ANCHORS,
 } from '../data/production';
+import { MARKETING_SPEND_RANGE, MARKETING_SPEND_ANCHORS } from '../data/release';
 import { logT, interpolateScale, describeScale } from './interpolate';
 
 // Thin, named wrappers around the generic interpolation helpers, one per
@@ -44,3 +45,8 @@ export const vfxDescription = (amount: number) => describeScale(vfxT(amount), VF
 export const runtimeCostMultiplier = (intensity: number) => interpolateScale(intensity, RUNTIME_ANCHORS, 'costMultiplier');
 export const runtimeMarketabilityDelta = (intensity: number) => interpolateScale(intensity, RUNTIME_ANCHORS, 'marketabilityDelta');
 export const runtimeDescription = (intensity: number) => describeScale(intensity, RUNTIME_ANCHORS);
+
+export const marketingT = (amount: number) => logT(amount, MARKETING_SPEND_RANGE);
+export const marketingBuzzContribution = (amount: number) =>
+  interpolateScale(marketingT(amount), MARKETING_SPEND_ANCHORS, 'buzzContribution');
+export const marketingDescription = (amount: number) => describeScale(marketingT(amount), MARKETING_SPEND_ANCHORS);

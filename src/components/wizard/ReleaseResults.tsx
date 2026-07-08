@@ -29,8 +29,13 @@ export function ReleaseResults() {
         <div className="row">
           <StatTile label="Opening Weekend" value={<Money amount={results.openingWeekend} />} />
           <StatTile label="Total Box Office" value={<Money amount={results.totalBoxOffice} />} />
+          <StatTile label="Studio's Share" value={<Money amount={results.studioRevenue} />} />
           <StatTile label="Profit / Loss" value={<Money amount={results.profit} signColor showSign />} />
         </div>
+        <p className="choice-description" style={{ margin: 0 }}>
+          Theaters and international distribution keep the rest - the studio's actual cut of box office is well below
+          the headline gross.
+        </p>
       </div>
 
       <div className="card stack">

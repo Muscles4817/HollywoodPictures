@@ -1,23 +1,24 @@
 import { useEffect } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { MARKETING_SPEND_PROFILES, RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS, RELEASE_WINDOW_DESCRIPTIONS } from '../../data/release';
+import { MARKETING_SPEND_RANGE, RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS, RELEASE_WINDOW_DESCRIPTIONS } from '../../data/release';
 import { pluckDescriptions } from '../../data/describe';
 import { computeMarketingCost } from '../../engine/cost';
+import { marketingDescription } from '../../engine/productionDials';
+import { logAmount } from '../../engine/interpolate';
 import { ChoiceGroup } from '../common/ChoiceGroup';
+import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
-import { Money } from '../common/Money';
+import { Money, formatMoney } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
-import type { MarketingChoices, MarketingSpend, ReleaseType, ReleaseWindow } from '../../types';
+import type { MarketingChoices, ReleaseType, ReleaseWindow } from '../../types';
 
-const MARKETING_SPENDS = Object.keys(MARKETING_SPEND_PROFILES) as MarketingSpend[];
 const RELEASE_TYPES = Object.keys(RELEASE_TYPE_PROFILES) as ReleaseType[];
 const RELEASE_WINDOWS = Object.keys(RELEASE_WINDOW_GENRE_BONUS) as ReleaseWindow[];
 
-const MARKETING_SPEND_DESCRIPTIONS = pluckDescriptions(MARKETING_SPEND_PROFILES);
 const RELEASE_TYPE_DESCRIPTIONS = pluckDescriptions(RELEASE_TYPE_PROFILES);
 
 const DEFAULT_CHOICES: MarketingChoices = {
-  marketingSpend: 'Medium',
+  marketingSpend: logAmount(0.4, MARKETING_SPEND_RANGE),
   releaseType: 'Wide',
   releaseWindow: 'Quiet Month',
 };
@@ -40,7 +41,7 @@ export function MarketingRelease() {
 
   const marketingCost = computeMarketingCost(choices);
   const releaseTypeProfile = RELEASE_TYPE_PROFILES[choices.releaseType];
-  const weakMarketingWarning = releaseTypeProfile.needsMarketing && (choices.marketingSpend === 'None' || choices.marketingSpend === 'Low');
+  const weakMarketingWarning = releaseTypeProfile.needsMarketing && choices.marketingSpend <= MARKETING_SPEND_RANGE.min * 3;
   const genreBonus = draft.genre ? RELEASE_WINDOW_GENRE_BONUS[choices.releaseWindow][draft.genre] : undefined;
 
   return (
@@ -48,12 +49,17 @@ export function MarketingRelease() {
       <WizardHeader current="marketing" />
       <h1>Marketing &amp; Release</h1>
 
-      <ChoiceGroup
+      <RangeSlider
         label="Marketing Spend"
-        options={MARKETING_SPENDS}
+        min={MARKETING_SPEND_RANGE.min}
+        max={MARKETING_SPEND_RANGE.max}
+        logScale
         value={choices.marketingSpend}
         onChange={(v) => update('marketingSpend', v)}
-        descriptions={MARKETING_SPEND_DESCRIPTIONS}
+        formatValue={formatMoney}
+        description={marketingDescription(choices.marketingSpend)}
+        lowLabel="Word of Mouth"
+        highLabel="Global Blitz"
       />
       <ChoiceGroup
         label="Release Type"

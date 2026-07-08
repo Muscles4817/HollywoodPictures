@@ -52,9 +52,15 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     input.genre,
     input.productionChoices,
     input.postProductionChoices,
-    input.marketingChoices,
   );
-  const buzzScore = computeBuzzScore(input.script, input.events, input.postProductionChoices, input.marketingChoices);
+  const buzzScore = computeBuzzScore(
+    input.script,
+    input.talent,
+    input.events,
+    input.postProductionChoices,
+    input.marketingChoices,
+    input.studioReputation,
+  );
 
   const talentCost = computeTalentCost(input.talent);
   const productionBudgetCost = computeProductionBudgetCost(input.productionChoices);
@@ -67,22 +73,23 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   const marketingCost = computeMarketingCost(input.marketingChoices);
   const totalCost = productionCost + marketingCost;
 
-  const { openingWeekend, totalBoxOffice } = computeBoxOffice(
+  const { openingWeekend, totalBoxOffice, studioRevenue } = computeBoxOffice(
     {
-      audienceScore,
+      buzzScore,
       criticScore,
+      audienceScore,
       targetAudience: input.targetAudience,
       genre: input.genre,
       releaseWindow: input.marketingChoices.releaseWindow,
       releaseType: input.marketingChoices.releaseType,
-      marketingSpend: input.marketingChoices.marketingSpend,
-      studioReputation: input.studioReputation,
       budgetAmount: input.productionChoices.budgetAmount,
     },
     rng,
   );
 
-  const profit = totalBoxOffice - totalCost;
+  // Profit is computed from the studio's actual cut of the gross, not the
+  // headline box office figure - see boxOffice.ts:STUDIO_BOX_OFFICE_SHARE.
+  const profit = studioRevenue - totalCost;
   const outcome = determineOutcome(profit, totalCost, quality.qualityScore, criticScore, audienceScore);
   const reputationChange = computeReputationChange(outcome, criticScore);
   const departmentBlurb = pickDepartmentBlurb(quality, input.genre, rng);
@@ -94,6 +101,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     totalCost,
     openingWeekend,
     totalBoxOffice,
+    studioRevenue,
     profit,
     criticScore: Math.round(criticScore),
     audienceScore: Math.round(audienceScore),

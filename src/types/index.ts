@@ -143,12 +143,16 @@ export interface PostProductionChoices {
   finalCutFocus: FinalCutFocus;
 }
 
-export type MarketingSpend = 'None' | 'Low' | 'Medium' | 'High' | 'Huge';
 export type ReleaseType = 'Limited' | 'Wide' | 'Streaming' | 'Festival First';
 export type ReleaseWindow = 'Quiet Month' | 'Summer' | 'Awards Season' | 'Halloween' | 'Christmas';
 
 export interface MarketingChoices {
-  marketingSpend: MarketingSpend;
+  // A continuous currency amount, not a fixed tier - what a given level of
+  // exposure costs doesn't change based on how cheap or expensive the film
+  // itself was (see data/release.ts:MARKETING_SPEND_RANGE). Flat, absolute
+  // cost is what makes the top of the range naturally unreachable for a
+  // small studio, rather than needing an artificial rule to lock it out.
+  marketingSpend: number;
   releaseType: ReleaseType;
   releaseWindow: ReleaseWindow;
 }
@@ -166,7 +170,8 @@ export interface FilmResults {
   marketingCost: number;
   totalCost: number;
   openingWeekend: number;
-  totalBoxOffice: number;
+  totalBoxOffice: number; // the big headline gross - not what the studio actually keeps, see studioRevenue
+  studioRevenue: number; // totalBoxOffice after the theatrical revenue split - what profit is actually computed from
   profit: number;
   criticScore: number; // 0-100
   audienceScore: number; // 0-100

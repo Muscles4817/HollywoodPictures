@@ -32,13 +32,16 @@ export const CRITIC_WEIGHTS = {
   editStyle: 0.15,
 };
 
-// Audience Score leans on entertainment value: genre fit, star power, pacing/marketing.
+// Audience Score leans on entertainment value: genre fit, star power, pacing.
+// Marketing deliberately isn't a term here - marketing builds awareness
+// (Buzz -> Opening Weekend, see engine/boxOffice.ts), it doesn't make
+// people who've actually seen the film like it any more than they would
+// have otherwise, so it has no business informing this score.
 export const AUDIENCE_WEIGHTS = {
-  genreFit: 0.25,
+  genreFit: 0.3,
   actorFame: 0.2,
-  entertainment: 0.25,
-  marketing: 0.15,
-  production: 0.15,
+  entertainment: 0.3,
+  production: 0.2,
 };
 
 // Box office and reputation are each a multiplicative chain rather than a
