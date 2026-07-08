@@ -19,7 +19,8 @@ import {
 } from './productionDials';
 import { EDIT_STYLE_PROFILES, FINAL_CUT_FOCUS_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES } from '../data/postProduction';
 import { MARKETING_SPEND_PROFILES, RELEASE_TYPE_PROFILES } from '../data/release';
-import { AUDIENCE_WEIGHTS, CRITIC_WEIGHTS, QUALITY_WEIGHTS } from '../data/scoringWeights';
+import { AUDIENCE_WEIGHTS, CRITIC_WEIGHTS } from '../data/scoringWeights';
+import { computeQualityWeights } from './genreWeights';
 import { clamp } from './random';
 
 function getTalent(talent: Talent[], role: Talent['role']): Talent | undefined {
@@ -160,13 +161,14 @@ export function computeQualityBreakdown(
   const postProductionScore = computePostProductionScore(postProductionChoices);
   const eventsScore = computeEventsScore(events);
 
+  const weights = computeQualityWeights(genre);
   const qualityScore =
-    scriptScore * QUALITY_WEIGHTS.script +
-    directionScore * QUALITY_WEIGHTS.direction +
-    actingScore * QUALITY_WEIGHTS.acting +
-    postProductionScore * QUALITY_WEIGHTS.postProduction +
-    productionScore * QUALITY_WEIGHTS.production +
-    eventsScore * QUALITY_WEIGHTS.randomEvents;
+    scriptScore * weights.script +
+    directionScore * weights.direction +
+    actingScore * weights.acting +
+    postProductionScore * weights.postProduction +
+    productionScore * weights.production +
+    eventsScore * weights.randomEvents;
 
   return { scriptScore, directionScore, actingScore, productionScore, postProductionScore, eventsScore, qualityScore };
 }

@@ -1,8 +1,21 @@
 // Central tuning knobs for the simulation. All weights are on a 0-1 scale
 // and each weighted group should sum to 1 so scores stay on a 0-100 scale.
 
-// Final Quality Score = weighted average of these sub-scores.
-export const QUALITY_WEIGHTS = {
+export interface QualityWeights {
+  script: number;
+  direction: number;
+  acting: number;
+  postProduction: number;
+  production: number;
+  randomEvents: number;
+}
+
+// Final Quality Score = weighted average of these sub-scores, for a genre of
+// exactly-average script/acting/production importance. Real films use
+// engine/genreWeights.ts:computeQualityWeights instead, which tilts these
+// per genre (a Drama leans harder on script+acting, an Action film leans
+// harder on production) - this is just the reference point that tilts from.
+export const BASE_QUALITY_WEIGHTS: QualityWeights = {
   script: 0.2,
   direction: 0.2,
   acting: 0.2,
