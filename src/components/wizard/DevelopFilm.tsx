@@ -8,6 +8,12 @@ import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
 import { CompatibilityBadge } from '../common/CompatibilityBadge';
+import { TONES, TONE_LABELS } from '../../data/tones';
+import type { Script } from '../../types';
+
+function toneBreakdown(script: Script) {
+  return TONES.map((tone) => ({ label: TONE_LABELS[tone], value: script.toneProfile[tone] }));
+}
 
 const GENRE_DESCRIPTIONS = pluckDescriptions(GENRE_PROFILES);
 const AUDIENCE_DESCRIPTIONS = pluckDescriptions(AUDIENCE_PROFILES);
@@ -89,7 +95,7 @@ export function DevelopFilm() {
                     <div>Marketability: {script.marketability}</div>
                     <div>Complexity: {script.complexity}</div>
                   </div>
-                  <CompatibilityBadge toneProfile={script.toneProfile} />
+                  <CompatibilityBadge breakdown={toneBreakdown(script)} />
                   {!affordable && (
                     <p style={{ color: 'var(--red)', marginTop: 6 }}>Can't afford this script</p>
                   )}

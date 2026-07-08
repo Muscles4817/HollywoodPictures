@@ -28,25 +28,61 @@ export type TalentRole =
   | 'Editor'
   | 'VFX Supervisor';
 
-// The emotional/tonal axes every script and every talent are scored on -
-// replaces a single per-genre affinity number with a small profile shared
-// by scripts, directors and actors, so "does this director suit this
-// script" is a genuine compatibility question instead of one flat lookup
-// (see engine/compatibility.ts).
+// The emotional/tonal axes every script and every Director are scored on -
+// a compatibility question instead of a flat per-genre lookup (see
+// engine/compatibility.ts). Only Director shares this space directly with
+// Script; Actors have their own vocabulary (see ActingStyle below) that
+// gets translated into tone-space rather than natively living in it.
 export type Tone = 'action' | 'comedy' | 'romance' | 'suspense' | 'drama' | 'spectacle';
 export type ToneProfile = Record<Tone, number>; // 1-100 per tone
 
-export interface Talent {
+// An actor's own performance vocabulary - deliberately not the same shape
+// as ToneProfile. Physical Performance and Comedy are clean specialists;
+// Character Transformation and Emotional Performance both lean into the
+// "serious" cluster (drama/suspense/romance) but in different proportions;
+// Charisma is the one generalist, contributing a little to every tone
+// rather than owning one (engine/compatibility.ts:deriveToneFromActingStyle,
+// data/actingStyle.ts:ACTING_STYLE_TONE_WEIGHTS). There's no separate
+// "skill" stat for actors - these five numbers are both their skill and
+// their fit, together.
+export interface ActingStyle {
+  characterTransformation: number; // 1-100
+  emotionalPerformance: number; // 1-100
+  charisma: number; // 1-100
+  comedy: number; // 1-100
+  physicalPerformance: number; // 1-100
+}
+
+interface TalentCommon {
   id: string;
   name: string;
-  role: TalentRole;
   fame: number; // 1-100
-  skill: number; // 1-100
   reliability: number; // 1-100
   ego: number; // 1-100
   salary: number;
+}
+
+export interface DirectorTalent extends TalentCommon {
+  role: 'Director';
+  skill: number; // 1-100
   toneProfile: ToneProfile;
 }
+
+export interface ActorTalent extends TalentCommon {
+  role: 'Lead Actor' | 'Supporting Actor';
+  actingStyle: ActingStyle;
+}
+
+// Writer, Composer, Editor, VFX Supervisor - a plain skill number, no
+// tone-comparable stat. (Writer in particular is a known dead field right
+// now: hireable, but doesn't yet feed script quality - see Known
+// Limitations in docs/DESIGN.md.)
+export interface CrewTalent extends TalentCommon {
+  role: 'Writer' | 'Composer' | 'Editor' | 'VFX Supervisor';
+  skill: number; // 1-100
+}
+
+export type Talent = DirectorTalent | ActorTalent | CrewTalent;
 
 export interface Script {
   id: string;

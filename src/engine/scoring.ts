@@ -1,4 +1,6 @@
 import type {
+  ActorTalent,
+  DirectorTalent,
   Genre,
   MarketingChoices,
   PostProductionChoices,
@@ -8,7 +10,7 @@ import type {
   Talent,
 } from '../types';
 import { GENRE_PROFILES } from '../data/genres';
-import { computeCompatibility } from './compatibility';
+import { computeTalentCompatibility } from './compatibility';
 import {
   budgetT,
   budgetQuality,
@@ -24,19 +26,22 @@ import { AUDIENCE_WEIGHTS, CRITIC_WEIGHTS } from '../data/scoringWeights';
 import { computeQualityWeights } from './genreWeights';
 import { clamp } from './random';
 
-function getTalent(talent: Talent[], role: Talent['role']): Talent | undefined {
-  return talent.find((t) => t.role === role);
+function getDirector(talent: Talent[]): DirectorTalent | undefined {
+  return talent.find((t): t is DirectorTalent => t.role === 'Director');
 }
 
-/** For roles that can hold more than one person (Supporting Actor). */
-function getTalentsForRole(talent: Talent[], role: Talent['role']): Talent[] {
-  return talent.filter((t) => t.role === role);
+function getLeadActor(talent: Talent[]): ActorTalent | undefined {
+  return talent.find((t): t is ActorTalent => t.role === 'Lead Actor');
 }
 
-/** How well a hired talent suits this specific script's tone, not just its genre label. */
-function compatibility(t: Talent | undefined, script: Script): number {
+function getSupportingActors(talent: Talent[]): ActorTalent[] {
+  return talent.filter((t): t is ActorTalent => t.role === 'Supporting Actor');
+}
+
+/** How well a hired talent suits this specific script - see computeTalentCompatibility. */
+function compatibility(t: DirectorTalent | ActorTalent | undefined, script: Script): number {
   if (!t) return 50; // no one hired for this role -> neutral default
-  return computeCompatibility(script.toneProfile, t.toneProfile);
+  return computeTalentCompatibility(t, script) ?? 50;
 }
 
 function average(values: number[]): number | null {
@@ -51,23 +56,27 @@ export function computeScriptScore(script: Script): number {
 
 /** Director's contribution: raw skill plus how well their style suits this script. */
 export function computeDirectionScore(talent: Talent[], script: Script): number {
-  const director = getTalent(talent, 'Director');
+  const director = getDirector(talent);
   if (!director) return 35; // no director hired is a serious quality hit
   return director.skill * 0.6 + compatibility(director, script) * 0.4;
 }
 
 /**
  * Combined lead + supporting acting quality, weighted toward the lead.
- * Supporting Actor can hold an ensemble (see data/talentGeneration.ts
- * ROLE_CAPACITY) - a bigger cast doesn't automatically raise this score,
- * it's the *average* skill/fit of everyone hired, same as one person would.
+ * Unlike Direction, this is compatibility alone - an actor's ActingStyle
+ * has no separate "skill" number sitting next to it (see types/index.ts),
+ * so how well their specific strengths suit this script IS their
+ * contribution. Supporting Actor can hold an ensemble (see
+ * data/talentGeneration.ts ROLE_CAPACITY) - a bigger cast doesn't
+ * automatically raise this score, it's the *average* fit of everyone hired,
+ * same as one person would give.
  */
 export function computeActingScore(talent: Talent[], script: Script): number {
-  const lead = getTalent(talent, 'Lead Actor');
-  const supports = getTalentsForRole(talent, 'Supporting Actor');
+  const lead = getLeadActor(talent);
+  const supports = getSupportingActors(talent);
 
-  const leadScore = lead ? lead.skill * 0.65 + compatibility(lead, script) * 0.35 : 30;
-  const supportScoreAvg = average(supports.map((s) => s.skill * 0.65 + compatibility(s, script) * 0.35));
+  const leadScore = lead ? compatibility(lead, script) : 30;
+  const supportScoreAvg = average(supports.map((s) => compatibility(s, script)));
 
   return leadScore * 0.7 + (supportScoreAvg ?? 30) * 0.3;
 }
@@ -113,8 +122,8 @@ export function computePostProductionScore(choices: PostProductionChoices): numb
 /** How well the whole package (script, key talent, budget) suits the chosen genre. */
 export function computeGenreFitScore(script: Script, talent: Talent[], genre: Genre, choices: ProductionChoices): number {
   const profile = GENRE_PROFILES[genre];
-  const director = getTalent(talent, 'Director');
-  const lead = getTalent(talent, 'Lead Actor');
+  const director = getDirector(talent);
+  const lead = getLeadActor(talent);
   const talentFit = (compatibility(director, script) + compatibility(lead, script)) / 2;
 
   // A low budget only suits genres tagged as low-budget-friendly (e.g. Horror);
@@ -129,8 +138,8 @@ export function computeGenreFitScore(script: Script, talent: Talent[], genre: Ge
 
 /** How sellable the film looks, independent of how it eventually gets marketed. */
 export function computeMarketabilityScore(script: Script, talent: Talent[], choices: ProductionChoices): number {
-  const lead = getTalent(talent, 'Lead Actor');
-  const supports = getTalentsForRole(talent, 'Supporting Actor');
+  const lead = getLeadActor(talent);
+  const supports = getSupportingActors(talent);
   const supportFameAvg = average(supports.map((s) => s.fame)) ?? 30;
   const fameAvg = ((lead?.fame ?? 30) + supportFameAvg) / 2;
   const runtimeDelta = runtimeMarketabilityDelta(choices.runtimeIntensity);
@@ -204,7 +213,7 @@ export function computeAudienceScore(
   marketingChoices: MarketingChoices,
 ): number {
   const genreFitScore = computeGenreFitScore(script, talent, genre, productionChoices);
-  const lead = getTalent(talent, 'Lead Actor');
+  const lead = getLeadActor(talent);
   const actorFameScore = lead?.fame ?? 30;
 
   const entertainmentScore = clamp(

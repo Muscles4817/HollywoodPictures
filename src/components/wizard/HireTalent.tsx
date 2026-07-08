@@ -10,8 +10,10 @@ import { RangeSlider } from '../common/RangeSlider';
 import { Money, formatMoney } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
 import { CompatibilityBadge } from '../common/CompatibilityBadge';
-import { computeCompatibility } from '../../engine/compatibility';
-import type { Talent, TalentRole } from '../../types';
+import { computeTalentCompatibility } from '../../engine/compatibility';
+import { TONES, TONE_LABELS } from '../../data/tones';
+import { ACTING_STYLE_AXES, ACTING_STYLE_LABELS } from '../../data/actingStyle';
+import type { CrewTalent, DirectorTalent, Talent, TalentRole } from '../../types';
 
 const VFX_RECOMMENDED_GENRES = new Set(['Action', 'Sci-Fi', 'Fantasy']);
 
@@ -20,6 +22,32 @@ const DEFAULT_MASTER_BUDGET = 3_000_000;
 
 /** How many candidates (closest to the target price) to actually display per role. */
 const VISIBLE_CANDIDATE_COUNT = 9;
+
+/** Director and crew roles have a plain Skill rating; Actors don't (see types/index.ts). */
+function hasSkill(t: Talent): t is DirectorTalent | CrewTalent {
+  return t.role !== 'Lead Actor' && t.role !== 'Supporting Actor';
+}
+
+/**
+ * What to show in a candidate's expandable breakdown - a Director's own
+ * ToneProfile, an Actor's own ActingStyle, or nothing for crew roles that
+ * have no tone-comparable stat at all (see engine/compatibility.ts).
+ */
+function talentBreakdown(talent: Talent): { breakdown: Array<{ label: string; value: number }>; defaultLabel: string } | null {
+  if (talent.role === 'Director') {
+    return {
+      breakdown: TONES.map((tone) => ({ label: TONE_LABELS[tone], value: talent.toneProfile[tone] })),
+      defaultLabel: 'Tone Profile',
+    };
+  }
+  if (talent.role === 'Lead Actor' || talent.role === 'Supporting Actor') {
+    return {
+      breakdown: ACTING_STYLE_AXES.map((axis) => ({ label: ACTING_STYLE_LABELS[axis], value: talent.actingStyle[axis] })),
+      defaultLabel: 'Acting Style',
+    };
+  }
+  return null;
+}
 
 export function HireTalent() {
   const { state, dispatch } = useStudio();
@@ -97,7 +125,8 @@ export function HireTalent() {
               {displayList.map((talent) => {
                 const selected = hired.some((h) => h.id === talent.id);
                 const disabled = !selected && atCap;
-                const compatScore = draft.script ? computeCompatibility(draft.script.toneProfile, talent.toneProfile) : null;
+                const compatInfo = talentBreakdown(talent);
+                const compatScore = draft.script ? computeTalentCompatibility(talent, draft.script) : null;
                 return (
                   <Card
                     key={talent.id}
@@ -110,11 +139,17 @@ export function HireTalent() {
                     <div className="card-subtitle"><Money amount={talent.salary} /></div>
                     <div style={{ fontSize: '0.85em' }}>
                       <div>Fame: {talent.fame}</div>
-                      <div>Skill: {talent.skill}</div>
+                      {hasSkill(talent) && <div>Skill: {talent.skill}</div>}
                       <div>Reliability: {talent.reliability}</div>
                       <div>Ego: {talent.ego}</div>
                     </div>
-                    {compatScore !== null && <CompatibilityBadge score={compatScore} toneProfile={talent.toneProfile} />}
+                    {compatInfo && (
+                      <CompatibilityBadge
+                        score={compatScore ?? undefined}
+                        breakdown={compatInfo.breakdown}
+                        defaultLabel={compatInfo.defaultLabel}
+                      />
+                    )}
                     {selected && <p style={{ color: 'var(--green)', marginTop: 6 }}>Hired</p>}
                     {disabled && <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>Cast full</p>}
                   </Card>
@@ -132,12 +167,13 @@ export function HireTalent() {
       <WizardHeader current="talent" />
       <h1>Hire Talent</h1>
       <p className="choice-description">
-        Fame boosts box office appeal - especially your lead actor's. Skill drives quality, most directly through your
-        director and cast. Compatibility shows how well someone's own strengths suit this specific script - click or
-        hover it to see their full breakdown - and matters most for your director and lead actor. Reliability and Ego
-        apply across everyone you hire: an unreliable, high-ego crew
-        raises the odds of a costly incident once filming starts. Supporting Actor can be an ensemble - hiring more
-        people there averages their acting quality and fame together, it doesn't stack.
+        Fame boosts box office appeal - especially your lead actor's. Your director and crew have a Skill rating;
+        actors instead have five specific Acting Style strengths (click or hover an actor's card to see them) - there's
+        no single "acting skill," just how well their particular strengths suit this script. Compatibility shows that
+        fit for both directors and actors, and matters most for your director and lead actor. Reliability and Ego
+        apply across everyone you hire: an unreliable, high-ego crew raises the odds of a costly incident once filming
+        starts. Supporting Actor can be an ensemble - hiring more people there averages their fit and fame together,
+        it doesn't stack.
       </p>
 
       <RangeSlider

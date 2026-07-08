@@ -5,9 +5,11 @@ import { randomSeed, withRng } from '../engine/random';
 // Bump this whenever a persisted shape changes incompatibly (e.g. v2 -> v3
 // moved the talent roster from a per-film draft to a persistent Studio
 // field; v3 -> v4 replaced Talent.genreAffinities with Talent/Script
-// toneProfile) so old saves are cleanly ignored instead of partially
-// loading with missing/mismatched fields.
-const SAVE_KEY = 'hollywood-pictures-save-v4';
+// toneProfile; v4 -> v5 split Talent into a discriminated union - Director
+// keeps toneProfile, Actors got actingStyle instead of skill+toneProfile,
+// crew roles lost their unused toneProfile) so old saves are cleanly
+// ignored instead of partially loading with missing/mismatched fields.
+const SAVE_KEY = 'hollywood-pictures-save-v5';
 
 export function loadState(): GameState {
   try {

@@ -1,7 +1,8 @@
-import type { Talent, TalentRole, ToneProfile } from '../types';
+import type { ActingStyle, Talent, TalentRole, ToneProfile } from '../types';
 import { ALL_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { TALENT_FIRST_NAMES, TALENT_LAST_NAMES } from '../data/talentNames';
 import { TONES } from '../data/tones';
+import { ACTING_STYLE_AXES } from '../data/actingStyle';
 import { logAmount } from './interpolate';
 import { clamp, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
 
@@ -11,38 +12,51 @@ function randomName(rng: RandomFn): string {
   return `${pick(rng, TALENT_FIRST_NAMES)} ${pick(rng, TALENT_LAST_NAMES)}`;
 }
 
-const SIGNATURE_TONE_RANGE: [number, number] = [70, 100];
-const BASE_TONE_RANGE: [number, number] = [10, 55];
+const SIGNATURE_RANGE: [number, number] = [70, 100];
+const BASE_RANGE: [number, number] = [10, 55];
 
 /**
- * Rolls a tone profile with 1-2 "signature" tones (rolled high) and the rest
- * rolled from a lower, noisier base - independent uniform rolls across all
- * six tones would regress everyone toward a flat, unmemorable middle, which
- * loses the "brilliant at suspense, hopeless at comedy" specialist flavor
- * a real cast/crew has. Every candidate gets a profile for every tone, not
- * just whatever genre happens to be selected - talent is a persistent studio
- * resource (see state/gameState.ts:createInitialStudio), generated once at
- * the start of the game, so it needs a complete, permanent profile.
+ * Rolls 1-2 "signature" axes high and the rest from a lower, noisier base -
+ * independent uniform rolls across every axis would regress everyone toward
+ * a flat, unmemorable middle, which loses the "brilliant at suspense,
+ * hopeless at comedy" specialist flavor a real cast/crew has. Shared shape
+ * for both a Director's ToneProfile and an Actor's ActingStyle - only the
+ * axis list passed in differs.
  */
-function generateToneProfile(rng: RandomFn): ToneProfile {
+function generateSignatureProfile<K extends string>(rng: RandomFn, axes: readonly K[]): Record<K, number> {
   const signatureCount = randInt(rng, 1, 2);
-  const signatures = new Set(pickMany(rng, TONES, signatureCount));
-  const profile = {} as ToneProfile;
-  for (const tone of TONES) {
-    profile[tone] = signatures.has(tone)
-      ? randInt(rng, ...SIGNATURE_TONE_RANGE)
-      : randInt(rng, ...BASE_TONE_RANGE);
+  const signatures = new Set(pickMany(rng, axes, signatureCount));
+  const profile = {} as Record<K, number>;
+  for (const axis of axes) {
+    profile[axis] = signatures.has(axis) ? randInt(rng, ...SIGNATURE_RANGE) : randInt(rng, ...BASE_RANGE);
   }
   return profile;
+}
+
+function generateToneProfile(rng: RandomFn): ToneProfile {
+  return generateSignatureProfile(rng, TONES);
+}
+
+function generateActingStyle(rng: RandomFn): ActingStyle {
+  return generateSignatureProfile(rng, ACTING_STYLE_AXES);
+}
+
+function generateSkill(rng: RandomFn, t: number): number {
+  const skillMean = 25 + 65 * t;
+  return clamp(Math.round(skillMean + randFloat(rng, -20, 20)), 1, 100);
 }
 
 /**
  * Generates one candidate for a role at a given point along that role's
  * salary range (t, 0-1 on the log scale - see generateTalentCandidates for
- * how t is chosen). Fame and skill scale up with price on average, but with
- * enough noise that a cheap unknown can be a hidden gem and an expensive
- * hire can disappoint. Reliability and ego are only loosely tied to price -
- * professionalism isn't for sale, and neither is a diva-free set.
+ * how t is chosen). Fame scales up with price on average, but with enough
+ * noise that a cheap unknown can be a hidden gem and an expensive hire can
+ * disappoint. Reliability and ego are only loosely tied to price -
+ * professionalism isn't for sale, and neither is a diva-free set. What else
+ * gets rolled depends on the role: Director gets a general skill plus a
+ * ToneProfile shared with Script; Actors get an ActingStyle instead of a
+ * separate skill - those five numbers are both their skill and their fit,
+ * together (see types/index.ts); everyone else gets a plain skill only.
  */
 function generateTalent(role: TalentRole, rng: RandomFn, t: number): Talent {
   const profile = ROLE_GENERATION_PROFILES[role];
@@ -51,25 +65,27 @@ function generateTalent(role: TalentRole, rng: RandomFn, t: number): Talent {
   const fameMean = 10 + (profile.fameCeiling - 10) * t;
   const fame = clamp(Math.round(fameMean + randFloat(rng, -12, 12)), 1, 100);
 
-  const skillMean = 25 + 65 * t;
-  const skill = clamp(Math.round(skillMean + randFloat(rng, -20, 20)), 1, 100);
-
   const reliabilityMean = 45 + 25 * t;
   const reliability = clamp(Math.round(reliabilityMean + randFloat(rng, -30, 30)), 1, 100);
 
   const ego = clamp(Math.round(15 + fame * 0.45 + randFloat(rng, -20, 20)), 1, 100);
 
-  return {
+  const common = {
     id: `talent-${nextTalentId++}`,
     name: randomName(rng),
-    role,
     fame,
-    skill,
     reliability,
     ego,
     salary,
-    toneProfile: generateToneProfile(rng),
   };
+
+  if (role === 'Director') {
+    return { ...common, role, skill: generateSkill(rng, t), toneProfile: generateToneProfile(rng) };
+  }
+  if (role === 'Lead Actor' || role === 'Supporting Actor') {
+    return { ...common, role, actingStyle: generateActingStyle(rng) };
+  }
+  return { ...common, role, skill: generateSkill(rng, t) };
 }
 
 /**
