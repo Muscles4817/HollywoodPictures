@@ -53,11 +53,13 @@ Defined in `src/types/index.ts`. The five nouns that matter:
   choice made producing it, its rolled events, and its final `FilmResults`.
   Immutable once created; lives forever in `studio.filmsReleased`.
 - **Script** - `genreFit`, `originality`, `structure`, `dialogue`,
-  `marketability`, `complexity` (all 1-100), plus a `cost`. Generated
-  procedurally per genre (see `engine/scriptGenerator.ts`).
+  `marketability`, `complexity` (all 1-100), a `cost`, and a `toneProfile`
+  (see [Section 5.11](#511-tone-profiles--compatibility-enginecompatibilityts-datatonests)).
+  Generated procedurally per genre (see `engine/scriptGenerator.ts`).
 - **Talent** - `role`, `fame`, `skill`, `reliability`, `ego` (all 1-100),
-  `salary`, and a `genreAffinities` map covering every genre. Generated once
-  per role when a `Studio` is created and kept for the life of the save in
+  `salary`, and a `toneProfile` (six-axis emotional/tonal profile, replacing
+  the old flat per-genre affinity number). Generated once per role when a
+  `Studio` is created and kept for the life of the save in
   `studio.talentPool` (see [Section 5.8](#58-procedural-talent-generation-enginetalentgeneratorts)) -
   the same named roster is drawn from across every film, though there's
   still no scheduling conflicts or relationships yet (see
@@ -108,8 +110,8 @@ Six 0-100 sub-scores feed the Final Quality Score:
 | Sub-score | Formula | Notes |
 |---|---|---|
 | **Script** | `originality*.3 + structure*.3 + dialogue*.25 + marketability*.15` | Independent of genre fit. |
-| **Direction** | `director.skill*.6 + genreAffinity(director)*.4` | No director hired -> flat 35. |
-| **Acting** | `lead*.7 + avg(supports)*.3`, each `skill*.65 + genreAffinity*.35` | No actor hired -> flat 30 for that slot. Supporting Actor can be an ensemble (see 5.8/5.9) - more of them *averages* the group's quality, it doesn't add up. |
+| **Direction** | `director.skill*.6 + compatibility(director, script)*.4` | No director hired -> flat 35. `compatibility` is the tone-profile match against this specific script, not a genre lookup - see 5.11. |
+| **Acting** | `lead*.7 + avg(supports)*.3`, each `skill*.65 + compatibility(actor, script)*.35` | No actor hired -> flat 30 for that slot. Supporting Actor can be an ensemble (see 5.8/5.9) - more of them *averages* the group's quality, it doesn't add up. |
 | **Production** | Weighted blend of budget/shooting/set/effects "quality scores", each read off a continuous curve (`engine/productionDials.ts`) rather than a fixed tier, with VFX vs. practical-effects weighted per genre (`data/genres.ts` `vfxImportance` / `practicalEffectsImportance`) | This is where "Action/Sci-Fi/Fantasy benefit from VFX" and "Drama/Romance don't" actually happens. |
 | **Post-production** | `55 + testScreeningDelta + musicDelta + (Balanced edit ? 5 : 0)` | See `data/postProduction.ts`. |
 | **Events** | `50 + sum(event.qualityDelta) * 2` | Amplified because each rolled event's raw delta is small (~-10..+10 across 3-5 events). |
@@ -154,12 +156,12 @@ specifically (tension and pacing are an editing/directing job) at acting's
 expense - which matches horror's reputation as a director's genre more than
 a star vehicle. `actingImportance` and `scriptImportance` were declared on
 every `GenreProfile` from early on but never actually read anywhere until
-this - the game had genre-flavored *inputs* (VFX mix, genre affinity,
+this - the game had genre-flavored *inputs* (VFX mix, casting fit,
 low-budget tolerance) without genre-flavored *priorities*.
 
 Two more scores exist alongside quality but aren't part of it:
 
-- **Genre Fit Score** = `script.genreFit*.4 + avg(directorAffinity, leadAffinity)*.35 + budgetFit*.25`,
+- **Genre Fit Score** = `script.genreFit*.4 + avg(directorCompatibility, leadCompatibility)*.35 + budgetFit*.25`,
   where `budgetFit` ramps linearly from `30 + genre.lowBudgetFriendly*60` at
   the very bottom of the budget slider up to 85 by 35% of the way up it, then
   stays at 85 the rest of the way - this is why Horror can go cheap and
@@ -319,7 +321,7 @@ fame        = 10 + (roleFameCeiling - 10) * t   + noise(±12)
 skill       = 25 + 65 * t                        + noise(±20)
 reliability = 45 + 25 * t                        + noise(±30)
 ego         = 15 + fame * 0.45                    + noise(±20)
-genreAffinities[genre] = random(15, 100) for every genre, independent of price
+toneProfile = 1-2 random "signature" tones at random(70,100), the rest at random(10,55)
 ```
 
 Fame and skill scale up with price *on average*, but the noise bands are
@@ -328,12 +330,16 @@ still disappoint. Reliability and ego are only loosely tied to price -
 professionalism isn't for sale, and neither is a diva-free set. `roleFameCeiling`
 caps how famous a role can plausibly get even at the top of its pay scale -
 98 for Director/Lead Actor, down to 45 for Editor - since below-the-line
-crew don't become household names the way stars do. Every candidate rolls
-an affinity for *every* genre at creation time, not just one - this is what
-makes the pool genre-agnostic and reusable: switching a film's genre
-mid-draft (`SET_GENRE`) just changes which affinity number is displayed and
+crew don't become household names the way stars do. Every candidate gets a
+full `toneProfile` at creation time (see 5.11), not one tied to whatever
+genre happens to be selected - this is what makes the pool genre-agnostic
+and reusable: switching a film's genre mid-draft (`SET_GENRE`) just changes
 which script slate gets regenerated, it doesn't touch who's hireable or who
-you've already hired.
+you've already hired. Rolling 1-2 signature tones high and the rest low
+rather than sampling every tone independently is deliberate: six
+independent uniform rolls regress everyone toward an unmemorable middle,
+which loses the "brilliant at suspense, hopeless at comedy" specialist feel
+a real cast/crew has.
 
 On the Hire Talent screen, each role gets its own price slider (`SET_TALENT_TARGET_PRICE`)
 that filters that role's ~100 pool members down to whoever's genuinely close
@@ -367,7 +373,7 @@ un-hire them). Every role is currently `{1,1}` (hire one, replacing swaps
 who) except Supporting Actor at `{1,4}` - the first role that supports an
 ensemble. Hiring more people into an ensemble role doesn't add their
 contributions up; it *averages* them (see the Acting sub-score, 5.1) - a
-bigger supporting cast is about hedging and flavor (spreading genre-affinity
+bigger supporting cast is about hedging and flavor (spreading compatibility
 risk, more reliability data points feeding production risk in 5.9), not a
 free quality multiplier. Two singular-role actions exist because the
 semantics genuinely differ: `SET_TALENT_FOR_ROLE` replaces/toggles a `{1,1}`
@@ -440,6 +446,78 @@ Drama/Horror/Thriller signature is script - computed from each genre's
 existing importance fields, not hand-mapped, so retuning `data/genres.ts`
 automatically keeps the signature assignments correct.
 
+### 5.11 Tone profiles & compatibility (`engine/compatibility.ts`, `data/tones.ts`)
+
+Casting used to be a single genre-affinity lookup: every talent had one
+number per genre, and "does this director suit this film" only ever meant
+"does this director suit *Horror*." That collapsed every Horror film into
+the same question, and made a talent's fit about the genre label rather
+than the specific script. It's been replaced with a shared six-axis tone
+profile (`types/index.ts:Tone` - `action`, `comedy`, `romance`, `suspense`,
+`drama`, `spectacle`, each 1-100) that scripts, directors, and actors all
+carry, plus a compatibility function that measures how well two profiles
+match:
+
+```
+compatibility(scriptTone, talentTone) =
+  100 - Σ( scriptTone[tone] * |scriptTone[tone] - talentTone[tone]| ) / Σ( scriptTone[tone] )
+```
+
+The weighting is the whole point: each tone's contribution to the distance
+is scaled by how much *the script* leans on that tone, not by a flat
+average. A talent who's weak at comedy barely loses anything on a script
+that isn't comedic at all, because the comedy term's weight is small - but
+that same weakness costs them heavily on a script built around it. This is
+what makes casting a genuine trade-off instead of "hire whoever has the
+highest average stat": a director who's a suspense/drama specialist and
+mediocre everywhere else can still be a near-perfect match for a
+suspense-and-drama-heavy script (`engine/compatibility.ts`).
+
+`compatibility()` replaced the single `genreAffinity()` lookup at every one
+of its call sites in `engine/scoring.ts` - `computeDirectionScore`,
+`computeActingScore`, and `computeGenreFitScore`'s `talentFit` term - with
+no other change to those formulas' shape or weights, so this was a
+drop-in swap of what "fit" means, not a rebalance of how much it matters.
+
+**Where the two vectors come from:**
+
+- **Talent** rolls its `toneProfile` at generation time the same way as
+  everything else about them (see 5.8) - 1-2 signature tones high, the rest
+  low and noisy - independent of genre entirely, since talent is a
+  persistent studio resource that outlives any one film's genre choice.
+- **Scripts** get a `toneProfile` centered on their genre's `canonicalTone`
+  (`data/genres.ts`) with ±20 random jitter per axis
+  (`engine/scriptGenerator.ts`). This is also how multi-genre blending
+  happens, with no separate secondary-genre field: a Horror script
+  (canonical tone leans hard on `suspense`) that happens to jitter unusually
+  high on `comedy` and low on `suspense` is, mechanically, already most of
+  the way to being a horror-comedy - genre is a starting point in
+  tone-space, not a hard category. This was deliberately scoped as the
+  *only* multi-genre mechanism for now, in place of a dedicated
+  primary/secondary-genre picker - simpler, and free once the tone system
+  exists; an explicit picker remains a natural addition later if emergent
+  variance alone doesn't feel controllable enough in play.
+
+Genre as a categorical field (`Genre`, the wizard's genre step,
+`GENRE_PROFILES`'s non-tone fields) is otherwise untouched -
+`computeQualityWeights`, `computeProductionScore`, and the VFX/practical mix
+still key off the genre label directly, because those are production-lever
+questions ("how much does this genre reward VFX spend") that a tone vector
+doesn't answer any better than a category does. Only the "does this specific
+person suit this specific script" question moved from genre-keyed to
+tone-vector-keyed.
+
+**UI:** the Hire Talent screen shows a collapsed `Compatibility: NN` figure
+per candidate card rather than the full six-axis breakdown, so a card stays
+scannable at a glance - showing all six numbers on every card at once is
+exactly the wall-of-stats micromanagement this game avoids elsewhere. Click
+or hover it (`components/common/CompatibilityBadge.tsx`) to reveal the
+talent's own tone profile as six mini score bars, for the borderline
+casting calls where "why is this number what it is" actually matters. The
+toggle button stops its click from bubbling to the card's own `onClick`, so
+inspecting a candidate's breakdown never accidentally hires or un-hires
+them.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
@@ -460,7 +538,8 @@ lives in `src/data/`:
 
 | File | Contents |
 |---|---|
-| `genres.ts` | Popularity, VFX/practical/acting/script importance, low-budget tolerance per genre |
+| `genres.ts` | Popularity, VFX/practical/acting/script importance, low-budget tolerance, and canonical tone profile per genre |
+| `tones.ts` | The six tone axes (`TONES`) and their display labels, shared by scripts and talent (see 5.11) |
 | `audiences.ts` | Market size per target audience |
 | `talentGeneration.ts` | Per-role salary range and fame ceiling for procedural talent, the mandatory/optional role lists, and per-role hiring capacity (`{min, max}`) |
 | `talentNames.ts` | First/last name word banks for procedurally generated talent |
@@ -503,6 +582,11 @@ quietly leaving implicit:
 - **Buzz and Marketability scores are computed but not fully load-bearing.**
   Buzz shows on the results screen; Marketability doesn't surface anywhere
   yet. Both are clean hooks for a pre-release hype mechanic.
+- **Multi-genre blending is emergent only, not player-directed.** A script's
+  tone profile (5.11) can drift toward a second genre through jitter alone,
+  but there's no secondary-genre picker giving the player deliberate control
+  over that blend - a natural addition if the random variance doesn't feel
+  controllable enough in practice.
 - **No AI rival studios, awards, franchises, scandals, or physical
   facilities** - all explicitly out of scope for the MVP per the brief, and
   all should slot in as new `data/` + `engine/` modules plus one more studio
