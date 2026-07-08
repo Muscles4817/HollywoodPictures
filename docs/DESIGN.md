@@ -791,6 +791,12 @@ quietly leaving implicit:
   representative inputs by hand - there's no automated test suite pinning
   these numbers yet. Worth adding before any serious rebalancing pass, so
   future tuning doesn't silently break the "expensive bad films flop" promise.
+  The Dashboard's "Export Film History (JSON)" button
+  (`state/exportFilmHistory.ts`) helps here in the meantime - it downloads
+  every released film's full script/cast/choices/results as one JSON file,
+  so a specific confusing result (e.g. "buzz was high, why was opening
+  weekend still small?") can be checked against the actual recorded inputs
+  instead of guessed at from the Results screen alone.
 - **History: the box office formula was rebuilt once already, for being
   badly overpowered.** The original single-stage version (`raw =
   BASE_MARKET_POTENTIAL x <chain of ~10 multipliers>`, `totalBoxOffice` computed

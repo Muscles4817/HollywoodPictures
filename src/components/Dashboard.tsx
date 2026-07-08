@@ -1,4 +1,5 @@
 import { useStudio } from '../state/StudioContext';
+import { exportFilmHistory } from '../state/exportFilmHistory';
 import { Button } from './common/Button';
 import { StatTile } from './common/StatTile';
 import { Money } from './common/Money';
@@ -37,7 +38,12 @@ export function Dashboard() {
       </div>
 
       <div className="card">
-        <h2>Studio History</h2>
+        <div className="row-between">
+          <h2 style={{ margin: 0 }}>Studio History</h2>
+          <Button disabled={studio.filmsReleased.length === 0} onClick={() => exportFilmHistory(studio)}>
+            Export Film History (JSON)
+          </Button>
+        </div>
         {studio.filmsReleased.length === 0 ? (
           <p>No films released yet. Start your first production to build a track record.</p>
         ) : (
