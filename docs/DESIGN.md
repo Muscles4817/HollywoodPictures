@@ -767,6 +767,38 @@ which is a regression, not a refinement - the same shape of problem as the
 character-level casting fit ever becomes a real feature, it should extend
 the existing tone system, not fork a second one next to it.
 
+### 5.13 Script comparison panel (`components/wizard/DevelopFilm.tsx`)
+
+Requested by a playtester: pin up to two scripts (a `pinnedIds` array,
+plain component `useState`, not reducer state - purely a browsing aid with
+no effect on the draft) to see them side by side in a sticky panel while
+still browsing the rest of the slate. Deliberately separate from
+*choosing* a script: clicking a card still selects it immediately (existing
+behavior, unchanged), while a dedicated "Pin to Compare" button on each
+card (`e.stopPropagation()` so it doesn't also trigger the card's own
+`onClick`) toggles membership in the comparison panel. The panel also gets
+its own "Choose This Script" button so committing to a pinned script
+doesn't require going back and re-finding its card in the grid.
+
+Pins are cleared (`useEffect` on `draft.scriptOptions`) whenever the slate
+regenerates - genre change or Reroll Scripts both replace `scriptOptions`
+wholesale, so a pinned id can otherwise point at a script that no longer
+exists in the current options.
+
+This is also what motivated widening `#root` from 1080px to 1320px
+(`index.css`) - the previous width left comfortable room for the script
+grid alone, but not for a persistent side panel too. The two-column layout
+(`.develop-compare-layout`) is conditional on `pinnedIds.length > 0` rather
+than permanently reserving the space: with nothing pinned, the grid still
+uses the full width (5 columns at this width, up from 4 before the widen);
+pinning narrows the grid back down to make room for the panel, which is
+exactly the tradeoff a comparison view implies. Below 900px the two-column
+grid switches to a single column (`@media (max-width: 900px)`) rather than
+squeezing a 320px rail next to an already-narrow grid - the only responsive
+breakpoint in the app so far, added because this is also the first layout
+with a genuinely fixed-width side element; everything else already reflows
+via `.grid`'s `auto-fill`.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
