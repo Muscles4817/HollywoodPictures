@@ -240,12 +240,11 @@ of that opening the film goes on to earn - driven by whether audiences
 (and, to a lesser extent, critics) actually liked it.
 
 ```
-Opening Weekend = OPENING_BASE_POTENTIAL (£12,000,000)
+Opening Weekend = OPENING_BASE_POTENTIAL (£24,000,000)
     * targetAudience.marketSize
     * (genre.popularity / 100)
     * releaseWindow.baseMultiplier * releaseWindow.genreBonus (e.g. Halloween x Horror = 1.45)
     * releaseType.reachMultiplier
-    * budgetScaleFactor    (0.4 - 1.6, scales with the budget slider; wider prints, independent of quality or hype)
     * hypeFactor(buzzScore) (0.15 - 1.5)
     * variance              (band scaled by releaseType.varianceMultiplier)
 
@@ -257,6 +256,26 @@ totalBoxOffice    = openingWeekend * legs
 studioRevenue     = totalBoxOffice * 0.42   // the studio's actual cut after theatrical/international splits
 profit            = studioRevenue - totalCost
 ```
+
+Production budget deliberately has **no term here at all**, even though an
+earlier version of this formula gave it one (`budgetScaleFactor`, 0.4-1.6,
+"bigger budgets buy wider prints"). That didn't survive scrutiny: audiences
+can't see how nice your sets or effects look before they've bought a
+ticket, so budget isn't something that should draw an opening-weekend
+crowd - it's something that affects whether they enjoyed what they saw
+once they did. Budget already has a real, correctly-ordered path to box
+office: it feeds `computeProductionScore`, which feeds Quality Score,
+which feeds Critic/Audience Score, which feeds legs, above. Giving it a
+*second*, independent lever directly on Opening Weekend was redundant with
+that, and it was diluting Buzz's effect on the one number Buzz is supposed
+to dominate - a high-buzz film could still open unimpressively if the
+budget slider happened to be modest, for no reason a player would find
+intuitive. Removing it and re-tuning `OPENING_BASE_POTENTIAL` upward to
+compensate made Buzz's effect on Opening Weekend cleaner and more direct:
+holding a mid-budget film's reach/release fixed and varying only
+reputation (and therefore Buzz), Opening Weekend now moves from £13.1M
+(reputation 10, buzz 41) to £21.7M (reputation 95, buzz 75) - a clean,
+monotonic, single-cause relationship.
 
 `releaseType.baseLegsMultiplier` (Limited 6.5, Wide 2.9, Streaming 4.0,
 Festival First 8.0) is "how many multiples of the opening does an
@@ -273,12 +292,12 @@ figure comes from, not an arbitrary tuning choice.
 The split has a genuine gameplay payoff, not just a realism one - hype and
 reception can now pull in opposite directions:
 
-| Scenario (same budget/release, only buzz vs. reviews vary) | Opening | Total | Total/Opening |
+| Scenario (same release, only buzz vs. reviews vary) | Opening | Total | Total/Opening |
 |---|---|---|---|
-| High hype (buzz 90), bad reviews (critic 30, audience 25) | £20.2M | £39.7M | 1.97x - opens big, dies fast |
-| Low hype (buzz 25), great reviews (critic 85, audience 90) | £7.2M | £34.7M | 4.82x - modest opening, real legs |
-| High hype **and** great reviews | £20.2M | £97.2M | 4.82x - the actual blockbuster case |
-| Low hype **and** bad reviews | £6.2M | £12.2M | 1.97x - a non-event |
+| High hype (buzz 90), bad reviews (critic 30, audience 25) | £28.7M | £56.5M | 1.97x - opens big, dies fast |
+| Low hype (buzz 25), great reviews (critic 85, audience 90) | £10.3M | £49.5M | 4.82x - modest opening, real legs |
+| High hype **and** great reviews | £28.7M | £138.5M | 4.82x - the actual blockbuster case |
+| Low hype **and** bad reviews | £8.8M | £17.4M | 1.97x - a non-event |
 
 The first two rows land at similar *totals* through completely different
 paths - a marketing-and-star-power play versus a word-of-mouth sleeper -
@@ -286,11 +305,11 @@ which is the whole point: buying hype and making something people love are
 two different skills, and this is what lets either one work without making
 the other pointless.
 
-These numbers (`OPENING_BASE_POTENTIAL`, the hype/legs floor-ceiling pairs,
-the budget-scale range) were tuned by running scenario scripts through the
-real engine, the same way the original single-stage formula was - see
-Section 8 for the specific before/after comparison that motivated the
-rebuild.
+These numbers (`OPENING_BASE_POTENTIAL`, the hype/legs floor-ceiling pairs)
+were tuned by running scenario scripts through the real engine, the same
+way the original single-stage formula was - see Section 8 for the specific
+before/after comparisons that motivated both rebuilds (the original
+single-stage formula, and later the removal of the redundant budget term).
 
 ### 5.5 Outcome label (`engine/outcome.ts`)
 
@@ -817,3 +836,21 @@ quietly leaving implicit:
   scenario now nets a modest +£1.55M, and the 8-film trajectory grows
   roughly 3.7x instead of 30x. Documented here so a future rebalancing pass
   has the actual failure mode on record, not just "it felt off."
+- **History: `budgetScaleFactor` was removed from Opening Weekend for the
+  same reason - a redundant multiplier that undercut the mechanic it was
+  supposed to serve.** After the Opening/Legs rebuild above, a player
+  correctly noticed that a high-Buzz film could still open surprisingly
+  small, and asked why production budget should affect Buzz at all - it
+  doesn't (Buzz is fame/reputation/marketing only), but budget *did* still
+  independently multiply Opening Weekend on top of Buzz's own hype factor,
+  a carry-over from the original single-stage formula. That didn't hold up:
+  audiences can't judge production value before buying a ticket, so it
+  isn't a legitimate opening-day factor - it's a reception factor, and
+  already had a correct path to the score through Production Score ->
+  Quality -> Critic/Audience -> legs. Removed the term entirely and
+  re-tuned `OPENING_BASE_POTENTIAL` from £12M to £24M to compensate for the
+  lost multiplier, re-verifying against the same failure scenarios: the
+  worst-priced-cast scenario still nets a modest profit, a genuinely bad
+  film still flops regardless of budget (confirmed at both a cheap £2.5M
+  and an expensive £41M budget), and Buzz now has a clean, single-cause
+  relationship with Opening Weekend instead of a diluted one.
