@@ -171,7 +171,7 @@ export function HireTalent() {
       <h1>Hire Talent</h1>
       <p className="choice-description">
         Fame boosts box office appeal - especially your lead actor's. Your director and crew have a Skill rating;
-        actors instead have five specific Acting Style strengths (click or hover an actor's card to see them) - there's
+        actors instead have five specific Acting Style strengths, shown on each card - there's
         no single "acting skill," just how well their particular strengths suit this script. Compatibility shows that
         fit for both directors and actors, and matters most for your director and lead actor. Reliability and Ego
         apply across everyone you hire: an unreliable, high-ego crew raises the odds of a costly incident once filming

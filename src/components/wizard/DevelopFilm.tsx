@@ -63,7 +63,7 @@ export function DevelopFilm() {
           <p style={{ margin: 0 }}>
             Genre Fit and Marketability drive audience appeal and box office reach. Originality and Direction quality
             matter most to critics. Structure and Dialogue are overall craft. Higher Complexity raises production risk.
-            Each script also has its own Tone Profile (click or hover to see it) - that's what determines which
+            Each script also has its own Tone Profile below - that's what determines which
             director and cast actually suit it once you're hiring. Picking a script also sets how many Lead and
             Supporting roles you'll need to cast, and suggests a Target Audience below.
           </p>

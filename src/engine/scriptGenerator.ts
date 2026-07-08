@@ -11,6 +11,24 @@ function randomTitle(genre: Genre, rng: RandomFn): string {
   return `${pick(rng, bank.adjectives)} ${pick(rng, bank.nouns)}`;
 }
 
+const TITLE_RETRY_LIMIT = 15;
+
+/** Re-rolls on a collision so one slate never shows the same title twice - see data/scriptWords.ts. */
+function uniqueTitle(genre: Genre, rng: RandomFn, usedTitles: Set<string>): string {
+  for (let attempt = 0; attempt < TITLE_RETRY_LIMIT; attempt++) {
+    const title = randomTitle(genre, rng);
+    if (!usedTitles.has(title)) {
+      usedTitles.add(title);
+      return title;
+    }
+  }
+  // Word bank exhausted for this slate (shouldn't happen at 144 combinations
+  // for a 12-script slate, but don't loop forever if it ever does).
+  const title = randomTitle(genre, rng);
+  usedTitles.add(title);
+  return title;
+}
+
 const TONE_JITTER = 15;
 
 // 0 flavor tones ~25% of the time (a "straight" genre film), 1 ~50%, 2 ~25%.
@@ -61,7 +79,7 @@ function estimateScriptCost(script: Pick<Script, 'originality' | 'structure' | '
 }
 
 /** Generates one script option for the given genre. */
-function generateScript(genre: Genre, rng: RandomFn): Script {
+function generateScript(genre: Genre, rng: RandomFn, title: string): Script {
   const genreFit = randInt(rng, 55, 100); // scripts are written with this genre in mind, so fit skews high
   const originality = randInt(rng, 10, 100);
   const structure = randInt(rng, 20, 100);
@@ -71,7 +89,7 @@ function generateScript(genre: Genre, rng: RandomFn): Script {
 
   return {
     id: `script-${nextScriptId++}`,
-    title: randomTitle(genre, rng),
+    title,
     genre,
     genreFit,
     originality,
@@ -89,5 +107,6 @@ function generateScript(genre: Genre, rng: RandomFn): Script {
 
 /** Generates a slate of script options for the player to choose from. */
 export function generateScriptOptions(genre: Genre, rng: RandomFn, count = 12): Script[] {
-  return Array.from({ length: count }, () => generateScript(genre, rng));
+  const usedTitles = new Set<string>();
+  return Array.from({ length: count }, () => generateScript(genre, rng, uniqueTitle(genre, rng, usedTitles)));
 }

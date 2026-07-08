@@ -118,11 +118,21 @@ export function generateTalentCandidates(role: TalentRole, rng: RandomFn, count 
   });
 }
 
+// Lead/Supporting Actor get a bigger pool than everyone else - a script can
+// now require several leads or a big supporting ensemble at once (see
+// engine/castRequirements.ts), so a price band needs enough genuinely
+// distinct people in it to actually cast an ensemble from, not just one
+// good match repeated nowhere else nearby.
+const ROLE_POOL_SIZE: Partial<Record<TalentRole, number>> = {
+  'Lead Actor': 200,
+  'Supporting Actor': 200,
+};
+
 /** The full studio roster: every role's candidate slate, generated once. */
 export function generateTalentPool(rng: RandomFn): Record<TalentRole, Talent[]> {
   const pool = {} as Record<TalentRole, Talent[]>;
   for (const role of ALL_TALENT_ROLES) {
-    pool[role] = generateTalentCandidates(role, rng);
+    pool[role] = generateTalentCandidates(role, rng, ROLE_POOL_SIZE[role]);
   }
   return pool;
 }

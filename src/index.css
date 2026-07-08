@@ -134,48 +134,21 @@ button {
   margin-bottom: 8px;
 }
 
-/* --- Compatibility badge (collapsed score + expand/hover breakdown) --- */
+/* --- Compatibility badge (always-visible score + tone/style breakdown) --- */
 .compat-badge {
-  margin-top: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
 }
 
-.compat-toggle {
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
+.compat-label {
   font-size: 0.85em;
+  font-weight: 600;
   color: var(--primary);
-  cursor: pointer;
+  margin-bottom: 4px;
 }
 
-.compat-toggle:hover {
-  text-decoration: underline;
-}
-
-/*
- * Flies out to the right of the card rather than pushing it taller - a
- * card that grows on hover unevens out the whole grid row (siblings stay
- * short, the hovered one gets tall, everything below jumps around). The
- * grid already leaves slack to the right of a card in most rows, so this
- * uses that space instead of fighting the layout for vertical room.
- */
 .compat-detail {
-  display: none;
-  position: absolute;
-  top: 0;
-  left: calc(100% + 10px);
-  width: 210px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  z-index: 30;
-}
-
-.compat-badge:hover .compat-detail,
-.compat-detail-expanded {
   display: block;
 }
 
