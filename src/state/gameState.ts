@@ -13,6 +13,8 @@ import type {
   TargetAudience,
   WizardStep,
 } from '../types';
+import { generateTalentPool } from '../engine/talentGenerator';
+import type { RandomFn } from '../engine/random';
 
 export interface GameState {
   studio: Studio;
@@ -21,13 +23,22 @@ export interface GameState {
   rngSeed: number;
 }
 
-export const INITIAL_STUDIO: Studio = {
-  name: 'Silver Reel Pictures',
-  cash: 10_000_000,
-  reputation: 20,
-  year: 1,
-  filmsReleased: [],
-};
+/**
+ * A brand new studio, including its talent pool - the whole hireable
+ * roster, generated once here and never regenerated for the life of this
+ * save (see engine/talentGenerator.ts:generateTalentPool). Needs an RNG
+ * because of that, unlike a plain constant.
+ */
+export function createInitialStudio(rng: RandomFn): Studio {
+  return {
+    name: 'Silver Reel Pictures',
+    cash: 10_000_000,
+    reputation: 20,
+    year: 1,
+    filmsReleased: [],
+    talentPool: generateTalentPool(rng),
+  };
+}
 
 export function createEmptyDraft(): FilmDraft {
   return {
@@ -37,7 +48,6 @@ export function createEmptyDraft(): FilmDraft {
     scriptOptions: [],
     script: null,
     talent: [],
-    talentCandidatesByRole: {},
     talentTargetPriceByRole: {},
     productionChoices: null,
     events: [],
@@ -59,7 +69,6 @@ export type GameAction =
   | { type: 'TOGGLE_TALENT_FOR_ROLE'; role: TalentRole; talent: Talent }
   | { type: 'SET_TALENT_TARGET_PRICE'; role: TalentRole; price: number }
   | { type: 'SET_TALENT_BUDGET_SPLIT'; totalBudget: number }
-  | { type: 'REROLL_TALENT_CANDIDATES'; role: TalentRole }
   | { type: 'SET_PRODUCTION_CHOICES'; choices: ProductionChoices }
   | { type: 'BEGIN_FILMING' }
   | { type: 'SET_POST_PRODUCTION_CHOICES'; choices: PostProductionChoices }

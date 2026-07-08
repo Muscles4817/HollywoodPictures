@@ -55,7 +55,7 @@ export function HireTalent() {
     const range = ROLE_GENERATION_PROFILES[role].salaryRange;
     const capacity = ROLE_CAPACITY[role];
     const targetPrice = draft.talentTargetPriceByRole[role] ?? logAmount(0.5, range);
-    const candidates = draft.talentCandidatesByRole[role] ?? [];
+    const candidates = state.studio.talentPool[role];
     const hired = talentsForRole(role);
     const atCap = hired.length >= capacity.max;
     const showVfxHint = role === 'VFX Supervisor' && draft.genre && VFX_RECOMMENDED_GENRES.has(draft.genre);
@@ -85,14 +85,11 @@ export function HireTalent() {
         highLabel="Star Power"
         extra={
           <>
-            <div className="row-between">
-              <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
-                Showing candidates within {tolerancePercent}% of your target price.
-                {capacity.max > 1 && ` Hire up to ${capacity.max} for this role.`}
-                {displayList.length === 0 && ' Nobody available at this price - try adjusting the slider or rerolling.'}
-              </span>
-              <Button onClick={() => dispatch({ type: 'REROLL_TALENT_CANDIDATES', role })}>Reroll Candidates</Button>
-            </div>
+            <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+              Showing candidates within {tolerancePercent}% of your target price.
+              {capacity.max > 1 && ` Hire up to ${capacity.max} for this role.`}
+              {displayList.length === 0 && ' Nobody in the studio roster is available at this price - try adjusting the slider.'}
+            </span>
             {showVfxHint && <p style={{ margin: 0 }}>This genre benefits strongly from VFX - consider hiring a supervisor.</p>}
             <div className="grid">
               {displayList.map((talent) => {

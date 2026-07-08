@@ -144,6 +144,8 @@ export interface Studio {
   reputation: number; // 0-100
   year: number;
   filmsReleased: Film[];
+  /** The whole hireable roster, generated once at game start - see state/gameState.ts:createInitialStudio. */
+  talentPool: Record<TalentRole, Talent[]>;
 }
 
 // The film currently being built in the wizard; fields fill in progressively.
@@ -154,9 +156,7 @@ export interface FilmDraft {
   scriptOptions: Script[];
   script: Script | null;
   talent: Talent[];
-  /** Procedurally generated candidates per role, regenerated whenever genre changes. */
-  talentCandidatesByRole: Partial<Record<TalentRole, Talent[]>>;
-  /** The price the player is currently targeting for each role - filters which candidates are shown. */
+  /** The price the player is currently targeting for each role - filters studio.talentPool down to who's shown. */
   talentTargetPriceByRole: Partial<Record<TalentRole, number>>;
   productionChoices: ProductionChoices | null;
   events: ProductionEvent[];

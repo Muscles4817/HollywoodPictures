@@ -1,21 +1,12 @@
-import type { Film, Genre, Talent, TalentRole } from '../types';
-import { type GameAction, type GameState, createEmptyDraft, INITIAL_STUDIO } from './gameState';
-import { createRng, randInt, clamp, type RandomFn } from '../engine/random';
+import type { Film, Talent, TalentRole } from '../types';
+import { type GameAction, type GameState, createEmptyDraft, createInitialStudio } from './gameState';
+import { randomSeed, withRng, clamp } from '../engine/random';
 import { generateScriptOptions } from '../engine/scriptGenerator';
-import { generateTalentCandidates } from '../engine/talentGenerator';
 import { logAmount } from '../engine/interpolate';
 import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_CAPACITY, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { simulateProduction } from '../engine/production';
 import { computeReleaseResults } from '../engine/releaseFilm';
 import { applyReputationChange } from '../engine/reputation';
-
-function generateAllTalentCandidates(genre: Genre, rng: RandomFn): Partial<Record<TalentRole, Talent[]>> {
-  const result: Partial<Record<TalentRole, Talent[]>> = {};
-  for (const role of ALL_TALENT_ROLES) {
-    result[role] = generateTalentCandidates(role, genre, rng);
-  }
-  return result;
-}
 
 /** Seeds every role's target price at the midpoint of its own salary range. */
 function defaultTalentTargetPrices(): Partial<Record<TalentRole, number>> {
@@ -26,14 +17,6 @@ function defaultTalentTargetPrices(): Partial<Record<TalentRole, number>> {
   return result;
 }
 
-/** Runs `fn` with a deterministic RNG seeded from state, returning the advanced seed to store back. */
-function withRng<T>(seed: number, fn: (rng: RandomFn) => T): { result: T; nextSeed: number } {
-  const rng = createRng(seed);
-  const result = fn(rng);
-  const nextSeed = randInt(rng, 1, 2 ** 31 - 1);
-  return { result, nextSeed };
-}
-
 // Cash is only ever mutated once, at RELEASE_FILM, computed fresh from the
 // complete draft. Every earlier screen just previews a projected spend (see
 // state/selectors.ts) - this keeps the reducer free of "did I already charge
@@ -41,7 +24,11 @@ function withRng<T>(seed: number, fn: (rng: RandomFn) => T): { result: T; nextSe
 export function studioReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'START_NEW_FILM':
-      return { ...state, screen: 'develop', draft: createEmptyDraft() };
+      return {
+        ...state,
+        screen: 'develop',
+        draft: { ...createEmptyDraft(), talentTargetPriceByRole: defaultTalentTargetPrices() },
+      };
 
     case 'GO_TO_STEP':
       return { ...state, screen: action.step };
@@ -56,21 +43,16 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
 
     case 'SET_GENRE': {
       if (!state.draft) return state;
-      const { result, nextSeed } = withRng(state.rngSeed, (rng) => ({
-        scriptOptions: generateScriptOptions(action.genre, rng),
-        talentCandidatesByRole: generateAllTalentCandidates(action.genre, rng),
-      }));
+      // Talent is a persistent studio-wide roster (generated once, see
+      // createInitialStudio) with affinity for every genre already baked
+      // in, so changing genre only needs to regenerate the script slate.
+      const { result: scriptOptions, nextSeed } = withRng(state.rngSeed, (rng) =>
+        generateScriptOptions(action.genre, rng),
+      );
       return {
         ...state,
         rngSeed: nextSeed,
-        draft: {
-          ...state.draft,
-          genre: action.genre,
-          scriptOptions: result.scriptOptions,
-          script: null,
-          talentCandidatesByRole: result.talentCandidatesByRole,
-          talentTargetPriceByRole: defaultTalentTargetPrices(),
-        },
+        draft: { ...state.draft, genre: action.genre, scriptOptions, script: null },
       };
     }
 
@@ -139,23 +121,6 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         updated[role] = clamp(perRole, range.min, range.max);
       }
       return { ...state, draft: { ...state.draft, talentTargetPriceByRole: updated } };
-    }
-
-    case 'REROLL_TALENT_CANDIDATES': {
-      if (!state.draft || !state.draft.genre) return state;
-      const { result: candidates, nextSeed } = withRng(state.rngSeed, (rng) =>
-        generateTalentCandidates(action.role, state.draft!.genre!, rng),
-      );
-      return {
-        ...state,
-        rngSeed: nextSeed,
-        draft: {
-          ...state.draft,
-          talentCandidatesByRole: { ...state.draft.talentCandidatesByRole, [action.role]: candidates },
-          // A fresh slate invalidates any previous pick for this role.
-          talent: state.draft.talent.filter((t) => t.role !== action.role),
-        },
-      };
     }
 
     case 'SET_PRODUCTION_CHOICES': {
@@ -242,13 +207,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'RETURN_TO_DASHBOARD':
       return { ...state, screen: 'dashboard', draft: null };
 
-    case 'RESET_SAVE':
-      return {
-        studio: { ...INITIAL_STUDIO, filmsReleased: [] },
-        screen: 'dashboard',
-        draft: null,
-        rngSeed: Date.now(),
-      };
+    case 'RESET_SAVE': {
+      // A fresh studio gets a brand new talent pool too - reusing the old
+      // one would defeat the point of resetting.
+      const { result: studio, nextSeed } = withRng(randomSeed(), (rng) => createInitialStudio(rng));
+      return { studio, screen: 'dashboard', draft: null, rngSeed: nextSeed };
+    }
 
     default:
       return state;

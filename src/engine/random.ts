@@ -50,3 +50,11 @@ export function pickMany<T>(rng: RandomFn, items: readonly T[], count: number): 
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
+
+/** Runs `fn` with a deterministic RNG seeded from `seed`, returning the advanced seed to store back. */
+export function withRng<T>(seed: number, fn: (rng: RandomFn) => T): { result: T; nextSeed: number } {
+  const rng = createRng(seed);
+  const result = fn(rng);
+  const nextSeed = randInt(rng, 1, 2 ** 31 - 1);
+  return { result, nextSeed };
+}

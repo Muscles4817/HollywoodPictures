@@ -1,11 +1,12 @@
 import type { GameState } from './gameState';
-import { INITIAL_STUDIO } from './gameState';
-import { randomSeed } from '../engine/random';
+import { createInitialStudio } from './gameState';
+import { randomSeed, withRng } from '../engine/random';
 
-// Bump this whenever a persisted shape changes incompatibly (e.g. the v1 -> v2
-// move from enum-tier production choices to continuous ones) so old saves are
-// cleanly ignored instead of partially loading with missing/mismatched fields.
-const SAVE_KEY = 'hollywood-pictures-save-v2';
+// Bump this whenever a persisted shape changes incompatibly (e.g. v2 -> v3
+// moved the talent roster from a per-film draft to a persistent Studio
+// field) so old saves are cleanly ignored instead of partially loading with
+// missing/mismatched fields.
+const SAVE_KEY = 'hollywood-pictures-save-v3';
 
 export function loadState(): GameState {
   try {
@@ -15,7 +16,10 @@ export function loadState(): GameState {
     if (!parsed.studio) throw new Error('malformed save');
     return parsed;
   } catch {
-    return { studio: INITIAL_STUDIO, screen: 'dashboard', draft: null, rngSeed: randomSeed() };
+    // No save (or an incompatible one) - generate a fresh studio, including
+    // its talent pool, from a genuinely random seed.
+    const { result: studio, nextSeed } = withRng(randomSeed(), (rng) => createInitialStudio(rng));
+    return { studio, screen: 'dashboard', draft: null, rngSeed: nextSeed };
   }
 }
 
