@@ -166,6 +166,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const { result: results, nextSeed } = withRng(state.rngSeed, (rng) =>
         computeReleaseResults(
           {
+            title: d.title || 'Untitled Film',
             genre: d.genre!,
             targetAudience: d.targetAudience!,
             script: d.script!,
@@ -181,8 +182,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       );
 
       // Single point of cash mutation for the whole film: spend everything
-      // it cost to make and market it, then collect the box office take.
-      const cashAfter = state.studio.cash - results.totalCost + results.totalBoxOffice;
+      // it cost to make and market it, then collect the studio's actual cut
+      // of the box office - not the flashier totalBoxOffice headline figure,
+      // which is what `profit` is computed from too (see boxOffice.ts).
+      const cashAfter = state.studio.cash - results.totalCost + results.studioRevenue;
       const nextReputation = applyReputationChange(state.studio.reputation, results.reputationChange);
 
       const film: Film = {

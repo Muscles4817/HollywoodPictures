@@ -16,9 +16,11 @@ import { computeBoxOffice } from './boxOffice';
 import { determineOutcome } from './outcome';
 import { computeReputationChange } from './reputation';
 import { pickReviewBlurbs, pickDepartmentBlurb } from './reviews';
+import { generateStoryReport } from './storyReport';
 import type { RandomFn } from './random';
 
 export interface ReleaseComputationInput {
+  title: string;
   genre: Genre;
   targetAudience: TargetAudience;
   script: Script;
@@ -93,6 +95,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   const reputationChange = computeReputationChange(outcome, criticScore);
   const departmentBlurb = pickDepartmentBlurb(quality, input.genre, rng);
   const reviewBlurbs = [...pickReviewBlurbs(criticScore, audienceScore, rng), ...(departmentBlurb ? [departmentBlurb] : [])];
+  const storyReport = generateStoryReport({ title: input.title, buzzScore, criticScore, audienceScore }, rng);
 
   return {
     productionCost,
@@ -114,6 +117,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     eventsScore: Math.round(quality.eventsScore),
     reputationChange,
     reviewBlurbs,
+    storyReport,
     outcome,
   };
 }

@@ -61,6 +61,11 @@ export function ReleaseResults() {
       </div>
 
       <div className="card stack">
+        <h2>Studio Report</h2>
+        <p>{results.storyReport}</p>
+      </div>
+
+      <div className="card stack">
         <h2>Reviews</h2>
         {results.reviewBlurbs.map((blurb, i) => (
           <p key={i}>{blurb}</p>

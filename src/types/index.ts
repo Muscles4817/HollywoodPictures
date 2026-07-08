@@ -188,6 +188,9 @@ export interface FilmResults {
   eventsScore: number;
   reputationChange: number;
   reviewBlurbs: string[];
+  // A narrated trade-press-style summary of the release, distinct from the
+  // in-world critic-quote blurbs above - see engine/storyReport.ts.
+  storyReport: string;
   outcome: OutcomeLabel;
 }
 
