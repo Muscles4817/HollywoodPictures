@@ -440,10 +440,23 @@ any more - with a persistent named pool, rerolling would mean discarding
 people the player may already have hired elsewhere, which defeats the
 point; "Reset Studio" is the only way to get a fresh pool, because it starts
 an entirely new save. A master "Target Cast & Crew Budget" slider
-(`SET_TALENT_BUDGET_SPLIT`) splits a total evenly across the six mandatory
-roles as a starting point - the player is free to tilt any individual
-role's slider up or down afterward to over- or under-spend relative to that
-split.
+(`SET_TALENT_BUDGET_SPLIT`) splits a total evenly *per head*, not per role,
+as a starting point - the player is free to tilt any individual role's
+slider up or down afterward to over- or under-spend relative to that split.
+Per head matters because of the capacity point below: the split divides by
+the sum of every mandatory role's `effectiveRoleCapacity(...).max`, not by
+`MANDATORY_TALENT_ROLES.length`. The original version divided by the flat
+role count, which quietly understated the target price for Lead Actor and
+Supporting Actor on any script that needed more than one of either - a
+script needing 2 leads and 4 supporting actors has 10 mandatory heads to
+cast, not 6, and splitting a £3M budget six ways instead of ten ways set
+every multi-hire role's per-candidate target 67% too high, so hiring the
+suggested number of people at that price could overshoot the intended
+budget substantially without the slider ever suggesting anything looked
+wrong. Verified via `SET_TALENT_BUDGET_SPLIT` directly: for that same 2
+lead / 4 supporting script, `price × capacity` summed across all six roles
+now lands within rounding of the master budget figure exactly, where the
+old flat split implied roughly 1.67x the budget actually set.
 
 **Role capacity** (`RoleCapacity`, `{ min, max }`) governs how many people a
 role can hold, checked in two places - the reducer (`TOGGLE_TALENT_FOR_ROLE`
