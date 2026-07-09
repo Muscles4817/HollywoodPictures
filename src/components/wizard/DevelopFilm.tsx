@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { GENRES, GENRE_PROFILES } from '../../data/genres';
 import { TARGET_AUDIENCES, AUDIENCE_PROFILES } from '../../data/audiences';
@@ -98,7 +98,14 @@ export function DevelopFilm() {
       />
 
       {draft.genre && (
-        <div className={pinnedIds.length > 0 ? 'develop-compare-layout' : undefined}>
+        <div
+          className={pinnedIds.length > 0 ? 'develop-compare-layout' : undefined}
+          style={
+            pinnedIds.length > 0
+              ? ({ '--compare-rail-width': pinnedIds.length >= MAX_PINNED ? '660px' : '320px' } as CSSProperties)
+              : undefined
+          }
+        >
           <div className="card stack">
             <div className="row-between">
               <h3 style={{ margin: 0 }}>Script Options</h3>
@@ -152,28 +159,30 @@ export function DevelopFilm() {
           {pinnedIds.length > 0 && (
             <div className="compare-panel">
               <h3 style={{ margin: 0 }}>Comparing</h3>
-              {pinnedScripts.map((script) => {
-                const selected = draft.script?.id === script.id;
-                return (
-                  <div className="card compare-slot" key={script.id}>
-                    <div className="row-between">
-                      <div className="card-title" style={{ marginBottom: 0 }}>{script.title}</div>
-                      <Button variant="text" onClick={() => togglePin(script.id)}>Unpin</Button>
+              <div className={pinnedIds.length >= MAX_PINNED ? 'compare-slots compare-slots-double' : 'compare-slots'}>
+                {pinnedScripts.map((script) => {
+                  const selected = draft.script?.id === script.id;
+                  return (
+                    <div className="card compare-slot" key={script.id}>
+                      <div className="row-between">
+                        <div className="card-title" style={{ marginBottom: 0 }}>{script.title}</div>
+                        <Button variant="text" onClick={() => togglePin(script.id)}>Unpin</Button>
+                      </div>
+                      <ScriptDetails script={script} />
+                      <Button
+                        variant="primary"
+                        style={{ marginTop: 8 }}
+                        onClick={() => dispatch({ type: 'SELECT_SCRIPT', script })}
+                      >
+                        {selected ? 'Selected' : 'Choose This Script'}
+                      </Button>
                     </div>
-                    <ScriptDetails script={script} />
-                    <Button
-                      variant="primary"
-                      style={{ marginTop: 8 }}
-                      onClick={() => dispatch({ type: 'SELECT_SCRIPT', script })}
-                    >
-                      {selected ? 'Selected' : 'Choose This Script'}
-                    </Button>
-                  </div>
-                );
-              })}
-              {pinnedIds.length < MAX_PINNED && (
-                <div className="card compare-slot-empty">Pin another script from the grid to compare it here.</div>
-              )}
+                  );
+                })}
+                {pinnedIds.length < MAX_PINNED && (
+                  <div className="card compare-slot-empty">Pin another script from the grid to compare it here.</div>
+                )}
+              </div>
             </div>
           )}
         </div>

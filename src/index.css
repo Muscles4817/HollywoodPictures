@@ -226,13 +226,17 @@ button {
 }
 
 /* --- Script comparison (Develop screen) ---
-   Splits into a main column plus a fixed-width sticky rail once at least
-   one script is pinned, rather than reserving the space unconditionally -
-   the page uses the full width when there's nothing to compare, and gives
-   room to a persistent side-by-side view once there is. */
+   Splits into a main column plus a sticky rail once at least one script is
+   pinned, rather than reserving the space unconditionally - the page uses
+   the full width when there's nothing to compare, and gives room to a
+   persistent view once there is. The rail's width comes from a custom
+   property (set inline per pin count, not grid-template-columns directly)
+   specifically so the 900px fallback below - a plain stylesheet rule - can
+   still override it; an inline grid-template-columns would win over any
+   stylesheet rule, media query or not. */
 .develop-compare-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) var(--compare-rail-width, 320px);
   gap: 20px;
   align-items: start;
 }
@@ -243,6 +247,20 @@ button {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+/* One column with a single pin (the second slot is just an empty prompt
+   stacked below it); two columns once both slots are filled, so two full
+   scripts actually sit side by side instead of stacked - the rail widens
+   to match via --compare-rail-width. */
+.compare-slots {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.compare-slots-double {
+  grid-template-columns: 1fr 1fr;
 }
 
 .compare-slot-empty {
@@ -259,6 +277,10 @@ button {
 
   .compare-panel {
     position: static;
+  }
+
+  .compare-slots-double {
+    grid-template-columns: 1fr;
   }
 }
 
