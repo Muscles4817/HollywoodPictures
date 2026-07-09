@@ -813,7 +813,39 @@ the 900px single-column fallback above. Routing it through a custom
 property keeps `grid-template-columns` itself a normal stylesheet
 declaration that the media query can still override.
 
-## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
+### 5.14 Hire Talent's script rail and talent comparison (`components/wizard/HireTalent.tsx`)
+
+Same request extended to the next screen: a persistent script-reference
+panel on the *left* (`.script-reference-panel`) throughout Hire Talent, plus
+the same pin-up-to-two-and-compare-side-by-side panel from Develop (5.13),
+reused for talent candidates, on the right. `toneProfileBreakdown` moved
+from a local function in `DevelopFilm.tsx` to `data/tones.ts` so both
+screens build a `CompatibilityBadge` breakdown from a raw `ToneProfile` the
+same way, rather than each screen keeping its own copy.
+
+The script panel is unconditional, not pin-driven like the comparison
+panels - there's exactly one script by the time the wizard reaches this
+screen (`draft.script`), nothing to choose between, so it's just always
+shown rather than requiring an action to surface it. The talent comparison
+panel reuses `.compare-panel`/`.compare-slots`/`.compare-slots-double`
+as-is from 5.13 - both were already generic enough (not Develop-specific
+in name or behavior) to cover a second kind of pinned item without
+duplicating the CSS. `MAX_PINNED` isn't scoped per role - pinning a
+Director and a Composer together is allowed even though comparing across
+roles is a little unusual, since the existing `talentBreakdown()` helper
+already renders whichever shape (ToneProfile vs ActingStyle vs neither)
+each pinned talent actually has, so nothing breaks; adding role-scoping to
+prevent an odd-but-harmless comparison wasn't worth the extra state.
+
+Three regions (script rail, role sections, talent rail) compete for the
+same width more than Develop's two did, so at 1320px content width the
+center grid degrades further under load than on Develop: 4 columns with
+nothing pinned (same as Develop), 2 columns with one candidate pinned, 1
+column with two pinned and the rail at its widest. Accepted as the same
+tradeoff already established in 5.13 - more side panels active means less
+room for the main grid - rather than growing `#root` further to
+accommodate the worst case, which would leave excess empty space the rest
+of the time.
 
 Final results break costs into two headline numbers:
 
