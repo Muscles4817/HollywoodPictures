@@ -261,7 +261,7 @@ export function HireTalent() {
             value={masterBudget}
             onChange={handleMasterBudgetChange}
             formatValue={formatMoney}
-            description="Splits evenly across the six mandatory roles below - tilt any of them up or down afterward to spend more here, less there."
+            description="Splits evenly per person you need to cast below, not per role - a script needing 3 leads gets 3 times the budget share of a 1-hire role. Tilt any role's own slider up or down afterward to spend more there, less elsewhere."
             lowLabel="Shoestring"
             highLabel="Big Budget"
           />

@@ -125,11 +125,21 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
 
     case 'SET_TALENT_BUDGET_SPLIT': {
       if (!state.draft) return state;
-      const perRole = action.totalBudget / MANDATORY_TALENT_ROLES.length;
+      // Split per *head*, not per role - Lead Actor and Supporting Actor can
+      // each require more than one hire (script.requiredLeads/requiredSupporting),
+      // so a script needing 3 leads and 3 supporting actors has 8 mandatory
+      // heads to cast, not 6. Splitting the budget across a flat 6 roles
+      // understated the target price for every multi-hire role by however
+      // many extra people it actually needs.
+      const totalHeads = MANDATORY_TALENT_ROLES.reduce(
+        (sum, role) => sum + effectiveRoleCapacity(role, state.draft!.script).max,
+        0,
+      );
+      const perHead = action.totalBudget / totalHeads;
       const updated = { ...state.draft.talentTargetPriceByRole };
       for (const role of MANDATORY_TALENT_ROLES) {
         const range = ROLE_GENERATION_PROFILES[role].salaryRange;
-        updated[role] = clamp(perRole, range.min, range.max);
+        updated[role] = clamp(perHead, range.min, range.max);
       }
       return { ...state, draft: { ...state.draft, talentTargetPriceByRole: updated } };
     }
