@@ -785,19 +785,21 @@ regenerates - genre change or Reroll Scripts both replace `scriptOptions`
 wholesale, so a pinned id can otherwise point at a script that no longer
 exists in the current options.
 
-This is also what motivated widening `#root` from 1080px to 1320px
-(`index.css`) - the previous width left comfortable room for the script
-grid alone, but not for a persistent side panel too. The two-column layout
-(`.develop-compare-layout`) is conditional on `pinnedIds.length > 0` rather
-than permanently reserving the space: with nothing pinned, the grid still
-uses the full width (5 columns at this width, up from 4 before the widen);
-pinning narrows the grid back down to make room for the panel, which is
-exactly the tradeoff a comparison view implies. Below 900px the two-column
-grid switches to a single column (`@media (max-width: 900px)`) rather than
-squeezing a rail next to an already-narrow grid - the only responsive
-breakpoint in the app so far, added because this is also the first layout
-with a genuinely fixed-width side element; everything else already reflows
-via `.grid`'s `auto-fill`.
+This is also what first motivated widening `#root` beyond its original
+1080px cap (`index.css`) - the original width left comfortable room for the
+script grid alone, but not for a persistent side panel too. `#root` has
+since dropped the max-width entirely (5.13.1) rather than settling on a
+bigger fixed number, so the grid now uses however much width is actually
+available. The two-column layout (`.develop-compare-layout`) stays
+conditional on `pinnedIds.length > 0` rather than permanently reserving the
+space: with nothing pinned, the grid uses the full width (as many columns
+as fit, growing with the viewport); pinning narrows the grid back down to
+make room for the panel, which is exactly the tradeoff a comparison view
+implies. Below 900px the two-column grid switches to a single column
+(`@media (max-width: 900px)`) rather than squeezing a rail next to an
+already-narrow grid - the only responsive breakpoint in the app so far,
+added because this is also the first layout with a genuinely fixed-width
+side element; everything else already reflows via `.grid`'s `auto-fill`.
 
 The rail itself resizes with pin count rather than staying one fixed
 width: 320px (one column) with a single pin, 660px (two columns,
@@ -830,22 +832,54 @@ shown rather than requiring an action to surface it. The talent comparison
 panel reuses `.compare-panel`/`.compare-slots`/`.compare-slots-double`
 as-is from 5.13 - both were already generic enough (not Develop-specific
 in name or behavior) to cover a second kind of pinned item without
-duplicating the CSS. `MAX_PINNED` isn't scoped per role - pinning a
-Director and a Composer together is allowed even though comparing across
-roles is a little unusual, since the existing `talentBreakdown()` helper
-already renders whichever shape (ToneProfile vs ActingStyle vs neither)
-each pinned talent actually has, so nothing breaks; adding role-scoping to
-prevent an odd-but-harmless comparison wasn't worth the extra state.
+duplicating the CSS.
+
+Pinning is scoped to one role at a time: pinning a candidate from a
+different role than what's currently pinned clears the tray and starts a
+fresh comparison, rather than mixing (say) a Director and a Composer in
+the same two slots. The first pass allowed cross-role pinning on the
+reasoning that `talentBreakdown()` already renders whichever shape
+(ToneProfile vs ActingStyle vs neither) each pinned talent actually has, so
+nothing would *break* - but a comparison across roles isn't a comparison
+anyone actually wants, and leaving stale picks from a role you've moved on
+from sitting in the tray was just clutter. `togglePinTalent` checks
+`pinnedTalent[0]?.role` against the incoming candidate's role before
+deciding whether to add or replace; the per-card pin button's disabled
+state follows the same rule; so does the empty-slot hint text (`Pin
+another {role} candidate...`).
 
 Three regions (script rail, role sections, talent rail) compete for the
-same width more than Develop's two did, so at 1320px content width the
-center grid degrades further under load than on Develop: 4 columns with
-nothing pinned (same as Develop), 2 columns with one candidate pinned, 1
-column with two pinned and the rail at its widest. Accepted as the same
-tradeoff already established in 5.13 - more side panels active means less
-room for the main grid - rather than growing `#root` further to
-accommodate the worst case, which would leave excess empty space the rest
-of the time.
+same width more than Develop's two did, so the center grid degrades
+further under load than on Develop: as many columns as fit with nothing
+pinned (same as Develop), fewer with one candidate pinned, fewer still with
+two pinned and the rail at its widest. Accepted as the same tradeoff
+already established in 5.13 - more side panels active means less room for
+the main grid.
+
+### 5.15 Removing the page width cap
+
+`#root`'s `max-width` (1080px originally, bumped to 1320px in 5.13, then
+dropped entirely here) never had a strong reason to exist once the layout
+was grid-based throughout: `.grid`'s `auto-fill` and the compare rails'
+own fixed widths already size themselves to available space instead of
+stretching individual cards indefinitely, so an outer cap wasn't
+protecting anything - it was just leaving the sides of a wide monitor
+empty. `#root` now has no `max-width` at all; on a 1920px viewport the
+Develop script grid renders 7 columns instead of 4-5, and Hire Talent's
+three-region layout (5.14) has real room to breathe instead of being the
+first place the squeeze from 5.13/5.14 actually bites.
+
+The one place removing the cap needed a deliberate counter-move: plain
+prose. A `<p>` stretching edge-to-edge on a wide monitor becomes a
+genuinely hard-to-read long line, and unlike the grids, text doesn't have
+its own natural sizing logic to fall back on. `p { max-width: 720px; }` is
+a blanket rule (`index.css`) rather than something applied screen-by-screen
+- every `<p>` in the app is either short flavor/stat text (well under
+720px regardless) or exactly the kind of longer descriptive copy
+(`.choice-description`, intro paragraphs) this is for, so one global rule
+covers it without needing a special case per screen.
+
+## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
 
