@@ -45,8 +45,6 @@ body {
 }
 
 #root {
-  max-width: 1320px;
-  margin: 0 auto;
   padding: 24px 20px 80px;
 }
 
@@ -54,9 +52,17 @@ h1, h2, h3 {
   margin: 0 0 8px;
 }
 
+/* No cap on #root itself - the grids (.grid's auto-fill, the compare rails'
+   own fixed widths) already size themselves to available space rather than
+   stretching individual cards indefinitely, so there's nothing for an outer
+   max-width to protect there. Prose is the exception: unconstrained body
+   text becomes a genuinely hard-to-read long line on a wide monitor, so
+   paragraphs alone get a readable cap - this affects any <p> regardless of
+   which screen it's on, on purpose. */
 p {
   margin: 0 0 8px;
   color: var(--text-muted);
+  max-width: 720px;
 }
 
 button {

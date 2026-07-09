@@ -94,18 +94,24 @@ export function HireTalent() {
     dispatch({ type: 'TOGGLE_TALENT_FOR_ROLE', role, talent });
   }
 
-  function togglePinTalent(talentId: string) {
-    setPinnedTalentIds((prev) => {
-      if (prev.includes(talentId)) return prev.filter((id) => id !== talentId);
-      if (prev.length >= MAX_PINNED) return prev;
-      return [...prev, talentId];
-    });
-  }
-
   const allTalent = Object.values(state.studio.talentPool).flat();
   const pinnedTalent = pinnedTalentIds
     .map((id) => allTalent.find((t) => t.id === id))
     .filter((t): t is Talent => t !== undefined);
+
+  // Pinning is scoped to one role at a time - comparing across roles isn't a
+  // meaningful comparison (a Director against a Composer), so pinning a
+  // candidate from a different role than what's currently pinned starts a
+  // fresh comparison rather than mixing the two.
+  function togglePinTalent(talent: Talent) {
+    setPinnedTalentIds((prev) => {
+      if (prev.includes(talent.id)) return prev.filter((id) => id !== talent.id);
+      const currentRole = pinnedTalent[0]?.role;
+      if (currentRole && currentRole !== talent.role) return [talent.id];
+      if (prev.length >= MAX_PINNED) return prev;
+      return [...prev, talent.id];
+    });
+  }
 
   const totalSalary = draft.talent.reduce((sum, t) => sum + t.salary, 0);
   const missingMandatory = MANDATORY_TALENT_ROLES.filter(
@@ -165,6 +171,10 @@ export function HireTalent() {
                 const selected = hired.some((h) => h.id === talent.id);
                 const disabled = !selected && atCap;
                 const pinned = pinnedTalentIds.includes(talent.id);
+                // Pinning a candidate from a different role than what's currently pinned
+                // starts a fresh comparison (see togglePinTalent), so the cap only blocks
+                // a third pin within the *same* role - it's never a dead end.
+                const pinCapped = pinnedTalent[0]?.role === role && pinnedTalentIds.length >= MAX_PINNED;
                 return (
                   <Card
                     key={talent.id}
@@ -179,10 +189,10 @@ export function HireTalent() {
                       className="btn-sm"
                       variant={pinned ? 'primary' : 'secondary'}
                       style={{ marginTop: 8 }}
-                      disabled={!pinned && pinnedTalentIds.length >= MAX_PINNED}
+                      disabled={!pinned && pinCapped}
                       onClick={(e) => {
                         e.stopPropagation();
-                        togglePinTalent(talent.id);
+                        togglePinTalent(talent);
                       }}
                       onKeyDown={(e) => e.stopPropagation()}
                     >
@@ -217,7 +227,8 @@ export function HireTalent() {
         fit for both directors and actors, and matters most for your director and lead actor. Reliability and Ego
         apply across everyone you hire: an unreliable, high-ego crew raises the odds of a costly incident once filming
         starts. Supporting Actor can be an ensemble - hiring more people there averages their fit and fame together,
-        it doesn't stack. Pin up to two candidates to compare them side by side.
+        it doesn't stack. Pin up to two candidates for the same role to compare them side by side - pinning a
+        different role starts a fresh comparison.
       </p>
 
       <div className={layoutClassName} style={layoutStyle}>
@@ -273,7 +284,7 @@ export function HireTalent() {
                         <div className="card-title" style={{ marginBottom: 0 }}>{talent.name}</div>
                         <div className="card-subtitle" style={{ marginBottom: 0 }}>{talent.role}</div>
                       </div>
-                      <Button variant="text" onClick={() => togglePinTalent(talent.id)}>Unpin</Button>
+                      <Button variant="text" onClick={() => togglePinTalent(talent)}>Unpin</Button>
                     </div>
                     <TalentDetails talent={talent} script={draft.script} />
                     <Button
@@ -288,7 +299,7 @@ export function HireTalent() {
                 );
               })}
               {pinnedTalentIds.length < MAX_PINNED && (
-                <div className="card compare-slot-empty">Pin another candidate from a role below to compare it here.</div>
+                <div className="card compare-slot-empty">Pin another {pinnedTalent[0]?.role} candidate to compare it here.</div>
               )}
             </div>
           </div>
