@@ -34,7 +34,7 @@ export function createInitialStudio(rng: RandomFn): Studio {
     name: 'Silver Reel Pictures',
     cash: 10_000_000,
     reputation: 20,
-    year: 1,
+    totalDays: 1,
     filmsReleased: [],
     talentPool: generateTalentPool(rng),
   };
@@ -50,7 +50,8 @@ export function createEmptyDraft(): FilmDraft {
     talent: [],
     talentTargetPriceByRole: {},
     productionChoices: null,
-    events: [],
+    photography: null,
+    furthestStepIndexCharged: -1,
     postProductionChoices: null,
     marketingChoices: null,
     results: null,
@@ -70,7 +71,9 @@ export type GameAction =
   | { type: 'SET_TALENT_TARGET_PRICE'; role: TalentRole; price: number }
   | { type: 'SET_TALENT_BUDGET_SPLIT'; totalBudget: number }
   | { type: 'SET_PRODUCTION_CHOICES'; choices: ProductionChoices }
-  | { type: 'BEGIN_FILMING' }
+  | { type: 'BEGIN_PHOTOGRAPHY' }
+  | { type: 'ADVANCE_SHOOTING_DAY' }
+  | { type: 'FINISH_PHOTOGRAPHY' }
   | { type: 'SET_POST_PRODUCTION_CHOICES'; choices: PostProductionChoices }
   | { type: 'SET_MARKETING_CHOICES'; choices: MarketingChoices }
   | { type: 'RELEASE_FILM' }

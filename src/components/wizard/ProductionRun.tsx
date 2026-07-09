@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { computeProductionRiskProfile } from '../../engine/production';
+import { computeStaticProductionRisk, computeRecommendedShootDays, computeSchedulePressure } from '../../engine/production';
 import { computeTalentCost, computeProductionBudgetCost } from '../../engine/cost';
 import { ALL_TALENT_ROLES } from '../../data/talentGeneration';
 import { Button } from '../common/Button';
@@ -11,44 +11,47 @@ import { WizardHeader } from '../common/WizardHeader';
 import { nearestLabel } from './ProductionPlanning';
 import type { TalentRole } from '../../types';
 
-const REVEAL_INTERVAL_MS = 900;
+const TICK_INTERVAL_MS = 500;
 
 export function ProductionRun() {
   const { state, dispatch } = useStudio();
   const draft = state.draft!;
-  const hasFilmed = draft.events.length > 0;
-  const [revealedCount, setRevealedCount] = useState(0);
+  const photography = draft.photography;
 
-  // Reset the reveal animation whenever a fresh batch of events comes in.
+  // Ticks one real day of principal photography at a time while it's
+  // running - each tick is a genuine dispatched action (ADVANCE_SHOOTING_DAY),
+  // not a local animation, so the shoot survives a refresh exactly where it
+  // left off, same as everything else in this app.
   useEffect(() => {
-    setRevealedCount(0);
-  }, [draft.events]);
+    if (photography?.status !== 'in-progress') return;
+    const timer = setInterval(() => dispatch({ type: 'ADVANCE_SHOOTING_DAY' }), TICK_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [photography?.status, dispatch]);
 
-  // Drip-feed the events one at a time so the shoot feels like it happens
-  // over several days, rather than dumping the whole outcome at once.
-  useEffect(() => {
-    if (!hasFilmed || revealedCount >= draft.events.length) return;
-    const timer = setTimeout(() => setRevealedCount((count) => count + 1), REVEAL_INTERVAL_MS);
-    return () => clearTimeout(timer);
-  }, [hasFilmed, revealedCount, draft.events.length]);
-
-  const riskProfile = draft.script && draft.productionChoices && draft.genre
-    ? computeProductionRiskProfile(draft.talent, draft.script, draft.productionChoices, draft.genre)
+  const staticRisk = draft.script && draft.productionChoices && draft.genre
+    ? computeStaticProductionRisk(draft.talent, draft.script, draft.productionChoices, draft.genre)
     : null;
+  const recommendedDays = draft.script && draft.productionChoices
+    ? computeRecommendedShootDays(draft.talent, draft.script, draft.productionChoices)
+    : 0;
 
-  const allRevealed = revealedCount >= draft.events.length;
-  const visibleEvents = draft.events.slice(0, revealedCount);
+  function handleFastForward() {
+    if (!photography) return;
+    const remaining = Math.max(0, recommendedDays - photography.daysElapsed);
+    for (let i = 0; i < remaining; i++) dispatch({ type: 'ADVANCE_SHOOTING_DAY' });
+  }
 
-  const totalCostDelta = draft.events.reduce((sum, e) => sum + e.costDelta, 0);
-  const totalQualityDelta = draft.events.reduce((sum, e) => sum + e.qualityDelta, 0);
-  const totalBuzzDelta = draft.events.reduce((sum, e) => sum + e.buzzDelta, 0);
+  const totalCostDelta = photography ? photography.events.reduce((sum, e) => sum + e.costDelta, 0) : 0;
+  const totalQualityDelta = photography ? photography.events.reduce((sum, e) => sum + e.qualityDelta, 0) : 0;
+  const totalBuzzDelta = photography ? photography.events.reduce((sum, e) => sum + e.buzzDelta, 0) : 0;
+  const finalSchedulePressure = photography ? computeSchedulePressure(photography.daysElapsed, photography.recommendedDays) : 0;
 
   return (
     <div className="stack">
       <WizardHeader current="production" />
       <h1>Production</h1>
 
-      {!hasFilmed && (
+      {!photography && (
         <div className="stack">
           <div className="card stack">
             <h2 style={{ margin: 0 }}>Film Overview</h2>
@@ -98,10 +101,6 @@ export function ProductionRun() {
             <div className="card stack">
               <h2 style={{ margin: 0 }}>Production Plan</h2>
               <div className="row-between"><span>Contingency Reserve</span><Money amount={draft.productionChoices.contingencyAmount} /></div>
-              <div className="row-between">
-                <span>Shooting Style</span>
-                <span>{nearestLabel(draft.productionChoices.shootingIntensity, ['Fast', 'Balanced', 'Perfectionist'])}</span>
-              </div>
               <div className="row-between"><span>Set Quality</span><Money amount={draft.productionChoices.setQualityAmount} /></div>
               <div className="row-between"><span>Practical Effects</span><Money amount={draft.productionChoices.practicalEffectsAmount} /></div>
               <div className="row-between"><span>VFX Spend</span><Money amount={draft.productionChoices.vfxAmount} /></div>
@@ -119,21 +118,22 @@ export function ProductionRun() {
             </div>
           )}
 
-          {riskProfile && (
+          {staticRisk && (
             <div className="card stack">
               <h2 style={{ margin: 0 }}>Production Risk Profile</h2>
-              <ScoreBar label="Schedule Pressure" value={riskProfile.schedulePressure} />
-              <ScoreBar label="Morale Risk" value={riskProfile.moraleRisk} />
-              <ScoreBar label="Safety Risk" value={riskProfile.safetyRisk} />
-              <ScoreBar label="Technical Complexity" value={riskProfile.technicalComplexity} />
-              <ScoreBar label="Budget Risk" value={riskProfile.budgetRisk} />
+              <ScoreBar label="Morale Risk" value={staticRisk.moraleRisk} />
+              <ScoreBar label="Safety Risk" value={staticRisk.safetyRisk} />
+              <ScoreBar label="Technical Complexity" value={staticRisk.technicalComplexity} />
+              <ScoreBar label="Budget Risk" value={staticRisk.budgetRisk} />
               <p style={{ margin: 0 }}>
-                Whichever of these read clearly high or low will shape what's actually likely to happen on set, on
-                top of the usual mix of ordinary set drama. Roll the cameras and see what happens.
+                Recommended principal photography: <strong>~{recommendedDays} days</strong>. Once you begin, you'll
+                watch the shoot happen one day at a time and can wrap it whenever you choose - cut it short to save
+                money, or let it run long to give the team more room to work. Schedule Pressure will depend on
+                whichever you pick.
               </p>
               <div>
-                <Button variant="primary" onClick={() => dispatch({ type: 'BEGIN_FILMING' })}>
-                  Begin Filming
+                <Button variant="primary" onClick={() => dispatch({ type: 'BEGIN_PHOTOGRAPHY' })}>
+                  Begin Principal Photography
                 </Button>
               </div>
             </div>
@@ -141,33 +141,49 @@ export function ProductionRun() {
         </div>
       )}
 
-      {hasFilmed && (
+      {photography && (
         <div className="stack">
+          <div className="row">
+            <StatTile label="Day" value={`${photography.daysElapsed} of ~${photography.recommendedDays} recommended`} />
+            <StatTile label="Spent So Far" value={<Money amount={photography.runningCost} />} />
+            {photography.status === 'in-progress' && (
+              <StatTile label="Schedule Pressure" value={`${computeSchedulePressure(photography.daysElapsed, photography.recommendedDays)}/100`} />
+            )}
+          </div>
+
           <div className="card stack">
             <h2>On-Set Events</h2>
-            {visibleEvents.map((event, i) => (
+            {photography.events.length === 0 && (
+              <p style={{ margin: 0, color: 'var(--text-muted)' }}>Nothing notable yet.</p>
+            )}
+            {photography.events.map((event, i) => (
               <div
                 key={`${event.id}-${i}`}
                 className="row-between event-reveal"
                 style={{ borderBottom: '1px solid var(--border)', paddingBottom: 8 }}
               >
-                <span><strong>Day {i + 1}.</strong> {event.description}</span>
+                <span>{event.description}</span>
                 <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
                   Cost <Money amount={event.costDelta} signColor invertColor showSign /> &middot; Quality {event.qualityDelta >= 0 ? '+' : ''}{event.qualityDelta.toFixed(1)} &middot; Buzz {event.buzzDelta >= 0 ? '+' : ''}{event.buzzDelta.toFixed(1)}
                 </span>
               </div>
             ))}
-            {!allRevealed && (
+            {photography.status === 'in-progress' && (
               <div className="row-between">
                 <span className="filming-status">
                   Filming<span className="filming-dot">.</span><span className="filming-dot">.</span><span className="filming-dot">.</span>
                 </span>
-                <Button onClick={() => setRevealedCount(draft.events.length)}>Skip</Button>
+                <div className="row">
+                  <Button onClick={handleFastForward}>Fast Forward to Day {photography.recommendedDays}</Button>
+                  <Button variant="primary" onClick={() => dispatch({ type: 'FINISH_PHOTOGRAPHY' })}>
+                    Finish Principal Photography
+                  </Button>
+                </div>
               </div>
             )}
           </div>
 
-          {allRevealed && (
+          {photography.status === 'finished' && (
             <>
               <div className="row">
                 <div className="stat">
@@ -181,6 +197,10 @@ export function ProductionRun() {
                 <div className="stat">
                   <div className="stat-label">Net Buzz Impact</div>
                   <div className="stat-value">{totalBuzzDelta >= 0 ? '+' : ''}{totalBuzzDelta.toFixed(1)}</div>
+                </div>
+                <div className="stat">
+                  <div className="stat-label">Final Schedule Pressure</div>
+                  <div className="stat-value">{finalSchedulePressure}/100</div>
                 </div>
               </div>
 

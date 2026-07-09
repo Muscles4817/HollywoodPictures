@@ -1,4 +1,4 @@
-import type { Genre, ProductionRiskProfile } from '../types';
+import type { Genre } from '../types';
 
 // Templates for randomized production events. The engine picks a handful of
 // these per shoot, biased by an overall risk score, then rolls a concrete
@@ -305,11 +305,15 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
   ],
 };
 
-export type RiskDimension = keyof ProductionRiskProfile;
+// Four of these come from computeStaticProductionRisk (known before a
+// single day of filming); schedulePressure is computed live, fresh each
+// day, from how photography is actually going
+// (engine/production.ts:computeSchedulePressure) - both feed the same
+// per-day event pool (engine/production.ts:rollDayEvent) the same way.
+export type RiskDimension = 'schedulePressure' | 'moraleRisk' | 'safetyRisk' | 'technicalComplexity' | 'budgetRisk';
 
 // A second layer of contextual events, mixed into the pool alongside the
-// genre templates above whenever a production's risk profile
-// (engine/production.ts:computeProductionRiskProfile) reads clearly high or
+// genre templates above whenever a production's risk reads clearly high or
 // low on a given dimension - the mechanism a planning choice actually uses
 // to shape what happens on set, rather than only nudging the overall
 // positive/negative odds. Each dimension gets its own negative bank (fires

@@ -1,7 +1,6 @@
 import {
   CONTINGENCY_RANGE,
   CONTINGENCY_ANCHORS,
-  SHOOTING_ANCHORS,
   SET_QUALITY_RANGE,
   SET_QUALITY_ANCHORS,
   PRACTICAL_EFFECTS_RANGE,
@@ -12,6 +11,7 @@ import {
 } from '../data/production';
 import { MARKETING_SPEND_RANGE, MARKETING_SPEND_ANCHORS } from '../data/release';
 import { logT, interpolateScale, describeScale } from './interpolate';
+import { clamp } from './random';
 import type { ProductionChoices } from '../types';
 
 // Thin, named wrappers around the generic interpolation helpers, one per
@@ -23,10 +23,23 @@ export const contingencyT = (amount: number) => logT(amount, CONTINGENCY_RANGE);
 export const contingencyQuality = (amount: number) => interpolateScale(contingencyT(amount), CONTINGENCY_ANCHORS, 'quality');
 export const contingencyDescription = (amount: number) => describeScale(contingencyT(amount), CONTINGENCY_ANCHORS);
 
-export const shootingQuality = (intensity: number) => interpolateScale(intensity, SHOOTING_ANCHORS, 'quality');
-export const shootingRisk = (intensity: number) => interpolateScale(intensity, SHOOTING_ANCHORS, 'risk');
-export const shootingCostMultiplier = (intensity: number) => interpolateScale(intensity, SHOOTING_ANCHORS, 'costMultiplier');
-export const shootingDescription = (intensity: number) => describeScale(intensity, SHOOTING_ANCHORS);
+/**
+ * Shooting quality is no longer a slider position - it's read off how the
+ * shoot actually went, after the fact: `daysElapsed / recommendedDays`
+ * (PhotographyState, see docs/DESIGN.md 5.16). Falling short of the
+ * recommended schedule costs quality steeply (mirrors the old "Fast" end,
+ * 40-60); meeting or comfortably exceeding it climbs toward the old
+ * "Perfectionist" ceiling (85), with diminishing returns past 2.5x the
+ * recommended length rather than rewarding an unbounded shoot forever -
+ * the daily contingency burn (engine/production.ts) is what actually stops
+ * "just keep shooting" from being free, this just stops it from being
+ * infinitely *rewarding* too.
+ */
+export function shootingQualityFromRatio(ratio: number): number {
+  if (ratio < 1) return clamp(40 + ratio * 20, 40, 60);
+  const over = Math.min(ratio - 1, 1.5);
+  return clamp(60 + over * (25 / 1.5), 60, 85);
+}
 
 export const setQualityT = (amount: number) => logT(amount, SET_QUALITY_RANGE);
 export const setQualityScore = (amount: number) => interpolateScale(setQualityT(amount), SET_QUALITY_ANCHORS, 'quality');

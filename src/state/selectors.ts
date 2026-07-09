@@ -16,7 +16,15 @@ export function computeCommittedSpend(draft: FilmDraft | null): number {
   if (draft.script) total += draft.script.cost;
   total += computeTalentCost(draft.talent);
   if (draft.productionChoices) total += computeProductionBudgetCost(draft.productionChoices);
-  total += computeEventsCostDelta(draft.events);
+  if (draft.photography) {
+    // Contingency's daily burn accrues live as photography ticks
+    // (see engine/cost.ts:computeDailyContingencyBurn), on top of whatever
+    // events have fired so far - so this preview climbs in real time while
+    // the player watches filming happen, the same way it always updated
+    // instantly after every other choice.
+    total += draft.photography.runningCost;
+    total += computeEventsCostDelta(draft.photography.events);
+  }
   if (draft.postProductionChoices) {
     total += TEST_SCREENING_PROFILES[draft.postProductionChoices.testScreeningResponse].cost;
   }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { exportFilmHistory } from '../state/exportFilmHistory';
+import { formatGameDate } from '../engine/calendar';
 import { Button } from './common/Button';
 import { StatTile } from './common/StatTile';
 import { Money } from './common/Money';
@@ -27,7 +28,7 @@ export function Dashboard() {
       <div className="row-between">
         <div>
           <h1>{studio.name}</h1>
-          <p>Year {studio.year} &middot; {studio.filmsReleased.length} film{studio.filmsReleased.length === 1 ? '' : 's'} released</p>
+          <p>{formatGameDate(studio.totalDays)} &middot; {studio.filmsReleased.length} film{studio.filmsReleased.length === 1 ? '' : 's'} released</p>
         </div>
         <div className="row">
           <Button onClick={() => setShowGuide(true)}>How It Works</Button>
@@ -42,7 +43,7 @@ export function Dashboard() {
         <StatTile label="Studio Cash" value={<Money amount={studio.cash} signColor />} />
         <StatTile label="Reputation" value={`${studio.reputation} / 100`} />
         <StatTile label="Films Released" value={studio.filmsReleased.length} />
-        <StatTile label="Current Year" value={`Year ${studio.year}`} />
+        <StatTile label="Current Date" value={formatGameDate(studio.totalDays)} />
       </div>
 
       <div className="card">
@@ -61,7 +62,7 @@ export function Dashboard() {
                 <tr>
                   <th>Title</th>
                   <th>Genre</th>
-                  <th>Year</th>
+                  <th>Released</th>
                   <th>Total Cost</th>
                   <th>Box Office</th>
                   <th>Critic Score</th>
@@ -74,7 +75,7 @@ export function Dashboard() {
                   <tr key={film.id}>
                     <td>{film.title}</td>
                     <td>{film.genre}</td>
-                    <td>{film.yearReleased}</td>
+                    <td>{formatGameDate(film.releasedOnDay)}</td>
                     <td><Money amount={film.results.totalCost} /></td>
                     <td><Money amount={film.results.totalBoxOffice} /></td>
                     <td>{film.results.criticScore}</td>

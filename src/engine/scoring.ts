@@ -14,7 +14,7 @@ import { computeTalentCompatibility } from './compatibility';
 import {
   contingencyQuality,
   overallSpendT,
-  shootingQuality,
+  shootingQualityFromRatio,
   setQualityScore,
   practicalEffectsScore,
   vfxScore,
@@ -87,11 +87,15 @@ export function computeActingScore(talent: Talent[], script: Script): number {
 /**
  * Quality contributed by production choices. VFX/practical-effects weight is
  * scaled per genre - Action/Sci-Fi/Fantasy lean on VFX, Drama/Romance don't.
+ * `shootingRatio` is daysElapsed/recommendedDays from the finished shoot
+ * (PhotographyState) - shooting quality is read off how photography
+ * actually went, not a pre-set pace dial (see
+ * productionDials.ts:shootingQualityFromRatio).
  */
-export function computeProductionScore(choices: ProductionChoices, genre: Genre): number {
+export function computeProductionScore(choices: ProductionChoices, genre: Genre, shootingRatio: number): number {
   const profile = GENRE_PROFILES[genre];
   const contingency = contingencyQuality(choices.contingencyAmount);
-  const style = shootingQuality(choices.shootingIntensity);
+  const style = shootingQualityFromRatio(shootingRatio);
   const set = setQualityScore(choices.setQualityAmount);
   const practical = practicalEffectsScore(choices.practicalEffectsAmount);
   const vfx = vfxScore(choices.vfxAmount);
@@ -108,8 +112,11 @@ export function computeProductionScore(choices: ProductionChoices, genre: Genre)
 /** Net quality swing from every rolled production event (positive and negative). */
 export function computeEventsScore(events: ProductionEvent[]): number {
   const totalQualityDelta = events.reduce((sum, e) => sum + e.qualityDelta, 0);
-  // Each event's raw delta is small (roughly -10..+10); amplify so 3-5 events
-  // meaningfully move this 10%-weighted bucket away from a neutral 50.
+  // Each event's raw delta is small (roughly -10..+10); amplify so a
+  // shoot's worth of events (however many days it actually took - no
+  // longer a fixed 3-5) meaningfully moves this 10%-weighted bucket away
+  // from a neutral 50. Clamped below, so an unusually long shoot with many
+  // events saturates rather than blowing past the scale.
   return clamp(50 + totalQualityDelta * 2, 0, 100);
 }
 
@@ -173,11 +180,12 @@ export function computeQualityBreakdown(
   productionChoices: ProductionChoices,
   postProductionChoices: PostProductionChoices,
   events: ProductionEvent[],
+  shootingRatio: number,
 ): QualityBreakdown {
   const scriptScore = computeScriptScore(script);
   const directionScore = computeDirectionScore(talent, script);
   const actingScore = computeActingScore(talent, script);
-  const productionScore = computeProductionScore(productionChoices, genre);
+  const productionScore = computeProductionScore(productionChoices, genre, shootingRatio);
   const postProductionScore = computePostProductionScore(postProductionChoices);
   const eventsScore = computeEventsScore(events);
 

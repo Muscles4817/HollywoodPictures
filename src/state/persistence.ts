@@ -11,10 +11,14 @@ import { randomSeed, withRng } from '../engine/random';
 // requiredLeads/requiredSupporting/intendedAudience to Script; v6 -> v7
 // reworked box office - MarketingChoices.marketingSpend became a continuous
 // number instead of a named tier, and FilmResults gained studioRevenue;
-// v7 -> v8 renamed ProductionChoices.budgetAmount to contingencyAmount) so
-// old saves are cleanly ignored instead of partially loading with
-// missing/mismatched fields.
-const SAVE_KEY = 'hollywood-pictures-save-v8';
+// v7 -> v8 renamed ProductionChoices.budgetAmount to contingencyAmount;
+// v8 -> v9 replaced Studio.year with Studio.totalDays and Film.yearReleased
+// with Film.releasedOnDay, dropped ProductionChoices.shootingIntensity, and
+// added FilmDraft.photography (principal photography as a live day-by-day
+// process, replacing the old batch-computed draft.events)) so old saves are
+// cleanly ignored instead of partially loading with missing/mismatched
+// fields.
+const SAVE_KEY = 'hollywood-pictures-save-v9';
 
 export function loadState(): GameState {
   try {

@@ -596,6 +596,21 @@ textarea, input, select {
   color: var(--text);
 }
 
+/* --- Date bar --- */
+.date-bar {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 50;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
 /* --- Theme toggle --- */
 .theme-toggle-fixed {
   position: fixed;

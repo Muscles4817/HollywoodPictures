@@ -1,13 +1,29 @@
-import type { Film, Talent, TalentRole } from '../types';
+import type { Film, Talent, TalentRole, WizardStep } from '../types';
 import { type GameAction, type GameState, createEmptyDraft, createInitialStudio } from './gameState';
 import { randomSeed, withRng, clamp } from '../engine/random';
 import { generateScriptOptions } from '../engine/scriptGenerator';
 import { logAmount } from '../engine/interpolate';
 import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
-import { simulateProduction } from '../engine/production';
+import { computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent } from '../engine/production';
+import { computeDailyContingencyBurn } from '../engine/cost';
+import { STAGE_DURATIONS } from '../data/schedule';
 import { computeReleaseResults } from '../engine/releaseFilm';
 import { applyReputationChange } from '../engine/reputation';
+
+// The canonical forward order of the wizard - used only to tell a forward
+// GO_TO_STEP (advance the calendar by that stage's fixed duration, see
+// data/schedule.ts) apart from a backward one (Back buttons; no time cost
+// for revisiting a screen you're still deciding on).
+const WIZARD_STEP_ORDER: WizardStep[] = [
+  'develop',
+  'talent',
+  'production-planning',
+  'production',
+  'post-production',
+  'marketing',
+  'results',
+];
 
 /** Seeds every role's target price at the midpoint of its own salary range. */
 function defaultTalentTargetPrices(): Partial<Record<TalentRole, number>> {
@@ -31,8 +47,24 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         draft: { ...createEmptyDraft(), talentTargetPriceByRole: defaultTalentTargetPrices() },
       };
 
-    case 'GO_TO_STEP':
-      return { ...state, screen: action.step };
+    case 'GO_TO_STEP': {
+      if (!state.draft) return { ...state, screen: action.step };
+      const fromIdx = WIZARD_STEP_ORDER.indexOf(state.screen as WizardStep);
+      const toIdx = WIZARD_STEP_ORDER.indexOf(action.step);
+      // Only charge a stage's fixed duration the first time it's genuinely
+      // left going forward - a Back-then-forward round trip (fromIdx no
+      // further than what's already been charged) doesn't pay it twice.
+      const isNewForwardProgress = fromIdx >= 0 && toIdx > fromIdx && fromIdx > state.draft.furthestStepIndexCharged;
+      const leavingStage = isNewForwardProgress ? (state.screen as WizardStep) : null;
+      const stageDuration = leavingStage ? STAGE_DURATIONS[leavingStage] : undefined;
+      if (!stageDuration) return { ...state, screen: action.step };
+      return {
+        ...state,
+        screen: action.step,
+        studio: { ...state.studio, totalDays: state.studio.totalDays + stageDuration },
+        draft: { ...state.draft, furthestStepIndexCharged: fromIdx },
+      };
+    }
 
     case 'RENAME_STUDIO':
       return { ...state, studio: { ...state.studio, name: action.name } };
@@ -149,12 +181,57 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       return { ...state, draft: { ...state.draft, productionChoices: action.choices } };
     }
 
-    case 'BEGIN_FILMING': {
-      if (!state.draft || !state.draft.script || !state.draft.productionChoices || !state.draft.genre) return state;
-      const { result: simResult, nextSeed } = withRng(state.rngSeed, (rng) =>
-        simulateProduction(state.draft!.talent, state.draft!.script!, state.draft!.productionChoices!, state.draft!.genre!, rng),
+    case 'BEGIN_PHOTOGRAPHY': {
+      if (!state.draft || !state.draft.script || !state.draft.productionChoices) return state;
+      const recommendedDays = computeRecommendedShootDays(state.draft.talent, state.draft.script, state.draft.productionChoices);
+      return {
+        ...state,
+        draft: {
+          ...state.draft,
+          photography: { status: 'in-progress', recommendedDays, daysElapsed: 0, events: [], runningCost: 0 },
+        },
+      };
+    }
+
+    // One day of principal photography: rolls whether anything notable
+    // happens (engine/production.ts:rollDayEvent), burns one day of
+    // contingency, and advances both the shoot's own day counter and the
+    // studio's persistent calendar in lockstep - the player watches the
+    // date on screen move forward in real time while filming happens.
+    case 'ADVANCE_SHOOTING_DAY': {
+      const d = state.draft;
+      if (!d?.photography || d.photography.status !== 'in-progress' || !d.script || !d.productionChoices || !d.genre) {
+        return state;
+      }
+      const staticRisk = computeStaticProductionRisk(d.talent, d.script, d.productionChoices, d.genre);
+      const usedIds = new Set(d.photography.events.map((e) => e.id));
+      const { result: event, nextSeed } = withRng(state.rngSeed, (rng) =>
+        rollDayEvent(staticRisk, d.photography!.daysElapsed + 1, d.photography!.recommendedDays, d.genre!, usedIds, rng),
       );
-      return { ...state, rngSeed: nextSeed, draft: { ...state.draft, events: simResult.events } };
+      const dailyBurn = computeDailyContingencyBurn(d.productionChoices.contingencyAmount, d.photography.recommendedDays);
+
+      return {
+        ...state,
+        rngSeed: nextSeed,
+        studio: { ...state.studio, totalDays: state.studio.totalDays + 1 },
+        draft: {
+          ...d,
+          photography: {
+            ...d.photography,
+            daysElapsed: d.photography.daysElapsed + 1,
+            events: event ? [...d.photography.events, event] : d.photography.events,
+            runningCost: d.photography.runningCost + dailyBurn,
+          },
+        },
+      };
+    }
+
+    case 'FINISH_PHOTOGRAPHY': {
+      if (!state.draft?.photography || state.draft.photography.status !== 'in-progress') return state;
+      return {
+        ...state,
+        draft: { ...state.draft, photography: { ...state.draft.photography, status: 'finished' } },
+      };
     }
 
     case 'SET_POST_PRODUCTION_CHOICES': {
@@ -169,9 +246,20 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
 
     case 'RELEASE_FILM': {
       const d = state.draft;
-      if (!d || !d.genre || !d.targetAudience || !d.script || !d.productionChoices || !d.postProductionChoices || !d.marketingChoices) {
+      if (
+        !d ||
+        !d.genre ||
+        !d.targetAudience ||
+        !d.script ||
+        !d.productionChoices ||
+        !d.photography ||
+        !d.postProductionChoices ||
+        !d.marketingChoices
+      ) {
         return state;
       }
+      const photographyEvents = d.photography.events;
+      const shootingRatio = d.photography.recommendedDays > 0 ? d.photography.daysElapsed / d.photography.recommendedDays : 1;
 
       const { result: results, nextSeed } = withRng(state.rngSeed, (rng) =>
         computeReleaseResults(
@@ -184,7 +272,9 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             productionChoices: d.productionChoices!,
             postProductionChoices: d.postProductionChoices!,
             marketingChoices: d.marketingChoices!,
-            events: d.events,
+            events: photographyEvents,
+            photographyCost: d.photography!.runningCost,
+            shootingRatio,
             studioReputation: state.studio.reputation,
           },
           rng,
@@ -197,9 +287,13 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // which is what `profit` is computed from too (see boxOffice.ts).
       const cashAfter = state.studio.cash - results.totalCost + results.studioRevenue;
       const nextReputation = applyReputationChange(state.studio.reputation, results.reputationChange);
+      // Marketing's fixed run-up to release (data/schedule.ts) - the one
+      // stage duration not applied via GO_TO_STEP, since RELEASE_FILM jumps
+      // straight to 'results' rather than going through it.
+      const totalDaysAfter = state.studio.totalDays + (STAGE_DURATIONS.marketing ?? 0);
 
       const film: Film = {
-        id: `film-${state.studio.filmsReleased.length + 1}-${state.studio.year}`,
+        id: `film-${state.studio.filmsReleased.length + 1}-${totalDaysAfter}`,
         title: d.title || 'Untitled Film',
         genre: d.genre,
         targetAudience: d.targetAudience,
@@ -208,9 +302,9 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         productionChoices: d.productionChoices,
         postProductionChoices: d.postProductionChoices,
         marketingChoices: d.marketingChoices,
-        events: d.events,
+        events: photographyEvents,
         results,
-        yearReleased: state.studio.year,
+        releasedOnDay: totalDaysAfter,
       };
 
       return {
@@ -221,7 +315,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           ...state.studio,
           cash: cashAfter,
           reputation: nextReputation,
-          year: state.studio.year + 1,
+          totalDays: totalDaysAfter,
           filmsReleased: [...state.studio.filmsReleased, film],
         },
         draft: { ...d, results },

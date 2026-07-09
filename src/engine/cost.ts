@@ -1,5 +1,5 @@
 import type { MarketingChoices, ProductionChoices, ProductionEvent, Talent } from '../types';
-import { shootingCostMultiplier, runtimeCostMultiplier } from './productionDials';
+import { runtimeCostMultiplier } from './productionDials';
 import { RELEASE_TYPE_PROFILES } from '../data/release';
 
 /** Sum of all hired talent salaries. */
@@ -7,16 +7,30 @@ export function computeTalentCost(talent: Talent[]): number {
   return talent.reduce((sum, t) => sum + t.salary, 0);
 }
 
-/** Base production spend from contingency/overhead, shooting pace, sets, effects and runtime. */
+/**
+ * Pre-photography production spend: sets, practical effects and VFX,
+ * scaled by runtime. Contingency is deliberately not part of this - it's no
+ * longer a flat lump sum, it's spent as a daily burn rate over however many
+ * days principal photography actually takes
+ * (computeDailyContingencyBurn below, PhotographyState.runningCost) - so it
+ * genuinely costs less to wrap early and more to run long, rather than
+ * being a fixed number decided before filming even starts.
+ */
 export function computeProductionBudgetCost(choices: ProductionChoices): number {
-  const base =
-    choices.contingencyAmount *
-    shootingCostMultiplier(choices.shootingIntensity) *
-    runtimeCostMultiplier(choices.runtimeIntensity);
+  const base = choices.setQualityAmount + choices.practicalEffectsAmount + choices.vfxAmount;
+  return Math.round(base * runtimeCostMultiplier(choices.runtimeIntensity));
+}
 
-  const extras = choices.setQualityAmount + choices.practicalEffectsAmount + choices.vfxAmount;
-
-  return Math.round(base + extras);
+/**
+ * Contingency's daily spend rate during principal photography - the
+ * budgeted total for the *recommended* schedule, spread evenly across it.
+ * Wrapping early spends less than planned; running past the recommended
+ * count keeps burning at the same rate with no upper bound, which is what
+ * makes "give the team more time" a genuine cost, not just a schedule-risk
+ * abstraction.
+ */
+export function computeDailyContingencyBurn(contingencyAmount: number, recommendedDays: number): number {
+  return recommendedDays > 0 ? contingencyAmount / recommendedDays : contingencyAmount;
 }
 
 /** Net cost swing from all rolled production events (can be negative = savings). */

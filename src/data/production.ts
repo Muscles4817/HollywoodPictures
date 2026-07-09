@@ -14,7 +14,7 @@ export const CONTINGENCY_RANGE: Range = { min: 100_000, max: 40_000_000 };
 // dial did (crew size and equipment genuinely do buy production value). The
 // old single "risk" anchor is gone - contingency no longer has one built-in
 // risk curve of its own, it instead offsets risk computed elsewhere
-// (engine/production.ts:computeProductionRiskProfile uses contingencyT as a
+// (engine/production.ts:computeStaticProductionRisk uses contingencyT as a
 // mitigating term against safety/technical/budget risk, not a standalone
 // U-shaped curve). See docs/DESIGN.md 5.9 for why.
 export const CONTINGENCY_ANCHORS: ScaleAnchor<'quality'>[] = [
@@ -33,21 +33,6 @@ export const CONTINGENCY_ANCHORS: ScaleAnchor<'quality'>[] = [
   {
     t: 1, values: { quality: 88 },
     description: 'Money-no-object filmmaking - the highest quality ceiling and the deepest safety margin. Still needs a genuine hit to pay off.',
-  },
-];
-
-export const SHOOTING_ANCHORS: ScaleAnchor<'quality' | 'risk' | 'costMultiplier'>[] = [
-  {
-    t: 0, values: { quality: 40, risk: 55, costMultiplier: 0.75 },
-    description: 'Shoot fast and loose. Cuts cost, but rushed schedules mean more can go wrong on set.',
-  },
-  {
-    t: 0.5, values: { quality: 60, risk: 30, costMultiplier: 1.0 },
-    description: 'A normal shooting pace - no particular rush, no particular luxury.',
-  },
-  {
-    t: 1, values: { quality: 85, risk: 15, costMultiplier: 1.4 },
-    description: 'Take after take until it’s right. Costs more and takes longer, but the safest, highest-quality way to shoot.',
   },
 ];
 

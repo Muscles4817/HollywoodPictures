@@ -114,18 +114,21 @@ export interface Script {
 
 // Every production dial is continuous rather than a fixed tier: the four
 // spend dials are plain currency amounts (interpreted on a log scale - see
-// engine/productionDials.ts), and the two "pace" dials are a 0-1 intensity
-// from their low extreme (Fast / Short) to their high extreme (Perfectionist
-// / Long).
+// engine/productionDials.ts), and runtimeIntensity is a 0-1 intensity from
+// its low extreme (Short) to its high extreme (Long). There's no shooting-
+// pace dial any more - how long the shoot actually takes is something the
+// player lives through, not a slider they set in advance (see
+// engine/production.ts:computeRecommendedShootDays and PhotographyState
+// below).
 export interface ProductionChoices {
   // Crew size, equipment, insurance, general overhead - and the safety
   // margin that offsets risk from ambitious practical/VFX spend elsewhere.
   // Not "the total budget" (that's the sum of every dial, shown on the Plan
-  // Production screen) - see engine/production.ts:computeProductionRiskProfile
-  // and docs/DESIGN.md 5.9 for why this dial specifically doubles as risk
-  // mitigation rather than just another quality lever.
+  // Production screen) - see docs/DESIGN.md 5.9 for why this dial
+  // specifically doubles as risk mitigation rather than just another
+  // quality lever. Spent as a daily burn rate during principal photography
+  // (PhotographyState.runningCost), not a flat lump sum - see 5.16.
   contingencyAmount: number;
-  shootingIntensity: number; // 0 = Fast, 1 = Perfectionist
   setQualityAmount: number;
   practicalEffectsAmount: number;
   vfxAmount: number;
@@ -141,18 +144,38 @@ export interface ProductionEvent {
   delayRiskDelta: number; // -100..100, informational for MVP
 }
 
-// A production's risk profile - five independent-enough dimensions, each
-// 0-100 (higher = more risk), computed once at the start of the shoot from
-// planning choices, cast, and script (engine/production.ts). Drives which
-// on-set events actually become reachable (data/productionEvents.ts) - not
-// just how likely a positive vs. negative roll is, the way the single old
-// riskScore did.
-export interface ProductionRiskProfile {
-  schedulePressure: number; // shooting pace, runtime, cast size - "did we have enough time"
+// The four risk dimensions knowable *before* a day of filming has happened -
+// each 0-100 (higher = more risk), computed from planning choices, cast,
+// and script (engine/production.ts:computeStaticProductionRisk). Drives
+// which on-set events are reachable each day during photography
+// (data/productionEvents.ts), same as the schedule-pressure dimension used
+// to. Schedule Pressure itself isn't here any more - it can't be known
+// until the player has actually decided how many days to shoot (see
+// PhotographyState below and docs/DESIGN.md 5.16), so it's computed
+// separately, live, once photography is under way.
+export interface StaticProductionRisk {
   moraleRisk: number; // cast/crew reliability and ego - interpersonal friction
-  safetyRisk: number; // practical-effects ambition vs. contingency margin and pace
+  safetyRisk: number; // practical-effects ambition vs. contingency margin
   technicalComplexity: number; // VFX ambition and script complexity vs. contingency margin
   budgetRisk: number; // overall spend relative to what the genre/script actually demands
+}
+
+// Principal photography as a live, day-by-day process the player watches
+// and can end at any time, rather than a single computed batch of events
+// (docs/DESIGN.md 5.16). `recommendedDays` is computed once, when filming
+// begins, from script/cast/choices (engine/production.ts:computeRecommendedShootDays);
+// `daysElapsed` and `events` grow one day at a time via ADVANCE_SHOOTING_DAY,
+// and each day also advances Studio.totalDays, so the persistent calendar
+// ticks forward in step with the shoot. FilmDraft.photography is `null`
+// before the player clicks "Begin Principal Photography" - `status` only
+// needs to distinguish "ticking" from "the player clicked Finish", since
+// the reducer only accepts ADVANCE_SHOOTING_DAY while 'in-progress'.
+export interface PhotographyState {
+  status: 'in-progress' | 'finished';
+  recommendedDays: number;
+  daysElapsed: number;
+  events: ProductionEvent[];
+  runningCost: number;
 }
 
 export type EditStyle = 'Commercial' | 'Artistic' | 'Balanced';
@@ -231,14 +254,16 @@ export interface Film {
   marketingChoices: MarketingChoices;
   events: ProductionEvent[];
   results: FilmResults;
-  yearReleased: number;
+  /** Studio.totalDays at the moment this film was released - see engine/calendar.ts:formatGameDate. */
+  releasedOnDay: number;
 }
 
 export interface Studio {
   name: string;
   cash: number;
   reputation: number; // 0-100
-  year: number;
+  /** Days elapsed since the studio's first day (day 1) - the single source of truth for the in-game calendar, see engine/calendar.ts. */
+  totalDays: number;
   filmsReleased: Film[];
   /** The whole hireable roster, generated once at game start - see state/gameState.ts:createInitialStudio. */
   talentPool: Record<TalentRole, Talent[]>;
@@ -255,7 +280,13 @@ export interface FilmDraft {
   /** The price the player is currently targeting for each role - filters studio.talentPool down to who's shown. */
   talentTargetPriceByRole: Partial<Record<TalentRole, number>>;
   productionChoices: ProductionChoices | null;
-  events: ProductionEvent[];
+  photography: PhotographyState | null;
+  // Index into the wizard's canonical step order (state/studioReducer.ts:WIZARD_STEP_ORDER)
+  // of the furthest stage whose fixed day cost (data/schedule.ts:STAGE_DURATIONS)
+  // has already been charged - -1 means nothing charged yet. Stops a
+  // Back-then-forward round trip from paying the same stage's duration
+  // twice; only genuinely new forward progress advances the calendar.
+  furthestStepIndexCharged: number;
   postProductionChoices: PostProductionChoices | null;
   marketingChoices: MarketingChoices | null;
   results: FilmResults | null;

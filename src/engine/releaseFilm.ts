@@ -29,6 +29,14 @@ export interface ReleaseComputationInput {
   postProductionChoices: PostProductionChoices;
   marketingChoices: MarketingChoices;
   events: ProductionEvent[];
+  // Contingency's actual daily-burn total from principal photography
+  // (PhotographyState.runningCost) - not part of computeProductionBudgetCost
+  // any more, since it's no longer a flat lump sum (see engine/cost.ts).
+  photographyCost: number;
+  // daysElapsed / recommendedDays from the finished shoot - feeds shooting
+  // quality (engine/productionDials.ts:shootingQualityFromRatio) the way a
+  // pre-set pace slider used to.
+  shootingRatio: number;
   studioReputation: number;
 }
 
@@ -45,6 +53,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     input.productionChoices,
     input.postProductionChoices,
     input.events,
+    input.shootingRatio,
   );
   const criticScore = computeCriticScore(quality, input.script, input.postProductionChoices, input.marketingChoices);
   const audienceScore = computeAudienceScore(
@@ -70,7 +79,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   const testScreeningCost = TEST_SCREENING_PROFILES[input.postProductionChoices.testScreeningResponse].cost;
   const productionCost = Math.max(
     0,
-    input.script.cost + talentCost + productionBudgetCost + eventsCostDelta + testScreeningCost,
+    input.script.cost + talentCost + productionBudgetCost + input.photographyCost + eventsCostDelta + testScreeningCost,
   );
   const marketingCost = computeMarketingCost(input.marketingChoices);
   const totalCost = productionCost + marketingCost;

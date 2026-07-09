@@ -1,4 +1,5 @@
 import type { Studio } from '../types';
+import { formatGameDate } from '../engine/calendar';
 
 /**
  * Downloads the studio's full film history as a JSON file - every
@@ -13,7 +14,8 @@ export function exportFilmHistory(studio: Studio): void {
   const payload = {
     studioName: studio.name,
     reputation: studio.reputation,
-    year: studio.year,
+    totalDays: studio.totalDays,
+    currentDate: formatGameDate(studio.totalDays),
     exportedAt: new Date().toISOString(),
     filmsReleased: studio.filmsReleased,
   };

@@ -11,13 +11,12 @@ import {
   setQualityDescription,
   practicalEffectsDescription,
   vfxDescription,
-  shootingDescription,
   runtimeDescription,
 } from '../../engine/productionDials';
 import { logAmount } from '../../engine/interpolate';
 import { GENRE_PROFILES } from '../../data/genres';
 import { computeProductionBudgetCost } from '../../engine/cost';
-import { computeProductionRiskProfile } from '../../engine/production';
+import { computeRecommendedShootDays, computeStaticProductionRisk } from '../../engine/production';
 import { computeCommittedSpend } from '../../state/selectors';
 import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
@@ -28,7 +27,6 @@ import type { ProductionChoices } from '../../types';
 
 const DEFAULT_CHOICES: ProductionChoices = {
   contingencyAmount: logAmount(0.5, CONTINGENCY_RANGE),
-  shootingIntensity: 0.5,
   setQualityAmount: logAmount(0.5, SET_QUALITY_RANGE),
   practicalEffectsAmount: logAmount(0.5, PRACTICAL_EFFECTS_RANGE),
   vfxAmount: logAmount(0.5, VFX_RANGE),
@@ -64,8 +62,9 @@ export function ProductionPlanning() {
   const estimatedCost = computeProductionBudgetCost(choices);
   const canAfford = state.studio.cash - computeCommittedSpend(draft) >= 0;
   const genreProfile = draft.genre ? GENRE_PROFILES[draft.genre] : null;
-  const riskProfile =
-    draft.script && draft.genre ? computeProductionRiskProfile(draft.talent, draft.script, choices, draft.genre) : null;
+  const recommendedDays = draft.script ? computeRecommendedShootDays(draft.talent, draft.script, choices) : null;
+  const staticRisk =
+    draft.script && draft.genre ? computeStaticProductionRisk(draft.talent, draft.script, choices, draft.genre) : null;
 
   return (
     <div className="stack">
@@ -76,6 +75,8 @@ export function ProductionPlanning() {
         These choices don't apply flat bonuses - they shape a risk profile that determines what's actually likely to
         happen once filming starts. A rushed, underprepared, over-ambitious shoot doesn't guarantee disaster, but it
         makes disaster a lot more reachable; a well-resourced, well-paced one opens the door to good luck instead.
+        There's no shooting-pace dial here any more - how long the shoot actually takes is something you'll decide
+        live, day by day, once filming begins.
       </p>
 
       <RangeSlider
@@ -89,17 +90,6 @@ export function ProductionPlanning() {
         description={contingencyDescription(choices.contingencyAmount)}
         lowLabel="Shoestring"
         highLabel="Deep Pockets"
-      />
-      <RangeSlider
-        label="Shooting Style"
-        min={0}
-        max={1}
-        value={choices.shootingIntensity}
-        onChange={(v) => update('shootingIntensity', v)}
-        formatValue={(v) => nearestLabel(v, ['Fast', 'Balanced', 'Perfectionist'])}
-        description={shootingDescription(choices.shootingIntensity)}
-        lowLabel="Fast"
-        highLabel="Perfectionist"
       />
       <RangeSlider
         label="Set Quality"
@@ -149,25 +139,40 @@ export function ProductionPlanning() {
         highLabel="Long"
       />
 
-      <div className="card">
-        <div className="stat-label">Estimated Production Cost</div>
-        <div className="stat-value"><Money amount={estimatedCost} /></div>
+      <div className="row">
+        <div className="stat">
+          <div className="stat-label">Estimated Production Cost</div>
+          <div className="stat-value"><Money amount={estimatedCost} /></div>
+        </div>
+        {recommendedDays !== null && (
+          <div className="stat">
+            <div className="stat-label">Recommended Principal Photography</div>
+            <div className="stat-value">~{recommendedDays} days</div>
+          </div>
+        )}
       </div>
+      {recommendedDays !== null && (
+        <p className="choice-description" style={{ margin: 0 }}>
+          Your Contingency Reserve (<Money amount={choices.contingencyAmount} />) is budgeted to cover roughly this
+          many days - wrapping early spends less than planned, running longer keeps burning at the same daily rate
+          with no cap.
+        </p>
+      )}
       {!canAfford && <p style={{ color: 'var(--red)' }}>This plan costs more than the studio has on hand.</p>}
 
-      {riskProfile && (
+      {staticRisk && (
         <div className="card stack">
           <h3 style={{ margin: 0 }}>Production Risk Profile</h3>
           <p style={{ margin: 0 }}>
             A preview of how this plan (plus your cast's reliability and ego) shapes what's likely to happen on set -
             higher isn't automatically bad news, but it opens the door to worse events and closes the door on the
-            better ones.
+            better ones. Schedule Pressure isn't shown here - it depends on how photography actually goes, not on
+            anything you can set in advance.
           </p>
-          <ScoreBar label="Schedule Pressure" value={riskProfile.schedulePressure} />
-          <ScoreBar label="Morale Risk" value={riskProfile.moraleRisk} />
-          <ScoreBar label="Safety Risk" value={riskProfile.safetyRisk} />
-          <ScoreBar label="Technical Complexity" value={riskProfile.technicalComplexity} />
-          <ScoreBar label="Budget Risk" value={riskProfile.budgetRisk} />
+          <ScoreBar label="Morale Risk" value={staticRisk.moraleRisk} />
+          <ScoreBar label="Safety Risk" value={staticRisk.safetyRisk} />
+          <ScoreBar label="Technical Complexity" value={staticRisk.technicalComplexity} />
+          <ScoreBar label="Budget Risk" value={staticRisk.budgetRisk} />
         </div>
       )}
 
