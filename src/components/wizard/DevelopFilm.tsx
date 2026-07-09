@@ -9,12 +9,8 @@ import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
 import { CompatibilityBadge } from '../common/CompatibilityBadge';
-import { TONES, TONE_LABELS } from '../../data/tones';
+import { toneProfileBreakdown } from '../../data/tones';
 import type { Script } from '../../types';
-
-function toneBreakdown(script: Script) {
-  return TONES.map((tone) => ({ label: TONE_LABELS[tone], value: script.toneProfile[tone] }));
-}
 
 /** The stat block + tone breakdown shared between a script's grid card and its comparison-panel slot - title is left to each call site since the two show it differently. */
 function ScriptDetails({ script }: { script: Script }) {
@@ -33,7 +29,7 @@ function ScriptDetails({ script }: { script: Script }) {
         <div>Supporting Roles: {script.requiredSupporting}</div>
         <div>Written For: {script.intendedAudience}</div>
       </div>
-      <CompatibilityBadge breakdown={toneBreakdown(script)} />
+      <CompatibilityBadge breakdown={toneProfileBreakdown(script.toneProfile)} />
     </>
   );
 }

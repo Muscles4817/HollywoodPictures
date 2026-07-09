@@ -270,12 +270,36 @@ button {
   padding: 28px 16px;
 }
 
+/* --- Hire Talent layout ---
+   A persistent script-reference rail on the left (always present - there's
+   always a script by this point in the wizard, nothing to pin/unpin), the
+   role sections in the middle, and the same comparison rail pattern as
+   Develop on the right once a candidate is pinned. */
+.hire-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.hire-layout-comparing {
+  grid-template-columns: 260px minmax(0, 1fr) var(--compare-rail-width, 320px);
+}
+
+.script-reference-panel {
+  position: sticky;
+  top: 130px;
+}
+
 @media (max-width: 900px) {
-  .develop-compare-layout {
+  .develop-compare-layout,
+  .hire-layout,
+  .hire-layout-comparing {
     grid-template-columns: 1fr;
   }
 
-  .compare-panel {
+  .compare-panel,
+  .script-reference-panel {
     position: static;
   }
 

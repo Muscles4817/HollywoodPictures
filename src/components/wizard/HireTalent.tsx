@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { MANDATORY_TALENT_ROLES, OPTIONAL_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
 import { effectiveRoleCapacity } from '../../engine/castRequirements';
@@ -12,9 +12,9 @@ import { Money, formatMoney } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
 import { CompatibilityBadge } from '../common/CompatibilityBadge';
 import { computeTalentCompatibility } from '../../engine/compatibility';
-import { TONES, TONE_LABELS } from '../../data/tones';
+import { toneProfileBreakdown } from '../../data/tones';
 import { ACTING_STYLE_AXES, ACTING_STYLE_LABELS } from '../../data/actingStyle';
-import type { CrewTalent, DirectorTalent, Talent, TalentRole } from '../../types';
+import type { CrewTalent, DirectorTalent, Script, Talent, TalentRole } from '../../types';
 
 const VFX_RECOMMENDED_GENRES = new Set(['Action', 'Sci-Fi', 'Fantasy']);
 
@@ -23,6 +23,8 @@ const DEFAULT_MASTER_BUDGET = 3_000_000;
 
 /** How many candidates (closest to the target price) to actually display per role. */
 const VISIBLE_CANDIDATE_COUNT = 9;
+
+const MAX_PINNED = 2;
 
 /** Director and crew roles have a plain Skill rating; Actors don't (see types/index.ts). */
 function hasSkill(t: Talent): t is DirectorTalent | CrewTalent {
@@ -37,7 +39,7 @@ function hasSkill(t: Talent): t is DirectorTalent | CrewTalent {
 function talentBreakdown(talent: Talent): { breakdown: Array<{ label: string; value: number }>; defaultLabel: string } | null {
   if (talent.role === 'Director') {
     return {
-      breakdown: TONES.map((tone) => ({ label: TONE_LABELS[tone], value: talent.toneProfile[tone] })),
+      breakdown: toneProfileBreakdown(talent.toneProfile),
       defaultLabel: 'Tone Profile',
     };
   }
@@ -50,10 +52,31 @@ function talentBreakdown(talent: Talent): { breakdown: Array<{ label: string; va
   return null;
 }
 
+/** Fame/Skill/Reliability/Ego plus the tone/style breakdown, shared between a candidate's grid card and its comparison-panel slot. */
+function TalentDetails({ talent, script }: { talent: Talent; script: Script | null }) {
+  const compatInfo = talentBreakdown(talent);
+  const compatScore = script ? computeTalentCompatibility(talent, script) : null;
+  return (
+    <>
+      <div className="card-subtitle"><Money amount={talent.salary} /></div>
+      <div style={{ fontSize: '0.85em' }}>
+        <div>Fame: {talent.fame}</div>
+        {hasSkill(talent) && <div>Skill: {talent.skill}</div>}
+        <div>Reliability: {talent.reliability}</div>
+        <div>Ego: {talent.ego}</div>
+      </div>
+      {compatInfo && (
+        <CompatibilityBadge score={compatScore ?? undefined} breakdown={compatInfo.breakdown} defaultLabel={compatInfo.defaultLabel} />
+      )}
+    </>
+  );
+}
+
 export function HireTalent() {
   const { state, dispatch } = useStudio();
   const draft = state.draft!;
   const [masterBudget, setMasterBudget] = useState(DEFAULT_MASTER_BUDGET);
+  const [pinnedTalentIds, setPinnedTalentIds] = useState<string[]>([]);
 
   function talentsForRole(role: TalentRole): Talent[] {
     return draft.talent.filter((t) => t.role === role);
@@ -70,6 +93,19 @@ export function HireTalent() {
     // on the reducer side too, but the UI disables those cards so this shouldn't fire.
     dispatch({ type: 'TOGGLE_TALENT_FOR_ROLE', role, talent });
   }
+
+  function togglePinTalent(talentId: string) {
+    setPinnedTalentIds((prev) => {
+      if (prev.includes(talentId)) return prev.filter((id) => id !== talentId);
+      if (prev.length >= MAX_PINNED) return prev;
+      return [...prev, talentId];
+    });
+  }
+
+  const allTalent = Object.values(state.studio.talentPool).flat();
+  const pinnedTalent = pinnedTalentIds
+    .map((id) => allTalent.find((t) => t.id === id))
+    .filter((t): t is Talent => t !== undefined);
 
   const totalSalary = draft.talent.reduce((sum, t) => sum + t.salary, 0);
   const missingMandatory = MANDATORY_TALENT_ROLES.filter(
@@ -128,8 +164,7 @@ export function HireTalent() {
               {displayList.map((talent) => {
                 const selected = hired.some((h) => h.id === talent.id);
                 const disabled = !selected && atCap;
-                const compatInfo = talentBreakdown(talent);
-                const compatScore = draft.script ? computeTalentCompatibility(talent, draft.script) : null;
+                const pinned = pinnedTalentIds.includes(talent.id);
                 return (
                   <Card
                     key={talent.id}
@@ -139,20 +174,20 @@ export function HireTalent() {
                     onClick={() => selectTalent(role, talent)}
                   >
                     <div className="card-title">{talent.name}</div>
-                    <div className="card-subtitle"><Money amount={talent.salary} /></div>
-                    <div style={{ fontSize: '0.85em' }}>
-                      <div>Fame: {talent.fame}</div>
-                      {hasSkill(talent) && <div>Skill: {talent.skill}</div>}
-                      <div>Reliability: {talent.reliability}</div>
-                      <div>Ego: {talent.ego}</div>
-                    </div>
-                    {compatInfo && (
-                      <CompatibilityBadge
-                        score={compatScore ?? undefined}
-                        breakdown={compatInfo.breakdown}
-                        defaultLabel={compatInfo.defaultLabel}
-                      />
-                    )}
+                    <TalentDetails talent={talent} script={draft.script} />
+                    <Button
+                      className="btn-sm"
+                      variant={pinned ? 'primary' : 'secondary'}
+                      style={{ marginTop: 8 }}
+                      disabled={!pinned && pinnedTalentIds.length >= MAX_PINNED}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        togglePinTalent(talent.id);
+                      }}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      {pinned ? 'Unpin from Compare' : 'Pin to Compare'}
+                    </Button>
                     {selected && <p style={{ color: 'var(--green)', marginTop: 6 }}>Hired</p>}
                     {disabled && <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>Cast full</p>}
                   </Card>
@@ -165,6 +200,12 @@ export function HireTalent() {
     );
   }
 
+  const layoutClassName = pinnedTalentIds.length > 0 ? 'hire-layout hire-layout-comparing' : 'hire-layout';
+  const layoutStyle =
+    pinnedTalentIds.length > 0
+      ? ({ '--compare-rail-width': pinnedTalentIds.length >= MAX_PINNED ? '660px' : '320px' } as CSSProperties)
+      : undefined;
+
   return (
     <div className="stack">
       <WizardHeader current="talent" />
@@ -176,24 +217,83 @@ export function HireTalent() {
         fit for both directors and actors, and matters most for your director and lead actor. Reliability and Ego
         apply across everyone you hire: an unreliable, high-ego crew raises the odds of a costly incident once filming
         starts. Supporting Actor can be an ensemble - hiring more people there averages their fit and fame together,
-        it doesn't stack.
+        it doesn't stack. Pin up to two candidates to compare them side by side.
       </p>
 
-      <RangeSlider
-        label="Target Cast & Crew Budget"
-        min={MASTER_BUDGET_RANGE.min}
-        max={MASTER_BUDGET_RANGE.max}
-        logScale
-        value={masterBudget}
-        onChange={handleMasterBudgetChange}
-        formatValue={formatMoney}
-        description="Splits evenly across the six mandatory roles below - tilt any of them up or down afterward to spend more here, less there."
-        lowLabel="Shoestring"
-        highLabel="Big Budget"
-      />
+      <div className={layoutClassName} style={layoutStyle}>
+        <div className="script-reference-panel">
+          <div className="card stack">
+            <h3 style={{ margin: 0 }}>Casting For</h3>
+            {draft.script ? (
+              <>
+                <div className="card-title">{draft.script.title}</div>
+                <p className="card-synopsis">{draft.script.synopsis}</p>
+                <div style={{ fontSize: '0.85em' }}>
+                  <div>Leads: {draft.script.requiredLeads}</div>
+                  <div>Supporting Roles: {draft.script.requiredSupporting}</div>
+                  <div>Written For: {draft.script.intendedAudience}</div>
+                </div>
+                <CompatibilityBadge breakdown={toneProfileBreakdown(draft.script.toneProfile)} defaultLabel="Tone Profile" />
+              </>
+            ) : (
+              <p style={{ margin: 0 }}>No script selected.</p>
+            )}
+          </div>
+        </div>
 
-      {MANDATORY_TALENT_ROLES.map((role) => renderRoleSection(role, false))}
-      {OPTIONAL_TALENT_ROLES.map((role) => renderRoleSection(role, true))}
+        <div className="stack">
+          <RangeSlider
+            label="Target Cast & Crew Budget"
+            min={MASTER_BUDGET_RANGE.min}
+            max={MASTER_BUDGET_RANGE.max}
+            logScale
+            value={masterBudget}
+            onChange={handleMasterBudgetChange}
+            formatValue={formatMoney}
+            description="Splits evenly across the six mandatory roles below - tilt any of them up or down afterward to spend more here, less there."
+            lowLabel="Shoestring"
+            highLabel="Big Budget"
+          />
+
+          {MANDATORY_TALENT_ROLES.map((role) => renderRoleSection(role, false))}
+          {OPTIONAL_TALENT_ROLES.map((role) => renderRoleSection(role, true))}
+        </div>
+
+        {pinnedTalentIds.length > 0 && (
+          <div className="compare-panel">
+            <h3 style={{ margin: 0 }}>Comparing</h3>
+            <div className={pinnedTalentIds.length >= MAX_PINNED ? 'compare-slots compare-slots-double' : 'compare-slots'}>
+              {pinnedTalent.map((talent) => {
+                const hired = talentsForRole(talent.role).some((h) => h.id === talent.id);
+                const atCap = talentsForRole(talent.role).length >= effectiveRoleCapacity(talent.role, draft.script).max;
+                return (
+                  <div className="card compare-slot" key={talent.id}>
+                    <div className="row-between">
+                      <div>
+                        <div className="card-title" style={{ marginBottom: 0 }}>{talent.name}</div>
+                        <div className="card-subtitle" style={{ marginBottom: 0 }}>{talent.role}</div>
+                      </div>
+                      <Button variant="text" onClick={() => togglePinTalent(talent.id)}>Unpin</Button>
+                    </div>
+                    <TalentDetails talent={talent} script={draft.script} />
+                    <Button
+                      variant="primary"
+                      style={{ marginTop: 8 }}
+                      disabled={!hired && atCap}
+                      onClick={() => selectTalent(talent.role, talent)}
+                    >
+                      {hired ? 'Hired' : atCap ? 'Cast Full' : 'Hire'}
+                    </Button>
+                  </div>
+                );
+              })}
+              {pinnedTalentIds.length < MAX_PINNED && (
+                <div className="card compare-slot-empty">Pin another candidate from a role below to compare it here.</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="sticky-footer">
         <div className="row-between">
