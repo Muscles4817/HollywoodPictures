@@ -794,10 +794,24 @@ uses the full width (5 columns at this width, up from 4 before the widen);
 pinning narrows the grid back down to make room for the panel, which is
 exactly the tradeoff a comparison view implies. Below 900px the two-column
 grid switches to a single column (`@media (max-width: 900px)`) rather than
-squeezing a 320px rail next to an already-narrow grid - the only responsive
+squeezing a rail next to an already-narrow grid - the only responsive
 breakpoint in the app so far, added because this is also the first layout
 with a genuinely fixed-width side element; everything else already reflows
 via `.grid`'s `auto-fill`.
+
+The rail itself resizes with pin count rather than staying one fixed
+width: 320px (one column) with a single pin, 660px (two columns,
+`.compare-slots-double`) once both slots are filled, so two scripts
+actually sit side by side rather than stacking - stacking two full-detail
+cards in a 320px column was the first pass, but a playtester correctly
+flagged that "side by side" meant horizontally, not just "both visible."
+The width is set via a `--compare-rail-width` CSS custom property on a
+per-count basis rather than setting `grid-template-columns` directly inline
+- an inline `style` always wins over a stylesheet rule for the same
+property regardless of a media query, which would have silently defeated
+the 900px single-column fallback above. Routing it through a custom
+property keeps `grid-template-columns` itself a normal stylesheet
+declaration that the media query can still override.
 
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
