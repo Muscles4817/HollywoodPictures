@@ -171,9 +171,12 @@ button {
    doesn't fit in a narrow card, and letting flexbox wrap it produced
    uniform gaps that made it unclear whether a wrapped star row belonged to
    the label above or below it. Tight spacing within a pair plus a bigger
-   gap between pairs removes that ambiguity outright. */
+   gap between pairs removes that ambiguity - the gap between pairs needs to
+   read as clearly bigger than the gap within one, not just technically
+   bigger (6px vs 2px wasn't enough contrast, especially with a muted label
+   sitting next to much brighter gold stars). */
 .compat-axis {
-  margin-bottom: 6px;
+  margin-bottom: 16px;
 }
 
 .compat-axis:last-child {
@@ -183,7 +186,8 @@ button {
 .compat-axis-label {
   display: block;
   font-size: 0.8em;
-  color: var(--text-muted);
+  font-weight: 600;
+  color: var(--text);
   margin-bottom: 2px;
 }
 
