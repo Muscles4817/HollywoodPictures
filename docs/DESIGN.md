@@ -679,7 +679,13 @@ star row belonged to. Fixed by giving the breakdown its own dedicated
 `.compat-axis`/`.compat-axis-label` layout (label always stacked directly
 above its own stars, small gap within a pair, bigger gap between pairs)
 instead of reusing `.row-between`/`.score-bar-label`, which stay untouched
-for their many other unrelated uses elsewhere in the app.
+for their many other unrelated uses elsewhere in the app. The first pass
+at that gap (2px within a pair, 6px between pairs) turned out not to be
+enough contrast in practice, especially with the muted, low-weight label
+color sitting next to much brighter gold stars - the label could still
+get visually lost against the wrong star row. Widened to 2px/16px and
+darkened the label to full text color with more weight, so the grouping
+reads from contrast in both spacing and color rather than spacing alone.
 
 Each axis in that expanded breakdown renders as a 5-star rating
 (`components/common/StarRating.tsx`) rather than a raw number -
