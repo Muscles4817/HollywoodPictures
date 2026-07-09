@@ -10,10 +10,11 @@ import { randomSeed, withRng } from '../engine/random';
 // crew roles lost their unused toneProfile; v5 -> v6 added
 // requiredLeads/requiredSupporting/intendedAudience to Script; v6 -> v7
 // reworked box office - MarketingChoices.marketingSpend became a continuous
-// number instead of a named tier, and FilmResults gained studioRevenue) so
+// number instead of a named tier, and FilmResults gained studioRevenue;
+// v7 -> v8 renamed ProductionChoices.budgetAmount to contingencyAmount) so
 // old saves are cleanly ignored instead of partially loading with
 // missing/mismatched fields.
-const SAVE_KEY = 'hollywood-pictures-save-v7';
+const SAVE_KEY = 'hollywood-pictures-save-v8';
 
 export function loadState(): GameState {
   try {

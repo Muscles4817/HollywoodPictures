@@ -7,10 +7,10 @@ export function computeTalentCost(talent: Talent[]): number {
   return talent.reduce((sum, t) => sum + t.salary, 0);
 }
 
-/** Base production spend from budget, shooting pace, sets, effects and runtime. */
+/** Base production spend from contingency/overhead, shooting pace, sets, effects and runtime. */
 export function computeProductionBudgetCost(choices: ProductionChoices): number {
   const base =
-    choices.budgetAmount *
+    choices.contingencyAmount *
     shootingCostMultiplier(choices.shootingIntensity) *
     runtimeCostMultiplier(choices.runtimeIntensity);
 

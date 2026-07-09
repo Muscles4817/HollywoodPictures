@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { computeProductionRiskScore } from '../../engine/production';
+import { computeProductionRiskProfile } from '../../engine/production';
 import { computeTalentCost, computeProductionBudgetCost } from '../../engine/cost';
 import { ALL_TALENT_ROLES } from '../../data/talentGeneration';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { StatTile } from '../common/StatTile';
+import { ScoreBar } from '../common/ScoreBar';
 import { WizardHeader } from '../common/WizardHeader';
 import { nearestLabel } from './ProductionPlanning';
 import type { TalentRole } from '../../types';
@@ -31,9 +32,9 @@ export function ProductionRun() {
     return () => clearTimeout(timer);
   }, [hasFilmed, revealedCount, draft.events.length]);
 
-  const riskScore = draft.script && draft.productionChoices
-    ? computeProductionRiskScore(draft.talent, draft.script, draft.productionChoices)
-    : 0;
+  const riskProfile = draft.script && draft.productionChoices && draft.genre
+    ? computeProductionRiskProfile(draft.talent, draft.script, draft.productionChoices, draft.genre)
+    : null;
 
   const allRevealed = revealedCount >= draft.events.length;
   const visibleEvents = draft.events.slice(0, revealedCount);
@@ -96,7 +97,7 @@ export function ProductionRun() {
           {draft.productionChoices && (
             <div className="card stack">
               <h2 style={{ margin: 0 }}>Production Plan</h2>
-              <div className="row-between"><span>Production Budget</span><Money amount={draft.productionChoices.budgetAmount} /></div>
+              <div className="row-between"><span>Contingency Reserve</span><Money amount={draft.productionChoices.contingencyAmount} /></div>
               <div className="row-between">
                 <span>Shooting Style</span>
                 <span>{nearestLabel(draft.productionChoices.shootingIntensity, ['Fast', 'Balanced', 'Perfectionist'])}</span>
@@ -118,17 +119,25 @@ export function ProductionRun() {
             </div>
           )}
 
-          <div className="card stack">
-            <p style={{ margin: 0 }}>
-              Production risk is estimated at <strong>{riskScore}/100</strong> based on your cast's reliability and ego,
-              script complexity, and shooting choices. Roll the cameras and see what happens on set.
-            </p>
-            <div>
-              <Button variant="primary" onClick={() => dispatch({ type: 'BEGIN_FILMING' })}>
-                Begin Filming
-              </Button>
+          {riskProfile && (
+            <div className="card stack">
+              <h2 style={{ margin: 0 }}>Production Risk Profile</h2>
+              <ScoreBar label="Schedule Pressure" value={riskProfile.schedulePressure} />
+              <ScoreBar label="Morale Risk" value={riskProfile.moraleRisk} />
+              <ScoreBar label="Safety Risk" value={riskProfile.safetyRisk} />
+              <ScoreBar label="Technical Complexity" value={riskProfile.technicalComplexity} />
+              <ScoreBar label="Budget Risk" value={riskProfile.budgetRisk} />
+              <p style={{ margin: 0 }}>
+                Whichever of these read clearly high or low will shape what's actually likely to happen on set, on
+                top of the usual mix of ordinary set drama. Roll the cameras and see what happens.
+              </p>
+              <div>
+                <Button variant="primary" onClick={() => dispatch({ type: 'BEGIN_FILMING' })}>
+                  Begin Filming
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 

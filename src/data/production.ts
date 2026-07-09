@@ -8,25 +8,31 @@ import type { Range, ScaleAnchor } from '../engine/interpolate';
 // points; engine/productionDials.ts interpolates between them for every
 // point in between, so nothing here "jumps" - see docs/DESIGN.md.
 
-export const BUDGET_RANGE: Range = { min: 100_000, max: 40_000_000 };
+export const CONTINGENCY_RANGE: Range = { min: 100_000, max: 40_000_000 };
 
-export const BUDGET_ANCHORS: ScaleAnchor<'quality' | 'risk'>[] = [
+// "Quality" here still feeds Production Score the way the old flat budget
+// dial did (crew size and equipment genuinely do buy production value). The
+// old single "risk" anchor is gone - contingency no longer has one built-in
+// risk curve of its own, it instead offsets risk computed elsewhere
+// (engine/production.ts:computeProductionRiskProfile uses contingencyT as a
+// mitigating term against safety/technical/budget risk, not a standalone
+// U-shaped curve). See docs/DESIGN.md 5.9 for why.
+export const CONTINGENCY_ANCHORS: ScaleAnchor<'quality'>[] = [
   {
-    t: 0, values: { quality: 22, risk: 68 },
-    description: 'Guerrilla filmmaking - the cheapest possible shoot. Quality suffers and things are more likely to go wrong, but a true indie hit can still come from here.',
+    t: 0, values: { quality: 22 },
+    description: 'Guerrilla filmmaking - bare-minimum crew, equipment and insurance. A true indie hit can still come from here, but there\'s no cushion if anything ambitious goes wrong elsewhere.',
   },
   {
-    t: 0.35, values: { quality: 52, risk: 38 },
-    description: 'A modest, normal production. Balanced cost, quality and risk.',
+    t: 0.35, values: { quality: 52 },
+    description: 'A modest, normal production - a working crew and a real (if thin) safety margin.',
   },
   {
-    t: 0.65, values: { quality: 76, risk: 20 },
-    description: 'A serious, well-resourced budget. Real quality and a safer shoot - at a real cost.',
+    t: 0.65, values: { quality: 76 },
+    description: 'A serious, well-resourced production. Real quality, and enough of a margin to absorb an ambitious effects or stunt choice elsewhere without it becoming a liability.',
   },
   {
-    t: 1, values: { quality: 88, risk: 34 },
-    // Excessive budgets buy quality but invite hubris/bloat risk to creep back up.
-    description: 'Money-no-object filmmaking. The highest quality ceiling, but bloat and hubris creep the risk back up - and it needs a genuine hit to pay off.',
+    t: 1, values: { quality: 88 },
+    description: 'Money-no-object filmmaking - the highest quality ceiling and the deepest safety margin. Still needs a genuine hit to pay off.',
   },
 ];
 

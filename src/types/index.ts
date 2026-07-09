@@ -118,7 +118,13 @@ export interface Script {
 // from their low extreme (Fast / Short) to their high extreme (Perfectionist
 // / Long).
 export interface ProductionChoices {
-  budgetAmount: number;
+  // Crew size, equipment, insurance, general overhead - and the safety
+  // margin that offsets risk from ambitious practical/VFX spend elsewhere.
+  // Not "the total budget" (that's the sum of every dial, shown on the Plan
+  // Production screen) - see engine/production.ts:computeProductionRiskProfile
+  // and docs/DESIGN.md 5.9 for why this dial specifically doubles as risk
+  // mitigation rather than just another quality lever.
+  contingencyAmount: number;
   shootingIntensity: number; // 0 = Fast, 1 = Perfectionist
   setQualityAmount: number;
   practicalEffectsAmount: number;
@@ -133,6 +139,20 @@ export interface ProductionEvent {
   qualityDelta: number; // -100..100 scale applied to production score
   buzzDelta: number; // -100..100
   delayRiskDelta: number; // -100..100, informational for MVP
+}
+
+// A production's risk profile - five independent-enough dimensions, each
+// 0-100 (higher = more risk), computed once at the start of the shoot from
+// planning choices, cast, and script (engine/production.ts). Drives which
+// on-set events actually become reachable (data/productionEvents.ts) - not
+// just how likely a positive vs. negative roll is, the way the single old
+// riskScore did.
+export interface ProductionRiskProfile {
+  schedulePressure: number; // shooting pace, runtime, cast size - "did we have enough time"
+  moraleRisk: number; // cast/crew reliability and ego - interpersonal friction
+  safetyRisk: number; // practical-effects ambition vs. contingency margin and pace
+  technicalComplexity: number; // VFX ambition and script complexity vs. contingency margin
+  budgetRisk: number; // overall spend relative to what the genre/script actually demands
 }
 
 export type EditStyle = 'Commercial' | 'Artistic' | 'Balanced';

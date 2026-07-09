@@ -12,8 +12,8 @@ import type {
 import { GENRE_PROFILES } from '../data/genres';
 import { computeTalentCompatibility } from './compatibility';
 import {
-  budgetT,
-  budgetQuality,
+  contingencyQuality,
+  overallSpendT,
   shootingQuality,
   setQualityScore,
   practicalEffectsScore,
@@ -90,7 +90,7 @@ export function computeActingScore(talent: Talent[], script: Script): number {
  */
 export function computeProductionScore(choices: ProductionChoices, genre: Genre): number {
   const profile = GENRE_PROFILES[genre];
-  const budget = budgetQuality(choices.budgetAmount);
+  const contingency = contingencyQuality(choices.contingencyAmount);
   const style = shootingQuality(choices.shootingIntensity);
   const set = setQualityScore(choices.setQualityAmount);
   const practical = practicalEffectsScore(choices.practicalEffectsAmount);
@@ -102,7 +102,7 @@ export function computeProductionScore(choices: ProductionChoices, genre: Genre)
       ? (vfx * profile.vfxImportance + practical * profile.practicalEffectsImportance) / effectsWeightTotal
       : (vfx + practical) / 2;
 
-  return budget * 0.35 + style * 0.25 + set * 0.2 + effectsScore * 0.2;
+  return contingency * 0.35 + style * 0.25 + set * 0.2 + effectsScore * 0.2;
 }
 
 /** Net quality swing from every rolled production event (positive and negative). */
@@ -130,10 +130,14 @@ export function computeGenreFitScore(script: Script, talent: Talent[], genre: Ge
   const leadFit = average(leads.map((l) => compatibility(l, script))) ?? 50;
   const talentFit = (compatibility(director, script) + leadFit) / 2;
 
-  // A low budget only suits genres tagged as low-budget-friendly (e.g. Horror);
-  // the penalty tapers off linearly and is gone entirely by a third of the way up the budget scale.
+  // A low overall spend only suits genres tagged as low-budget-friendly (e.g.
+  // Horror); the penalty tapers off linearly and is gone entirely a third of
+  // the way up the spend scale. Reads overallSpendT (all four spend dials
+  // averaged) rather than contingencyAmount alone - a film can't dodge this
+  // by pumping money into VFX while leaving contingency at zero, or vice
+  // versa; what matters is how well-resourced the production is overall.
   const CHEAP_PENALTY_CUTOFF_T = 0.35;
-  const t = budgetT(choices.budgetAmount);
+  const t = overallSpendT(choices);
   const cheapFit = 30 + profile.lowBudgetFriendly * 60;
   const budgetFit = t >= CHEAP_PENALTY_CUTOFF_T ? 85 : cheapFit + (85 - cheapFit) * (t / CHEAP_PENALTY_CUTOFF_T);
 

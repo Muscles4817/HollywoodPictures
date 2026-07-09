@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import {
-  BUDGET_RANGE,
+  CONTINGENCY_RANGE,
   SET_QUALITY_RANGE,
   PRACTICAL_EFFECTS_RANGE,
   VFX_RANGE,
 } from '../../data/production';
 import {
-  budgetDescription,
+  contingencyDescription,
   setQualityDescription,
   practicalEffectsDescription,
   vfxDescription,
@@ -17,15 +17,17 @@ import {
 import { logAmount } from '../../engine/interpolate';
 import { GENRE_PROFILES } from '../../data/genres';
 import { computeProductionBudgetCost } from '../../engine/cost';
+import { computeProductionRiskProfile } from '../../engine/production';
 import { computeCommittedSpend } from '../../state/selectors';
 import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
+import { ScoreBar } from '../common/ScoreBar';
 import { Money, formatMoney } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
 import type { ProductionChoices } from '../../types';
 
 const DEFAULT_CHOICES: ProductionChoices = {
-  budgetAmount: logAmount(0.5, BUDGET_RANGE),
+  contingencyAmount: logAmount(0.5, CONTINGENCY_RANGE),
   shootingIntensity: 0.5,
   setQualityAmount: logAmount(0.5, SET_QUALITY_RANGE),
   practicalEffectsAmount: logAmount(0.5, PRACTICAL_EFFECTS_RANGE),
@@ -62,24 +64,31 @@ export function ProductionPlanning() {
   const estimatedCost = computeProductionBudgetCost(choices);
   const canAfford = state.studio.cash - computeCommittedSpend(draft) >= 0;
   const genreProfile = draft.genre ? GENRE_PROFILES[draft.genre] : null;
+  const riskProfile =
+    draft.script && draft.genre ? computeProductionRiskProfile(draft.talent, draft.script, choices, draft.genre) : null;
 
   return (
     <div className="stack">
       <WizardHeader current="production-planning" />
       <h1>Production Planning</h1>
       {genreProfile && draft.genre && <p className="choice-description">{genreProfile.description}</p>}
+      <p className="choice-description">
+        These choices don't apply flat bonuses - they shape a risk profile that determines what's actually likely to
+        happen once filming starts. A rushed, underprepared, over-ambitious shoot doesn't guarantee disaster, but it
+        makes disaster a lot more reachable; a well-resourced, well-paced one opens the door to good luck instead.
+      </p>
 
       <RangeSlider
-        label="Production Budget"
-        min={BUDGET_RANGE.min}
-        max={BUDGET_RANGE.max}
+        label="Contingency Reserve"
+        min={CONTINGENCY_RANGE.min}
+        max={CONTINGENCY_RANGE.max}
         logScale
-        value={choices.budgetAmount}
-        onChange={(v) => update('budgetAmount', v)}
+        value={choices.contingencyAmount}
+        onChange={(v) => update('contingencyAmount', v)}
         formatValue={formatMoney}
-        description={budgetDescription(choices.budgetAmount)}
+        description={contingencyDescription(choices.contingencyAmount)}
         lowLabel="Shoestring"
-        highLabel="Blockbuster"
+        highLabel="Deep Pockets"
       />
       <RangeSlider
         label="Shooting Style"
@@ -145,6 +154,22 @@ export function ProductionPlanning() {
         <div className="stat-value"><Money amount={estimatedCost} /></div>
       </div>
       {!canAfford && <p style={{ color: 'var(--red)' }}>This plan costs more than the studio has on hand.</p>}
+
+      {riskProfile && (
+        <div className="card stack">
+          <h3 style={{ margin: 0 }}>Production Risk Profile</h3>
+          <p style={{ margin: 0 }}>
+            A preview of how this plan (plus your cast's reliability and ego) shapes what's likely to happen on set -
+            higher isn't automatically bad news, but it opens the door to worse events and closes the door on the
+            better ones.
+          </p>
+          <ScoreBar label="Schedule Pressure" value={riskProfile.schedulePressure} />
+          <ScoreBar label="Morale Risk" value={riskProfile.moraleRisk} />
+          <ScoreBar label="Safety Risk" value={riskProfile.safetyRisk} />
+          <ScoreBar label="Technical Complexity" value={riskProfile.technicalComplexity} />
+          <ScoreBar label="Budget Risk" value={riskProfile.budgetRisk} />
+        </div>
+      )}
 
       <div className="row-between">
         <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'talent' })}>Back</Button>
