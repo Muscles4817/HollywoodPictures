@@ -330,15 +330,16 @@ Blockbuster +10, Masterpiece +15) plus a small critic-score nudge
 
 ### 5.7 Continuous production dials (`engine/interpolate.ts`, `engine/productionDials.ts`, `data/production.ts`)
 
-All six Production Planning sliders (budget, shooting pace, set quality,
-practical effects, VFX spend, runtime) are genuinely continuous - dragging
-one changes cost and quality/risk smoothly across the whole range, not in
-4-ish discrete jumps. The pattern is the same for all six:
+All six Production Planning sliders (contingency, shooting pace, set
+quality, practical effects, VFX spend, runtime) are genuinely continuous -
+dragging one changes cost and quality/risk smoothly across the whole range,
+not in 4-ish discrete jumps. The pattern is the same for all six:
 
 1. `data/production.ts` declares a **range** (for the four currency dials,
-   e.g. `BUDGET_RANGE = { min: 100_000, max: 40_000_000 }`) and a handful of
-   **anchors** - calibration points at a slider position `t` (0-1) with the
-   quality/risk/cost-multiplier values that apply there, plus a description.
+   e.g. `CONTINGENCY_RANGE = { min: 100_000, max: 40_000_000 }`) and a
+   handful of **anchors** - calibration points at a slider position `t`
+   (0-1) with the quality/cost-multiplier values that apply there, plus a
+   description.
 2. `engine/interpolate.ts` has the generic math: `logT`/`logAmount` convert
    between a currency amount and its 0-1 slider position on a *log* scale
    (so the cheap end - where a real indie budget lives - gets just as much
@@ -346,7 +347,7 @@ one changes cost and quality/risk smoothly across the whole range, not in
    piecewise-linear interpolation of a named value between whichever two
    anchors bracket the current `t`.
 3. `engine/productionDials.ts` wires the two together into named functions
-   (`budgetQuality`, `shootingCostMultiplier`, `vfxScore`, ...) that
+   (`contingencyQuality`, `shootingCostMultiplier`, `vfxScore`, ...) that
    `engine/cost.ts`, `engine/scoring.ts` and `engine/production.ts` all call.
 
 Flavor text still comes in a handful of qualitative bands (`describeScale`
@@ -355,13 +356,32 @@ isn't infinite unique English for infinite slider positions, and there
 doesn't need to be. The numbers are what actually needed to stop jumping;
 the words were never the problem.
 
-This is also what makes a true shoestring film possible: the budget range's
-floor is £100,000 (not the old "Cheap" tier's £900,000 base cost), and the
-same log-scale treatment applies to set quality, practical effects and VFX
-spend, so a genuinely bare-bones production - all six dials at the bottom -
-costs about £98,750 in production spend alone (see the scenario table in
-5.4: a full indie film, script and cast included, lands around £840,000
-total).
+This is also what makes a true shoestring film possible: the contingency
+range's floor is £100,000 (not the old "Cheap" tier's £900,000 base cost),
+and the same log-scale treatment applies to set quality, practical effects
+and VFX spend, so a genuinely bare-bones production - all six dials at the
+bottom - costs about £98,750 in production spend alone (see the scenario
+table in 5.4: a full indie film, script and cast included, lands around
+£840,000 total).
+
+**The first dial isn't "the budget" - it's the contingency/overhead
+margin, and that distinction is load-bearing (5.9).** It was originally
+called "Production Budget," which read as "the total cost of making this
+film" even though it was always just one of five things that *sum* to the
+real total (`computeProductionBudgetCost`) - set, practical, VFX and
+runtime all add on top of it. Renamed to `contingencyAmount`/"Contingency
+Reserve" to match what it actually represents: crew size, equipment,
+insurance, general overhead, and - now that it feeds the risk profile in
+5.9 - the safety margin that offsets risk from ambitious choices made
+elsewhere. It keeps its original two jobs (the base term
+`shootingCostMultiplier`/`runtimeCostMultiplier` apply to, and 35% of
+Production Score) and gains a third: a mitigating term in three of the five
+risk dimensions. Genre Fit's cheapness check and the new Budget Risk
+dimension both read `overallSpendT` (all four spend dials' own log-scale
+position, averaged) instead of `contingencyAmount` alone, since "does this
+look cheap" and "is this production over its head" are honestly about
+total spend, not one arbitrarily-privileged dial - the old version ignored
+set/practical/VFX spend entirely for both checks.
 
 ### 5.8 Procedural talent generation (`engine/talentGenerator.ts`, `data/talentGeneration.ts`)
 
@@ -485,29 +505,95 @@ two fires is decided purely by whether `capacity.max === 1` at the moment
 of the click, so Lead Actor transparently switches behavior film-to-film
 based on what that film's script needs.
 
-### 5.9 Production risk & events (`engine/production.ts`, `data/productionEvents.ts`)
+### 5.9 Production risk profile & contextual events (`engine/production.ts`, `data/productionEvents.ts`)
 
-Before filming, a risk score (5-95) is computed from cast reliability/ego,
-script complexity, and the chosen shooting pace/budget position:
+Rebuilt from a single blended risk score into five independent-enough
+dimensions (`ProductionRiskProfile`, `types/index.ts`), each 0-100 and each
+driving its own event pool - the direct fix for "planning choices should
+create a risk profile, not apply flat modifiers, and events should emerge
+from that profile" rather than a generic positive/negative roll a player
+can only read as pure RNG.
+
+**Why five, not the ten originally proposed.** The design brief floated ten
+hidden values (Pressure, Preparedness, Morale, Safety, Technical
+Complexity, Creative Freedom, Schedule Risk, Budget Risk, Spectacle
+Potential, Performance Potential). Each was tested for a genuinely distinct
+input *and* a genuinely distinct output before being kept:
+
+- **Pressure, Preparedness, Schedule Risk** all read off the same knobs
+  (shooting pace, runtime, cast size) with no input that moves one without
+  moving the others - merged into one, **Schedule Pressure**.
+- **Creative Freedom** has no concrete input in the current game (no
+  studio-executive/producer-notes mechanic exists to be constrained by) and
+  no output distinguishable from a Morale event once you take away inputs
+  it'd need - cut.
+- **Spectacle Potential** and **Performance Potential** aren't risk at all,
+  they're Production Score and Acting Score under new names - tracking
+  them again as "hidden profile" values would mean carrying the same
+  number twice, the exact double-counting the box office rework (5.4)
+  spent real effort removing - cut.
+- **Morale, Safety, Technical Complexity, Budget Risk** each survived with
+  a real input nothing else owns and a real output category nothing else
+  covers - kept.
+
+**`computeProductionRiskProfile(talent, script, choices, genre)`:**
 
 ```
-risk = (100-avgReliability)*.3 + avgEgo*.2 + script.complexity*.2 + shootingRisk(shootingIntensity)*.2 + budgetRisk(budgetAmount)*.1
+moraleRisk          = unreliabilityRisk*.6 + avgEgo*.4
+schedulePressure     = shootingRisk(shootingIntensity) + runtimeIntensity*15 + castSizePressure
+safetyRisk           = 20 + practicalAmbitionT*50 - contingencyT*30 + (1-shootingIntensity)*25
+technicalComplexity  = 15 + vfxAmbitionT*45 + complexityT*30 - contingencyT*15
+budgetRisk           = 20 + (genreAmbition - overallSpendT)*60 + (complexityT - overallSpendT)*20
 ```
 
-3-5 events are then rolled; each roll is negative with probability
-`risk / 100`, drawn from `NEGATIVE_EVENT_TEMPLATES` or
-`POSITIVE_EVENT_TEMPLATES` (`data/productionEvents.ts`), merged with that
-film's `GENRE_EVENT_TEMPLATES[genre]` entries (one positive, one negative per
-genre - a Horror shoot might roll "a practical gore effect looked so
-convincing a crew member actually flinched" or "a key prop malfunctioned
-mid-scare"), without repeats. Genre events sit *inside* the same pool as the
-generic ones rather than replacing them, so a Sci-Fi shoot can still hit
-ordinary set drama (bad weather, an over-schedule director) alongside its
-VFX-flavored beats - genre nudges the flavor of what can happen, it doesn't
-wall off a separate experience. Each event contributes a small, randomised
-cost/quality/buzz/delay delta. This is the one place ego and reliability
-actually bite - a high-ego, unreliable cast doesn't lower skill, it raises
-the odds of an expensive, quality-sapping on-set incident.
+`moraleRisk` is the interpersonal-friction chunk already in the old single
+score, just isolated. `schedulePressure` reuses the existing `shootingRisk`
+curve as its dominant term and adds a small amount for a long runtime
+(more to shoot in the same window) and a bigger cast (more coordination
+overhead). `safetyRisk` and `technicalComplexity` are the two dials that
+used to feed nothing but Production Score - `practicalEffectsAmount` and
+`vfxAmount` now each drive a real risk dimension, offset by
+`contingencyT` (the safety margin 5.7 describes), which is the concrete
+version of "high practical effects, low contingency, fast pace → stunt
+injury" from the original brief. `budgetRisk` is a genre-aware upgrade of
+the old budget-alone U-curve: risk when *this genre's* VFX/practical
+ambition or *this script's* complexity outpaces overall spend, not "is the
+number low" in isolation - an Action film and a Drama at the same
+shoestring spend no longer carry the same risk (verified directly: same
+spend, Action budgetRisk=48 vs. Horror budgetRisk=33, since Horror's
+`lowBudgetFriendly`/lower VFX-practical importance means the same spend
+suits it better).
+
+**Contextual events.** `data/productionEvents.ts:RISK_DIMENSION_EVENT_TEMPLATES`
+adds a `{ positive, negative }` bank per dimension (40 new templates, on
+top of the 12 generic + 16 genre templates already there - 68 total, up
+from 13 at the start of this feature). `simulateProduction` mixes a
+dimension's `negative` bank into the negative pool once that dimension
+reads ≥55, and its `positive` bank into the positive pool once it reads
+≤35 - the same additive-pool-mixing pattern `GENRE_EVENT_TEMPLATES`
+already used, just conditioned on the risk profile instead of genre. A
+mid-range dimension contributes nothing extra, so the pool doesn't get
+diluted by five dimensions all being vaguely-not-quite triggered
+simultaneously - only a clear reading in either direction earns thematic
+events. The overall positive/negative roll odds still come from one number
+(the five dimensions averaged), preserving the original mechanic; what's
+new is *which* templates are reachable, not just how likely a negative
+roll is. Verified end-to-end, not just in isolation: a reckless scenario
+(fast pace, ambitious practical/VFX spend, thin contingency) pulled
+`risk-safety-neg` events 91 times across 200 simulated shoots, a careful
+one (perfectionist pace, deep contingency, minimal effects) pulled zero.
+
+The Plan Production screen now shows this profile live as the player
+drags sliders (`ScoreBar` × 5, same component used for Quality/Audience/Buzz
+elsewhere), and Film It shows it again just before "Begin Filming" - the
+player sees the shape of what they've set up before rolling the dice, not
+just a single opaque percentage.
+
+Not yet built: a **postmortem** stage connecting which *named* events
+fired back into the Results screen narrative (`storyReport.ts`, 5.13's
+sibling feature) - `draft.events` already carries which templates fired,
+so the data exists, but nothing reads it into a beat yet. Deliberately left
+for a follow-up rather than bundled in here.
 
 ### 5.10 Department breakdown & review blurbs (`engine/reviews.ts`, `data/reviewBlurbs.ts`)
 
@@ -903,7 +989,7 @@ covers it without needing a special case per screen.
 Final results break costs into two headline numbers:
 
 - **Final production cost** = script cost + total cast salary + production
-  budget cost (`budgetAmount x shootingCostMultiplier x runtimeCostMultiplier`,
+  budget cost (`contingencyAmount x shootingCostMultiplier x runtimeCostMultiplier`,
   plus the set/practical-effects/VFX spend amounts directly) + net event cost
   delta + test-screening cost.
 - **Marketing cost** = marketing spend amount x release-type cost multiplier
@@ -1004,6 +1090,18 @@ quietly leaving implicit:
   facilities** - all explicitly out of scope for the MVP per the brief, and
   all should slot in as new `data/` + `engine/` modules plus one more studio
   field, without touching the wizard flow.
+- **No postmortem beat connecting named on-set events back to the Results
+  screen.** `draft.events` already carries which specific templates fired
+  during production (5.9), and `storyReport.ts` (5.13) already proved the
+  curated-bank narration pattern for the buzz/reception trajectory - a
+  "the rushed schedule led to reshoots that cost the film its edge" beat
+  built the same way is a natural, separable follow-up, not built alongside
+  the risk-profile rework itself.
+- **No "Creative Freedom" mechanic.** Considered as a sixth production risk
+  dimension (5.9) and cut for having no concrete input - there's no
+  studio-executive/producer-notes system to be constrained *by*. Would need
+  that mechanic to exist first before the risk dimension would mean
+  anything.
 - **Balance is tuned, not proven.** The scenario table in 5.4 was produced by
   running the real engine (`engine/boxOffice.ts`) against a handful of
   representative inputs by hand - there's no automated test suite pinning
