@@ -29,9 +29,11 @@ Studio Dashboard
                           pre-filled from the script's own intended audience)
    -> Hire Talent        (director, lead actor, supporting actor, writer, composer, editor, +VFX supervisor -
                           each a price slider over procedurally generated candidates)
-   -> Production Planning(six continuous sliders: budget, shooting pace, sets, effects, VFX, runtime)
+   -> Production Planning(five continuous sliders: contingency, sets, effects, VFX, runtime -
+                          plus a recommended principal-photography day count)
    -> Filming             (full recap of script/cast/crew/production plan and their
-                          costs before you commit, then roll 3-5 production events)
+                          costs before you commit, then live day-by-day photography -
+                          watch the shoot happen and wrap it whenever you choose)
    -> Post-Production     (edit style, music focus, test screening, marketing cut)
    -> Marketing & Release (spend, release type, release window)
    -> Results             (box office, scores, reputation change, reviews)
@@ -48,7 +50,8 @@ one thing at a time, always know what's next.
 
 Defined in `src/types/index.ts`. The five nouns that matter:
 
-- **Studio** - `name`, `cash`, `reputation` (0-100), `year`, `filmsReleased[]`,
+- **Studio** - `name`, `cash`, `reputation` (0-100), `totalDays` (the
+  in-game calendar - a single running day count, see 5.16), `filmsReleased[]`,
   `talentPool` (the persistent hireable roster, one array per role). This is
   the only thing that persists between films.
 - **Film** - a fully-resolved, released film: its script, its cast, every
@@ -330,10 +333,10 @@ Blockbuster +10, Masterpiece +15) plus a small critic-score nudge
 
 ### 5.7 Continuous production dials (`engine/interpolate.ts`, `engine/productionDials.ts`, `data/production.ts`)
 
-All six Production Planning sliders (contingency, shooting pace, set
-quality, practical effects, VFX spend, runtime) are genuinely continuous -
-dragging one changes cost and quality/risk smoothly across the whole range,
-not in 4-ish discrete jumps. The pattern is the same for all six:
+The five Production Planning sliders (contingency, set quality, practical
+effects, VFX spend, runtime) are genuinely continuous - dragging one
+changes cost and quality smoothly across the whole range, not in 4-ish
+discrete jumps. The pattern is the same for all five:
 
 1. `data/production.ts` declares a **range** (for the four currency dials,
    e.g. `CONTINGENCY_RANGE = { min: 100_000, max: 40_000_000 }`) and a
@@ -347,8 +350,13 @@ not in 4-ish discrete jumps. The pattern is the same for all six:
    piecewise-linear interpolation of a named value between whichever two
    anchors bracket the current `t`.
 3. `engine/productionDials.ts` wires the two together into named functions
-   (`contingencyQuality`, `shootingCostMultiplier`, `vfxScore`, ...) that
+   (`contingencyQuality`, `runtimeCostMultiplier`, `vfxScore`, ...) that
    `engine/cost.ts`, `engine/scoring.ts` and `engine/production.ts` all call.
+
+There used to be a sixth dial, Shooting Style (Fast↔Perfectionist,
+`SHOOTING_ANCHORS`) - removed entirely, see 5.16. How meticulously a film
+is shot is no longer something set in advance on a slider; it's read off
+how principal photography actually went.
 
 Flavor text still comes in a handful of qualitative bands (`describeScale`
 picks whichever anchor's description is closest to the current `t`) - there
@@ -359,29 +367,31 @@ the words were never the problem.
 This is also what makes a true shoestring film possible: the contingency
 range's floor is £100,000 (not the old "Cheap" tier's £900,000 base cost),
 and the same log-scale treatment applies to set quality, practical effects
-and VFX spend, so a genuinely bare-bones production - all six dials at the
+and VFX spend, so a genuinely bare-bones production - all five dials at the
 bottom - costs about £98,750 in production spend alone (see the scenario
 table in 5.4: a full indie film, script and cast included, lands around
 £840,000 total).
 
 **The first dial isn't "the budget" - it's the contingency/overhead
-margin, and that distinction is load-bearing (5.9).** It was originally
-called "Production Budget," which read as "the total cost of making this
-film" even though it was always just one of five things that *sum* to the
-real total (`computeProductionBudgetCost`) - set, practical, VFX and
-runtime all add on top of it. Renamed to `contingencyAmount`/"Contingency
-Reserve" to match what it actually represents: crew size, equipment,
-insurance, general overhead, and - now that it feeds the risk profile in
-5.9 - the safety margin that offsets risk from ambitious choices made
-elsewhere. It keeps its original two jobs (the base term
-`shootingCostMultiplier`/`runtimeCostMultiplier` apply to, and 35% of
-Production Score) and gains a third: a mitigating term in three of the five
-risk dimensions. Genre Fit's cheapness check and the new Budget Risk
-dimension both read `overallSpendT` (all four spend dials' own log-scale
-position, averaged) instead of `contingencyAmount` alone, since "does this
-look cheap" and "is this production over its head" are honestly about
-total spend, not one arbitrarily-privileged dial - the old version ignored
-set/practical/VFX spend entirely for both checks.
+margin, and that distinction is load-bearing (5.9, 5.16).** It was
+originally called "Production Budget," which read as "the total cost of
+making this film" even though it was always just one of five things that
+*sum* to the real total - set, practical, VFX and runtime all add on top
+of it. Renamed to `contingencyAmount`/"Contingency Reserve" to match what
+it actually represents: crew size, equipment, insurance, general overhead,
+and the safety margin that offsets risk from ambitious choices made
+elsewhere. It's no longer a flat lump sum, either - it's spent as a daily
+burn rate over however many days principal photography actually takes
+(`engine/cost.ts:computeDailyContingencyBurn`, 5.16), so
+`computeProductionBudgetCost` only covers set/practical/VFX/runtime now;
+contingency's actual cost lives in `PhotographyState.runningCost`. It
+still feeds 35% of Production Score (`contingencyQuality`) and is now a
+mitigating term in three of the four risk dimensions knowable before
+filming (5.9). Genre Fit's cheapness check and the Budget Risk dimension
+both read `overallSpendT` (all four spend dials' own log-scale position,
+averaged) instead of `contingencyAmount` alone, since "does this look
+cheap" and "is this production over its head" are honestly about total
+spend, not one arbitrarily-privileged dial.
 
 ### 5.8 Procedural talent generation (`engine/talentGenerator.ts`, `data/talentGeneration.ts`)
 
@@ -507,12 +517,11 @@ based on what that film's script needs.
 
 ### 5.9 Production risk profile & contextual events (`engine/production.ts`, `data/productionEvents.ts`)
 
-Rebuilt from a single blended risk score into five independent-enough
-dimensions (`ProductionRiskProfile`, `types/index.ts`), each 0-100 and each
-driving its own event pool - the direct fix for "planning choices should
-create a risk profile, not apply flat modifiers, and events should emerge
-from that profile" rather than a generic positive/negative roll a player
-can only read as pure RNG.
+Rebuilt from a single blended risk score into independent-enough
+dimensions, each 0-100 and each driving its own event pool - the direct fix
+for "planning choices should create a risk profile, not apply flat
+modifiers, and events should emerge from that profile" rather than a
+generic positive/negative roll a player can only read as pure RNG.
 
 **Why five, not the ten originally proposed.** The design brief floated ten
 hidden values (Pressure, Preparedness, Morale, Safety, Technical
@@ -520,9 +529,9 @@ Complexity, Creative Freedom, Schedule Risk, Budget Risk, Spectacle
 Potential, Performance Potential). Each was tested for a genuinely distinct
 input *and* a genuinely distinct output before being kept:
 
-- **Pressure, Preparedness, Schedule Risk** all read off the same knobs
-  (shooting pace, runtime, cast size) with no input that moves one without
-  moving the others - merged into one, **Schedule Pressure**.
+- **Pressure, Preparedness, Schedule Risk** all read off the same
+  underlying signal (did the shoot get enough time) - merged into one,
+  **Schedule Pressure**.
 - **Creative Freedom** has no concrete input in the current game (no
   studio-executive/producer-notes mechanic exists to be constrained by) and
   no output distinguishable from a Morale event once you take away inputs
@@ -532,68 +541,80 @@ input *and* a genuinely distinct output before being kept:
   them again as "hidden profile" values would mean carrying the same
   number twice, the exact double-counting the box office rework (5.4)
   spent real effort removing - cut.
-- **Morale, Safety, Technical Complexity, Budget Risk** each survived with
-  a real input nothing else owns and a real output category nothing else
-  covers - kept.
+- **Morale, Safety, Technical Complexity, Budget Risk, Schedule Pressure**
+  each survived with a real input nothing else owns and a real output
+  category nothing else covers - kept.
 
-**`computeProductionRiskProfile(talent, script, choices, genre)`:**
+**Four of the five are knowable before a day of filming happens
+(`StaticProductionRisk`, `engine/production.ts:computeStaticProductionRisk`);
+the fifth, Schedule Pressure, isn't - it depends on how many days the
+player actually decides to shoot for, which didn't exist as a concept
+until 5.16 turned photography into something the player lives through
+instead of a slider they set in advance. It's computed separately, live,
+every day of the shoot (`computeSchedulePressure`), not shown as a
+pre-shoot estimate at all.**
 
 ```
-moraleRisk          = unreliabilityRisk*.6 + avgEgo*.4
-schedulePressure     = shootingRisk(shootingIntensity) + runtimeIntensity*15 + castSizePressure
-safetyRisk           = 20 + practicalAmbitionT*50 - contingencyT*30 + (1-shootingIntensity)*25
+moraleRisk           = unreliabilityRisk*.6 + avgEgo*.4
+safetyRisk           = 20 + practicalAmbitionT*60 - contingencyT*35
 technicalComplexity  = 15 + vfxAmbitionT*45 + complexityT*30 - contingencyT*15
 budgetRisk           = 20 + (genreAmbition - overallSpendT)*60 + (complexityT - overallSpendT)*20
+schedulePressure     = ratio>=1 ? 30-(ratio-1)*20 : 30+(1-ratio)*90   // ratio = daysElapsed/recommendedDays
 ```
 
 `moraleRisk` is the interpersonal-friction chunk already in the old single
-score, just isolated. `schedulePressure` reuses the existing `shootingRisk`
-curve as its dominant term and adds a small amount for a long runtime
-(more to shoot in the same window) and a bigger cast (more coordination
-overhead). `safetyRisk` and `technicalComplexity` are the two dials that
-used to feed nothing but Production Score - `practicalEffectsAmount` and
-`vfxAmount` now each drive a real risk dimension, offset by
-`contingencyT` (the safety margin 5.7 describes), which is the concrete
-version of "high practical effects, low contingency, fast pace → stunt
-injury" from the original brief. `budgetRisk` is a genre-aware upgrade of
-the old budget-alone U-curve: risk when *this genre's* VFX/practical
-ambition or *this script's* complexity outpaces overall spend, not "is the
-number low" in isolation - an Action film and a Drama at the same
-shoestring spend no longer carry the same risk (verified directly: same
-spend, Action budgetRisk=48 vs. Horror budgetRisk=33, since Horror's
-`lowBudgetFriendly`/lower VFX-practical importance means the same spend
-suits it better).
+score, just isolated. `safetyRisk` and `technicalComplexity` are the two
+dials that used to feed nothing but Production Score -
+`practicalEffectsAmount` and `vfxAmount` now each drive a real risk
+dimension, offset by `contingencyT` (the safety margin 5.7 describes),
+which is the concrete version of "high practical effects, low contingency,
+fast pace → stunt injury" from the original brief (fast pace is now
+something the player lives rather than pre-sets, see 5.16, so it shows up
+through Schedule Pressure instead of as a term here). `budgetRisk` is a
+genre-aware upgrade of the old budget-alone U-curve: risk when *this
+genre's* VFX/practical ambition or *this script's* complexity outpaces
+overall spend, not "is the number low" in isolation - an Action film and a
+Drama at the same shoestring spend no longer carry the same risk (verified
+directly: same spend, Action budgetRisk=48 vs. Horror budgetRisk=33, since
+Horror's `lowBudgetFriendly`/lower VFX-practical importance means the same
+spend suits it better). `schedulePressure` is a floor-30 curve either side
+of the recommended schedule - falling short is steep, meeting or
+comfortably exceeding it is calm but never zero (there's always *some*
+pressure) - the same shape as `shootingQualityFromRatio` (5.7, 5.16) since
+they're two readings of the same underlying "how did the shoot actually
+go" signal, one as risk, one as quality.
 
 **Contextual events.** `data/productionEvents.ts:RISK_DIMENSION_EVENT_TEMPLATES`
-adds a `{ positive, negative }` bank per dimension (40 new templates, on
-top of the 12 generic + 16 genre templates already there - 68 total, up
-from 13 at the start of this feature). `simulateProduction` mixes a
-dimension's `negative` bank into the negative pool once that dimension
-reads ≥55, and its `positive` bank into the positive pool once it reads
-≤35 - the same additive-pool-mixing pattern `GENRE_EVENT_TEMPLATES`
-already used, just conditioned on the risk profile instead of genre. A
-mid-range dimension contributes nothing extra, so the pool doesn't get
-diluted by five dimensions all being vaguely-not-quite triggered
+has a `{ positive, negative }` bank per dimension, all five included (40
+templates total, on top of the 12 generic + 16 genre templates already
+there - 68 total, up from 13 at the start of this feature).
+`engine/production.ts:rollDayEvent` is called once per
+`ADVANCE_SHOOTING_DAY` (5.16, not once per whole shoot the way the old
+batch-of-3-to-5 `simulateProduction` was) - it recomputes Schedule
+Pressure fresh from that day's actual `daysElapsed`, combines it with the
+four static dimensions, and mixes a dimension's `negative` bank into the
+negative pool once that dimension reads ≥55, its `positive` bank into the
+positive pool once it reads ≤35 - the same additive-pool-mixing pattern
+`GENRE_EVENT_TEMPLATES` already used, just conditioned on risk instead of
+genre. A mid-range dimension contributes nothing extra, so the pool
+doesn't get diluted by dimensions all being vaguely-not-quite triggered
 simultaneously - only a clear reading in either direction earns thematic
-events. The overall positive/negative roll odds still come from one number
-(the five dimensions averaged), preserving the original mechanic; what's
-new is *which* templates are reachable, not just how likely a negative
-roll is. Verified end-to-end, not just in isolation: a reckless scenario
-(fast pace, ambitious practical/VFX spend, thin contingency) pulled
-`risk-safety-neg` events 91 times across 200 simulated shoots, a careful
-one (perfectionist pace, deep contingency, minimal effects) pulled zero.
-
-The Plan Production screen now shows this profile live as the player
-drags sliders (`ScoreBar` × 5, same component used for Quality/Audience/Buzz
-elsewhere), and Film It shows it again just before "Begin Filming" - the
-player sees the shape of what they've set up before rolling the dice, not
-just a single opaque percentage.
+events. Both the *frequency* of a day producing any event at all (5%-13%
+per day, scaled by the five dimensions averaged) and the positive/negative
+bias of that roll move with the same average - a shoot that's clearly
+struggling doesn't just unlock worse flavor text, it gets more eventful,
+not just worse. Verified end-to-end, not just in isolation: a reckless
+static-risk scenario (ambitious practical/VFX spend, thin contingency)
+pulled `risk-safety-neg` events 91 times across 200 simulated shoots at
+matched day-counts, a careful one (deep contingency, minimal effects)
+pulled zero; a shoot wrapped exactly on its recommended schedule burned
+its full contingency reserve to the pound.
 
 Not yet built: a **postmortem** stage connecting which *named* events
 fired back into the Results screen narrative (`storyReport.ts`, 5.13's
-sibling feature) - `draft.events` already carries which templates fired,
-so the data exists, but nothing reads it into a beat yet. Deliberately left
-for a follow-up rather than bundled in here.
+sibling feature) - `PhotographyState.events` already carries which
+templates fired, so the data exists, but nothing reads it into a beat yet.
+Deliberately left for a follow-up rather than bundled in here.
 
 ### 5.10 Department breakdown & review blurbs (`engine/reviews.ts`, `data/reviewBlurbs.ts`)
 
@@ -984,13 +1005,101 @@ a blanket rule (`index.css`) rather than something applied screen-by-screen
 (`.choice-description`, intro paragraphs) this is for, so one global rule
 covers it without needing a special case per screen.
 
+### 5.16 A real calendar, and principal photography as a live process (`engine/calendar.ts`, `engine/production.ts`, `data/schedule.ts`, `state/studioReducer.ts`)
+
+Two changes that only make sense together: the game gained an actual
+in-game calendar, and Plan Production's abstract Shooting Style dial was
+removed in favor of the player actually living through however many days
+of principal photography they choose.
+
+**The calendar.** `Studio.year: number`, incremented by one flat unit per
+released film, is gone - replaced by `Studio.totalDays: number`, a single
+running day counter (day 1 = the studio's founding) that every stage of
+making a film spends real days out of. Year and day-of-year are derived
+purely for display (`engine/calendar.ts:formatGameDate`) rather than
+stored separately, so there's one source of truth and no rollover
+bookkeeping. It's shown in a new persistent `DateBar`
+(`components/common/DateBar.tsx`), mounted in `App.tsx` itself alongside
+`ThemeToggle` - previously the only chrome visible on every screen - since
+"visible at all times" meant it couldn't live inside any one screen's own
+header the way everything else on this page does.
+
+Every wizard stage except Plan Production→Film It's boundary has a fixed
+day cost (`data/schedule.ts:STAGE_DURATIONS` - Develop 7, Hire Talent 14,
+Plan Production 5, Post-Production 45, Marketing 30), charged in
+`GO_TO_STEP` the moment the player *leaves* that stage moving forward.
+Going back costs nothing - `WIZARD_STEP_ORDER`
+(`state/studioReducer.ts`) gives every step a canonical index, and a
+transition only charges when the destination index is genuinely past
+`FilmDraft.furthestStepIndexCharged`. This field exists specifically to
+stop a Back-then-forward round trip from paying the same stage's duration
+twice - the first version of this didn't have it, and leaving Develop,
+going Back to fix something, then continuing charged 7 days *twice*
+(caught by a diagnostic script asserting the date after a deliberate
+back-and-forth, not by inspection - the bug was invisible in a straight
+playthrough). Marketing's duration is applied inside `RELEASE_FILM`
+directly rather than via `GO_TO_STEP`, since release jumps straight to the
+Results screen rather than routing through a step transition first.
+
+**Principal photography.** The old `BEGIN_FILMING` action computed a whole
+shoot's worth of events (3-5, fixed count) in one dispatch, instantly.
+It's replaced by three actions built around a new `FilmDraft.photography:
+PhotographyState | null`:
+
+- `BEGIN_PHOTOGRAPHY` computes `recommendedDays`
+  (`engine/production.ts:computeRecommendedShootDays` - a base of 18 days
+  plus terms for script complexity, cast size, runtime target, and
+  practical/VFX ambition, roughly 18 days for a bare-bones production up
+  to 90+ for a complex ensemble VFX blockbuster) and starts `photography`
+  at `{ status: 'in-progress', daysElapsed: 0, events: [], runningCost: 0 }`.
+- `ADVANCE_SHOOTING_DAY` - dispatched automatically on a timer
+  (`ProductionRun.tsx`, every 500ms) while `status === 'in-progress'` -
+  rolls whether anything happens that day (`rollDayEvent`, 5.9), adds one
+  day's contingency burn (`computeDailyContingencyBurn`), and advances
+  *both* `photography.daysElapsed` and `Studio.totalDays` together, so the
+  persistent date bar visibly ticks forward while the player watches
+  filming happen. Because every tick is a genuine dispatched action rather
+  than a local animation, the whole `photography` sub-state persists
+  through the existing localStorage autosave - a mid-shoot refresh resumes
+  exactly where it left off, the same as everything else in this app.
+- `FINISH_PHOTOGRAPHY` - available the moment shooting begins, not gated
+  on reaching `recommendedDays` - sets `status: 'finished'`. Wrapping
+  early spends less contingency than budgeted; running past
+  `recommendedDays` keeps burning at the same daily rate with no upper
+  bound, and drags `shootingQualityFromRatio` (5.7) down from its 2.5x
+  ceiling only very gradually, so there's no hard cap on an overrun -
+  cost and diminishing quality returns are what discourage one, not a
+  rule forbidding it. Verified directly: wrapping at half the recommended
+  schedule spent half the contingency reserve, landed Schedule Pressure at
+  75/100 and shooting quality at 50; running 1.5x over spent 1.5x the
+  reserve, landed Schedule Pressure at 20/100 and shooting quality at 69 -
+  cost, risk and quality all move in the directions the mechanic promises,
+  not just in the direction that happens to be convenient to display.
+
+`FilmResults`/`Film` no longer carry a flat `events` field fed by a single
+batch call - `productionCost` now includes `photographyCost`
+(`ReleaseComputationInput.photographyCost`, the shoot's final
+`runningCost`) as its own line, separate from `computeProductionBudgetCost`
+(5.7), and Production Score reads `shootingRatio` (`daysElapsed /
+recommendedDays` from the finished shoot) instead of a pre-set pace dial.
+
+Not yet built: per-event day tagging - the on-set log shows events in the
+order they fired, not which specific day each one happened on
+(`PhotographyState.events` is a flat `ProductionEvent[]`, same shape as
+the old batch result, deliberately not restructured to carry a day number
+too - the live day counter above the log gives the time context instead,
+and avoiding the restructure kept this already-large change from also
+touching every place `ProductionEvent[]`/`Film.events` gets consumed).
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
 
 - **Final production cost** = script cost + total cast salary + production
-  budget cost (`contingencyAmount x shootingCostMultiplier x runtimeCostMultiplier`,
-  plus the set/practical-effects/VFX spend amounts directly) + net event cost
+  budget cost (`(setQualityAmount + practicalEffectsAmount + vfxAmount) x runtimeCostMultiplier`,
+  5.7) + the shoot's final contingency burn (`PhotographyState.runningCost`,
+  5.16 - contingency itself is no longer part of the production budget cost
+  formula, it's spent daily during photography instead) + net event cost
   delta + test-screening cost.
 - **Marketing cost** = marketing spend amount x release-type cost multiplier
   (Wide costs more to support than Limited). Marketing spend is a continuous
@@ -1020,10 +1129,11 @@ lives in `src/data/`:
 | `talentGeneration.ts` | Per-role salary range and fame ceiling for procedural talent, the mandatory/optional role lists, and per-role hiring capacity (`{min, max}`) |
 | `talentNames.ts` | First/last name word banks for procedurally generated talent |
 | `scriptWords.ts` | Per-genre title word banks (12 adjectives x 12 nouns) for procedural script titles - `engine/scriptGenerator.ts` also dedupes titles within a single slate on top of this |
-| `production.ts` | Ranges and anchors for the six continuous production dials (see 5.7) |
+| `production.ts` | Ranges and anchors for the five continuous production dials (see 5.7) |
+| `schedule.ts` | Fixed in-game day cost per wizard stage other than Photography, which is lived through instead (`STAGE_DURATIONS`, see 5.16) |
 | `postProduction.ts` | Cost/score deltas for edit style, music, test screening, final cut |
 | `release.ts` | Marketing spend range/anchors (continuous, log-scale), release type profiles (incl. `baseLegsMultiplier`), release window bonuses |
-| `productionEvents.ts` | The generic pool of on-set event templates, plus `GENRE_EVENT_TEMPLATES` (one positive/negative pair per genre, merged into the generic pool for that film's shoot) |
+| `productionEvents.ts` | The generic pool of on-set event templates, `GENRE_EVENT_TEMPLATES` (one positive/negative pair per genre), and `RISK_DIMENSION_EVENT_TEMPLATES` (a positive/negative bank per risk dimension, see 5.9) - all merged into the same per-day event pool during photography |
 | `reviewBlurbs.ts` | Flavor-text review snippets bucketed by critic/audience reception, plus per-department criticism/praise lines (generic and genre-signature-flavored) used to call out a film's clear weak or strong point |
 | `scoringWeights.ts` | The weighted-sum tables for critic/audience, and the base (genre-average) quality weights that `engine/genreWeights.ts` tilts per genre |
 
@@ -1045,7 +1155,21 @@ quietly leaving implicit:
   concept - but nothing yet tracks whether someone's "busy" on another
   project, builds loyalty/grudges from repeat collaboration, or lets an
   talent's fame or stats drift over time based on how their films performed.
-  All natural next layers on top of a persistent roster.
+  All natural next layers on top of a persistent roster. Now that a real
+  calendar exists (5.16), "busy" specifically has become buildable in a way
+  it wasn't before - a hired actor's dates could plausibly block them from
+  another film's overlapping principal photography window - but this game
+  only ever has one film in progress at a time regardless, so there's
+  nothing for a scheduling conflict to conflict *with* yet.
+- **Only Principal Photography's days are genuinely lived through.** Every
+  other stage's calendar cost (5.16, `data/schedule.ts:STAGE_DURATIONS`) is
+  a flat number charged on leaving, not something the player watches happen
+  the way filming now is - Develop always costs exactly 7 days whether the
+  script search was quick or agonizing. Deliberate scope boundary for this
+  pass, not an oversight: Photography was the stage the original request
+  was specifically about, and giving every stage the same live treatment
+  would have been a much larger change than "does time pass, and does
+  filming feel real."
 - **No trait/sub-skill layer under ActingStyle yet.** The five acting-style
   axes (5.11) are deliberately clean, single-purpose specialists partly so a
   future trait system has something uncrowded to attach to - narrower
