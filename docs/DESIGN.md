@@ -1583,6 +1583,71 @@ needed no changes at all to show one.
 
 Save format bumped to v13 (`state/persistence.ts`).
 
+### 5.25 Difficulty on reset, rival studio pages, a recast side panel, and a schedule checkpoint (`components/common/DifficultyPicker.tsx`, `components/RivalStudioPage.tsx`, `components/wizard/ProductionRun.tsx`)
+
+Four small, independent QOL passes, grouped here because they landed together
+rather than because they're related:
+
+**Difficulty picker on Reset.** `RESET_SAVE` now takes a `startingCash`
+instead of a hardcoded £10M - `Dashboard.tsx`'s Reset button opens
+`DifficultyPicker` (Grassroots Indie £1M / Indie £3M / Mid-Level £10M /
+Major Studio £25M) instead of firing straight off a `window.confirm`. Scoped
+to Reset only, per the literal request - a brand new save with no prior
+state still defaults to the old £10M (`persistence.ts:DEFAULT_STARTING_CASH`)
+rather than gating first launch behind a picker, since that would have meant
+making `GameState.studio` nullable for a one-time nicety.
+
+**Viewing a rival studio's own page.** `GameState` gained
+`viewingRivalStudioName` and `Screen` gained `'rival-studio'`; a new
+`VIEW_RIVAL_STUDIO` action sets both. Identified by name rather than id, same
+as `Film.releasedBy` already was (5.24) - one less lookup, and consistent
+with the rest of the rival-facing code. `RivalStudioPage` shows the rival's
+tier, its own release history (`rivalFilmsReleased` filtered by name, same
+table as Dashboard's Studio History, same click-through into
+`FilmDetailModal`), and a light teaser of what it's currently making -
+scale and genre only, not the full choice/cast detail the player gets on
+their own production, keeping a rival's in-progress film from being fully
+transparent. Reachable from a Top 10 row's studio name (now a click target,
+skipped for the player's own entries) or a new "Rival Studios" list in the
+Dashboard's right rail, so every rival is reachable even when nothing of
+theirs is currently charting. A "Home" button (`RETURN_TO_DASHBOARD`) is the
+only way back, same pattern as leaving the wizard.
+
+**Recast choices get a dedicated side panel.** Previously every choice for an
+interactive event - including `offersReplacementFor`'s dynamically-built
+"Recast with X" options - rendered as identical buttons in one vertical
+list. Now `ProductionRun.tsx` splits `pendingChoice.choices` into
+`replacementChoices` (`replacementCandidateId` set) and everything else:
+regular choices stay as buttons in the main column, and if any replacement
+choices exist, a right-hand "People Involved" panel appears
+(`.event-decision-layout`, same two-column pattern as Hire Talent and the
+recast decision itself) showing the departing talent's own card first, then
+one card per replacement candidate with their salary and a dedicated action
+button. The existing single-line involved-talent badge only shows when
+there's *no* replacement panel, to avoid saying the same thing twice.
+
+**A checkpoint at the recommended day count.** Photography no longer ticks
+past `recommendedDays` unattended - `ProductionRun.tsx` tracks the previous
+`daysElapsed` in a ref and, the first time it crosses `recommendedDays`
+while `status === 'in-progress'`, sets a local `awaitingContinueDecision`
+flag that stops the tick interval and shows a "Recommended Schedule Reached"
+card with Keep Filming / Finish Principal Photography. Crossing rather than
+exact equality, since a delay event can jump `daysElapsed` past the
+threshold in a single tick. Purely local UI state (never persisted, same as
+Dashboard's manual pause) - nothing about the reducer or save shape changed
+for this one. Fast Forward already targets exactly `recommendedDays`, so it
+naturally lands on this same checkpoint; a second Fast Forward click past it
+is already a no-op (`remaining` clamps to 0).
+
+**Fast Forward already stopped correctly for interactive events** - checked
+before building anything here. `ADVANCE_SHOOTING_DAY` no-ops once
+`photography.status !== 'in-progress'` (state/studioReducer.ts), so a Fast
+Forward loop that hits an interactive event partway through silently stops
+advancing at that day even though the loop's remaining iterations still
+"run" - they're just no-ops against the frozen state. No change needed.
+
+Save format bumped to v14 (`state/persistence.ts`) for `viewingRivalStudioName`.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
