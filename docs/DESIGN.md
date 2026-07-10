@@ -1341,6 +1341,31 @@ Theaters" / "Pending" in place of final figures for anything still running.
 Save format bumped to v11 (`state/persistence.ts`) for both the nullable
 `FilmResults` fields and the new `Film.boxOfficeRun`.
 
+### 5.20 A background day-tick outside the wizard (`App.tsx`, `state/studioReducer.ts`)
+
+5.19 made an older film's box office settle lazily off `Studio.totalDays` -
+but that only advances when a wizard action fires, so a player sitting on
+the Dashboard (or the results screen after a release) with nothing left to
+click could leave an old release's numbers frozen indefinitely, never
+finishing its run. A plain `setInterval` in `Screens` (`App.tsx`) now
+dispatches a new `ADVANCE_DAY` action every 3 seconds, advancing
+`Studio.totalDays` by exactly 1 and running the same
+`settleBoxOfficeForAllFilms` pass every other calendar-advancing action
+already uses (5.19) - it's a genuinely independent tick, not a dressed-up
+wrapper around any existing one.
+
+Paused on every wizard screen that's purely about making a choice with no
+clock of its own (`develop`, `talent`, `production-planning`,
+`post-production`, `marketing`) - so a slow decision never silently costs a
+day. `production` is paused too, but for a different reason: it already
+runs its own faster, dedicated tick the moment photography begins
+(`ProductionRun.tsx`, 500ms/day) - running both at once would double-charge
+days, so the background tick stands down there entirely rather than
+overlapping with it. That leaves `dashboard` and `results` as the two
+screens where time passes on its own, verified with a Playwright pass
+showing the date bar advancing three days over ~9.5 seconds on the
+Dashboard, then holding perfectly still for the same span on `develop`.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
