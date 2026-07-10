@@ -152,9 +152,12 @@ const SUPPORTING_COUNT_WEIGHTS = [1, 2, 2, 3, 3, 3, 4];
 
 /**
  * Cost scales with the average of the script's quality attributes -
- * a highly original, well-structured, marketable script costs more to acquire.
+ * a highly original, well-structured, marketable script costs more to
+ * acquire. Exported so hand-authored reference scripts
+ * (data/dev/referenceScripts.ts) can derive a consistent cost from the same
+ * formula instead of a guessed number that could drift from it.
  */
-function estimateScriptCost(script: Pick<Script, 'originality' | 'structure' | 'dialogue' | 'marketability'>): number {
+export function estimateScriptCost(script: Pick<Script, 'originality' | 'structure' | 'dialogue' | 'marketability'>): number {
   const avgQuality = (script.originality + script.structure + script.dialogue + script.marketability) / 4;
   const baseCost = 50_000;
   const scaledCost = avgQuality * 6_000; // up to ~600k for a top-tier spec script

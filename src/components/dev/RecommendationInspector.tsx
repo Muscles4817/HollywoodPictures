@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
 import { GENRES } from '../../data/genres';
+import { REFERENCE_SCRIPTS } from '../../data/dev/referenceScripts';
+import { REFERENCE_DIRECTORS } from '../../data/dev/referenceDirectors';
 import { generateScriptOptions } from '../../engine/scriptGenerator';
 import { generateTalentCandidates } from '../../engine/talentGenerator';
 import { createRng } from '../../engine/random';
@@ -126,10 +128,10 @@ export function RecommendationInspector() {
   // independent of the real studio's own rngSeed/save data.
   const rngRef = useRef(createRng(Date.now()));
   const [genre, setGenre] = useState<Genre>('Action');
-  const [script, setScript] = useState<Script>(() => generateScriptOptions(genre, rngRef.current, 1)[0]);
-  const [director, setDirector] = useState<DirectorTalent>(
-    () => generateTalentCandidates('Director', rngRef.current, 1)[0] as DirectorTalent,
-  );
+  // Defaults to a real reference pair rather than a random one - easier to
+  // start reasoning from something with a known real-world answer.
+  const [script, setScript] = useState<Script>(REFERENCE_SCRIPTS[0]);
+  const [director, setDirector] = useState<DirectorTalent>(REFERENCE_DIRECTORS[0]);
 
   function rerollScript(forGenre: Genre = genre) {
     setScript(generateScriptOptions(forGenre, rngRef.current, 1)[0]);
@@ -178,6 +180,42 @@ export function RecommendationInspector() {
         >
           New Both
         </Button>
+      </div>
+
+      <div className="row" style={{ alignItems: 'center' }}>
+        <span className="stat-label" style={{ margin: 0 }}>Reference (real films/directors)</span>
+        <select
+          value={script.id}
+          onChange={(e) => {
+            const found = REFERENCE_SCRIPTS.find((s) => s.id === e.target.value);
+            if (found) setScript(found);
+          }}
+        >
+          <option value="" disabled>
+            Load a real script...
+          </option>
+          {REFERENCE_SCRIPTS.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.title} ({s.genre})
+            </option>
+          ))}
+        </select>
+        <select
+          value={director.id}
+          onChange={(e) => {
+            const found = REFERENCE_DIRECTORS.find((d) => d.id === e.target.value);
+            if (found) setDirector(found);
+          }}
+        >
+          <option value="" disabled>
+            Load a real director...
+          </option>
+          {REFERENCE_DIRECTORS.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="row">
