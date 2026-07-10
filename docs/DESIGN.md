@@ -1648,6 +1648,109 @@ advancing at that day even though the loop's remaining iterations still
 
 Save format bumped to v14 (`state/persistence.ts`) for `viewingRivalStudioName`.
 
+### 5.26 Foundations for a producer-recommendation model (`types/index.ts`, `engine/scriptGenerator.ts`, `engine/talentGenerator.ts`, `engine/random.ts`)
+
+The first step of a larger redesign of Plan Production: instead of the player
+inventing a production from scratch on a set of spending sliders, the goal is
+for most production decisions to emerge from the script and the director,
+with the player acting as producer - following or overriding a recommendation
+rather than setting every dial blind. This section is the data foundation
+that redesign will be built on; **no recommendation engine and no UI changes
+exist yet** - Plan Production is untouched, and none of what's below is read
+by anything yet.
+
+**The vocabulary (`types/index.ts`).** `Recommendation<T> = { value: T;
+reasons: string[] }` - a suggestion with its own justification, generic
+rather than one bespoke type per dial. `OptionalRecommendation<T> =
+Recommendation<T> | null`, for a recommendation that might not apply to a
+given production at all (`null` means "this system doesn't activate here,"
+not "neutral default"). Two value shapes cover every dial identified so far:
+`Distribution<K extends string> = Record<K, number>` (how something is
+divided across a fixed set of named options, always summing to 1 - same
+generic-over-named-keys pattern `engine/interpolate.ts:ScaleAnchor` already
+uses) and `NormalizedScalar` (a 0-1 "how much is invested in this, relative
+to what's possible" reading - deliberately not a currency amount; turning it
+into a real pound figure is later work, once a recommendation is followed or
+overridden). `EnvironmentMethodKey` (`studio`/`location`/`digital`) and
+`EffectsMethodKey` (`practical`/`digital`) are the two concrete key sets in
+use.
+
+**Strategy vs. Ambition.** Every dial identified splits into two independent
+recommendations rather than one: a `Distribution` describing *how* something
+is done (method/style), and a separate `NormalizedScalar` describing *how
+much* is invested in it. These aren't the same question - a script can want
+a strongly location-heavy shoot at very low investment (an intimate,
+cheaply-shot drama on real locations) just as easily as a studio-heavy shoot
+at very high investment (a tentpole built entirely on soundstages). Keeping
+them separate also means a player can follow the recommended split while
+overriding the ambition level, or vice versa, without an all-or-nothing
+override.
+
+**Script gained** `environmentStrategy`/`environmentAmbition`/
+`effectsStrategy`/`effectsAmbition` - the screenplay's own implied
+production approach, not a requirement (deliberately not named `*Demand`).
+**DirectorTalent gained** a nested `productionStyle: { environmentStrategy,
+effectsStrategy }` - deliberately *not* an Ambition-driving field yet (see
+Known Limitations). Both sides use the exact same `Distribution`/
+`NormalizedScalar` shapes so a future recommendation engine can blend script
+and director signals directly, including the interesting case where they
+disagree (a script implying heavy location work against a director whose
+`environmentStrategy` leans studio) - the eventual reason strings are meant
+to be able to say so directly ("Director strongly prefers studio shooting
+despite the script's location demands") rather than needing a separate
+structured "tension" field.
+
+**Genre profiles become generation inputs, not live scoring inputs.**
+`GENRE_PROFILES[genre].vfxImportance`/`practicalEffectsImportance`
+(`data/genres.ts`) used to be read directly by `engine/scoring.ts`; a
+script's own `effectsStrategy`/`effectsAmbition` are now generated *around*
+those two numbers plus per-script jitter (`engine/scriptGenerator.ts`,
+`STRATEGY_JITTER`), the same relationship `GENRE_PROFILES.canonicalTone`
+already has to `Script.toneProfile`. `environmentStrategy`/
+`environmentAmbition` have weaker existing grounding - nothing in
+`GENRE_PROFILES` speaks to studio-vs-location directly - so their generation
+formula is a rougher first pass (`vfxImportance` sets the digital share,
+`lowBudgetFriendly` splits the remainder between location and studio),
+flagged in code as worth revisiting once a recommendation engine is actually
+exercising it. `engine/scoring.ts` itself hasn't been touched yet - it still
+reads genre importance directly - that migration is later work, once
+something is actually reading the new script fields instead.
+
+**Director generation has no genre to anchor around** (a director isn't
+tied to one genre), so `productionStyle` is pure per-director variation - one
+key rolls a meaningfully stronger weight (`engine/talentGenerator.ts:generateLeaningDistribution`)
+so a director reads as having a genuine lean (a location purist, a studio
+loyalist) rather than a bland even split, echoing the existing "signature
+axis" idea already behind `toneProfile`/`ActingStyle` generation.
+`engine/random.ts:normalizeWeights` is the shared math turning any set of
+raw weights into a proper `Distribution` - used by both the genre-anchored
+script side and the personal-lean director side.
+
+**Deliberately not built yet, and why:**
+- **A third Director field for Ambition.** Discussed and explicitly deferred
+  - a plausible "resource expectations" trait was proposed, but nothing
+  currently has a concrete consumer for it. Per the same discipline as
+  everything else here: added only once Phase 3 (the recommendation engine)
+  proves a director-side Ambition signal is actually missing, not
+  anticipated now.
+- **Costume.** Explicitly not modeled - may end up being Ambition-only
+  (unclear whether costume has a natural Strategy split the way environment/
+  effects do), and should only activate for productions where it's
+  genuinely relevant (period/fantasy/sci-fi/superhero) rather than existing
+  for every film. Revisit once Script's world/setting information is
+  designed properly, rather than seeding a coarse `setting` enum now that
+  would likely need replacing.
+- **Crew fields.** None added or planned for the recommendation system -
+  crew executes a chosen production well or badly (already covered by
+  existing `skill`), it doesn't set creative direction the way script and
+  director do.
+- **The recommendation engine itself, and Plan Production's redesign** -
+  the actual point of all this - haven't started. This section is
+  scaffolding only.
+
+Save format bumped to v15 (`state/persistence.ts`) for the new required
+Script/DirectorTalent fields.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
