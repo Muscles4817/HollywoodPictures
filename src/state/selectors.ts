@@ -24,6 +24,16 @@ export function computeCommittedSpend(draft: FilmDraft | null): number {
     // instantly after every other choice.
     total += draft.photography.runningCost;
     total += computeEventsCostDelta(draft.photography.events);
+  } else if (draft.productionChoices) {
+    // Before photography starts, there's no live runningCost yet to add -
+    // but leaving contingency out entirely made this screen's "Projected
+    // Cash After Release" quietly omit the single biggest line item in the
+    // whole film. Use the full planned reserve as the estimate (what it
+    // costs to shoot for the recommended schedule, see
+    // engine/production.ts:computeRecommendedShootDays) - the same number
+    // ProductionPlanning.tsx shows directly, so this stays consistent with
+    // what the player can already see on screen.
+    total += draft.productionChoices.contingencyAmount;
   }
   if (draft.postProductionChoices) {
     total += TEST_SCREENING_PROFILES[draft.postProductionChoices.testScreeningResponse].cost;

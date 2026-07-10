@@ -126,10 +126,12 @@ export function ProductionRun() {
               <ScoreBar label="Technical Complexity" value={staticRisk.technicalComplexity} />
               <ScoreBar label="Budget Risk" value={staticRisk.budgetRisk} />
               <p style={{ margin: 0 }}>
-                Recommended principal photography: <strong>~{recommendedDays} days</strong>. Once you begin, you'll
-                watch the shoot happen one day at a time and can wrap it whenever you choose - cut it short to save
-                money, or let it run long to give the team more room to work. Schedule Pressure will depend on
-                whichever you pick.
+                Recommended principal photography: <strong>~{recommendedDays} days</strong>, burning your Contingency
+                Reserve at <Money amount={draft.productionChoices ? draft.productionChoices.contingencyAmount / recommendedDays : 0} />/day
+                (<Money amount={draft.productionChoices?.contingencyAmount ?? 0} /> total if you wrap on schedule).
+                Once you begin, you'll watch the shoot happen one day at a time and can wrap it whenever you choose -
+                cut it short to save money, or let it run long to give the team more room to work, at that same
+                daily cost with no cap. Schedule Pressure will depend on whichever you pick.
               </p>
               <div>
                 <Button variant="primary" onClick={() => dispatch({ type: 'BEGIN_PHOTOGRAPHY' })}>
@@ -150,6 +152,11 @@ export function ProductionRun() {
               <StatTile label="Schedule Pressure" value={`${computeSchedulePressure(photography.daysElapsed, photography.recommendedDays)}/100`} />
             )}
           </div>
+          {photography.status === 'in-progress' && photography.daysElapsed > photography.recommendedDays && (
+            <p style={{ color: 'var(--red)', margin: 0 }}>
+              Past the recommended schedule - every extra day now costs beyond the original estimate, with no cap.
+            </p>
+          )}
 
           <div className="card stack">
             <h2>On-Set Events</h2>

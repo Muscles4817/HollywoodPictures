@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { StudioProvider, useStudio } from './state/StudioContext';
 import { ThemeToggle } from './components/common/ThemeToggle';
 import { DateBar } from './components/common/DateBar';
@@ -12,6 +13,16 @@ import { ReleaseResults } from './components/wizard/ReleaseResults';
 
 function Screens() {
   const { state } = useStudio();
+
+  // Every screen switch (forward or back) starts scrolled to the top - a
+  // long wizard screen doesn't otherwise reset scroll position on
+  // navigation, which left the player dropped mid-page on whatever the
+  // previous screen's scroll happened to be. Only fires on a genuine
+  // screen change, not on every re-render within one screen (e.g. a
+  // photography day ticking doesn't change state.screen).
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [state.screen]);
 
   switch (state.screen) {
     case 'dashboard':

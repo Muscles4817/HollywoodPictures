@@ -15,7 +15,7 @@ import {
 } from '../../engine/productionDials';
 import { logAmount } from '../../engine/interpolate';
 import { GENRE_PROFILES } from '../../data/genres';
-import { computeProductionBudgetCost } from '../../engine/cost';
+import { computeProductionBudgetCost, computeDailyContingencyBurn } from '../../engine/cost';
 import { computeRecommendedShootDays, computeStaticProductionRisk } from '../../engine/production';
 import { computeCommittedSpend } from '../../state/selectors';
 import { RangeSlider } from '../common/RangeSlider';
@@ -63,6 +63,8 @@ export function ProductionPlanning() {
   const canAfford = state.studio.cash - computeCommittedSpend(draft) >= 0;
   const genreProfile = draft.genre ? GENRE_PROFILES[draft.genre] : null;
   const recommendedDays = draft.script ? computeRecommendedShootDays(draft.talent, draft.script, choices) : null;
+  const dailyShootCost = recommendedDays ? computeDailyContingencyBurn(choices.contingencyAmount, recommendedDays) : 0;
+  const totalEstimatedCost = estimatedCost + choices.contingencyAmount;
   const staticRisk =
     draft.script && draft.genre ? computeStaticProductionRisk(draft.talent, draft.script, choices, draft.genre) : null;
 
@@ -141,21 +143,33 @@ export function ProductionPlanning() {
 
       <div className="row">
         <div className="stat">
-          <div className="stat-label">Estimated Production Cost</div>
+          <div className="stat-label">Set/Effects/VFX Cost</div>
           <div className="stat-value"><Money amount={estimatedCost} /></div>
         </div>
         {recommendedDays !== null && (
-          <div className="stat">
-            <div className="stat-label">Recommended Principal Photography</div>
-            <div className="stat-value">~{recommendedDays} days</div>
-          </div>
+          <>
+            <div className="stat">
+              <div className="stat-label">Recommended Principal Photography</div>
+              <div className="stat-value">~{recommendedDays} days</div>
+            </div>
+            <div className="stat">
+              <div className="stat-label">Daily Shoot Cost</div>
+              <div className="stat-value"><Money amount={dailyShootCost} /></div>
+            </div>
+            <div className="stat">
+              <div className="stat-label">Estimated Total Cost (on schedule)</div>
+              <div className="stat-value"><Money amount={totalEstimatedCost} /></div>
+            </div>
+          </>
         )}
       </div>
       {recommendedDays !== null && (
         <p className="choice-description" style={{ margin: 0 }}>
-          Your Contingency Reserve (<Money amount={choices.contingencyAmount} />) is budgeted to cover roughly this
-          many days - wrapping early spends less than planned, running longer keeps burning at the same daily rate
-          with no cap.
+          Principal photography burns your Contingency Reserve at <Money amount={dailyShootCost} />/day - over
+          ~{recommendedDays} recommended days, that's the full <Money amount={choices.contingencyAmount} /> reserve
+          spent. Wrapping early spends less than planned; running longer keeps burning at that same daily rate with
+          no cap, so a shoot that drags on well past its recommended length can cost substantially more than the
+          estimated total above.
         </p>
       )}
       {!canAfford && <p style={{ color: 'var(--red)' }}>This plan costs more than the studio has on hand.</p>}
