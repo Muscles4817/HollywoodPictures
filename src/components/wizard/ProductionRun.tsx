@@ -8,6 +8,7 @@ import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { StatTile } from '../common/StatTile';
 import { ScoreBar } from '../common/ScoreBar';
+import { SeverityBadge } from '../common/SeverityBadge';
 import { WizardHeader } from '../common/WizardHeader';
 import { nearestLabel } from './ProductionPlanning';
 import type { TalentRole } from '../../types';
@@ -173,7 +174,10 @@ export function ProductionRun() {
 
           {photography.status === 'awaiting-choice' && pendingChoice && (
             <div className="card stack" style={{ borderColor: 'var(--primary)' }}>
-              <h2 style={{ margin: 0 }}>A Decision Is Needed</h2>
+              <div className="row-between">
+                <h2 style={{ margin: 0 }}>A Decision Is Needed</h2>
+                <SeverityBadge severity={pendingChoice.severity} />
+              </div>
               {involvedTalent && (
                 <div className="row-between event-involved-talent" style={{ fontSize: '0.9em', color: 'var(--text-muted)' }}>
                   <span>{involvedTalent.name} &middot; {pendingChoice.involvedRole}</span>
@@ -213,7 +217,10 @@ export function ProductionRun() {
                 className="row-between event-reveal"
                 style={{ borderBottom: '1px solid var(--border)', paddingBottom: 8 }}
               >
-                <span>{event.description}</span>
+                <span className="row" style={{ gap: 8 }}>
+                  <SeverityBadge severity={event.severity} />
+                  <span>{event.description}</span>
+                </span>
                 <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
                   Cost <Money amount={event.costDelta} signColor invertColor showSign /> &middot; Quality {event.qualityDelta >= 0 ? '+' : ''}{event.qualityDelta.toFixed(1)} &middot; Buzz {event.buzzDelta >= 0 ? '+' : ''}{event.buzzDelta.toFixed(1)}
                   {event.delayDaysDelta > 0 ? <> &middot; +{event.delayDaysDelta}d</> : null}

@@ -684,6 +684,17 @@ th {
 .badge-outcome-Blockbuster { background: #cfe0ff; color: #1c3fa0; }
 .badge-outcome-Masterpiece { background: #fdeec2; color: #8a6300; }
 
+.severity-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.75em;
+  font-weight: 600;
+}
+.severity-badge-low { background: var(--track-bg); color: var(--text-muted); }
+.severity-badge-medium { background: #fdeec2; color: #8a6300; }
+.severity-badge-high { background: #fbdcd9; color: #8c1d13; }
+
 textarea, input, select {
   font-family: inherit;
   font-size: 0.95em;

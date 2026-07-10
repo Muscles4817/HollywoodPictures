@@ -136,9 +136,16 @@ export interface ProductionChoices {
   runtimeIntensity: number; // 0 = Short, 1 = Long
 }
 
+// How big a deal an event actually is - low-stakes texture vs a genuine
+// turning point. Drives how often each tier fires (see
+// engine/production.ts:rollDayEvent) - `low` is deliberately the common
+// case, `high` deliberately rare. See docs/DESIGN.md 5.21.
+export type EventSeverity = 'low' | 'medium' | 'high';
+
 export interface ProductionEvent {
   id: string;
   description: string;
+  severity: EventSeverity;
   costDelta: number; // absolute currency change
   qualityDelta: number; // -100..100 scale applied to production score
   buzzDelta: number; // -100..100
@@ -184,6 +191,7 @@ export interface PendingEventChoice {
   templateId: string;
   situation: string; // the dilemma being presented, before a choice is made
   polarity: 'positive' | 'negative';
+  severity: EventSeverity;
   choices: EventChoiceTemplate[];
   // The specific hired talent this event is actually about, if the template
   // set `involvesRole` (data/productionEvents.ts) - resolved once at roll

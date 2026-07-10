@@ -1,4 +1,4 @@
-import type { Genre, EventChoiceTemplate, TalentRole } from '../types';
+import type { Genre, EventChoiceTemplate, EventSeverity, TalentRole } from '../types';
 
 // Templates for randomized production events. The engine picks a handful of
 // these per shoot, biased by an overall risk score, then rolls a concrete
@@ -18,10 +18,20 @@ import type { Genre, EventChoiceTemplate, TalentRole } from '../types';
 // shoot days this event actually costs, on top of the day it happened on.
 // Always >= 0: a positive event happening doesn't retroactively un-shoot a
 // day, so only negative-polarity templates carry a nonzero range.
+//
+// `severity` (types/index.ts:EventSeverity) is how big a deal the event
+// actually is - low-stakes texture (a nice take, a minor scheduling
+// wrinkle) vs a real, memorable turning point (a recast, a
+// hospitalization). The engine rolls for severity before picking a
+// template (engine/production.ts:rollDayEvent), skewed heavily toward
+// `low` - most days that produce anything at all should produce something
+// small, with `medium` and especially `high` genuinely rarer. See
+// docs/DESIGN.md 5.21.
 interface SimpleProductionEventTemplate {
   id: string;
   description: string;
   polarity: 'positive' | 'negative';
+  severity: EventSeverity;
   interactive?: false;
   costRange: [number, number];
   qualityRange: [number, number];
@@ -45,6 +55,7 @@ interface InteractiveProductionEventTemplate {
   id: string;
   situation: string; // may contain a "{name}" token - interpolated with the involved talent's name at roll time
   polarity: 'positive' | 'negative';
+  severity: EventSeverity;
   interactive: true;
   choices: EventChoiceTemplate[]; // label/description may also contain "{name}"
   // Ties this event to whoever's actually hired for that role
@@ -59,7 +70,8 @@ interface InteractiveProductionEventTemplate {
   // from the studio's talent pool near the departing person's salary and
   // appended to `choices` at roll time (engine/production.ts:rollDayEvent) -
   // an actual replacement decision, not a flavor option, with cost and
-  // quality driven by which specific person the player picks.
+  // quality driven by which specific person the player picks. Always
+  // `high` severity - recasting mid-shoot is a genuinely big deal.
   offersReplacementFor?: TalentRole;
 }
 
@@ -70,6 +82,7 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'pos-lead-nailed-scene',
     description: 'The lead actor nailed a famously difficult scene in one take.',
     polarity: 'positive',
+    severity: 'low',
     costRange: [0, 0],
     qualityRange: [4, 10],
     buzzRange: [0, 0], // nobody outside dailies sees a good take happen
@@ -79,6 +92,7 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'pos-cheap-solution',
     description: 'The crew found a clever low-cost solution to a tricky shot.',
     polarity: 'positive',
+    severity: 'medium',
     costRange: [-400_000, -100_000],
     qualityRange: [1, 5],
     buzzRange: [0, 0],
@@ -88,6 +102,7 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'pos-improvised-moment',
     description: 'The supporting actor improvised a moment that stole the scene.',
     polarity: 'positive',
+    severity: 'low',
     costRange: [0, 0],
     qualityRange: [3, 8],
     buzzRange: [0, 0],
@@ -97,6 +112,7 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'pos-early-buzz',
     description: 'A local news crew covered the shoot, generating early buzz.',
     polarity: 'positive',
+    severity: 'low',
     costRange: [0, 0],
     qualityRange: [0, 0],
     buzzRange: [6, 14], // genuinely public - press coverage
@@ -106,6 +122,7 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'pos-wrapped-early',
     description: 'The unit wrapped a full day ahead of schedule.',
     polarity: 'positive',
+    severity: 'medium',
     costRange: [-300_000, -80_000],
     qualityRange: [0, 2],
     buzzRange: [0, 0],
@@ -115,6 +132,7 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'pos-chemistry',
     description: "The cast developed real chemistry, and their goofing-around between takes is turning up on social media.",
     polarity: 'positive',
+    severity: 'low',
     costRange: [0, 0],
     qualityRange: [5, 9],
     buzzRange: [2, 5], // the leak is the public angle, not the chemistry itself
@@ -124,6 +142,7 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'int-writer-punch-up',
     situation: '{name} found time to punch up a scene everyone agreed was flat.',
     polarity: 'positive',
+    severity: 'low',
     interactive: true,
     involvesRole: 'Writer',
     choices: [
@@ -161,6 +180,7 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'int-editor-assembly-ahead',
     situation: '{name} has been assembling dailies ahead of schedule and found a stronger structure for a key sequence.',
     polarity: 'positive',
+    severity: 'low',
     interactive: true,
     involvesRole: 'Editor',
     choices: [
@@ -192,6 +212,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'neg-director-over-schedule',
     description: 'The director went over schedule chasing one more perfect take.',
     polarity: 'negative',
+    severity: 'medium',
     costRange: [200_000, 900_000],
     qualityRange: [0, 3],
     buzzRange: [0, 0],
@@ -201,6 +222,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'neg-bad-weather',
     description: 'Bad weather delayed filming for several days.',
     polarity: 'negative',
+    severity: 'medium',
     costRange: [150_000, 700_000],
     qualityRange: [-2, 0],
     buzzRange: [0, 0],
@@ -210,6 +232,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'neg-vfx-harder',
     description: 'A key VFX sequence turned out to be much harder than expected.',
     polarity: 'negative',
+    severity: 'high',
     costRange: [300_000, 1_200_000],
     qualityRange: [-6, -1],
     buzzRange: [0, 0],
@@ -219,6 +242,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'neg-onset-tension',
     description: 'On-set tension flared between two big egos - and word is already getting around.',
     polarity: 'negative',
+    severity: 'medium',
     costRange: [50_000, 300_000],
     qualityRange: [-8, -2],
     buzzRange: [-8, -2], // exactly the kind of thing tabloids run with
@@ -228,6 +252,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'neg-equipment-failure',
     description: 'An equipment malfunction halted production for a day.',
     polarity: 'negative',
+    severity: 'medium',
     costRange: [100_000, 500_000],
     qualityRange: [-2, 0],
     buzzRange: [0, 0],
@@ -237,6 +262,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'neg-location-fell-through',
     description: 'An unexpected location fell through at the last minute.',
     polarity: 'negative',
+    severity: 'medium',
     costRange: [200_000, 600_000],
     qualityRange: [-4, -1],
     buzzRange: [0, 0],
@@ -246,6 +272,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'neg-star-clash',
     description: 'The director and lead star clashed over how to play a key scene, and it leaked to the trade press.',
     polarity: 'negative',
+    severity: 'medium',
     costRange: [0, 250_000],
     qualityRange: [-10, -3],
     buzzRange: [-4, -1],
@@ -255,6 +282,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'int-writer-rewrite-struggle',
     situation: '{name} is struggling to land a rewrite the studio flagged as essential.',
     polarity: 'negative',
+    severity: 'medium',
     interactive: true,
     involvesRole: 'Writer',
     choices: [
@@ -293,6 +321,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'int-director-out-of-sync',
     situation: "{name} has fallen out of sync with the studio's vision, and the shoot is suffering for it.",
     polarity: 'negative',
+    severity: 'high',
     interactive: true,
     involvesRole: 'Director',
     offersReplacementFor: 'Director',
@@ -322,6 +351,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'int-actor-unreliable',
     situation: "{name} is increasingly unreliable on set, and it's starting to show in the footage.",
     polarity: 'negative',
+    severity: 'high',
     interactive: true,
     involvesRole: 'Lead Actor',
     offersReplacementFor: 'Lead Actor',
@@ -351,6 +381,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     id: 'int-composer-temp-score-clash',
     situation: "{name}'s temp cues for a key sequence are clashing with the director's vision in dailies.",
     polarity: 'negative',
+    severity: 'low',
     interactive: true,
     involvesRole: 'Composer',
     choices: [
@@ -398,6 +429,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-action-pos-stunt-gag',
       description: 'A stunt performer pulled off a death-defying gag that will anchor the trailer.',
       polarity: 'positive',
+      severity: 'medium',
       costRange: [0, 0],
       qualityRange: [5, 10],
       buzzRange: [8, 15], // explicitly trailer-bound, public-facing footage
@@ -407,6 +439,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-action-neg-stunt-reshoot',
       description: 'A major stunt had to be re-shot after a near-miss on set.',
       polarity: 'negative',
+      severity: 'medium',
       costRange: [300_000, 900_000],
       qualityRange: [-6, -1],
       buzzRange: [-4, 0], // a near-miss is newsworthy
@@ -418,6 +451,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-comedy-pos-improv-riff',
       description: "An improvised riff between the leads had the whole crew in stitches - it's staying in the cut.",
       polarity: 'positive',
+      severity: 'low',
       costRange: [0, 0],
       qualityRange: [4, 9],
       buzzRange: [0, 0],
@@ -427,6 +461,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-comedy-neg-bit-not-landing',
       description: "A big comedic set-piece just isn't landing in dailies, no matter how many takes.",
       polarity: 'negative',
+      severity: 'medium',
       costRange: [50_000, 200_000],
       qualityRange: [-8, -3],
       buzzRange: [0, 0],
@@ -438,6 +473,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-drama-pos-raw-take',
       description: 'The lead delivered a raw, one-take performance that stunned the crew into silence.',
       polarity: 'positive',
+      severity: 'low',
       costRange: [0, 0],
       qualityRange: [6, 12],
       buzzRange: [0, 0],
@@ -447,6 +483,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-drama-neg-flat-centerpiece',
       description: "The emotional centerpiece scene keeps falling flat - the director's called for rewrites.",
       polarity: 'negative',
+      severity: 'medium',
       costRange: [80_000, 300_000],
       qualityRange: [-7, -2],
       buzzRange: [0, 0],
@@ -458,6 +495,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-horror-pos-practical-gag',
       description: 'A practical gore effect looked so convincing a crew member actually flinched.',
       polarity: 'positive',
+      severity: 'low',
       costRange: [0, 0],
       qualityRange: [5, 10],
       buzzRange: [0, 0],
@@ -467,6 +505,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-horror-neg-prop-malfunction',
       description: "A key prop malfunctioned mid-scare, ruining what should've been the film's best jump scare.",
       polarity: 'negative',
+      severity: 'medium',
       costRange: [100_000, 400_000],
       qualityRange: [-6, -1],
       buzzRange: [0, 0],
@@ -478,6 +517,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-romance-pos-chemistry',
       description: "The two leads have real off-screen chemistry, and fan-shot photos from set are already circulating.",
       polarity: 'positive',
+      severity: 'low',
       costRange: [0, 0],
       qualityRange: [5, 10],
       buzzRange: [2, 5],
@@ -487,6 +527,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-romance-neg-no-chemistry',
       description: 'The leads have zero chemistry on camera, and no amount of direction is fixing it.',
       polarity: 'negative',
+      severity: 'medium',
       costRange: [0, 150_000],
       qualityRange: [-8, -3],
       buzzRange: [0, 0],
@@ -498,6 +539,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-scifi-pos-vfx-test',
       description: 'A VFX test render came back looking better than anyone expected.',
       polarity: 'positive',
+      severity: 'low',
       costRange: [-200_000, 0],
       qualityRange: [5, 10],
       buzzRange: [0, 0],
@@ -507,6 +549,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-scifi-neg-vfx-redo',
       description: "A critical VFX shot needs a full redo after the studio's supervisor flagged it as unconvincing.",
       polarity: 'negative',
+      severity: 'high',
       costRange: [400_000, 1_200_000],
       qualityRange: [-6, -1],
       buzzRange: [0, 0],
@@ -518,6 +561,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-fantasy-pos-designs-turning-heads',
       description: "The costume and creature designs are turning heads on set - concept art is already leaking online.",
       polarity: 'positive',
+      severity: 'low',
       costRange: [0, 0],
       qualityRange: [3, 7],
       buzzRange: [6, 12], // explicitly a leak
@@ -527,6 +571,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-fantasy-neg-set-collapse',
       description: 'An elaborate set piece collapsed overnight and needs to be rebuilt.',
       polarity: 'negative',
+      severity: 'medium',
       costRange: [300_000, 900_000],
       qualityRange: [-4, -1],
       buzzRange: [-3, 0], // visible mishap, local coverage plausible
@@ -538,6 +583,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-thriller-pos-climax-cut',
       description: "The editor cut together a rough version of the climax and it's genuinely gripping.",
       polarity: 'positive',
+      severity: 'low',
       costRange: [0, 0],
       qualityRange: [5, 10],
       buzzRange: [0, 0],
@@ -547,6 +593,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-thriller-neg-twist-not-landing',
       description: "The plot's central twist isn't landing in test cuts - it's reading as confusing rather than surprising.",
       polarity: 'negative',
+      severity: 'medium',
       costRange: [50_000, 200_000],
       qualityRange: [-7, -2],
       buzzRange: [0, 0],
@@ -582,6 +629,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-schedule-neg-frantic-day',
         description: 'The schedule slipped and three scenes had to be crammed into a single frantic day.',
         polarity: 'negative',
+        severity: 'medium',
         costRange: [100_000, 400_000],
         qualityRange: [-8, -3],
         buzzRange: [0, 0],
@@ -591,6 +639,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-schedule-neg-exhausted-crew',
         description: 'Exhausted after back-to-back night shoots, the crew started missing marks.',
         polarity: 'negative',
+        severity: 'low',
         costRange: [50_000, 200_000],
         qualityRange: [-6, -2],
         buzzRange: [0, 0],
@@ -600,6 +649,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-schedule-neg-scene-cut-for-time',
         description: 'A scene had to be cut for time, leaving a gap the editor will have to paper over.',
         polarity: 'negative',
+        severity: 'low',
         costRange: [0, 0],
         qualityRange: [-7, -2],
         buzzRange: [0, 0],
@@ -609,6 +659,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-schedule-neg-ad-quit',
         description: 'The first assistant director quit mid-shoot, citing an impossible schedule - word reached the trades within a day.',
         polarity: 'negative',
+        severity: 'medium',
         costRange: [100_000, 350_000],
         qualityRange: [-5, -1],
         buzzRange: [-3, -1],
@@ -618,6 +669,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-schedule-stubborn-scene',
         situation: "A pivotal scene isn't coming together and the unit is already behind. The 1st AD needs a call.",
         polarity: 'negative',
+        severity: 'low',
         interactive: true,
         choices: [
           {
@@ -653,6 +705,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-schedule-crew-exhausted',
         situation: 'The unit is days behind and the crew is running on fumes. How do you want to handle the pace?',
         polarity: 'negative',
+        severity: 'low',
         interactive: true,
         choices: [
           {
@@ -688,6 +741,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-schedule-double-booked',
         situation: 'A key location turns out to be double-booked - you need it for two more days than planned.',
         polarity: 'negative',
+        severity: 'low',
         interactive: true,
         choices: [
           {
@@ -725,6 +779,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-schedule-ahead-of-pace',
         situation: 'The unit is comfortably ahead of pace. There\'s room to do something with the slack.',
         polarity: 'positive',
+        severity: 'low',
         interactive: true,
         choices: [
           {
@@ -760,6 +815,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-schedule-pos-generous-time',
         description: 'A generous schedule let the crew get every shot exactly right without rushing.',
         polarity: 'positive',
+        severity: 'low',
         costRange: [-100_000, 0],
         qualityRange: [4, 9],
         buzzRange: [0, 0],
@@ -769,6 +825,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-schedule-pos-wrapped-early',
         description: 'The unit wrapped with days to spare, giving everyone room to breathe.',
         polarity: 'positive',
+        severity: 'low',
         costRange: [-200_000, -50_000],
         qualityRange: [2, 6],
         buzzRange: [0, 0],
@@ -778,6 +835,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-schedule-pos-extra-take',
         description: 'A relaxed pace let the director try one more take that turned out to be the best one.',
         polarity: 'positive',
+        severity: 'low',
         costRange: [0, 50_000],
         qualityRange: [5, 10],
         buzzRange: [0, 0],
@@ -787,6 +845,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-schedule-pos-caught-continuity',
         description: 'With no schedule pressure, the crew caught a continuity error before it became a problem.',
         polarity: 'positive',
+        severity: 'low',
         costRange: [-50_000, 0],
         qualityRange: [3, 6],
         buzzRange: [0, 0],
@@ -800,6 +859,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-morale-neg-shouting-match',
         description: 'A screaming match between two department heads shut down the set for an afternoon.',
         polarity: 'negative',
+        severity: 'medium',
         costRange: [50_000, 250_000],
         qualityRange: [-8, -3],
         buzzRange: [-6, -2],
@@ -809,6 +869,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-morale-neg-no-shows',
         description: 'An unreliable crew member no-showed twice in one week, forcing scenes to be reshuffled.',
         polarity: 'negative',
+        severity: 'medium',
         costRange: [80_000, 300_000],
         qualityRange: [-4, -1],
         buzzRange: [0, 0],
@@ -818,6 +879,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-morale-neg-public-blowup',
         description: 'Simmering resentment on set boiled over into a very public shouting match.',
         polarity: 'negative',
+        severity: 'medium',
         costRange: [0, 100_000],
         qualityRange: [-6, -2],
         buzzRange: [-8, -3],
@@ -827,6 +889,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-morale-neg-walked-off',
         description: 'A key crew member walked off the job over a dispute with the director.',
         polarity: 'negative',
+        severity: 'high',
         costRange: [100_000, 400_000],
         qualityRange: [-7, -3],
         buzzRange: [-4, -1],
@@ -836,6 +899,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-morale-blowup',
         situation: 'Two department heads had a screaming match on set. Word is already spreading.',
         polarity: 'negative',
+        severity: 'low',
         interactive: true,
         choices: [
           {
@@ -871,6 +935,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-morale-diva-demand',
         situation: 'A high-profile cast member is threatening to walk unless a demand is met.',
         polarity: 'negative',
+        severity: 'medium',
         interactive: true,
         choices: [
           {
@@ -906,6 +971,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-morale-actor-rivalry',
         situation: "Two of your actors are locked in a subtle rivalry that's starting to spill into their scenes together.",
         polarity: 'negative',
+        severity: 'low',
         interactive: true,
         choices: [
           {
@@ -943,6 +1009,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-morale-pos-bonded-cast',
         description: 'The cast and crew have genuinely bonded, and it shows on their social media.',
         polarity: 'positive',
+        severity: 'low',
         costRange: [-50_000, 0],
         qualityRange: [4, 9],
         buzzRange: [2, 5],
@@ -952,6 +1019,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-morale-pos-set-party',
         description: "A crew member's birthday turned into an impromptu set party, and photos are already circulating online.",
         polarity: 'positive',
+        severity: 'low',
         costRange: [5_000, 20_000],
         qualityRange: [1, 3],
         buzzRange: [2, 4],
@@ -961,6 +1029,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-morale-pos-no-hiccups',
         description: 'Everyone showed up prepared and professional - not a single scheduling hiccup all week.',
         polarity: 'positive',
+        severity: 'low',
         costRange: [-100_000, -20_000],
         qualityRange: [3, 7],
         buzzRange: [0, 0],
@@ -970,6 +1039,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-morale-pos-lockstep',
         description: 'The director and department heads are working in lockstep - decisions that used to take days now take minutes.',
         polarity: 'positive',
+        severity: 'low',
         costRange: [-80_000, 0],
         qualityRange: [3, 6],
         buzzRange: [0, 0],
@@ -979,6 +1049,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-morale-bonding',
         situation: 'The cast has genuinely bonded and morale is sky-high. There\'s a window to make the most of it.',
         polarity: 'positive',
+        severity: 'low',
         interactive: true,
         choices: [
           {
@@ -1018,6 +1089,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-safety-neg-stunt-hospital',
         description: 'A stunt went wrong and a performer was taken to the hospital, shutting down filming for two days.',
         polarity: 'negative',
+        severity: 'high',
         costRange: [300_000, 900_000],
         qualityRange: [-8, -2],
         buzzRange: [-5, 0],
@@ -1027,6 +1099,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-safety-neg-explosion-too-big',
         description: 'An unrehearsed practical explosion went bigger than planned, damaging the set.',
         polarity: 'negative',
+        severity: 'medium',
         costRange: [200_000, 700_000],
         qualityRange: [-4, 0],
         buzzRange: [-3, 0],
@@ -1036,6 +1109,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-safety-neg-rig-failed-inspection',
         description: 'A rushed stunt rig failed safety inspection at the last minute, forcing an expensive re-rig.',
         polarity: 'negative',
+        severity: 'medium',
         costRange: [150_000, 500_000],
         qualityRange: [-3, 0],
         buzzRange: [0, 0],
@@ -1045,6 +1119,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-safety-neg-insurance-claim',
         description: 'An on-set injury during a practical effects sequence led to a costly insurance claim.',
         polarity: 'negative',
+        severity: 'medium',
         costRange: [250_000, 800_000],
         qualityRange: [-5, -1],
         buzzRange: [-3, -1],
@@ -1054,6 +1129,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-safety-near-miss',
         situation: 'A near-miss on a practical effects rig has rattled the crew. How do you respond?',
         polarity: 'negative',
+        severity: 'medium',
         interactive: true,
         choices: [
           {
@@ -1089,6 +1165,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-safety-weather-hazard',
         situation: 'Hazardous weather is rolling in during a scheduled outdoor stunt sequence.',
         polarity: 'negative',
+        severity: 'low',
         interactive: true,
         choices: [
           {
@@ -1126,6 +1203,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-safety-pos-flawless-stunt',
         description: 'A genuinely dangerous stunt was pulled off flawlessly thanks to meticulous safety planning.',
         polarity: 'positive',
+        severity: 'medium',
         costRange: [0, 100_000],
         qualityRange: [6, 11],
         buzzRange: [6, 12],
@@ -1135,6 +1213,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-safety-pos-zero-incidents',
         description: "The practical effects team's safety-first approach meant zero incidents on a physically demanding shoot.",
         polarity: 'positive',
+        severity: 'low',
         costRange: [-50_000, 0],
         qualityRange: [3, 6],
         buzzRange: [0, 0],
@@ -1144,6 +1223,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-safety-pos-fight-first-take',
         description: 'A well-rehearsed fight sequence came together perfectly on the first take.',
         polarity: 'positive',
+        severity: 'low',
         costRange: [-30_000, 0],
         qualityRange: [4, 8],
         buzzRange: [0, 0],
@@ -1153,6 +1233,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-safety-pos-contingency-paid-off',
         description: "The stunt coordinator's contingency plan meant a minor mishap barely slowed things down.",
         polarity: 'positive',
+        severity: 'low',
         costRange: [-20_000, 20_000],
         qualityRange: [1, 3],
         buzzRange: [0, 0],
@@ -1162,6 +1243,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-safety-risky-stunt',
         situation: 'The next stunt is more dangerous than what was budgeted for safety. The coordinator wants direction.',
         polarity: 'positive',
+        severity: 'low',
         interactive: true,
         choices: [
           {
@@ -1201,6 +1283,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-technical-neg-shot-rebuilt',
         description: "A complex effects sequence isn't rendering the way anyone hoped, and now it needs to be rebuilt from scratch.",
         polarity: 'negative',
+        severity: 'high',
         costRange: [300_000, 1_000_000],
         qualityRange: [-5, -1],
         buzzRange: [0, 0],
@@ -1210,6 +1293,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-technical-neg-expensive-workaround',
         description: "The technical team hit a wall trying to pull off an ambitious sequence, and the workaround isn't cheap.",
         polarity: 'negative',
+        severity: 'medium',
         costRange: [250_000, 800_000],
         qualityRange: [-4, -1],
         buzzRange: [0, 0],
@@ -1219,6 +1303,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-technical-neg-unusable-footage',
         description: 'A miscommunication between the effects team and the editors cost a full week of unusable footage.',
         polarity: 'negative',
+        severity: 'high',
         costRange: [150_000, 600_000],
         qualityRange: [-6, -2],
         buzzRange: [0, 0],
@@ -1228,6 +1313,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-technical-neg-sequence-simplified',
         description: 'An overly ambitious sequence proved too complicated to finish on schedule and had to be simplified.',
         polarity: 'negative',
+        severity: 'medium',
         costRange: [100_000, 400_000],
         qualityRange: [-5, -2],
         buzzRange: [0, 0],
@@ -1237,6 +1323,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-technical-vfx-struggle',
         situation: "A complex VFX sequence isn't coming together and the supervisor needs a decision.",
         polarity: 'negative',
+        severity: 'medium',
         interactive: true,
         choices: [
           {
@@ -1272,6 +1359,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-technical-format-mismatch',
         situation: "Footage shot on two different camera systems isn't matching in post - nobody caught the mismatch until now.",
         polarity: 'negative',
+        severity: 'medium',
         interactive: true,
         choices: [
           {
@@ -1309,6 +1397,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-technical-pos-smoother-than-expected',
         description: 'A technically ambitious sequence came together far more smoothly than anyone expected.',
         polarity: 'positive',
+        severity: 'low',
         costRange: [-100_000, 0],
         qualityRange: [5, 10],
         buzzRange: [0, 0],
@@ -1318,6 +1407,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-technical-pos-cheaper-solution',
         description: 'The effects team found an elegant, cheaper solution to a shot everyone assumed would be a nightmare.',
         polarity: 'positive',
+        severity: 'medium',
         costRange: [-300_000, -80_000],
         qualityRange: [3, 7],
         buzzRange: [0, 0],
@@ -1327,6 +1417,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-technical-pos-few-revisions',
         description: 'Meticulous pre-production planning meant a complicated sequence needed almost no revisions.',
         polarity: 'positive',
+        severity: 'low',
         costRange: [-50_000, 0],
         qualityRange: [3, 6],
         buzzRange: [0, 0],
@@ -1336,6 +1427,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-technical-pos-test-render',
         description: "A test render of the film's most complex shot came back looking better than anyone hoped.",
         polarity: 'positive',
+        severity: 'low',
         costRange: [0, 50_000],
         qualityRange: [4, 8],
         buzzRange: [0, 0],
@@ -1345,6 +1437,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-technical-breakthrough',
         situation: 'The effects team found a genuinely clever solution to the film\'s hardest shot. Worth pushing further?',
         polarity: 'positive',
+        severity: 'low',
         interactive: true,
         choices: [
           {
@@ -1384,6 +1477,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-budget-neg-ran-out',
         description: 'The production quietly ran out of contingency money halfway through the shoot.',
         polarity: 'negative',
+        severity: 'medium',
         costRange: [200_000, 600_000],
         qualityRange: [-6, -2],
         buzzRange: [0, 0],
@@ -1393,6 +1487,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-budget-neg-corners-cut',
         description: 'Corners had to be cut on a sequence the film really needed to look convincing.',
         polarity: 'negative',
+        severity: 'medium',
         costRange: [-100_000, 0],
         qualityRange: [-8, -3],
         buzzRange: [0, 0],
@@ -1402,6 +1497,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-budget-neg-insurance-flagged',
         description: 'An insurance review flagged the production as under-resourced for what it\'s attempting, and premiums went up.',
         polarity: 'negative',
+        severity: 'low',
         costRange: [100_000, 350_000],
         qualityRange: [0, 0],
         buzzRange: [0, 0],
@@ -1411,6 +1507,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-budget-neg-emergency-financing',
         description: 'The studio had to scramble for emergency completion financing mid-shoot, and it made the trade press.',
         polarity: 'negative',
+        severity: 'high',
         costRange: [300_000, 900_000],
         qualityRange: [-3, 0],
         buzzRange: [-4, -1],
@@ -1420,6 +1517,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-budget-thin',
         situation: 'The contingency reserve is running thinner than planned with more of the shoot still ahead.',
         polarity: 'negative',
+        severity: 'medium',
         interactive: true,
         choices: [
           {
@@ -1457,6 +1555,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-budget-pos-under-reserve',
         description: 'The production came in comfortably under its contingency reserve, with room to spare for polish.',
         polarity: 'positive',
+        severity: 'low',
         costRange: [-150_000, -30_000],
         qualityRange: [3, 7],
         buzzRange: [0, 0],
@@ -1466,6 +1565,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-budget-pos-seized-opportunity',
         description: 'A healthy budget cushion meant an unexpected creative opportunity could be seized without a second thought.',
         polarity: 'positive',
+        severity: 'low',
         costRange: [20_000, 100_000],
         qualityRange: [4, 8],
         buzzRange: [0, 0],
@@ -1475,6 +1575,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-budget-pos-fixed-it-right',
         description: 'Being properly resourced for once let the crew fix a problem right the first time instead of patching it later.',
         polarity: 'positive',
+        severity: 'low',
         costRange: [-50_000, 0],
         qualityRange: [2, 5],
         buzzRange: [0, 0],
@@ -1484,6 +1585,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-budget-pos-cushion-absorbed-overrun',
         description: "The production's financial cushion meant nobody panicked when a routine cost overrun hit.",
         polarity: 'positive',
+        severity: 'low',
         costRange: [0, 0],
         qualityRange: [1, 3],
         buzzRange: [0, 0],
@@ -1493,6 +1595,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-budget-opportunity',
         situation: 'The production is running comfortably under its contingency reserve. There\'s room to do something with the surplus.',
         polarity: 'positive',
+        severity: 'low',
         interactive: true,
         choices: [
           {
@@ -1528,6 +1631,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-budget-favorable-exchange',
         situation: 'A favorable currency shift on an overseas shoot leaves the production with unexpected savings.',
         polarity: 'positive',
+        severity: 'low',
         interactive: true,
         choices: [
           {
@@ -1563,6 +1667,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'int-budget-vendor-discount',
         situation: 'A vendor has offered a loyalty discount if you commit to more work with them now.',
         polarity: 'positive',
+        severity: 'low',
         interactive: true,
         choices: [
           {

@@ -25,7 +25,9 @@ import { randomSeed, withRng } from '../engine/random';
 // reputationChange nullable (unknown until a film's run finishes) and added
 // Film.boxOfficeRun - box office as a live weekly process instead of a
 // single computed total at release (docs/DESIGN.md 5.19).
-const SAVE_KEY = 'hollywood-pictures-save-v11';
+// v11 -> v12 added a required `severity` field to ProductionEvent and
+// PendingEventChoice (docs/DESIGN.md 5.21).
+const SAVE_KEY = 'hollywood-pictures-save-v12';
 
 export function loadState(): GameState {
   try {

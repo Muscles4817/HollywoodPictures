@@ -1,5 +1,6 @@
 import type {
   EventChoiceTemplate,
+  EventSeverity,
   Genre,
   PendingEventChoice,
   ProductionChoices,
@@ -125,6 +126,7 @@ function rollSimpleEvent(template: Extract<ProductionEventTemplate, { interactiv
   return {
     id: template.id,
     description: template.description,
+    severity: template.severity,
     costDelta: Math.round(randFloat(rng, costMin, costMax)),
     qualityDelta: randFloat(rng, qMin, qMax),
     buzzDelta: randFloat(rng, bMin, bMax),
@@ -147,6 +149,7 @@ function rollChoiceOutcome(pending: PendingEventChoice, choice: EventChoiceTempl
   return {
     id: pending.templateId,
     description: `${pending.situation} You chose: ${choice.label.toLowerCase()}.`,
+    severity: pending.severity,
     costDelta: Math.round(randFloat(rng, costMin, costMax)),
     qualityDelta: randFloat(rng, qMin, qMax),
     buzzDelta: randFloat(rng, bMin, bMax),
@@ -278,8 +281,39 @@ function buildReplacementChoices(
 const HIGH_RISK_THRESHOLD = 55;
 const LOW_RISK_THRESHOLD = 35;
 
-const MIN_DAILY_EVENT_CHANCE = 0.05;
-const MAX_DAILY_EVENT_CHANCE = 0.13;
+// Raised from an earlier 0.05-0.13: at that rate a real shoot could easily
+// run its whole recommended length and see one event, maybe none - too
+// sparse to build a felt sense of "things happen on set." Even the calmest
+// (avgRisk=0) shoot now averages roughly one event every 8 days; a tense
+// one averages closer to one every 4.
+const MIN_DAILY_EVENT_CHANCE = 0.12;
+const MAX_DAILY_EVENT_CHANCE = 0.27;
+
+/**
+ * How likely each severity tier is on a day that produces anything at all -
+ * `low` dominates regardless of risk (it's routine set texture), `high`
+ * stays genuinely rare even on a tense shoot. Risk shifts the mix toward
+ * bigger stakes without ever making `low` uncommon: 70/25/5 at avgRisk=0,
+ * 40/35/25 at avgRisk=100. This is the lever that makes "a couple of small
+ * interactive events on a good shoot" the normal case rather than a fluke -
+ * see docs/DESIGN.md 5.21.
+ */
+function severityWeights(avgRisk: number): Record<EventSeverity, number> {
+  const t = clamp(avgRisk, 0, 100) / 100;
+  return {
+    low: 70 - 30 * t,
+    medium: 25 + 10 * t,
+    high: 5 + 20 * t,
+  };
+}
+
+function pickSeverity(weights: Record<EventSeverity, number>, rng: RandomFn): EventSeverity {
+  const total = weights.low + weights.medium + weights.high;
+  const roll = rng() * total;
+  if (roll < weights.low) return 'low';
+  if (roll < weights.low + weights.medium) return 'medium';
+  return 'high';
+}
 
 function buildEventPools(
   fullRisk: Record<'schedulePressure' | 'moraleRisk' | 'safetyRisk' | 'technicalComplexity' | 'budgetRisk', number>,
@@ -339,8 +373,16 @@ export function rollDayEvent(
   const rollNegative = rng() * 100 < avgRisk;
   const pool = (rollNegative ? negativePool : positivePool).filter((t) => !usedIds.has(t.id));
   const fallbackPool = (rollNegative ? positivePool : negativePool).filter((t) => !usedIds.has(t.id));
-  const candidates = pool.length > 0 ? pool : fallbackPool;
-  if (candidates.length === 0) return null; // exhausted every template this shoot
+  const polarityPool = pool.length > 0 ? pool : fallbackPool;
+  if (polarityPool.length === 0) return null; // exhausted every template this shoot
+
+  // Roll severity independently of polarity - "how big a deal" and "good
+  // or bad news" are different questions. Falls back to any severity within
+  // the same polarity pool if that specific tier happens to be empty (or
+  // already exhausted this shoot via usedIds).
+  const severity = pickSeverity(severityWeights(avgRisk), rng);
+  const severityPool = polarityPool.filter((t) => t.severity === severity);
+  const candidates = severityPool.length > 0 ? severityPool : polarityPool;
 
   const template = candidates[randInt(rng, 0, candidates.length - 1)];
   if (!template.interactive) {
@@ -368,6 +410,7 @@ export function rollDayEvent(
       templateId: template.id,
       situation,
       polarity: template.polarity,
+      severity: template.severity,
       choices,
       involvedTalentId: involved?.id,
       involvedTalentName: involved?.name,
