@@ -1857,6 +1857,61 @@ No Plan Production UI changes and no `engine/scoring.ts` migration yet -
 next step, when ready, is wiring a followed-or-overridden recommendation
 into real `ProductionChoices` values.
 
+### 5.28 Recommendation Inspector - a developer-only diagnostic screen (`components/dev/RecommendationInspector.tsx`)
+
+Before redesigning Plan Production, a way to rapidly eyeball the
+recommendation engine (5.27) against dozens of generated script/director
+pairs - "does this feel believable," not just "does it type-check." Not
+part of the game: no `Screen`/`GameAction` involvement, no persistence, no
+dependency on the real studio's talent pool or save data. Toggled via a
+fixed top-center button (`App.tsx`, visible on every screen) that swaps
+`<Screens />` for `<RecommendationInspector />` entirely outside
+`StudioContext`'s reducer - it generates its own scripts/directors from a
+local RNG (`createRng(Date.now())`, advanced on every reroll rather than
+recreated, so rapid clicking never repeats a value) and calls the engine
+functions directly.
+
+**Exposes intermediate computation without changing the domain model.**
+`recommendEnvironmentStrategy`/`recommendEffectsStrategy` only ever
+returned `Recommendation<T>` - script raw, director raw, the blend before
+Ambition-driven damping, and confidence were computed internally and
+discarded. Rather than have the inspector reimplement that sequence itself
+(fragile - any future change to the real function's internals would
+silently desync from a duplicate), each Strategy function was split into a
+private per-dial `compute*Breakdown` that returns everything
+(`StrategyBreakdown<K>`), with the public function now just returning
+`.recommendation` from it. Verified behavior-identical before/after the
+split (direct diagnostic: same JSON output). Ambition needed no equivalent
+split - it was already a thin, fully-exposed pass-through.
+
+**Recommendation strength is derived in the inspector, not the engine** -
+deliberately not a new field on `Recommendation<T>`, per direct
+instruction. `recommendationStrength` normalizes the final value's
+dominant-key lean against the maximum a distribution of that size could
+show (`1 - 1/n`), so a 2-key Effects split and a 3-key Environment split
+land on the same 0-1 scale before bucketing into Strong/Moderate/Weak -
+otherwise Effects would read structurally "weaker" than Environment purely
+from having fewer keys to spread across, independent of how opinionated
+either actually is. Needed `engine/recommendation.ts:dominantLean` exported
+- the one piece of generic distribution math a presentation layer
+genuinely needs, kept separate from the "strength" concept itself, which
+stays engine-agnostic on purpose.
+
+**A real layout bug, caught before it shipped.** The toggle button's first
+position (bottom-right, mirroring `.theme-toggle-fixed`'s corner pattern)
+turned out unsafe - the Dashboard's right rail (Top 10 chart + Rival
+Studios list, 5.24/5.25) grows tall enough to extend underneath a
+bottom-fixed element and get silently covered, the same class of overlay
+bug `DateBar`/`ThemeToggle`'s original positioning was chosen to avoid.
+Stacking it below `ThemeToggle` instead (top-right) was *also* unsafe,
+confirmed by measuring actual bounding boxes rather than eyeballing a
+screenshot - Dashboard's own header row starts higher than assumed and the
+two collided by a few pixels. Landed on top-center, reusing the exact
+y=16px row `DateBar`/`ThemeToggle` already safely occupy (proven clear on
+every screen, since nothing else lives there) rather than a new,
+unverified band - checked against Dashboard's header and a wizard screen's
+header both, zero overlap.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
