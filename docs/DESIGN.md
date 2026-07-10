@@ -1127,6 +1127,75 @@ doesn't reset scroll on its own the way a full page navigation would.
 Scoped to genuine screen changes only, so a photography day ticking
 (which doesn't change `state.screen`) doesn't yank the page around mid-shoot.
 
+### 5.17 Interactive on-set events and a real delay mechanic (`data/productionEvents.ts`, `engine/production.ts`, `state/studioReducer.ts`, `components/wizard/ProductionRun.tsx`)
+
+Two problems with the original event system (5.9), both raised directly by
+playtest feedback: every event auto-applied its deltas with no player
+input, and buzz was showing up on events nobody outside the shoot could
+plausibly know about (a great take in dailies moving pre-release hype makes
+no sense - the public hasn't seen it).
+
+**Buzz audit.** Went through every template in `data/productionEvents.ts`
+and zeroed `buzzRange` on anything without a real public angle - an
+internal VFX review, a smooth department meeting, a good take in dailies.
+Buzz survives only on events with an actual plausible leak: press
+coverage, a stunt clearly bound for the trailer, concept art or cast
+photos leaking online, a public blowup, a departure or financing scramble
+that reaches the trade press. `technicalComplexity`'s whole bank ended up
+buzz-free entirely - VFX/technical process is genuinely never public until
+release.
+
+**`delayRiskDelta` became a real mechanic.** It was already on
+`ProductionEvent`, but marked "informational for MVP" - rolled and stored,
+never read anywhere. Renamed to `delayDaysDelta` and wired it into
+`ADVANCE_SHOOTING_DAY`: a negative event can now cost real extra shoot
+days on top of the day it happened on (`neg-bad-weather` costs 2-4,
+matching its own description), advancing both `daysElapsed` and
+`Studio.totalDays` together, with `runningCost` charged for every one of
+those days, not just the one the event landed on. Positive events keep
+`delayDaysRange` at `[0, 0]` - there's no "days saved" mechanic (can't
+retroactively un-shoot a day already lived through); a positive event's
+upside is entirely in its cost/quality/buzz.
+
+**Interactive events.** `ProductionEventTemplate` is now a discriminated
+union - most templates are the same auto-applying shape as before, but a
+template with `interactive: true` carries a `situation` and 2-3
+`EventChoiceTemplate` options instead of its own ranges. When
+`rollDayEvent` picks one, `ADVANCE_SHOOTING_DAY` still charges that day
+(the situation itself *is* that day's event) but sets
+`PhotographyState.status` to `'awaiting-choice'` and stashes the template
+on `pendingChoice`, instead of resolving a delta. The existing ticking
+`useEffect` in `ProductionRun.tsx` already only runs its `setInterval`
+while `status === 'in-progress'`, so the new status value pauses the timer
+for free - no separate pause flag needed. `ADVANCE_SHOOTING_DAY` is also a
+guarded no-op outside `'in-progress'`, which means a Fast Forward loop
+that gets interrupted mid-flight by a choice harmlessly no-ops through its
+remaining dispatches rather than needing its own awareness of the
+interruption.
+
+Each `EventChoiceTemplate` rolls its own independent cost/quality/buzz/delay
+ranges - nothing requires a choice to touch more than one of them, and most
+of the ten interactive templates (two per risk dimension, one per
+negative/positive split - `moraleRisk`, `safetyRisk`, `technicalComplexity`
+and `budgetRisk` each get one of each polarity; `schedulePressure` gets two
+negative, since a schedule crisis is the clearest natural fit for a
+decision) deliberately keep each option to a single resource: pure quality
+("cut your losses"), pure money ("throw money at it"), pure time ("take
+the extra time"), or pure buzz ("let the team show it off online"). Picking
+one dispatches `RESOLVE_EVENT_CHOICE`, which rolls that choice's outcome
+(`engine/production.ts:resolveEventChoice`), appends it to `events` with
+the situation + choice label folded into its description, applies its own
+`delayDaysDelta` on top of the calendar (separately from the day the
+situation itself consumed), and flips `status` back to `'in-progress'`.
+
+`FINISH_PHOTOGRAPHY` was already gated to `status === 'in-progress'`, so it
+naturally can't be used to skip past a pending decision - the Finish and
+Fast Forward buttons are hidden by the same status check on the UI side.
+
+Save format bumped to v10 (`state/persistence.ts`) - `ProductionEvent` lost
+`delayRiskDelta` and gained `delayDaysDelta`, and `PhotographyState` gained
+`pendingChoice`, so a v9 save wouldn't shape-check cleanly.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
@@ -1169,7 +1238,7 @@ lives in `src/data/`:
 | `schedule.ts` | Fixed in-game day cost per wizard stage other than Photography, which is lived through instead (`STAGE_DURATIONS`, see 5.16) |
 | `postProduction.ts` | Cost/score deltas for edit style, music, test screening, final cut |
 | `release.ts` | Marketing spend range/anchors (continuous, log-scale), release type profiles (incl. `baseLegsMultiplier`), release window bonuses |
-| `productionEvents.ts` | The generic pool of on-set event templates, `GENRE_EVENT_TEMPLATES` (one positive/negative pair per genre), and `RISK_DIMENSION_EVENT_TEMPLATES` (a positive/negative bank per risk dimension, see 5.9) - all merged into the same per-day event pool during photography |
+| `productionEvents.ts` | The generic pool of on-set event templates, `GENRE_EVENT_TEMPLATES` (one positive/negative pair per genre), and `RISK_DIMENSION_EVENT_TEMPLATES` (a positive/negative bank per risk dimension, see 5.9) - all merged into the same per-day event pool during photography. A template is either the auto-applying shape or `interactive: true` with player-facing choices (see 5.17) |
 | `reviewBlurbs.ts` | Flavor-text review snippets bucketed by critic/audience reception, plus per-department criticism/praise lines (generic and genre-signature-flavored) used to call out a film's clear weak or strong point |
 | `scoringWeights.ts` | The weighted-sum tables for critic/audience, and the base (genre-average) quality weights that `engine/genreWeights.ts` tilts per genre |
 
