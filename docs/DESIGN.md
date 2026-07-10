@@ -1489,6 +1489,100 @@ language, called out in the component's own comment as worth revisiting
 once there's a sense of which parts of a 12-film-deep history a player
 actually wants to dig back into.
 
+### 5.24 AI rival studios (`engine/rivalStudios.ts`, `data/rivalStudioNames.ts`)
+
+The Top 10 chart (below) is hollow with only the player's own 1-2 films in
+it, and Known Limitations (Section 8) already flagged that a real calendar
+existing made talent "busy" a buildable concept with nothing yet to
+conflict with. This closes both gaps with one feature: a small persistent
+roster of AI-controlled competitor studios that cast real candidates out of
+the same shared `talentPool`, release real films through the same
+scoring/box-office pipeline, and show up ranked alongside the player on the
+same weekly chart.
+
+**No day-by-day simulation - a rival's production is one synthesized roll.**
+Nobody watches a rival's shoot happen, so there's no live event log, no
+`PhotographyState` equivalent. `engine/rivalStudios.ts:startRivalProduction`
+generates a script (`generateScriptOptions`, the exact function the
+player's own Develop screen uses), casts mandatory roles from the shared
+pool near a target price banded by the production's scale, and rolls
+production/post-production/marketing choices randomly. Its production
+window (`releaseDay`) comes from `computeRecommendedShootDays` plus the sum
+of every non-Photography `STAGE_DURATIONS` entry - the same numbers behind
+the player's own estimate, so a rival's dev-to-release timeline is
+grounded in the same constants, not an invented one. At `releaseDay`,
+`resolveRivalProduction` calls `computeReleaseResults` - the *exact* same
+function `RELEASE_FILM` calls for the player - with a randomly rolled
+`shootingRatio` (0.85-1.25) standing in for a lived shoot, and seeds a
+`BoxOfficeRun` the same way. Because a rival film is a literal `Film`
+object, it drops straight into `engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms`
+unchanged - the same weekly settlement, the same `BoxOfficeChart`, the same
+`FilmDetailModal` - the only difference is its `cashCredit`/`reputationDelta`
+output is discarded, since none of it is the player's money or reputation.
+
+**Talent locking via `Talent.bookedUntil`.** When a rival casts someone,
+that specific pool entry gets `bookedUntil = releaseDay`. Reading it is a
+plain `bookedUntil > totalDays` comparison - no explicit "release" step,
+availability just lapses on its own once the day passes. Hire Talent shows
+a booked candidate disabled with "Filming elsewhere until [date]," the same
+visual treatment as "Cast full." The player's own hires never set this -
+only one of their own films is ever in production at a time, so there's
+nothing for that to conflict with.
+
+**Studio scale governs both production size and concurrent capacity**,
+exactly per spec:
+
+| Tier | Concurrent capacity |
+|---|---|
+| Indie | 1 Small production, nothing else |
+| Mid-Size | *either* up to 3 Medium *or* 1 Big at a time - not both; picking one locks out the other until everything in that lane wraps |
+| Major | up to 2 Big *and* up to 4 Medium simultaneously - independent pools |
+
+(`engine/rivalStudios.ts:startableScales`, verified against these exact
+rules directly - a diagnostic ran 500 simulated days and found zero
+violations, with max concurrent productions observed landing at exactly 1 /
+3 / 6 for Indie / Mid-Size / Major.) A production's `ProductionScale`
+(`Small`/`Medium`/`Big`) sets its target-price band (roughly t=0.08-0.32 /
+0.32-0.65 / 0.65-0.98 on the same log-scale casting/spend math the player's
+own sliders use) - a Big Major tentpole and a Small Indie both roll through
+identical formulas, just at different price points, so their eventual
+quality is genuinely random rather than tier-determined (per direct
+instruction: no thumb on the scale - a Major's blockbuster can flop, an
+Indie's small film can be a Cult Hit).
+
+**Spawn cadence** is per-studio, not global: each `RivalStudio` carries a
+`nextSpawnCheckDay`, rerolled (10-40 days depending on tier, Majors
+checking most often) every time that threshold is reached, regardless of
+whether a new production actually started. Checked from the exact same
+five call sites `settleBoxOfficeForAllFilms` already runs from
+(`state/studioReducer.ts` - every action that can advance `totalDays`), via
+`settleRivalMarket`, which also resolves any production whose `releaseDay`
+has arrived and settles every rival film's box office in the same pass.
+
+**Studio names** come from a small new word bank
+(`data/rivalStudioNames.ts`, 18 prefixes x 5 suffixes), same pattern as
+script titles - "Northbridge Pictures," "Cobalt Media." A 500-day
+diagnostic never dropped any mandatory role's available-candidate count
+below 80/100 (crew roles) or 146/200 (Lead/Supporting Actor), so the
+shared pool has comfortable headroom even with 5-6 rivals casting from it
+concurrently.
+
+**The Top 10 chart** (`state/selectors.ts:computeTopGrossingFilms`,
+`components/common/TopGrossingPanel.tsx`) combines the player's own
+`filmsReleased` and `Studio.rivalFilmsReleased`, keeps only whichever are
+still `boxOfficeRun.status === 'running'` (a finished run drops off, same
+as a real chart), and ranks by each film's own most-recently-settled
+week's gross - not lifetime total, so a film in its second week and a
+long-running holdover compete on the same number, exactly like a real
+weekend chart. Each row shows all three figures asked for: this week's
+gross, cumulative total, and which week of release it's on. Sits in a new
+sticky right-hand rail on the Dashboard (`.dashboard-layout`, same
+two-column pattern as Hire Talent's script rail) and is clickable straight
+into `FilmDetailModal` - a rival film is a real `Film`, so that modal
+needed no changes at all to show one.
+
+Save format bumped to v13 (`state/persistence.ts`).
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
@@ -1547,18 +1641,15 @@ it's written so every number it needs comes from `data/`.
 Things noticed during build/playtest that are worth flagging rather than
 quietly leaving implicit:
 
-- **Talent persists but still has no scheduling or relationships.** The
-  roster now lives in `studio.talentPool` and is the same across every film
-  in a save (Section 5.8), so "the same actor across films" exists as a
-  concept - but nothing yet tracks whether someone's "busy" on another
-  project, builds loyalty/grudges from repeat collaboration, or lets an
-  talent's fame or stats drift over time based on how their films performed.
-  All natural next layers on top of a persistent roster. Now that a real
-  calendar exists (5.16), "busy" specifically has become buildable in a way
-  it wasn't before - a hired actor's dates could plausibly block them from
-  another film's overlapping principal photography window - but this game
-  only ever has one film in progress at a time regardless, so there's
-  nothing for a scheduling conflict to conflict *with* yet.
+- **Talent persists and now has real scheduling against rivals, but not
+  against the player's own films or any relationships.** `Talent.bookedUntil`
+  (5.24) makes a candidate genuinely unavailable while an AI rival has them
+  cast - but the player's own hires never set it, since only one of the
+  player's own films is ever in production at a time, so there's still
+  nothing for a *player-vs-player* scheduling conflict to conflict with.
+  Loyalty/grudges from repeat collaboration, or fame/stats drifting over
+  time based on how a talent's films performed, remain natural next layers
+  on top of the same persistent roster.
 - **Only Principal Photography's days are genuinely lived through.** Every
   other stage's calendar cost (5.16, `data/schedule.ts:STAGE_DURATIONS`) is
   a flat number charged on leaving, not something the player watches happen
@@ -1608,10 +1699,15 @@ quietly leaving implicit:
   genre are equally likely to produce a 3-lead script right now. Genre-flavoring
   these the way `canonicalTone` and `GENRE_TYPICAL_AUDIENCES` already are
   would be a natural follow-up.
-- **No AI rival studios, awards, franchises, scandals, or physical
-  facilities** - all explicitly out of scope for the MVP per the brief, and
-  all should slot in as new `data/` + `engine/` modules plus one more studio
-  field, without touching the wizard flow.
+- **No awards, franchises, scandals, or physical studio facilities/
+  upgrades.** AI rival studios shipped (5.24); these are the remaining
+  explicitly-out-of-scope items from the original MVP brief, and should
+  still slot in as new `data/` + `engine/` modules without touching the
+  wizard flow. A hireable Producer / upgradeable studio-lot system in
+  particular was discussed but deliberately deferred to its own design pass
+  - its value is easier to pin down now that real competition (5.24) gives
+  "getting to a candidate before a rival does" actual stakes, but the
+  mechanic itself isn't scoped yet.
 - **No postmortem beat connecting named on-set events back to the Results
   screen.** `draft.events` already carries which specific templates fired
   during production (5.9), and `storyReport.ts` (5.13) already proved the
