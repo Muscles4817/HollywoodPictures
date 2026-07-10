@@ -23,6 +23,19 @@ export function Dashboard({ paused, onTogglePause, tickNonce }: DashboardProps) 
   const { studio } = state;
   const [showGuide, setShowGuide] = useState(false);
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
+  // Which running-film panels are collapsed - plain UI state, not persisted,
+  // same as everything else in this component that's about how the
+  // Dashboard looks rather than the game itself.
+  const [collapsedFilmIds, setCollapsedFilmIds] = useState<Set<string>>(new Set());
+
+  function toggleCollapsed(filmId: string) {
+    setCollapsedFilmIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(filmId)) next.delete(filmId);
+      else next.add(filmId);
+      return next;
+    });
+  }
 
   function handleReset() {
     const confirmed = window.confirm(
@@ -67,20 +80,39 @@ export function Dashboard({ paused, onTogglePause, tickNonce }: DashboardProps) 
         <StatTile label="Current Date" value={formatGameDate(studio.totalDays)} />
       </div>
 
-      {runningFilms.map((film) => (
-        <div className="card stack" key={film.id}>
-          <h2 style={{ margin: 0 }}>{film.title} - In Theaters</h2>
-          <div className="row">
-            <StatTile label="Week" value={film.boxOfficeRun.weeks.length} />
-            <StatTile label="Opening Weekend" value={<Money amount={film.results.openingWeekend} />} />
-            <StatTile label="Gross So Far" value={<Money amount={film.boxOfficeRun.cumulativeGross} />} />
+      {runningFilms.map((film) => {
+        const collapsed = collapsedFilmIds.has(film.id);
+        return (
+          <div className="card stack" key={film.id}>
+            <div className="row-between">
+              <h2 style={{ margin: 0 }}>{film.title} - In Theaters</h2>
+              <div className="row" style={{ gap: 12 }}>
+                {collapsed && (
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85em' }}>
+                    Week {film.boxOfficeRun.weeks.length} &middot; <Money amount={film.boxOfficeRun.cumulativeGross} /> so far
+                  </span>
+                )}
+                <Button className="btn-sm" onClick={() => toggleCollapsed(film.id)}>
+                  {collapsed ? 'Expand' : 'Collapse'}
+                </Button>
+              </div>
+            </div>
+            {!collapsed && (
+              <>
+                <div className="row">
+                  <StatTile label="Week" value={film.boxOfficeRun.weeks.length} />
+                  <StatTile label="Opening Weekend" value={<Money amount={film.results.openingWeekend} />} />
+                  <StatTile label="Gross So Far" value={<Money amount={film.boxOfficeRun.cumulativeGross} />} />
+                </div>
+                <BoxOfficeChart weeks={film.boxOfficeRun.weeks} />
+                <p className="choice-description" style={{ margin: 0 }}>
+                  Updates as time passes - keep developing your next film and the numbers here will keep climbing (or fading) week by week.
+                </p>
+              </>
+            )}
           </div>
-          <BoxOfficeChart weeks={film.boxOfficeRun.weeks} />
-          <p className="choice-description" style={{ margin: 0 }}>
-            Updates as time passes - keep developing your next film and the numbers here will keep climbing (or fading) week by week.
-          </p>
-        </div>
-      ))}
+        );
+      })}
 
       <div className="card">
         <div className="row-between">
