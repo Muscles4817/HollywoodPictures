@@ -1091,6 +1091,42 @@ too - the live day counter above the log gives the time context instead,
 and avoiding the restructure kept this already-large change from also
 touching every place `ProductionEvent[]`/`Film.events` gets consumed).
 
+**History: `computeCommittedSpend` quietly excluded contingency entirely
+until photography began, so "Projected Cash After Release" understated the
+real cost of a film for the whole Develop→Plan Production stretch of the
+wizard.** Found from direct player feedback after a shoot ended up
+substantially over budget with no warning: contingency only entered the
+committed-spend total via `photography.runningCost`
+(`state/selectors.ts:computeCommittedSpend`), which doesn't exist until
+`BEGIN_PHOTOGRAPHY` fires - so the sticky budget tracker
+(`components/common/BudgetTracker.tsx`, visible on every wizard screen)
+showed a rosier number than reality for the entire planning phase, missing
+the single biggest line item in the film. Fixed by adding the full planned
+`contingencyAmount` to the estimate whenever `productionChoices` exists but
+`photography` doesn't yet - the same number `ProductionPlanning.tsx` shows
+directly as part of "Estimated Total Cost (on schedule)", so the sticky
+tracker and the screen's own numbers agree. The estimate necessarily dips
+to the live (lower, since it starts at zero) `runningCost` the instant
+photography actually begins - a real transition (an estimate replaced by
+the truth as it's known), not a bug.
+
+Plan Production and the pre-shoot Film It screen also both gained explicit
+**Daily Shoot Cost** and **Estimated Total Cost (on schedule)** figures
+(`engine/cost.ts:computeDailyContingencyBurn` × `recommendedDays`) next to
+the day-count estimate, and Film It shows a standing red warning once
+`daysElapsed` passes `recommendedDays` during an active shoot - the
+daily-burn-with-no-cap mechanic (5.16) was already real, but the *number*
+wasn't visible anywhere before committing to filming, only the day count
+was.
+
+Separately: every screen transition (`GO_TO_STEP`, both directions) now
+resets scroll position to the top (`App.tsx`, a `useEffect` keyed on
+`state.screen`) - long wizard screens previously left the player dropped
+wherever the *previous* screen's scroll happened to be, since a React SPA
+doesn't reset scroll on its own the way a full page navigation would.
+Scoped to genuine screen changes only, so a photography day ticking
+(which doesn't change `state.screen`) doesn't yank the page around mid-shoot.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
