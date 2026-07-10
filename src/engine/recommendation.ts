@@ -83,8 +83,17 @@ function strategyConfidence(ambition: NormalizedScalar): number {
   return clamp(ambition / AMBITION_CONFIDENCE_FLOOR, 0, 1);
 }
 
-/** The dominant key in a distribution and how far above an even split it sits - the basis for both lean phrasing and "how opinionated is this" weighting. */
-function dominantLean<K extends string>(dist: Distribution<K>): { key: K; overBaseline: number } {
+/**
+ * The dominant key in a distribution and how far above an even split it
+ * sits - the basis for both lean phrasing and "how opinionated is this"
+ * weighting. Exported (unlike the rest of this section) because it's the
+ * one piece of generic distribution math a presentation layer needs to
+ * derive its own reading of a recommendation from - e.g. a developer-only
+ * "Strong/Moderate/Weak" label is deliberately not a concept this engine
+ * knows about (see docs/DESIGN.md, components/dev/RecommendationInspector.tsx) -
+ * it's computed from this, one layer up, not returned by anything here.
+ */
+export function dominantLean<K extends string>(dist: Distribution<K>): { key: K; overBaseline: number } {
   const keys = Object.keys(dist) as K[];
   const baseline = 1 / keys.length;
   let best = keys[0];
@@ -145,6 +154,34 @@ function ambitionMagnitudePhrase(ambition: NormalizedScalar, domainNoun: string)
   return `This vision doesn't call for much ${domainNoun} investment - a lean approach is appropriate here.`;
 }
 
+/**
+ * Every intermediate value behind a Strategy recommendation, not just its
+ * final `{value, reasons}` - script's and director's own raw distributions,
+ * how far apart they are and what that's classified as, the blended value
+ * *before* Ambition-driven damping, how much the director's opinion
+ * actually moved that blend, and the confidence damping applied. Exists
+ * purely for introspection (components/dev/RecommendationInspector.tsx) -
+ * recommendEnvironmentStrategy/recommendEffectsStrategy return only
+ * `.recommendation`, unchanged from before this existed.
+ */
+export interface StrategyBreakdown<K extends string> {
+  scriptRaw: Distribution<K>;
+  directorRaw: Distribution<K>;
+  distance: number;
+  agreementState: 'agree' | 'disagree' | 'neutral';
+  blendedBeforeDamping: Distribution<K>;
+  directorInfluence: number;
+  ambition: NormalizedScalar;
+  confidence: number;
+  recommendation: Recommendation<Distribution<K>>;
+}
+
+function agreementState(distance: number): 'agree' | 'disagree' | 'neutral' {
+  if (distance <= AGREEMENT_DISTANCE) return 'agree';
+  if (distance >= DISAGREEMENT_DISTANCE) return 'disagree';
+  return 'neutral';
+}
+
 // --- Environment Strategy ---
 
 const ENVIRONMENT_METHOD_KEYS: readonly EnvironmentMethodKey[] = ['studio', 'location', 'digital'];
@@ -160,12 +197,14 @@ const ENVIRONMENT_LABELS: Record<EnvironmentMethodKey, string> = {
  * built - blending the screenplay's own implied approach (primary) with the
  * director's personal lean (secondary), then damping toward a neutral split
  * if Environment Ambition is low enough that the method barely matters
- * either way.
+ * either way. The only thing shared with Effects Strategy below is generic
+ * math/phrasing (see file header) - this function owns its own reasoning
+ * end to end.
  */
-export function recommendEnvironmentStrategy(
+function computeEnvironmentStrategyBreakdown(
   script: Script,
   director: DirectorTalent,
-): Recommendation<Distribution<EnvironmentMethodKey>> {
+): StrategyBreakdown<EnvironmentMethodKey> {
   const scriptDist = script.environmentStrategy;
   const directorDist = director.productionStyle.environmentStrategy;
   const reasons: WeightedReason[] = [];
@@ -203,7 +242,29 @@ export function recommendEnvironmentStrategy(
     });
   }
 
-  return { value, reasons: finalizeReasons(reasons) };
+  return {
+    scriptRaw: scriptDist,
+    directorRaw: directorDist,
+    distance,
+    agreementState: agreementState(distance),
+    blendedBeforeDamping: blended,
+    directorInfluence,
+    ambition: script.environmentAmbition,
+    confidence,
+    recommendation: { value, reasons: finalizeReasons(reasons) },
+  };
+}
+
+export function recommendEnvironmentStrategy(
+  script: Script,
+  director: DirectorTalent,
+): Recommendation<Distribution<EnvironmentMethodKey>> {
+  return computeEnvironmentStrategyBreakdown(script, director).recommendation;
+}
+
+/** Every intermediate value behind recommendEnvironmentStrategy - see StrategyBreakdown. */
+export function explainEnvironmentStrategy(script: Script, director: DirectorTalent): StrategyBreakdown<EnvironmentMethodKey> {
+  return computeEnvironmentStrategyBreakdown(script, director);
 }
 
 // --- Effects Strategy ---
@@ -216,10 +277,7 @@ const EFFECTS_LABELS: Record<EffectsMethodKey, string> = {
 };
 
 /** Practical vs. digital, same shape of blend/damping as Environment Strategy but kept as its own function - see the file header on why. */
-export function recommendEffectsStrategy(
-  script: Script,
-  director: DirectorTalent,
-): Recommendation<Distribution<EffectsMethodKey>> {
+function computeEffectsStrategyBreakdown(script: Script, director: DirectorTalent): StrategyBreakdown<EffectsMethodKey> {
   const scriptDist = script.effectsStrategy;
   const directorDist = director.productionStyle.effectsStrategy;
   const reasons: WeightedReason[] = [];
@@ -253,7 +311,29 @@ export function recommendEffectsStrategy(
     });
   }
 
-  return { value, reasons: finalizeReasons(reasons) };
+  return {
+    scriptRaw: scriptDist,
+    directorRaw: directorDist,
+    distance,
+    agreementState: agreementState(distance),
+    blendedBeforeDamping: blended,
+    directorInfluence,
+    ambition: script.effectsAmbition,
+    confidence,
+    recommendation: { value, reasons: finalizeReasons(reasons) },
+  };
+}
+
+export function recommendEffectsStrategy(
+  script: Script,
+  director: DirectorTalent,
+): Recommendation<Distribution<EffectsMethodKey>> {
+  return computeEffectsStrategyBreakdown(script, director).recommendation;
+}
+
+/** Every intermediate value behind recommendEffectsStrategy - see StrategyBreakdown. */
+export function explainEffectsStrategy(script: Script, director: DirectorTalent): StrategyBreakdown<EffectsMethodKey> {
+  return computeEffectsStrategyBreakdown(script, director);
 }
 
 // --- Environment Ambition ---

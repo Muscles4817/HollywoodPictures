@@ -883,3 +883,18 @@ textarea, input, select {
   right: 16px;
   z-index: 50;
 }
+
+/* Top-center, same y=16px row as DateBar (left) and ThemeToggle (right) -
+   a proven-safe band, unlike a bottom corner (page content can grow
+   underneath it - see .theme-toggle-fixed history) or stacking below
+   ThemeToggle (measured to actually collide with Dashboard's own header
+   row, which starts higher than expected). Reusing the same safe row
+   DateBar/ThemeToggle already occupy, just the empty middle of it, avoids
+   guessing a second one. */
+.dev-inspector-toggle-fixed {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+}

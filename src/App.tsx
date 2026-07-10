@@ -4,6 +4,8 @@ import { ThemeToggle } from './components/common/ThemeToggle';
 import { DateBar } from './components/common/DateBar';
 import { Dashboard } from './components/Dashboard';
 import { RivalStudioPage } from './components/RivalStudioPage';
+import { RecommendationInspector } from './components/dev/RecommendationInspector';
+import { Button } from './components/common/Button';
 import { DevelopFilm } from './components/wizard/DevelopFilm';
 import { HireTalent } from './components/wizard/HireTalent';
 import { ProductionPlanning } from './components/wizard/ProductionPlanning';
@@ -95,11 +97,21 @@ function Screens() {
 }
 
 function App() {
+  // A developer-only detour, not part of the game's own screen/navigation
+  // system on purpose (see components/dev/RecommendationInspector.tsx) -
+  // never touches GameState, never persisted, reachable from any screen.
+  const [showInspector, setShowInspector] = useState(false);
+
   return (
     <StudioProvider>
       <DateBar />
       <ThemeToggle />
-      <Screens />
+      <div className="dev-inspector-toggle-fixed">
+        <Button onClick={() => setShowInspector((v) => !v)}>
+          {showInspector ? 'Back to Game' : 'Dev: Recommendation Inspector'}
+        </Button>
+      </div>
+      {showInspector ? <RecommendationInspector /> : <Screens />}
     </StudioProvider>
   );
 }
