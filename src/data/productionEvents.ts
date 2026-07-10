@@ -32,10 +32,15 @@ interface SimpleProductionEventTemplate {
 // An event that pauses photography and hands the player a real decision,
 // instead of auto-resolving - see types/index.ts:PendingEventChoice and
 // state/studioReducer.ts:RESOLVE_EVENT_CHOICE. Each choice rolls its own
-// outcome independently and is free to touch only one resource (see the
-// EventChoiceTemplate docs) - there's no base cost/quality/buzz/delay range
-// on the template itself, since the player's pick decides which of those
-// actually applies, not a shared roll underneath every option.
+// outcome independently - there's no base cost/quality/buzz/delay range on
+// the template itself, since the player's pick decides which of those
+// actually applies, not a shared roll underneath every option. Which
+// resources a given choice touches is whatever the situation actually
+// implies: "pay a mediator" is pure cost because that's genuinely all it
+// costs, but "replace someone mid-shoot" is cost *and* delay, because
+// severance and onboarding a replacement are both real. Don't force a
+// choice down to one resource for its own sake - the combination should
+// read as obviously true of the scenario, not artificially simplified.
 interface InteractiveProductionEventTemplate {
   id: string;
   situation: string;
@@ -351,7 +356,7 @@ export type RiskDimension = 'schedulePressure' | 'moraleRisk' | 'safetyRisk' | '
 // positive/negative odds. Each dimension gets its own negative bank (fires
 // when that dimension is high) and positive bank (fires when it's low) -
 // see engine/production.ts:addDimensionTemplates for the threshold logic.
-// Every dimension also carries one or two interactive templates, mixed in
+// Every dimension also carries two or three interactive templates, mixed in
 // alongside the simple ones - a real decision on top of the routine events,
 // not a replacement for them.
 export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
@@ -423,9 +428,9 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
           {
             id: 'take-the-time',
             label: 'Give it the rest of the day',
-            description: "Protect the scene, but the schedule slips further.",
+            description: 'Actually nail the scene, at the cost of falling further behind.',
             costRange: [0, 0],
-            qualityRange: [0, 0],
+            qualityRange: [2, 5],
             buzzRange: [0, 0],
             delayDaysRange: [1, 2],
           },
@@ -458,16 +463,86 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
           {
             id: 'rest-day',
             label: 'Give everyone a rest day',
-            description: 'No cost, no quality risk - just falls further behind.',
+            description: 'A rested crew works better, but it falls further behind.',
             costRange: [0, 0],
-            qualityRange: [0, 0],
+            qualityRange: [1, 3],
             buzzRange: [0, 0],
             delayDaysRange: [1, 1],
           },
         ],
       },
+      {
+        id: 'int-schedule-double-booked',
+        situation: 'A key location turns out to be double-booked - you need it for two more days than planned.',
+        polarity: 'negative',
+        interactive: true,
+        choices: [
+          {
+            id: 'pay-extension',
+            label: 'Pay a premium to extend the booking',
+            description: 'The location owner will hold it for you, for a price.',
+            costRange: [150_000, 400_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'shoot-around-it',
+            label: 'Shoot around it with a workaround',
+            description: 'Free, but the compromise scene is visibly weaker.',
+            costRange: [0, 0],
+            qualityRange: [-4, -1],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'reshuffle-schedule',
+            label: 'Push other scenes back to fit the gap',
+            description: 'No cost or quality hit, just a real schedule cost.',
+            costRange: [0, 0],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [1, 2],
+          },
+        ],
+      },
     ],
     positive: [
+      {
+        id: 'int-schedule-ahead-of-pace',
+        situation: 'The unit is comfortably ahead of pace. There\'s room to do something with the slack.',
+        polarity: 'positive',
+        interactive: true,
+        choices: [
+          {
+            id: 'wrap-early-bank-savings',
+            label: 'Wrap early and bank the savings',
+            description: "Don't spend the slack - just take the day back.",
+            costRange: [-150_000, -50_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'use-time-for-better-take',
+            label: 'Use the extra time for a better take',
+            description: 'Spends the slack on the film - one more day, for a real quality gain.',
+            costRange: [0, 0],
+            qualityRange: [3, 6],
+            buzzRange: [0, 0],
+            delayDaysRange: [1, 1],
+          },
+          {
+            id: 'let-crew-rest',
+            label: 'Let cast and crew rest up',
+            description: 'A fresher unit works a little better, at no extra cost.',
+            costRange: [0, 0],
+            qualityRange: [1, 3],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+        ],
+      },
       {
         id: 'risk-schedule-pos-generous-time',
         description: 'A generous schedule let the crew get every shot exactly right without rushing.',
@@ -571,11 +646,46 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
           {
             id: 'replace-one',
             label: 'Replace one of them',
-            description: 'Decisive, but finding and onboarding a replacement costs real time.',
-            costRange: [0, 0],
+            description: 'Severance and a rushed new hire cost money, and onboarding them costs time.',
+            costRange: [80_000, 250_000],
             qualityRange: [0, 0],
             buzzRange: [0, 0],
             delayDaysRange: [1, 2],
+          },
+        ],
+      },
+      {
+        id: 'int-morale-diva-demand',
+        situation: 'A high-profile cast member is threatening to walk unless a demand is met.',
+        polarity: 'negative',
+        interactive: true,
+        choices: [
+          {
+            id: 'meet-demand',
+            label: 'Meet the demand',
+            description: 'Pay them off and keep things moving.',
+            costRange: [100_000, 400_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'call-bluff',
+            label: 'Call their bluff',
+            description: 'If they actually make a scene, it hurts the work and leaks as a tantrum story.',
+            costRange: [0, 0],
+            qualityRange: [-6, -2],
+            buzzRange: [-4, -1],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'negotiate-middle-ground',
+            label: 'Negotiate a middle ground',
+            description: 'Costs some money and some time hashing it out, but avoids the worst of either extreme.',
+            costRange: [30_000, 120_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 1],
           },
         ],
       },
@@ -635,18 +745,18 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
           {
             id: 'press-day',
             label: 'Get the press in for a feel-good story',
-            description: 'Pure publicity play - no effect on the film itself.',
+            description: "Great publicity, but a day of press access eats into the shooting day itself.",
             costRange: [0, 0],
             qualityRange: [0, 0],
             buzzRange: [8, 15],
-            delayDaysRange: [0, 0],
+            delayDaysRange: [0, 1],
           },
           {
             id: 'reward-day-off',
             label: 'Reward the cast with a day off',
-            description: 'Banks the goodwill, but costs a shoot day.',
+            description: 'The goodwill pays off in better work later, at the cost of a shoot day.',
             costRange: [0, 0],
-            qualityRange: [0, 0],
+            qualityRange: [1, 3],
             buzzRange: [0, 0],
             delayDaysRange: [1, 1],
           },
@@ -723,6 +833,41 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
             costRange: [150_000, 400_000],
             qualityRange: [0, 0],
             buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+        ],
+      },
+      {
+        id: 'int-safety-weather-hazard',
+        situation: 'Hazardous weather is rolling in during a scheduled outdoor stunt sequence.',
+        polarity: 'negative',
+        interactive: true,
+        choices: [
+          {
+            id: 'postpone-weather',
+            label: 'Postpone until conditions improve',
+            description: 'Safe and free, but the schedule absorbs the wait.',
+            costRange: [0, 0],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [1, 3],
+          },
+          {
+            id: 'proceed-with-precautions',
+            label: 'Proceed with extra precautions',
+            description: 'Pay for the safety measures needed to do it anyway, on schedule.',
+            costRange: [80_000, 250_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'push-through-weather',
+            label: 'Push through as scheduled',
+            description: 'Free, but a visibly reckless call if anything goes even slightly wrong.',
+            costRange: [0, 0],
+            qualityRange: [-5, -1],
+            buzzRange: [-3, 0],
             delayDaysRange: [0, 0],
           },
         ],
@@ -875,6 +1020,41 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
           },
         ],
       },
+      {
+        id: 'int-technical-format-mismatch',
+        situation: "Footage shot on two different camera systems isn't matching in post - nobody caught the mismatch until now.",
+        polarity: 'negative',
+        interactive: true,
+        choices: [
+          {
+            id: 'reshoot-mismatched',
+            label: 'Reshoot the mismatched scenes',
+            description: 'The clean fix - but it costs both money and real shoot days.',
+            costRange: [200_000, 500_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [1, 2],
+          },
+          {
+            id: 'color-match-digitally',
+            label: 'Have post-production color-match it digitally',
+            description: 'A paid post-production fix - no reshoot day needed.',
+            costRange: [100_000, 300_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'leave-it',
+            label: 'Leave it and hope nobody notices',
+            description: 'Free, but the mismatch is there in the finished film.',
+            costRange: [0, 0],
+            qualityRange: [-6, -2],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+        ],
+      },
     ],
     positive: [
       {
@@ -997,8 +1177,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
           {
             id: 'cut-scene',
             label: 'Cut a scene to save money',
-            description: 'Free, but the film loses something it needed.',
-            costRange: [0, 0],
+            description: "Not shooting it saves real money, but the film loses something it needed.",
+            costRange: [-80_000, -20_000],
             qualityRange: [-6, -3],
             buzzRange: [0, 0],
             delayDaysRange: [0, 0],
@@ -1079,8 +1259,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
           {
             id: 'polish-pass',
             label: 'Invest in one more polish pass',
-            description: 'Spend the cushion on the film itself.',
-            costRange: [0, 0],
+            description: 'Spend part of the cushion on the film itself.',
+            costRange: [30_000, 100_000],
             qualityRange: [3, 6],
             buzzRange: [0, 0],
             delayDaysRange: [0, 0],
@@ -1088,10 +1268,45 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
           {
             id: 'publicity-moment',
             label: 'Fund a splashy publicity moment',
-            description: 'Spend the cushion on getting people talking instead.',
-            costRange: [0, 0],
+            description: 'Spend part of the cushion on getting people talking instead.',
+            costRange: [30_000, 100_000],
             qualityRange: [0, 0],
             buzzRange: [6, 12],
+            delayDaysRange: [0, 0],
+          },
+        ],
+      },
+      {
+        id: 'int-budget-favorable-exchange',
+        situation: 'A favorable currency shift on an overseas shoot leaves the production with unexpected savings.',
+        polarity: 'positive',
+        interactive: true,
+        choices: [
+          {
+            id: 'pocket-savings',
+            label: 'Pocket the savings',
+            description: 'Take the windfall as pure cash.',
+            costRange: [-200_000, -80_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'reinvest-extra-coverage',
+            label: 'Reinvest in an extra day of coverage',
+            description: 'Spend the windfall on one more day of shooting - real quality, for real time.',
+            costRange: [0, 0],
+            qualityRange: [2, 5],
+            buzzRange: [0, 0],
+            delayDaysRange: [1, 1],
+          },
+          {
+            id: 'split-savings',
+            label: 'Split it - bank some, spend some on set dressing',
+            description: 'A partial windfall and a partial quality bump.',
+            costRange: [-100_000, -30_000],
+            qualityRange: [1, 3],
+            buzzRange: [0, 0],
             delayDaysRange: [0, 0],
           },
         ],

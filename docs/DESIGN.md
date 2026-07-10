@@ -1174,19 +1174,22 @@ remaining dispatches rather than needing its own awareness of the
 interruption.
 
 Each `EventChoiceTemplate` rolls its own independent cost/quality/buzz/delay
-ranges - nothing requires a choice to touch more than one of them, and most
-of the ten interactive templates (two per risk dimension, one per
-negative/positive split - `moraleRisk`, `safetyRisk`, `technicalComplexity`
-and `budgetRisk` each get one of each polarity; `schedulePressure` gets two
-negative, since a schedule crisis is the clearest natural fit for a
-decision) deliberately keep each option to a single resource: pure quality
-("cut your losses"), pure money ("throw money at it"), pure time ("take
-the extra time"), or pure buzz ("let the team show it off online"). Picking
-one dispatches `RESOLVE_EVENT_CHOICE`, which rolls that choice's outcome
-(`engine/production.ts:resolveEventChoice`), appends it to `events` with
-the situation + choice label folded into its description, applies its own
-`delayDaysDelta` on top of the calendar (separately from the day the
-situation itself consumed), and flips `status` back to `'in-progress'`.
+ranges. Which of those a given choice actually touches is whatever the
+situation logically implies, not forced down to a single resource for its
+own sake: "bring in a mediator" is pure cost because that's genuinely all
+it costs, but "replace someone mid-shoot" costs *and* delays, because
+severance and onboarding a replacement are both real; "reinvest a currency
+windfall in an extra day of coverage" costs a day *and* raises quality,
+because that's what spending the day on the film actually buys. 16
+interactive templates across the five risk dimensions this way (3-4 each,
+mixing negative-crisis and positive-opportunity situations - budgetRisk and
+schedulePressure each lean toward whichever polarity gives the more natural
+decision). Picking a choice dispatches `RESOLVE_EVENT_CHOICE`, which rolls
+that choice's outcome (`engine/production.ts:resolveEventChoice`), appends
+it to `events` with the situation + choice label folded into its
+description, applies its own `delayDaysDelta` on top of the calendar
+(separately from the day the situation itself consumed), and flips `status`
+back to `'in-progress'`.
 
 `FINISH_PHOTOGRAPHY` was already gated to `status === 'in-progress'`, so it
 naturally can't be used to skip past a pending decision - the Finish and
