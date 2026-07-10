@@ -1,10 +1,13 @@
 import type {
+  Distribution,
+  EffectsMethodKey,
+  EnvironmentMethodKey,
   Film,
   FilmDraft,
   Genre,
   MarketingChoices,
+  NormalizedScalar,
   PostProductionChoices,
-  ProductionChoices,
   Screen,
   Script,
   Studio,
@@ -55,6 +58,10 @@ export function createEmptyDraft(): FilmDraft {
     script: null,
     talent: [],
     talentTargetPriceByRole: {},
+    environmentStrategy: null,
+    environmentAmbition: null,
+    effectsStrategy: null,
+    effectsAmbition: null,
     productionChoices: null,
     photography: null,
     furthestStepIndexCharged: -1,
@@ -77,7 +84,22 @@ export type GameAction =
   | { type: 'TOGGLE_TALENT_FOR_ROLE'; role: TalentRole; talent: Talent }
   | { type: 'SET_TALENT_TARGET_PRICE'; role: TalentRole; price: number }
   | { type: 'SET_TALENT_BUDGET_SPLIT'; totalBudget: number }
-  | { type: 'SET_PRODUCTION_CHOICES'; choices: ProductionChoices }
+  // Replaces the old SET_PRODUCTION_CHOICES - the player now edits Strategy/
+  // Ambition values directly (Plan Production, docs/DESIGN.md), and the
+  // reducer derives ProductionChoices from them via
+  // engine/productionChoicesAdapter.ts rather than the screen setting that
+  // legacy shape by hand. contingencyAmount/runtimeIntensity are the two
+  // fields nothing in the new model replaced, so they're still passed
+  // through as-is.
+  | {
+      type: 'SET_PRODUCTION_PLAN';
+      environmentStrategy: Distribution<EnvironmentMethodKey>;
+      environmentAmbition: NormalizedScalar;
+      effectsStrategy: Distribution<EffectsMethodKey>;
+      effectsAmbition: NormalizedScalar;
+      contingencyAmount: number;
+      runtimeIntensity: number;
+    }
   | { type: 'BEGIN_PHOTOGRAPHY' }
   | { type: 'ADVANCE_SHOOTING_DAY' }
   | { type: 'RESOLVE_EVENT_CHOICE'; choiceId: string }

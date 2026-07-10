@@ -38,7 +38,11 @@ import { randomSeed, withRng } from '../engine/random';
 // (environmentStrategy/effectsStrategy) to DirectorTalent - the producer-
 // recommendation model foundation (docs/DESIGN.md), not yet consumed by any
 // screen.
-const SAVE_KEY = 'hollywood-pictures-save-v15';
+// v15 -> v16 redesigned Plan Production around that model - FilmDraft
+// gained environmentStrategy/environmentAmbition/effectsStrategy/
+// effectsAmbition, and SET_PRODUCTION_CHOICES was replaced by
+// SET_PRODUCTION_PLAN (docs/DESIGN.md).
+const SAVE_KEY = 'hollywood-pictures-save-v16';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

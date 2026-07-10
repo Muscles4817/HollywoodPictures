@@ -30,8 +30,17 @@ function finalizeReasons(reasons: WeightedReason[]): string[] {
   return [...reasons].sort((a, b) => b.weight - a.weight).map((r) => r.text);
 }
 
-/** Half the sum of absolute per-key differences - 0 for identical distributions, 1 for two that share no weight in common at all. */
-function totalVariationDistance<K extends string>(a: Distribution<K>, b: Distribution<K>): number {
+/**
+ * Half the sum of absolute per-key differences - 0 for identical
+ * distributions, 1 for two that share no weight in common at all.
+ * Exported alongside dominantLean for the same reason - a presentation
+ * layer (Plan Production's "Adjusted" vs "Following Recommendation"
+ * status) needs to measure how far the player's own value has drifted from
+ * the recommendation, using the exact same distance the engine itself uses
+ * for agreement/disagreement, rather than a second, potentially
+ * inconsistent notion of "close enough."
+ */
+export function totalVariationDistance<K extends string>(a: Distribution<K>, b: Distribution<K>): number {
   const keys = Object.keys(a) as K[];
   return keys.reduce((sum, key) => sum + Math.abs(a[key] - b[key]), 0) / 2;
 }

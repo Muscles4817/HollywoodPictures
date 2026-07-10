@@ -7,6 +7,7 @@ import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } fr
 import { effectiveRoleCapacity } from '../engine/castRequirements';
 import { computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent, resolveEventChoice } from '../engine/production';
 import { computeDailyContingencyBurn } from '../engine/cost';
+import { adaptRecommendationsToProductionChoices } from '../engine/productionChoicesAdapter';
 import { STAGE_DURATIONS } from '../data/schedule';
 import { computeReleaseResults } from '../engine/releaseFilm';
 import { computeWeeklyRetention } from '../engine/boxOffice';
@@ -253,9 +254,26 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       return { ...state, draft: { ...state.draft, talentTargetPriceByRole: updated } };
     }
 
-    case 'SET_PRODUCTION_CHOICES': {
+    case 'SET_PRODUCTION_PLAN': {
       if (!state.draft) return state;
-      return { ...state, draft: { ...state.draft, productionChoices: action.choices } };
+      const productionChoices = adaptRecommendationsToProductionChoices(
+        action.environmentAmbition,
+        action.effectsStrategy,
+        action.effectsAmbition,
+        action.contingencyAmount,
+        action.runtimeIntensity,
+      );
+      return {
+        ...state,
+        draft: {
+          ...state.draft,
+          environmentStrategy: action.environmentStrategy,
+          environmentAmbition: action.environmentAmbition,
+          effectsStrategy: action.effectsStrategy,
+          effectsAmbition: action.effectsAmbition,
+          productionChoices,
+        },
+      };
     }
 
     case 'BEGIN_PHOTOGRAPHY': {

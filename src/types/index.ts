@@ -512,6 +512,16 @@ export interface FilmDraft {
   talent: Talent[];
   /** The price the player is currently targeting for each role - filters studio.talentPool down to who's shown. */
   talentTargetPriceByRole: Partial<Record<TalentRole, number>>;
+  // The player's own Strategy/Ambition choices from the redesigned Plan
+  // Production screen - null until that screen has been visited at least
+  // once. `productionChoices` below is still what every downstream system
+  // (shoot-day estimate, static risk, cost) actually reads - it's derived
+  // from these via engine/productionChoicesAdapter.ts every time any of
+  // them changes, not edited directly any more. See docs/DESIGN.md.
+  environmentStrategy: Distribution<EnvironmentMethodKey> | null;
+  environmentAmbition: NormalizedScalar | null;
+  effectsStrategy: Distribution<EffectsMethodKey> | null;
+  effectsAmbition: NormalizedScalar | null;
   productionChoices: ProductionChoices | null;
   photography: PhotographyState | null;
   // Index into the wizard's canonical step order (state/studioReducer.ts:WIZARD_STEP_ORDER)
