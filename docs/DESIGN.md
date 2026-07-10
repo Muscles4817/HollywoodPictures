@@ -1366,6 +1366,59 @@ screens where time passes on its own, verified with a Playwright pass
 showing the date bar advancing three days over ~9.5 seconds on the
 Dashboard, then holding perfectly still for the same span on `develop`.
 
+### 5.21 Event severity, and a real shoot having *multiple* events (`data/productionEvents.ts`, `engine/production.ts`)
+
+Direct playtest feedback: a 40-day recommended shoot that produced a single
+event, none of them interactive, read as broken even though it was within
+normal variance for the original tuning. Two changes, driven by an actual
+simulation rather than a guess at what "felt right":
+
+**Every template now carries a `severity: 'low' | 'medium' | 'high'`**
+(`types/index.ts:EventSeverity`) - how big a deal it actually is, independent
+of polarity. "The crew found a clever low-cost solution" is `low`; "a
+performer was hospitalized, shutting down filming for two days" is `high`.
+Classified by hand across all ~90 templates by eyeballing each one's own
+cost/quality/delay magnitude and narrative weight - roughly half came out
+`low`, a little over a third `medium`, and about 1 in 10 `high`. The two
+templates that offer a real recast (`offersReplacementFor`, see 5.18) are
+always `high` - replacing someone mid-shoot is never a minor event.
+
+**`rollDayEvent` now rolls severity as its own independent question**, after
+polarity, before picking a template - "how big a deal" and "good or bad
+news" don't have to move together. `severityWeights(avgRisk)` skews hard
+toward `low` regardless of risk (70% at avgRisk=0, still 40% at avgRisk=100)
+so routine set texture stays the common case even on a tense shoot, while
+`medium` and `high` genuinely grow with risk instead of everything
+flattening into a coin flip. Falls back to any severity within the same
+polarity pool if the rolled tier happens to be empty for that combination
+(a rare specific risk-dimension/polarity/severity intersection).
+
+**The daily event chance itself also went up**, from 0.05-0.13 to
+0.12-0.27 - the original range meant a real shoot could run its full
+length and land one event, sometimes none, which is what actually happened
+in the reported case. Simulated across 5,000 40-day shoots at three risk
+levels to check the fix landed where intended rather than asserting it:
+
+| Risk level | Avg events/shoot | Avg low-severity interactive/shoot | Shoots with 0 events |
+|---|---|---|---|
+| Low ("a good shoot") | 6.73 | 1.81 | 0.1% |
+| Moderate | 7.64 | 2.08 | 0.0% |
+| High | 9.07 | 2.75 | 0.0% |
+
+A good shoot now averages "one or two" low-severity interactive events -
+exactly the target - and effectively never produces fewer than 2 events
+total, versus the old tuning's real chance of landing on 0-1.
+
+`ProductionEvent` and `PendingEventChoice` both gained the resolved
+template's `severity`, shown as a small color-coded tag
+(`components/common/SeverityBadge.tsx` - grey "Minor", amber "Moderate",
+red "Major") next to each entry in the On-Set Events log and on the
+decision panel heading, so the player can see at a glance how much weight
+an event actually carries before reacting to it.
+
+Save format bumped to v12 (`state/persistence.ts`) for the new required
+`severity` field.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
