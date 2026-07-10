@@ -326,6 +326,81 @@ button {
   .compare-slots-double {
     grid-template-columns: 1fr;
   }
+
+  .dashboard-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .top-grossing-panel {
+    position: static;
+  }
+}
+
+/* --- Dashboard layout: main column + a sticky Top 10 rail on the right --- */
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+}
+
+.top-grossing-panel {
+  position: sticky;
+  top: 130px;
+}
+
+.top-grossing-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: 0 0 10px;
+  margin: 0;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+}
+
+.top-grossing-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.top-grossing-row:hover .top-grossing-title {
+  text-decoration: underline;
+}
+
+.top-grossing-rank {
+  font-weight: 700;
+  color: var(--text-muted);
+  width: 18px;
+  flex-shrink: 0;
+}
+
+.top-grossing-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.top-grossing-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.top-grossing-title-player {
+  color: var(--primary);
+}
+
+.top-grossing-studio,
+.top-grossing-figures {
+  font-size: 0.8em;
+  color: var(--text-muted);
 }
 
 /* --- Stat tiles --- */

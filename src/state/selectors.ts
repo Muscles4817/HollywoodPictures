@@ -1,4 +1,4 @@
-import type { FilmDraft } from '../types';
+import type { Film, FilmDraft, Studio } from '../types';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { TEST_SCREENING_PROFILES } from '../data/postProduction';
 
@@ -41,4 +41,35 @@ export function computeCommittedSpend(draft: FilmDraft | null): number {
   if (draft.marketingChoices) total += computeMarketingCost(draft.marketingChoices);
 
   return total;
+}
+
+export interface TopGrossingEntry {
+  film: Film;
+  studioName: string;
+  thisWeekGross: number;
+  weekNumber: number;
+}
+
+/**
+ * The player's own films plus every rival's (Studio.rivalFilmsReleased, see
+ * engine/rivalStudios.ts), ranked by whatever each one made in its own most
+ * recently settled week - a real weekend chart, not lifetime gross, so a
+ * long-running hit and a film in its second week both compete on the same
+ * number. Only films still actually in theaters count; a finished run drops
+ * off the chart the same way it would in reality.
+ */
+export function computeTopGrossingFilms(studio: Studio, limit = 10): TopGrossingEntry[] {
+  const candidates: Array<{ film: Film; studioName: string }> = [
+    ...studio.filmsReleased.map((film) => ({ film, studioName: studio.name })),
+    ...studio.rivalFilmsReleased.map((film) => ({ film, studioName: film.releasedBy ?? 'A Rival Studio' })),
+  ];
+
+  const entries: TopGrossingEntry[] = [];
+  for (const { film, studioName } of candidates) {
+    const { boxOfficeRun } = film;
+    if (boxOfficeRun.status !== 'running' || boxOfficeRun.weeks.length === 0) continue;
+    const latestWeek = boxOfficeRun.weeks[boxOfficeRun.weeks.length - 1];
+    entries.push({ film, studioName, thisWeekGross: latestWeek.gross, weekNumber: latestWeek.week });
+  }
+  return entries.sort((a, b) => b.thisWeekGross - a.thisWeekGross).slice(0, limit);
 }

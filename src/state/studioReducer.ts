@@ -11,7 +11,9 @@ import { STAGE_DURATIONS } from '../data/schedule';
 import { computeReleaseResults } from '../engine/releaseFilm';
 import { computeWeeklyRetention } from '../engine/boxOffice';
 import { settleBoxOfficeForAllFilms, type BoxOfficeSettlement } from '../engine/boxOfficeRun';
+import { settleRivalMarket, type RivalMarketUpdate } from '../engine/rivalStudios';
 import { applyReputationChange } from '../engine/reputation';
+import type { Studio } from '../types';
 
 // The canonical forward order of the wizard - used only to tell a forward
 // GO_TO_STEP (advance the calendar by that stage's fixed duration, see
@@ -55,6 +57,23 @@ function applyBoxOfficeSettlement<S extends { cash: number; reputation: number; 
   };
 }
 
+/**
+ * Folds a rival-market tick into a Studio object - called alongside
+ * applyBoxOfficeSettlement at every one of the same call sites, since a
+ * rival's production/release/weekly box office all move on the same
+ * calendar the player's own films do. Never touches cash/reputation - none
+ * of it is the player's. See engine/rivalStudios.ts:settleRivalMarket.
+ */
+function applyRivalMarketSettlement(studio: Studio, update: RivalMarketUpdate): Studio {
+  return {
+    ...studio,
+    rivalStudios: update.rivalStudios,
+    rivalProductionsInProgress: update.rivalProductionsInProgress,
+    rivalFilmsReleased: update.rivalFilmsReleased,
+    talentPool: update.talentPool,
+  };
+}
+
 // Non-release cash mutations (talent salaries, production spend, marketing)
 // are still only ever charged once, at RELEASE_FILM, computed fresh from the
 // complete draft - see state/selectors.ts for the live preview shown before
@@ -72,13 +91,18 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // runs on.
     case 'ADVANCE_DAY': {
       const totalDaysAfter = state.studio.totalDays + 1;
-      const { result: settlement, nextSeed } = withRng(state.rngSeed, (rng) =>
-        settleBoxOfficeForAllFilms(state.studio.filmsReleased, totalDaysAfter, rng),
-      );
+      const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
+        const settlement = settleBoxOfficeForAllFilms(state.studio.filmsReleased, totalDaysAfter, rng);
+        const rivalMarket = settleRivalMarket({ ...state.studio, totalDays: totalDaysAfter }, rng);
+        return { settlement, rivalMarket };
+      });
       return {
         ...state,
         rngSeed: nextSeed,
-        studio: applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, settlement),
+        studio: applyRivalMarketSettlement(
+          applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, result.settlement),
+          result.rivalMarket,
+        ),
       };
     }
 
@@ -102,14 +126,19 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       if (!stageDuration) return { ...state, screen: action.step };
 
       const totalDaysAfter = state.studio.totalDays + stageDuration;
-      const { result: settlement, nextSeed } = withRng(state.rngSeed, (rng) =>
-        settleBoxOfficeForAllFilms(state.studio.filmsReleased, totalDaysAfter, rng),
-      );
+      const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
+        const settlement = settleBoxOfficeForAllFilms(state.studio.filmsReleased, totalDaysAfter, rng);
+        const rivalMarket = settleRivalMarket({ ...state.studio, totalDays: totalDaysAfter }, rng);
+        return { settlement, rivalMarket };
+      });
       return {
         ...state,
         rngSeed: nextSeed,
         screen: action.step,
-        studio: applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, settlement),
+        studio: applyRivalMarketSettlement(
+          applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, result.settlement),
+          result.rivalMarket,
+        ),
         draft: { ...state.draft, furthestStepIndexCharged: fromIdx },
       };
     }
@@ -276,13 +305,15 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         if (rolled && 'pendingChoice' in rolled) {
           const totalDaysAfter = state.studio.totalDays + 1;
           const settlement = settleBoxOfficeForAllFilms(state.studio.filmsReleased, totalDaysAfter, rng);
-          return { kind: 'pendingChoice' as const, pendingChoice: rolled.pendingChoice, totalDaysAfter, settlement };
+          const rivalMarket = settleRivalMarket({ ...state.studio, totalDays: totalDaysAfter }, rng);
+          return { kind: 'pendingChoice' as const, pendingChoice: rolled.pendingChoice, totalDaysAfter, settlement, rivalMarket };
         }
         const event = rolled?.event ?? null;
         const daysAdvanced = 1 + (event?.delayDaysDelta ?? 0);
         const totalDaysAfter = state.studio.totalDays + daysAdvanced;
         const settlement = settleBoxOfficeForAllFilms(state.studio.filmsReleased, totalDaysAfter, rng);
-        return { kind: 'event' as const, event, daysAdvanced, totalDaysAfter, settlement };
+        const rivalMarket = settleRivalMarket({ ...state.studio, totalDays: totalDaysAfter }, rng);
+        return { kind: 'event' as const, event, daysAdvanced, totalDaysAfter, settlement, rivalMarket };
       });
 
       const dailyBurn = computeDailyContingencyBurn(d.productionChoices.contingencyAmount, d.photography.recommendedDays);
@@ -291,7 +322,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         return {
           ...state,
           rngSeed: nextSeed,
-          studio: applyBoxOfficeSettlement({ ...state.studio, totalDays: result.totalDaysAfter }, result.settlement),
+          studio: applyRivalMarketSettlement(
+            applyBoxOfficeSettlement({ ...state.studio, totalDays: result.totalDaysAfter }, result.settlement),
+            result.rivalMarket,
+          ),
           draft: {
             ...d,
             photography: {
@@ -305,12 +339,15 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         };
       }
 
-      const { event, daysAdvanced, totalDaysAfter, settlement } = result;
+      const { event, daysAdvanced, totalDaysAfter, settlement, rivalMarket } = result;
 
       return {
         ...state,
         rngSeed: nextSeed,
-        studio: applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, settlement),
+        studio: applyRivalMarketSettlement(
+          applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, settlement),
+          rivalMarket,
+        ),
         draft: {
           ...d,
           photography: {
@@ -343,9 +380,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         const event = resolveEventChoice(pendingChoice, action.choiceId, rng);
         const totalDaysAfter = state.studio.totalDays + event.delayDaysDelta;
         const settlement = settleBoxOfficeForAllFilms(state.studio.filmsReleased, totalDaysAfter, rng);
-        return { event, totalDaysAfter, settlement };
+        const rivalMarket = settleRivalMarket({ ...state.studio, totalDays: totalDaysAfter }, rng);
+        return { event, totalDaysAfter, settlement, rivalMarket };
       });
-      const { event, totalDaysAfter, settlement } = result;
+      const { event, totalDaysAfter, settlement, rivalMarket } = result;
       const extraDays = event.delayDaysDelta;
       const dailyBurn = computeDailyContingencyBurn(d.productionChoices.contingencyAmount, d.photography.recommendedDays);
 
@@ -360,7 +398,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         rngSeed: nextSeed,
-        studio: applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, settlement),
+        studio: applyRivalMarketSettlement(
+          applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, settlement),
+          rivalMarket,
+        ),
         draft: {
           ...d,
           talent,
@@ -463,11 +504,15 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         };
         const filmsReleased = [...state.studio.filmsReleased, film];
         const settlement = settleBoxOfficeForAllFilms(filmsReleased, totalDaysAfter, rng);
-        return { totalCost: results.totalCost, filmId: film.id, settlement };
+        const rivalMarket = settleRivalMarket({ ...state.studio, totalDays: totalDaysAfter }, rng);
+        return { totalCost: results.totalCost, filmId: film.id, settlement, rivalMarket };
       });
 
       const cashAfterCosts = state.studio.cash - result.totalCost;
-      const studioAfter = applyBoxOfficeSettlement({ ...state.studio, cash: cashAfterCosts, totalDays: totalDaysAfter }, result.settlement);
+      const studioAfter = applyRivalMarketSettlement(
+        applyBoxOfficeSettlement({ ...state.studio, cash: cashAfterCosts, totalDays: totalDaysAfter }, result.settlement),
+        result.rivalMarket,
+      );
       const releasedFilm = studioAfter.filmsReleased.find((f) => f.id === result.filmId)!;
 
       return {

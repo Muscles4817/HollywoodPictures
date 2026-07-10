@@ -14,6 +14,7 @@ import type {
   WizardStep,
 } from '../types';
 import { generateTalentPool } from '../engine/talentGenerator';
+import { generateRivalStudios } from '../engine/rivalStudios';
 import type { RandomFn } from '../engine/random';
 
 export interface GameState {
@@ -37,6 +38,9 @@ export function createInitialStudio(rng: RandomFn): Studio {
     totalDays: 1,
     filmsReleased: [],
     talentPool: generateTalentPool(rng),
+    rivalStudios: generateRivalStudios(rng),
+    rivalProductionsInProgress: [],
+    rivalFilmsReleased: [],
   };
 }
 

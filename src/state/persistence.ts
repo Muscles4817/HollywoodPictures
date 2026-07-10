@@ -27,7 +27,10 @@ import { randomSeed, withRng } from '../engine/random';
 // single computed total at release (docs/DESIGN.md 5.19).
 // v11 -> v12 added a required `severity` field to ProductionEvent and
 // PendingEventChoice (docs/DESIGN.md 5.21).
-const SAVE_KEY = 'hollywood-pictures-save-v12';
+// v12 -> v13 added AI rival studios - Studio gained required rivalStudios/
+// rivalProductionsInProgress/rivalFilmsReleased, Talent gained optional
+// bookedUntil, and Film gained optional releasedBy (docs/DESIGN.md 5.24).
+const SAVE_KEY = 'hollywood-pictures-save-v13';
 
 export function loadState(): GameState {
   try {

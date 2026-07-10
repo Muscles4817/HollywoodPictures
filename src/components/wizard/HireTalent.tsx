@@ -4,6 +4,7 @@ import { MANDATORY_TALENT_ROLES, OPTIONAL_TALENT_ROLES, ROLE_GENERATION_PROFILES
 import { effectiveRoleCapacity } from '../../engine/castRequirements';
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
+import { formatGameDate } from '../../engine/calendar';
 import { computeCommittedSpend } from '../../state/selectors';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
@@ -169,7 +170,10 @@ export function HireTalent() {
             <div className="grid">
               {displayList.map((talent) => {
                 const selected = hired.some((h) => h.id === talent.id);
-                const disabled = !selected && atCap;
+                // Booked by a rival studio's production (engine/rivalStudios.ts)
+                // - unavailable regardless of cap, until their bookedUntil day passes.
+                const booked = !selected && !!talent.bookedUntil && talent.bookedUntil > state.studio.totalDays;
+                const disabled = !selected && (atCap || booked);
                 const pinned = pinnedTalentIds.includes(talent.id);
                 // Pinning a candidate from a different role than what's currently pinned
                 // starts a fresh comparison (see togglePinTalent), so the cap only blocks
@@ -199,7 +203,12 @@ export function HireTalent() {
                       {pinned ? 'Unpin from Compare' : 'Pin to Compare'}
                     </Button>
                     {selected && <p style={{ color: 'var(--green)', marginTop: 6 }}>Hired</p>}
-                    {disabled && <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>Cast full</p>}
+                    {!selected && booked && (
+                      <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>
+                        Filming elsewhere until {formatGameDate(talent.bookedUntil!)}
+                      </p>
+                    )}
+                    {!selected && !booked && disabled && <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>Cast full</p>}
                   </Card>
                 );
               })}

@@ -60,6 +60,13 @@ interface TalentCommon {
   reliability: number; // 1-100
   ego: number; // 1-100
   salary: number;
+  // Studio.totalDays this person is committed through - a rival studio
+  // production currently has them cast (see engine/rivalStudios.ts). Absent
+  // or <= the current day means available. Never set by the player's own
+  // hires - only one of the player's own films is ever in production at a
+  // time, so there's nothing for that to conflict with (see docs/DESIGN.md
+  // 5.24 and Known Limitations).
+  bookedUntil?: number;
 }
 
 export interface DirectorTalent extends TalentCommon {
@@ -355,6 +362,50 @@ export interface Film {
   boxOfficeRun: BoxOfficeRun;
   /** Studio.totalDays at the moment this film was released - see engine/calendar.ts:formatGameDate. */
   releasedOnDay: number;
+  // Which rival studio made this, if any - absent means it's the player's
+  // own (see Studio.rivalFilmsReleased below and docs/DESIGN.md 5.24). Kept
+  // as a plain name rather than an id lookup since a rival studio's own
+  // record never needs to change after the fact.
+  releasedBy?: string;
+}
+
+// A rival studio's overall scale - governs both how big the films it makes
+// tend to be and how many it can have in production at once (see
+// engine/rivalStudios.ts:canStartNewProduction, docs/DESIGN.md 5.24).
+export type StudioTier = 'Indie' | 'Mid-Size' | 'Major';
+
+// A single production's own scale, independent of quality - a Small film
+// can still turn out great, a Big one can still flop. Drives the target
+// price band used to cast it (see engine/rivalStudios.ts).
+export type ProductionScale = 'Small' | 'Medium' | 'Big';
+
+export interface RivalStudio {
+  id: string;
+  name: string;
+  tier: StudioTier;
+  /** Studio.totalDays threshold - once reached, this studio attempts a new production if it has spare capacity (see engine/rivalStudios.ts). */
+  nextSpawnCheckDay: number;
+}
+
+/**
+ * A rival production between casting and release - no live day-by-day
+ * simulation, just enough to (a) hold real talent-pool candidates
+ * unavailable to the player for a believable window and (b) synthesize a
+ * full Film via the same scoring/box-office math the player's own films use,
+ * once `releaseDay` arrives (engine/rivalStudios.ts:resolveRivalProduction).
+ */
+export interface RivalProductionInProgress {
+  id: string;
+  rivalStudioId: string;
+  scale: ProductionScale;
+  genre: Genre;
+  script: Script;
+  talent: Talent[];
+  productionChoices: ProductionChoices;
+  postProductionChoices: PostProductionChoices;
+  marketingChoices: MarketingChoices;
+  targetAudience: TargetAudience;
+  releaseDay: number;
 }
 
 export interface Studio {
@@ -366,6 +417,11 @@ export interface Studio {
   filmsReleased: Film[];
   /** The whole hireable roster, generated once at game start - see state/gameState.ts:createInitialStudio. */
   talentPool: Record<TalentRole, Talent[]>;
+  /** A small persistent roster of AI competitors, generated once at game start alongside the player's own studio - see docs/DESIGN.md 5.24. */
+  rivalStudios: RivalStudio[];
+  rivalProductionsInProgress: RivalProductionInProgress[];
+  /** Parallel to filmsReleased, but never touches the player's own cash/reputation - purely for the market (Top 10 chart, talent contention history). */
+  rivalFilmsReleased: Film[];
 }
 
 // The film currently being built in the wizard; fields fill in progressively.

@@ -10,6 +10,8 @@ import { BoxOfficeChart } from './common/BoxOfficeChart';
 import { BoxOfficeFinishedPopup } from './common/BoxOfficeFinishedPopup';
 import { FilmDetailModal } from './common/FilmDetailModal';
 import { TimeTickIndicator } from './common/TimeTickIndicator';
+import { TopGrossingPanel } from './common/TopGrossingPanel';
+import { computeTopGrossingFilms } from '../state/selectors';
 import type { Film } from '../types';
 
 interface DashboardProps {
@@ -80,104 +82,114 @@ export function Dashboard({ paused, onTogglePause, tickNonce }: DashboardProps) 
         <StatTile label="Current Date" value={formatGameDate(studio.totalDays)} />
       </div>
 
-      {runningFilms.map((film) => {
-        const collapsed = collapsedFilmIds.has(film.id);
-        return (
-          <div className="card stack" key={film.id}>
-            <div className="row-between">
-              <h2 style={{ margin: 0 }}>{film.title} - In Theaters</h2>
-              <div className="row" style={{ gap: 12 }}>
-                {collapsed && (
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85em' }}>
-                    Week {film.boxOfficeRun.weeks.length} &middot; <Money amount={film.boxOfficeRun.cumulativeGross} /> so far
-                  </span>
-                )}
-                <Button className="btn-sm" onClick={() => toggleCollapsed(film.id)}>
-                  {collapsed ? 'Expand' : 'Collapse'}
-                </Button>
-              </div>
-            </div>
-            {!collapsed && (
-              <>
-                <div className="row">
-                  <StatTile label="Week" value={film.boxOfficeRun.weeks.length} />
-                  <StatTile label="Opening Weekend" value={<Money amount={film.results.openingWeekend} />} />
-                  <StatTile label="Gross So Far" value={<Money amount={film.boxOfficeRun.cumulativeGross} />} />
+      <div className="dashboard-layout">
+        <div className="stack">
+          {runningFilms.map((film) => {
+            const collapsed = collapsedFilmIds.has(film.id);
+            return (
+              <div className="card stack" key={film.id}>
+                <div className="row-between">
+                  <h2 style={{ margin: 0 }}>{film.title} - In Theaters</h2>
+                  <div className="row" style={{ gap: 12 }}>
+                    {collapsed && (
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.85em' }}>
+                        Week {film.boxOfficeRun.weeks.length} &middot; <Money amount={film.boxOfficeRun.cumulativeGross} /> so far
+                      </span>
+                    )}
+                    <Button className="btn-sm" onClick={() => toggleCollapsed(film.id)}>
+                      {collapsed ? 'Expand' : 'Collapse'}
+                    </Button>
+                  </div>
                 </div>
-                <BoxOfficeChart weeks={film.boxOfficeRun.weeks} />
-                <p className="choice-description" style={{ margin: 0 }}>
-                  Updates as time passes - keep developing your next film and the numbers here will keep climbing (or fading) week by week.
-                </p>
-              </>
+                {!collapsed && (
+                  <>
+                    <div className="row">
+                      <StatTile label="Week" value={film.boxOfficeRun.weeks.length} />
+                      <StatTile label="Opening Weekend" value={<Money amount={film.results.openingWeekend} />} />
+                      <StatTile label="Gross So Far" value={<Money amount={film.boxOfficeRun.cumulativeGross} />} />
+                    </div>
+                    <BoxOfficeChart weeks={film.boxOfficeRun.weeks} />
+                    <p className="choice-description" style={{ margin: 0 }}>
+                      Updates as time passes - keep developing your next film and the numbers here will keep climbing (or fading) week by week.
+                    </p>
+                  </>
+                )}
+              </div>
+            );
+          })}
+
+          <div className="card">
+            <div className="row-between">
+              <h2 style={{ margin: 0 }}>Studio History</h2>
+              <Button disabled={studio.filmsReleased.length === 0} onClick={() => exportFilmHistory(studio)}>
+                Export Film History (JSON)
+              </Button>
+            </div>
+            {studio.filmsReleased.length === 0 ? (
+              <p>No films released yet. Start your first production to build a track record.</p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Genre</th>
+                      <th>Released</th>
+                      <th>Total Cost</th>
+                      <th>Box Office</th>
+                      <th>Critic Score</th>
+                      <th>Outcome</th>
+                      <th>Profit / Loss</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...studio.filmsReleased].reverse().map((film) => {
+                      const running = film.boxOfficeRun.status === 'running';
+                      return (
+                        <tr key={film.id} className="film-history-row" onClick={() => setSelectedFilm(film)}>
+                          <td>{film.title}</td>
+                          <td>{film.genre}</td>
+                          <td>{formatGameDate(film.releasedOnDay)}</td>
+                          <td><Money amount={film.results.totalCost} /></td>
+                          <td>
+                            {running ? (
+                              <span style={{ color: 'var(--text-muted)' }}><Money amount={film.boxOfficeRun.cumulativeGross} /> so far</span>
+                            ) : (
+                              <Money amount={film.results.totalBoxOffice ?? 0} />
+                            )}
+                          </td>
+                          <td>{film.results.criticScore}</td>
+                          <td>
+                            {running || !film.results.outcome ? (
+                              <span className="badge">In Theaters</span>
+                            ) : (
+                              <span className={`badge badge-outcome-${film.results.outcome.replace(/\s+/g, '-')}`}>
+                                {film.results.outcome}
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            {running || film.results.profit === null ? (
+                              <span style={{ color: 'var(--text-muted)' }}>Pending</span>
+                            ) : (
+                              <Money amount={film.results.profit} signColor showSign />
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
-        );
-      })}
-
-      <div className="card">
-        <div className="row-between">
-          <h2 style={{ margin: 0 }}>Studio History</h2>
-          <Button disabled={studio.filmsReleased.length === 0} onClick={() => exportFilmHistory(studio)}>
-            Export Film History (JSON)
-          </Button>
         </div>
-        {studio.filmsReleased.length === 0 ? (
-          <p>No films released yet. Start your first production to build a track record.</p>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Genre</th>
-                  <th>Released</th>
-                  <th>Total Cost</th>
-                  <th>Box Office</th>
-                  <th>Critic Score</th>
-                  <th>Outcome</th>
-                  <th>Profit / Loss</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...studio.filmsReleased].reverse().map((film) => {
-                  const running = film.boxOfficeRun.status === 'running';
-                  return (
-                    <tr key={film.id} className="film-history-row" onClick={() => setSelectedFilm(film)}>
-                      <td>{film.title}</td>
-                      <td>{film.genre}</td>
-                      <td>{formatGameDate(film.releasedOnDay)}</td>
-                      <td><Money amount={film.results.totalCost} /></td>
-                      <td>
-                        {running ? (
-                          <span style={{ color: 'var(--text-muted)' }}><Money amount={film.boxOfficeRun.cumulativeGross} /> so far</span>
-                        ) : (
-                          <Money amount={film.results.totalBoxOffice ?? 0} />
-                        )}
-                      </td>
-                      <td>{film.results.criticScore}</td>
-                      <td>
-                        {running || !film.results.outcome ? (
-                          <span className="badge">In Theaters</span>
-                        ) : (
-                          <span className={`badge badge-outcome-${film.results.outcome.replace(/\s+/g, '-')}`}>
-                            {film.results.outcome}
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {running || film.results.profit === null ? (
-                          <span style={{ color: 'var(--text-muted)' }}>Pending</span>
-                        ) : (
-                          <Money amount={film.results.profit} signColor showSign />
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+
+        <TopGrossingPanel
+          entries={computeTopGrossingFilms(studio)}
+          playerStudioName={studio.name}
+          onSelectFilm={setSelectedFilm}
+        />
       </div>
     </div>
   );
