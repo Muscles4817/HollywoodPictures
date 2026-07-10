@@ -163,8 +163,16 @@ button {
   margin-bottom: 4px;
 }
 
+/* Falls back to a single column when the container's too narrow for two
+   125px+ axes side by side (a candidate card in the hire grid) and spreads
+   into two once there's room (the wider script-reference panel, a compare
+   rail slot) - one responsive rule instead of separate per-context
+   overrides. */
 .compat-detail {
-  display: block;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+  row-gap: 16px;
+  column-gap: 16px;
 }
 
 /* Each axis is label-above-stars rather than side-by-side, so it never
@@ -172,18 +180,12 @@ button {
    130px label (.score-bar-label, shared with ScoreBar) plus a star rating
    doesn't fit in a narrow card, and letting flexbox wrap it produced
    uniform gaps that made it unclear whether a wrapped star row belonged to
-   the label above or below it. Tight spacing within a pair plus a bigger
-   gap between pairs removes that ambiguity - the gap between pairs needs to
-   read as clearly bigger than the gap within one, not just technically
-   bigger (6px vs 2px wasn't enough contrast, especially with a muted label
-   sitting next to much brighter gold stars). */
-.compat-axis {
-  margin-bottom: 16px;
-}
-
-.compat-axis:last-child {
-  margin-bottom: 0;
-}
+   the label above or below it. Tight spacing within a pair, handled by
+   .compat-axis-label's own margin below, vs. the grid's row-gap between
+   pairs - the gap between pairs needs to read as clearly bigger than the
+   gap within one, not just technically bigger (6px vs 2px wasn't enough
+   contrast, especially with a muted label sitting next to much brighter
+   gold stars). */
 
 .compat-axis-label {
   display: block;
@@ -289,13 +291,19 @@ button {
    Develop on the right once a candidate is pinned. */
 .hire-layout {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  /* Wide enough that a long synopsis wraps to fewer lines and the whole
+     sticky panel fits the viewport instead of running off the bottom with
+     no way to scroll to the rest of it - and, with the card's own 16px
+     padding on each side, wide enough for .compat-detail's two-column
+     breakdown to actually fit two columns here rather than falling back
+     to one for want of a few px. */
+  grid-template-columns: 360px minmax(0, 1fr);
   gap: 20px;
   align-items: start;
 }
 
 .hire-layout-comparing {
-  grid-template-columns: 260px minmax(0, 1fr) var(--compare-rail-width, 320px);
+  grid-template-columns: 360px minmax(0, 1fr) var(--compare-rail-width, 320px);
 }
 
 .script-reference-panel {
