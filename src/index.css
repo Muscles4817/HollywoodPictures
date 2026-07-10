@@ -331,8 +331,12 @@ button {
     grid-template-columns: 1fr;
   }
 
-  .top-grossing-panel {
+  .dashboard-right-rail {
     position: static;
+  }
+
+  .event-decision-layout {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -344,9 +348,21 @@ button {
   align-items: start;
 }
 
-.top-grossing-panel {
+.dashboard-right-rail {
   position: sticky;
   top: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.top-grossing-studio-link {
+  cursor: pointer;
+}
+
+.top-grossing-studio-link:hover {
+  text-decoration: underline;
+  color: var(--primary);
 }
 
 .top-grossing-row {
@@ -615,6 +631,17 @@ button {
 .filming-status {
   color: var(--text-muted);
   font-style: italic;
+}
+
+.event-decision-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 20px;
+  align-items: start;
+}
+
+.event-people-panel {
+  gap: 10px;
 }
 
 .event-choice-button {

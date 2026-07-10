@@ -456,4 +456,4 @@ export type WizardStep =
   | 'marketing'
   | 'results';
 
-export type Screen = 'dashboard' | WizardStep;
+export type Screen = 'dashboard' | WizardStep | 'rival-studio';

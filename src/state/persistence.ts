@@ -30,7 +30,13 @@ import { randomSeed, withRng } from '../engine/random';
 // v12 -> v13 added AI rival studios - Studio gained required rivalStudios/
 // rivalProductionsInProgress/rivalFilmsReleased, Talent gained optional
 // bookedUntil, and Film gained optional releasedBy (docs/DESIGN.md 5.24).
-const SAVE_KEY = 'hollywood-pictures-save-v13';
+// v13 -> v14 added GameState.viewingRivalStudioName (which rival studio the
+// new 'rival-studio' screen is showing) and made RESET_SAVE take a
+// player-chosen starting cash instead of a hardcoded default.
+const SAVE_KEY = 'hollywood-pictures-save-v14';
+
+/** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
+const DEFAULT_STARTING_CASH = 10_000_000;
 
 export function loadState(): GameState {
   try {
@@ -42,8 +48,8 @@ export function loadState(): GameState {
   } catch {
     // No save (or an incompatible one) - generate a fresh studio, including
     // its talent pool, from a genuinely random seed.
-    const { result: studio, nextSeed } = withRng(randomSeed(), (rng) => createInitialStudio(rng));
-    return { studio, screen: 'dashboard', draft: null, rngSeed: nextSeed };
+    const { result: studio, nextSeed } = withRng(randomSeed(), (rng) => createInitialStudio(rng, DEFAULT_STARTING_CASH));
+    return { studio, screen: 'dashboard', draft: null, rngSeed: nextSeed, viewingRivalStudioName: null };
   }
 }
 

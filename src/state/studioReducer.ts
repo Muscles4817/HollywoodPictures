@@ -537,14 +537,22 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'RETURN_TO_DASHBOARD':
-      return { ...state, screen: 'dashboard', draft: null };
+      return { ...state, screen: 'dashboard', draft: null, viewingRivalStudioName: null };
 
     case 'RESET_SAVE': {
       // A fresh studio gets a brand new talent pool too - reusing the old
       // one would defeat the point of resetting.
-      const { result: studio, nextSeed } = withRng(randomSeed(), (rng) => createInitialStudio(rng));
-      return { studio, screen: 'dashboard', draft: null, rngSeed: nextSeed };
+      const { result: studio, nextSeed } = withRng(randomSeed(), (rng) => createInitialStudio(rng, action.startingCash));
+      return { studio, screen: 'dashboard', draft: null, rngSeed: nextSeed, viewingRivalStudioName: null };
     }
+
+    // Navigates to a rival's own read-only page (Dashboard's "Rival
+    // Studios" list or a Top 10 row's studio name) - identified by name,
+    // same as Film.releasedBy, so no id lookup is needed either place it's
+    // triggered from. Doesn't touch the calendar; it's just a detour, same
+    // as opening the Dashboard's Studio History table.
+    case 'VIEW_RIVAL_STUDIO':
+      return { ...state, screen: 'rival-studio', viewingRivalStudioName: action.studioName };
 
     default:
       return state;

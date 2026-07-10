@@ -11,6 +11,7 @@ import { BoxOfficeFinishedPopup } from './common/BoxOfficeFinishedPopup';
 import { FilmDetailModal } from './common/FilmDetailModal';
 import { TimeTickIndicator } from './common/TimeTickIndicator';
 import { TopGrossingPanel } from './common/TopGrossingPanel';
+import { DifficultyPicker } from './common/DifficultyPicker';
 import { computeTopGrossingFilms } from '../state/selectors';
 import type { Film } from '../types';
 
@@ -25,6 +26,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce }: DashboardProps) 
   const { studio } = state;
   const [showGuide, setShowGuide] = useState(false);
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
+  const [showResetPicker, setShowResetPicker] = useState(false);
   // Which running-film panels are collapsed - plain UI state, not persisted,
   // same as everything else in this component that's about how the
   // Dashboard looks rather than the game itself.
@@ -37,13 +39,6 @@ export function Dashboard({ paused, onTogglePause, tickNonce }: DashboardProps) 
       else next.add(filmId);
       return next;
     });
-  }
-
-  function handleReset() {
-    const confirmed = window.confirm(
-      `Reset ${studio.name}? This wipes all cash, reputation, and film history and starts a brand new studio. This can't be undone.`,
-    );
-    if (confirmed) dispatch({ type: 'RESET_SAVE' });
   }
 
   if (showGuide) {
@@ -59,6 +54,16 @@ export function Dashboard({ paused, onTogglePause, tickNonce }: DashboardProps) 
     <div className="stack">
       {unacknowledgedFinished && <BoxOfficeFinishedPopup film={unacknowledgedFinished} />}
       {selectedFilm && <FilmDetailModal film={selectedFilm} onClose={() => setSelectedFilm(null)} />}
+      {showResetPicker && (
+        <DifficultyPicker
+          studioName={studio.name}
+          onCancel={() => setShowResetPicker(false)}
+          onConfirm={(startingCash) => {
+            dispatch({ type: 'RESET_SAVE', startingCash });
+            setShowResetPicker(false);
+          }}
+        />
+      )}
 
       <div className="row-between">
         <div>
@@ -68,7 +73,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce }: DashboardProps) 
         <div className="row">
           <TimeTickIndicator paused={paused} onTogglePause={onTogglePause} tickNonce={tickNonce} />
           <Button onClick={() => setShowGuide(true)}>How It Works</Button>
-          <Button onClick={handleReset}>Reset Studio</Button>
+          <Button onClick={() => setShowResetPicker(true)}>Reset Studio</Button>
           <Button variant="primary" onClick={() => dispatch({ type: 'START_NEW_FILM' })}>
             Start New Film
           </Button>
@@ -185,11 +190,32 @@ export function Dashboard({ paused, onTogglePause, tickNonce }: DashboardProps) 
           </div>
         </div>
 
-        <TopGrossingPanel
-          entries={computeTopGrossingFilms(studio)}
-          playerStudioName={studio.name}
-          onSelectFilm={setSelectedFilm}
-        />
+        <div className="dashboard-right-rail">
+          <TopGrossingPanel
+            entries={computeTopGrossingFilms(studio)}
+            playerStudioName={studio.name}
+            onSelectFilm={setSelectedFilm}
+            onSelectStudio={(studioName) => dispatch({ type: 'VIEW_RIVAL_STUDIO', studioName })}
+          />
+
+          <div className="card stack">
+            <h2 style={{ margin: 0 }}>Rival Studios</h2>
+            <div className="stack" style={{ gap: 10 }}>
+              {studio.rivalStudios.map((rival) => (
+                <button
+                  key={rival.id}
+                  className="top-grossing-row"
+                  onClick={() => dispatch({ type: 'VIEW_RIVAL_STUDIO', studioName: rival.name })}
+                >
+                  <span className="top-grossing-details">
+                    <span className="top-grossing-title">{rival.name}</span>
+                    <span className="top-grossing-studio">{rival.tier}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

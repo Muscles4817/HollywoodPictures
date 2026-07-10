@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { computeStaticProductionRisk, computeRecommendedShootDays, computeSchedulePressure } from '../../engine/production';
 import { computeTalentCost, computeProductionBudgetCost } from '../../engine/cost';
@@ -20,15 +20,34 @@ export function ProductionRun() {
   const draft = state.draft!;
   const photography = draft.photography;
 
+  // Pure UI pause (never persisted, mirrors Dashboard's manual pause) - set
+  // the first time daysElapsed crosses recommendedDays, so the shoot stops
+  // and asks rather than ticking on past the estimate unattended. Tracked by
+  // comparing against the previous daysElapsed rather than exact equality,
+  // since a delay event can jump straight past the threshold in one tick.
+  const [awaitingContinueDecision, setAwaitingContinueDecision] = useState(false);
+  const prevDaysElapsedRef = useRef(photography?.daysElapsed ?? 0);
+
+  useEffect(() => {
+    if (!photography) return;
+    const prev = prevDaysElapsedRef.current;
+    const curr = photography.daysElapsed;
+    prevDaysElapsedRef.current = curr;
+    if (photography.status === 'in-progress' && prev < photography.recommendedDays && curr >= photography.recommendedDays) {
+      setAwaitingContinueDecision(true);
+    }
+  }, [photography?.daysElapsed, photography?.status, photography?.recommendedDays]);
+
   // Ticks one real day of principal photography at a time while it's
   // running - each tick is a genuine dispatched action (ADVANCE_SHOOTING_DAY),
   // not a local animation, so the shoot survives a refresh exactly where it
-  // left off, same as everything else in this app.
+  // left off, same as everything else in this app. Also stops while the
+  // player is deciding whether to keep going past the recommended schedule.
   useEffect(() => {
-    if (photography?.status !== 'in-progress') return;
+    if (photography?.status !== 'in-progress' || awaitingContinueDecision) return;
     const timer = setInterval(() => dispatch({ type: 'ADVANCE_SHOOTING_DAY' }), TICK_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [photography?.status, dispatch]);
+  }, [photography?.status, awaitingContinueDecision, dispatch]);
 
   const staticRisk = draft.script && draft.productionChoices && draft.genre
     ? computeStaticProductionRisk(draft.talent, draft.script, draft.productionChoices, draft.genre)
@@ -54,6 +73,12 @@ export function ProductionRun() {
         ? `Compatibility ${computeTalentCompatibility(involvedTalent, draft.script) ?? '-'}`
         : null
     : null;
+  // Recast choices (data/productionEvents.ts:offersReplacementFor) get shown
+  // as candidate cards in a dedicated side panel instead of plain buttons,
+  // alongside who they'd be replacing - everything else stays a normal
+  // choice button in the main column.
+  const replacementChoices = pendingChoice?.choices.filter((c) => c.replacementCandidateId !== undefined) ?? [];
+  const regularChoices = pendingChoice?.choices.filter((c) => c.replacementCandidateId === undefined) ?? [];
 
   const totalCostDelta = photography ? photography.events.reduce((sum, e) => sum + e.costDelta, 0) : 0;
   const totalQualityDelta = photography ? photography.events.reduce((sum, e) => sum + e.qualityDelta, 0) : 0;
@@ -172,13 +197,29 @@ export function ProductionRun() {
             </p>
           )}
 
+          {photography.status === 'in-progress' && awaitingContinueDecision && (
+            <div className="card stack" style={{ borderColor: 'var(--primary)' }}>
+              <h2 style={{ margin: 0 }}>Recommended Schedule Reached</h2>
+              <p style={{ margin: 0 }}>
+                You've hit the recommended ~{photography.recommendedDays} days for this shoot. Keep filming for a
+                chance at more polish - at the same daily cost, with no cap - or wrap it here?
+              </p>
+              <div className="row">
+                <Button onClick={() => setAwaitingContinueDecision(false)}>Keep Filming</Button>
+                <Button variant="primary" onClick={() => dispatch({ type: 'FINISH_PHOTOGRAPHY' })}>
+                  Finish Principal Photography
+                </Button>
+              </div>
+            </div>
+          )}
+
           {photography.status === 'awaiting-choice' && pendingChoice && (
             <div className="card stack" style={{ borderColor: 'var(--primary)' }}>
               <div className="row-between">
                 <h2 style={{ margin: 0 }}>A Decision Is Needed</h2>
                 <SeverityBadge severity={pendingChoice.severity} />
               </div>
-              {involvedTalent && (
+              {involvedTalent && replacementChoices.length === 0 && (
                 <div className="row-between event-involved-talent" style={{ fontSize: '0.9em', color: 'var(--text-muted)' }}>
                   <span>{involvedTalent.name} &middot; {pendingChoice.involvedRole}</span>
                   {involvedStat && <span>{involvedStat}</span>}
@@ -186,22 +227,53 @@ export function ProductionRun() {
               )}
               <p style={{ margin: 0 }}>{pendingChoice.situation}</p>
               <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>Filming is paused until you pick.</p>
-              <div className="stack">
-                {pendingChoice.choices.map((choice) => (
-                  <button
-                    key={choice.id}
-                    className="event-choice-button"
-                    onClick={() => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId: choice.id })}
-                  >
-                    <span className="event-choice-label-row">
-                      <span className="event-choice-label">{choice.label}</span>
-                      {choice.replacementCandidateSalary !== undefined && (
-                        <Money amount={choice.replacementCandidateSalary} />
-                      )}
-                    </span>
-                    <span className="event-choice-description">{choice.description}</span>
-                  </button>
-                ))}
+              <div className={replacementChoices.length > 0 ? 'event-decision-layout' : undefined}>
+                <div className="stack">
+                  {regularChoices.map((choice) => (
+                    <button
+                      key={choice.id}
+                      className="event-choice-button"
+                      onClick={() => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId: choice.id })}
+                    >
+                      <span className="event-choice-label-row">
+                        <span className="event-choice-label">{choice.label}</span>
+                      </span>
+                      <span className="event-choice-description">{choice.description}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {replacementChoices.length > 0 && (
+                  <div className="stack event-people-panel">
+                    <h3 style={{ margin: 0 }}>People Involved</h3>
+                    {involvedTalent && (
+                      <div className="card">
+                        <div className="card-title">{involvedTalent.name}</div>
+                        <div className="card-subtitle">Currently {pendingChoice.involvedRole}</div>
+                        {involvedStat && (
+                          <div style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>{involvedStat}</div>
+                        )}
+                      </div>
+                    )}
+                    <div className="stat-label">Replace with</div>
+                    {replacementChoices.map((choice) => (
+                      <div className="card" key={choice.id}>
+                        <div className="card-title">{choice.replacementCandidateName}</div>
+                        {choice.replacementCandidateSalary !== undefined && (
+                          <div className="card-subtitle"><Money amount={choice.replacementCandidateSalary} /></div>
+                        )}
+                        <p style={{ margin: '6px 0', fontSize: '0.85em' }}>{choice.description}</p>
+                        <Button
+                          variant="primary"
+                          className="btn-sm"
+                          onClick={() => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId: choice.id })}
+                        >
+                          {choice.label}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -227,7 +299,7 @@ export function ProductionRun() {
                 </span>
               </div>
             ))}
-            {photography.status === 'in-progress' && (
+            {photography.status === 'in-progress' && !awaitingContinueDecision && (
               <div className="row-between">
                 <span className="filming-status">
                   Filming<span className="filming-dot">.</span><span className="filming-dot">.</span><span className="filming-dot">.</span>
@@ -239,6 +311,9 @@ export function ProductionRun() {
                   </Button>
                 </div>
               </div>
+            )}
+            {photography.status === 'in-progress' && awaitingContinueDecision && (
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>Paused - decide above whether to keep filming.</p>
             )}
             {photography.status === 'awaiting-choice' && (
               <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>Waiting on your decision above...</p>

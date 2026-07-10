@@ -3,6 +3,7 @@ import { StudioProvider, useStudio } from './state/StudioContext';
 import { ThemeToggle } from './components/common/ThemeToggle';
 import { DateBar } from './components/common/DateBar';
 import { Dashboard } from './components/Dashboard';
+import { RivalStudioPage } from './components/RivalStudioPage';
 import { DevelopFilm } from './components/wizard/DevelopFilm';
 import { HireTalent } from './components/wizard/HireTalent';
 import { ProductionPlanning } from './components/wizard/ProductionPlanning';
@@ -86,6 +87,8 @@ function Screens() {
       return <MarketingRelease />;
     case 'results':
       return <ReleaseResults />;
+    case 'rival-studio':
+      return <RivalStudioPage />;
     default:
       return <Dashboard paused={paused} onTogglePause={() => setPaused((p) => !p)} tickNonce={tickNonce} />;
   }

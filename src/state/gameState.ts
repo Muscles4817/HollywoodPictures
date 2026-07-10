@@ -22,6 +22,8 @@ export interface GameState {
   screen: Screen;
   draft: FilmDraft | null;
   rngSeed: number;
+  /** Which rival studio the 'rival-studio' screen is currently showing, if any - identified by name, same as Film.releasedBy (see types/index.ts:Film). */
+  viewingRivalStudioName: string | null;
 }
 
 /**
@@ -30,10 +32,10 @@ export interface GameState {
  * save (see engine/talentGenerator.ts:generateTalentPool). Needs an RNG
  * because of that, unlike a plain constant.
  */
-export function createInitialStudio(rng: RandomFn): Studio {
+export function createInitialStudio(rng: RandomFn, startingCash: number): Studio {
   return {
     name: 'Silver Reel Pictures',
-    cash: 10_000_000,
+    cash: startingCash,
     reputation: 20,
     totalDays: 1,
     filmsReleased: [],
@@ -86,7 +88,8 @@ export type GameAction =
   | { type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS'; filmId: string }
   | { type: 'RETURN_TO_DASHBOARD' }
   | { type: 'RENAME_STUDIO'; name: string }
-  | { type: 'RESET_SAVE' };
+  | { type: 'RESET_SAVE'; startingCash: number }
+  | { type: 'VIEW_RIVAL_STUDIO'; studioName: string };
 
 export interface CompletedFilmRecord {
   film: Film;
