@@ -2077,6 +2077,86 @@ identity doesn't survive into Studio History yet - a natural next step
 once reviews are meant to reference these decisions, the original goal
 this whole arc started from).
 
+### 5.31 Hire Talent rebuilt as a Cast & Crew hub (`components/wizard/HireTalent.tsx`, `components/wizard/RoleHiringDrawer.tsx`, `data/talentPresentation.ts`)
+
+The same "producer feeling" the Plan Production redesign was built around
+(5.30), applied to casting: one long scrolling page of seven stacked
+slider-plus-grid sections becomes a hub the player returns to between
+individual hires, each one opened deliberately rather than scrolled past.
+
+**The hub is a dashboard, not a menu.** Script summary, a Production
+Overview card (Cast & Crew Progress bar, roles-filled count, current
+payroll), the same Production Identity synthesis Plan Production shows
+later (5.30's `synthesizeProductionIdentity`, computed here as soon as a
+script and a director exist - both Strategy recommendations only ever
+needed those two things, so this is a genuine reuse, not a new function),
+soft quality warnings (see below), the master budget slider, and a grid of
+one tile per role. A tile shows either a one-line hook + "Not yet hired"
+(empty), a name + role-category-aware headline stat (single-slot, filled),
+or a live "X/Y hired" badge with every hired name listed (multi-slot -
+Supporting Actor today, any future ensemble role for free). Clicking any
+tile - filled or empty - opens that role's hiring drawer; a filled tile is
+never locked, since changing your mind about a hire has to stay as easy as
+making it the first time.
+
+**Soft warnings, deliberately not gates.** `lowCompatWarning` (average
+compatibility across hired cast below 45) and `temperamentWarning`
+(average reliability below 45 or average ego above 65) both need at least
+two hires before they can fire, so a nearly-empty cast doesn't trip a
+false alarm. Purely informational - `canContinue` still only depends on
+`missingMandatory`/`canAfford`, same as before this redesign.
+
+**Every role is hired through the same mechanism but doesn't read the
+same.** `data/talentPresentation.ts` assigns each of the seven roles a
+`RoleCategory` (`director` | `actor` | `crew`) plus its own blurb/hook
+copy. A candidate card's headline stats are category-aware:
+Director leads with its own production-style lean (`describeProductionStyle`,
+built from `engine/recommendation.ts:dominantLean` on the candidate's own
+`productionStyle` - the same math Plan Production's cards use, now
+visible one stage earlier) plus compatibility and reliability; actors lead
+with fame, compatibility, and reliability; crew roles lead with skill and
+reliability. Salary and ego stay put as a plain secondary line for every
+category - never a headline, since ego is a caution stat, not a selling
+point. Writer/Composer/Editor/VFX Supervisor share the crew template
+rather than four bespoke ones - the data model has nothing to
+differentiate them by beyond a flat skill number (no genre-expertise
+stat, no "previous work" history), so a bespoke presentation for each
+would have been decoration without substance. Named here as a deliberate
+scope boundary, not an oversight - a real candidate for future Script/
+Talent model enrichment (5.26's discipline: propose a field only once a
+concrete consumer exists) if genre-specific crew expertise ever becomes
+worth modeling.
+
+**Container: a slide-in drawer, not a page.** Chosen over a dedicated
+screen specifically for continuity - "the player should never feel like
+they left the production they're assembling." `RoleHiringDrawer` is a
+fixed-position overlay (backdrop + panel, `role-drawer`/`role-drawer-backdrop`),
+not a `Screen`/wizard-step transition - opening and closing it never
+touches `GameState.screen` or costs calendar time, the same "detour,
+not navigation" principle `RivalStudioPage` and the Recommendation
+Inspector already established. Body scroll is locked and Escape closes it
+while open, matching standard overlay conventions this app didn't
+previously need. Auto-closes ~500ms after a single-slot role gets a
+genuinely new hire (long enough to register the "Hired" confirmation,
+short enough to still feel immediate) - but never on a deselect, since a
+player who just cleared a role is about to pick someone else, not leave.
+Stays open for multi-slot roles regardless, tracking "X/Y hired" live in
+its own heading so several people can be hired in one visit. Pin-to-compare
+now lives entirely inside the drawer as local state, reset for free every
+time it mounts - simpler than the old page's manual "pinning a different
+role resets the rail" logic, which this redesign made unnecessary rather
+than needing to preserve.
+
+**Naming**: deliberately did *not* rename the stage to "Pre-Production" -
+that term covers budgeting/scheduling too in real film terms, which is
+Plan Production's territory one stage later; using it here would imply
+overlap that doesn't exist and set up confusion once the player reaches
+that screen right after. The page heading changed to **"Cast & Crew"**
+(the step nav still reads "Hire Talent," `components/common/WizardSteps.tsx`
+untouched) - a small, easily-reversible inconsistency flagged here
+rather than silently resolved either way, since it wasn't explicitly
+settled before implementation.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
