@@ -1955,6 +1955,128 @@ player's own save touches. The Inspector defaults to *The Matrix* +
 Nolan rather than a random pair, so it opens on something immediately
 legible.
 
+### 5.30 Plan Production rebuilt around the recommendation engine (`components/wizard/ProductionPlanning.tsx`, `components/common/DistributionEditor.tsx`, `engine/productionChoicesAdapter.ts`, `engine/productionIdentity.ts`)
+
+The redesign 5.26-5.29 were building toward: the player now acts as
+producer over the script's and director's own Strategy/Ambition signals,
+rather than inventing a production from scratch on five blind spend
+sliders. `ProductionChoices` (`contingencyAmount`/`setQualityAmount`/
+`practicalEffectsAmount`/`vfxAmount`/`runtimeIntensity`) still exists and
+still drives every downstream formula unchanged - the player just no
+longer edits it directly.
+
+**Information hierarchy**, top to bottom: a one-sentence **Production
+Identity** synthesis, a **Biggest Tension** callout (or a quiet
+alignment confirmation if nothing disagrees), one **Recommendation
+Card** per Strategy pair (Environment, Effects - the only two that exist
+yet), the two dials nothing in the new model replaced (Contingency,
+Runtime Target), the existing Risk Profile card, and an aggregate
+cost/schedule strip at the bottom.
+
+**`engine/productionIdentity.ts`** is new, cross-recommendation synthesis
+- deliberately not folded into `engine/recommendation.ts`, which stays
+four independent single-purpose functions (5.27). `synthesizeProductionIdentity`
+builds one sentence from both Strategy breakdowns' dominant leans (gated
+by the same opinion-strength thresholds already used for reason
+phrasing, so a low-Ambition production doesn't claim an identity its own
+numbers don't back up) plus whether either disagrees with the director.
+`findBiggestTension` picks whichever active Strategy has the largest
+script/director distance, or `null` if nothing crosses the disagreement
+threshold - both meant to be reusable later wherever a film's "identity"
+matters beyond this screen (release-time reviews, the original design
+goal this whole arc started from).
+
+**`components/common/DistributionEditor.tsx`** is the proportional
+control settled on after explicitly rejecting a "dominant approach +
+commitment" simplification that would have thrown away real information
+(Avatar/Oppenheimer/Dune-style distinctions collapsing into the same
+label). One continuous bar split into N segments with N-1 draggable
+dividers, rather than N independent sliders - "always sums to 100%" is
+then structurally true rather than a rule the player has to trust.
+Dragging a divider trades share only between its two adjacent segments
+(adjacent-only redistribution - the natural behavior for this shape of
+control, and for a 2-key distribution it's just a single bipolar slider,
+the same control at a different N). Arrow-key nudging on a focused
+divider for basic keyboard access; full ARIA slider semantics not fully
+fleshed out yet, a known gap. Verified via direct `dispatchEvent`
+simulation after discovering Playwright's synthetic `page.mouse` calls
+didn't reliably reach the `window`-level `pointermove`/`pointerup`
+listeners in this environment - the drag logic itself was confirmed
+correct, that was purely a test-tooling quirk.
+
+**Each Recommendation Card** shows Recommended (read-only reference,
+via `DistributionEditor` with `disabled`) above Your Plan (the live
+editor, with the recommended distribution rendered as a thin ghost
+overlay for reference while dragging). A `Following Recommendation`/
+`Adjusted` badge (never "Overridden" - deliberately neutral, no
+scolding tone) is computed by measuring `totalVariationDistance` between
+the player's value and the recommendation, the exact same distance
+function the engine itself uses for agreement/disagreement, exported
+from `engine/recommendation.ts` for this reason rather than reinventing
+a second "close enough" notion. Reasons default to the top two,
+expandable. Ambition is collapsed by default (a one-line "Investment:
+X" summary) and, when expanded, mirrors the same Recommended/Your Plan
+split Strategy uses - an earlier version showed the recommendation's
+fixed reasoning text next to the player's *adjusted* label, which read
+as contradictory ("Investment: Minimal" beside "calls for a moderate
+level of investment") until the split was made explicit, caught by
+actually looking at a screenshot rather than trusting the logic alone.
+A card's Strategy section renders visually muted when its Ambition
+confidence is low (`MUTED_CONFIDENCE_THRESHOLD`) - the same
+false-precision principle the engine's damping already encodes, carried
+into visual weight rather than left as a reasons-list footnote only.
+
+**Per-card cost/schedule consequence** ("This choice: £X · +Y shoot
+days") is a counterfactual delta - current plan's cost/days minus the
+same plan with that card's contribution neutralized - reusing the same
+counterfactual idea the recommendation engine already uses for
+reason-ordering (5.27), rather than a new technique. Risk stays
+holistic, shown once via the existing Risk Profile card fed by the
+aggregate plan, not decomposed per card - artificially attributing
+`StaticProductionRisk`'s four dimensions to individual cards would
+reintroduce the exact false-precision problem 5.27 fixed, just in a new
+place. Honest limitation worth being explicit about: today's cost
+formulas only price Ambition, not Strategy - Environment's studio/
+location/digital *split* has no cost or schedule consequence at all in
+the legacy model, only how much is invested does. That's real
+information loss the adapter can't paper over.
+
+**`engine/productionChoicesAdapter.ts` is a temporary bridge, not the
+future architecture** - stated explicitly in its own file header, not
+just here. `adaptRecommendationsToProductionChoices` maps Environment/
+Effects Ambition into `setQualityAmount`/`practicalEffectsAmount`/
+`vfxAmount` via the same `logAmount` scaling every other spend dial
+already uses; Contingency passes straight through (still directly
+player-set, its own redesign still deliberately parked pending the
+event-consumption question from the start of this whole arc); Runtime
+Target stays on this screen too, unexposed to Strategy/Ambition and not
+yet moved to Post-Production (a real idea, out of scope for this pass).
+Once cost/schedule/risk formulas are migrated to read Strategy/Ambition
+natively, this file and the `ProductionChoices` fields it derives should
+be deleted, not extended - the whole point of naming it an adapter
+instead of quietly letting it become "just how it works."
+
+**`SET_PRODUCTION_CHOICES` is gone, replaced by `SET_PRODUCTION_PLAN`**
+(`state/gameState.ts`, `state/studioReducer.ts`) - takes the full
+Strategy/Ambition/Contingency/Runtime set every time (mirroring how the
+old action always took a complete `ProductionChoices`), derives
+`ProductionChoices` via the adapter in the same reducer case. `FilmDraft`
+gained `environmentStrategy`/`environmentAmbition`/`effectsStrategy`/
+`effectsAmbition` (nullable until Plan Production is first visited, seeded
+from the recommendation on mount the same way the old screen seeded flat
+defaults). Save format bumped to v16.
+
+**Deliberately not built yet:** Costume/Creature Effects/Crowd Strategy
+cards (no recommendation exists for them - 5.26/5.27's `OptionalRecommendation`
+gate means they simply don't render rather than needing a special case);
+`engine/scoring.ts` migration off genre importance; persisting the
+player's Strategy/Ambition choices onto the final `Film` record for
+historical display (`FilmDetailModal` still only shows the derived
+legacy `ProductionChoices`, so a released film's original creative
+identity doesn't survive into Studio History yet - a natural next step
+once reviews are meant to reference these decisions, the original goal
+this whole arc started from).
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
