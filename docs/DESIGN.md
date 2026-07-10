@@ -1912,6 +1912,49 @@ every screen, since nothing else lives there) rather than a new,
 unverified band - checked against Dashboard's header and a wizard screen's
 header both, zero overlap.
 
+### 5.29 Real-film reference scripts and directors (`data/dev/referenceScripts.ts`, `data/dev/referenceDirectors.ts`)
+
+Ten hand-authored `Script`s and ten hand-authored `DirectorTalent`s, based
+on real films/directors, selectable in the Recommendation Inspector (5.28)
+alongside its random generator. The problem this solves: a procedurally
+generated script's Strategy/Ambition values are only as easy to judge as
+"does 61% digital feel right for a made-up Sci-Fi script" - genuinely hard
+to have an opinion about. "Does 90% digital feel right for *Gravity*" is
+immediate, because there's already a strong real answer to check it
+against. Every Strategy/Ambition value is a deliberate judgment call about
+that specific film's actual production (Jaws is location/practical because
+it was shot on the real ocean with a mechanical shark; Gravity is
+studio/digital because it's virtual production almost start to finish;
+Mad Max: Fury Road is practical/location despite being an Action film,
+where genre alone would suggest otherwise) - not derived from
+`GENRE_PROFILES` the way real generation is, since a genre-level default
+can't know any specific film's actual production is unusual for its genre.
+`Script.cost` is the one field derived rather than hand-picked -
+`engine/scriptGenerator.ts:estimateScriptCost` was exported so it stays
+consistent with the same formula real scripts use, rather than a guessed
+number that could silently drift from it.
+
+The ten: *The Matrix*, *Jaws*, *The Blair Witch Project*, *The Lord of the
+Rings: The Fellowship of the Ring*, *Before Sunrise*, *Mad Max: Fury Road*,
+*Gravity*, *12 Angry Men*, *Jurassic Park*, *The Grand Budapest Hotel* -
+picked for spread across genre, environment method, effects method, and
+ambition level, plus one deliberate real-world instance of the
+"decoupled" pattern Phase 3's diagnostics tested synthetically (*Grand
+Budapest*: high Environment Ambition from its meticulous built sets, low
+Effects Ambition since it isn't an effects-driven film at all). The ten
+directors (Nolan, Anderson, Cameron, Gerwig, del Toro, Bay, Coppola,
+Villeneuve, Lumet, Spielberg) were picked to span practical purists,
+digital pioneers, studio loyalists and location-lovers, so pairing any
+script against any director gives a genuine spread of agreement/
+disagreement cases to eyeball, not just the ones this project happened to
+write diagnostics for.
+
+Illustrative only, for internal calibration - not a factual claim about
+any real person's actual preferences, and never imported by anything the
+player's own save touches. The Inspector defaults to *The Matrix* +
+Nolan rather than a random pair, so it opens on something immediately
+legible.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
