@@ -12,9 +12,7 @@ import type {
 import { computeAudienceScore, computeBuzzScore, computeCriticScore, computeQualityBreakdown } from './scoring';
 import { computeEventsCostDelta, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
 import { TEST_SCREENING_PROFILES } from '../data/postProduction';
-import { computeBoxOffice } from './boxOffice';
-import { determineOutcome } from './outcome';
-import { computeReputationChange } from './reputation';
+import { computeOpeningWeekend, computeLegs } from './boxOffice';
 import { pickReviewBlurbs, pickDepartmentBlurb } from './reviews';
 import { generateStoryReport } from './storyReport';
 import type { RandomFn } from './random';
@@ -40,12 +38,26 @@ export interface ReleaseComputationInput {
   studioReputation: number;
 }
 
+export interface ReleaseComputationResult {
+  results: FilmResults;
+  // The film's fixed legs multiplier, for seeding its BoxOfficeRun
+  // (state/studioReducer.ts:RELEASE_FILM) - not part of FilmResults since
+  // it's a run-mechanics input, not a result the player reads directly (the
+  // weekly numbers it drives are what they actually see).
+  legs: number;
+}
+
 /**
- * The single orchestration point that turns a fully-assembled film draft into
- * final release results. Everything it calls is a pure function, so this stays
- * easy to unit test and easy to extend (e.g. awards, franchises) later.
+ * The single orchestration point that turns a fully-assembled film draft
+ * into its release-day-knowable results. Everything it calls is a pure
+ * function, so this stays easy to unit test and easy to extend (e.g.
+ * awards, franchises) later. Deliberately does NOT compute totalBoxOffice/
+ * studioRevenue/profit/outcome/reputationChange - those depend on the whole
+ * theatrical run, which hasn't happened yet at the moment a film releases
+ * (see engine/boxOfficeRun.ts and docs/DESIGN.md 5.19); they come back null
+ * here and get filled in once the run finishes.
  */
-export function computeReleaseResults(input: ReleaseComputationInput, rng: RandomFn): FilmResults {
+export function computeReleaseResults(input: ReleaseComputationInput, rng: RandomFn): ReleaseComputationResult {
   const quality = computeQualityBreakdown(
     input.script,
     input.talent,
@@ -84,11 +96,9 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   const marketingCost = computeMarketingCost(input.marketingChoices);
   const totalCost = productionCost + marketingCost;
 
-  const { openingWeekend, totalBoxOffice, studioRevenue } = computeBoxOffice(
+  const openingWeekend = computeOpeningWeekend(
     {
       buzzScore,
-      criticScore,
-      audienceScore,
       targetAudience: input.targetAudience,
       genre: input.genre,
       releaseWindow: input.marketingChoices.releaseWindow,
@@ -96,24 +106,22 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     },
     rng,
   );
+  const legs = computeLegs(criticScore, audienceScore, input.marketingChoices.releaseType);
 
-  // Profit is computed from the studio's actual cut of the gross, not the
-  // headline box office figure - see boxOffice.ts:STUDIO_BOX_OFFICE_SHARE.
-  const profit = studioRevenue - totalCost;
-  const outcome = determineOutcome(profit, totalCost, quality.qualityScore, criticScore, audienceScore);
-  const reputationChange = computeReputationChange(outcome, criticScore);
   const departmentBlurb = pickDepartmentBlurb(quality, input.genre, rng);
   const reviewBlurbs = [...pickReviewBlurbs(criticScore, audienceScore, rng), ...(departmentBlurb ? [departmentBlurb] : [])];
   const storyReport = generateStoryReport({ title: input.title, buzzScore, criticScore, audienceScore }, rng);
 
-  return {
+  const results: FilmResults = {
     productionCost,
     marketingCost,
     totalCost,
     openingWeekend,
-    totalBoxOffice,
-    studioRevenue,
-    profit,
+    totalBoxOffice: null,
+    studioRevenue: null,
+    profit: null,
+    outcome: null,
+    reputationChange: null,
     criticScore: Math.round(criticScore),
     audienceScore: Math.round(audienceScore),
     buzzScore: Math.round(buzzScore),
@@ -124,9 +132,9 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     productionScore: Math.round(quality.productionScore),
     postProductionScore: Math.round(quality.postProductionScore),
     eventsScore: Math.round(quality.eventsScore),
-    reputationChange,
     reviewBlurbs,
     storyReport,
-    outcome,
   };
+
+  return { results, legs };
 }

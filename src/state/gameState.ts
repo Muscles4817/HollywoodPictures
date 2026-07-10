@@ -78,6 +78,7 @@ export type GameAction =
   | { type: 'SET_POST_PRODUCTION_CHOICES'; choices: PostProductionChoices }
   | { type: 'SET_MARKETING_CHOICES'; choices: MarketingChoices }
   | { type: 'RELEASE_FILM' }
+  | { type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS'; filmId: string }
   | { type: 'RETURN_TO_DASHBOARD' }
   | { type: 'RENAME_STUDIO'; name: string }
   | { type: 'RESET_SAVE' };

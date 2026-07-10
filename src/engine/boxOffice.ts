@@ -2,7 +2,7 @@ import type { Genre, ReleaseType, ReleaseWindow, TargetAudience } from '../types
 import { GENRE_PROFILES } from '../data/genres';
 import { AUDIENCE_PROFILES } from '../data/audiences';
 import { RELEASE_TYPE_PROFILES, RELEASE_WINDOW_BASE_MULTIPLIER, RELEASE_WINDOW_GENRE_BONUS } from '../data/release';
-import { randFloat, type RandomFn } from './random';
+import { clamp, randFloat, type RandomFn } from './random';
 
 /**
  * Box office in two stages, not one lump sum:
@@ -17,6 +17,13 @@ import { randFloat, type RandomFn } from './random';
  * badly-reviewed film can still open big and then die; a small film with
  * little hype behind it but great word of mouth can have a modest opening
  * and a long, profitable run.
+ *
+ * Total lifetime gross isn't computed directly here at all any more - see
+ * engine/boxOfficeRun.ts. Legs still comes from this file (it's a release-
+ * day-knowable constant, fixed by reviews and release type - see
+ * computeLegs below) but is spent gradually, week by week, as
+ * Studio.totalDays actually advances, instead of being multiplied out into
+ * a single number the moment the player clicks Release (docs/DESIGN.md 5.19).
  *
  * Production budget deliberately has NO direct multiplier here, even
  * though an earlier version of this formula gave it one ("bigger budgets
@@ -70,26 +77,18 @@ function reviewLegsFactor(criticScore: number, audienceScore: number): number {
 // rentals average roughly 40% of worldwide gross. totalBoxOffice stays the
 // big headline number (matching how box office is always reported); the
 // smaller studioRevenue figure is what profit is actually computed from -
-// see state/studioReducer.ts:RELEASE_FILM.
-const STUDIO_BOX_OFFICE_SHARE = 0.42;
+// see engine/boxOfficeRun.ts.
+export const STUDIO_BOX_OFFICE_SHARE = 0.42;
 
-export interface BoxOfficeInput {
+export interface OpeningWeekendInput {
   buzzScore: number; // 0-100, drives the opening
-  criticScore: number; // 0-100, drives legs alongside audience
-  audienceScore: number; // 0-100, drives legs, weighted higher than critic
   targetAudience: TargetAudience;
   genre: Genre;
   releaseWindow: ReleaseWindow;
   releaseType: ReleaseType;
 }
 
-export interface BoxOfficeResult {
-  openingWeekend: number;
-  totalBoxOffice: number;
-  studioRevenue: number;
-}
-
-export function computeBoxOffice(input: BoxOfficeInput, rng: RandomFn): BoxOfficeResult {
+export function computeOpeningWeekend(input: OpeningWeekendInput, rng: RandomFn): number {
   const audienceProfile = AUDIENCE_PROFILES[input.targetAudience];
   const genreProfile = GENRE_PROFILES[input.genre];
   const windowGenreBonus = RELEASE_WINDOW_GENRE_BONUS[input.releaseWindow][input.genre] ?? 1;
@@ -109,17 +108,29 @@ export function computeBoxOffice(input: BoxOfficeInput, rng: RandomFn): BoxOffic
     hypeFactor(input.buzzScore) *
     variance;
 
-  const openingWeekend = Math.max(0, Math.round(rawOpening / 1000) * 1000);
+  return Math.max(0, Math.round(rawOpening / 1000) * 1000);
+}
 
-  // Never let legs collapse below 1x - the worst case is the film dying
-  // immediately after opening (total = opening), not somehow grossing
-  // *less* than its own opening weekend.
-  const legs = Math.max(
-    1,
-    releaseTypeProfile.baseLegsMultiplier * reviewLegsFactor(input.criticScore, input.audienceScore),
-  );
-  const totalBoxOffice = Math.max(openingWeekend, Math.round((openingWeekend * legs) / 1000) * 1000);
-  const studioRevenue = Math.round(totalBoxOffice * STUDIO_BOX_OFFICE_SHARE);
+/**
+ * How many multiples of the opening weekend this film's whole run is worth,
+ * fixed the moment it's released (reviews don't change afterward) - spent
+ * out gradually week by week via computeWeeklyRetention rather than
+ * multiplied into a lump total. Never below 1x - the worst case is the film
+ * dying immediately after opening, not somehow grossing less than its own
+ * opening weekend.
+ */
+export function computeLegs(criticScore: number, audienceScore: number, releaseType: ReleaseType): number {
+  const releaseTypeProfile = RELEASE_TYPE_PROFILES[releaseType];
+  return Math.max(1, releaseTypeProfile.baseLegsMultiplier * reviewLegsFactor(criticScore, audienceScore));
+}
 
-  return { openingWeekend, totalBoxOffice, studioRevenue };
+// How much of the *previous* week's gross the *next* week keeps - derived
+// from legs so the two stay linked to the same tuning lever: legs=1 (the
+// floor) means retention=0, the film dies right after opening; legs=8 (a
+// well-reviewed Festival First release) means retention≈0.875, a long slow
+// tail. Capped short of 1 so nothing runs forever even at extreme legs -
+// see engine/boxOfficeRun.ts for the week cap that backs this up too.
+const MAX_WEEKLY_RETENTION = 0.95;
+export function computeWeeklyRetention(legs: number): number {
+  return clamp(1 - 1 / legs, 0, MAX_WEEKLY_RETENTION);
 }

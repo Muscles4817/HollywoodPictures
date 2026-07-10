@@ -21,7 +21,11 @@ import { randomSeed, withRng } from '../engine/random';
 // v9 -> v10 replaced ProductionEvent.delayRiskDelta (decorative) with a real
 // delayDaysDelta, and added PhotographyState.pendingChoice for interactive
 // on-set events (docs/DESIGN.md 5.x).
-const SAVE_KEY = 'hollywood-pictures-save-v10';
+// v10 -> v11 made FilmResults.totalBoxOffice/studioRevenue/profit/outcome/
+// reputationChange nullable (unknown until a film's run finishes) and added
+// Film.boxOfficeRun - box office as a live weekly process instead of a
+// single computed total at release (docs/DESIGN.md 5.19).
+const SAVE_KEY = 'hollywood-pictures-save-v11';
 
 export function loadState(): GameState {
   try {

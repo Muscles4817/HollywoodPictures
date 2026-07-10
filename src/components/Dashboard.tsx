@@ -6,6 +6,8 @@ import { Button } from './common/Button';
 import { StatTile } from './common/StatTile';
 import { Money } from './common/Money';
 import { GameGuide } from './common/GameGuide';
+import { BoxOfficeChart } from './common/BoxOfficeChart';
+import { BoxOfficeFinishedPopup } from './common/BoxOfficeFinishedPopup';
 
 export function Dashboard() {
   const { state, dispatch } = useStudio();
@@ -23,8 +25,15 @@ export function Dashboard() {
     return <GameGuide onBack={() => setShowGuide(false)} />;
   }
 
+  const runningFilms = studio.filmsReleased.filter((f) => f.boxOfficeRun.status === 'running');
+  // Only ever surface one at a time, oldest-unseen-first, so a second
+  // "film finished" popup doesn't stack behind/interrupt the first.
+  const unacknowledgedFinished = studio.filmsReleased.find((f) => f.boxOfficeRun.status === 'finished' && !f.boxOfficeRun.acknowledged);
+
   return (
     <div className="stack">
+      {unacknowledgedFinished && <BoxOfficeFinishedPopup film={unacknowledgedFinished} />}
+
       <div className="row-between">
         <div>
           <h1>{studio.name}</h1>
@@ -45,6 +54,21 @@ export function Dashboard() {
         <StatTile label="Films Released" value={studio.filmsReleased.length} />
         <StatTile label="Current Date" value={formatGameDate(studio.totalDays)} />
       </div>
+
+      {runningFilms.map((film) => (
+        <div className="card stack" key={film.id}>
+          <h2 style={{ margin: 0 }}>{film.title} - In Theaters</h2>
+          <div className="row">
+            <StatTile label="Week" value={film.boxOfficeRun.weeks.length} />
+            <StatTile label="Opening Weekend" value={<Money amount={film.results.openingWeekend} />} />
+            <StatTile label="Gross So Far" value={<Money amount={film.boxOfficeRun.cumulativeGross} />} />
+          </div>
+          <BoxOfficeChart weeks={film.boxOfficeRun.weeks} />
+          <p className="choice-description" style={{ margin: 0 }}>
+            Updates as time passes - keep developing your next film and the numbers here will keep climbing (or fading) week by week.
+          </p>
+        </div>
+      ))}
 
       <div className="card">
         <div className="row-between">
@@ -71,22 +95,41 @@ export function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {[...studio.filmsReleased].reverse().map((film) => (
-                  <tr key={film.id}>
-                    <td>{film.title}</td>
-                    <td>{film.genre}</td>
-                    <td>{formatGameDate(film.releasedOnDay)}</td>
-                    <td><Money amount={film.results.totalCost} /></td>
-                    <td><Money amount={film.results.totalBoxOffice} /></td>
-                    <td>{film.results.criticScore}</td>
-                    <td>
-                      <span className={`badge badge-outcome-${film.results.outcome.replace(/\s+/g, '-')}`}>
-                        {film.results.outcome}
-                      </span>
-                    </td>
-                    <td><Money amount={film.results.profit} signColor showSign /></td>
-                  </tr>
-                ))}
+                {[...studio.filmsReleased].reverse().map((film) => {
+                  const running = film.boxOfficeRun.status === 'running';
+                  return (
+                    <tr key={film.id}>
+                      <td>{film.title}</td>
+                      <td>{film.genre}</td>
+                      <td>{formatGameDate(film.releasedOnDay)}</td>
+                      <td><Money amount={film.results.totalCost} /></td>
+                      <td>
+                        {running ? (
+                          <span style={{ color: 'var(--text-muted)' }}><Money amount={film.boxOfficeRun.cumulativeGross} /> so far</span>
+                        ) : (
+                          <Money amount={film.results.totalBoxOffice ?? 0} />
+                        )}
+                      </td>
+                      <td>{film.results.criticScore}</td>
+                      <td>
+                        {running || !film.results.outcome ? (
+                          <span className="badge">In Theaters</span>
+                        ) : (
+                          <span className={`badge badge-outcome-${film.results.outcome.replace(/\s+/g, '-')}`}>
+                            {film.results.outcome}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {running || film.results.profit === null ? (
+                          <span style={{ color: 'var(--text-muted)' }}>Pending</span>
+                        ) : (
+                          <Money amount={film.results.profit} signColor showSign />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

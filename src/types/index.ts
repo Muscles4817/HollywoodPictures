@@ -272,9 +272,17 @@ export interface FilmResults {
   marketingCost: number;
   totalCost: number;
   openingWeekend: number;
-  totalBoxOffice: number; // the big headline gross - not what the studio actually keeps, see studioRevenue
-  studioRevenue: number; // totalBoxOffice after the theatrical revenue split - what profit is actually computed from
-  profit: number;
+  // These five are only knowable once the film's BoxOfficeRun finishes
+  // (see BoxOfficeRun below and docs/DESIGN.md 5.19) - total gross isn't a
+  // single computed figure any more, it's whatever the weekly run actually
+  // adds up to, so profit/outcome/reputation have to wait for it the same
+  // way a real studio doesn't know a film's final numbers on opening night.
+  // null while BoxOfficeRun.status === 'running'.
+  totalBoxOffice: number | null; // the big headline gross - not what the studio actually keeps, see studioRevenue
+  studioRevenue: number | null; // totalBoxOffice after the theatrical revenue split - what profit is actually computed from
+  profit: number | null;
+  outcome: OutcomeLabel | null;
+  reputationChange: number | null;
   criticScore: number; // 0-100
   audienceScore: number; // 0-100
   buzzScore: number; // 0-100
@@ -288,12 +296,39 @@ export interface FilmResults {
   productionScore: number;
   postProductionScore: number;
   eventsScore: number;
-  reputationChange: number;
   reviewBlurbs: string[];
   // A narrated trade-press-style summary of the release, distinct from the
   // in-world critic-quote blurbs above - see engine/storyReport.ts.
   storyReport: string;
-  outcome: OutcomeLabel;
+}
+
+/** One settled week of a film's theatrical run - see BoxOfficeRun. */
+export interface BoxOfficeWeek {
+  week: number; // 1-indexed; week 1 is always exactly FilmResults.openingWeekend
+  gross: number;
+}
+
+/**
+ * A film's box office as a live, week-by-week process instead of a single
+ * computed total - mirrors how Principal Photography (PhotographyState)
+ * became a lived process instead of a batch roll. `legs` and `retention`
+ * are fixed once, from the reviews/release-type known at release
+ * (engine/boxOffice.ts:computeLegs/computeWeeklyRetention) - critic reaction
+ * doesn't change after the fact, so neither does how fast the film's run
+ * decays. Settled lazily off the existing calendar (Studio.totalDays)
+ * whenever it advances for any reason, not a dedicated ticking screen - see
+ * engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms and docs/DESIGN.md 5.19.
+ */
+export interface BoxOfficeRun {
+  status: 'running' | 'finished';
+  legs: number;
+  retention: number; // 0-1, week-over-week gross retention derived from legs
+  weeks: BoxOfficeWeek[];
+  cumulativeGross: number;
+  // Whether the player has seen the "final breakdown" popup for this run -
+  // set true by ACKNOWLEDGE_BOX_OFFICE_RESULTS once status is 'finished', so
+  // the popup doesn't reappear every time the player revisits the Dashboard.
+  acknowledged: boolean;
 }
 
 // A film record that has been fully cast/produced/released and lives in studio history.
@@ -309,6 +344,7 @@ export interface Film {
   marketingChoices: MarketingChoices;
   events: ProductionEvent[];
   results: FilmResults;
+  boxOfficeRun: BoxOfficeRun;
   /** Studio.totalDays at the moment this film was released - see engine/calendar.ts:formatGameDate. */
   releasedOnDay: number;
 }

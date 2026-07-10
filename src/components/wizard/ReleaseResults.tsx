@@ -9,15 +9,27 @@ export function ReleaseResults() {
   const { state, dispatch } = useStudio();
   const draft = state.draft!;
   const results = draft.results!;
+  // The film has already finished its whole run if the very first
+  // settlement pass at release crossed straight to 'finished' (a weak
+  // enough reception that legs bottom out after a single week) - rare, but
+  // when it happens the final numbers below are already real, not pending.
+  const finished = results.outcome !== null;
 
   return (
     <div className="stack">
-      <h1>{draft.title || 'Untitled Film'} - Results</h1>
-      <div>
-        <span className={`badge badge-outcome-${results.outcome.replace(/\s+/g, '-')}`} style={{ fontSize: '1.1em' }}>
-          {results.outcome}
-        </span>
-      </div>
+      <h1>{draft.title || 'Untitled Film'} - Opening Weekend</h1>
+      {finished ? (
+        <div>
+          <span className={`badge badge-outcome-${results.outcome!.replace(/\s+/g, '-')}`} style={{ fontSize: '1.1em' }}>
+            {results.outcome}
+          </span>
+        </div>
+      ) : (
+        <p className="choice-description" style={{ margin: 0 }}>
+          This is just the opening - the film is still playing. Its total gross, profit, outcome and reputation
+          effect will all firm up week by week as it plays out; keep an eye on the Dashboard to watch it happen.
+        </p>
+      )}
 
       <div className="card stack">
         <h2>Box Office</h2>
@@ -28,9 +40,15 @@ export function ReleaseResults() {
         </div>
         <div className="row">
           <StatTile label="Opening Weekend" value={<Money amount={results.openingWeekend} />} />
-          <StatTile label="Total Box Office" value={<Money amount={results.totalBoxOffice} />} />
-          <StatTile label="Studio's Share" value={<Money amount={results.studioRevenue} />} />
-          <StatTile label="Profit / Loss" value={<Money amount={results.profit} signColor showSign />} />
+          {finished ? (
+            <>
+              <StatTile label="Total Box Office" value={<Money amount={results.totalBoxOffice!} />} />
+              <StatTile label="Studio's Share" value={<Money amount={results.studioRevenue!} />} />
+              <StatTile label="Profit / Loss" value={<Money amount={results.profit!} signColor showSign />} />
+            </>
+          ) : (
+            <StatTile label="Total Box Office" value="Still playing" />
+          )}
         </div>
         <p className="choice-description" style={{ margin: 0 }}>
           Theaters and international distribution keep the rest - the studio's actual cut of box office is well below
@@ -76,8 +94,11 @@ export function ReleaseResults() {
         <div>
           <div className="stat-label">Studio Reputation Change</div>
           <div className="stat-value">
-            {results.reputationChange >= 0 ? '+' : ''}
-            {results.reputationChange}
+            {finished ? (
+              <>{results.reputationChange! >= 0 ? '+' : ''}{results.reputationChange}</>
+            ) : (
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.7em' }}>Pending run's end</span>
+            )}
           </div>
         </div>
         <div>
