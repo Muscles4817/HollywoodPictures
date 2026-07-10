@@ -1,4 +1,4 @@
-import type { Genre, EventChoiceTemplate } from '../types';
+import type { Genre, EventChoiceTemplate, TalentRole } from '../types';
 
 // Templates for randomized production events. The engine picks a handful of
 // these per shoot, biased by an overall risk score, then rolls a concrete
@@ -43,10 +43,24 @@ interface SimpleProductionEventTemplate {
 // read as obviously true of the scenario, not artificially simplified.
 interface InteractiveProductionEventTemplate {
   id: string;
-  situation: string;
+  situation: string; // may contain a "{name}" token - interpolated with the involved talent's name at roll time
   polarity: 'positive' | 'negative';
   interactive: true;
-  choices: EventChoiceTemplate[];
+  choices: EventChoiceTemplate[]; // label/description may also contain "{name}"
+  // Ties this event to whoever's actually hired for that role
+  // (FilmDraft.talent), so the situation and choices can name them directly
+  // and any `skillSensitive` choice can be adjusted by their actual skill
+  // (or, for actors, their compatibility with the script) - see
+  // engine/production.ts:rollDayEvent. Only roles guaranteed hired by the
+  // time photography starts (every MANDATORY_TALENT_ROLES entry) are safe
+  // to use here.
+  involvesRole?: TalentRole;
+  // If set (requires involvesRole), two real recast candidates are pulled
+  // from the studio's talent pool near the departing person's salary and
+  // appended to `choices` at roll time (engine/production.ts:rollDayEvent) -
+  // an actual replacement decision, not a flavor option, with cost and
+  // quality driven by which specific person the player picks.
+  offersReplacementFor?: TalentRole;
 }
 
 export type ProductionEventTemplate = SimpleProductionEventTemplate | InteractiveProductionEventTemplate;
@@ -105,6 +119,71 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     qualityRange: [5, 9],
     buzzRange: [2, 5], // the leak is the public angle, not the chemistry itself
     delayDaysRange: [0, 0],
+  },
+  {
+    id: 'int-writer-punch-up',
+    situation: '{name} found time to punch up a scene everyone agreed was flat.',
+    polarity: 'positive',
+    interactive: true,
+    involvesRole: 'Writer',
+    choices: [
+      {
+        id: 'let-them-run',
+        label: 'Let them run with it',
+        description: 'How much this lands depends on how good they are.',
+        costRange: [0, 0],
+        qualityRange: [2, 5],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
+        skillSensitive: true,
+      },
+      {
+        id: 'keep-tight',
+        label: 'Keep it tight, protect the schedule',
+        description: 'A safe, modest gain with zero risk.',
+        costRange: [0, 0],
+        qualityRange: [1, 2],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
+      },
+      {
+        id: 'push-bigger-rewrite',
+        label: 'Push for a bigger rewrite',
+        description: 'A real gain, at the cost of real time.',
+        costRange: [0, 0],
+        qualityRange: [5, 9],
+        buzzRange: [0, 0],
+        delayDaysRange: [1, 2],
+      },
+    ],
+  },
+  {
+    id: 'int-editor-assembly-ahead',
+    situation: '{name} has been assembling dailies ahead of schedule and found a stronger structure for a key sequence.',
+    polarity: 'positive',
+    interactive: true,
+    involvesRole: 'Editor',
+    choices: [
+      {
+        id: 'adopt-new-structure',
+        label: 'Adopt the new structure',
+        description: 'How much better it plays depends on how good they are.',
+        costRange: [0, 0],
+        qualityRange: [3, 6],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
+        skillSensitive: true,
+      },
+      {
+        id: 'stick-to-plan',
+        label: 'Stick to the original plan',
+        description: 'Safe - no change either way.',
+        costRange: [0, 0],
+        qualityRange: [0, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
+      },
+    ],
   },
 ];
 
@@ -171,6 +250,140 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     qualityRange: [-10, -3],
     buzzRange: [-4, -1],
     delayDaysRange: [0, 1],
+  },
+  {
+    id: 'int-writer-rewrite-struggle',
+    situation: '{name} is struggling to land a rewrite the studio flagged as essential.',
+    polarity: 'negative',
+    interactive: true,
+    involvesRole: 'Writer',
+    choices: [
+      {
+        id: 'give-more-time',
+        label: 'Give them more time',
+        description: 'A stronger writer needs less of it.',
+        costRange: [0, 0],
+        qualityRange: [0, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [1, 3],
+        skillSensitive: true,
+      },
+      {
+        id: 'script-doctor',
+        label: 'Bring in a script doctor',
+        description: 'A flat, paid fix, regardless of your own writer.',
+        costRange: [80_000, 250_000],
+        qualityRange: [2, 5],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
+      },
+      {
+        id: 'ship-as-is',
+        label: 'Ship the current draft as-is',
+        description: 'Free, but how bad this is depends on how good the draft already was.',
+        costRange: [0, 0],
+        qualityRange: [-7, -2],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
+        skillSensitive: true,
+      },
+    ],
+  },
+  {
+    id: 'int-director-out-of-sync',
+    situation: "{name} has fallen out of sync with the studio's vision, and the shoot is suffering for it.",
+    polarity: 'negative',
+    interactive: true,
+    involvesRole: 'Director',
+    offersReplacementFor: 'Director',
+    choices: [
+      {
+        id: 'frank-conversation',
+        label: 'Have a frank conversation',
+        description: 'Free - whether it actually helps depends on them.',
+        costRange: [0, 0],
+        qualityRange: [-3, 2],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
+        skillSensitive: true,
+      },
+      {
+        id: 'bring-in-co-director',
+        label: 'Bring in a co-director to steady things',
+        description: 'Pay for backup support without replacing them outright.',
+        costRange: [150_000, 400_000],
+        qualityRange: [1, 3],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 1],
+      },
+    ],
+  },
+  {
+    id: 'int-actor-unreliable',
+    situation: "{name} is increasingly unreliable on set, and it's starting to show in the footage.",
+    polarity: 'negative',
+    interactive: true,
+    involvesRole: 'Lead Actor',
+    offersReplacementFor: 'Lead Actor',
+    choices: [
+      {
+        id: 'director-works-with-them',
+        label: 'Have the director work with them directly',
+        description: 'Free - the results depend on how good the fit already was.',
+        costRange: [0, 0],
+        qualityRange: [-4, 1],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
+        skillSensitive: true,
+      },
+      {
+        id: 'bring-in-coach',
+        label: 'Bring in a performance coach',
+        description: 'Pay for outside help.',
+        costRange: [50_000, 150_000],
+        qualityRange: [1, 3],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
+      },
+    ],
+  },
+  {
+    id: 'int-composer-temp-score-clash',
+    situation: "{name}'s temp cues for a key sequence are clashing with the director's vision in dailies.",
+    polarity: 'negative',
+    interactive: true,
+    involvesRole: 'Composer',
+    choices: [
+      {
+        id: 'let-them-iterate',
+        label: 'Let them iterate',
+        description: 'A stronger composer needs fewer passes to get there.',
+        costRange: [0, 0],
+        qualityRange: [0, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [1, 2],
+        skillSensitive: true,
+      },
+      {
+        id: 'bring-in-arranger',
+        label: 'Bring in an arranger to help',
+        description: 'A flat, paid fix.',
+        costRange: [40_000, 120_000],
+        qualityRange: [1, 3],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
+      },
+      {
+        id: 'lock-temp-track',
+        label: 'Lock the temp track and move on',
+        description: 'Free, but the mismatch stays.',
+        costRange: [0, 0],
+        qualityRange: [-4, -1],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
+        skillSensitive: true,
+      },
+    ],
   },
 ];
 
@@ -686,6 +899,41 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
             qualityRange: [0, 0],
             buzzRange: [0, 0],
             delayDaysRange: [0, 1],
+          },
+        ],
+      },
+      {
+        id: 'int-morale-actor-rivalry',
+        situation: "Two of your actors are locked in a subtle rivalry that's starting to spill into their scenes together.",
+        polarity: 'negative',
+        interactive: true,
+        choices: [
+          {
+            id: 'let-it-fuel',
+            label: 'Let it fuel the performances',
+            description: 'A gamble that mostly pays off.',
+            costRange: [0, 0],
+            qualityRange: [1, 4],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'separate-schedules',
+            label: 'Separate their schedules where possible',
+            description: 'Free, but costs time to work around.',
+            costRange: [0, 0],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [1, 2],
+          },
+          {
+            id: 'producer-mediates',
+            label: 'Have a producer mediate',
+            description: 'Pay to smooth it over.',
+            costRange: [40_000, 120_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
           },
         ],
       },
@@ -1308,6 +1556,41 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
             qualityRange: [1, 3],
             buzzRange: [0, 0],
             delayDaysRange: [0, 0],
+          },
+        ],
+      },
+      {
+        id: 'int-budget-vendor-discount',
+        situation: 'A vendor has offered a loyalty discount if you commit to more work with them now.',
+        polarity: 'positive',
+        interactive: true,
+        choices: [
+          {
+            id: 'take-discount',
+            label: 'Take the discount and commit',
+            description: 'Straightforward savings.',
+            costRange: [-120_000, -40_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'decline-stay-flexible',
+            label: 'Politely decline, stay flexible',
+            description: 'No effect either way.',
+            costRange: [0, 0],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'negotiate-bigger',
+            label: 'Negotiate a bigger discount',
+            description: "More savings, if you're willing to spend the time hashing it out.",
+            costRange: [-180_000, -60_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 1],
           },
         ],
       },

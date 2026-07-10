@@ -74,9 +74,10 @@ export interface ActorTalent extends TalentCommon {
 }
 
 // Writer, Composer, Editor, VFX Supervisor - a plain skill number, no
-// tone-comparable stat. (Writer in particular is a known dead field right
-// now: hireable, but doesn't yet feed script quality - see Known
-// Limitations in docs/DESIGN.md.)
+// tone-comparable stat. Doesn't feed Script Score directly (that's still
+// purely the Script's own stats - see engine/scoring.ts:computeScriptScore),
+// but does drive skillSensitive outcomes on any on-set event that
+// involvesRole them (see docs/DESIGN.md 5.18).
 export interface CrewTalent extends TalentCommon {
   role: 'Writer' | 'Composer' | 'Editor' | 'VFX Supervisor';
   skill: number; // 1-100
@@ -148,9 +149,9 @@ export interface ProductionEvent {
 // photography (see PhotographyState.pendingChoice below) - each choice rolls
 // its own outcome independently, so a "pay to fix it" option and a "push
 // through and accept the risk" option for the same situation can land in
-// completely different places on cost/quality/buzz/delay. A choice is free
-// to touch only one of these (e.g. purely a time cost, or purely a quality
-// cost) - nothing requires all four ranges to move.
+// completely different places on cost/quality/buzz/delay. Which of those a
+// choice actually touches is whatever the situation logically implies, not
+// forced to a single one for its own sake.
 export interface EventChoiceTemplate {
   id: string;
   label: string; // short button text, e.g. "Pay for a reshoot"
@@ -159,6 +160,21 @@ export interface EventChoiceTemplate {
   qualityRange: [number, number];
   buzzRange: [number, number];
   delayDaysRange: [number, number];
+  // If true, this choice's qualityRange/delayDaysRange shift based on the
+  // involved talent's skill (see PendingEventChoice.involvedTalentId) before
+  // being rolled - a stronger writer/director/actor genuinely handles this
+  // specific choice better. Only meaningful on a template with
+  // `involvesRole` set (see data/productionEvents.ts); computed once at
+  // roll time (engine/production.ts:rollDayEvent), not at resolve time.
+  skillSensitive?: boolean;
+  // Present only on a choice generated dynamically at roll time for a
+  // replacement decision (data/productionEvents.ts:offersReplacementFor) -
+  // which specific talent-pool candidate this option actually hires, so
+  // RESOLVE_EVENT_CHOICE can swap them into FilmDraft.talent alongside
+  // applying the normal cost/quality/buzz/delay roll.
+  replacementCandidateId?: string;
+  replacementCandidateName?: string;
+  replacementCandidateSalary?: number;
 }
 
 // An interactive event that's paused photography, waiting on the player to
@@ -169,6 +185,16 @@ export interface PendingEventChoice {
   situation: string; // the dilemma being presented, before a choice is made
   polarity: 'positive' | 'negative';
   choices: EventChoiceTemplate[];
+  // The specific hired talent this event is actually about, if the template
+  // set `involvesRole` (data/productionEvents.ts) - resolved once at roll
+  // time from FilmDraft.talent, so the UI can show who's involved and
+  // RESOLVE_EVENT_CHOICE knows who to remove from the cast on a replacement.
+  involvedTalentId?: string;
+  involvedTalentName?: string;
+  involvedRole?: TalentRole;
+  // Set alongside involvedRole when this event offers a real recast
+  // decision - which role any replacementCandidateId choices are hiring for.
+  replacementRole?: TalentRole;
 }
 
 // The four risk dimensions knowable *before* a day of filming has happened -

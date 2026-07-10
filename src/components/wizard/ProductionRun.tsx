@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { computeStaticProductionRisk, computeRecommendedShootDays, computeSchedulePressure } from '../../engine/production';
 import { computeTalentCost, computeProductionBudgetCost } from '../../engine/cost';
+import { computeTalentCompatibility } from '../../engine/compatibility';
 import { ALL_TALENT_ROLES } from '../../data/talentGeneration';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
@@ -40,6 +41,18 @@ export function ProductionRun() {
     const remaining = Math.max(0, recommendedDays - photography.daysElapsed);
     for (let i = 0; i < remaining; i++) dispatch({ type: 'ADVANCE_SHOOTING_DAY' });
   }
+
+  const pendingChoice = photography?.pendingChoice ?? null;
+  const involvedTalent = pendingChoice?.involvedTalentId
+    ? draft.talent.find((t) => t.id === pendingChoice.involvedTalentId)
+    : undefined;
+  const involvedStat = involvedTalent
+    ? 'skill' in involvedTalent
+      ? `Skill ${involvedTalent.skill}`
+      : draft.script
+        ? `Compatibility ${computeTalentCompatibility(involvedTalent, draft.script) ?? '-'}`
+        : null
+    : null;
 
   const totalCostDelta = photography ? photography.events.reduce((sum, e) => sum + e.costDelta, 0) : 0;
   const totalQualityDelta = photography ? photography.events.reduce((sum, e) => sum + e.qualityDelta, 0) : 0;
@@ -158,19 +171,30 @@ export function ProductionRun() {
             </p>
           )}
 
-          {photography.status === 'awaiting-choice' && photography.pendingChoice && (
+          {photography.status === 'awaiting-choice' && pendingChoice && (
             <div className="card stack" style={{ borderColor: 'var(--primary)' }}>
               <h2 style={{ margin: 0 }}>A Decision Is Needed</h2>
-              <p style={{ margin: 0 }}>{photography.pendingChoice.situation}</p>
+              {involvedTalent && (
+                <div className="row-between event-involved-talent" style={{ fontSize: '0.9em', color: 'var(--text-muted)' }}>
+                  <span>{involvedTalent.name} &middot; {pendingChoice.involvedRole}</span>
+                  {involvedStat && <span>{involvedStat}</span>}
+                </div>
+              )}
+              <p style={{ margin: 0 }}>{pendingChoice.situation}</p>
               <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>Filming is paused until you pick.</p>
               <div className="stack">
-                {photography.pendingChoice.choices.map((choice) => (
+                {pendingChoice.choices.map((choice) => (
                   <button
                     key={choice.id}
                     className="event-choice-button"
                     onClick={() => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId: choice.id })}
                   >
-                    <span className="event-choice-label">{choice.label}</span>
+                    <span className="event-choice-label-row">
+                      <span className="event-choice-label">{choice.label}</span>
+                      {choice.replacementCandidateSalary !== undefined && (
+                        <Money amount={choice.replacementCandidateSalary} />
+                      )}
+                    </span>
                     <span className="event-choice-description">{choice.description}</span>
                   </button>
                 ))}

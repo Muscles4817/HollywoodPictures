@@ -451,6 +451,14 @@ button {
   box-shadow: 0 0 0 2px rgba(36, 81, 201, 0.15);
 }
 
+.event-choice-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  width: 100%;
+  gap: 8px;
+}
+
 .event-choice-label {
   font-weight: 600;
 }

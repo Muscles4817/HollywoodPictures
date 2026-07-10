@@ -7,6 +7,7 @@ import type {
   Script,
   StaticProductionRisk,
   Talent,
+  TalentRole,
 } from '../types';
 import {
   POSITIVE_EVENT_TEMPLATES,
@@ -17,7 +18,9 @@ import {
 } from '../data/productionEvents';
 import { GENRE_PROFILES } from '../data/genres';
 import { contingencyT, practicalEffectsT, vfxT, overallSpendT } from './productionDials';
-import { clamp, randFloat, randInt, type RandomFn } from './random';
+import { computeTalentCompatibility } from './compatibility';
+import { findCandidatesNearPrice } from './talentFilter';
+import { clamp, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
 
 const BASE_SHOOT_DAYS = 18;
 const MAX_COMPLEXITY_DAYS = 35;
@@ -151,6 +154,127 @@ function rollChoiceOutcome(pending: PendingEventChoice, choice: EventChoiceTempl
   };
 }
 
+/**
+ * A single 0-100 "how good are they" reading for any talent, regardless of
+ * role - their plain skill for Director/Writer/Composer/Editor/VFX
+ * Supervisor, or (since actors have no separate skill number, see
+ * types/index.ts:ActorTalent) how well their ActingStyle actually suits
+ * this script. Used to bias `skillSensitive` event choices toward a better
+ * outcome for a stronger hire, worse for a weaker one.
+ */
+function talentSkillScore(talent: Talent | undefined, script: Script | null): number {
+  if (!talent) return 50;
+  if ('skill' in talent) return talent.skill;
+  return (script && computeTalentCompatibility(talent, script)) ?? 50;
+}
+
+/** Picks the specific hired talent an `involvesRole` event is about - a random one, for a multi-hire role. */
+function resolveInvolvedTalent(role: TalentRole, talent: Talent[], rng: RandomFn): Talent | undefined {
+  const hired = talent.filter((t) => t.role === role);
+  return hired.length > 0 ? pick(rng, hired) : undefined;
+}
+
+function interpolateName(text: string, name: string): string {
+  return text.replaceAll('{name}', name);
+}
+
+// How far a skillSensitive choice's range shifts at the extremes (skill 0 or
+// 100) - half the choice's own range width, so a top talent doesn't turn a
+// bad option into a guaranteed great one, just a meaningfully better one.
+const SKILL_ADJUST_STRENGTH = 0.5;
+
+function skillShift(range: [number, number], skillScore: number): number {
+  return ((skillScore - 50) / 50) * (range[1] - range[0]) * SKILL_ADJUST_STRENGTH;
+}
+
+/** Higher skill shifts a quality range up - a better outcome either way, whether the choice is a risk or a fix. */
+function adjustQualityForSkill(range: [number, number], skillScore: number): [number, number] {
+  const shift = skillShift(range, skillScore);
+  return [range[0] + shift, range[1] + shift];
+}
+
+/** Higher skill shifts a delay range down (floored at 0) - a stronger hire needs less extra time to sort the same problem out. */
+function adjustDelayForSkill(range: [number, number], skillScore: number): [number, number] {
+  const shift = skillShift(range, skillScore);
+  return [Math.max(0, range[0] - shift), Math.max(0, range[1] - shift)];
+}
+
+/** Applies skillSensitive adjustments and {name} interpolation to an involvesRole template's choices, once, at roll time. */
+function prepareChoicesForInvolvedTalent(
+  choices: EventChoiceTemplate[],
+  talentName: string,
+  skillScore: number,
+): EventChoiceTemplate[] {
+  return choices.map((c) => ({
+    ...c,
+    label: interpolateName(c.label, talentName),
+    description: interpolateName(c.description, talentName),
+    qualityRange: c.skillSensitive ? adjustQualityForSkill(c.qualityRange, skillScore) : c.qualityRange,
+    delayDaysRange: c.skillSensitive ? adjustDelayForSkill(c.delayDaysRange, skillScore) : c.delayDaysRange,
+  }));
+}
+
+// A recast costs the departing hire's severance plus a rush-hire premium on
+// the new person's own rate - replacing someone mid-shoot is genuinely
+// expensive, not just "their salary going forward" (which already updates
+// on its own once they're swapped into FilmDraft.talent - see
+// state/studioReducer.ts:RESOLVE_EVENT_CHOICE).
+const SEVERANCE_RATE = 0.4;
+const RUSH_HIRE_PREMIUM_RATE = 0.3;
+// Recasting a Lead Actor means reshooting anything they're already in;
+// swapping in a new Director or crew member doesn't carry that same reshoot
+// cost, just ramp-up time.
+const REPLACEMENT_DELAY_DAYS: Partial<Record<TalentRole, [number, number]>> = {
+  'Lead Actor': [3, 6],
+  'Supporting Actor': [2, 4],
+};
+const DEFAULT_REPLACEMENT_DELAY: [number, number] = [2, 4];
+const REPLACEMENT_CANDIDATE_COUNT = 2;
+
+/**
+ * Builds the real "recast with X" choices for an `offersReplacementFor`
+ * template - candidates pulled from the studio's actual talent pool, near
+ * the departing hire's own salary (engine/talentFilter.ts), each becoming
+ * its own selectable choice with that specific person's name and salary and
+ * a quality swing based on how their skill compares to who's leaving. Which
+ * one the player picks is what determines the cost, same as any other hire.
+ */
+function buildReplacementChoices(
+  role: TalentRole,
+  departing: Talent,
+  pool: Talent[],
+  script: Script | null,
+  rng: RandomFn,
+): EventChoiceTemplate[] {
+  const { candidates } = findCandidatesNearPrice(
+    pool.filter((t) => t.id !== departing.id),
+    departing.salary,
+    8,
+  );
+  if (candidates.length === 0) return [];
+  const picked = pickMany(rng, candidates, Math.min(REPLACEMENT_CANDIDATE_COUNT, candidates.length));
+  const departingSkill = talentSkillScore(departing, script);
+  const delayRange = REPLACEMENT_DELAY_DAYS[role] ?? DEFAULT_REPLACEMENT_DELAY;
+
+  return picked.map((candidate) => {
+    const candidateSkill = talentSkillScore(candidate, script);
+    const qualitySwing = (candidateSkill - departingSkill) / 8; // modest - a recast is a gamble, not a guaranteed upgrade
+    const disruptionCost = Math.round(departing.salary * SEVERANCE_RATE + candidate.salary * RUSH_HIRE_PREMIUM_RATE);
+    return {
+      id: `replace-with:${candidate.id}`,
+      label: `Recast with ${candidate.name}`,
+      description: `Severance for ${departing.name}, a rush-hire premium, and the disruption of bringing someone new in mid-shoot.`,
+      costRange: [disruptionCost, disruptionCost],
+      qualityRange: [qualitySwing - 2, qualitySwing + 3],
+      buzzRange: [0, 0],
+      delayDaysRange: delayRange,
+      replacementCandidateId: candidate.id,
+      replacementCandidateName: candidate.name,
+      replacementCandidateSalary: candidate.salary,
+    };
+  });
+}
+
 const HIGH_RISK_THRESHOLD = 55;
 const LOW_RISK_THRESHOLD = 35;
 
@@ -199,6 +323,9 @@ export function rollDayEvent(
   recommendedDays: number,
   genre: Genre,
   usedIds: ReadonlySet<string>,
+  talent: Talent[],
+  script: Script | null,
+  talentPool: Record<TalentRole, Talent[]>,
   rng: RandomFn,
 ): { event: ProductionEvent } | { pendingChoice: PendingEventChoice } | null {
   const schedulePressure = computeSchedulePressure(daysElapsed, recommendedDays);
@@ -216,15 +343,36 @@ export function rollDayEvent(
   if (candidates.length === 0) return null; // exhausted every template this shoot
 
   const template = candidates[randInt(rng, 0, candidates.length - 1)];
-  if (template.interactive) {
-    return {
-      pendingChoice: {
-        templateId: template.id,
-        situation: template.situation,
-        polarity: template.polarity,
-        choices: template.choices,
-      },
-    };
+  if (!template.interactive) {
+    return { event: rollSimpleEvent(template, rng) };
   }
-  return { event: rollSimpleEvent(template, rng) };
+
+  const involved = template.involvesRole ? resolveInvolvedTalent(template.involvesRole, talent, rng) : undefined;
+  // involvesRole is only ever set on templates about a mandatory role, which
+  // is guaranteed hired by the time photography can begin - but if it's
+  // ever missing for any reason, skip this template for today rather than
+  // show a decision about someone who doesn't exist.
+  if (template.involvesRole && !involved) return null;
+
+  const skillScore = involved ? talentSkillScore(involved, script) : 50;
+  let choices = involved ? prepareChoicesForInvolvedTalent(template.choices, involved.name, skillScore) : template.choices;
+  const situation = involved ? interpolateName(template.situation, involved.name) : template.situation;
+
+  if (template.offersReplacementFor && involved) {
+    const replacementPool = talentPool[template.offersReplacementFor] ?? [];
+    choices = [...choices, ...buildReplacementChoices(template.offersReplacementFor, involved, replacementPool, script, rng)];
+  }
+
+  return {
+    pendingChoice: {
+      templateId: template.id,
+      situation,
+      polarity: template.polarity,
+      choices,
+      involvedTalentId: involved?.id,
+      involvedTalentName: involved?.name,
+      involvedRole: template.involvesRole,
+      replacementRole: template.offersReplacementFor,
+    },
+  };
 }

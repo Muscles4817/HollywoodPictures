@@ -213,7 +213,17 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const staticRisk = computeStaticProductionRisk(d.talent, d.script, d.productionChoices, d.genre);
       const usedIds = new Set(d.photography.events.map((e) => e.id));
       const { result, nextSeed } = withRng(state.rngSeed, (rng) =>
-        rollDayEvent(staticRisk, d.photography!.daysElapsed + 1, d.photography!.recommendedDays, d.genre!, usedIds, rng),
+        rollDayEvent(
+          staticRisk,
+          d.photography!.daysElapsed + 1,
+          d.photography!.recommendedDays,
+          d.genre!,
+          usedIds,
+          d.talent,
+          d.script,
+          state.studio.talentPool,
+          rng,
+        ),
       );
 
       if (result && 'pendingChoice' in result) {
@@ -260,17 +270,30 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // delayDaysDelta (if any) advances the calendar here, separately from
     // the day the situation itself happened on (already charged in
     // ADVANCE_SHOOTING_DAY above) - see engine/production.ts:resolveEventChoice.
+    // A choice built by buildReplacementChoices (offersReplacementFor) also
+    // swaps FilmDraft.talent for real - the departing hire is removed and
+    // the picked candidate takes their place for the rest of the film, on
+    // top of the one-time disruption cost/quality/delay already rolled.
     case 'RESOLVE_EVENT_CHOICE': {
       const d = state.draft;
       if (!d?.photography || d.photography.status !== 'awaiting-choice' || !d.photography.pendingChoice || !d.productionChoices) {
         return state;
       }
       const pendingChoice = d.photography.pendingChoice;
+      const chosen = pendingChoice.choices.find((c) => c.id === action.choiceId);
       const { result: event, nextSeed } = withRng(state.rngSeed, (rng) =>
         resolveEventChoice(pendingChoice, action.choiceId, rng),
       );
       const extraDays = event.delayDaysDelta;
       const dailyBurn = computeDailyContingencyBurn(d.productionChoices.contingencyAmount, d.photography.recommendedDays);
+
+      let talent = d.talent;
+      if (chosen?.replacementCandidateId && pendingChoice.replacementRole) {
+        const candidate = state.studio.talentPool[pendingChoice.replacementRole]?.find((t) => t.id === chosen.replacementCandidateId);
+        if (candidate) {
+          talent = [...d.talent.filter((t) => t.id !== pendingChoice.involvedTalentId), candidate];
+        }
+      }
 
       return {
         ...state,
@@ -278,6 +301,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         studio: { ...state.studio, totalDays: state.studio.totalDays + extraDays },
         draft: {
           ...d,
+          talent,
           photography: {
             ...d.photography,
             status: 'in-progress',
