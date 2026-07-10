@@ -8,11 +8,21 @@ import { Money } from './common/Money';
 import { GameGuide } from './common/GameGuide';
 import { BoxOfficeChart } from './common/BoxOfficeChart';
 import { BoxOfficeFinishedPopup } from './common/BoxOfficeFinishedPopup';
+import { FilmDetailModal } from './common/FilmDetailModal';
+import { TimeTickIndicator } from './common/TimeTickIndicator';
+import type { Film } from '../types';
 
-export function Dashboard() {
+interface DashboardProps {
+  paused: boolean;
+  onTogglePause: () => void;
+  tickNonce: number;
+}
+
+export function Dashboard({ paused, onTogglePause, tickNonce }: DashboardProps) {
   const { state, dispatch } = useStudio();
   const { studio } = state;
   const [showGuide, setShowGuide] = useState(false);
+  const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
 
   function handleReset() {
     const confirmed = window.confirm(
@@ -33,6 +43,7 @@ export function Dashboard() {
   return (
     <div className="stack">
       {unacknowledgedFinished && <BoxOfficeFinishedPopup film={unacknowledgedFinished} />}
+      {selectedFilm && <FilmDetailModal film={selectedFilm} onClose={() => setSelectedFilm(null)} />}
 
       <div className="row-between">
         <div>
@@ -40,6 +51,7 @@ export function Dashboard() {
           <p>{formatGameDate(studio.totalDays)} &middot; {studio.filmsReleased.length} film{studio.filmsReleased.length === 1 ? '' : 's'} released</p>
         </div>
         <div className="row">
+          <TimeTickIndicator paused={paused} onTogglePause={onTogglePause} tickNonce={tickNonce} />
           <Button onClick={() => setShowGuide(true)}>How It Works</Button>
           <Button onClick={handleReset}>Reset Studio</Button>
           <Button variant="primary" onClick={() => dispatch({ type: 'START_NEW_FILM' })}>
@@ -98,7 +110,7 @@ export function Dashboard() {
                 {[...studio.filmsReleased].reverse().map((film) => {
                   const running = film.boxOfficeRun.status === 'running';
                   return (
-                    <tr key={film.id}>
+                    <tr key={film.id} className="film-history-row" onClick={() => setSelectedFilm(film)}>
                       <td>{film.title}</td>
                       <td>{film.genre}</td>
                       <td>{formatGameDate(film.releasedOnDay)}</td>

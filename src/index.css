@@ -445,6 +445,52 @@ button {
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
 
+/* --- Time tick indicator (Dashboard pause + tick-progress bar) --- */
+.time-tick-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.time-tick-bar-track {
+  width: 90px;
+  height: 8px;
+  background: var(--track-bg);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.time-tick-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--primary);
+  border-radius: 4px;
+  animation-name: time-tick-fill;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes time-tick-fill {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+.time-tick-paused-label {
+  font-size: 0.7em;
+  color: var(--text-muted);
+  padding-left: 8px;
+}
+
+.film-history-row {
+  cursor: pointer;
+}
+
+.film-history-row:hover {
+  background: var(--track-bg);
+}
+
 /* --- Star rating (5 stars, half-star granularity via a clipped overlay) --- */
 .star-rating {
   position: relative;
