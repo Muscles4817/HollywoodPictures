@@ -1751,6 +1751,112 @@ script side and the personal-lean director side.
 Save format bumped to v15 (`state/persistence.ts`) for the new required
 Script/DirectorTalent fields.
 
+### 5.27 The recommendation engine itself (`engine/recommendation.ts`)
+
+Four pure, independently-callable functions implementing 5.26's vocabulary -
+`recommendEnvironmentStrategy`, `recommendEffectsStrategy`,
+`recommendEnvironmentAmbition`, `recommendEffectsAmbition` - each taking a
+`Script` (and, for the two Strategy functions, a `DirectorTalent`) and
+returning a `Recommendation<T>`. **Still no UI, and `engine/scoring.ts`
+still reads genre importance directly** - nothing calls these functions yet
+outside diagnostics.
+
+**Script is the primary source, the director nudges.** A Strategy
+recommendation blends `script.environmentStrategy`/`effectsStrategy` and the
+director's matching `productionStyle` field as a weighted average,
+`SCRIPT_STRATEGY_WEIGHT = 0.65` vs `0.35` for the director - a single named
+constant, easy to retune once there's a UI to judge the feel against.
+Ambition has no director input at all yet (`recommendEnvironmentAmbition`/
+`recommendEffectsAmbition` are a thin pass-through of the script's own
+value, script-only per direct instruction) - a director-side Ambition trait
+was discussed and deliberately not added; add one only once a real gap
+shows up, not in anticipation of one.
+
+**Reason ordering is influence-based, not templated.** Each reason carries
+an internal weight (`WeightedReason`, never exposed on `Recommendation`
+itself) and the list is sorted strongest-first before being returned. The
+director's weight is a *counterfactual*: how much the blend actually moves
+if their opinion is swapped for a neutral one, rather than their flat 35%
+blend share - which is what lets a director with a strong, disagreeing
+opinion outrank the screenplay's own reason when the screenplay barely has
+one (verified directly - see diagnostics below), instead of the two reasons
+always appearing in the same fixed order regardless of what's actually
+driving the number.
+
+**Agreement and disagreement are explicit**, via total variation distance
+between the script's and director's distributions (0 = identical, 1 =
+share no weight in common at all - comparable across a 2-key distribution
+like Effects and a 3-key one like Environment, since TVD's range doesn't
+depend on how many keys are being compared). Below `AGREEMENT_DISTANCE`
+(0.15) the reason reads as reinforcement ("The director also favors...");
+at or above `DISAGREEMENT_DISTANCE` (0.4) it names the tension directly
+("...in tension with the screenplay's lean toward..."). A bug surfaced by
+the required diagnostics: that tension phrasing originally fired even when
+the screenplay itself had no real opinion (a near-uniform distribution's
+technical argmax isn't a genuine "lean"), producing a self-contradicting
+sentence citing the same option as both sides. Fixed by gating the
+"screenplay's lean" clause on the screenplay actually having one
+(`SCRIPT_OPINION_THRESHOLD`), falling back to "...which the screenplay
+itself doesn't push back against" when it doesn't - exactly the kind of
+thing this diagnostic-first pass exists to catch before any UI is built on
+top of it.
+
+**False precision is handled explicitly, not just in phrasing.** A Strategy
+recommendation's confidence (`strategyConfidence`) scales linearly with its
+matching Ambition, from 0 at Ambition 0 to full trust at
+`AMBITION_CONFIDENCE_FLOOR` (0.3) and above. Below that floor, the blended
+distribution itself is pulled toward an even split
+(`dampenTowardNeutral`) *and* a reason is added naming the reason why
+("Effects investment is minimal for this film, so this balance has little
+practical effect on the finished production") - both the number and the
+explanation move, not just the explanation. Confirmed directly against the
+case that originally raised the concern: a real generated Drama script's
+raw `effectsStrategy` (digital 88.9% / practical 11.1%, at effectsAmbition
+0.247) - a strong-looking split that would have read as a confident
+creative choice - damps to a much less committal 63.4% / 36.6% with the
+low-materiality reason attached, rather than presenting the raw split as-is.
+
+**Representative diagnostic results** (script + a real generated director,
+`npx tsx` scratch script, deleted after use per the project's established
+verification pattern):
+
+| Case | Result |
+|---|---|
+| Strong agreement (environment, both location-heavy) | Value stays location-dominant; reasons: "screenplay is built around real-world locations" + "director also favors real-world locations." |
+| Strong disagreement (script=location, director=studio) | Value pulled toward studio (38%→54% location, still location-led since script dominates the blend); reasons name the tension directly. |
+| Low-ambition Drama | See false-precision note above. |
+| Practical-heavy Horror | Raw 76.4% practical; a strongly opposing generated director pulls the recommended value to 58.2% - a real, visible demonstration of the director's 35% weight actually mattering, not token influence. |
+| Digital-heavy Sci-Fi | Raw 64.4% digital; an agreeing director nudges it further to 67.8%. |
+| High Ambition + studio-heavy Strategy | Ambition (0.85, "substantial investment") and Strategy (studio-dominant) reported independently and correctly, proving the two aren't conflated - a production can want a lot of money spent on a distinctly non-digital, non-location vision. |
+| 400 distributions across 200 random script/director pairs | 0 failures summing to 1. |
+| Reason ordering | A strong-script/flat-director case leads with the screenplay's reason; a flat-script/extreme-director case leads with the director's - confirmed the order genuinely flips rather than defaulting to a fixed script-first sequence. |
+
+**Model gaps and calibration notes this pass exposed:**
+- `SCRIPT_STRATEGY_WEIGHT`/`DIRECTOR_STRATEGY_WEIGHT` (0.65/0.35),
+  `AGREEMENT_DISTANCE`/`DISAGREEMENT_DISTANCE` (0.15/0.4), and
+  `AMBITION_CONFIDENCE_FLOOR` (0.3) are first-pass hand-picked constants,
+  not validated against real gameplay feel - each is a single named
+  constant specifically so it's cheap to retune once there's a screen to
+  actually look at the recommendations on.
+- The Horror case above shows the director's 35% weight has real teeth (an
+  18-point swing on a strongly-opinionated script from one opposing
+  director) - worth watching once playtesting exists, in case it ends up
+  feeling like the director overrides the script's own voice too easily.
+- Ambition's reasoning is deliberately thin (the magnitude of the value
+  itself, plus one `complexity`-driven secondary reason) - kept minimal
+  per the same "don't add without a consumer" discipline as 5.26, not an
+  oversight; worth revisiting if the eventual UI's Ambition reasons feel
+  underexplained next to Strategy's richer reasoning.
+- `dominantLean` always returns *some* key, even for a near-uniform
+  distribution - correct mathematically, but only meaningful once gated by
+  `overBaseline` (as `leanPhrase` and the disagreement-phrasing fix both
+  do). Any future recommendation reusing `dominantLean` needs the same
+  gating, not just the raw label.
+
+No Plan Production UI changes and no `engine/scoring.ts` migration yet -
+next step, when ready, is wiring a followed-or-overridden recommendation
+into real `ProductionChoices` values.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
