@@ -63,7 +63,10 @@ export function ReleaseResults() {
           <span className="score-bar-label">Critic Score</span>
           <StarRating value={results.criticScore} />
         </div>
-        <ScoreBar label="Audience Score" value={results.audienceScore} />
+        <div className="row-between">
+          <span className="score-bar-label">Audience Score</span>
+          <StarRating value={results.audienceScore} />
+        </div>
         <ScoreBar label="Buzz Score" value={results.buzzScore} />
       </div>
 

@@ -79,7 +79,10 @@ function ReceptionSection({ film }: { film: Film }) {
         <span className="score-bar-label">Critic Score</span>
         <StarRating value={results.criticScore} />
       </div>
-      <ScoreBar label="Audience Score" value={results.audienceScore} />
+      <div className="row-between">
+        <span className="score-bar-label">Audience Score</span>
+        <StarRating value={results.audienceScore} />
+      </div>
       <ScoreBar label="Buzz Score" value={results.buzzScore} />
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
         <p className="choice-description" style={{ margin: '0 0 8px' }}>Department breakdown</p>
