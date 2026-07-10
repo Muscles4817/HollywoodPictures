@@ -1419,6 +1419,76 @@ an event actually carries before reacting to it.
 Save format bumped to v12 (`state/persistence.ts`) for the new required
 `severity` field.
 
+### 5.22 Pausing the background tick, and a visible countdown to the next day (`App.tsx`, `components/common/TimeTickIndicator.tsx`)
+
+Two small additions on top of 5.20's background day-tick, both direct
+feedback: a 3-second gap between visible changes on the Dashboard read as
+the game being stuck rather than counting down, and there was no way to
+hold time still while reading something without leaving the screen
+entirely.
+
+**Pause** is a `paused` boolean local to `Screens` (`App.tsx`), not
+persisted anywhere and deliberately *not* studio state - it's a UI
+convenience for "let me look at this without the clock running," not a game
+rule. The tick effect's condition became `ticking = !PLANNING_SCREENS.has(state.screen) && !paused`,
+so pausing behaves exactly like already being on a planning screen. A
+second `useEffect` resets `paused` to `false` on every `state.screen`
+change - since essentially every action that costs real time
+(`GO_TO_STEP`, `RELEASE_FILM`) is itself a screen transition, this is what
+makes a manual pause "toggle off if the player does something that
+requires time to pass" true in practice, without needing to special-case
+every time-costing action individually. It also means a pause can never be
+left on by accident on a screen the player has long since moved away from.
+
+**The countdown** is `components/common/TimeTickIndicator.tsx` - a fixed-
+width bar whose fill runs a plain CSS `@keyframes` animation
+(`animation-duration` read from the same `DAY_TICK_MS` constant the real
+interval uses, both now living in `src/constants.ts` specifically so a UI
+component can read it without importing `App.tsx` and creating a circular
+dependency). Restarting the animation in sync with the real tick doesn't
+need its own timer: `Screens` bumps a `tickNonce` counter inside the same
+interval callback that dispatches `ADVANCE_DAY`, and the fill `<div>` is
+keyed on it - changing a `key` forces React to unmount and remount the
+element, which restarts a CSS animation cleanly for free. When paused, the
+bar is replaced with a static "Paused" label instead of a frozen fill,
+so a stopped bar never reads as a hang.
+
+Verified live: pausing held the date at Day 1 through a 7-second wait,
+resuming advanced it to Day 2 within the next 4 seconds.
+
+### 5.23 A full dossier for any past film (`components/common/FilmDetailModal.tsx`)
+
+Studio History's table only ever showed a handful of summary columns - the
+full cast/crew, their individual stats, the on-set event log, and the
+department breakdown were only ever visible once, immediately after
+release, on `ReleaseResults`. Clicking a row now opens
+`FilmDetailModal` (the same `.modal-overlay`/`.modal-content` pattern as
+`BoxOfficeFinishedPopup`) built directly from that `Film` record rather
+than the current draft, so it works identically for a film released just
+now or twelve films ago:
+
+- **Cast & Crew**: every hired role, with their role-appropriate stat -
+  plain `skill` for Director/Writer/Composer/Editor/VFX Supervisor, or
+  `computeTalentCompatibility(talent, film.script)` (rounded - it returns a
+  raw float) for actors, since they have no separate skill number - plus
+  fame/reliability/ego/salary.
+- **Financials**: production/marketing/total cost, and either the live
+  running numbers (`BoxOfficeChart` + gross-so-far, if `boxOfficeRun.status
+  === 'running'`) or the final total/studio-share/profit once the run has
+  finished - the same conditional `ReleaseResults` and Dashboard's history
+  table already use for a null-vs-final `FilmResults`.
+- **Reception**: quality/critic/audience/buzz plus the full department
+  breakdown, reusing `ScoreBar`/`StarRating` as-is.
+- **On-Set Events**: the complete event log with the same `SeverityBadge`
+  treatment as the live Production screen.
+- **Reviews & Studio Report**: unchanged from `ReleaseResults`.
+
+Deliberately a first pass, not a polished redesign - the sections are
+plain stacked cards reusing existing components with no new visual
+language, called out in the component's own comment as worth revisiting
+once there's a sense of which parts of a 12-film-deep history a player
+actually wants to dig back into.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
