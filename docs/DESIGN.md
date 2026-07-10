@@ -90,12 +90,15 @@ change (`persistence.ts`). No backend - this is intentional for the MVP, and
 the reducer is structured so a backend could swap in later by replacing
 `persistence.ts` without touching anything else.
 
-**Cash is only ever mutated once per film, at `RELEASE_FILM`.** Every earlier
-screen (buying a script, hiring cast, planning production, test screenings)
-just *previews* a projected spend via `state/selectors.ts:computeCommittedSpend` -
-nothing is actually deducted until release, when the reducer computes the
-complete cost breakdown fresh from the finished draft and applies
-`cash - totalCost + totalBoxOffice` in one step.
+**Cash is only ever mutated once per film for costs, at `RELEASE_FILM`.**
+Every earlier screen (buying a script, hiring cast, planning production,
+test screenings) just *previews* a projected spend via
+`state/selectors.ts:computeCommittedSpend` - nothing is actually deducted
+until release, when the reducer computes the complete cost breakdown fresh
+from the finished draft and deducts `totalCost` in one step. Box office
+*revenue* is the one exception - it lands gradually instead, credited week
+by week as a film's theatrical run actually plays out rather than added in
+the same step as the cost deduction (see 5.19).
 
 This was a deliberate correction mid-build: the first version deducted cash
 incrementally at each screen (buy script -> deduct; hire cast -> deduct;
@@ -254,11 +257,14 @@ Opening Weekend = OPENING_BASE_POTENTIAL (£24,000,000)
 reviewWeighted    = audienceScore*.65 + criticScore*.35   // audience matters more than critics for legs
 reviewLegsFactor  = 0.25 + (reviewWeighted / 100) * 1.6    // 0.25 - 1.85
 legs              = max(1, releaseType.baseLegsMultiplier * reviewLegsFactor)  // never less than 1x - the floor is "died after opening", not negative legs
-totalBoxOffice    = openingWeekend * legs
-
-studioRevenue     = totalBoxOffice * 0.42   // the studio's actual cut after theatrical/international splits
-profit            = studioRevenue - totalCost
 ```
+
+`legs` no longer multiplies straight into a single `totalBoxOffice` figure
+here - as of 5.19 it's spent out week by week over the actual run instead
+(`retention = 1 - 1/legs`), so `totalBoxOffice`/`studioRevenue`/`profit`
+aren't known until that run finishes. See 5.19 for the weekly mechanics;
+this section still fully describes Opening Weekend and where `legs` itself
+comes from, both still computed exactly this way at release.
 
 Production budget deliberately has **no term here at all**, even though an
 earlier version of this formula gave it one (`budgetScaleFactor`, 0.4-1.6,
@@ -1259,6 +1265,81 @@ assembly that's come together ahead of schedule), Director and Lead Actor
 (each with a real recast option), plus two plain additions with no
 specific role attached (an actor rivalry, a vendor discount) - bringing the
 interactive template count from 16 to 24.
+
+### 5.19 Box office as a live weekly process (`engine/boxOffice.ts`, `engine/boxOfficeRun.ts`, `state/studioReducer.ts`, `components/Dashboard.tsx`)
+
+Same move as Principal Photography (5.16) applied to what happens *after*
+release: a film's total box office used to be one number computed the
+instant the player clicked Release. Now it's whatever a week-by-week run
+actually adds up to, and the player watches it happen instead of being told
+the ending upfront.
+
+**What's release-day-knowable vs what isn't.** Critic/audience/buzz score,
+the department breakdown, review blurbs, the story report, and Opening
+Weekend are all still computed immediately
+(`engine/releaseFilm.ts:computeReleaseResults`) - none of that depends on
+how the run actually goes. `totalBoxOffice`, `studioRevenue`, `profit`,
+`outcome` and `reputationChange` do, so `FilmResults` now types all five as
+`| null` and `computeReleaseResults` returns them null, alongside a `legs`
+figure (`engine/boxOffice.ts:computeLegs` - the same reviews-and-release-
+type multiplier the old lump-sum formula used, just not spent all at once
+any more).
+
+**`Film.boxOfficeRun`** is the live state: `status`, a fixed `legs` and
+`retention` (`computeWeeklyRetention(legs) = clamp(1 - 1/legs, 0, 0.95)` -
+legs=1 gives retention 0, the film dies right after opening; legs=8 gives
+≈0.875, a long slow tail), `weeks: BoxOfficeWeek[]`, and `cumulativeGross`.
+Week 1 is always exactly the already-known Opening Weekend, not a fresh
+roll - decay only governs week 2 onward, each rolled as `previous ×
+retention × variance(±15%)` (`engine/boxOfficeRun.ts`). A run ends when a
+week's gross drops under 2% of the opening, or after a 20-week cap,
+whichever comes first.
+
+**Settlement is lazy, off the existing calendar, not a dedicated ticking
+screen.** `engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms` takes
+`Studio.filmsReleased` and the current `Studio.totalDays`, and for every
+film still `'running'` works out how many weeks *should* be settled by now
+(`floor((totalDays - releasedOnDay) / 7) + 1` - the `+1` is what makes week
+1 due immediately at release, with no special-casing anywhere else) and
+rolls however many are newly due. This is called from every reducer case
+that can advance `totalDays` - `GO_TO_STEP`, `ADVANCE_SHOOTING_DAY`,
+`RESOLVE_EVENT_CHOICE`, and `RELEASE_FILM` itself (which calls it once,
+right after inserting the brand new film, so week 1 gets seeded the same
+way any later week would be - no separate "first week" code path). Each
+newly-settled week credits its studio-share straight into `Studio.cash`
+(`applyBoxOfficeSettlement`, shared by all four call sites) - profit and
+cash arrive gradually as the run plays out, not in one lump at release.
+Whichever call crosses a run into `'finished'` computes the final
+`totalBoxOffice`/`studioRevenue`/`profit`/`outcome`/`reputationChange`
+right there, from whatever `cumulativeGross` actually reached, patches them
+into that film's `results`, and folds `reputationChange` into
+`Studio.reputation` - the same job `RELEASE_FILM` used to do in one shot,
+now done whenever the run's actual ending arrives.
+
+**No blocking.** The player is free to start developing their next film the
+moment the current one releases - `filmsReleased` is a plain array, and
+settlement iterates every running entry in it regardless of what's
+happening in `FilmDraft`. In practice this means an older film's weekly
+numbers keep updating in the background purely as a side effect of
+`ADVANCE_SHOOTING_DAY` ticking on whatever's shooting next, verified in a
+reducer-level diagnostic that released one film, started and shot a second
+one to completion, and watched the first one's run settle to completion
+entirely through the second film's own day-by-day actions.
+
+**UI.** `ReleaseResults.tsx` now reads "Opening Weekend", shows "Still
+playing" where the total used to be, and a note pointing at the Dashboard -
+unless the run happened to finish in that very first settlement pass (a
+poorly-reviewed enough film with legs at the floor), in which case the real
+final numbers are already there instead. `Dashboard.tsx` gained a bar chart
+per running release (`components/common/BoxOfficeChart.tsx` - plain divs,
+no charting library) and a `BoxOfficeFinishedPopup` that surfaces once per
+finished-and-unseen run (`Film.boxOfficeRun.acknowledged`, cleared by a new
+`ACKNOWLEDGE_BOX_OFFICE_RESULTS` action so it doesn't reappear on every
+Dashboard visit). Studio History's table shows "so far" gross and "In
+Theaters" / "Pending" in place of final figures for anything still running.
+
+Save format bumped to v11 (`state/persistence.ts`) for both the nullable
+`FilmResults` fields and the new `Film.boxOfficeRun`.
 
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
