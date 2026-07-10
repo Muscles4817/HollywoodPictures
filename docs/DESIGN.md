@@ -2157,6 +2157,61 @@ untouched) - a small, easily-reversible inconsistency flagged here
 rather than silently resolved either way, since it wasn't explicitly
 settled before implementation.
 
+### 5.32 Cinematographer - a missing mandatory role (`types/index.ts`, `data/talentGeneration.ts`, `data/talentPresentation.ts`)
+
+A genuine gap, not a deliberate scope cut: Cinematographer/Director of
+Photography was simply never in the original role brainstorm, and every
+extension since (Acting Style, tone profiles, Strategy/Ambition) worked
+within the existing seven-role set rather than re-examining whether that
+set was complete. Added as an eighth `TalentRole`, mandatory (every real
+production has one), same `CrewTalent` shape as Writer/Composer/Editor -
+salary range £25k-£6M, fame ceiling 62 (between Composer and VFX
+Supervisor - some working DPs are genuinely well-known, most aren't).
+
+**How little this actually touched is itself informative** - a genuinely
+useful signal about how consistently this codebase avoided hardcoded role
+lists. Adding the role to `MANDATORY_TALENT_ROLES` plus one entry each in
+`ROLE_GENERATION_PROFILES`, `ROLE_CAPACITY`, and `data/talentPresentation.ts`
+(TypeScript's `Record<TalentRole, ...>` forced completeness on all three -
+the build simply wouldn't pass with one missing) was the entire change.
+Talent generation, rival casting, the Cast & Crew hub's tile grid, the
+hiring drawer, budget splitting - all already iterated `TalentRole`
+generically rather than naming roles individually, so a new mandatory role
+is a config entry, not a new code path anywhere. Verified directly: a
+500-day rival-market simulation cast a Cinematographer into all 30
+released rival films with zero special-casing needed, and a full player
+playthrough (hub tile, drawer, hire, auto-close, Continue-gating, into
+Plan Production) worked on the first pass once the build was clean.
+
+**Known limitation, shared with the crew roles this joins, not new to
+it**: Cinematographer's `skill` doesn't feed `computeQualityBreakdown`
+(`engine/scoring.ts`) any more directly than Writer/Composer/Editor/VFX
+Supervisor's already didn't - none of the four below-the-line crew skills
+feed quality scoring today, only `talentSkillScore` in `skillSensitive`
+interactive events and their own salary cost. Worth knowing given "the
+person who shoots the film" is a reasonable thing to expect to move visual
+quality more directly than that - but this is an existing gap in how crew
+skill is used generally, not something specific to Cinematographer, and
+not something to quietly patch only for this one role while leaving the
+other three as they are.
+
+**Deliberately not done**: no Cinematographer-specific interactive event
+templates (`data/productionEvents.ts`) - the other `involvesRole` crew
+events (Writer, Editor, Composer) were each hand-authored and balanced
+individually; matching that for Cinematographer is real, separate work,
+not a required part of fixing the role gap itself. Also deliberately not
+explored: whether a Cinematographer should influence Environment/Effects
+Strategy the way Director's `productionStyle` does (5.26) - genuinely
+plausible given how much of what a DP does overlaps with "how is this
+shot," but that would mean a second influence source on the Strategy
+blend, which was an explicit, deliberate scope decision (script primary,
+director nudges, nothing else - 5.27) that shouldn't be revisited as a
+side effect of fixing an unrelated gap.
+
+Save format bumped to v17 (`state/persistence.ts`) - an existing save's
+`talentPool` has no Cinematographer candidates and no past `Film` ever
+cast one.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
