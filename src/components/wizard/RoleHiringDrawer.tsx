@@ -1,0 +1,312 @@
+import { useEffect, useState } from 'react';
+import { useStudio } from '../../state/StudioContext';
+import { ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
+import { TALENT_PRESENTATION, type RoleCategory } from '../../data/talentPresentation';
+import { effectiveRoleCapacity } from '../../engine/castRequirements';
+import { logAmount } from '../../engine/interpolate';
+import { findCandidatesNearPrice } from '../../engine/talentFilter';
+import { formatGameDate } from '../../engine/calendar';
+import { computeTalentCompatibility } from '../../engine/compatibility';
+import { dominantLean } from '../../engine/recommendation';
+import { toneProfileBreakdown } from '../../data/tones';
+import { ACTING_STYLE_AXES, ACTING_STYLE_LABELS } from '../../data/actingStyle';
+import { Card } from '../common/Card';
+import { Button } from '../common/Button';
+import { RangeSlider } from '../common/RangeSlider';
+import { Money, formatMoney } from '../common/Money';
+import { CompatibilityBadge } from '../common/CompatibilityBadge';
+import type { CrewTalent, DirectorTalent, EffectsMethodKey, EnvironmentMethodKey, Script, Talent, TalentRole } from '../../types';
+
+const VFX_RECOMMENDED_GENRES = new Set(['Action', 'Sci-Fi', 'Fantasy']);
+const VISIBLE_CANDIDATE_COUNT = 9;
+const MAX_PINNED = 2;
+// How long a single-slot hire lingers, showing "Hired", before the drawer
+// auto-closes and returns the player to the hub - long enough to register
+// as confirmation, short enough that it still feels immediate.
+const AUTO_CLOSE_DELAY_MS = 500;
+
+const ENV_LEAN_SHORT: Record<EnvironmentMethodKey, string> = { studio: 'studio', location: 'location', digital: 'digital worldbuilding' };
+const EFFECTS_LEAN_SHORT: Record<EffectsMethodKey, string> = { practical: 'practical effects', digital: 'digital effects' };
+
+/** Director and crew roles have a plain Skill rating; Actors don't (see types/index.ts). */
+function hasSkill(t: Talent): t is DirectorTalent | CrewTalent {
+  return t.role !== 'Lead Actor' && t.role !== 'Supporting Actor';
+}
+
+function talentBreakdown(talent: Talent): { breakdown: Array<{ label: string; value: number }>; defaultLabel: string } | null {
+  if (talent.role === 'Director') {
+    return { breakdown: toneProfileBreakdown(talent.toneProfile), defaultLabel: 'Tone Profile' };
+  }
+  if (talent.role === 'Lead Actor' || talent.role === 'Supporting Actor') {
+    return {
+      breakdown: ACTING_STYLE_AXES.map((axis) => ({ label: ACTING_STYLE_LABELS[axis], value: talent.actingStyle[axis] })),
+      defaultLabel: 'Acting Style',
+    };
+  }
+  return null;
+}
+
+/** A director's own production leanings, compact enough for a candidate card - "Leans location, practical effects." See engine/recommendation.ts:dominantLean, the same math Plan Production's cards use. */
+function describeProductionStyle(director: DirectorTalent): string {
+  const env = dominantLean(director.productionStyle.environmentStrategy);
+  const fx = dominantLean(director.productionStyle.effectsStrategy);
+  return `Leans ${ENV_LEAN_SHORT[env.key]}, ${EFFECTS_LEAN_SHORT[fx.key]}`;
+}
+
+/** Just the stat display - headline row (role-category-aware) plus a small secondary block - shared between a candidate's grid card and its comparison-slot, same split TalentDetails used to provide before this redesign. */
+function CandidateStats({ talent, category, script }: { talent: Talent; category: RoleCategory; script: Script | null }) {
+  const compatInfo = talentBreakdown(talent);
+  const compatScore = script ? computeTalentCompatibility(talent, script) : null;
+
+  return (
+    <>
+      <div className="card-subtitle"><Money amount={talent.salary} /></div>
+
+      <div className="candidate-headline">
+        {category === 'director' && (
+          <>
+            <div className="candidate-headline-stat">{describeProductionStyle(talent as DirectorTalent)}</div>
+            {compatInfo && <CompatibilityBadge score={compatScore ?? undefined} breakdown={compatInfo.breakdown} defaultLabel={compatInfo.defaultLabel} />}
+            <div className="candidate-headline-stat">Reliability {talent.reliability}</div>
+          </>
+        )}
+        {category === 'actor' && (
+          <>
+            <div className="candidate-headline-stat">Fame {talent.fame}</div>
+            {compatInfo && <CompatibilityBadge score={compatScore ?? undefined} breakdown={compatInfo.breakdown} defaultLabel={compatInfo.defaultLabel} />}
+            <div className="candidate-headline-stat">Reliability {talent.reliability}</div>
+          </>
+        )}
+        {category === 'crew' && (
+          <>
+            <div className="candidate-headline-stat">Skill {hasSkill(talent) ? talent.skill : '-'}</div>
+            <div className="candidate-headline-stat">Reliability {talent.reliability}</div>
+          </>
+        )}
+      </div>
+
+      <div className="candidate-secondary-stats">
+        {(category === 'director' || category === 'crew') && <div>Fame: {talent.fame}</div>}
+        <div>Ego: {talent.ego}</div>
+      </div>
+    </>
+  );
+}
+
+interface CandidateCardProps {
+  talent: Talent;
+  role: TalentRole;
+  category: RoleCategory;
+  script: Script | null;
+  selected: boolean;
+  disabled: boolean;
+  booked: boolean;
+  pinned: boolean;
+  pinCapped: boolean;
+  onSelect: () => void;
+  onTogglePin: () => void;
+}
+
+function CandidateCard({ talent, category, script, selected, disabled, booked, pinned, pinCapped, onSelect, onTogglePin }: CandidateCardProps) {
+  return (
+    <Card selectable selected={selected} disabled={disabled} onClick={onSelect}>
+      <div className="card-title">{talent.name}</div>
+      <CandidateStats talent={talent} category={category} script={script} />
+      <Button
+        className="btn-sm"
+        variant={pinned ? 'primary' : 'secondary'}
+        style={{ marginTop: 8 }}
+        disabled={!pinned && pinCapped}
+        onClick={(e) => {
+          e.stopPropagation();
+          onTogglePin();
+        }}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        {pinned ? 'Unpin from Compare' : 'Pin to Compare'}
+      </Button>
+      {selected && <p style={{ color: 'var(--green)', marginTop: 6 }}>Hired</p>}
+      {!selected && booked && (
+        <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>Filming elsewhere until {formatGameDate(talent.bookedUntil!)}</p>
+      )}
+      {!selected && !booked && disabled && <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>Cast full</p>}
+    </Card>
+  );
+}
+
+interface RoleHiringDrawerProps {
+  role: TalentRole;
+  onClose: () => void;
+}
+
+/**
+ * Slides in over the Cast & Crew hub (HireTalent.tsx) rather than
+ * navigating to it - the player is meant to feel like they never left the
+ * production they're assembling, just focused in on one hire. Closes
+ * itself automatically a beat after a single-slot role gets a fresh hire;
+ * stays open for a multi-slot role (Supporting Actor) so several people can
+ * be hired in one visit, tracked live via "X/Y hired".
+ */
+export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
+  const { state, dispatch } = useStudio();
+  const draft = state.draft!;
+  const [pinnedTalentIds, setPinnedTalentIds] = useState<string[]>([]);
+
+  // Body scroll lock + Escape-to-close, same conventions any overlay needs.
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [onClose]);
+
+  const profile = TALENT_PRESENTATION[role];
+  const range = ROLE_GENERATION_PROFILES[role].salaryRange;
+  const capacity = effectiveRoleCapacity(role, draft.script);
+  const targetPrice = draft.talentTargetPriceByRole[role] ?? logAmount(0.5, range);
+  const candidates = state.studio.talentPool[role];
+  const hired = draft.talent.filter((t) => t.role === role);
+  const atCap = hired.length >= capacity.max;
+  const showVfxHint = role === 'VFX Supervisor' && draft.genre && VFX_RECOMMENDED_GENRES.has(draft.genre);
+
+  const { candidates: visible, toleranceUsed } = findCandidatesNearPrice(candidates, targetPrice, VISIBLE_CANDIDATE_COUNT);
+  const hiredNotVisible = hired.filter((h) => !visible.some((v) => v.id === h.id));
+  const displayList = [...hiredNotVisible, ...visible];
+  const tolerancePercent = Math.round(toleranceUsed * 100);
+
+  const allTalent = Object.values(state.studio.talentPool).flat();
+  const pinnedTalent = pinnedTalentIds.map((id) => allTalent.find((t) => t.id === id)).filter((t): t is Talent => t !== undefined);
+
+  function togglePin(talent: Talent) {
+    setPinnedTalentIds((prev) => {
+      if (prev.includes(talent.id)) return prev.filter((id) => id !== talent.id);
+      if (prev.length >= MAX_PINNED) return prev;
+      return [...prev, talent.id];
+    });
+  }
+
+  function selectTalent(talent: Talent) {
+    if (capacity.max === 1) {
+      const current = hired[0];
+      const wasEmpty = !current;
+      dispatch({ type: 'SET_TALENT_FOR_ROLE', role, talent: current?.id === talent.id ? null : talent });
+      // Only auto-close on a genuinely new hire, not on deselecting one -
+      // a player who just cleared this role almost certainly wants to pick
+      // someone else immediately, not get bounced back to the hub.
+      if (wasEmpty) {
+        setTimeout(onClose, AUTO_CLOSE_DELAY_MS);
+      }
+      return;
+    }
+    // Multi-hire role: stays open regardless, so several people can be
+    // hired in one visit - see "X/Y hired" below.
+    dispatch({ type: 'TOGGLE_TALENT_FOR_ROLE', role, talent });
+  }
+
+  const roleLabel = capacity.max > 1 ? `${role} - ${hired.length}/${capacity.max} hired` : role;
+
+  return (
+    <>
+      <div className="role-drawer-backdrop" onClick={onClose} />
+      <div className="role-drawer stack" role="dialog" aria-label={`Hire ${role}`}>
+        <div className="row-between">
+          <div>
+            <h2 style={{ margin: 0 }}>{roleLabel}</h2>
+            <p style={{ margin: '4px 0 0', color: 'var(--text-muted)' }}>{profile.blurb}</p>
+          </div>
+          <Button onClick={onClose}>Close</Button>
+        </div>
+
+        <RangeSlider
+          label="Target Price"
+          min={range.min}
+          max={range.max}
+          logScale
+          value={targetPrice}
+          onChange={(price) => dispatch({ type: 'SET_TALENT_TARGET_PRICE', role, price })}
+          formatValue={formatMoney}
+          description="Drag to set how much you're willing to pay - the candidates shown update to match."
+          lowLabel="Cheap"
+          highLabel="Star Power"
+        />
+
+        <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+          Showing candidates within {tolerancePercent}% of your target price.
+          {capacity.max > 1 && ` Hire up to ${capacity.max} for this role.`}
+          {displayList.length === 0 && ' Nobody in the studio roster is available at this price - try adjusting the slider.'}
+        </span>
+        {showVfxHint && <p style={{ margin: 0 }}>This genre benefits strongly from VFX - consider hiring a supervisor.</p>}
+
+        <div className="grid">
+          {displayList.map((talent) => {
+            const selected = hired.some((h) => h.id === talent.id);
+            const booked = !selected && !!talent.bookedUntil && talent.bookedUntil > state.studio.totalDays;
+            const disabled = !selected && (atCap || booked);
+            const pinned = pinnedTalentIds.includes(talent.id);
+            const pinCapped = pinnedTalentIds.length >= MAX_PINNED;
+            return (
+              <CandidateCard
+                key={talent.id}
+                talent={talent}
+                role={role}
+                category={profile.category}
+                script={draft.script}
+                selected={selected}
+                disabled={disabled}
+                booked={booked}
+                pinned={pinned}
+                pinCapped={pinCapped}
+                onSelect={() => selectTalent(talent)}
+                onTogglePin={() => togglePin(talent)}
+              />
+            );
+          })}
+        </div>
+
+        {pinnedTalentIds.length > 0 && (
+          <div className="stack">
+            <h3 style={{ margin: 0 }}>Comparing</h3>
+            <div className={pinnedTalentIds.length >= MAX_PINNED ? 'compare-slots compare-slots-double' : 'compare-slots'}>
+              {pinnedTalent.map((talent) => {
+                const talentHired = hired.some((h) => h.id === talent.id);
+                return (
+                  <div className="card compare-slot" key={talent.id}>
+                    <div className="row-between">
+                      <div className="card-title" style={{ marginBottom: 0 }}>{talent.name}</div>
+                      <Button variant="text" onClick={() => togglePin(talent)}>Unpin</Button>
+                    </div>
+                    <CandidateStats talent={talent} category={profile.category} script={draft.script} />
+                    <Button
+                      variant="primary"
+                      style={{ marginTop: 8 }}
+                      disabled={!talentHired && atCap}
+                      onClick={() => selectTalent(talent)}
+                    >
+                      {talentHired ? 'Hired' : atCap ? 'Cast Full' : 'Hire'}
+                    </Button>
+                  </div>
+                );
+              })}
+              {pinnedTalentIds.length < MAX_PINNED && (
+                <div className="card compare-slot-empty">Pin another candidate to compare it here.</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {capacity.max > 1 && (
+          <div className="row-between">
+            <span />
+            <Button variant="primary" onClick={onClose}>Done</Button>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}

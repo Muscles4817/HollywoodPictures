@@ -939,6 +939,59 @@ textarea, input, select {
   display: inline-block;
 }
 
+/* --- Cast & Crew hub: role hiring drawer, candidate stat presentation --- */
+.role-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 90;
+}
+
+.role-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(960px, 88vw);
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.25);
+  z-index: 91;
+  overflow-y: auto;
+  padding: 24px;
+  animation: role-drawer-slide-in 0.18s ease-out;
+}
+
+@keyframes role-drawer-slide-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@media (max-width: 900px) {
+  .role-drawer {
+    width: 100vw;
+  }
+}
+
+.candidate-headline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0;
+  font-weight: 600;
+}
+
+.candidate-headline-stat {
+  font-size: 0.95em;
+}
+
+.candidate-secondary-stats {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  display: flex;
+  gap: 12px;
+}
+
 /* --- Plan Production: identity, tension, recommendation cards --- */
 .production-identity {
   font-size: 1.05em;
