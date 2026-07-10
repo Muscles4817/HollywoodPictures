@@ -24,6 +24,7 @@ export type TalentRole =
   | 'Lead Actor'
   | 'Supporting Actor'
   | 'Writer'
+  | 'Cinematographer'
   | 'Composer'
   | 'Editor'
   | 'VFX Supervisor';
@@ -149,13 +150,15 @@ export interface ActorTalent extends TalentCommon {
   actingStyle: ActingStyle;
 }
 
-// Writer, Composer, Editor, VFX Supervisor - a plain skill number, no
-// tone-comparable stat. Doesn't feed Script Score directly (that's still
-// purely the Script's own stats - see engine/scoring.ts:computeScriptScore),
-// but does drive skillSensitive outcomes on any on-set event that
-// involvesRole them (see docs/DESIGN.md 5.18).
+// Writer, Cinematographer, Composer, Editor, VFX Supervisor - a plain skill
+// number, no tone-comparable stat. Doesn't feed Script Score directly
+// (that's still purely the Script's own stats - see
+// engine/scoring.ts:computeScriptScore), but does drive skillSensitive
+// outcomes on any on-set event that involvesRole them (see docs/DESIGN.md
+// 5.18). Cinematographer shares this same shape rather than a bespoke one -
+// see docs/DESIGN.md 5.32 for why.
 export interface CrewTalent extends TalentCommon {
-  role: 'Writer' | 'Composer' | 'Editor' | 'VFX Supervisor';
+  role: 'Writer' | 'Cinematographer' | 'Composer' | 'Editor' | 'VFX Supervisor';
   skill: number; // 1-100
 }
 

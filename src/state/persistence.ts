@@ -42,7 +42,10 @@ import { randomSeed, withRng } from '../engine/random';
 // gained environmentStrategy/environmentAmbition/effectsStrategy/
 // effectsAmbition, and SET_PRODUCTION_CHOICES was replaced by
 // SET_PRODUCTION_PLAN (docs/DESIGN.md).
-const SAVE_KEY = 'hollywood-pictures-save-v16';
+// v16 -> v17 added Cinematographer as a new mandatory TalentRole/CrewTalent
+// - an existing save's talentPool has no candidates for it, and old Film
+// records never cast one (docs/DESIGN.md 5.32).
+const SAVE_KEY = 'hollywood-pictures-save-v17';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

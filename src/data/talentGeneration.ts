@@ -18,6 +18,7 @@ export const ROLE_GENERATION_PROFILES: Record<TalentRole, RoleGenerationProfile>
   'Lead Actor': { salaryRange: { min: 40_000, max: 15_000_000 }, fameCeiling: 98 },
   'Supporting Actor': { salaryRange: { min: 20_000, max: 4_000_000 }, fameCeiling: 85 },
   Writer: { salaryRange: { min: 15_000, max: 2_000_000 }, fameCeiling: 55 },
+  Cinematographer: { salaryRange: { min: 25_000, max: 6_000_000 }, fameCeiling: 62 },
   Composer: { salaryRange: { min: 15_000, max: 2_500_000 }, fameCeiling: 60 },
   Editor: { salaryRange: { min: 10_000, max: 1_200_000 }, fameCeiling: 45 },
   'VFX Supervisor': { salaryRange: { min: 30_000, max: 5_000_000 }, fameCeiling: 65 },
@@ -31,6 +32,7 @@ export const MANDATORY_TALENT_ROLES: TalentRole[] = [
   'Lead Actor',
   'Supporting Actor',
   'Writer',
+  'Cinematographer',
   'Composer',
   'Editor',
 ];
@@ -51,6 +53,7 @@ export const ROLE_CAPACITY: Record<TalentRole, RoleCapacity> = {
   'Lead Actor': { min: 1, max: 1 },
   'Supporting Actor': { min: 1, max: 4 },
   Writer: { min: 1, max: 1 },
+  Cinematographer: { min: 1, max: 1 },
   Composer: { min: 1, max: 1 },
   Editor: { min: 1, max: 1 },
   'VFX Supervisor': { min: 0, max: 1 },

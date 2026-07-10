@@ -4,10 +4,10 @@ import type { TalentRole } from '../types';
 // slider + a candidate grid, see components/wizard/RoleHiringDrawer.tsx),
 // but shouldn't *read* the same - a producer thinks about a director
 // differently than a composer. `category` picks which of three headline-stat
-// templates a candidate card uses (see RoleHiringDrawer.tsx:roleCategoryOf);
+// templates a candidate card uses (see RoleHiringDrawer.tsx:CandidateStats);
 // `blurb`/`hook` are copy, no behavior. Kept as data rather than duplicated
-// per-component JSX so adding an eighth role later is a config entry, not a
-// new render branch.
+// per-component JSX so adding a new role later (see docs/DESIGN.md 5.32) is
+// a config entry, not a new render branch.
 
 export type RoleCategory = 'director' | 'actor' | 'crew';
 
@@ -42,6 +42,12 @@ export const TALENT_PRESENTATION: Record<TalentRole, TalentPresentationProfile> 
     category: 'crew',
     blurb: "The writing craft behind the finished script - skill here feeds directly into how the film reads on screen.",
     hook: 'The craft behind the finished script.',
+  },
+  Cinematographer: {
+    category: 'crew',
+    blurb:
+      "Shapes how the film actually looks - lighting, camera movement, the visual language that carries a scene's mood. Skill here feeds directly into how polished and distinctive the finished picture reads.",
+    hook: 'Shapes how the film actually looks.',
   },
   Composer: {
     category: 'crew',
