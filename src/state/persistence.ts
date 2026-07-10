@@ -33,7 +33,12 @@ import { randomSeed, withRng } from '../engine/random';
 // v13 -> v14 added GameState.viewingRivalStudioName (which rival studio the
 // new 'rival-studio' screen is showing) and made RESET_SAVE take a
 // player-chosen starting cash instead of a hardcoded default.
-const SAVE_KEY = 'hollywood-pictures-save-v14';
+// v14 -> v15 added required environmentStrategy/environmentAmbition/
+// effectsStrategy/effectsAmbition to Script and a required productionStyle
+// (environmentStrategy/effectsStrategy) to DirectorTalent - the producer-
+// recommendation model foundation (docs/DESIGN.md), not yet consumed by any
+// screen.
+const SAVE_KEY = 'hollywood-pictures-save-v15';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

@@ -53,6 +53,63 @@ export interface ActingStyle {
   physicalPerformance: number; // 1-100
 }
 
+// --- Producer recommendations (docs/DESIGN.md - Plan Production redesign) ---
+// The vocabulary a future recommendation engine will use to suggest how a
+// production should be made, derived from its script/director/cast, before
+// the player (as producer) follows or overrides it. Deliberately just the
+// generic shapes - which concrete recommendations exist (environment
+// strategy, effects strategy, ...) and what produces them is later work;
+// these six types are what's actually agreed so far, and are what Script's
+// and DirectorTalent's own Strategy/Ambition fields below are typed against.
+
+// A suggestion with its own justification - not a UI type, what a
+// recommendation IS regardless of how any screen renders it. Generic over
+// `T` rather than one bespoke type per dial, since every dial so far needs
+// one of only two value shapes - see Distribution and NormalizedScalar below.
+export interface Recommendation<T> {
+  value: T;
+  // Ordered by how much each factor actually influenced `value`, strongest
+  // first. Each entry is a complete, already-phrased sentence - including
+  // ones that read as a conflict ("Director strongly prefers studio
+  // shooting despite the script's location demands") - not a fragment a
+  // renderer has to assemble or tag with polarity.
+  reasons: string[];
+}
+
+// A recommendation that might not exist for this production at all - e.g. a
+// future costume-related recommendation would have nothing to say about a
+// contemporary-set indie drama. `null` means "this system doesn't activate
+// for this film," not "no opinion, default to a neutral value" - a screen
+// showing these should omit the card entirely rather than render an empty
+// or default one.
+export type OptionalRecommendation<T> = Recommendation<T> | null;
+
+// How something is divided across a fixed, named set of options - always
+// sums to 1. The value shape for any "which of these ways are we doing
+// this" recommendation (e.g. environment strategy: studio/location/digital;
+// effects strategy: practical/digital) - one generic shape rather than a
+// bespoke type per dial, same generic-over-named-keys pattern
+// engine/interpolate.ts:ScaleAnchor already uses for anchor values.
+export type Distribution<K extends string> = Record<K, number>;
+
+// A 0-1 "how much is invested in this, relative to what's possible"
+// reading - deliberately not a currency amount. Recommendation time only
+// knows relative ambition (this production wants to be effects-heavy or
+// effects-light); turning that into an actual pound figure depends on the
+// script's own scale and the studio's production budget, which only later
+// work translating a followed-or-overridden recommendation into real
+// ProductionChoices numbers has enough context to do.
+export type NormalizedScalar = number;
+
+// The two concrete Distribution key sets the model currently has an actual
+// consumer for - Environment Strategy (where the shoot physically happens)
+// and Effects Strategy (how a given effect gets achieved). Kept here, not
+// invented separately by Script and Director, so both sides' Strategy
+// fields are structurally the same shape and can be blended directly once a
+// recommendation engine exists to do it.
+export type EnvironmentMethodKey = 'studio' | 'location' | 'digital';
+export type EffectsMethodKey = 'practical' | 'digital';
+
 interface TalentCommon {
   id: string;
   name: string;
@@ -69,10 +126,22 @@ interface TalentCommon {
   bookedUntil?: number;
 }
 
+// A director's own leanings on *how* a production gets made - orthogonal to
+// ToneProfile (which is about narrative/emotional flavor, not production
+// method) and deliberately not "how ambitious" (already covered by
+// ToneProfile's spectacle axis) - see docs/DESIGN.md. Same two Distribution
+// keys Script's own Strategy fields below use, so a future recommendation
+// can blend the two directly without a conversion step.
+export interface DirectorProductionStyle {
+  environmentStrategy: Distribution<EnvironmentMethodKey>;
+  effectsStrategy: Distribution<EffectsMethodKey>;
+}
+
 export interface DirectorTalent extends TalentCommon {
   role: 'Director';
   skill: number; // 1-100
   toneProfile: ToneProfile;
+  productionStyle: DirectorProductionStyle;
 }
 
 export interface ActorTalent extends TalentCommon {
@@ -104,6 +173,15 @@ export interface Script {
   complexity: number; // 1-100, drives production difficulty/risk
   cost: number;
   toneProfile: ToneProfile;
+  // The screenplay's own implied production approach - not a requirement,
+  // a lean (see docs/DESIGN.md). Same Distribution/NormalizedScalar shapes
+  // DirectorTalent.productionStyle uses, feeding the same two pairs of
+  // recommendations (Environment Strategy/Ambition, Effects
+  // Strategy/Ambition) a future recommendation engine will produce.
+  environmentStrategy: Distribution<EnvironmentMethodKey>;
+  environmentAmbition: NormalizedScalar;
+  effectsStrategy: Distribution<EffectsMethodKey>;
+  effectsAmbition: NormalizedScalar;
   // A one-sentence log-line generated from genre + tone flavor
   // (engine/premiseGenerator.ts, data/premises.ts) - presentation only,
   // doesn't feed any scoring, same as title.

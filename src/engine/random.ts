@@ -51,6 +51,23 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+/**
+ * Turns a set of non-negative raw weights into a proper distribution
+ * (sums to exactly 1) - the shared math behind any types/index.ts:Distribution<K>
+ * value, whether the raw weights came from genre signals (engine/scriptGenerator.ts)
+ * or a personal lean (engine/talentGenerator.ts). Falls back to an even
+ * split if every weight is zero, rather than dividing by zero.
+ */
+export function normalizeWeights<K extends string>(weights: Record<K, number>): Record<K, number> {
+  const keys = Object.keys(weights) as K[];
+  const total = keys.reduce((sum, key) => sum + Math.max(0, weights[key]), 0);
+  const result = {} as Record<K, number>;
+  for (const key of keys) {
+    result[key] = total > 0 ? Math.max(0, weights[key]) / total : 1 / keys.length;
+  }
+  return result;
+}
+
 /** Runs `fn` with a deterministic RNG seeded from `seed`, returning the advanced seed to store back. */
 export function withRng<T>(seed: number, fn: (rng: RandomFn) => T): { result: T; nextSeed: number } {
   const rng = createRng(seed);

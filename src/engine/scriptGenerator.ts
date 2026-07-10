@@ -1,9 +1,18 @@
-import type { Genre, Script, Tone, ToneProfile } from '../types';
-import { GENRE_PROFILES, GENRE_TYPICAL_AUDIENCES } from '../data/genres';
+import type {
+  Distribution,
+  EffectsMethodKey,
+  EnvironmentMethodKey,
+  Genre,
+  NormalizedScalar,
+  Script,
+  Tone,
+  ToneProfile,
+} from '../types';
+import { GENRE_PROFILES, GENRE_TYPICAL_AUDIENCES, type GenreProfile } from '../data/genres';
 import { SCRIPT_TITLE_WORDS } from '../data/scriptWords';
 import { TONES } from '../data/tones';
 import { generatePremise } from './premiseGenerator';
-import { type RandomFn, clamp, pick, pickMany, randFloat, randInt } from './random';
+import { type RandomFn, clamp, normalizeWeights, pick, pickMany, randFloat, randInt } from './random';
 
 let nextScriptId = 1;
 
@@ -75,6 +84,67 @@ function generateToneProfile(genre: Genre, rng: RandomFn): ToneGenerationResult 
   return { profile, flavorTones };
 }
 
+// How far a Strategy/Ambition base value jitters per script, so two Action
+// scripts don't read identically - same role TONE_JITTER plays for
+// toneProfile above, just on a 0-1 scale instead of 1-100.
+const STRATEGY_JITTER = 0.15;
+
+function jitterWeight(base: number, rng: RandomFn): number {
+  return Math.max(0.02, base + randFloat(rng, -STRATEGY_JITTER, STRATEGY_JITTER));
+}
+
+/**
+ * The screenplay's own implied effects approach - anchored on the genre's
+ * existing vfxImportance/practicalEffectsImportance (data/genres.ts) rather
+ * than a new genre-level field. Those two numbers used to be read directly
+ * as live scoring inputs (engine/scoring.ts); this is what makes them
+ * generation inputs instead - what an individual script's own Strategy gets
+ * generated around, same relationship GENRE_PROFILES.canonicalTone already
+ * has to Script.toneProfile.
+ */
+function generateEffectsStrategy(profile: GenreProfile, rng: RandomFn): Distribution<EffectsMethodKey> {
+  return normalizeWeights({
+    digital: jitterWeight(profile.vfxImportance, rng),
+    practical: jitterWeight(profile.practicalEffectsImportance, rng),
+  });
+}
+
+/** How demanding the script's effects vision is, independent of the practical/digital split - genre's own effects importance, lifted a little further by script complexity. */
+function generateEffectsAmbition(profile: GenreProfile, complexity: number, rng: RandomFn): NormalizedScalar {
+  const genreBase = (profile.vfxImportance + profile.practicalEffectsImportance) / 2;
+  const complexityLift = (complexity / 100) * 0.25;
+  return clamp(genreBase * 0.75 + complexityLift + randFloat(rng, -0.15, 0.15), 0, 1);
+}
+
+/**
+ * The screenplay's own implied environment approach. Weaker genre grounding
+ * than effects - nothing in GENRE_PROFILES speaks to studio-vs-location
+ * directly - so this is a rougher first pass, worth revisiting once a
+ * recommendation engine is actually exercising it: `vfxImportance` sets how
+ * much of the split goes to "digital" (a genre that leans on VFX for
+ * spectacle tends to build its world digitally too), and
+ * `lowBudgetFriendly` - a genre that tolerates a cheap budget usually gets
+ * there partly by using real, found locations instead of paying to build
+ * sets - splits what's left between location and studio.
+ */
+function generateEnvironmentStrategy(profile: GenreProfile, rng: RandomFn): Distribution<EnvironmentMethodKey> {
+  const digitalBase = profile.vfxImportance * 0.7;
+  const locationBase = profile.lowBudgetFriendly * 0.6;
+  const studioBase = Math.max(0.05, 1 - digitalBase - locationBase);
+  return normalizeWeights({
+    studio: jitterWeight(studioBase, rng),
+    location: jitterWeight(locationBase, rng),
+    digital: jitterWeight(digitalBase, rng),
+  });
+}
+
+/** How demanding the script's environment vision is, independent of the studio/location/digital split - same shape of formula as effects ambition. */
+function generateEnvironmentAmbition(profile: GenreProfile, complexity: number, rng: RandomFn): NormalizedScalar {
+  const genreBase = (1 - profile.lowBudgetFriendly) * 0.6 + profile.vfxImportance * 0.4;
+  const complexityLift = (complexity / 100) * 0.25;
+  return clamp(genreBase * 0.75 + complexityLift + randFloat(rng, -0.15, 0.15), 0, 1);
+}
+
 // Mostly a single protagonist; occasionally a pair or a true ensemble lead.
 const LEAD_COUNT_WEIGHTS = [1, 1, 1, 1, 1, 2, 2, 2, 3];
 // A typical-sized supporting cast is the common case; small and large ensembles both happen.
@@ -100,6 +170,7 @@ function generateScript(genre: Genre, rng: RandomFn, title: string): Script {
   const marketability = randInt(rng, 15, 100);
   const complexity = randInt(rng, 10, 100);
   const { profile: toneProfile, flavorTones } = generateToneProfile(genre, rng);
+  const genreProfile = GENRE_PROFILES[genre];
 
   return {
     id: `script-${nextScriptId++}`,
@@ -113,6 +184,10 @@ function generateScript(genre: Genre, rng: RandomFn, title: string): Script {
     complexity,
     cost: estimateScriptCost({ originality, structure, dialogue, marketability }),
     toneProfile,
+    environmentStrategy: generateEnvironmentStrategy(genreProfile, rng),
+    environmentAmbition: generateEnvironmentAmbition(genreProfile, complexity, rng),
+    effectsStrategy: generateEffectsStrategy(genreProfile, rng),
+    effectsAmbition: generateEffectsAmbition(genreProfile, complexity, rng),
     synopsis: generatePremise(genre, flavorTones[0] ?? null, rng),
     requiredLeads: pick(rng, LEAD_COUNT_WEIGHTS),
     requiredSupporting: pick(rng, SUPPORTING_COUNT_WEIGHTS),

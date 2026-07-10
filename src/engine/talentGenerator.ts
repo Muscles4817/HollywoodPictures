@@ -1,10 +1,18 @@
-import type { ActingStyle, Talent, TalentRole, ToneProfile } from '../types';
+import type {
+  ActingStyle,
+  DirectorProductionStyle,
+  EffectsMethodKey,
+  EnvironmentMethodKey,
+  Talent,
+  TalentRole,
+  ToneProfile,
+} from '../types';
 import { ALL_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { TALENT_FIRST_NAMES, TALENT_LAST_NAMES } from '../data/talentNames';
 import { TONES } from '../data/tones';
 import { ACTING_STYLE_AXES } from '../data/actingStyle';
 import { logAmount } from './interpolate';
-import { clamp, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
+import { clamp, normalizeWeights, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
 
 let nextTalentId = 1;
 
@@ -43,6 +51,35 @@ function generateToneProfile(rng: RandomFn): ToneProfile {
 
 function generateActingStyle(rng: RandomFn): ActingStyle {
   return generateSignatureProfile(rng, ACTING_STYLE_AXES);
+}
+
+const ENVIRONMENT_METHOD_KEYS: readonly EnvironmentMethodKey[] = ['studio', 'location', 'digital'];
+const EFFECTS_METHOD_KEYS: readonly EffectsMethodKey[] = ['practical', 'digital'];
+
+/**
+ * A personal lean across a fixed set of options - one key rolls a
+ * meaningfully stronger weight so the result reads as a genuine preference
+ * (a location purist, a studio loyalist) rather than a bland even split.
+ * Same "roll one thing high, the rest lower and noisier" idea as
+ * generateSignatureProfile above, just normalized into a Distribution
+ * instead of independent per-axis scores - a director's own leanings have
+ * no genre to anchor around the way a script's do (see
+ * engine/scriptGenerator.ts), so this is pure personal variation.
+ */
+function generateLeaningDistribution<K extends string>(rng: RandomFn, keys: readonly K[]): Record<K, number> {
+  const leanKey = pick(rng, keys);
+  const weights = {} as Record<K, number>;
+  for (const key of keys) {
+    weights[key] = key === leanKey ? randFloat(rng, 1.5, 3) : randFloat(rng, 0.3, 1.2);
+  }
+  return normalizeWeights(weights);
+}
+
+function generateProductionStyle(rng: RandomFn): DirectorProductionStyle {
+  return {
+    environmentStrategy: generateLeaningDistribution(rng, ENVIRONMENT_METHOD_KEYS),
+    effectsStrategy: generateLeaningDistribution(rng, EFFECTS_METHOD_KEYS),
+  };
 }
 
 function generateSkill(rng: RandomFn, t: number): number {
@@ -84,7 +121,13 @@ function generateTalent(role: TalentRole, rng: RandomFn, t: number): Talent {
   };
 
   if (role === 'Director') {
-    return { ...common, role, skill: generateSkill(rng, t), toneProfile: generateToneProfile(rng) };
+    return {
+      ...common,
+      role,
+      skill: generateSkill(rng, t),
+      toneProfile: generateToneProfile(rng),
+      productionStyle: generateProductionStyle(rng),
+    };
   }
   if (role === 'Lead Actor' || role === 'Supporting Actor') {
     return { ...common, role, actingStyle: generateActingStyle(rng) };
