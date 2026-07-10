@@ -59,6 +59,7 @@ export function createEmptyDraft(): FilmDraft {
 }
 
 export type GameAction =
+  | { type: 'ADVANCE_DAY' }
   | { type: 'START_NEW_FILM' }
   | { type: 'GO_TO_STEP'; step: WizardStep }
   | { type: 'SET_TITLE'; title: string }

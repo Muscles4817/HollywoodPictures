@@ -63,6 +63,25 @@ function applyBoxOfficeSettlement<S extends { cash: number; reputation: number; 
 // applyBoxOfficeSettlement above and docs/DESIGN.md 5.19).
 export function studioReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
+    // A real-time background tick (App.tsx), separate from every other
+    // calendar advance - those are all tied to a specific player action
+    // (leaving a wizard stage, a shoot day). This one just passes a day on
+    // its own, so the studio's history/box office keeps moving even while
+    // the player is sitting on the Dashboard or a results screen not
+    // clicking anything - see docs/DESIGN.md 5.20 for which screens this
+    // runs on.
+    case 'ADVANCE_DAY': {
+      const totalDaysAfter = state.studio.totalDays + 1;
+      const { result: settlement, nextSeed } = withRng(state.rngSeed, (rng) =>
+        settleBoxOfficeForAllFilms(state.studio.filmsReleased, totalDaysAfter, rng),
+      );
+      return {
+        ...state,
+        rngSeed: nextSeed,
+        studio: applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, settlement),
+      };
+    }
+
     case 'START_NEW_FILM':
       return {
         ...state,
