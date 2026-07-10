@@ -18,7 +18,10 @@ import { randomSeed, withRng } from '../engine/random';
 // process, replacing the old batch-computed draft.events)) so old saves are
 // cleanly ignored instead of partially loading with missing/mismatched
 // fields.
-const SAVE_KEY = 'hollywood-pictures-save-v9';
+// v9 -> v10 replaced ProductionEvent.delayRiskDelta (decorative) with a real
+// delayDaysDelta, and added PhotographyState.pendingChoice for interactive
+// on-set events (docs/DESIGN.md 5.x).
+const SAVE_KEY = 'hollywood-pictures-save-v10';
 
 export function loadState(): GameState {
   try {

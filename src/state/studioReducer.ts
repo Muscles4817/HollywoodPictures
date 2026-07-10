@@ -5,7 +5,7 @@ import { generateScriptOptions } from '../engine/scriptGenerator';
 import { logAmount } from '../engine/interpolate';
 import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
-import { computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent } from '../engine/production';
+import { computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent, resolveEventChoice } from '../engine/production';
 import { computeDailyContingencyBurn } from '../engine/cost';
 import { STAGE_DURATIONS } from '../data/schedule';
 import { computeReleaseResults } from '../engine/releaseFilm';
@@ -188,16 +188,23 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         ...state,
         draft: {
           ...state.draft,
-          photography: { status: 'in-progress', recommendedDays, daysElapsed: 0, events: [], runningCost: 0 },
+          photography: { status: 'in-progress', recommendedDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
         },
       };
     }
 
     // One day of principal photography: rolls whether anything notable
-    // happens (engine/production.ts:rollDayEvent), burns one day of
-    // contingency, and advances both the shoot's own day counter and the
-    // studio's persistent calendar in lockstep - the player watches the
-    // date on screen move forward in real time while filming happens.
+    // happens (engine/production.ts:rollDayEvent), burns a day of
+    // contingency per calendar day actually spent, and advances both the
+    // shoot's own day counter and the studio's persistent calendar in
+    // lockstep - the player watches the date on screen move forward in real
+    // time while filming happens. An interactive event still consumes the
+    // day it happened on (the situation itself is that day's event) but
+    // pauses here rather than resolving - see RESOLVE_EVENT_CHOICE below for
+    // where its own delayDaysDelta gets applied on top. A no-op while
+    // status isn't 'in-progress', which is what actually stops the ticking
+    // interval (ProductionRun.tsx) and a Fast Forward loop mid-flight once a
+    // choice interrupts it.
     case 'ADVANCE_SHOOTING_DAY': {
       const d = state.draft;
       if (!d?.photography || d.photography.status !== 'in-progress' || !d.script || !d.productionChoices || !d.genre) {
@@ -205,22 +212,79 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       }
       const staticRisk = computeStaticProductionRisk(d.talent, d.script, d.productionChoices, d.genre);
       const usedIds = new Set(d.photography.events.map((e) => e.id));
-      const { result: event, nextSeed } = withRng(state.rngSeed, (rng) =>
+      const { result, nextSeed } = withRng(state.rngSeed, (rng) =>
         rollDayEvent(staticRisk, d.photography!.daysElapsed + 1, d.photography!.recommendedDays, d.genre!, usedIds, rng),
       );
+
+      if (result && 'pendingChoice' in result) {
+        const dailyBurn = computeDailyContingencyBurn(d.productionChoices.contingencyAmount, d.photography.recommendedDays);
+        return {
+          ...state,
+          rngSeed: nextSeed,
+          studio: { ...state.studio, totalDays: state.studio.totalDays + 1 },
+          draft: {
+            ...d,
+            photography: {
+              ...d.photography,
+              status: 'awaiting-choice',
+              daysElapsed: d.photography.daysElapsed + 1,
+              runningCost: d.photography.runningCost + dailyBurn,
+              pendingChoice: result.pendingChoice,
+            },
+          },
+        };
+      }
+
+      const event = result?.event ?? null;
+      const daysAdvanced = 1 + (event?.delayDaysDelta ?? 0);
       const dailyBurn = computeDailyContingencyBurn(d.productionChoices.contingencyAmount, d.photography.recommendedDays);
 
       return {
         ...state,
         rngSeed: nextSeed,
-        studio: { ...state.studio, totalDays: state.studio.totalDays + 1 },
+        studio: { ...state.studio, totalDays: state.studio.totalDays + daysAdvanced },
         draft: {
           ...d,
           photography: {
             ...d.photography,
-            daysElapsed: d.photography.daysElapsed + 1,
+            daysElapsed: d.photography.daysElapsed + daysAdvanced,
             events: event ? [...d.photography.events, event] : d.photography.events,
-            runningCost: d.photography.runningCost + dailyBurn,
+            runningCost: d.photography.runningCost + dailyBurn * daysAdvanced,
+          },
+        },
+      };
+    }
+
+    // Applies the outcome of whichever choice the player picked for a
+    // pending interactive event, then unpauses the shoot. The choice's own
+    // delayDaysDelta (if any) advances the calendar here, separately from
+    // the day the situation itself happened on (already charged in
+    // ADVANCE_SHOOTING_DAY above) - see engine/production.ts:resolveEventChoice.
+    case 'RESOLVE_EVENT_CHOICE': {
+      const d = state.draft;
+      if (!d?.photography || d.photography.status !== 'awaiting-choice' || !d.photography.pendingChoice || !d.productionChoices) {
+        return state;
+      }
+      const pendingChoice = d.photography.pendingChoice;
+      const { result: event, nextSeed } = withRng(state.rngSeed, (rng) =>
+        resolveEventChoice(pendingChoice, action.choiceId, rng),
+      );
+      const extraDays = event.delayDaysDelta;
+      const dailyBurn = computeDailyContingencyBurn(d.productionChoices.contingencyAmount, d.photography.recommendedDays);
+
+      return {
+        ...state,
+        rngSeed: nextSeed,
+        studio: { ...state.studio, totalDays: state.studio.totalDays + extraDays },
+        draft: {
+          ...d,
+          photography: {
+            ...d.photography,
+            status: 'in-progress',
+            daysElapsed: d.photography.daysElapsed + extraDays,
+            events: [...d.photography.events, event],
+            runningCost: d.photography.runningCost + dailyBurn * extraDays,
+            pendingChoice: null,
           },
         },
       };

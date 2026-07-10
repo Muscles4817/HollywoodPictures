@@ -158,6 +158,26 @@ export function ProductionRun() {
             </p>
           )}
 
+          {photography.status === 'awaiting-choice' && photography.pendingChoice && (
+            <div className="card stack" style={{ borderColor: 'var(--primary)' }}>
+              <h2 style={{ margin: 0 }}>A Decision Is Needed</h2>
+              <p style={{ margin: 0 }}>{photography.pendingChoice.situation}</p>
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>Filming is paused until you pick.</p>
+              <div className="stack">
+                {photography.pendingChoice.choices.map((choice) => (
+                  <button
+                    key={choice.id}
+                    className="event-choice-button"
+                    onClick={() => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId: choice.id })}
+                  >
+                    <span className="event-choice-label">{choice.label}</span>
+                    <span className="event-choice-description">{choice.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="card stack">
             <h2>On-Set Events</h2>
             {photography.events.length === 0 && (
@@ -172,6 +192,7 @@ export function ProductionRun() {
                 <span>{event.description}</span>
                 <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
                   Cost <Money amount={event.costDelta} signColor invertColor showSign /> &middot; Quality {event.qualityDelta >= 0 ? '+' : ''}{event.qualityDelta.toFixed(1)} &middot; Buzz {event.buzzDelta >= 0 ? '+' : ''}{event.buzzDelta.toFixed(1)}
+                  {event.delayDaysDelta > 0 ? <> &middot; +{event.delayDaysDelta}d</> : null}
                 </span>
               </div>
             ))}
@@ -187,6 +208,9 @@ export function ProductionRun() {
                   </Button>
                 </div>
               </div>
+            )}
+            {photography.status === 'awaiting-choice' && (
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>Waiting on your decision above...</p>
             )}
           </div>
 

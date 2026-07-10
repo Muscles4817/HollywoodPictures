@@ -1,18 +1,50 @@
-import type { Genre } from '../types';
+import type { Genre, EventChoiceTemplate } from '../types';
 
 // Templates for randomized production events. The engine picks a handful of
 // these per shoot, biased by an overall risk score, then rolls a concrete
 // delta within each range. Ranges are intentionally modest so no single
 // event can single-handedly sink or save a film.
-export interface ProductionEventTemplate {
+//
+// Buzz is deliberately absent from most templates: something the public
+// could never see (a great take in dailies, an internal VFX review, a
+// smooth department meeting) has no business moving pre-release hype, no
+// matter how good it feels on set. Buzz only shows up on events with an
+// actual public angle - a leak, a paparazzi moment, a stunt visible enough
+// to make local news, trade-press chatter about a departure or financing
+// trouble. See docs/DESIGN.md 5.x for the full reasoning.
+//
+// `delayDaysRange` is a real, consumed mechanic (see
+// engine/production.ts:rollDayEvent and state/studioReducer.ts) - extra
+// shoot days this event actually costs, on top of the day it happened on.
+// Always >= 0: a positive event happening doesn't retroactively un-shoot a
+// day, so only negative-polarity templates carry a nonzero range.
+interface SimpleProductionEventTemplate {
   id: string;
   description: string;
   polarity: 'positive' | 'negative';
-  costRange: [number, number]; // currency delta; negative = savings
-  qualityRange: [number, number]; // -100..100 scale
-  buzzRange: [number, number]; // -100..100 scale
-  delayRiskRange: [number, number]; // -100..100 scale, informational
+  interactive?: false;
+  costRange: [number, number];
+  qualityRange: [number, number];
+  buzzRange: [number, number];
+  delayDaysRange: [number, number];
 }
+
+// An event that pauses photography and hands the player a real decision,
+// instead of auto-resolving - see types/index.ts:PendingEventChoice and
+// state/studioReducer.ts:RESOLVE_EVENT_CHOICE. Each choice rolls its own
+// outcome independently and is free to touch only one resource (see the
+// EventChoiceTemplate docs) - there's no base cost/quality/buzz/delay range
+// on the template itself, since the player's pick decides which of those
+// actually applies, not a shared roll underneath every option.
+interface InteractiveProductionEventTemplate {
+  id: string;
+  situation: string;
+  polarity: 'positive' | 'negative';
+  interactive: true;
+  choices: EventChoiceTemplate[];
+}
+
+export type ProductionEventTemplate = SimpleProductionEventTemplate | InteractiveProductionEventTemplate;
 
 export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
   {
@@ -21,8 +53,8 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     polarity: 'positive',
     costRange: [0, 0],
     qualityRange: [4, 10],
-    buzzRange: [5, 12],
-    delayRiskRange: [-5, 0],
+    buzzRange: [0, 0], // nobody outside dailies sees a good take happen
+    delayDaysRange: [0, 0],
   },
   {
     id: 'pos-cheap-solution',
@@ -30,8 +62,8 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     polarity: 'positive',
     costRange: [-400_000, -100_000],
     qualityRange: [1, 5],
-    buzzRange: [0, 3],
-    delayRiskRange: [-5, 0],
+    buzzRange: [0, 0],
+    delayDaysRange: [0, 0],
   },
   {
     id: 'pos-improvised-moment',
@@ -39,8 +71,8 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     polarity: 'positive',
     costRange: [0, 0],
     qualityRange: [3, 8],
-    buzzRange: [4, 10],
-    delayRiskRange: [0, 0],
+    buzzRange: [0, 0],
+    delayDaysRange: [0, 0],
   },
   {
     id: 'pos-early-buzz',
@@ -48,8 +80,8 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     polarity: 'positive',
     costRange: [0, 0],
     qualityRange: [0, 0],
-    buzzRange: [6, 14],
-    delayRiskRange: [0, 0],
+    buzzRange: [6, 14], // genuinely public - press coverage
+    delayDaysRange: [0, 0],
   },
   {
     id: 'pos-wrapped-early',
@@ -57,17 +89,17 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     polarity: 'positive',
     costRange: [-300_000, -80_000],
     qualityRange: [0, 2],
-    buzzRange: [0, 2],
-    delayRiskRange: [-10, -5],
+    buzzRange: [0, 0],
+    delayDaysRange: [0, 0],
   },
   {
     id: 'pos-chemistry',
-    description: 'The cast developed real chemistry that elevated every scene together.',
+    description: "The cast developed real chemistry, and their goofing-around between takes is turning up on social media.",
     polarity: 'positive',
     costRange: [0, 0],
     qualityRange: [5, 9],
-    buzzRange: [3, 8],
-    delayRiskRange: [0, 0],
+    buzzRange: [2, 5], // the leak is the public angle, not the chemistry itself
+    delayDaysRange: [0, 0],
   },
 ];
 
@@ -79,7 +111,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     costRange: [200_000, 900_000],
     qualityRange: [0, 3],
     buzzRange: [0, 0],
-    delayRiskRange: [8, 18],
+    delayDaysRange: [1, 2],
   },
   {
     id: 'neg-bad-weather',
@@ -88,7 +120,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     costRange: [150_000, 700_000],
     qualityRange: [-2, 0],
     buzzRange: [0, 0],
-    delayRiskRange: [10, 20],
+    delayDaysRange: [2, 4],
   },
   {
     id: 'neg-vfx-harder',
@@ -96,17 +128,17 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     polarity: 'negative',
     costRange: [300_000, 1_200_000],
     qualityRange: [-6, -1],
-    buzzRange: [-3, 0],
-    delayRiskRange: [10, 20],
+    buzzRange: [0, 0],
+    delayDaysRange: [1, 3],
   },
   {
     id: 'neg-onset-tension',
-    description: 'On-set tension flared between two big egos.',
+    description: 'On-set tension flared between two big egos - and word is already getting around.',
     polarity: 'negative',
     costRange: [50_000, 300_000],
     qualityRange: [-8, -2],
-    buzzRange: [-8, -2],
-    delayRiskRange: [5, 12],
+    buzzRange: [-8, -2], // exactly the kind of thing tabloids run with
+    delayDaysRange: [0, 1],
   },
   {
     id: 'neg-equipment-failure',
@@ -115,7 +147,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     costRange: [100_000, 500_000],
     qualityRange: [-2, 0],
     buzzRange: [0, 0],
-    delayRiskRange: [8, 15],
+    delayDaysRange: [1, 1],
   },
   {
     id: 'neg-location-fell-through',
@@ -123,17 +155,17 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     polarity: 'negative',
     costRange: [200_000, 600_000],
     qualityRange: [-4, -1],
-    buzzRange: [-2, 0],
-    delayRiskRange: [8, 16],
+    buzzRange: [0, 0],
+    delayDaysRange: [1, 3],
   },
   {
     id: 'neg-star-clash',
-    description: 'The director and lead star clashed over how to play a key scene.',
+    description: 'The director and lead star clashed over how to play a key scene, and it leaked to the trade press.',
     polarity: 'negative',
     costRange: [0, 250_000],
     qualityRange: [-10, -3],
-    buzzRange: [-6, -1],
-    delayRiskRange: [5, 10],
+    buzzRange: [-4, -1],
+    delayDaysRange: [0, 1],
   },
 ];
 
@@ -150,8 +182,8 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       polarity: 'positive',
       costRange: [0, 0],
       qualityRange: [5, 10],
-      buzzRange: [8, 15],
-      delayRiskRange: [0, 0],
+      buzzRange: [8, 15], // explicitly trailer-bound, public-facing footage
+      delayDaysRange: [0, 0],
     },
     {
       id: 'genre-action-neg-stunt-reshoot',
@@ -159,8 +191,8 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       polarity: 'negative',
       costRange: [300_000, 900_000],
       qualityRange: [-6, -1],
-      buzzRange: [-4, 0],
-      delayRiskRange: [10, 20],
+      buzzRange: [-4, 0], // a near-miss is newsworthy
+      delayDaysRange: [1, 2],
     },
   ],
   Comedy: [
@@ -170,8 +202,8 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       polarity: 'positive',
       costRange: [0, 0],
       qualityRange: [4, 9],
-      buzzRange: [5, 10],
-      delayRiskRange: [0, 0],
+      buzzRange: [0, 0],
+      delayDaysRange: [0, 0],
     },
     {
       id: 'genre-comedy-neg-bit-not-landing',
@@ -179,8 +211,8 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       polarity: 'negative',
       costRange: [50_000, 200_000],
       qualityRange: [-8, -3],
-      buzzRange: [-3, 0],
-      delayRiskRange: [5, 10],
+      buzzRange: [0, 0],
+      delayDaysRange: [1, 2],
     },
   ],
   Drama: [
@@ -190,8 +222,8 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       polarity: 'positive',
       costRange: [0, 0],
       qualityRange: [6, 12],
-      buzzRange: [3, 8],
-      delayRiskRange: [0, 0],
+      buzzRange: [0, 0],
+      delayDaysRange: [0, 0],
     },
     {
       id: 'genre-drama-neg-flat-centerpiece',
@@ -200,7 +232,7 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       costRange: [80_000, 300_000],
       qualityRange: [-7, -2],
       buzzRange: [0, 0],
-      delayRiskRange: [6, 14],
+      delayDaysRange: [1, 3],
     },
   ],
   Horror: [
@@ -210,8 +242,8 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       polarity: 'positive',
       costRange: [0, 0],
       qualityRange: [5, 10],
-      buzzRange: [6, 12],
-      delayRiskRange: [0, 0],
+      buzzRange: [0, 0],
+      delayDaysRange: [0, 0],
     },
     {
       id: 'genre-horror-neg-prop-malfunction',
@@ -219,19 +251,19 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       polarity: 'negative',
       costRange: [100_000, 400_000],
       qualityRange: [-6, -1],
-      buzzRange: [-3, 0],
-      delayRiskRange: [5, 12],
+      buzzRange: [0, 0],
+      delayDaysRange: [1, 2],
     },
   ],
   Romance: [
     {
       id: 'genre-romance-pos-chemistry',
-      description: "The two leads have real off-screen chemistry, and it's radiating off the screen.",
+      description: "The two leads have real off-screen chemistry, and fan-shot photos from set are already circulating.",
       polarity: 'positive',
       costRange: [0, 0],
       qualityRange: [5, 10],
-      buzzRange: [4, 9],
-      delayRiskRange: [0, 0],
+      buzzRange: [2, 5],
+      delayDaysRange: [0, 0],
     },
     {
       id: 'genre-romance-neg-no-chemistry',
@@ -239,8 +271,8 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       polarity: 'negative',
       costRange: [0, 150_000],
       qualityRange: [-8, -3],
-      buzzRange: [-4, 0],
-      delayRiskRange: [0, 5],
+      buzzRange: [0, 0],
+      delayDaysRange: [1, 2],
     },
   ],
   'Sci-Fi': [
@@ -250,8 +282,8 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       polarity: 'positive',
       costRange: [-200_000, 0],
       qualityRange: [5, 10],
-      buzzRange: [5, 10],
-      delayRiskRange: [0, 0],
+      buzzRange: [0, 0],
+      delayDaysRange: [0, 0],
     },
     {
       id: 'genre-scifi-neg-vfx-redo',
@@ -259,8 +291,8 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       polarity: 'negative',
       costRange: [400_000, 1_200_000],
       qualityRange: [-6, -1],
-      buzzRange: [-2, 0],
-      delayRiskRange: [12, 22],
+      buzzRange: [0, 0],
+      delayDaysRange: [2, 4],
     },
   ],
   Fantasy: [
@@ -270,8 +302,8 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       polarity: 'positive',
       costRange: [0, 0],
       qualityRange: [3, 7],
-      buzzRange: [6, 12],
-      delayRiskRange: [0, 0],
+      buzzRange: [6, 12], // explicitly a leak
+      delayDaysRange: [0, 0],
     },
     {
       id: 'genre-fantasy-neg-set-collapse',
@@ -279,8 +311,8 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       polarity: 'negative',
       costRange: [300_000, 900_000],
       qualityRange: [-4, -1],
-      buzzRange: [0, 0],
-      delayRiskRange: [10, 20],
+      buzzRange: [-3, 0], // visible mishap, local coverage plausible
+      delayDaysRange: [2, 4],
     },
   ],
   Thriller: [
@@ -290,8 +322,8 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       polarity: 'positive',
       costRange: [0, 0],
       qualityRange: [5, 10],
-      buzzRange: [3, 8],
-      delayRiskRange: [0, 0],
+      buzzRange: [0, 0],
+      delayDaysRange: [0, 0],
     },
     {
       id: 'genre-thriller-neg-twist-not-landing',
@@ -299,8 +331,8 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       polarity: 'negative',
       costRange: [50_000, 200_000],
       qualityRange: [-7, -2],
-      buzzRange: [-3, 0],
-      delayRiskRange: [5, 12],
+      buzzRange: [0, 0],
+      delayDaysRange: [0, 1],
     },
   ],
 };
@@ -319,6 +351,9 @@ export type RiskDimension = 'schedulePressure' | 'moraleRisk' | 'safetyRisk' | '
 // positive/negative odds. Each dimension gets its own negative bank (fires
 // when that dimension is high) and positive bank (fires when it's low) -
 // see engine/production.ts:addDimensionTemplates for the threshold logic.
+// Every dimension also carries one or two interactive templates, mixed in
+// alongside the simple ones - a real decision on top of the routine events,
+// not a replacement for them.
 export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
   RiskDimension,
   { positive: ProductionEventTemplate[]; negative: ProductionEventTemplate[] }
@@ -332,7 +367,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         costRange: [100_000, 400_000],
         qualityRange: [-8, -3],
         buzzRange: [0, 0],
-        delayRiskRange: [10, 20],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-schedule-neg-exhausted-crew',
@@ -341,7 +376,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         costRange: [50_000, 200_000],
         qualityRange: [-6, -2],
         buzzRange: [0, 0],
-        delayRiskRange: [8, 15],
+        delayDaysRange: [0, 1],
       },
       {
         id: 'risk-schedule-neg-scene-cut-for-time',
@@ -349,17 +384,87 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'negative',
         costRange: [0, 0],
         qualityRange: [-7, -2],
-        buzzRange: [-2, 0],
-        delayRiskRange: [5, 10],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-schedule-neg-ad-quit',
-        description: 'The first assistant director quit mid-shoot, citing an impossible schedule.',
+        description: 'The first assistant director quit mid-shoot, citing an impossible schedule - word reached the trades within a day.',
         polarity: 'negative',
         costRange: [100_000, 350_000],
         qualityRange: [-5, -1],
-        buzzRange: [-3, 0],
-        delayRiskRange: [10, 18],
+        buzzRange: [-3, -1],
+        delayDaysRange: [1, 3],
+      },
+      {
+        id: 'int-schedule-stubborn-scene',
+        situation: "A pivotal scene isn't coming together and the unit is already behind. The 1st AD needs a call.",
+        polarity: 'negative',
+        interactive: true,
+        choices: [
+          {
+            id: 'cut-losses',
+            label: 'Cut your losses',
+            description: 'Print what you have and move on. Costs nothing but the scene will be weaker for it.',
+            costRange: [0, 0],
+            qualityRange: [-6, -3],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'throw-money',
+            label: 'Bring in extra crew and lighting',
+            description: 'Pay to get it right without losing more days.',
+            costRange: [100_000, 300_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'take-the-time',
+            label: 'Give it the rest of the day',
+            description: "Protect the scene, but the schedule slips further.",
+            costRange: [0, 0],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [1, 2],
+          },
+        ],
+      },
+      {
+        id: 'int-schedule-crew-exhausted',
+        situation: 'The unit is days behind and the crew is running on fumes. How do you want to handle the pace?',
+        polarity: 'negative',
+        interactive: true,
+        choices: [
+          {
+            id: 'push-through',
+            label: 'Push through on the current schedule',
+            description: 'Free, but a tired crew makes mistakes.',
+            costRange: [0, 0],
+            qualityRange: [-5, -2],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'second-unit',
+            label: 'Bring in a second unit',
+            description: 'Buys back the schedule at a real price.',
+            costRange: [300_000, 700_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'rest-day',
+            label: 'Give everyone a rest day',
+            description: 'No cost, no quality risk - just falls further behind.',
+            costRange: [0, 0],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [1, 1],
+          },
+        ],
       },
     ],
     positive: [
@@ -369,8 +474,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [-100_000, 0],
         qualityRange: [4, 9],
-        buzzRange: [2, 5],
-        delayRiskRange: [-5, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-schedule-pos-wrapped-early',
@@ -378,8 +483,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [-200_000, -50_000],
         qualityRange: [2, 6],
-        buzzRange: [1, 3],
-        delayRiskRange: [-8, -2],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-schedule-pos-extra-take',
@@ -387,8 +492,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [0, 50_000],
         qualityRange: [5, 10],
-        buzzRange: [2, 6],
-        delayRiskRange: [0, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-schedule-pos-caught-continuity',
@@ -396,8 +501,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [-50_000, 0],
         qualityRange: [3, 6],
-        buzzRange: [0, 2],
-        delayRiskRange: [-5, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
       },
     ],
   },
@@ -410,7 +515,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         costRange: [50_000, 250_000],
         qualityRange: [-8, -3],
         buzzRange: [-6, -2],
-        delayRiskRange: [8, 15],
+        delayDaysRange: [0, 1],
       },
       {
         id: 'risk-morale-neg-no-shows',
@@ -419,7 +524,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         costRange: [80_000, 300_000],
         qualityRange: [-4, -1],
         buzzRange: [0, 0],
-        delayRiskRange: [10, 18],
+        delayDaysRange: [1, 2],
       },
       {
         id: 'risk-morale-neg-public-blowup',
@@ -428,7 +533,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         costRange: [0, 100_000],
         qualityRange: [-6, -2],
         buzzRange: [-8, -3],
-        delayRiskRange: [3, 8],
+        delayDaysRange: [0, 1],
       },
       {
         id: 'risk-morale-neg-walked-off',
@@ -437,27 +542,62 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         costRange: [100_000, 400_000],
         qualityRange: [-7, -3],
         buzzRange: [-4, -1],
-        delayRiskRange: [12, 20],
+        delayDaysRange: [1, 3],
+      },
+      {
+        id: 'int-morale-blowup',
+        situation: 'Two department heads had a screaming match on set. Word is already spreading.',
+        polarity: 'negative',
+        interactive: true,
+        choices: [
+          {
+            id: 'let-it-blow-over',
+            label: 'Let it blow over quietly',
+            description: 'No intervention - it gets out anyway.',
+            costRange: [0, 0],
+            qualityRange: [0, 0],
+            buzzRange: [-6, -2],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'bring-in-mediator',
+            label: 'Bring in a mediator',
+            description: 'Pay to resolve it privately before it spreads further.',
+            costRange: [50_000, 150_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'replace-one',
+            label: 'Replace one of them',
+            description: 'Decisive, but finding and onboarding a replacement costs real time.',
+            costRange: [0, 0],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [1, 2],
+          },
+        ],
       },
     ],
     positive: [
       {
         id: 'risk-morale-pos-bonded-cast',
-        description: 'The cast and crew have genuinely bonded - morale on set is sky-high.',
+        description: 'The cast and crew have genuinely bonded, and it shows on their social media.',
         polarity: 'positive',
         costRange: [-50_000, 0],
         qualityRange: [4, 9],
-        buzzRange: [3, 7],
-        delayRiskRange: [-3, 0],
+        buzzRange: [2, 5],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-morale-pos-set-party',
-        description: "A crew member's birthday turned into an impromptu set party that only boosted the mood.",
+        description: "A crew member's birthday turned into an impromptu set party, and photos are already circulating online.",
         polarity: 'positive',
         costRange: [5_000, 20_000],
         qualityRange: [1, 3],
-        buzzRange: [2, 5],
-        delayRiskRange: [0, 0],
+        buzzRange: [2, 4],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-morale-pos-no-hiccups',
@@ -465,8 +605,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [-100_000, -20_000],
         qualityRange: [3, 7],
-        buzzRange: [0, 2],
-        delayRiskRange: [-5, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-morale-pos-lockstep',
@@ -474,8 +614,43 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [-80_000, 0],
         qualityRange: [3, 6],
-        buzzRange: [1, 3],
-        delayRiskRange: [-6, -2],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
+      },
+      {
+        id: 'int-morale-bonding',
+        situation: 'The cast has genuinely bonded and morale is sky-high. There\'s a window to make the most of it.',
+        polarity: 'positive',
+        interactive: true,
+        choices: [
+          {
+            id: 'keep-low-key',
+            label: 'Keep it low-key',
+            description: 'A steady, private benefit to the work itself.',
+            costRange: [0, 0],
+            qualityRange: [2, 4],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'press-day',
+            label: 'Get the press in for a feel-good story',
+            description: 'Pure publicity play - no effect on the film itself.',
+            costRange: [0, 0],
+            qualityRange: [0, 0],
+            buzzRange: [8, 15],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'reward-day-off',
+            label: 'Reward the cast with a day off',
+            description: 'Banks the goodwill, but costs a shoot day.',
+            costRange: [0, 0],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [1, 1],
+          },
+        ],
       },
     ],
   },
@@ -488,7 +663,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         costRange: [300_000, 900_000],
         qualityRange: [-8, -2],
         buzzRange: [-5, 0],
-        delayRiskRange: [15, 25],
+        delayDaysRange: [2, 2],
       },
       {
         id: 'risk-safety-neg-explosion-too-big',
@@ -497,7 +672,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         costRange: [200_000, 700_000],
         qualityRange: [-4, 0],
         buzzRange: [-3, 0],
-        delayRiskRange: [10, 18],
+        delayDaysRange: [1, 3],
       },
       {
         id: 'risk-safety-neg-rig-failed-inspection',
@@ -506,7 +681,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         costRange: [150_000, 500_000],
         qualityRange: [-3, 0],
         buzzRange: [0, 0],
-        delayRiskRange: [10, 18],
+        delayDaysRange: [1, 2],
       },
       {
         id: 'risk-safety-neg-insurance-claim',
@@ -514,8 +689,43 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'negative',
         costRange: [250_000, 800_000],
         qualityRange: [-5, -1],
-        buzzRange: [-4, -1],
-        delayRiskRange: [12, 20],
+        buzzRange: [-3, -1],
+        delayDaysRange: [0, 1],
+      },
+      {
+        id: 'int-safety-near-miss',
+        situation: 'A near-miss on a practical effects rig has rattled the crew. How do you respond?',
+        polarity: 'negative',
+        interactive: true,
+        choices: [
+          {
+            id: 'stand-down',
+            label: 'Full safety stand-down and re-certify everything',
+            description: 'No cost or quality hit, but the whole rig gets re-checked before anyone goes near it again.',
+            costRange: [0, 0],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [1, 3],
+          },
+          {
+            id: 'quiet-word',
+            label: 'Quiet word and carry on',
+            description: "Costs nothing, but crew talk about it gets out and reads as reckless.",
+            costRange: [0, 0],
+            qualityRange: [0, 0],
+            buzzRange: [-4, -1],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'independent-inspectors',
+            label: 'Bring in independent safety inspectors',
+            description: 'Pay for a clean bill of health without losing shoot days.',
+            costRange: [150_000, 400_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+        ],
       },
     ],
     positive: [
@@ -526,7 +736,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         costRange: [0, 100_000],
         qualityRange: [6, 11],
         buzzRange: [6, 12],
-        delayRiskRange: [0, 0],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-safety-pos-zero-incidents',
@@ -534,8 +744,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [-50_000, 0],
         qualityRange: [3, 6],
-        buzzRange: [1, 3],
-        delayRiskRange: [-3, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-safety-pos-fight-first-take',
@@ -543,8 +753,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [-30_000, 0],
         qualityRange: [4, 8],
-        buzzRange: [2, 5],
-        delayRiskRange: [0, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-safety-pos-contingency-paid-off',
@@ -552,8 +762,43 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [-20_000, 20_000],
         qualityRange: [1, 3],
-        buzzRange: [0, 2],
-        delayRiskRange: [-3, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
+      },
+      {
+        id: 'int-safety-risky-stunt',
+        situation: 'The next stunt is more dangerous than what was budgeted for safety. The coordinator wants direction.',
+        polarity: 'positive',
+        interactive: true,
+        choices: [
+          {
+            id: 'do-as-planned',
+            label: 'Do it as planned',
+            description: 'The full, riskier version - impressive if it lands.',
+            costRange: [0, 0],
+            qualityRange: [4, 8],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'extra-safety',
+            label: 'Add extra safety measures',
+            description: 'Pay to do it the way it was planned, safely.',
+            costRange: [100_000, 300_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'scale-back',
+            label: 'Scale back the stunt',
+            description: 'Free and safe, but less impressive on screen.',
+            costRange: [0, 0],
+            qualityRange: [-3, -1],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+        ],
       },
     ],
   },
@@ -565,8 +810,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'negative',
         costRange: [300_000, 1_000_000],
         qualityRange: [-5, -1],
-        buzzRange: [-2, 0],
-        delayRiskRange: [10, 20],
+        buzzRange: [0, 0],
+        delayDaysRange: [2, 4],
       },
       {
         id: 'risk-technical-neg-expensive-workaround',
@@ -575,7 +820,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         costRange: [250_000, 800_000],
         qualityRange: [-4, -1],
         buzzRange: [0, 0],
-        delayRiskRange: [8, 16],
+        delayDaysRange: [1, 2],
       },
       {
         id: 'risk-technical-neg-unusable-footage',
@@ -584,7 +829,7 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         costRange: [150_000, 600_000],
         qualityRange: [-6, -2],
         buzzRange: [0, 0],
-        delayRiskRange: [10, 18],
+        delayDaysRange: [4, 6],
       },
       {
         id: 'risk-technical-neg-sequence-simplified',
@@ -592,8 +837,43 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'negative',
         costRange: [100_000, 400_000],
         qualityRange: [-5, -2],
-        buzzRange: [-3, 0],
-        delayRiskRange: [8, 15],
+        buzzRange: [0, 0],
+        delayDaysRange: [1, 2],
+      },
+      {
+        id: 'int-technical-vfx-struggle',
+        situation: "A complex VFX sequence isn't coming together and the supervisor needs a decision.",
+        polarity: 'negative',
+        interactive: true,
+        choices: [
+          {
+            id: 'more-artists',
+            label: 'Throw more artists at it',
+            description: 'Pay to keep the shot as ambitious as planned.',
+            costRange: [300_000, 700_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'simplify-shot',
+            label: 'Simplify the shot',
+            description: 'Free, but the sequence loses some of its ambition.',
+            costRange: [0, 0],
+            qualityRange: [-5, -2],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'give-vendor-time',
+            label: 'Give the vendor more time',
+            description: 'No cost or quality hit, but the schedule absorbs it.',
+            costRange: [0, 0],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [2, 4],
+          },
+        ],
       },
     ],
     positive: [
@@ -603,8 +883,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [-100_000, 0],
         qualityRange: [5, 10],
-        buzzRange: [5, 10],
-        delayRiskRange: [-3, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-technical-pos-cheaper-solution',
@@ -612,8 +892,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [-300_000, -80_000],
         qualityRange: [3, 7],
-        buzzRange: [2, 5],
-        delayRiskRange: [-5, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-technical-pos-few-revisions',
@@ -621,8 +901,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [-50_000, 0],
         qualityRange: [3, 6],
-        buzzRange: [1, 3],
-        delayRiskRange: [-4, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-technical-pos-test-render',
@@ -630,8 +910,43 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [0, 50_000],
         qualityRange: [4, 8],
-        buzzRange: [4, 8],
-        delayRiskRange: [0, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
+      },
+      {
+        id: 'int-technical-breakthrough',
+        situation: 'The effects team found a genuinely clever solution to the film\'s hardest shot. Worth pushing further?',
+        polarity: 'positive',
+        interactive: true,
+        choices: [
+          {
+            id: 'bank-the-win',
+            label: 'Bank the win, move on',
+            description: "Don't over-invest - take the savings and keep moving.",
+            costRange: [-100_000, -30_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'push-further',
+            label: 'Push it further for the money shot',
+            description: 'No extra cost, but squeezes real quality out of the breakthrough.',
+            costRange: [0, 0],
+            qualityRange: [5, 9],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'tease-it',
+            label: 'Let the team show it off online',
+            description: 'A work-in-progress reel makes the rounds - pure publicity, no effect on the film.',
+            costRange: [0, 0],
+            qualityRange: [0, 0],
+            buzzRange: [6, 12],
+            delayDaysRange: [0, 0],
+          },
+        ],
       },
     ],
   },
@@ -643,8 +958,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'negative',
         costRange: [200_000, 600_000],
         qualityRange: [-6, -2],
-        buzzRange: [-3, 0],
-        delayRiskRange: [8, 15],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 1],
       },
       {
         id: 'risk-budget-neg-corners-cut',
@@ -652,8 +967,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'negative',
         costRange: [-100_000, 0],
         qualityRange: [-8, -3],
-        buzzRange: [-4, -1],
-        delayRiskRange: [0, 5],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-budget-neg-insurance-flagged',
@@ -662,16 +977,51 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         costRange: [100_000, 350_000],
         qualityRange: [0, 0],
         buzzRange: [0, 0],
-        delayRiskRange: [3, 8],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-budget-neg-emergency-financing',
-        description: 'The studio had to scramble for emergency completion financing mid-shoot.',
+        description: 'The studio had to scramble for emergency completion financing mid-shoot, and it made the trade press.',
         polarity: 'negative',
         costRange: [300_000, 900_000],
         qualityRange: [-3, 0],
-        buzzRange: [-5, -1],
-        delayRiskRange: [10, 18],
+        buzzRange: [-4, -1],
+        delayDaysRange: [0, 1],
+      },
+      {
+        id: 'int-budget-thin',
+        situation: 'The contingency reserve is running thinner than planned with more of the shoot still ahead.',
+        polarity: 'negative',
+        interactive: true,
+        choices: [
+          {
+            id: 'cut-scene',
+            label: 'Cut a scene to save money',
+            description: 'Free, but the film loses something it needed.',
+            costRange: [0, 0],
+            qualityRange: [-6, -3],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'emergency-financing',
+            label: 'Request emergency financing',
+            description: 'Solves the crunch, at the price of fees and interest.',
+            costRange: [150_000, 400_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'delay-lesser-shots',
+            label: 'Quietly delay the less essential shots',
+            description: 'No cost or quality hit - just costs time.',
+            costRange: [0, 0],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [1, 2],
+          },
+        ],
       },
     ],
     positive: [
@@ -681,8 +1031,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [-150_000, -30_000],
         qualityRange: [3, 7],
-        buzzRange: [1, 3],
-        delayRiskRange: [-3, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-budget-pos-seized-opportunity',
@@ -690,8 +1040,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [20_000, 100_000],
         qualityRange: [4, 8],
-        buzzRange: [3, 6],
-        delayRiskRange: [0, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-budget-pos-fixed-it-right',
@@ -699,8 +1049,8 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [-50_000, 0],
         qualityRange: [2, 5],
-        buzzRange: [0, 2],
-        delayRiskRange: [-4, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
       },
       {
         id: 'risk-budget-pos-cushion-absorbed-overrun',
@@ -708,8 +1058,43 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'positive',
         costRange: [0, 0],
         qualityRange: [1, 3],
-        buzzRange: [0, 1],
-        delayRiskRange: [-2, 0],
+        buzzRange: [0, 0],
+        delayDaysRange: [0, 0],
+      },
+      {
+        id: 'int-budget-opportunity',
+        situation: 'The production is running comfortably under its contingency reserve. There\'s room to do something with the surplus.',
+        polarity: 'positive',
+        interactive: true,
+        choices: [
+          {
+            id: 'bank-it',
+            label: 'Bank it',
+            description: 'Pure savings, no other effect.',
+            costRange: [-150_000, -50_000],
+            qualityRange: [0, 0],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'polish-pass',
+            label: 'Invest in one more polish pass',
+            description: 'Spend the cushion on the film itself.',
+            costRange: [0, 0],
+            qualityRange: [3, 6],
+            buzzRange: [0, 0],
+            delayDaysRange: [0, 0],
+          },
+          {
+            id: 'publicity-moment',
+            label: 'Fund a splashy publicity moment',
+            description: 'Spend the cushion on getting people talking instead.',
+            costRange: [0, 0],
+            qualityRange: [0, 0],
+            buzzRange: [6, 12],
+            delayDaysRange: [0, 0],
+          },
+        ],
       },
     ],
   },

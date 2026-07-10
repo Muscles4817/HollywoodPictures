@@ -141,7 +141,34 @@ export interface ProductionEvent {
   costDelta: number; // absolute currency change
   qualityDelta: number; // -100..100 scale applied to production score
   buzzDelta: number; // -100..100
-  delayRiskDelta: number; // -100..100, informational for MVP
+  delayDaysDelta: number; // extra shoot days this event actually cost, on top of the day it happened on - always >= 0
+}
+
+// One option the player can pick when an interactive event pauses
+// photography (see PhotographyState.pendingChoice below) - each choice rolls
+// its own outcome independently, so a "pay to fix it" option and a "push
+// through and accept the risk" option for the same situation can land in
+// completely different places on cost/quality/buzz/delay. A choice is free
+// to touch only one of these (e.g. purely a time cost, or purely a quality
+// cost) - nothing requires all four ranges to move.
+export interface EventChoiceTemplate {
+  id: string;
+  label: string; // short button text, e.g. "Pay for a reshoot"
+  description: string; // what picking this actually involves
+  costRange: [number, number];
+  qualityRange: [number, number];
+  buzzRange: [number, number];
+  delayDaysRange: [number, number];
+}
+
+// An interactive event that's paused photography, waiting on the player to
+// pick one of `choices` - see PhotographyState.pendingChoice and
+// state/studioReducer.ts:RESOLVE_EVENT_CHOICE.
+export interface PendingEventChoice {
+  templateId: string;
+  situation: string; // the dilemma being presented, before a choice is made
+  polarity: 'positive' | 'negative';
+  choices: EventChoiceTemplate[];
 }
 
 // The four risk dimensions knowable *before* a day of filming has happened -
@@ -167,15 +194,17 @@ export interface StaticProductionRisk {
 // `daysElapsed` and `events` grow one day at a time via ADVANCE_SHOOTING_DAY,
 // and each day also advances Studio.totalDays, so the persistent calendar
 // ticks forward in step with the shoot. FilmDraft.photography is `null`
-// before the player clicks "Begin Principal Photography" - `status` only
-// needs to distinguish "ticking" from "the player clicked Finish", since
-// the reducer only accepts ADVANCE_SHOOTING_DAY while 'in-progress'.
+// before the player clicks "Begin Principal Photography" - `status` also
+// covers 'awaiting-choice', when a rolled event is interactive and the timer
+// is paused on pendingChoice until RESOLVE_EVENT_CHOICE is dispatched; the
+// reducer only accepts ADVANCE_SHOOTING_DAY while 'in-progress'.
 export interface PhotographyState {
-  status: 'in-progress' | 'finished';
+  status: 'in-progress' | 'awaiting-choice' | 'finished';
   recommendedDays: number;
   daysElapsed: number;
   events: ProductionEvent[];
   runningCost: number;
+  pendingChoice: PendingEventChoice | null;
 }
 
 export type EditStyle = 'Commercial' | 'Artistic' | 'Balanced';

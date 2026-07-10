@@ -73,6 +73,7 @@ export type GameAction =
   | { type: 'SET_PRODUCTION_CHOICES'; choices: ProductionChoices }
   | { type: 'BEGIN_PHOTOGRAPHY' }
   | { type: 'ADVANCE_SHOOTING_DAY' }
+  | { type: 'RESOLVE_EVENT_CHOICE'; choiceId: string }
   | { type: 'FINISH_PHOTOGRAPHY' }
   | { type: 'SET_POST_PRODUCTION_CHOICES'; choices: PostProductionChoices }
   | { type: 'SET_MARKETING_CHOICES'; choices: MarketingChoices }

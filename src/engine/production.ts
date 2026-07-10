@@ -1,5 +1,7 @@
 import type {
+  EventChoiceTemplate,
   Genre,
+  PendingEventChoice,
   ProductionChoices,
   ProductionEvent,
   Script,
@@ -112,18 +114,40 @@ export function computeSchedulePressure(daysElapsed: number, recommendedDays: nu
   return clamp(Math.round(30 + (1 - ratio) * 90), 0, 100);
 }
 
-function rollEvent(template: ProductionEventTemplate, rng: RandomFn): ProductionEvent {
+function rollSimpleEvent(template: Extract<ProductionEventTemplate, { interactive?: false }>, rng: RandomFn): ProductionEvent {
   const [costMin, costMax] = template.costRange;
   const [qMin, qMax] = template.qualityRange;
   const [bMin, bMax] = template.buzzRange;
-  const [dMin, dMax] = template.delayRiskRange;
+  const [dMin, dMax] = template.delayDaysRange;
   return {
     id: template.id,
     description: template.description,
     costDelta: Math.round(randFloat(rng, costMin, costMax)),
     qualityDelta: randFloat(rng, qMin, qMax),
     buzzDelta: randFloat(rng, bMin, bMax),
-    delayRiskDelta: randFloat(rng, dMin, dMax),
+    delayDaysDelta: Math.max(0, Math.round(randFloat(rng, dMin, dMax))),
+  };
+}
+
+/** Rolls one of an interactive event's choices into a concrete outcome, once the player has picked it. */
+export function resolveEventChoice(pending: PendingEventChoice, choiceId: string, rng: RandomFn): ProductionEvent {
+  const choice = pending.choices.find((c) => c.id === choiceId);
+  if (!choice) throw new Error(`Unknown event choice "${choiceId}" for "${pending.templateId}"`);
+  return rollChoiceOutcome(pending, choice, rng);
+}
+
+function rollChoiceOutcome(pending: PendingEventChoice, choice: EventChoiceTemplate, rng: RandomFn): ProductionEvent {
+  const [costMin, costMax] = choice.costRange;
+  const [qMin, qMax] = choice.qualityRange;
+  const [bMin, bMax] = choice.buzzRange;
+  const [dMin, dMax] = choice.delayDaysRange;
+  return {
+    id: pending.templateId,
+    description: `${pending.situation} You chose: ${choice.label.toLowerCase()}.`,
+    costDelta: Math.round(randFloat(rng, costMin, costMax)),
+    qualityDelta: randFloat(rng, qMin, qMax),
+    buzzDelta: randFloat(rng, bMin, bMax),
+    delayDaysDelta: Math.max(0, Math.round(randFloat(rng, dMin, dMax))),
   };
 }
 
@@ -163,7 +187,11 @@ function buildEventPools(
  * positive/negative bias of the roll shift with it too, not just which
  * templates are available. `usedIds` (every template that's already fired
  * this shoot) is derived from the events accumulated so far, so nothing
- * repeats within one production.
+ * repeats within one production. An interactive template (`.interactive ===
+ * true`) doesn't resolve here - it comes back as a `pendingChoice` instead
+ * of an `event`, which the reducer uses to pause the shoot on
+ * PhotographyState.pendingChoice until the player picks one of its choices
+ * (see resolveEventChoice above and state/studioReducer.ts:RESOLVE_EVENT_CHOICE).
  */
 export function rollDayEvent(
   staticRisk: StaticProductionRisk,
@@ -172,7 +200,7 @@ export function rollDayEvent(
   genre: Genre,
   usedIds: ReadonlySet<string>,
   rng: RandomFn,
-): ProductionEvent | null {
+): { event: ProductionEvent } | { pendingChoice: PendingEventChoice } | null {
   const schedulePressure = computeSchedulePressure(daysElapsed, recommendedDays);
   const fullRisk = { schedulePressure, ...staticRisk };
   const avgRisk = (fullRisk.schedulePressure + fullRisk.moraleRisk + fullRisk.safetyRisk + fullRisk.technicalComplexity + fullRisk.budgetRisk) / 5;
@@ -188,5 +216,15 @@ export function rollDayEvent(
   if (candidates.length === 0) return null; // exhausted every template this shoot
 
   const template = candidates[randInt(rng, 0, candidates.length - 1)];
-  return rollEvent(template, rng);
+  if (template.interactive) {
+    return {
+      pendingChoice: {
+        templateId: template.id,
+        situation: template.situation,
+        polarity: template.polarity,
+        choices: template.choices,
+      },
+    };
+  }
+  return { event: rollSimpleEvent(template, rng) };
 }
