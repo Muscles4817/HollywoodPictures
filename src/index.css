@@ -45,7 +45,9 @@ body {
 }
 
 #root {
-  padding: 24px 20px 80px;
+  /* Top padding clears the fixed DateBar/ThemeToggle below, which would
+     otherwise render on top of (and obscure) a screen's opening heading. */
+  padding: 72px 20px 80px;
 }
 
 h1, h2, h3 {
@@ -507,7 +509,9 @@ button {
 /* --- Wizard --- */
 .wizard-header-sticky {
   position: sticky;
-  top: 0;
+  /* Matches #root's top padding so this sticks below the fixed DateBar/
+     ThemeToggle instead of scrolling up underneath them. */
+  top: 72px;
   z-index: 40;
   background: var(--bg);
   padding-bottom: 10px;
