@@ -1199,6 +1199,67 @@ Save format bumped to v10 (`state/persistence.ts`) - `ProductionEvent` lost
 `delayRiskDelta` and gained `delayDaysDelta`, and `PhotographyState` gained
 `pendingChoice`, so a v9 save wouldn't shape-check cleanly.
 
+### 5.18 Crew-aware events, and real mid-shoot recasting (`data/productionEvents.ts`, `engine/production.ts`, `state/studioReducer.ts`)
+
+Extends 5.17's interactive events so a decision can be *about* someone
+specific - the hired Director, Writer, Lead Actor, Composer or Editor -
+rather than always reading as generic set drama with nobody's name on it.
+
+**A template can declare `involvesRole`.** At roll time
+(`engine/production.ts:rollDayEvent`), the engine resolves the actual hired
+Talent for that role from `FilmDraft.talent` (a random pick among
+multi-hire roles like Lead Actor), then:
+- Interpolates a `{name}` token in the template's `situation` and each
+  choice's `label`/`description` with their real name, once, before the
+  `PendingEventChoice` is ever stored - the UI never sees a raw token.
+- For any choice marked `skillSensitive`, shifts its `qualityRange` up and
+  `delayDaysRange` down by how far the involved talent's skill sits from
+  50 (`talentSkillScore` - the plain `skill` field for
+  Director/Writer/Composer/Editor/VFX Supervisor, or an actor's
+  compatibility with the script, since actors have no separate skill
+  number - see types/index.ts:ActorTalent). A stronger hire doesn't turn a
+  bad option into a sure thing (the shift caps at half the choice's own
+  range width), but a skilled Writer shipping a draft as-is stings a lot
+  less than a weak one doing the same. This is also the first time the
+  Writer's `skill` stat does anything at all - previously hireable but
+  fully decorative (see Known Limitations).
+
+**A template can also declare `offersReplacementFor` a role.** When set
+(alongside `involvesRole`), `rollDayEvent` pulls real candidates from the
+studio's talent pool near the departing hire's own salary
+(`engine/talentFilter.ts:findCandidatesNearPrice`) and appends 1-2 of them
+to `choices` as genuine recast options - `Recast with {candidate.name}`,
+with that specific person's salary shown next to the label
+(`replacementCandidateSalary`, rendered via `<Money>` in
+`ProductionRun.tsx`) so the player is choosing a real person at a real
+price, not a blind roll. Each recast choice's own roll is built from that
+one candidate:
+- Cost is a disruption charge, not their ongoing salary - severance for
+  the departing hire (40% of their salary) plus a rush-hire premium on the
+  new person's own rate (30% of theirs). Their ongoing salary takes care of
+  itself once they're actually in the cast, the normal way.
+- Quality swings on the gap between the two people's `talentSkillScore` -
+  modest and two-sided, so a recast is a real gamble, not a guaranteed
+  upgrade just because the player picked the pricier name.
+- Delay is real and role-flavored: 3-6 days for a Lead/Supporting Actor
+  (anything they're already in has to be reshot), 2-4 for anyone else
+  (ramp-up time, no reshoot).
+
+Picking a recast choice doesn't just roll a delta - `RESOLVE_EVENT_CHOICE`
+(`state/studioReducer.ts`) checks the chosen choice for
+`replacementCandidateId` and, if present, actually swaps `FilmDraft.talent`:
+the departing hire (`PendingEventChoice.involvedTalentId`) comes out, the
+picked candidate goes in, for the rest of the film. The swap is a straight
+1-for-1 replace, verified in a reducer-level diagnostic across 200 seeded
+shoots.
+
+Eight new templates ship with this: Writer (a rewrite struggling, and a
+punch-up worth capitalizing on), Composer (a temp-score clash), Editor (an
+assembly that's come together ahead of schedule), Director and Lead Actor
+(each with a real recast option), plus two plain additions with no
+specific role attached (an actor rivalry, a vendor discount) - bringing the
+interactive template count from 16 to 24.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
