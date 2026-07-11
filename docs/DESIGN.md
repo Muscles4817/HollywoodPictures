@@ -2289,6 +2289,321 @@ something a real phone, which only ever generates touch-originated
 events, can't produce. Confirmed correct in isolation (matched the CSS
 rule applying cleanly) before concluding this, rather than assuming.
 
+### 5.34 Box office as an audience simulation - architecture (design frozen; implementation starting - see Milestone 1)
+
+**Status: design frozen, implementation underway in small reviewable
+milestones.** This section records an architecture pressure-tested
+over several rounds of discussion before any formula or code was written -
+`engine/boxOffice.ts`'s existing Opening Weekend -> Legs -> Total Gross model
+(5.4, 5.19) stays in place and unchanged until this is actually built.
+Recorded here so implementation starts from a stable design instead of
+improvising formulas against a half-remembered conversation.
+
+**Motivation.** The Outcome Inspector (`components/dev/OutcomeInspector.tsx`)
+- built to let the player load a real film's inputs and see how one changed
+value moves ratings/box office - exposed that the existing box office model
+is a *formula*, not a *simulation*: Opening Weekend and Legs are each a
+single number computed once, multiplied together. That's fine arithmetically
+but can't express what audiences actually do - a film that opens small and
+grows, one that opens huge and collapses, or one that expands into an
+audience nobody expected it to reach - without hand-tuned special cases per
+shape. The model below treats a theatrical run as a population of people
+making a weekly decision, instead of a two-number formula.
+
+**Core philosophy.** Model **people, not money**. Every quantity here is
+either a count of people (or a fraction of a population) or a probability -
+never a dollar figure - until the very last step, where
+`tickets sold x price = revenue` converts the simulation's output into money
+once, at the boundary. Legs is not an input anywhere in this design - it's
+`Total Gross / Opening Weekend`, computed *after* a run finishes, exactly
+how the real industry reports it (the same principle that already motivated
+5.19's move from a single release-day number to a live weekly process,
+taken one layer deeper).
+
+The second, harder-won principle: **only introduce state when reality
+genuinely requires it; everything else is a derived observation.** An early
+draft of this design had a `Momentum` variable meant to explain opening-week
+urgency, decay, sleeper growth and surprise overperformance all at once. It
+didn't survive - every one of those turned out to already fall out of the
+interaction between the pieces below, once Awareness and Interest were
+properly separated and connected in a feedback loop. `Momentum` isn't part
+of this design at all; where it's useful, it's something a results screen
+could *compute* from the weekly history for display, never something the
+simulation stores or reads back.
+
+**Fixed release-day state.** Computed once, at release, from the same
+inputs `computeReleaseResults` (`engine/releaseFilm.ts`) already has -
+script, cast, genre, marketing/release choices. Never recomputed once the
+run starts.
+
+- **`TotalAddressableAudience`** - the ceiling: everyone who could
+  conceivably see a film like this, as a headcount rather than a dollar
+  figure. Same inputs as today's `OPENING_BASE_POTENTIAL x marketSize x
+  genrePopularity` chain (5.4), expressed as people instead of money.
+- **`BaseInterestFraction`** - of that ceiling, what fraction has genuine
+  taste-fit for *this specific film*. Driven by **Marketability**, genre
+  fit, and cast fame - the "how many people might like this" half of
+  Marketability.
+- **`MarketingEfficiency`** - how efficiently marketing spend converts into
+  Awareness. Driven by **Marketability**'s other half - how easy the
+  premise is to explain in one sentence, not how many people it appeals to.
+  Dampened by high **Originality** (a genuinely novel premise is harder to
+  pitch even when it would appeal to plenty of people if they understood
+  it).
+- **`CrossoverCapacity`** - the ceiling on how far Interest can expand
+  *beyond* `BaseInterestFraction` via word of mouth. Driven by
+  **Originality**. Originality creates the *capacity* for a film to become
+  "the one everyone should see" - it doesn't, by itself, mean that happens
+  (see Word of Mouth below). A highly original, badly-received film has a
+  large capacity that's never realized; a broadly-appealing, unoriginal film
+  with an outstanding reaction doesn't need much crossover capacity to post
+  huge numbers, because its `BaseInterestFraction` was already wide.
+- **`ConversionPacing`** - a baseline weekly *probability* that an
+  interested-but-unconverted person attends this particular week (a
+  per-person likelihood, not a fraction of the pool "consumed" - the
+  distinction matters because it's what lets word of mouth modulate it
+  later). Driven primarily by **Release Type** - Wide creates event-scarcity
+  urgency with a higher baseline; Limited/Festival First start lower and
+  build.
+- **Release-day-known reception**: `CriticScore` and `AudienceScore` -
+  already computed today (5.1/5.2), unchanged. Deliberately reused rather
+  than duplicated behind a new "audience reaction" concept, since they
+  already represent exactly that.
+
+Release Type also shapes *initial* Awareness, not just pacing - the richer
+read that came out of this design pass: Wide seeds a large initial
+`AwareCount` (broad day-and-date marketing reach); Limited seeds a small
+one; Festival First seeds almost no *public* awareness but weights
+`CriticScore` more heavily in early word of mouth (critics are effectively
+the film's first audience, and their reaction can start the loop before the
+public has heard of it). A slow-building "platform" release isn't a fifth
+type - it's simply what a Limited release looks like once word of mouth
+succeeds, which this model produces on its own without a dedicated
+mechanic.
+
+**Evolving weekly state.** The only things that change once a run is
+underway:
+
+- **`AwareCount(t)`** - cumulative people who know the film exists.
+  Monotonically non-decreasing.
+- **`InterestedRemaining(t)`** - aware, interested (including any realized
+  crossover), and hasn't bought a ticket yet. Shrinks via purchases; grows
+  via word-of-mouth-driven crossover, bounded by `CrossoverCapacity`.
+- **`CumulativeTicketsSold(t)`** - running total; the only thing money is
+  ever derived from, and only at the very end.
+
+That's the complete list. The weekly ticket/viewer history (needed for
+reporting regardless - it's what a box office chart already shows) doubles
+as the record word-of-mouth strength is computed from, below. No separate
+"momentum," "buzz," or "hype decay" variable is stored anywhere.
+
+**Derived, not stored.** Computed fresh whenever needed, never written to
+state:
+
+- **`WordOfMouthStrength`** - a function of `AudienceScore` (primary) and
+  `CriticScore` (secondary, weighted higher for Festival First).
+  Deliberately **convex, not linear** - the same shape already chosen for
+  Buzz -> Opening Weekend (5.3/5.4): most films generate fairly ordinary
+  word of mouth, and only a genuinely exceptional reception produces a
+  disproportionate response. This convexity also answers "should
+  recommendation intensity be its own variable" - it isn't, because a
+  convex function's marginal output growing with its input *is* "yeah I
+  enjoyed it" vs. "you HAVE to see this" scaling with how good the film
+  actually was, without a second hidden number to represent it.
+- **Current word-of-mouth "pulse"** - a decay-weighted sum over the
+  *already-stored* recent weekly viewer history (the week just passed
+  contributes fully, older weeks taper off over a handful of weeks).
+  Computed from history rather than tracked as its own accumulating
+  variable, for the same reason `Momentum` didn't survive: a stored,
+  independently-decaying accumulator can drift from what the real history
+  implies; a sum over the authoritative weekly record never can.
+- **"Momentum" / trend**, if ever shown to the player - this week's actual
+  tickets vs. what a naive continuation of last week's trend would have
+  predicted. Pure commentary for a results screen, never read back into the
+  simulation.
+
+**Where each existing lever enters the system:**
+
+| Lever | Enters as |
+|---|---|
+| Marketing spend | Seeds initial `AwareCount` (scaled by `MarketingEfficiency`); nothing else |
+| Marketability | Splits in two: sizes `BaseInterestFraction` (pool) *and* sets `MarketingEfficiency` (pitch clarity) |
+| Originality | Sets `CrossoverCapacity` (the crossover ceiling) and dampens `MarketingEfficiency` |
+| Release Type | Sets initial `AwareCount` shape *and* `ConversionPacing`'s baseline |
+| Critic Score / Audience Score | Feed `WordOfMouthStrength` - the existing numbers get a second job, nothing new is computed about "reception" |
+| Buzz Score | Unchanged from today (5.3) - still purely a pre-release hype input to initial Awareness. Deliberately **not** an input to `WordOfMouthStrength`, which would double-count the same hype through two channels; Buzz's job ends once the film opens |
+
+**The three effects of word of mouth.** Every week,
+`WordOfMouthStrength` (scaled by that week's recent-viewer pulse, run
+through the convex response) does three separate things, each with its own
+sensitivity threshold - ordinary reactions clear the first bar, only
+good-to-great reactions clear the second, only exceptional reactions clear
+the third:
+
+1. **Grows `AwareCount`** - people who didn't know the film exists learn
+   about it from people who've seen it. Lowest bar; nearly every released
+   film does this to some degree.
+2. **Pulls existing interest forward in time** - boosts *this week's*
+   attendance probability (`ConversionPacing`'s per-person baseline) for
+   everyone already interested and not yet converted, whether their
+   interest is old or new. The mechanism behind "everyone was already
+   planning to see it eventually, but the reaction convinced them to go
+   this weekend instead of next month" - a film suddenly exploding in week
+   2 or 3. Needs a genuinely good reaction, not just an average one.
+3. **Realizes crossover** - moves people who were never in the interested
+   pool at all into it, bounded by `CrossoverCapacity`. The
+   Everything-Everywhere/Barbie mechanic: word of mouth creating new
+   interest outright, not just informing or accelerating existing interest.
+   Needs the strongest reaction to matter - deliberately the hardest of the
+   three bars to clear.
+
+Expressed as person-level transitions: **Never Interested -> Interested**
+(effects 1 and 3, at different thresholds) and **Interested -> Going This
+Week -> Bought Ticket** (effect 2, plus ordinary `ConversionPacing`).
+
+**A release week, plain English.**
+
+*Week 1:* release-day fixed state is already locked in. `ReleaseType` +
+marketing spend seed the initial `AwareCount` in one lump. `BaseInterestFraction`
+filters that into the initial `InterestedRemaining` pool. `ConversionPacing`'s
+baseline probability determines what fraction of that pool converts this
+week - typically the run's largest single week, simply because it's the
+first chance anyone's had to act on interest that's been accumulating since
+marketing started; no separate "momentum" is needed to explain a big
+opening. After this week's viewers have actually seen the film,
+`WordOfMouthStrength` (from `AudienceScore`/`CriticScore`) determines what
+carries into week 2 - it has no effect on week 1 itself, since nobody's
+heard reactions to a film that just opened.
+
+*Every week after (week N):* first, last week's word-of-mouth effect is
+applied, before anything else - it grows `AwareCount`, pulls existing
+interest forward (boosting this week's attendance probability), and -
+bounded by `CrossoverCapacity` - realizes some crossover into
+`InterestedRemaining`. Only then does `ConversionPacing` convert a fraction
+of the *now-updated* pool into this week's tickets. Whether this week beats
+or trails last week isn't an explicit rule anywhere - it falls out of
+whether this week's word-of-mouth-driven growth outpaced the pool's natural
+depletion (the most-eager remaining people tend to convert first, so what's
+left each week skews progressively less eager, absent fresh WOM injection).
+That single piece of arithmetic is the entire mechanism for both ordinary
+decline and sleeper-hit growth. The run ends when a week's realized tickets
+(or the pending word-of-mouth effect about to be applied) drop below a
+small threshold, or a hard week cap is hit - the same stopping philosophy
+5.19's `MAX_WEEKS`/`MIN_WEEKLY_GROSS_RATIO` already uses.
+
+*At the end:* Total Gross = sum of every week's tickets x price. Legs =
+Total Gross / Opening Weekend, reported after the fact, never an input.
+
+**Why this produces the right shapes without special cases:**
+
+- **Huge opening, terrible legs**: high `MarketingEfficiency`/marketing
+  spend and a wide `ReleaseType` give a big week-1 `AwareCount` and pool; a
+  weak `AudienceScore` means low `WordOfMouthStrength`, so nothing
+  replenishes the pool afterward - pure depletion, fast collapse.
+- **Tiny opening, incredible legs**: small initial `AwareCount`
+  (Limited/Festival First), but an outstanding `AudienceScore` clears all
+  three word-of-mouth thresholds every week - awareness keeps growing,
+  existing interest keeps getting pulled forward, and crossover keeps
+  expanding the pool. Not a "sleeper hit" special case - the same three
+  effects any film has access to, just all firing strongly at once.
+- **Huge opening, huge legs**: wide reach *and* an outstanding reaction -
+  both the pool-size and replenishment mechanisms maximized together.
+- **Small, steady indie**: small `TotalAddressableAudience`/`BaseInterestFraction`
+  and a modest `AudienceScore` - a small pool converting at a slow, steady
+  `ConversionPacing`, without enough word of mouth to meaningfully expand or
+  accelerate it, but also without enough negative signal to collapse fast
+  either.
+- **Platform release**: not a mechanic at all under this design - it's what
+  a Limited release's numbers look like once word of mouth is working,
+  which falls out of the model instead of needing to be built into it.
+
+**Where competition and international markets slot in later.** Deliberately
+not designed yet, but the shape of this architecture keeps both open:
+
+- **Competition** between concurrently-running films is a natural extension
+  of the weekly conversion step: a shared "moviegoing attention" pool that
+  multiple films' `InterestedRemaining` populations draw from
+  proportionally, instead of each film converting against an uncontested
+  pool. Requires settling every currently-running film's week *jointly*
+  rather than independently (today's `settleBoxOfficeForAllFilms` maps over
+  films one at a time) - a real change, but one that slots into the same
+  weekly step rather than requiring new state categories. Notably, this
+  would have been much harder to add on top of a `Momentum`-style variable,
+  since there's no coherent notion of "shared momentum" between competing
+  films - Awareness/Interest/Tickets, being genuine population counts, are
+  the right currency to share.
+- **International markets** decompose naturally into per-market copies of
+  the same simulation - separate `TotalAddressableAudience`,
+  `BaseInterestFraction` and `AwareCount` per market (domestic vs.
+  international, or finer later), each with its own release timing, summed
+  at the end. Replaces today's single blended `STUDIO_BOX_OFFICE_SHARE`
+  constant (5.4) with real per-market simulation instead of one flat
+  multiplier. Staggered international rollout timing (a market's "week 1"
+  landing on a different calendar week than another's) needs its own small
+  follow-up design pass, not resolved here.
+
+**What deliberately isn't decided yet.** No formulas - every relationship
+above is described by its *shape* (convex, threshold-gated, bounded by a
+capacity) and *inputs*, not by weights or curves. The next design pass is
+choosing those, informed by running real film data through the Outcome
+Inspector the same way the existing Buzz curve and quality-dependency-chain
+constants were tuned.
+
+**Implementation Milestone 1: isolated types and state
+(`engine/audienceSimulation.ts`, `engine/audienceSimulation.test.ts`).**
+Domain types and validating constructors only - no wiring into the live
+game yet, and no weekly-update formulas (still "equations work," explicitly
+deferred). `state/studioReducer.ts` still runs `engine/boxOffice.ts`'s
+existing Opening Weekend/Legs model unchanged; nothing about a real game
+session is different after this milestone.
+
+- **Fixed state** (`AudienceSimulationFixedState`): `totalAddressableAudience`,
+  `baseInterestFraction`, `marketingEfficiency`, `crossoverCapacityFraction`,
+  `conversionPacingBaseline`, plus `criticScore`/`audienceScore` reused
+  verbatim from `FilmResults`' existing meaning (not duplicated behind a new
+  "reaction" concept - see the design section above). The module takes
+  these as plain numbers and doesn't import `Film`/`Script`/`ReleaseType` at
+  all - translating Marketability/Originality/Release Type into these
+  numbers is a later milestone's job, per the "Where each existing lever
+  enters the system" table above.
+- **Evolving weekly state** (`AudienceSimulationWeekState`): exactly three
+  fields - `awareCount`, `interestedRemaining`, `cumulativeTicketsSold` -
+  plus the week number. Nothing else. Validated both against its own fixed
+  state (`awareCount <= totalAddressableAudience`, `interestedRemaining <=
+  awareCount` and `<= maxInterestedAudience`, no repeat viewing so
+  `cumulativeTicketsSold <= totalAddressableAudience`) and, via
+  `createAudienceSimulationRun`, across consecutive weeks (`awareCount`/
+  `cumulativeTicketsSold` monotonically non-decreasing; `interestedRemaining`
+  deliberately *not* required to be monotonic, since it both shrinks via
+  conversion and grows via crossover).
+- **Derived, not stored**: `deriveWeeklyAdmissions` (a week's new ticket
+  buyers, from consecutive `cumulativeTicketsSold` values - never its own
+  field) and `deriveWordOfMouthActivity` (a recency-weighted lookback over
+  admissions history - the piece an earlier design draft called
+  `RecentViewershipPulse` before deciding it should be computed from the
+  already-stored weekly record rather than tracked as its own accumulator).
+  `deriveWordOfMouthActivity`'s lookback weights (`WOM_LOOKBACK_WEIGHTS`,
+  currently `[1, 0.7, 0.4, 0.2, 0.05]`) are explicitly a placeholder shape,
+  not tuned - the actual curve is equations work for a later milestone.
+  `WordOfMouthStrength` (the reception-quality half of word of mouth, a
+  function of `criticScore`/`audienceScore`) isn't built yet either, for the
+  same reason - this milestone only covers what was explicitly asked for
+  ("current WOM activity... derived from recent weekly admissions").
+- **Validation**: every constructor throws on out-of-range input rather than
+  clamping silently - negative pools, probabilities outside 0-1,
+  `NaN`/`Infinity`, `awareCount`/`interestedRemaining` exceeding their
+  bounds, and non-sequential or decreasing weekly history are all rejected
+  at construction. 37 tests (`npm run test`, Vitest - newly added as the
+  project's first test runner, `vitest.config.ts`) cover these plus the
+  "fixed state never varies by week" and "no stored word-of-mouth/momentum
+  field exists" invariants directly.
+- **Deferred to later milestones, by design**: the weekly simulation step
+  itself (how these three fields actually move), wiring into
+  `Film`/`BoxOfficeRun`/`state/studioReducer.ts`, any save-version bump
+  (nothing new is persisted yet, so none is needed), shadow-mode comparison
+  against the live model, competition, international markets, and repeat
+  viewing.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
