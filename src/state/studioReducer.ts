@@ -256,10 +256,18 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // Pre-fill Target Audience from the script's own intended audience -
       // it was written with someone in mind, so that's a better default
       // than making the player pick blind. Still fully overridable
-      // afterward via SET_TARGET_AUDIENCE.
+      // afterward via SET_TARGET_AUDIENCE. Title only pre-fills from the
+      // script's own title when the player hasn't typed a working title of
+      // their own yet - unlike Target Audience, a title the player already
+      // chose is never something a script pick should clobber.
       return {
         ...state,
-        draft: { ...state.draft, script: action.script, targetAudience: action.script.intendedAudience },
+        draft: {
+          ...state.draft,
+          script: action.script,
+          targetAudience: action.script.intendedAudience,
+          title: state.draft.title.trim() ? state.draft.title : action.script.title,
+        },
       };
     }
 
