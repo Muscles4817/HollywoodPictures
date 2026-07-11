@@ -105,6 +105,16 @@ button {
   gap: 14px;
 }
 
+/* Script/candidate cards carry a .compat-detail breakdown, which needs
+   ~300px (two 125px axes + gap + card padding) to show two columns instead
+   of falling back to one - see .compat-detail's own comment. Plain .grid
+   stays at 220px for cards with no breakdown (DifficultyPicker tiers, role
+   hub tiles) so those don't lose a column for no reason. Doubled selector
+   for specificity over .grid, independent of source order. */
+.grid.grid-wide {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
 .spacer {
   flex: 1;
 }

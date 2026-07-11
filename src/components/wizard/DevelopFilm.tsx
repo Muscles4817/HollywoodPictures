@@ -10,7 +10,16 @@ import { Money } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
 import { CompatibilityBadge } from '../common/CompatibilityBadge';
 import { toneProfileBreakdown } from '../../data/tones';
+import { dominantLean } from '../../engine/recommendation';
+import { ENV_LEAN_SHORT, EFFECTS_LEAN_SHORT } from '../../data/productionStyleLabels';
 import type { Script } from '../../types';
+
+/** Same "Leans {env}, {effects}." phrasing RoleHiringDrawer uses for a director's productionStyle - here it's the screenplay's own implied approach (Script.environmentStrategy/effectsStrategy), which Plan Production later blends with whichever director gets hired (engine/recommendation.ts, weighted 65/35 toward the script). Surfacing it here lets a player pick a script and director that actually agree, instead of discovering the tension after the fact. */
+function describeScriptProductionLean(script: Script): string {
+  const env = dominantLean(script.environmentStrategy);
+  const fx = dominantLean(script.effectsStrategy);
+  return `Leans ${ENV_LEAN_SHORT[env.key]}, ${EFFECTS_LEAN_SHORT[fx.key]}`;
+}
 
 /** The stat block + tone breakdown shared between a script's grid card and its comparison-panel slot - title is left to each call site since the two show it differently. */
 function ScriptDetails({ script }: { script: Script }) {
@@ -28,6 +37,7 @@ function ScriptDetails({ script }: { script: Script }) {
         <div>Leads: {script.requiredLeads}</div>
         <div>Supporting Roles: {script.requiredSupporting}</div>
         <div>Written For: {script.intendedAudience}</div>
+        <div>Production Style: {describeScriptProductionLean(script)}</div>
       </div>
       <CompatibilityBadge breakdown={toneProfileBreakdown(script.toneProfile)} />
     </>
@@ -115,7 +125,7 @@ export function DevelopFilm() {
               Supporting roles you'll need to cast, and suggests a Target Audience below. Pin up to two scripts to
               compare them side by side.
             </p>
-            <div className="grid">
+            <div className="grid grid-wide">
               {draft.scriptOptions.map((script) => {
                 const selected = draft.script?.id === script.id;
                 const affordable = state.studio.cash >= script.cost;

@@ -9,13 +9,14 @@ import { formatGameDate } from '../../engine/calendar';
 import { computeTalentCompatibility } from '../../engine/compatibility';
 import { dominantLean } from '../../engine/recommendation';
 import { toneProfileBreakdown } from '../../data/tones';
+import { ENV_LEAN_SHORT, EFFECTS_LEAN_SHORT } from '../../data/productionStyleLabels';
 import { ACTING_STYLE_AXES, ACTING_STYLE_LABELS } from '../../data/actingStyle';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
 import { Money, formatMoney } from '../common/Money';
 import { CompatibilityBadge } from '../common/CompatibilityBadge';
-import type { CrewTalent, DirectorTalent, EffectsMethodKey, EnvironmentMethodKey, Script, Talent, TalentRole } from '../../types';
+import type { CrewTalent, DirectorTalent, Script, Talent, TalentRole } from '../../types';
 
 const VFX_RECOMMENDED_GENRES = new Set(['Action', 'Sci-Fi', 'Fantasy']);
 const VISIBLE_CANDIDATE_COUNT = 9;
@@ -24,9 +25,6 @@ const MAX_PINNED = 2;
 // auto-closes and returns the player to the hub - long enough to register
 // as confirmation, short enough that it still feels immediate.
 const AUTO_CLOSE_DELAY_MS = 500;
-
-const ENV_LEAN_SHORT: Record<EnvironmentMethodKey, string> = { studio: 'studio', location: 'location', digital: 'digital worldbuilding' };
-const EFFECTS_LEAN_SHORT: Record<EffectsMethodKey, string> = { practical: 'practical effects', digital: 'digital effects' };
 
 /** Director and crew roles have a plain Skill rating; Actors don't (see types/index.ts). */
 function hasSkill(t: Talent): t is DirectorTalent | CrewTalent {
@@ -243,7 +241,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
         </span>
         {showVfxHint && <p style={{ margin: 0 }}>This genre benefits strongly from VFX - consider hiring a supervisor.</p>}
 
-        <div className="grid">
+        <div className="grid grid-wide">
           {displayList.map((talent) => {
             const selected = hired.some((h) => h.id === talent.id);
             const booked = !selected && !!talent.bookedUntil && talent.bookedUntil > state.studio.totalDays;
