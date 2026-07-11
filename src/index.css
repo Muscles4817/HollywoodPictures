@@ -15,6 +15,12 @@
   --track-bg: #e7e9ed;
   --info-bg: #eef2fb;
   --star: #c8871e;
+  /* Single source of truth for how much top clearance #root and
+     .wizard-header-sticky both need to sit below the fixed DateBar/
+     ThemeToggle row - one variable so a narrower mobile version of that
+     row (see the phone breakpoint near the end of this file) only needs
+     to change in one place and both stay in sync automatically. */
+  --header-clearance: 72px;
 }
 
 :root[data-theme='dark'] {
@@ -47,7 +53,7 @@ body {
 #root {
   /* Top padding clears the fixed DateBar/ThemeToggle below, which would
      otherwise render on top of (and obscure) a screen's opening heading. */
-  padding: 72px 20px 80px;
+  padding: var(--header-clearance) 20px 80px;
 }
 
 h1, h2, h3 {
@@ -309,35 +315,6 @@ button {
 .script-reference-panel {
   position: sticky;
   top: 130px;
-}
-
-@media (max-width: 900px) {
-  .develop-compare-layout,
-  .hire-layout,
-  .hire-layout-comparing {
-    grid-template-columns: 1fr;
-  }
-
-  .compare-panel,
-  .script-reference-panel {
-    position: static;
-  }
-
-  .compare-slots-double {
-    grid-template-columns: 1fr;
-  }
-
-  .dashboard-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .dashboard-right-rail {
-    position: static;
-  }
-
-  .event-decision-layout {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* --- Dashboard layout: main column + a sticky Top 10 rail on the right --- */
@@ -761,7 +738,7 @@ button {
   position: sticky;
   /* Matches #root's top padding so this sticks below the fixed DateBar/
      ThemeToggle instead of scrolling up underneath them. */
-  top: 72px;
+  top: var(--header-clearance);
   z-index: 40;
   background: var(--bg);
   padding-bottom: 10px;
@@ -1075,4 +1052,169 @@ textarea, input, select {
   left: 50%;
   transform: translateX(-50%);
   z-index: 50;
+}
+
+/* --- Narrower viewports (tablets and phones): collapse every fixed-plus-
+   1fr layout grid to a single column, and un-stick the rails/panels that
+   only make sense as a sidebar when there's a sidebar's worth of width.
+   Deliberately placed here, at the very end of the file, rather than up
+   near where .dashboard-layout/.event-decision-layout are defined - CSS
+   resolves equal-specificity conflicts by source order, so a media query
+   placed *before* the unconditional rule it's meant to override loses to
+   it every time the query matches, silently. That's exactly what had
+   happened here: this block used to sit earlier in the file, and both
+   .dashboard-layout/.dashboard-right-rail (defined later, in the Dashboard
+   layout section) and .event-decision-layout (defined later still, in the
+   on-set event section) were quietly never collapsing on mobile - the
+   dashboard's Top 10/Rival Studios rail was rendering on top of the main
+   column instead of stacking below it. Found by actually looking at a
+   375px screenshot, not by reasoning about the CSS. Keeping every
+   responsive override down here from now on avoids this class of bug by
+   construction - nothing defined above this point in the file can ever
+   out-order it again. */
+@media (max-width: 900px) {
+  .develop-compare-layout,
+  .hire-layout,
+  .hire-layout-comparing {
+    grid-template-columns: 1fr;
+  }
+
+  .compare-panel,
+  .script-reference-panel {
+    position: static;
+  }
+
+  .compare-slots-double {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-right-rail {
+    position: static;
+  }
+
+  .event-decision-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Mobile web (phones, not tablets - the 900px breakpoint
+   above already handles collapsing the wider two/three-column layouts to
+   one column; everything below is specifically about a narrow phone
+   viewport, and only ever adds new rules or shrinks existing chrome inside
+   this query - nothing outside it changes, so desktop is untouched). ---
+   DateBar + ThemeToggle + the dev toggle all share the same fixed y=16px
+   row (see the comments above) - that row was only ever measured to be
+   safe at desktop widths. On a phone the dev toggle (a developer-only
+   button with a long label, see components/dev/RecommendationInspector.tsx)
+   is the first thing to give: it's never meant to be used from a phone
+   anyway, and removing it is what actually resolves the three-way
+   collision, rather than trying to shrink all three into an ever-smaller
+   space. */
+@media (max-width: 640px) {
+  :root {
+    --header-clearance: 60px;
+  }
+
+  #root {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .dev-inspector-toggle-fixed {
+    display: none;
+  }
+
+  .date-bar {
+    padding: 6px 10px;
+    font-size: 0.78em;
+  }
+
+  .theme-toggle-fixed .btn {
+    padding: 6px 10px;
+    font-size: 0.85em;
+  }
+
+  .wizard-step {
+    padding: 4px 8px;
+    font-size: 0.72em;
+  }
+
+  /* The single biggest mobile space problem: .wizard-header-sticky (step
+     nav + BudgetTracker's 3 stat tiles) and .plan-consequence-strip both
+     stay pinned to the viewport permanently at desktop widths, which is
+     fine there - there's room to spare. On a ~650px-tall phone viewport,
+     a wrapped 7-step nav plus a wrapped 3-tile budget row can easily eat
+     100-160px that never goes away no matter how far the player scrolls,
+     on top of a second sticky bar doing the same thing at the bottom of
+     Plan Production specifically. Un-stick both here - they scroll away
+     normally instead, and the player can still scroll up to check them.
+     Deliberately keeping .sticky-footer itself sticky below (just leaner)
+     rather than un-sticking everything - reaching Back/Continue without
+     hunting for it at the bottom of a long page is worth more than
+     ambient progress/budget visibility is. */
+  .wizard-header-sticky,
+  .plan-consequence-strip {
+    position: static;
+  }
+
+  .sticky-footer {
+    padding-top: 8px;
+    padding-bottom: 10px;
+  }
+
+  .sticky-footer .stat-value {
+    font-size: 1.1em;
+  }
+
+  .modal-content {
+    padding: 16px;
+  }
+
+  .role-drawer {
+    padding: 16px;
+  }
+
+  .score-bar-label {
+    width: 96px;
+  }
+}
+
+/* --- Touch targets (any device whose primary pointer is coarse - touch,
+   not a mouse/trackpad) - viewport-width-independent on purpose, since a
+   touch-enabled laptop at a wide viewport has the exact same precision
+   problem a phone does, and a narrow-but-mouse-driven window (someone just
+   resizing a desktop browser) doesn't. Desktop mouse/trackpad users match
+   `pointer: fine` and never see any of this. */
+@media (pointer: coarse) {
+  /* The Plan Production distribution divider's visible hit area is a
+     precise 14px, fine for a mouse cursor but well under any touch-target
+     guideline - widened here without touching its visual width (still a
+     thin 3px line, see .distribution-divider::after), just the invisible
+     draggable area around it. */
+  .distribution-divider {
+    width: 40px;
+    margin-left: -20px;
+  }
+
+  .btn {
+    padding: 10px 18px;
+  }
+
+  .btn-sm {
+    padding: 8px 14px;
+  }
+
+  .tier-slider::-webkit-slider-thumb {
+    width: 28px;
+    height: 28px;
+  }
+
+  .tier-slider::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+  }
 }
