@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   advanceOneWeek,
   advanceToWeek,
+  advanceOneWeekWithDiagnostics,
+  advanceToWeekWithDiagnostics,
   hasSimulationEnded,
   computeCurrentWomInfluence,
   computeReceptionResponseMultiplier,
@@ -364,6 +366,74 @@ describe('probabilities and monetary/audience outputs stay valid', () => {
       expect(Number.isFinite(week.awareCount)).toBe(true);
       expect(Number.isFinite(week.interestedRemaining)).toBe(true);
       expect(Number.isFinite(week.cumulativeTicketsSold)).toBe(true);
+    }
+  });
+});
+
+describe('week diagnostics (Milestone 4)', () => {
+  it('advanceOneWeekWithDiagnostics.next is identical to advanceOneWeek - one implementation, not two that could drift', () => {
+    const f = fixed();
+    let weeks: AudienceSimulationWeekState[] = [];
+    for (let i = 0; i < 5; i++) {
+      const viaPlain = advanceOneWeek(f, weeks);
+      const { next: viaDiagnostics } = advanceOneWeekWithDiagnostics(f, weeks);
+      expect(viaDiagnostics).toEqual(viaPlain);
+      weeks = [...weeks, viaPlain];
+    }
+  });
+
+  it('advanceToWeekWithDiagnostics.weeks is identical to advanceToWeek, and diagnostics has exactly one entry per week', () => {
+    const f = fixed({ totalAddressableAudience: 5_000_000, initialAwareCount: 1_000_000, criticScore: 92, audienceScore: 90, crossoverCapacityFraction: 0.3, baseInterestFraction: 0.2 });
+    const plain = advanceToWeek(f, [], MAX_SIMULATION_WEEKS);
+    const { weeks, diagnostics } = advanceToWeekWithDiagnostics(f, [], MAX_SIMULATION_WEEKS);
+    expect(weeks).toEqual(plain);
+    expect(diagnostics).toHaveLength(weeks.length);
+    diagnostics.forEach((d, i) => expect(d.week).toBe(i + 1));
+  });
+
+  it("each week's diagnostics are internally consistent with the week state they describe", () => {
+    const f = fixed({ initialAwareCount: 300_000, criticScore: 88, audienceScore: 90 });
+    const { weeks, diagnostics } = advanceToWeekWithDiagnostics(f, [], 10);
+    let previous: AudienceSimulationWeekState = { week: 0, awareCount: 0, interestedRemaining: 0, cumulativeTicketsSold: 0 };
+    for (let i = 0; i < weeks.length; i++) {
+      const week = weeks[i];
+      const d = diagnostics[i];
+      expect(d.totalAddressableAudience).toBe(f.totalAddressableAudience);
+      expect(d.awareCount).toBe(week.awareCount);
+      expect(d.interestedRemaining).toBe(week.interestedRemaining);
+      expect(d.cumulativeTicketsSold).toBe(week.cumulativeTicketsSold);
+      // The three awareness sources sum to the total, and the total matches the actual week-over-week awareCount change.
+      expect(d.newlyAwareFromReleaseDaySeed + d.newlyAwareFromExternal + d.newlyAwareFromWom).toBeCloseTo(d.newlyAware, 6);
+      expect(d.newlyAware).toBeCloseTo(week.awareCount - previous.awareCount, 6);
+      // Weekly admissions matches the actual cumulative delta.
+      expect(d.weeklyAdmissions).toBeCloseTo(week.cumulativeTicketsSold - previous.cumulativeTicketsSold, 6);
+      // The release-day seed only ever contributes on week 1.
+      if (week.week > 1) expect(d.newlyAwareFromReleaseDaySeed).toBe(0);
+      // Probabilities stay in range, and the final probability is never below the baseline (pull-forward only ever adds).
+      expect(d.baselineAttendanceProbability).toBe(f.conversionPacingBaseline);
+      expect(d.finalAttendanceProbability).toBeGreaterThanOrEqual(d.baselineAttendanceProbability - 1e-9);
+      expect(d.finalAttendanceProbability).toBeLessThanOrEqual(1);
+      expect(d.womPullForwardBoost).toBeGreaterThanOrEqual(0);
+      expect(d.womPullForwardBoost).toBeLessThanOrEqual(1);
+      expect(d.newInterestCreated).toBeGreaterThanOrEqual(0);
+      expect(d.crossoverInterestCreated).toBeGreaterThanOrEqual(0);
+      previous = week;
+    }
+  });
+
+  it('with zero crossover capacity, crossoverInterestCreated can only ever mop up leftover natural-ceiling headroom step 5 did not use this same week - it can never push interestedRemaining past the natural ceiling', () => {
+    // crossoverCapacityFraction: 0 collapses deriveWomCrossoverExpansion's own
+    // ceiling to exactly the natural ceiling (maxInterestedAudience = baseInterestFraction
+    // * totalAddressableAudience when capacity is 0), so step 6 can still report a
+    // nonzero same-week contribution if step 5 did not fully exhaust that shared
+    // headroom first - what Milestone 2's own test already guarantees is the
+    // *total* never exceeding the natural ceiling, not that step 6's own figure is
+    // always literally 0.
+    const f = fixed({ crossoverCapacityFraction: 0, baseInterestFraction: 0.3, criticScore: 99, audienceScore: 99 });
+    const naturalCeiling = f.baseInterestFraction * f.totalAddressableAudience;
+    const { weeks } = advanceToWeekWithDiagnostics(f, [], MAX_SIMULATION_WEEKS);
+    for (const week of weeks) {
+      expect(week.interestedRemaining).toBeLessThanOrEqual(naturalCeiling + 1e-6);
     }
   });
 });

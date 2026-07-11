@@ -1,0 +1,555 @@
+import { useState } from 'react';
+import { useStudio } from '../../state/StudioContext';
+import { GENRES } from '../../data/genres';
+import { TARGET_AUDIENCES } from '../../data/audiences';
+import { TONES, TONE_LABELS } from '../../data/tones';
+import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../../data/postProduction';
+import { RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS, MARKETING_SPEND_RANGE } from '../../data/release';
+import { CONTINGENCY_RANGE, SET_QUALITY_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../../data/production';
+import { computeLegs, computeWeeklyRetention, projectTotalGross, STUDIO_BOX_OFFICE_SHARE } from '../../engine/boxOffice';
+import { computeReleaseResults } from '../../engine/releaseFilm';
+import { determineOutcome } from '../../engine/outcome';
+import { computeReputationChange } from '../../engine/reputation';
+import { createRng } from '../../engine/random';
+import type { ComparisonScenario } from '../../engine/audienceSimulationReporting';
+import { Button } from '../common/Button';
+import { Money } from '../common/Money';
+import { SeverityBadge } from '../common/SeverityBadge';
+import { AudienceSimulationDiagnostics } from './AudienceSimulationDiagnostics';
+import { ModelComparisonPanel } from './ModelComparisonPanel';
+import type {
+  DirectorTalent,
+  EditStyle,
+  Film,
+  FinalCutFocus,
+  Genre,
+  MarketingChoices,
+  MusicFocus,
+  PostProductionChoices,
+  ProductionChoices,
+  ProductionEvent,
+  ReleaseType,
+  ReleaseWindow,
+  Script,
+  Talent,
+  TargetAudience,
+  TestScreeningResponse,
+  Tone,
+} from '../../types';
+
+// Developer-only tool: loads a real film from Studio History, lets the
+// player tweak any single input (a script stat, a talent's fame, a
+// production dial, ...) and see how it moves the ratings/box office outcome
+// - built on the exact same pure scoring/box-office functions the real game
+// uses (engine/scoring.ts, engine/boxOffice.ts, engine/outcome.ts,
+// engine/reputation.ts), just on a locally-editable copy of one film's
+// inputs, so it can never drift from real game behavior. See docs/DESIGN.md.
+//
+// Crew roles (Writer/Cinematographer/Composer/Editor/VFX Supervisor) and
+// per-talent toneProfile/actingStyle aren't exposed - verified against
+// scoring.ts that no score/box-office formula reads them today. Script's
+// own toneProfile is exposed instead, and covers compatibility for every
+// hired talent at once (computeTalentCompatibility derives it fresh from
+// script.toneProfile vs. each talent's own tone/acting style, so this still
+// exercises that path).
+
+const EDIT_STYLES = Object.keys(EDIT_STYLE_PROFILES) as EditStyle[];
+const MUSIC_FOCI = Object.keys(MUSIC_FOCUS_PROFILES) as MusicFocus[];
+const TEST_SCREENING_RESPONSES = Object.keys(TEST_SCREENING_PROFILES) as TestScreeningResponse[];
+const FINAL_CUT_FOCI = Object.keys(FINAL_CUT_FOCUS_PROFILES) as FinalCutFocus[];
+const RELEASE_TYPES = Object.keys(RELEASE_TYPE_PROFILES) as ReleaseType[];
+const RELEASE_WINDOWS = Object.keys(RELEASE_WINDOW_GENRE_BONUS) as ReleaseWindow[];
+
+// A synthetic single-line placeholder for the two aggregate event-impact
+// sliders below - only qualityDelta/buzzDelta actually reach any formula
+// (computeEventsScore/computeBuzzScore), the rest exist purely to satisfy
+// ProductionEvent's shape.
+function syntheticEvent(qualityDelta: number, buzzDelta: number): ProductionEvent {
+  return { id: 'synthetic', description: 'Aggregate event impact (Outcome Inspector)', severity: 'medium', costDelta: 0, qualityDelta, buzzDelta, delayDaysDelta: 0 };
+}
+
+function SliderRow({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  onChange,
+  formatValue,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  onChange: (value: number) => void;
+  formatValue?: (value: number) => string;
+}) {
+  return (
+    <div className="row-between" style={{ gap: 12 }}>
+      <span className="score-bar-label" style={{ flexShrink: 0 }}>{label}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        style={{ flex: 1 }}
+        aria-label={label}
+      />
+      <span style={{ width: 90, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+        {formatValue ? formatValue(value) : Math.round(value)}
+      </span>
+    </div>
+  );
+}
+
+function SelectRow<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: T[]; onChange: (value: T) => void }) {
+  return (
+    <div className="row-between">
+      <span className="score-bar-label">{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value as T)}>
+        {options.map((o) => (
+          <option key={o} value={o}>{o}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/** One score's original-vs-current comparison, with the delta called out. */
+function CompareScoreRow({ label, original, current }: { label: string; original: number; current: number }) {
+  const delta = current - original;
+  return (
+    <div className="row-between">
+      <span className="score-bar-label">{label}</span>
+      <span className="row" style={{ gap: 10 }}>
+        <span style={{ color: 'var(--text-muted)' }}>{Math.round(original)}</span>
+        <span>→</span>
+        <span style={{ fontWeight: 700 }}>{Math.round(current)}</span>
+        {Math.round(delta) !== 0 && (
+          <span style={{ color: delta > 0 ? 'var(--green)' : 'var(--red)' }}>
+            ({delta > 0 ? '+' : ''}{Math.round(delta)})
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
+
+function CompareMoneyRow({ label, original, current }: { label: string; original: number; current: number }) {
+  const delta = current - original;
+  return (
+    <div className="row-between">
+      <span className="score-bar-label">{label}</span>
+      <span className="row" style={{ gap: 10 }}>
+        <span style={{ color: 'var(--text-muted)' }}><Money amount={original} /></span>
+        <span>→</span>
+        <span style={{ fontWeight: 700 }}><Money amount={current} /></span>
+        {Math.round(delta) !== 0 && (
+          <span style={{ color: delta > 0 ? 'var(--green)' : 'var(--red)' }}>
+            (<Money amount={delta} showSign />)
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
+
+export function OutcomeInspector() {
+  const { state } = useStudio();
+  const filmsReleased = state.studio.filmsReleased;
+
+  const [filmId, setFilmId] = useState<string | null>(filmsReleased[0]?.id ?? null);
+  const selectedFilm = filmsReleased.find((f) => f.id === filmId) ?? null;
+
+  // The full editable working copy - seeded from the selected film on load
+  // (see loadFilm), independent of it afterward so tweaking never touches
+  // real save data.
+  const [genre, setGenre] = useState<Genre>('Action');
+  const [targetAudience, setTargetAudience] = useState<TargetAudience>('Mass Market');
+  const [script, setScript] = useState<Script | null>(null);
+  const [talent, setTalent] = useState<Talent[]>([]);
+  const [productionChoices, setProductionChoices] = useState<ProductionChoices | null>(null);
+  const [postProductionChoices, setPostProductionChoices] = useState<PostProductionChoices | null>(null);
+  const [marketingChoices, setMarketingChoices] = useState<MarketingChoices | null>(null);
+  const [studioReputation, setStudioReputation] = useState(50);
+  const [shootingRatio, setShootingRatio] = useState(1);
+  const [eventQualityDelta, setEventQualityDelta] = useState(0);
+  const [eventBuzzDelta, setEventBuzzDelta] = useState(0);
+  // Seeds computeOpeningWeekend's variance roll - recreated fresh from this
+  // seed every render (not advanced), so dragging an unrelated slider never
+  // jitters the opening-weekend number; only loading a film or hitting
+  // "Reroll Variance" changes it.
+  const [varianceSeed, setVarianceSeed] = useState(() => Date.now());
+
+  function loadFilm(film: Film) {
+    setFilmId(film.id);
+    setGenre(film.genre);
+    setTargetAudience(film.targetAudience);
+    setScript(film.script);
+    setTalent(film.talent);
+    setProductionChoices(film.productionChoices);
+    setPostProductionChoices(film.postProductionChoices);
+    setMarketingChoices(film.marketingChoices);
+    setStudioReputation(state.studio.reputation);
+    setShootingRatio(1);
+    const evQuality = film.events.reduce((sum, e) => sum + e.qualityDelta, 0);
+    const evBuzz = film.events.reduce((sum, e) => sum + e.buzzDelta, 0);
+    setEventQualityDelta(evQuality);
+    setEventBuzzDelta(evBuzz);
+    setVarianceSeed(Date.now());
+  }
+
+  function updateScript<K extends keyof Script>(key: K, value: Script[K]) {
+    setScript((s) => (s ? { ...s, [key]: value } : s));
+  }
+  function updateTone(tone: Tone, value: number) {
+    setScript((s) => (s ? { ...s, toneProfile: { ...s.toneProfile, [tone]: value } } : s));
+  }
+  function updateDirector<K extends keyof DirectorTalent>(key: K, value: DirectorTalent[K]) {
+    setTalent((t) => t.map((m) => (m.role === 'Director' ? { ...m, [key]: value } : m)));
+  }
+  function updateGroupFame(role: 'Lead Actor' | 'Supporting Actor', value: number) {
+    setTalent((t) => t.map((m) => (m.role === role ? { ...m, fame: value } : m)));
+  }
+
+  if (filmsReleased.length === 0) {
+    return (
+      <div className="stack">
+        <h1 style={{ margin: 0 }}>Box Office &amp; Ratings Inspector</h1>
+        <p style={{ color: 'var(--text-muted)' }}>
+          No released films yet - release one first, then come back here to experiment with what moves its outcome.
+        </p>
+      </div>
+    );
+  }
+
+  if (!selectedFilm || !script || !productionChoices || !postProductionChoices || !marketingChoices) {
+    // First mount, or a film hasn't been explicitly loaded yet.
+    return (
+      <div className="stack">
+        <h1 style={{ margin: 0 }}>Box Office &amp; Ratings Inspector</h1>
+        <div className="row">
+          <select value={filmId ?? ''} onChange={(e) => {
+            const f = filmsReleased.find((x) => x.id === e.target.value);
+            if (f) loadFilm(f);
+          }}>
+            <option value="" disabled>Load a film from Studio History...</option>
+            {filmsReleased.map((f) => (
+              <option key={f.id} value={f.id}>{f.title}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+    );
+  }
+
+  const director = talent.find((t): t is DirectorTalent => t.role === 'Director');
+  const leadCount = talent.filter((t) => t.role === 'Lead Actor').length;
+  const supportCount = talent.filter((t) => t.role === 'Supporting Actor').length;
+  const leadFame = talent.find((t) => t.role === 'Lead Actor')?.fame ?? 0;
+  const supportFame = talent.find((t) => t.role === 'Supporting Actor')?.fame ?? 0;
+
+  const events = [syntheticEvent(eventQualityDelta, eventBuzzDelta)];
+
+  // Runs the exact same orchestration RELEASE_FILM does (state/studioReducer.ts)
+  // against the editable working copy - quality/critic/audience/buzz,
+  // opening weekend, and total cost all come back from this one call, so
+  // there's no separate formula-by-formula reimplementation to drift out of
+  // sync. photographyCost is approximated as 0 - not tracked on Film (not
+  // preserved from the original release), and it doesn't affect any rating,
+  // only nudges the profit figure below.
+  const rng = createRng(varianceSeed);
+  const { results, legs } = computeReleaseResults(
+    {
+      title: selectedFilm.title,
+      genre,
+      targetAudience,
+      script,
+      talent,
+      productionChoices,
+      postProductionChoices,
+      marketingChoices,
+      events,
+      photographyCost: 0,
+      shootingRatio,
+      studioReputation,
+    },
+    rng,
+  );
+
+  const retention = computeWeeklyRetention(legs);
+  const projectedTotalGross = projectTotalGross(results.openingWeekend, retention);
+  const studioRevenue = Math.round(projectedTotalGross * STUDIO_BOX_OFFICE_SHARE);
+  const profit = studioRevenue - results.totalCost;
+  const outcome = determineOutcome(profit, results.totalCost, results.qualityScore, results.criticScore, results.audienceScore);
+  const reputationChange = computeReputationChange(outcome, results.criticScore);
+
+  const original = selectedFilm.results;
+  // A finished run's totalBoxOffice is already known exactly; a still-running
+  // one (or one whose exact figure we don't want to rely on for this
+  // comparison) gets the same deterministic projection as the working copy,
+  // from the original film's own real legs.
+  const originalProjectedTotalGross =
+    original.totalBoxOffice ??
+    projectTotalGross(original.openingWeekend, computeWeeklyRetention(computeLegs(original.criticScore, original.audienceScore, marketingChoices.releaseType)));
+
+  // Milestone 4: this film's inputs, translated into the new audience
+  // simulation's shape - reuses results.criticScore/audienceScore/buzzScore
+  // (already computed above by the exact same computeReleaseResults call
+  // driving the old-model card) rather than recomputing reception, the same
+  // "reused, not recomputed" principle Milestone 1 established for
+  // AudienceSimulationFixedState.criticScore/audienceScore.
+  const thisFilmScenario: Omit<ComparisonScenario, 'releaseType'> & { releaseType: typeof marketingChoices.releaseType } = {
+    name: selectedFilm.title,
+    description: 'The working copy above.',
+    buzzScore: results.buzzScore,
+    marketingSpend: marketingChoices.marketingSpend,
+    scriptMarketability: script.marketability,
+    scriptOriginality: script.originality,
+    scriptIntendedAudience: script.intendedAudience,
+    targetAudience,
+    genre,
+    releaseWindow: marketingChoices.releaseWindow,
+    releaseType: marketingChoices.releaseType,
+    criticScore: results.criticScore,
+    audienceScore: results.audienceScore,
+  };
+
+  return (
+    <div className="stack">
+      <div>
+        <h1 style={{ margin: 0 }}>Box Office &amp; Ratings Inspector</h1>
+        <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+          Developer tool - runs the real scoring/box-office functions against an editable copy of a real film's
+          inputs. Doesn't touch save data.
+        </p>
+      </div>
+
+      <div className="row" style={{ alignItems: 'center' }}>
+        <select value={filmId ?? ''} onChange={(e) => {
+          const f = filmsReleased.find((x) => x.id === e.target.value);
+          if (f) loadFilm(f);
+        }}>
+          {filmsReleased.map((f) => (
+            <option key={f.id} value={f.id}>{f.title}</option>
+          ))}
+        </select>
+        <Button onClick={() => loadFilm(selectedFilm)}>Reset to Original</Button>
+        <Button onClick={() => setVarianceSeed(Date.now())}>Reroll Opening Weekend Variance</Button>
+      </div>
+
+      <div className="row">
+        <div className="card stack" style={{ flex: 1 }}>
+          <h2 style={{ margin: 0 }}>Ratings - Original → Current</h2>
+          <CompareScoreRow label="Quality Score" original={original.qualityScore} current={results.qualityScore} />
+          <CompareScoreRow label="Critic Score" original={original.criticScore} current={results.criticScore} />
+          <CompareScoreRow label="Audience Score" original={original.audienceScore} current={results.audienceScore} />
+          <CompareScoreRow label="Buzz Score" original={original.buzzScore} current={results.buzzScore} />
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+            <p className="choice-description" style={{ margin: '0 0 8px' }}>Department breakdown</p>
+            <CompareScoreRow label="Screenplay" original={original.scriptScore} current={results.scriptScore} />
+            <CompareScoreRow label="Direction" original={original.directionScore} current={results.directionScore} />
+            <CompareScoreRow label="Acting" original={original.actingScore} current={results.actingScore} />
+            <CompareScoreRow label="Production" original={original.productionScore} current={results.productionScore} />
+            <CompareScoreRow label="Post-Production" original={original.postProductionScore} current={results.postProductionScore} />
+            <CompareScoreRow label="On-Set Events" original={original.eventsScore} current={results.eventsScore} />
+          </div>
+        </div>
+
+        <div className="card stack" style={{ flex: 1 }}>
+          <h2 style={{ margin: 0 }}>Box Office - Original → Current</h2>
+          <CompareMoneyRow label="Opening Weekend" original={original.openingWeekend} current={results.openingWeekend} />
+          <div className="row-between">
+            <span className="score-bar-label">Legs</span>
+            <span>{legs.toFixed(2)}x</span>
+          </div>
+          <CompareMoneyRow label="Projected Total Gross" original={originalProjectedTotalGross} current={projectedTotalGross} />
+          <CompareMoneyRow label="Total Cost" original={original.totalCost} current={results.totalCost} />
+          <CompareMoneyRow label="Profit / Loss" original={original.profit ?? 0} current={profit} />
+          <div className="row-between">
+            <span className="score-bar-label">Outcome</span>
+            <span className="row" style={{ gap: 8 }}>
+              {original.outcome && <span className={`badge badge-outcome-${original.outcome.replace(/\s+/g, '-')}`}>{original.outcome}</span>}
+              <span>→</span>
+              <span className={`badge badge-outcome-${outcome.replace(/\s+/g, '-')}`}>{outcome}</span>
+            </span>
+          </div>
+          <div className="row-between">
+            <span className="score-bar-label">Reputation Change</span>
+            <span>{original.reputationChange ?? 0} → {reputationChange}</span>
+          </div>
+        </div>
+      </div>
+
+      <AudienceSimulationDiagnostics
+        releaseType={marketingChoices.releaseType}
+        buzzScore={results.buzzScore}
+        marketingSpend={marketingChoices.marketingSpend}
+        scriptMarketability={script.marketability}
+        scriptOriginality={script.originality}
+        scriptIntendedAudience={script.intendedAudience}
+        targetAudience={targetAudience}
+        genre={genre}
+        releaseWindow={marketingChoices.releaseWindow}
+        criticScore={results.criticScore}
+        audienceScore={results.audienceScore}
+      />
+
+      <ModelComparisonPanel thisFilmScenario={thisFilmScenario} />
+
+      <div className="card stack">
+        <h2 style={{ margin: 0 }}>Script</h2>
+        <SliderRow label="Genre Fit" value={script.genreFit} min={0} max={100} onChange={(v) => updateScript('genreFit', v)} />
+        <SliderRow label="Originality" value={script.originality} min={0} max={100} onChange={(v) => updateScript('originality', v)} />
+        <SliderRow label="Structure" value={script.structure} min={0} max={100} onChange={(v) => updateScript('structure', v)} />
+        <SliderRow label="Dialogue" value={script.dialogue} min={0} max={100} onChange={(v) => updateScript('dialogue', v)} />
+        <SliderRow label="Marketability" value={script.marketability} min={0} max={100} onChange={(v) => updateScript('marketability', v)} />
+        <SliderRow label="Complexity" value={script.complexity} min={0} max={100} onChange={(v) => updateScript('complexity', v)} />
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+          <p className="choice-description" style={{ margin: '0 0 8px' }}>
+            Tone Profile - drives every hired talent's compatibility with this script
+          </p>
+          {TONES.map((tone) => (
+            <SliderRow key={tone} label={TONE_LABELS[tone]} value={script.toneProfile[tone]} min={0} max={100} onChange={(v) => updateTone(tone, v)} />
+          ))}
+        </div>
+        <SelectRow label="Genre" value={genre} options={GENRES} onChange={setGenre} />
+        <SelectRow label="Target Audience" value={targetAudience} options={TARGET_AUDIENCES} onChange={setTargetAudience} />
+      </div>
+
+      <div className="card stack">
+        <h2 style={{ margin: 0 }}>Cast</h2>
+        {director ? (
+          <>
+            <SliderRow label="Director Skill" value={director.skill} min={0} max={100} onChange={(v) => updateDirector('skill', v)} />
+            <SliderRow label="Director Fame" value={director.fame} min={0} max={100} onChange={(v) => updateDirector('fame', v)} />
+          </>
+        ) : (
+          <p style={{ margin: 0, color: 'var(--text-muted)' }}>No director on this film.</p>
+        )}
+        {leadCount > 0 ? (
+          <SliderRow label={`Lead Fame (all ${leadCount})`} value={leadFame} min={0} max={100} onChange={(v) => updateGroupFame('Lead Actor', v)} />
+        ) : (
+          <p style={{ margin: 0, color: 'var(--text-muted)' }}>No lead actors on this film.</p>
+        )}
+        {supportCount > 0 ? (
+          <SliderRow label={`Supporting Fame (all ${supportCount})`} value={supportFame} min={0} max={100} onChange={(v) => updateGroupFame('Supporting Actor', v)} />
+        ) : (
+          <p style={{ margin: 0, color: 'var(--text-muted)' }}>No supporting actors on this film.</p>
+        )}
+        <p className="choice-description" style={{ margin: 0 }}>
+          Crew roles (Writer/Cinematographer/Composer/Editor/VFX Supervisor) don't feed any rating or box-office
+          formula today, so they're not shown here.
+        </p>
+      </div>
+
+      <div className="card stack">
+        <h2 style={{ margin: 0 }}>Production Budget</h2>
+        <SliderRow
+          label="Contingency Reserve"
+          value={productionChoices.contingencyAmount}
+          min={CONTINGENCY_RANGE.min}
+          max={CONTINGENCY_RANGE.max}
+          step={1000}
+          formatValue={(v) => `$${Math.round(v).toLocaleString()}`}
+          onChange={(v) => setProductionChoices({ ...productionChoices, contingencyAmount: v })}
+        />
+        <SliderRow
+          label="Set Quality"
+          value={productionChoices.setQualityAmount}
+          min={SET_QUALITY_RANGE.min}
+          max={SET_QUALITY_RANGE.max}
+          step={1000}
+          formatValue={(v) => `$${Math.round(v).toLocaleString()}`}
+          onChange={(v) => setProductionChoices({ ...productionChoices, setQualityAmount: v })}
+        />
+        <SliderRow
+          label="Practical Effects"
+          value={productionChoices.practicalEffectsAmount}
+          min={PRACTICAL_EFFECTS_RANGE.min}
+          max={PRACTICAL_EFFECTS_RANGE.max}
+          step={1000}
+          formatValue={(v) => `$${Math.round(v).toLocaleString()}`}
+          onChange={(v) => setProductionChoices({ ...productionChoices, practicalEffectsAmount: v })}
+        />
+        <SliderRow
+          label="VFX Spend"
+          value={productionChoices.vfxAmount}
+          min={VFX_RANGE.min}
+          max={VFX_RANGE.max}
+          step={1000}
+          formatValue={(v) => `$${Math.round(v).toLocaleString()}`}
+          onChange={(v) => setProductionChoices({ ...productionChoices, vfxAmount: v })}
+        />
+        <SliderRow
+          label="Runtime Intensity"
+          value={productionChoices.runtimeIntensity}
+          min={0}
+          max={1}
+          step={0.01}
+          formatValue={(v) => v.toFixed(2)}
+          onChange={(v) => setProductionChoices({ ...productionChoices, runtimeIntensity: v })}
+        />
+      </div>
+
+      <div className="card stack">
+        <h2 style={{ margin: 0 }}>Post-Production</h2>
+        <SelectRow label="Edit Style" value={postProductionChoices.editStyle} options={EDIT_STYLES} onChange={(v) => setPostProductionChoices({ ...postProductionChoices, editStyle: v })} />
+        <SelectRow label="Music Focus" value={postProductionChoices.musicFocus} options={MUSIC_FOCI} onChange={(v) => setPostProductionChoices({ ...postProductionChoices, musicFocus: v })} />
+        <SelectRow label="Test Screening" value={postProductionChoices.testScreeningResponse} options={TEST_SCREENING_RESPONSES} onChange={(v) => setPostProductionChoices({ ...postProductionChoices, testScreeningResponse: v })} />
+        <SelectRow label="Final Cut Focus" value={postProductionChoices.finalCutFocus} options={FINAL_CUT_FOCI} onChange={(v) => setPostProductionChoices({ ...postProductionChoices, finalCutFocus: v })} />
+      </div>
+
+      <div className="card stack">
+        <h2 style={{ margin: 0 }}>Marketing</h2>
+        <SliderRow
+          label="Marketing Spend"
+          value={marketingChoices.marketingSpend}
+          min={MARKETING_SPEND_RANGE.min}
+          max={MARKETING_SPEND_RANGE.max}
+          step={10_000}
+          formatValue={(v) => `$${Math.round(v).toLocaleString()}`}
+          onChange={(v) => setMarketingChoices({ ...marketingChoices, marketingSpend: v })}
+        />
+        <SelectRow label="Release Type" value={marketingChoices.releaseType} options={RELEASE_TYPES} onChange={(v) => setMarketingChoices({ ...marketingChoices, releaseType: v })} />
+        <SelectRow label="Release Window" value={marketingChoices.releaseWindow} options={RELEASE_WINDOWS} onChange={(v) => setMarketingChoices({ ...marketingChoices, releaseWindow: v })} />
+      </div>
+
+      <div className="card stack">
+        <h2 style={{ margin: 0 }}>Context &amp; Events</h2>
+        <SliderRow label="Studio Reputation" value={studioReputation} min={0} max={100} onChange={setStudioReputation} />
+        <SliderRow
+          label="Shooting Ratio (days elapsed / recommended)"
+          value={shootingRatio}
+          min={0.3}
+          max={2.5}
+          step={0.05}
+          formatValue={(v) => v.toFixed(2)}
+          onChange={setShootingRatio}
+        />
+        <p className="choice-description" style={{ margin: 0 }}>
+          Not preserved from the original release (not stored on Film) - defaults to 1.0 (on schedule).
+        </p>
+        <SliderRow label="Net Event Quality Impact" value={eventQualityDelta} min={-50} max={50} onChange={setEventQualityDelta} />
+        <SliderRow label="Net Event Buzz Impact" value={eventBuzzDelta} min={-50} max={50} onChange={setEventBuzzDelta} />
+        {selectedFilm.events.length > 0 && (
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+            <p className="choice-description" style={{ margin: '0 0 8px' }}>This film's real on-set events (read-only reference)</p>
+            {selectedFilm.events.map((event, i) => (
+              <div key={`${event.id}-${i}`} className="row-between" style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+                <span className="row" style={{ gap: 8 }}>
+                  <SeverityBadge severity={event.severity} />
+                  <span>{event.description}</span>
+                </span>
+                <span>Quality {event.qualityDelta >= 0 ? '+' : ''}{event.qualityDelta.toFixed(1)} &middot; Buzz {event.buzzDelta >= 0 ? '+' : ''}{event.buzzDelta.toFixed(1)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -2798,6 +2798,173 @@ wiring it in is a later milestone's job.
   viewing, and a further calibration pass now that real film data can be
   run through this instead of hand-picked scenarios.
 
+**Implementation Milestone 4: Outcome Inspector and model comparison
+(`engine/audienceSimulationReporting.ts`, `components/dev/AudienceSimulationDiagnostics.tsx`,
+`components/dev/ModelComparisonPanel.tsx`).** "Validation and visibility" -
+the new model still doesn't touch a real release
+(`state/studioReducer.ts` still runs `engine/boxOffice.ts` unchanged); this
+milestone makes it fully observable and puts it side by side with the old
+model it would eventually replace.
+
+- **Every intermediate value the weekly step computes, not just the three
+  it stores.** `AudienceSimulationWeekState` only ever kept `awareCount`/
+  `interestedRemaining`/`cumulativeTicketsSold` (Milestone 1's deliberately
+  minimal state) - nowhere near enough to show *why* a week moved the way
+  it did. `advanceOneWeekWithDiagnostics` (`audienceSimulationStep.ts`) is
+  now the one true implementation of "what happens in a week" - it
+  computes both the next `AudienceSimulationWeekState` *and* a
+  `WeekDiagnostics` trace (newly-aware broken out by release-day seed/
+  external/word-of-mouth source, new interest vs. crossover interest,
+  `womInfluence`, baseline vs. pull-forward-boosted attendance
+  probability, weekly and cumulative admissions) in a single pass;
+  `advanceOneWeek` is now a thin wrapper that discards the diagnostics, so
+  the two views can never drift apart. `advanceToWeekWithDiagnostics`
+  mirrors `advanceToWeek` the same way.
+- **Money stays out of the isolated engine, exactly as promised.**
+  `engine/audienceSimulationStep.ts`'s own header says "model people, not
+  money... until the very last step" - Milestones 1-3 never needed a
+  ticket price because their tests reason entirely in admissions, but the
+  Outcome Inspector explicitly wants weekly/cumulative *gross*. That
+  boundary conversion (`AVERAGE_TICKET_PRICE`, `buildWeeklyReport`) lives
+  in the new `engine/audienceSimulationReporting.ts` file instead - a
+  single flat £11 assumption, picked only so a maxed-out "genuine global
+  phenomenon" run lands in a broadly comparable range to the old model's
+  own maxed-out `OPENING_BASE_POTENTIAL` (£24,000,000), not tuned further.
+  `audienceSimulationStep.ts` itself still never multiplies anything by a
+  price.
+- **A plain-language "why" (`diagnoseRunShape`)**, per the brief's "make
+  it obvious why a film opened strongly, collapsed, grew, plateaued, or
+  remained niche" - five non-exclusive labels (a film can open strongly
+  *and* collapse), each computed from the actual weekly admissions trace
+  and displayed with the concrete numbers behind it, not asserted from
+  thresholds picked without checking: "Opened strongly" (week 1 >= 5% of
+  the film's own realistic ceiling), "Collapsed" (by week 5, admissions
+  have fallen below 60% of the opening - checked against the actual
+  front-loaded/poor-reception diagnostic below, which declines roughly
+  15%/week and would never trip a stricter cutoff), "Grew" (any later
+  week outsold the opening), "Plateaued" (the final four weeks stay within
+  15% of each other, past the run's peak), "Remained niche" (total
+  admissions never reach 5% of the whole addressable audience).
+- **The old model kept exactly where the brief asked - a temporary,
+  read-only diagnostic path.** `runOldModel` calls
+  `engine/boxOffice.ts`'s real `computeOpeningWeekend`/`computeLegs`/
+  `computeWeeklyRetention`/`projectTotalGross` with a fixed rng seed
+  (the same deterministic-comparison need `OutcomeInspector.tsx`'s own
+  variance-seed pattern already established) and additionally collects
+  the per-week trajectory `projectTotalGross` computes internally but
+  discards - verified in `audienceSimulationReporting.test.ts` to sum to
+  the exact same total `projectTotalGross` produces independently, so the
+  comparison can never silently drift from the real old-model total.
+  Nothing about `engine/boxOffice.ts` itself changed.
+- **A five-scenario representative matrix** (`REPRESENTATIVE_SCENARIO_MATRIX`)
+  - a summer blockbuster, a prestige awards play, a mid-tier ordinary film,
+  an overhyped flop, and a small indie sleeper - run through both models
+  via `compareModels`, rendered as a side-by-side table
+  (`ModelComparisonPanel`) plus a live sixth row for whatever film is
+  currently loaded/edited in the Outcome Inspector, reusing its existing
+  `results.criticScore`/`audienceScore`/`buzzScore` rather than
+  recomputing reception a second time.
+- **19 new tests** (127 total, `npm run test`) cover: `advanceOneWeekWithDiagnostics`
+  never drifting from `advanceOneWeek`'s own output; every `WeekDiagnostics`
+  field being internally consistent with the week state it describes
+  (awareness sources summing to the total, weekly admissions matching the
+  stored history); `buildWeeklyReport`'s gross figures being exactly
+  admissions times the ticket price and nothing else; `runOldModel`'s
+  collected trajectory summing to the exact same total
+  `projectTotalGross` computes independently; determinism for both models
+  (the old model for a fixed rng seed, the new model unconditionally, since
+  it has no randomness at all); and `diagnoseRunShape` correctly labelling
+  Milestone 3's own front-loaded/sleeper/niche archetypes.
+
+**The comparison itself - every material difference, and whether it's
+intentional:**
+
+| Scenario | Old opening | New opening | Old total | New total | Old legs | New legs | Old weeks | New weeks |
+|---|---|---|---|---|---|---|---|---|
+| Summer blockbuster | £45.1M | £34.0M | £201.7M | £227.7M | 4.47x | 6.70x | 16 | 4 |
+| Prestige awards play | £561k | £37k | £5.85M | £3.71M | 10.43x | 99.72x | 20 | 20 |
+| Mid-tier ordinary film | £4.04M | £2.29M | £13.4M | £95.0M | 3.32x | 41.59x | 12 | 17 |
+| Overhyped flop | £18.5M | £10.6M | £29.8M | £80.2M | 1.61x | 7.56x | 5 | 20 |
+| Small indie sleeper | £156k | £35k | £1.45M | £3.20M | 9.32x | 91.04x | 20 | 20 |
+
+- **Limited/Festival First open much smaller in the new model - intentional,
+  the whole point of the redesign.** Prestige (0.07x old opening) and
+  indie (0.23x old opening) both open far smaller than the old model's
+  `reachMultiplier`-scaled opening. This is DESIGN.md's explicit intent
+  ("Festival First seeds almost no *public* awareness... Limited seeds a
+  small [initial AwareCount]") finally showing up in a number, not a
+  regression - the old model's Limited/Festival First still front-load a
+  comparatively large opening because `reachMultiplier` only ever scales
+  down a single lump-sum formula, it can't express "starts tiny and has to
+  earn its audience via word of mouth."
+- **"Legs" are structurally much higher in the new model across every
+  scenario - a shape difference, not a quality one, and the single
+  biggest number in this table to misread.** New legs range 6.7x-99.7x
+  against old legs of 1.6x-10.4x. This isn't the new model producing
+  "better" word-of-mouth performance - it's `legs = totalGross /
+  openingGross`, and the new model's openings are *structurally* much
+  smaller relative to their totals (word of mouth builds the pool up over
+  many weeks instead of front-loading it), so the same total divided by a
+  much smaller opening mechanically produces a much bigger ratio. Comparing
+  raw legs multiples between the two models isn't apples-to-apples; comparing
+  *total gross* and *shape* is the fair read.
+- **Ordinary and poor-reception films gross materially more in the new
+  model, and take longer to taper off - a real finding, not yet fully
+  tuned, and the most important one from this comparison.** The mid-tier
+  scenario (criticScore 55, audienceScore 58 - deliberately unremarkable)
+  grosses 7.1x the old model's total (£95.0M vs. £13.4M) and runs 17 weeks
+  instead of 12; the overhyped-flop scenario grosses 2.7x more (£80.2M vs.
+  £29.8M) and runs the full 20-week cap instead of ending after 5. Digging
+  into the mid-tier trajectory (`engine/audienceSimulationInputs.test.ts`'s
+  own diagnostic sweeps found the same thing during Milestone 3):
+  admissions dip slightly in weeks 2-3 then climb every week after,
+  because `criticScore`/`audienceScore` in the low-to-mid-50s is already
+  enough to clear the natural-interest-growth and pull-forward thresholds
+  (`audienceSimulationStep.ts`), and once that feedback loop is running it
+  doesn't need "exceptional" reception to keep compounding, only "not
+  bad." This is Milestone 3's own documented finding (**"the model has a
+  genuine critical-mass tipping point... a real emergent property... not
+  smoothed away"**) showing up concretely in a head-to-head comparison
+  instead of an isolated diagnostic - genuinely intentional as a *shape*
+  (this is precisely the "audiences build on each other's reactions"
+  mechanic the whole redesign exists to capture, which a fixed Opening/Legs
+  formula structurally cannot), but its *magnitude* here (a "moderate"
+  film outgrossing the old model's figure for the same inputs by 7x) is
+  not yet calibrated to feel right economically - flagged exactly the way
+  Milestone 3 flagged it ("further calibration pass... now that real film
+  data can be run through this"), not silently tuned away by adjusting a
+  constant until this one comparison looked nicer.
+- **The blockbuster is the one scenario where the two models land close on
+  total (1.13x) despite very different shapes** - old opens bigger and
+  decays smoothly over 16 weeks; new opens slightly smaller, has an
+  explosive week-2 crossover spike (word of mouth realizing a huge slice
+  of crossover capacity in one week - visible directly in that scenario's
+  `WeekDiagnostics.crossoverInterestCreated`), and sells out its entire
+  realistic ceiling by week 4. Both "feel" like a blockbuster; only one of
+  them shows *why* week by week.
+- **A known, deliberately-unfixed quirk found while writing this
+  milestone's own tests**: `deriveWomCrossoverExpansion`'s ceiling
+  collapses to exactly the natural ceiling when `crossoverCapacityFraction`
+  is 0 (`maxInterestedAudience` = `baseInterestFraction` alone at that
+  point), so `WeekDiagnostics.crossoverInterestCreated` can occasionally
+  report a small nonzero figure for a zero-originality film purely because
+  step 5 (natural growth) didn't fully exhaust that shared headroom first
+  in the same week - attribution between "natural" and "crossover" growth
+  is occasionally arbitrary at the zero-capacity boundary, even though the
+  *total* realized interest is still provably bounded by the natural
+  ceiling (Milestone 2's own test already guarantees this, and still
+  passes). Not touched here - Milestone 2's formula is already tested and
+  committed, and this is a labeling nuance at one boundary condition, not
+  a correctness bug in what actually gets sold.
+- **Deliberately not done here**: removing `engine/boxOffice.ts`, wiring
+  the new model into `state/studioReducer.ts`/`RELEASE_FILM`, memoizing
+  the comparison table (recomputed on every Outcome Inspector render, same
+  as every other figure in that component already is - five scenarios at
+  up to 20 weeks each is cheap), and re-tuning Milestone 1-3's constants
+  to close the magnitude gap above - that's calibration work for its own
+  pass, informed by this comparison rather than done blind before it
+  existed.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:

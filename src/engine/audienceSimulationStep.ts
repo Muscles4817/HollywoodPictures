@@ -19,8 +19,12 @@
 //   7. getBaselineAttendanceProbability
 //   8. applyWomPullForward
 //   9. sellTicketsThisWeek
-//   10. advanceOneWeek assembles 0-9 into the next AudienceSimulationWeekState
-//   11. hasSimulationEnded / advanceToWeek
+//   10. advanceOneWeekWithDiagnostics assembles 0-9 into the next
+//       AudienceSimulationWeekState *and* a WeekDiagnostics trace of every
+//       intermediate value (Milestone 4, for the Outcome Inspector) - the
+//       one true implementation; advanceOneWeek is a thin wrapper that
+//       keeps its own pre-Milestone-4 signature
+//   11. hasSimulationEnded / advanceToWeek / advanceToWeekWithDiagnostics
 //
 // Word of mouth has three distinguishable effects (spreading awareness,
 // creating new interest, pulling existing interest forward - DESIGN.md
@@ -189,24 +193,64 @@ export function sellTicketsThisWeek(interestedRemaining: number, attendanceProba
 }
 
 /**
- * Step 10: composes steps 0-9 into the next week's state. Takes the whole
- * history (not just the last week) because step 3 needs it for the
- * recency-weighted lookback. `weeks` may be empty - a fresh run's week 1
- * is produced by applying this exact same transition to WEEK_ZERO, with
- * only step 0's one-time release-day seed distinguishing week 1 from every
- * later week (see applyReleaseDayAwarenessSeed) - no separate "seed the
- * run" algorithm.
+ * Milestone 4: every intermediate quantity step 10 computes on the way to
+ * the next AudienceSimulationWeekState, exposed for the Outcome Inspector
+ * (components/dev/OutcomeInspector.tsx) - "make it obvious why a film
+ * opened strongly, collapsed, grew, plateaued, or remained niche" needs
+ * more than the three fields AudienceSimulationWeekState stores. Nothing
+ * here is money - the people-vs-money boundary conversion (weekly/
+ * cumulative gross) is the reporting layer's job
+ * (engine/audienceSimulationReporting.ts), not this module's (see file
+ * header: "model people, not money... until the very last step").
  */
-export function advanceOneWeek(fixed: AudienceSimulationFixedState, weeks: AudienceSimulationWeekState[]): AudienceSimulationWeekState {
+export interface WeekDiagnostics {
+  week: number;
+  totalAddressableAudience: number;
+  awareCount: number;
+  /** Total increase in awareCount this week, from every source (release-day seed on week 1, external trickle, word of mouth) combined. */
+  newlyAware: number;
+  /** Awareness growth broken out by source, summing to newlyAware - the release-day seed only ever contributes on week 1 (see applyReleaseDayAwarenessSeed). */
+  newlyAwareFromReleaseDaySeed: number;
+  newlyAwareFromExternal: number;
+  newlyAwareFromWom: number;
+  interestedRemaining: number;
+  /** Step 2 + 5 combined - new interest from people who fit the film's natural audience (external conversion and word-of-mouth natural-interest growth), *excluding* crossover. */
+  newInterestCreated: number;
+  /** Step 6 alone - interest from people outside the natural audience, realized via word-of-mouth crossover. */
+  crossoverInterestCreated: number;
+  /** Step 3's output - this week's word-of-mouth influence signal, the single driver behind newlyAwareFromWom, the word-of-mouth share of newInterestCreated, crossoverInterestCreated, and womPullForwardBoost below. */
+  womInfluence: number;
+  baselineAttendanceProbability: number;
+  /** Step 8's urgency boost alone (0-1), before combining with the baseline - how much word of mouth is pulling existing interest forward this week. */
+  womPullForwardBoost: number;
+  /** The actual attendance probability applied this week (baseline + pull-forward). */
+  finalAttendanceProbability: number;
+  weeklyAdmissions: number;
+  cumulativeTicketsSold: number;
+}
+
+/**
+ * The one true implementation of "what happens in a week" - computes both
+ * the next AudienceSimulationWeekState *and* every intermediate value that
+ * produced it, in a single pass, so the two views can never drift apart.
+ * advanceOneWeek (below) is a thin wrapper that discards the diagnostics;
+ * nothing duplicates this step sequence anywhere else.
+ */
+export function advanceOneWeekWithDiagnostics(
+  fixed: AudienceSimulationFixedState,
+  weeks: AudienceSimulationWeekState[],
+): { next: AudienceSimulationWeekState; diagnostics: WeekDiagnostics } {
   const priorWeek = weeks.length > 0 ? weeks[weeks.length - 1] : WEEK_ZERO;
   const nextWeekNumber = priorWeek.week + 1;
   let totalEverInterested = priorWeek.interestedRemaining + priorWeek.cumulativeTicketsSold;
 
   // Step 0: the release-day awareness lump, only on week 1.
   const awareAfterSeed = applyReleaseDayAwarenessSeed(fixed, priorWeek.awareCount, weeks.length);
+  const newlyAwareFromReleaseDaySeed = awareAfterSeed - priorWeek.awareCount;
 
   // Step 1 + 2: external awareness growth, and the natural-fit slice of it converting to interest immediately.
   const awareAfterExternal = applyExternalAwarenessGrowth(fixed, awareAfterSeed);
+  const newlyAwareFromExternal = awareAfterExternal - awareAfterSeed;
   const newlyAwareExternal = awareAfterExternal - priorWeek.awareCount;
   const deltaInterestExternal = convertNewAwarenessToBaseInterest(fixed, newlyAwareExternal, totalEverInterested);
   totalEverInterested += deltaInterestExternal;
@@ -216,6 +260,7 @@ export function advanceOneWeek(fixed: AudienceSimulationFixedState, weeks: Audie
 
   // Step 4: word of mouth spreads awareness further.
   const awareCount = applyWomAwarenessGrowth(fixed, awareAfterExternal, womInfluence);
+  const newlyAwareFromWom = awareCount - awareAfterExternal;
 
   // Step 5: word of mouth convinces aware-but-undecided people within the natural audience.
   const deltaInterestNatural = deriveWomNaturalInterestGrowth(fixed, awareCount, totalEverInterested, womInfluence);
@@ -228,7 +273,9 @@ export function advanceOneWeek(fixed: AudienceSimulationFixedState, weeks: Audie
   const interestedBeforeSales = priorWeek.interestedRemaining + deltaInterestExternal + deltaInterestNatural + deltaInterestCrossover;
 
   // Step 7 + 8: baseline attendance probability, pulled forward by word of mouth's urgency effect.
-  const attendanceProbability = applyWomPullForward(getBaselineAttendanceProbability(fixed), womInfluence);
+  const baselineAttendanceProbability = getBaselineAttendanceProbability(fixed);
+  const womPullForwardBoost = thresholdResponse(womInfluence, PULL_FORWARD_RESPONSE.threshold, PULL_FORWARD_RESPONSE.sensitivity);
+  const attendanceProbability = applyWomPullForward(baselineAttendanceProbability, womInfluence);
 
   // Step 9: sell tickets from the interested-and-unconverted pool.
   const ticketsThisWeek = sellTicketsThisWeek(interestedBeforeSales, attendanceProbability);
@@ -242,12 +289,51 @@ export function advanceOneWeek(fixed: AudienceSimulationFixedState, weeks: Audie
   const interestedRemaining = clamp(interestedBeforeSales - ticketsThisWeek, 0, Math.min(clampedAwareCount, ceiling));
   const cumulativeTicketsSold = clamp(priorWeek.cumulativeTicketsSold + ticketsThisWeek, 0, fixed.totalAddressableAudience);
 
-  return createAudienceSimulationWeekState(fixed, {
+  const next = createAudienceSimulationWeekState(fixed, {
     week: nextWeekNumber,
     awareCount: clampedAwareCount,
     interestedRemaining,
     cumulativeTicketsSold,
   });
+
+  // Diagnostics are read from the *actual* resulting week state (post-clamp)
+  // rather than the raw pre-clamp intermediates wherever the two could
+  // differ, so a displayed row can never claim a number the stored history
+  // itself doesn't back up.
+  const diagnostics: WeekDiagnostics = {
+    week: nextWeekNumber,
+    totalAddressableAudience: fixed.totalAddressableAudience,
+    awareCount: next.awareCount,
+    newlyAware: next.awareCount - priorWeek.awareCount,
+    newlyAwareFromReleaseDaySeed,
+    newlyAwareFromExternal,
+    newlyAwareFromWom,
+    interestedRemaining: next.interestedRemaining,
+    newInterestCreated: deltaInterestExternal + deltaInterestNatural,
+    crossoverInterestCreated: deltaInterestCrossover,
+    womInfluence,
+    baselineAttendanceProbability,
+    womPullForwardBoost,
+    finalAttendanceProbability: attendanceProbability,
+    weeklyAdmissions: next.cumulativeTicketsSold - priorWeek.cumulativeTicketsSold,
+    cumulativeTicketsSold: next.cumulativeTicketsSold,
+  };
+
+  return { next, diagnostics };
+}
+
+/**
+ * Step 10: composes steps 0-9 into the next week's state. Takes the whole
+ * history (not just the last week) because step 3 needs it for the
+ * recency-weighted lookback. `weeks` may be empty - a fresh run's week 1
+ * is produced by applying this exact same transition to WEEK_ZERO, with
+ * only step 0's one-time release-day seed distinguishing week 1 from every
+ * later week (see applyReleaseDayAwarenessSeed) - no separate "seed the
+ * run" algorithm. A thin wrapper over advanceOneWeekWithDiagnostics - see
+ * that function for the actual step sequence.
+ */
+export function advanceOneWeek(fixed: AudienceSimulationFixedState, weeks: AudienceSimulationWeekState[]): AudienceSimulationWeekState {
+  return advanceOneWeekWithDiagnostics(fixed, weeks).next;
 }
 
 // Step 11 constants - independently defined here rather than imported from
@@ -295,4 +381,29 @@ export function advanceToWeek(
     result = [...result, advanceOneWeek(fixed, result)];
   }
   return result;
+}
+
+/**
+ * Milestone 4: the same catch-up as advanceToWeek, but built on
+ * advanceOneWeekWithDiagnostics instead of advanceOneWeek so the Outcome
+ * Inspector can show every week's full diagnostic trace, not just its
+ * final state. `weeks[i]` and `diagnostics[i]` describe the same week -
+ * calling advanceToWeek(fixed, seedWeeks, targetWeekNumber) against the
+ * same inputs always produces a `weeks` identical to this function's,
+ * since both are ultimately driven by the same
+ * advanceOneWeekWithDiagnostics step sequence (see that function).
+ */
+export function advanceToWeekWithDiagnostics(
+  fixed: AudienceSimulationFixedState,
+  weeks: AudienceSimulationWeekState[],
+  targetWeekNumber: number,
+): { weeks: AudienceSimulationWeekState[]; diagnostics: WeekDiagnostics[] } {
+  let resultWeeks = weeks;
+  const diagnostics: WeekDiagnostics[] = [];
+  while (resultWeeks.length < targetWeekNumber && !hasSimulationEnded(resultWeeks)) {
+    const { next, diagnostics: weekDiagnostics } = advanceOneWeekWithDiagnostics(fixed, resultWeeks);
+    resultWeeks = [...resultWeeks, next];
+    diagnostics.push(weekDiagnostics);
+  }
+  return { weeks: resultWeeks, diagnostics };
 }
