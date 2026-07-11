@@ -2212,6 +2212,83 @@ Save format bumped to v17 (`state/persistence.ts`) - an existing save's
 `talentPool` has no Cinematographer candidates and no past `Film` ever
 cast one.
 
+### 5.33 Mobile web (`src/index.css`)
+
+CSS-only, every screen reviewed, deliberately scoped so desktop is
+pixel-identical to before - verified directly via matched-viewport
+screenshots (1280px) on two screens both before and after, not just
+assumed from the diff. Every mobile-specific rule lives inside either the
+existing `@media (max-width: 900px)` tablet breakpoint, a new
+`@media (max-width: 640px)` phone breakpoint, or a `@media (pointer:
+coarse)` touch-target block - nothing outside a media query changed
+visually, only a couple of `:root` custom properties got introduced as
+plumbing (see `--header-clearance` below).
+
+**A real, pre-existing bug found by looking at an actual screenshot rather
+than reasoning about the CSS**: `.dashboard-layout`/`.dashboard-right-rail`
+and `.event-decision-layout` were never actually collapsing to one column
+on narrow viewports, despite a rule that looked like it should. CSS
+resolves equal-specificity conflicts by source order - the `@media
+(max-width: 900px)` block containing their mobile overrides was written
+*earlier* in the file than their own unconditional base rules, so the
+later unconditional rule always won the cascade regardless of whether the
+query matched. On a phone this meant the Dashboard's Top 10/Rival Studios
+rail rendered on top of the main column instead of stacking below it, and
+the interactive-event recast panel (5.18) never dropped to one column
+either. Fixed by moving that whole media query block to the very end of
+the file, after every rule it could possibly need to override - the only
+way to make this class of bug structurally impossible going forward
+rather than just fixed for the two rules found this time.
+
+**The header/footer "frozen" complaint** (the user's own word, and the
+right one): `.wizard-header-sticky` (step nav + `BudgetTracker`) and
+`.plan-consequence-strip` both stay permanently pinned to the viewport at
+desktop widths, which is fine there - there's room to spare. On a
+~650px-tall phone viewport (after browser chrome), a wrapped 7-step nav
+plus a wrapped 3-tile budget row could easily reserve 100-160px that never
+went away no matter how far the player scrolled, stacked with a *second*
+permanently-pinned bar at the bottom of Plan Production specifically.
+Un-stuck both (`position: static` under the phone breakpoint) - they
+scroll away normally now, same as regular content. Deliberately left
+`.sticky-footer` itself sticky (just leaner - reduced padding) rather than
+un-sticking everything: reaching Back/Continue without hunting for it at
+the bottom of a long page is worth more than ambient progress/budget
+visibility is, so the two got different treatment on purpose rather than
+uniformly flattening every sticky element.
+
+**Fixed-chrome collision**: `DateBar` (top-left), `ThemeToggle` (top-right)
+and the Recommendation Inspector's dev-only toggle (top-center, 5.28) all
+share the same fixed y=16px row, sized for desktop width. On a phone the
+dev toggle's long label was the thing that actually caused a three-way
+collision - resolved by hiding it below the phone breakpoint entirely
+(it's never meant to be used from a phone anyway) rather than trying to
+shrink all three into an ever-smaller shared space. `DateBar`/`ThemeToggle`
+also shrink their own padding/font on the same breakpoint.
+`--header-clearance` is a new `:root` custom property `#root`'s top
+padding and `.wizard-header-sticky`'s sticky offset both read from - the
+phone breakpoint only needs to redefine it once for both to stay in sync,
+rather than two numbers that could drift apart.
+
+**Touch targets** (`@media (pointer: coarse)`, deliberately viewport-
+width-independent - a touch laptop at a wide viewport has the same
+precision problem a phone does, and a mouse-driven narrow window doesn't):
+the Plan Production distribution divider's hit area (5.30) widens from a
+precise 14px to a forgiving 40px without changing its visible 3px line;
+`.btn`/`.btn-sm` padding and the `.tier-slider` thumb both grow slightly.
+Verified the drag interaction itself works via `PointerEvent`-based touch
+simulation (it already did - the component was built on Pointer Events
+from the start, which unify mouse/touch/pen natively) - what needed fixing
+was purely the hit-target size, not the interaction logic.
+
+**A test-tooling quirk worth recording, not a product bug**: verifying
+`pointer: coarse` mid-flow inside a longer Playwright script sometimes
+reported `false` even in a `hasTouch`/`isMobile` context, traced to
+Chromium's dynamic pointer/hover media features responding to mixed
+mouse-shaped and touch-shaped synthetic events within one test session -
+something a real phone, which only ever generates touch-originated
+events, can't produce. Confirmed correct in isolation (matched the CSS
+rule applying cleanly) before concluding this, rather than assuming.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
