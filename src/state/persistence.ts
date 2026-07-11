@@ -45,7 +45,10 @@ import { randomSeed, withRng } from '../engine/random';
 // v16 -> v17 added Cinematographer as a new mandatory TalentRole/CrewTalent
 // - an existing save's talentPool has no candidates for it, and old Film
 // records never cast one (docs/DESIGN.md 5.32).
-const SAVE_KEY = 'hollywood-pictures-save-v17';
+// v17 -> v18 added Studio.productionsInProgress (the player's own shoots
+// running in the background, FilmDraft.id) - background photography
+// (docs/DESIGN.md 5.x); old saves have neither field.
+const SAVE_KEY = 'hollywood-pictures-save-v18';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
@@ -61,7 +64,7 @@ export function loadState(): GameState {
     // No save (or an incompatible one) - generate a fresh studio, including
     // its talent pool, from a genuinely random seed.
     const { result: studio, nextSeed } = withRng(randomSeed(), (rng) => createInitialStudio(rng, DEFAULT_STARTING_CASH));
-    return { studio, screen: 'dashboard', draft: null, rngSeed: nextSeed, viewingRivalStudioName: null };
+    return { studio, screen: 'dashboard', draft: null, rngSeed: nextSeed, viewingRivalStudioName: null, viewingProductionId: null };
   }
 }
 

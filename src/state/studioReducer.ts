@@ -1,4 +1,4 @@
-import type { Film, Talent, TalentRole, WizardStep } from '../types';
+import type { Film, FilmDraft, PendingEventChoice, ProductionEvent, Talent, TalentRole, WizardStep } from '../types';
 import { type GameAction, type GameState, createEmptyDraft, createInitialStudio } from './gameState';
 import { randomSeed, withRng, clamp } from '../engine/random';
 import { generateScriptOptions } from '../engine/scriptGenerator';
@@ -6,13 +6,14 @@ import { logAmount } from '../engine/interpolate';
 import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
 import { computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent, resolveEventChoice } from '../engine/production';
-import { computeDailyContingencyBurn } from '../engine/cost';
+import { computeDailyContingencyBurn, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
 import { adaptRecommendationsToProductionChoices } from '../engine/productionChoicesAdapter';
 import { STAGE_DURATIONS } from '../data/schedule';
 import { computeReleaseResults } from '../engine/releaseFilm';
 import { computeWeeklyRetention } from '../engine/boxOffice';
 import { settleBoxOfficeForAllFilms, type BoxOfficeSettlement } from '../engine/boxOfficeRun';
 import { settleRivalMarket, type RivalMarketUpdate } from '../engine/rivalStudios';
+import { settleProductionsInProgress } from '../engine/productionsInProgress';
 import { applyReputationChange } from '../engine/reputation';
 import type { Studio } from '../types';
 
@@ -75,9 +76,64 @@ function applyRivalMarketSettlement(studio: Studio, update: RivalMarketUpdate): 
   };
 }
 
-// Non-release cash mutations (talent salaries, production spend, marketing)
-// are still only ever charged once, at RELEASE_FILM, computed fresh from the
-// complete draft - see state/selectors.ts for the live preview shown before
+/**
+ * Applies a resolved on-set event choice's outcome to whichever FilmDraft it
+ * belongs to - the live `draft` or one entry of
+ * `Studio.productionsInProgress`, see RESOLVE_EVENT_CHOICE below. Same body
+ * either way: swap in a replacement hire if the choice offered one, fold the
+ * event into the log/cost, and unpause (`status: 'in-progress'`). Also
+ * returns `cashDelta` - talent salary was already charged in full at
+ * BEGIN_PHOTOGRAPHY (see that case below), so a recast here needs to settle
+ * the difference against studio.cash immediately (old salary was already
+ * paid for; the new one wasn't) rather than silently drifting out of sync
+ * with what RELEASE_FILM later assumes has already been charged.
+ */
+function resolveChoiceOnDraft(
+  d: FilmDraft,
+  pendingChoice: PendingEventChoice,
+  chosenChoiceId: string,
+  event: ProductionEvent,
+  talentPool: Record<TalentRole, Talent[]>,
+): { draft: FilmDraft; cashDelta: number } {
+  const photography = d.photography!;
+  const chosen = pendingChoice.choices.find((c) => c.id === chosenChoiceId);
+  const extraDays = event.delayDaysDelta;
+  const dailyBurn = computeDailyContingencyBurn(d.productionChoices!.contingencyAmount, photography.recommendedDays);
+
+  let talent = d.talent;
+  let cashDelta = 0;
+  if (chosen?.replacementCandidateId && pendingChoice.replacementRole) {
+    const candidate = talentPool[pendingChoice.replacementRole]?.find((t) => t.id === chosen.replacementCandidateId);
+    if (candidate) {
+      const outgoing = d.talent.find((t) => t.id === pendingChoice.involvedTalentId);
+      cashDelta = -(candidate.salary - (outgoing?.salary ?? 0));
+      talent = [...d.talent.filter((t) => t.id !== pendingChoice.involvedTalentId), candidate];
+    }
+  }
+
+  return {
+    cashDelta,
+    draft: {
+      ...d,
+      talent,
+      photography: {
+        ...photography,
+        status: 'in-progress',
+        daysElapsed: photography.daysElapsed + extraDays,
+        events: [...photography.events, event],
+        runningCost: photography.runningCost + dailyBurn * extraDays,
+        pendingChoice: null,
+      },
+    },
+  };
+}
+
+// Talent salary, the non-contingency production budget, and the contingency
+// reserve are charged/settled as production actually happens (BEGIN_PHOTOGRAPHY,
+// resolveChoiceOnDraft, FINISH_PHOTOGRAPHY, below) - only script cost, event
+// cost swings, the test screening fee, and marketing are still charged once,
+// at RELEASE_FILM, computed fresh from the complete draft - see
+// state/selectors.ts for the live preview shown before
 // then. Box office revenue is the one thing that now lands gradually
 // instead, credited week by week as a film's run actually plays out (see
 // applyBoxOfficeSettlement above and docs/DESIGN.md 5.19).
@@ -95,15 +151,19 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
         const settlement = settleBoxOfficeForAllFilms(state.studio.filmsReleased, totalDaysAfter, rng);
         const rivalMarket = settleRivalMarket({ ...state.studio, totalDays: totalDaysAfter }, rng);
-        return { settlement, rivalMarket };
+        const productionsInProgress = settleProductionsInProgress(state.studio.productionsInProgress, 1, state.studio.talentPool, rng);
+        return { settlement, rivalMarket, productionsInProgress };
       });
       return {
         ...state,
         rngSeed: nextSeed,
-        studio: applyRivalMarketSettlement(
-          applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, result.settlement),
-          result.rivalMarket,
-        ),
+        studio: {
+          ...applyRivalMarketSettlement(
+            applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, result.settlement),
+            result.rivalMarket,
+          ),
+          productionsInProgress: result.productionsInProgress,
+        },
       };
     }
 
@@ -112,10 +172,16 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         ...state,
         screen: 'develop',
         draft: { ...createEmptyDraft(), talentTargetPriceByRole: defaultTalentTargetPrices() },
+        viewingProductionId: null,
       };
 
     case 'GO_TO_STEP': {
-      if (!state.draft) return { ...state, screen: action.step };
+      // Any normal wizard navigation stops "viewing" a backgrounded
+      // production (see GameState.viewingProductionId) - otherwise a stale
+      // view could shadow the live draft the next time screen becomes
+      // 'production' the ordinary way (BEGIN_PHOTOGRAPHY doesn't change
+      // screen itself; it's already 'production' by the time it fires).
+      if (!state.draft) return { ...state, screen: action.step, viewingProductionId: null };
       const fromIdx = WIZARD_STEP_ORDER.indexOf(state.screen as WizardStep);
       const toIdx = WIZARD_STEP_ORDER.indexOf(action.step);
       // Only charge a stage's fixed duration the first time it's genuinely
@@ -124,22 +190,27 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const isNewForwardProgress = fromIdx >= 0 && toIdx > fromIdx && fromIdx > state.draft.furthestStepIndexCharged;
       const leavingStage = isNewForwardProgress ? (state.screen as WizardStep) : null;
       const stageDuration = leavingStage ? STAGE_DURATIONS[leavingStage] : undefined;
-      if (!stageDuration) return { ...state, screen: action.step };
+      if (!stageDuration) return { ...state, screen: action.step, viewingProductionId: null };
 
       const totalDaysAfter = state.studio.totalDays + stageDuration;
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
         const settlement = settleBoxOfficeForAllFilms(state.studio.filmsReleased, totalDaysAfter, rng);
         const rivalMarket = settleRivalMarket({ ...state.studio, totalDays: totalDaysAfter }, rng);
-        return { settlement, rivalMarket };
+        const productionsInProgress = settleProductionsInProgress(state.studio.productionsInProgress, stageDuration, state.studio.talentPool, rng);
+        return { settlement, rivalMarket, productionsInProgress };
       });
       return {
         ...state,
         rngSeed: nextSeed,
         screen: action.step,
-        studio: applyRivalMarketSettlement(
-          applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, result.settlement),
-          result.rivalMarket,
-        ),
+        viewingProductionId: null,
+        studio: {
+          ...applyRivalMarketSettlement(
+            applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, result.settlement),
+            result.rivalMarket,
+          ),
+          productionsInProgress: result.productionsInProgress,
+        },
         draft: { ...state.draft, furthestStepIndexCharged: fromIdx },
       };
     }
@@ -276,11 +347,28 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    // Talent salaries, the non-contingency production budget (set/practical/
+    // VFX), and the full contingency reserve all leave studio.cash right
+    // here, rather than waiting for RELEASE_FILM - that's what makes a
+    // production a real, ongoing cash commitment instead of a promise to
+    // pay later, especially now that a shoot can run in the background for
+    // a long time (see docs/DESIGN.md 5.x). Talent salary is kept in sync
+    // afterward by any recast (resolveChoiceOnDraft's cashDelta, below);
+    // the production budget is fixed once photography begins (nothing
+    // after this point edits productionChoices). Contingency is the only
+    // one of the three that's refundable - settled against what was
+    // actually burned at FINISH_PHOTOGRAPHY. RELEASE_FILM's own cash
+    // deduction is adjusted to not charge these three a second time.
     case 'BEGIN_PHOTOGRAPHY': {
       if (!state.draft || !state.draft.script || !state.draft.productionChoices) return state;
       const recommendedDays = computeRecommendedShootDays(state.draft.talent, state.draft.script, state.draft.productionChoices);
+      const upfrontCharge =
+        computeTalentCost(state.draft.talent) +
+        computeProductionBudgetCost(state.draft.productionChoices) +
+        state.draft.productionChoices.contingencyAmount;
       return {
         ...state,
+        studio: { ...state.studio, cash: state.studio.cash - upfrontCharge },
         draft: {
           ...state.draft,
           photography: { status: 'in-progress', recommendedDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
@@ -324,14 +412,16 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           const totalDaysAfter = state.studio.totalDays + 1;
           const settlement = settleBoxOfficeForAllFilms(state.studio.filmsReleased, totalDaysAfter, rng);
           const rivalMarket = settleRivalMarket({ ...state.studio, totalDays: totalDaysAfter }, rng);
-          return { kind: 'pendingChoice' as const, pendingChoice: rolled.pendingChoice, totalDaysAfter, settlement, rivalMarket };
+          const productionsInProgress = settleProductionsInProgress(state.studio.productionsInProgress, 1, state.studio.talentPool, rng);
+          return { kind: 'pendingChoice' as const, pendingChoice: rolled.pendingChoice, totalDaysAfter, settlement, rivalMarket, productionsInProgress };
         }
         const event = rolled?.event ?? null;
         const daysAdvanced = 1 + (event?.delayDaysDelta ?? 0);
         const totalDaysAfter = state.studio.totalDays + daysAdvanced;
         const settlement = settleBoxOfficeForAllFilms(state.studio.filmsReleased, totalDaysAfter, rng);
         const rivalMarket = settleRivalMarket({ ...state.studio, totalDays: totalDaysAfter }, rng);
-        return { kind: 'event' as const, event, daysAdvanced, totalDaysAfter, settlement, rivalMarket };
+        const productionsInProgress = settleProductionsInProgress(state.studio.productionsInProgress, daysAdvanced, state.studio.talentPool, rng);
+        return { kind: 'event' as const, event, daysAdvanced, totalDaysAfter, settlement, rivalMarket, productionsInProgress };
       });
 
       const dailyBurn = computeDailyContingencyBurn(d.productionChoices.contingencyAmount, d.photography.recommendedDays);
@@ -340,10 +430,13 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         return {
           ...state,
           rngSeed: nextSeed,
-          studio: applyRivalMarketSettlement(
-            applyBoxOfficeSettlement({ ...state.studio, totalDays: result.totalDaysAfter }, result.settlement),
-            result.rivalMarket,
-          ),
+          studio: {
+            ...applyRivalMarketSettlement(
+              applyBoxOfficeSettlement({ ...state.studio, totalDays: result.totalDaysAfter }, result.settlement),
+              result.rivalMarket,
+            ),
+            productionsInProgress: result.productionsInProgress,
+          },
           draft: {
             ...d,
             photography: {
@@ -357,15 +450,18 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         };
       }
 
-      const { event, daysAdvanced, totalDaysAfter, settlement, rivalMarket } = result;
+      const { event, daysAdvanced, totalDaysAfter, settlement, rivalMarket, productionsInProgress } = result;
 
       return {
         ...state,
         rngSeed: nextSeed,
-        studio: applyRivalMarketSettlement(
-          applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, settlement),
-          rivalMarket,
-        ),
+        studio: {
+          ...applyRivalMarketSettlement(
+            applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, settlement),
+            rivalMarket,
+          ),
+          productionsInProgress,
+        },
         draft: {
           ...d,
           photography: {
@@ -388,58 +484,101 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // the picked candidate takes their place for the rest of the film, on
     // top of the one-time disruption cost/quality/delay already rolled.
     case 'RESOLVE_EVENT_CHOICE': {
-      const d = state.draft;
-      if (!d?.photography || d.photography.status !== 'awaiting-choice' || !d.photography.pendingChoice || !d.productionChoices) {
+      // No productionId means "the live draft" (ProductionRun.tsx); a
+      // productionId targets one entry of productionsInProgress instead
+      // (the Inbox, resolving a backgrounded shoot's paused decision) - see
+      // resolveChoiceOnDraft above.
+      const target = action.productionId
+        ? state.studio.productionsInProgress.find((p) => p.id === action.productionId) ?? null
+        : state.draft;
+      if (!target?.photography || target.photography.status !== 'awaiting-choice' || !target.photography.pendingChoice || !target.productionChoices) {
         return state;
       }
-      const pendingChoice = d.photography.pendingChoice;
-      const chosen = pendingChoice.choices.find((c) => c.id === action.choiceId);
+      const pendingChoice = target.photography.pendingChoice;
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
         const event = resolveEventChoice(pendingChoice, action.choiceId, rng);
         const totalDaysAfter = state.studio.totalDays + event.delayDaysDelta;
         const settlement = settleBoxOfficeForAllFilms(state.studio.filmsReleased, totalDaysAfter, rng);
         const rivalMarket = settleRivalMarket({ ...state.studio, totalDays: totalDaysAfter }, rng);
-        return { event, totalDaysAfter, settlement, rivalMarket };
+        // The production being resolved right here is handled below via
+        // resolveChoiceOnDraft, not by the generic day-loop (it just came
+        // off its own pause) - every *other* backgrounded production still
+        // advances by the same number of days this choice's delay cost.
+        const others = action.productionId
+          ? state.studio.productionsInProgress.filter((p) => p.id !== action.productionId)
+          : state.studio.productionsInProgress;
+        const productionsInProgress = settleProductionsInProgress(others, event.delayDaysDelta, state.studio.talentPool, rng);
+        return { event, totalDaysAfter, settlement, rivalMarket, productionsInProgress };
       });
-      const { event, totalDaysAfter, settlement, rivalMarket } = result;
-      const extraDays = event.delayDaysDelta;
-      const dailyBurn = computeDailyContingencyBurn(d.productionChoices.contingencyAmount, d.photography.recommendedDays);
+      const { event, totalDaysAfter, settlement, rivalMarket, productionsInProgress } = result;
 
-      let talent = d.talent;
-      if (chosen?.replacementCandidateId && pendingChoice.replacementRole) {
-        const candidate = state.studio.talentPool[pendingChoice.replacementRole]?.find((t) => t.id === chosen.replacementCandidateId);
-        if (candidate) {
-          talent = [...d.talent.filter((t) => t.id !== pendingChoice.involvedTalentId), candidate];
-        }
-      }
+      const { draft: resolvedTarget, cashDelta } = resolveChoiceOnDraft(target, pendingChoice, action.choiceId, event, state.studio.talentPool);
+
+      const studioAfter: Studio = {
+        ...applyRivalMarketSettlement(
+          applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, settlement),
+          rivalMarket,
+        ),
+        cash: state.studio.cash + settlement.cashCredit + cashDelta,
+        productionsInProgress: action.productionId ? [...productionsInProgress, resolvedTarget] : productionsInProgress,
+      };
 
       return {
         ...state,
         rngSeed: nextSeed,
-        studio: applyRivalMarketSettlement(
-          applyBoxOfficeSettlement({ ...state.studio, totalDays: totalDaysAfter }, settlement),
-          rivalMarket,
-        ),
-        draft: {
-          ...d,
-          talent,
-          photography: {
-            ...d.photography,
-            status: 'in-progress',
-            daysElapsed: d.photography.daysElapsed + extraDays,
-            events: [...d.photography.events, event],
-            runningCost: d.photography.runningCost + dailyBurn * extraDays,
-            pendingChoice: null,
-          },
-        },
+        studio: studioAfter,
+        draft: action.productionId ? state.draft : resolvedTarget,
       };
     }
 
+    // Settles the contingency reserve against what was actually burned
+    // (PhotographyState.runningCost) - the full reserve was already
+    // deducted from cash at BEGIN_PHOTOGRAPHY, so whatever's left over
+    // (positive) comes back, and running over the reserve (negative) is
+    // charged the rest of the way here rather than being silently absorbed.
     case 'FINISH_PHOTOGRAPHY': {
-      if (!state.draft?.photography || state.draft.photography.status !== 'in-progress') return state;
+      if (action.productionId) {
+        const production = state.studio.productionsInProgress.find((p) => p.id === action.productionId);
+        if (!production?.photography || production.photography.status !== 'in-progress' || !production.productionChoices) return state;
+        const contingencySettlement = production.productionChoices.contingencyAmount - production.photography.runningCost;
+        return {
+          ...state,
+          studio: {
+            ...state.studio,
+            cash: state.studio.cash + contingencySettlement,
+            productionsInProgress: state.studio.productionsInProgress.map((p) =>
+              p.id === action.productionId && p.photography ? { ...p, photography: { ...p.photography, status: 'finished' } } : p,
+            ),
+          },
+        };
+      }
+      if (!state.draft?.photography || state.draft.photography.status !== 'in-progress' || !state.draft.productionChoices) return state;
+      const contingencySettlement = state.draft.productionChoices.contingencyAmount - state.draft.photography.runningCost;
       return {
         ...state,
+        studio: { ...state.studio, cash: state.studio.cash + contingencySettlement },
         draft: { ...state.draft, photography: { ...state.draft.photography, status: 'finished' } },
+      };
+    }
+
+    // Pulls a wrapped background production back into the single draft slot
+    // (see docs/DESIGN.md 5.x) - only while the player isn't already
+    // mid-wizard on something else, so this can never silently discard
+    // unrelated in-progress work. The Inbox is expected to only offer this
+    // action when state.draft is null; this guard is the authoritative one.
+    case 'RESUME_FOR_POST_PRODUCTION': {
+      if (state.draft) return state;
+      const production = state.studio.productionsInProgress.find((p) => p.id === action.productionId);
+      if (!production?.photography || production.photography.status !== 'finished') return state;
+      return {
+        ...state,
+        screen: 'post-production',
+        draft: production,
+        viewingProductionId: null,
+        studio: {
+          ...state.studio,
+          productionsInProgress: state.studio.productionsInProgress.filter((p) => p.id !== action.productionId),
+        },
       };
     }
 
@@ -523,14 +662,29 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         const filmsReleased = [...state.studio.filmsReleased, film];
         const settlement = settleBoxOfficeForAllFilms(filmsReleased, totalDaysAfter, rng);
         const rivalMarket = settleRivalMarket({ ...state.studio, totalDays: totalDaysAfter }, rng);
-        return { totalCost: results.totalCost, filmId: film.id, settlement, rivalMarket };
+        const productionsInProgress = settleProductionsInProgress(
+          state.studio.productionsInProgress,
+          STAGE_DURATIONS.marketing ?? 0,
+          state.studio.talentPool,
+          rng,
+        );
+        return { totalCost: results.totalCost, filmId: film.id, settlement, rivalMarket, productionsInProgress };
       });
 
-      const cashAfterCosts = state.studio.cash - result.totalCost;
-      const studioAfter = applyRivalMarketSettlement(
-        applyBoxOfficeSettlement({ ...state.studio, cash: cashAfterCosts, totalDays: totalDaysAfter }, result.settlement),
-        result.rivalMarket,
-      );
+      // Talent salary, the non-contingency production budget, and the
+      // contingency reserve were already deducted (and, for contingency,
+      // settled) at BEGIN_PHOTOGRAPHY/resolveChoiceOnDraft/FINISH_PHOTOGRAPHY
+      // - only the remainder of results.totalCost (script cost, event cost
+      // swings, the test screening fee, and marketing) is still owed here.
+      const alreadyCharged = computeTalentCost(d.talent) + computeProductionBudgetCost(d.productionChoices) + d.photography.runningCost;
+      const cashAfterCosts = state.studio.cash - (result.totalCost - alreadyCharged);
+      const studioAfter: Studio = {
+        ...applyRivalMarketSettlement(
+          applyBoxOfficeSettlement({ ...state.studio, cash: cashAfterCosts, totalDays: totalDaysAfter }, result.settlement),
+          result.rivalMarket,
+        ),
+        productionsInProgress: result.productionsInProgress,
+      };
       const releasedFilm = studioAfter.filmsReleased.find((f) => f.id === result.filmId)!;
 
       return {
@@ -554,14 +708,53 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
-    case 'RETURN_TO_DASHBOARD':
-      return { ...state, screen: 'dashboard', draft: null, viewingRivalStudioName: null };
+    case 'RETURN_TO_DASHBOARD': {
+      const d = state.draft;
+      // Nothing committed yet (still develop/talent/planning), or this draft
+      // has already been released (d.results is only ever set by
+      // RELEASE_FILM, which keeps `draft` populated - not cleared - so
+      // ReleaseResults.tsx still has something to show) - either way,
+      // discard rather than resend to the background. Without the `d.results`
+      // half of this check, clicking through from the results screen would
+      // re-add an already-released film to Studio.productionsInProgress,
+      // since its `photography` is still non-null too.
+      if (!d?.photography || d.results) {
+        return { ...state, screen: 'dashboard', draft: null, viewingRivalStudioName: null, viewingProductionId: null };
+      }
+      // Photography has started (and this isn't a released film) - send it
+      // to the background instead of losing it (docs/DESIGN.md 5.x), and
+      // reserve its cast/crew the same way a rival studio's own casting does
+      // (engine/rivalStudios.ts:startRivalProduction's bookedIds/
+      // updatedPool), so the same actor can't get hired into a second
+      // concurrent production - the player's own or a rival's - while
+      // genuinely on this one's set. A rough estimate (recommendedDays from
+      // today) is fine here, same as rivals already use, since overrunning
+      // has no hard cap.
+      const bookedUntil = state.studio.totalDays + d.photography.recommendedDays;
+      const bookedIds = new Set(d.talent.map((t) => t.id));
+      const talentPool = { ...state.studio.talentPool };
+      for (const role of Object.keys(talentPool) as TalentRole[]) {
+        talentPool[role] = talentPool[role].map((t) => (bookedIds.has(t.id) ? { ...t, bookedUntil } : t));
+      }
+      return {
+        ...state,
+        screen: 'dashboard',
+        draft: null,
+        viewingRivalStudioName: null,
+        viewingProductionId: null,
+        studio: {
+          ...state.studio,
+          talentPool,
+          productionsInProgress: [...state.studio.productionsInProgress, d],
+        },
+      };
+    }
 
     case 'RESET_SAVE': {
       // A fresh studio gets a brand new talent pool too - reusing the old
       // one would defeat the point of resetting.
       const { result: studio, nextSeed } = withRng(randomSeed(), (rng) => createInitialStudio(rng, action.startingCash));
-      return { studio, screen: 'dashboard', draft: null, rngSeed: nextSeed, viewingRivalStudioName: null };
+      return { studio, screen: 'dashboard', draft: null, rngSeed: nextSeed, viewingRivalStudioName: null, viewingProductionId: null };
     }
 
     // Navigates to a rival's own read-only page (Dashboard's "Rival
@@ -570,12 +763,20 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // triggered from. Doesn't touch the calendar; it's just a detour, same
     // as opening the Dashboard's Studio History table.
     case 'VIEW_RIVAL_STUDIO':
-      return { ...state, screen: 'rival-studio', viewingRivalStudioName: action.studioName };
+      return { ...state, screen: 'rival-studio', viewingRivalStudioName: action.studioName, viewingProductionId: null };
+
+    // Dashboard's Shooting card -> lets the player check in on a specific
+    // background production (events so far, current status) without
+    // disturbing anything else - see GameState.viewingProductionId.
+    // Reachable only from the Dashboard, where `draft` is always already
+    // null, so this never competes with unrelated in-progress work.
+    case 'VIEW_PRODUCTION':
+      return { ...state, screen: 'production', viewingProductionId: action.productionId };
 
     // Dashboard -> the filterable film-history table. Pure detour, same as
     // VIEW_RIVAL_STUDIO - doesn't touch the calendar.
     case 'VIEW_STATS':
-      return { ...state, screen: 'stats', viewingRivalStudioName: null };
+      return { ...state, screen: 'stats', viewingRivalStudioName: null, viewingProductionId: null };
 
     default:
       return state;

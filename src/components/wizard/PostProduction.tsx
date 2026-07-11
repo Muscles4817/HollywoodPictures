@@ -85,7 +85,10 @@ export function PostProduction() {
       </div>
 
       <div className="row-between">
-        <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'production' })}>Back</Button>
+        <div className="row">
+          <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'production' })}>Back</Button>
+          <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Back to Dashboard</Button>
+        </div>
         <Button variant="primary" onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'marketing' })}>Continue to Marketing</Button>
       </div>
     </div>

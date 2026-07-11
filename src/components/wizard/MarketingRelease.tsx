@@ -89,7 +89,10 @@ export function MarketingRelease() {
       </div>
 
       <div className="row-between">
-        <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'post-production' })}>Back</Button>
+        <div className="row">
+          <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'post-production' })}>Back</Button>
+          <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Back to Dashboard</Button>
+        </div>
         <Button variant="primary" onClick={() => dispatch({ type: 'RELEASE_FILM' })}>
           Release Film
         </Button>

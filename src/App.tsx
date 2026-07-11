@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { StudioProvider, useStudio } from './state/StudioContext';
 import { ThemeToggle } from './components/common/ThemeToggle';
 import { DateBar } from './components/common/DateBar';
+import { Inbox } from './components/common/Inbox';
 import { Dashboard } from './components/Dashboard';
 import { RivalStudioPage } from './components/RivalStudioPage';
 import { StatsPage } from './components/StatsPage';
@@ -37,6 +38,10 @@ function Screens() {
   // its CSS animation in sync with the actual interval, instead of running
   // its own separate, potentially-drifting timer.
   const [tickNonce, setTickNonce] = useState(0);
+  // Whether the Inbox overlay is open - folded into `ticking` below so
+  // resolving a background shoot's paused decision doesn't cost real time
+  // either, the same reasoning as the manual pause button.
+  const [inboxOpen, setInboxOpen] = useState(false);
 
   // Every screen switch (forward or back) starts scrolled to the top - a
   // long wizard screen doesn't otherwise reset scroll position on
@@ -56,7 +61,7 @@ function Screens() {
     setPaused(false);
   }, [state.screen]);
 
-  const ticking = !PLANNING_SCREENS.has(state.screen) && !paused;
+  const ticking = !PLANNING_SCREENS.has(state.screen) && !paused && !inboxOpen;
 
   // Time keeps passing on its own outside the wizard - the Dashboard and
   // the post-release results screen both just sit there otherwise, with no
@@ -73,30 +78,39 @@ function Screens() {
     return () => clearInterval(timer);
   }, [ticking, dispatch]);
 
-  switch (state.screen) {
-    case 'dashboard':
-      return <Dashboard paused={paused} onTogglePause={() => setPaused((p) => !p)} tickNonce={tickNonce} />;
-    case 'develop':
-      return <DevelopFilm />;
-    case 'talent':
-      return <HireTalent />;
-    case 'production-planning':
-      return <ProductionPlanning />;
-    case 'production':
-      return <ProductionRun />;
-    case 'post-production':
-      return <PostProduction />;
-    case 'marketing':
-      return <MarketingRelease />;
-    case 'results':
-      return <ReleaseResults />;
-    case 'rival-studio':
-      return <RivalStudioPage />;
-    case 'stats':
-      return <StatsPage />;
-    default:
-      return <Dashboard paused={paused} onTogglePause={() => setPaused((p) => !p)} tickNonce={tickNonce} />;
+  function renderScreen() {
+    switch (state.screen) {
+      case 'dashboard':
+        return <Dashboard paused={paused} onTogglePause={() => setPaused((p) => !p)} tickNonce={tickNonce} />;
+      case 'develop':
+        return <DevelopFilm />;
+      case 'talent':
+        return <HireTalent />;
+      case 'production-planning':
+        return <ProductionPlanning />;
+      case 'production':
+        return <ProductionRun />;
+      case 'post-production':
+        return <PostProduction />;
+      case 'marketing':
+        return <MarketingRelease />;
+      case 'results':
+        return <ReleaseResults />;
+      case 'rival-studio':
+        return <RivalStudioPage />;
+      case 'stats':
+        return <StatsPage />;
+      default:
+        return <Dashboard paused={paused} onTogglePause={() => setPaused((p) => !p)} tickNonce={tickNonce} />;
+    }
   }
+
+  return (
+    <>
+      <Inbox open={inboxOpen} onOpenChange={setInboxOpen} />
+      {renderScreen()}
+    </>
+  );
 }
 
 function App() {

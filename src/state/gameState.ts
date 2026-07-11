@@ -27,6 +27,16 @@ export interface GameState {
   rngSeed: number;
   /** Which rival studio the 'rival-studio' screen is currently showing, if any - identified by name, same as Film.releasedBy (see types/index.ts:Film). */
   viewingRivalStudioName: string | null;
+  // Which Studio.productionsInProgress entry the 'production' screen is
+  // showing, if it's not the live draft - set by VIEW_PRODUCTION (Dashboard's
+  // Shooting card), read by ProductionRun.tsx. null means "show the live
+  // draft" (today's only behavior) - the Dashboard invariant that draft is
+  // always null while screen === 'dashboard' means this is only ever
+  // non-null while draft is null, so viewing a background production can
+  // never shadow or get confused with unrelated in-progress work. Reset to
+  // null by every other navigation action so it can't outlive the view that
+  // set it (see state/studioReducer.ts).
+  viewingProductionId: string | null;
 }
 
 /**
@@ -49,8 +59,21 @@ export function createInitialStudio(rng: RandomFn, startingCash: number): Studio
   };
 }
 
+/**
+ * Not cryptographically random on purpose - crypto.randomUUID() only works
+ * in a secure context (HTTPS or localhost), which threw on every browser
+ * opening the game over plain HTTP from another computer on the LAN. This id
+ * is pure identity, not a gameplay outcome, so it doesn't need to be
+ * replay-deterministic the way rolled events/results do, or genuinely
+ * unguessable - Date.now() plus a bit of Math.random() is unique enough.
+ */
+function generateDraftId(): string {
+  return `draft-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export function createEmptyDraft(): FilmDraft {
   return {
+    id: generateDraftId(),
     title: '',
     genre: null,
     targetAudience: null,
@@ -102,8 +125,12 @@ export type GameAction =
     }
   | { type: 'BEGIN_PHOTOGRAPHY' }
   | { type: 'ADVANCE_SHOOTING_DAY' }
-  | { type: 'RESOLVE_EVENT_CHOICE'; choiceId: string }
-  | { type: 'FINISH_PHOTOGRAPHY' }
+  // productionId omitted means "the live draft" (ProductionRun.tsx viewing
+  // it directly, GameState.viewingProductionId null); present means "this
+  // entry of Studio.productionsInProgress" (the Inbox, or ProductionRun.tsx
+  // viewing a backgrounded shoot via VIEW_PRODUCTION) - see docs/DESIGN.md 5.x.
+  | { type: 'RESOLVE_EVENT_CHOICE'; choiceId: string; productionId?: string }
+  | { type: 'FINISH_PHOTOGRAPHY'; productionId?: string }
   | { type: 'SET_POST_PRODUCTION_CHOICES'; choices: PostProductionChoices }
   | { type: 'SET_MARKETING_CHOICES'; choices: MarketingChoices }
   | { type: 'RELEASE_FILM' }
@@ -112,6 +139,17 @@ export type GameAction =
   | { type: 'RENAME_STUDIO'; name: string }
   | { type: 'RESET_SAVE'; startingCash: number }
   | { type: 'VIEW_RIVAL_STUDIO'; studioName: string }
+  // Dashboard's Shooting card -> "view" a specific backgrounded production
+  // on the 'production' screen without disturbing the live draft (which is
+  // always null at this point - see GameState.viewingProductionId).
+  | { type: 'VIEW_PRODUCTION'; productionId: string }
+  // Pulls a wrapped background production (Studio.productionsInProgress,
+  // photography.status === 'finished') back into the single draft slot so
+  // the player can walk it through post-production/marketing/release - see
+  // studioReducer.ts. A no-op while `draft` isn't already null, i.e. the
+  // player is mid-wizard on something else; the UI shouldn't offer this
+  // action in that case (see components/common/Inbox.tsx).
+  | { type: 'RESUME_FOR_POST_PRODUCTION'; productionId: string }
   // Dashboard -> the filterable film-history table (components/StatsPage.tsx).
   // No payload, no calendar cost - a pure detour, same as VIEW_RIVAL_STUDIO.
   | { type: 'VIEW_STATS' };

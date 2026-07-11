@@ -2,23 +2,32 @@ import { useEffect, useRef, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { computeStaticProductionRisk, computeRecommendedShootDays, computeSchedulePressure } from '../../engine/production';
 import { computeTalentCost, computeProductionBudgetCost } from '../../engine/cost';
-import { computeTalentCompatibility } from '../../engine/compatibility';
 import { ALL_TALENT_ROLES } from '../../data/talentGeneration';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { StatTile } from '../common/StatTile';
 import { ScoreBar } from '../common/ScoreBar';
 import { SeverityBadge } from '../common/SeverityBadge';
+import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { WizardHeader } from '../common/WizardHeader';
 import { nearestLabel } from './ProductionPlanning';
-import type { TalentRole } from '../../types';
+import type { FilmDraft, TalentRole } from '../../types';
 
 const TICK_INTERVAL_MS = 500;
 
 export function ProductionRun() {
   const { state, dispatch } = useStudio();
-  const draft = state.draft!;
-  const photography = draft.photography;
+  // GameState.viewingProductionId set (Dashboard's Shooting card) means
+  // "show this backgrounded production instead of the live draft" - only
+  // ever reachable from the Dashboard, where `draft` is already null, so
+  // this never shadows or competes with unrelated in-progress work (see
+  // GameState.viewingProductionId's own comment). null means today's only
+  // behavior: show the live draft.
+  const viewingProductionId = state.viewingProductionId;
+  const source: FilmDraft | null = viewingProductionId
+    ? (state.studio.productionsInProgress.find((p) => p.id === viewingProductionId) ?? null)
+    : state.draft;
+  const photography = source?.photography ?? null;
 
   // Pure UI pause (never persisted, mirrors Dashboard's manual pause) - set
   // the first time daysElapsed crosses recommendedDays, so the shoot stops
@@ -43,11 +52,26 @@ export function ProductionRun() {
   // not a local animation, so the shoot survives a refresh exactly where it
   // left off, same as everything else in this app. Also stops while the
   // player is deciding whether to keep going past the recommended schedule.
+  // Live-draft only (ADVANCE_SHOOTING_DAY has no productionId - a
+  // backgrounded production being viewed here only advances the normal
+  // "chunky" way, via the shared calendar, same as when nobody's looking at
+  // it - see engine/productionsInProgress.ts).
   useEffect(() => {
-    if (photography?.status !== 'in-progress' || awaitingContinueDecision) return;
+    if (viewingProductionId || photography?.status !== 'in-progress' || awaitingContinueDecision) return;
     const timer = setInterval(() => dispatch({ type: 'ADVANCE_SHOOTING_DAY' }), TICK_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [photography?.status, awaitingContinueDecision, dispatch]);
+  }, [viewingProductionId, photography?.status, awaitingContinueDecision, dispatch]);
+
+  if (!source) {
+    return (
+      <div className="stack">
+        <h1>Production</h1>
+        <p>This production isn't available any more - it may have already been picked up from the Inbox.</p>
+        <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Back to Dashboard</Button>
+      </div>
+    );
+  }
+  const draft = source;
 
   const staticRisk = draft.script && draft.productionChoices && draft.genre
     ? computeStaticProductionRisk(draft.talent, draft.script, draft.productionChoices, draft.genre)
@@ -63,27 +87,16 @@ export function ProductionRun() {
   }
 
   const pendingChoice = photography?.pendingChoice ?? null;
-  const involvedTalent = pendingChoice?.involvedTalentId
-    ? draft.talent.find((t) => t.id === pendingChoice.involvedTalentId)
-    : undefined;
-  const involvedStat = involvedTalent
-    ? 'skill' in involvedTalent
-      ? `Skill ${involvedTalent.skill}`
-      : draft.script
-        ? `Compatibility ${computeTalentCompatibility(involvedTalent, draft.script) ?? '-'}`
-        : null
-    : null;
-  // Recast choices (data/productionEvents.ts:offersReplacementFor) get shown
-  // as candidate cards in a dedicated side panel instead of plain buttons,
-  // alongside who they'd be replacing - everything else stays a normal
-  // choice button in the main column.
-  const replacementChoices = pendingChoice?.choices.filter((c) => c.replacementCandidateId !== undefined) ?? [];
-  const regularChoices = pendingChoice?.choices.filter((c) => c.replacementCandidateId === undefined) ?? [];
 
   const totalCostDelta = photography ? photography.events.reduce((sum, e) => sum + e.costDelta, 0) : 0;
   const totalQualityDelta = photography ? photography.events.reduce((sum, e) => sum + e.qualityDelta, 0) : 0;
   const totalBuzzDelta = photography ? photography.events.reduce((sum, e) => sum + e.buzzDelta, 0) : 0;
   const finalSchedulePressure = photography ? computeSchedulePressure(photography.daysElapsed, photography.recommendedDays) : 0;
+  // Positive = unspent Contingency Reserve credited back to Studio Cash when
+  // this shoot wrapped; negative = it ran over the reserve and the excess
+  // was charged instead - see FINISH_PHOTOGRAPHY, state/studioReducer.ts.
+  const contingencySettlement =
+    photography && draft.productionChoices ? draft.productionChoices.contingencyAmount - photography.runningCost : 0;
 
   return (
     <div className="stack">
@@ -172,6 +185,13 @@ export function ProductionRun() {
                 cut it short to save money, or let it run long to give the team more room to work, at that same
                 daily cost with no cap. Schedule Pressure will depend on whichever you pick.
               </p>
+              <p style={{ margin: 0 }}>
+                Cast/crew salaries and the production budget (
+                <Money amount={computeTalentCost(draft.talent) + (draft.productionChoices ? computeProductionBudgetCost(draft.productionChoices) : 0)} />
+                ), plus the full Contingency Reserve above, come out of Studio Cash the moment you begin - that money is
+                committed for the duration of the shoot. Salary and the production budget are spent for good; whatever
+                Contingency Reserve isn't actually burned comes back when you finish principal photography.
+              </p>
               <div>
                 <Button variant="primary" onClick={() => dispatch({ type: 'BEGIN_PHOTOGRAPHY' })}>
                   Begin Principal Photography
@@ -179,11 +199,26 @@ export function ProductionRun() {
               </div>
             </div>
           )}
+
+          <div className="row-between">
+            <div className="row">
+              <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'production-planning' })}>Back</Button>
+              <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Back to Dashboard</Button>
+            </div>
+          </div>
         </div>
       )}
 
       {photography && (
         <div className="stack">
+          <div className="row-between">
+            {!viewingProductionId && (
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
+                The shoot keeps going in the background - head back to the Dashboard to start another film.
+              </p>
+            )}
+            <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Back to Dashboard</Button>
+          </div>
           <div className="row">
             <StatTile label="Day" value={`${photography.daysElapsed} of ~${photography.recommendedDays} recommended`} />
             <StatTile label="Spent So Far" value={<Money amount={photography.runningCost} />} />
@@ -206,7 +241,10 @@ export function ProductionRun() {
               </p>
               <div className="row">
                 <Button onClick={() => setAwaitingContinueDecision(false)}>Keep Filming</Button>
-                <Button variant="primary" onClick={() => dispatch({ type: 'FINISH_PHOTOGRAPHY' })}>
+                <Button
+                  variant="primary"
+                  onClick={() => dispatch({ type: 'FINISH_PHOTOGRAPHY', productionId: viewingProductionId ?? undefined })}
+                >
                   Finish Principal Photography
                 </Button>
               </div>
@@ -214,68 +252,12 @@ export function ProductionRun() {
           )}
 
           {photography.status === 'awaiting-choice' && pendingChoice && (
-            <div className="card stack" style={{ borderColor: 'var(--primary)' }}>
-              <div className="row-between">
-                <h2 style={{ margin: 0 }}>A Decision Is Needed</h2>
-                <SeverityBadge severity={pendingChoice.severity} />
-              </div>
-              {involvedTalent && replacementChoices.length === 0 && (
-                <div className="row-between event-involved-talent" style={{ fontSize: '0.9em', color: 'var(--text-muted)' }}>
-                  <span>{involvedTalent.name} &middot; {pendingChoice.involvedRole}</span>
-                  {involvedStat && <span>{involvedStat}</span>}
-                </div>
-              )}
-              <p style={{ margin: 0 }}>{pendingChoice.situation}</p>
-              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>Filming is paused until you pick.</p>
-              <div className={replacementChoices.length > 0 ? 'event-decision-layout' : undefined}>
-                <div className="stack">
-                  {regularChoices.map((choice) => (
-                    <button
-                      key={choice.id}
-                      className="event-choice-button"
-                      onClick={() => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId: choice.id })}
-                    >
-                      <span className="event-choice-label-row">
-                        <span className="event-choice-label">{choice.label}</span>
-                      </span>
-                      <span className="event-choice-description">{choice.description}</span>
-                    </button>
-                  ))}
-                </div>
-
-                {replacementChoices.length > 0 && (
-                  <div className="stack event-people-panel">
-                    <h3 style={{ margin: 0 }}>People Involved</h3>
-                    {involvedTalent && (
-                      <div className="card">
-                        <div className="card-title">{involvedTalent.name}</div>
-                        <div className="card-subtitle">Currently {pendingChoice.involvedRole}</div>
-                        {involvedStat && (
-                          <div style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>{involvedStat}</div>
-                        )}
-                      </div>
-                    )}
-                    <div className="stat-label">Replace with</div>
-                    {replacementChoices.map((choice) => (
-                      <div className="card" key={choice.id}>
-                        <div className="card-title">{choice.replacementCandidateName}</div>
-                        {choice.replacementCandidateSalary !== undefined && (
-                          <div className="card-subtitle"><Money amount={choice.replacementCandidateSalary} /></div>
-                        )}
-                        <p style={{ margin: '6px 0', fontSize: '0.85em' }}>{choice.description}</p>
-                        <Button
-                          variant="primary"
-                          className="btn-sm"
-                          onClick={() => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId: choice.id })}
-                        >
-                          {choice.label}
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            <OnSetDecisionCard
+              pendingChoice={pendingChoice}
+              talent={draft.talent}
+              script={draft.script}
+              onChoose={(choiceId) => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId, productionId: viewingProductionId ?? undefined })}
+            />
           )}
 
           <div className="card stack">
@@ -305,8 +287,13 @@ export function ProductionRun() {
                   Filming<span className="filming-dot">.</span><span className="filming-dot">.</span><span className="filming-dot">.</span>
                 </span>
                 <div className="row">
-                  <Button onClick={handleFastForward}>Fast Forward to Day {photography.recommendedDays}</Button>
-                  <Button variant="primary" onClick={() => dispatch({ type: 'FINISH_PHOTOGRAPHY' })}>
+                  {!viewingProductionId && (
+                    <Button onClick={handleFastForward}>Fast Forward to Day {photography.recommendedDays}</Button>
+                  )}
+                  <Button
+                    variant="primary"
+                    onClick={() => dispatch({ type: 'FINISH_PHOTOGRAPHY', productionId: viewingProductionId ?? undefined })}
+                  >
                     Finish Principal Photography
                   </Button>
                 </div>
@@ -339,11 +326,22 @@ export function ProductionRun() {
                   <div className="stat-label">Final Schedule Pressure</div>
                   <div className="stat-value">{finalSchedulePressure}/100</div>
                 </div>
+                <div className="stat">
+                  <div className="stat-label">{contingencySettlement >= 0 ? 'Contingency Refunded' : 'Contingency Overrun Charged'}</div>
+                  <div className="stat-value"><Money amount={Math.abs(contingencySettlement)} /></div>
+                </div>
               </div>
 
               <div className="row-between">
                 <span />
-                <Button variant="primary" onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'post-production' })}>
+                <Button
+                  variant="primary"
+                  onClick={() =>
+                    viewingProductionId
+                      ? dispatch({ type: 'RESUME_FOR_POST_PRODUCTION', productionId: viewingProductionId })
+                      : dispatch({ type: 'GO_TO_STEP', step: 'post-production' })
+                  }
+                >
                   Continue to Post-Production
                 </Button>
               </div>

@@ -503,10 +503,29 @@ export interface Studio {
   rivalProductionsInProgress: RivalProductionInProgress[];
   /** Parallel to filmsReleased, but never touches the player's own cash/reputation - purely for the market (Top 10 chart, talent contention history). */
   rivalFilmsReleased: Film[];
+  // The player's own shoots running in the background - a FilmDraft sent
+  // here (RETURN_TO_DASHBOARD) instead of being discarded, once its
+  // photography has actually started, so the player can develop/cast/plan a
+  // second film while this one keeps shooting (docs/DESIGN.md 5.x). Reuses
+  // FilmDraft wholesale rather than a parallel type - scriptOptions/
+  // talentTargetPriceByRole/furthestStepIndexCharged just go unused here,
+  // same as they already do once a live draft reaches `production`. Every
+  // entry's `photography` is non-null. Advanced by
+  // engine/productionsInProgress.ts:settleProductionsInProgress, called
+  // from the same reducer sites as settleBoxOfficeForAllFilms/
+  // settleRivalMarket - it progresses as a side effect of the calendar
+  // advancing, not a dedicated ticking screen.
+  productionsInProgress: FilmDraft[];
 }
 
 // The film currently being built in the wizard; fields fill in progressively.
 export interface FilmDraft {
+  // Stable identity, needed once a draft can be sent to
+  // Studio.productionsInProgress alongside others of its kind - actions
+  // that used to implicitly mean "the draft" (RESOLVE_EVENT_CHOICE,
+  // FINISH_PHOTOGRAPHY) target one of those by id instead. Assigned once,
+  // at START_NEW_FILM.
+  id: string;
   title: string;
   genre: Genre | null;
   targetAudience: TargetAudience | null;

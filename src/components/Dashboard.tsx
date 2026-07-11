@@ -158,6 +158,42 @@ export function Dashboard({ paused, onTogglePause, tickNonce }: DashboardProps) 
             );
           })}
 
+          {studio.productionsInProgress.map((production) => {
+            const photography = production.photography;
+            if (!photography) return null;
+            const statusLabel =
+              photography.status === 'awaiting-choice'
+                ? 'Awaiting your decision - check the Inbox'
+                : photography.status === 'finished'
+                  ? 'Wrapped - ready for post-production (check the Inbox)'
+                  : 'Shooting in the background';
+            return (
+              <div className="card stack" key={production.id}>
+                <div className="row-between">
+                  <h2 style={{ margin: 0 }}>{production.title || 'Untitled Film'}</h2>
+                  <div className="row" style={{ gap: 8 }}>
+                    <Button className="btn-sm" onClick={() => dispatch({ type: 'VIEW_PRODUCTION', productionId: production.id })}>
+                      View
+                    </Button>
+                    {photography.status === 'in-progress' && (
+                      <Button
+                        className="btn-sm"
+                        onClick={() => dispatch({ type: 'FINISH_PHOTOGRAPHY', productionId: production.id })}
+                      >
+                        Finish Principal Photography
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="row">
+                  <StatTile label="Status" value={statusLabel} />
+                  <StatTile label="Day" value={`${photography.daysElapsed} of ~${photography.recommendedDays} recommended`} />
+                  <StatTile label="Spent So Far" value={<Money amount={photography.runningCost} />} />
+                </div>
+              </div>
+            );
+          })}
+
           <div className="card">
             <div className="row-between">
               <h2 style={{ margin: 0 }}>Studio History</h2>
