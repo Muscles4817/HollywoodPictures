@@ -2670,6 +2670,134 @@ importing it, preserving Milestone 1's isolation).
 - **Deferred to later milestones, by design**: same list as Milestone 1,
   unchanged - this milestone still doesn't touch the live game.
 
+**Implementation Milestone 3: release inputs and release-type behaviour
+(`engine/audienceSimulationInputs.ts`, `engine/audienceSimulationInputs.test.ts`).**
+"Connect release-time inputs to the isolated audience simulation."
+`engine/audienceSimulation.ts` (Milestone 1) and
+`engine/audienceSimulationStep.ts` (Milestone 2) stay exactly as isolated as
+before - plain numbers in, plain numbers out. This milestone adds the one
+file in the codebase that translates Buzz/marketing spend/script
+marketability/originality/target audience & fit/genre popularity/release
+window/release type/critic & audience score into an
+`AudienceSimulationFixedState`, reusing `data/audiences.ts`, `data/genres.ts`
+and `data/release.ts`'s window/genre-bonus tables as the single source of
+truth for those facts - still not called from anywhere in the live game
+(`state/studioReducer.ts` still runs `engine/boxOffice.ts` unchanged);
+wiring it in is a later milestone's job.
+
+- **A new fixed-state field: `initialAwareCount`** (`audienceSimulation.ts`).
+  Milestone 2's weekly step only ever *grew* awareness gradually
+  (`externalWeeklyAwarenessRate`) - it had no way to express "Wide seeds a
+  large initial AwareCount, Limited seeds a small one" (the design's own
+  "release-day-known" awareness shape). A new step 0
+  (`applyReleaseDayAwarenessSeed`, `audienceSimulationStep.ts`) lands this
+  one-time lump only when week 1 is being computed, folded in *before* step
+  1 so step 2's existing natural-fit conversion picks it up automatically -
+  no second, parallel conversion formula.
+- **Streaming is deliberately unsupported, not silently ported.**
+  `SupportedReleaseType` excludes it at the type level (`Exclude<ReleaseType,
+  'Streaming'>`), and the release-type lookup throws if it's ever reached
+  anyway - forcing a streaming release through a theatrical-admissions model
+  (seats, "opening weekend," per-screen scarcity) would be dishonest. It
+  stays out until a real streaming model exists.
+- **Release types reinterpreted for this model, not the old formula's
+  numbers.** `data/release.ts:RELEASE_TYPE_PROFILES` (`reachMultiplier`,
+  `baseLegsMultiplier`, `varianceMultiplier`) belongs to
+  `engine/boxOffice.ts`'s Opening/Legs formula and is deliberately not
+  reused - a new, smaller profile
+  (`RELEASE_TYPE_AUDIENCE_PROFILES`) captures only the two facts that
+  actually matter to a population simulation: `initialAwarenessShare` (how
+  much of the addressable audience even *could* learn about the film on day
+  one - Wide 0.9, Limited 0.12, Festival First 0.03) and
+  `conversionPacingBaseline` (per-person weekly attendance urgency - Wide
+  highest, Festival First lowest). A platform-style release isn't a fourth
+  profile, per the brief - it falls out on its own from Limited's low
+  `initialAwarenessShare` plus a strong reception's word-of-mouth effects
+  (Milestone 2), exactly the emergent-shape principle the original design
+  conversation predicted for it. Conversion pacing also gets a modest,
+  secondary Buzz-driven boost (`BUZZ_URGENCY_WEIGHT`) on top of release
+  type's primary role - a high-buzz event film genuinely converts its
+  opening-week crowd faster than a same-release-type film nobody's talking
+  about, independent of whatever word of mouth does afterward.
+- **Originality creates capacity, never realization, by construction.**
+  `scriptOriginality` sets `crossoverCapacityFraction` (the ceiling) and
+  dampens `marketingEfficiency` - it never touches `criticScore`,
+  `audienceScore`, or any word-of-mouth response constant. Milestone 2's
+  crossover step already required *both* capacity and a reception-cleared
+  threshold to realize anything; this milestone's own monotonicity test
+  (sweeping originality 0-100 at fixed poor reception) confirms the
+  resulting outcome never moves by more than ~15-30% either direction
+  regardless of capacity - originality alone never manufactures a breakout.
+- **A genuine miscalibration found and fixed, exactly the kind this
+  milestone's calibration instruction was written to catch.** Milestone
+  2's WOM response thresholds/sensitivities were picked and diagnostic-
+  checked against a *narrow* range (a 1M-population, modest-pacing
+  fixture, peak influence in the low hundredths) - correct for Milestone
+  2's own tests, but this milestone's translation layer introduces
+  realistic release-scale inputs (tens-of-millions addressable audiences,
+  a multi-million-person release-day awareness seed, Release-Type-driven
+  pacing up to ~0.2/week) that feed a genuine positive feedback loop
+  (higher admissions -> higher influence next week -> more awareness/
+  interest -> higher admissions again). A diagnostic sweep at that
+  realistic scale showed influence climbing past 0.3-0.7 once that loop
+  actually took off - a materially wider range than Milestone 2's own
+  diagnostic ever produced - and Milestone 2's sensitivities, applied
+  unmodified at this scale, made every WOM effect saturate to 100% within
+  1-2 weeks for almost any positive reception, collapsing every
+  moderate-to-good film into an identical "sells out the whole addressable
+  market instantly" outcome. Re-picked against the wider observed range
+  (`audienceSimulationStep.ts`'s `AWARENESS_RESPONSE`/
+  `NATURAL_INTEREST_RESPONSE`/`PULL_FORWARD_RESPONSE`/`CROSSOVER_RESPONSE`),
+  re-verified against *both* Milestone 2's own 40 tests (still pass
+  unmodified) and this milestone's release-scale diagnostics.
+- **The model has a genuine critical-mass tipping point - an observed
+  property, not a bug, and not smoothed away.** Even after recalibration,
+  a diagnostic reception-score sweep at realistic release scale shows a
+  sharp transition band (roughly where the audience-weighted reception
+  blend crosses from "mediocre" to "decent") between "WOM never really
+  catches on" and "the run fully saturates its addressable ceiling" -
+  adjacent single-point reception scores on either side of that band can
+  look locally out of order, even though poor/decent/exceptional *bands*
+  never invert. This is a real emergent property of a convex,
+  threshold-gated, positive-feedback diffusion model (the same shape
+  epidemic/adoption curves have a critical `R0` around), not something
+  this milestone's tests fight - monotonicity tests use clearly-separated
+  reception bands rather than fine-grained adjacent points, and the named
+  archetypes were calibrated (via the same diagnostic sweeps) to sit
+  clearly on one side of the tip or the other rather than balanced
+  exactly on it.
+- **The top end of the range is reachable without repeat viewing - checked,
+  not assumed.** The brief asked this to be verified and reported rather
+  than silently patched with a repeat-viewing mechanic if it turned out to
+  be impossible. A maximal-but-justified input combination (Mass Market,
+  a maximally popular genre, maximum Buzz and marketing spend, Wide
+  release, exceptional critic/audience scores, real originality-driven
+  crossover capacity) reaches well into the tens of millions of admissions
+  inside a single ~40M-person addressable audience, entirely through
+  Milestone 2's existing awareness/interest/crossover/pull-forward
+  mechanics - `cumulativeTicketsSold` never needs to exceed
+  `totalAddressableAudience` (Milestone 1's own validation already forbids
+  it) to get there. No repeat-viewing mechanic was needed or added.
+- **28 new tests** (108 total, `npm run test`) cover: fixed-state
+  construction (Streaming rejection, the `baseInterestFraction +
+  crossoverCapacityFraction <= 1` invariant holding across every
+  marketability/originality extreme); monotonicity and causality for
+  every relationship the brief listed (marketing, Buzz, release reach,
+  reception, expansion capacity, originality-without-reception,
+  marketability); boundary cases (Buzz 0 vs. 100, zero vs. maximum
+  marketing, tiny Limited vs. maximum Wide, excellent-but-unknown,
+  terrible-but-everywhere, niche-acclaimed-low-capacity); all nine named
+  archetypes from the brief, each asserting a shape/relationship rather
+  than an exact figure; and the top-of-range/no-repeat-viewing check
+  above.
+- **Deferred to later milestones, by design**: wiring into
+  `Film`/`BoxOfficeRun`/`state/studioReducer.ts` (still not called from
+  anywhere in the live game - `engine/boxOffice.ts` is still what a real
+  game session runs), any save-version bump, shadow-mode comparison
+  against the live model, competition, international markets, repeat
+  viewing, and a further calibration pass now that real film data can be
+  run through this instead of hand-picked scenarios.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:

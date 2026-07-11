@@ -74,12 +74,14 @@ export interface AudienceSimulationFixedState {
   crossoverCapacityFraction: number;
   /** Baseline weekly probability that an interested-but-unconverted person attends this particular week, before any word-of-mouth urgency modulation. */
   conversionPacingBaseline: number;
-  /** Fraction of the currently-unaware population that becomes aware each week from non-word-of-mouth sources (residual marketing tail, organic press, incidental discovery) - applied every week, including week 1, since this isolated module doesn't yet model a Release-Type-driven initial marketing burst (see engine/audienceSimulationStep.ts and DESIGN.md 5.34 Milestone 2). */
+  /** Fraction of the currently-unaware population that becomes aware each week from non-word-of-mouth sources (residual marketing tail, organic press, incidental discovery) - applied every week, including week 1, on top of whatever initialAwareCount already seeded on release day. */
   externalWeeklyAwarenessRate: number;
   /** Reused from FilmResults.criticScore (engine/scoring.ts), not duplicated - same 0-100 meaning. */
   criticScore: number;
   /** Reused from FilmResults.audienceScore (engine/scoring.ts), not duplicated - same 0-100 meaning. */
   audienceScore: number;
+  /** The one-time release-day awareness lump (Buzz, marketing spend, Release Type reach - see DESIGN.md 5.34 Milestone 3), applied once when week 1 is computed, never again - everything after week 1 grows AwareCount only through externalWeeklyAwarenessRate or word of mouth (engine/audienceSimulationStep.ts). A headcount, capped by totalAddressableAudience. */
+  initialAwareCount: number;
 }
 
 /**
@@ -102,10 +104,14 @@ export function createAudienceSimulationFixedState(input: AudienceSimulationFixe
   assertUnitInterval(input.externalWeeklyAwarenessRate, 'externalWeeklyAwarenessRate');
   assertScoreRange(input.criticScore, 'criticScore');
   assertScoreRange(input.audienceScore, 'audienceScore');
+  assertNonNegative(input.initialAwareCount, 'initialAwareCount');
   if (input.baseInterestFraction + input.crossoverCapacityFraction > 1) {
     throw new Error(
       'AudienceSimulation: baseInterestFraction + crossoverCapacityFraction must not exceed 1 - the base pool plus its maximum crossover expansion cannot exceed the whole addressable audience',
     );
+  }
+  if (input.initialAwareCount > input.totalAddressableAudience) {
+    throw new Error('AudienceSimulation: initialAwareCount cannot exceed totalAddressableAudience');
   }
   return { ...input };
 }

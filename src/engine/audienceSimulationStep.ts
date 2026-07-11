@@ -9,6 +9,7 @@
 //
 // The weekly lifecycle, as small named pure functions rather than one
 // opaque calculation (numbered to match the design conversation):
+//   0. applyReleaseDayAwarenessSeed (Milestone 3 - the one-time release-day lump, week 1 only)
 //   1. applyExternalAwarenessGrowth
 //   2. convertNewAwarenessToBaseInterest
 //   3. computeCurrentWomInfluence (wraps deriveWordOfMouthActivity)
@@ -18,7 +19,7 @@
 //   7. getBaselineAttendanceProbability
 //   8. applyWomPullForward
 //   9. sellTicketsThisWeek
-//   10. advanceOneWeek assembles 1-9 into the next AudienceSimulationWeekState
+//   10. advanceOneWeek assembles 0-9 into the next AudienceSimulationWeekState
 //   11. hasSimulationEnded / advanceToWeek
 //
 // Word of mouth has three distinguishable effects (spreading awareness,
@@ -51,6 +52,13 @@ function clamp(value: number, min: number, max: number): number {
 
 const WEEK_ZERO: AudienceSimulationWeekState = { week: 0, awareCount: 0, interestedRemaining: 0, cumulativeTicketsSold: 0 };
 
+/** Step 0 (Milestone 3): the one-time release-day awareness lump (AudienceSimulationFixedState.initialAwareCount - Buzz, marketing spend, Release Type reach, see engine/audienceSimulationInputs.ts) lands only when week 1 is being computed (weeksLength === 0), never again on any later week - everything after that grows AwareCount only through step 1's ongoing trickle or word of mouth. Folded into awareCount *before* step 1 runs, so step 2's "newly aware this week" naturally includes the seed and converts its natural-fit slice into Interest, without a second, separate conversion formula. */
+export function applyReleaseDayAwarenessSeed(fixed: AudienceSimulationFixedState, awareCount: number, weeksLength: number): number {
+  if (weeksLength > 0) return awareCount;
+  const unaware = Math.max(0, fixed.totalAddressableAudience - awareCount);
+  return awareCount + Math.min(unaware, fixed.initialAwareCount);
+}
+
 /** Step 1: a constant fraction of the still-unaware population becomes aware from non-word-of-mouth sources every week, including week 1 - see AudienceSimulationFixedState.externalWeeklyAwarenessRate. */
 export function applyExternalAwarenessGrowth(fixed: AudienceSimulationFixedState, awareCount: number): number {
   const unaware = Math.max(0, fixed.totalAddressableAudience - awareCount);
@@ -81,15 +89,24 @@ function thresholdResponse(womInfluence: number, threshold: number, sensitivity:
 // "ordinary reactions clear the first, only exceptional reactions clear
 // the last" (DESIGN.md 5.34). Though computeCurrentWomInfluence is
 // mathematically bounded by [0,1], a recency-weighted slice of admissions
-// (deriveWordOfMouthActivity, summing to ~2.35x one week's admissions at
-// most) over a whole-run ceiling realistically only ever reaches into the
-// low hundredths even for an exceptional run - these thresholds/
-// sensitivities are calibrated against that actual achievable range, not
-// against [0,1] itself.
-const AWARENESS_RESPONSE = { threshold: 0.0, sensitivity: 8000 };
-const NATURAL_INTEREST_RESPONSE = { threshold: 0.003, sensitivity: 700 };
-const PULL_FORWARD_RESPONSE = { threshold: 0.005, sensitivity: 500 };
-const CROSSOVER_RESPONSE = { threshold: 0.008, sensitivity: 3000 };
+// over a whole-run ceiling stays in the low hundredths for a *subdued*
+// run - but this signal feeds a genuine positive feedback loop (higher
+// admissions -> higher influence next week -> more awareness/interest ->
+// higher admissions again), and a Milestone 3 diagnostic sweep across
+// realistic release-scale inputs (engine/audienceSimulationInputs.ts,
+// tens-of-millions addressable audiences, release-type-driven pacing)
+// showed influence climbing past 0.3-0.7 once that loop actually takes
+// off for a well-received film - a materially wider range than Milestone
+// 2's own smaller-scale, subdued-pacing diagnostic ever produced. The
+// sensitivities below were re-picked against *that* wider observed range
+// (not the earlier, narrower one) specifically so a merely-decent
+// reception doesn't instantly saturate every effect to 100% within a
+// single week at realistic scale - still calibrated from an actual
+// diagnostic sweep, never against the nominal [0,1] bound.
+const AWARENESS_RESPONSE = { threshold: 0.0, sensitivity: 300 };
+const NATURAL_INTEREST_RESPONSE = { threshold: 0.003, sensitivity: 150 };
+const PULL_FORWARD_RESPONSE = { threshold: 0.005, sensitivity: 100 };
+const CROSSOVER_RESPONSE = { threshold: 0.0075, sensitivity: 100 };
 
 // Reception -> a 0-1 multiplier on word-of-mouth influence, convex in the
 // same spirit, with a small nonzero floor (organic chatter never reaches
@@ -172,19 +189,24 @@ export function sellTicketsThisWeek(interestedRemaining: number, attendanceProba
 }
 
 /**
- * Step 10: composes steps 1-9 into the next week's state. Takes the whole
+ * Step 10: composes steps 0-9 into the next week's state. Takes the whole
  * history (not just the last week) because step 3 needs it for the
  * recency-weighted lookback. `weeks` may be empty - a fresh run's week 1
- * is produced by applying this exact same transition to WEEK_ZERO, no
- * special-cased "seed the run" logic (see module header).
+ * is produced by applying this exact same transition to WEEK_ZERO, with
+ * only step 0's one-time release-day seed distinguishing week 1 from every
+ * later week (see applyReleaseDayAwarenessSeed) - no separate "seed the
+ * run" algorithm.
  */
 export function advanceOneWeek(fixed: AudienceSimulationFixedState, weeks: AudienceSimulationWeekState[]): AudienceSimulationWeekState {
   const priorWeek = weeks.length > 0 ? weeks[weeks.length - 1] : WEEK_ZERO;
   const nextWeekNumber = priorWeek.week + 1;
   let totalEverInterested = priorWeek.interestedRemaining + priorWeek.cumulativeTicketsSold;
 
+  // Step 0: the release-day awareness lump, only on week 1.
+  const awareAfterSeed = applyReleaseDayAwarenessSeed(fixed, priorWeek.awareCount, weeks.length);
+
   // Step 1 + 2: external awareness growth, and the natural-fit slice of it converting to interest immediately.
-  const awareAfterExternal = applyExternalAwarenessGrowth(fixed, priorWeek.awareCount);
+  const awareAfterExternal = applyExternalAwarenessGrowth(fixed, awareAfterSeed);
   const newlyAwareExternal = awareAfterExternal - priorWeek.awareCount;
   const deltaInterestExternal = convertNewAwarenessToBaseInterest(fixed, newlyAwareExternal, totalEverInterested);
   totalEverInterested += deltaInterestExternal;

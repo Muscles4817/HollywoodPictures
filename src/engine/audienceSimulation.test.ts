@@ -20,6 +20,7 @@ function validFixed(overrides: Partial<AudienceSimulationFixedState> = {}): Audi
     externalWeeklyAwarenessRate: 0.05,
     criticScore: 70,
     audienceScore: 75,
+    initialAwareCount: 0,
     ...overrides,
   };
 }
@@ -65,6 +66,22 @@ describe('createAudienceSimulationFixedState', () => {
     expect(() => createAudienceSimulationFixedState(validFixed({ totalAddressableAudience: NaN }))).toThrow();
     expect(() => createAudienceSimulationFixedState(validFixed({ totalAddressableAudience: Infinity }))).toThrow();
     expect(() => createAudienceSimulationFixedState(validFixed({ marketingEfficiency: NaN }))).toThrow();
+  });
+
+  it('rejects a negative initialAwareCount', () => {
+    expect(() => createAudienceSimulationFixedState(validFixed({ initialAwareCount: -1 }))).toThrow();
+  });
+
+  it('rejects an initialAwareCount exceeding totalAddressableAudience', () => {
+    expect(() =>
+      createAudienceSimulationFixedState(validFixed({ totalAddressableAudience: 1000, initialAwareCount: 1001 })),
+    ).toThrow();
+  });
+
+  it('accepts initialAwareCount equal to totalAddressableAudience', () => {
+    expect(() =>
+      createAudienceSimulationFixedState(validFixed({ totalAddressableAudience: 1000, initialAwareCount: 1000 })),
+    ).not.toThrow();
   });
 
   it('remains valid for a tiny addressable audience', () => {

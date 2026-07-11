@@ -8,6 +8,7 @@ import {
   getBaselineAttendanceProbability,
   applyWomPullForward,
   sellTicketsThisWeek,
+  applyReleaseDayAwarenessSeed,
   MAX_SIMULATION_WEEKS,
 } from './audienceSimulationStep';
 import {
@@ -29,6 +30,7 @@ function fixed(overrides: Partial<AudienceSimulationFixedState> = {}): AudienceS
     externalWeeklyAwarenessRate: 0.15,
     criticScore: 70,
     audienceScore: 75,
+    initialAwareCount: 0,
     ...overrides,
   });
 }
@@ -309,6 +311,34 @@ describe('boundary cases', () => {
     // Attendance probability in week 1 should be exactly the baseline - no pull-forward boost possible with zero WOM influence.
     expect(applyWomPullForward(getBaselineAttendanceProbability(f), 0)).toBe(f.conversionPacingBaseline);
     expect(week1.week).toBe(1);
+  });
+});
+
+describe('release-day awareness seed (Milestone 3 step 0)', () => {
+  it('lands only when computing week 1, never on any later week', () => {
+    expect(applyReleaseDayAwarenessSeed(fixed({ initialAwareCount: 50_000 }), 0, 0)).toBe(50_000);
+    expect(applyReleaseDayAwarenessSeed(fixed({ initialAwareCount: 50_000 }), 0, 1)).toBe(0);
+    expect(applyReleaseDayAwarenessSeed(fixed({ initialAwareCount: 50_000 }), 10_000, 3)).toBe(10_000);
+  });
+
+  it('is capped by the remaining unaware pool, never exceeding totalAddressableAudience', () => {
+    const f = fixed({ totalAddressableAudience: 1000, initialAwareCount: 1000 });
+    expect(applyReleaseDayAwarenessSeed(f, 800, 0)).toBe(1000);
+  });
+
+  it("its natural-fit slice converts into week 1's InterestedRemaining via the same step-2 conversion, not a second formula", () => {
+    const f = fixed({ initialAwareCount: 200_000, baseInterestFraction: 0.25, externalWeeklyAwarenessRate: 0 });
+    const week1 = advanceOneWeek(f, []);
+    expect(week1.awareCount).toBeCloseTo(200_000, 5);
+    // interestedRemaining is what's left after this week's own baseline conversion sells some tickets, so it's <= the seed's converted slice, not equal to it.
+    const convertedFromSeed = 200_000 * f.baseInterestFraction;
+    expect(week1.interestedRemaining + week1.cumulativeTicketsSold).toBeCloseTo(convertedFromSeed, 5);
+  });
+
+  it('a zero initialAwareCount leaves week 1 identical to Milestone 2 behavior (no seed at all)', () => {
+    const f = fixed({ initialAwareCount: 0 });
+    const week1 = advanceOneWeek(f, []);
+    expect(week1.awareCount).toBeCloseTo(f.totalAddressableAudience * f.externalWeeklyAwarenessRate, 5);
   });
 });
 
