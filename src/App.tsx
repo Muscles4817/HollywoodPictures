@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StudioProvider, useStudio } from './state/StudioContext';
 import { ThemeToggle } from './components/common/ThemeToggle';
 import { DateBar } from './components/common/DateBar';
@@ -16,7 +16,7 @@ import { PostProduction } from './components/wizard/PostProduction';
 import { MarketingRelease } from './components/wizard/MarketingRelease';
 import { ReleaseResults } from './components/wizard/ReleaseResults';
 import type { Screen } from './types';
-import { DAY_TICK_MS } from './constants';
+import { DAY_TICK_MS, type TickSpeedMultiplier } from './constants';
 
 // Every wizard screen where the player is setting choices with no clock
 // pressure of its own - paused here so a slow decision never costs real
@@ -26,6 +26,13 @@ import { DAY_TICK_MS } from './constants';
 // up with it, or fire uselessly while the player is just reviewing the
 // pre-shoot risk profile.
 const PLANNING_SCREENS = new Set<Screen>(['develop', 'talent', 'production-planning', 'production', 'post-production', 'marketing']);
+
+// Screens that are a pure read-only detour from the Dashboard - entering or
+// leaving them costs no calendar time of its own (VIEW_RIVAL_STUDIO/
+// VIEW_STATS are plain screen changes, see studioReducer.ts), so a pause the
+// player set intentionally shouldn't silently lift just because they ducked
+// in to check a rival's page or the stats table.
+const PAUSE_PERSISTING_SCREENS = new Set<Screen>(['rival-studio', 'stats']);
 
 function Screens() {
   const { state, dispatch } = useStudio();
@@ -42,6 +49,13 @@ function Screens() {
   // resolving a background shoot's paused decision doesn't cost real time
   // either, the same reasoning as the manual pause button.
   const [inboxOpen, setInboxOpen] = useState(false);
+  // A fast-forward multiplier for the Dashboard's own tick, same
+  // session-only lifetime as `paused` - it's a "how fast am I watching this
+  // right now" preference, not game state, so it never persists to a save.
+  // Selecting it doesn't reset on screen change like `paused` does: it just
+  // has no effect anywhere but the Dashboard (see `effectiveTickMs` below),
+  // so there's nothing to silently leave engaged on another screen.
+  const [speedMultiplier, setSpeedMultiplier] = useState<TickSpeedMultiplier>(1);
 
   // Every screen switch (forward or back) starts scrolled to the top - a
   // long wizard screen doesn't otherwise reset scroll position on
@@ -57,11 +71,28 @@ function Screens() {
   // time-costing player actions (GO_TO_STEP, RELEASE_FILM) are themselves
   // screen transitions, so this is what makes pausing "toggle off if the
   // player does something that requires time to pass" true in practice.
+  // PAUSE_PERSISTING_SCREENS are the exception: entering or leaving one is a
+  // pure read-only detour (VIEW_RIVAL_STUDIO/VIEW_STATS don't touch the
+  // calendar, see studioReducer.ts) with no time cost of its own, same as
+  // opening a modal - without this, ducking in to check a rival's page or
+  // the stats table would silently resume a pause the player set
+  // intentionally, resuming for real once they returned to whatever screen
+  // they paused it on.
+  const prevScreenRef = useRef(state.screen);
   useEffect(() => {
-    setPaused(false);
+    const prevScreen = prevScreenRef.current;
+    prevScreenRef.current = state.screen;
+    const isPauseExemptDetour = PAUSE_PERSISTING_SCREENS.has(prevScreen) || PAUSE_PERSISTING_SCREENS.has(state.screen);
+    if (!isPauseExemptDetour) setPaused(false);
   }, [state.screen]);
 
   const ticking = !PLANNING_SCREENS.has(state.screen) && !paused && !inboxOpen;
+
+  // The selected speed only ever applies while actually watching the
+  // Dashboard tick by - everywhere else falls back to the base interval
+  // even if a faster one is selected, so leaving the Dashboard can't
+  // silently blow through days on a screen the player isn't watching.
+  const effectiveTickMs = state.screen === 'dashboard' ? DAY_TICK_MS / speedMultiplier : DAY_TICK_MS;
 
   // Time keeps passing on its own outside the wizard - the Dashboard and
   // the post-release results screen both just sit there otherwise, with no
@@ -74,14 +105,22 @@ function Screens() {
     const timer = setInterval(() => {
       dispatch({ type: 'ADVANCE_DAY' });
       setTickNonce((n) => n + 1);
-    }, DAY_TICK_MS);
+    }, effectiveTickMs);
     return () => clearInterval(timer);
-  }, [ticking, dispatch]);
+  }, [ticking, effectiveTickMs, dispatch]);
 
   function renderScreen() {
     switch (state.screen) {
       case 'dashboard':
-        return <Dashboard paused={paused} onTogglePause={() => setPaused((p) => !p)} tickNonce={tickNonce} />;
+        return (
+          <Dashboard
+            paused={paused}
+            onTogglePause={() => setPaused((p) => !p)}
+            tickNonce={tickNonce}
+            speedMultiplier={speedMultiplier}
+            onSetSpeedMultiplier={setSpeedMultiplier}
+          />
+        );
       case 'develop':
         return <DevelopFilm />;
       case 'talent':
@@ -101,7 +140,15 @@ function Screens() {
       case 'stats':
         return <StatsPage />;
       default:
-        return <Dashboard paused={paused} onTogglePause={() => setPaused((p) => !p)} tickNonce={tickNonce} />;
+        return (
+          <Dashboard
+            paused={paused}
+            onTogglePause={() => setPaused((p) => !p)}
+            tickNonce={tickNonce}
+            speedMultiplier={speedMultiplier}
+            onSetSpeedMultiplier={setSpeedMultiplier}
+          />
+        );
     }
   }
 

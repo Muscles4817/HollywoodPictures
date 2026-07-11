@@ -13,15 +13,18 @@ import { TimeTickIndicator } from './common/TimeTickIndicator';
 import { TopGrossingPanel } from './common/TopGrossingPanel';
 import { DifficultyPicker } from './common/DifficultyPicker';
 import { computeTopGrossingFilms } from '../state/selectors';
+import type { TickSpeedMultiplier } from '../constants';
 import type { Film } from '../types';
 
 interface DashboardProps {
   paused: boolean;
   onTogglePause: () => void;
   tickNonce: number;
+  speedMultiplier: TickSpeedMultiplier;
+  onSetSpeedMultiplier: (speed: TickSpeedMultiplier) => void;
 }
 
-export function Dashboard({ paused, onTogglePause, tickNonce }: DashboardProps) {
+export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, onSetSpeedMultiplier }: DashboardProps) {
   const { state, dispatch } = useStudio();
   const { studio } = state;
   const [showGuide, setShowGuide] = useState(false);
@@ -105,7 +108,13 @@ export function Dashboard({ paused, onTogglePause, tickNonce }: DashboardProps) 
           <p>{formatGameDate(studio.totalDays)} &middot; {studio.filmsReleased.length} film{studio.filmsReleased.length === 1 ? '' : 's'} released</p>
         </div>
         <div className="row">
-          <TimeTickIndicator paused={paused} onTogglePause={onTogglePause} tickNonce={tickNonce} />
+          <TimeTickIndicator
+            paused={paused}
+            onTogglePause={onTogglePause}
+            tickNonce={tickNonce}
+            speedMultiplier={speedMultiplier}
+            onSetSpeedMultiplier={onSetSpeedMultiplier}
+          />
           <Button onClick={() => dispatch({ type: 'VIEW_STATS' })}>Stats</Button>
           <Button onClick={() => setShowGuide(true)}>How It Works</Button>
           <Button onClick={() => setShowResetPicker(true)}>Reset Studio</Button>
