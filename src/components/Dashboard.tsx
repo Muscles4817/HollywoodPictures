@@ -27,10 +27,23 @@ export function Dashboard({ paused, onTogglePause, tickNonce }: DashboardProps) 
   const [showGuide, setShowGuide] = useState(false);
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
   const [showResetPicker, setShowResetPicker] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(studio.name);
   // Which running-film panels are collapsed - plain UI state, not persisted,
   // same as everything else in this component that's about how the
   // Dashboard looks rather than the game itself.
   const [collapsedFilmIds, setCollapsedFilmIds] = useState<Set<string>>(new Set());
+
+  function startEditingName() {
+    setNameDraft(studio.name);
+    setEditingName(true);
+  }
+
+  function commitNameEdit() {
+    const trimmed = nameDraft.trim();
+    if (trimmed) dispatch({ type: 'RENAME_STUDIO', name: trimmed });
+    setEditingName(false);
+  }
 
   function toggleCollapsed(filmId: string) {
     setCollapsedFilmIds((prev) => {
@@ -67,7 +80,28 @@ export function Dashboard({ paused, onTogglePause, tickNonce }: DashboardProps) 
 
       <div className="row-between">
         <div>
-          <h1>{studio.name}</h1>
+          {editingName ? (
+            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+              <input
+                type="text"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitNameEdit();
+                  if (e.key === 'Escape') setEditingName(false);
+                }}
+                autoFocus
+                style={{ fontSize: '1.5em', fontWeight: 700, maxWidth: 360 }}
+              />
+              <Button className="btn-sm" variant="primary" onClick={commitNameEdit}>Save</Button>
+              <Button className="btn-sm" onClick={() => setEditingName(false)}>Cancel</Button>
+            </div>
+          ) : (
+            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+              <h1 style={{ margin: 0 }}>{studio.name}</h1>
+              <Button className="btn-sm" onClick={startEditingName}>Rename</Button>
+            </div>
+          )}
           <p>{formatGameDate(studio.totalDays)} &middot; {studio.filmsReleased.length} film{studio.filmsReleased.length === 1 ? '' : 's'} released</p>
         </div>
         <div className="row">
