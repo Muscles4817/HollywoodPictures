@@ -17,7 +17,6 @@ import { effectiveRoleCapacity } from './castRequirements';
 import { generateScriptOptions } from './scriptGenerator';
 import { computeRecommendedShootDays } from './production';
 import { computeReleaseResults } from './releaseFilm';
-import { computeWeeklyRetention } from './boxOffice';
 import { settleBoxOfficeForAllFilms } from './boxOfficeRun';
 import { computeDailyContingencyBurn } from './cost';
 import { findCandidatesNearPrice } from './talentFilter';
@@ -213,7 +212,7 @@ function resolveRivalProduction(production: RivalProductionInProgress, rivalStud
   const dailyBurn = computeDailyContingencyBurn(production.productionChoices.contingencyAmount, recommendedDays);
   const photographyCost = Math.round(dailyBurn * recommendedDays * shootingRatio);
 
-  const { results, legs } = computeReleaseResults(
+  const { results, fixed } = computeReleaseResults(
     {
       title: production.script.title,
       genre: production.genre,
@@ -245,8 +244,8 @@ function resolveRivalProduction(production: RivalProductionInProgress, rivalStud
     results,
     boxOfficeRun: {
       status: 'running',
-      legs,
-      retention: computeWeeklyRetention(legs),
+      fixed,
+      simWeeks: [],
       weeks: [],
       cumulativeGross: 0,
       acknowledged: true, // the finished-run popup only ever looks at the player's own films
@@ -279,7 +278,7 @@ export function settleRivalMarket(studio: Studio, rng: RandomFn): RivalMarketUpd
     resolveRivalProduction(p, studio.rivalStudios.find((r) => r.id === p.rivalStudioId)?.name ?? 'A Rival Studio', rng),
   );
 
-  const afterBoxOffice = settleBoxOfficeForAllFilms([...studio.rivalFilmsReleased, ...newlyReleased], studio.totalDays, rng);
+  const afterBoxOffice = settleBoxOfficeForAllFilms([...studio.rivalFilmsReleased, ...newlyReleased], studio.totalDays);
 
   let talentPool = studio.talentPool;
   let productionsInProgress = stillInProgress;

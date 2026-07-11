@@ -1,8 +1,7 @@
-import type { BoxOfficeRun, Film } from '../types';
-import { STUDIO_BOX_OFFICE_SHARE } from './boxOffice';
+import type { Film } from '../types';
+import { advanceOneWeekWithDiagnostics, hasSimulationEnded } from './audienceSimulationStep';
 import { determineOutcome } from './outcome';
 import { computeReputationChange } from './reputation';
-import { randFloat, type RandomFn } from './random';
 
 // A week's gross is settled once real in-game days accumulate to it, off
 // the same calendar everything else uses (Studio.totalDays) - there's no
@@ -11,25 +10,27 @@ import { randFloat, type RandomFn } from './random';
 // state/studioReducer.ts, everywhere it calls settleBoxOfficeForAllFilms).
 const WEEK_LENGTH_DAYS = 7;
 
-// A run ends once its weekly gross has decayed to a trickle, or after a
-// generous cap regardless of how slowly a long-legs film is decaying - real
-// theatrical runs essentially never go past this in practice.
-const MIN_WEEKLY_GROSS_RATIO = 0.02;
-const MAX_WEEKS = 20;
+// The studio's actual cut of box office gross once theatrical rental fees
+// and the international split are accounted for - real-world studio
+// rentals average roughly 40% of worldwide gross. totalBoxOffice stays the
+// big headline number (matching how box office is always reported); the
+// smaller studioRevenue figure is what profit is actually computed from.
+// Unchanged from the retired fixed-legs model (docs/DESIGN.md 5.34,
+// Milestone 5) - this is a fact about theatrical economics, not something
+// either box-office model itself decides.
+export const STUDIO_BOX_OFFICE_SHARE = 0.42;
 
-// Week-to-week gross isn't perfectly geometric - a small amount of noise on
-// top of the underlying retention rate, same spirit as the opening
-// weekend's own variance band (engine/boxOffice.ts).
-const WEEKLY_VARIANCE_BAND = 0.15;
-
-function rollNextWeekGross(run: BoxOfficeRun, openingWeekend: number, rng: RandomFn): number {
-  // Week 1 is always exactly the already-known opening weekend, not a fresh
-  // roll - the decay curve only governs week 2 onward.
-  if (run.weeks.length === 0) return openingWeekend;
-  const lastGross = run.weeks[run.weeks.length - 1].gross;
-  const variance = randFloat(rng, 1 - WEEKLY_VARIANCE_BAND, 1 + WEEKLY_VARIANCE_BAND);
-  return Math.max(0, Math.round((lastGross * run.retention * variance) / 1000) * 1000);
-}
+// The people-to-money boundary for the whole audience-simulation-driven box
+// office system (docs/DESIGN.md 5.34) - engine/audienceSimulationStep.ts
+// itself never multiplies anything by a price ("model people, not money...
+// until the very last step"). A single flat average ticket price,
+// deliberately simple (no per-market/per-format breakdown yet - see
+// DESIGN.md's "where international markets slot in later"), first
+// introduced for Milestone 4's dev-only Outcome Inspector and promoted here
+// now that live settlement needs the exact same conversion - both
+// engine/releaseFilm.ts (FilmResults.openingWeekend) and this file's own
+// weekly settlement read it from here, so there's one number, not two.
+export const AVERAGE_TICKET_PRICE = 11;
 
 // Week 1 is due immediately on release (releasedOnDay === currentTotalDays
 // gives 0 elapsed weeks + 1), so the same settlement path that handles
@@ -56,12 +57,15 @@ export interface BoxOfficeSettlement {
  * profit/outcome/reputationChange computed right here, from whatever its
  * weeks actually added up to - the same job RELEASE_FILM used to do in one
  * shot at release time.
+ *
+ * Driven entirely by engine/audienceSimulationStep.ts's weekly step
+ * (advanceOneWeekWithDiagnostics) against each run's own `fixed`/`simWeeks`
+ * - no randomness anywhere in this file any more (the audience simulation
+ * is fully deterministic), and no local stopping-rule logic either:
+ * hasSimulationEnded is the single source of truth for "has this run
+ * finished," the same function Milestones 1-4's own tests already cover.
  */
-export function settleBoxOfficeForAllFilms(
-  filmsReleased: Film[],
-  currentTotalDays: number,
-  rng: RandomFn,
-): BoxOfficeSettlement {
+export function settleBoxOfficeForAllFilms(filmsReleased: Film[], currentTotalDays: number): BoxOfficeSettlement {
   let cashCredit = 0;
   let reputationDelta = 0;
 
@@ -70,15 +74,16 @@ export function settleBoxOfficeForAllFilms(
 
     let run = film.boxOfficeRun;
     const due = weeksDueByNow(film.releasedOnDay, currentTotalDays);
-    while (run.status === 'running' && run.weeks.length < due) {
-      const weekNumber = run.weeks.length + 1;
-      const gross = rollNextWeekGross(run, film.results.openingWeekend, rng);
-      const weeks = [...run.weeks, { week: weekNumber, gross }];
+    while (run.status === 'running' && run.simWeeks.length < due) {
+      const { next: nextSimWeek, diagnostics } = advanceOneWeekWithDiagnostics(run.fixed, run.simWeeks);
+      const gross = Math.round(diagnostics.weeklyAdmissions * AVERAGE_TICKET_PRICE);
+      const simWeeks = [...run.simWeeks, nextSimWeek];
+      const weeks = [...run.weeks, { week: nextSimWeek.week, gross }];
       const cumulativeGross = run.cumulativeGross + gross;
       cashCredit += Math.round(gross * STUDIO_BOX_OFFICE_SHARE);
 
-      const finished = weekNumber >= MAX_WEEKS || gross < film.results.openingWeekend * MIN_WEEKLY_GROSS_RATIO || run.retention <= 0;
-      run = { ...run, weeks, cumulativeGross, status: finished ? 'finished' : 'running' };
+      const finished = hasSimulationEnded(simWeeks);
+      run = { ...run, simWeeks, weeks, cumulativeGross, status: finished ? 'finished' : 'running' };
     }
 
     if (run === film.boxOfficeRun) return film; // nothing newly due this call

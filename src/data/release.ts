@@ -30,7 +30,6 @@ export const RELEASE_WINDOW_DESCRIPTIONS: Record<ReleaseWindow, string> = {
 };
 
 export interface ReleaseTypeProfile {
-  reachMultiplier: number; // scales the addressable opening-weekend pool
   costMultiplier: number; // scales distribution/marketing overhead
   criticBonus: number; // flat critic score bonus/penalty
   // Whether this release type's box office lives or dies on marketing -
@@ -38,34 +37,28 @@ export interface ReleaseTypeProfile {
   // of weak marketing happens naturally through Buzz -> Opening Weekend,
   // there's no separate hand-coded penalty here anymore.
   needsMarketing: boolean;
-  varianceMultiplier: number; // safer (streaming) vs riskier releases, applied to the opening-weekend roll
-  // How many multiples of the opening weekend an *average*-reviewed film
-  // (see engine/boxOffice.ts:reviewLegsFactor) ends up grossing in total. A
-  // wide release front-loads hard; a limited release that catches on can
-  // expand for months, so its multiple is much bigger.
-  baseLegsMultiplier: number;
   description: string;
 }
 
+// reachMultiplier/varianceMultiplier/baseLegsMultiplier used to live here -
+// inputs to the old fixed Opening Weekend/Legs formula
+// (engine/boxOffice.ts), retired in docs/DESIGN.md 5.34 Milestone 5. The
+// audience simulation that replaced it reinterprets "release type" as
+// engine/audienceSimulationInputs.ts:RELEASE_TYPE_AUDIENCE_PROFILES
+// (initial awareness share + conversion pacing) instead - a different shape
+// entirely, not a 1:1 renaming of these fields, so it lives in its own
+// table rather than growing this one back out.
 export const RELEASE_TYPE_PROFILES: Record<ReleaseType, ReleaseTypeProfile> = {
   Limited: {
-    reachMultiplier: 0.45, costMultiplier: 0.5, criticBonus: 2, needsMarketing: false, varianceMultiplier: 0.8,
-    baseLegsMultiplier: 6.5,
+    costMultiplier: 0.5, criticBonus: 2, needsMarketing: false,
     description: 'A small number of theaters. Cheaper to support and lower risk, but caps how big the opening can get - everything rides on legs.',
   },
   Wide: {
-    reachMultiplier: 1.3, costMultiplier: 1.2, criticBonus: 0, needsMarketing: true, varianceMultiplier: 1.15,
-    baseLegsMultiplier: 2.9,
+    costMultiplier: 1.2, criticBonus: 0, needsMarketing: true,
     description: 'Everywhere at once - the biggest opening and the biggest variance. Needs real marketing spend behind it or it badly underperforms.',
   },
-  Streaming: {
-    reachMultiplier: 0.7, costMultiplier: 0.6, criticBonus: 0, needsMarketing: false, varianceMultiplier: 0.5,
-    baseLegsMultiplier: 4.0,
-    description: 'Lower box office ceiling, but the safest, most predictable option - the smallest swing between a good and bad outcome.',
-  },
   'Festival First': {
-    reachMultiplier: 0.6, costMultiplier: 0.7, criticBonus: 6, needsMarketing: false, varianceMultiplier: 0.7,
-    baseLegsMultiplier: 8.0,
+    costMultiplier: 0.7, criticBonus: 6, needsMarketing: false,
     description: 'Premiere on the festival circuit before wider release. A direct critic score boost and the longest potential legs - the strongest option for a prestige/awards play.',
   },
 };

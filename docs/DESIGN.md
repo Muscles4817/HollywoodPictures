@@ -236,7 +236,16 @@ bigger cheque. `marketingBuzzContribution` reads off a log-scale anchor
 curve (`data/release.ts:MARKETING_SPEND_ANCHORS`), the same interpolation
 pattern as every other spend dial.
 
-### 5.4 Box office (`engine/boxOffice.ts`)
+### 5.4 Box office (`engine/boxOffice.ts`) - superseded, see 5.34 Milestone 5
+
+**This formula no longer runs - `engine/boxOffice.ts` was deleted in 5.34's
+Milestone 5.** Kept below for its historical reasoning (especially the
+"History" bullets at the end of section 8, which record real overpowering
+bugs this formula was rebuilt to fix - still worth reading before touching
+box office again) and because `computeCriticScore`/`computeAudienceScore`/
+`computeBuzzScore` (referenced throughout) are unaffected and still exactly
+what a real release uses; only the Opening Weekend/Legs machinery described
+below is gone.
 
 Box office is computed in **two stages, not one lump sum** - this was a
 deliberate rebuild (see the earlier single-stage version's balance problems
@@ -1266,7 +1275,17 @@ assembly that's come together ahead of schedule), Director and Lead Actor
 specific role attached (an actor rivalry, a vendor discount) - bringing the
 interactive template count from 16 to 24.
 
-### 5.19 Box office as a live weekly process (`engine/boxOffice.ts`, `engine/boxOfficeRun.ts`, `state/studioReducer.ts`, `components/Dashboard.tsx`)
+### 5.19 Box office as a live weekly process (superseded by 5.34 Milestone 5 - the *mechanism* below is still accurate, the *formula* it drives is not)
+
+**The weekly, lazy-catch-up settlement architecture this section describes
+is unchanged and still exactly what runs** (`engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms`,
+called from the same reducer sites, off the same `Studio.totalDays`
+calendar) - only *what* each week's gross is now driven by changed, in
+5.34's Milestone 5: the geometric `retention` decay this section describes
+was replaced by the audience simulation's own weekly step
+(`engine/audienceSimulationStep.ts`). Read this section for the shape of
+"lazy weekly settlement, not a dedicated ticking screen"; read 5.34 for
+what actually computes a given week's number today.
 
 Same move as Principal Photography (5.16) applied to what happens *after*
 release: a film's total box office used to be one number computed the
@@ -2289,15 +2308,19 @@ something a real phone, which only ever generates touch-originated
 events, can't produce. Confirmed correct in isolation (matched the CSS
 rule applying cleanly) before concluding this, rather than assuming.
 
-### 5.34 Box office as an audience simulation - architecture (design frozen; implementation starting - see Milestone 1)
+### 5.34 Box office as an audience simulation - architecture and implementation (Milestones 1-5 complete - this is what a real release runs)
 
-**Status: design frozen, implementation underway in small reviewable
-milestones.** This section records an architecture pressure-tested
-over several rounds of discussion before any formula or code was written -
-`engine/boxOffice.ts`'s existing Opening Weekend -> Legs -> Total Gross model
-(5.4, 5.19) stays in place and unchanged until this is actually built.
-Recorded here so implementation starts from a stable design instead of
-improvising formulas against a half-remembered conversation.
+**Status: fully implemented and live.** This section records an
+architecture pressure-tested over several rounds of discussion before any
+formula or code was written, then built in five reviewable milestones. As
+of Milestone 5, this *is* the box office model - `engine/boxOffice.ts`'s
+old Opening Weekend -> Legs -> Total Gross model described in 5.4/5.19
+below has been deleted; those two sections are kept for their historical
+reasoning (in particular 5.4's "History" bullets, which record real
+overpowering bugs found and fixed in the old formula - still relevant
+context for anyone tempted to reintroduce a similar shortcut) but no
+longer describe what actually runs. See Milestone 5's note below for
+exactly what changed and why.
 
 **Motivation.** The Outcome Inspector (`components/dev/OutcomeInspector.tsx`)
 - built to let the player load a real film's inputs and see how one changed
@@ -2964,6 +2987,183 @@ intentional:**
   to close the magnitude gap above - that's calibration work for its own
   pass, informed by this comparison rather than done blind before it
   existed.
+
+**Implementation Milestone 5: integrate the new model into the live game.**
+The audience simulation (Milestones 1-4) is now what a real release actually
+settles through - `engine/boxOffice.ts`'s fixed Opening Weekend/Legs formula
+is retired (deleted, not deprecated-in-place) and `engine/boxOfficeRun.ts`,
+`engine/releaseFilm.ts`, `state/studioReducer.ts` and `engine/rivalStudios.ts`
+all run the new model exclusively. One production source of truth, per this
+milestone's own brief.
+
+- **`BoxOfficeRun` now stores the simulation's own state, not a
+  hand-picked legs/retention pair.** `legs: number; retention: number`
+  (`types/index.ts`) are gone, replaced by `fixed:
+  AudienceSimulationFixedState` (computed once at release, exactly as
+  before - critic reaction doesn't change after the fact, so neither does
+  this) and `simWeeks: AudienceSimulationWeekState[]` (the actual weekly
+  admissions history - people, not money - the single source of truth for
+  continuing a run). `weeks: BoxOfficeWeek[]` and `cumulativeGross` stay
+  exactly as they were - a denormalized *money* view derived from
+  `simWeeks` at the boundary (`engine/boxOfficeRun.ts:AVERAGE_TICKET_PRICE`)
+  and stored alongside it, specifically so every existing display
+  (`BoxOfficeChart`, `Dashboard.tsx`, `FilmDetailModal.tsx`,
+  `BoxOfficeFinishedPopup.tsx`, `StatsPage.tsx`, `RivalStudioPage.tsx`,
+  `TopGrossingPanel.tsx`, `state/selectors.ts`) keeps reading the *exact*
+  shape it always has - confirmed by an exhaustive call-site audit before
+  writing a line of this milestone's code that none of them ever read
+  `.legs`/`.retention` directly, only `.weeks`/`.cumulativeGross`/`.status`/
+  `.acknowledged` and `FilmResults`' own fields. Not one of those files
+  needed to change.
+- **"Legs" is now a genuinely derived reported statistic, never stored,
+  never an input.** `state/selectors.ts:computeReportedLegs(film)` =
+  `results.totalBoxOffice / results.openingWeekend`, computed on demand,
+  returning `null` while a run is still in theaters (not knowable any
+  earlier than the real total is - deliberately doesn't project one from
+  `cumulativeGross` the way the Outcome Inspector's dev-only preview does,
+  since that would be showing the player a number the game itself doesn't
+  actually know yet). Surfaced as a new "Legs" line in
+  `FilmDetailModal.tsx`'s Financials section once a run has finished -
+  otherwise the new model would have made this concept strictly less
+  visible to the player than the old one, which is the opposite of what
+  removing a hand-tuned number in favor of an emergent one should do.
+- **`engine/releaseFilm.ts:computeReleaseResults`** now derives
+  `AudienceSimulationFixedState` (`deriveAudienceSimulationFixedState`,
+  Milestone 3) from the same script/marketing/reception inputs it always
+  computed, and calls `advanceOneWeek(fixed, [])` once to know week 1's
+  admissions for `FilmResults.openingWeekend` - deterministic (the new
+  model has no randomness at all), so this is safe to compute here and
+  independently again moments later inside `settleBoxOfficeForAllFilms`'s
+  own catch-up loop without any risk of the two ever disagreeing. Returns
+  `{ results, fixed }` (replacing the old `{ results, legs }`) for
+  `RELEASE_FILM`/`resolveRivalProduction` to seed `boxOfficeRun` with.
+- **`engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms` keeps its exact
+  existing shape - lazy catch-up off `Studio.totalDays`, one function
+  shared by the player's own films and every rival's** - only the inside
+  of its per-week loop changed: `rollNextWeekGross` (geometric decay off a
+  stored `retention`, ±15% noise) is replaced by
+  `advanceOneWeekWithDiagnostics` (Milestone 4) against each run's own
+  `fixed`/`simWeeks`, and the old hand-rolled finish condition
+  (`weekNumber >= MAX_WEEKS || gross < opening * MIN_WEEKLY_GROSS_RATIO ||
+  retention <= 0`) is replaced by `hasSimulationEnded` - Milestone 2's own
+  stopping rule, already tested there, now the single source of truth for
+  "has this run finished" instead of a second, parallel implementation of
+  the same idea. No randomness anywhere in this file any more (the new
+  model has none) - `settleBoxOfficeForAllFilms` dropped its `rng`
+  parameter entirely, at all seven call sites (six in
+  `state/studioReducer.ts`, one in `engine/rivalStudios.ts`).
+- **The people -> money boundary moved from dev-only tooling to the live
+  settlement module it now actually belongs to.**
+  `AVERAGE_TICKET_PRICE`/`STUDIO_BOX_OFFICE_SHARE` live in
+  `engine/boxOfficeRun.ts` now (previously `STUDIO_BOX_OFFICE_SHARE` was in
+  the now-deleted `engine/boxOffice.ts`; `AVERAGE_TICKET_PRICE` was
+  Milestone 4's dev-only constant) - `engine/releaseFilm.ts` and
+  `engine/audienceSimulationReporting.ts`'s dev diagnostics both import it
+  from here, so there's one ticket price, not two independently-tunable
+  ones that could quietly drift apart.
+- **Streaming was removed as a release option, not kept as a second,
+  unmaintained production path.** Milestone 3 explicitly excluded it from
+  the new model ("no honest model exists yet"), and this milestone's own
+  brief doesn't ask for a streaming model to be built - only asks to
+  confirm the new model covers every *remaining* live call site before
+  removing the old one. Rather than either building a streaming model out
+  of scope or keeping the old fixed-legs formula alive just for one
+  release type (two production sources of truth instead of one, the
+  opposite of this milestone's stated goal), `ReleaseType` itself dropped
+  `'Streaming'` (`types/index.ts`) - the compiler then pointed at every
+  place that needed updating (`data/release.ts:RELEASE_TYPE_PROFILES` lost
+  the entry and its old-model-only `reachMultiplier`/`varianceMultiplier`/
+  `baseLegsMultiplier` fields; `MarketingRelease.tsx`'s Release Type picker
+  shrank to three options automatically, since it already derived its list
+  from `Object.keys(RELEASE_TYPE_PROFILES)`). A deliberate product
+  decision, made explicitly rather than defaulted into - the alternative
+  (keep Streaming on the old formula as a small, clearly-marked legacy
+  path) was considered and rejected in favor of a single, honest,
+  fully-live model.
+- **Persistence: a version bump, no migration code - the same strategy
+  every past shape-break here has used.** `state/persistence.ts:SAVE_KEY`
+  moved to `-v19`. There is no field-by-field migration function anywhere
+  in this codebase (confirmed by reading the whole file before touching
+  it) - an old save simply isn't found under the new key, so `loadState()`
+  falls back to a fresh studio, exactly as it already does for a missing
+  or malformed save. A `BoxOfficeRun.legs`/`retention`-shaped old save
+  becoming unreadable the moment this shipped is the intended behavior,
+  not a gap.
+- **A real, unrelated bug found and fixed along the way, kept minimal and
+  separate from this milestone's own work**: `state/gameState.ts:createInitialStudio`
+  was missing `productionsInProgress: []` in its return (an unfinished,
+  unrelated, uncommitted feature already in the working tree before this
+  milestone started - `Studio.productionsInProgress` exists on the type
+  but nothing initialized it). This is a hard blocker for "build and all
+  tests must pass" - `tsc -b` failed on it, and every reducer action this
+  milestone's own tests exercise (`RELEASE_FILM`, `ADVANCE_DAY`, ...) calls
+  `settleProductionsInProgress(state.studio.productionsInProgress, ...)`,
+  which crashes on `undefined`. Fixed with the one line every other
+  `Studio` field at that exact call site already uses (`rivalProductionsInProgress: []`,
+  `rivalFilmsReleased: []`) - a brand-new studio unambiguously has zero
+  productions in progress, regardless of how the rest of that unrelated
+  feature eventually turns out. Not otherwise touched.
+- **Dev tooling updated to match, not left broken**: `components/dev/ModelComparisonPanel.tsx`
+  is deleted (its whole purpose - comparing old vs. new before switching -
+  is fulfilled; the comparison and analysis themselves are permanently
+  preserved in this document's Milestone 4 note, the "useful diagnostic
+  fixture" this milestone's brief asked to keep). `engine/audienceSimulationReporting.ts`
+  dropped `runOldModel`/`compareModels` (both depended on the now-deleted
+  `engine/boxOffice.ts`) but kept `runModel`/`buildWeeklyReport`/
+  `diagnoseRunShape`/`REPRESENTATIVE_SCENARIO_MATRIX` - still useful for
+  spot-checking the live model's shape from the Outcome Inspector without
+  a real save on hand. `components/dev/OutcomeInspector.tsx`'s Box Office
+  card now projects the working copy's whole run via `advanceToWeek`
+  against the same `fixed` state `Film.boxOfficeRun.fixed` would actually
+  be seeded with (and, for the *original* film's projection, the real
+  stored `selectedFilm.boxOfficeRun.fixed` itself - more accurate than
+  re-deriving it, since it's the exact state that run was really seeded
+  with) - one model, consistently, everywhere in that tool now.
+- **An honest calibration finding, not silently patched**: while writing
+  this milestone's own termination tests, a scratch sweep across
+  buzz/marketing/release-type/reception extremes found that Milestones
+  1-4's already-committed calibration never actually triggers
+  `hasSimulationEnded`'s natural trickle-detection cutoff (latest week's
+  admissions falling below 2% of opening) within `MAX_SIMULATION_WEEKS`
+  for *any* realistic release-input combination - `deriveAudienceSimulationFixedState`'s
+  release-type-driven `conversionPacingBaseline` range (roughly 0.05-0.21
+  even at maximum Buzz) never decays a non-replenished pool fast enough to
+  cross that threshold in 20 weeks. In practice, every real run today ends
+  via the hard cap, not the "ran out of steam early" path - both are still
+  exercised and correct (`engine/boxOfficeRun.test.ts` covers the natural
+  path directly against a synthetic higher-pacing fixed state, independent
+  of whether real release inputs can currently reach one), but this is
+  worth surfacing as a concrete data point for whatever future calibration
+  pass Milestone 3's own "further calibration... now that real film data
+  can be run through this" already flagged - not something this
+  integration milestone should re-tune blind.
+- **28 new tests** (155 total, `npm run test`) across four new files:
+  `engine/boxOfficeRun.test.ts` (calendar jumps across multiple films at
+  once; one big catch-up matching many small ones exactly; a finished run
+  never re-settling - same object identity, zero cash/reputation on a
+  later call; `cashCredit` exactly matching the sum of each newly-settled
+  week's gross times the studio share; `cashCredit` never negative across
+  reception extremes; `cumulativeGross` always matching the sum of that
+  run's own weeks; natural termination vs. the hard cap; a rival-tagged
+  film settling identically to a non-rival one through the same function),
+  `state/studioReducer.test.ts` (`RELEASE_FILM` producing a coherent
+  `Film` with week 1 already settled and the Results screen agreeing with
+  Studio History; a big calendar jump matching many small `ADVANCE_DAY`s;
+  cash never decreasing from settlement alone; a second film released
+  mid-run settling alongside the first; `ACKNOWLEDGE_BOX_OFFICE_RESULTS`
+  touching only `acknowledged`; full release-day determinism), `state/persistence.test.ts`
+  (a mid-run and a finished run both round-tripping through save/reload
+  byte-for-byte identical; continuing a reloaded run matching continuing
+  the original in memory; a save under the old pre-Milestone-5 key being
+  invisible to the new one; malformed/missing save data both falling back
+  to a fresh studio without throwing), and `state/selectors.test.ts`
+  (`computeReportedLegs` null while running, correctly derived once
+  finished, never below 1x).
+- **Deliberately not implemented, per this milestone's own scope**:
+  competition between concurrently-running films, international market
+  pools, and repeat viewing - all three remain exactly where DESIGN.md's
+  original architecture section already parked them ("where competition
+  and international markets slot in later").
 
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 

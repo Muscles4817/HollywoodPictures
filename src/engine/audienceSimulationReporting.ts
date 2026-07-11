@@ -1,61 +1,36 @@
-// Milestone 4 of the audience-based box office redesign (docs/DESIGN.md
-// 5.34) - "Outcome Inspector and model comparison." Two things live here,
-// both dev-only reporting concerns that deliberately sit *outside*
-// Milestones 1-3's isolated engine files rather than inside them:
+// Originally Milestone 4 of the audience-based box office redesign
+// (docs/DESIGN.md 5.34) - "Outcome Inspector and model comparison." Since
+// Milestone 5 wired the audience simulation into live settlement and
+// retired the old fixed-legs model entirely (engine/boxOffice.ts is gone),
+// this file's job narrowed to one thing: dev-only weekly reporting for
+// components/dev/OutcomeInspector.tsx - a plain-language "why did this run
+// do that" (diagnoseRunShape) plus a representative scenario matrix for
+// spot-checking the live model's shape without needing a real save. The
+// people -> money boundary conversion itself (AVERAGE_TICKET_PRICE) now
+// lives in engine/boxOfficeRun.ts, since live settlement needs it too -
+// this file imports it from there rather than defining its own, so there's
+// one ticket price, not two.
 //
-//   1. The people -> money boundary conversion (AVERAGE_TICKET_PRICE,
-//      buildWeeklyReport) - engine/audienceSimulationStep.ts's own header
-//      says it best: "model people, not money... until the very last
-//      step, where tickets sold x price = revenue converts the
-//      simulation's output into money once, at the boundary." This file
-//      is that boundary. Milestones 1-3 never needed it (their tests
-//      reason entirely in admissions); Milestone 4's Outcome Inspector
-//      explicitly wants weekly/cumulative *gross*, so it has to exist
-//      somewhere - here, not inside the step module, keeps that module's
-//      "no money" promise intact.
-//   2. Running the old (engine/boxOffice.ts) and new (Milestones 1-3)
-//      models against the same representative scenario matrix, so the two
-//      can be compared side by side before anything about the old model
-//      is removed (see docs/DESIGN.md's Milestone 4 note for the actual
-//      comparison and which differences are intentional).
-//
-// Neither model is wired into the live game any differently by this file
-// - state/studioReducer.ts still runs engine/boxOffice.ts unchanged, and
-// nothing here is called from anywhere except components/dev/OutcomeInspector.tsx.
+// The Milestone 4 old-vs-new comparison this file used to run
+// (runOldModel/compareModels against engine/boxOffice.ts) served its
+// purpose - the actual comparison and analysis are preserved permanently in
+// docs/DESIGN.md's Milestone 4 note, which is the "useful diagnostic
+// fixture" Milestone 5's brief asked to keep. The *code* that produced it
+// depended entirely on the old model's functions, which no longer exist -
+// removed alongside them rather than kept around unable to run.
 
-import type { Genre, ReleaseWindow, TargetAudience } from '../types';
-import {
-  computeOpeningWeekend,
-  computeLegs,
-  computeWeeklyRetention,
-  projectTotalGross,
-  MAX_WEEKS,
-  MIN_WEEKLY_GROSS_RATIO,
-} from './boxOffice';
-import { createRng } from './random';
-import { deriveAudienceSimulationFixedState, type ReleaseSimulationInputs, type SupportedReleaseType } from './audienceSimulationInputs';
 import { advanceToWeekWithDiagnostics, MAX_SIMULATION_WEEKS, type WeekDiagnostics } from './audienceSimulationStep';
+import { deriveAudienceSimulationFixedState, type ReleaseSimulationInputs } from './audienceSimulationInputs';
+import { AVERAGE_TICKET_PRICE } from './boxOfficeRun';
 
-// --- The people -> money boundary -------------------------------------------
-
-// A single flat average ticket price, deliberately simple - real-world
-// average ticket prices vary by market/format/time, but this model has no
-// per-market or per-format breakdown yet (see DESIGN.md 5.34's "where
-// international markets slot in later"), so one constant is honest about
-// what's actually being modeled. Picked so a maxed-out "genuine global
-// phenomenon" scenario (Milestone 3's own top-of-range diagnostic - tens
-// of millions of admissions inside a ~40M-person addressable audience)
-// lands in a broadly comparable pounds range to the old model's own
-// maxed-out OPENING_BASE_POTENTIAL (engine/boxOffice.ts, £24,000,000)
-// once summed across a full run - not tuned further than that.
-export const AVERAGE_TICKET_PRICE = 11;
+export { AVERAGE_TICKET_PRICE };
 
 export interface WeekReport extends WeekDiagnostics {
   weeklyGross: number;
   cumulativeGross: number;
 }
 
-/** Milestone 4's only money-touching step: WeekDiagnostics (people/probabilities) -> WeekReport (adds gross), one multiplication, nothing else recomputed. */
+/** WeekDiagnostics (people/probabilities) -> WeekReport (adds gross), one multiplication, nothing else recomputed. */
 export function buildWeeklyReport(diagnostics: WeekDiagnostics[]): WeekReport[] {
   return diagnostics.map((d) => ({
     ...d,
@@ -66,7 +41,7 @@ export function buildWeeklyReport(diagnostics: WeekDiagnostics[]): WeekReport[] 
 
 // --- "Why did this film do that" - a plain-language shape diagnosis --------
 //
-// The milestone brief: the inspector should make it obvious why a film
+// The Milestone 4 brief: the inspector should make it obvious why a film
 // opened strongly, collapsed, grew, plateaued, or remained niche. Reasons
 // entirely in admissions (people), not gross - the shape a run took is a
 // property of the simulation itself, not of whatever ticket price happens
@@ -133,99 +108,33 @@ export function diagnoseRunShape(fixed: { totalAddressableAudience: number }, ce
   return results;
 }
 
-// --- Old-versus-new comparison -----------------------------------------------
-
-/**
- * Everything both models need for one scenario, as a single input bundle -
- * the old model (engine/boxOffice.ts) only reads a subset of these fields
- * (see toOldModelInput below); the new model (engine/audienceSimulationInputs.ts)
- * reads all of them. Kept as one bundle rather than two separate scenario
- * shapes so a comparison can never accidentally compare the two models
- * against subtly different releases.
- */
-export interface ComparisonScenario {
+// --- A representative scenario matrix ---------------------------------------
+//
+// Five named archetypes (a blockbuster, a prestige/arthouse release, a
+// mid-tier film, a flop, an indie sleeper) spanning the range the live
+// model needs to handle - useful for spot-checking behavior in the Outcome
+// Inspector without needing a real save on hand. Originally built for
+// Milestone 4's old-vs-new comparison; kept for that reason alone now that
+// there's only one model to run it against.
+export interface ReportingScenario extends ReleaseSimulationInputs {
   name: string;
   description: string;
-  buzzScore: number;
-  marketingSpend: number;
-  scriptMarketability: number;
-  scriptOriginality: number;
-  scriptIntendedAudience: TargetAudience;
-  targetAudience: TargetAudience;
-  genre: Genre;
-  releaseWindow: ReleaseWindow;
-  releaseType: SupportedReleaseType;
-  criticScore: number;
-  audienceScore: number;
-}
-
-function toNewModelInput(scenario: ComparisonScenario): ReleaseSimulationInputs {
-  const { name: _name, description: _description, ...inputs } = scenario;
-  return inputs;
 }
 
 export interface ModelRunResult {
   openingGross: number;
-  /** Gross per week, week 1 first - the old model's is a smooth geometric decay by construction (computeWeeklyRetention); the new model's is whatever admissions the simulation actually produced that week, converted at AVERAGE_TICKET_PRICE. */
+  /** Gross per week, week 1 first - whatever admissions the simulation actually produced that week, converted at AVERAGE_TICKET_PRICE. */
   weeklyTrajectory: number[];
   totalGross: number;
-  /** Total gross / opening gross - computed after the fact from the trajectory above for both models, exactly how DESIGN.md 5.34 defines legs for the new model ("never an input... computed after a run finishes"); for the old model this is engine/boxOffice.ts:computeLegs's own value, restated the same way for a fair side-by-side. */
+  /** Total gross / opening gross - computed after the fact, exactly how DESIGN.md 5.34 defines legs ("never an input... computed after a run finishes"). */
   legs: number;
   runWeeks: number;
 }
 
-/**
- * Runs engine/boxOffice.ts's Opening Weekend/Legs model against a
- * scenario, using a fixed rng seed - the same deterministic-comparison
- * need components/dev/OutcomeInspector.tsx's existing variance-seed
- * pattern already established, so a comparison run is reproducible rather
- * than jittering on every call. Kept as its own temporary diagnostic path
- * (per this milestone's brief) - not touched, not removed, only read from.
- */
-export function runOldModel(scenario: ComparisonScenario, rngSeed = 1): ModelRunResult {
-  const rng = createRng(rngSeed);
-  const openingWeekend = computeOpeningWeekend(
-    {
-      buzzScore: scenario.buzzScore,
-      targetAudience: scenario.targetAudience,
-      genre: scenario.genre,
-      releaseWindow: scenario.releaseWindow,
-      releaseType: scenario.releaseType,
-    },
-    rng,
-  );
-  const legs = computeLegs(scenario.criticScore, scenario.audienceScore, scenario.releaseType);
-  const retention = computeWeeklyRetention(legs);
-
-  // Mirrors projectTotalGross's own loop (engine/boxOffice.ts) exactly -
-  // same MAX_WEEKS/MIN_WEEKLY_GROSS_RATIO cutoff - but also keeps the
-  // per-week figures projectTotalGross itself discards, since the
-  // trajectory is what this milestone's comparison needs. Verified in
-  // audienceSimulationReporting.test.ts to sum to the same total
-  // projectTotalGross computes independently, so this can never silently
-  // drift from the real model's own total.
-  const weeklyTrajectory = [openingWeekend];
-  let weekGross = openingWeekend;
-  let week = 1;
-  while (week < MAX_WEEKS && weekGross * retention >= openingWeekend * MIN_WEEKLY_GROSS_RATIO) {
-    weekGross *= retention;
-    weeklyTrajectory.push(weekGross);
-    week++;
-  }
-
-  const totalGross = projectTotalGross(openingWeekend, retention);
-  return {
-    openingGross: openingWeekend,
-    weeklyTrajectory,
-    totalGross,
-    legs: openingWeekend > 0 ? totalGross / openingWeekend : 0,
-    runWeeks: weeklyTrajectory.length,
-  };
-}
-
-/** Runs Milestones 1-3's audience simulation against the same scenario, converting admissions to gross only at the very end (see buildWeeklyReport above). */
-export function runNewModel(scenario: ComparisonScenario): ModelRunResult {
-  const fixed = deriveAudienceSimulationFixedState(toNewModelInput(scenario));
+/** Runs the live audience simulation against a scenario, converting admissions to gross only at the very end (see buildWeeklyReport above). */
+export function runModel(scenario: ReportingScenario): ModelRunResult {
+  const { name: _name, description: _description, ...inputs } = scenario;
+  const fixed = deriveAudienceSimulationFixedState(inputs);
   const { diagnostics } = advanceToWeekWithDiagnostics(fixed, [], MAX_SIMULATION_WEEKS);
   const report = buildWeeklyReport(diagnostics);
   const weeklyTrajectory = report.map((r) => r.weeklyGross);
@@ -240,31 +149,7 @@ export function runNewModel(scenario: ComparisonScenario): ModelRunResult {
   };
 }
 
-export interface ModelComparison {
-  scenario: ComparisonScenario;
-  old: ModelRunResult;
-  new: ModelRunResult;
-}
-
-/** Runs both models against every scenario in a matrix and returns them paired up, ready for a side-by-side table - no interpretation here, that's docs/DESIGN.md's Milestone 4 note and the Outcome Inspector's job. */
-export function compareModels(scenarios: ComparisonScenario[], rngSeed = 1): ModelComparison[] {
-  return scenarios.map((scenario) => ({
-    scenario,
-    old: runOldModel(scenario, rngSeed),
-    new: runNewModel(scenario),
-  }));
-}
-
-// --- The representative scenario matrix -------------------------------------
-//
-// Deliberately reuses the same named-archetype spirit as Milestone 3's own
-// test scenarios (audienceSimulationInputs.test.ts) - not identical inputs
-// (this milestone needs old-model-compatible fields too: targetAudience/
-// genre/releaseWindow/releaseType/buzzScore/criticScore/audienceScore),
-// but the same handful of shapes: a blockbuster, a prestige/arthouse
-// release, a mid-tier film, and a flop, so the comparison spans the range
-// both models are meant to handle.
-export const REPRESENTATIVE_SCENARIO_MATRIX: ComparisonScenario[] = [
+export const REPRESENTATIVE_SCENARIO_MATRIX: ReportingScenario[] = [
   {
     name: 'Summer blockbuster',
     description: 'Mass Market, Wide, huge Buzz and marketing, strong reception.',

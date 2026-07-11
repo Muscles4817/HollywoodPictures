@@ -44,6 +44,25 @@ export function computeCommittedSpend(draft: FilmDraft | null): number {
   return total;
 }
 
+/**
+ * "Legs" - how many multiples of its own opening weekend a film's whole run
+ * added up to - is a derived reported statistic now (docs/DESIGN.md 5.34,
+ * Milestone 5), never a stored field and never an input to how a run
+ * actually plays out (the retired fixed-legs model used to compute it up
+ * front from reviews and feed it straight into weekly retention; the
+ * audience simulation that replaced it has no such lever anywhere - see
+ * engine/audienceSimulationStep.ts). Only meaningful once a run has
+ * actually opened (an unreleased film has no `Film` yet) and once its
+ * total is known - a still-running film's *eventual* legs aren't knowable
+ * any earlier than its real total gross is, so this deliberately doesn't
+ * project one from `boxOfficeRun.cumulativeGross` the way the Outcome
+ * Inspector's dev-only preview does.
+ */
+export function computeReportedLegs(film: Film): number | null {
+  if (film.results.totalBoxOffice === null || film.results.openingWeekend <= 0) return null;
+  return film.results.totalBoxOffice / film.results.openingWeekend;
+}
+
 export interface TopGrossingEntry {
   film: Film;
   studioName: string;

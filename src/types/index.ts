@@ -1,6 +1,13 @@
 // Core domain types for the studio management game.
 // Kept in one file for MVP; split by domain (film.ts, talent.ts, ...) if it grows.
 
+// The only cross-file import in this file - safe in this one direction only.
+// engine/audienceSimulation.ts is deliberately isolated (docs/DESIGN.md 5.34):
+// it imports nothing from here or anywhere else in the live game, so this
+// file depending on its two domain types (BoxOfficeRun below) can never
+// become circular.
+import type { AudienceSimulationFixedState, AudienceSimulationWeekState } from '../engine/audienceSimulation';
+
 export type Genre =
   | 'Action'
   | 'Comedy'
@@ -341,7 +348,15 @@ export interface PostProductionChoices {
   finalCutFocus: FinalCutFocus;
 }
 
-export type ReleaseType = 'Limited' | 'Wide' | 'Streaming' | 'Festival First';
+// Streaming was removed as a release option (docs/DESIGN.md 5.34, Milestone
+// 5) - the audience simulation that now settles every release has no honest
+// theatrical-admissions model for it (see engine/audienceSimulationInputs.ts's
+// module header, Milestone 3), and keeping a second, unmaintained fixed-legs
+// path alive just for one release type would mean two production sources of
+// truth instead of one. A save with an old Film.marketingChoices.releaseType
+// of 'Streaming' can't exist any more (see state/persistence.ts's SAVE_KEY
+// bump) - old saves are simply superseded by a fresh studio, not migrated.
+export type ReleaseType = 'Limited' | 'Wide' | 'Festival First';
 export type ReleaseWindow = 'Quiet Month' | 'Summer' | 'Awards Season' | 'Halloween' | 'Christmas';
 
 export interface MarketingChoices {
@@ -407,18 +422,29 @@ export interface BoxOfficeWeek {
 /**
  * A film's box office as a live, week-by-week process instead of a single
  * computed total - mirrors how Principal Photography (PhotographyState)
- * became a lived process instead of a batch roll. `legs` and `retention`
- * are fixed once, from the reviews/release-type known at release
- * (engine/boxOffice.ts:computeLegs/computeWeeklyRetention) - critic reaction
- * doesn't change after the fact, so neither does how fast the film's run
- * decays. Settled lazily off the existing calendar (Studio.totalDays)
+ * became a lived process instead of a batch roll. Settled by the weekly
+ * audience simulation (docs/DESIGN.md 5.34, Milestones 1-5) instead of the
+ * retired fixed-legs formula - `fixed` is computed once, at release, from
+ * the reviews/release-type/marketing known that day
+ * (engine/audienceSimulationInputs.ts:deriveAudienceSimulationFixedState)
+ * and never recomputed; `simWeeks` is the actual weekly admissions history
+ * (people, not money) that drives everything else - the single source of
+ * truth for continuing this run. `weeks`/`cumulativeGross` are the money
+ * view, derived from `simWeeks` at the boundary
+ * (engine/boxOfficeRun.ts:AVERAGE_TICKET_PRICE) and stored alongside it so
+ * every existing display (BoxOfficeChart, Dashboard, FilmDetailModal, ...)
+ * keeps reading the exact same shape it always has - "legs" is deliberately
+ * *not* a field here any more, it's a derived reported statistic computed
+ * on demand from `results.totalBoxOffice`/`results.openingWeekend`
+ * (state/selectors.ts:computeLegs), never something stored or fed back into
+ * the simulation. Settled lazily off the existing calendar (Studio.totalDays)
  * whenever it advances for any reason, not a dedicated ticking screen - see
  * engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms and docs/DESIGN.md 5.19.
  */
 export interface BoxOfficeRun {
   status: 'running' | 'finished';
-  legs: number;
-  retention: number; // 0-1, week-over-week gross retention derived from legs
+  fixed: AudienceSimulationFixedState;
+  simWeeks: AudienceSimulationWeekState[];
   weeks: BoxOfficeWeek[];
   cumulativeGross: number;
   // Whether the player has seen the "final breakdown" popup for this run -

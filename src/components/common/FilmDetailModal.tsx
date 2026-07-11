@@ -8,6 +8,7 @@ import { StarRating } from './StarRating';
 import { StatTile } from './StatTile';
 import { BoxOfficeChart } from './BoxOfficeChart';
 import { SeverityBadge } from './SeverityBadge';
+import { computeReportedLegs } from '../../state/selectors';
 import type { Film, Talent, TalentRole } from '../../types';
 
 /** A talent's role-appropriate "how good/how well they fit" reading - skill for crew, script compatibility for actors/director. */
@@ -44,6 +45,10 @@ function CastCrewSection({ film }: { film: Film }) {
 
 function FinancialsSection({ film }: { film: Film }) {
   const running = film.boxOfficeRun.status === 'running';
+  // Derived, not stored - see state/selectors.ts:computeReportedLegs. Only
+  // shown once the run has actually finished; a still-running film's
+  // eventual legs aren't knowable any earlier than its real total is.
+  const legs = computeReportedLegs(film);
   return (
     <div className="card stack">
       <h3 style={{ margin: 0 }}>Financials</h3>
@@ -61,6 +66,7 @@ function FinancialsSection({ film }: { film: Film }) {
             <StatTile label="Total Box Office" value={<Money amount={film.results.totalBoxOffice ?? 0} />} />
             <StatTile label="Studio's Share" value={<Money amount={film.results.studioRevenue ?? 0} />} />
             <StatTile label="Profit / Loss" value={<Money amount={film.results.profit ?? 0} signColor showSign />} />
+            {legs !== null && <StatTile label="Legs" value={`${legs.toFixed(2)}x`} />}
           </>
         )}
       </div>

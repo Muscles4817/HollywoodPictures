@@ -1,6 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { computeWeeklyRetention, projectTotalGross, computeOpeningWeekend, computeLegs } from './boxOffice';
-import { createRng } from './random';
 import { advanceToWeekWithDiagnostics, MAX_SIMULATION_WEEKS } from './audienceSimulationStep';
 import { deriveAudienceSimulationFixedState, type ReleaseSimulationInputs } from './audienceSimulationInputs';
 import { maxInterestedAudience } from './audienceSimulation';
@@ -8,14 +6,12 @@ import {
   AVERAGE_TICKET_PRICE,
   buildWeeklyReport,
   diagnoseRunShape,
-  runOldModel,
-  runNewModel,
-  compareModels,
+  runModel,
   REPRESENTATIVE_SCENARIO_MATRIX,
-  type ComparisonScenario,
+  type ReportingScenario,
 } from './audienceSimulationReporting';
 
-const scenario: ComparisonScenario = {
+const scenario: ReportingScenario = {
   name: 'test scenario',
   description: 'a plain mid-tier scenario for reporting tests',
   buzzScore: 50,
@@ -56,42 +52,9 @@ describe('buildWeeklyReport - the people-to-money boundary', () => {
   });
 });
 
-describe('runOldModel - old-model diagnostic path stays faithful to engine/boxOffice.ts', () => {
-  it("the collected weekly trajectory's total matches projectTotalGross's own total - no drift between the two", () => {
-    const result = runOldModel(scenario, 42);
-    const rng = createRng(42);
-    const openingWeekend = computeOpeningWeekend(
-      { buzzScore: scenario.buzzScore, targetAudience: scenario.targetAudience, genre: scenario.genre, releaseWindow: scenario.releaseWindow, releaseType: scenario.releaseType },
-      rng,
-    );
-    const legs = computeLegs(scenario.criticScore, scenario.audienceScore, scenario.releaseType);
-    const retention = computeWeeklyRetention(legs);
-    const expectedTotal = projectTotalGross(openingWeekend, retention);
-
-    expect(result.openingGross).toBe(openingWeekend);
-    const summedTrajectory = result.weeklyTrajectory.reduce((sum, w) => sum + w, 0);
-    expect(Math.round(summedTrajectory)).toBe(expectedTotal);
-    expect(result.totalGross).toBe(expectedTotal);
-  });
-
-  it('is deterministic for a fixed rng seed - same seed, same scenario, identical result', () => {
-    const a = runOldModel(scenario, 7);
-    const b = runOldModel(scenario, 7);
-    expect(a).toEqual(b);
-  });
-
-  it('legs computed from the trajectory (totalGross / openingGross) is a sane positive multiple, consistent with a declining weekly trajectory', () => {
-    const result = runOldModel(scenario, 3);
-    expect(result.legs).toBeGreaterThanOrEqual(1);
-    for (let i = 1; i < result.weeklyTrajectory.length; i++) {
-      expect(result.weeklyTrajectory[i]).toBeLessThanOrEqual(result.weeklyTrajectory[i - 1] + 1e-6);
-    }
-  });
-});
-
-describe('runNewModel - new-model reporting path', () => {
+describe('runModel - live-model reporting path', () => {
   it('openingGross is week 1 gross, and totalGross matches the final cumulative gross', () => {
-    const result = runNewModel(scenario);
+    const result = runModel(scenario);
     const fixed = deriveAudienceSimulationFixedState({ ...scenario });
     const { diagnostics } = advanceToWeekWithDiagnostics(fixed, [], MAX_SIMULATION_WEEKS);
     const report = buildWeeklyReport(diagnostics);
@@ -100,24 +63,25 @@ describe('runNewModel - new-model reporting path', () => {
     expect(result.runWeeks).toBe(report.length);
   });
 
-  it('is fully deterministic - the new model has no randomness at all', () => {
-    const a = runNewModel(scenario);
-    const b = runNewModel(scenario);
+  it('is fully deterministic - the model has no randomness at all', () => {
+    const a = runModel(scenario);
+    const b = runModel(scenario);
     expect(a).toEqual(b);
+  });
+
+  it('legs (totalGross / openingGross) is a sane positive multiple', () => {
+    const result = runModel({ ...scenario, criticScore: 85, audienceScore: 88 });
+    expect(result.legs).toBeGreaterThanOrEqual(1);
   });
 });
 
-describe('compareModels and the representative scenario matrix', () => {
-  it('runs both models against every scenario in the matrix without throwing, and returns one comparison per scenario', () => {
-    const comparisons = compareModels(REPRESENTATIVE_SCENARIO_MATRIX);
-    expect(comparisons).toHaveLength(REPRESENTATIVE_SCENARIO_MATRIX.length);
-    for (const c of comparisons) {
-      expect(c.old.totalGross).toBeGreaterThanOrEqual(0);
-      expect(c.new.totalGross).toBeGreaterThanOrEqual(0);
-      expect(c.old.runWeeks).toBeGreaterThan(0);
-      expect(c.new.runWeeks).toBeGreaterThan(0);
-      expect(Number.isFinite(c.old.legs)).toBe(true);
-      expect(Number.isFinite(c.new.legs)).toBe(true);
+describe('the representative scenario matrix', () => {
+  it('runs every scenario without throwing and returns a sane result for each', () => {
+    for (const s of REPRESENTATIVE_SCENARIO_MATRIX) {
+      const result = runModel(s);
+      expect(result.totalGross).toBeGreaterThanOrEqual(0);
+      expect(result.runWeeks).toBeGreaterThan(0);
+      expect(Number.isFinite(result.legs)).toBe(true);
     }
   });
 
@@ -127,15 +91,10 @@ describe('compareModels and the representative scenario matrix', () => {
     }
   });
 
-  it('the blockbuster scenario clearly outgrosses the flop scenario in both models - a basic sanity floor for the comparison itself', () => {
+  it('the blockbuster scenario clearly outgrosses the flop scenario - a basic sanity floor for the matrix itself', () => {
     const blockbuster = REPRESENTATIVE_SCENARIO_MATRIX.find((s) => s.name === 'Summer blockbuster')!;
     const flop = REPRESENTATIVE_SCENARIO_MATRIX.find((s) => s.name === 'Overhyped flop')!;
-    const blockbusterOld = runOldModel(blockbuster);
-    const flopOld = runOldModel(flop);
-    const blockbusterNew = runNewModel(blockbuster);
-    const flopNew = runNewModel(flop);
-    expect(blockbusterOld.totalGross).toBeGreaterThan(flopOld.totalGross);
-    expect(blockbusterNew.totalGross).toBeGreaterThan(flopNew.totalGross);
+    expect(runModel(blockbuster).totalGross).toBeGreaterThan(runModel(flop).totalGross);
   });
 });
 

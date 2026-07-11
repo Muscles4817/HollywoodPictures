@@ -1,14 +1,9 @@
-import {
-  deriveAudienceSimulationFixedState,
-  type ReleaseSimulationInputs,
-  type SupportedReleaseType,
-} from '../../engine/audienceSimulationInputs';
+import { deriveAudienceSimulationFixedState, type ReleaseSimulationInputs } from '../../engine/audienceSimulationInputs';
 import { advanceToWeekWithDiagnostics, MAX_SIMULATION_WEEKS } from '../../engine/audienceSimulationStep';
 import { maxInterestedAudience } from '../../engine/audienceSimulation';
 import { buildWeeklyReport, diagnoseRunShape, AVERAGE_TICKET_PRICE } from '../../engine/audienceSimulationReporting';
 import { BoxOfficeChart } from '../common/BoxOfficeChart';
 import { Money, formatMoney } from '../common/Money';
-import type { ReleaseType } from '../../types';
 
 function formatPeople(n: number): string {
   return Math.round(n).toLocaleString();
@@ -19,31 +14,17 @@ function formatPercent(n: number): string {
 }
 
 /**
- * Milestone 4: full weekly observability for the new audience-simulation
- * model (Milestones 1-3, engine/audienceSimulation*.ts) - "make it obvious
- * why a film opened strongly, collapsed, grew, plateaued, or remained
- * niche." Every number here comes straight from
- * advanceToWeekWithDiagnostics/buildWeeklyReport - no separate
- * reimplementation, so this can never show something the actual
- * simulation didn't produce. Still not wired into the live game - purely
- * a read of what the isolated engine does with a given set of inputs.
+ * Full weekly observability for the audience simulation that now settles
+ * every live release (docs/DESIGN.md 5.34, Milestones 1-5) - "make it
+ * obvious why a film opened strongly, collapsed, grew, plateaued, or
+ * remained niche." Every number here comes straight from
+ * advanceToWeekWithDiagnostics/buildWeeklyReport, the exact same functions
+ * engine/boxOfficeRun.ts uses to settle a real release, so this can never
+ * show something the live game wouldn't actually produce for the same
+ * inputs. `releaseType` is a plain ReleaseType now that Streaming has been
+ * removed as an option entirely (types/index.ts) - no runtime guard needed.
  */
-export function AudienceSimulationDiagnostics({ releaseType, ...rest }: { releaseType: ReleaseType } & Omit<ReleaseSimulationInputs, 'releaseType'>) {
-  if (releaseType === 'Streaming') {
-    return (
-      <div className="card stack">
-        <h2 style={{ margin: 0 }}>Audience Simulation (New Model) - Weekly Diagnostics</h2>
-        <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-          Streaming isn't supported by the new model yet (docs/DESIGN.md 5.34, Milestone 3) - forcing a streaming
-          release through a theatrical-admissions model (seats, "opening weekend," per-screen scarcity) would be
-          dishonest, so it's deliberately excluded rather than quietly approximated. Pick a different Release Type
-          to see this section.
-        </p>
-      </div>
-    );
-  }
-
-  const inputs: ReleaseSimulationInputs = { ...rest, releaseType: releaseType as SupportedReleaseType };
+export function AudienceSimulationDiagnostics(inputs: ReleaseSimulationInputs) {
   const fixed = deriveAudienceSimulationFixedState(inputs);
   const ceiling = maxInterestedAudience(fixed);
   const { diagnostics } = advanceToWeekWithDiagnostics(fixed, [], MAX_SIMULATION_WEEKS);
@@ -55,12 +36,11 @@ export function AudienceSimulationDiagnostics({ releaseType, ...rest }: { releas
   return (
     <div className="card stack">
       <div>
-        <h2 style={{ margin: 0 }}>Audience Simulation (New Model) - Weekly Diagnostics</h2>
+        <h2 style={{ margin: 0 }}>Audience Simulation - Weekly Diagnostics</h2>
         <p style={{ margin: '4px 0 0', color: 'var(--text-muted)' }}>
-          A weekly population simulation (docs/DESIGN.md 5.34) run against the same script/marketing/reception
-          inputs above, entirely separate from the Box Office card's fixed-legs figures. Gross assumes a flat{' '}
-          {formatMoney(AVERAGE_TICKET_PRICE)} average ticket price (reporting only - see
-          engine/audienceSimulationReporting.ts).
+          The full week-by-week trace behind the Box Office card above - same model, same inputs, just every
+          intermediate step instead of only the totals. Gross assumes a flat {formatMoney(AVERAGE_TICKET_PRICE)}{' '}
+          average ticket price (docs/DESIGN.md 5.34 - see engine/boxOfficeRun.ts:AVERAGE_TICKET_PRICE).
         </p>
       </div>
 

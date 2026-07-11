@@ -56,6 +56,7 @@ export function createInitialStudio(rng: RandomFn, startingCash: number): Studio
     rivalStudios: generateRivalStudios(rng),
     rivalProductionsInProgress: [],
     rivalFilmsReleased: [],
+    productionsInProgress: [],
   };
 }
 

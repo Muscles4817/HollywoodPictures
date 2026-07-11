@@ -6,17 +6,16 @@ import { TONES, TONE_LABELS } from '../../data/tones';
 import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../../data/postProduction';
 import { RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS, MARKETING_SPEND_RANGE } from '../../data/release';
 import { CONTINGENCY_RANGE, SET_QUALITY_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../../data/production';
-import { computeLegs, computeWeeklyRetention, projectTotalGross, STUDIO_BOX_OFFICE_SHARE } from '../../engine/boxOffice';
 import { computeReleaseResults } from '../../engine/releaseFilm';
+import { advanceToWeek, MAX_SIMULATION_WEEKS } from '../../engine/audienceSimulationStep';
+import { AVERAGE_TICKET_PRICE, STUDIO_BOX_OFFICE_SHARE } from '../../engine/boxOfficeRun';
 import { determineOutcome } from '../../engine/outcome';
 import { computeReputationChange } from '../../engine/reputation';
 import { createRng } from '../../engine/random';
-import type { ComparisonScenario } from '../../engine/audienceSimulationReporting';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { SeverityBadge } from '../common/SeverityBadge';
 import { AudienceSimulationDiagnostics } from './AudienceSimulationDiagnostics';
-import { ModelComparisonPanel } from './ModelComparisonPanel';
 import type {
   DirectorTalent,
   EditStyle,
@@ -41,9 +40,10 @@ import type {
 // player tweak any single input (a script stat, a talent's fame, a
 // production dial, ...) and see how it moves the ratings/box office outcome
 // - built on the exact same pure scoring/box-office functions the real game
-// uses (engine/scoring.ts, engine/boxOffice.ts, engine/outcome.ts,
-// engine/reputation.ts), just on a locally-editable copy of one film's
-// inputs, so it can never drift from real game behavior. See docs/DESIGN.md.
+// uses (engine/scoring.ts, engine/releaseFilm.ts, engine/audienceSimulation*.ts,
+// engine/outcome.ts, engine/reputation.ts), just on a locally-editable copy
+// of one film's inputs, so it can never drift from real game behavior. See
+// docs/DESIGN.md.
 //
 // Crew roles (Writer/Cinematographer/Composer/Editor/VFX Supervisor) and
 // per-talent toneProfile/actingStyle aren't exposed - verified against
@@ -178,10 +178,12 @@ export function OutcomeInspector() {
   const [shootingRatio, setShootingRatio] = useState(1);
   const [eventQualityDelta, setEventQualityDelta] = useState(0);
   const [eventBuzzDelta, setEventBuzzDelta] = useState(0);
-  // Seeds computeOpeningWeekend's variance roll - recreated fresh from this
-  // seed every render (not advanced), so dragging an unrelated slider never
-  // jitters the opening-weekend number; only loading a film or hitting
-  // "Reroll Variance" changes it.
+  // Seeds computeReleaseResults' rng - only ever consumed for review-blurb/
+  // story-report flavor text now (the audience simulation itself has no
+  // randomness at all, docs/DESIGN.md 5.34 Milestone 5), recreated fresh
+  // from this seed every render (not advanced) so dragging an unrelated
+  // slider never jitters the picked blurb; only loading a film or hitting
+  // "Reroll Flavor Text" changes it.
   const [varianceSeed, setVarianceSeed] = useState(() => Date.now());
 
   function loadFilm(film: Film) {
@@ -256,13 +258,14 @@ export function OutcomeInspector() {
 
   // Runs the exact same orchestration RELEASE_FILM does (state/studioReducer.ts)
   // against the editable working copy - quality/critic/audience/buzz,
-  // opening weekend, and total cost all come back from this one call, so
-  // there's no separate formula-by-formula reimplementation to drift out of
-  // sync. photographyCost is approximated as 0 - not tracked on Film (not
+  // opening weekend, total cost, and the audience simulation's release-day
+  // fixed state all come back from this one call, so there's no separate
+  // formula-by-formula reimplementation to drift out of sync.
+  // photographyCost is approximated as 0 - not tracked on Film (not
   // preserved from the original release), and it doesn't affect any rating,
   // only nudges the profit figure below.
   const rng = createRng(varianceSeed);
-  const { results, legs } = computeReleaseResults(
+  const { results, fixed } = computeReleaseResults(
     {
       title: selectedFilm.title,
       genre,
@@ -280,8 +283,17 @@ export function OutcomeInspector() {
     rng,
   );
 
-  const retention = computeWeeklyRetention(legs);
-  const projectedTotalGross = projectTotalGross(results.openingWeekend, retention);
+  // Projects this working copy's whole run the same way
+  // engine/boxOfficeRun.ts does for real (advanceToWeek against the exact
+  // same `fixed` it would seed Film.boxOfficeRun.fixed with), just without
+  // waiting for Studio.totalDays to actually advance - a stable number that
+  // only moves when an input changes, the same reasoning
+  // components/dev/OutcomeInspector.tsx's Milestone 4 predecessor had for
+  // projecting the old model.
+  const projectedWeeks = advanceToWeek(fixed, [], MAX_SIMULATION_WEEKS);
+  const projectedTotalGross =
+    projectedWeeks.length > 0 ? Math.round(projectedWeeks[projectedWeeks.length - 1].cumulativeTicketsSold * AVERAGE_TICKET_PRICE) : 0;
+  const legs = results.openingWeekend > 0 ? projectedTotalGross / results.openingWeekend : 0;
   const studioRevenue = Math.round(projectedTotalGross * STUDIO_BOX_OFFICE_SHARE);
   const profit = studioRevenue - results.totalCost;
   const outcome = determineOutcome(profit, results.totalCost, results.qualityScore, results.criticScore, results.audienceScore);
@@ -289,34 +301,18 @@ export function OutcomeInspector() {
 
   const original = selectedFilm.results;
   // A finished run's totalBoxOffice is already known exactly; a still-running
-  // one (or one whose exact figure we don't want to rely on for this
-  // comparison) gets the same deterministic projection as the working copy,
-  // from the original film's own real legs.
+  // one gets the same projection as the working copy, but run against the
+  // film's *actual* release-day fixed state (selectedFilm.boxOfficeRun.fixed)
+  // rather than re-derived from its stored inputs - more accurate than
+  // reconstructing it, since it's the exact state that run was really seeded
+  // with.
+  const originalProjectedWeeks =
+    original.totalBoxOffice === null ? advanceToWeek(selectedFilm.boxOfficeRun.fixed, [], MAX_SIMULATION_WEEKS) : [];
   const originalProjectedTotalGross =
     original.totalBoxOffice ??
-    projectTotalGross(original.openingWeekend, computeWeeklyRetention(computeLegs(original.criticScore, original.audienceScore, marketingChoices.releaseType)));
-
-  // Milestone 4: this film's inputs, translated into the new audience
-  // simulation's shape - reuses results.criticScore/audienceScore/buzzScore
-  // (already computed above by the exact same computeReleaseResults call
-  // driving the old-model card) rather than recomputing reception, the same
-  // "reused, not recomputed" principle Milestone 1 established for
-  // AudienceSimulationFixedState.criticScore/audienceScore.
-  const thisFilmScenario: Omit<ComparisonScenario, 'releaseType'> & { releaseType: typeof marketingChoices.releaseType } = {
-    name: selectedFilm.title,
-    description: 'The working copy above.',
-    buzzScore: results.buzzScore,
-    marketingSpend: marketingChoices.marketingSpend,
-    scriptMarketability: script.marketability,
-    scriptOriginality: script.originality,
-    scriptIntendedAudience: script.intendedAudience,
-    targetAudience,
-    genre,
-    releaseWindow: marketingChoices.releaseWindow,
-    releaseType: marketingChoices.releaseType,
-    criticScore: results.criticScore,
-    audienceScore: results.audienceScore,
-  };
+    (originalProjectedWeeks.length > 0
+      ? Math.round(originalProjectedWeeks[originalProjectedWeeks.length - 1].cumulativeTicketsSold * AVERAGE_TICKET_PRICE)
+      : 0);
 
   return (
     <div className="stack">
@@ -338,7 +334,7 @@ export function OutcomeInspector() {
           ))}
         </select>
         <Button onClick={() => loadFilm(selectedFilm)}>Reset to Original</Button>
-        <Button onClick={() => setVarianceSeed(Date.now())}>Reroll Opening Weekend Variance</Button>
+        <Button onClick={() => setVarianceSeed(Date.now())}>Reroll Flavor Text</Button>
       </div>
 
       <div className="row">
@@ -397,8 +393,6 @@ export function OutcomeInspector() {
         criticScore={results.criticScore}
         audienceScore={results.audienceScore}
       />
-
-      <ModelComparisonPanel thisFilmScenario={thisFilmScenario} />
 
       <div className="card stack">
         <h2 style={{ margin: 0 }}>Script</h2>

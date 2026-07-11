@@ -48,7 +48,15 @@ import { randomSeed, withRng } from '../engine/random';
 // v17 -> v18 added Studio.productionsInProgress (the player's own shoots
 // running in the background, FilmDraft.id) - background photography
 // (docs/DESIGN.md 5.x); old saves have neither field.
-const SAVE_KEY = 'hollywood-pictures-save-v18';
+// v18 -> v19 replaced the fixed Opening Weekend/Legs box office model with
+// the weekly audience simulation (docs/DESIGN.md 5.34, Milestone 5):
+// BoxOfficeRun.legs/retention were removed in favor of fixed
+// (AudienceSimulationFixedState) and simWeeks (AudienceSimulationWeekState[]);
+// ReleaseType dropped 'Streaming' (no honest audience-simulation model for
+// it exists yet - docs/DESIGN.md 5.34 Milestone 3). No migration code, same
+// as every past shape-break here - an old save's key simply isn't found
+// under the new one, so loadState() falls back to a fresh studio.
+const SAVE_KEY = 'hollywood-pictures-save-v19';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

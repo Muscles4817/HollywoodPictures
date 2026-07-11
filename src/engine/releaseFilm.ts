@@ -12,10 +12,13 @@ import type {
 import { computeAudienceScore, computeBuzzScore, computeCriticScore, computeQualityBreakdown } from './scoring';
 import { computeEventsCostDelta, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
 import { TEST_SCREENING_PROFILES } from '../data/postProduction';
-import { computeOpeningWeekend, computeLegs } from './boxOffice';
+import { deriveAudienceSimulationFixedState, type SupportedReleaseType } from './audienceSimulationInputs';
+import { advanceOneWeek } from './audienceSimulationStep';
+import { AVERAGE_TICKET_PRICE } from './boxOfficeRun';
 import { pickReviewBlurbs, pickDepartmentBlurb } from './reviews';
 import { generateStoryReport } from './storyReport';
 import type { RandomFn } from './random';
+import type { AudienceSimulationFixedState } from './audienceSimulation';
 
 export interface ReleaseComputationInput {
   title: string;
@@ -40,11 +43,12 @@ export interface ReleaseComputationInput {
 
 export interface ReleaseComputationResult {
   results: FilmResults;
-  // The film's fixed legs multiplier, for seeding its BoxOfficeRun
-  // (state/studioReducer.ts:RELEASE_FILM) - not part of FilmResults since
-  // it's a run-mechanics input, not a result the player reads directly (the
-  // weekly numbers it drives are what they actually see).
-  legs: number;
+  // The film's release-day-fixed audience-simulation state, for seeding its
+  // BoxOfficeRun (state/studioReducer.ts:RELEASE_FILM) - not part of
+  // FilmResults since it's a run-mechanics input (probabilities, ceilings),
+  // not a result the player reads directly (the weekly numbers it drives
+  // are what they actually see).
+  fixed: AudienceSimulationFixedState;
 }
 
 /**
@@ -96,17 +100,35 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   const marketingCost = computeMarketingCost(input.marketingChoices);
   const totalCost = productionCost + marketingCost;
 
-  const openingWeekend = computeOpeningWeekend(
-    {
-      buzzScore,
-      targetAudience: input.targetAudience,
-      genre: input.genre,
-      releaseWindow: input.marketingChoices.releaseWindow,
-      releaseType: input.marketingChoices.releaseType,
-    },
-    rng,
-  );
-  const legs = computeLegs(criticScore, audienceScore, input.marketingChoices.releaseType);
+  // Release-day-fixed audience-simulation state (docs/DESIGN.md 5.34,
+  // Milestones 1-3) - computed once, here, and carried forward by the
+  // caller into Film.boxOfficeRun.fixed, never recomputed. Streaming was
+  // removed as a release option (types/index.ts:ReleaseType) specifically
+  // so marketingChoices.releaseType is always a SupportedReleaseType here,
+  // no runtime check needed.
+  const fixed = deriveAudienceSimulationFixedState({
+    buzzScore,
+    marketingSpend: input.marketingChoices.marketingSpend,
+    scriptMarketability: input.script.marketability,
+    scriptOriginality: input.script.originality,
+    scriptIntendedAudience: input.script.intendedAudience,
+    targetAudience: input.targetAudience,
+    genre: input.genre,
+    releaseWindow: input.marketingChoices.releaseWindow,
+    releaseType: input.marketingChoices.releaseType as SupportedReleaseType,
+    criticScore,
+    audienceScore,
+  });
+  // Week 1 is deterministic (the new model has no randomness at all) and
+  // release-day-knowable, so it's safe to compute here for
+  // FilmResults.openingWeekend - engine/boxOfficeRun.ts's settlement pass
+  // (called immediately after RELEASE_FILM constructs the film, same as it
+  // always has been) independently arrives at the exact same week 1 the
+  // moment it catches this film up, since it starts from the same `fixed`
+  // and an empty history. Not a second algorithm, just the one pure step
+  // function called twice - see advanceOneWeek's own determinism guarantee.
+  const week1 = advanceOneWeek(fixed, []);
+  const openingWeekend = Math.round(week1.cumulativeTicketsSold * AVERAGE_TICKET_PRICE);
 
   const departmentBlurb = pickDepartmentBlurb(quality, input.genre, rng);
   const reviewBlurbs = [...pickReviewBlurbs(criticScore, audienceScore, rng), ...(departmentBlurb ? [departmentBlurb] : [])];
@@ -136,5 +158,5 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     storyReport,
   };
 
-  return { results, legs };
+  return { results, fixed };
 }
