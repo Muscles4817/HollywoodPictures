@@ -2604,6 +2604,72 @@ session is different after this milestone.
   against the live model, competition, international markets, and repeat
   viewing.
 
+**Implementation Milestone 2: the weekly simulation step itself
+(`engine/audienceSimulationStep.ts`, `engine/audienceSimulationStep.test.ts`).**
+Still fully isolated - no wiring into `Film`/`BoxOfficeRun`/
+`state/studioReducer.ts`, `engine/boxOffice.ts`'s existing Opening
+Weekend/Legs model is still what a real game session runs. Adds one new
+fixed-state field, `externalWeeklyAwarenessRate` (Milestone 1's file), and
+the 11-step weekly transition as small named pure functions rather than one
+opaque calculation, composed by `advanceOneWeek`: external awareness growth
+and its immediate natural-fit conversion, `computeCurrentWomInfluence` (the
+single signal every word-of-mouth effect reads), WOM-driven awareness
+growth, natural-audience interest growth, crossover expansion beyond the
+natural audience, baseline attendance probability, WOM pull-forward on top
+of it, ticket sales, and the whole-run stopping rule
+(`hasSimulationEnded`/`advanceToWeek`, mirroring `engine/boxOffice.ts`'s
+`MAX_WEEKS`/`MIN_WEEKLY_GROSS_RATIO` philosophy independently rather than
+importing it, preserving Milestone 1's isolation).
+
+- **One influence signal, four gated effects.** `computeCurrentWomInfluence`
+  scales `deriveWordOfMouthActivity` (Milestone 1, recomputed from history
+  every time, never stored) by a reception-quality multiplier
+  (`computeReceptionResponseMultiplier`, audience-weighted 0.7/0.3 over
+  critic score, convex with a small nonzero floor - the same shape
+  `engine/boxOffice.ts`'s `HYPE_FLOOR` uses for Buzz). Each of the four WOM
+  effects (spread awareness, grow natural interest, pull attendance
+  forward, expand crossover) gates the same signal through its own
+  threshold/sensitivity pair via a shared convex `thresholdResponse` curve,
+  ordered lowest to highest bar - awareness clears for nearly any released
+  film, only genuinely exceptional reactions clear crossover's.
+- **Normalized against `maxInterestedAudience`, not
+  `totalAddressableAudience`.** Measuring "what fraction of the audience is
+  currently talking about this film" against the whole addressable
+  population dilutes the signal to near-zero for any film with a narrow
+  natural fit (a small `baseInterestFraction`) - crossover could never fire
+  regardless of reception, since admissions can never approach the full
+  population even at 100% natural-audience sellout. Normalizing against the
+  realistic reachable ceiling instead (natural pool + crossover capacity)
+  keeps the signal meaningful across audience sizes. Found and fixed via a
+  boundary test asserting genuine crossover growth for an exceptionally
+  well-received, high-capacity film - it wasn't firing at all under the
+  naive normalization.
+- **Thresholds/sensitivities are calibrated against the signal's actual
+  achievable range, not against [0,1] itself.** Even for an exceptional
+  run, the recency-weighted, ceiling-normalized influence signal only
+  realistically reaches into the low hundredths - explicitly noted at the
+  constants themselves (`engine/audienceSimulationStep.ts`) so a future
+  tuning pass isn't misled by the nominal [0,1] bound into picking
+  thresholds an order of magnitude too high, which is what silently made
+  all four WOM effects nearly inert on the first pass.
+- **Crossover capacity gates independently of influence.** A film with
+  `crossoverCapacityFraction: 0` gets zero crossover headroom no matter how
+  strong `womInfluence` is - capacity, not just reaction, gates step 6,
+  matching "originality creates the capacity... audience reaction
+  determines whether that potential is actually realized" above.
+- **36 new tests** (73 total, `npm run test`) cover each of the 11 steps
+  individually, the full composed weekly transition, determinism
+  (identical inputs -> identical output, and `advanceToWeek`'s multi-week
+  catch-up agreeing with calling `advanceOneWeek` one week at a time -
+  deliberately the *only* way multiple weeks are ever computed, so a future
+  calendar-jump catch-up can't diverge from single-week behavior), and
+  boundary cases (zero crossover capacity realizing none regardless of
+  reception; matching capacity realizing real crossover growth only when
+  reception is exceptional, not merely because capacity exists; nearly
+  exhausted pools not going negative or overselling).
+- **Deferred to later milestones, by design**: same list as Milestone 1,
+  unchanged - this milestone still doesn't touch the live game.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:

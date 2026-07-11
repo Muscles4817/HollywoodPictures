@@ -74,6 +74,8 @@ export interface AudienceSimulationFixedState {
   crossoverCapacityFraction: number;
   /** Baseline weekly probability that an interested-but-unconverted person attends this particular week, before any word-of-mouth urgency modulation. */
   conversionPacingBaseline: number;
+  /** Fraction of the currently-unaware population that becomes aware each week from non-word-of-mouth sources (residual marketing tail, organic press, incidental discovery) - applied every week, including week 1, since this isolated module doesn't yet model a Release-Type-driven initial marketing burst (see engine/audienceSimulationStep.ts and DESIGN.md 5.34 Milestone 2). */
+  externalWeeklyAwarenessRate: number;
   /** Reused from FilmResults.criticScore (engine/scoring.ts), not duplicated - same 0-100 meaning. */
   criticScore: number;
   /** Reused from FilmResults.audienceScore (engine/scoring.ts), not duplicated - same 0-100 meaning. */
@@ -97,6 +99,7 @@ export function createAudienceSimulationFixedState(input: AudienceSimulationFixe
   assertUnitInterval(input.marketingEfficiency, 'marketingEfficiency');
   assertUnitInterval(input.crossoverCapacityFraction, 'crossoverCapacityFraction');
   assertUnitInterval(input.conversionPacingBaseline, 'conversionPacingBaseline');
+  assertUnitInterval(input.externalWeeklyAwarenessRate, 'externalWeeklyAwarenessRate');
   assertScoreRange(input.criticScore, 'criticScore');
   assertScoreRange(input.audienceScore, 'audienceScore');
   if (input.baseInterestFraction + input.crossoverCapacityFraction > 1) {

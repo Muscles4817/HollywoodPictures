@@ -17,6 +17,7 @@ function validFixed(overrides: Partial<AudienceSimulationFixedState> = {}): Audi
     marketingEfficiency: 0.6,
     crossoverCapacityFraction: 0.15,
     conversionPacingBaseline: 0.1,
+    externalWeeklyAwarenessRate: 0.05,
     criticScore: 70,
     audienceScore: 75,
     ...overrides,
@@ -40,6 +41,7 @@ describe('createAudienceSimulationFixedState', () => {
     expect(() => createAudienceSimulationFixedState(validFixed({ marketingEfficiency: -1 }))).toThrow();
     expect(() => createAudienceSimulationFixedState(validFixed({ crossoverCapacityFraction: 1.5 }))).toThrow();
     expect(() => createAudienceSimulationFixedState(validFixed({ conversionPacingBaseline: -0.5 }))).toThrow();
+    expect(() => createAudienceSimulationFixedState(validFixed({ externalWeeklyAwarenessRate: 1.5 }))).toThrow();
   });
 
   it('accepts the 0 and 1 boundary values themselves', () => {
