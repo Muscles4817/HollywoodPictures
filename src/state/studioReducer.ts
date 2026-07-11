@@ -572,6 +572,11 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'VIEW_RIVAL_STUDIO':
       return { ...state, screen: 'rival-studio', viewingRivalStudioName: action.studioName };
 
+    // Dashboard -> the filterable film-history table. Pure detour, same as
+    // VIEW_RIVAL_STUDIO - doesn't touch the calendar.
+    case 'VIEW_STATS':
+      return { ...state, screen: 'stats', viewingRivalStudioName: null };
+
     default:
       return state;
   }

@@ -4,6 +4,7 @@ import { ThemeToggle } from './components/common/ThemeToggle';
 import { DateBar } from './components/common/DateBar';
 import { Dashboard } from './components/Dashboard';
 import { RivalStudioPage } from './components/RivalStudioPage';
+import { StatsPage } from './components/StatsPage';
 import { RecommendationInspector } from './components/dev/RecommendationInspector';
 import { Button } from './components/common/Button';
 import { DevelopFilm } from './components/wizard/DevelopFilm';
@@ -91,6 +92,8 @@ function Screens() {
       return <ReleaseResults />;
     case 'rival-studio':
       return <RivalStudioPage />;
+    case 'stats':
+      return <StatsPage />;
     default:
       return <Dashboard paused={paused} onTogglePause={() => setPaused((p) => !p)} tickNonce={tickNonce} />;
   }

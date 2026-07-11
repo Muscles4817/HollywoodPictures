@@ -111,7 +111,10 @@ export type GameAction =
   | { type: 'RETURN_TO_DASHBOARD' }
   | { type: 'RENAME_STUDIO'; name: string }
   | { type: 'RESET_SAVE'; startingCash: number }
-  | { type: 'VIEW_RIVAL_STUDIO'; studioName: string };
+  | { type: 'VIEW_RIVAL_STUDIO'; studioName: string }
+  // Dashboard -> the filterable film-history table (components/StatsPage.tsx).
+  // No payload, no calendar cost - a pure detour, same as VIEW_RIVAL_STUDIO.
+  | { type: 'VIEW_STATS' };
 
 export interface CompletedFilmRecord {
   film: Film;

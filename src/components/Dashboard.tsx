@@ -106,6 +106,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce }: DashboardProps) 
         </div>
         <div className="row">
           <TimeTickIndicator paused={paused} onTogglePause={onTogglePause} tickNonce={tickNonce} />
+          <Button onClick={() => dispatch({ type: 'VIEW_STATS' })}>Stats</Button>
           <Button onClick={() => setShowGuide(true)}>How It Works</Button>
           <Button onClick={() => setShowResetPicker(true)}>Reset Studio</Button>
           <Button variant="primary" onClick={() => dispatch({ type: 'START_NEW_FILM' })}>
