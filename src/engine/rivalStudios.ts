@@ -130,7 +130,7 @@ export function startableScales(tier: StudioTier, current: RivalProductionInProg
 function startRivalProduction(
   rival: RivalStudio,
   scale: ProductionScale,
-  studio: Studio,
+  totalDays: number,
   talentPool: Record<TalentRole, Talent[]>,
   rng: RandomFn,
 ): { production: RivalProductionInProgress; talentPool: Record<TalentRole, Talent[]> } | null {
@@ -143,7 +143,7 @@ function startRivalProduction(
   for (const role of MANDATORY_TALENT_ROLES) {
     const capacity = effectiveRoleCapacity(role, script);
     const targetPrice = logAmount(spendT, ROLE_GENERATION_PROFILES[role].salaryRange);
-    const available = talentPool[role].filter((t) => !t.bookedUntil || t.bookedUntil <= studio.totalDays);
+    const available = talentPool[role].filter((t) => !t.bookedUntil || t.bookedUntil <= totalDays);
     if (available.length < capacity.min) return null;
     const { candidates } = findCandidatesNearPrice(available, targetPrice, Math.max(capacity.max * 3, 6));
     const picked = pickMany(rng, candidates, Math.min(capacity.max, candidates.length));
@@ -172,7 +172,7 @@ function startRivalProduction(
   };
 
   const recommendedDays = computeRecommendedShootDays(talent, script, productionChoices);
-  const releaseDay = studio.totalDays + NON_SHOOT_STAGE_DAYS + recommendedDays;
+  const releaseDay = totalDays + NON_SHOOT_STAGE_DAYS + recommendedDays;
 
   const updatedPool = { ...talentPool };
   for (const role of MANDATORY_TALENT_ROLES) {
@@ -181,7 +181,7 @@ function startRivalProduction(
 
   return {
     production: {
-      id: `rival-prod-${rival.id}-${studio.totalDays}-${randInt(rng, 0, 999_999)}`,
+      id: `rival-prod-${rival.id}-${totalDays}-${randInt(rng, 0, 999_999)}`,
       rivalStudioId: rival.id,
       scale,
       genre,
@@ -269,27 +269,29 @@ export interface RivalMarketUpdate {
  * the player's), then let any studio whose spawn-check day has arrived try
  * to start a new production if it has spare capacity. Called from the same
  * places engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms is (see
- * state/studioReducer.ts) - every action that can advance Studio.totalDays.
+ * state/studioReducer.ts) - every action that can advance GameState.totalDays.
+ * `totalDays` is passed in explicitly (not read off `studio`) since the
+ * calendar is world-level, shared by the player and every rival alike.
  */
-export function settleRivalMarket(studio: Studio, rng: RandomFn): RivalMarketUpdate {
-  const due = studio.rivalProductionsInProgress.filter((p) => p.releaseDay <= studio.totalDays);
-  const stillInProgress = studio.rivalProductionsInProgress.filter((p) => p.releaseDay > studio.totalDays);
+export function settleRivalMarket(studio: Studio, totalDays: number, rng: RandomFn): RivalMarketUpdate {
+  const due = studio.rivalProductionsInProgress.filter((p) => p.releaseDay <= totalDays);
+  const stillInProgress = studio.rivalProductionsInProgress.filter((p) => p.releaseDay > totalDays);
   const newlyReleased = due.map((p) =>
     resolveRivalProduction(p, studio.rivalStudios.find((r) => r.id === p.rivalStudioId)?.name ?? 'A Rival Studio', rng),
   );
 
-  const afterBoxOffice = settleBoxOfficeForAllFilms([...studio.rivalFilmsReleased, ...newlyReleased], studio.totalDays);
+  const afterBoxOffice = settleBoxOfficeForAllFilms([...studio.rivalFilmsReleased, ...newlyReleased], totalDays);
 
   let talentPool = studio.talentPool;
   let productionsInProgress = stillInProgress;
   const rivalStudios = studio.rivalStudios.map((rival) => {
-    if (rival.nextSpawnCheckDay > studio.totalDays) return rival;
-    const nextSpawnCheckDay = studio.totalDays + randInt(rng, ...SPAWN_CHECK_INTERVAL_DAYS[rival.tier]);
+    if (rival.nextSpawnCheckDay > totalDays) return rival;
+    const nextSpawnCheckDay = totalDays + randInt(rng, ...SPAWN_CHECK_INTERVAL_DAYS[rival.tier]);
     const currentForThisStudio = productionsInProgress.filter((p) => p.rivalStudioId === rival.id);
     const scales = startableScales(rival.tier, currentForThisStudio);
     if (scales.length === 0) return { ...rival, nextSpawnCheckDay };
     const scale = pick(rng, scales);
-    const started = startRivalProduction(rival, scale, { ...studio, talentPool }, talentPool, rng);
+    const started = startRivalProduction(rival, scale, totalDays, talentPool, rng);
     if (!started) return { ...rival, nextSpawnCheckDay };
     productionsInProgress = [...productionsInProgress, started.production];
     talentPool = started.talentPool;

@@ -105,7 +105,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
               <Button className="btn-sm" onClick={startEditingName}>Rename</Button>
             </div>
           )}
-          <p>{formatGameDate(studio.totalDays)} &middot; {studio.filmsReleased.length} film{studio.filmsReleased.length === 1 ? '' : 's'} released</p>
+          <p>{formatGameDate(state.totalDays)} &middot; {studio.filmsReleased.length} film{studio.filmsReleased.length === 1 ? '' : 's'} released</p>
         </div>
         <div className="row">
           <TimeTickIndicator
@@ -128,7 +128,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
         <StatTile label="Studio Cash" value={<Money amount={studio.cash} signColor />} />
         <StatTile label="Reputation" value={`${studio.reputation} / 100`} />
         <StatTile label="Films Released" value={studio.filmsReleased.length} />
-        <StatTile label="Current Date" value={formatGameDate(studio.totalDays)} />
+        <StatTile label="Current Date" value={formatGameDate(state.totalDays)} />
       </div>
 
       <div className="dashboard-layout">
@@ -206,7 +206,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
           <div className="card">
             <div className="row-between">
               <h2 style={{ margin: 0 }}>Studio History</h2>
-              <Button disabled={studio.filmsReleased.length === 0} onClick={() => exportFilmHistory(studio)}>
+              <Button disabled={studio.filmsReleased.length === 0} onClick={() => exportFilmHistory(studio, state.totalDays)}>
                 Export Film History (JSON)
               </Button>
             </div>

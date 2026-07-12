@@ -8,7 +8,7 @@ import type { RandomFn } from './random';
  * up to `daysToAdvance` days - the same one-day-at-a-time event roll
  * state/studioReducer.ts:ADVANCE_SHOOTING_DAY already does for the live
  * draft, just looped and applied to a list instead of a single record.
- * Called from every reducer case that can advance Studio.totalDays
+ * Called from every reducer case that can advance GameState.totalDays
  * (docs/DESIGN.md 5.x), the same call sites engine/boxOfficeRun.ts:
  * settleBoxOfficeForAllFilms and engine/rivalStudios.ts:settleRivalMarket
  * already use - a shoot progresses as a side effect of the calendar

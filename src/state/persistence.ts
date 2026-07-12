@@ -91,7 +91,13 @@ import { randomSeed, withRng } from '../engine/random';
 // just a different value) - the same class of break Milestone 9's v18->v19
 // bump fixed the same way, no migration code, an old save simply isn't
 // found under the new key.
-const SAVE_KEY = 'hollywood-pictures-save-v22';
+// v22 -> v23 (architecture roadmap Phase 1.1): Studio.totalDays moved to
+// GameState.totalDays - the calendar is world-level (shared by the player
+// and every rival studio), not the player's studio's own business. A v22
+// save's studio object still carries totalDays nested inside it and has no
+// top-level totalDays at all - same class of break as every past shape
+// change here, no migration code.
+const SAVE_KEY = 'hollywood-pictures-save-v23';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
@@ -107,7 +113,15 @@ export function loadState(): GameState {
     // No save (or an incompatible one) - generate a fresh studio, including
     // its talent pool, from a genuinely random seed.
     const { result: studio, nextSeed } = withRng(randomSeed(), (rng) => createInitialStudio(rng, DEFAULT_STARTING_CASH));
-    return { studio, screen: 'dashboard', draft: null, rngSeed: nextSeed, viewingRivalStudioName: null, viewingProductionId: null };
+    return {
+      studio,
+      screen: 'dashboard',
+      draft: null,
+      rngSeed: nextSeed,
+      totalDays: 1,
+      viewingRivalStudioName: null,
+      viewingProductionId: null,
+    };
   }
 }
 

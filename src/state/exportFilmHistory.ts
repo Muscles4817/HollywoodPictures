@@ -10,12 +10,12 @@ import { formatGameDate } from '../engine/calendar';
  * write - the whole point is having exact numbers to check a specific
  * result against, instead of reconstructing them from a screenshot.
  */
-export function exportFilmHistory(studio: Studio): void {
+export function exportFilmHistory(studio: Studio, totalDays: number): void {
   const payload = {
     studioName: studio.name,
     reputation: studio.reputation,
-    totalDays: studio.totalDays,
-    currentDate: formatGameDate(studio.totalDays),
+    totalDays,
+    currentDate: formatGameDate(totalDays),
     exportedAt: new Date().toISOString(),
     filmsReleased: studio.filmsReleased,
   };

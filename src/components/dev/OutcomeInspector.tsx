@@ -302,7 +302,7 @@ export function OutcomeInspector() {
   // Projects this working copy's whole run the same way
   // engine/boxOfficeRun.ts does for real (advanceToWeek against the exact
   // same `fixed` it would seed Film.boxOfficeRun.fixed with), just without
-  // waiting for Studio.totalDays to actually advance - a stable number that
+  // waiting for GameState.totalDays to actually advance - a stable number that
   // only moves when an input changes, the same reasoning
   // components/dev/OutcomeInspector.tsx's Milestone 4 predecessor had for
   // projecting the old model.

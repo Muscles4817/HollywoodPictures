@@ -94,7 +94,7 @@ export function Inbox({ open, onOpenChange }: InboxProps) {
 
             {productions.length > 0 && (
               <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
-                {formatGameDate(state.studio.totalDays)} &middot; {productions.length} production{productions.length === 1 ? '' : 's'} in
+                {formatGameDate(state.totalDays)} &middot; {productions.length} production{productions.length === 1 ? '' : 's'} in
                 the background.
               </p>
             )}

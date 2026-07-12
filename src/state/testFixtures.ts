@@ -78,5 +78,5 @@ export function buildStateWithReadyDraft(seed: number, marketingOverrides: Parti
     const draft = buildReadyDraft(rng, marketingOverrides);
     return { studio, draft };
   });
-  return { studio: result.studio, screen: 'marketing', draft: result.draft, rngSeed: nextSeed, viewingRivalStudioName: null, viewingProductionId: null };
+  return { studio: result.studio, screen: 'marketing', draft: result.draft, rngSeed: nextSeed, totalDays: 1, viewingRivalStudioName: null, viewingProductionId: null };
 }

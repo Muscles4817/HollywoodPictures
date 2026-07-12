@@ -1,5 +1,5 @@
 /**
- * The in-game calendar is a single running day counter (Studio.totalDays,
+ * The in-game calendar is a single running day counter (GameState.totalDays,
  * day 1 = the studio's first day) rather than a year/day pair - one source
  * of truth, no rollover bookkeeping scattered across the reducer. Year and
  * day-of-year are derived purely for display.

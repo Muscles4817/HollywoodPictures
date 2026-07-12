@@ -4,7 +4,7 @@ import { determineOutcome } from './outcome';
 import { computeReputationChange } from './reputation';
 
 // A week's gross is settled once real in-game days accumulate to it, off
-// the same calendar everything else uses (Studio.totalDays) - there's no
+// the same calendar everything else uses (GameState.totalDays) - there's no
 // dedicated ticking screen for this the way Principal Photography has one;
 // it just catches up whenever totalDays advances for any reason (see
 // state/studioReducer.ts, everywhere it calls settleBoxOfficeForAllFilms).

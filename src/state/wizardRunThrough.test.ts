@@ -23,7 +23,7 @@ import type { EffectsMethodKey, EnvironmentMethodKey } from '../types';
 
 function freshState(seed: number): GameState {
   const { result: studio, nextSeed } = withRng(seed, (rng) => ({ ...createInitialStudio(rng, 50_000_000), productionsInProgress: [] }));
-  return { studio, screen: 'dashboard', draft: null, rngSeed: nextSeed, viewingRivalStudioName: null, viewingProductionId: null };
+  return { studio, screen: 'dashboard', draft: null, rngSeed: nextSeed, totalDays: 1, viewingRivalStudioName: null, viewingProductionId: null };
 }
 
 const ENVIRONMENT_STRATEGY: Record<EnvironmentMethodKey, number> = { studio: 0.4, location: 0.4, digital: 0.2 };

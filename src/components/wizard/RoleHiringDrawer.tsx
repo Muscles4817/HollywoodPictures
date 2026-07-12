@@ -174,7 +174,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
         <div className="grid grid-wide">
           {displayList.map((talent) => {
             const selected = hired.some((h) => h.id === talent.id);
-            const booked = !selected && !!talent.bookedUntil && talent.bookedUntil > state.studio.totalDays;
+            const booked = !selected && !!talent.bookedUntil && talent.bookedUntil > state.totalDays;
             const disabled = !selected && (atCap || booked);
             const pinned = pinnedTalentIds.includes(talent.id);
             const pinCapped = pinnedTalentIds.length >= MAX_PINNED;

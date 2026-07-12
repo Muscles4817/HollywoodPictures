@@ -125,7 +125,7 @@ interface TalentCommon {
   reliability: number; // 1-100
   ego: number; // 1-100
   salary: number;
-  // Studio.totalDays this person is committed through - a rival studio
+  // GameState.totalDays this person is committed through - a rival studio
   // production currently has them cast (see engine/rivalStudios.ts). Absent
   // or <= the current day means available. Never set by the player's own
   // hires - only one of the player's own films is ever in production at a
@@ -404,7 +404,7 @@ export interface StaticProductionRisk {
 // (docs/DESIGN.md 5.16). `recommendedDays` is computed once, when filming
 // begins, from script/cast/choices (engine/production.ts:computeRecommendedShootDays);
 // `daysElapsed` and `events` grow one day at a time via ADVANCE_SHOOTING_DAY,
-// and each day also advances Studio.totalDays, so the persistent calendar
+// and each day also advances GameState.totalDays, so the persistent calendar
 // ticks forward in step with the shoot. FilmDraft.photography is `null`
 // before the player clicks "Begin Principal Photography" - `status` also
 // covers 'awaiting-choice', when a rolled event is interactive and the timer
@@ -520,7 +520,7 @@ export interface BoxOfficeWeek {
  * *not* a field here any more, it's a derived reported statistic computed
  * on demand from `results.totalBoxOffice`/`results.openingWeekend`
  * (state/selectors.ts:computeLegs), never something stored or fed back into
- * the simulation. Settled lazily off the existing calendar (Studio.totalDays)
+ * the simulation. Settled lazily off the existing calendar (GameState.totalDays)
  * whenever it advances for any reason, not a dedicated ticking screen - see
  * engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms and docs/DESIGN.md 5.19.
  */
@@ -550,7 +550,7 @@ export interface Film {
   events: ProductionEvent[];
   results: FilmResults;
   boxOfficeRun: BoxOfficeRun;
-  /** Studio.totalDays at the moment this film was released - see engine/calendar.ts:formatGameDate. */
+  /** GameState.totalDays at the moment this film was released - see engine/calendar.ts:formatGameDate. */
   releasedOnDay: number;
   // Which rival studio made this, if any - absent means it's the player's
   // own (see Studio.rivalFilmsReleased below and docs/DESIGN.md 5.24). Kept
@@ -573,7 +573,7 @@ export interface RivalStudio {
   id: string;
   name: string;
   tier: StudioTier;
-  /** Studio.totalDays threshold - once reached, this studio attempts a new production if it has spare capacity (see engine/rivalStudios.ts). */
+  /** GameState.totalDays threshold - once reached, this studio attempts a new production if it has spare capacity (see engine/rivalStudios.ts). */
   nextSpawnCheckDay: number;
 }
 
@@ -602,8 +602,6 @@ export interface Studio {
   name: string;
   cash: number;
   reputation: number; // 0-100
-  /** Days elapsed since the studio's first day (day 1) - the single source of truth for the in-game calendar, see engine/calendar.ts. */
-  totalDays: number;
   filmsReleased: Film[];
   /** The whole hireable roster, generated once at game start - see state/gameState.ts:createInitialStudio. */
   talentPool: Record<TalentRole, Talent[]>;

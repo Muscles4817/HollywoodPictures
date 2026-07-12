@@ -25,6 +25,8 @@ export interface GameState {
   screen: Screen;
   draft: FilmDraft | null;
   rngSeed: number;
+  /** Days elapsed since day 1 - the single source of truth for the in-game calendar (see engine/calendar.ts), world-level rather than studio-scoped since rival studios and the player share it. */
+  totalDays: number;
   /** Which rival studio the 'rival-studio' screen is currently showing, if any - identified by name, same as Film.releasedBy (see types/index.ts:Film). */
   viewingRivalStudioName: string | null;
   // Which Studio.productionsInProgress entry the 'production' screen is
@@ -50,7 +52,6 @@ export function createInitialStudio(rng: RandomFn, startingCash: number): Studio
     name: 'Silver Reel Pictures',
     cash: startingCash,
     reputation: 20,
-    totalDays: 1,
     filmsReleased: [],
     talentPool: generateTalentPool(rng),
     rivalStudios: generateRivalStudios(rng),

@@ -22,7 +22,7 @@ beforeEach(() => {
 
 function stateWithGenreSelected(seed: number): GameState {
   const { result: studio, nextSeed } = withRng(seed, (rng) => createInitialStudio(rng, 10_000_000));
-  let state: GameState = { studio, screen: 'dashboard', draft: null, rngSeed: nextSeed, viewingRivalStudioName: null, viewingProductionId: null };
+  let state: GameState = { studio, screen: 'dashboard', draft: null, rngSeed: nextSeed, totalDays: 1, viewingRivalStudioName: null, viewingProductionId: null };
   state = studioReducer(state, { type: 'START_NEW_FILM' });
   state = studioReducer(state, { type: 'SET_GENRE', genre: 'Action' });
   return state;

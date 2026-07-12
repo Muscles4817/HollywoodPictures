@@ -46,7 +46,7 @@ describe('save / reload preserves exact run state', () => {
     expect(reloaded.studio.filmsReleased[0].boxOfficeRun).toEqual(state.studio.filmsReleased[0].boxOfficeRun);
     expect(reloaded.studio.filmsReleased[0].results).toEqual(state.studio.filmsReleased[0].results);
     expect(reloaded.studio.cash).toBe(state.studio.cash);
-    expect(reloaded.studio.totalDays).toBe(state.studio.totalDays);
+    expect(reloaded.totalDays).toBe(state.totalDays);
   });
 
   it('a finished run also round-trips exactly, including the final totalBoxOffice/profit/outcome', () => {
@@ -146,6 +146,22 @@ describe('old saves migrate safely', () => {
     // returns (no filmsReleased), this must be a no-op, not a crash.
     expect(() => studioReducer(state, { type: 'ADVANCE_DAY' })).not.toThrow();
     expect(() => studioReducer(state, { type: 'GO_TO_STEP', step: 'talent' })).not.toThrow();
+  });
+
+  it('a save under the pre-Phase-1.1 v22 key (Studio.totalDays nested, no top-level GameState.totalDays) is invisible to v23 - falls back to a fresh studio rather than a hybrid state', () => {
+    // Studio.totalDays moved to GameState.totalDays (architecture roadmap
+    // Phase 1.1) - a v22 save has totalDays nested inside `studio`, not at
+    // the top level `parsed.totalDays` this file's loadState() now expects.
+    // Same class of break as every past shape change here: no migration
+    // code, an old save simply isn't found under the new key.
+    globalThis.localStorage.setItem(
+      'hollywood-pictures-save-v22',
+      JSON.stringify({ studio: { cash: 1, totalDays: 999, filmsReleased: [] } }),
+    );
+    const state = loadState();
+    expect(state.studio.filmsReleased).toEqual([]);
+    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
+    expect(state.totalDays).toBe(1); // a genuinely fresh calendar, not the stale save's totalDays: 999
   });
 
   it('clearSavedState followed by loadState behaves exactly like no save ever existed', () => {
