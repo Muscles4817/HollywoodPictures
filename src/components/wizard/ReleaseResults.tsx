@@ -8,7 +8,20 @@ import { StatTile } from '../common/StatTile';
 export function ReleaseResults() {
   const { state, dispatch } = useStudio();
   const draft = state.draft!;
-  const results = draft.results!;
+  // Read the just-released Film's own results from Studio History, not the
+  // draft's frozen results snapshot - RELEASE_FILM only ever freezes one
+  // into draft.results at the moment of release, and nothing refreshes it
+  // afterward. The background day-tick keeps running on this very screen
+  // (docs/DESIGN.md 5.20), which settles state.studio.filmsReleased's copy
+  // week by week - so a short-legged run finishing while the player is
+  // still looking at this page would otherwise display "still playing"
+  // forever, even after Studio History next door already shows the real
+  // final numbers. RELEASE_FILM always appends the new film last and
+  // 'results' is only ever reached immediately after that append, so the
+  // last entry is always this film - falling back to the draft's own
+  // snapshot only if that invariant is somehow violated.
+  const releasedFilm = state.studio.filmsReleased[state.studio.filmsReleased.length - 1];
+  const results = releasedFilm?.results ?? draft.results!;
   // The film has already finished its whole run if the very first
   // settlement pass at release crossed straight to 'finished' (a weak
   // enough reception that legs bottom out after a single week) - rare, but
