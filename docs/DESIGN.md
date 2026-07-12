@@ -3997,8 +3997,190 @@ calibration discipline:
   unknown cast contributes negligible awareness even at maximum marketing
   efficiency; marketing's swing exceeds fame's swing by construction.
 
+**Implementation Milestone 12: commercial believability calibration - the
+structural problems (availability, release-input separation, the
+screenplay redesign) were solved; this milestone asked whether the
+*result* actually feels believable across many archetypes, not whether any
+single regression test passes.** Four areas, investigated with real
+diagnostics before any formula changed, per this project's standing
+calibration discipline - three were genuine calibration/redesign work
+within scope; the fourth surfaced an architectural gap serious enough to
+stop and get explicit direction on before touching code (the user's own
+instruction for this milestone).
+
+**1. Opening weekend should be driven primarily by marketing, not the
+screenplay.** A diagnostic sweep found `scriptAccessibility` alone, holding
+marketing/fame fixed, swung week-1 opening admissions 8.09x across its own
+range - *wider* than marketing spend's own 5.72x swing across its entire
+real range (£10k-£150M). The mechanism wasn't wrong (Milestone 11 already
+made `initialAwareCount` correctly marketing-driven), but
+`baseInterestFraction` was doing two jobs at once: sizing the film's
+ultimate natural-audience *ceiling* (correctly screenplay-driven) and
+acting as the immediate aware-to-interested conversion rate that
+multiplies straight into week-1 admissions (the same value, one range,
+both jobs). `BASE_INTEREST_FLOOR`/`CEILING` narrowed from 0.05-0.7 (14x
+theoretical range) to 0.15-0.45 (2.64x at the validated 5-95 sweep) -
+comfortably under marketing's range without changing the mechanism itself.
+A first attempt at 0.25-0.55 (same 0.3 span, floor raised more) fixed the
+elasticity but pushed a deliberately-negligible film's total gross from
+~£7.7M to ~£18.7M (over the believable £10M-ish bar) - found via diagnostic
+before locking in, not assumed; 0.15-0.45 keeps the floor low enough that
+a genuinely inaccessible concept still reads as negligible while still
+comfortably narrowing the elasticity.
+
+**2. Fully separate the jobs currently performed by "marketability" -
+continued from Milestone 11.** Two concrete gaps, both already implicit in
+the user's own item-2 breakdown:
+- `engine/commercialProfile.ts:crossoverPotential` - "how far positive word
+  of mouth could plausibly travel beyond the natural audience"
+  (originality/scale/genre/archetype-blended) - had been computed and
+  tested since the screenplay redesign but explicitly flagged in DESIGN.md
+  as deferred future work ("available for a future pass that wants to
+  split crossover-capacity's marketability term from its base-interest
+  term specifically"). `crossoverCapacityFraction`'s `conceptStrength`
+  reinvented a similar signal instead, from raw `scriptOriginality`
+  directly. Milestone 12 wires `crossoverPotential` in, replacing the raw
+  `originality` term - `CROSSOVER_CONCEPT_WEIGHTS` becomes `{
+  crossoverPotential: 0.55, spectacle: 0.3, criticScore: 0.15 }` (was `{
+  originality: 0.35, spectacle: 0.3, hookStrength: 0.25, criticScore: 0.1
+  }`).
+- `scriptHookStrength` ("how compelling the marketing proposition is -
+  trailer effectiveness, click-through, initial interest generation" - the
+  user's own definition) was routed entirely into crossover capacity by
+  Milestone 11, never touching interest generation at all - a mismatch
+  with its own stated job. Milestone 12 moves it to
+  `computeBaseInterestFraction` instead, as a narrow-range secondary
+  multiplier alongside `scriptAccessibility`
+  (`HOOK_STRENGTH_INTEREST_FLOOR`/`CEILING` = 0.8/1.2, a 1.5x spread) -
+  "easy to understand" (accessibility) and "compellingly pitched"
+  (hookStrength) are different claims about a film, both about interest,
+  neither about awareness or crossover.
+
+**3. Revisit release types - Distribution as an earned outcome, not a free
+grant.** A diagnostic sweep found `initialAvailabilityFraction` for Wide
+was a flat 0.95 for *every* studio choosing it - a tiny, unknown,
+poorly-funded studio (reputation 10, £50k marketing) got the exact same
+nationwide rollout as a major studio (reputation 85, £120M marketing) for
+choosing the identical release type, with no mechanism representing
+"cinemas decide whether to actually give you that distribution." Two of
+the user's five candidate mechanisms were already implemented (Limited/
+Festival First expand on strong demand; Wide contracts on weak demand -
+both via Milestone 9's availability system) - the missing piece was
+specifically "should small studios struggle to secure a true nationwide
+rollout." A new `computeReleaseStrength(marketingSpend, marketingEfficiency)`
+reuses the same signals `computeInitialAwareCount` already computes
+(`marketingReachFraction`/`marketingEfficiency`, not reinvented) to blend
+into a 0-1 release-strength score; `computeInitialAvailabilityFraction`
+interpolates Wide's `initialAvailabilityFraction` between a new
+`WIDE_AVAILABILITY_FLOOR = 0.4` and its existing 0.95 ceiling based on that
+score - a weak release package now earns only a partial rollout even when
+Wide is what was requested. Limited/Festival First are untouched
+(unconditionally flat, regardless of release strength) - both are already
+deliberately modest by design, and this was never where the "free money"
+problem lived, per the diagnostic. Wide's own cost multiplier
+(`data/release.ts:RELEASE_TYPE_PROFILES.costMultiplier`) is unchanged - the
+studio still pays for attempting the strategy regardless of whether the
+market delivers it in full, exactly the "strategy attempted, market
+decides how much of it lands" philosophy the brief asked for.
+
+**4. Reduce excessive long-run crossover growth - the architectural stop.**
+A diagnostic swept `crossoverCapacityFraction` from 0.02 to 0.29 (a 14x
+range, via originality/spectacle/hookStrength) at fixed, merely-good
+reception (critic 68/audience 72) and found legs and total gross
+essentially flat (23.2x -> 19.3x, non-monotonic) - forcing capacity to its
+practical floor still let a film realize millions of crossover admissions
+and legs stayed ~23x. This traced directly to a gap Milestone 10 had
+already self-documented and explicitly declined to fix unilaterally:
+`deriveWomCrossoverExpansion`'s weekly headroom was bounded against the
+*combined* natural+crossover ceiling (`maxInterestedAudience`), using the
+same `totalEverInterested` running total steps 2/5 (natural growth) also
+draw down - so whenever natural interest hadn't yet saturated its own
+(typically much larger) ceiling, which is most of a run, crossover's
+headroom stayed close to the full combined ceiling regardless of how small
+its own capacity actually was. Presented to the user as an architectural
+decision rather than implemented unilaterally, per this milestone's own
+explicit instruction ("if you discover another architectural issue... stop
+and explain it before implementing anything") - three options were laid
+out (a new persisted field tracking cumulative crossover separately; a
+bigger restructuring into two separate interest pools; a derivation from
+existing fields, already attempted and proven unsound in Milestone 10).
+User chose the new persisted field.
+
+- **`AudienceSimulationWeekState` gains `cumulativeCrossoverRealized`** -
+  a running total of interest created specifically via crossover
+  (`deriveWomCrossoverExpansion`'s own output), tracked completely
+  separately from `interestedRemaining`/`cumulativeTicketsSold` (which
+  still mix natural and crossover together, unchanged). Monotonically
+  non-decreasing across a run (enforced in `createAudienceSimulationRun`,
+  same as `awareCount`/`cumulativeTicketsSold`); bounded by
+  `crossoverCapacityFraction * totalAddressableAudience` - its *own*
+  capacity ceiling, checked in `createAudienceSimulationWeekState`, never
+  the combined one.
+- **`deriveWomCrossoverExpansion` fixed at the source**: headroom is now
+  `crossoverCeiling - cumulativeCrossoverRealized` (crossover-only),
+  replacing `totalCeiling - totalEverInterested` (combined). The
+  `awareNotYetInterested` term deliberately still reads the *combined*
+  `totalEverInterested` - a person who already became interested via
+  natural growth isn't available to also become interested via crossover
+  the same week; only the headroom/ceiling check needed to become
+  crossover-only, not the "who's still available to convert" check.
+- **`SAVE_KEY` bumped v21 -> v22** (`state/persistence.ts`) - a v21 save's
+  `Film.boxOfficeRun.simWeeks` entries predate the new required field
+  (undefined, not just a different value), the same class of break every
+  past shape-bump here has fixed the same way: no migration code, an old
+  save simply isn't found under the new key.
+- **`audienceSimulationRegressionMatrix.test.ts`'s own `crossoverRealizedFraction`
+  metric switched from an approximation to the exact field** - it used to
+  compute `max(0, maxEverInterested - naturalCeiling) / crossoverCapacity`
+  (the same proxy the Milestone 10 gap made unreliable); now reads
+  `weeks[weeks.length - 1].cumulativeCrossoverRealized / crossoverCapacity`
+  directly, a strictly more accurate signal the new field makes possible.
+
+**Required diagnostics, before vs. after** (real numbers from the scratch
+sweeps that drove every decision above, not assumptions):
+
+| Metric | Before | After |
+|---|---|---|
+| `scriptAccessibility` opening-weekend elasticity (5->95, marketing/fame fixed) | 8.09x | 2.64x |
+| Marketing spend opening-weekend elasticity (full £10k-£150M range) | 5.72x (already smaller than accessibility's - the core problem) | 5.72x (unchanged; now the clearly dominant lever) |
+| Combined screenplay elasticity (accessibility + hookStrength together) | n/a (hookStrength didn't touch interest at all) | 3.79x - still clearly under marketing's 5.72x |
+| Tiny/unknown studio choosing Wide, `initialAvailabilityFraction` | 0.95 (identical to any other studio) | 0.488 |
+| Major studio choosing Wide, `initialAvailabilityFraction` | 0.95 | 0.862 |
+| crossoverCapacityFraction swept 0.02->0.29 at fixed good reception, effect on legs | 23.2x -> 19.3x (non-monotonic, capacity barely mattered) | realized crossover now rises with capacity, capped by its own ceiling at every reception level tested |
+| "Good but not exceptional" film (critic 68/audience 72), legs | 20.95-26.82x across a realistic marketing/reception sweep, comfortably inside the "should require an exceptional combination" 25-35x band the brief called out as wrong | recalibrated regression matrix now requires materially better-aligned inputs (fame, reputation, hookStrength, spectacle all raised, not just reception) to reach the matrix's own top-tier scenarios |
+
+- **Regression matrix re-verified, every failure triaged against real
+  diagnostics, none silently loosened without one** (`audienceSimulationInputs.test.ts`,
+  `audienceSimulationRegressionMatrix.test.ts`, `audienceSimulationScenarios.test.ts`,
+  `audienceSimulationStep.test.ts`, `audienceSimulation.test.ts`) - the
+  overwhelming majority of failures were named top-tier scenarios
+  (`RARE_PHENOMENON`, `HUGE_OPENING_EXCEPTIONAL`, `HIT`, clustering-sweep's
+  top tier) that had been left at `inputs()`'s neutral fame/hookStrength/
+  spectacle default of 50 - with those levers now genuinely mattering
+  (items 1-3 above), a "phenomenon" or "hit" archetype has to actually set
+  them to phenomenon/hit-tier values to earn its own tier, the same
+  narrative-fidelity fix Milestone 11 applied to fame across its own
+  regression suite. Two thresholds were genuinely stale and recalibrated
+  with real numbers and an inline comment: the "negligible" archetype's
+  gross ceiling (£10M -> £12M; every lever already at its practical floor,
+  real diagnostic total ~£10.8M-£11M depending on scenario) and the
+  extreme-upper-range saturation bar for one archetype (0.9 -> 0.85; every
+  lever already maxed, real diagnostic saturation ~0.87 of ceiling).
+- **New regression coverage added specifically for this milestone's
+  architectural claims** (`audienceSimulationInputs.test.ts`'s new
+  "Milestone 12" describe block, six tests): marketing's opening-weekend
+  swing exceeds the screenplay's combined swing; Wide availability rises
+  monotonically with release strength (tiny < mid < strong studio); Wide
+  always beats Limited even at the weakest possible release strength (the
+  strategy/market relationship never inverts); Limited/Festival First
+  availability stays exactly flat regardless of release strength (only
+  Wide's day-one rollout has to be earned); realized crossover now
+  responds to capacity (it did not reliably before); `cumulativeCrossoverRealized`
+  never exceeds its own capacity ceiling at any reception level, checked
+  directly rather than inferred.
+
 **Final reference: formulas, constants, invariants, scenarios, limitations,
-hooks.** Milestones 1-11 are now complete and live - this is the
+hooks.** Milestones 1-12 are now complete and live - this is the
 consolidated specification for the system as it actually ships, not a
 design intent. Every number below is read directly from the committed
 source at the time of writing, not from memory.
@@ -4036,9 +4218,10 @@ Reported on demand, never stored (state/selectors.ts):
 
 ```
 totalAddressableAudience  = BASE_ADDRESSABLE_POPULATION x marketSize[targetAudience] x (genrePopularity / 100)
-baseInterestFraction      = clamp((0.05 + 0.65 x (scriptAccessibility/100)) x (targetAudience === script.intendedAudience ? 1 : 0.7), 0, 1)
+baseInterestFraction      = clamp((0.15 + 0.3 x (scriptAccessibility/100)) x hookMultiplier x (targetAudience === script.intendedAudience ? 1 : 0.7), 0, 1)   [Milestone 12 - range narrowed 0.05-0.7 -> 0.15-0.45; hookMultiplier added]
+  where hookMultiplier = 0.8 + 0.4 x (scriptHookStrength/100)   (a narrow 1.5x secondary multiplier - "compelling pitch" vs. accessibility's "easy to understand")
 crossoverCapacityFraction = clamp(0.3 x conceptStrength x accessibility, 0, 0.3)            [Milestone 10 - see that milestone's note]
-  where conceptStrength = clamp(0.35 x (scriptOriginality/100) + 0.30 x (scriptSpectacle/100) + 0.25 x (scriptHookStrength/100) + 0.10 x (criticScore/100), 0, 1)   [Milestone 11 - scriptHookStrength replaces scriptAccessibility here]
+  where conceptStrength = clamp(0.55 x (scriptCrossoverPotential/100) + 0.30 x (scriptSpectacle/100) + 0.15 x (criticScore/100), 0, 1)   [Milestone 12 - scriptCrossoverPotential (engine/commercialProfile.ts, purpose-built) replaces the raw scriptOriginality/scriptHookStrength blend Milestone 11 used]
         accessibility    = 0.4 + 0.6 x clamp((genrePopularity/100 x marketSize[targetAudience]) / 0.75, 0, 1)
 marketingEfficiency       = clamp(0.3 + 0.7 x (studioReputation/100), 0, 1)                 [Milestone 11 - driven only by studioReputation now, invariant to any screenplay trait]
 conversionPacingBaseline  = clamp(distribution.conversionPacingBaseline x windowBaseMultiplier x windowGenreBonus x (1 + 0.5 x buzzScore/100), 0, 1)
@@ -4046,13 +4229,19 @@ externalWeeklyAwarenessRate = clamp(0.03 x (0.5 + 0.5 x marketingEfficiency), 0,
 initialAwareCount         = totalAddressableAudience x clamp(0.25 x castReach + 0.75 x marketingReach x marketingEfficiency, 0, 1)   [Milestone 11 - no releaseType multiplier at all; buzzScore no longer appears here]
   where castReach      = ((directorFame x 0.35 + leadFame x 0.65) / 100)^2        (convex - an unknown director/lead pair contributes almost nothing)
         marketingReach = interpolateScale(logT(marketingSpend, £10k-£150M), [0, 0.03, 0.12, 0.35, 0.85])
+initialAvailabilityFraction = releaseType === 'Wide' ? WIDE_AVAILABILITY_FLOOR=0.4 + (ceiling=0.95 - 0.4) x releaseStrength : distribution.initialAvailabilityFraction   [Milestone 12 - Wide's rollout is now earned, not flat; Limited/Festival First unchanged]
+  where releaseStrength = clamp(0.6 x marketingReach + 0.4 x marketingEfficiency, 0, 1)   (reuses the same signals above, not reinvented)
 criticScore, audienceScore  = passed straight through, unchanged
 ```
 
 `distribution` above is `DISTRIBUTION_PROFILES[releaseType]` (renamed from
-`RELEASE_TYPE_AUDIENCE_PROFILES`, Milestone 11) - it now supplies only
+`RELEASE_TYPE_AUDIENCE_PROFILES`, Milestone 11) - it supplies
 `conversionPacingBaseline` and the three Milestone 9 availability fields
-below; it has no awareness-shaping fields left at all.
+(`availabilityBaseWeeklyDecay`/`criticLedExpansionWeight`, plus
+`initialAvailabilityFraction` for Limited/Festival First only - Wide's own
+`initialAvailabilityFraction` in this table is now read as a *ceiling*,
+not a value, per Milestone 12's `computeInitialAvailabilityFraction`
+above); it has no awareness-shaping fields at all.
 
 *Inside `advanceOneWeek` - the weekly step (`engine/audienceSimulationStep.ts`), applied to
 `(awareCount, interestedRemaining, cumulativeTicketsSold)`:*
@@ -4066,7 +4255,8 @@ below; it has no awareness-shaping fields left at all.
      receptionMultiplier = 0.01 + 0.99 x ((0.7 x audienceScore + 0.3 x criticScore) / 100)^2
 4. awareCount += unaware x thresholdResponse(womInfluence, 0.0,    300)
 5. newInterest_wom       = min(natural headroom, awareNotYetInterested) x thresholdResponse(womInfluence, 0.003,  75) x (natural headroom / naturalCeiling)
-6. newInterest_crossover = min(total headroom,  awareNotYetInterested) x thresholdResponse(womInfluence, 0.0075, 100) x (total headroom / totalCeiling)
+6. newInterest_crossover = min(crossover headroom, awareNotYetInterested) x thresholdResponse(womInfluence, 0.0075, 100) x (crossover headroom / crossoverCeiling)
+   [crossover headroom = crossoverCeiling - cumulativeCrossoverRealized; crossoverCeiling = crossoverCapacityFraction x totalAddressableAudience - Milestone 12 fix, see that milestone's note. Was `total headroom`/`totalCeiling` (combined natural+crossover) through Milestone 10-11 - a documented gap where crossoverCapacityFraction barely throttled realized crossover whenever natural interest hadn't yet saturated its own ceiling. cumulativeCrossoverRealized += newInterest_crossover every week, a new field on AudienceSimulationWeekState (SAVE_KEY v21 -> v22). awareNotYetInterested still reads the *combined* running total (a person converted via step 5 isn't separately available to step 6) - only the headroom/ceiling check became crossover-only.]
 7. baselineProbability = conversionPacingBaseline
 8. urgencySignal = max(0, womInfluence - 0.005) / (max(0, womInfluence - 0.005) + PULL_FORWARD_HALF_SATURATION=0.15)   [Milestone 10 - smooth, never plateaus]
    ageFactor = PULL_FORWARD_AGE_HALF_LIFE_WEEKS=8 / (8 + max(0, weekNumber - 1))
@@ -4117,9 +4307,10 @@ below; it has no awareness-shaping fields left at all.
 | `MAX_SIMULATION_WEEKS` | 20 | same | Hard backstop, independent of the retired live model's own `MAX_WEEKS` (kept deliberately separate, per Milestone 1's isolation principle, even though both landed on the same real-world-plausible number). |
 | `MIN_WEEKLY_ADMISSIONS_RATIO` | 0.02 | same | The natural-exhaustion stopping condition - in practice rarely reached before the hard cap at realistic inputs (Milestone 5/6's documented finding). |
 | `BASE_ADDRESSABLE_POPULATION` | 250,000,000 | `audienceSimulationInputs.ts` | The worldwide-scale population ceiling behind `totalAddressableAudience` - raised from Milestone 3's original 40,000,000 in Milestone 6 specifically so genuine billion-scale outcomes are reachable; see that constant's own comment for the full reasoning. |
-| `BASE_INTEREST_FLOOR` / `BASE_INTEREST_CEILING` | 0.05 / 0.7 | same | `baseInterestFraction`'s range as a function of `scriptAccessibility` alone, before the audience-fit multiplier. |
-| `CROSSOVER_CAPACITY_CEILING` | 0.3 | same | `crossoverCapacityFraction`'s ceiling - picked jointly with `BASE_INTEREST_CEILING` so their *sum* can never exceed 1 (0.7 + 0.3 = 1.0 exactly), satisfying Milestone 1's own validation by construction. Unchanged since Milestone 10's multi-factor redesign - only what fills the ceiling has changed (twice now), not the ceiling itself. |
-| `CROSSOVER_CONCEPT_WEIGHTS` | originality 0.35, spectacle 0.30, hookStrength 0.25, criticScore 0.10 | same | Milestone 10 introduced this weighting (then keyed on `marketability`/`scriptAccessibility`); Milestone 11 re-keyed the 0.25 term to `scriptHookStrength` (`deriveCommercialProfile(script).hookStrength`) - "how easily this concept spreads by recommendation" is what crossover is actually asking, not "how big is the natural audience already" (`scriptAccessibility`, which `baseInterestFraction` already answers). Weights themselves unchanged. Originality and spectacle still dominate; criticScore still contributes least, as a secondary prestige-adjacent signal only. |
+| `BASE_INTEREST_FLOOR` / `BASE_INTEREST_CEILING` | 0.15 / 0.45 | same | Milestone 12 - narrowed from 0.05/0.7 (a 14x theoretical range) after a diagnostic found `scriptAccessibility` alone swung week-1 opening admissions 8.09x, wider than marketing spend's own 5.72x swing across its entire real range - directly contradicting "opening weekend should be driven primarily by marketing." A first attempt at 0.25/0.55 (same 0.3 span) fixed the elasticity but raised the floor too far (pushed a deliberately-negligible film's total gross from ~£7.7M to ~£18.7M); 0.15/0.45 keeps the elasticity narrow (2.64x at the validated 5-95 sweep) while keeping the floor low enough for a genuinely inaccessible concept to still read as negligible. |
+| `HOOK_STRENGTH_INTEREST_FLOOR` / `CEILING` | 0.8 / 1.2 | same | Milestone 12 - `scriptHookStrength`'s own multiplier range on `baseInterestFraction`, deliberately narrow (1.5x) so it reads as a real but clearly secondary contributor next to `scriptAccessibility`'s own (now also narrowed) range. Moved here from `crossoverCapacityFraction` (see `CROSSOVER_CONCEPT_WEIGHTS` below) - "how compelling the marketing proposition is" (the user's own definition) is an interest-generation question, not a crossover one. |
+| `CROSSOVER_CAPACITY_CEILING` | 0.3 | same | `crossoverCapacityFraction`'s ceiling - picked jointly with `BASE_INTEREST_CEILING` so their *sum* can never exceed 1 (worst case 0.54 + 0.3 = 0.84 as of Milestone 12's narrower/hook-multiplied `BASE_INTEREST_CEILING`), satisfying Milestone 1's own validation by construction. Unchanged since Milestone 10's multi-factor redesign - only what fills the ceiling has changed (three times now), not the ceiling itself. |
+| `CROSSOVER_CONCEPT_WEIGHTS` | crossoverPotential 0.55, spectacle 0.30, criticScore 0.15 | same | Milestone 10 introduced this weighting (then keyed on `marketability`/`scriptAccessibility`, weight 0.25, plus `originality` 0.35); Milestone 11 re-keyed the 0.25 term to `scriptHookStrength`; Milestone 12 replaced both the `originality` and `hookStrength` terms with a single `scriptCrossoverPotential` term (weight 0.55, `engine/commercialProfile.ts:crossoverPotential` - originality/scale/genre/archetype-blended, purpose-built for exactly this question, computed since the screenplay redesign but left unwired until now) - `hookStrength` moved to `baseInterestFraction` instead (see above). Spectacle still contributes independently (event value isn't part of `crossoverPotential`'s own formula); criticScore still contributes least, as a secondary prestige-adjacent signal only. |
 | `CROSSOVER_ACCESSIBILITY_FLOOR` / `CROSSOVER_ACCESSIBILITY_REFERENCE` | 0.4 / 0.75 | same | Milestone 10 - `accessibility`'s floor (even the least accessible genre/target-audience combination keeps some crossover capacity) and normalisation reference (0.75 = the single most accessible combination the data tables can produce: Action's popularity of 75 x Mass Market's market size of 1.0). |
 | `AUDIENCE_MISMATCH_PENALTY` | 0.7 | same | A film marketed to an audience its script wasn't written for loses a real, but not devastating, slice of genuine taste-fit. |
 | `MARKETING_EFFICIENCY_FLOOR` / `CEILING` | 0.3 / 1.0 | same | Milestone 11 - `marketingEfficiency`'s range as a function of `studioReputation` alone (was 0.2/0.9 as a function of `scriptAccessibility`, with a separate originality-dampening term - both retired this milestone; see problem 4 in that milestone's note). |
@@ -4128,15 +4319,17 @@ below; it has no awareness-shaping fields left at all.
 | `BUZZ_URGENCY_WEIGHT` | 0.5 | same | A secondary boost to conversion pacing from Buzz specifically - an "everyone's talking about it" event film converts its opening-week crowd faster. Milestone 11: this is now `buzzScore`'s *only* remaining job in this module - it no longer seeds awareness at all (see problem 2 in that milestone's note). |
 | `EXTERNAL_AWARENESS_BASE_RATE` | 0.03 | same | The small ongoing (post-week-1) organic-discovery trickle, scaled by marketing efficiency only (Milestone 11 removed release type's own scaling here, for the same reason `initialAwareCount` lost it - see problem 3/6). |
 | `DISTRIBUTION_PROFILES` | Wide 0.14, Limited 0.06, Festival First 0.05 (`conversionPacingBaseline`) | same | Milestone 11 - renamed from `RELEASE_TYPE_AUDIENCE_PROFILES`, and stripped of `initialAwarenessShare`/`ongoingAwarenessFactor` entirely (deleted, not zeroed - `computeInitialAwareCount`/`computeExternalWeeklyAwarenessRate` no longer take a `releaseType` parameter at all). What's left is genuinely distribution-shaped only: how fast *existing* demand converts, never how much demand exists. Streaming has no entry - unsupported by design (see below). |
-| `DISTRIBUTION_PROFILES`'s Milestone 9 fields | Wide 0.95/0.18/0, Limited 0.1/0.02/0, Festival First 0.02/0.015/0.65 (initialAvailabilityFraction/availabilityBaseWeeklyDecay/criticLedExpansionWeight) | same | Unchanged by Milestone 11, still correctly scoped, exactly this milestone's own confirmation that Distribution already had a home rather than needing a new one built: release-day exhibition access and its age-based erosion rate, plus how much Festival First's expansion is additionally gated by critic-only reception - see Milestone 9's note. |
+| `DISTRIBUTION_PROFILES`'s Milestone 9 fields | Wide 0.95/0.18/0, Limited 0.1/0.02/0, Festival First 0.02/0.015/0.65 (initialAvailabilityFraction/availabilityBaseWeeklyDecay/criticLedExpansionWeight) | same | Unchanged by Milestone 11, still correctly scoped, exactly this milestone's own confirmation that Distribution already had a home rather than needing a new one built: release-day exhibition access and its age-based erosion rate, plus how much Festival First's expansion is additionally gated by critic-only reception - see Milestone 9's note. Milestone 12: Wide's own `initialAvailabilityFraction` (0.95) is now read as a *ceiling* only, via `computeInitialAvailabilityFraction` - see the next two rows; Limited/Festival First's values are untouched, still flat regardless of release strength. |
+| `WIDE_AVAILABILITY_FLOOR` | 0.4 | `audienceSimulationInputs.ts` | Milestone 12 - the weakest possible release strength's `initialAvailabilityFraction` for a Wide release (a tiny, unknown, poorly-funded studio still gets *some* rollout, just far short of Wide's 0.95 ceiling) - a diagnostic found the old flat 0.95 identical for every studio regardless of marketing spend or reputation, no mechanism representing "cinemas decide whether to actually give you that distribution." Comfortably above Limited's flat 0.1, so Wide always beats Limited even at zero release strength (checked directly in `audienceSimulationInputs.test.ts`'s Milestone 12 block). |
+| `RELEASE_STRENGTH_MARKETING_WEIGHT` / `REPUTATION_WEIGHT` | 0.6 / 0.4 | same | Milestone 12 - how `computeReleaseStrength` blends `marketingReachFraction(marketingSpend)` and `marketingEfficiency` (studioReputation-driven) into the 0-1 score `computeInitialAvailabilityFraction` interpolates Wide's rollout against - reuses the same two signals `computeInitialAwareCount` already computes, not reinvented. |
 | `AVERAGE_TICKET_PRICE` | £11 | `boxOfficeRun.ts` | The single people-to-money boundary conversion for the whole system - picked once, in Milestone 4, so a maxed-out run landed in a broadly comparable range to the retired model's own headline constant; not re-tuned since (Milestone 6 changed the *population* ceiling instead, to reach billion-scale, keeping this one flat, realistic number intact). |
 | `STUDIO_BOX_OFFICE_SHARE` | 0.42 | same | Unchanged from the retired live model - a fact about theatrical economics (real-world studio rentals average ~40% of worldwide gross), not something either box-office model gets to decide. |
 
 *State invariants, enforced by construction (not just tested):*
 
 - `AudienceSimulationFixedState`: `totalAddressableAudience > 0`; every fraction (`baseInterestFraction`, `marketingEfficiency`, `crossoverCapacityFraction`, `conversionPacingBaseline`, `externalWeeklyAwarenessRate`) in `[0, 1]`; `criticScore`/`audienceScore` in `[0, 100]`; `initialAwareCount` in `[0, totalAddressableAudience]`; `baseInterestFraction + crossoverCapacityFraction <= 1` - `createAudienceSimulationFixedState` throws rather than silently clamping.
-- `AudienceSimulationWeekState`: `week` a positive integer; `awareCount`, `interestedRemaining`, `cumulativeTicketsSold` all non-negative; `awareCount <= totalAddressableAudience`; `interestedRemaining <= awareCount` (can't be interested-and-unconverted without being aware); `interestedRemaining <= maxInterestedAudience(fixed)`; `cumulativeTicketsSold <= totalAddressableAudience` (no repeat viewing).
-- Across a run (`createAudienceSimulationRun`): weeks sequential from 1; `awareCount` and `cumulativeTicketsSold` both monotonically non-decreasing; `interestedRemaining` deliberately *not* required to be monotonic (it both shrinks via conversion and grows via crossover).
+- `AudienceSimulationWeekState`: `week` a positive integer; `awareCount`, `interestedRemaining`, `cumulativeTicketsSold`, `cumulativeCrossoverRealized` all non-negative; `awareCount <= totalAddressableAudience`; `interestedRemaining <= awareCount` (can't be interested-and-unconverted without being aware); `interestedRemaining <= maxInterestedAudience(fixed)`; `cumulativeTicketsSold <= totalAddressableAudience` (no repeat viewing); `cumulativeCrossoverRealized <= crossoverCapacityFraction x totalAddressableAudience` (Milestone 12 - crossover's own capacity, not the combined one) and `cumulativeCrossoverRealized <= interestedRemaining + cumulativeTicketsSold` (crossover is a subset of total interest, never an additional pool).
+- Across a run (`createAudienceSimulationRun`): weeks sequential from 1; `awareCount`, `cumulativeTicketsSold`, and `cumulativeCrossoverRealized` (Milestone 12) all monotonically non-decreasing; `interestedRemaining` deliberately *not* required to be monotonic (it both shrinks via conversion and grows via crossover).
 - `BoxOfficeRun.simWeeks.length` never exceeds `MAX_SIMULATION_WEEKS`; `status` transitions `'running' -> 'finished'` exactly once, never back; `FilmResults.totalBoxOffice`/`studioRevenue`/`profit`/`outcome`/`reputationChange` are all `null` until `status === 'finished'`, then all populated together, exactly once (`engine/boxOfficeRun.test.ts`).
 - `settleBoxOfficeForAllFilms.cashCredit` is never negative (Milestone 5/6 tests) - settlement only ever credits `Studio.cash`, never debits it.
 
