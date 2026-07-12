@@ -272,7 +272,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
 
         <div className="dashboard-right-rail">
           <TopGrossingPanel
-            entries={computeTopGrossingFilms(studio)}
+            entries={computeTopGrossingFilms(studio, state.rivalFilmsReleased)}
             playerStudioName={studio.name}
             onSelectFilm={setSelectedFilm}
             onSelectStudio={(studioName) => dispatch({ type: 'VIEW_RIVAL_STUDIO', studioName })}
@@ -281,7 +281,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
           <div className="card stack">
             <h2 style={{ margin: 0 }}>Rival Studios</h2>
             <div className="stack" style={{ gap: 10 }}>
-              {studio.rivalStudios.map((rival) => (
+              {state.rivalStudios.map((rival) => (
                 <button
                   key={rival.id}
                   className="top-grossing-row"

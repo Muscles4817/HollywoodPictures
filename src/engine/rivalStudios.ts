@@ -6,7 +6,6 @@ import type {
   ProductionScale,
   RivalProductionInProgress,
   RivalStudio,
-  Studio,
   StudioTier,
   Talent,
   TalentRole,
@@ -270,21 +269,24 @@ export interface RivalMarketUpdate {
  * to start a new production if it has spare capacity. Called from the same
  * places engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms is (see
  * state/studioReducer.ts) - every action that can advance GameState.totalDays.
- * `totalDays` is passed in explicitly (not read off `studio`) since the
- * calendar is world-level, shared by the player and every rival alike.
+ * Takes a `RivalMarketUpdate`-shaped `current` rather than a `Studio` -
+ * rivalStudios/rivalProductionsInProgress/rivalFilmsReleased are world-level
+ * (GameState), not the player's Studio's own business; only `talentPool` is
+ * still Studio-shaped (shared with the player, until it too moves world-level).
+ * `totalDays` is passed in explicitly for the same reason.
  */
-export function settleRivalMarket(studio: Studio, totalDays: number, rng: RandomFn): RivalMarketUpdate {
-  const due = studio.rivalProductionsInProgress.filter((p) => p.releaseDay <= totalDays);
-  const stillInProgress = studio.rivalProductionsInProgress.filter((p) => p.releaseDay > totalDays);
+export function settleRivalMarket(current: RivalMarketUpdate, totalDays: number, rng: RandomFn): RivalMarketUpdate {
+  const due = current.rivalProductionsInProgress.filter((p) => p.releaseDay <= totalDays);
+  const stillInProgress = current.rivalProductionsInProgress.filter((p) => p.releaseDay > totalDays);
   const newlyReleased = due.map((p) =>
-    resolveRivalProduction(p, studio.rivalStudios.find((r) => r.id === p.rivalStudioId)?.name ?? 'A Rival Studio', rng),
+    resolveRivalProduction(p, current.rivalStudios.find((r) => r.id === p.rivalStudioId)?.name ?? 'A Rival Studio', rng),
   );
 
-  const afterBoxOffice = settleBoxOfficeForAllFilms([...studio.rivalFilmsReleased, ...newlyReleased], totalDays);
+  const afterBoxOffice = settleBoxOfficeForAllFilms([...current.rivalFilmsReleased, ...newlyReleased], totalDays);
 
-  let talentPool = studio.talentPool;
+  let talentPool = current.talentPool;
   let productionsInProgress = stillInProgress;
-  const rivalStudios = studio.rivalStudios.map((rival) => {
+  const rivalStudios = current.rivalStudios.map((rival) => {
     if (rival.nextSpawnCheckDay > totalDays) return rival;
     const nextSpawnCheckDay = totalDays + randInt(rng, ...SPAWN_CHECK_INTERVAL_DAYS[rival.tier]);
     const currentForThisStudio = productionsInProgress.filter((p) => p.rivalStudioId === rival.id);

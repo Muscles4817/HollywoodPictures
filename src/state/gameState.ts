@@ -8,6 +8,8 @@ import type {
   MarketingChoices,
   NormalizedScalar,
   PostProductionChoices,
+  RivalProductionInProgress,
+  RivalStudio,
   Screen,
   Script,
   Studio,
@@ -17,7 +19,6 @@ import type {
   WizardStep,
 } from '../types';
 import { generateTalentPool } from '../engine/talentGenerator';
-import { generateRivalStudios } from '../engine/rivalStudios';
 import type { RandomFn } from '../engine/random';
 
 export interface GameState {
@@ -27,6 +28,11 @@ export interface GameState {
   rngSeed: number;
   /** Days elapsed since day 1 - the single source of truth for the in-game calendar (see engine/calendar.ts), world-level rather than studio-scoped since rival studios and the player share it. */
   totalDays: number;
+  /** A small persistent roster of AI competitors, generated once at game start - world-level rather than nested inside the player's own Studio, since it's not the player's data (see docs/DESIGN.md 5.24). */
+  rivalStudios: RivalStudio[];
+  rivalProductionsInProgress: RivalProductionInProgress[];
+  /** Parallel to studio.filmsReleased, but never touches the player's own cash/reputation - purely for the market (Top 10 chart, talent contention history). */
+  rivalFilmsReleased: Film[];
   /** Which rival studio the 'rival-studio' screen is currently showing, if any - identified by name, same as Film.releasedBy (see types/index.ts:Film). */
   viewingRivalStudioName: string | null;
   // Which Studio.productionsInProgress entry the 'production' screen is
@@ -54,9 +60,6 @@ export function createInitialStudio(rng: RandomFn, startingCash: number): Studio
     reputation: 20,
     filmsReleased: [],
     talentPool: generateTalentPool(rng),
-    rivalStudios: generateRivalStudios(rng),
-    rivalProductionsInProgress: [],
-    rivalFilmsReleased: [],
     productionsInProgress: [],
   };
 }

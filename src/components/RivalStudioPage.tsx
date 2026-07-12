@@ -8,7 +8,7 @@ import { FilmDetailModal } from './common/FilmDetailModal';
 import type { Film } from '../types';
 
 /**
- * A rival studio's own read-only page - its released films (Studio.rivalFilmsReleased
+ * A rival studio's own read-only page - its released films (GameState.rivalFilmsReleased
  * filtered by name, same as the Top 10 chart) plus a teaser of what it's
  * currently making, without the full detail the player gets on their own
  * production (see engine/rivalStudios.ts:RivalProductionInProgress). Reached
@@ -19,12 +19,12 @@ export function RivalStudioPage() {
   const { state, dispatch } = useStudio();
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
 
-  const rival = state.studio.rivalStudios.find((r) => r.name === state.viewingRivalStudioName);
-  const films = state.studio.rivalFilmsReleased
+  const rival = state.rivalStudios.find((r) => r.name === state.viewingRivalStudioName);
+  const films = state.rivalFilmsReleased
     .filter((f) => f.releasedBy === state.viewingRivalStudioName)
     .sort((a, b) => b.releasedOnDay - a.releasedOnDay);
   const inProgress = rival
-    ? state.studio.rivalProductionsInProgress.filter((p) => p.rivalStudioId === rival.id)
+    ? state.rivalProductionsInProgress.filter((p) => p.rivalStudioId === rival.id)
     : [];
 
   if (!rival) {

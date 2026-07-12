@@ -164,6 +164,26 @@ describe('old saves migrate safely', () => {
     expect(state.totalDays).toBe(1); // a genuinely fresh calendar, not the stale save's totalDays: 999
   });
 
+  it('a save under the pre-Phase-1.2 v23 key (rival state nested in studio, no top-level GameState.rivalStudios) is invisible to v24 - falls back to a fresh studio and roster rather than a hybrid state', () => {
+    // Studio.rivalStudios/rivalProductionsInProgress/rivalFilmsReleased moved
+    // to GameState (architecture roadmap Phase 1.2) - a v23 save has all
+    // three nested inside `studio`, not at the top level this file's
+    // loadState() now expects. Same class of break as every past shape
+    // change here: no migration code, an old save simply isn't found under
+    // the new key.
+    globalThis.localStorage.setItem(
+      'hollywood-pictures-save-v23',
+      JSON.stringify({
+        studio: { cash: 1, totalDays: 1, filmsReleased: [], rivalStudios: [{ id: 'stale', name: 'Stale Pictures', tier: 'Indie', nextSpawnCheckDay: 1 }] },
+      }),
+    );
+    const state = loadState();
+    expect(state.studio.filmsReleased).toEqual([]);
+    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
+    expect(state.rivalStudios).not.toEqual([]); // a genuinely fresh (real) roster, not the stale save's studio-nested one
+    expect(state.rivalStudios.some((r) => r.name === 'Stale Pictures')).toBe(false);
+  });
+
   it('clearSavedState followed by loadState behaves exactly like no save ever existed', () => {
     const released = studioReducer(buildStateWithReadyDraft(4), { type: 'RELEASE_FILM' });
     saveState(released);

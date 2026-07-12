@@ -35,6 +35,9 @@ function stateWithInProgressShoot(photographyOverrides: Partial<PhotographyState
     draft: viewingProductionId ? null : draft,
     rngSeed: nextSeed,
     totalDays: 1,
+    rivalStudios: [],
+    rivalProductionsInProgress: [],
+    rivalFilmsReleased: [],
     viewingRivalStudioName: null,
     viewingProductionId,
   };

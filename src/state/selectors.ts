@@ -71,17 +71,17 @@ export interface TopGrossingEntry {
 }
 
 /**
- * The player's own films plus every rival's (Studio.rivalFilmsReleased, see
- * engine/rivalStudios.ts), ranked by whatever each one made in its own most
- * recently settled week - a real weekend chart, not lifetime gross, so a
- * long-running hit and a film in its second week both compete on the same
+ * The player's own films plus every rival's (GameState.rivalFilmsReleased,
+ * see engine/rivalStudios.ts), ranked by whatever each one made in its own
+ * most recently settled week - a real weekend chart, not lifetime gross, so
+ * a long-running hit and a film in its second week both compete on the same
  * number. Only films still actually in theaters count; a finished run drops
  * off the chart the same way it would in reality.
  */
-export function computeTopGrossingFilms(studio: Studio, limit = 10): TopGrossingEntry[] {
+export function computeTopGrossingFilms(studio: Studio, rivalFilmsReleased: Film[], limit = 10): TopGrossingEntry[] {
   const candidates: Array<{ film: Film; studioName: string }> = [
     ...studio.filmsReleased.map((film) => ({ film, studioName: studio.name })),
-    ...studio.rivalFilmsReleased.map((film) => ({ film, studioName: film.releasedBy ?? 'A Rival Studio' })),
+    ...rivalFilmsReleased.map((film) => ({ film, studioName: film.releasedBy ?? 'A Rival Studio' })),
   ];
 
   const entries: TopGrossingEntry[] = [];
@@ -103,15 +103,15 @@ export interface FilmStatRow {
 /**
  * Every film ever released, player's own and every rival's, as one flat
  * list - the raw material for the Stats page (components/StatsPage.tsx).
- * Nothing new is tracked here; Studio.filmsReleased/rivalFilmsReleased
+ * Nothing new is tracked here; Studio.filmsReleased/GameState.rivalFilmsReleased
  * already keep every release forever, complete with cast (stable talent
- * ids, since rivals cast from the same shared Studio.talentPool - see
+ * ids, since rivals cast from the same shared talent pool - see
  * engine/rivalStudios.ts) and full results.
  */
-export function collectFilmStats(studio: Studio): FilmStatRow[] {
+export function collectFilmStats(studio: Studio, rivalFilmsReleased: Film[]): FilmStatRow[] {
   return [
     ...studio.filmsReleased.map((film) => ({ film, studioName: studio.name, isPlayer: true })),
-    ...studio.rivalFilmsReleased.map((film) => ({ film, studioName: film.releasedBy ?? 'A Rival Studio', isPlayer: false })),
+    ...rivalFilmsReleased.map((film) => ({ film, studioName: film.releasedBy ?? 'A Rival Studio', isPlayer: false })),
   ];
 }
 

@@ -553,7 +553,7 @@ export interface Film {
   /** GameState.totalDays at the moment this film was released - see engine/calendar.ts:formatGameDate. */
   releasedOnDay: number;
   // Which rival studio made this, if any - absent means it's the player's
-  // own (see Studio.rivalFilmsReleased below and docs/DESIGN.md 5.24). Kept
+  // own (see GameState.rivalFilmsReleased below and docs/DESIGN.md 5.24). Kept
   // as a plain name rather than an id lookup since a rival studio's own
   // record never needs to change after the fact.
   releasedBy?: string;
@@ -605,11 +605,6 @@ export interface Studio {
   filmsReleased: Film[];
   /** The whole hireable roster, generated once at game start - see state/gameState.ts:createInitialStudio. */
   talentPool: Record<TalentRole, Talent[]>;
-  /** A small persistent roster of AI competitors, generated once at game start alongside the player's own studio - see docs/DESIGN.md 5.24. */
-  rivalStudios: RivalStudio[];
-  rivalProductionsInProgress: RivalProductionInProgress[];
-  /** Parallel to filmsReleased, but never touches the player's own cash/reputation - purely for the market (Top 10 chart, talent contention history). */
-  rivalFilmsReleased: Film[];
   // The player's own shoots running in the background - a FilmDraft sent
   // here (RETURN_TO_DASHBOARD) instead of being discarded, once its
   // photography has actually started, so the player can develop/cast/plan a

@@ -56,7 +56,7 @@ function creditLine(film: Film, role: TalentRole): string {
 /**
  * A filterable, sortable view across every film ever released - the
  * player's own (Studio.filmsReleased) and every rival's
- * (Studio.rivalFilmsReleased) - rather than a set of hardcoded named
+ * (GameState.rivalFilmsReleased) - rather than a set of hardcoded named
  * queries. "Highest Rated Horror Film for studio X" is just Genre=Horror +
  * Studio=X + sort by Critic Score on the Film tab; "who's the most
  * bankable Director" is the same underlying film pool rolled up per person
@@ -88,7 +88,7 @@ export function StatsPage() {
   const [personSearch, setPersonSearch] = useState('');
   const [actorRoleFilter, setActorRoleFilter] = useState<TalentRole | 'any'>('any');
 
-  const allRows = collectFilmStats(studio);
+  const allRows = collectFilmStats(studio, state.rivalFilmsReleased);
   const baseRows = genre === 'all' ? allRows : allRows.filter((row) => row.film.genre === genre);
 
   const filmFilters: FilmStatsFilters = { studioName, genre, role, personName, sortBy: filmSortBy, sortDirection: filmSortDirection };
@@ -147,7 +147,7 @@ export function StatsPage() {
               <select value={studioName} onChange={(e) => setStudioName(e.target.value)}>
                 <option value="all">All Studios</option>
                 <option value={studio.name}>{studio.name} (you)</option>
-                {studio.rivalStudios.map((r) => (
+                {state.rivalStudios.map((r) => (
                   <option key={r.id} value={r.name}>{r.name}</option>
                 ))}
               </select>
