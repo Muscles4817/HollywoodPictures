@@ -122,7 +122,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     studioReputation: input.studioReputation,
     scriptAccessibility: commercialProfile.accessibility,
     scriptHookStrength: commercialProfile.hookStrength,
-    scriptOriginality: input.script.originality,
+    scriptCrossoverPotential: commercialProfile.crossoverPotential,
     scriptSpectacle: input.script.toneProfile.spectacle,
     scriptIntendedAudience: input.script.intendedAudience,
     targetAudience: input.targetAudience,

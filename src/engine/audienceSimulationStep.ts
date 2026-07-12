@@ -54,7 +54,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-const WEEK_ZERO: AudienceSimulationWeekState = { week: 0, awareCount: 0, interestedRemaining: 0, cumulativeTicketsSold: 0, availabilityFraction: 0 };
+const WEEK_ZERO: AudienceSimulationWeekState = { week: 0, awareCount: 0, interestedRemaining: 0, cumulativeTicketsSold: 0, availabilityFraction: 0, cumulativeCrossoverRealized: 0 };
 
 /** Step 0 (Milestone 3): the one-time release-day awareness lump (AudienceSimulationFixedState.initialAwareCount - Buzz, marketing spend, Release Type reach, see engine/audienceSimulationInputs.ts) lands only when week 1 is being computed (weeksLength === 0), never again on any later week - everything after that grows AwareCount only through step 1's ongoing trickle or word of mouth. Folded into awareCount *before* step 1 runs, so step 2's "newly aware this week" naturally includes the seed and converts its natural-fit slice into Interest, without a second, separate conversion formula. */
 export function applyReleaseDayAwarenessSeed(fixed: AudienceSimulationFixedState, awareCount: number, weeksLength: number): number {
@@ -201,52 +201,52 @@ export function deriveWomNaturalInterestGrowth(
 /**
  * Step 6: exceptional word of mouth reaching people outside the film's
  * natural audience entirely - the highest bar of the three effects.
- * Bounded by the *total* ceiling (natural + crossover capacity - see
- * maxInterestedAudience), so a film with zero crossoverCapacityFraction
- * gets zero headroom here regardless of how strong womInfluence is
- * (capacity, not just influence, gates this - DESIGN.md 5.34's "the concept
- * and its accessibility create the capacity... audience reaction determines
- * whether that potential is actually realized"). `saturationDampening`
- * exists for the exact same reason step 5 needs it - see that function's
- * docs (the "Quantum Signal incident") - crossover is the effect with the
- * most headroom to consume in one shot once the tipping point is crossed,
- * so it was the single biggest contributor to the runaway blowup this
- * fixes.
+ * Bounded by crossover's *own* capacity ceiling
+ * (crossoverCapacityFraction * totalAddressableAudience), so a film with
+ * zero crossoverCapacityFraction gets zero headroom here regardless of how
+ * strong womInfluence is (capacity, not just influence, gates this -
+ * DESIGN.md 5.34's "the concept and its accessibility create the
+ * capacity... audience reaction determines whether that potential is
+ * actually realized"). `saturationDampening` exists for the exact same
+ * reason step 5 needs it - see that function's docs (the "Quantum Signal
+ * incident") - crossover is the effect with the most headroom to consume
+ * in one shot once the tipping point is crossed, so it was the single
+ * biggest contributor to the runaway blowup this fixes.
  *
- * Known residual gap (docs/DESIGN.md 5.34, "crossover/pull-forward
- * separation" milestone note): headroom here is bounded against the
- * *combined* natural+crossover ceiling, not a crossover-only one, because
- * nothing in AudienceSimulationWeekState currently tracks how much of
- * cumulative `totalEverInterested` came from this step specifically versus
- * steps 2/5's natural growth - the two are mixed into one running total.
- * A scratch diagnostic run against a real save (Lucky Internship) during
- * this milestone's validation found the practical effect: whenever natural
- * interest hasn't yet saturated its own (typically much larger) ceiling,
- * this step's headroom stays close to the full combined ceiling regardless
- * of how small crossoverCapacityFraction actually is, so a meaningfully
- * *reduced* capacity input (the point of this milestone's redesign) barely
- * throttles weekly crossover realisation in practice - a genuinely
- * multi-factor, lower crossoverCapacityFraction still let a real
- * moderately-received film realize several million people of crossover
- * interest in a single week. A precise fix requires either a new tracked
- * "cumulative crossover realized" field (a real state/save-compatibility
- * decision, deliberately not made unilaterally inside this change) or a
- * provably-equivalent derivation from existing fields - neither was found
- * during this milestone. Left as a documented gap rather than a silent
- * accounting bug or an unauthorized scope expansion into new persisted
- * state.
+ * Milestone 12 fix for a gap Milestone 10 left deliberately documented
+ * rather than silently papered over: headroom here used to be bounded
+ * against the *combined* natural+crossover ceiling (`maxInterestedAudience`),
+ * using the same `totalEverInterested` running total steps 2/5 also draw
+ * down - so a film's own `crossoverCapacityFraction` barely throttled
+ * realized crossover whenever natural interest hadn't yet saturated its
+ * own (typically much larger) ceiling, which is most of a run. A
+ * diagnostic sweep confirmed the practical effect directly: swinging
+ * crossoverCapacityFraction across its full realistic range (0.02-0.29,
+ * via originality/spectacle/hookStrength) at fixed, merely-good reception
+ * left legs and total gross essentially flat, and forcing capacity down to
+ * its practical floor *still* let a film realize millions of crossover
+ * admissions. `cumulativeCrossoverRealized` (AudienceSimulationWeekState,
+ * new this milestone) fixes it at the source: crossover's headroom is now
+ * checked against its *own* running total, completely independent of how
+ * much natural-audience headroom happens to be left. `awareNotYetInterested`
+ * still reads the *combined* `totalEverInterested`, deliberately - a
+ * person who already became interested via natural growth (step 5) isn't
+ * available to also become interested via crossover (step 6) this same
+ * week; only the *headroom/ceiling* check needed to become crossover-only,
+ * not the "who's still available to convert" check.
  */
 export function deriveWomCrossoverExpansion(
   fixed: AudienceSimulationFixedState,
   awareCount: number,
   totalEverInterested: number,
+  cumulativeCrossoverRealized: number,
   womInfluence: number,
 ): number {
-  const totalCeiling = maxInterestedAudience(fixed);
-  const headroom = Math.max(0, totalCeiling - totalEverInterested);
+  const crossoverCeiling = fixed.crossoverCapacityFraction * fixed.totalAddressableAudience;
+  const headroom = Math.max(0, crossoverCeiling - cumulativeCrossoverRealized);
   const awareNotYetInterested = Math.max(0, awareCount - totalEverInterested);
   const growthFraction = thresholdResponse(womInfluence, CROSSOVER_RESPONSE.threshold, CROSSOVER_RESPONSE.sensitivity);
-  const saturationDampening = totalCeiling > 0 ? headroom / totalCeiling : 0;
+  const saturationDampening = crossoverCeiling > 0 ? headroom / crossoverCeiling : 0;
   return Math.min(headroom, awareNotYetInterested) * growthFraction * saturationDampening;
 }
 
@@ -582,6 +582,8 @@ export interface WeekDiagnostics {
   newInterestCreated: number;
   /** Step 6 alone - interest from people outside the natural audience, realized via word-of-mouth crossover. */
   crossoverInterestCreated: number;
+  /** Milestone 12 - running total of crossoverInterestCreated across the whole run so far, i.e. AudienceSimulationWeekState.cumulativeCrossoverRealized. What deriveWomCrossoverExpansion's own headroom is now bounded against - never lets crossoverInterestCreated exceed crossoverCapacityFraction * totalAddressableAudience in total, independent of how much natural-audience headroom is separately left. */
+  cumulativeCrossoverRealized: number;
   /** Step 3's output - this week's word-of-mouth influence signal, the single driver behind newlyAwareFromWom, the word-of-mouth share of newInterestCreated, crossoverInterestCreated, and womPullForwardBoost below. */
   womInfluence: number;
   baselineAttendanceProbability: number;
@@ -662,8 +664,13 @@ export function advanceOneWeekWithDiagnostics(
   totalEverInterested += deltaInterestNatural;
 
   // Step 6: exceptional word of mouth reaches beyond the natural audience.
-  const deltaInterestCrossover = deriveWomCrossoverExpansion(fixed, awareCount, totalEverInterested, womInfluence);
+  // cumulativeCrossoverRealized (Milestone 12) is crossover's own running
+  // total, tracked separately from totalEverInterested so its headroom
+  // check above is never diluted by however much natural-audience headroom
+  // happens to still be left - see deriveWomCrossoverExpansion's doc comment.
+  const deltaInterestCrossover = deriveWomCrossoverExpansion(fixed, awareCount, totalEverInterested, priorWeek.cumulativeCrossoverRealized, womInfluence);
   totalEverInterested += deltaInterestCrossover;
+  const cumulativeCrossoverRealized = priorWeek.cumulativeCrossoverRealized + deltaInterestCrossover;
 
   const newInterestThisWeek = deltaInterestExternal + deltaInterestNatural + deltaInterestCrossover;
   const interestedBeforeSales = priorWeek.interestedRemaining + newInterestThisWeek;
@@ -722,6 +729,8 @@ export function advanceOneWeekWithDiagnostics(
   const clampedAwareCount = clamp(awareCount, 0, fixed.totalAddressableAudience);
   const interestedRemaining = clamp(interestedBeforeSales - ticketsThisWeek, 0, Math.min(clampedAwareCount, ceiling));
   const cumulativeTicketsSold = clamp(priorWeek.cumulativeTicketsSold + ticketsThisWeek, 0, fixed.totalAddressableAudience);
+  const crossoverCeiling = fixed.crossoverCapacityFraction * fixed.totalAddressableAudience;
+  const clampedCumulativeCrossoverRealized = clamp(cumulativeCrossoverRealized, 0, crossoverCeiling);
 
   const next = createAudienceSimulationWeekState(fixed, {
     week: nextWeekNumber,
@@ -729,6 +738,7 @@ export function advanceOneWeekWithDiagnostics(
     interestedRemaining,
     cumulativeTicketsSold,
     availabilityFraction: nextAvailabilityFraction,
+    cumulativeCrossoverRealized: clampedCumulativeCrossoverRealized,
   });
 
   // Diagnostics are read from the *actual* resulting week state (post-clamp)
@@ -746,6 +756,7 @@ export function advanceOneWeekWithDiagnostics(
     interestedRemaining: next.interestedRemaining,
     newInterestCreated: deltaInterestExternal + deltaInterestNatural,
     crossoverInterestCreated: deltaInterestCrossover,
+    cumulativeCrossoverRealized: next.cumulativeCrossoverRealized,
     womInfluence,
     baselineAttendanceProbability,
     womPullForwardBoost,

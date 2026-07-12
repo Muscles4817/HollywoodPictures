@@ -15,7 +15,10 @@
 //   1. Fixed release-time state (AudienceSimulationFixedState) - computed
 //      once, never recomputed.
 //   2. Evolving weekly state (AudienceSimulationWeekState) - the only
-//      things that change once a run is underway, and only three fields.
+//      things that change once a run is underway (five fields as of
+//      Milestone 12 - awareCount/interestedRemaining/cumulativeTicketsSold,
+//      plus availabilityFraction added in Milestone 9 and
+//      cumulativeCrossoverRealized added in Milestone 12).
 //   3. Derived observations (deriveWeeklyAdmissions, deriveWordOfMouthActivity
 //      below) - computed on demand from the weekly history, never stored.
 // Nothing resembling Momentum, AudienceReactionScore or a stored "recent
@@ -162,10 +165,11 @@ export function maxInterestedAudience(fixed: AudienceSimulationFixedState): numb
 }
 
 /**
- * The only three things that change once a run is underway (DESIGN.md
- * 5.34's "Evolving weekly state") - deliberately nothing else. No
- * Momentum, no stored word-of-mouth pulse - see deriveWordOfMouthActivity
- * below for why that's derived instead of tracked.
+ * The things that change once a run is underway (DESIGN.md 5.34's
+ * "Evolving weekly state") - deliberately nothing beyond what's listed
+ * here. No Momentum, no stored word-of-mouth pulse - see
+ * deriveWordOfMouthActivity below for why that's derived instead of
+ * tracked.
  */
 export interface AudienceSimulationWeekState {
   /** 1-indexed - week 1 is always the release week. */
@@ -189,6 +193,24 @@ export interface AudienceSimulationWeekState {
    * to both shrink (conversion) and grow (crossover).
    */
   availabilityFraction: number;
+  /**
+   * Milestone 12 (docs/DESIGN.md - "commercial believability calibration"):
+   * running total of interest ever created specifically via crossover
+   * (engine/audienceSimulationStep.ts:deriveWomCrossoverExpansion), tracked
+   * separately from interestedRemaining/cumulativeTicketsSold (which mix
+   * natural and crossover contributions into one combined total) - the
+   * fix for a documented gap from Milestone 10: without this field,
+   * crossover's own weekly headroom had nothing to bound itself against
+   * except the *combined* natural+crossover ceiling, so a film's
+   * crossoverCapacityFraction barely throttled realized crossover in
+   * practice whenever natural interest hadn't yet saturated its own
+   * (typically much larger) ceiling - which is most of a run. Monotonically
+   * non-decreasing across a run, exactly like awareCount/cumulativeTicketsSold
+   * (enforced by createAudienceSimulationRun, not this type alone). Bounded
+   * by crossoverCapacityFraction * totalAddressableAudience - its own
+   * capacity ceiling, never the combined one.
+   */
+  cumulativeCrossoverRealized: number;
 }
 
 /**
@@ -211,6 +233,7 @@ export function createAudienceSimulationWeekState(
   assertNonNegative(input.interestedRemaining, 'interestedRemaining');
   assertNonNegative(input.cumulativeTicketsSold, 'cumulativeTicketsSold');
   assertUnitInterval(input.availabilityFraction, 'availabilityFraction');
+  assertNonNegative(input.cumulativeCrossoverRealized, 'cumulativeCrossoverRealized');
 
   if (input.awareCount > fixed.totalAddressableAudience) {
     throw new Error('AudienceSimulation: awareCount cannot exceed totalAddressableAudience');
@@ -224,6 +247,13 @@ export function createAudienceSimulationWeekState(
   }
   if (input.cumulativeTicketsSold > fixed.totalAddressableAudience) {
     throw new Error('AudienceSimulation: cumulativeTicketsSold cannot exceed totalAddressableAudience - repeat viewing is not modeled yet');
+  }
+  const crossoverCeiling = fixed.crossoverCapacityFraction * fixed.totalAddressableAudience;
+  if (input.cumulativeCrossoverRealized > crossoverCeiling + 1e-6) {
+    throw new Error(`AudienceSimulation: cumulativeCrossoverRealized (${input.cumulativeCrossoverRealized}) cannot exceed this film's crossover capacity (${crossoverCeiling}) - Milestone 12's whole point is that this ceiling is crossover-only, not the combined one`);
+  }
+  if (input.cumulativeCrossoverRealized > input.interestedRemaining + input.cumulativeTicketsSold + 1e-6) {
+    throw new Error('AudienceSimulation: cumulativeCrossoverRealized cannot exceed everyone ever interested - crossover is a subset of total interest, not an additional pool');
   }
 
   return { ...input };
@@ -263,6 +293,9 @@ export function createAudienceSimulationRun(fixed: AudienceSimulationFixedState,
       }
       if (validatedWeeks[i].cumulativeTicketsSold < validatedWeeks[i - 1].cumulativeTicketsSold) {
         throw new Error(`AudienceSimulation: cumulativeTicketsSold must not decrease week to week (week ${i + 1})`);
+      }
+      if (validatedWeeks[i].cumulativeCrossoverRealized < validatedWeeks[i - 1].cumulativeCrossoverRealized) {
+        throw new Error(`AudienceSimulation: cumulativeCrossoverRealized must not decrease week to week (week ${i + 1})`);
       }
     }
   }

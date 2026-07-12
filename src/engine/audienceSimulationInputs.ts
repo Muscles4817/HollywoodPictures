@@ -85,13 +85,13 @@ export interface ReleaseSimulationInputs {
   leadFame: number;
   /** Studio.reputation, 0-100 verbatim - sizes marketingEfficiency (how far a marketing pound actually goes). A brand-new studio's marketing dollar buys less attention than an established one's; this is what makes marketing effectiveness itself a genuine mid/late-game progression mechanic rather than a flat multiplier available from day one. */
   studioReputation: number;
-  /** deriveCommercialProfile(script).accessibility, 0-100 - how broad a natural audience the screenplay's *concept* has, independent of how it's marketed. Sizes baseInterestFraction only (Milestone 11 removed its old, incorrect role dampening marketingEfficiency - a script being easy to explain doesn't mean it's easy to promote, and either way that's a marketing-side question, not a content one). */
+  /** deriveCommercialProfile(script).accessibility, 0-100 - how broad a natural audience the screenplay's *concept* has, independent of how it's marketed. The dominant driver of baseInterestFraction ("of the people who know this exists, how many are even in its natural audience") - see computeBaseInterestFraction. Never touches marketingEfficiency (Milestone 11 - a script being easy to explain doesn't mean it's easy to promote, and either way that's a marketing-side question, not a content one). */
   scriptAccessibility: number;
-  /** deriveCommercialProfile(script).hookStrength, 0-100 - how easily this concept spreads by word of mouth/recommendation. One of crossoverCapacityFraction's inputs (see computeCrossoverCapacityFraction) - replaced scriptAccessibility there this milestone; "can this reach people beyond its natural audience" is a recommendation-intensity question, not a "how big is the natural audience already" one. */
+  /** deriveCommercialProfile(script).hookStrength, 0-100 - how compelling the marketing *proposition* itself is (trailer effectiveness, click-through, "does the pitch land") - a secondary, narrower-range multiplier on baseInterestFraction alongside scriptAccessibility (Milestone 12, see computeBaseInterestFraction). Deliberately distinct from scriptAccessibility's job: a concept can be easy to *understand* without being compellingly *pitched*, and vice versa. No longer feeds crossoverCapacityFraction (Milestone 11 briefly routed it there; Milestone 12 moved crossover onto scriptCrossoverPotential below, a purpose-built value, instead) and never touches awareness/reach - matches Milestone 11's "the screenplay should matter, but much less directly" principle by staying inside interest generation, not awareness. */
   scriptHookStrength: number;
-  /** Script.originality, 1-100 - one of several inputs to crossoverCapacityFraction (the ceiling; see computeCrossoverCapacityFraction below). Never touches marketingEfficiency any more (Milestone 11 - originality affects crossover/conversation, not how well marketing spend converts to awareness) and never touches criticScore/audienceScore or any WOM-response constant - capacity is fixed at release, reception is the only thing that can realize it week over week. See "originality alone must never create a breakout" - already structurally guaranteed by Milestone 2's crossover step requiring both capacity *and* a cleared reception-driven threshold. */
-  scriptOriginality: number;
-  /** Script.toneProfile.spectacle, 1-100 - "must see this in cinemas" event value, one of crossoverCapacityFraction's inputs (see computeCrossoverCapacityFraction below). A low-spectacle film (a character comedy, a small drama) can still cross over on originality/hook-strength/reception alone, just without spectacle's contribution. */
+  /** deriveCommercialProfile(script).crossoverPotential, 0-100 - "how far positive word of mouth could plausibly travel beyond the natural audience," purpose-built for exactly this question (originality/scale/genre/archetype-blended - see engine/commercialProfile.ts). Computed since the screenplay redesign but left unwired into the audience simulation until Milestone 12 (docs/DESIGN.md flagged it explicitly as future work) - crossoverCapacityFraction used to reinvent a similar signal from raw scriptOriginality instead (see computeCrossoverConceptStrength). Never touches baseInterestFraction, marketingEfficiency, criticScore/audienceScore, or any WOM-response constant - capacity is fixed at release, reception is the only thing that can realize it week over week. See "originality alone must never create a breakout" - already structurally guaranteed by Milestone 2's crossover step requiring both capacity *and* a cleared reception-driven threshold. */
+  scriptCrossoverPotential: number;
+  /** Script.toneProfile.spectacle, 1-100 - "must see this in cinemas" event value, one of crossoverCapacityFraction's inputs (see computeCrossoverCapacityFraction below). A low-spectacle film (a character comedy, a small drama) can still cross over on concept/reception alone, just without spectacle's contribution. */
   scriptSpectacle: number;
   /** What this film was actually written for (Script.intendedAudience) vs. who it's being marketed to (Film.targetAudience, below) - a mismatch narrows genuine taste-fit even if accessibility is otherwise strong. */
   scriptIntendedAudience: TargetAudience;
@@ -143,14 +143,48 @@ function computeTotalAddressableAudience(genre: Genre, targetAudience: TargetAud
 
 // --- Base interest fraction & crossover capacity ---------------------------
 //
-// Both driven by scriptAccessibility/scriptOriginality respectively, each
+// baseInterestFraction driven by scriptAccessibility (dominant) and
+// scriptHookStrength (secondary); crossoverCapacityFraction driven by
+// scriptCrossoverPotential/scriptSpectacle/criticScore (see below) - kept
 // independently capped so their *sum* can never exceed 1 regardless of
-// input combination (baseInterestFraction's ceiling + crossoverCapacity's
-// ceiling = 0.70 + 0.30 = 1.00 exactly) - satisfies
+// input combination (baseInterestFraction's worst-case ceiling - accessibility
+// and hookStrength both maxed - is 0.45 x 1.2 = 0.54; crossoverCapacity's
+// ceiling is 0.30; 0.54 + 0.30 = 0.84, comfortably under 1) - satisfies
 // AudienceSimulationFixedState's own validation (Milestone 1) by
 // construction, not by clamping the sum after the fact.
-const BASE_INTEREST_FLOOR = 0.05;
-const BASE_INTEREST_CEILING = 0.7;
+//
+// Milestone 12 (docs/DESIGN.md - "commercial believability calibration")
+// narrowed BASE_INTEREST_FLOOR/CEILING from 0.05-0.7 (a 14x theoretical
+// range) down to 0.15-0.45 (2.64x at the 5-95 sweep this was validated
+// against): a diagnostic sweep found scriptAccessibility alone, at its old
+// range, swung week-1 opening admissions 8.09x holding marketing/fame
+// fixed - *wider* than marketing spend's own 5.72x swing across its entire
+// real range (£10k-£150M) - directly contradicting "opening weekend should
+// be driven primarily by marketing" (the milestone's explicit brief). A
+// first attempt narrowed the range to 0.25-0.55 (same 0.3 span, floor
+// raised from 0.05) - this fixed the elasticity but raised the *floor* 5x,
+// which pushed a deliberately-negligible film's natural interest up too
+// far (a diagnostic check found £18.7M total gross for the "negligible"
+// archetype, over the believable £10M bar it used to clear comfortably).
+// 0.15-0.45 keeps the same narrow span (so elasticity is still only 2.64x,
+// comfortably under marketing's 5.72x) while keeping the floor low enough
+// that a genuinely inaccessible, low-effort concept still reads as
+// negligible. The screenplay still matters (accessibility remains the
+// single largest lever inside "interest," exactly as the brief specifies:
+// "the screenplay should mostly affect whether people become interested
+// once they know about it"), just no longer at a magnitude that outweighs
+// marketing's own realistic range.
+const BASE_INTEREST_FLOOR = 0.15;
+const BASE_INTEREST_CEILING = 0.45;
+// scriptHookStrength's own multiplier range - deliberately narrow (a 1.5x
+// spread) so it reads as a real but clearly secondary contributor to
+// interest generation, never approaching scriptAccessibility's own
+// dominance. Kept as a separate multiplicative factor rather than folded
+// into the same additive range as accessibility specifically so each has
+// its own legible, independently-tunable elasticity (docs/DESIGN.md
+// Milestone 12's "each variable should have one clear responsibility").
+const HOOK_STRENGTH_INTEREST_FLOOR = 0.8;
+const HOOK_STRENGTH_INTEREST_CEILING = 1.2;
 const CROSSOVER_CAPACITY_CEILING = 0.3;
 // A film marketed to an audience its script wasn't actually written for
 // loses a real (but not devastating) slice of genuine taste-fit - binary
@@ -158,11 +192,27 @@ const CROSSOVER_CAPACITY_CEILING = 0.3;
 // (DESIGN.md has no notion of "how far" Teens is from Adults).
 const AUDIENCE_MISMATCH_PENALTY = 0.7;
 
-/** Interest, not awareness - "of the people who already know this film exists, how many genuinely want to see it" (docs/DESIGN.md Milestone 11). Driven entirely by the screenplay's own concept (scriptAccessibility) and positioning fit - never by marketing spend, fame, or reputation, which only ever decide whether someone gets the chance to have this reaction in the first place (see computeInitialAwareCount). */
-function computeBaseInterestFraction(scriptAccessibility: number, targetAudience: TargetAudience, scriptIntendedAudience: TargetAudience): number {
+/**
+ * Interest, not awareness - "of the people who already know this film
+ * exists, how many genuinely want to see it" (docs/DESIGN.md Milestone 11).
+ * Driven by the screenplay's own concept and positioning fit - never by
+ * marketing spend, fame, or reputation, which only ever decide whether
+ * someone gets the chance to have this reaction in the first place (see
+ * computeInitialAwareCount). Two screenplay inputs, two distinct jobs
+ * (Milestone 12, docs/DESIGN.md - "fully separate the jobs performed by
+ * marketability"): scriptAccessibility ("how easy is the premise to
+ * understand") is the dominant term; scriptHookStrength ("how compelling
+ * is the marketing proposition itself - does the pitch/trailer land") is a
+ * narrower-range secondary multiplier on top of it - a concept can be easy
+ * to *understand* without being compellingly *pitched*, and vice versa.
+ * Both stay inside interest generation, never awareness/reach - matches
+ * Milestone 11's "the screenplay should matter, but much less directly."
+ */
+function computeBaseInterestFraction(scriptAccessibility: number, scriptHookStrength: number, targetAudience: TargetAudience, scriptIntendedAudience: TargetAudience): number {
   const raw = BASE_INTEREST_FLOOR + (BASE_INTEREST_CEILING - BASE_INTEREST_FLOOR) * (scriptAccessibility / 100);
+  const hookMultiplier = HOOK_STRENGTH_INTEREST_FLOOR + (HOOK_STRENGTH_INTEREST_CEILING - HOOK_STRENGTH_INTEREST_FLOOR) * (scriptHookStrength / 100);
   const fitMultiplier = targetAudience === scriptIntendedAudience ? 1 : AUDIENCE_MISMATCH_PENALTY;
-  return clamp(raw * fitMultiplier, 0, 1);
+  return clamp(raw * hookMultiplier * fitMultiplier, 0, 1);
 }
 
 // crossoverCapacityFraction used to be scriptOriginality alone, scaled
@@ -179,33 +229,32 @@ function computeBaseInterestFraction(scriptAccessibility: number, targetAudience
 // source changes here.
 //
 // conceptStrength: "is this the kind of thing an outsider would find worth
-// talking about / seeing"). Originality and Spectacle dominate (a
-// conventional, non-event film has little to carry it beyond its natural
-// audience regardless of how good it is). Milestone 11 replaced this
-// formula's `marketability` term with `hookStrength`
-// (engine/commercialProfile.ts): crossover is fundamentally about whether
-// positive reception travels by word of mouth/recommendation beyond the
-// people who'd already want to see it - "how easily this concept spreads
-// when recommended" (hookStrength) is a direct match for that question;
-// `scriptAccessibility` ("how big is the natural audience already") isn't -
-// a film can be broadly understandable without generating much outsider
-// conversation, and vice versa (docs/DESIGN.md Milestone 11's "still
-// overloading one concept" note). CriticScore contributes least of all and
-// only as a secondary, prestige-adjacent signal - never the dominant
-// channel for mainstream theatrical crossover, per the original milestone
-// brief.
+// talking about / seeing." Milestone 11 briefly routed this through
+// `hookStrength` (reasoning: "how easily this concept spreads when
+// recommended"); Milestone 12 (docs/DESIGN.md - "commercial believability
+// calibration") moved it onto `scriptCrossoverPotential`
+// (engine/commercialProfile.ts) instead - a value purpose-built for this
+// exact question ("how far positive word of mouth could plausibly travel
+// beyond the natural audience," originality/scale/genre/archetype-blended)
+// that had been computed and tested since the screenplay redesign but left
+// unwired, explicitly flagged in DESIGN.md as future work. `hookStrength`
+// moved to baseInterestFraction instead (see computeBaseInterestFraction) -
+// "is the pitch compelling" is an interest-generation question, not a
+// crossover one. Spectacle stays a separate term (event value isn't part
+// of crossoverPotential's own formula at all). CriticScore contributes
+// least of all and only as a secondary, prestige-adjacent signal - never
+// the dominant channel for mainstream theatrical crossover, per the
+// original milestone brief.
 const CROSSOVER_CONCEPT_WEIGHTS = {
-  originality: 0.35,
+  crossoverPotential: 0.55,
   spectacle: 0.3,
-  hookStrength: 0.25,
-  criticScore: 0.1,
+  criticScore: 0.15,
 };
 
-function computeCrossoverConceptStrength(scriptOriginality: number, scriptSpectacle: number, scriptHookStrength: number, criticScore: number): number {
+function computeCrossoverConceptStrength(scriptCrossoverPotential: number, scriptSpectacle: number, criticScore: number): number {
   return clamp(
-    CROSSOVER_CONCEPT_WEIGHTS.originality * (scriptOriginality / 100) +
+    CROSSOVER_CONCEPT_WEIGHTS.crossoverPotential * (scriptCrossoverPotential / 100) +
       CROSSOVER_CONCEPT_WEIGHTS.spectacle * (scriptSpectacle / 100) +
-      CROSSOVER_CONCEPT_WEIGHTS.hookStrength * (scriptHookStrength / 100) +
       CROSSOVER_CONCEPT_WEIGHTS.criticScore * (criticScore / 100),
     0,
     1,
@@ -234,14 +283,13 @@ function computeCrossoverAccessibility(genre: Genre, targetAudience: TargetAudie
 }
 
 function computeCrossoverCapacityFraction(
-  scriptOriginality: number,
+  scriptCrossoverPotential: number,
   scriptSpectacle: number,
-  scriptHookStrength: number,
   criticScore: number,
   genre: Genre,
   targetAudience: TargetAudience,
 ): number {
-  const conceptStrength = computeCrossoverConceptStrength(scriptOriginality, scriptSpectacle, scriptHookStrength, criticScore);
+  const conceptStrength = computeCrossoverConceptStrength(scriptCrossoverPotential, scriptSpectacle, criticScore);
   const accessibility = computeCrossoverAccessibility(genre, targetAudience);
   return clamp(CROSSOVER_CAPACITY_CEILING * conceptStrength * accessibility, 0, CROSSOVER_CAPACITY_CEILING);
 }
@@ -375,6 +423,45 @@ function distributionProfile(releaseType: SupportedReleaseType): DistributionPro
   return profile;
 }
 
+// --- Release strength - "the market decides how successful the strategy
+// actually is" (Milestone 12, docs/DESIGN.md - "revisit release types") --
+//
+// A diagnostic sweep found Wide's initialAvailabilityFraction was a flat
+// 0.95 for *every* studio choosing it - a tiny, unknown, poorly-funded
+// studio (reputation 10, £50k marketing) got the exact same nationwide
+// rollout as a major studio (reputation 85, £120M marketing) for choosing
+// the identical release type, with no mechanism representing "cinemas
+// decide whether to actually give you that distribution." releaseStrength
+// reuses the same marketingReachFraction/marketingEfficiency signals
+// computeInitialAwareCount already computes below (not reinvented) - a
+// studio that can't back "Wide" with real marketing spend or an
+// established reputation doesn't get to skip that cost, the same as it
+// doesn't get to skip it for awareness. Only Wide is scaled this way -
+// Limited/Festival First are already deliberately modest by design (this
+// was never where the "free money" problem lived, per the diagnostic), and
+// both already earn wider distribution through Milestone 9's own
+// performance-driven expansion when a platform release actually takes off
+// - Wide now follows the same "strategy attempted, market decides how much
+// of it lands" principle on day one instead of getting it unconditionally.
+const WIDE_AVAILABILITY_FLOOR = 0.4;
+const RELEASE_STRENGTH_MARKETING_WEIGHT = 0.6;
+const RELEASE_STRENGTH_REPUTATION_WEIGHT = 0.4;
+
+function computeReleaseStrength(marketingSpend: number, marketingEfficiency: number): number {
+  return clamp(
+    RELEASE_STRENGTH_MARKETING_WEIGHT * marketingReachFraction(marketingSpend) + RELEASE_STRENGTH_REPUTATION_WEIGHT * marketingEfficiency,
+    0,
+    1,
+  );
+}
+
+/** DISTRIBUTION_PROFILES[releaseType].initialAvailabilityFraction is Wide's *ceiling*, only reached by a genuinely strong release package - see the module note above. Limited/Festival First are untouched, always at their own flat (already-modest) value regardless of release strength. */
+function computeInitialAvailabilityFraction(releaseType: SupportedReleaseType, releaseStrength: number): number {
+  const ceiling = distributionProfile(releaseType).initialAvailabilityFraction;
+  if (releaseType !== 'Wide') return ceiling;
+  return WIDE_AVAILABILITY_FLOOR + (ceiling - WIDE_AVAILABILITY_FLOOR) * releaseStrength;
+}
+
 // --- Conversion pacing baseline: distribution + release window/genre fit
 // + Buzz's event-scarcity urgency ------------------------------------------
 //
@@ -503,11 +590,10 @@ function computeExternalWeeklyAwarenessRate(marketingEfficiency: number): number
  */
 export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInputs): AudienceSimulationFixedState {
   const totalAddressableAudience = computeTotalAddressableAudience(inputs.genre, inputs.targetAudience);
-  const baseInterestFraction = computeBaseInterestFraction(inputs.scriptAccessibility, inputs.targetAudience, inputs.scriptIntendedAudience);
+  const baseInterestFraction = computeBaseInterestFraction(inputs.scriptAccessibility, inputs.scriptHookStrength, inputs.targetAudience, inputs.scriptIntendedAudience);
   const crossoverCapacityFraction = computeCrossoverCapacityFraction(
-    inputs.scriptOriginality,
+    inputs.scriptCrossoverPotential,
     inputs.scriptSpectacle,
-    inputs.scriptHookStrength,
     inputs.criticScore,
     inputs.genre,
     inputs.targetAudience,
@@ -523,6 +609,8 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
   );
 
   const distribution = distributionProfile(inputs.releaseType);
+  const releaseStrength = computeReleaseStrength(inputs.marketingSpend, marketingEfficiency);
+  const initialAvailabilityFraction = computeInitialAvailabilityFraction(inputs.releaseType, releaseStrength);
 
   return createAudienceSimulationFixedState({
     totalAddressableAudience,
@@ -534,7 +622,7 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
     criticScore: inputs.criticScore,
     audienceScore: inputs.audienceScore,
     initialAwareCount,
-    initialAvailabilityFraction: distribution.initialAvailabilityFraction,
+    initialAvailabilityFraction,
     availabilityBaseWeeklyDecay: distribution.availabilityBaseWeeklyDecay,
     criticLedExpansionWeight: distribution.criticLedExpansionWeight,
   });

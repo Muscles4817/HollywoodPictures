@@ -405,7 +405,7 @@ export function OutcomeInspector() {
         studioReputation={studioReputation}
         scriptAccessibility={deriveCommercialProfile(script).accessibility}
         scriptHookStrength={deriveCommercialProfile(script).hookStrength}
-        scriptOriginality={script.originality}
+        scriptCrossoverPotential={deriveCommercialProfile(script).crossoverPotential}
         scriptSpectacle={script.toneProfile.spectacle}
         scriptIntendedAudience={script.intendedAudience}
         targetAudience={targetAudience}

@@ -82,7 +82,16 @@ import { randomSeed, withRng } from '../engine/random';
 // RivalProductionInProgress.script) have neither the new required fields
 // nor the shape any current formula expects - no migration code, same as
 // every past shape-break here.
-const SAVE_KEY = 'hollywood-pictures-save-v21';
+// v21 -> v22 (docs/DESIGN.md - "commercial believability calibration",
+// Milestone 12): AudienceSimulationWeekState gained a required
+// cumulativeCrossoverRealized field, fixing a documented Milestone 10 gap
+// where crossover's own weekly headroom had nothing to bound itself
+// against except the combined natural+crossover ceiling. A v21 save's
+// Film.boxOfficeRun.simWeeks entries predate this field (undefined, not
+// just a different value) - the same class of break Milestone 9's v18->v19
+// bump fixed the same way, no migration code, an old save simply isn't
+// found under the new key.
+const SAVE_KEY = 'hollywood-pictures-save-v22';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
