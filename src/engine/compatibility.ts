@@ -1,4 +1,4 @@
-import type { ActingStyle, Script, Talent, ToneProfile } from '../types';
+import type { ActingStyle, Script, Talent, Tone, ToneProfile } from '../types';
 import { TONES } from '../data/tones';
 import { ACTING_STYLE_TONE_WEIGHTS } from '../data/actingStyle';
 import { clamp } from './random';
@@ -56,6 +56,54 @@ export function computeTalentCompatibility(talent: Talent, script: Script): numb
   if (talent.role === 'Director') return computeCompatibility(script.toneProfile, talent.toneProfile);
   if (talent.role === 'Lead Actor' || talent.role === 'Supporting Actor') {
     return computeCompatibility(script.toneProfile, deriveToneFromActingStyle(talent.actingStyle));
+  }
+  return null;
+}
+
+/** One tone axis's contribution to a compatibility score - see computeCompatibilityBreakdown. */
+export interface ToneCompatibilityAxis {
+  tone: Tone;
+  /** scriptTone[tone] - both how much the script leans on this tone and, per computeCompatibility's own formula, this axis's weight in the final score. */
+  scriptValue: number;
+  talentValue: number;
+  /** Absolute mismatch between the two, unweighted. */
+  gap: number;
+  /** scriptValue * gap - the exact per-tone term computeCompatibility sums into weightedDistance before turning it into the final 0-100 score. Never exposed by computeCompatibility itself, which only returns the aggregate. */
+  contribution: number;
+  /** contribution as a 0-1 fraction of the total mismatch across all six tones - "how much of what's dragging this score down is this one axis," so a lopsided single-axis gap is distinguishable from a small mismatch spread evenly across all six. */
+  contributionShare: number;
+}
+
+/**
+ * The per-tone breakdown behind computeCompatibility's aggregate score -
+ * not read anywhere in live gameplay (the game only ever needs the single
+ * 0-100 number), but exposed for the Outcome Inspector
+ * (components/dev/OutcomeInspector.tsx) so a developer can see *which*
+ * specific tone axis is actually driving a given talent/script pairing's
+ * compatibility, not just the final number - docs/DESIGN.md QoL pass. Pure
+ * arithmetic restatement of computeCompatibility's own loop; deliberately
+ * kept as a second function rather than changing computeCompatibility's
+ * return shape, so every existing gameplay call site is untouched.
+ */
+export function computeCompatibilityBreakdown(scriptTone: ToneProfile, talentTone: ToneProfile): ToneCompatibilityAxis[] {
+  const rows = TONES.map((tone) => {
+    const scriptValue = scriptTone[tone];
+    const talentValue = talentTone[tone];
+    const gap = Math.abs(scriptValue - talentValue);
+    return { tone, scriptValue, talentValue, gap, contribution: scriptValue * gap };
+  });
+  const totalContribution = rows.reduce((sum, row) => sum + row.contribution, 0);
+  return rows.map((row) => ({
+    ...row,
+    contributionShare: totalContribution > 0 ? row.contribution / totalContribution : 0,
+  }));
+}
+
+/** Role-aware wrapper mirroring computeTalentCompatibility's own dispatch - null for crew roles with no tone-comparable stat. */
+export function computeTalentCompatibilityBreakdown(talent: Talent, script: Script): ToneCompatibilityAxis[] | null {
+  if (talent.role === 'Director') return computeCompatibilityBreakdown(script.toneProfile, talent.toneProfile);
+  if (talent.role === 'Lead Actor' || talent.role === 'Supporting Actor') {
+    return computeCompatibilityBreakdown(script.toneProfile, deriveToneFromActingStyle(talent.actingStyle));
   }
   return null;
 }

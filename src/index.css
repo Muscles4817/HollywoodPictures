@@ -629,15 +629,25 @@ button {
   font-style: italic;
 }
 
-.event-decision-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 20px;
-  align-items: start;
-}
-
 .event-people-panel {
   gap: 10px;
+}
+
+/* Full-profile comparison row for an on-set decision that involves talent
+   (components/common/OnSetDecisionCard.tsx) - a normal wrapping row of
+   cards by default (desktop has room to see two or three full profiles at
+   once), overridden to a horizontally swipeable, snap-scrolling strip on a
+   touch device (below) where that same content can't all fit legibly at
+   once. */
+.talent-compare-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.talent-compare-card {
+  flex: 1 1 240px;
+  min-width: 220px;
 }
 
 .event-choice-button {
@@ -1077,16 +1087,15 @@ textarea, input, select {
    1fr layout grid to a single column, and un-stick the rails/panels that
    only make sense as a sidebar when there's a sidebar's worth of width.
    Deliberately placed here, at the very end of the file, rather than up
-   near where .dashboard-layout/.event-decision-layout are defined - CSS
-   resolves equal-specificity conflicts by source order, so a media query
-   placed *before* the unconditional rule it's meant to override loses to
-   it every time the query matches, silently. That's exactly what had
-   happened here: this block used to sit earlier in the file, and both
-   .dashboard-layout/.dashboard-right-rail (defined later, in the Dashboard
-   layout section) and .event-decision-layout (defined later still, in the
-   on-set event section) were quietly never collapsing on mobile - the
-   dashboard's Top 10/Rival Studios rail was rendering on top of the main
-   column instead of stacking below it. Found by actually looking at a
+   near where .dashboard-layout is defined - CSS resolves equal-specificity
+   conflicts by source order, so a media query placed *before* the
+   unconditional rule it's meant to override loses to it every time the
+   query matches, silently. That's exactly what had happened here: this
+   block used to sit earlier in the file, and .dashboard-layout/
+   .dashboard-right-rail (defined later, in the Dashboard layout section)
+   were quietly never collapsing on mobile - the dashboard's Top 10/Rival
+   Studios rail was rendering on top of the main column instead of stacking
+   below it. Found by actually looking at a
    375px screenshot, not by reasoning about the CSS. Keeping every
    responsive override down here from now on avoids this class of bug by
    construction - nothing defined above this point in the file can ever
@@ -1113,10 +1122,6 @@ textarea, input, select {
 
   .dashboard-right-rail {
     position: static;
-  }
-
-  .event-decision-layout {
-    grid-template-columns: 1fr;
   }
 }
 
@@ -1235,5 +1240,22 @@ textarea, input, select {
   .tier-slider::-moz-range-thumb {
     width: 28px;
     height: 28px;
+  }
+
+  /* Swipe to compare (docs/DESIGN.md - QoL pass): one full talent-profile
+     card in view at a time, snapping into place as the player swipes
+     left/right, instead of a wrapping grid that would otherwise shrink
+     several full profiles down to illegible width on a small screen. */
+  .talent-compare-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+
+  .talent-compare-card {
+    flex: 0 0 85%;
+    scroll-snap-align: center;
   }
 }

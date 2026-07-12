@@ -10,6 +10,7 @@ import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
 import { Money, formatMoney } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
+import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import type { MarketingChoices, ReleaseType, ReleaseWindow } from '../../types';
 
 const RELEASE_TYPES = Object.keys(RELEASE_TYPE_PROFILES) as ReleaseType[];
@@ -48,6 +49,7 @@ export function MarketingRelease() {
     <div className="stack">
       <WizardHeader current="marketing" />
       <h1>Marketing &amp; Release</h1>
+      {draft.script && <ScriptSummaryCard script={draft.script} />}
 
       <RangeSlider
         label="Marketing Spend"

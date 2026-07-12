@@ -6,6 +6,7 @@ import { ChoiceGroup } from '../common/ChoiceGroup';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
+import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import type { EditStyle, FinalCutFocus, MusicFocus, PostProductionChoices, TestScreeningResponse } from '../../types';
 
 const EDIT_STYLES = Object.keys(EDIT_STYLE_PROFILES) as EditStyle[];
@@ -47,6 +48,7 @@ export function PostProduction() {
     <div className="stack">
       <WizardHeader current="post-production" />
       <h1>Post-Production</h1>
+      {draft.script && <ScriptSummaryCard script={draft.script} />}
 
       <ChoiceGroup
         label="Edit Style"

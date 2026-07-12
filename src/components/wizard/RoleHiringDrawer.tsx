@@ -6,17 +6,12 @@ import { effectiveRoleCapacity } from '../../engine/castRequirements';
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { formatGameDate } from '../../engine/calendar';
-import { computeTalentCompatibility } from '../../engine/compatibility';
-import { dominantLean } from '../../engine/recommendation';
-import { toneProfileBreakdown } from '../../data/tones';
-import { ENV_LEAN_SHORT, EFFECTS_LEAN_SHORT } from '../../data/productionStyleLabels';
-import { ACTING_STYLE_AXES, ACTING_STYLE_LABELS } from '../../data/actingStyle';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
-import { Money, formatMoney } from '../common/Money';
-import { CompatibilityBadge } from '../common/CompatibilityBadge';
-import type { CrewTalent, DirectorTalent, Script, Talent, TalentRole } from '../../types';
+import { formatMoney } from '../common/Money';
+import { TalentStats } from '../common/TalentStats';
+import type { Script, Talent, TalentRole } from '../../types';
 
 const VFX_RECOMMENDED_GENRES = new Set(['Action', 'Sci-Fi', 'Fantasy']);
 const VISIBLE_CANDIDATE_COUNT = 9;
@@ -25,71 +20,6 @@ const MAX_PINNED = 2;
 // auto-closes and returns the player to the hub - long enough to register
 // as confirmation, short enough that it still feels immediate.
 const AUTO_CLOSE_DELAY_MS = 500;
-
-/** Director and crew roles have a plain Skill rating; Actors don't (see types/index.ts). */
-function hasSkill(t: Talent): t is DirectorTalent | CrewTalent {
-  return t.role !== 'Lead Actor' && t.role !== 'Supporting Actor';
-}
-
-function talentBreakdown(talent: Talent): { breakdown: Array<{ label: string; value: number }>; defaultLabel: string } | null {
-  if (talent.role === 'Director') {
-    return { breakdown: toneProfileBreakdown(talent.toneProfile), defaultLabel: 'Tone Profile' };
-  }
-  if (talent.role === 'Lead Actor' || talent.role === 'Supporting Actor') {
-    return {
-      breakdown: ACTING_STYLE_AXES.map((axis) => ({ label: ACTING_STYLE_LABELS[axis], value: talent.actingStyle[axis] })),
-      defaultLabel: 'Acting Style',
-    };
-  }
-  return null;
-}
-
-/** A director's own production leanings, compact enough for a candidate card - "Leans location, practical effects." See engine/recommendation.ts:dominantLean, the same math Plan Production's cards use. */
-function describeProductionStyle(director: DirectorTalent): string {
-  const env = dominantLean(director.productionStyle.environmentStrategy);
-  const fx = dominantLean(director.productionStyle.effectsStrategy);
-  return `Leans ${ENV_LEAN_SHORT[env.key]}, ${EFFECTS_LEAN_SHORT[fx.key]}`;
-}
-
-/** Just the stat display - headline row (role-category-aware) plus a small secondary block - shared between a candidate's grid card and its comparison-slot, same split TalentDetails used to provide before this redesign. */
-function CandidateStats({ talent, category, script }: { talent: Talent; category: RoleCategory; script: Script | null }) {
-  const compatInfo = talentBreakdown(talent);
-  const compatScore = script ? computeTalentCompatibility(talent, script) : null;
-
-  return (
-    <>
-      <div className="card-subtitle"><Money amount={talent.salary} /></div>
-
-      <div className="candidate-headline">
-        {category === 'director' && (
-          <>
-            <div className="candidate-headline-stat">{describeProductionStyle(talent as DirectorTalent)}</div>
-            {compatInfo && <CompatibilityBadge score={compatScore ?? undefined} breakdown={compatInfo.breakdown} defaultLabel={compatInfo.defaultLabel} />}
-            <div className="candidate-headline-stat">Reliability {talent.reliability}</div>
-          </>
-        )}
-        {category === 'actor' && (
-          <>
-            <div className="candidate-headline-stat">Fame {talent.fame}</div>
-            {compatInfo && <CompatibilityBadge score={compatScore ?? undefined} breakdown={compatInfo.breakdown} defaultLabel={compatInfo.defaultLabel} />}
-            <div className="candidate-headline-stat">Reliability {talent.reliability}</div>
-          </>
-        )}
-        {category === 'crew' && (
-          <>
-            <div className="candidate-headline-stat">Skill {hasSkill(talent) ? talent.skill : '-'}</div>
-            <div className="candidate-headline-stat">Reliability {talent.reliability}</div>
-          </>
-        )}
-      </div>
-
-      <div className="candidate-secondary-stats">
-        {(category === 'director' || category === 'crew') && <div>Fame: {talent.fame}</div>}
-        <div>Ego: {talent.ego}</div>
-      </div>
-    </>
-  );
-}
 
 interface CandidateCardProps {
   talent: Talent;
@@ -109,7 +39,7 @@ function CandidateCard({ talent, category, script, selected, disabled, booked, p
   return (
     <Card selectable selected={selected} disabled={disabled} onClick={onSelect}>
       <div className="card-title">{talent.name}</div>
-      <CandidateStats talent={talent} category={category} script={script} />
+      <TalentStats talent={talent} category={category} script={script} />
       <Button
         className="btn-sm"
         variant={pinned ? 'primary' : 'secondary'}
@@ -279,7 +209,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
                       <div className="card-title" style={{ marginBottom: 0 }}>{talent.name}</div>
                       <Button variant="text" onClick={() => togglePin(talent)}>Unpin</Button>
                     </div>
-                    <CandidateStats talent={talent} category={profile.category} script={draft.script} />
+                    <TalentStats talent={talent} category={profile.category} script={draft.script} />
                     <Button
                       variant="primary"
                       style={{ marginTop: 8 }}

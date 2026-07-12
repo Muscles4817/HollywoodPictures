@@ -36,6 +36,42 @@ const PLANNING_SCREENS = new Set<Screen>(['develop', 'talent', 'production-plann
 // in to check a rival's page or the stats table.
 const PAUSE_PERSISTING_SCREENS = new Set<Screen>(['rival-studio', 'stats']);
 
+/**
+ * Whether the background ADVANCE_DAY tick should be running right now - a
+ * pure function (not inlined in Screens() below) specifically so this can
+ * be unit-tested directly, without mounting the whole app and juggling fake
+ * timers. 'production' is a genuine exception to PLANNING_SCREENS' own
+ * exclusion when the player is merely *viewing* a backgrounded production
+ * (viewingProductionId set, reachable only from Dashboard's Shooting card -
+ * see ProductionRun.tsx) rather than running their own live draft's shoot:
+ * a backgrounded production has no dedicated tick of its own while it's
+ * being looked at (ProductionRun.tsx's local interval deliberately refuses
+ * to start when viewingProductionId is set - it only ever advances the live
+ * draft), so it only ever progresses via this background tick. Without this
+ * carve-out, simply opening the page to check on a background shoot froze
+ * its day count for as long as the player stayed there - the same "pure
+ * read-only detour" bug PAUSE_PERSISTING_SCREENS already prevents for
+ * rival-studio/stats, just missed here because 'production' is normally
+ * excluded for the opposite reason (own-draft filming already ticks fast
+ * enough on its own). Viewing your own live draft's shoot
+ * (viewingProductionId === null on 'production') is unaffected -
+ * PLANNING_SCREENS still pauses this background tick there, exactly as
+ * before.
+ */
+export function isViewingBackgroundProduction(screen: Screen, viewingProductionId: string | null): boolean {
+  return screen === 'production' && viewingProductionId !== null;
+}
+
+export function computeTicking(
+  screen: Screen,
+  viewingProductionId: string | null,
+  paused: boolean,
+  inboxOpen: boolean,
+): boolean {
+  const backgroundProductionViewed = isViewingBackgroundProduction(screen, viewingProductionId);
+  return (!PLANNING_SCREENS.has(screen) || backgroundProductionViewed) && !paused && !inboxOpen;
+}
+
 function Screens() {
   const { state, dispatch } = useStudio();
   // A manual pause on the background day-tick (Dashboard's pause button) -
@@ -88,13 +124,16 @@ function Screens() {
     if (!isPauseExemptDetour) setPaused(false);
   }, [state.screen]);
 
-  const ticking = !PLANNING_SCREENS.has(state.screen) && !paused && !inboxOpen;
+  const viewingBackgroundProduction = isViewingBackgroundProduction(state.screen, state.viewingProductionId);
+  const ticking = computeTicking(state.screen, state.viewingProductionId, paused, inboxOpen);
 
-  // The selected speed only ever applies while actually watching the
-  // Dashboard tick by - everywhere else falls back to the base interval
-  // even if a faster one is selected, so leaving the Dashboard can't
-  // silently blow through days on a screen the player isn't watching.
-  const effectiveTickMs = state.screen === 'dashboard' ? DAY_TICK_MS / speedMultiplier : DAY_TICK_MS;
+  // The selected speed only ever applies while actually watching a tick by -
+  // Dashboard, or a backgrounded production being watched via its own
+  // TimeTickIndicator (ProductionRun.tsx) - everywhere else falls back to
+  // the base interval even if a faster one is selected, so leaving the
+  // screen that's actually showing the indicator can't silently blow
+  // through days unwatched.
+  const effectiveTickMs = state.screen === 'dashboard' || viewingBackgroundProduction ? DAY_TICK_MS / speedMultiplier : DAY_TICK_MS;
 
   // Time keeps passing on its own outside the wizard - the Dashboard and
   // the post-release results screen both just sit there otherwise, with no
@@ -130,7 +169,15 @@ function Screens() {
       case 'production-planning':
         return <ProductionPlanning />;
       case 'production':
-        return <ProductionRun />;
+        return (
+          <ProductionRun
+            paused={paused}
+            onTogglePause={() => setPaused((p) => !p)}
+            tickNonce={tickNonce}
+            speedMultiplier={speedMultiplier}
+            onSetSpeedMultiplier={setSpeedMultiplier}
+          />
+        );
       case 'post-production':
         return <PostProduction />;
       case 'marketing':

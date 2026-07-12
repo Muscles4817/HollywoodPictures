@@ -1,15 +1,69 @@
 import { formatGameDate } from '../../engine/calendar';
 import { computeTalentCompatibility } from '../../engine/compatibility';
 import { ALL_TALENT_ROLES } from '../../data/talentGeneration';
+import { toneProfileBreakdown } from '../../data/tones';
+import { ARCHETYPE_LABELS, STORY_TYPE_LABELS, SETTING_LABELS, SCALE_LABELS } from '../../data/scriptTagLabels';
+import { productionRequirementTags } from '../../engine/scriptPresentation';
 import { Button } from './Button';
 import { Money } from './Money';
 import { ScoreBar } from './ScoreBar';
 import { StarRating } from './StarRating';
 import { StatTile } from './StatTile';
+import { StatGroup } from './StatGroup';
+import { CompatibilityBadge } from './CompatibilityBadge';
 import { BoxOfficeChart } from './BoxOfficeChart';
 import { SeverityBadge } from './SeverityBadge';
 import { computeReportedLegs } from '../../state/selectors';
 import type { Film, Talent, TalentRole } from '../../types';
+
+/**
+ * "What film is this" - the screenplay's own concept, craft, production
+ * requirements, and tone, none of which the dossier showed at all before
+ * this (docs/DESIGN.md - QoL pass). Leads the modal, ahead of Cast & Crew/
+ * Reception/Financials, since knowing what kind of film this was makes
+ * everything that follows (who was cast, how it was received, what it
+ * cost) read as an answer to a question the player already has context
+ * for, rather than a a flat list of numbers.
+ */
+function ScriptSection({ film }: { film: Film }) {
+  const { script } = film;
+  return (
+    <div className="card stack">
+      <h3 style={{ margin: 0 }}>Screenplay</h3>
+      <div className="card-title">{script.title}</div>
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+        <span className="badge">{ARCHETYPE_LABELS[script.archetype]}</span>
+        {script.storyType !== 'Original' && <span className="badge">{STORY_TYPE_LABELS[script.storyType]}</span>}
+        <span className="badge">{SETTING_LABELS[script.setting]}</span>
+        <span className="badge">{SCALE_LABELS[script.scale]}</span>
+      </div>
+      <p className="card-synopsis" style={{ margin: 0 }}>{script.synopsis}</p>
+      <div className="row" style={{ gap: 16, flexWrap: 'wrap' }}>
+        <StatGroup
+          title="Writing"
+          stats={[
+            { label: 'Dialogue', value: script.dialogue },
+            { label: 'Characters', value: script.characters },
+            { label: 'Structure', value: script.structure },
+          ]}
+        />
+        <StatGroup
+          title="Creative"
+          stats={[
+            { label: 'Originality', value: script.originality },
+            { label: 'Complexity', value: script.complexity },
+          ]}
+        />
+      </div>
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+        {productionRequirementTags(script).map((tag) => (
+          <span className="badge" key={tag}>{tag}</span>
+        ))}
+      </div>
+      <CompatibilityBadge breakdown={toneProfileBreakdown(script.toneProfile)} />
+    </div>
+  );
+}
 
 /** A talent's role-appropriate "how good/how well they fit" reading - skill for crew, script compatibility for actors/director. */
 function talentStatLine(talent: Talent, script: Film['script']): string {
@@ -140,12 +194,17 @@ function ReviewsSection({ film }: { film: Film }) {
 }
 
 /**
- * The full dossier for one released film - cast/crew with their stats,
- * financials, reception, the on-set event log, and reviews - opened by
- * clicking a row in Dashboard's Studio History table. A first pass at
- * pulling everything scattered across ReleaseResults/BoxOfficeFinishedPopup
- * into one place for a film the player picks, rather than only ever seeing
- * it once right after release - UI is intentionally plain, worth revisiting.
+ * The full dossier for one released film - the screenplay's own concept and
+ * craft, cast/crew with their stats, the on-set event log, reception,
+ * financials, and reviews - opened by clicking a row in Dashboard's Studio
+ * History table. Ordered to read like the film's own story: what it was
+ * conceived as, who made it, what happened while making it, how it was
+ * received, how it did commercially, and finally what people actually said
+ * about it - rather than the flat, unordered stat dump this started as.
+ * Originally pulled everything scattered across ReleaseResults/
+ * BoxOfficeFinishedPopup into one place for a film the player picks, rather
+ * than only ever seeing it once right after release; the Script section was
+ * missing entirely until the QoL pass that added it (docs/DESIGN.md).
  */
 export function FilmDetailModal({ film, onClose }: { film: Film; onClose: () => void }) {
   return (
@@ -165,10 +224,11 @@ export function FilmDetailModal({ film, onClose }: { film: Film; onClose: () => 
           )}
         </div>
 
+        <ScriptSection film={film} />
         <CastCrewSection film={film} />
-        <FinancialsSection film={film} />
-        <ReceptionSection film={film} />
         <EventsSection film={film} />
+        <ReceptionSection film={film} />
+        <FinancialsSection film={film} />
         <ReviewsSection film={film} />
 
         <div className="row-between">

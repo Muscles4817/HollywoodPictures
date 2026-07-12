@@ -8,6 +8,7 @@ import { RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS, MARKETING_SPEND_RANG
 import { CONTINGENCY_RANGE, SET_QUALITY_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../../data/production';
 import { computeReleaseResults } from '../../engine/releaseFilm';
 import { deriveCommercialProfile } from '../../engine/commercialProfile';
+import { computeTalentCompatibility, computeTalentCompatibilityBreakdown } from '../../engine/compatibility';
 import { advanceToWeek, MAX_SIMULATION_WEEKS } from '../../engine/audienceSimulationStep';
 import { AVERAGE_TICKET_PRICE, STUDIO_BOX_OFFICE_SHARE } from '../../engine/boxOfficeRun';
 import { determineOutcome } from '../../engine/outcome';
@@ -460,6 +461,62 @@ export function OutcomeInspector() {
           Crew roles (Writer/Cinematographer/Composer/Editor/VFX Supervisor) don't feed any rating or box-office
           formula today, so they're not shown here.
         </p>
+      </div>
+
+      <div className="card stack">
+        <h2 style={{ margin: 0 }}>Compatibility Breakdown</h2>
+        <p className="choice-description" style={{ margin: 0 }}>
+          Per-tone contribution behind each hired talent's Compatibility score (engine/compatibility.ts) - normal
+          gameplay only ever shows the aggregate 0-100 number; this is where each axis's own weighted mismatch,
+          discarded by computeCompatibility once it sums them, is actually visible.
+        </p>
+        {script ? (
+          talent.filter((t) => t.role === 'Director' || t.role === 'Lead Actor' || t.role === 'Supporting Actor').length === 0 ? (
+            <p style={{ margin: 0, color: 'var(--text-muted)' }}>No director or actors hired on this film.</p>
+          ) : (
+            talent
+              .filter((t) => t.role === 'Director' || t.role === 'Lead Actor' || t.role === 'Supporting Actor')
+              .map((t) => {
+                const breakdown = computeTalentCompatibilityBreakdown(t, script);
+                const score = computeTalentCompatibility(t, script);
+                if (!breakdown) return null;
+                return (
+                  <div key={t.id} style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                    <div className="row-between">
+                      <strong>{t.name} &middot; {t.role}</strong>
+                      <span>Compatibility {score !== null ? Math.round(score) : '-'}</span>
+                    </div>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Tone</th>
+                          <th>Script</th>
+                          <th>Talent</th>
+                          <th>Gap</th>
+                          <th>Contribution</th>
+                          <th>Share</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {breakdown.map((row) => (
+                          <tr key={row.tone}>
+                            <td>{TONE_LABELS[row.tone]}</td>
+                            <td>{Math.round(row.scriptValue)}</td>
+                            <td>{Math.round(row.talentValue)}</td>
+                            <td>{row.gap.toFixed(1)}</td>
+                            <td>{row.contribution.toFixed(1)}</td>
+                            <td>{(row.contributionShare * 100).toFixed(0)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })
+          )
+        ) : (
+          <p style={{ margin: 0, color: 'var(--text-muted)' }}>No script loaded.</p>
+        )}
       </div>
 
       <div className="card stack">

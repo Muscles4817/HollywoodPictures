@@ -23,6 +23,7 @@ import { Button } from '../common/Button';
 import { ScoreBar } from '../common/ScoreBar';
 import { Money, formatMoney } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
+import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import type {
   DirectorTalent,
   Distribution,
@@ -328,6 +329,7 @@ export function ProductionPlanning() {
     <div className="stack">
       <WizardHeader current="production-planning" />
       <h1>Production Planning</h1>
+      <ScriptSummaryCard script={script} />
 
       <p className="production-identity">{identity}</p>
 

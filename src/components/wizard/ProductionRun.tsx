@@ -10,12 +10,28 @@ import { ScoreBar } from '../common/ScoreBar';
 import { SeverityBadge } from '../common/SeverityBadge';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { WizardHeader } from '../common/WizardHeader';
+import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
+import { TimeTickIndicator } from '../common/TimeTickIndicator';
 import { nearestLabel } from './ProductionPlanning';
+import type { TickSpeedMultiplier } from '../../constants';
 import type { FilmDraft, TalentRole } from '../../types';
 
 const TICK_INTERVAL_MS = 500;
 
-export function ProductionRun() {
+interface ProductionRunProps {
+  // The background day-tick's own pause/speed state (App.tsx's Screens()) -
+  // only meaningful while *viewing* a backgrounded production
+  // (viewingProductionId set below), since that's the only case actually
+  // driven by this tick; the live draft's own shoot always runs on its own
+  // faster, dedicated interval further down, unaffected by any of these.
+  paused: boolean;
+  onTogglePause: () => void;
+  tickNonce: number;
+  speedMultiplier: TickSpeedMultiplier;
+  onSetSpeedMultiplier: (speed: TickSpeedMultiplier) => void;
+}
+
+export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplier, onSetSpeedMultiplier }: ProductionRunProps) {
   const { state, dispatch } = useStudio();
   // GameState.viewingProductionId set (Dashboard's Shooting card) means
   // "show this backgrounded production instead of the live draft" - only
@@ -97,11 +113,32 @@ export function ProductionRun() {
   // was charged instead - see FINISH_PHOTOGRAPHY, state/studioReducer.ts.
   const contingencySettlement =
     photography && draft.productionChoices ? draft.productionChoices.contingencyAmount - photography.runningCost : 0;
+  // The same reserve, framed live during the shoot rather than only once it
+  // wraps - photography.runningCost is entirely contingency burn (see
+  // engine/cost.ts:computeDailyContingencyBurn), so this is a direct,
+  // always-current reading of how much of the reserve is left, not an
+  // estimate.
+  const contingencyRemaining =
+    photography && draft.productionChoices ? draft.productionChoices.contingencyAmount - photography.runningCost : 0;
+  const contingencyPercentConsumed =
+    photography && draft.productionChoices && draft.productionChoices.contingencyAmount > 0
+      ? (photography.runningCost / draft.productionChoices.contingencyAmount) * 100
+      : 0;
 
   return (
     <div className="stack">
       <WizardHeader current="production" />
       <h1>Production</h1>
+      {viewingProductionId && (
+        <TimeTickIndicator
+          paused={paused}
+          onTogglePause={onTogglePause}
+          tickNonce={tickNonce}
+          speedMultiplier={speedMultiplier}
+          onSetSpeedMultiplier={onSetSpeedMultiplier}
+        />
+      )}
+      {draft.script && <ScriptSummaryCard script={draft.script} />}
 
       {!photography && (
         <div className="stack">
@@ -222,10 +259,19 @@ export function ProductionRun() {
           <div className="row">
             <StatTile label="Day" value={`${photography.daysElapsed} of ~${photography.recommendedDays} recommended`} />
             <StatTile label="Spent So Far" value={<Money amount={photography.runningCost} />} />
+            <StatTile label="Contingency Remaining" value={<Money amount={Math.max(0, contingencyRemaining)} />} />
             {photography.status === 'in-progress' && (
               <StatTile label="Schedule Pressure" value={`${computeSchedulePressure(photography.daysElapsed, photography.recommendedDays)}/100`} />
             )}
           </div>
+          {photography.status !== 'finished' && (
+            <ScoreBar label="Contingency Reserve Consumed" value={contingencyPercentConsumed} />
+          )}
+          {contingencyRemaining < 0 && photography.status !== 'finished' && (
+            <p style={{ color: 'var(--red)', margin: 0 }}>
+              Contingency Reserve exhausted - <Money amount={-contingencyRemaining} /> over, charged when you wrap.
+            </p>
+          )}
           {photography.status === 'in-progress' && photography.daysElapsed > photography.recommendedDays && (
             <p style={{ color: 'var(--red)', margin: 0 }}>
               Past the recommended schedule - every extra day now costs beyond the original estimate, with no cap.
@@ -255,6 +301,7 @@ export function ProductionRun() {
             <OnSetDecisionCard
               pendingChoice={pendingChoice}
               talent={draft.talent}
+              talentPool={state.studio.talentPool}
               script={draft.script}
               onChoose={(choiceId) => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId, productionId: viewingProductionId ?? undefined })}
             />

@@ -62,6 +62,7 @@ export function Inbox({ open, onOpenChange }: InboxProps) {
                   <OnSetDecisionCard
                     pendingChoice={production.photography.pendingChoice}
                     talent={production.talent}
+                    talentPool={state.studio.talentPool}
                     script={production.script}
                     onChoose={(choiceId) => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId, productionId: production.id })}
                   />
