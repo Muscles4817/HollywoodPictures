@@ -4484,6 +4484,147 @@ is labeled, grouped, or rendered.
   `SciFi`, `OriginalVision`, `GenreFormula` all explicitly asserted absent);
   and the label maps' exact spelling is locked in directly. 310 tests total.
 
+### 5.37 Quality-of-life pass: contingency visibility, the background-tick pause bug, talent profiles on decisions, screenplay visibility, the Film Detail dossier, and a compatibility diagnostic (`App.tsx`, `components/wizard/ProductionRun.tsx`, `components/common/OnSetDecisionCard.tsx`, `components/common/TalentStats.tsx`, `components/common/ScriptSummaryCard.tsx`, `components/common/StatGroup.tsx`, `engine/scriptPresentation.ts`, `engine/compatibility.ts`, `components/common/FilmDetailModal.tsx`, `components/dev/OutcomeInspector.tsx`)
+
+Six independent player-reported/requested fixes, each scoped and shipped
+together since none touched the others' code:
+
+**1. Contingency Reserve visible live during filming, not just at wrap.**
+`ProductionRun.tsx` used to show only a generic "Spent So Far" total while a
+shoot was in progress, framed as an undifferentiated running cost - the
+reserve-vs-actual comparison (`contingencySettlement`) only ever appeared
+once `photography.status === 'finished'`. Since `photography.runningCost`
+*is* entirely contingency burn (`engine/cost.ts:computeDailyContingencyBurn`
+is the only thing that ever accrues into it), a live "Contingency
+Remaining" `StatTile` and a "Contingency Reserve Consumed" `ScoreBar`
+(0-100%) were added alongside it, plus a red overrun warning once the
+reserve goes negative - the exact same numbers were already being computed,
+they just weren't framed against the reserve until the shoot ended.
+
+**2. The background day-tick pause bug.** Entering Production to check on a
+backgrounded shoot (`GameState.viewingProductionId` set, via Dashboard's
+Shooting card) silently froze that production's day count for as long as
+the player stayed on the page. Root cause: `App.tsx`'s `PLANNING_SCREENS`
+excludes `'production'` from the background `ADVANCE_DAY` tick, but for the
+*live draft's own shoot* specifically - reasoned as "it already has its own
+faster, dedicated tick" (`ProductionRun.tsx`'s own `TICK_INTERVAL_MS`
+interval). That reasoning doesn't hold for a *backgrounded* production being
+merely viewed: `ProductionRun.tsx`'s own tick deliberately refuses to start
+whenever `viewingProductionId` is set (it only ever advances the live
+draft, per its own doc comment), so a background production only ever
+progresses via the shared calendar's `ADVANCE_DAY` tick - which was exactly
+the tick `PLANNING_SCREENS` had just suspended. Fixed with a new
+`isViewingBackgroundProduction`/`computeTicking` pair of pure functions
+(extracted specifically so this could be unit-tested directly rather than
+through fragile fake-timer component tests, `App.test.ts`): the background
+tick now stays active whenever `screen === 'production'` *and*
+`viewingProductionId` is set, exactly the same "pure read-only detour
+shouldn't silently cost or freeze time" principle
+`PAUSE_PERSISTING_SCREENS` already establishes for `rival-studio`/`stats`.
+Running your own live draft's shoot (`viewingProductionId === null`) is
+unaffected - still paused there, still driven by `ProductionRun.tsx`'s own
+faster tick.
+
+**3. The day counter/pause control, now available on Production Run
+itself.** Once the tick bug above was fixed, viewing a background
+production had nothing on-page to show or control that tick - `paused`/
+`tickNonce`/`speedMultiplier` (App.tsx's `Screens()`) were previously only
+ever passed to `Dashboard`. `TimeTickIndicator` is now also rendered on
+`ProductionRun.tsx`, conditionally, only while `viewingProductionId` is
+set - showing it while running the live draft's own shoot would offer a
+pause button that does nothing to what's actually on screen (that shoot
+isn't driven by this tick at all), which would be actively misleading
+rather than helpful. `effectiveTickMs` (the selected speed multiplier)
+was extended to also apply while viewing a background production, for the
+same "the speed control should only matter for the tick a player is
+actually watching" reasoning `state.screen === 'dashboard'` already had.
+
+**4. Events involving talent/crew always show their full profile.**
+`OnSetDecisionCard.tsx` used to show the person currently involved in an
+event as a single line of text (name, role, one stat), and - for a
+recast/replacement decision - candidates as a name and a salary, no stats
+at all (`EventChoiceTemplate.replacementCandidateId`/`Name`/`Salary` only
+ever carried that much, per `engine/production.ts:buildReplacementChoices`).
+`components/wizard/RoleHiringDrawer.tsx`'s `CandidateStats` (the same full
+headline-stats-plus-Compatibility-badge treatment Hire Talent's candidate
+cards already used) was extracted into a new shared
+`components/common/TalentStats.tsx`, and `OnSetDecisionCard` now renders it
+for both the currently-involved person and every recast candidate - the
+candidate's full `Talent` record is resolved from a new `talentPool` prop
+(`Record<TalentRole, Talent[]>`, threaded from `state.studio.talentPool` at
+both call sites, `ProductionRun.tsx` and `Inbox.tsx`) keyed by
+`replacementCandidateId`, since the choice template itself never carried
+more than id/name/salary. For a recast decision specifically, the
+currently-involved person and every candidate now render side by side in a
+`.talent-compare-row` - a normal wrapping row on desktop (room enough to
+see two or three full profiles at once), overridden under
+`@media (pointer: coarse)` to a horizontally swipeable, `scroll-snap`
+strip (one full card in view at a time, snapping as the player swipes) -
+CSS-only "swipe to compare," no custom gesture/touch-handling code needed.
+
+**5. The screenplay stays visible across every production-wizard step.**
+Confirmed via an explore pass that Production Planning, Post-Production
+and Marketing & Release showed *nothing* about the selected script at
+all, and Production Run only showed its title (and only before filming
+began - the block disappeared entirely once photography existed). A new
+`components/common/ScriptSummaryCard.tsx` (title, concept badges, synopsis,
+production-requirement tags, tone profile - deliberately not the *full*
+Develop Film card, since Screenplay Cost and the quality-stat groups are
+fixed and no longer actionable by this point) is now shown consistently on
+all four screens. `productionRequirementTags`/`describeCommercialAppeal`/
+`describeCostDrivers` (previously local to `DevelopFilm.tsx`) were
+extracted into `engine/scriptPresentation.ts` so `ScriptSummaryCard` (and
+`FilmDetailModal.tsx`, below) could reuse them without a second
+implementation drifting from the first.
+
+**6. Film Detail dossier redesigned to include the screenplay, reordered to
+read as a narrative.** `FilmDetailModal.tsx` (Studio History's click-through
+dossier) never showed `film.script` at all - not even its title - despite
+being a full page of detail about the film. A new `ScriptSection` (title,
+concept badges, synopsis, the same Writing/Creative `StarGroup` rating
+groups Develop Film uses - extracted into `components/common/StatGroup.tsx`
+for this second use - production-requirement tags, tone profile) now leads
+the modal. The whole section order was reconsidered at the same time,
+since a purely-additive Script section landing in the old
+Cast→Financials→Reception→Events→Reviews order wouldn't actually read any
+better - now Script→Cast & Crew→Events→Reception→Financials→Reviews,
+following the film's own chronology (conceived → cast → made → received →
+performed commercially → written about) rather than an unordered stat
+dump.
+
+**7. A compatibility diagnostic that was never visible anywhere - not even
+in the dev inspectors.** `engine/compatibility.ts:computeCompatibility`
+already computed a per-tone weighted-mismatch term
+(`scriptTone[tone] * |scriptTone[tone] - talentTone[tone]|`) internally on
+its way to the final aggregate 0-100 score, but only ever returned the
+aggregate - which tone axis actually drove a given pairing's score up or
+down was structurally unrecoverable from outside the function. New
+`computeCompatibilityBreakdown`/`computeTalentCompatibilityBreakdown`
+(pure arithmetic restatements of the same loop, not a change to
+`computeCompatibility` itself - every existing gameplay call site is
+untouched) return that per-axis detail:
+`{ tone, scriptValue, talentValue, gap, contribution, contributionShare }`
+for each of the six tones. Surfaced in a new "Compatibility Breakdown"
+section on `components/dev/OutcomeInspector.tsx` - one table per hired
+Director/Lead/Supporting Actor, showing exactly which tone (and how much
+of the total mismatch it accounts for) is helping or hurting that
+person's fit with the script currently loaded in the inspector, updating
+live as the script's tone-profile sliders are dragged.
+
+**Testing.** `App.test.ts` (the ticking/pause-bug regression, tested via
+the extracted pure functions rather than fake timers),
+`engine/compatibility.test.ts` (breakdown math, including a direct
+reconstruction check against `computeCompatibility`'s own aggregate score),
+`engine/scriptPresentation.test.ts` (the extracted tag/sentence
+derivations), `components/common/OnSetDecisionCard.test.tsx` (full profile
+cards for both a simple involved-talent decision and a multi-candidate
+recast comparison, including the "candidate not resolvable from talentPool"
+fallback), `components/common/FilmDetailModal.test.tsx` (the Script section's
+content and its position ahead of Cast & Crew/Reception/Financials), and
+`components/wizard/ProductionRun.test.tsx` (Contingency Remaining/overrun
+warning, the persistent script card, and the TimeTickIndicator's
+viewing-a-background-production-only visibility). 347 tests total.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
