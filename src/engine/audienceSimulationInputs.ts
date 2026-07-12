@@ -71,24 +71,33 @@ export interface ReleaseSimulationInputs {
 
 // --- Total addressable audience -------------------------------------------
 //
-// Same shape as the live model's OPENING_BASE_POTENTIAL x marketSize x
-// genrePopularity chain (engine/boxOffice.ts), expressed as a headcount
-// instead of money - reuses the same data/audiences.ts and data/genres.ts
-// tables (a genre's popularity or an audience's market size shouldn't have
-// two independent numbers depending which box office model reads it), but
-// picks its own population constant rather than importing
-// OPENING_BASE_POTENTIAL, which is denominated in pounds, not people.
+// marketSize x genrePopularity, expressed as a headcount rather than money -
+// reuses the same data/audiences.ts and data/genres.ts tables the rest of
+// the game already reads (a genre's popularity or an audience's market size
+// shouldn't have two independent numbers depending on which system reads
+// it).
 //
-// Calibration: 40,000,000 is a headcount ceiling for a maxed-out
-// (Mass Market audience, 100-popularity genre) film - large enough that
-// the "genuine global phenomenon" archetype (see
-// audienceSimulationInputs.test.ts) can plausibly clear tens of millions
-// of admissions without repeat viewing, small enough that a Niche/low-
-// popularity film's addressable pool stays in the hundreds of thousands,
-// not the tens of millions. Checked via scratch diagnostics, not asserted
-// from first principles - see the Milestone 3 DESIGN.md note for the
-// actual admissions ranges this produced.
-const BASE_ADDRESSABLE_POPULATION = 40_000_000;
+// Calibration (revised in Milestone 6 - "scenario hardening"): this figure
+// has to implicitly stand in for a film's *worldwide* reachable audience,
+// not a single domestic market - this project doesn't split domestic/
+// international box office into separate pools yet (see DESIGN.md 5.34's
+// "Future hooks"), so a single population number is all there is, and it
+// has to be big enough on its own for the top of the range to mean
+// anything. Milestone 3's original 40,000,000 capped even a maxed-out,
+// 100%-sold-out Mass Market/top-genre film at ~£330M total gross
+// (engine/boxOfficeRun.ts:AVERAGE_TICKET_PRICE x 30,000,000 people) -
+// nowhere near genuine billion-scale-phenomenon territory (Milestone 6's
+// own explicit requirement: "plausible inputs can produce... rare
+// billion-scale phenomena"), found via a scratch diagnostic before
+// touching this constant, not assumed. 250,000,000 raises that same
+// maxed-out ceiling to ~£2.06B - comfortably past £1B so a true phenomenon
+// still has to combine near-total market saturation with exceptional
+// reception to get there (see the "extreme upper range" scenario in
+// audienceSimulationScenarios.test.ts), while an ordinary or niche film's
+// addressable pool scales up by the same proportion and stays exactly as
+// small *relative to the ceiling* as it always was - this constant scales
+// the whole range, not just the top of it.
+const BASE_ADDRESSABLE_POPULATION = 250_000_000;
 
 function computeTotalAddressableAudience(genre: Genre, targetAudience: TargetAudience): number {
   const marketSize = AUDIENCE_PROFILES[targetAudience].marketSize;

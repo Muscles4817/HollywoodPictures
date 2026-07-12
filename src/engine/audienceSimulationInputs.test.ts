@@ -210,11 +210,12 @@ describe('named archetype diagnostics', () => {
   });
 
   it('2. sleeper hit: tiny opening, but a later week matches or exceeds an earlier one - real growth, not just a slow decline', () => {
-    const weeks = runFullSimulation(
-      inputs({ releaseType: 'Limited', buzzScore: 15, marketingSpend: 300_000, scriptOriginality: 70, criticScore: 92, audienceScore: 95 }),
-    );
+    const sleeperInputs = inputs({ releaseType: 'Limited', buzzScore: 15, marketingSpend: 300_000, scriptOriginality: 70, criticScore: 92, audienceScore: 95 });
+    const fixed = deriveAudienceSimulationFixedState(sleeperInputs);
+    const weeks = runFullSimulation(sleeperInputs);
     const admissions = weeklyAdmissions(weeks);
-    expect(admissions[0]).toBeLessThan(50_000); // small opening
+    // "Small opening" relative to this film's own addressable audience, not a hardcoded headcount - stays true regardless of how BASE_ADDRESSABLE_POPULATION (engine/audienceSimulationInputs.ts) is calibrated.
+    expect(admissions[0]).toBeLessThan(fixed.totalAddressableAudience * 0.005);
     expect(weeks.length).toBeGreaterThanOrEqual(8); // a real, sustained run, not a quick flame-out
     const laterWeek = admissions[Math.min(9, admissions.length - 1)];
     expect(laterWeek).toBeGreaterThanOrEqual(admissions[0]); // week 10 (or the last available) at least matches week 1 - genuine growth
@@ -270,9 +271,11 @@ describe('named archetype diagnostics', () => {
 
   it('7. excellent but poorly marketed film: tiny opening, but total grows to many times the opening via word of mouth alone', () => {
     const releaseInputs = inputs({ releaseType: 'Limited', buzzScore: 5, marketingSpend: 10_000, criticScore: 90, audienceScore: 88 });
+    const fixed = deriveAudienceSimulationFixedState(releaseInputs);
     const weeks = runFullSimulation(releaseInputs);
     const week1 = weeks[0].cumulativeTicketsSold;
-    expect(week1).toBeLessThan(20_000);
+    // "Tiny opening" relative to this film's own addressable audience, not a hardcoded headcount - see test 2's identical reasoning above.
+    expect(week1).toBeLessThan(fixed.totalAddressableAudience * 0.005);
     expect(totalAdmissions(weeks)).toBeGreaterThan(week1 * 10);
   });
 

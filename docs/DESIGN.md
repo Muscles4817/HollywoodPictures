@@ -3165,6 +3165,223 @@ milestone's own brief.
   original architecture section already parked them ("where competition
   and international markets slot in later").
 
+**Implementation Milestone 6: scenario hardening and regression suite
+(`engine/audienceSimulationScenarios.test.ts`).** The final milestone -
+turns the nine behavioural archetypes discussed throughout this design
+into permanent regression coverage against the exact live pipeline
+(`deriveAudienceSimulationFixedState` -> `advanceToWeek` ->
+`engine/boxOfficeRun.ts`'s own `AVERAGE_TICKET_PRICE`/
+`STUDIO_BOX_OFFICE_SHARE` boundary - the same functions a real release
+calls, not a parallel reimplementation), adds property-style sweeps
+looking for the specific failure modes a hand-picked scenario list can't
+catch, and explicitly proves the full outcome range asked for.
+
+- **A real calibration gap found and fixed, not just tested around.**
+  Checking "plausible inputs can produce... rare billion-scale phenomena"
+  against the live pipeline found that Milestone 3's original
+  `BASE_ADDRESSABLE_POPULATION` (40,000,000) capped even a fully maxed-out,
+  100%-sold-out Mass Market/top-genre release at ~£330M total gross -
+  nowhere near billion-scale, discovered via a scratch diagnostic before
+  touching anything (this project's standing calibration discipline).
+  Raised to 250,000,000 (`engine/audienceSimulationInputs.ts`), which
+  raises that same maxed-out ceiling to ~£2.06B - the full rationale
+  (this figure has to implicitly stand in for a *worldwide* audience,
+  since the game doesn't split domestic/international box office into
+  separate pools) is recorded at the constant itself. This is a genuine
+  product decision made in the open, not a quiet fudge: it changes the
+  absolute scale of every figure in the game (including two Milestone 3
+  test assertions that hardcoded absolute headcounts rather than fractions
+  of a film's own addressable audience - converted to relative assertions
+  while fixing them, so they can't drift out of sync with this constant
+  again).
+- **Two named archetypes needed real scenario-design work, not just
+  assertion-writing, to avoid the WOM critical-mass tipping point
+  (Milestones 4/5's own documented finding) swallowing their intended
+  shape.** "Huge opening with exceptional reception" and "broad
+  crowd-pleaser" both initially landed in the *same* explosive
+  full-sellout-in-under-10-weeks shape at Mass Market/Wide scale once
+  reception cleared a fairly low bar - correct, intentional model
+  behaviour, but it meant a naively-chosen "solid, not exceptional"
+  crowd-pleaser scenario was accidentally indistinguishable from a genuine
+  phenomenon. Resolved by choosing crowd-pleaser's concrete inputs to sit
+  clearly below that tipping threshold (found via a diagnostic sweep, not
+  guessed), producing an honestly "sustained, not explosive" shape instead
+  of forcing the *model* to produce it via a threshold change that would
+  have undone Milestone 4/5's own already-validated calibration. The
+  named scenario changed to fit the model's real behaviour; the model was
+  not bent to fit a scenario's name - exactly what this milestone's brief
+  asked for ("do not tune solely to make the named scenarios pass").
+- **Sweeps look for five specific failure modes, not just "does it
+  crash"**: fixed-state fields (`baseInterestFraction`, `marketingEfficiency`,
+  `totalAddressableAudience`) change smoothly across their own inputs, since
+  they're plain formulas with no threshold gates - a violation would mean
+  an actual bug, not the WOM tipping point (which lives downstream, in the
+  simulation itself); a 4-genre x 4-audience x 3-release-type x 5-score
+  grid (240 combinations) never produces a NaN, `Infinity`, or negative
+  value anywhere in the fixed state or the resulting run; a reception
+  sweep never collapses onto a handful of repeated totals (an accidental
+  cap) and never has every entry sitting at its own ceiling (accidental
+  universal saturation); every "more X should never hurt" relationship
+  from Milestones 3/5 is re-verified end to end in money terms, not just
+  admissions; five deliberately varied realistic releases span more than
+  200x from smallest to largest total, each tier distinctly separated from
+  its neighbours (not clustered in a narrow middle band).
+- **The full outcome range, verified as one continuous, strictly
+  increasing sequence** rather than six disconnected point checks -
+  negligible (a few million) -> modest indie (tens of millions) -> normal
+  studio (~£190-200M) -> hit (~£600M) -> major blockbuster (~£1.4B) ->
+  billion-scale phenomenon (>£1B, confirmed to genuinely exceed
+  £1,000,000,000, not just "the biggest number in a tidy range"). Every
+  tier's inputs are named, plausible combinations (no field pushed beyond
+  its real range) - the spread comes entirely from the model's own
+  emergent behaviour, not from hand-tuning six separate outcomes to order.
+- **30 new tests** (185 total, `npm run test`) - see the file itself for
+  the full breakdown; grouped as named archetype regression (9), fixed-
+  state continuity sweeps (2), invalid-value grid sweep (1, 240
+  combinations), accidental-cap sweeps (2), inversion/monotonicity sweeps
+  (6), clustering sweep (1), runaway-saturation sweeps (2), and full-range
+  achievability (7).
+- **Deliberately not implemented, per this milestone's own explicit
+  scope** (unchanged from Milestone 5): competition between concurrently-
+  running films, international market pools, repeat viewing.
+
+**Final reference: formulas, constants, invariants, scenarios, limitations,
+hooks.** Milestones 1-6 are now complete and live - this is the
+consolidated specification for the system as it actually ships, not a
+design intent. Every number below is read directly from the committed
+source at the time of writing, not from memory.
+
+*The pipeline, end to end (one release, one week):*
+
+```
+Release day (engine/releaseFilm.ts, once):
+  criticScore, audienceScore, buzzScore   <- engine/scoring.ts (unchanged by this whole redesign)
+  ReleaseSimulationInputs                 <- script/marketing/genre/audience/release fields, reused verbatim
+  AudienceSimulationFixedState            <- deriveAudienceSimulationFixedState(inputs)   [engine/audienceSimulationInputs.ts]
+  week 1                                  <- advanceOneWeek(fixed, [])                    [engine/audienceSimulationStep.ts]
+  FilmResults.openingWeekend              <- week1.cumulativeTicketsSold x AVERAGE_TICKET_PRICE
+
+Every week after, lazily, whenever Studio.totalDays advances (engine/boxOfficeRun.ts):
+  while weeks-due-by-now > weeks-settled and status === 'running':
+    nextWeek, diagnostics  <- advanceOneWeekWithDiagnostics(fixed, simWeeks)   [engine/audienceSimulationStep.ts]
+    gross                  <- diagnostics.weeklyAdmissions x AVERAGE_TICKET_PRICE
+    cashCredit             += gross x STUDIO_BOX_OFFICE_SHARE
+    status                 <- hasSimulationEnded(simWeeks) ? 'finished' : 'running'
+
+On finish (engine/boxOfficeRun.ts):
+  totalBoxOffice   <- boxOfficeRun.cumulativeGross
+  studioRevenue    <- totalBoxOffice x STUDIO_BOX_OFFICE_SHARE
+  profit           <- studioRevenue - totalCost
+  outcome          <- determineOutcome(profit, ...)                [engine/outcome.ts, unchanged]
+  reputationChange <- computeReputationChange(outcome, criticScore) [engine/reputation.ts, unchanged]
+
+Reported on demand, never stored (state/selectors.ts):
+  legs <- totalBoxOffice / openingWeekend   (null until totalBoxOffice is known)
+```
+
+*Inside `deriveAudienceSimulationFixedState` - release-day fixed state
+(`engine/audienceSimulationInputs.ts`):*
+
+```
+totalAddressableAudience  = BASE_ADDRESSABLE_POPULATION x marketSize[targetAudience] x (genrePopularity / 100)
+baseInterestFraction      = clamp((0.05 + 0.65 x (scriptMarketability/100)) x (targetAudience === script.intendedAudience ? 1 : 0.7), 0, 1)
+crossoverCapacityFraction = clamp(0.3 x (scriptOriginality/100), 0, 0.3)
+marketingEfficiency       = clamp((0.2 + 0.7 x scriptMarketability/100) x (1 - 0.5 x scriptOriginality/100), 0.05, 1)
+conversionPacingBaseline  = clamp(releaseType.conversionPacingBaseline x windowBaseMultiplier x windowGenreBonus x (1 + 0.5 x buzzScore/100), 0, 1)
+externalWeeklyAwarenessRate = clamp(0.03 x releaseType.ongoingAwarenessFactor x (0.5 + 0.5 x marketingEfficiency), 0, 1)
+initialAwareCount         = totalAddressableAudience x releaseType.initialAwarenessShare x clamp(0.55 x buzzReach + 0.45 x marketingReach x marketingEfficiency, 0, 1)
+  where buzzReach       = 0.02 + 0.98 x (buzzScore/100)^2                         (convex - a near-zero-Buzz film still opens to almost nobody)
+        marketingReach  = interpolateScale(logT(marketingSpend, £10k-£150M), [0, 0.08, 0.2, 0.45, 0.8])
+criticScore, audienceScore  = passed straight through, unchanged
+```
+
+*Inside `advanceOneWeek` - the weekly step (`engine/audienceSimulationStep.ts`), applied to
+`(awareCount, interestedRemaining, cumulativeTicketsSold)`:*
+
+```
+0. awareCount += min(unaware, initialAwareCount)                      [week 1 only]
+1. awareCount += unaware x externalWeeklyAwarenessRate                [every week]
+2. newInterest_natural  = min(natural headroom, newlyAware) x baseInterestFraction
+3. womInfluence = clamp(recentAdmissions / maxInterestedAudience, 0, 1) x receptionMultiplier
+     recentAdmissions   = admissions[t-1] x 1 + admissions[t-2] x 0.7 + admissions[t-3] x 0.4 + admissions[t-4] x 0.2 + admissions[t-5] x 0.05
+     receptionMultiplier = 0.01 + 0.99 x ((0.7 x audienceScore + 0.3 x criticScore) / 100)^2
+4. awareCount += unaware x thresholdResponse(womInfluence, 0.0,    300)
+5. newInterest_wom      = min(natural headroom, awareNotYetInterested) x thresholdResponse(womInfluence, 0.003,  150)
+6. newInterest_crossover = min(total headroom,  awareNotYetInterested) x thresholdResponse(womInfluence, 0.0075, 100)
+7. baselineProbability = conversionPacingBaseline
+8. attendanceProbability = baselineProbability + thresholdResponse(womInfluence, 0.005, 100) x (1 - baselineProbability)
+9. ticketsThisWeek = interestedRemaining x attendanceProbability
+   thresholdResponse(x, threshold, sensitivity) = clamp((max(0, x - threshold))^2 x sensitivity, 0, 1)
+11. run ends when weeks >= 20, or (latestAdmissions < openingAdmissions x 0.02) - the latter essentially never fires
+    at realistic release-scale inputs (Milestone 5's documented finding); every real run today ends via the week-20 cap.
+```
+
+*Constants and their rationale, all in one place:*
+
+| Constant | Value | File | Why |
+|---|---|---|---|
+| `WOM_LOOKBACK_WEIGHTS` | `[1, 0.7, 0.4, 0.2, 0.05]` | `audienceSimulation.ts` | Recency-weighted "how much is currently being talked about" - the week just passed counts fully, tapering to negligible by ~5 weeks back. Provisional shape, not fit to data. |
+| `AWARENESS_RESPONSE` | threshold 0, sensitivity 300 | `audienceSimulationStep.ts` | Lowest bar of the four WOM effects - nearly any released film's word of mouth spreads awareness *some* amount. |
+| `NATURAL_INTEREST_RESPONSE` | threshold 0.003, sensitivity 150 | same | Second-lowest bar - convincing people who already fit the film's natural audience. |
+| `PULL_FORWARD_RESPONSE` | threshold 0.005, sensitivity 100 | same | Needs a genuinely good reaction to start pulling attendance forward in time. |
+| `CROSSOVER_RESPONSE` | threshold 0.0075, sensitivity 100 | same | Highest bar - reaching people outside the natural audience. All four re-picked in Milestone 3 against a *wide* diagnostic sweep (Milestone 2's own narrower sweep under-shot the real achievable influence range once realistic release-scale inputs were introduced) - see that milestone's note for the full story. |
+| `RECEPTION_FLOOR` | 0.01 | `audienceSimulationStep.ts` | Even a badly-received film generates a nonzero trickle of organic chatter. |
+| `AUDIENCE_SCORE_WEIGHT` / `CRITIC_SCORE_WEIGHT` | 0.7 / 0.3 | same | Word of mouth is audience-driven first, critics second - "critics may have some influence, but audience response is the stronger driver" (Milestone 3's brief). |
+| `MAX_SIMULATION_WEEKS` | 20 | same | Hard backstop, independent of the retired live model's own `MAX_WEEKS` (kept deliberately separate, per Milestone 1's isolation principle, even though both landed on the same real-world-plausible number). |
+| `MIN_WEEKLY_ADMISSIONS_RATIO` | 0.02 | same | The natural-exhaustion stopping condition - in practice rarely reached before the hard cap at realistic inputs (Milestone 5/6's documented finding). |
+| `BASE_ADDRESSABLE_POPULATION` | 250,000,000 | `audienceSimulationInputs.ts` | The worldwide-scale population ceiling behind `totalAddressableAudience` - raised from Milestone 3's original 40,000,000 in Milestone 6 specifically so genuine billion-scale outcomes are reachable; see that constant's own comment for the full reasoning. |
+| `BASE_INTEREST_FLOOR` / `BASE_INTEREST_CEILING` | 0.05 / 0.7 | same | `baseInterestFraction`'s range as a function of `scriptMarketability` alone, before the audience-fit multiplier. |
+| `CROSSOVER_CAPACITY_CEILING` | 0.3 | same | `crossoverCapacityFraction`'s ceiling - picked jointly with `BASE_INTEREST_CEILING` so their *sum* can never exceed 1 (0.7 + 0.3 = 1.0 exactly), satisfying Milestone 1's own validation by construction. |
+| `AUDIENCE_MISMATCH_PENALTY` | 0.7 | same | A film marketed to an audience its script wasn't written for loses a real, but not devastating, slice of genuine taste-fit. |
+| `MARKETING_EFFICIENCY_FLOOR` / `CEILING` | 0.2 / 0.9 | same | `marketingEfficiency`'s range as a function of `scriptMarketability`, before originality's dampening. |
+| `ORIGINALITY_EFFICIENCY_DAMPENING` | 0.5 | same | A genuinely novel premise is harder to pitch - at `scriptOriginality`=100, marketing efficiency is halved. |
+| `BUZZ_REACH_FLOOR` | 0.02 | same | Mirrors the retired live model's own `HYPE_FLOOR` shape - convex, so a near-zero-Buzz film opens to almost nobody, not a respectable baseline. |
+| `BUZZ_REACH_WEIGHT` / `MARKETING_REACH_WEIGHT` | 0.55 / 0.45 | same | Buzz weighted slightly higher than raw marketing spend in seeding day-one awareness - Buzz already absorbs marketing spend as one of several inputs (fame, reputation, marketing, events - `engine/scoring.ts:computeBuzzScore`), so weighting it higher here doesn't starve a high-Buzz, low-direct-spend film. |
+| `BUZZ_URGENCY_WEIGHT` | 0.5 | same | A secondary boost to conversion pacing from Buzz specifically - an "everyone's talking about it" event film converts its opening-week crowd faster, independent of release type's primary role. |
+| `EXTERNAL_AWARENESS_BASE_RATE` | 0.03 | same | The small ongoing (post-week-1) organic-discovery trickle, scaled by release type and marketing efficiency. |
+| `RELEASE_TYPE_AUDIENCE_PROFILES` | Wide 0.9/0.14/1.0, Limited 0.12/0.06/0.6, Festival First 0.03/0.05/0.4 (initialAwarenessShare/conversionPacingBaseline/ongoingAwarenessFactor) | same | Release type reinterpreted for this model - initial-awareness shape and conversion urgency, not the retired model's reach/legs multipliers. Streaming has no entry - unsupported by design (see below). |
+| `AVERAGE_TICKET_PRICE` | £11 | `boxOfficeRun.ts` | The single people-to-money boundary conversion for the whole system - picked once, in Milestone 4, so a maxed-out run landed in a broadly comparable range to the retired model's own headline constant; not re-tuned since (Milestone 6 changed the *population* ceiling instead, to reach billion-scale, keeping this one flat, realistic number intact). |
+| `STUDIO_BOX_OFFICE_SHARE` | 0.42 | same | Unchanged from the retired live model - a fact about theatrical economics (real-world studio rentals average ~40% of worldwide gross), not something either box-office model gets to decide. |
+
+*State invariants, enforced by construction (not just tested):*
+
+- `AudienceSimulationFixedState`: `totalAddressableAudience > 0`; every fraction (`baseInterestFraction`, `marketingEfficiency`, `crossoverCapacityFraction`, `conversionPacingBaseline`, `externalWeeklyAwarenessRate`) in `[0, 1]`; `criticScore`/`audienceScore` in `[0, 100]`; `initialAwareCount` in `[0, totalAddressableAudience]`; `baseInterestFraction + crossoverCapacityFraction <= 1` - `createAudienceSimulationFixedState` throws rather than silently clamping.
+- `AudienceSimulationWeekState`: `week` a positive integer; `awareCount`, `interestedRemaining`, `cumulativeTicketsSold` all non-negative; `awareCount <= totalAddressableAudience`; `interestedRemaining <= awareCount` (can't be interested-and-unconverted without being aware); `interestedRemaining <= maxInterestedAudience(fixed)`; `cumulativeTicketsSold <= totalAddressableAudience` (no repeat viewing).
+- Across a run (`createAudienceSimulationRun`): weeks sequential from 1; `awareCount` and `cumulativeTicketsSold` both monotonically non-decreasing; `interestedRemaining` deliberately *not* required to be monotonic (it both shrinks via conversion and grows via crossover).
+- `BoxOfficeRun.simWeeks.length` never exceeds `MAX_SIMULATION_WEEKS`; `status` transitions `'running' -> 'finished'` exactly once, never back; `FilmResults.totalBoxOffice`/`studioRevenue`/`profit`/`outcome`/`reputationChange` are all `null` until `status === 'finished'`, then all populated together, exactly once (`engine/boxOfficeRun.test.ts`).
+- `settleBoxOfficeForAllFilms.cashCredit` is never negative (Milestone 5/6 tests) - settlement only ever credits `Studio.cash`, never debits it.
+
+*The nine named archetypes, as permanent regression coverage
+(`engine/audienceSimulationScenarios.test.ts`):*
+
+| # | Archetype | Shape asserted |
+|---|---|---|
+| 1 | Front-loaded event film, poor reception | Large opening relative to its ceiling; week 2 admissions fall further than the ordinary archetype's own week-2 drop; legs < 10x; the first quarter of the run outsells the rest combined; strictly non-increasing for the first 5 weeks. |
+| 2 | Sleeper hit | Opening < 0.5% of addressable audience; a later week matches or beats an earlier one; at least 3 flat-or-growing week transitions; legs > 20x. |
+| 3 | Huge opening, exceptional reception | Opening > £100M; week 2 does not decline; total genuinely exceeds £1B; realizes > 90% of its own ceiling. |
+| 4 | Critically acclaimed niche film | `initialAwareCount` < 1% of addressable audience; runs (near-)the full 20 weeks; final week outsells the opening; the film's own ceiling stays under half of the same acclaim's Mass Market equivalent ceiling. |
+| 5 | Broad crowd-pleaser | `crossoverCapacityFraction` < 0.15 (no extreme originality needed); opening > £10M; runs (near-)the full 20 weeks; no single week-over-week collapse past 50%; total > £200M. |
+| 6 | Highly original, disliked | `crossoverCapacityFraction` > 0.25 (real capacity exists); realized total never exceeds the natural (non-crossover) ceiling; stays under half the film's full ceiling. |
+| 7 | Excellent, poorly marketed | Opening < 1% of ceiling; total > 20x the opening; at least 5 growth weeks; peak week stays under 10% of a genuine Wide blockbuster's own opening. |
+| 8 | Heavily marketed, bad | `initialAwareCount` > 30% of addressable audience; opening > £100M; final week < 5% of the opening; strictly non-increasing throughout. |
+| 9 | Ordinary mid-performer | Never grows past 1.5x its own opening; legs sits strictly between the front-loaded archetype's and the sleeper's; runs the full 20 weeks (doesn't sell out early like a phenomenon does). |
+
+*Known limitations (honest, not hidden):*
+
+- The natural trickle-detection stopping rule (`MIN_WEEKLY_ADMISSIONS_RATIO`) essentially never fires before the 20-week hard cap at realistic release-scale inputs - found in Milestone 5, reconfirmed in Milestone 6. Both paths are exercised and correct, but in practice every real run today ends the same way (the calendar catches up to it).
+- The WOM system has a genuine critical-mass tipping point - a fairly narrow reception band separates "never really catches on" from "sells out its entire addressable ceiling." This is an intentional, verified emergent property of a convex, threshold-gated, positive-feedback model (documented across Milestones 3-6), not a bug, but it means adjacent single-point reception comparisons can look locally out-of-order even though wide bands never invert - every monotonicity test in this codebase uses well-separated bands for exactly this reason.
+- Streaming has no model at all - deliberately removed as a release option (Milestone 5) rather than forced through a theatrical-admissions shape that doesn't fit it.
+- No repeat viewing - `cumulativeTicketsSold` is a hard ceiling at `totalAddressableAudience`, enforced by construction. Checked explicitly in Milestone 6: the full range up to genuine billion-scale phenomena is reachable without it, so none was added.
+- No competition between concurrently-running films, and no international-market split - both remain single-population, single-run assumptions.
+- The whole system's constants are calibrated for *shape* (monotonic, convex, capacity-gated, spanning the intended outcome range without inversions or accidental caps - all now under permanent regression coverage) rather than fit to real box-office data. A future pass informed by the Outcome Inspector's `REPRESENTATIVE_SCENARIO_MATRIX` and real film comparisons remains open.
+
+*Future hooks - where the next three deferred mechanics slot in, without
+restructuring anything built here:*
+
+- **Competition** between concurrently-running films: a shared "moviegoing attention" pool multiple films' `interestedRemaining` populations draw from proportionally, instead of each film converting against an uncontested pool - requires settling every running film's week *jointly* rather than independently (`settleBoxOfficeForAllFilms` already iterates every film per calendar catch-up; the change is making that iteration see every other film's state, not just its own). `AwareCount`/`InterestedRemaining`/being genuine population counts (not a single opaque "momentum" score) is exactly what makes this tractable later.
+- **International markets**: decompose into per-market copies of the same simulation - a separate `totalAddressableAudience`/`baseInterestFraction`/`AwareCount` per market (domestic vs. international, or finer), each with its own release timing, summed at the end. Replaces the single flat `STUDIO_BOX_OFFICE_SHARE` with real per-market simulation. Staggered rollout timing (a market's "week 1" landing on a different calendar week than another's) needs its own small follow-up pass.
+- **Repeat viewing**: would relax `cumulativeTicketsSold <= totalAddressableAudience`'s hard ceiling (`createAudienceSimulationWeekState`) into something that lets a small, reception-driven fraction of `cumulativeTicketsSold` re-enter `interestedRemaining` instead of being permanently spent - the natural home is step 9 (`sellTicketsThisWeek`) gaining a "some of this week's audience will come back" term, feeding back into next week's pool rather than a new top-level concept.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
