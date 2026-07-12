@@ -21,6 +21,12 @@ import { generateStoryReport } from './storyReport';
 import type { RandomFn } from './random';
 import type { AudienceSimulationFixedState } from './audienceSimulation';
 
+function averageFame(talent: Talent[], role: Talent['role']): number {
+  const matching = talent.filter((t) => t.role === role);
+  if (matching.length === 0) return 0;
+  return matching.reduce((sum, t) => sum + t.fame, 0) / matching.length;
+}
+
 export interface ReleaseComputationInput {
   title: string;
   genre: Genre;
@@ -107,10 +113,15 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // removed as a release option (types/index.ts:ReleaseType) specifically
   // so marketingChoices.releaseType is always a SupportedReleaseType here,
   // no runtime check needed.
+  const commercialProfile = deriveCommercialProfile(input.script);
   const fixed = deriveAudienceSimulationFixedState({
     buzzScore,
     marketingSpend: input.marketingChoices.marketingSpend,
-    scriptMarketability: deriveCommercialProfile(input.script).accessibility,
+    directorFame: averageFame(input.talent, 'Director'),
+    leadFame: averageFame(input.talent, 'Lead Actor'),
+    studioReputation: input.studioReputation,
+    scriptAccessibility: commercialProfile.accessibility,
+    scriptHookStrength: commercialProfile.hookStrength,
     scriptOriginality: input.script.originality,
     scriptSpectacle: input.script.toneProfile.spectacle,
     scriptIntendedAudience: input.script.intendedAudience,

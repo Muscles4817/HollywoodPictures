@@ -41,30 +41,59 @@ export type SupportedReleaseType = Exclude<ReleaseType, 'Streaming'>;
  * Everything this milestone was asked to connect, as plain named release-
  * day inputs rather than a full Film/Script object - keeps this function
  * testable without constructing talent/production/post-production state
- * that has nothing to do with audience simulation. `scriptOriginality` is
- * Script.originality verbatim (1-100, types/index.ts); `scriptMarketability`
- * is `engine/commercialProfile.ts:deriveCommercialProfile(script).accessibility`
- * (docs/DESIGN.md - screenplay redesign, "split marketability") - Script no
- * longer has a stored `marketability` field at all, so this is a derived
- * reading, not a verbatim pass-through, but the field name/shape here is
- * unchanged so this module's own formulas don't need to know that happened;
- * `criticScore`/`audienceScore` are FilmResults' verbatim (0-100,
- * engine/scoring.ts) - reused, not recomputed, same principle Milestone 1
- * already applied to criticScore/audienceScore on
+ * that has nothing to do with audience simulation.
+ *
+ * Milestone 11 (docs/DESIGN.md - "release-input separation of concerns")
+ * split this interface's fields into two disjoint groups, made explicit
+ * here rather than left implicit in the formulas that consume them - see
+ * that milestone's DESIGN.md note for the full diagnostic evidence this
+ * split was based on:
+ *
+ * - **Awareness inputs** ("do people know this film exists"):
+ *   `marketingSpend`, `directorFame`, `leadFame`, `studioReputation`. None
+ *   of these are screenplay traits - a brilliant script does not cause
+ *   people to hear about a film, marketing and who's already famous does.
+ *   `buzzScore` also belongs conceptually to this family (fame/reputation/
+ *   marketing-driven, engine/scoring.ts:computeBuzzScore) but is kept
+ *   separate below since its only remaining job here is pacing urgency, not
+ *   awareness reach - see its own doc comment.
+ * - **Interest inputs** ("of the people who know, how many actually want to
+ *   see it"): `scriptAccessibility`, `scriptOriginality`, `scriptSpectacle`,
+ *   `scriptHookStrength`, `scriptIntendedAudience`/`targetAudience`,
+ *   `genre`. All screenplay/positioning traits, all feeding
+ *   `baseInterestFraction`/`crossoverCapacityFraction` - never awareness.
+ *
+ * `scriptAccessibility` is `engine/commercialProfile.ts:deriveCommercialProfile(script).accessibility`
+ * (renamed from `scriptMarketability` this milestone - the old name was a
+ * holdover from the pre-screenplay-redesign `Script.marketability` field
+ * and no longer describes what the value actually is); `scriptHookStrength`
+ * is that same function's `.hookStrength`. Script no longer has either
+ * value stored directly, so both are derived readings, not verbatim
+ * pass-throughs. `criticScore`/`audienceScore` are FilmResults' verbatim
+ * (0-100, engine/scoring.ts) - reused, not recomputed, same principle
+ * Milestone 1 already applied to criticScore/audienceScore on
  * AudienceSimulationFixedState itself.
  */
 export interface ReleaseSimulationInputs {
-  /** Pre-release hype (engine/scoring.ts:computeBuzzScore), 0-100. Feeds initial awareness only - never WordOfMouthStrength (see computeReceptionResponseMultiplier in audienceSimulationStep.ts), which would double-count the same hype through two channels once the run is underway. */
+  /** Pre-release hype (engine/scoring.ts:computeBuzzScore), 0-100. Feeds conversionPacingBaseline's urgency boost only - see that function. Milestone 11 removed its old role seeding initial awareness (see computeCastReachFraction below for what replaced it) specifically because buzzScore already blends marketing spend into a single composite, and awareness needed marketing counted through exactly one channel, not two. Never touches WordOfMouthStrength (see computeReceptionResponseMultiplier in audienceSimulationStep.ts) either, which would double-count the same hype through a third channel once the run is underway. */
   buzzScore: number;
-  /** Currency amount, data/release.ts:MARKETING_SPEND_RANGE. Seeds initial awareness alongside Buzz, scaled by marketingEfficiency - nothing else. */
+  /** Currency amount, data/release.ts:MARKETING_SPEND_RANGE. Awareness's dominant channel (see computeInitialAwareCount) - "marketing buys awareness, not quality" (docs/DESIGN.md Milestone 11). */
   marketingSpend: number;
-  /** deriveCommercialProfile(script).accessibility, 0-100 - how broad a natural audience the screenplay's concept has. Sizes baseInterestFraction and (dampened by originality) marketingEfficiency. */
-  scriptMarketability: number;
-  /** Script.originality, 1-100 - one of several inputs to crossoverCapacityFraction (the ceiling; see computeCrossoverCapacityFraction below) and dampens marketingEfficiency (a genuinely novel premise is harder to pitch). Never touches criticScore/audienceScore or any WOM-response constant - capacity is fixed at release, reception (below) is the only thing that can realize it week over week. See "originality alone must never create a breakout" in the milestone brief - already structurally guaranteed by Milestone 2's crossover step requiring both capacity *and* a cleared reception-driven threshold. */
+  /** Director's own Talent.fame, 0-100 verbatim - one of two "existing audience awareness of the people involved" awareness inputs (see computeCastReachFraction). */
+  directorFame: number;
+  /** Average fame across every hired Lead Actor, 0-100 - the other half of computeCastReachFraction; weighted higher than directorFame since leads are usually the more visible face of a film's marketing. */
+  leadFame: number;
+  /** Studio.reputation, 0-100 verbatim - sizes marketingEfficiency (how far a marketing pound actually goes). A brand-new studio's marketing dollar buys less attention than an established one's; this is what makes marketing effectiveness itself a genuine mid/late-game progression mechanic rather than a flat multiplier available from day one. */
+  studioReputation: number;
+  /** deriveCommercialProfile(script).accessibility, 0-100 - how broad a natural audience the screenplay's *concept* has, independent of how it's marketed. Sizes baseInterestFraction only (Milestone 11 removed its old, incorrect role dampening marketingEfficiency - a script being easy to explain doesn't mean it's easy to promote, and either way that's a marketing-side question, not a content one). */
+  scriptAccessibility: number;
+  /** deriveCommercialProfile(script).hookStrength, 0-100 - how easily this concept spreads by word of mouth/recommendation. One of crossoverCapacityFraction's inputs (see computeCrossoverCapacityFraction) - replaced scriptAccessibility there this milestone; "can this reach people beyond its natural audience" is a recommendation-intensity question, not a "how big is the natural audience already" one. */
+  scriptHookStrength: number;
+  /** Script.originality, 1-100 - one of several inputs to crossoverCapacityFraction (the ceiling; see computeCrossoverCapacityFraction below). Never touches marketingEfficiency any more (Milestone 11 - originality affects crossover/conversation, not how well marketing spend converts to awareness) and never touches criticScore/audienceScore or any WOM-response constant - capacity is fixed at release, reception is the only thing that can realize it week over week. See "originality alone must never create a breakout" - already structurally guaranteed by Milestone 2's crossover step requiring both capacity *and* a cleared reception-driven threshold. */
   scriptOriginality: number;
-  /** Script.toneProfile.spectacle, 1-100 - "must see this in cinemas" event value, one of crossoverCapacityFraction's inputs (see computeCrossoverCapacityFraction below). A low-spectacle film (a character comedy, a small drama) can still cross over on originality/marketability/reception alone, just without spectacle's contribution. */
+  /** Script.toneProfile.spectacle, 1-100 - "must see this in cinemas" event value, one of crossoverCapacityFraction's inputs (see computeCrossoverCapacityFraction below). A low-spectacle film (a character comedy, a small drama) can still cross over on originality/hook-strength/reception alone, just without spectacle's contribution. */
   scriptSpectacle: number;
-  /** What this film was actually written for (Script.intendedAudience) vs. who it's being marketed to (Film.targetAudience, below) - a mismatch narrows genuine taste-fit even if marketability is otherwise strong. */
+  /** What this film was actually written for (Script.intendedAudience) vs. who it's being marketed to (Film.targetAudience, below) - a mismatch narrows genuine taste-fit even if accessibility is otherwise strong. */
   scriptIntendedAudience: TargetAudience;
   targetAudience: TargetAudience;
   genre: Genre;
@@ -114,7 +143,7 @@ function computeTotalAddressableAudience(genre: Genre, targetAudience: TargetAud
 
 // --- Base interest fraction & crossover capacity ---------------------------
 //
-// Both driven by scriptMarketability/scriptOriginality respectively, each
+// Both driven by scriptAccessibility/scriptOriginality respectively, each
 // independently capped so their *sum* can never exceed 1 regardless of
 // input combination (baseInterestFraction's ceiling + crossoverCapacity's
 // ceiling = 0.70 + 0.30 = 1.00 exactly) - satisfies
@@ -129,8 +158,9 @@ const CROSSOVER_CAPACITY_CEILING = 0.3;
 // (DESIGN.md has no notion of "how far" Teens is from Adults).
 const AUDIENCE_MISMATCH_PENALTY = 0.7;
 
-function computeBaseInterestFraction(scriptMarketability: number, targetAudience: TargetAudience, scriptIntendedAudience: TargetAudience): number {
-  const raw = BASE_INTEREST_FLOOR + (BASE_INTEREST_CEILING - BASE_INTEREST_FLOOR) * (scriptMarketability / 100);
+/** Interest, not awareness - "of the people who already know this film exists, how many genuinely want to see it" (docs/DESIGN.md Milestone 11). Driven entirely by the screenplay's own concept (scriptAccessibility) and positioning fit - never by marketing spend, fame, or reputation, which only ever decide whether someone gets the chance to have this reaction in the first place (see computeInitialAwareCount). */
+function computeBaseInterestFraction(scriptAccessibility: number, targetAudience: TargetAudience, scriptIntendedAudience: TargetAudience): number {
+  const raw = BASE_INTEREST_FLOOR + (BASE_INTEREST_CEILING - BASE_INTEREST_FLOOR) * (scriptAccessibility / 100);
   const fitMultiplier = targetAudience === scriptIntendedAudience ? 1 : AUDIENCE_MISMATCH_PENALTY;
   return clamp(raw * fitMultiplier, 0, 1);
 }
@@ -151,24 +181,31 @@ function computeBaseInterestFraction(scriptMarketability: number, targetAudience
 // conceptStrength: "is this the kind of thing an outsider would find worth
 // talking about / seeing"). Originality and Spectacle dominate (a
 // conventional, non-event film has little to carry it beyond its natural
-// audience regardless of how good it is), Marketability contributes a
-// smaller share (a premise that's easy to pitch travels a little further,
-// but on its own doesn't create crossover interest), CriticScore
-// contributes least of all and only as a secondary, prestige-adjacent
-// signal - never the dominant channel for mainstream theatrical crossover,
-// per the milestone brief.
+// audience regardless of how good it is). Milestone 11 replaced this
+// formula's `marketability` term with `hookStrength`
+// (engine/commercialProfile.ts): crossover is fundamentally about whether
+// positive reception travels by word of mouth/recommendation beyond the
+// people who'd already want to see it - "how easily this concept spreads
+// when recommended" (hookStrength) is a direct match for that question;
+// `scriptAccessibility` ("how big is the natural audience already") isn't -
+// a film can be broadly understandable without generating much outsider
+// conversation, and vice versa (docs/DESIGN.md Milestone 11's "still
+// overloading one concept" note). CriticScore contributes least of all and
+// only as a secondary, prestige-adjacent signal - never the dominant
+// channel for mainstream theatrical crossover, per the original milestone
+// brief.
 const CROSSOVER_CONCEPT_WEIGHTS = {
   originality: 0.35,
   spectacle: 0.3,
-  marketability: 0.25,
+  hookStrength: 0.25,
   criticScore: 0.1,
 };
 
-function computeCrossoverConceptStrength(scriptOriginality: number, scriptSpectacle: number, scriptMarketability: number, criticScore: number): number {
+function computeCrossoverConceptStrength(scriptOriginality: number, scriptSpectacle: number, scriptHookStrength: number, criticScore: number): number {
   return clamp(
     CROSSOVER_CONCEPT_WEIGHTS.originality * (scriptOriginality / 100) +
       CROSSOVER_CONCEPT_WEIGHTS.spectacle * (scriptSpectacle / 100) +
-      CROSSOVER_CONCEPT_WEIGHTS.marketability * (scriptMarketability / 100) +
+      CROSSOVER_CONCEPT_WEIGHTS.hookStrength * (scriptHookStrength / 100) +
       CROSSOVER_CONCEPT_WEIGHTS.criticScore * (criticScore / 100),
     0,
     1,
@@ -199,69 +236,94 @@ function computeCrossoverAccessibility(genre: Genre, targetAudience: TargetAudie
 function computeCrossoverCapacityFraction(
   scriptOriginality: number,
   scriptSpectacle: number,
-  scriptMarketability: number,
+  scriptHookStrength: number,
   criticScore: number,
   genre: Genre,
   targetAudience: TargetAudience,
 ): number {
-  const conceptStrength = computeCrossoverConceptStrength(scriptOriginality, scriptSpectacle, scriptMarketability, criticScore);
+  const conceptStrength = computeCrossoverConceptStrength(scriptOriginality, scriptSpectacle, scriptHookStrength, criticScore);
   const accessibility = computeCrossoverAccessibility(genre, targetAudience);
   return clamp(CROSSOVER_CAPACITY_CEILING * conceptStrength * accessibility, 0, CROSSOVER_CAPACITY_CEILING);
 }
 
 // --- Marketing efficiency ---------------------------------------------------
 //
-// "How efficiently marketing spend converts into Awareness - pitch
-// clarity, not pool size" (AudienceSimulationFixedState.marketingEfficiency,
-// Milestone 1). Driven by marketability's other half, dampened by
-// originality - a genuinely novel premise is harder to explain in one
-// sentence even when it would appeal to plenty of people once they
-// understood it (DESIGN.md 5.34).
-const MARKETING_EFFICIENCY_FLOOR = 0.2;
-const MARKETING_EFFICIENCY_CEILING = 0.9;
-const ORIGINALITY_EFFICIENCY_DAMPENING = 0.5; // at scriptOriginality=100, efficiency is halved
+// "How efficiently marketing spend converts into Awareness - pitch clarity,
+// not pool size" (AudienceSimulationFixedState.marketingEfficiency,
+// Milestone 1). Milestone 11 (docs/DESIGN.md - "release-input separation of
+// concerns") moved this off script accessibility/originality entirely -
+// "does this studio's marketing dollar reach people" is a studio-side
+// question, not a screenplay-side one (a script being easy to explain
+// doesn't make a press release more likely to run, and a script being
+// original doesn't make a media buy less effective - those were both real
+// coupling bugs found via that milestone's diagnostic sweep, see its
+// DESIGN.md note for the numbers). `studioReputation` is what actually
+// drives this now: an established, reputable studio's marketing spend goes
+// further - press pays more attention, distributors give better placement,
+// a trailer from a studio with a track record gets watched - than an
+// unproven newcomer's identical spend. This is also what makes marketing
+// effectiveness itself a genuine progression mechanic (docs/DESIGN.md
+// Milestone 11's "marketing as a progression mechanic" goal): reputation
+// climbs from real outcomes (engine/reputation.ts), starting at 20
+// (state/gameState.ts) for a brand-new studio, so the exact same spend
+// buys meaningfully more awareness once a studio has a few hits behind it.
+const MARKETING_EFFICIENCY_FLOOR = 0.3;
+const MARKETING_EFFICIENCY_CEILING = 1.0;
 
-function computeMarketingEfficiency(scriptMarketability: number, scriptOriginality: number): number {
-  const base = MARKETING_EFFICIENCY_FLOOR + (MARKETING_EFFICIENCY_CEILING - MARKETING_EFFICIENCY_FLOOR) * (scriptMarketability / 100);
-  const dampen = 1 - ORIGINALITY_EFFICIENCY_DAMPENING * (scriptOriginality / 100);
-  return clamp(base * dampen, 0.05, 1);
+function computeMarketingEfficiency(studioReputation: number): number {
+  return clamp(MARKETING_EFFICIENCY_FLOOR + (MARKETING_EFFICIENCY_CEILING - MARKETING_EFFICIENCY_FLOOR) * (studioReputation / 100), 0, 1);
 }
 
-// --- Release type - reinterpreted for this model, not the old reach/legs
-// multipliers -----------------------------------------------------------
+// --- Distribution - release type reinterpreted as its own economic/access
+// concept, not an awareness lever ------------------------------------------
 //
-// data/release.ts:RELEASE_TYPE_PROFILES (reachMultiplier, baseLegsMultiplier,
-// varianceMultiplier) belongs to the old Opening Weekend/Legs formula
-// (engine/boxOffice.ts) and is deliberately *not* reused here - porting
-// those numbers into a population simulation would carry over a shape
-// tuned for a different mechanic entirely (Milestone 3 brief: "reinterpret
-// release types for this model rather than porting old reach and legs
-// multipliers"). Two release-type-shaped facts genuinely matter here
-// instead:
+// Milestone 11 (docs/DESIGN.md - "release-input separation of concerns")
+// renamed this from ReleaseTypeAudienceProfile/RELEASE_TYPE_AUDIENCE_PROFILES:
+// every field that's left here is genuinely about *distribution* -
+// exhibition access and how fast it can be realized - now that
+// `initialAwarenessShare`/`ongoingAwarenessFactor` (this table's old
+// awareness-manufacturing fields) are gone. A diagnostic sweep before this
+// milestone found release type was scaling initialAwareCount by up to 30x
+// between Wide (0.9) and Festival First (0.03) on top of *also* gating
+// availability by a further ~47x - the same "how widely is this playing"
+// question was being asked, and answered, twice, through two different
+// mechanisms that fought over the same conceptual territory. "Do people
+// know this film exists" and "how much of that can convert to a ticket
+// this week" are different questions (exactly the reasoning Milestone 9's
+// own availability system was built on - see its DESIGN.md note); this
+// table only ever answers the second one now. Distribution's *cost* side
+// lives one file over (data/release.ts:RELEASE_TYPE_PROFILES.costMultiplier,
+// engine/cost.ts:computeMarketingCost) rather than being duplicated here -
+// the same concept, split across the same isolation boundary every other
+// release-day input already respects.
 //
-// - initialAwarenessShare: what fraction of the addressable audience even
-//   *could* learn about the film on day one, before Buzz/marketing decide
-//   how much of that ceiling is actually realized (see
-//   computeInitialAwareCount below) - Wide is everywhere at once, Limited
-//   is a handful of theaters, Festival First is barely public at all yet.
-// - conversionPacingBaseline: per-person weekly attendance urgency -
-//   Wide's everywhere-at-once release creates real scarcity pressure ("see
-//   it this weekend or miss the only cinema showing it nearby" energy);
+// Two release-type-shaped facts genuinely matter here:
+//
+// - conversionPacingBaseline: per-person weekly attendance urgency, and
+//   "how quickly awareness can actually convert into admissions" (the
+//   milestone brief's own phrase for Distribution's job) - Wide's
+//   everywhere-at-once release creates real scarcity pressure ("see it
+//   this weekend or miss the only cinema showing it nearby" energy);
 //   Limited/Festival First start low and lean on word of mouth's pull-
 //   forward effect (audienceSimulationStep.ts step 8) to build urgency
 //   later, exactly the "platform release" shape the brief asks to emerge
 //   rather than be hand-built.
+// - initialAvailabilityFraction/availabilityBaseWeeklyDecay/
+//   criticLedExpansionWeight (Milestone 9): exhibition access itself and
+//   its expansion potential - unchanged this milestone, already correctly
+//   scoped to "how much of existing demand gets realized," not awareness.
 //
 // A platform-style run isn't a fourth profile - it's what Limited's low
-// initialAwarenessShare plus a strong reception's word-of-mouth effects
-// (Milestone 2) produce on their own, the same emergent-shape principle
-// DESIGN.md 5.34 already established for the un-implemented version of
-// this idea.
-interface ReleaseTypeAudienceProfile {
-  initialAwarenessShare: number;
+// initialAvailabilityFraction plus a strong reception's word-of-mouth
+// effects (Milestone 2) and availability's own performance-driven
+// expansion (Milestone 9) produce on their own, the same emergent-shape
+// principle DESIGN.md 5.34 already established. Awareness is now identical
+// between all three release types for the same buzz/marketing/cast inputs
+// - a Festival premiere can generate just as much press/anticipation as a
+// Wide release announcement; the difference is purely how much of that
+// demand can be served this week, which is what distribution actually is.
+interface DistributionProfile {
   conversionPacingBaseline: number;
-  /** How much the one-time release-day marketing push still echoes into ongoing weekly awareness after week 1 (AudienceSimulationFixedState.externalWeeklyAwarenessRate) - Wide's broad rollout keeps generating incidental discovery; Festival First's restricted run barely does. */
-  ongoingAwarenessFactor: number;
   /**
    * Milestone 9 (docs/DESIGN.md 5.34, "availability") - release-day
    * theatrical access, AudienceSimulationFixedState.initialAvailabilityFraction's
@@ -290,30 +352,30 @@ interface ReleaseTypeAudienceProfile {
   criticLedExpansionWeight: number;
 }
 
-const RELEASE_TYPE_AUDIENCE_PROFILES: Record<SupportedReleaseType, ReleaseTypeAudienceProfile> = {
+const DISTRIBUTION_PROFILES: Record<SupportedReleaseType, DistributionProfile> = {
   Wide: {
-    initialAwarenessShare: 0.9, conversionPacingBaseline: 0.14, ongoingAwarenessFactor: 1.0,
+    conversionPacingBaseline: 0.14,
     initialAvailabilityFraction: 0.95, availabilityBaseWeeklyDecay: 0.18, criticLedExpansionWeight: 0,
   },
   Limited: {
-    initialAwarenessShare: 0.12, conversionPacingBaseline: 0.06, ongoingAwarenessFactor: 0.6,
+    conversionPacingBaseline: 0.06,
     initialAvailabilityFraction: 0.1, availabilityBaseWeeklyDecay: 0.02, criticLedExpansionWeight: 0,
   },
   'Festival First': {
-    initialAwarenessShare: 0.03, conversionPacingBaseline: 0.05, ongoingAwarenessFactor: 0.4,
+    conversionPacingBaseline: 0.05,
     initialAvailabilityFraction: 0.02, availabilityBaseWeeklyDecay: 0.015, criticLedExpansionWeight: 0.65,
   },
 };
 
-function releaseTypeProfile(releaseType: SupportedReleaseType): ReleaseTypeAudienceProfile {
-  const profile = RELEASE_TYPE_AUDIENCE_PROFILES[releaseType];
+function distributionProfile(releaseType: SupportedReleaseType): DistributionProfile {
+  const profile = DISTRIBUTION_PROFILES[releaseType];
   if (!profile) {
     throw new Error(`audienceSimulationInputs: unsupported release type "${releaseType}" - Streaming has no theatrical-admissions model yet`);
   }
   return profile;
 }
 
-// --- Conversion pacing baseline: release type + release window/genre fit
+// --- Conversion pacing baseline: distribution + release window/genre fit
 // + Buzz's event-scarcity urgency ------------------------------------------
 //
 // Release window's seasonal crowd and genre-specific bonus (data/release.ts,
@@ -321,54 +383,72 @@ function releaseTypeProfile(releaseType: SupportedReleaseType): ReleaseTypeAudie
 // help Horror") don't change *who* could like the film - they change how
 // ready people already interested are to act *now*, which is exactly
 // ConversionPacing's job description (DESIGN.md 5.34), not
-// totalAddressableAudience's. Release Type remains the *primary* driver
+// totalAddressableAudience's. Distribution remains the *primary* driver
 // (DESIGN.md 5.34) - Buzz only adds a modest secondary boost, deliberately
 // small (BUZZ_URGENCY_WEIGHT) so a high-buzz Limited release doesn't
 // quietly become Wide's pacing in disguise, but real: an "everyone's
 // talking about it, see it this weekend" event film genuinely converts its
 // opening-week crowd faster than a same-release-type film nobody's
 // buzzing about, independent of whatever word of mouth does afterward.
+// This is buzzScore's one remaining job in this module (Milestone 11
+// removed its old awareness-seeding role - see computeCastReachFraction
+// below) - urgency/pacing legitimately wants the same composite "how much
+// is everyone talking about this right now" reading awareness generation
+// no longer does.
 const BUZZ_URGENCY_WEIGHT = 0.5;
 function computeConversionPacingBaseline(releaseType: SupportedReleaseType, releaseWindow: ReleaseWindow, genre: Genre, buzzScore: number): number {
   const windowBase = RELEASE_WINDOW_BASE_MULTIPLIER[releaseWindow];
   const windowGenreBonus = RELEASE_WINDOW_GENRE_BONUS[releaseWindow][genre] ?? 1;
   const buzzUrgency = 1 + BUZZ_URGENCY_WEIGHT * (buzzScore / 100);
-  return clamp(releaseTypeProfile(releaseType).conversionPacingBaseline * windowBase * windowGenreBonus * buzzUrgency, 0, 1);
+  return clamp(distributionProfile(releaseType).conversionPacingBaseline * windowBase * windowGenreBonus * buzzUrgency, 0, 1);
 }
 
 // --- Initial (release-day) awareness seed -----------------------------------
 //
-// Buzz and marketing spend are kept as two independently-tunable channels
-// per DESIGN.md 5.34's "where each lever enters" table, not merged into
-// one number: Buzz already blends fame/reputation/marketing/events into a
-// single 0-100 hype reading (engine/scoring.ts:computeBuzzScore) and is
-// reused verbatim; marketing spend is the direct currency lever, filtered
-// through marketingEfficiency (pitch clarity) the way Buzz isn't.
+// Milestone 11 (docs/DESIGN.md - "release-input separation of concerns")
+// rebuilt this from the ground up around a diagnostic finding: the old
+// formula fed `buzzScore` (already a composite that blends marketing spend
+// in via computeBuzzScore's own `marketingBuzz` term) into one reach
+// channel, and `marketingSpend` directly into a second, separate reach
+// channel - the same marketing pound was silently counted twice, through
+// two different curves, which diluted marketing's own relative importance
+// and made it hard to reason about ("why does an unknown studio with
+// average buzz and moderately famous actors already carry meaningful
+// demand"). Awareness is now built from exactly three inputs, each counted
+// once: marketing spend (dominant - "marketing buys awareness, not
+// quality"), a direct cast/reputation "who's involved" reach term (director
+// + lead fame, independent of buzzScore), and marketingEfficiency
+// (studioReputation-driven - see above). `buzzScore` no longer appears
+// anywhere in this function.
 //
-// The convex low-Buzz floor already approved for Milestone 2's reception
-// multiplier is reused here for the *same* reason boxOffice.ts's
-// HYPE_FLOOR exists: zero or near-zero Buzz must produce a negligible
-// opening, not a respectable baseline (own constants, not imported from
+// The convex low-fame floor mirrors the same shape Milestone 2's reception
+// multiplier already established (own constants, not imported from
 // boxOffice.ts, to keep this module's only coupling to the old model at
-// the data-table level, not the formula level).
-const BUZZ_REACH_FLOOR = 0.02;
-function buzzReachFraction(buzzScore: number): number {
-  return BUZZ_REACH_FLOOR + (1 - BUZZ_REACH_FLOOR) * (buzzScore / 100) ** 2;
+// the data-table level, not the formula level): a genuinely obscure cast
+// must produce negligible organic reach on its own, not a respectable
+// baseline.
+function computeCastReachFraction(directorFame: number, leadFame: number): number {
+  const combinedFame = clamp(directorFame, 0, 100) * 0.35 + clamp(leadFame, 0, 100) * 0.65;
+  return (combinedFame / 100) ** 2;
 }
 
 // Log-scale anchors mapping a marketing spend amount (data/release.ts's
 // £10k-£150M range) onto a 0-1 raw reach fraction, before marketingEfficiency
-// scaling - same logT/interpolateScale machinery data/release.ts's own
-// MARKETING_SPEND_ANCHORS already uses for Buzz's marketing contribution,
-// but a separate anchor table: that one feeds computeBuzzScore, this one
-// feeds initial awareness directly, and the two channels are deliberately
-// allowed to both draw on the same spend amount (see module header).
+// scaling. Deliberately steeper than a naive log-linear curve would produce
+// (re-picked this milestone against a diagnostic sweep, not the original
+// Milestone 3 anchors - see that milestone's DESIGN.md note for the
+// before/after numbers): a token campaign (a few hundred thousand pounds)
+// needs to buy only a sliver of a worldwide addressable population's
+// awareness, while a genuine blockbuster-scale campaign (tens/hundreds of
+// millions) needs real room to keep paying off, so marketing spend reads
+// as a satisfying, dramatic progression lever across a playthrough rather
+// than saturating early.
 const MARKETING_REACH_ANCHORS: ScaleAnchor<'reach'>[] = [
   { t: 0, values: { reach: 0 }, description: 'Essentially no marketing reach.' },
-  { t: 0.25, values: { reach: 0.08 }, description: 'A modest local campaign.' },
-  { t: 0.5, values: { reach: 0.2 }, description: 'A real regional campaign.' },
-  { t: 0.75, values: { reach: 0.45 }, description: 'A national blitz.' },
-  { t: 1, values: { reach: 0.8 }, description: 'A global blockbuster campaign.' },
+  { t: 0.25, values: { reach: 0.03 }, description: 'A modest local campaign.' },
+  { t: 0.5, values: { reach: 0.12 }, description: 'A real regional campaign.' },
+  { t: 0.75, values: { reach: 0.35 }, description: 'A national blitz.' },
+  { t: 1, values: { reach: 0.85 }, description: 'A global blockbuster campaign.' },
 ];
 
 function marketingReachFraction(marketingSpend: number): number {
@@ -376,37 +456,42 @@ function marketingReachFraction(marketingSpend: number): number {
   return interpolateScale(t, MARKETING_REACH_ANCHORS, 'reach');
 }
 
-// Buzz-weighted higher than marketing spend: Buzz already absorbs marketing
-// spend as one of several inputs (see module header), so weighting it
-// higher here doesn't starve a high-Buzz, low-direct-spend film (a famous
-// director/cast can carry an opening on reputation alone) while a
-// marketing-only push still meaningfully moves the needle on its own.
-const BUZZ_REACH_WEIGHT = 0.55;
-const MARKETING_REACH_WEIGHT = 0.45;
+// Marketing weighted far higher than the cast/reputation "who's involved"
+// channel - satisfies the explicit "marketing should become one of the
+// strongest progression mechanics... marketing buys awareness, not
+// quality" brief. The cast channel still keeps a real, nonzero floor: a
+// famous director/cast can still carry a meaningful opening on reputation
+// alone even with a token marketing spend, the same "genuinely obscure
+// cast produces negligible reach, genuinely famous cast still matters"
+// shape as before, just no longer the dominant channel.
+const CAST_REACH_WEIGHT = 0.25;
+const MARKETING_REACH_WEIGHT = 0.75;
 
 function computeInitialAwareCount(fixed: {
   totalAddressableAudience: number;
   marketingEfficiency: number;
-}, buzzScore: number, marketingSpend: number, releaseType: SupportedReleaseType): number {
+}, directorFame: number, leadFame: number, marketingSpend: number): number {
   const rawReach = clamp(
-    BUZZ_REACH_WEIGHT * buzzReachFraction(buzzScore) + MARKETING_REACH_WEIGHT * marketingReachFraction(marketingSpend) * fixed.marketingEfficiency,
+    CAST_REACH_WEIGHT * computeCastReachFraction(directorFame, leadFame) + MARKETING_REACH_WEIGHT * marketingReachFraction(marketingSpend) * fixed.marketingEfficiency,
     0,
     1,
   );
-  return fixed.totalAddressableAudience * releaseTypeProfile(releaseType).initialAwarenessShare * rawReach;
+  return fixed.totalAddressableAudience * rawReach;
 }
 
 // --- Ongoing external awareness trickle -------------------------------------
 //
 // A small residual rate, distinct from the one-time seed above - continued
-// press/incidental discovery during the run, scaled by release type (a
-// wide rollout keeps generating incidental discovery in a way a
-// restricted Festival First run doesn't) and lightly by marketingEfficiency
-// (a well-pitched film's marketing keeps paying off a little after
-// opening too).
+// press/incidental discovery during the run. Milestone 11 removed this
+// function's old release-type scaling for the same reason initial awareness
+// lost it: how widely a film is *playing* is a distribution question, not
+// an awareness one, and there's a real, honest marketing story
+// (marketingEfficiency, driven by studioReputation) still doing the actual
+// scaling work here - a well-reputed studio's marketing keeps paying off a
+// little after opening too, regardless of how many screens the film is on.
 const EXTERNAL_AWARENESS_BASE_RATE = 0.03;
-function computeExternalWeeklyAwarenessRate(releaseType: SupportedReleaseType, marketingEfficiency: number): number {
-  return clamp(EXTERNAL_AWARENESS_BASE_RATE * releaseTypeProfile(releaseType).ongoingAwarenessFactor * (0.5 + 0.5 * marketingEfficiency), 0, 1);
+function computeExternalWeeklyAwarenessRate(marketingEfficiency: number): number {
+  return clamp(EXTERNAL_AWARENESS_BASE_RATE * (0.5 + 0.5 * marketingEfficiency), 0, 1);
 }
 
 /**
@@ -418,26 +503,26 @@ function computeExternalWeeklyAwarenessRate(releaseType: SupportedReleaseType, m
  */
 export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInputs): AudienceSimulationFixedState {
   const totalAddressableAudience = computeTotalAddressableAudience(inputs.genre, inputs.targetAudience);
-  const baseInterestFraction = computeBaseInterestFraction(inputs.scriptMarketability, inputs.targetAudience, inputs.scriptIntendedAudience);
+  const baseInterestFraction = computeBaseInterestFraction(inputs.scriptAccessibility, inputs.targetAudience, inputs.scriptIntendedAudience);
   const crossoverCapacityFraction = computeCrossoverCapacityFraction(
     inputs.scriptOriginality,
     inputs.scriptSpectacle,
-    inputs.scriptMarketability,
+    inputs.scriptHookStrength,
     inputs.criticScore,
     inputs.genre,
     inputs.targetAudience,
   );
-  const marketingEfficiency = computeMarketingEfficiency(inputs.scriptMarketability, inputs.scriptOriginality);
+  const marketingEfficiency = computeMarketingEfficiency(inputs.studioReputation);
   const conversionPacingBaseline = computeConversionPacingBaseline(inputs.releaseType, inputs.releaseWindow, inputs.genre, inputs.buzzScore);
-  const externalWeeklyAwarenessRate = computeExternalWeeklyAwarenessRate(inputs.releaseType, marketingEfficiency);
+  const externalWeeklyAwarenessRate = computeExternalWeeklyAwarenessRate(marketingEfficiency);
   const initialAwareCount = computeInitialAwareCount(
     { totalAddressableAudience, marketingEfficiency },
-    inputs.buzzScore,
+    inputs.directorFame,
+    inputs.leadFame,
     inputs.marketingSpend,
-    inputs.releaseType,
   );
 
-  const releaseAvailability = releaseTypeProfile(inputs.releaseType);
+  const distribution = distributionProfile(inputs.releaseType);
 
   return createAudienceSimulationFixedState({
     totalAddressableAudience,
@@ -449,8 +534,8 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
     criticScore: inputs.criticScore,
     audienceScore: inputs.audienceScore,
     initialAwareCount,
-    initialAvailabilityFraction: releaseAvailability.initialAvailabilityFraction,
-    availabilityBaseWeeklyDecay: releaseAvailability.availabilityBaseWeeklyDecay,
-    criticLedExpansionWeight: releaseAvailability.criticLedExpansionWeight,
+    initialAvailabilityFraction: distribution.initialAvailabilityFraction,
+    availabilityBaseWeeklyDecay: distribution.availabilityBaseWeeklyDecay,
+    criticLedExpansionWeight: distribution.criticLedExpansionWeight,
   });
 }

@@ -69,6 +69,12 @@ function syntheticEvent(qualityDelta: number, buzzDelta: number): ProductionEven
   return { id: 'synthetic', description: 'Aggregate event impact (Outcome Inspector)', severity: 'medium', costDelta: 0, qualityDelta, buzzDelta, delayDaysDelta: 0 };
 }
 
+/** Average fame across every hired member of one role - mirrors engine/releaseFilm.ts's own averageFame, used here to feed AudienceSimulationDiagnostics the same directorFame/leadFame inputs a real release computes. */
+function averageFame(talent: Talent[], role: Talent['role']): number {
+  const matching = talent.filter((t) => t.role === role);
+  return matching.length > 0 ? matching.reduce((sum, t) => sum + t.fame, 0) / matching.length : 0;
+}
+
 function SliderRow({
   label,
   value,
@@ -393,7 +399,11 @@ export function OutcomeInspector() {
         releaseType={marketingChoices.releaseType}
         buzzScore={results.buzzScore}
         marketingSpend={marketingChoices.marketingSpend}
-        scriptMarketability={deriveCommercialProfile(script).accessibility}
+        directorFame={averageFame(talent, 'Director')}
+        leadFame={averageFame(talent, 'Lead Actor')}
+        studioReputation={studioReputation}
+        scriptAccessibility={deriveCommercialProfile(script).accessibility}
+        scriptHookStrength={deriveCommercialProfile(script).hookStrength}
         scriptOriginality={script.originality}
         scriptSpectacle={script.toneProfile.spectacle}
         scriptIntendedAudience={script.intendedAudience}
