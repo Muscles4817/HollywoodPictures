@@ -301,7 +301,7 @@ export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplie
             <OnSetDecisionCard
               pendingChoice={pendingChoice}
               talent={draft.talent}
-              talentPool={state.studio.talentPool}
+              talentPool={state.talentPool}
               script={draft.script}
               onChoose={(choiceId) => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId, productionId: viewingProductionId ?? undefined })}
             />

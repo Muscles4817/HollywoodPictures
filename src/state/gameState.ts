@@ -18,8 +18,6 @@ import type {
   TargetAudience,
   WizardStep,
 } from '../types';
-import { generateTalentPool } from '../engine/talentGenerator';
-import type { RandomFn } from '../engine/random';
 
 export interface GameState {
   studio: Studio;
@@ -33,6 +31,8 @@ export interface GameState {
   rivalProductionsInProgress: RivalProductionInProgress[];
   /** Parallel to studio.filmsReleased, but never touches the player's own cash/reputation - purely for the market (Top 10 chart, talent contention history). */
   rivalFilmsReleased: Film[];
+  /** The whole hireable roster, generated once at game start - world-level (shared by the player and every rival's own casting, see engine/rivalStudios.ts) rather than nested inside the player's own Studio. */
+  talentPool: Record<TalentRole, Talent[]>;
   /** Which rival studio the 'rival-studio' screen is currently showing, if any - identified by name, same as Film.releasedBy (see types/index.ts:Film). */
   viewingRivalStudioName: string | null;
   // Which Studio.productionsInProgress entry the 'production' screen is
@@ -48,18 +48,18 @@ export interface GameState {
 }
 
 /**
- * A brand new studio, including its talent pool - the whole hireable
- * roster, generated once here and never regenerated for the life of this
- * save (see engine/talentGenerator.ts:generateTalentPool). Needs an RNG
- * because of that, unlike a plain constant.
+ * A brand new studio - no randomness needed for its own fields (the talent
+ * pool is generated alongside this, via engine/talentGenerator.ts's
+ * generateTalentPool, but lives on GameState, not here - it's world-level,
+ * shared by the player and every rival's own casting, not this one studio's
+ * business).
  */
-export function createInitialStudio(rng: RandomFn, startingCash: number): Studio {
+export function createInitialStudio(startingCash: number): Studio {
   return {
     name: 'Silver Reel Pictures',
     cash: startingCash,
     reputation: 20,
     filmsReleased: [],
-    talentPool: generateTalentPool(rng),
     productionsInProgress: [],
   };
 }

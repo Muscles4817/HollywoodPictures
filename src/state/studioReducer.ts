@@ -11,8 +11,9 @@ import { adaptRecommendationsToProductionChoices } from '../engine/productionCho
 import { STAGE_DURATIONS } from '../data/schedule';
 import { computeReleaseResults } from '../engine/releaseFilm';
 import { settleBoxOfficeForAllFilms, type BoxOfficeSettlement } from '../engine/boxOfficeRun';
-import { settleRivalMarket, generateRivalStudios, type RivalMarketUpdate } from '../engine/rivalStudios';
+import { settleRivalMarket, generateRivalStudios } from '../engine/rivalStudios';
 import { settleProductionsInProgress } from '../engine/productionsInProgress';
+import { generateTalentPool } from '../engine/talentGenerator';
 import { applyReputationChange } from '../engine/reputation';
 import type { Studio } from '../types';
 
@@ -56,21 +57,6 @@ function applyBoxOfficeSettlement<S extends { cash: number; reputation: number; 
     reputation: applyReputationChange(studio.reputation, settlement.reputationDelta),
     filmsReleased: settlement.filmsReleased,
   };
-}
-
-/**
- * Folds a rival-market tick's talentPool update into a Studio object -
- * called alongside applyBoxOfficeSettlement at every one of the same call
- * sites, since a rival's production/release/weekly box office all move on
- * the same calendar the player's own films do. Never touches cash/
- * reputation - none of it is the player's. The other three
- * RivalMarketUpdate fields (rivalStudios/rivalProductionsInProgress/
- * rivalFilmsReleased) are world-level, not the player's Studio's own
- * business - each call site spreads those directly onto GameState instead
- * (see GameState.rivalStudios). See engine/rivalStudios.ts:settleRivalMarket.
- */
-function applyRivalMarketSettlement(studio: Studio, update: RivalMarketUpdate): Studio {
-  return { ...studio, talentPool: update.talentPool };
 }
 
 /**
@@ -152,12 +138,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             rivalStudios: state.rivalStudios,
             rivalProductionsInProgress: state.rivalProductionsInProgress,
             rivalFilmsReleased: state.rivalFilmsReleased,
-            talentPool: state.studio.talentPool,
+            talentPool: state.talentPool,
           },
           totalDaysAfter,
           rng,
         );
-        const productionsInProgress = settleProductionsInProgress(state.studio.productionsInProgress, 1, state.studio.talentPool, rng);
+        const productionsInProgress = settleProductionsInProgress(state.studio.productionsInProgress, 1, state.talentPool, rng);
         return { settlement, rivalMarket, productionsInProgress };
       });
       return {
@@ -167,11 +153,9 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         rivalStudios: result.rivalMarket.rivalStudios,
         rivalProductionsInProgress: result.rivalMarket.rivalProductionsInProgress,
         rivalFilmsReleased: result.rivalMarket.rivalFilmsReleased,
+        talentPool: result.rivalMarket.talentPool,
         studio: {
-          ...applyRivalMarketSettlement(
-            applyBoxOfficeSettlement(state.studio, result.settlement),
-            result.rivalMarket,
-          ),
+          ...applyBoxOfficeSettlement(state.studio, result.settlement),
           productionsInProgress: result.productionsInProgress,
         },
       };
@@ -210,12 +194,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             rivalStudios: state.rivalStudios,
             rivalProductionsInProgress: state.rivalProductionsInProgress,
             rivalFilmsReleased: state.rivalFilmsReleased,
-            talentPool: state.studio.talentPool,
+            talentPool: state.talentPool,
           },
           totalDaysAfter,
           rng,
         );
-        const productionsInProgress = settleProductionsInProgress(state.studio.productionsInProgress, stageDuration, state.studio.talentPool, rng);
+        const productionsInProgress = settleProductionsInProgress(state.studio.productionsInProgress, stageDuration, state.talentPool, rng);
         return { settlement, rivalMarket, productionsInProgress };
       });
       return {
@@ -226,12 +210,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         rivalStudios: result.rivalMarket.rivalStudios,
         rivalProductionsInProgress: result.rivalMarket.rivalProductionsInProgress,
         rivalFilmsReleased: result.rivalMarket.rivalFilmsReleased,
+        talentPool: result.rivalMarket.talentPool,
         viewingProductionId: null,
         studio: {
-          ...applyRivalMarketSettlement(
-            applyBoxOfficeSettlement(state.studio, result.settlement),
-            result.rivalMarket,
-          ),
+          ...applyBoxOfficeSettlement(state.studio, result.settlement),
           productionsInProgress: result.productionsInProgress,
         },
         draft: { ...state.draft, furthestStepIndexCharged: fromIdx },
@@ -436,7 +418,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           usedIds,
           d.talent,
           d.script,
-          state.studio.talentPool,
+          state.talentPool,
           rng,
         );
         if (rolled && 'pendingChoice' in rolled) {
@@ -447,12 +429,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             rivalStudios: state.rivalStudios,
             rivalProductionsInProgress: state.rivalProductionsInProgress,
             rivalFilmsReleased: state.rivalFilmsReleased,
-            talentPool: state.studio.talentPool,
+            talentPool: state.talentPool,
           },
           totalDaysAfter,
           rng,
         );
-          const productionsInProgress = settleProductionsInProgress(state.studio.productionsInProgress, 1, state.studio.talentPool, rng);
+          const productionsInProgress = settleProductionsInProgress(state.studio.productionsInProgress, 1, state.talentPool, rng);
           return { kind: 'pendingChoice' as const, pendingChoice: rolled.pendingChoice, totalDaysAfter, settlement, rivalMarket, productionsInProgress };
         }
         const event = rolled?.event ?? null;
@@ -464,12 +446,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             rivalStudios: state.rivalStudios,
             rivalProductionsInProgress: state.rivalProductionsInProgress,
             rivalFilmsReleased: state.rivalFilmsReleased,
-            talentPool: state.studio.talentPool,
+            talentPool: state.talentPool,
           },
           totalDaysAfter,
           rng,
         );
-        const productionsInProgress = settleProductionsInProgress(state.studio.productionsInProgress, daysAdvanced, state.studio.talentPool, rng);
+        const productionsInProgress = settleProductionsInProgress(state.studio.productionsInProgress, daysAdvanced, state.talentPool, rng);
         return { kind: 'event' as const, event, daysAdvanced, totalDaysAfter, settlement, rivalMarket, productionsInProgress };
       });
 
@@ -483,11 +465,9 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           rivalStudios: result.rivalMarket.rivalStudios,
           rivalProductionsInProgress: result.rivalMarket.rivalProductionsInProgress,
           rivalFilmsReleased: result.rivalMarket.rivalFilmsReleased,
+          talentPool: result.rivalMarket.talentPool,
           studio: {
-            ...applyRivalMarketSettlement(
-              applyBoxOfficeSettlement(state.studio, result.settlement),
-              result.rivalMarket,
-            ),
+            ...applyBoxOfficeSettlement(state.studio, result.settlement),
             productionsInProgress: result.productionsInProgress,
           },
           draft: {
@@ -512,11 +492,9 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         rivalStudios: rivalMarket.rivalStudios,
         rivalProductionsInProgress: rivalMarket.rivalProductionsInProgress,
         rivalFilmsReleased: rivalMarket.rivalFilmsReleased,
+        talentPool: rivalMarket.talentPool,
         studio: {
-          ...applyRivalMarketSettlement(
-            applyBoxOfficeSettlement(state.studio, settlement),
-            rivalMarket,
-          ),
+          ...applyBoxOfficeSettlement(state.studio, settlement),
           productionsInProgress,
         },
         draft: {
@@ -561,7 +539,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             rivalStudios: state.rivalStudios,
             rivalProductionsInProgress: state.rivalProductionsInProgress,
             rivalFilmsReleased: state.rivalFilmsReleased,
-            talentPool: state.studio.talentPool,
+            talentPool: state.talentPool,
           },
           totalDaysAfter,
           rng,
@@ -573,18 +551,15 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         const others = action.productionId
           ? state.studio.productionsInProgress.filter((p) => p.id !== action.productionId)
           : state.studio.productionsInProgress;
-        const productionsInProgress = settleProductionsInProgress(others, event.delayDaysDelta, state.studio.talentPool, rng);
+        const productionsInProgress = settleProductionsInProgress(others, event.delayDaysDelta, state.talentPool, rng);
         return { event, totalDaysAfter, settlement, rivalMarket, productionsInProgress };
       });
       const { event, totalDaysAfter, settlement, rivalMarket, productionsInProgress } = result;
 
-      const { draft: resolvedTarget, cashDelta } = resolveChoiceOnDraft(target, pendingChoice, action.choiceId, event, state.studio.talentPool);
+      const { draft: resolvedTarget, cashDelta } = resolveChoiceOnDraft(target, pendingChoice, action.choiceId, event, state.talentPool);
 
       const studioAfter: Studio = {
-        ...applyRivalMarketSettlement(
-          applyBoxOfficeSettlement(state.studio, settlement),
-          rivalMarket,
-        ),
+        ...applyBoxOfficeSettlement(state.studio, settlement),
         cash: state.studio.cash + settlement.cashCredit + cashDelta,
         productionsInProgress: action.productionId ? [...productionsInProgress, resolvedTarget] : productionsInProgress,
       };
@@ -596,6 +571,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         rivalStudios: rivalMarket.rivalStudios,
         rivalProductionsInProgress: rivalMarket.rivalProductionsInProgress,
         rivalFilmsReleased: rivalMarket.rivalFilmsReleased,
+        talentPool: rivalMarket.talentPool,
         studio: studioAfter,
         draft: action.productionId ? state.draft : resolvedTarget,
       };
@@ -737,7 +713,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             rivalStudios: state.rivalStudios,
             rivalProductionsInProgress: state.rivalProductionsInProgress,
             rivalFilmsReleased: state.rivalFilmsReleased,
-            talentPool: state.studio.talentPool,
+            talentPool: state.talentPool,
           },
           totalDaysAfter,
           rng,
@@ -745,7 +721,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         const productionsInProgress = settleProductionsInProgress(
           state.studio.productionsInProgress,
           STAGE_DURATIONS.marketing ?? 0,
-          state.studio.talentPool,
+          state.talentPool,
           rng,
         );
         return { totalCost: results.totalCost, filmId: film.id, settlement, rivalMarket, productionsInProgress };
@@ -759,10 +735,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const alreadyCharged = computeTalentCost(d.talent) + computeProductionBudgetCost(d.productionChoices) + d.photography.runningCost;
       const cashAfterCosts = state.studio.cash - (result.totalCost - alreadyCharged);
       const studioAfter: Studio = {
-        ...applyRivalMarketSettlement(
-          applyBoxOfficeSettlement({ ...state.studio, cash: cashAfterCosts }, result.settlement),
-          result.rivalMarket,
-        ),
+        ...applyBoxOfficeSettlement({ ...state.studio, cash: cashAfterCosts }, result.settlement),
         productionsInProgress: result.productionsInProgress,
       };
       const releasedFilm = studioAfter.filmsReleased.find((f) => f.id === result.filmId)!;
@@ -775,6 +748,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         rivalStudios: result.rivalMarket.rivalStudios,
         rivalProductionsInProgress: result.rivalMarket.rivalProductionsInProgress,
         rivalFilmsReleased: result.rivalMarket.rivalFilmsReleased,
+        talentPool: result.rivalMarket.talentPool,
         studio: studioAfter,
         draft: { ...d, results: releasedFilm.results },
       };
@@ -816,7 +790,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // has no hard cap.
       const bookedUntil = state.totalDays + d.photography.recommendedDays;
       const bookedIds = new Set(d.talent.map((t) => t.id));
-      const talentPool = { ...state.studio.talentPool };
+      const talentPool = { ...state.talentPool };
       for (const role of Object.keys(talentPool) as TalentRole[]) {
         talentPool[role] = talentPool[role].map((t) => (bookedIds.has(t.id) ? { ...t, bookedUntil } : t));
       }
@@ -826,9 +800,9 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         draft: null,
         viewingRivalStudioName: null,
         viewingProductionId: null,
+        talentPool,
         studio: {
           ...state.studio,
-          talentPool,
           productionsInProgress: [...state.studio.productionsInProgress, d],
         },
       };
@@ -838,15 +812,16 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // A fresh studio gets a brand new talent pool and rival roster too -
       // reusing the old ones would defeat the point of resetting.
       const { result, nextSeed } = withRng(randomSeed(), (rng) => ({
-        studio: createInitialStudio(rng, action.startingCash),
+        talentPool: generateTalentPool(rng),
         rivalStudios: generateRivalStudios(rng),
       }));
       return {
-        studio: result.studio,
+        studio: createInitialStudio(action.startingCash),
         screen: 'dashboard',
         draft: null,
         rngSeed: nextSeed,
         totalDays: 1,
+        talentPool: result.talentPool,
         rivalStudios: result.rivalStudios,
         rivalProductionsInProgress: [],
         rivalFilmsReleased: [],

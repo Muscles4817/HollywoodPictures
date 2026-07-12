@@ -10,7 +10,7 @@
 import type { FilmDraft, MarketingChoices, PhotographyState, PostProductionChoices, ProductionChoices } from '../types';
 import { createEmptyDraft, createInitialStudio, type GameState } from './gameState';
 import { generateScriptOptions } from '../engine/scriptGenerator';
-import { generateTalentCandidates } from '../engine/talentGenerator';
+import { generateTalentCandidates, generateTalentPool } from '../engine/talentGenerator';
 import { withRng, type RandomFn } from '../engine/random';
 
 const PRODUCTION_CHOICES: ProductionChoices = {
@@ -74,9 +74,10 @@ export function buildStateWithReadyDraft(seed: number, marketingOverrides: Parti
     // - settleProductionsInProgress crashes on undefined without this. Not
     // fixed here since it isn't this fixture's job to patch gameState.ts;
     // just guaranteeing this test fixture's own studio is well-formed.
-    const studio = { ...createInitialStudio(rng, 50_000_000), productionsInProgress: [] };
+    const studio = { ...createInitialStudio(50_000_000), productionsInProgress: [] };
+    const talentPool = generateTalentPool(rng);
     const draft = buildReadyDraft(rng, marketingOverrides);
-    return { studio, draft };
+    return { studio, talentPool, draft };
   });
   return {
     studio: result.studio,
@@ -84,6 +85,7 @@ export function buildStateWithReadyDraft(seed: number, marketingOverrides: Parti
     draft: result.draft,
     rngSeed: nextSeed,
     totalDays: 1,
+    talentPool: result.talentPool,
     rivalStudios: [],
     rivalProductionsInProgress: [],
     rivalFilmsReleased: [],

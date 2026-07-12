@@ -1,6 +1,7 @@
 import type { GameState } from './gameState';
 import { createInitialStudio } from './gameState';
 import { generateRivalStudios } from '../engine/rivalStudios';
+import { generateTalentPool } from '../engine/talentGenerator';
 import { randomSeed, withRng } from '../engine/random';
 
 // Bump this whenever a persisted shape changes incompatibly (e.g. v2 -> v3
@@ -106,7 +107,13 @@ import { randomSeed, withRng } from '../engine/random';
 // studio object still carries all three nested inside it and has none of
 // them at the top level - same class of break as every past shape change
 // here, no migration code.
-const SAVE_KEY = 'hollywood-pictures-save-v24';
+// v24 -> v25 (architecture roadmap Phase 1.3): Studio.talentPool moved to
+// GameState.talentPool - the shared hireable roster is world-level (every
+// rival studio casts from the same pool, engine/rivalStudios.ts), not the
+// player's own studio's data. A v24 save's studio object still carries
+// talentPool nested inside it and has none at the top level - same class
+// of break as every past shape change here, no migration code.
+const SAVE_KEY = 'hollywood-pictures-save-v25';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
@@ -122,15 +129,16 @@ export function loadState(): GameState {
     // No save (or an incompatible one) - generate a fresh studio, including
     // its talent pool and rival roster, from a genuinely random seed.
     const { result, nextSeed } = withRng(randomSeed(), (rng) => ({
-      studio: createInitialStudio(rng, DEFAULT_STARTING_CASH),
+      talentPool: generateTalentPool(rng),
       rivalStudios: generateRivalStudios(rng),
     }));
     return {
-      studio: result.studio,
+      studio: createInitialStudio(DEFAULT_STARTING_CASH),
       screen: 'dashboard',
       draft: null,
       rngSeed: nextSeed,
       totalDays: 1,
+      talentPool: result.talentPool,
       rivalStudios: result.rivalStudios,
       rivalProductionsInProgress: [],
       rivalFilmsReleased: [],

@@ -14,6 +14,7 @@ import { ProductionRun } from './ProductionRun';
 import { createInitialStudio, type GameState } from '../../state/gameState';
 import { buildReadyDraft } from '../../state/testFixtures';
 import { saveState } from '../../state/persistence';
+import { generateTalentPool } from '../../engine/talentGenerator';
 import { withRng } from '../../engine/random';
 import type { FilmDraft, PhotographyState } from '../../types';
 
@@ -24,7 +25,8 @@ beforeEach(() => {
 const NOOP_TICK_PROPS = { paused: false, onTogglePause: () => {}, tickNonce: 0, speedMultiplier: 1 as const, onSetSpeedMultiplier: () => {} };
 
 function stateWithInProgressShoot(photographyOverrides: Partial<PhotographyState> = {}, viewingProductionId: string | null = null): GameState {
-  const { result: studio, nextSeed } = withRng(1, (rng) => createInitialStudio(rng, 10_000_000));
+  const studio = createInitialStudio(10_000_000);
+  const { result: talentPool, nextSeed } = withRng(1, (rng) => generateTalentPool(rng));
   const draft: FilmDraft = {
     ...withRng(2, (rng) => buildReadyDraft(rng)).result,
     photography: { status: 'in-progress', recommendedDays: 40, daysElapsed: 10, events: [], runningCost: 300_000, pendingChoice: null, ...photographyOverrides },
@@ -35,6 +37,7 @@ function stateWithInProgressShoot(photographyOverrides: Partial<PhotographyState
     draft: viewingProductionId ? null : draft,
     rngSeed: nextSeed,
     totalDays: 1,
+    talentPool,
     rivalStudios: [],
     rivalProductionsInProgress: [],
     rivalFilmsReleased: [],

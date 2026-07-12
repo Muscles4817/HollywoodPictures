@@ -603,8 +603,6 @@ export interface Studio {
   cash: number;
   reputation: number; // 0-100
   filmsReleased: Film[];
-  /** The whole hireable roster, generated once at game start - see state/gameState.ts:createInitialStudio. */
-  talentPool: Record<TalentRole, Talent[]>;
   // The player's own shoots running in the background - a FilmDraft sent
   // here (RETURN_TO_DASHBOARD) instead of being discarded, once its
   // photography has actually started, so the player can develop/cast/plan a
@@ -634,7 +632,7 @@ export interface FilmDraft {
   scriptOptions: Script[];
   script: Script | null;
   talent: Talent[];
-  /** The price the player is currently targeting for each role - filters studio.talentPool down to who's shown. */
+  /** The price the player is currently targeting for each role - filters GameState.talentPool down to who's shown. */
   talentTargetPriceByRole: Partial<Record<TalentRole, number>>;
   // The player's own Strategy/Ambition choices from the redesigned Plan
   // Production screen - null until that screen has been visited at least

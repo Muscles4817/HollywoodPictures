@@ -12,6 +12,7 @@ import { StudioProvider } from '../../state/StudioContext';
 import { DevelopFilm } from './DevelopFilm';
 import { studioReducer } from '../../state/studioReducer';
 import { createInitialStudio, type GameState } from '../../state/gameState';
+import { generateTalentPool } from '../../engine/talentGenerator';
 import { saveState } from '../../state/persistence';
 import { withRng } from '../../engine/random';
 import { ARCHETYPE_LABELS, STORY_TYPE_LABELS, SETTING_LABELS } from '../../data/scriptTagLabels';
@@ -21,13 +22,15 @@ beforeEach(() => {
 });
 
 function stateWithGenreSelected(seed: number): GameState {
-  const { result: studio, nextSeed } = withRng(seed, (rng) => createInitialStudio(rng, 10_000_000));
+  const { result, nextSeed } = withRng(seed, (rng) => ({ talentPool: generateTalentPool(rng) }));
+  const studio = createInitialStudio(10_000_000);
   let state: GameState = {
     studio,
     screen: 'dashboard',
     draft: null,
     rngSeed: nextSeed,
     totalDays: 1,
+    talentPool: result.talentPool,
     rivalStudios: [],
     rivalProductionsInProgress: [],
     rivalFilmsReleased: [],

@@ -17,18 +17,21 @@
 import { describe, it, expect } from 'vitest';
 import { studioReducer } from './studioReducer';
 import { createInitialStudio, createEmptyDraft, type GameState } from './gameState';
+import { generateTalentPool } from '../engine/talentGenerator';
 import { withRng } from '../engine/random';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import type { EffectsMethodKey, EnvironmentMethodKey } from '../types';
 
 function freshState(seed: number): GameState {
-  const { result: studio, nextSeed } = withRng(seed, (rng) => ({ ...createInitialStudio(rng, 50_000_000), productionsInProgress: [] }));
+  const { result, nextSeed } = withRng(seed, (rng) => ({ talentPool: generateTalentPool(rng) }));
+  const studio = { ...createInitialStudio(50_000_000), productionsInProgress: [] };
   return {
     studio,
     screen: 'dashboard',
     draft: null,
     rngSeed: nextSeed,
     totalDays: 1,
+    talentPool: result.talentPool,
     rivalStudios: [],
     rivalProductionsInProgress: [],
     rivalFilmsReleased: [],
@@ -69,7 +72,7 @@ function walkFilmThroughWizard(state: GameState): GameState {
   expect(s.screen).toBe('talent');
 
   for (const role of MANDATORY_TALENT_ROLES) {
-    const candidate = s.studio.talentPool[role]?.[0];
+    const candidate = s.talentPool[role]?.[0];
     expect(candidate, `no ${role} candidate in the generated talent pool`).toBeDefined();
     s = studioReducer(s, { type: 'SET_TALENT_FOR_ROLE', role, talent: candidate! });
   }

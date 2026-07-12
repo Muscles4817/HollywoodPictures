@@ -98,7 +98,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   const range = ROLE_GENERATION_PROFILES[role].salaryRange;
   const capacity = effectiveRoleCapacity(role, draft.script);
   const targetPrice = draft.talentTargetPriceByRole[role] ?? logAmount(0.5, range);
-  const candidates = state.studio.talentPool[role];
+  const candidates = state.talentPool[role];
   const hired = draft.talent.filter((t) => t.role === role);
   const atCap = hired.length >= capacity.max;
   const showVfxHint = role === 'VFX Supervisor' && draft.genre && VFX_RECOMMENDED_GENRES.has(draft.genre);
@@ -108,7 +108,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   const displayList = [...hiredNotVisible, ...visible];
   const tolerancePercent = Math.round(toleranceUsed * 100);
 
-  const allTalent = Object.values(state.studio.talentPool).flat();
+  const allTalent = Object.values(state.talentPool).flat();
   const pinnedTalent = pinnedTalentIds.map((id) => allTalent.find((t) => t.id === id)).filter((t): t is Talent => t !== undefined);
 
   function togglePin(talent: Talent) {

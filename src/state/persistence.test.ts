@@ -184,6 +184,25 @@ describe('old saves migrate safely', () => {
     expect(state.rivalStudios.some((r) => r.name === 'Stale Pictures')).toBe(false);
   });
 
+  it('a save under the pre-Phase-1.3 v24 key (talentPool nested in studio, no top-level GameState.talentPool) is invisible to v25 - falls back to a fresh studio and roster rather than a hybrid state', () => {
+    // Studio.talentPool moved to GameState (architecture roadmap Phase 1.3)
+    // - a v24 save has it nested inside `studio`, not at the top level this
+    // file's loadState() now expects. Same class of break as every past
+    // shape change here: no migration code, an old save simply isn't found
+    // under the new key.
+    globalThis.localStorage.setItem(
+      'hollywood-pictures-save-v24',
+      JSON.stringify({
+        studio: { cash: 1, totalDays: 1, filmsReleased: [], talentPool: { Director: [{ id: 'stale-director', name: 'Stale Director' }] } },
+      }),
+    );
+    const state = loadState();
+    expect(state.studio.filmsReleased).toEqual([]);
+    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
+    expect(state.talentPool.Director.some((t) => t.name === 'Stale Director')).toBe(false);
+    expect(state.talentPool.Director.length).toBeGreaterThan(0); // a genuinely fresh (real) pool, not an empty one
+  });
+
   it('clearSavedState followed by loadState behaves exactly like no save ever existed', () => {
     const released = studioReducer(buildStateWithReadyDraft(4), { type: 'RELEASE_FILM' });
     saveState(released);
