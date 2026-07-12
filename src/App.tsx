@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { StudioProvider, useStudio } from './state/StudioContext';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { ThemeToggle } from './components/common/ThemeToggle';
 import { DateBar } from './components/common/DateBar';
 import { Inbox } from './components/common/Inbox';
@@ -167,16 +168,18 @@ function App() {
   const [showInspector, setShowInspector] = useState(false);
 
   return (
-    <StudioProvider>
-      <DateBar />
-      <ThemeToggle />
-      <div className="dev-inspector-toggle-fixed">
-        <Button onClick={() => setShowInspector((v) => !v)}>
-          {showInspector ? 'Back to Game' : 'Dev: Recommendation Inspector'}
-        </Button>
-      </div>
-      {showInspector ? <RecommendationInspector /> : <Screens />}
-    </StudioProvider>
+    <ErrorBoundary>
+      <StudioProvider>
+        <DateBar />
+        <ThemeToggle />
+        <div className="dev-inspector-toggle-fixed">
+          <Button onClick={() => setShowInspector((v) => !v)}>
+            {showInspector ? 'Back to Game' : 'Dev: Recommendation Inspector'}
+          </Button>
+        </div>
+        {showInspector ? <RecommendationInspector /> : <Screens />}
+      </StudioProvider>
+    </ErrorBoundary>
   );
 }
 

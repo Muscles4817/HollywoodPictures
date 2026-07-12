@@ -56,7 +56,21 @@ import { randomSeed, withRng } from '../engine/random';
 // it exists yet - docs/DESIGN.md 5.34 Milestone 3). No migration code, same
 // as every past shape-break here - an old save's key simply isn't found
 // under the new one, so loadState() falls back to a fresh studio.
-const SAVE_KEY = 'hollywood-pictures-save-v19';
+// v19 -> v20 added availability modeling to the audience simulation
+// (docs/DESIGN.md 5.34, Milestone 9): AudienceSimulationFixedState gained
+// required initialAvailabilityFraction/availabilityBaseWeeklyDecay/
+// criticLedExpansionWeight, and AudienceSimulationWeekState gained a
+// required availabilityFraction. A v19 save's Film.boxOfficeRun.fixed/
+// simWeeks predate all four fields (undefined, not just a different
+// value) - the *first* time settleBoxOfficeForAllFilms advanced such a
+// film's week (any GO_TO_STEP/ADVANCE_DAY with a film still running),
+// audienceSimulationStep.ts read those as undefined, produced NaN, and
+// createAudienceSimulationWeekState's own finite-number validation threw
+// - uncaught, with no ErrorBoundary anywhere in the app, which blanked
+// the entire page. Bumping the key is the actual fix - an old save
+// simply isn't found under the new one, exactly like every past
+// shape-break here.
+const SAVE_KEY = 'hollywood-pictures-save-v20';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

@@ -101,9 +101,51 @@ describe('old saves migrate safely', () => {
   });
 
   it('malformed data under the current key also falls back cleanly, rather than throwing', () => {
-    globalThis.localStorage.setItem('hollywood-pictures-save-v19', 'not valid json{{{');
+    globalThis.localStorage.setItem('hollywood-pictures-save-v20', 'not valid json{{{');
     expect(() => loadState()).not.toThrow();
     expect(loadState().studio.filmsReleased).toEqual([]);
+  });
+
+  it('a save under the pre-Milestone-9 v19 key (missing availability fields on BoxOfficeRun.fixed/simWeeks) is invisible to v20 - falls back to a fresh studio rather than crashing the first time a film\'s week is next advanced', () => {
+    // The actual production bug this test pins: a v19 save's fixed/simWeeks
+    // predate initialAvailabilityFraction/availabilityBaseWeeklyDecay/
+    // criticLedExpansionWeight/availabilityFraction entirely (undefined,
+    // not just stale values). Loading it and then advancing any released
+    // film's box office (GO_TO_STEP/ADVANCE_DAY, via settleBoxOfficeForAllFilms)
+    // used to read those as undefined, produce NaN, and throw inside
+    // createAudienceSimulationWeekState's validation - uncaught, with no
+    // ErrorBoundary anywhere in the app, blanking the whole page. See
+    // SAVE_KEY's own v19 -> v20 comment.
+    globalThis.localStorage.setItem(
+      'hollywood-pictures-save-v19',
+      JSON.stringify({
+        studio: {
+          cash: 1,
+          filmsReleased: [{
+            boxOfficeRun: {
+              status: 'running',
+              fixed: {
+                totalAddressableAudience: 1_000_000, baseInterestFraction: 0.2, marketingEfficiency: 0.5,
+                crossoverCapacityFraction: 0.1, conversionPacingBaseline: 0.12, externalWeeklyAwarenessRate: 0.1,
+                criticScore: 60, audienceScore: 60, initialAwareCount: 100_000,
+                // no initialAvailabilityFraction/availabilityBaseWeeklyDecay/criticLedExpansionWeight - the pre-Milestone-9 shape
+              },
+              simWeeks: [{ week: 1, awareCount: 200_000, interestedRemaining: 50_000, cumulativeTicketsSold: 10_000 }],
+              // no availabilityFraction on the week either
+            },
+          }],
+        },
+      }),
+    );
+    const state = loadState();
+    expect(state.studio.filmsReleased).toEqual([]);
+    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
+
+    // The actual failure mode: advancing days used to throw once a v19-shaped
+    // film reached this code path. With the fresh studio loadState() actually
+    // returns (no filmsReleased), this must be a no-op, not a crash.
+    expect(() => studioReducer(state, { type: 'ADVANCE_DAY' })).not.toThrow();
+    expect(() => studioReducer(state, { type: 'GO_TO_STEP', step: 'talent' })).not.toThrow();
   });
 
   it('clearSavedState followed by loadState behaves exactly like no save ever existed', () => {
