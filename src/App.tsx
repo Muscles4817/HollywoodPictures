@@ -8,6 +8,7 @@ import { Dashboard } from './components/Dashboard';
 import { RivalStudioPage } from './components/RivalStudioPage';
 import { StatsPage } from './components/StatsPage';
 import { RecommendationInspector } from './components/dev/RecommendationInspector';
+import { OutcomeInspector } from './components/dev/OutcomeInspector';
 import { Button } from './components/common/Button';
 import { DevelopFilm } from './components/wizard/DevelopFilm';
 import { HireTalent } from './components/wizard/HireTalent';
@@ -161,23 +162,33 @@ function Screens() {
   );
 }
 
+type DevTool = 'none' | 'recommendation' | 'outcome';
+
 function App() {
   // A developer-only detour, not part of the game's own screen/navigation
-  // system on purpose (see components/dev/RecommendationInspector.tsx) -
-  // never touches GameState, never persisted, reachable from any screen.
-  const [showInspector, setShowInspector] = useState(false);
+  // system on purpose (see components/dev/RecommendationInspector.tsx and
+  // components/dev/OutcomeInspector.tsx) - never touches GameState, never
+  // persisted, reachable from any screen.
+  const [devTool, setDevTool] = useState<DevTool>('none');
 
   return (
     <ErrorBoundary>
       <StudioProvider>
         <DateBar />
         <ThemeToggle />
-        <div className="dev-inspector-toggle-fixed">
-          <Button onClick={() => setShowInspector((v) => !v)}>
-            {showInspector ? 'Back to Game' : 'Dev: Recommendation Inspector'}
-          </Button>
+        <div className="dev-inspector-toggle-fixed row" style={{ gap: 8 }}>
+          {devTool === 'none' ? (
+            <>
+              <Button onClick={() => setDevTool('recommendation')}>Dev: Recommendation Inspector</Button>
+              <Button onClick={() => setDevTool('outcome')}>Dev: Outcome Inspector</Button>
+            </>
+          ) : (
+            <Button onClick={() => setDevTool('none')}>Back to Game</Button>
+          )}
         </div>
-        {showInspector ? <RecommendationInspector /> : <Screens />}
+        {devTool === 'recommendation' && <RecommendationInspector />}
+        {devTool === 'outcome' && <OutcomeInspector />}
+        {devTool === 'none' && <Screens />}
       </StudioProvider>
     </ErrorBoundary>
   );

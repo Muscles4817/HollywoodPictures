@@ -7,6 +7,7 @@ import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES, FIN
 import { RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS, MARKETING_SPEND_RANGE } from '../../data/release';
 import { CONTINGENCY_RANGE, SET_QUALITY_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../../data/production';
 import { computeReleaseResults } from '../../engine/releaseFilm';
+import { deriveCommercialProfile } from '../../engine/commercialProfile';
 import { advanceToWeek, MAX_SIMULATION_WEEKS } from '../../engine/audienceSimulationStep';
 import { AVERAGE_TICKET_PRICE, STUDIO_BOX_OFFICE_SHARE } from '../../engine/boxOfficeRun';
 import { determineOutcome } from '../../engine/outcome';
@@ -164,20 +165,28 @@ export function OutcomeInspector() {
   const [filmId, setFilmId] = useState<string | null>(filmsReleased[0]?.id ?? null);
   const selectedFilm = filmsReleased.find((f) => f.id === filmId) ?? null;
 
-  // The full editable working copy - seeded from the selected film on load
-  // (see loadFilm), independent of it afterward so tweaking never touches
-  // real save data.
-  const [genre, setGenre] = useState<Genre>('Action');
-  const [targetAudience, setTargetAudience] = useState<TargetAudience>('Mass Market');
-  const [script, setScript] = useState<Script | null>(null);
-  const [talent, setTalent] = useState<Talent[]>([]);
-  const [productionChoices, setProductionChoices] = useState<ProductionChoices | null>(null);
-  const [postProductionChoices, setPostProductionChoices] = useState<PostProductionChoices | null>(null);
-  const [marketingChoices, setMarketingChoices] = useState<MarketingChoices | null>(null);
-  const [studioReputation, setStudioReputation] = useState(50);
+  // The full editable working copy - seeded from the selected film below,
+  // independent of it afterward so tweaking never touches real save data.
+  // Lazily initialized straight from `selectedFilm` (the same fields
+  // loadFilm sets) rather than a bare null/default, so the very first
+  // render already has a loaded film - previously these all defaulted to
+  // null/50/0 regardless of selectedFilm, so the "nothing loaded yet" guard
+  // below was *always* true on mount even though a film was already
+  // selected. With only one released film, the <select> below then had no
+  // way to ever fire onChange (browsers don't fire change events for
+  // re-picking the option that's already selected) - the screen was
+  // permanently stuck showing nothing.
+  const [genre, setGenre] = useState<Genre>(selectedFilm?.genre ?? 'Action');
+  const [targetAudience, setTargetAudience] = useState<TargetAudience>(selectedFilm?.targetAudience ?? 'Mass Market');
+  const [script, setScript] = useState<Script | null>(selectedFilm?.script ?? null);
+  const [talent, setTalent] = useState<Talent[]>(selectedFilm?.talent ?? []);
+  const [productionChoices, setProductionChoices] = useState<ProductionChoices | null>(selectedFilm?.productionChoices ?? null);
+  const [postProductionChoices, setPostProductionChoices] = useState<PostProductionChoices | null>(selectedFilm?.postProductionChoices ?? null);
+  const [marketingChoices, setMarketingChoices] = useState<MarketingChoices | null>(selectedFilm?.marketingChoices ?? null);
+  const [studioReputation, setStudioReputation] = useState(state.studio.reputation);
   const [shootingRatio, setShootingRatio] = useState(1);
-  const [eventQualityDelta, setEventQualityDelta] = useState(0);
-  const [eventBuzzDelta, setEventBuzzDelta] = useState(0);
+  const [eventQualityDelta, setEventQualityDelta] = useState(() => selectedFilm?.events.reduce((sum, e) => sum + e.qualityDelta, 0) ?? 0);
+  const [eventBuzzDelta, setEventBuzzDelta] = useState(() => selectedFilm?.events.reduce((sum, e) => sum + e.buzzDelta, 0) ?? 0);
   // Seeds computeReleaseResults' rng - only ever consumed for review-blurb/
   // story-report flavor text now (the audience simulation itself has no
   // randomness at all, docs/DESIGN.md 5.34 Milestone 5), recreated fresh
@@ -384,7 +393,7 @@ export function OutcomeInspector() {
         releaseType={marketingChoices.releaseType}
         buzzScore={results.buzzScore}
         marketingSpend={marketingChoices.marketingSpend}
-        scriptMarketability={script.marketability}
+        scriptMarketability={deriveCommercialProfile(script).accessibility}
         scriptOriginality={script.originality}
         scriptSpectacle={script.toneProfile.spectacle}
         scriptIntendedAudience={script.intendedAudience}
@@ -397,12 +406,14 @@ export function OutcomeInspector() {
 
       <div className="card stack">
         <h2 style={{ margin: 0 }}>Script</h2>
-        <SliderRow label="Genre Fit" value={script.genreFit} min={0} max={100} onChange={(v) => updateScript('genreFit', v)} />
         <SliderRow label="Originality" value={script.originality} min={0} max={100} onChange={(v) => updateScript('originality', v)} />
         <SliderRow label="Structure" value={script.structure} min={0} max={100} onChange={(v) => updateScript('structure', v)} />
+        <SliderRow label="Characters" value={script.characters} min={0} max={100} onChange={(v) => updateScript('characters', v)} />
         <SliderRow label="Dialogue" value={script.dialogue} min={0} max={100} onChange={(v) => updateScript('dialogue', v)} />
-        <SliderRow label="Marketability" value={script.marketability} min={0} max={100} onChange={(v) => updateScript('marketability', v)} />
         <SliderRow label="Complexity" value={script.complexity} min={0} max={100} onChange={(v) => updateScript('complexity', v)} />
+        <p className="choice-description" style={{ margin: '4px 0 0' }}>
+          {script.archetype} &middot; {script.storyType} &middot; {script.setting} &middot; {script.scale}
+        </p>
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
           <p className="choice-description" style={{ margin: '0 0 8px' }}>
             Tone Profile - drives every hired talent's compatibility with this script
