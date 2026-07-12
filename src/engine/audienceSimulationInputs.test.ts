@@ -16,6 +16,7 @@ function inputs(overrides: Partial<ReleaseSimulationInputs> = {}): ReleaseSimula
     marketingSpend: 20_000_000,
     scriptMarketability: 50,
     scriptOriginality: 50,
+    scriptSpectacle: 50,
     scriptIntendedAudience: 'Mass Market',
     targetAudience: 'Mass Market',
     genre: 'Action',
@@ -62,6 +63,73 @@ describe('deriveAudienceSimulationFixedState - basic construction', () => {
         expect(fixed.baseInterestFraction + fixed.crossoverCapacityFraction).toBeLessThanOrEqual(1 + 1e-9);
       }
     }
+  });
+});
+
+describe('crossoverCapacityFraction - multi-factor concept strength x accessibility', () => {
+  // Milestone (docs/DESIGN.md 5.34, "crossover/pull-forward separation"):
+  // replaced originality-alone with concept strength (originality,
+  // spectacle, marketability, criticScore) x accessibility (genre
+  // popularity x target-audience market size). The behavioural requirement
+  // driving every test here: no single input, on its own, should be able to
+  // push capacity anywhere near CROSSOVER_CAPACITY_CEILING (0.3) - only
+  // several favourable factors aligning should.
+
+  it('originality alone (everything else at a moderate default) does not push capacity anywhere near the ceiling', () => {
+    const fixed = deriveAudienceSimulationFixedState(inputs({ scriptOriginality: 100, scriptSpectacle: 50, scriptMarketability: 50, criticScore: 50 }));
+    expect(fixed.crossoverCapacityFraction).toBeLessThan(0.25);
+  });
+
+  it('spectacle contributes independently of originality - a low-originality, high-spectacle event film still gets meaningful capacity', () => {
+    const lowSpectacle = deriveAudienceSimulationFixedState(inputs({ scriptOriginality: 20, scriptSpectacle: 10 }));
+    const highSpectacle = deriveAudienceSimulationFixedState(inputs({ scriptOriginality: 20, scriptSpectacle: 95 }));
+    expect(highSpectacle.crossoverCapacityFraction).toBeGreaterThan(lowSpectacle.crossoverCapacityFraction * 1.5);
+  });
+
+  it('a non-spectacle film can still reach real capacity through exceptional originality and marketability together', () => {
+    const fixed = deriveAudienceSimulationFixedState(inputs({ scriptOriginality: 90, scriptSpectacle: 15, scriptMarketability: 90, criticScore: 80 }));
+    expect(fixed.crossoverCapacityFraction).toBeGreaterThan(0.15);
+  });
+
+  it('criticScore alone (moderate everything else) contributes only a secondary amount, never dominating', () => {
+    const lowCritic = deriveAudienceSimulationFixedState(inputs({ criticScore: 10 }));
+    const highCritic = deriveAudienceSimulationFixedState(inputs({ criticScore: 100 }));
+    // criticScore's weight (0.10) is the smallest of the four - swinging it
+    // across its whole range moves capacity by far less than originality or
+    // spectacle would across theirs (see the spectacle test above).
+    expect(highCritic.crossoverCapacityFraction - lowCritic.crossoverCapacityFraction).toBeLessThan(0.05);
+  });
+
+  it('genre/target-audience accessibility constrains capacity even when concept strength is maxed out', () => {
+    const massMarketAction = deriveAudienceSimulationFixedState(inputs({
+      scriptOriginality: 100, scriptSpectacle: 100, scriptMarketability: 100, criticScore: 100,
+      genre: 'Action', targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market',
+    }));
+    const nicheDrama = deriveAudienceSimulationFixedState(inputs({
+      scriptOriginality: 100, scriptSpectacle: 100, scriptMarketability: 100, criticScore: 100,
+      genre: 'Drama', targetAudience: 'Niche', scriptIntendedAudience: 'Niche',
+    }));
+    expect(nicheDrama.crossoverCapacityFraction).toBeLessThan(massMarketAction.crossoverCapacityFraction);
+    // Accessibility has a floor, though - even the least accessible
+    // genre/audience combination keeps some crossover capacity when concept
+    // strength is otherwise maxed out, rather than being driven to zero.
+    expect(nicheDrama.crossoverCapacityFraction).toBeGreaterThan(0);
+  });
+
+  it('a well-liked but conventional niche film (low originality/spectacle, narrow accessibility) gets very little crossover capacity', () => {
+    const fixed = deriveAudienceSimulationFixedState(inputs({
+      scriptOriginality: 25, scriptSpectacle: 20, scriptMarketability: 40, criticScore: 55,
+      genre: 'Drama', targetAudience: 'Niche', scriptIntendedAudience: 'Niche',
+    }));
+    expect(fixed.crossoverCapacityFraction).toBeLessThan(0.08);
+  });
+
+  it('a broadly accessible, spectacular, well-liked film gets strong crossover capacity - several factors aligning', () => {
+    const fixed = deriveAudienceSimulationFixedState(inputs({
+      scriptOriginality: 70, scriptSpectacle: 85, scriptMarketability: 80, criticScore: 75,
+      genre: 'Action', targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market',
+    }));
+    expect(fixed.crossoverCapacityFraction).toBeGreaterThan(0.2);
   });
 });
 
@@ -264,8 +332,18 @@ describe('named archetype diagnostics', () => {
     const fixed = deriveAudienceSimulationFixedState(releaseInputs);
     const weeks = runFullSimulation(releaseInputs);
     const naturalCeiling = fixed.baseInterestFraction * fixed.totalAddressableAudience;
-    // Large capacity exists (originality=95) but poor reception means it's essentially unrealized.
-    expect(fixed.crossoverCapacityFraction).toBeGreaterThan(0.2);
+    // Large capacity exists (originality=95, the single biggest of the four
+    // capacity inputs) but poor reception means it's essentially unrealized.
+    // 0.2 was calibrated against the old originality-only capacity formula
+    // (0.3 * 0.95 = 0.285); the multi-factor redesign (docs/DESIGN.md 5.34,
+    // "crossover/pull-forward separation") also weighs spectacle/
+    // marketability/criticScore, which are only moderate-to-poor here
+    // (defaults/poor reception), landing capacity at ~0.188 - still well
+    // above a film with no standout concept-strength input at all (which
+    // would sit close to CROSSOVER_CAPACITY_CEILING * accessibility * a
+    // concept strength near its own floor), just no longer near the ceiling
+    // from originality alone.
+    expect(fixed.crossoverCapacityFraction).toBeGreaterThan(0.15);
     expect(maxEverInterested(weeks)).toBeLessThanOrEqual(naturalCeiling + 1e-6);
   });
 
@@ -286,12 +364,19 @@ describe('named archetype diagnostics', () => {
     expect(admissions[9]).toBeLessThan(admissions[0] * 0.35); // by week 10, marketing's one-time push has clearly worn off
   });
 
-  it('9. ordinary mid-performing film: unremarkable, but genuinely sustained - later weeks do not collapse the way a poor-reception film does', () => {
+  it('9. ordinary mid-performing film: unremarkable, but genuinely sustained - later weeks decline gently, they do not collapse the way a poor-reception film does', () => {
     const weeks = runFullSimulation(inputs({ releaseType: 'Wide', buzzScore: 45, marketingSpend: 15_000_000, criticScore: 55, audienceScore: 58 }));
     const admissions = weeklyAdmissions(weeks);
-    // Distinguishing shape from archetype 1/8 (poor reception): an ordinary film's later weeks hold up or grow, they don't keep shrinking every week.
+    // Distinguishing shape from archetype 1/8 (poor reception): "most films
+    // decline from opening, strong WOM can flatten the decline" (see the
+    // Quantum Signal incident fix, docs/DESIGN.md 5.34) - only *strong*
+    // reception should hold flat or grow, so a merely-ordinary film
+    // declining gently by week 10 is the correct shape, not a regression.
+    // What must still hold is the *contrast* with archetype 8's poor-
+    // reception collapse (admissions[9] < admissions[0] * 0.35): ordinary
+    // reception should decay far more gently than that, never collapsing.
     const later = admissions[Math.min(9, admissions.length - 1)];
-    expect(later).toBeGreaterThanOrEqual(admissions[0]);
+    expect(later).toBeGreaterThan(admissions[0] * 0.5);
   });
 });
 

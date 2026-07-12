@@ -10,6 +10,7 @@ const RELEASE_INPUTS: ReleaseSimulationInputs = {
   marketingSpend: 20_000_000,
   scriptMarketability: 55,
   scriptOriginality: 40,
+  scriptSpectacle: 50,
   scriptIntendedAudience: 'Mass Market',
   targetAudience: 'Mass Market',
   genre: 'Action',
@@ -173,6 +174,13 @@ describe('settleBoxOfficeForAllFilms - termination', () => {
       criticScore: 5,
       audienceScore: 5,
       initialAwareCount: 1_500_000,
+      // Full, unconstrained availability throughout - this test is about
+      // exercising an early finish via fast interest depletion
+      // (conversionPacingBaseline alone), not about exhibition access, so
+      // availability is kept out of the way entirely (1.0, zero decay).
+      initialAvailabilityFraction: 1,
+      availabilityBaseWeeklyDecay: 0,
+      criticLedExpansionWeight: 0,
     });
     const film = freshFilm('normal-end', 1, fastDecayFixed);
     const settlement = settleBoxOfficeForAllFilms([film], 1 + MAX_SIMULATION_WEEKS * 7);

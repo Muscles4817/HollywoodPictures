@@ -3245,8 +3245,553 @@ catch, and explicitly proves the full outcome range asked for.
   scope** (unchanged from Milestone 5): competition between concurrently-
   running films, international market pools, repeat viewing.
 
+**Implementation Milestone 7: the Quantum Signal incident - a real save
+exposed the WOM critical-mass tipping point as a genuine bug, not the
+"correct, intentional model behaviour" Milestones 4-6 had documented it
+as.** A player-exported save (`Silver Reel Pictures`) showed the film
+"Quantum Signal" - criticScore ~51, audienceScore ~79, a good-but-not-
+extraordinary reception, nowhere near exceptional - growing from a £14.4m
+opening to a £985.5m total (68.29x legs), with week 10 *alone* grossing
+£491.4m: more than half the film's entire lifetime total in a single
+week, and the run's *last* full week before the model's own stopping rule
+cut it off mid-explosion. Not a plausible sleeper hit - unbounded positive
+feedback overpowering depletion and saturation. Reproduced exactly by
+feeding the save's own stored `AudienceSimulationFixedState` back through
+`advanceToWeekWithDiagnostics` (full determinism means the exported JSON's
+`simWeeks` and this reproduction are bit-for-bit identical), confirming
+this was a live, in-production defect, not a synthetic edge case.
+
+- **Root cause: two structurally different growth shapes wearing the same
+  clothes.** `applyWomAwarenessGrowth` (step 4) was self-dampening by
+  construction (`unaware x growthFraction` - headroom *is* the
+  multiplicand, so growth mechanically tapers to zero as the ceiling is
+  approached). Steps 5/6 (`deriveWomNaturalInterestGrowth`,
+  `deriveWomCrossoverExpansion`) looked the same but weren't:
+  `min(headroom, awareNotYetInterested) x growthFraction` degenerates into
+  a flat, non-decelerating cap the moment `awareNotYetInterested` exceeds
+  `headroom` - routine once awareness (which saturates fast and
+  independently) outpaces interest. At `growthFraction` near 1 (easily
+  reached once the positive feedback loop is running), that consumed the
+  *entire* remaining headroom in one week however small it had shrunk to -
+  a cliff, not a slope. Week 10 alone consumed the full remaining 19.38M
+  crossover capacity.
+- **Investigated all six specific hypotheses the incident report asked
+  about, all confirmed as real contributing mechanisms:** (1) the same
+  `womInfluence` signal *was* being compounded across awareness, interest,
+  crossover, and attendance probability simultaneously, with no
+  cross-channel budget - worse, steps 5/6's freshly-created-this-week
+  interest was immediately exposed to that same week's WOM pull-forward
+  boost before the sale even happened, double-dipping the identical
+  signal within a single week. (2) crossover was repeatedly generating too
+  large a *fraction* of its remaining capacity per week (the cliff above),
+  not consuming it gradually. (3) pull-forward wasn't just shifting
+  timing - because it acted on the *combined* pool (backlog + this week's
+  own freshly-manufactured interest) at an uncapped, WOM-boosted
+  probability that could reach 100%, it converted enormous one-off chunks
+  of demand that a genuine "shift timing, don't manufacture demand"
+  mechanic never should. (4) confirmed: neither natural-interest nor
+  crossover growth decelerated as their pools approached saturation - see
+  root cause above. (5) confirmed and load-bearing: `NATURAL_INTEREST_RESPONSE`'s
+  old sensitivity (150) let a merely-good reception (~0.50 reception
+  multiplier - nowhere near the floor) sustain `growthFraction` above 0.3
+  for 10+ *consecutive* weeks; given enough weeks, any sustained-but-
+  uncapped growth fraction asymptotically approaches its full headroom
+  regardless of magnitude, so "ordinary reactions clear a modest bar" was
+  true week-to-week but not true of the *cumulative* effect over a whole
+  run. (6) confirmed: pull-forward-accelerated admissions fed directly
+  back into the next week's recency-weighted WOM signal, accelerating the
+  loop's own speed - part of what made the explosion self-reinforcing
+  rather than self-limiting.
+- **Four structural fixes, no single constant retune treated as sufficient
+  on its own** (`engine/audienceSimulationStep.ts`):
+  1. **`saturationDampening`** added to both `deriveWomNaturalInterestGrowth`
+     and `deriveWomCrossoverExpansion` - an extra `headroom / ceiling`
+     multiplicative factor restoring the same self-dampening shape step 4
+     already had by construction, so growth increments shrink
+     asymptotically toward the ceiling instead of being consumed all at
+     once.
+  2. **Pull-forward scoped to the *existing* backlog only.** Ticket sales
+     are now split: `priorWeek.interestedRemaining` sells at the
+     WOM-boosted `attendanceProbability` (pull-forward genuinely means
+     "pulling *already*-interested people forward in time"), while this
+     week's own newly-created interest (external + WOM natural + WOM
+     crossover) sells at the plain `baselineAttendanceProbability` -
+     people who just became interested this week haven't been sitting in
+     a backlog to be pulled forward from.
+  3. **`PULL_FORWARD_MAX_PROBABILITY` (0.4)** caps how far pull-forward can
+     push a single week's attendance probability, rather than always
+     boosting toward 100% - a timing mechanic should accelerate the
+     backlog's consumption, not empty most of it in one week.
+  4. **`NATURAL_INTEREST_RESPONSE` sensitivity halved (150 -> 75).** The
+     only genuine constant change, and deliberately paired with fixes 1-3
+     rather than standing alone - addresses hypothesis 5 directly: pushes
+     the point at which growthFraction becomes non-trivial further up the
+     reception scale, so ordinary-good reception spends a whole run in the
+     curve's shallow region instead of its steep one.
+  `CROSSOVER_RESPONSE` was tried at half sensitivity too but reverted -
+  it collapsed the "capacity vs realization" differentiation between a
+  well- and poorly-received film with identical crossover capacity to
+  under 5% apart at small scale (see `audienceSimulationStep.test.ts`'s
+  own boundary test), which was too blunt a side effect for a fix that
+  wasn't the dominant driver.
+- **Added `computeWomReproductionRatio`** - the weekly WOM "reproduction
+  ratio" requested by the incident report, epidemiological R0 for word of
+  mouth: how many additional week-(t+1) admissions are attributable to
+  week t's own viewers, per viewer. Computed by counterfactual
+  subtraction (zero week t's admissions out of the recency-weighted
+  activity sum feeding week t+1's influence, rerun week t+1's *entire*
+  transition against that lower influence via a new
+  `womInfluenceOverride` parameter on `advanceOneWeekWithDiagnostics`,
+  compare actual vs counterfactual next-week admissions). Diagnostic-only
+  - exposed on `WeekDiagnostics.womReproductionRatio`, backfilled by
+  `advanceToWeekWithDiagnostics`'s post-pass once a run's full history is
+  known (a single in-isolation week can't know its own ratio, since that
+  needs the *next* week's actual settled admissions) - never fed back into
+  the simulation or stored as game state. On the fixed Quantum Signal run,
+  this ratio peaks at ~0.20 around weeks 12-13 and declines from there -
+  comfortably below the replacement threshold of 1 throughout the run,
+  direct, legible confirmation the loop is now a bounded diffusion rather
+  than unbounded exponential growth.
+- **Before / after, same run (Quantum Signal's exact fixed state):**
+
+  | | Before | After |
+  |---|---|---|
+  | Total gross | £985.5M | £452.4M |
+  | Legs (total / opening) | 68.29x | 31.35x |
+  | Peak week gross | £491.4M (week 10) | £29.1M (week 15) |
+  | Peak week vs opening | 34.06x | 2.02x |
+  | Peak week as % of total | 49.9% | 6.4% |
+  | Run shape | Cut off mid-explosion at week 10 (the model's own stopping rule ended the run there) | Smooth rise, peaks week 15, gently declines through week 20 |
+  | Peak weekly WOM reproduction ratio | not computed (pre-existing model) | ~0.20 (well below replacement) |
+
+  Every one of the incident report's desired behavioural constraints holds
+  against this fixed run: growth is smooth, not hyperbolic; the peak week
+  is nowhere near "dozens of times" the opening; growth visibly slows well
+  before the 20-week cap through depletion and saturation; and a
+  merely-good audience score no longer produces phenomenon-level,
+  cliff-shaped growth. Total gross (£452M, 31x legs) sits above this
+  document's own informal "£100-300M via exceptional legs" plausibility
+  note for a *merely*-good film - flagged honestly rather than pushed
+  further, since compressing it more (tried during this fix, sensitivity
+  75 -> lower) started eroding the "exceptional reception should tower
+  over merely-good reception" differentiation Milestone 6's own sweep
+  tests correctly insist on. A single global sensitivity constant can't
+  simultaneously maximize both "merely-good reception never explodes" and
+  "exceptional reception towers over merely-good" - the two are in real
+  tension, and this fix resolved it conservatively (favouring "no
+  explosion" as the harder constraint the incident actually violated)
+  rather than chasing an exact number.
+- **`poo poo platter`** (the second film flagged in the same incident
+  report, criticScore ~76/audienceScore ~56) was re-traced under the fixed
+  model and shows smooth, low-key, continuously-declining-to-gently-
+  positive growth throughout its run with no cliff at any point - it
+  never actually reached a runaway explosion within its 20-week window
+  even under the *old* formulas (its reception was too modest to cross the
+  crossover/pull-forward thresholds at all), but is included in the
+  permanent regression trace alongside Quantum Signal for completeness.
+- **Test suite recalibrated, not bent around.** Fixing the actual
+  explosion legitimately narrows the *gap* between "merely decent" and
+  "exceptional" reception within a fixed run length, since the old,
+  wider gap was itself an artifact of the explosive shape being fixed.
+  Two `audienceSimulationScenarios.test.ts`/`audienceSimulationStep.test.ts`
+  differentiation thresholds (1.5x -> 1.4x) and one
+  `audienceSimulationInputs.test.ts` archetype assertion (archetype 9,
+  "ordinary mid-performing film" - changed from "later weeks hold flat or
+  grow" to "later weeks decline gently, not collapse," matching this
+  document's own "most films decline from opening, strong WOM can flatten
+  the decline" principle more accurately than the old assertion did) were
+  updated to the new, still-clearly-differentiated real values, each with
+  an inline comment recording the actual before/after numbers and why the
+  threshold moved. Everything else - 180 of 185 pre-existing tests, all
+  invariants, all monotonicity/inversion sweeps, all archetype shapes
+  other than #9 - passed unchanged.
+- **Five new permanent regression tests**
+  (`audienceSimulationStep.test.ts`, describe block "regression: the
+  Quantum Signal incident") pin the exact real-world `AudienceSimulationFixedState`
+  from the incident verbatim and assert: no week grosses more than 10x the
+  opening; no week exceeds 25% of lifetime total gross; total gross stays
+  under £600M; the WOM reproduction ratio never sustains at or above 1;
+  and the run visibly declines before the 20-week cap rather than still
+  climbing when cut off. 190 tests total.
+
+**Implementation Milestone 8: the behavioural regression matrix - ten named
+scenarios, cross-scenario assertions, property sweeps, and one more
+structural fix found along the way.** Milestone 7 fixed the Quantum Signal
+incident's runaway magnitude, but didn't audit the model's *shape* against
+a systematic set of named archetypes. This milestone built one: ten named
+scenarios (ordinary positive reception, strong WOM, genuine sleeper
+breakout, rare phenomenon, well-liked-but-niche, broadly-marketable-but-
+decent, huge-opening-poor-reception, excellent-but-weakly-marketed,
+original-but-disliked, and a plain ordinary baseline), each with explicit
+expected-behaviour bullets, run against the live pipeline before touching
+anything.
+
+- **One clean structural fix found and applied immediately: `PULL_FORWARD_MAX_PROBABILITY`
+  (a flat 0.4, from Milestone 7) was a small relative boost for Wide's high
+  baseline (~0.14, ~2.8x) but a huge one for Limited/Festival First's much
+  lower baseline (~0.05-0.06, ~7-8x) - exactly backwards, since slower-
+  building release types accumulate the largest backlog of unconverted
+  interest before word of mouth finally catches up. Slow-building
+  scenarios (sleeper, niche, weak-marketing) were dumping most of a multi-
+  week backlog into one or two late, disproportionate weeks once awareness
+  finally saturated - the same failure shape as the Quantum Signal
+  incident, just arriving later. Replaced with `PULL_FORWARD_MAX_MULTIPLIER = 3`
+  (a multiplier of each release's *own* baseline, not a flat probability) -
+  brought those scenarios' peak/opening ratios down from 55-117x to
+  10-15x, with zero regressions across the existing 190 tests.
+- **Two deeper findings that a quick constant fix could not resolve, and
+  which motivated Milestone 9:**
+  1. Ordinary-positive Wide releases climbed for 7-10 consecutive weeks
+     before peaking, confirmed robust across a wide sweep of buzz/
+     marketing/audience-score within a realistic "ordinary" band - not a
+     cherry-pickable scenario artifact. The mechanism was mostly *not*
+     WOM at all: steps 0-2 (awareness unfolding + reception-independent
+     natural-fit conversion) simply take that long to unfold for
+     realistic Wide-release audience sizes, and nothing in the model
+     made admissions *decline* on any faster timescale.
+  2. Low-buzz Limited/Festival First releases never finished their arc
+     within the 20-week cap - awareness capped around 43-47% regardless
+     of reception, buzz, or marketing spend, because Limited's only
+     growth lever (`externalWeeklyAwarenessRate`) is reception-
+     independent and had to stay slow to keep *poorly*-received Limited
+     releases appropriately tiny. Raising it broke that guarantee for
+     every Limited release, good or bad, in early experiments.
+  Investigating why these two symptoms resisted every constant-level fix
+  led to the root-cause question that opened Milestone 9: was the model
+  using awareness/interest pacing to simulate something that's actually
+  an exhibition effect?
+
+**Implementation Milestone 9: availability - modeling exhibition access as
+its own evolving state, not a side effect of awareness pacing.** Milestone
+8's two resistant findings turned out to be the same root cause: the model
+had no notion of "can this person actually get a ticket," only "does this
+person know the film exists and want to see it." In reality, a Wide
+release doesn't decline because people stop being interested - it
+declines because screens get reallocated to next Friday's openers, on a
+timescale of weeks, largely independent of the interested pool's own
+size. And a Limited release doesn't grow because more of the population
+"hears about it" - it grows because a distributor adds screens in
+response to strong per-screen performance. The model was asking
+awareness/interest pacing to do exhibition's job, and awareness pacing
+and exhibition access have genuinely different natural timescales and
+drivers - that mismatch, not a miscalibrated constant, was the actual
+bug.
+
+- **`availabilityFraction`** - a new field on `AudienceSimulationWeekState`
+  (`engine/audienceSimulation.ts`), 0-1, evolving week-to-week state like
+  `awareCount`/`interestedRemaining`, *not* a derived observation:
+  exhibition access persists and compounds, exactly the way a theater
+  chain's screen-allocation decisions do. Three new
+  `AudienceSimulationFixedState` fields carry the release-day starting
+  conditions through Milestone 1's isolation boundary (the same pattern
+  `conversionPacingBaseline`/`externalWeeklyAwarenessRate` already use):
+  `initialAvailabilityFraction` (release-day access - Wide ~0.95, Limited
+  ~0.1, Festival First ~0.02), `availabilityBaseWeeklyDecay` (age-based
+  erosion before any performance adjustment - Wide ~0.18/week, Limited/
+  Festival First ~0.015-0.02/week), and `criticLedExpansionWeight` (0 for
+  Wide/Limited, ~0.65 for Festival First - see below).
+- **Demand and access stay structurally separate**, per the brief's own
+  first constraint. Step 9 (ticket sales) now produces *unconstrained
+  demand* exactly as before (steps 0-8 are completely untouched - nothing
+  about awareness, interest, crossover, or WOM reads or writes
+  availability); a new step 9.5 gates that demand down to what the film's
+  *current* availability can physically serve
+  (`computeAvailabilityCapacity`). Unserved demand is never destroyed -
+  since `ticketsThisWeek` is now the *capacity-gated* figure subtracted
+  from `interestedBeforeSales`, people who wanted a ticket but couldn't
+  get one simply stay in `interestedRemaining` for next week, exactly
+  satisfying "more screens let more of the existing interested pool
+  attend, availability never enlarges that pool independently."
+- **One shared formula for both contraction (Wide) and expansion
+  (Limited/Festival First)**, not two hand-built mechanics -
+  `computeNextAvailability` combines a release-type's own
+  `availabilityBaseWeeklyDecay` with a performance-driven adjustment
+  derived from *demand/capacity utilisation* (`computeDemandUtilisation`),
+  the single signal the brief asked to drive both directions. The
+  weak/ordinary/strong/exceptional performance ladder is emergent, not
+  branched: weak utilisation makes the performance term strongly
+  negative (fast contraction); utilisation right at the reference point
+  nets out to plain age-based decay ("ordinary contraction"); strong
+  utilisation cancels the age decay (Wide holds its screens; Limited/
+  Festival First, whose decay is small to begin with, genuinely expands);
+  exceptional utilisation (selling out, turning people away) pushes the
+  net rate clearly positive (Wide re-expands; Limited/Festival First
+  expands fast, still rate-limited - see below). Both directions approach
+  their bound (`AVAILABILITY_FLOOR`/`AVAILABILITY_CEILING = 1.0`)
+  asymptotically - a fixed fraction of remaining headroom closes each
+  week, the exact same self-dampening shape `saturationDampening`
+  restored to interest/crossover growth in the Quantum Signal fix - and
+  `netRate` is hard-clamped regardless of how extreme utilisation gets,
+  so availability cannot itself become a new runaway loop.
+- **One-week-lagged, never same-week feedback**, per the brief's explicit
+  requirement: this week's `availabilityFraction` (seeded on week 1 from
+  `initialAvailabilityFraction`, carried over from the prior week's own
+  computed value otherwise) gates *this* week's capacity and sale;
+  *next* week's `availabilityFraction` is only computed afterward, from
+  *this* week's resulting utilisation, and stored as part of this
+  transition's output (`WeekDiagnostics.nextAvailabilityFraction`) -
+  nothing reads a week's own not-yet-computed next-availability before
+  that week's sale happens.
+- **The capacity anchor is blended, not a single fixed number - calibrating
+  against either extreme alone breaks the other.** Anchoring weekly
+  throughput capacity to `maxInterestedAudience` (taste-fit ceiling,
+  marketability/originality-driven) made an ordinary Wide release's
+  capacity absurdly generous relative to its own modest opening (never
+  binding, defeating the point) - reception-driven ceiling and marketing-
+  driven screen count don't scale together; a modest and a phenomenal
+  Wide release can have similar taste-fit ceilings while opening on
+  wildly different numbers of screens. Anchoring to `initialAwareCount`
+  (release-day reach, Buzz/marketing-driven) fixed that - it scales
+  *correctly* between an ordinary and a phenomenal Wide release - but
+  permanently starved a genuine Limited/Festival First breakout, whose
+  `initialAwareCount` is deliberately tiny (that's the whole point of
+  "Limited"): a platform release that's honestly earned wide distribution
+  would stay capped near its own tiny opening-day number forever.
+  `computeAvailabilityAnchor` blends the two based on how far
+  `availabilityFraction` has traveled from its own release-day starting
+  point toward full access - Wide starts close to 1.0 already, so it
+  stays anchored to `initialAwareCount` for essentially its whole
+  (declining) run, preserving the calibration that already works for it;
+  Limited/Festival First starts far from 1.0, so as it genuinely expands
+  (itself the earned "platform expansion" signal), the anchor smoothly
+  grows toward `maxInterestedAudience`, unlocking real, Wide-movie-scale
+  throughput for a breakout that's actually earned it - never for one
+  that hasn't (a poorly-received Limited release's availability never
+  expands, so its anchor never moves either). A separate `ANCHOR_FLOOR_FRACTION`
+  (1% of ceiling) prevents the degenerate case of `initialAwareCount = 0`
+  (a legitimate value - a film with zero release-day marketing seed)
+  permanently trapping the anchor, and hence capacity, at exactly zero.
+- **Festival First's critic-led phase modeled honestly, not as a smaller
+  Limited.** `criticLedExpansionWeight` (~0.65 for Festival First, 0 for
+  Wide/Limited) blends a critic-only reception multiplier
+  (`computeCriticOnlyReceptionMultiplier` - the same convex shape
+  `computeReceptionResponseMultiplier` already uses, but audienceScore
+  excluded entirely) into the *expansion* side only (never contraction) of
+  the performance adjustment - a strong per-screen showing at a handful
+  of festival-circuit screens isn't enough on its own to earn wider
+  release without critical validation too, modeling that a festival
+  film's expansion is a distributor decision made by reading reviews,
+  before general audiences have had any real chance to weigh in. Wide and
+  Limited are unaffected (`criticLedExpansionWeight = 0` leaves the gate
+  at 1 always) - their expansion stays purely utilisation-driven, exactly
+  as specified.
+- **Calibration was genuinely three-way-constrained, not a single sweep.**
+  An early attempt (`MAX_WEEKLY_THROUGHPUT_FRACTION = 0.05` against the
+  `maxInterestedAudience` anchor) fixed an ordinary Wide release's early
+  peak but throttled the rare-phenomenon scenario into a multi-week flat
+  plateau at its capacity ceiling - an artificial bottleneck that broke
+  its own already-validated (Milestone 7/8) shape entirely. The
+  `initialAwareCount`-anchored version fixed the phenomenon but
+  permanently capped the sleeper scenario near its own tiny opening,
+  erasing its ability to ever break out. The final blended-anchor,
+  utilisation-driven design (`MAX_WEEKLY_THROUGHPUT_FRACTION = 0.5`,
+  `AVAILABILITY_RESPONSE_SENSITIVITY = 0.5`, `MAX_AVAILABILITY_RATE_MAGNITUDE = 0.2`)
+  was the first to satisfy all three simultaneously - documented here so
+  a future recalibration doesn't rediscover the same two dead ends.
+- **New diagnostics, one week-lagged pair each** (`WeekDiagnostics`,
+  `engine/audienceSimulationStep.ts`): `availabilityFraction`,
+  `unconstrainedDemand`, `maxServiceableDemand`, `demandUtilisation`,
+  `expectedAgeContraction`, `performanceAdjustment`,
+  `nextAvailabilityFraction` - all surfaced in the Outcome Inspector's
+  weekly trace table (`components/dev/AudienceSimulationDiagnostics.tsx`).
+- **Before / after, the regression matrix's three most-affected named
+  scenarios** (peak week / longest consecutive-growth streak / peak-vs-
+  opening multiple):
+
+  | Scenario | Before (Milestone 8) | After (Milestone 9) |
+  |---|---|---|
+  | Ordinary positive reception | week 11 / 9-week streak / 1.40x | week 9 / 7-week streak / 1.36x |
+  | Strong WOM | week 8 / 6-week streak / 5.82x | week 10 / 8-week streak / 4.22x |
+  | Genuine sleeper breakout | week 20 / 19-week streak / 10.36x | week 18 / 9-week streak / 7.88x |
+  | Well-liked niche | week 20 / 19-week streak / 10.97x | week 18 / 9-week streak / 6.75x |
+  | Excellent, weak marketing | week 20 / 19-week streak / 14.75x | week 19 / 8-week streak / 8.89x |
+  | Rare phenomenon (unaffected, as intended) | week 3 / 2-week streak / 2.90x | week 3 / 2-week streak / 2.67x |
+
+  The three "never completes its arc" scenarios (sleeper, well-liked
+  niche, excellent-weak-marketing) all roughly halved their longest
+  growth streak and materially reduced their peak/opening ratio, without
+  disturbing the rare-phenomenon scenario's already-correct shape. The
+  ordinary-positive scenario's remaining 7-week climb is an honestly
+  documented, not-fully-resolved gap - see below.
+- **Two known limitations, deliberately not chased further in this
+  milestone** (both documented in `audienceSimulationRegressionMatrix.test.ts`'s
+  own file header, not silently asserted away):
+  1. Ordinary-positive Wide releases still climb for several weeks before
+     peaking (down from 9 to 7 weeks; peak moved from week 11 to week 9),
+     not literally from week 1. The remaining climb is driven by steps
+     0-2's awareness-unfolding pace, which is largely reception-
+     independent - closing this gap fully would need a deeper Milestone 3
+     pacing recalibration (`conversionPacingBaseline`/
+     `externalWeeklyAwarenessRate` themselves), which risks the same
+     "Limited/Niche stays small" regressions two in-milestone attempts
+     already hit, and was out of scope for an already-large change.
+  2. `MIN_WEEKLY_ADMISSIONS_RATIO`'s natural-termination stopping rule
+     still essentially never fires before the 20-week hard cap at
+     realistic release-scale inputs - a pre-existing characteristic
+     documented as far back as Milestone 5, unrelated to and unchanged by
+     Milestone 9. The regression matrix's hard-cap property check
+     reflects this honestly rather than asserting a bar the stopping rule
+     was never built to clear.
+- **61 new tests** (`audienceSimulationRegressionMatrix.test.ts`) - ten
+  named-scenario describe blocks (one per behavioural band), a cross-
+  scenario relative-assertions block, a property-sweep block (six
+  sweeps), and a sanity block confirming every scenario produces a
+  finite, valid run. 251 tests total (190 carried over unchanged in
+  substance, two small threshold recalibrations - see the test files'
+  own inline comments for the exact before/after numbers and why each
+  moved).
+
+**Implementation Milestone 10: crossover/pull-forward separation - a real
+save (Lucky Internship) opened at blockbuster scale and grew to
+phenomenon scale (£1.009bn, 22.41x legs) from modest studio/marketing
+inputs, exposing that AudienceScore alone was doing too much work.**
+Milestones 7-9 tamed the WOM feedback loop's *amplitude* (saturation
+dampening, pull-forward pool-scoping, availability), but a deep diagnostic
+decomposition of this save (weekly WOM-influence source breakdown,
+crossover-vs-natural split, pull-forward duration) found the two
+mechanisms responsible were structural, not amplitude: (1)
+`crossoverCapacityFraction` was sourced from `scriptOriginality` alone, so
+a film's *natural-audience reception* (AudienceScore, feeding
+`womInfluence`) was implicitly the only thing that mattered for whether it
+broke out beyond that audience too - "well-liked by its natural audience"
+and "able to break out beyond it" were conflated; (2) `applyWomPullForward`'s
+`thresholdResponse` urgency signal reached and *held* its exact maximum for
+four consecutive weeks (9-12) once `womInfluence` cleared a fairly low bar,
+a plateau-then-cliff shape rather than a genuine timing effect.
+
+- **Crossover capacity redesigned as multi-factor, sourced from concept and
+  accessibility, never from reception** (`audienceSimulationInputs.ts`):
+  `crossoverCapacityFraction = CROSSOVER_CAPACITY_CEILING x conceptStrength x accessibility`.
+  `conceptStrength` ("is this the kind of thing an outsider would find
+  worth talking about or seeing") blends originality (0.35), spectacle
+  (0.30, `Script.toneProfile.spectacle` - newly plumbed through
+  `ReleaseSimulationInputs` as `scriptSpectacle`), marketability (0.25),
+  and criticScore (0.10, secondary/prestige-adjacent only, per the brief's
+  "never the dominant channel for mainstream theatrical crossover").
+  `accessibility` reuses `GENRE_PROFILES.popularity` and
+  `AUDIENCE_PROFILES.marketSize` (the same tables `totalAddressableAudience`
+  already reads, not a new stat), normalised against the single most
+  accessible genre/audience combination the data can produce (Action x Mass
+  Market = 0.75), with a floor (0.4) so even the least accessible
+  combination keeps *some* crossover capacity. `CROSSOVER_CAPACITY_CEILING`
+  (0.3) is unchanged, preserving `baseInterestFraction +
+  crossoverCapacityFraction <= 1` by construction. Deliberately does *not*
+  touch what drives `womInfluence` itself (`computeCurrentWomInfluence`,
+  `computeReceptionResponseMultiplier`) - the user's own framing:
+  "AudienceScore determines whether WOM is positive and how strongly
+  viewers advocate" stays exactly as implemented; only capacity's source
+  changed, matching the already-existing (if previously originality-only)
+  capacity/realisation split `deriveWomCrossoverExpansion` was built around
+  in Milestone 2.
+- **Pull-forward redesigned as a smooth saturating curve with a
+  dual-decaying ceiling, never a hard-clipped plateau**
+  (`audienceSimulationStep.ts`): `pullForwardUrgencySignal` replaces
+  `thresholdResponse` with a Michaelis-Menten-style curve
+  (`excess / (excess + PULL_FORWARD_HALF_SATURATION)`) that approaches but
+  never reaches 1 - a stronger `womInfluence` always produces at least a
+  little more urgency, however diminishing the return, so there is no
+  plateau to get stuck on. `pullForwardCeilingMultiplier` replaces the flat
+  `PULL_FORWARD_MAX_MULTIPLIER` ceiling with one that decays along two
+  independent axes, exactly as specified ("weakens as the backlog becomes
+  less eager *and* as the run ages"): a smooth run-age decay
+  (`PULL_FORWARD_AGE_HALF_LIFE_WEEKS = 8`) and a backlog-freshness decay
+  (`priorWeek.interestedRemaining / priorTotalEverInterested` - how much of
+  everyone ever interested is still sitting unconverted, derived from
+  existing fields, no new state). Both factors are in `[0, 1]` and multiply
+  together, so the ceiling can only ever shrink from
+  `PULL_FORWARD_MAX_MULTIPLIER`, never exceed it - preserving Milestone 8's
+  original guarantee while adding the new one. `weekNumber` and
+  `backlogFreshnessFactor` now flow into `applyWomPullForward` as explicit
+  parameters from `advanceOneWeekWithDiagnostics`, changing its signature.
+- **Required diagnostics, Lucky Internship's exact real inputs, before vs.
+  after** (release-day fixed state and full weekly trace reproduced via a
+  scratch script against both the pre- and post-redesign engine):
+
+  | Metric | Before (Milestone 9) | After (Milestone 10) |
+  |---|---|---|
+  | `crossoverCapacityFraction` | 0.165 (originality=55 alone) | 0.126 (concept strength dragged down by spectacle=16 - a low-spectacle character comedy) |
+  | Pull-forward shape | pinned at exactly 1.0 (max) for weeks 9-12, `finalAttendanceProbability` flat at 0.710 | smooth peak of 0.290 (week 5-6), gently declining - no plateau at any week |
+  | Peak week | 10 (£125.0M) | 8 (£88.7M) |
+  | Opening | £44.85M (unchanged - week 1 has no prior-week backlog for pull-forward to act on) | £44.85M |
+  | Total gross | £1,009.6M | £931.5M |
+  | Legs | 22.51x | 20.77x |
+  | % of addressable audience converted | 66.45% | 61.31% |
+  | Cumulative crossover share of admissions | (not separately tracked before) | 54.94% |
+
+  The pull-forward redesign visibly did its job - no more multi-week
+  plateau at an exact ceiling, a materially lower and earlier peak, a
+  smoothly-declining probability curve instead of a cliff. The capacity
+  redesign is real and correctly multi-factor (spectacle now genuinely
+  drags down a low-spectacle comedy's capacity). But total gross and legs
+  only fell by ~8%, not the dramatic reduction "ordinary well-liked films
+  must stop behaving like cultural phenomena" implies was expected - see
+  the honestly-documented residual gap below for why, found via exactly the
+  diagnostics this milestone's brief required.
+- **Regression matrix re-verified, five thresholds recalibrated with
+  documented reasoning** (`audienceSimulationRegressionMatrix.test.ts`,
+  `audienceSimulationScenarios.test.ts`, `audienceSimulationInputs.test.ts`):
+  two `crossoverCapacityFraction` lower-bound thresholds on
+  high-originality/poor-reception archetypes (0.25/0.2 -> 0.15 each - the
+  multi-factor formula no longer pushes capacity as close to the ceiling
+  from originality alone); the rare-phenomenon scenario's peak WOM
+  reproduction ratio (was asserted `> 0.9`, "approaches replacement" -
+  actual is now ~0.68, still by far the highest in the matrix at >3x the
+  next-highest scenario, but the smooth pull-forward curve genuinely tempers
+  how self-sustaining the loop can get, so the literal near-1.0 bar no
+  longer holds); the huge-opening/poor-reception scenario's week-2 decline
+  threshold (`< 0.85x` opening -> `< 0.9x` - the smooth curve decays more
+  gradually by construction, with no more single-week cliff); and the
+  rare-phenomenon scenario no longer terminates before the 20-week hard cap
+  (it used to burn through its own huge reachable audience fast enough to
+  trickle out early - the smoother decay means nothing in this matrix
+  finishes early any more), replaced with a ceiling-saturation check
+  (phenomenon still reaches ~91% of its own ceiling by week 20, dramatically
+  more than any other scenario, which is the metric that actually captures
+  what made it special). All ten named scenarios, every cross-scenario
+  assertion, and all six property sweeps still hold with genuine margins -
+  genuine sleepers, rare phenomena, strong niche retention, and event films
+  with major crossover are all preserved (regression matrix: 276 tests
+  total, up from 261 - the difference is this milestone's own new tests for
+  the two redesigned mechanisms, `audienceSimulationInputs.test.ts`'s
+  `crossoverCapacityFraction - multi-factor concept strength x
+  accessibility` block and `audienceSimulationStep.test.ts`'s `pull-forward
+  redesign` block).
+- **A residual gap, found via this milestone's own required diagnostics and
+  deliberately left undone rather than unilaterally expanded scope to fix:**
+  `deriveWomCrossoverExpansion` (untouched this milestone - the brief's own
+  scope was capacity's *source*, not the realisation step) bounds its
+  weekly headroom against the *combined* natural+crossover ceiling
+  (`maxInterestedAudience`), not a crossover-only one. Whenever natural
+  interest hasn't yet saturated its own (typically much larger) ceiling,
+  this headroom stays close to the full combined ceiling regardless of how
+  small `crossoverCapacityFraction` actually is - so a meaningfully reduced
+  capacity input barely throttles weekly crossover realisation in practice,
+  the direct cause of the diagnostic table's disappointingly small total-
+  gross reduction above, and a direct contradiction of "AudienceScore 78 by
+  itself should not be enough to generate millions of crossover viewers per
+  week for an unknown comedy" (Lucky Internship's own week-5 crossover
+  interest created was 9.34M people). A precise fix requires either a new
+  tracked "cumulative crossover realized" field on
+  `AudienceSimulationWeekState` (a real state/save-compatibility decision -
+  `ReleaseSimulationInputs` itself has no save-compat concerns since it's
+  never persisted, but `AudienceSimulationWeekState` is, via
+  `Film.boxOfficeRun`) or a provably-equivalent derivation from existing
+  fields (attempted during this milestone's own validation - `max(0,
+  totalEverInterested - naturalCeiling)` looked promising but was proven
+  wrong: it silently under-counts crossover's true cumulative contribution
+  whenever crossover has been contributing *below* the natural ceiling,
+  since natural and crossover interest are otherwise indistinguishable once
+  merged into the single `totalEverInterested` running total - implementing
+  and diagnostic-testing this against Lucky Internship actually made total
+  gross go *up* slightly, £1,011.8M vs. £931.5M, confirming the derivation
+  was unsound and it was reverted). Left as a documented gap, exactly
+  DESIGN.md's own established practice (compare Milestone 9's two
+  documented limitations) rather than either a silent accounting bug or an
+  unauthorized scope expansion into new persisted state and a SAVE_KEY
+  bump mid-milestone.
+
 **Final reference: formulas, constants, invariants, scenarios, limitations,
-hooks.** Milestones 1-6 are now complete and live - this is the
+hooks.** Milestones 1-10 are now complete and live - this is the
 consolidated specification for the system as it actually ships, not a
 design intent. Every number below is read directly from the committed
 source at the time of writing, not from memory.
@@ -3285,7 +3830,9 @@ Reported on demand, never stored (state/selectors.ts):
 ```
 totalAddressableAudience  = BASE_ADDRESSABLE_POPULATION x marketSize[targetAudience] x (genrePopularity / 100)
 baseInterestFraction      = clamp((0.05 + 0.65 x (scriptMarketability/100)) x (targetAudience === script.intendedAudience ? 1 : 0.7), 0, 1)
-crossoverCapacityFraction = clamp(0.3 x (scriptOriginality/100), 0, 0.3)
+crossoverCapacityFraction = clamp(0.3 x conceptStrength x accessibility, 0, 0.3)            [Milestone 10 - see that milestone's note]
+  where conceptStrength = clamp(0.35 x (scriptOriginality/100) + 0.30 x (scriptSpectacle/100) + 0.25 x (scriptMarketability/100) + 0.10 x (criticScore/100), 0, 1)
+        accessibility    = 0.4 + 0.6 x clamp((genrePopularity/100 x marketSize[targetAudience]) / 0.75, 0, 1)
 marketingEfficiency       = clamp((0.2 + 0.7 x scriptMarketability/100) x (1 - 0.5 x scriptOriginality/100), 0.05, 1)
 conversionPacingBaseline  = clamp(releaseType.conversionPacingBaseline x windowBaseMultiplier x windowGenreBonus x (1 + 0.5 x buzzScore/100), 0, 1)
 externalWeeklyAwarenessRate = clamp(0.03 x releaseType.ongoingAwarenessFactor x (0.5 + 0.5 x marketingEfficiency), 0, 1)
@@ -3306,12 +3853,32 @@ criticScore, audienceScore  = passed straight through, unchanged
      recentAdmissions   = admissions[t-1] x 1 + admissions[t-2] x 0.7 + admissions[t-3] x 0.4 + admissions[t-4] x 0.2 + admissions[t-5] x 0.05
      receptionMultiplier = 0.01 + 0.99 x ((0.7 x audienceScore + 0.3 x criticScore) / 100)^2
 4. awareCount += unaware x thresholdResponse(womInfluence, 0.0,    300)
-5. newInterest_wom      = min(natural headroom, awareNotYetInterested) x thresholdResponse(womInfluence, 0.003,  150)
-6. newInterest_crossover = min(total headroom,  awareNotYetInterested) x thresholdResponse(womInfluence, 0.0075, 100)
+5. newInterest_wom       = min(natural headroom, awareNotYetInterested) x thresholdResponse(womInfluence, 0.003,  75) x (natural headroom / naturalCeiling)
+6. newInterest_crossover = min(total headroom,  awareNotYetInterested) x thresholdResponse(womInfluence, 0.0075, 100) x (total headroom / totalCeiling)
 7. baselineProbability = conversionPacingBaseline
-8. attendanceProbability = baselineProbability + thresholdResponse(womInfluence, 0.005, 100) x (1 - baselineProbability)
-9. ticketsThisWeek = interestedRemaining x attendanceProbability
+8. urgencySignal = max(0, womInfluence - 0.005) / (max(0, womInfluence - 0.005) + PULL_FORWARD_HALF_SATURATION=0.15)   [Milestone 10 - smooth, never plateaus]
+   ageFactor = PULL_FORWARD_AGE_HALF_LIFE_WEEKS=8 / (8 + max(0, weekNumber - 1))
+   ceilingMultiplier = 1 + (PULL_FORWARD_MAX_MULTIPLIER=3 - 1) x ageFactor x backlogFreshnessFactor
+     [backlogFreshnessFactor = priorWeek.interestedRemaining / (priorWeek.interestedRemaining + priorWeek.cumulativeTicketsSold), or 1 if that denominator is 0]
+   probabilityCeiling = baselineProbability x ceilingMultiplier
+   attendanceProbability = baselineProbability + urgencySignal x (probabilityCeiling - baselineProbability)
+9. unconstrainedDemand = (priorWeek.interestedRemaining x attendanceProbability) + (newInterest_this_week x baselineProbability)
+   [pull-forward's boost only applies to priorWeek's existing backlog - this week's own newly-created interest sells at the plain baseline rate]
    thresholdResponse(x, threshold, sensitivity) = clamp((max(0, x - threshold))^2 x sensitivity, 0, 1)
+   [steps 5/6's extra headroom-ratio factor and step 9's pull-forward/backlog split were added in Milestone 7 -
+    see that milestone's note for why: without them, a single week could consume nearly all remaining headroom in one shot.
+    Step 8's flat probability cap became a *multiplier* of baseline in Milestone 8, then a smooth Michaelis-Menten-style
+    saturating curve with a dual-decaying ceiling (run age x backlog freshness) in Milestone 10 - see that milestone's note.]
+9.5. availabilityThisWeek = week 1 ? initialAvailabilityFraction : priorWeek.availabilityFraction
+     anchor = max(initialAwareCount, 0.01 x ceiling) + expansionProgress x (ceiling - max(initialAwareCount, 0.01 x ceiling))
+       [expansionProgress = clamp((availabilityThisWeek - initialAvailabilityFraction) / (1 - initialAvailabilityFraction), 0, 1)]
+     capacityThisWeek = availabilityThisWeek x MAX_WEEKLY_THROUGHPUT_FRACTION=0.5 x anchor
+     ticketsThisWeek = min(unconstrainedDemand, capacityThisWeek)   [unserved demand stays in interestedRemaining, never destroyed]
+     demandUtilisation = unconstrainedDemand / capacityThisWeek
+     performanceAdjustment = (demandUtilisation - 1) x AVAILABILITY_RESPONSE_SENSITIVITY=0.5 x (expansion side only: x criticLedExpansionWeight-blended reception gate)
+     netRate = clamp(performanceAdjustment - availabilityBaseWeeklyDecay, +-MAX_AVAILABILITY_RATE_MAGNITUDE=0.2)
+     nextAvailabilityFraction = netRate >= 0 ? availabilityThisWeek + (1 - availabilityThisWeek) x netRate : availabilityThisWeek - (availabilityThisWeek - 0.02) x -netRate
+     [Milestone 9 - availability constrains attendance only, never creates awareness/interest/WOM; see that milestone's note for the full incident writeup and calibration story]
 11. run ends when weeks >= 20, or (latestAdmissions < openingAdmissions x 0.02) - the latter essentially never fires
     at realistic release-scale inputs (Milestone 5's documented finding); every real run today ends via the week-20 cap.
 ```
@@ -3322,8 +3889,16 @@ criticScore, audienceScore  = passed straight through, unchanged
 |---|---|---|---|
 | `WOM_LOOKBACK_WEIGHTS` | `[1, 0.7, 0.4, 0.2, 0.05]` | `audienceSimulation.ts` | Recency-weighted "how much is currently being talked about" - the week just passed counts fully, tapering to negligible by ~5 weeks back. Provisional shape, not fit to data. |
 | `AWARENESS_RESPONSE` | threshold 0, sensitivity 300 | `audienceSimulationStep.ts` | Lowest bar of the four WOM effects - nearly any released film's word of mouth spreads awareness *some* amount. |
-| `NATURAL_INTEREST_RESPONSE` | threshold 0.003, sensitivity 150 | same | Second-lowest bar - convincing people who already fit the film's natural audience. |
+| `NATURAL_INTEREST_RESPONSE` | threshold 0.003, sensitivity 75 | same | Second-lowest bar - convincing people who already fit the film's natural audience. Sensitivity halved from 150 in Milestone 7 (the Quantum Signal incident) - at 150, a merely-good reception could sustain a high growth fraction for 10+ consecutive weeks, eventually consuming nearly its whole natural ceiling; halving pushes that inflection point further up the reception scale. |
 | `PULL_FORWARD_RESPONSE` | threshold 0.005, sensitivity 100 | same | Needs a genuinely good reaction to start pulling attendance forward in time. |
+| `PULL_FORWARD_MAX_MULTIPLIER` | 3 | same | Added in Milestone 7 as a flat probability (0.4), changed to a multiplier of each release's own baseline in Milestone 8 - a flat cap was a small relative boost for Wide's high baseline but a huge one for Limited/Festival First's much lower baseline, exactly backwards (see that milestone's note). Still the absolute upper bound on the ceiling multiplier in Milestone 10's redesign - `pullForwardCeilingMultiplier`'s two decay factors (age, backlog freshness) can only ever shrink it toward 1, never grow it past 3. |
+| `PULL_FORWARD_HALF_SATURATION` | 0.15 | same | Milestone 10 - the womInfluence-above-threshold value at which `pullForwardUrgencySignal` reaches exactly 0.5. Picked (checked against a scratch diagnostic sweep) so ordinary-good reception produces a modest, well-under-half-strength signal while sustained exceptional reception pushes urgency up near its own asymptote - replaces `thresholdResponse`'s convex-then-hard-clip-at-1 shape, which reached and *held* its maximum for several consecutive weeks on a real save. |
+| `PULL_FORWARD_AGE_HALF_LIFE_WEEKS` | 8 | same | Milestone 10 - the run-age at which `pullForwardCeilingMultiplier`'s age-decay factor has fallen to 0.5. A smooth `halfLife / (halfLife + weeksSinceRelease)` curve, not a cutoff - week 1 gets the full ceiling, later weeks get progressively less, with no hard boundary. |
+| `MAX_WEEKLY_THROUGHPUT_FRACTION` | 0.5 | same | Milestone 9 - the fraction of the blended availability anchor (see `computeAvailabilityAnchor`) a fully-available film can serve in one week; calibrated jointly with the two constants below against the ordinary/phenomenon/sleeper scenarios simultaneously (see that milestone's "three-way-constrained" note). |
+| `ANCHOR_FLOOR_FRACTION` | 0.01 | same | Milestone 9 - minimum weekly-throughput anchor as a fraction of `maxInterestedAudience`, preventing a film with `initialAwareCount = 0` from being permanently trapped at zero capacity. |
+| `AVAILABILITY_FLOOR` / `AVAILABILITY_CEILING` | 0.02 / 1.0 | same | Milestone 9 - the bounds `availabilityFraction` asymptotically approaches in either direction, never reaches exactly. |
+| `AVAILABILITY_RESPONSE_SENSITIVITY` | 0.5 | same | Milestone 9 - how strongly demand/capacity utilisation above or below the reference point (1.0) drives next week's availability adjustment. |
+| `MAX_AVAILABILITY_RATE_MAGNITUDE` | 0.2 | same | Milestone 9 - hard clamp on the net weekly availability adjustment rate, on top of the asymptotic floor/ceiling approach - the rate-limit half of "expansion and contraction need saturation and rate limits." |
 | `CROSSOVER_RESPONSE` | threshold 0.0075, sensitivity 100 | same | Highest bar - reaching people outside the natural audience. All four re-picked in Milestone 3 against a *wide* diagnostic sweep (Milestone 2's own narrower sweep under-shot the real achievable influence range once realistic release-scale inputs were introduced) - see that milestone's note for the full story. |
 | `RECEPTION_FLOOR` | 0.01 | `audienceSimulationStep.ts` | Even a badly-received film generates a nonzero trickle of organic chatter. |
 | `AUDIENCE_SCORE_WEIGHT` / `CRITIC_SCORE_WEIGHT` | 0.7 / 0.3 | same | Word of mouth is audience-driven first, critics second - "critics may have some influence, but audience response is the stronger driver" (Milestone 3's brief). |
@@ -3331,7 +3906,9 @@ criticScore, audienceScore  = passed straight through, unchanged
 | `MIN_WEEKLY_ADMISSIONS_RATIO` | 0.02 | same | The natural-exhaustion stopping condition - in practice rarely reached before the hard cap at realistic inputs (Milestone 5/6's documented finding). |
 | `BASE_ADDRESSABLE_POPULATION` | 250,000,000 | `audienceSimulationInputs.ts` | The worldwide-scale population ceiling behind `totalAddressableAudience` - raised from Milestone 3's original 40,000,000 in Milestone 6 specifically so genuine billion-scale outcomes are reachable; see that constant's own comment for the full reasoning. |
 | `BASE_INTEREST_FLOOR` / `BASE_INTEREST_CEILING` | 0.05 / 0.7 | same | `baseInterestFraction`'s range as a function of `scriptMarketability` alone, before the audience-fit multiplier. |
-| `CROSSOVER_CAPACITY_CEILING` | 0.3 | same | `crossoverCapacityFraction`'s ceiling - picked jointly with `BASE_INTEREST_CEILING` so their *sum* can never exceed 1 (0.7 + 0.3 = 1.0 exactly), satisfying Milestone 1's own validation by construction. |
+| `CROSSOVER_CAPACITY_CEILING` | 0.3 | same | `crossoverCapacityFraction`'s ceiling - picked jointly with `BASE_INTEREST_CEILING` so their *sum* can never exceed 1 (0.7 + 0.3 = 1.0 exactly), satisfying Milestone 1's own validation by construction. Unchanged by Milestone 10's multi-factor redesign - only what fills the ceiling changed, not the ceiling itself. |
+| `CROSSOVER_CONCEPT_WEIGHTS` | originality 0.35, spectacle 0.30, marketability 0.25, criticScore 0.10 | same | Milestone 10 - how much each input contributes to `conceptStrength` ("is this the kind of thing an outsider would find worth talking about or seeing"). Originality and spectacle dominate; criticScore contributes least, as a secondary prestige-adjacent signal only, per the milestone brief's "critics may have some influence... never the dominant channel for mainstream theatrical crossover." |
+| `CROSSOVER_ACCESSIBILITY_FLOOR` / `CROSSOVER_ACCESSIBILITY_REFERENCE` | 0.4 / 0.75 | same | Milestone 10 - `accessibility`'s floor (even the least accessible genre/target-audience combination keeps some crossover capacity) and normalisation reference (0.75 = the single most accessible combination the data tables can produce: Action's popularity of 75 x Mass Market's market size of 1.0). |
 | `AUDIENCE_MISMATCH_PENALTY` | 0.7 | same | A film marketed to an audience its script wasn't written for loses a real, but not devastating, slice of genuine taste-fit. |
 | `MARKETING_EFFICIENCY_FLOOR` / `CEILING` | 0.2 / 0.9 | same | `marketingEfficiency`'s range as a function of `scriptMarketability`, before originality's dampening. |
 | `ORIGINALITY_EFFICIENCY_DAMPENING` | 0.5 | same | A genuinely novel premise is harder to pitch - at `scriptOriginality`=100, marketing efficiency is halved. |
@@ -3340,6 +3917,7 @@ criticScore, audienceScore  = passed straight through, unchanged
 | `BUZZ_URGENCY_WEIGHT` | 0.5 | same | A secondary boost to conversion pacing from Buzz specifically - an "everyone's talking about it" event film converts its opening-week crowd faster, independent of release type's primary role. |
 | `EXTERNAL_AWARENESS_BASE_RATE` | 0.03 | same | The small ongoing (post-week-1) organic-discovery trickle, scaled by release type and marketing efficiency. |
 | `RELEASE_TYPE_AUDIENCE_PROFILES` | Wide 0.9/0.14/1.0, Limited 0.12/0.06/0.6, Festival First 0.03/0.05/0.4 (initialAwarenessShare/conversionPacingBaseline/ongoingAwarenessFactor) | same | Release type reinterpreted for this model - initial-awareness shape and conversion urgency, not the retired model's reach/legs multipliers. Streaming has no entry - unsupported by design (see below). |
+| `RELEASE_TYPE_AUDIENCE_PROFILES`'s Milestone 9 fields | Wide 0.95/0.18/0, Limited 0.1/0.02/0, Festival First 0.02/0.015/0.65 (initialAvailabilityFraction/availabilityBaseWeeklyDecay/criticLedExpansionWeight) | same | Release-day exhibition access and its age-based erosion rate, plus how much Festival First's expansion is additionally gated by critic-only reception - see that milestone's note. |
 | `AVERAGE_TICKET_PRICE` | £11 | `boxOfficeRun.ts` | The single people-to-money boundary conversion for the whole system - picked once, in Milestone 4, so a maxed-out run landed in a broadly comparable range to the retired model's own headline constant; not re-tuned since (Milestone 6 changed the *population* ceiling instead, to reach billion-scale, keeping this one flat, realistic number intact). |
 | `STUDIO_BOX_OFFICE_SHARE` | 0.42 | same | Unchanged from the retired live model - a fact about theatrical economics (real-world studio rentals average ~40% of worldwide gross), not something either box-office model gets to decide. |
 
@@ -3361,7 +3939,7 @@ criticScore, audienceScore  = passed straight through, unchanged
 | 3 | Huge opening, exceptional reception | Opening > £100M; week 2 does not decline; total genuinely exceeds £1B; realizes > 90% of its own ceiling. |
 | 4 | Critically acclaimed niche film | `initialAwareCount` < 1% of addressable audience; runs (near-)the full 20 weeks; final week outsells the opening; the film's own ceiling stays under half of the same acclaim's Mass Market equivalent ceiling. |
 | 5 | Broad crowd-pleaser | `crossoverCapacityFraction` < 0.15 (no extreme originality needed); opening > £10M; runs (near-)the full 20 weeks; no single week-over-week collapse past 50%; total > £200M. |
-| 6 | Highly original, disliked | `crossoverCapacityFraction` > 0.25 (real capacity exists); realized total never exceeds the natural (non-crossover) ceiling; stays under half the film's full ceiling. |
+| 6 | Highly original, disliked | `crossoverCapacityFraction` > 0.15 (real capacity exists - recalibrated in Milestone 10, see that milestone's note: the multi-factor formula no longer pushes capacity as close to the ceiling from originality alone as the old originality-only formula did); realized total never exceeds the natural (non-crossover) ceiling; stays under half the film's full ceiling. |
 | 7 | Excellent, poorly marketed | Opening < 1% of ceiling; total > 20x the opening; at least 5 growth weeks; peak week stays under 10% of a genuine Wide blockbuster's own opening. |
 | 8 | Heavily marketed, bad | `initialAwareCount` > 30% of addressable audience; opening > £100M; final week < 5% of the opening; strictly non-increasing throughout. |
 | 9 | Ordinary mid-performer | Never grows past 1.5x its own opening; legs sits strictly between the front-loaded archetype's and the sleeper's; runs the full 20 weeks (doesn't sell out early like a phenomenon does). |

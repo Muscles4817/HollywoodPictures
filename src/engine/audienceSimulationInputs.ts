@@ -55,8 +55,10 @@ export interface ReleaseSimulationInputs {
   marketingSpend: number;
   /** Script.marketability, 1-100 - sizes baseInterestFraction and (dampened by originality) marketingEfficiency. */
   scriptMarketability: number;
-  /** Script.originality, 1-100 - sizes crossoverCapacityFraction (the ceiling) and dampens marketingEfficiency (a genuinely novel premise is harder to pitch). Never touches criticScore/audienceScore or any WOM-response constant - originality creates capacity, reception (below) is the only thing that can realize it. See "originality alone must never create a breakout" in the milestone brief - already structurally guaranteed by Milestone 2's crossover step requiring both capacity *and* a cleared reception-driven threshold. */
+  /** Script.originality, 1-100 - one of several inputs to crossoverCapacityFraction (the ceiling; see computeCrossoverCapacityFraction below) and dampens marketingEfficiency (a genuinely novel premise is harder to pitch). Never touches criticScore/audienceScore or any WOM-response constant - capacity is fixed at release, reception (below) is the only thing that can realize it week over week. See "originality alone must never create a breakout" in the milestone brief - already structurally guaranteed by Milestone 2's crossover step requiring both capacity *and* a cleared reception-driven threshold. */
   scriptOriginality: number;
+  /** Script.toneProfile.spectacle, 1-100 - "must see this in cinemas" event value, one of crossoverCapacityFraction's inputs (see computeCrossoverCapacityFraction below). A low-spectacle film (a character comedy, a small drama) can still cross over on originality/marketability/reception alone, just without spectacle's contribution. */
+  scriptSpectacle: number;
   /** What this film was actually written for (Script.intendedAudience) vs. who it's being marketed to (Film.targetAudience, below) - a mismatch narrows genuine taste-fit even if marketability is otherwise strong. */
   scriptIntendedAudience: TargetAudience;
   targetAudience: TargetAudience;
@@ -128,8 +130,78 @@ function computeBaseInterestFraction(scriptMarketability: number, targetAudience
   return clamp(raw * fitMultiplier, 0, 1);
 }
 
-function computeCrossoverCapacityFraction(scriptOriginality: number): number {
-  return clamp(CROSSOVER_CAPACITY_CEILING * (scriptOriginality / 100), 0, CROSSOVER_CAPACITY_CEILING);
+// crossoverCapacityFraction used to be scriptOriginality alone, scaled
+// straight to the ceiling - i.e. AudienceScore-adjacent reception was doing
+// double duty as both "does the natural audience like it" (via womInfluence,
+// audienceSimulationStep.ts) and, indirectly through originality-as-sole-
+// capacity-driver, "can it reach anyone else." Redesigned per DESIGN.md
+// 5.34's crossover-capacity note: capacity - the ceiling on how far a film
+// COULD ever expand beyond its natural audience - is fixed at release from
+// the concept and its accessibility alone, never from reception.
+// deriveWomCrossoverExpansion (audienceSimulationStep.ts) still separately
+// decides how much of that fixed ceiling actual WOM realizes each week
+// (crossover *realisation*, driven by womInfluence) - only the ceiling's
+// source changes here.
+//
+// conceptStrength: "is this the kind of thing an outsider would find worth
+// talking about / seeing"). Originality and Spectacle dominate (a
+// conventional, non-event film has little to carry it beyond its natural
+// audience regardless of how good it is), Marketability contributes a
+// smaller share (a premise that's easy to pitch travels a little further,
+// but on its own doesn't create crossover interest), CriticScore
+// contributes least of all and only as a secondary, prestige-adjacent
+// signal - never the dominant channel for mainstream theatrical crossover,
+// per the milestone brief.
+const CROSSOVER_CONCEPT_WEIGHTS = {
+  originality: 0.35,
+  spectacle: 0.3,
+  marketability: 0.25,
+  criticScore: 0.1,
+};
+
+function computeCrossoverConceptStrength(scriptOriginality: number, scriptSpectacle: number, scriptMarketability: number, criticScore: number): number {
+  return clamp(
+    CROSSOVER_CONCEPT_WEIGHTS.originality * (scriptOriginality / 100) +
+      CROSSOVER_CONCEPT_WEIGHTS.spectacle * (scriptSpectacle / 100) +
+      CROSSOVER_CONCEPT_WEIGHTS.marketability * (scriptMarketability / 100) +
+      CROSSOVER_CONCEPT_WEIGHTS.criticScore * (criticScore / 100),
+    0,
+    1,
+  );
+}
+
+// accessibility: how naturally the film's own genre/target-audience combo
+// can reach beyond itself - reuses data/genres.ts:GENRE_PROFILES.popularity
+// and data/audiences.ts:AUDIENCE_PROFILES.marketSize (the same tables
+// totalAddressableAudience above already reads) rather than a new stat, per
+// the milestone brief's "propose a clear formula using existing inputs."
+// Normalized against the single most accessible genre+audience combination
+// the data tables can produce (Action, popularity 75, x Mass Market,
+// marketSize 1.0 = 0.75) so that combination reaches accessibility 1.0
+// exactly and everything else scales down from there towards the floor -
+// even the least accessible combination (Drama x Niche) still keeps some
+// crossover accessibility, since a small niche film can still occasionally
+// break out, just far less naturally than a mass-market genre picture.
+const CROSSOVER_ACCESSIBILITY_FLOOR = 0.4;
+const CROSSOVER_ACCESSIBILITY_REFERENCE = 0.75;
+
+function computeCrossoverAccessibility(genre: Genre, targetAudience: TargetAudience): number {
+  const reach = (GENRE_PROFILES[genre].popularity / 100) * AUDIENCE_PROFILES[targetAudience].marketSize;
+  const normalized = clamp(reach / CROSSOVER_ACCESSIBILITY_REFERENCE, 0, 1);
+  return CROSSOVER_ACCESSIBILITY_FLOOR + (1 - CROSSOVER_ACCESSIBILITY_FLOOR) * normalized;
+}
+
+function computeCrossoverCapacityFraction(
+  scriptOriginality: number,
+  scriptSpectacle: number,
+  scriptMarketability: number,
+  criticScore: number,
+  genre: Genre,
+  targetAudience: TargetAudience,
+): number {
+  const conceptStrength = computeCrossoverConceptStrength(scriptOriginality, scriptSpectacle, scriptMarketability, criticScore);
+  const accessibility = computeCrossoverAccessibility(genre, targetAudience);
+  return clamp(CROSSOVER_CAPACITY_CEILING * conceptStrength * accessibility, 0, CROSSOVER_CAPACITY_CEILING);
 }
 
 // --- Marketing efficiency ---------------------------------------------------
@@ -185,12 +257,47 @@ interface ReleaseTypeAudienceProfile {
   conversionPacingBaseline: number;
   /** How much the one-time release-day marketing push still echoes into ongoing weekly awareness after week 1 (AudienceSimulationFixedState.externalWeeklyAwarenessRate) - Wide's broad rollout keeps generating incidental discovery; Festival First's restricted run barely does. */
   ongoingAwarenessFactor: number;
+  /**
+   * Milestone 9 (docs/DESIGN.md 5.34, "availability") - release-day
+   * theatrical access, AudienceSimulationFixedState.initialAvailabilityFraction's
+   * source. Wide opens on nearly every screen at once; Limited on a
+   * handful of theaters; Festival First on barely any general-public
+   * screens at all (mostly the festival circuit itself).
+   */
+  initialAvailabilityFraction: number;
+  /**
+   * How fast this release type's availability eats into itself before any
+   * performance-based modulation - AudienceSimulationFixedState.availabilityBaseWeeklyDecay's
+   * source. Wide's screens get reallocated to next Friday's openers fast,
+   * regardless of how well the film not-catastrophically-failing is
+   * doing; Limited/Festival First aren't fighting for that same weekly
+   * turnover, so a small release that's merely holding steady doesn't
+   * need to actively fight decay to stay put.
+   */
+  availabilityBaseWeeklyDecay: number;
+  /**
+   * AudienceSimulationFixedState.criticLedExpansionWeight's source - 0 for
+   * Wide/Limited (expansion is purely utilisation-driven), meaningfully
+   * positive for Festival First (a festival film's path to wider release
+   * is a critic/press-led distributor decision, not a numerically smaller
+   * version of Limited's audience-driven platform expansion).
+   */
+  criticLedExpansionWeight: number;
 }
 
 const RELEASE_TYPE_AUDIENCE_PROFILES: Record<SupportedReleaseType, ReleaseTypeAudienceProfile> = {
-  Wide: { initialAwarenessShare: 0.9, conversionPacingBaseline: 0.14, ongoingAwarenessFactor: 1.0 },
-  Limited: { initialAwarenessShare: 0.12, conversionPacingBaseline: 0.06, ongoingAwarenessFactor: 0.6 },
-  'Festival First': { initialAwarenessShare: 0.03, conversionPacingBaseline: 0.05, ongoingAwarenessFactor: 0.4 },
+  Wide: {
+    initialAwarenessShare: 0.9, conversionPacingBaseline: 0.14, ongoingAwarenessFactor: 1.0,
+    initialAvailabilityFraction: 0.95, availabilityBaseWeeklyDecay: 0.18, criticLedExpansionWeight: 0,
+  },
+  Limited: {
+    initialAwarenessShare: 0.12, conversionPacingBaseline: 0.06, ongoingAwarenessFactor: 0.6,
+    initialAvailabilityFraction: 0.1, availabilityBaseWeeklyDecay: 0.02, criticLedExpansionWeight: 0,
+  },
+  'Festival First': {
+    initialAwarenessShare: 0.03, conversionPacingBaseline: 0.05, ongoingAwarenessFactor: 0.4,
+    initialAvailabilityFraction: 0.02, availabilityBaseWeeklyDecay: 0.015, criticLedExpansionWeight: 0.65,
+  },
 };
 
 function releaseTypeProfile(releaseType: SupportedReleaseType): ReleaseTypeAudienceProfile {
@@ -307,7 +414,14 @@ function computeExternalWeeklyAwarenessRate(releaseType: SupportedReleaseType, m
 export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInputs): AudienceSimulationFixedState {
   const totalAddressableAudience = computeTotalAddressableAudience(inputs.genre, inputs.targetAudience);
   const baseInterestFraction = computeBaseInterestFraction(inputs.scriptMarketability, inputs.targetAudience, inputs.scriptIntendedAudience);
-  const crossoverCapacityFraction = computeCrossoverCapacityFraction(inputs.scriptOriginality);
+  const crossoverCapacityFraction = computeCrossoverCapacityFraction(
+    inputs.scriptOriginality,
+    inputs.scriptSpectacle,
+    inputs.scriptMarketability,
+    inputs.criticScore,
+    inputs.genre,
+    inputs.targetAudience,
+  );
   const marketingEfficiency = computeMarketingEfficiency(inputs.scriptMarketability, inputs.scriptOriginality);
   const conversionPacingBaseline = computeConversionPacingBaseline(inputs.releaseType, inputs.releaseWindow, inputs.genre, inputs.buzzScore);
   const externalWeeklyAwarenessRate = computeExternalWeeklyAwarenessRate(inputs.releaseType, marketingEfficiency);
@@ -317,6 +431,8 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
     inputs.marketingSpend,
     inputs.releaseType,
   );
+
+  const releaseAvailability = releaseTypeProfile(inputs.releaseType);
 
   return createAudienceSimulationFixedState({
     totalAddressableAudience,
@@ -328,5 +444,8 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
     criticScore: inputs.criticScore,
     audienceScore: inputs.audienceScore,
     initialAwareCount,
+    initialAvailabilityFraction: releaseAvailability.initialAvailabilityFraction,
+    availabilityBaseWeeklyDecay: releaseAvailability.availabilityBaseWeeklyDecay,
+    criticLedExpansionWeight: releaseAvailability.criticLedExpansionWeight,
   });
 }

@@ -111,6 +111,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     marketingSpend: input.marketingChoices.marketingSpend,
     scriptMarketability: input.script.marketability,
     scriptOriginality: input.script.originality,
+    scriptSpectacle: input.script.toneProfile.spectacle,
     scriptIntendedAudience: input.script.intendedAudience,
     targetAudience: input.targetAudience,
     genre: input.genre,

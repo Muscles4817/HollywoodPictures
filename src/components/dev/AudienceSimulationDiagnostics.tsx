@@ -74,6 +74,14 @@ export function AudienceSimulationDiagnostics(inputs: ReleaseSimulationInputs) {
           <span>{formatPercent(fixed.conversionPacingBaseline)}</span>
         </div>
         <div className="row-between" style={{ minWidth: 220 }}>
+          <span className="score-bar-label">Release-Day Availability</span>
+          <span>{formatPercent(fixed.initialAvailabilityFraction)}</span>
+        </div>
+        <div className="row-between" style={{ minWidth: 220 }}>
+          <span className="score-bar-label">Availability Age Decay</span>
+          <span>{formatPercent(fixed.availabilityBaseWeeklyDecay)}/wk</span>
+        </div>
+        <div className="row-between" style={{ minWidth: 220 }}>
           <span className="score-bar-label">Run Length</span>
           <span>{report.length} weeks</span>
         </div>
@@ -123,6 +131,13 @@ export function AudienceSimulationDiagnostics(inputs: ReleaseSimulationInputs) {
               <th>Baseline Prob.</th>
               <th>Pull-Forward</th>
               <th>Final Prob.</th>
+              <th>Availability</th>
+              <th>Demand</th>
+              <th>Capacity</th>
+              <th>Utilisation</th>
+              <th>Age Contr.</th>
+              <th>Perf. Adj.</th>
+              <th>Next Avail.</th>
               <th>Admissions</th>
               <th>Gross</th>
               <th>Cum. Admissions</th>
@@ -142,6 +157,13 @@ export function AudienceSimulationDiagnostics(inputs: ReleaseSimulationInputs) {
                 <td>{formatPercent(r.baselineAttendanceProbability)}</td>
                 <td>{formatPercent(r.womPullForwardBoost)}</td>
                 <td>{formatPercent(r.finalAttendanceProbability)}</td>
+                <td>{formatPercent(r.availabilityFraction)}</td>
+                <td>{formatPeople(r.unconstrainedDemand)}</td>
+                <td>{formatPeople(r.maxServiceableDemand)}</td>
+                <td>{r.demandUtilisation.toFixed(2)}x</td>
+                <td>{formatPercent(r.expectedAgeContraction)}</td>
+                <td>{r.performanceAdjustment >= 0 ? '+' : ''}{formatPercent(r.performanceAdjustment)}</td>
+                <td>{formatPercent(r.nextAvailabilityFraction)}</td>
                 <td>{formatPeople(r.weeklyAdmissions)}</td>
                 <td><Money amount={r.weeklyGross} /></td>
                 <td>{formatPeople(r.cumulativeTicketsSold)}</td>

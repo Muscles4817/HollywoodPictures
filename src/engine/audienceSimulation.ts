@@ -82,6 +82,43 @@ export interface AudienceSimulationFixedState {
   audienceScore: number;
   /** The one-time release-day awareness lump (Buzz, marketing spend, Release Type reach - see DESIGN.md 5.34 Milestone 3), applied once when week 1 is computed, never again - everything after week 1 grows AwareCount only through externalWeeklyAwarenessRate or word of mouth (engine/audienceSimulationStep.ts). A headcount, capped by totalAddressableAudience. */
   initialAwareCount: number;
+  /**
+   * Milestone 9 (DESIGN.md 5.34, "availability - modeling exhibition
+   * access, not just awareness"): release-day theatrical access, as a 0-1
+   * fraction of "full" access - a Wide release opens close to 1.0 (nearly
+   * every screen at once); a Limited release opens on a small fraction
+   * (a handful of theaters); Festival First opens smaller still (barely
+   * any general-public screens, mostly the festival circuit). Deliberately
+   * separate from initialAwareCount above - knowing a film exists and
+   * being able to get a ticket to it are different things, and conflating
+   * them was the root cause this milestone fixes (see engine/audienceSimulationStep.ts's
+   * availability step for the full incident writeup).
+   */
+  initialAvailabilityFraction: number;
+  /**
+   * How fast this release type's availability erodes on its own, before
+   * any performance-based modulation (engine/audienceSimulationStep.ts's
+   * computeNextAvailability) - the "screens get reallocated to next
+   * week's openers regardless of how you're doing, just slower if you're
+   * doing great" effect. Wide releases age fast (real theatrical
+   * turnover); Limited/Festival First age slowly (a small release isn't
+   * fighting for the same screens a wide release's day-one slot is).
+   */
+  availabilityBaseWeeklyDecay: number;
+  /**
+   * 0-1: how much this release type's availability *expansion* (the
+   * performance-driven half of computeNextAvailability, positive
+   * adjustments only) is weighted toward criticScore specifically rather
+   * than the standard audience-weighted reception blend
+   * (computeReceptionResponseMultiplier's 0.7 audience / 0.3 critic split).
+   * 0 for Wide/Limited (expansion is driven by ordinary audience-driven
+   * demand, same blend as everything else). Nonzero for Festival First -
+   * modeling that a festival film's path out of the festival circuit into
+   * wider release is a critic/press-led decision made before general
+   * audiences have had any real chance to weigh in, not a numerically
+   * smaller version of Limited's audience-driven platform expansion.
+   */
+  criticLedExpansionWeight: number;
 }
 
 /**
@@ -105,6 +142,9 @@ export function createAudienceSimulationFixedState(input: AudienceSimulationFixe
   assertScoreRange(input.criticScore, 'criticScore');
   assertScoreRange(input.audienceScore, 'audienceScore');
   assertNonNegative(input.initialAwareCount, 'initialAwareCount');
+  assertUnitInterval(input.initialAvailabilityFraction, 'initialAvailabilityFraction');
+  assertUnitInterval(input.availabilityBaseWeeklyDecay, 'availabilityBaseWeeklyDecay');
+  assertUnitInterval(input.criticLedExpansionWeight, 'criticLedExpansionWeight');
   if (input.baseInterestFraction + input.crossoverCapacityFraction > 1) {
     throw new Error(
       'AudienceSimulation: baseInterestFraction + crossoverCapacityFraction must not exceed 1 - the base pool plus its maximum crossover expansion cannot exceed the whole addressable audience',
@@ -136,6 +176,19 @@ export interface AudienceSimulationWeekState {
   interestedRemaining: number;
   /** Running total tickets sold - the only quantity money is ever derived from, and only outside this module. Repeat viewing isn't modeled (out of scope for this milestone), so this is also the count of distinct people who've seen the film. */
   cumulativeTicketsSold: number;
+  /**
+   * Milestone 9 - this week's theatrical access, 0-1 fraction of "full"
+   * access (see AudienceSimulationFixedState.initialAvailabilityFraction).
+   * Evolving state like awareCount/interestedRemaining, *not* a derived
+   * observation - it persists and compounds week to week (this week's
+   * value was set by *last* week's performance, one-week-lagged by
+   * construction; see engine/audienceSimulationStep.ts's availability
+   * step for why). Deliberately not required to be monotonic in either
+   * direction - it contracts under weak performance, holds or re-expands
+   * under strong performance, the same way interestedRemaining is allowed
+   * to both shrink (conversion) and grow (crossover).
+   */
+  availabilityFraction: number;
 }
 
 /**
@@ -157,6 +210,7 @@ export function createAudienceSimulationWeekState(
   assertNonNegative(input.awareCount, 'awareCount');
   assertNonNegative(input.interestedRemaining, 'interestedRemaining');
   assertNonNegative(input.cumulativeTicketsSold, 'cumulativeTicketsSold');
+  assertUnitInterval(input.availabilityFraction, 'availabilityFraction');
 
   if (input.awareCount > fixed.totalAddressableAudience) {
     throw new Error('AudienceSimulation: awareCount cannot exceed totalAddressableAudience');

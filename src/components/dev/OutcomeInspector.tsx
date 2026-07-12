@@ -386,6 +386,7 @@ export function OutcomeInspector() {
         marketingSpend={marketingChoices.marketingSpend}
         scriptMarketability={script.marketability}
         scriptOriginality={script.originality}
+        scriptSpectacle={script.toneProfile.spectacle}
         scriptIntendedAudience={script.intendedAudience}
         targetAudience={targetAudience}
         genre={genre}

@@ -59,6 +59,7 @@ function baseInputs(overrides: Partial<ReleaseSimulationInputs> = {}): ReleaseSi
     marketingSpend: 20_000_000,
     scriptMarketability: 50,
     scriptOriginality: 40,
+    scriptSpectacle: 50,
     scriptIntendedAudience: 'Mass Market',
     targetAudience: 'Mass Market',
     genre: 'Action',
@@ -209,8 +210,12 @@ describe('named archetype regression scenarios', () => {
 
   it('highly original but disliked film: originality alone never creates a breakout - poor reception suppresses WOM and expansion', () => {
     const r = run(HIGHLY_ORIGINAL_DISLIKED);
-    // Real capacity exists...
-    expect(r.fixed.crossoverCapacityFraction).toBeGreaterThan(0.25);
+    // Real capacity exists (originality=95 is the dominant input) - though
+    // no longer near the ceiling from originality alone the way the old
+    // originality-only formula produced (0.3 * 0.95 = 0.285): the
+    // multi-factor redesign (docs/DESIGN.md 5.34) also weighs this film's
+    // only-moderate spectacle/marketability, landing capacity at ~0.181.
+    expect(r.fixed.crossoverCapacityFraction).toBeGreaterThan(0.15);
     // ...but the realized total never exceeds what the natural (non-crossover) audience alone could produce - crossover is structurally never realized.
     expect(r.totalAdmissions).toBeLessThanOrEqual(r.naturalCeiling + 1e-6);
     // And it stays nowhere near the film's own full (natural + crossover) ceiling, which the capacity alone would allow.
@@ -393,8 +398,16 @@ describe('sweep: no excessive clustering around the middle - a varied set of rea
     // Orders of magnitude apart, not clustered - a healthy model should span from token indie money to blockbuster money across a genuinely varied set of inputs.
     expect(max / min).toBeGreaterThan(200);
     // And they should be distinct at every step, not just at the extremes - no two adjacent tiers collapsing onto each other.
+    // Threshold lowered from 1.5x to 1.4x as part of the Quantum Signal
+    // incident fix (docs/DESIGN.md 5.34): tempering NATURAL_INTEREST_RESPONSE's
+    // sensitivity so a merely-good reception can no longer produce
+    // phenomenon-level growth also narrows the gap between adjacent
+    // mid-tier scenarios here (tier 2 vs tier 3, both decent-but-not-
+    // exceptional reception) - the actual worst adjacent ratio is now
+    // ~1.47x, still clearly distinct, just no longer the ~1.5x+ the old,
+    // more explosive curve produced.
     const sorted = [...totals].sort((a, b) => a - b);
-    for (let i = 1; i < sorted.length; i++) expect(sorted[i]).toBeGreaterThan(sorted[i - 1] * 1.5);
+    for (let i = 1; i < sorted.length; i++) expect(sorted[i]).toBeGreaterThan(sorted[i - 1] * 1.4);
   });
 });
 
