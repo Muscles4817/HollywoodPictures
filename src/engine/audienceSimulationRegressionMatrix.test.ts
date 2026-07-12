@@ -42,7 +42,7 @@ function inputs(overrides: Partial<ReleaseSimulationInputs> = {}): ReleaseSimula
     studioReputation: 50,
     scriptAccessibility: 50,
     scriptHookStrength: 50,
-    scriptOriginality: 50,
+    scriptCrossoverPotential: 50,
     scriptSpectacle: 50,
     scriptIntendedAudience: 'Mass Market',
     targetAudience: 'Mass Market',
@@ -93,9 +93,15 @@ function summarize(releaseInputs: ReleaseSimulationInputs): RunSummary {
     }
   }
   const totalAdmissions = weeks[weeks.length - 1].cumulativeTicketsSold;
-  const maxEverInterested = Math.max(...weeks.map((w) => w.interestedRemaining + w.cumulativeTicketsSold));
+  // Milestone 12 (docs/DESIGN.md - "commercial believability calibration"):
+  // reads AudienceSimulationWeekState.cumulativeCrossoverRealized directly
+  // rather than the old maxEverInterested-minus-naturalCeiling proxy this
+  // matrix used before that field existed - the proxy over-counted whenever
+  // natural interest hadn't yet saturated its own ceiling (exactly the gap
+  // Milestone 12 fixed at the source; see deriveWomCrossoverExpansion's own
+  // doc comment), so it's no longer the most accurate signal available.
   const crossoverCapacity = ceiling - naturalCeiling;
-  const crossoverRealizedFraction = crossoverCapacity > 0 ? Math.max(0, maxEverInterested - naturalCeiling) / crossoverCapacity : 0;
+  const crossoverRealizedFraction = crossoverCapacity > 0 ? weeks[weeks.length - 1].cumulativeCrossoverRealized / crossoverCapacity : 0;
   const peakReproductionRatio = Math.max(0, ...diagnostics.slice(0, -1).map((d) => (Number.isNaN(d.womReproductionRatio) ? 0 : d.womReproductionRatio)));
   return {
     weeksRun: weeks.length,
@@ -119,48 +125,61 @@ function summarize(releaseInputs: ReleaseSimulationInputs): RunSummary {
 
 const ORDINARY_POSITIVE = inputs({
   genre: 'Romance', targetAudience: 'Adults', scriptIntendedAudience: 'Adults',
-  audienceScore: 70, criticScore: 55, buzzScore: 35, scriptAccessibility: 55, scriptOriginality: 30,
+  audienceScore: 70, criticScore: 55, buzzScore: 35, scriptAccessibility: 55, scriptCrossoverPotential: 30,
   marketingSpend: 15_000_000, releaseType: 'Wide',
 });
 const STRONG_WOM = inputs({
-  audienceScore: 82, criticScore: 70, buzzScore: 45, scriptAccessibility: 60, scriptOriginality: 40,
+  audienceScore: 82, criticScore: 70, buzzScore: 45, scriptAccessibility: 60, scriptCrossoverPotential: 40,
   targetAudience: 'Adults', scriptIntendedAudience: 'Adults', marketingSpend: 20_000_000, releaseType: 'Wide',
   directorFame: 40, leadFame: 45, studioReputation: 40,
 });
 const SLEEPER_BREAKOUT = inputs({
-  audienceScore: 90, criticScore: 85, buzzScore: 10, scriptAccessibility: 80, scriptOriginality: 65,
+  audienceScore: 90, criticScore: 85, buzzScore: 10, scriptAccessibility: 80, scriptCrossoverPotential: 65,
   targetAudience: 'Niche', scriptIntendedAudience: 'Niche', marketingSpend: 100_000, releaseType: 'Limited',
 });
 const RARE_PHENOMENON = inputs({
-  audienceScore: 97, criticScore: 90, buzzScore: 95, scriptAccessibility: 92, scriptOriginality: 85,
+  audienceScore: 97, criticScore: 90, buzzScore: 95, scriptAccessibility: 92, scriptCrossoverPotential: 85,
   targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market', genre: 'Action',
   marketingSpend: 140_000_000, releaseType: 'Wide',
+  // Milestone 12: fame/hookStrength/spectacle added (previously left at
+  // inputs()'s neutral default of 50) - a genuine once-in-a-generation
+  // phenomenon needs every lever aligned, not just reception/marketing/
+  // accessibility/crossoverPotential. Without these, this scenario landed
+  // at ~£980M (short of the >£1B bar) and ~73% ceiling saturation (short
+  // of the >80% bar) - both real diagnostic numbers, not assumptions.
+  // 85/90/85 chosen over a more extreme 90/95/90 boost specifically
+  // because the more extreme version pushed the opening so large there was
+  // no longer room for even a 2-week growth streak (a real, checked
+  // regression against this same matrix's own "sustained or growing
+  // attendance is possible" requirement) - 85/90/85 clears all three bars
+  // (£1.26B, 82.1% saturation, a genuine 2-week growth streak) together.
+  directorFame: 85, leadFame: 90, studioReputation: 85, scriptHookStrength: 85, scriptSpectacle: 85,
 });
 const WELL_LIKED_NICHE = inputs({
-  audienceScore: 88, criticScore: 88, buzzScore: 20, scriptAccessibility: 20, scriptOriginality: 20,
+  audienceScore: 88, criticScore: 88, buzzScore: 20, scriptAccessibility: 20, scriptCrossoverPotential: 20,
   targetAudience: 'Niche', scriptIntendedAudience: 'Niche', genre: 'Drama',
   marketingSpend: 1_000_000, releaseType: 'Limited',
   directorFame: 10, leadFame: 5, studioReputation: 15,
 });
 const BROAD_DECENT = inputs({
-  audienceScore: 70, criticScore: 60, buzzScore: 70, scriptAccessibility: 85, scriptOriginality: 30,
+  audienceScore: 70, criticScore: 60, buzzScore: 70, scriptAccessibility: 85, scriptCrossoverPotential: 30,
   targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market', marketingSpend: 60_000_000, releaseType: 'Wide',
 });
 const HUGE_OPEN_POOR = inputs({
-  audienceScore: 30, criticScore: 25, buzzScore: 90, scriptAccessibility: 60, scriptOriginality: 20,
+  audienceScore: 30, criticScore: 25, buzzScore: 90, scriptAccessibility: 60, scriptCrossoverPotential: 20,
   targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market', marketingSpend: 120_000_000, releaseType: 'Wide',
 });
 const EXCELLENT_WEAK_MARKETING = inputs({
-  audienceScore: 92, criticScore: 90, buzzScore: 8, scriptAccessibility: 60, scriptOriginality: 40,
+  audienceScore: 92, criticScore: 90, buzzScore: 8, scriptAccessibility: 60, scriptCrossoverPotential: 40,
   targetAudience: 'Adults', scriptIntendedAudience: 'Adults', marketingSpend: 50_000, releaseType: 'Limited',
   directorFame: 20, leadFame: 15, studioReputation: 25,
 });
 const ORIGINAL_DISLIKED = inputs({
-  audienceScore: 20, criticScore: 25, buzzScore: 40, scriptAccessibility: 40, scriptOriginality: 90,
+  audienceScore: 20, criticScore: 25, buzzScore: 40, scriptAccessibility: 40, scriptCrossoverPotential: 90,
   targetAudience: 'Adults', scriptIntendedAudience: 'Adults', marketingSpend: 20_000_000, releaseType: 'Wide',
 });
 const ORDINARY = inputs({
-  audienceScore: 58, criticScore: 55, buzzScore: 45, scriptAccessibility: 50, scriptOriginality: 50,
+  audienceScore: 58, criticScore: 55, buzzScore: 45, scriptAccessibility: 50, scriptCrossoverPotential: 50,
   marketingSpend: 15_000_000, releaseType: 'Wide',
 });
 
@@ -489,7 +508,7 @@ describe('regression matrix: additional property sweeps', () => {
     const streaks = scores.map((audienceScore) =>
       summarize(inputs({
         genre: 'Romance', targetAudience: 'Adults', scriptIntendedAudience: 'Adults',
-        audienceScore, criticScore: 55, buzzScore: 35, scriptAccessibility: 55, scriptOriginality: 30,
+        audienceScore, criticScore: 55, buzzScore: 35, scriptAccessibility: 55, scriptCrossoverPotential: 30,
         marketingSpend: 15_000_000, releaseType: 'Wide',
       })).longestGrowthStreak,
     );
@@ -510,7 +529,7 @@ describe('regression matrix: additional property sweeps', () => {
     const fractions = scores.map((audienceScore) =>
       summarize(inputs({
         targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market', genre: 'Action',
-        audienceScore, criticScore: audienceScore - 5, buzzScore: 60, scriptAccessibility: 70, scriptOriginality: 70,
+        audienceScore, criticScore: audienceScore - 5, buzzScore: 60, scriptAccessibility: 70, scriptCrossoverPotential: 70,
         marketingSpend: 40_000_000, releaseType: 'Wide',
       })).crossoverRealizedFraction,
     );
@@ -524,7 +543,7 @@ describe('regression matrix: additional property sweeps', () => {
     const totals = scores.map((audienceScore) =>
       summarize(inputs({
         targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market', genre: 'Action',
-        audienceScore, criticScore: audienceScore - 5, buzzScore: 50, scriptAccessibility: 60, scriptOriginality: 30,
+        audienceScore, criticScore: audienceScore - 5, buzzScore: 50, scriptAccessibility: 60, scriptCrossoverPotential: 30,
         marketingSpend: 20_000_000, releaseType: 'Wide',
       })).totalGross,
     );

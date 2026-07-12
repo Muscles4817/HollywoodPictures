@@ -177,9 +177,9 @@ describe('word-of-mouth recency-weighted lookback', () => {
     // Build a history with a huge spike in week 1, then flat, quiet weeks
     // for long enough to fall outside the (5-week) lookback window.
     let weeks: AudienceSimulationWeekState[] = [];
-    weeks = [...weeks, { week: 1, awareCount: 500_000, interestedRemaining: 100_000, cumulativeTicketsSold: 400_000, availabilityFraction: 1 }]; // huge week-1 spike
+    weeks = [...weeks, { week: 1, awareCount: 500_000, interestedRemaining: 100_000, cumulativeTicketsSold: 400_000, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }]; // huge week-1 spike
     for (let w = 2; w <= 10; w++) {
-      weeks.push({ week: w, awareCount: 500_000, interestedRemaining: 100_000, cumulativeTicketsSold: 400_000, availabilityFraction: 1 }); // zero admissions every week after
+      weeks.push({ week: w, awareCount: 500_000, interestedRemaining: 100_000, cumulativeTicketsSold: 400_000, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }); // zero admissions every week after
     }
     const activityAtWeek10 = deriveWordOfMouthActivity(weeks, weeks.length);
     // The week-1 spike is 8 weeks behind by the time week 11 is being
@@ -195,7 +195,7 @@ describe('word-of-mouth recency-weighted lookback', () => {
     let cumulative = 0;
     for (let w = 1; w <= 15; w++) {
       cumulative += 1000; // steady admissions throughout
-      weeks.push({ week: w, awareCount: 500_000, interestedRemaining: 50_000, cumulativeTicketsSold: cumulative, availabilityFraction: 1 });
+      weeks.push({ week: w, awareCount: 500_000, interestedRemaining: 50_000, cumulativeTicketsSold: cumulative, availabilityFraction: 1, cumulativeCrossoverRealized: 0 });
     }
     const influenceAt5 = computeCurrentWomInfluence(f, weeks.slice(0, 5), 5);
     const influenceAt15 = computeCurrentWomInfluence(f, weeks, 15);
@@ -489,7 +489,7 @@ describe('week diagnostics (Milestone 4)', () => {
   it("each week's diagnostics are internally consistent with the week state they describe", () => {
     const f = fixed({ initialAwareCount: 300_000, criticScore: 88, audienceScore: 90 });
     const { weeks, diagnostics } = advanceToWeekWithDiagnostics(f, [], 10);
-    let previous: AudienceSimulationWeekState = { week: 0, awareCount: 0, interestedRemaining: 0, cumulativeTicketsSold: 0, availabilityFraction: 1 };
+    let previous: AudienceSimulationWeekState = { week: 0, awareCount: 0, interestedRemaining: 0, cumulativeTicketsSold: 0, availabilityFraction: 1, cumulativeCrossoverRealized: 0 };
     for (let i = 0; i < weeks.length; i++) {
       const week = weeks[i];
       const d = diagnostics[i];

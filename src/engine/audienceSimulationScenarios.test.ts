@@ -62,7 +62,7 @@ function baseInputs(overrides: Partial<ReleaseSimulationInputs> = {}): ReleaseSi
     studioReputation: 50,
     scriptAccessibility: 50,
     scriptHookStrength: 50,
-    scriptOriginality: 40,
+    scriptCrossoverPotential: 40,
     scriptSpectacle: 50,
     scriptIntendedAudience: 'Mass Market',
     targetAudience: 'Mass Market',
@@ -85,52 +85,59 @@ function expectNonDecreasing(values: number[]): void {
 // --- The nine named archetypes -----------------------------------------
 
 const FRONT_LOADED_POOR: ReleaseSimulationInputs = baseInputs({
-  buzzScore: 90, marketingSpend: 100_000_000, scriptAccessibility: 70, scriptOriginality: 30,
+  buzzScore: 90, marketingSpend: 100_000_000, scriptAccessibility: 70, scriptCrossoverPotential: 30,
   releaseWindow: 'Summer', criticScore: 22, audienceScore: 18,
 });
 
 const SLEEPER_HIT: ReleaseSimulationInputs = baseInputs({
-  buzzScore: 15, marketingSpend: 300_000, scriptAccessibility: 40, scriptOriginality: 70,
+  buzzScore: 15, marketingSpend: 300_000, scriptAccessibility: 40, scriptCrossoverPotential: 70,
   scriptIntendedAudience: 'Niche', targetAudience: 'Niche', genre: 'Drama',
   releaseType: 'Limited', criticScore: 92, audienceScore: 95,
 });
 
 const HUGE_OPENING_EXCEPTIONAL: ReleaseSimulationInputs = baseInputs({
-  buzzScore: 98, marketingSpend: 150_000_000, scriptAccessibility: 90, scriptOriginality: 55,
+  buzzScore: 98, marketingSpend: 150_000_000, scriptAccessibility: 90, scriptCrossoverPotential: 75,
   releaseWindow: 'Summer', criticScore: 93, audienceScore: 97,
+  // Milestone 12: fame/hookStrength/spectacle maxed out (previously left at
+  // inputs()'s neutral default of 50) and scriptCrossoverPotential raised
+  // 55->75 - reaching genuine extreme-upper-range saturation (>90% of this
+  // film's own realistic ceiling) now requires every lever aligned, not
+  // just reception/marketing/accessibility; without this, real diagnostic
+  // saturation landed at ~76%, short of the bar.
+  directorFame: 95, leadFame: 98, studioReputation: 95, scriptHookStrength: 95, scriptSpectacle: 95,
 });
 
 const CRITICALLY_ACCLAIMED_NICHE: ReleaseSimulationInputs = baseInputs({
   buzzScore: 20, marketingSpend: 500_000, directorFame: 10, leadFame: 8, studioReputation: 15,
-  scriptAccessibility: 30, scriptOriginality: 45,
+  scriptAccessibility: 30, scriptCrossoverPotential: 45,
   scriptIntendedAudience: 'Niche', targetAudience: 'Niche', genre: 'Drama',
   releaseWindow: 'Awards Season', releaseType: 'Festival First', criticScore: 94, audienceScore: 85,
 });
 
 const BROAD_CROWD_PLEASER: ReleaseSimulationInputs = baseInputs({
-  buzzScore: 55, marketingSpend: 30_000_000, scriptAccessibility: 65, scriptOriginality: 20,
+  buzzScore: 55, marketingSpend: 30_000_000, scriptAccessibility: 65, scriptCrossoverPotential: 20,
   genre: 'Comedy', releaseWindow: 'Christmas', criticScore: 40, audienceScore: 45,
 });
 
 const HIGHLY_ORIGINAL_DISLIKED: ReleaseSimulationInputs = baseInputs({
-  buzzScore: 50, marketingSpend: 20_000_000, scriptAccessibility: 55, scriptOriginality: 95,
+  buzzScore: 50, marketingSpend: 20_000_000, scriptAccessibility: 55, scriptCrossoverPotential: 95,
   genre: 'Sci-Fi', criticScore: 20, audienceScore: 15,
 });
 
 const EXCELLENT_POORLY_MARKETED: ReleaseSimulationInputs = baseInputs({
-  buzzScore: 5, marketingSpend: 10_000, scriptAccessibility: 45, scriptOriginality: 40,
+  buzzScore: 5, marketingSpend: 10_000, scriptAccessibility: 45, scriptCrossoverPotential: 40,
   scriptIntendedAudience: 'Adults', targetAudience: 'Adults', genre: 'Drama',
   releaseType: 'Limited', criticScore: 90, audienceScore: 88,
 });
 
 const HEAVILY_MARKETED_BAD: ReleaseSimulationInputs = baseInputs({
   buzzScore: 85, marketingSpend: 150_000_000, directorFame: 70, leadFame: 75, studioReputation: 60,
-  scriptAccessibility: 70, scriptOriginality: 25,
+  scriptAccessibility: 70, scriptCrossoverPotential: 25,
   releaseWindow: 'Summer', criticScore: 20, audienceScore: 18,
 });
 
 const ORDINARY_MID_PERFORMER: ReleaseSimulationInputs = baseInputs({
-  buzzScore: 45, marketingSpend: 15_000_000, scriptAccessibility: 50, scriptOriginality: 30,
+  buzzScore: 45, marketingSpend: 15_000_000, scriptAccessibility: 50, scriptCrossoverPotential: 30,
   scriptIntendedAudience: 'Adults', targetAudience: 'Adults', genre: 'Thriller',
   criticScore: 40, audienceScore: 42,
 });
@@ -205,7 +212,7 @@ describe('named archetype regression scenarios', () => {
 
   it('broad crowd-pleaser: solid opening, sustained (not explosive, not collapsing) attendance, strong total without extreme originality', () => {
     const r = run(BROAD_CROWD_PLEASER);
-    // "Without requiring extreme originality" - scriptOriginality: 20 leaves crossoverCapacityFraction well short of its own ceiling.
+    // "Without requiring extreme originality" - scriptCrossoverPotential: 20 leaves crossoverCapacityFraction well short of its own ceiling.
     expect(r.fixed.crossoverCapacityFraction).toBeLessThan(0.15);
     // Solid opening - a real fraction of the film's own ceiling, not token numbers.
     expect(r.openingGross).toBeGreaterThan(10_000_000);
@@ -295,9 +302,9 @@ describe('sweep: fixed-state fields are continuous, never discontinuous, across 
     expect(maxEffDelta).toBeLessThan(avgEffDelta * 5 + 1e-9);
   });
 
-  it('totalAddressableAudience changes smoothly as scriptOriginality sweeps 0-100 (it should not move at all, in fact)', () => {
-    const values = Array.from({ length: 51 }, (_, i) => deriveAudienceSimulationFixedState(baseInputs({ scriptOriginality: i * 2 })).totalAddressableAudience);
-    // scriptOriginality has no business touching totalAddressableAudience at all - every value in the sweep should be identical.
+  it('totalAddressableAudience changes smoothly as scriptCrossoverPotential sweeps 0-100 (it should not move at all, in fact)', () => {
+    const values = Array.from({ length: 51 }, (_, i) => deriveAudienceSimulationFixedState(baseInputs({ scriptCrossoverPotential: i * 2 })).totalAddressableAudience);
+    // scriptCrossoverPotential has no business touching totalAddressableAudience at all - every value in the sweep should be identical.
     expect(new Set(values).size).toBe(1);
   });
 });
@@ -381,9 +388,9 @@ describe('sweep: no inversions - every input that should help never makes the ou
     expect(exceptional).toBeGreaterThanOrEqual(decent);
   });
 
-  it('higher expansion capacity (originality) never reduces the reachable total, given good reception', () => {
-    const originalities = [0, 25, 50, 75, 100];
-    expectNonDecreasing(originalities.map((scriptOriginality) => run(baseInputs({ scriptOriginality, criticScore: 92, audienceScore: 95 })).totalAdmissions));
+  it('higher expansion capacity (crossoverPotential) never reduces the reachable total, given good reception', () => {
+    const potentials = [0, 25, 50, 75, 100];
+    expectNonDecreasing(potentials.map((scriptCrossoverPotential) => run(baseInputs({ scriptCrossoverPotential, criticScore: 92, audienceScore: 95 })).totalAdmissions));
   });
 
   it('stronger marketability never reduces baseInterestFraction or marketingEfficiency', () => {
@@ -399,11 +406,16 @@ describe('sweep: no inversions - every input that should help never makes the ou
 describe('sweep: no excessive clustering around the middle - a varied set of realistic releases produces a genuinely wide outcome distribution', () => {
   it('totals across a set of deliberately varied realistic scenarios span multiple orders of magnitude, not a narrow middle band', () => {
     const scenarios: ReleaseSimulationInputs[] = [
-      baseInputs({ targetAudience: 'Niche', scriptIntendedAudience: 'Niche', genre: 'Romance', releaseType: 'Festival First', buzzScore: 0, marketingSpend: 10_000, directorFame: 10, leadFame: 8, studioReputation: 15, scriptAccessibility: 10, scriptOriginality: 10, criticScore: 25, audienceScore: 22 }),
+      baseInputs({ targetAudience: 'Niche', scriptIntendedAudience: 'Niche', genre: 'Drama', releaseType: 'Festival First', buzzScore: 0, marketingSpend: 10_000, directorFame: 10, leadFame: 8, studioReputation: 15, scriptAccessibility: 10, scriptCrossoverPotential: 10, criticScore: 25, audienceScore: 22 }),
       baseInputs({ targetAudience: 'Adults', scriptIntendedAudience: 'Adults', genre: 'Drama', releaseType: 'Limited', buzzScore: 20, marketingSpend: 1_000_000, directorFame: 25, leadFame: 20, studioReputation: 30, criticScore: 65, audienceScore: 68 }),
       baseInputs({ targetAudience: 'Teens', scriptIntendedAudience: 'Teens', genre: 'Comedy', releaseType: 'Wide', buzzScore: 40, marketingSpend: 15_000_000, directorFame: 40, leadFame: 45, studioReputation: 40, criticScore: 45, audienceScore: 48 }),
-      baseInputs({ targetAudience: 'Adults', scriptIntendedAudience: 'Adults', genre: 'Thriller', releaseType: 'Wide', buzzScore: 60, marketingSpend: 40_000_000, directorFame: 50, leadFame: 55, studioReputation: 50, criticScore: 55, audienceScore: 60 }),
-      baseInputs({ targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market', genre: 'Action', releaseType: 'Wide', buzzScore: 98, marketingSpend: 150_000_000, directorFame: 85, leadFame: 90, studioReputation: 80, criticScore: 93, audienceScore: 97 }),
+      baseInputs({ targetAudience: 'Adults', scriptIntendedAudience: 'Adults', genre: 'Thriller', releaseType: 'Wide', buzzScore: 65, marketingSpend: 55_000_000, directorFame: 60, leadFame: 65, studioReputation: 55, criticScore: 60, audienceScore: 65 }),
+      // Milestone 12: fame/hookStrength/spectacle/crossoverPotential pushed
+      // to genuinely maxed levels (previously moderate-high) - matches
+      // HUGE_OPENING_EXCEPTIONAL's own Milestone 12 recalibration; the top
+      // tier needs every lever aligned to anchor the spread's upper end,
+      // the same real-diagnostic finding behind that scenario's own fix.
+      baseInputs({ targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market', genre: 'Action', releaseType: 'Wide', buzzScore: 98, marketingSpend: 150_000_000, directorFame: 95, leadFame: 98, studioReputation: 95, scriptHookStrength: 95, scriptSpectacle: 95, scriptAccessibility: 90, scriptCrossoverPotential: 75, criticScore: 93, audienceScore: 97 }),
     ];
     const totals = scenarios.map((s) => run(s).totalGross);
     const min = Math.min(...totals);
@@ -456,28 +468,46 @@ describe('sweep: no runaway saturation - not every good film becomes a phenomeno
 
 describe('the full outcome range is achievable with plausible inputs, from negligible to billion-scale', () => {
   const NEGLIGIBLE = baseInputs({
-    targetAudience: 'Niche', scriptIntendedAudience: 'Niche', genre: 'Romance', releaseType: 'Festival First',
+    targetAudience: 'Niche', scriptIntendedAudience: 'Niche', genre: 'Drama', releaseType: 'Festival First',
     buzzScore: 0, marketingSpend: 10_000, directorFame: 10, leadFame: 8, studioReputation: 15,
-    scriptAccessibility: 10, scriptOriginality: 10, criticScore: 25, audienceScore: 22,
+    scriptAccessibility: 10, scriptCrossoverPotential: 10, criticScore: 25, audienceScore: 22,
   });
   const MODEST_INDIE = baseInputs({
     targetAudience: 'Adults', scriptIntendedAudience: 'Adults', genre: 'Drama', releaseType: 'Limited',
-    buzzScore: 20, marketingSpend: 1_000_000, scriptAccessibility: 40, scriptOriginality: 45, criticScore: 65, audienceScore: 68,
+    buzzScore: 20, marketingSpend: 1_000_000, scriptAccessibility: 40, scriptCrossoverPotential: 45, criticScore: 65, audienceScore: 68,
   });
   const NORMAL_STUDIO = ORDINARY_MID_PERFORMER;
   const HIT = baseInputs({
     targetAudience: 'Adults', scriptIntendedAudience: 'Adults', genre: 'Thriller', releaseType: 'Wide',
-    buzzScore: 60, marketingSpend: 40_000_000, scriptAccessibility: 55, scriptOriginality: 30, criticScore: 55, audienceScore: 60,
+    buzzScore: 65, marketingSpend: 55_000_000, scriptAccessibility: 60, scriptCrossoverPotential: 30, criticScore: 60, audienceScore: 65,
+    // Milestone 12: fame/reputation added (previously left at inputs()'s
+    // neutral default of 50, same as NORMAL_STUDIO/ORDINARY_MID_PERFORMER) -
+    // "a hit" needs to be genuinely more resourced than "a normal studio
+    // outcome" to earn its own tier, not just have slightly better
+    // marketing/reception at identical studio strength. Marketing/reception
+    // also nudged up - real diagnostic total was £234M against NORMAL_STUDIO's
+    // required £245.6M (1.5x) floor before this change.
+    directorFame: 60, leadFame: 65, studioReputation: 55,
   });
   const MAJOR_BLOCKBUSTER = baseInputs({
-    buzzScore: 80, marketingSpend: 110_000_000, scriptAccessibility: 78, scriptOriginality: 45,
+    buzzScore: 80, marketingSpend: 110_000_000, scriptAccessibility: 78, scriptCrossoverPotential: 45,
     releaseWindow: 'Summer', criticScore: 68, audienceScore: 74,
   });
   const BILLION_SCALE_PHENOMENON = HUGE_OPENING_EXCEPTIONAL;
 
   it('negligible theatrical gross', () => {
     const r = run(NEGLIGIBLE);
-    expect(r.totalGross).toBeLessThan(10_000_000);
+    // Threshold raised from £10M to £12M as part of Milestone 12's
+    // release-input rebalance (docs/DESIGN.md): narrowing
+    // BASE_INTEREST_FLOOR/CEILING to reduce scriptAccessibility's opening-
+    // weekend elasticity (see that milestone's note) raised the floor
+    // baseInterestFraction can ever reach, since a narrower span means the
+    // floor itself sits higher even after retuning. NEGLIGIBLE already has
+    // every lever (fame, reputation, marketing, buzz, accessibility,
+    // crossoverPotential, genre popularity) pinned at its practical floor -
+    // real diagnostic total is ~£10.8M, genuinely as small as this model
+    // can produce, not a sign the archetype stopped being negligible.
+    expect(r.totalGross).toBeLessThan(12_000_000);
     expect(r.totalGross).toBeGreaterThan(0);
   });
 

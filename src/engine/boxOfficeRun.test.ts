@@ -13,7 +13,7 @@ const RELEASE_INPUTS: ReleaseSimulationInputs = {
   studioReputation: 50,
   scriptAccessibility: 55,
   scriptHookStrength: 50,
-  scriptOriginality: 40,
+  scriptCrossoverPotential: 40,
   scriptSpectacle: 50,
   scriptIntendedAudience: 'Mass Market',
   targetAudience: 'Mass Market',
@@ -66,7 +66,7 @@ function freshFilm(id: string, releasedOnDay: number, fixed: AudienceSimulationF
     script: {
       id: 'script-1', title: 'Test Script', genre: RELEASE_INPUTS.genre,
       archetype: 'GenreFormula', storyType: 'Original', setting: 'Modern', scale: 'Medium',
-      originality: RELEASE_INPUTS.scriptOriginality,
+      originality: 40,
       structure: 60, characters: 60, dialogue: 60, complexity: 50, cost: 1_000_000,
       toneProfile: { action: 50, comedy: 50, romance: 50, suspense: 50, drama: 50, spectacle: RELEASE_INPUTS.scriptSpectacle },
       environmentStrategy: { studio: 0.34, location: 0.33, digital: 0.33 }, environmentAmbition: 0.5,
@@ -200,7 +200,7 @@ describe('settleBoxOfficeForAllFilms - termination', () => {
   });
 
   it('a run terminates via the hard cap for a film that keeps performing well', () => {
-    const film = freshFilm('hard-cap', 1, fixedFor({ criticScore: 95, audienceScore: 96, scriptOriginality: 80 }));
+    const film = freshFilm('hard-cap', 1, fixedFor({ criticScore: 95, audienceScore: 96, scriptCrossoverPotential: 80 }));
     const settlement = settleBoxOfficeForAllFilms([film], 1 + (MAX_SIMULATION_WEEKS + 30) * 7); // ask for far more than MAX_SIMULATION_WEEKS
     const settled = settlement.filmsReleased[0];
     expect(settled.boxOfficeRun.status).toBe('finished');

@@ -110,49 +110,49 @@ describe('createAudienceSimulationWeekState', () => {
 
   it('accepts a well-formed week', () => {
     expect(() =>
-      createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 400, interestedRemaining: 300, cumulativeTicketsSold: 50, availabilityFraction: 1 }),
+      createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 400, interestedRemaining: 300, cumulativeTicketsSold: 50, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }),
     ).not.toThrow();
   });
 
   it('rejects a negative pool of any kind', () => {
-    expect(() => createAudienceSimulationWeekState(fixed, { week: 1, awareCount: -1, interestedRemaining: 0, cumulativeTicketsSold: 0, availabilityFraction: 1 })).toThrow();
-    expect(() => createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 0, interestedRemaining: -1, cumulativeTicketsSold: 0, availabilityFraction: 1 })).toThrow();
-    expect(() => createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 0, interestedRemaining: 0, cumulativeTicketsSold: -1, availabilityFraction: 1 })).toThrow();
+    expect(() => createAudienceSimulationWeekState(fixed, { week: 1, awareCount: -1, interestedRemaining: 0, cumulativeTicketsSold: 0, availabilityFraction: 1, cumulativeCrossoverRealized: 0 })).toThrow();
+    expect(() => createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 0, interestedRemaining: -1, cumulativeTicketsSold: 0, availabilityFraction: 1, cumulativeCrossoverRealized: 0 })).toThrow();
+    expect(() => createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 0, interestedRemaining: 0, cumulativeTicketsSold: -1, availabilityFraction: 1, cumulativeCrossoverRealized: 0 })).toThrow();
   });
 
   it('rejects awareCount exceeding totalAddressableAudience', () => {
     expect(() =>
-      createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 1001, interestedRemaining: 0, cumulativeTicketsSold: 0, availabilityFraction: 1 }),
+      createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 1001, interestedRemaining: 0, cumulativeTicketsSold: 0, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }),
     ).toThrow();
   });
 
   it('rejects interestedRemaining exceeding awareCount', () => {
     expect(() =>
-      createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 100, interestedRemaining: 150, cumulativeTicketsSold: 0, availabilityFraction: 1 }),
+      createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 100, interestedRemaining: 150, cumulativeTicketsSold: 0, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }),
     ).toThrow();
   });
 
   it('rejects interestedRemaining exceeding this film\'s maxInterestedAudience ceiling even when awareCount would allow it', () => {
     // ceiling here is (0.3 + 0.1) * 1000 = 400
     expect(() =>
-      createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 900, interestedRemaining: 450, cumulativeTicketsSold: 0, availabilityFraction: 1 }),
+      createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 900, interestedRemaining: 450, cumulativeTicketsSold: 0, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }),
     ).toThrow();
   });
 
   it('rejects cumulativeTicketsSold exceeding totalAddressableAudience (no repeat viewing modeled)', () => {
     expect(() =>
-      createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 1000, interestedRemaining: 400, cumulativeTicketsSold: 1001, availabilityFraction: 1 }),
+      createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 1000, interestedRemaining: 400, cumulativeTicketsSold: 1001, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }),
     ).toThrow();
   });
 
   it('rejects a non-positive or non-integer week number', () => {
-    expect(() => createAudienceSimulationWeekState(fixed, { week: 0, awareCount: 0, interestedRemaining: 0, cumulativeTicketsSold: 0, availabilityFraction: 1 })).toThrow();
-    expect(() => createAudienceSimulationWeekState(fixed, { week: 1.5, awareCount: 0, interestedRemaining: 0, cumulativeTicketsSold: 0, availabilityFraction: 1 })).toThrow();
+    expect(() => createAudienceSimulationWeekState(fixed, { week: 0, awareCount: 0, interestedRemaining: 0, cumulativeTicketsSold: 0, availabilityFraction: 1, cumulativeCrossoverRealized: 0 })).toThrow();
+    expect(() => createAudienceSimulationWeekState(fixed, { week: 1.5, awareCount: 0, interestedRemaining: 0, cumulativeTicketsSold: 0, availabilityFraction: 1, cumulativeCrossoverRealized: 0 })).toThrow();
   });
 
   it('rejects NaN/Infinity in any weekly field', () => {
-    expect(() => createAudienceSimulationWeekState(fixed, { week: 1, awareCount: NaN, interestedRemaining: 0, cumulativeTicketsSold: 0, availabilityFraction: 1 })).toThrow();
-    expect(() => createAudienceSimulationWeekState(fixed, { week: 1, awareCount: Infinity, interestedRemaining: 0, cumulativeTicketsSold: 0, availabilityFraction: 1 })).toThrow();
+    expect(() => createAudienceSimulationWeekState(fixed, { week: 1, awareCount: NaN, interestedRemaining: 0, cumulativeTicketsSold: 0, availabilityFraction: 1, cumulativeCrossoverRealized: 0 })).toThrow();
+    expect(() => createAudienceSimulationWeekState(fixed, { week: 1, awareCount: Infinity, interestedRemaining: 0, cumulativeTicketsSold: 0, availabilityFraction: 1, cumulativeCrossoverRealized: 0 })).toThrow();
   });
 });
 
@@ -160,14 +160,14 @@ describe('createAudienceSimulationRun', () => {
   const fixed = validFixed({ totalAddressableAudience: 1000, baseInterestFraction: 0.3, crossoverCapacityFraction: 0.1 });
 
   function week(overrides: Partial<AudienceSimulationWeekState>): AudienceSimulationWeekState {
-    return { week: 1, awareCount: 400, interestedRemaining: 300, cumulativeTicketsSold: 50, availabilityFraction: 1, ...overrides };
+    return { week: 1, awareCount: 400, interestedRemaining: 300, cumulativeTicketsSold: 50, availabilityFraction: 1, cumulativeCrossoverRealized: 0, ...overrides };
   }
 
   it('accepts a well-formed multi-week history', () => {
     const run = createAudienceSimulationRun(fixed, [
-      week({ week: 1, awareCount: 400, interestedRemaining: 300, cumulativeTicketsSold: 100, availabilityFraction: 1 }),
-      week({ week: 2, awareCount: 450, interestedRemaining: 220, cumulativeTicketsSold: 170, availabilityFraction: 1 }),
-      week({ week: 3, awareCount: 460, interestedRemaining: 150, cumulativeTicketsSold: 220, availabilityFraction: 1 }),
+      week({ week: 1, awareCount: 400, interestedRemaining: 300, cumulativeTicketsSold: 100, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }),
+      week({ week: 2, awareCount: 450, interestedRemaining: 220, cumulativeTicketsSold: 170, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }),
+      week({ week: 3, awareCount: 460, interestedRemaining: 150, cumulativeTicketsSold: 220, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }),
     ]);
     expect(run.weeks).toHaveLength(3);
   });
@@ -185,8 +185,8 @@ describe('createAudienceSimulationRun', () => {
   it('rejects awareCount decreasing week to week', () => {
     expect(() =>
       createAudienceSimulationRun(fixed, [
-        week({ week: 1, awareCount: 400, cumulativeTicketsSold: 50, availabilityFraction: 1 }),
-        week({ week: 2, awareCount: 300, cumulativeTicketsSold: 60, availabilityFraction: 1 }),
+        week({ week: 1, awareCount: 400, cumulativeTicketsSold: 50, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }),
+        week({ week: 2, awareCount: 300, cumulativeTicketsSold: 60, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }),
       ]),
     ).toThrow();
   });
@@ -194,8 +194,8 @@ describe('createAudienceSimulationRun', () => {
   it('rejects cumulativeTicketsSold decreasing week to week', () => {
     expect(() =>
       createAudienceSimulationRun(fixed, [
-        week({ week: 1, awareCount: 400, cumulativeTicketsSold: 100, availabilityFraction: 1 }),
-        week({ week: 2, awareCount: 400, cumulativeTicketsSold: 90, availabilityFraction: 1 }),
+        week({ week: 1, awareCount: 400, cumulativeTicketsSold: 100, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }),
+        week({ week: 2, awareCount: 400, cumulativeTicketsSold: 90, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }),
       ]),
     ).toThrow();
   });
@@ -203,8 +203,8 @@ describe('createAudienceSimulationRun', () => {
   it('allows interestedRemaining to move non-monotonically (it both shrinks via conversion and grows via crossover)', () => {
     expect(() =>
       createAudienceSimulationRun(fixed, [
-        week({ week: 1, awareCount: 400, interestedRemaining: 200, cumulativeTicketsSold: 50, availabilityFraction: 1 }),
-        week({ week: 2, awareCount: 450, interestedRemaining: 250, cumulativeTicketsSold: 90, availabilityFraction: 1 }),
+        week({ week: 1, awareCount: 400, interestedRemaining: 200, cumulativeTicketsSold: 50, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }),
+        week({ week: 2, awareCount: 450, interestedRemaining: 250, cumulativeTicketsSold: 90, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }),
       ]),
     ).not.toThrow();
   });
@@ -219,21 +219,21 @@ describe('deriveWeeklyAdmissions', () => {
 
   it('is the release week\'s full cumulative total for week 1', () => {
     const run = createAudienceSimulationRun(fixed, [
-      { week: 1, awareCount: 400, interestedRemaining: 200, cumulativeTicketsSold: 120, availabilityFraction: 1 },
+      { week: 1, awareCount: 400, interestedRemaining: 200, cumulativeTicketsSold: 120, availabilityFraction: 1, cumulativeCrossoverRealized: 0 },
     ]);
     expect(deriveWeeklyAdmissions(run.weeks, 0)).toBe(120);
   });
 
   it('is the difference between consecutive cumulative totals thereafter', () => {
     const run = createAudienceSimulationRun(fixed, [
-      { week: 1, awareCount: 400, interestedRemaining: 200, cumulativeTicketsSold: 120, availabilityFraction: 1 },
-      { week: 2, awareCount: 420, interestedRemaining: 150, cumulativeTicketsSold: 190, availabilityFraction: 1 },
+      { week: 1, awareCount: 400, interestedRemaining: 200, cumulativeTicketsSold: 120, availabilityFraction: 1, cumulativeCrossoverRealized: 0 },
+      { week: 2, awareCount: 420, interestedRemaining: 150, cumulativeTicketsSold: 190, availabilityFraction: 1, cumulativeCrossoverRealized: 0 },
     ]);
     expect(deriveWeeklyAdmissions(run.weeks, 1)).toBe(70);
   });
 
   it('throws for an out-of-range week index', () => {
-    const run = createAudienceSimulationRun(fixed, [{ week: 1, awareCount: 10, interestedRemaining: 5, cumulativeTicketsSold: 5, availabilityFraction: 1 }]);
+    const run = createAudienceSimulationRun(fixed, [{ week: 1, awareCount: 10, interestedRemaining: 5, cumulativeTicketsSold: 5, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }]);
     expect(() => deriveWeeklyAdmissions(run.weeks, 5)).toThrow();
     expect(() => deriveWeeklyAdmissions(run.weeks, -1)).toThrow();
   });
@@ -252,12 +252,12 @@ describe('deriveWordOfMouthActivity', () => {
     // and 2 - if recency is weighted correctly, putting the bigger number in
     // the more recent week must produce a larger activity reading.
     const recentSpike = createAudienceSimulationRun(fixed, [
-      { week: 1, awareCount: 1000, interestedRemaining: 500, cumulativeTicketsSold: 20, availabilityFraction: 1 }, // +20
-      { week: 2, awareCount: 1000, interestedRemaining: 400, cumulativeTicketsSold: 120, availabilityFraction: 1 }, // +100
+      { week: 1, awareCount: 1000, interestedRemaining: 500, cumulativeTicketsSold: 20, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }, // +20
+      { week: 2, awareCount: 1000, interestedRemaining: 400, cumulativeTicketsSold: 120, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }, // +100
     ]);
     const olderSpike = createAudienceSimulationRun(fixed, [
-      { week: 1, awareCount: 1000, interestedRemaining: 500, cumulativeTicketsSold: 100, availabilityFraction: 1 }, // +100
-      { week: 2, awareCount: 1000, interestedRemaining: 400, cumulativeTicketsSold: 120, availabilityFraction: 1 }, // +20
+      { week: 1, awareCount: 1000, interestedRemaining: 500, cumulativeTicketsSold: 100, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }, // +100
+      { week: 2, awareCount: 1000, interestedRemaining: 400, cumulativeTicketsSold: 120, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }, // +20
     ]);
     expect(deriveWordOfMouthActivity(recentSpike.weeks, 2)).toBeGreaterThan(deriveWordOfMouthActivity(olderSpike.weeks, 2));
     // Exact figure: week 2's +100 at full weight (1) plus week 1's +20 at the next lookback weight (0.7).
@@ -269,7 +269,7 @@ describe('deriveWordOfMouthActivity', () => {
     let cumulative = 0;
     for (let w = 1; w <= 20; w++) {
       cumulative += 50; // constant weekly admissions across a long run
-      weeks.push({ week: w, awareCount: 5000, interestedRemaining: 1000, cumulativeTicketsSold: cumulative, availabilityFraction: 1 });
+      weeks.push({ week: w, awareCount: 5000, interestedRemaining: 1000, cumulativeTicketsSold: cumulative, availabilityFraction: 1, cumulativeCrossoverRealized: 0 });
     }
     const run = createAudienceSimulationRun(fixed, weeks);
     const activityAt20 = deriveWordOfMouthActivity(run.weeks, 20);
@@ -282,8 +282,8 @@ describe('deriveWordOfMouthActivity', () => {
 
   it('is a pure function of the history - calling it twice with the same input gives the same result', () => {
     const run = createAudienceSimulationRun(fixed, [
-      { week: 1, awareCount: 1000, interestedRemaining: 500, cumulativeTicketsSold: 300, availabilityFraction: 1 },
-      { week: 2, awareCount: 1200, interestedRemaining: 450, cumulativeTicketsSold: 500, availabilityFraction: 1 },
+      { week: 1, awareCount: 1000, interestedRemaining: 500, cumulativeTicketsSold: 300, availabilityFraction: 1, cumulativeCrossoverRealized: 0 },
+      { week: 2, awareCount: 1200, interestedRemaining: 450, cumulativeTicketsSold: 500, availabilityFraction: 1, cumulativeCrossoverRealized: 0 },
     ]);
     expect(deriveWordOfMouthActivity(run.weeks, 2)).toBe(deriveWordOfMouthActivity(run.weeks, 2));
   });
@@ -293,22 +293,22 @@ describe('fixed vs. evolving state stay clearly separated', () => {
   it('AudienceSimulationFixedState never varies by week - constructing many weeks against the same fixed state does not mutate it', () => {
     const fixed = createAudienceSimulationFixedState(validFixed({ totalAddressableAudience: 1000 }));
     const before = { ...fixed };
-    createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 500, interestedRemaining: 300, cumulativeTicketsSold: 50, availabilityFraction: 1 });
-    createAudienceSimulationWeekState(fixed, { week: 2, awareCount: 600, interestedRemaining: 250, cumulativeTicketsSold: 120, availabilityFraction: 1 });
+    createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 500, interestedRemaining: 300, cumulativeTicketsSold: 50, availabilityFraction: 1, cumulativeCrossoverRealized: 0 });
+    createAudienceSimulationWeekState(fixed, { week: 2, awareCount: 600, interestedRemaining: 250, cumulativeTicketsSold: 120, availabilityFraction: 1, cumulativeCrossoverRealized: 0 });
     expect(fixed).toEqual(before);
   });
 
-  it('AudienceSimulationWeekState carries only the four evolving fields plus its week number - no fixed-state fields leak into it', () => {
+  it('AudienceSimulationWeekState carries only the five evolving fields plus its week number - no fixed-state fields leak into it', () => {
     const fixed = createAudienceSimulationFixedState(validFixed());
-    const week = createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 10, interestedRemaining: 5, cumulativeTicketsSold: 1, availabilityFraction: 1 });
-    expect(Object.keys(week).sort()).toEqual(['availabilityFraction', 'awareCount', 'cumulativeTicketsSold', 'interestedRemaining', 'week']);
+    const week = createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 10, interestedRemaining: 5, cumulativeTicketsSold: 1, availabilityFraction: 1, cumulativeCrossoverRealized: 0 });
+    expect(Object.keys(week).sort()).toEqual(['availabilityFraction', 'awareCount', 'cumulativeCrossoverRealized', 'cumulativeTicketsSold', 'interestedRemaining', 'week']);
   });
 });
 
 describe('word-of-mouth activity is never present as stored duplicate state', () => {
   it('AudienceSimulationWeekState has no momentum/word-of-mouth/pulse/reaction field of any kind', () => {
     const fixed = createAudienceSimulationFixedState(validFixed());
-    const week = createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 10, interestedRemaining: 5, cumulativeTicketsSold: 1, availabilityFraction: 1 });
+    const week = createAudienceSimulationWeekState(fixed, { week: 1, awareCount: 10, interestedRemaining: 5, cumulativeTicketsSold: 1, availabilityFraction: 1, cumulativeCrossoverRealized: 0 });
     const forbiddenNamePattern = /momentum|wordofmouth|wom|pulse|reaction|hype|buzz/i;
     for (const key of Object.keys(week)) {
       expect(key).not.toMatch(forbiddenNamePattern);
@@ -326,12 +326,12 @@ describe('word-of-mouth activity is never present as stored duplicate state', ()
   it('deriveWordOfMouthActivity recomputes from history rather than reading a cached value - two independently-constructed but identical histories agree exactly', () => {
     const fixed = validFixed({ totalAddressableAudience: 10_000 });
     const runA = createAudienceSimulationRun(fixed, [
-      { week: 1, awareCount: 1000, interestedRemaining: 500, cumulativeTicketsSold: 300, availabilityFraction: 1 },
-      { week: 2, awareCount: 1200, interestedRemaining: 450, cumulativeTicketsSold: 500, availabilityFraction: 1 },
+      { week: 1, awareCount: 1000, interestedRemaining: 500, cumulativeTicketsSold: 300, availabilityFraction: 1, cumulativeCrossoverRealized: 0 },
+      { week: 2, awareCount: 1200, interestedRemaining: 450, cumulativeTicketsSold: 500, availabilityFraction: 1, cumulativeCrossoverRealized: 0 },
     ]);
     const runB = createAudienceSimulationRun(fixed, [
-      { week: 1, awareCount: 1000, interestedRemaining: 500, cumulativeTicketsSold: 300, availabilityFraction: 1 },
-      { week: 2, awareCount: 1200, interestedRemaining: 450, cumulativeTicketsSold: 500, availabilityFraction: 1 },
+      { week: 1, awareCount: 1000, interestedRemaining: 500, cumulativeTicketsSold: 300, availabilityFraction: 1, cumulativeCrossoverRealized: 0 },
+      { week: 2, awareCount: 1200, interestedRemaining: 450, cumulativeTicketsSold: 500, availabilityFraction: 1, cumulativeCrossoverRealized: 0 },
     ]);
     expect(deriveWordOfMouthActivity(runA.weeks, 2)).toBe(deriveWordOfMouthActivity(runB.weeks, 2));
   });
