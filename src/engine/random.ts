@@ -68,6 +68,41 @@ export function normalizeWeights<K extends string>(weights: Record<K, number>): 
   return result;
 }
 
+/**
+ * Picks one of `keys` with probability proportional to `weights[key]` -
+ * unlisted keys default to weight 1, so a caller only has to specify the
+ * keys it actually wants to bias (engine/scriptGenerator.ts's archetype-
+ * first generation: archetype/story-type/setting/scale/target-audience
+ * picks all combine several partial weight tables via combineWeights below,
+ * then sample here). Falls back to the last key on a floating-point
+ * rounding edge case rather than ever returning undefined.
+ */
+export function weightedPick<K extends string>(rng: RandomFn, keys: readonly K[], weights: Partial<Record<K, number>>): K {
+  const total = keys.reduce((sum, key) => sum + Math.max(0, weights[key] ?? 1), 0);
+  let roll = rng() * total;
+  for (const key of keys) {
+    const w = Math.max(0, weights[key] ?? 1);
+    if (roll < w) return key;
+    roll -= w;
+  }
+  return keys[keys.length - 1];
+}
+
+/**
+ * Multiplies several partial weight tables together, key by key (an
+ * unlisted key in any one source contributes 1, i.e. "no opinion") - how
+ * engine/scriptGenerator.ts combines e.g. an archetype's own story-type
+ * affinity with that story type's own target-audience lean into one
+ * weightedPick call, without either source needing to know about the other.
+ */
+export function combineWeights<K extends string>(keys: readonly K[], sources: Array<Partial<Record<K, number>> | undefined>): Partial<Record<K, number>> {
+  const result: Partial<Record<K, number>> = {};
+  for (const key of keys) {
+    result[key] = sources.reduce<number>((product, source) => product * (source?.[key] ?? 1), 1);
+  }
+  return result;
+}
+
 /** Runs `fn` with a deterministic RNG seeded from `seed`, returning the advanced seed to store back. */
 export function withRng<T>(seed: number, fn: (rng: RandomFn) => T): { result: T; nextSeed: number } {
   const rng = createRng(seed);

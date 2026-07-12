@@ -158,6 +158,15 @@ button {
   margin-bottom: 8px;
 }
 
+.stat-group-title {
+  font-size: 0.72em;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+
 .card-synopsis {
   font-size: 0.9em;
   font-style: italic;

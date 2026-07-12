@@ -3960,6 +3960,319 @@ restructuring anything built here:*
 - **International markets**: decompose into per-market copies of the same simulation - a separate `totalAddressableAudience`/`baseInterestFraction`/`AwareCount` per market (domestic vs. international, or finer), each with its own release timing, summed at the end. Replaces the single flat `STUDIO_BOX_OFFICE_SHARE` with real per-market simulation. Staggered rollout timing (a market's "week 1" landing on a different calendar week than another's) needs its own small follow-up pass.
 - **Repeat viewing**: would relax `cumulativeTicketsSold <= totalAddressableAudience`'s hard ceiling (`createAudienceSimulationWeekState`) into something that lets a small, reception-driven fraction of `cumulativeTicketsSold` re-enter `interestedRemaining` instead of being permanently spent - the natural home is step 9 (`sellTicketsThisWeek`) gaining a "some of this week's audience will come back" term, feeding back into next week's pool rather than a new top-level concept.
 
+### 5.35 The screenplay redesign - archetype-first generation, Story Tags, and splitting Marketability (`engine/scriptGenerator.ts`, `engine/commercialProfile.ts`, `data/scriptArchetypes.ts`, `data/storyTypes.ts`, `data/settings.ts`, `data/scale.ts`, `types/index.ts`, `engine/scoring.ts`, `components/wizard/DevelopFilm.tsx`)
+
+**Why this was a genuine redesign, not another box-office calibration pass.**
+Milestones 7-10 (5.34) repeatedly ran into the same wall: a real save's
+implausible box-office scale kept tracing back to a *screenplay* that was
+mechanically exceptional (high originality, high marketability, whatever
+combination the RNG happened to roll) without representing a coherent film
+concept - a script's five quality stats (`genreFit`, `originality`,
+`structure`, `dialogue`, `marketability`) were each an independent flat
+`randInt`, correlated with nothing except genre's own `canonicalTone`
+jitter. Every downstream system (box office, production requirements,
+hiring, cost) had to calibrate against that incoherence rather than against
+real film archetypes. This section replaces the screenplay model itself
+rather than adding a sixth patch on top of the fifth.
+
+**1. A small, purposeful set of intrinsic screenplay-quality attributes.**
+`Script` keeps exactly five 1-100 craft stats, each with one job:
+`originality`, `structure`, `characters` (new - depth/arcs, distinct from
+dialogue craft), `dialogue`, `complexity` (production difficulty/risk,
+unchanged). `genreFit` and `marketability` are both gone entirely - see 4
+and 6 below for what replaced them. `computeScriptScore` (engine/scoring.ts)
+is now an even, purely-craft average of the first four:
+`originality*0.25 + structure*0.25 + characters*0.25 + dialogue*0.25` - no
+commercial term at all, fixing the old formula's "one stat doing two jobs"
+problem (marketability used to sit inside both Script Score *and* Buzz
+Score, conflating "is this well-written" with "is this sellable").
+
+**2. Tone Profile, unchanged.** `ToneProfile`/`Tone`
+(action/comedy/romance/suspense/drama/spectacle) and its canonical-vector-
+plus-jitter-plus-flavor generation (`generateToneProfile`) were already
+working well and stay exactly as they were - genre fit is now *derived*
+from this profile (see 4), which is the strongest validation that this
+mechanism was already the right pattern to extend, not replace.
+
+**3. Archetype-first generation - the actual pipeline change.**
+`generateScript` (engine/scriptGenerator.ts) no longer rolls five
+independent numbers. It follows the pipeline: **Archetype -> quality
+profile + Story Type + Setting + Scale + commercial lean -> Production
+Requirements**, everything downstream chosen to *cohere* with the
+archetype rather than independently. Five archetypes (`ScriptArchetype`,
+`data/scriptArchetypes.ts`), deliberately cross-genre rather than a
+per-genre catalog - a Spectacle Comedy exists, just far more rarely than a
+Spectacle Action film (see `genreAffinity`):
+
+| Archetype | Shape |
+|---|---|
+| `Prestige` | High Characters/Dialogue/Originality, low-mid Complexity, Intimate-leaning scale, low accessibility/hookiness bias, high crossover bias (a strong Prestige film can still break out on reception alone). |
+| `CrowdPleaser` | High Structure, mid-high Characters/Dialogue, low-mid Originality, Medium-leaning scale, positive accessibility/hookiness bias. |
+| `Spectacle` | Low-mid Originality/Dialogue, high Complexity, Epic-leaning scale, positive accessibility/hookiness/crossover bias - event-scale filmmaking. |
+| `OriginalVision` | Highest Originality range, widest Structure variance (can misfire), negative accessibility/hookiness bias, highest crossover bias - the biggest creative swing, the least predictable outcome. |
+| `GenreFormula` | Low Originality, mid everything else, Medium-leaning scale, small positive accessibility/hookiness bias, negative crossover bias - safe, cheap, dependable, rarely breaks out. |
+
+Each archetype carries a `qualityRange` (a `[min, max]` per craft stat,
+sampled with `randInt` - replacing the old flat 1-100 rolls), a
+`scaleWeights`/`storyTypeAffinity`/`genreAffinity`/`targetAudienceWeights`
+table, and a `commercial` bias (see 6). `weightedPick`/`combineWeights`
+(new shared utilities, `engine/random.ts`) let several partial weight
+tables multiply together into one sample - an archetype's own story-type
+affinity combines with that story type's own scale/setting affinity, a
+target-audience weight combines archetype + story type + a soft
+(no-longer-hard-filtering) bonus for genre-typical audiences
+(`data/genres.ts:GENRE_TYPICAL_AUDIENCES`) - without any one table needing
+to know about the others.
+
+**4. Story Tags - descriptive, not numeric, and genre-independent.**
+Three new tag axes, each with its own small profile table:
+
+- `StoryType` (`data/storyTypes.ts`): `Original` (no strong hook - the most
+  common outcome), `Sports`, `Musical`, `Biography`, `Documentary`, `Crime`,
+  `Mystery`, `Superhero`, `War`, `ComingOfAge`, `Heist`. Each carries
+  baseline production-requirement intensities, a `castSizeMultiplier`
+  (Documentary: 0.15 - little to no conventional dramatic cast; Heist: 1.3 -
+  ensemble), and accessibility/hookiness biases.
+- `Setting` (`data/settings.ts`): `Modern`, `Historical`, `Fantasy`,
+  `SciFi`, `Space` - drives `periodSetting`, VFX/practical biases, and how
+  much Environment Strategy leans digital.
+- `ScriptScale` (`data/scale.ts`): `Intimate`, `Medium`, `Epic` - cast/cost
+  multipliers and production-requirement floors. (Named `ScriptScale`, not
+  `ProductionScale` - that name was already taken by the unrelated
+  rival-studio budget tier in `types/index.ts`, `'Small' | 'Medium' |
+  'Big'`; a genuine naming collision caught immediately by `tsc -b`, not a
+  design choice.)
+
+`Script.genreFit` is gone as a stored field - genre fit is now
+`deriveGenreFit(script, genre)` (engine/scoring.ts, private), the average
+absolute distance between the script's actual `toneProfile` and its
+genre's `canonicalTone`, subtracted from 100. A script generated with a
+strong flavor boost (an action-comedy, a horror-tragedy) now honestly reads
+as a *looser* fit for its headline genre, which is exactly what genre fit
+is supposed to capture - derived from a profile the player already sees,
+not a second independent number.
+
+**5. Production requirements emerge from the concept.** New
+`ProductionRequirements` struct on `Script` (10 fields: `extras`,
+`locations`, `periodSetting`, `vehicles`, `animals`, `practicalEffects`,
+`vfx`, `stunts`, `choreography`, `crowdWork`) - `generateProductionRequirements`
+blends the chosen Story Type's baseline intensities with the chosen
+Scale's floors (an Epic production needs real crowd/location work even for
+a story type that doesn't usually call for it) and the chosen Setting's
+biases, lifted a little further by Complexity. `environmentStrategy`/
+`environmentAmbition`/`effectsStrategy`/`effectsAmbition` (the existing
+Distribution/NormalizedScalar "lean" fields the recommendation engine,
+`engine/recommendation.ts`, and `components/wizard/ProductionPlanning.tsx`
+already consume unchanged) are now *derived from* `ProductionRequirements`
+instead of a flat genre-level lookup - two Action scripts with different
+Story Types (a grounded Heist vs. a VFX-heavy Superhero) now get genuinely
+different effects leans instead of the same genre default.
+`requiredLeads`/`requiredSupporting` are scaled by
+`storyType.castSizeMultiplier * scale.castMultiplier` (floored at 1/0
+respectively, so a Documentary can shrink to a single nominal lead but
+never zero - keeping Hire Talent's existing lead-capacity guard,
+`engine/castRequirements.ts`, untouched). `engine/recommendation.ts` and
+`engine/productionChoicesAdapter.ts` were deliberately left unmodified - the
+brief's "derived production requirement generation" scope is the
+*screenplay's own* generation, not a rewrite of the already-working
+recommendation-blending/adapter layer downstream of it.
+
+**6. Marketability split into hidden, derived commercial values - the
+biggest architectural change.** `Script.marketability` is gone entirely,
+replaced by `engine/commercialProfile.ts:deriveCommercialProfile`, a pure
+function of fields that already exist (`genre`, `archetype`, `storyType`,
+`scale`, `structure`, `characters`, `originality`) - nothing new is stored
+on `Script`, matching the brief's explicit "hidden derived values rather
+than displayed stats" preference:
+
+```
+accessibility      = genrePopularity*0.4 + storyType.accessibility*0.35 + scale.reach*0.25 + archetype.commercial.accessibility
+hookStrength        = structure*0.3 + characters*0.2 + storyType.hookiness*0.35 + genrePopularity*0.15 + archetype.commercial.hookiness
+crossoverPotential  = originality*0.45 + scale.reach*0.25 + genrePopularity*0.15 + archetype.commercial.crossover
+```
+
+- **`accessibility`** ("how broad a natural audience this concept has,
+  before reception even matters") replaces `Script.marketability` at every
+  audience-simulation call site: `releaseFilm.ts`'s
+  `scriptMarketability: deriveCommercialProfile(input.script).accessibility`
+  (feeding `computeBaseInterestFraction`/`marketingEfficiency`, unchanged
+  formulas, only the input's source moved) and the dev-only
+  `OutcomeInspector.tsx`/`AudienceSimulationDiagnostics.tsx` prop.
+  `ReleaseSimulationInputs.scriptMarketability`'s doc comment now records
+  that it's a derived reading, not a verbatim pass-through - deliberately
+  *not* splitting that interface into separate accessibility/crossover
+  fields this pass, to avoid re-opening the just-stabilized audience
+  simulation (5.34, Milestone 10) for a refinement the brief didn't ask
+  for; flagged as a reasonable future follow-up instead.
+- **`hookStrength`** ("how easily this concept converts into an effective
+  pitch/trailer") replaces `Script.marketability` in
+  `computeMarketabilityScore` (the separate cast-fame/runtime-blended
+  display concept, unchanged shape) and `computeBuzzScore`'s small
+  `scriptBuzz` flavor term.
+- **`crossoverPotential`** isn't wired into the box-office pipeline this
+  pass (Milestone 10's `CROSSOVER_CONCEPT_WEIGHTS.marketability` term
+  already reads `scriptMarketability`/accessibility, not a separate
+  crossover-specific value) - computed and tested, available for a future
+  pass that wants to split audience-simulation crossover-capacity's
+  marketability term from its base-interest term specifically.
+
+**7. UI: descriptive tags over more raw numbers.** `DevelopFilm.tsx`'s
+`ScriptDetails` now leads with badges (`Archetype`, `StoryType` when not
+`Original`, `Setting`, `Scale`), the archetype/story-type/setting
+description sentences, a `describeCostDrivers` sentence ("Priced for its
+epic scale and exceptional craft." / "A modest, straightforward
+production.") answering "why is this script expensive," a
+`describeCommercialAppeal` sentence ("Commercially: broad mainstream
+appeal, an easy pitch to market.") answering "why is it commercially
+attractive" - both threshold-to-text mappings over the underlying numbers,
+never the numbers themselves - and `productionRequirementTags`, a
+threshold-to-tag mapping over `ProductionRequirements`'s ten 0-1/boolean
+fields into legible badges ("Heavy VFX," "Period Setting," "Large
+Ensemble," ...). The five intrinsic quality stats (Originality/Structure/
+Characters/Dialogue/Complexity) and the existing Leads/Supporting/Written
+For/Production-Style-lean/Tone-Profile lines stay as before - the brief's
+"relatively small set of exposed quality attributes" allowance, not a
+blanket ban on numbers.
+
+**8. Save compatibility: a clean cutover, not a migration - `SAVE_KEY`
+v20 -> v21** (state/persistence.ts). `Script.genreFit`/`marketability` are
+gone and `archetype`/`storyType`/`setting`/`scale`/`characters`/
+`productionRequirements` are newly required, so a v20 save's embedded
+`Script` objects (`Film.script`, `FilmDraft.script`/`scriptOptions`,
+`RivalProductionInProgress.script`) have neither the shape any current
+formula expects - no migration code, exactly the same "an old save simply
+isn't found under the new key" precedent every one of the prior twenty
+version bumps already established.
+
+**9. Testing.** No dedicated script-generation test coverage existed before
+this milestone (confirmed via a full search - `Script`'s only prior test
+exposure was incidental, through `state/testFixtures.ts`'s
+`generateScriptOptions` calls). Four new test files:
+`engine/scriptGenerator.test.ts` (structural validity across every genre;
+archetype-first coherence - Spectacle averages meaningfully higher
+Complexity than Prestige, Prestige averages meaningfully higher Characters/
+Dialogue than GenreFormula, genre affinity is real; production
+requirements emerge from the concept - Documentary averages a smaller cast,
+Superhero averages far higher VFX than Documentary, Historical always
+implies `periodSetting: true`; `estimateScriptCost`'s three monotonicity
+properties), `engine/commercialProfile.test.ts` (range validity; each
+input's directional effect; Documentary vs. Superhero accessibility gap;
+archetype commercial bias direction), `engine/scoring.test.ts`
+(`computeScriptScore`'s exact formula and its independence from
+scale/complexity/archetype/story type; `computeGenreFitScore`'s range and a
+realistic-sample high-fit floor; `computeMarketabilityScore`/
+`computeBuzzScore`'s directional dependence on the derived commercial
+profile), and `components/wizard/DevelopFilm.test.tsx` (a real jsdom render
+of the redesigned card across every genre, standing in for a manual browser
+check - no Playwright/browser-automation dependency exists in this project,
+so this reuses the same jsdom+StudioProvider pattern
+`OutcomeInspector.test.tsx` already established; catches exactly the class
+of bug `tsc -b` can't, a null-reference inside `ScriptDetails` that only
+surfaces at render time - none found). 305 tests total (fully unrelated to
+this redesign's `boxOfficeRun.test.ts`/`audienceSimulationInputs.test.ts`
+fixture literals only needed mechanical shape updates, no behavioral
+change).
+
+*Known limitations, deliberately not chased further this pass:*
+
+- `crossoverPotential` is computed and tested but not yet wired into the
+  audience simulation as its own input (see 6) - `accessibility` alone
+  currently stands in for `scriptMarketability` everywhere.
+- Story Types that imply a fundamentally different production pipeline
+  (`Documentary`'s near-absent conventional cast, an eventual `Animated`
+  format needing voice actors instead of on-set talent) bias the existing
+  cast-size/production-requirement numbers down but don't yet unlock an
+  alternate hiring flow - Hire Talent still offers the same role set
+  regardless of Story Type. A real alternate-pipeline system is a
+  substantially larger change (new TalentRole variants, a different Hire
+  Talent screen path) than this pass's screenplay-model scope.
+- Archetype/Story Type/Setting/Scale weight tables are hand-authored
+  judgment calls (the same "provisional, checked for shape not fit"
+  status every constant in this codebase starts at - see 5.34's own
+  calibration language), not fit to any real data - there's no real-film
+  screenplay dataset to calibrate against, unlike the box-office side's
+  `REPRESENTATIVE_SCENARIO_MATRIX`.
+
+### 5.36 Screenplay redesign - presentation polish pass (`components/wizard/DevelopFilm.tsx`, `components/wizard/HireTalent.tsx`, `data/scriptTagLabels.ts`, `src/index.css`)
+
+**Purely a presentation pass - no domain-model change.** Following user
+review of 5.35, the underlying `Script` type, generation pipeline, and
+scoring formulas are all unchanged; every edit here is in how the same data
+is labeled, grouped, or rendered.
+
+- **Quality stats grouped instead of listed flat, and shown as star
+  ratings.** The five intrinsic stats used to be five separate `label:
+  value` lines. `ScriptDetails` now renders two `StatGroup`s - "Writing"
+  (Dialogue, Characters, Structure) and "Creative" (Originality,
+  Complexity) - each stat read via the existing `StarRating` component
+  (`components/common/StarRating.tsx`, already used for Tone Profile)
+  instead of a bare number. The underlying 1-100 values are unchanged and
+  still fully recoverable (`title` tooltip on the star widget) - only the
+  presentation is less spreadsheet-like, per the explicit brief.
+- **Production requirement tags rebuilt to be concrete and actionable, and
+  the old "Production Style: Leans studio, practical effects" line
+  removed.** That line (`describeScriptProductionLean`, reading
+  `Script.environmentStrategy`/`effectsStrategy`) became redundant once
+  5.35 added the Archetype/Story Type/Setting/Scale badges and their own
+  description sentences - deleted along with its now-unused
+  `dominantLean`/`ENV_LEAN_SHORT`/`EFFECTS_LEAN_SHORT` imports (those two
+  label tables stay in `data/productionStyleLabels.ts` - still used
+  elsewhere, e.g. `RoleHiringDrawer.tsx`, for a director's own lean).
+  `productionRequirementTags` now reads the full `Script` (not just
+  `ProductionRequirements`) so it can fold in Setting/Story Type directly,
+  producing tags like `Period Costumes`/`Period Sets` (from
+  `periodSetting`), `Spacecraft Sets` (Setting: Space),
+  `Constructed Worlds` (Setting: Fantasy), `Remote Locations` (Setting:
+  SciFi + high `locations`), `Musical Numbers` (Story Type: Musical, on top
+  of `Choreography` from the intensity value), `Young Cast` (Story Type:
+  ComingOfAge), and `Nonfiction Format` (Story Type: Documentary - without
+  this, a Documentary's uniformly-low intensities would fall through to the
+  generic "Contained, straightforward production" fallback and lose the
+  single most important thing about its production reality). Two of the
+  brief's illustrative example tags were deliberately **not** implemented:
+  "Child Actors" has no honest signal in the current model beyond Story
+  Type: ComingOfAge implying a *young* cast generally (not specifically
+  child actors, which has distinct real-world production/labor-law
+  implications) - approximated as `Young Cast` rather than overclaimed;
+  "Underwater Filming" has no source at all (no aquatic setting or story
+  type exists) and was left out rather than fabricated. Consistent with
+  this project's standing practice of documenting an honest gap over
+  inventing an unsupported one.
+- **"Written For" renamed to "Intended Audience," in both places it
+  appeared** (`DevelopFilm.tsx`'s script card and `HireTalent.tsx`'s
+  "Casting For" panel - the second occurrence found via a repo-wide sweep
+  while doing the first). The wizard's actual Target Audience `ChoiceGroup`
+  (the player's own marketing choice, pre-filled from this same value but
+  independently overridable) already used the word "audience" in its own
+  label, so a bare "Written For: Teens" line risked reading as a second,
+  different concept - "Intended Audience" makes the relationship explicit
+  without the player needing to infer it.
+- **camelCase/PascalCase enum values never shown raw.** New
+  `data/scriptTagLabels.ts` (`ARCHETYPE_LABELS`, `STORY_TYPE_LABELS`,
+  `SETTING_LABELS`, `SCALE_LABELS`) - the same "explicit `Record<K, string>`
+  label map next to its enum" pattern `data/tones.ts:TONE_LABELS` already
+  established, rather than a generic regex-based camelCase splitter (a
+  handful of these need a judgment call a splitter can't make - `CrowdPleaser`
+  reads better as "Crowd-Pleaser" than "Crowd Pleaser," and `SciFi` becomes
+  "Sci-Fi" specifically to match `Genre`'s own existing spelling, so the
+  Setting badge and the Genre badge never disagree on how to write the same
+  word). Every archetype/story-type/setting badge and description sentence
+  now reads through these maps instead of the raw TypeScript identifier.
+- **"Cost" renamed to "Screenplay Cost."** The old bare "Cost:" label sat
+  directly above the `describeCostDrivers` sentence, and read ambiguously
+  next to Production Planning's own much larger budget numbers later in the
+  wizard - could plausibly be misread as an estimated production budget
+  rather than what it actually is, the one-time acquisition price for the
+  screenplay itself (`estimateScriptCost`, unchanged).
+- **Testing.** `DevelopFilm.test.tsx` gained five new tests: the Writing/
+  Creative group headings and renamed labels appear (and the old wording
+  doesn't) across a full 12-script slate; the removed "Production Style:"
+  line is gone; every quality stat renders as a `.star-rating` widget (at
+  least 60 across 12 cards x 5 stats); no raw camelCase/PascalCase enum
+  value ever leaks into rendered text (`ComingOfAge`, `CrowdPleaser`,
+  `SciFi`, `OriginalVision`, `GenreFormula` all explicitly asserted absent);
+  and the label maps' exact spelling is locked in directly. 310 tests total.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:

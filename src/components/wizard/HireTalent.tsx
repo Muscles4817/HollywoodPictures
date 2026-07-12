@@ -147,7 +147,7 @@ export function HireTalent() {
               <div style={{ fontSize: '0.85em' }}>
                 <div>Leads: {draft.script.requiredLeads}</div>
                 <div>Supporting Roles: {draft.script.requiredSupporting}</div>
-                <div>Written For: {draft.script.intendedAudience}</div>
+                <div>Intended Audience: {draft.script.intendedAudience}</div>
               </div>
               <CompatibilityBadge breakdown={toneProfileBreakdown(draft.script.toneProfile)} defaultLabel="Tone Profile" />
             </>

@@ -18,17 +18,17 @@ export function productionImportance(profile: GenreProfile): number {
 const ALL_PROFILES = Object.values(GENRE_PROFILES);
 const AVG_SCRIPT_IMPORTANCE = average(ALL_PROFILES.map((p) => p.scriptImportance));
 const AVG_ACTING_IMPORTANCE = average(ALL_PROFILES.map((p) => p.actingImportance));
-const AVG_PRODUCTION_IMPORTANCE = average(ALL_PROFILES.map(productionImportance));
 
 /**
  * Final Quality Score weights, tilted per genre instead of fixed for every
- * film - a Drama leans hard on script+acting and barely on production; an
- * Action film is close to the reverse. Only script, acting and production
- * flex (production's "importance" is derived from the genre's existing
- * vfxImportance/practicalEffectsImportance rather than a new field -
- * genres that lean on effects also lean on production quality at the top
- * level). Direction, post-production and random-events stay at their base
- * share. Everything is then renormalized so the six weights always sum to
+ * film - a Drama leans hard on script+acting, an Action film barely does.
+ * Only script and acting flex; direction and post-production stay at their
+ * base share. Production isn't a top-level weight any more - its influence
+ * flows entirely through the "captured footage" ceiling in
+ * engine/scoring.ts:computeQualityBreakdown, genre-neutral for now (see that
+ * file's dependency-chain comment for the known gap this leaves - a VFX-
+ * heavy genre no longer gets extra top-level weight on Production the way
+ * it used to). Everything is renormalized so the four weights always sum to
  * 1 exactly, regardless of how extreme a genre's importance values are.
  */
 export function computeQualityWeights(genre: Genre): QualityWeights {
@@ -37,21 +37,17 @@ export function computeQualityWeights(genre: Genre): QualityWeights {
   const raw: QualityWeights = {
     script: BASE_QUALITY_WEIGHTS.script * (profile.scriptImportance / AVG_SCRIPT_IMPORTANCE),
     acting: BASE_QUALITY_WEIGHTS.acting * (profile.actingImportance / AVG_ACTING_IMPORTANCE),
-    production: BASE_QUALITY_WEIGHTS.production * (productionImportance(profile) / AVG_PRODUCTION_IMPORTANCE),
     direction: BASE_QUALITY_WEIGHTS.direction,
     postProduction: BASE_QUALITY_WEIGHTS.postProduction,
-    randomEvents: BASE_QUALITY_WEIGHTS.randomEvents,
   };
 
-  const total = raw.script + raw.direction + raw.acting + raw.postProduction + raw.production + raw.randomEvents;
+  const total = raw.script + raw.direction + raw.acting + raw.postProduction;
 
   return {
     script: raw.script / total,
     direction: raw.direction / total,
     acting: raw.acting / total,
     postProduction: raw.postProduction / total,
-    production: raw.production / total,
-    randomEvents: raw.randomEvents / total,
   };
 }
 

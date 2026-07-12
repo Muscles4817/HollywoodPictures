@@ -70,7 +70,19 @@ import { randomSeed, withRng } from '../engine/random';
 // the entire page. Bumping the key is the actual fix - an old save
 // simply isn't found under the new one, exactly like every past
 // shape-break here.
-const SAVE_KEY = 'hollywood-pictures-save-v20';
+// v20 -> v21 redesigned the screenplay model (docs/DESIGN.md - "screenplay
+// redesign"): Script.genreFit and Script.marketability were removed
+// entirely (genre fit is now derived from toneProfile-vs-canonical-tone
+// distance at score time; marketability was split into several hidden
+// derived commercial values - see engine/commercialProfile.ts - rather than
+// staying a single stored stat), and Script gained required archetype/
+// storyType/setting/scale/characters/productionRequirements fields driving
+// archetype-first generation (engine/scriptGenerator.ts). A v20 save's
+// embedded Script objects (Film.script, FilmDraft.script/scriptOptions,
+// RivalProductionInProgress.script) have neither the new required fields
+// nor the shape any current formula expects - no migration code, same as
+// every past shape-break here.
+const SAVE_KEY = 'hollywood-pictures-save-v21';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

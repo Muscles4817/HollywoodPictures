@@ -171,15 +171,96 @@ export interface CrewTalent extends TalentCommon {
 
 export type Talent = DirectorTalent | ActorTalent | CrewTalent;
 
+// --- Screenplay identity (docs/DESIGN.md - screenplay redesign) -----------
+//
+// A screenplay used to be a bag of independently-rolled numbers with a genre
+// and a tone profile glued on. These four tags are what make a generated
+// script represent a coherent *concept* before any quality number is even
+// shown - "a commercial sports drama" and "an arthouse psychological
+// thriller" read as different films because they resolve to different tags,
+// not because their stat rolls happened to land differently.
+
+// The shape of the screenplay's ambition and market orientation - what kind
+// of film this fundamentally is, independent of genre. Chosen first during
+// generation (engine/scriptGenerator.ts) and everything else (quality
+// profile, story tags, production requirements, commercial appeal) is
+// generated to cohere with it, rather than every attribute being rolled
+// independently. Deliberately cross-genre (a Spectacle archetype Comedy and
+// a Spectacle archetype Action film are shaped the same way, just flavored
+// differently) rather than a separate catalog per genre.
+export type ScriptArchetype =
+  | 'Prestige' // character/dialogue-driven, built for critical acclaim over broad reach
+  | 'CrowdPleaser' // dependable, structurally sound, broad mainstream appeal
+  | 'Spectacle' // event-scale, effects/stunts-heavy, built to be seen big
+  | 'OriginalVision' // a genuinely novel premise - the biggest swing, the least predictable outcome
+  | 'GenreFormula'; // safe, familiar, cheap to make and reliable to sell
+
+// The story hook, independent of genre - a Sports Drama and a Crime Drama
+// are both Drama, but call for very different casts, locations and
+// commercial pitches. 'Original' (no strong subgenre hook) is deliberately
+// the most common outcome - most scripts aren't built around one of these
+// ten specific hooks.
+export type StoryType =
+  | 'Original'
+  | 'Sports'
+  | 'Musical'
+  | 'Biography'
+  | 'Documentary'
+  | 'Crime'
+  | 'Mystery'
+  | 'Superhero'
+  | 'War'
+  | 'ComingOfAge'
+  | 'Heist';
+
+// When and where the story takes place - independent of genre and story
+// type (a Historical War film and a Historical Romance both need period
+// costuming; a Sci-Fi Heist and a Space Heist both need very different
+// production requirements from a Modern one).
+export type Setting = 'Modern' | 'Historical' | 'Fantasy' | 'SciFi' | 'Space';
+
+// How big the production this screenplay implies actually is - cast size,
+// location count, crowd work, cost. Named ScriptScale (not just `Scale`) to
+// stay unambiguous next to Tone's own numeric scale and the unrelated
+// rival-studio budget-tier ProductionScale below ('Small'/'Medium'/'Big').
+export type ScriptScale = 'Intimate' | 'Medium' | 'Epic';
+
+// What a screenplay concretely calls for on set - derived from archetype +
+// story type + setting + scale (see engine/scriptGenerator.ts), never rolled
+// independently, so "why is this script expensive" always has a legible
+// answer in these fields rather than being implicit in a single cost number.
+// Everything except the two boolean flags is a 0-1 intensity, same
+// NormalizedScalar convention Environment/Effects Ambition already use.
+export interface ProductionRequirements {
+  extras: NormalizedScalar; // background/day-player cast need
+  locations: NormalizedScalar; // how location-heavy vs contained to a handful of sets
+  periodSetting: boolean; // costume/production design has to recreate an era
+  vehicles: boolean; // meaningfully features cars, aircraft, ships, etc.
+  animals: boolean; // meaningfully features trained animals
+  practicalEffects: NormalizedScalar;
+  vfx: NormalizedScalar;
+  stunts: NormalizedScalar;
+  choreography: NormalizedScalar; // dance/musical staging, not fight choreography (see stunts)
+  crowdWork: NormalizedScalar; // large coordinated crowd/battle/riot scenes, distinct from ordinary extras
+}
+
 export interface Script {
   id: string;
   title: string;
   genre: Genre;
-  genreFit: number; // 1-100, how well the script suits the chosen genre
+  archetype: ScriptArchetype;
+  storyType: StoryType;
+  setting: Setting;
+  scale: ScriptScale;
+  // The five intrinsic screenplay-craft attributes - deliberately kept
+  // small, and each with exactly one job (docs/DESIGN.md): what the
+  // screenplay itself *is*, not how commercially attractive it is (see
+  // engine/commercialProfile.ts for that, computed from the fields above
+  // rather than stored as its own rolled stat).
   originality: number; // 1-100
   structure: number; // 1-100
+  characters: number; // 1-100 - depth/arcs, distinct from Dialogue's craft
   dialogue: number; // 1-100
-  marketability: number; // 1-100
   complexity: number; // 1-100, drives production difficulty/risk
   cost: number;
   toneProfile: ToneProfile;
@@ -187,11 +268,13 @@ export interface Script {
   // a lean (see docs/DESIGN.md). Same Distribution/NormalizedScalar shapes
   // DirectorTalent.productionStyle uses, feeding the same two pairs of
   // recommendations (Environment Strategy/Ambition, Effects
-  // Strategy/Ambition) a future recommendation engine will produce.
+  // Strategy/Ambition) a future recommendation engine will produce. Derived
+  // from `productionRequirements` below, not generated independently of it.
   environmentStrategy: Distribution<EnvironmentMethodKey>;
   environmentAmbition: NormalizedScalar;
   effectsStrategy: Distribution<EffectsMethodKey>;
   effectsAmbition: NormalizedScalar;
+  productionRequirements: ProductionRequirements;
   // A one-sentence log-line generated from genre + tone flavor
   // (engine/premiseGenerator.ts, data/premises.ts) - presentation only,
   // doesn't feed any scoring, same as title.

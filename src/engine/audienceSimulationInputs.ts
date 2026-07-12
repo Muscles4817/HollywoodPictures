@@ -41,11 +41,16 @@ export type SupportedReleaseType = Exclude<ReleaseType, 'Streaming'>;
  * Everything this milestone was asked to connect, as plain named release-
  * day inputs rather than a full Film/Script object - keeps this function
  * testable without constructing talent/production/post-production state
- * that has nothing to do with audience simulation. `scriptMarketability`/
- * `scriptOriginality` are Script.marketability/originality verbatim (1-100,
- * types/index.ts); `criticScore`/`audienceScore` are FilmResults' verbatim
- * (0-100, engine/scoring.ts) - reused, not recomputed, same principle
- * Milestone 1 already applied to criticScore/audienceScore on
+ * that has nothing to do with audience simulation. `scriptOriginality` is
+ * Script.originality verbatim (1-100, types/index.ts); `scriptMarketability`
+ * is `engine/commercialProfile.ts:deriveCommercialProfile(script).accessibility`
+ * (docs/DESIGN.md - screenplay redesign, "split marketability") - Script no
+ * longer has a stored `marketability` field at all, so this is a derived
+ * reading, not a verbatim pass-through, but the field name/shape here is
+ * unchanged so this module's own formulas don't need to know that happened;
+ * `criticScore`/`audienceScore` are FilmResults' verbatim (0-100,
+ * engine/scoring.ts) - reused, not recomputed, same principle Milestone 1
+ * already applied to criticScore/audienceScore on
  * AudienceSimulationFixedState itself.
  */
 export interface ReleaseSimulationInputs {
@@ -53,7 +58,7 @@ export interface ReleaseSimulationInputs {
   buzzScore: number;
   /** Currency amount, data/release.ts:MARKETING_SPEND_RANGE. Seeds initial awareness alongside Buzz, scaled by marketingEfficiency - nothing else. */
   marketingSpend: number;
-  /** Script.marketability, 1-100 - sizes baseInterestFraction and (dampened by originality) marketingEfficiency. */
+  /** deriveCommercialProfile(script).accessibility, 0-100 - how broad a natural audience the screenplay's concept has. Sizes baseInterestFraction and (dampened by originality) marketingEfficiency. */
   scriptMarketability: number;
   /** Script.originality, 1-100 - one of several inputs to crossoverCapacityFraction (the ceiling; see computeCrossoverCapacityFraction below) and dampens marketingEfficiency (a genuinely novel premise is harder to pitch). Never touches criticScore/audienceScore or any WOM-response constant - capacity is fixed at release, reception (below) is the only thing that can realize it week over week. See "originality alone must never create a breakout" in the milestone brief - already structurally guaranteed by Milestone 2's crossover step requiring both capacity *and* a cleared reception-driven threshold. */
   scriptOriginality: number;

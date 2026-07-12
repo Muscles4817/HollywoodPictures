@@ -4,15 +4,22 @@ import type {
   EnvironmentMethodKey,
   Genre,
   NormalizedScalar,
+  ProductionRequirements,
   Script,
+  TargetAudience,
   Tone,
   ToneProfile,
 } from '../types';
-import { GENRE_PROFILES, GENRE_TYPICAL_AUDIENCES, type GenreProfile } from '../data/genres';
+import { GENRE_PROFILES, GENRE_TYPICAL_AUDIENCES } from '../data/genres';
 import { SCRIPT_TITLE_WORDS } from '../data/scriptWords';
 import { TONES } from '../data/tones';
+import { TARGET_AUDIENCES } from '../data/audiences';
+import { SCRIPT_ARCHETYPES, SCRIPT_ARCHETYPE_PROFILES, type QualityRange } from '../data/scriptArchetypes';
+import { STORY_TYPES, STORY_TYPE_PROFILES, type StoryTypeProfile } from '../data/storyTypes';
+import { SETTINGS, SETTING_PROFILES, type SettingProfile } from '../data/settings';
+import { SCRIPT_SCALES, SCRIPT_SCALE_PROFILES, type ScriptScaleProfile } from '../data/scale';
 import { generatePremise } from './premiseGenerator';
-import { type RandomFn, clamp, normalizeWeights, pick, pickMany, randFloat, randInt } from './random';
+import { type RandomFn, clamp, combineWeights, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick } from './random';
 
 let nextScriptId = 1;
 
@@ -84,52 +91,87 @@ function generateToneProfile(genre: Genre, rng: RandomFn): ToneGenerationResult 
   return { profile, flavorTones };
 }
 
-// How far a Strategy/Ambition base value jitters per script, so two Action
-// scripts don't read identically - same role TONE_JITTER plays for
-// toneProfile above, just on a 0-1 scale instead of 1-100.
+// How far a Strategy/Ambition/intensity base value jitters per script, so
+// two scripts with the same story type don't read identically - same role
+// TONE_JITTER plays for toneProfile above, just on a 0-1 scale instead of
+// 1-100.
+const INTENSITY_JITTER = 0.1;
 const STRATEGY_JITTER = 0.15;
+
+function jitterIntensity(base: number, rng: RandomFn): NormalizedScalar {
+  return clamp(base + randFloat(rng, -INTENSITY_JITTER, INTENSITY_JITTER), 0, 1);
+}
 
 function jitterWeight(base: number, rng: RandomFn): number {
   return Math.max(0.02, base + randFloat(rng, -STRATEGY_JITTER, STRATEGY_JITTER));
 }
 
 /**
- * The screenplay's own implied effects approach - anchored on the genre's
- * existing vfxImportance/practicalEffectsImportance (data/genres.ts) rather
- * than a new genre-level field. Those two numbers used to be read directly
- * as live scoring inputs (engine/scoring.ts); this is what makes them
- * generation inputs instead - what an individual script's own Strategy gets
- * generated around, same relationship GENRE_PROFILES.canonicalTone already
- * has to Script.toneProfile.
+ * Step 5 of generation (docs/DESIGN.md - screenplay redesign): "production
+ * requirements should emerge naturally from the screenplay rather than
+ * being generated independently." Blends the chosen Story Type's own
+ * baseline intensities with the chosen Production Scale's floors (an Epic
+ * production needs real crowd/location work even for a story type that
+ * doesn't usually call for it) and the chosen Setting's biases (Historical/
+ * Fantasy/SciFi/Space all pull practical/VFX intensity differently), then
+ * lifts practical/VFX a little further by Complexity - the one quality
+ * attribute that's always been about production difficulty, not craft (see
+ * types/index.ts:Script.complexity).
  */
-function generateEffectsStrategy(profile: GenreProfile, rng: RandomFn): Distribution<EffectsMethodKey> {
-  return normalizeWeights({
-    digital: jitterWeight(profile.vfxImportance, rng),
-    practical: jitterWeight(profile.practicalEffectsImportance, rng),
-  });
-}
-
-/** How demanding the script's effects vision is, independent of the practical/digital split - genre's own effects importance, lifted a little further by script complexity. */
-function generateEffectsAmbition(profile: GenreProfile, complexity: number, rng: RandomFn): NormalizedScalar {
-  const genreBase = (profile.vfxImportance + profile.practicalEffectsImportance) / 2;
-  const complexityLift = (complexity / 100) * 0.25;
-  return clamp(genreBase * 0.75 + complexityLift + randFloat(rng, -0.15, 0.15), 0, 1);
+function generateProductionRequirements(
+  story: StoryTypeProfile,
+  scale: ScriptScaleProfile,
+  setting: SettingProfile,
+  complexity: number,
+  rng: RandomFn,
+): ProductionRequirements {
+  const complexityLift = (complexity / 100) * 0.15;
+  return {
+    extras: jitterIntensity(Math.max(story.extras, scale.extrasFloor), rng),
+    locations: jitterIntensity(Math.max(story.locations, scale.locationsFloor), rng),
+    periodSetting: setting.periodSetting,
+    vehicles: rng() < clamp(story.vehiclesLikely + setting.vehiclesLikely, 0, 1),
+    animals: rng() < story.animalsLikely,
+    practicalEffects: jitterIntensity(clamp(story.practicalEffects + setting.practicalBias + complexityLift, 0, 1), rng),
+    vfx: jitterIntensity(clamp(story.vfx + setting.vfxBias + complexityLift, 0, 1), rng),
+    stunts: jitterIntensity(story.stunts, rng),
+    choreography: jitterIntensity(story.choreography, rng),
+    crowdWork: jitterIntensity(Math.max(story.crowdWork, scale.crowdWorkFloor), rng),
+  };
 }
 
 /**
- * The screenplay's own implied environment approach. Weaker genre grounding
- * than effects - nothing in GENRE_PROFILES speaks to studio-vs-location
- * directly - so this is a rougher first pass, worth revisiting once a
- * recommendation engine is actually exercising it: `vfxImportance` sets how
- * much of the split goes to "digital" (a genre that leans on VFX for
- * spectacle tends to build its world digitally too), and
- * `lowBudgetFriendly` - a genre that tolerates a cheap budget usually gets
- * there partly by using real, found locations instead of paying to build
- * sets - splits what's left between location and studio.
+ * The screenplay's own implied effects approach - now anchored on its own
+ * derived ProductionRequirements (vfx/practicalEffects/stunts) rather than a
+ * flat genre-level lookup, so two Action scripts with very different Story
+ * Types (a grounded Heist vs. a VFX-heavy Superhero) get genuinely different
+ * effects leans instead of the same genre default.
  */
-function generateEnvironmentStrategy(profile: GenreProfile, rng: RandomFn): Distribution<EnvironmentMethodKey> {
-  const digitalBase = profile.vfxImportance * 0.7;
-  const locationBase = profile.lowBudgetFriendly * 0.6;
+function generateEffectsStrategy(req: ProductionRequirements, rng: RandomFn): Distribution<EffectsMethodKey> {
+  return normalizeWeights({
+    digital: jitterWeight(Math.max(0.05, req.vfx), rng),
+    practical: jitterWeight(Math.max(0.05, req.practicalEffects), rng),
+  });
+}
+
+/** How demanding the script's effects vision is, independent of the practical/digital split - the stronger of vfx/practicalEffects, lifted by stunt work and script complexity. */
+function generateEffectsAmbition(req: ProductionRequirements, complexity: number, rng: RandomFn): NormalizedScalar {
+  const base = Math.max(req.vfx, req.practicalEffects) * 0.7 + req.stunts * 0.3;
+  const complexityLift = (complexity / 100) * 0.2;
+  return clamp(base * 0.8 + complexityLift + randFloat(rng, -0.1, 0.1), 0, 1);
+}
+
+/**
+ * The screenplay's own implied environment approach - `req.vfx` and the
+ * chosen Setting's own digitalEnvironmentBias (Fantasy/SciFi/Space lean
+ * digital far more than a Modern setting) decide how much of the split goes
+ * to "digital"; `req.locations` splits what's left between location and
+ * studio - a location-heavy story type (War, Sports) leans location, an
+ * intimate/contained one (ComingOfAge, Mystery) leans studio.
+ */
+function generateEnvironmentStrategy(req: ProductionRequirements, setting: SettingProfile, rng: RandomFn): Distribution<EnvironmentMethodKey> {
+  const digitalBase = clamp(req.vfx * 0.5 + setting.digitalEnvironmentBias, 0, 1);
+  const locationBase = req.locations * (1 - digitalBase);
   const studioBase = Math.max(0.05, 1 - digitalBase - locationBase);
   return normalizeWeights({
     studio: jitterWeight(studioBase, rng),
@@ -138,63 +180,134 @@ function generateEnvironmentStrategy(profile: GenreProfile, rng: RandomFn): Dist
   });
 }
 
-/** How demanding the script's environment vision is, independent of the studio/location/digital split - same shape of formula as effects ambition. */
-function generateEnvironmentAmbition(profile: GenreProfile, complexity: number, rng: RandomFn): NormalizedScalar {
-  const genreBase = (1 - profile.lowBudgetFriendly) * 0.6 + profile.vfxImportance * 0.4;
-  const complexityLift = (complexity / 100) * 0.25;
-  return clamp(genreBase * 0.75 + complexityLift + randFloat(rng, -0.15, 0.15), 0, 1);
+/** How demanding the script's environment vision is, independent of the studio/location/digital split - locations, extras and crowd work all add up to "how much does this world need to be built out," lifted a little further by complexity. */
+function generateEnvironmentAmbition(req: ProductionRequirements, complexity: number, rng: RandomFn): NormalizedScalar {
+  const base = req.locations * 0.5 + req.extras * 0.2 + req.crowdWork * 0.3;
+  const complexityLift = (complexity / 100) * 0.2;
+  return clamp(base * 0.8 + complexityLift + randFloat(rng, -0.1, 0.1), 0, 1);
 }
 
-// Mostly a single protagonist; occasionally a pair or a true ensemble lead.
+// Mostly a single protagonist; occasionally a pair or a true ensemble lead -
+// scaled by the chosen Story Type/Production Scale's own castSizeMultiplier/
+// castMultiplier below (a Heist wants an ensemble, a Documentary often wants
+// none at all), not a flat genre-independent table any more.
 const LEAD_COUNT_WEIGHTS = [1, 1, 1, 1, 1, 2, 2, 2, 3];
-// A typical-sized supporting cast is the common case; small and large ensembles both happen.
 const SUPPORTING_COUNT_WEIGHTS = [1, 2, 2, 3, 3, 3, 4];
 
 /**
- * Cost scales with the average of the script's quality attributes -
- * a highly original, well-structured, marketable script costs more to
- * acquire. Exported so hand-authored reference scripts
- * (data/dev/referenceScripts.ts) can derive a consistent cost from the same
- * formula instead of a guessed number that could drift from it.
+ * Cost scales with the average of the script's craft attributes - a
+ * well-structured, well-characterized, original, well-written script costs
+ * more to acquire - then scales further with how big a production it
+ * implies (Production Scale) and how demanding it is to actually shoot
+ * (Complexity), so "why is this script expensive" always has a legible
+ * answer: either it's exceptionally well-crafted, or it's an ambitious,
+ * complex, large-scale concept, or both. Exported so hand-authored
+ * reference scripts (data/dev/referenceScripts.ts) can derive a consistent
+ * cost from the same formula instead of a guessed number that could drift
+ * from it.
  */
-export function estimateScriptCost(script: Pick<Script, 'originality' | 'structure' | 'dialogue' | 'marketability'>): number {
-  const avgQuality = (script.originality + script.structure + script.dialogue + script.marketability) / 4;
+export function estimateScriptCost(script: Pick<Script, 'originality' | 'structure' | 'dialogue' | 'characters' | 'scale' | 'complexity'>): number {
+  const avgQuality = (script.originality + script.structure + script.dialogue + script.characters) / 4;
   const baseCost = 50_000;
-  const scaledCost = avgQuality * 6_000; // up to ~600k for a top-tier spec script
-  return Math.round((baseCost + scaledCost) / 1000) * 1000;
+  const scaledCost = avgQuality * 6_000; // up to ~600k for a top-tier spec script, before scale/complexity
+  const scaleMultiplier = SCRIPT_SCALE_PROFILES[script.scale].costMultiplier;
+  const complexityMultiplier = 1 + (script.complexity / 100) * 0.3;
+  return Math.round(((baseCost + scaledCost) * scaleMultiplier * complexityMultiplier) / 1000) * 1000;
 }
 
-/** Generates one script option for the given genre. */
+/** Each archetype's own genre likelihood (default 1 for a genre it doesn't list) - see data/scriptArchetypes.ts:genreAffinity. */
+function archetypeWeightsForGenre(genre: Genre): Partial<Record<(typeof SCRIPT_ARCHETYPES)[number], number>> {
+  const weights: Partial<Record<(typeof SCRIPT_ARCHETYPES)[number], number>> = {};
+  for (const archetype of SCRIPT_ARCHETYPES) {
+    weights[archetype] = SCRIPT_ARCHETYPE_PROFILES[archetype].genreAffinity[genre] ?? 1;
+  }
+  return weights;
+}
+
+/** A soft nudge (not a hard filter, unlike the old uniform pick among only these) toward whichever audiences data/genres.ts:GENRE_TYPICAL_AUDIENCES already considers plausible for this genre. */
+function genreTypicalAudienceBonus(genre: Genre): Partial<Record<TargetAudience, number>> {
+  const bonus: Partial<Record<TargetAudience, number>> = {};
+  for (const audience of GENRE_TYPICAL_AUDIENCES[genre]) bonus[audience] = 1.5;
+  return bonus;
+}
+
+function randIntRange(rng: RandomFn, range: QualityRange[keyof QualityRange]): number {
+  return randInt(rng, range[0], range[1]);
+}
+
+/**
+ * Generates one script option for the given genre - archetype-first
+ * (docs/DESIGN.md - screenplay redesign): Archetype decides the quality
+ * profile's *shape* and biases Story Type/Scale/Target Audience, rather than
+ * every attribute being rolled independently of every other. A commercial
+ * sports drama and an arthouse psychological thriller read as different
+ * concepts before a single number is shown, because they resolve to
+ * different archetype/story-type/scale/setting tags, not because their
+ * stat rolls happened to differ.
+ */
 function generateScript(genre: Genre, rng: RandomFn, title: string): Script {
-  const genreFit = randInt(rng, 55, 100); // scripts are written with this genre in mind, so fit skews high
-  const originality = randInt(rng, 10, 100);
-  const structure = randInt(rng, 20, 100);
-  const dialogue = randInt(rng, 20, 100);
-  const marketability = randInt(rng, 15, 100);
-  const complexity = randInt(rng, 10, 100);
+  const archetype = weightedPick(rng, SCRIPT_ARCHETYPES, archetypeWeightsForGenre(genre));
+  const archetypeProfile = SCRIPT_ARCHETYPE_PROFILES[archetype];
+
+  const originality = randIntRange(rng, archetypeProfile.qualityRange.originality);
+  const structure = randIntRange(rng, archetypeProfile.qualityRange.structure);
+  const characters = randIntRange(rng, archetypeProfile.qualityRange.characters);
+  const dialogue = randIntRange(rng, archetypeProfile.qualityRange.dialogue);
+  const complexity = randIntRange(rng, archetypeProfile.qualityRange.complexity);
+
+  const storyType = weightedPick(rng, STORY_TYPES, archetypeProfile.storyTypeAffinity);
+  const storyProfile = STORY_TYPE_PROFILES[storyType];
+
+  const scaleWeights = combineWeights(SCRIPT_SCALES, [archetypeProfile.scaleWeights, storyProfile.scaleAffinity]);
+  const scale = weightedPick(rng, SCRIPT_SCALES, scaleWeights);
+  const scaleProfile = SCRIPT_SCALE_PROFILES[scale];
+
+  const setting = weightedPick(rng, SETTINGS, storyProfile.settingAffinity ?? {});
+  const settingProfile = SETTING_PROFILES[setting];
+
   const { profile: toneProfile, flavorTones } = generateToneProfile(genre, rng);
-  const genreProfile = GENRE_PROFILES[genre];
+
+  const productionRequirements = generateProductionRequirements(storyProfile, scaleProfile, settingProfile, complexity, rng);
+  const environmentStrategy = generateEnvironmentStrategy(productionRequirements, settingProfile, rng);
+  const environmentAmbition = generateEnvironmentAmbition(productionRequirements, complexity, rng);
+  const effectsStrategy = generateEffectsStrategy(productionRequirements, rng);
+  const effectsAmbition = generateEffectsAmbition(productionRequirements, complexity, rng);
+
+  const castMultiplier = storyProfile.castSizeMultiplier * scaleProfile.castMultiplier;
+  const requiredLeads = Math.max(1, Math.round(pick(rng, LEAD_COUNT_WEIGHTS) * castMultiplier));
+  const requiredSupporting = Math.max(0, Math.round(pick(rng, SUPPORTING_COUNT_WEIGHTS) * castMultiplier));
+
+  const audienceWeights = combineWeights(TARGET_AUDIENCES, [
+    storyProfile.targetAudienceWeights,
+    archetypeProfile.targetAudienceWeights,
+    genreTypicalAudienceBonus(genre),
+  ]);
+  const intendedAudience = weightedPick(rng, TARGET_AUDIENCES, audienceWeights);
 
   return {
     id: `script-${nextScriptId++}`,
     title,
     genre,
-    genreFit,
+    archetype,
+    storyType,
+    setting,
+    scale,
     originality,
     structure,
+    characters,
     dialogue,
-    marketability,
     complexity,
-    cost: estimateScriptCost({ originality, structure, dialogue, marketability }),
+    cost: estimateScriptCost({ originality, structure, dialogue, characters, scale, complexity }),
     toneProfile,
-    environmentStrategy: generateEnvironmentStrategy(genreProfile, rng),
-    environmentAmbition: generateEnvironmentAmbition(genreProfile, complexity, rng),
-    effectsStrategy: generateEffectsStrategy(genreProfile, rng),
-    effectsAmbition: generateEffectsAmbition(genreProfile, complexity, rng),
+    environmentStrategy,
+    environmentAmbition,
+    effectsStrategy,
+    effectsAmbition,
+    productionRequirements,
     synopsis: generatePremise(genre, flavorTones[0] ?? null, rng),
-    requiredLeads: pick(rng, LEAD_COUNT_WEIGHTS),
-    requiredSupporting: pick(rng, SUPPORTING_COUNT_WEIGHTS),
-    intendedAudience: pick(rng, GENRE_TYPICAL_AUDIENCES[genre]),
+    requiredLeads,
+    requiredSupporting,
+    intendedAudience,
   };
 }
 

@@ -13,6 +13,7 @@ import { computeAudienceScore, computeBuzzScore, computeCriticScore, computeQual
 import { computeEventsCostDelta, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
 import { TEST_SCREENING_PROFILES } from '../data/postProduction';
 import { deriveAudienceSimulationFixedState, type SupportedReleaseType } from './audienceSimulationInputs';
+import { deriveCommercialProfile } from './commercialProfile';
 import { advanceOneWeek } from './audienceSimulationStep';
 import { AVERAGE_TICKET_PRICE } from './boxOfficeRun';
 import { pickReviewBlurbs, pickDepartmentBlurb } from './reviews';
@@ -109,7 +110,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   const fixed = deriveAudienceSimulationFixedState({
     buzzScore,
     marketingSpend: input.marketingChoices.marketingSpend,
-    scriptMarketability: input.script.marketability,
+    scriptMarketability: deriveCommercialProfile(input.script).accessibility,
     scriptOriginality: input.script.originality,
     scriptSpectacle: input.script.toneProfile.spectacle,
     scriptIntendedAudience: input.script.intendedAudience,

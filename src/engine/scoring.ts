@@ -10,7 +10,9 @@ import type {
   Talent,
 } from '../types';
 import { GENRE_PROFILES } from '../data/genres';
+import { TONES } from '../data/tones';
 import { computeTalentCompatibility } from './compatibility';
+import { deriveCommercialProfile } from './commercialProfile';
 import {
   contingencyQuality,
   overallSpendT,
@@ -51,9 +53,33 @@ function average(values: number[]): number | null {
   return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
 
-/** Script quality independent of genre fit (originality/structure/dialogue/marketability). */
+/**
+ * Script quality independent of genre fit - pure craft (originality,
+ * structure, characters, dialogue), evenly weighted. No commercial term any
+ * more (docs/DESIGN.md - screenplay redesign, "split marketability"): what
+ * used to be Script.marketability's 0.15 slot here conflated "is this
+ * well-written" with "is this sellable," which is exactly the "asking one
+ * stat to do too much" problem the redesign set out to fix - commercial
+ * appeal now only enters the scoring chain via computeMarketabilityScore/
+ * computeBuzzScore below, both already-separate concepts.
+ */
 export function computeScriptScore(script: Script): number {
-  return script.originality * 0.3 + script.structure * 0.3 + script.dialogue * 0.25 + script.marketability * 0.15;
+  return script.originality * 0.25 + script.structure * 0.25 + script.characters * 0.25 + script.dialogue * 0.25;
+}
+
+/**
+ * How closely a screenplay's actual tone profile matches its genre's
+ * canonical vector - replaces the old independently-rolled Script.genreFit
+ * stat (docs/DESIGN.md - screenplay redesign). A script generated with a
+ * strong flavor boost (an action-comedy, a horror-tragedy) reads as a
+ * looser fit for its headline genre than a "straight" one, which is exactly
+ * what genre fit is supposed to capture - derived from the same tone
+ * profile the player already sees, not a second independent number.
+ */
+function deriveGenreFit(script: Script, genre: Genre): number {
+  const canonical = GENRE_PROFILES[genre].canonicalTone;
+  const totalDeviation = TONES.reduce((sum, tone) => sum + Math.abs(script.toneProfile[tone] - canonical[tone]), 0);
+  return clamp(100 - totalDeviation / TONES.length, 0, 100);
 }
 
 /** Director's contribution: raw skill plus how well their style suits this script. */
@@ -109,14 +135,20 @@ export function computeProductionScore(choices: ProductionChoices, genre: Genre,
   return contingency * 0.35 + style * 0.25 + set * 0.2 + effectsScore * 0.2;
 }
 
-/** Net quality swing from every rolled production event (positive and negative). */
+/**
+ * Net quality swing from every rolled production event (positive and
+ * negative), as a display-only 0-100 reading (FilmDetailModal,
+ * ReleaseResults) - not what actually feeds Quality Score any more, see
+ * computeQualityBreakdown's own comment for where the raw qualityDelta sum
+ * actually lands (folded into Production, unamplified).
+ */
 export function computeEventsScore(events: ProductionEvent[]): number {
   const totalQualityDelta = events.reduce((sum, e) => sum + e.qualityDelta, 0);
   // Each event's raw delta is small (roughly -10..+10); amplify so a
   // shoot's worth of events (however many days it actually took - no
-  // longer a fixed 3-5) meaningfully moves this 10%-weighted bucket away
-  // from a neutral 50. Clamped below, so an unusually long shoot with many
-  // events saturates rather than blowing past the scale.
+  // longer a fixed 3-5) meaningfully moves this display reading away from a
+  // neutral 50. Clamped below, so an unusually long shoot with many events
+  // saturates rather than blowing past the scale.
   return clamp(50 + totalQualityDelta * 2, 0, 100);
 }
 
@@ -148,7 +180,7 @@ export function computeGenreFitScore(script: Script, talent: Talent[], genre: Ge
   const cheapFit = 30 + profile.lowBudgetFriendly * 60;
   const budgetFit = t >= CHEAP_PENALTY_CUTOFF_T ? 85 : cheapFit + (85 - cheapFit) * (t / CHEAP_PENALTY_CUTOFF_T);
 
-  return script.genreFit * 0.4 + talentFit * 0.35 + budgetFit * 0.25;
+  return deriveGenreFit(script, genre) * 0.4 + talentFit * 0.35 + budgetFit * 0.25;
 }
 
 /** How sellable the film looks, independent of how it eventually gets marketed. */
@@ -159,7 +191,7 @@ export function computeMarketabilityScore(script: Script, talent: Talent[], choi
   const supportFameAvg = average(supports.map((s) => s.fame)) ?? 30;
   const fameAvg = (leadFameAvg + supportFameAvg) / 2;
   const runtimeDelta = runtimeMarketabilityDelta(choices.runtimeIntensity);
-  return clamp(script.marketability * 0.5 + fameAvg * 0.45 + runtimeDelta, 0, 100);
+  return clamp(deriveCommercialProfile(script).hookStrength * 0.5 + fameAvg * 0.45 + runtimeDelta, 0, 100);
 }
 
 export interface QualityBreakdown {
@@ -172,7 +204,60 @@ export interface QualityBreakdown {
   qualityScore: number;
 }
 
-/** Final Quality Score: the weighted core of the whole simulation. */
+// Per-link independence floors for the soft-ceiling dependency chain below -
+// "effective = raw * (K + (1-K) * upstreamRatio)". K=1 would mean fully
+// independent (today's old additive behavior); K=0 would mean a hard
+// multiplicative gate. Each link gets its own K rather than one global
+// constant, tuned to how forgiving that specific relationship should be:
+// a great director can still mostly save an average script (K_SCRIPT_TO_DIRECTION
+// is forgiving), but an editor genuinely cannot create footage that was
+// never captured (K_FOOTAGE_TO_EDITING is the strictest). None of these are
+// hard caps - a downstream department always retains at least K of its own
+// raw score, leaving room for future director/crew traits (improvisation,
+// script doctoring) to claw back some of what upstream weakness costs.
+const K_SCRIPT_TO_DIRECTION = 0.65;
+const K_DIRECTION_TO_ACTING = 0.4;
+const K_DIRECTION_TO_PRODUCTION = 0.4;
+const K_FOOTAGE_TO_EDITING = 0.25;
+
+// How Acting's upstream ceiling blends script (the material) against
+// direction (the director's ability to get performances out of it) - director
+// weighted higher since "the director's ability to get performances" is the
+// more direct lever than the raw material alone.
+const ACTING_UPSTREAM_SCRIPT_WEIGHT = 0.35;
+const ACTING_UPSTREAM_DIRECTION_WEIGHT = 0.65;
+
+// "Captured footage" - what Post-Production actually has to work with -
+// blends direction (coverage/blocking), acting (the performances on camera)
+// and production (sets/effects visibly in-frame), tilted toward direction
+// as the primary driver of what gets captured.
+const FOOTAGE_DIRECTION_WEIGHT = 0.4;
+const FOOTAGE_ACTING_WEIGHT = 0.3;
+const FOOTAGE_PRODUCTION_WEIGHT = 0.3;
+
+/**
+ * Final Quality Score: no longer six independently-weighted departments -
+ * Script sets the film's potential, Direction determines how much of it
+ * gets captured, Acting and Production happen within what Direction
+ * captures, and Post-Production/Editing is bounded by all of that combined
+ * ("captured footage") rather than Script directly, since an editor can't
+ * create footage that doesn't exist. Every step is a soft ceiling (see the
+ * K constants above), not a hard cap - a downstream department never drops
+ * to zero just because something upstream did badly.
+ *
+ * Production and on-set events are deliberately *not* independent top-level
+ * terms any more: Production's raw score absorbs events as a direct
+ * modifier (nearly every event template - schedule/morale/safety/technical/
+ * budget - is fundamentally about how the shoot itself went, see
+ * data/productionEvents.ts), then Production's whole (event-adjusted) value
+ * only reaches the final score via the dependency chain, the same as every
+ * other non-root department - "the dependency chain determines how much
+ * those changes reach the final film," not a flat direct add/subtract.
+ * scriptScore/directionScore/actingScore/productionScore/postProductionScore/
+ * eventsScore are all still returned as raw, pre-ceiling readings - nothing
+ * about what's displayed to the player (FilmDetailModal, ReleaseResults,
+ * engine/reviews.ts) changes, only how they combine into qualityScore.
+ */
 export function computeQualityBreakdown(
   script: Script,
   talent: Talent[],
@@ -189,14 +274,35 @@ export function computeQualityBreakdown(
   const postProductionScore = computePostProductionScore(postProductionChoices);
   const eventsScore = computeEventsScore(events);
 
+  const scriptRatio = scriptScore / 100;
+  const directionRatio = (directionScore / 100) * (K_SCRIPT_TO_DIRECTION + (1 - K_SCRIPT_TO_DIRECTION) * scriptRatio);
+
+  const actingUpstream = ACTING_UPSTREAM_SCRIPT_WEIGHT * scriptRatio + ACTING_UPSTREAM_DIRECTION_WEIGHT * directionRatio;
+  const actingRatio = (actingScore / 100) * (K_DIRECTION_TO_ACTING + (1 - K_DIRECTION_TO_ACTING) * actingUpstream);
+
+  // Events fold into Production directly (no amplification, unlike the
+  // display-only computeEventsScore above) - a shoot's worth of incidents
+  // nudges how well the physical production actually came together.
+  const eventsQualityDelta = events.reduce((sum, e) => sum + e.qualityDelta, 0);
+  const productionScoreWithEvents = clamp(productionScore + eventsQualityDelta, 0, 100);
+  const productionRatio =
+    (productionScoreWithEvents / 100) * (K_DIRECTION_TO_PRODUCTION + (1 - K_DIRECTION_TO_PRODUCTION) * directionRatio);
+
+  const footageRatio =
+    FOOTAGE_DIRECTION_WEIGHT * directionRatio + FOOTAGE_ACTING_WEIGHT * actingRatio + FOOTAGE_PRODUCTION_WEIGHT * productionRatio;
+  const postProductionRatio =
+    (postProductionScore / 100) * (K_FOOTAGE_TO_EDITING + (1 - K_FOOTAGE_TO_EDITING) * footageRatio);
+
+  const effDirection = 100 * directionRatio;
+  const effActing = 100 * actingRatio;
+  const effPostProduction = 100 * postProductionRatio;
+
   const weights = computeQualityWeights(genre);
   const qualityScore =
     scriptScore * weights.script +
-    directionScore * weights.direction +
-    actingScore * weights.acting +
-    postProductionScore * weights.postProduction +
-    productionScore * weights.production +
-    eventsScore * weights.randomEvents;
+    effDirection * weights.direction +
+    effActing * weights.acting +
+    effPostProduction * weights.postProduction;
 
   return { scriptScore, directionScore, actingScore, productionScore, postProductionScore, eventsScore, qualityScore };
 }
@@ -288,7 +394,7 @@ export function computeBuzzScore(
   const eventsBuzz = events.reduce((sum, e) => sum + e.buzzDelta, 0);
   const musicBuzz = MUSIC_FOCUS_PROFILES[postProductionChoices.musicFocus].buzzDelta;
   const finalCutBuzz = FINAL_CUT_FOCUS_PROFILES[postProductionChoices.finalCutFocus].buzzDelta;
-  const scriptBuzz = (script.marketability - 50) * 0.2;
+  const scriptBuzz = (deriveCommercialProfile(script).hookStrength - 50) * 0.2;
 
   return clamp(10 + fameBuzz + reputationBuzz + marketingBuzz + eventsBuzz + musicBuzz + finalCutBuzz + scriptBuzz, 0, 100);
 }
