@@ -8,7 +8,11 @@ import type { Film, FilmResults } from '../types';
 const RELEASE_INPUTS: ReleaseSimulationInputs = {
   buzzScore: 55,
   marketingSpend: 20_000_000,
-  scriptMarketability: 55,
+  directorFame: 50,
+  leadFame: 50,
+  studioReputation: 50,
+  scriptAccessibility: 55,
+  scriptHookStrength: 50,
   scriptOriginality: 40,
   scriptSpectacle: 50,
   scriptIntendedAudience: 'Mass Market',

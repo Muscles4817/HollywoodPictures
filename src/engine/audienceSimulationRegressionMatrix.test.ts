@@ -37,7 +37,11 @@ function inputs(overrides: Partial<ReleaseSimulationInputs> = {}): ReleaseSimula
   return {
     buzzScore: 50,
     marketingSpend: 20_000_000,
-    scriptMarketability: 50,
+    directorFame: 50,
+    leadFame: 50,
+    studioReputation: 50,
+    scriptAccessibility: 50,
+    scriptHookStrength: 50,
     scriptOriginality: 50,
     scriptSpectacle: 50,
     scriptIntendedAudience: 'Mass Market',
@@ -115,45 +119,48 @@ function summarize(releaseInputs: ReleaseSimulationInputs): RunSummary {
 
 const ORDINARY_POSITIVE = inputs({
   genre: 'Romance', targetAudience: 'Adults', scriptIntendedAudience: 'Adults',
-  audienceScore: 70, criticScore: 55, buzzScore: 35, scriptMarketability: 55, scriptOriginality: 30,
+  audienceScore: 70, criticScore: 55, buzzScore: 35, scriptAccessibility: 55, scriptOriginality: 30,
   marketingSpend: 15_000_000, releaseType: 'Wide',
 });
 const STRONG_WOM = inputs({
-  audienceScore: 82, criticScore: 70, buzzScore: 45, scriptMarketability: 60, scriptOriginality: 40,
+  audienceScore: 82, criticScore: 70, buzzScore: 45, scriptAccessibility: 60, scriptOriginality: 40,
   targetAudience: 'Adults', scriptIntendedAudience: 'Adults', marketingSpend: 20_000_000, releaseType: 'Wide',
+  directorFame: 40, leadFame: 45, studioReputation: 40,
 });
 const SLEEPER_BREAKOUT = inputs({
-  audienceScore: 90, criticScore: 85, buzzScore: 10, scriptMarketability: 80, scriptOriginality: 65,
+  audienceScore: 90, criticScore: 85, buzzScore: 10, scriptAccessibility: 80, scriptOriginality: 65,
   targetAudience: 'Niche', scriptIntendedAudience: 'Niche', marketingSpend: 100_000, releaseType: 'Limited',
 });
 const RARE_PHENOMENON = inputs({
-  audienceScore: 97, criticScore: 90, buzzScore: 95, scriptMarketability: 92, scriptOriginality: 85,
+  audienceScore: 97, criticScore: 90, buzzScore: 95, scriptAccessibility: 92, scriptOriginality: 85,
   targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market', genre: 'Action',
   marketingSpend: 140_000_000, releaseType: 'Wide',
 });
 const WELL_LIKED_NICHE = inputs({
-  audienceScore: 88, criticScore: 88, buzzScore: 20, scriptMarketability: 20, scriptOriginality: 20,
+  audienceScore: 88, criticScore: 88, buzzScore: 20, scriptAccessibility: 20, scriptOriginality: 20,
   targetAudience: 'Niche', scriptIntendedAudience: 'Niche', genre: 'Drama',
   marketingSpend: 1_000_000, releaseType: 'Limited',
+  directorFame: 10, leadFame: 5, studioReputation: 15,
 });
 const BROAD_DECENT = inputs({
-  audienceScore: 70, criticScore: 60, buzzScore: 70, scriptMarketability: 85, scriptOriginality: 30,
+  audienceScore: 70, criticScore: 60, buzzScore: 70, scriptAccessibility: 85, scriptOriginality: 30,
   targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market', marketingSpend: 60_000_000, releaseType: 'Wide',
 });
 const HUGE_OPEN_POOR = inputs({
-  audienceScore: 30, criticScore: 25, buzzScore: 90, scriptMarketability: 60, scriptOriginality: 20,
+  audienceScore: 30, criticScore: 25, buzzScore: 90, scriptAccessibility: 60, scriptOriginality: 20,
   targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market', marketingSpend: 120_000_000, releaseType: 'Wide',
 });
 const EXCELLENT_WEAK_MARKETING = inputs({
-  audienceScore: 92, criticScore: 90, buzzScore: 8, scriptMarketability: 60, scriptOriginality: 40,
+  audienceScore: 92, criticScore: 90, buzzScore: 8, scriptAccessibility: 60, scriptOriginality: 40,
   targetAudience: 'Adults', scriptIntendedAudience: 'Adults', marketingSpend: 50_000, releaseType: 'Limited',
+  directorFame: 20, leadFame: 15, studioReputation: 25,
 });
 const ORIGINAL_DISLIKED = inputs({
-  audienceScore: 20, criticScore: 25, buzzScore: 40, scriptMarketability: 40, scriptOriginality: 90,
+  audienceScore: 20, criticScore: 25, buzzScore: 40, scriptAccessibility: 40, scriptOriginality: 90,
   targetAudience: 'Adults', scriptIntendedAudience: 'Adults', marketingSpend: 20_000_000, releaseType: 'Wide',
 });
 const ORDINARY = inputs({
-  audienceScore: 58, criticScore: 55, buzzScore: 45, scriptMarketability: 50, scriptOriginality: 50,
+  audienceScore: 58, criticScore: 55, buzzScore: 45, scriptAccessibility: 50, scriptOriginality: 50,
   marketingSpend: 15_000_000, releaseType: 'Wide',
 });
 
@@ -482,7 +489,7 @@ describe('regression matrix: additional property sweeps', () => {
     const streaks = scores.map((audienceScore) =>
       summarize(inputs({
         genre: 'Romance', targetAudience: 'Adults', scriptIntendedAudience: 'Adults',
-        audienceScore, criticScore: 55, buzzScore: 35, scriptMarketability: 55, scriptOriginality: 30,
+        audienceScore, criticScore: 55, buzzScore: 35, scriptAccessibility: 55, scriptOriginality: 30,
         marketingSpend: 15_000_000, releaseType: 'Wide',
       })).longestGrowthStreak,
     );
@@ -503,7 +510,7 @@ describe('regression matrix: additional property sweeps', () => {
     const fractions = scores.map((audienceScore) =>
       summarize(inputs({
         targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market', genre: 'Action',
-        audienceScore, criticScore: audienceScore - 5, buzzScore: 60, scriptMarketability: 70, scriptOriginality: 70,
+        audienceScore, criticScore: audienceScore - 5, buzzScore: 60, scriptAccessibility: 70, scriptOriginality: 70,
         marketingSpend: 40_000_000, releaseType: 'Wide',
       })).crossoverRealizedFraction,
     );
@@ -517,7 +524,7 @@ describe('regression matrix: additional property sweeps', () => {
     const totals = scores.map((audienceScore) =>
       summarize(inputs({
         targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market', genre: 'Action',
-        audienceScore, criticScore: audienceScore - 5, buzzScore: 50, scriptMarketability: 60, scriptOriginality: 30,
+        audienceScore, criticScore: audienceScore - 5, buzzScore: 50, scriptAccessibility: 60, scriptOriginality: 30,
         marketingSpend: 20_000_000, releaseType: 'Wide',
       })).totalGross,
     );

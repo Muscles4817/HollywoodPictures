@@ -57,7 +57,11 @@ function baseInputs(overrides: Partial<ReleaseSimulationInputs> = {}): ReleaseSi
   return {
     buzzScore: 50,
     marketingSpend: 20_000_000,
-    scriptMarketability: 50,
+    directorFame: 50,
+    leadFame: 50,
+    studioReputation: 50,
+    scriptAccessibility: 50,
+    scriptHookStrength: 50,
     scriptOriginality: 40,
     scriptSpectacle: 50,
     scriptIntendedAudience: 'Mass Market',
@@ -81,50 +85,52 @@ function expectNonDecreasing(values: number[]): void {
 // --- The nine named archetypes -----------------------------------------
 
 const FRONT_LOADED_POOR: ReleaseSimulationInputs = baseInputs({
-  buzzScore: 90, marketingSpend: 100_000_000, scriptMarketability: 70, scriptOriginality: 30,
+  buzzScore: 90, marketingSpend: 100_000_000, scriptAccessibility: 70, scriptOriginality: 30,
   releaseWindow: 'Summer', criticScore: 22, audienceScore: 18,
 });
 
 const SLEEPER_HIT: ReleaseSimulationInputs = baseInputs({
-  buzzScore: 15, marketingSpend: 300_000, scriptMarketability: 40, scriptOriginality: 70,
+  buzzScore: 15, marketingSpend: 300_000, scriptAccessibility: 40, scriptOriginality: 70,
   scriptIntendedAudience: 'Niche', targetAudience: 'Niche', genre: 'Drama',
   releaseType: 'Limited', criticScore: 92, audienceScore: 95,
 });
 
 const HUGE_OPENING_EXCEPTIONAL: ReleaseSimulationInputs = baseInputs({
-  buzzScore: 98, marketingSpend: 150_000_000, scriptMarketability: 90, scriptOriginality: 55,
+  buzzScore: 98, marketingSpend: 150_000_000, scriptAccessibility: 90, scriptOriginality: 55,
   releaseWindow: 'Summer', criticScore: 93, audienceScore: 97,
 });
 
 const CRITICALLY_ACCLAIMED_NICHE: ReleaseSimulationInputs = baseInputs({
-  buzzScore: 20, marketingSpend: 500_000, scriptMarketability: 30, scriptOriginality: 45,
+  buzzScore: 20, marketingSpend: 500_000, directorFame: 10, leadFame: 8, studioReputation: 15,
+  scriptAccessibility: 30, scriptOriginality: 45,
   scriptIntendedAudience: 'Niche', targetAudience: 'Niche', genre: 'Drama',
   releaseWindow: 'Awards Season', releaseType: 'Festival First', criticScore: 94, audienceScore: 85,
 });
 
 const BROAD_CROWD_PLEASER: ReleaseSimulationInputs = baseInputs({
-  buzzScore: 55, marketingSpend: 30_000_000, scriptMarketability: 65, scriptOriginality: 20,
+  buzzScore: 55, marketingSpend: 30_000_000, scriptAccessibility: 65, scriptOriginality: 20,
   genre: 'Comedy', releaseWindow: 'Christmas', criticScore: 40, audienceScore: 45,
 });
 
 const HIGHLY_ORIGINAL_DISLIKED: ReleaseSimulationInputs = baseInputs({
-  buzzScore: 50, marketingSpend: 20_000_000, scriptMarketability: 55, scriptOriginality: 95,
+  buzzScore: 50, marketingSpend: 20_000_000, scriptAccessibility: 55, scriptOriginality: 95,
   genre: 'Sci-Fi', criticScore: 20, audienceScore: 15,
 });
 
 const EXCELLENT_POORLY_MARKETED: ReleaseSimulationInputs = baseInputs({
-  buzzScore: 5, marketingSpend: 10_000, scriptMarketability: 45, scriptOriginality: 40,
+  buzzScore: 5, marketingSpend: 10_000, scriptAccessibility: 45, scriptOriginality: 40,
   scriptIntendedAudience: 'Adults', targetAudience: 'Adults', genre: 'Drama',
   releaseType: 'Limited', criticScore: 90, audienceScore: 88,
 });
 
 const HEAVILY_MARKETED_BAD: ReleaseSimulationInputs = baseInputs({
-  buzzScore: 85, marketingSpend: 150_000_000, scriptMarketability: 70, scriptOriginality: 25,
+  buzzScore: 85, marketingSpend: 150_000_000, directorFame: 70, leadFame: 75, studioReputation: 60,
+  scriptAccessibility: 70, scriptOriginality: 25,
   releaseWindow: 'Summer', criticScore: 20, audienceScore: 18,
 });
 
 const ORDINARY_MID_PERFORMER: ReleaseSimulationInputs = baseInputs({
-  buzzScore: 45, marketingSpend: 15_000_000, scriptMarketability: 50, scriptOriginality: 30,
+  buzzScore: 45, marketingSpend: 15_000_000, scriptAccessibility: 50, scriptOriginality: 30,
   scriptIntendedAudience: 'Adults', targetAudience: 'Adults', genre: 'Thriller',
   criticScore: 40, audienceScore: 42,
 });
@@ -179,8 +185,15 @@ describe('named archetype regression scenarios', () => {
 
   it('critically acclaimed niche film: small/restricted start, durable run, acclaim never buys mass-market scale', () => {
     const r = run(CRITICALLY_ACCLAIMED_NICHE);
-    // Small starting audience / restricted release - Festival First's own tiny initial-awareness share.
-    expect(r.fixed.initialAwareCount).toBeLessThan(r.fixed.totalAddressableAudience * 0.01);
+    // Small starting audience / restricted release - an unknown cast plus a
+    // modest £500k awards-season campaign. Threshold widened from 1% to 5%
+    // as part of Milestone 11's release-input redesign (docs/DESIGN.md):
+    // Festival First no longer crushes awareness with its own multiplier on
+    // top of availability (the old mechanism this 1% figure was calibrated
+    // against), so a genuine, non-token marketing spend now produces a real
+    // (if still small) awareness share - ~2.8% by real diagnostic, still
+    // clearly "small," just no longer artificially near-zero.
+    expect(r.fixed.initialAwareCount).toBeLessThan(r.fixed.totalAddressableAudience * 0.05);
     // Durable run - genuinely uses most/all of the available runway, not a quick flame-out.
     expect(r.runWeeks).toBeGreaterThanOrEqual(MAX_SIMULATION_WEEKS - 2);
     // Acclaim is doing real work - later weeks clearly outsell the opening.
@@ -266,9 +279,9 @@ describe('named archetype regression scenarios', () => {
 // --- Parameter sweeps and property-style checks -----------------------------
 
 describe('sweep: fixed-state fields are continuous, never discontinuous, across their own inputs', () => {
-  it('baseInterestFraction and marketingEfficiency change smoothly as scriptMarketability sweeps 0-100', () => {
+  it('baseInterestFraction and marketingEfficiency change smoothly as scriptAccessibility sweeps 0-100', () => {
     const values = Array.from({ length: 101 }, (_, m) => {
-      const fixed = deriveAudienceSimulationFixedState(baseInputs({ scriptMarketability: m }));
+      const fixed = deriveAudienceSimulationFixedState(baseInputs({ scriptAccessibility: m }));
       return { baseInterestFraction: fixed.baseInterestFraction, marketingEfficiency: fixed.marketingEfficiency };
     });
     const baseDeltas = values.slice(1).map((v, i) => Math.abs(v.baseInterestFraction - values[i].baseInterestFraction));
@@ -375,7 +388,7 @@ describe('sweep: no inversions - every input that should help never makes the ou
 
   it('stronger marketability never reduces baseInterestFraction or marketingEfficiency', () => {
     const marketabilities = [1, 25, 50, 75, 100];
-    const fixedStates = marketabilities.map((scriptMarketability) => deriveAudienceSimulationFixedState(baseInputs({ scriptMarketability })));
+    const fixedStates = marketabilities.map((scriptAccessibility) => deriveAudienceSimulationFixedState(baseInputs({ scriptAccessibility })));
     for (let i = 1; i < fixedStates.length; i++) {
       expect(fixedStates[i].baseInterestFraction).toBeGreaterThanOrEqual(fixedStates[i - 1].baseInterestFraction);
       expect(fixedStates[i].marketingEfficiency).toBeGreaterThanOrEqual(fixedStates[i - 1].marketingEfficiency);
@@ -386,17 +399,27 @@ describe('sweep: no inversions - every input that should help never makes the ou
 describe('sweep: no excessive clustering around the middle - a varied set of realistic releases produces a genuinely wide outcome distribution', () => {
   it('totals across a set of deliberately varied realistic scenarios span multiple orders of magnitude, not a narrow middle band', () => {
     const scenarios: ReleaseSimulationInputs[] = [
-      baseInputs({ targetAudience: 'Niche', scriptIntendedAudience: 'Niche', genre: 'Romance', releaseType: 'Festival First', buzzScore: 0, marketingSpend: 10_000, scriptMarketability: 10, scriptOriginality: 10, criticScore: 25, audienceScore: 22 }),
-      baseInputs({ targetAudience: 'Adults', scriptIntendedAudience: 'Adults', genre: 'Drama', releaseType: 'Limited', buzzScore: 20, marketingSpend: 1_000_000, criticScore: 65, audienceScore: 68 }),
-      baseInputs({ targetAudience: 'Teens', scriptIntendedAudience: 'Teens', genre: 'Comedy', releaseType: 'Wide', buzzScore: 40, marketingSpend: 15_000_000, criticScore: 45, audienceScore: 48 }),
-      baseInputs({ targetAudience: 'Adults', scriptIntendedAudience: 'Adults', genre: 'Thriller', releaseType: 'Wide', buzzScore: 60, marketingSpend: 40_000_000, criticScore: 55, audienceScore: 60 }),
-      baseInputs({ targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market', genre: 'Action', releaseType: 'Wide', buzzScore: 98, marketingSpend: 150_000_000, criticScore: 93, audienceScore: 97 }),
+      baseInputs({ targetAudience: 'Niche', scriptIntendedAudience: 'Niche', genre: 'Romance', releaseType: 'Festival First', buzzScore: 0, marketingSpend: 10_000, directorFame: 10, leadFame: 8, studioReputation: 15, scriptAccessibility: 10, scriptOriginality: 10, criticScore: 25, audienceScore: 22 }),
+      baseInputs({ targetAudience: 'Adults', scriptIntendedAudience: 'Adults', genre: 'Drama', releaseType: 'Limited', buzzScore: 20, marketingSpend: 1_000_000, directorFame: 25, leadFame: 20, studioReputation: 30, criticScore: 65, audienceScore: 68 }),
+      baseInputs({ targetAudience: 'Teens', scriptIntendedAudience: 'Teens', genre: 'Comedy', releaseType: 'Wide', buzzScore: 40, marketingSpend: 15_000_000, directorFame: 40, leadFame: 45, studioReputation: 40, criticScore: 45, audienceScore: 48 }),
+      baseInputs({ targetAudience: 'Adults', scriptIntendedAudience: 'Adults', genre: 'Thriller', releaseType: 'Wide', buzzScore: 60, marketingSpend: 40_000_000, directorFame: 50, leadFame: 55, studioReputation: 50, criticScore: 55, audienceScore: 60 }),
+      baseInputs({ targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market', genre: 'Action', releaseType: 'Wide', buzzScore: 98, marketingSpend: 150_000_000, directorFame: 85, leadFame: 90, studioReputation: 80, criticScore: 93, audienceScore: 97 }),
     ];
     const totals = scenarios.map((s) => run(s).totalGross);
     const min = Math.min(...totals);
     const max = Math.max(...totals);
-    // Orders of magnitude apart, not clustered - a healthy model should span from token indie money to blockbuster money across a genuinely varied set of inputs.
-    expect(max / min).toBeGreaterThan(200);
+    // Orders of magnitude apart, not clustered - a healthy model should span
+    // from token indie money to blockbuster money across a genuinely varied
+    // set of inputs. Threshold lowered from 200 to 100 as part of Milestone
+    // 11's release-input redesign (docs/DESIGN.md): the old figure depended
+    // on release type also scaling awareness by up to ~30x on top of
+    // availability, which the redesign deliberately removed (Distribution no
+    // longer manufactures awareness). Each tier below now carries its own
+    // deliberately-chosen cast fame matching its narrative (an unknown
+    // Festival First cast vs. a blockbuster's famous leads) instead of a
+    // flat, narratively-arbitrary default - real diagnostic span is ~128x,
+    // still comfortably multiple orders of magnitude, just no longer >200x.
+    expect(max / min).toBeGreaterThan(100);
     // And they should be distinct at every step, not just at the extremes - no two adjacent tiers collapsing onto each other.
     // Threshold lowered from 1.5x to 1.4x as part of the Quantum Signal
     // incident fix (docs/DESIGN.md 5.34): tempering NATURAL_INTEREST_RESPONSE's
@@ -434,19 +457,20 @@ describe('sweep: no runaway saturation - not every good film becomes a phenomeno
 describe('the full outcome range is achievable with plausible inputs, from negligible to billion-scale', () => {
   const NEGLIGIBLE = baseInputs({
     targetAudience: 'Niche', scriptIntendedAudience: 'Niche', genre: 'Romance', releaseType: 'Festival First',
-    buzzScore: 0, marketingSpend: 10_000, scriptMarketability: 10, scriptOriginality: 10, criticScore: 25, audienceScore: 22,
+    buzzScore: 0, marketingSpend: 10_000, directorFame: 10, leadFame: 8, studioReputation: 15,
+    scriptAccessibility: 10, scriptOriginality: 10, criticScore: 25, audienceScore: 22,
   });
   const MODEST_INDIE = baseInputs({
     targetAudience: 'Adults', scriptIntendedAudience: 'Adults', genre: 'Drama', releaseType: 'Limited',
-    buzzScore: 20, marketingSpend: 1_000_000, scriptMarketability: 40, scriptOriginality: 45, criticScore: 65, audienceScore: 68,
+    buzzScore: 20, marketingSpend: 1_000_000, scriptAccessibility: 40, scriptOriginality: 45, criticScore: 65, audienceScore: 68,
   });
   const NORMAL_STUDIO = ORDINARY_MID_PERFORMER;
   const HIT = baseInputs({
     targetAudience: 'Adults', scriptIntendedAudience: 'Adults', genre: 'Thriller', releaseType: 'Wide',
-    buzzScore: 60, marketingSpend: 40_000_000, scriptMarketability: 55, scriptOriginality: 30, criticScore: 55, audienceScore: 60,
+    buzzScore: 60, marketingSpend: 40_000_000, scriptAccessibility: 55, scriptOriginality: 30, criticScore: 55, audienceScore: 60,
   });
   const MAJOR_BLOCKBUSTER = baseInputs({
-    buzzScore: 80, marketingSpend: 110_000_000, scriptMarketability: 78, scriptOriginality: 45,
+    buzzScore: 80, marketingSpend: 110_000_000, scriptAccessibility: 78, scriptOriginality: 45,
     releaseWindow: 'Summer', criticScore: 68, audienceScore: 74,
   });
   const BILLION_SCALE_PHENOMENON = HUGE_OPENING_EXCEPTIONAL;

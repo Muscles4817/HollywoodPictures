@@ -16,7 +16,11 @@ const scenario: ReportingScenario = {
   description: 'a plain mid-tier scenario for reporting tests',
   buzzScore: 50,
   marketingSpend: 20_000_000,
-  scriptMarketability: 50,
+  directorFame: 50,
+  leadFame: 50,
+  studioReputation: 50,
+  scriptAccessibility: 50,
+  scriptHookStrength: 50,
   scriptOriginality: 40,
   scriptSpectacle: 50,
   scriptIntendedAudience: 'Mass Market',
@@ -114,7 +118,11 @@ describe('diagnoseRunShape - the plain-language "why" behind a trajectory', () =
     const { fixed, diagnostics, ceiling } = runInputs({
       buzzScore: 90,
       marketingSpend: 100_000_000,
-      scriptMarketability: 50,
+      directorFame: 60,
+      leadFame: 65,
+      studioReputation: 55,
+      scriptAccessibility: 50,
+      scriptHookStrength: 55,
       scriptOriginality: 30,
       scriptSpectacle: 60,
       scriptIntendedAudience: 'Mass Market',
@@ -135,7 +143,11 @@ describe('diagnoseRunShape - the plain-language "why" behind a trajectory', () =
     const { fixed, diagnostics, ceiling } = runInputs({
       buzzScore: 15,
       marketingSpend: 300_000,
-      scriptMarketability: 40,
+      directorFame: 20,
+      leadFame: 15,
+      studioReputation: 30,
+      scriptAccessibility: 40,
+      scriptHookStrength: 40,
       scriptOriginality: 70,
       scriptSpectacle: 25,
       scriptIntendedAudience: 'Niche',
@@ -155,7 +167,19 @@ describe('diagnoseRunShape - the plain-language "why" behind a trajectory', () =
     const { fixed, diagnostics, ceiling } = runInputs({
       buzzScore: 20,
       marketingSpend: 500_000,
-      scriptMarketability: 30,
+      // Fame lowered from 25/20/35 to 5/3/10 as part of Milestone 11's
+      // release-input redesign (docs/DESIGN.md): with Distribution no
+      // longer crushing awareness for Festival First, a moderately-famous
+      // cast (25/20) kept this film's total admissions at ~5.3% of its
+      // addressable audience - just over the NICHE_AUDIENCE_SHARE (5%)
+      // threshold and thus no longer labelled "Remained niche". A genuinely
+      // unknown cast (real diagnostic: ~4.2% share) restores the label
+      // this test is actually about, without touching the threshold itself.
+      directorFame: 5,
+      leadFame: 3,
+      studioReputation: 10,
+      scriptAccessibility: 30,
+      scriptHookStrength: 30,
       scriptOriginality: 2,
       scriptSpectacle: 15,
       scriptIntendedAudience: 'Niche',
