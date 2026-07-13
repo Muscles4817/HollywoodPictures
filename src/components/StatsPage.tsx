@@ -4,6 +4,7 @@ import {
   collectFilmStats, filterAndSortFilmStats, type FilmStatSortKey, type FilmStatsFilters,
   collectStudioStats, sortStudioStats, type StudioStatRow,
   collectPersonStats, filterAndSortPersonStats, type PersonStatRow, type StatSortKey,
+  deriveProjectsView,
 } from '../state/selectors';
 import { formatGameDate } from '../engine/calendar';
 import { GENRES } from '../data/genres';
@@ -88,7 +89,7 @@ export function StatsPage() {
   const [personSearch, setPersonSearch] = useState('');
   const [actorRoleFilter, setActorRoleFilter] = useState<TalentRole | 'any'>('any');
 
-  const allRows = collectFilmStats(studio, state.rivalFilmsReleased);
+  const allRows = collectFilmStats(deriveProjectsView(state), studio.name);
   const baseRows = genre === 'all' ? allRows : allRows.filter((row) => row.film.genre === genre);
 
   const filmFilters: FilmStatsFilters = { studioName, genre, role, personName, sortBy: filmSortBy, sortDirection: filmSortDirection };

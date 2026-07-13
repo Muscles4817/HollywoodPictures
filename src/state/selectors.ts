@@ -1,7 +1,7 @@
 import type { Film, FilmDraft, Genre, Project, Studio, TalentRole } from '../types';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { TEST_SCREENING_PROFILES } from '../data/postProduction';
-import { playerDraftToProject, rivalProductionToProject, filmToProject } from '../engine/project';
+import { playerDraftToProject, rivalProductionToProject, filmToProject, asFilm } from '../engine/project';
 import type { GameState } from './gameState';
 
 /**
@@ -136,16 +136,20 @@ export interface FilmStatRow {
 /**
  * Every film ever released, player's own and every rival's, as one flat
  * list - the raw material for the Stats page (components/StatsPage.tsx).
- * Nothing new is tracked here; Studio.filmsReleased/GameState.rivalFilmsReleased
- * already keep every release forever, complete with cast (stable talent
- * ids, since rivals cast from the same shared talent pool - see
- * engine/rivalStudios.ts) and full results.
+ * Nothing new is tracked here; deriveProjectsView (roadmap Phase 4.1) already
+ * folds every release, player's and every rival's, into one list, complete
+ * with cast (stable talent ids, since rivals cast from the same shared
+ * talent pool - see engine/rivalStudios.ts) and full results. A film is the
+ * player's own iff it has no `releasedBy` (see types/index.ts:Film) - only
+ * rivals stamp that field (engine/rivalStudios.ts).
  */
-export function collectFilmStats(studio: Studio, rivalFilmsReleased: Film[]): FilmStatRow[] {
-  return [
-    ...studio.filmsReleased.map((film) => ({ film, studioName: studio.name, isPlayer: true })),
-    ...rivalFilmsReleased.map((film) => ({ film, studioName: film.releasedBy ?? 'A Rival Studio', isPlayer: false })),
-  ];
+export function collectFilmStats(projects: Project[], studioName: string): FilmStatRow[] {
+  return projects.flatMap((project) => {
+    const film = asFilm(project);
+    if (!film) return [];
+    const isPlayer = film.releasedBy === undefined;
+    return [{ film, studioName: isPlayer ? studioName : (film.releasedBy ?? 'A Rival Studio'), isPlayer }];
+  });
 }
 
 export type FilmStatSortKey =
