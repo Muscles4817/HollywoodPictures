@@ -1,0 +1,210 @@
+.script-ratings-filter {
+  position: relative;
+}
+
+.script-ratings-filter__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 190px;
+  min-height: 42px;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.055);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.script-ratings-filter__trigger:hover,
+.script-ratings-filter__trigger--open {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.script-ratings-filter__trigger-label {
+  display: block;
+  margin-bottom: 0.1rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.script-ratings-filter__trigger-value {
+  display: block;
+  font-weight: 600;
+}
+
+.script-ratings-filter__chevron,
+.script-ratings-filter__section-chevron {
+  display: inline-block;
+  font-size: 0.7rem;
+  transition: transform 150ms ease;
+}
+
+.script-ratings-filter__chevron--open,
+.script-ratings-filter__section-chevron--open {
+  transform: rotate(180deg);
+}
+
+.script-ratings-filter__menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 30;
+  width: min(680px, calc(100vw - 2rem));
+  max-height: min(720px, calc(100vh - 10rem));
+  overflow-y: auto;
+  padding: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+  background: var(--card-background, #20242c);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.4);
+}
+
+.script-ratings-filter__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.15rem 0.15rem 0.8rem;
+}
+
+.script-ratings-filter__description,
+.script-ratings-filter__section-help {
+  margin: 0.2rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.script-ratings-filter__clear {
+  flex-shrink: 0;
+  padding: 0.35rem 0.55rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.script-ratings-filter__clear:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  opacity: 1;
+}
+
+.script-ratings-filter__clear:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.script-ratings-filter__section {
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.script-ratings-filter__section-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.8rem 0.2rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.055em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.script-ratings-filter__active-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: 0.5rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: rgba(90, 137, 255, 0.2);
+  color: var(--blue, #7da2ff);
+  font-size: 0.72rem;
+  letter-spacing: normal;
+}
+
+.script-ratings-filter__section-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0 0.2rem 0.9rem;
+}
+
+.script-ratings-filter__section-help {
+  margin-bottom: 0.2rem;
+}
+
+.script-ratings-filter__row {
+  display: grid;
+  grid-template-columns: minmax(100px, 130px) 1fr;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.script-ratings-filter__field-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.script-ratings-filter__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.script-ratings-filter__choice {
+  min-width: 48px;
+  padding: 0.38rem 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.script-ratings-filter__choice:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+}
+
+.script-ratings-filter__choice--selected {
+  border-color: var(--blue, #5c88ff);
+  background: rgba(92, 136, 255, 0.18);
+  color: inherit;
+}
+
+@media (max-width: 620px) {
+  .script-ratings-filter__menu {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+    left: 1rem;
+    width: auto;
+    max-height: none;
+  }
+
+  .script-ratings-filter__row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+}

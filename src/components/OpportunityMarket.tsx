@@ -9,10 +9,22 @@ import {
   CheckboxFilterDropdown,
   type CheckboxFilterOption,
 } from './common/CheckboxFilterDropdown';
+import {
+  EMPTY_SCRIPT_RATINGS_FILTER,
+  ScriptRatingsFilterDropdown,
+  type CreativeRatingField,
+  type ScriptRatingsFilterValue,
+  type ToneBand,
+  type ToneRatingField,
+  type WritingRatingField,
+} from './common/ScriptRatingsFilterDropdown';
+import type { Script } from '../types';
+import { calculateStarRating } from '../utils/StarRatingConversion';
 
 interface OpportunityMarketFilters {
   sources: Set<string>;
   priceBands: Set<string>;
+  ratings: ScriptRatingsFilterValue;
 }
 
 interface AcquisitionPriceBand {
@@ -20,6 +32,12 @@ interface AcquisitionPriceBand {
   label: string;
   minimum: number;
   maximum?: number;
+}
+
+interface ScriptRatingValues {
+  writing: Record<WritingRatingField, number>;
+  creative: Record<CreativeRatingField, number>;
+  tone: Record<ToneRatingField, number>;
 }
 
 const ACQUISITION_PRICE_BANDS: AcquisitionPriceBand[] = [
@@ -59,6 +77,105 @@ function isPriceInBand(
 }
 
 /**
+ * Keeps knowledge of the Script data structure in one place.
+ *
+ * Change this function if the underlying model uses different property names
+ * or nesting.
+ */
+function getScriptRatingValues(
+  script: Script,
+): ScriptRatingValues {
+  return {
+    writing: {
+      dialogue: script.dialogue,
+      characters: script.characters,
+      structure: script.structure,
+    },
+
+    creative: {
+      originality: script.originality,
+      complexity: script.complexity,
+    },
+
+    tone: {
+      action: script.toneProfile.action,
+      comedy: script.toneProfile.comedy,
+      romance: script.toneProfile.romance,
+      suspense: script.toneProfile.suspense,
+      drama: script.toneProfile.drama,
+      spectacle: script.toneProfile.spectacle,
+    },
+  };
+}
+
+function matchesMinimumRatings<TField extends string>(
+  values: Record<TField, number>,
+  minimums: Partial<Record<TField, number>>,
+): boolean {
+  return (
+    Object.entries(minimums) as Array<
+      [TField, number | undefined]
+    >
+  ).every(([field, minimumStars]) => {
+    return (
+      minimumStars === undefined ||
+      calculateStarRating(values[field]) >= minimumStars
+    );
+  });
+}
+
+function matchesToneBand(
+  value: number,
+  band: ToneBand,
+): boolean {
+  const stars = calculateStarRating(value);
+
+  switch (band) {
+    case 'low':
+      return stars < 2;
+
+    case 'medium':
+      return stars >= 2 && stars < 4;
+
+    case 'high':
+      return stars >= 4;
+  }
+}
+
+function matchesToneBands(
+  values: Record<ToneRatingField, number>,
+  selectedBands: Partial<Record<ToneRatingField, ToneBand>>,
+): boolean {
+  return (
+    Object.entries(selectedBands) as Array<
+      [ToneRatingField, ToneBand | undefined]
+    >
+  ).every(([field, band]) => {
+    return band === undefined || matchesToneBand(values[field], band);
+  });
+}
+
+function matchesScriptRatings(
+  ratings: ScriptRatingValues,
+  filters: ScriptRatingsFilterValue,
+): boolean {
+  return (
+    matchesMinimumRatings(
+      ratings.writing,
+      filters.writingMinimums,
+    ) &&
+    matchesMinimumRatings(
+      ratings.creative,
+      filters.creativeMinimums,
+    ) &&
+    matchesToneBands(
+      ratings.tone,
+      filters.toneBands,
+    )
+  );
+}
+
+/**
  * The shared, time-limited pool of Opportunities (development-pipeline doc)
  * - acquiring one charges its own acquisitionCost immediately and turns it
  * into a permanently-owned Asset (ACQUIRE_OPPORTUNITY, state/studioReducer.ts).
@@ -85,7 +202,9 @@ export function OpportunityMarket() {
   const sourceOptions = useMemo<CheckboxFilterOption[]>(() => {
     return [
       ...new Set(
-        opportunities.map((opportunity) => opportunity.source),
+        opportunities.map(
+          (opportunity) => opportunity.source,
+        ),
       ),
     ]
       .sort((a, b) => a.localeCompare(b))
@@ -104,14 +223,28 @@ export function OpportunityMarket() {
     [],
   );
 
-  const [filters, setFilters] = useState<OpportunityMarketFilters>(
-    () => ({
-      sources: new Set(sourceOptions.map((option) => option.id)),
+  const [filters, setFilters] =
+    useState<OpportunityMarketFilters>(() => ({
+      sources: new Set(
+        sourceOptions.map((option) => option.id),
+      ),
+
       priceBands: new Set(
         priceBandOptions.map((option) => option.id),
       ),
-    }),
-  );
+
+      ratings: {
+        writingMinimums: {
+          ...EMPTY_SCRIPT_RATINGS_FILTER.writingMinimums,
+        },
+        creativeMinimums: {
+          ...EMPTY_SCRIPT_RATINGS_FILTER.creativeMinimums,
+        },
+        toneBands: {
+          ...EMPTY_SCRIPT_RATINGS_FILTER.toneBands,
+        },
+      },
+    }));
 
   const filteredOpportunities = useMemo(() => {
     return opportunities.filter((opportunity) => {
@@ -122,10 +255,26 @@ export function OpportunityMarket() {
       const matchesPrice = ACQUISITION_PRICE_BANDS.some(
         (band) =>
           filters.priceBands.has(band.id) &&
-          isPriceInBand(opportunity.acquisitionCost, band),
+          isPriceInBand(
+            opportunity.acquisitionCost,
+            band,
+          ),
       );
 
-      return matchesSource && matchesPrice;
+      const scriptRatings = getScriptRatingValues(
+        opportunity.script,
+      );
+
+      const matchesRatings = matchesScriptRatings(
+        scriptRatings,
+        filters.ratings,
+      );
+
+      return (
+        matchesSource &&
+        matchesPrice &&
+        matchesRatings
+      );
     });
   }, [opportunities, filters]);
 
@@ -146,37 +295,58 @@ export function OpportunityMarket() {
     }));
   };
 
-  const setPriceBandFilter = (priceBands: Set<string>) => {
+  const setPriceBandFilter = (
+    priceBands: Set<string>,
+  ) => {
     setFilters((current) => ({
       ...current,
       priceBands,
     }));
   };
 
+  const setRatingsFilter = (
+    ratings: ScriptRatingsFilterValue,
+  ) => {
+    setFilters((current) => ({
+      ...current,
+      ratings,
+    }));
+  };
+
   return (
     <div className="stack">
       <div className="row-between">
-        <h1 style={{ margin: 0 }}>Opportunity Market</h1>
+        <h1 style={{ margin: 0 }}>
+          Opportunity Market
+        </h1>
 
         <Button
           onClick={() =>
-            dispatch({ type: 'RETURN_TO_DASHBOARD' })
+            dispatch({
+              type: 'RETURN_TO_DASHBOARD',
+            })
           }
         >
           Home
         </Button>
       </div>
 
-      <p className="choice-description" style={{ margin: 0 }}>
-        Screenplays and pitches available to acquire — each one expires
-        if left too long, and acquiring it charges its price immediately
-        and adds it to your Asset Library, where you can develop it into
-        a Project whenever you&apos;re ready.
+      <p
+        className="choice-description"
+        style={{ margin: 0 }}
+      >
+        Screenplays and pitches available to acquire — each one
+        expires if left too long, and acquiring it charges its
+        price immediately and adds it to your Asset Library,
+        where you can develop it into a Project whenever
+        you&apos;re ready.
       </p>
 
       {opportunities.length > 0 && (
         <div className="market-filters">
-          <span className="market-filters__label">Filters</span>
+          <span className="market-filters__label">
+            Filters
+          </span>
 
           <CheckboxFilterDropdown
             id="opportunity-source"
@@ -185,8 +355,12 @@ export function OpportunityMarket() {
             selectedIds={filters.sources}
             allSelectedLabel="All sources"
             noneSelectedLabel="No sources"
-            selectedCountLabel={(count) => `${count} sources`}
-            isOpen={openFilterId === 'opportunity-source'}
+            selectedCountLabel={(count) =>
+              `${count} sources`
+            }
+            isOpen={
+              openFilterId === 'opportunity-source'
+            }
             onToggle={toggleFilter}
             onClose={closeFilters}
             onChange={setSourceFilter}
@@ -202,10 +376,23 @@ export function OpportunityMarket() {
             selectedCountLabel={(count) =>
               `${count} price ranges`
             }
-            isOpen={openFilterId === 'acquisition-price'}
+            isOpen={
+              openFilterId === 'acquisition-price'
+            }
             onToggle={toggleFilter}
             onClose={closeFilters}
             onChange={setPriceBandFilter}
+          />
+
+          <ScriptRatingsFilterDropdown
+            id="script-ratings"
+            value={filters.ratings}
+            isOpen={
+              openFilterId === 'script-ratings'
+            }
+            onToggle={toggleFilter}
+            onClose={closeFilters}
+            onChange={setRatingsFilter}
           />
         </div>
       )}
@@ -213,7 +400,8 @@ export function OpportunityMarket() {
       {opportunities.length === 0 ? (
         <div className="card">
           <p style={{ margin: 0 }}>
-            Nothing available right now — check back as time passes.
+            Nothing available right now — check back as
+            time passes.
           </p>
         </div>
       ) : filteredOpportunities.length === 0 ? (
@@ -224,78 +412,90 @@ export function OpportunityMarket() {
         </div>
       ) : (
         <div className="grid grid-wide">
-          {filteredOpportunities.map((opportunity) => {
-            const affordable =
-              state.studio.cash >= opportunity.acquisitionCost;
+          {filteredOpportunities.map(
+            (opportunity) => {
+              const affordable =
+                state.studio.cash >=
+                opportunity.acquisitionCost;
 
-            return (
-              <Card key={opportunity.id}>
-                <div
-                  className="row-between"
-                  style={{ marginBottom: 4 }}
-                >
-                  <span className="card-tag">
-                    {opportunity.source}
-                  </span>
-
-                  <span
-                    style={{
-                      color: 'var(--text-muted)',
-                      fontSize: '0.85em',
-                    }}
+              return (
+                <Card key={opportunity.id}>
+                  <div
+                    className="row-between"
+                    style={{ marginBottom: 4 }}
                   >
-                    Expires{' '}
-                    {formatGameDate(opportunity.expiresOnDay)}
-                  </span>
-                </div>
+                    <span className="card-tag">
+                      {opportunity.source}
+                    </span>
 
-                <div className="card-title">
-                  {opportunity.script.title}
-                </div>
+                    <span
+                      style={{
+                        color: 'var(--text-muted)',
+                        fontSize: '0.85em',
+                      }}
+                    >
+                      Expires{' '}
+                      {formatGameDate(
+                        opportunity.expiresOnDay,
+                      )}
+                    </span>
+                  </div>
 
-                <ScriptDetails script={opportunity.script} />
+                  <div className="card-title">
+                    {opportunity.script.title}
+                  </div>
 
-                <div
-                  className="row-between"
-                  style={{ marginTop: 8 }}
-                >
-                  <span className="key-stat-label">
-                    Acquisition Price
-                  </span>
+                  <ScriptDetails
+                    script={opportunity.script}
+                  />
 
-                  <Money amount={opportunity.acquisitionCost} />
-                </div>
-
-                <Button
-                  variant="primary"
-                  style={{
-                    marginTop: 8,
-                    width: '100%',
-                  }}
-                  disabled={!affordable}
-                  onClick={() =>
-                    dispatch({
-                      type: 'ACQUIRE_OPPORTUNITY',
-                      opportunityId: opportunity.id,
-                    })
-                  }
-                >
-                  Acquire
-                </Button>
-
-                {!affordable && (
-                  <p
-                    style={{
-                      color: 'var(--red)',
-                      marginTop: 6,
-                    }}
+                  <div
+                    className="row-between"
+                    style={{ marginTop: 8 }}
                   >
-                    Can&apos;t afford this right now
-                  </p>
-                )}
-              </Card>
-            );
-          })}
+                    <span className="key-stat-label">
+                      Acquisition Price
+                    </span>
+
+                    <Money
+                      amount={
+                        opportunity.acquisitionCost
+                      }
+                    />
+                  </div>
+
+                  <Button
+                    variant="primary"
+                    style={{
+                      marginTop: 8,
+                      width: '100%',
+                    }}
+                    disabled={!affordable}
+                    onClick={() =>
+                      dispatch({
+                        type: 'ACQUIRE_OPPORTUNITY',
+                        opportunityId:
+                          opportunity.id,
+                      })
+                    }
+                  >
+                    Acquire
+                  </Button>
+
+                  {!affordable && (
+                    <p
+                      style={{
+                        color: 'var(--red)',
+                        marginTop: 6,
+                      }}
+                    >
+                      Can&apos;t afford this right now
+                    </p>
+                  )}
+                </Card>
+              );
+            },
+          )}
         </div>
       )}
     </div>

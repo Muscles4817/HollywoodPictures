@@ -1,3 +1,5 @@
+import { calculateStarRating } from "../../utils/StarRatingConversion";
+
 interface StarRatingProps {
   value: number; // raw value on a 0..max scale
   max?: number;
@@ -14,13 +16,18 @@ interface StarRatingProps {
  * character that not every font renders well.
  */
 export function StarRating({ value, max = 100 }: StarRatingProps) {
-  const stars = Math.max(0, Math.min(5, Math.round((value / max) * 10) / 2));
+  const stars = calculateStarRating(value, max);
   const fillPercent = (stars / 5) * 100;
 
   return (
     <span className="star-rating" title={`${stars} / 5`}>
       <span className="star-rating-track">★★★★★</span>
-      <span className="star-rating-fill" style={{ width: `${fillPercent}%` }}>★★★★★</span>
+      <span
+        className="star-rating-fill"
+        style={{ width: `${fillPercent}%` }}
+      >
+        ★★★★★
+      </span>
     </span>
   );
 }
