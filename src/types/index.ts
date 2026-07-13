@@ -557,6 +557,59 @@ export interface Film {
   // as a plain name rather than an id lookup since a rival studio's own
   // record never needs to change after the fact.
   releasedBy?: string;
+  // Which owned Asset this film was developed from, if any - absent for a
+  // rival's film (rivals don't go through the Opportunity/Asset pipeline in
+  // this MVP, see docs/DESIGN_REVIEW_development_pipeline.md) or a save
+  // from before it existed. Lets the Asset Library tell "used" assets apart
+  // from ones with no released history yet (engine/project.ts:deriveAssetStatus).
+  assetId?: string;
+}
+
+// --- Development Pipeline: Opportunity -> Asset -> Project ---------------
+//
+// docs/DESIGN_REVIEW_development_pipeline.md. A studio doesn't create films
+// out of nothing any more - it acquires an Opportunity (something it
+// doesn't yet own, generated and expiring on the same lazy,
+// calendar-settlement pattern RivalProductionInProgress.releaseDay already
+// uses), which becomes a permanently-owned Asset, which a Project can then
+// be started from. Source is mostly flavor riding on three real levers
+// (acquisition cost, expiry window, and - via those - how urgently it's
+// worth acting on), not eight parallel generation systems.
+export type OpportunitySource = 'Spec Screenplay' | 'Agent Package' | 'Publisher Rights' | 'Studio Original';
+
+/**
+ * Something the studio does not yet own - visible to the player (and, once
+ * rivals join this pipeline, every rival too) until it's acquired or its
+ * own `expiresOnDay` passes, whichever comes first. Carries a full `Script`
+ * wholesale (engine/scriptGenerator.ts is untouched - this just gives an
+ * already-generated script a real, shared, time-bound existence instead of
+ * living only inside one draft's ephemeral `scriptOptions`).
+ */
+export interface Opportunity {
+  id: string;
+  source: OpportunitySource;
+  script: Script;
+  acquisitionCost: number;
+  /** GameState.totalDays - past this, the opportunity is gone (someone else took it, the rights lapsed, the pitch fell through) whether or not the player ever saw it. */
+  expiresOnDay: number;
+}
+
+/**
+ * An acquired Opportunity, now permanently owned by the studio
+ * (Studio.assets below) - may sit in the library indefinitely, may never
+ * become a film at all. A Project references an Asset by id; it does not
+ * replace or consume it, so the same Asset can generate more than one
+ * Project attempt over its life (a stalled Project returns to a plain,
+ * still-owned Asset with nothing further to do - see
+ * engine/project.ts:deriveAssetStatus).
+ */
+export interface Asset {
+  id: string;
+  script: Script;
+  source: OpportunitySource;
+  acquisitionCost: number;
+  /** GameState.totalDays this was acquired on - display only (Asset Library "owned since"). */
+  acquiredOnDay: number;
 }
 
 // A rival studio's overall scale - governs both how big the films it makes
@@ -601,12 +654,16 @@ export interface RivalProductionInProgress {
 // Architecture roadmap Phase 5: filmsReleased/productionsInProgress moved to
 // GameState.projects (see Project below) - one flat, world-level store
 // instead of a per-studio one, since it's what fixed the id-churn/storage
-// fragmentation Project exists to solve. Studio itself is now just identity
-// and the two numbers a film actually spends/earns against.
+// fragmentation Project exists to solve. Studio itself is now just identity,
+// the two numbers a film actually spends/earns against, and the one thing
+// that's genuinely private, exclusive studio property: its owned Asset
+// library (development-pipeline doc) - unlike Talent/Opportunity, which are
+// shared/world-level, nobody else's Studio can reach into this list.
 export interface Studio {
   name: string;
   cash: number;
   reputation: number; // 0-100
+  assets: Asset[];
 }
 
 // The film currently being built in the wizard; fields fill in progressively.
@@ -615,12 +672,23 @@ export interface FilmDraft {
   // Studio.productionsInProgress alongside others of its kind - actions
   // that used to implicitly mean "the draft" (RESOLVE_EVENT_CHOICE,
   // FINISH_PHOTOGRAPHY) target one of those by id instead. Assigned once,
-  // at START_NEW_FILM.
+  // at CREATE_PROJECT_FROM_ASSET.
   id: string;
+  // Which owned Asset (Studio.assets) this draft was created from - always
+  // set (every draft now originates from an Asset, never from nothing -
+  // development-pipeline doc). Lets the Asset Library find "is there
+  // already an active Project against this Asset" without Asset itself
+  // needing to store a status flag (engine/project.ts:deriveAssetStatus).
+  assetId: string;
   title: string;
   genre: Genre | null;
   targetAudience: TargetAudience | null;
-  scriptOptions: Script[];
+  // The script is inherited wholesale from the originating Asset the
+  // moment this draft is created - never null in practice, never
+  // regenerated or re-picked inside the wizard any more (development-pipeline
+  // doc). Kept nullable rather than widened to `Script` outright so every
+  // existing consumer's null-narrowing keeps working unchanged - a
+  // deliberately minimal-diff choice, not an oversight.
   script: Script | null;
   talent: Talent[];
   /** The price the player is currently targeting for each role - filters GameState.talentPool down to who's shown. */
@@ -636,6 +704,13 @@ export interface FilmDraft {
   effectsStrategy: Distribution<EffectsMethodKey> | null;
   effectsAmbition: NormalizedScalar | null;
   productionChoices: ProductionChoices | null;
+  // GameState.totalDays the studio actually committed to this project - the
+  // point talent selection stopped being provisional and production/talent
+  // cash left the studio (GREENLIGHT_PROJECT, state/studioReducer.ts). null
+  // before that: freely abandonable, nothing spent yet beyond the asset's
+  // own acquisition cost. Deliberately not a new Project `kind` - see
+  // Project's own comment below for why.
+  greenlitOnDay: number | null;
   photography: PhotographyState | null;
   // Index into the wizard's canonical step order (state/studioReducer.ts:WIZARD_STEP_ORDER)
   // of the furthest stage whose fixed day cost (data/schedule.ts:STAGE_DURATIONS)
@@ -689,16 +764,23 @@ export type Project =
   | { kind: 'rival-in-progress'; production: RivalProductionInProgress }
   | { kind: 'released'; film: Film };
 
+// 'greenlight' sits between planning and shooting (development-pipeline
+// doc) - the explicit business decision that used to be an implicit
+// "Begin Principal Photography" button inside the 'production' screen
+// itself. Nothing about WIZARD_STEP_ORDER's forward/backward logic
+// (state/studioReducer.ts) changes shape by inserting one more step.
 export type WizardStep =
   | 'develop'
   | 'talent'
   | 'production-planning'
+  | 'greenlight'
   | 'production'
   | 'post-production'
   | 'marketing'
   | 'results';
 
-// 'release-calendar' is a Dashboard detour (roadmap Phase 7.3), not a
-// WizardStep - reachable and leavable from the Dashboard like 'rival-studio'/
-// 'stats', not part of the develop-to-release sequence.
-export type Screen = 'dashboard' | WizardStep | 'rival-studio' | 'stats' | 'release-calendar';
+// 'release-calendar'/'opportunity-market'/'asset-library' are Dashboard
+// detours (roadmap Phase 7.3; development-pipeline doc), not WizardSteps -
+// reachable and leavable from the Dashboard like 'rival-studio'/'stats',
+// not part of the develop-to-release sequence.
+export type Screen = 'dashboard' | WizardStep | 'rival-studio' | 'stats' | 'release-calendar' | 'opportunity-market' | 'asset-library';

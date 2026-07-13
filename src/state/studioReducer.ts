@@ -1,7 +1,6 @@
-import type { Film, FilmDraft, PendingEventChoice, ProductionEvent, Project, RivalProductionInProgress, Studio, Talent, TalentRole, WizardStep } from '../types';
-import { type GameAction, type GameState, createEmptyDraft, createInitialStudio } from './gameState';
+import type { Asset, Film, FilmDraft, PendingEventChoice, ProductionEvent, Project, RivalProductionInProgress, Studio, Talent, TalentRole, WizardStep } from '../types';
+import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, clamp } from '../engine/random';
-import { generateScriptOptions } from '../engine/scriptGenerator';
 import { logAmount } from '../engine/interpolate';
 import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
@@ -13,6 +12,7 @@ import { settleBoxOfficeForAllFilms, type BoxOfficeSettlement } from '../engine/
 import { settleRivalMarket, generateRivalStudios } from '../engine/rivalStudios';
 import { settleProductionsInProgress } from '../engine/productionsInProgress';
 import { settleScheduledReleases, type ScheduledRelease } from '../engine/scheduledReleases';
+import { settleOpportunities } from '../engine/opportunities';
 import { generateTalentPool } from '../engine/talentGenerator';
 import { applyReputationChange } from '../engine/reputation';
 import {
@@ -28,6 +28,7 @@ import {
   rivalProductionsInProgress as rivalProductionsOf,
   backgroundedPlayerDrafts,
   scheduledPlayerReleases,
+  deriveAssetStatus,
 } from '../engine/project';
 
 // The canonical forward order of the wizard - used only to tell a forward
@@ -38,6 +39,7 @@ const WIZARD_STEP_ORDER: WizardStep[] = [
   'develop',
   'talent',
   'production-planning',
+  'greenlight',
   'production',
   'post-production',
   'marketing',
@@ -217,7 +219,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           rng,
         );
         const productionsInProgress = settleProductionsInProgress(backgroundedPlayerDrafts(state.projects, state.focusedProjectId), 1, state.talentPool, rng);
-        return { settlement, rivalMarket, productionsInProgress, scheduledSettlement };
+        const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng);
+        return { settlement, rivalMarket, productionsInProgress, scheduledSettlement, opportunitySettlement };
       });
       return {
         ...state,
@@ -225,6 +228,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         totalDays: totalDaysAfter,
         rivalStudios: result.rivalMarket.rivalStudios,
         talentPool: result.rivalMarket.talentPool,
+        opportunities: result.opportunitySettlement.opportunities,
+        nextOpportunityCheckDay: result.opportunitySettlement.nextGenerationCheckDay,
         studio: applyBoxOfficeSettlement(state.studio, result.settlement, result.scheduledSettlement.costCharged),
         projects: assembleProjects({
           playerDrafts: [...(focusedDraft ? [focusedDraft] : []), ...result.productionsInProgress],
@@ -236,8 +241,48 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
-    case 'START_NEW_FILM': {
-      const draft: FilmDraft = { ...createEmptyDraft(), talentTargetPriceByRole: defaultTalentTargetPrices() };
+    // Development pipeline (docs/DESIGN_REVIEW_development_pipeline.md).
+    // Charges the opportunity's acquisitionCost immediately (never charged
+    // again downstream - see engine/releaseFilm.ts's productionCost comment)
+    // and turns it into a permanently-owned Asset, reusing the same id so an
+    // Asset's identity traces back to the Opportunity it came from. Fails
+    // safely (no-op) if the opportunity already expired/was already
+    // acquired by the time this dispatches, or the studio can't afford it -
+    // both are real races once VIEW_OPPORTUNITY_MARKET's list can go stale
+    // between a render and a click.
+    case 'ACQUIRE_OPPORTUNITY': {
+      const opportunity = state.opportunities.find((o) => o.id === action.opportunityId);
+      if (!opportunity || opportunity.expiresOnDay <= state.totalDays || state.studio.cash < opportunity.acquisitionCost) {
+        return state;
+      }
+      const asset: Asset = {
+        id: opportunity.id,
+        script: opportunity.script,
+        source: opportunity.source,
+        acquisitionCost: opportunity.acquisitionCost,
+        acquiredOnDay: state.totalDays,
+      };
+      return {
+        ...state,
+        opportunities: state.opportunities.filter((o) => o.id !== opportunity.id),
+        studio: {
+          ...state.studio,
+          cash: state.studio.cash - opportunity.acquisitionCost,
+          assets: [...state.studio.assets, asset],
+        },
+      };
+    }
+
+    // Replaces the old START_NEW_FILM - a FilmDraft is only ever created
+    // from an already-owned Asset now (see gameState.ts:createDraftFromAsset).
+    // No-ops if the asset doesn't exist or already has an active attempt
+    // (deriveAssetStatus) - the Asset Library shouldn't offer this action in
+    // that case, but this is the authoritative guard, same pattern as
+    // RESUME_PROJECT's own focusedProjectId guard below.
+    case 'CREATE_PROJECT_FROM_ASSET': {
+      const asset = state.studio.assets.find((a) => a.id === action.assetId);
+      if (!asset || deriveAssetStatus(asset, state.projects).status === 'in-development') return state;
+      const draft = createDraftFromAsset(asset, defaultTalentTargetPrices());
       return {
         ...state,
         screen: 'develop',
@@ -247,12 +292,32 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    // The one explicit "delete this for real" action for a still-owned
+    // Asset's Project attempt (see GameAction's own doc comment). Whatever's
+    // already been spent (the asset's own acquisition cost, and - if
+    // GREENLIGHT_PROJECT already fired - talent/production/contingency) is
+    // never refunded; the Asset itself is untouched, so it simply goes back
+    // to 'available' (engine/project.ts:deriveAssetStatus) the moment this
+    // project is gone.
+    case 'ABANDON_PROJECT': {
+      const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!d) return state;
+      return {
+        ...state,
+        screen: 'dashboard',
+        focusedProjectId: null,
+        projects: state.projects.filter((p) => projectId(p) !== d.id),
+        ...clearTransientView(),
+      };
+    }
+
     case 'GO_TO_STEP': {
       // Any normal wizard navigation stops "viewing" a backgrounded
       // production (see GameState.viewingProductionId) - otherwise a stale
       // view could shadow the focused project the next time screen becomes
-      // 'production' the ordinary way (BEGIN_PHOTOGRAPHY doesn't change
-      // screen itself; it's already 'production' by the time it fires).
+      // 'production' the ordinary way (GREENLIGHT_PROJECT, below, sets
+      // screen: 'production' directly - GO_TO_STEP itself is never the
+      // action that first reaches 'production').
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return { ...state, screen: action.step, ...clearTransientView() };
       const fromIdx = WIZARD_STEP_ORDER.indexOf(state.screen as WizardStep);
@@ -285,7 +350,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           rng,
         );
         const productionsInProgress = settleProductionsInProgress(backgroundedPlayerDrafts(state.projects, state.focusedProjectId), stageDuration, state.talentPool, rng);
-        return { settlement, rivalMarket, productionsInProgress, scheduledSettlement };
+        const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng);
+        return { settlement, rivalMarket, productionsInProgress, scheduledSettlement, opportunitySettlement };
       });
       return {
         ...state,
@@ -294,6 +360,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         totalDays: totalDaysAfter,
         rivalStudios: result.rivalMarket.rivalStudios,
         talentPool: result.rivalMarket.talentPool,
+        opportunities: result.opportunitySettlement.opportunities,
+        nextOpportunityCheckDay: result.opportunitySettlement.nextGenerationCheckDay,
         ...clearTransientView(),
         studio: applyBoxOfficeSettlement(state.studio, result.settlement, result.scheduledSettlement.costCharged),
         projects: assembleProjects({
@@ -315,56 +383,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, title: action.title }) };
     }
 
-    case 'SET_GENRE': {
-      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
-      if (!focusedDraft) return state;
-      // Talent is a persistent studio-wide roster (generated once, see
-      // createInitialStudio) with affinity for every genre already baked
-      // in, so changing genre only needs to regenerate the script slate.
-      const { result: scriptOptions, nextSeed } = withRng(state.rngSeed, (rng) =>
-        generateScriptOptions(action.genre, rng),
-      );
-      return {
-        ...state,
-        rngSeed: nextSeed,
-        projects: replaceDraft(state.projects, { ...focusedDraft, genre: action.genre, scriptOptions, script: null }),
-      };
-    }
-
     case 'SET_TARGET_AUDIENCE': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, targetAudience: action.targetAudience }) };
-    }
-
-    case 'REROLL_SCRIPTS': {
-      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
-      if (!focusedDraft?.genre) return state;
-      const { result: scriptOptions, nextSeed } = withRng(state.rngSeed, (rng) =>
-        generateScriptOptions(focusedDraft.genre!, rng),
-      );
-      return { ...state, rngSeed: nextSeed, projects: replaceDraft(state.projects, { ...focusedDraft, scriptOptions, script: null }) };
-    }
-
-    case 'SELECT_SCRIPT': {
-      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
-      if (!focusedDraft) return state;
-      // Pre-fill Target Audience from the script's own intended audience -
-      // it was written with someone in mind, so that's a better default
-      // than making the player pick blind. Still fully overridable
-      // afterward via SET_TARGET_AUDIENCE. Title only pre-fills from the
-      // script's own title when the player hasn't typed a working title of
-      // their own yet - unlike Target Audience, a title the player already
-      // chose is never something a script pick should clobber.
-      return {
-        ...state,
-        projects: replaceDraft(state.projects, {
-          ...focusedDraft,
-          script: action.script,
-          targetAudience: action.script.intendedAudience,
-          title: focusedDraft.title.trim() ? focusedDraft.title : action.script.title,
-        }),
-      };
     }
 
     case 'SET_TALENT_FOR_ROLE': {
@@ -456,19 +478,30 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
-    // Talent salaries, the non-contingency production budget (set/practical/
-    // VFX), and the full contingency reserve all leave studio.cash right
-    // here, rather than waiting for RELEASE_FILM - that's what makes a
-    // production a real, ongoing cash commitment instead of a promise to
-    // pay later, especially now that a shoot can run in the background for
-    // a long time (see docs/DESIGN.md 5.x). Talent salary is kept in sync
-    // afterward by any recast (resolveChoiceOnDraft's cashDelta, below);
-    // the production budget is fixed once photography begins (nothing
-    // after this point edits productionChoices). Contingency is the only
-    // one of the three that's refundable - settled against what was
-    // actually burned at FINISH_PHOTOGRAPHY. RELEASE_FILM's own cash
-    // deduction is adjusted to not charge these three a second time.
-    case 'BEGIN_PHOTOGRAPHY': {
+    // Replaces the old BEGIN_PHOTOGRAPHY - the explicit business decision
+    // the development-pipeline doc is about (see GameAction's own doc
+    // comment above). Talent salary, the non-contingency production budget
+    // (set/practical/VFX), and the full contingency reserve all leave
+    // studio.cash right here, rather than waiting for RELEASE_FILM - that's
+    // what makes a production a real, ongoing cash commitment instead of a
+    // promise to pay later, especially now that a shoot can run in the
+    // background for a long time (see docs/DESIGN.md 5.x). Talent salary is
+    // kept in sync afterward by any recast (resolveChoiceOnDraft's
+    // cashDelta, below); the production budget is fixed once photography
+    // begins (nothing after this point edits productionChoices). Contingency
+    // is the only one of the three that's refundable - settled against what
+    // was actually burned at FINISH_PHOTOGRAPHY. RELEASE_FILM's own cash
+    // deduction is adjusted to not charge these three a second time. Also
+    // reserves the cast's bookedUntil for real (moved here from the old
+    // RETURN_TO_DASHBOARD, see that case below), the same way a rival
+    // studio's own casting does (engine/rivalStudios.ts:startRivalProduction's
+    // bookedIds/updatedPool) - talent selection up to this point
+    // (SET_TALENT_FOR_ROLE) has never deducted cash or booked anyone, so
+    // this is the one place both become real at once. Fails safely (returns
+    // state unchanged) if the studio can't afford the full commitment right
+    // now - the first reducer-level affordability gate in this codebase for
+    // a wizard commitment.
+    case 'GREENLIGHT_PROJECT': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft?.script || !focusedDraft.productionChoices) return state;
       const recommendedDays = computeRecommendedShootDays(focusedDraft.talent, focusedDraft.script, focusedDraft.productionChoices);
@@ -476,11 +509,23 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         computeTalentCost(focusedDraft.talent) +
         computeProductionBudgetCost(focusedDraft.productionChoices) +
         focusedDraft.productionChoices.contingencyAmount;
+      if (upfrontCharge > state.studio.cash) return state;
+
+      const bookedUntil = state.totalDays + recommendedDays;
+      const bookedIds = new Set(focusedDraft.talent.map((t) => t.id));
+      const talentPool = { ...state.talentPool };
+      for (const role of Object.keys(talentPool) as TalentRole[]) {
+        talentPool[role] = talentPool[role].map((t) => (bookedIds.has(t.id) ? { ...t, bookedUntil } : t));
+      }
+
       return {
         ...state,
+        screen: 'production',
+        talentPool,
         studio: { ...state.studio, cash: state.studio.cash - upfrontCharge },
         projects: replaceDraft(state.projects, {
           ...focusedDraft,
+          greenlitOnDay: state.totalDays,
           photography: { status: 'in-progress', recommendedDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
         }),
       };
@@ -541,7 +586,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             rng,
           );
           const productionsInProgress = settleProductionsInProgress(backgrounded, 1, state.talentPool, rng);
-          return { kind: 'pendingChoice' as const, pendingChoice: rolled.pendingChoice, totalDaysAfter, settlement, rivalMarket, productionsInProgress, scheduledSettlement };
+          const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng);
+          return { kind: 'pendingChoice' as const, pendingChoice: rolled.pendingChoice, totalDaysAfter, settlement, rivalMarket, productionsInProgress, scheduledSettlement, opportunitySettlement };
         }
         const event = rolled?.event ?? null;
         const daysAdvanced = 1 + (event?.delayDaysDelta ?? 0);
@@ -560,7 +606,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           rng,
         );
         const productionsInProgress = settleProductionsInProgress(backgrounded, daysAdvanced, state.talentPool, rng);
-        return { kind: 'event' as const, event, daysAdvanced, totalDaysAfter, settlement, rivalMarket, productionsInProgress, scheduledSettlement };
+        const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng);
+        return { kind: 'event' as const, event, daysAdvanced, totalDaysAfter, settlement, rivalMarket, productionsInProgress, scheduledSettlement, opportunitySettlement };
       });
 
       const dailyBurn = computeDailyContingencyBurn(d.productionChoices.contingencyAmount, d.photography.recommendedDays);
@@ -582,6 +629,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           totalDays: result.totalDaysAfter,
           rivalStudios: result.rivalMarket.rivalStudios,
           talentPool: result.rivalMarket.talentPool,
+          opportunities: result.opportunitySettlement.opportunities,
+          nextOpportunityCheckDay: result.opportunitySettlement.nextGenerationCheckDay,
           studio: applyBoxOfficeSettlement(state.studio, result.settlement, result.scheduledSettlement.costCharged),
           projects: assembleProjects({
             playerDrafts: [updatedFocused, ...result.productionsInProgress],
@@ -593,7 +642,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         };
       }
 
-      const { event, daysAdvanced, totalDaysAfter, settlement, rivalMarket, productionsInProgress, scheduledSettlement } = result;
+      const { event, daysAdvanced, totalDaysAfter, settlement, rivalMarket, productionsInProgress, scheduledSettlement, opportunitySettlement } = result;
       const updatedFocused: FilmDraft = {
         ...d,
         photography: {
@@ -609,6 +658,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         totalDays: totalDaysAfter,
         rivalStudios: rivalMarket.rivalStudios,
         talentPool: rivalMarket.talentPool,
+        opportunities: opportunitySettlement.opportunities,
+        nextOpportunityCheckDay: opportunitySettlement.nextGenerationCheckDay,
         studio: applyBoxOfficeSettlement(state.studio, settlement, scheduledSettlement.costCharged),
         projects: assembleProjects({
           playerDrafts: [updatedFocused, ...productionsInProgress],
@@ -665,9 +716,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           rng,
         );
         const productionsInProgress = settleProductionsInProgress(otherBackgrounded, event.delayDaysDelta, state.talentPool, rng);
-        return { event, totalDaysAfter, settlement, rivalMarket, productionsInProgress, scheduledSettlement };
+        const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng);
+        return { event, totalDaysAfter, settlement, rivalMarket, productionsInProgress, scheduledSettlement, opportunitySettlement };
       });
-      const { event, totalDaysAfter, settlement, rivalMarket, productionsInProgress, scheduledSettlement } = result;
+      const { event, totalDaysAfter, settlement, rivalMarket, productionsInProgress, scheduledSettlement, opportunitySettlement } = result;
 
       const { draft: resolvedTarget, cashDelta } = resolveChoiceOnDraft(target, pendingChoice, action.choiceId, event, state.talentPool);
 
@@ -686,6 +738,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         totalDays: totalDaysAfter,
         rivalStudios: rivalMarket.rivalStudios,
         talentPool: rivalMarket.talentPool,
+        opportunities: opportunitySettlement.opportunities,
+        nextOpportunityCheckDay: opportunitySettlement.nextGenerationCheckDay,
         studio: studioAfter,
         projects: assembleProjects({
           playerDrafts: playerDraftsAfter,
@@ -716,26 +770,35 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
-    // Makes a wrapped background production the focused project (see
+    // Makes a backgrounded project the focused one again (see
     // docs/DESIGN.md 5.x) - only while nothing else is already focused, so
     // this can never silently discard unrelated in-progress work. The Inbox
-    // is expected to only offer this action while focusedProjectId is null;
-    // this guard is the authoritative one. Nothing moves between arrays any
-    // more (roadmap Phase 5) - the production was already sitting in
-    // `projects` as 'player-in-progress'; only which id is focused changes.
-    case 'RESUME_FOR_POST_PRODUCTION': {
+    // and Asset Library are expected to only offer this action while
+    // focusedProjectId is null; this guard is the authoritative one.
+    // Nothing moves between arrays any more (roadmap Phase 5) - the project
+    // was already sitting in `projects` as 'player-in-progress'; only which
+    // id is focused, and which screen shows it, change. A pre-Greenlight
+    // project (photography still null) always re-enters at 'develop' -
+    // every field it's already had chosen (title, talent, plan) is
+    // preserved on the draft regardless of which screen re-shows it first,
+    // so there's no need to reconstruct exactly which step the player left
+    // on. A finished shoot with post-production already done (roadmap Phase
+    // 7.1/7.3 - a "parked, needs a release day" project the Inbox surfaces
+    // distinctly) picks up straight at Marketing & Release instead of
+    // revisiting post-production choices that are already locked in.
+    case 'RESUME_PROJECT': {
       if (state.focusedProjectId) return state;
-      const production = asPlayerDraft(findProject(state.projects, action.productionId));
-      if (!production?.photography || production.photography.status !== 'finished') return state;
-      // Post-production already done (roadmap Phase 7.1/7.3 - a "parked,
-      // needs a release day" project the Inbox surfaces distinctly, see
-      // components/common/Inbox.tsx) picks up straight at Marketing &
-      // Release instead of revisiting post-production choices that are
-      // already locked in.
+      const project = asPlayerDraft(findProject(state.projects, action.projectId));
+      if (!project) return state;
+      const screen: WizardStep = !project.photography
+        ? 'develop'
+        : project.photography.status === 'finished'
+          ? (project.postProductionChoices ? 'marketing' : 'post-production')
+          : 'production';
       return {
         ...state,
-        screen: production.postProductionChoices ? 'marketing' : 'post-production',
-        focusedProjectId: action.productionId,
+        screen,
+        focusedProjectId: action.projectId,
         ...clearTransientView(),
       };
     }
@@ -812,7 +875,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           rng,
         );
         const productionsInProgress = settleProductionsInProgress(backgrounded, STAGE_DURATIONS.marketing ?? 0, state.talentPool, rng);
-        return { settlement, rivalMarket, productionsInProgress, scheduledSettlement };
+        const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng);
+        return { settlement, rivalMarket, productionsInProgress, scheduledSettlement, opportunitySettlement };
       });
 
       const studioAfter = applyBoxOfficeSettlement(state.studio, result.settlement, result.scheduledSettlement.costCharged);
@@ -825,6 +889,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         totalDays: totalDaysAfter,
         rivalStudios: result.rivalMarket.rivalStudios,
         talentPool: result.rivalMarket.talentPool,
+        opportunities: result.opportunitySettlement.opportunities,
+        nextOpportunityCheckDay: result.opportunitySettlement.nextGenerationCheckDay,
         ...clearTransientView(),
         studio: studioAfter,
         projects: assembleProjects({
@@ -848,55 +914,25 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
-    case 'RETURN_TO_DASHBOARD': {
-      const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
-      if (!d) {
-        // Nothing focused, or the focused project already transitioned to
-        // 'released' (RELEASE_FILM keeps the same id, see engine/project.ts)
-        // - either way there's nothing here to discard or background, just
-        // stop focusing it.
-        return { ...state, screen: 'dashboard', focusedProjectId: null, ...clearTransientView() };
-      }
-      if (!d.photography) {
-        // Nothing committed yet (still develop/talent/planning) - discard
-        // for real: this project never existed as far as studio history is
-        // concerned, so it's removed from `projects` outright rather than
-        // left behind as an abandoned draft with no photography.
-        return {
-          ...state,
-          screen: 'dashboard',
-          focusedProjectId: null,
-          projects: state.projects.filter((p) => projectId(p) !== d.id),
-          ...clearTransientView(),
-        };
-      }
-      // Photography has started - it's already sitting in `projects` as
-      // 'player-in-progress', so there's nothing to move to the background;
-      // just stop focusing it, and reserve its cast/crew the same way a
-      // rival studio's own casting does (engine/rivalStudios.ts:startRivalProduction's
-      // bookedIds/updatedPool), so the same actor can't get hired into a
-      // second concurrent production - the player's own or a rival's -
-      // while genuinely on this one's set. A rough estimate (recommendedDays
-      // from today) is fine here, same as rivals already use, since
-      // overrunning has no hard cap.
-      const bookedUntil = state.totalDays + d.photography.recommendedDays;
-      const bookedIds = new Set(d.talent.map((t) => t.id));
-      const talentPool = { ...state.talentPool };
-      for (const role of Object.keys(talentPool) as TalentRole[]) {
-        talentPool[role] = talentPool[role].map((t) => (bookedIds.has(t.id) ? { ...t, bookedUntil } : t));
-      }
-      return {
-        ...state,
-        screen: 'dashboard',
-        focusedProjectId: null,
-        ...clearTransientView(),
-        talentPool,
-      };
-    }
+    // Every pre-Greenlight draft now has real content (a full script,
+    // inherited from its Asset - development-pipeline doc), so the old
+    // "discard a possibly-empty draft" rationale for this action no longer
+    // applies - it's always just an unfocus now, never a delete, and never
+    // touches talent booking (that moved to GREENLIGHT_PROJECT above). The
+    // project - whatever stage it's at - is already sitting in `projects`
+    // either way, so there's nothing to move to or from the background;
+    // resuming it later (from the Dashboard/Asset Library/Inbox) picks up
+    // exactly where it was left. ABANDON_PROJECT above is the only action
+    // that actually discards a project.
+    case 'RETURN_TO_DASHBOARD':
+      return { ...state, screen: 'dashboard', focusedProjectId: null, ...clearTransientView() };
 
     case 'RESET_SAVE': {
       // A fresh studio gets a brand new talent pool and rival roster too -
-      // reusing the old ones would defeat the point of resetting.
+      // reusing the old ones would defeat the point of resetting. No
+      // Opportunities exist yet either - the next calendar-advancing action
+      // generates the first batch immediately (nextOpportunityCheckDay: 1
+      // is already due at totalDays: 1).
       const { result, nextSeed } = withRng(randomSeed(), (rng) => ({
         talentPool: generateTalentPool(rng),
         rivalStudios: generateRivalStudios(rng),
@@ -910,6 +946,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         totalDays: 1,
         talentPool: result.talentPool,
         rivalStudios: result.rivalStudios,
+        opportunities: [],
+        nextOpportunityCheckDay: 1,
         ...clearTransientView(),
       };
     }
@@ -939,6 +977,15 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // same as VIEW_STATS/VIEW_RIVAL_STUDIO - doesn't touch the calendar.
     case 'VIEW_RELEASE_CALENDAR':
       return { ...state, screen: 'release-calendar', ...clearTransientView() };
+
+    // Dashboard -> the shared Opportunity pool (development-pipeline doc).
+    // Pure detour, same as VIEW_STATS.
+    case 'VIEW_OPPORTUNITY_MARKET':
+      return { ...state, screen: 'opportunity-market', ...clearTransientView() };
+
+    // Dashboard -> the studio's owned Assets. Pure detour, same as VIEW_STATS.
+    case 'VIEW_ASSET_LIBRARY':
+      return { ...state, screen: 'asset-library', ...clearTransientView() };
 
     default:
       return state;

@@ -30,10 +30,14 @@ export function deriveFocusedFilm(state: GameState): Film | null {
 
 /**
  * Sums whatever costs aren't reflected in studio.cash yet for the film in
- * progress - script cost, event cost swings, the test screening fee, and
- * marketing are still only charged at RELEASE_FILM, so those are always
- * added here. Talent salary, the non-contingency production budget, and the
- * contingency reserve are different: BEGIN_PHOTOGRAPHY deducts all three
+ * progress - event cost swings, the test screening fee, and marketing are
+ * still only charged at SCHEDULE_RELEASE, so those are always added here.
+ * The script's own cost is deliberately NOT included - it was already
+ * charged in full at Opportunity acquisition, before this Project (or any
+ * Project) existed (docs/DESIGN_REVIEW_development_pipeline.md); adding it
+ * here would double-count spend that's already reflected in studio.cash.
+ * Talent salary, the non-contingency production budget, and the
+ * contingency reserve are different: GREENLIGHT_PROJECT deducts all three
  * from studio.cash immediately (and FINISH_PHOTOGRAPHY settles contingency
  * against what was actually burned) - see state/studioReducer.ts - so once
  * `draft.photography` exists, those three are already real cash movements,
@@ -45,7 +49,6 @@ export function computeCommittedSpend(draft: FilmDraft | null): number {
   if (!draft) return 0;
 
   let total = 0;
-  if (draft.script) total += draft.script.cost;
   if (!draft.photography) {
     // Not charged yet - BEGIN_PHOTOGRAPHY is what actually deducts these,
     // so until then this is a pure "what would this cost" projection. Uses

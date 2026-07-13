@@ -101,7 +101,7 @@ export function Inbox({ open, onOpenChange }: InboxProps) {
                   </p>
                 ) : (
                   <div>
-                    <Button variant="primary" onClick={() => dispatch({ type: 'RESUME_FOR_POST_PRODUCTION', productionId: production.id })}>
+                    <Button variant="primary" onClick={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })}>
                       Continue to Post-Production
                     </Button>
                   </div>
@@ -121,7 +121,7 @@ export function Inbox({ open, onOpenChange }: InboxProps) {
                   </p>
                 ) : (
                   <div>
-                    <Button variant="primary" onClick={() => dispatch({ type: 'RESUME_FOR_POST_PRODUCTION', productionId: production.id })}>
+                    <Button variant="primary" onClick={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })}>
                       Continue to Marketing &amp; Release
                     </Button>
                   </div>

@@ -7,21 +7,23 @@
 // comment for the full incident. `state/persistence.test.ts`'s "old saves
 // migrate safely" suite pins that *specific* incident; this file's job is
 // broader - actually drive the wizard through real dispatched actions
-// (START_NEW_FILM -> pick script -> hire talent -> plan production -> shoot
-// -> post -> market -> release), the same reducer path a real player's
-// clicks take, rather than assembling a release-ready draft directly the
-// way state/testFixtures.ts's buildReadyDraft does for the box-office-
-// settlement tests. Any future shape change that breaks a screen
-// transition - not just the specific one this bug came from - should show
-// up here as a thrown error.
+// (acquire an Asset -> create a Project -> hire talent -> plan production ->
+// greenlight -> shoot -> post -> market -> release), the same reducer path a
+// real player's clicks take (development-pipeline doc), rather than
+// assembling a release-ready draft directly the way
+// state/testFixtures.ts's buildReadyDraft does for the box-office-settlement
+// tests. Any future shape change that breaks a screen transition - not just
+// the specific one this bug came from - should show up here as a thrown
+// error.
 import { describe, it, expect } from 'vitest';
 import { studioReducer } from './studioReducer';
-import { createInitialStudio, createEmptyDraft, type GameState } from './gameState';
+import { createInitialStudio, type GameState } from './gameState';
+import { buildReadyAsset } from './testFixtures';
 import { generateTalentPool } from '../engine/talentGenerator';
 import { withRng } from '../engine/random';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { deriveFocusedDraft } from './selectors';
-import { playerDraftToProject, playerReleasedFilms } from '../engine/project';
+import { playerReleasedFilms } from '../engine/project';
 import type { EffectsMethodKey, EnvironmentMethodKey } from '../types';
 
 function freshState(seed: number): GameState {
@@ -35,6 +37,8 @@ function freshState(seed: number): GameState {
     totalDays: 1,
     talentPool: result.talentPool,
     rivalStudios: [],
+    opportunities: [],
+    nextOpportunityCheckDay: 1,
     viewingRivalStudioName: null,
     viewingProductionId: null,
   };
@@ -45,27 +49,28 @@ const EFFECTS_STRATEGY: Record<EffectsMethodKey, number> = { practical: 0.5, dig
 
 /**
  * Drives one film through the entire wizard via real dispatched actions -
- * develop, hire, plan, shoot, post-produce, market, release - and back to
- * the dashboard, exactly mirroring a player clicking through every screen.
- * Every intermediate GO_TO_STEP is exercised (not skipped), since that's
- * the exact action type the regression this file guards against travels
- * through - each one calls settleBoxOfficeForAllFilms for every
- * already-released film in the studio.
+ * own an Asset, create a Project from it, hire, plan, greenlight, shoot,
+ * post-produce, market, release - and back to the dashboard, exactly
+ * mirroring a player clicking through every screen. Every intermediate
+ * GO_TO_STEP is exercised (not skipped), since that's the exact action type
+ * the regression this file guards against travels through - each one calls
+ * settleBoxOfficeForAllFilms for every already-released film in the studio.
+ * Seeds a fresh owned Asset onto the given state first (via the same
+ * rngSeed the state is already carrying) so this can be called more than
+ * once against the same evolving state for a multi-film session.
  */
 function walkFilmThroughWizard(state: GameState): GameState {
-  let s = state;
-  s = studioReducer(s, { type: 'START_NEW_FILM' });
+  const { result: asset, nextSeed } = withRng(state.rngSeed, (rng) => buildReadyAsset(rng));
+  let s: GameState = { ...state, rngSeed: nextSeed, studio: { ...state.studio, assets: [...state.studio.assets, asset] } };
+
+  s = studioReducer(s, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
   expect(s.screen).toBe('develop');
   expect(s.focusedProjectId).not.toBeNull();
+  expect(deriveFocusedDraft(s)!.script).not.toBeNull();
 
   s = studioReducer(s, { type: 'SET_TITLE', title: 'A Regression Test Picture' });
-  s = studioReducer(s, { type: 'SET_GENRE', genre: 'Action' });
   s = studioReducer(s, { type: 'SET_TARGET_AUDIENCE', targetAudience: 'Mass Market' });
-  expect(deriveFocusedDraft(s)!.scriptOptions.length).toBeGreaterThan(0);
 
-  // Pick a script and Continue - the exact click sequence the reported bug
-  // happened on.
-  s = studioReducer(s, { type: 'SELECT_SCRIPT', script: deriveFocusedDraft(s)!.scriptOptions[0] });
   expect(() => {
     s = studioReducer(s, { type: 'GO_TO_STEP', step: 'talent' });
   }).not.toThrow();
@@ -94,11 +99,14 @@ function walkFilmThroughWizard(state: GameState): GameState {
   expect(deriveFocusedDraft(s)!.productionChoices).not.toBeNull();
 
   expect(() => {
-    s = studioReducer(s, { type: 'GO_TO_STEP', step: 'production' });
+    s = studioReducer(s, { type: 'GO_TO_STEP', step: 'greenlight' });
   }).not.toThrow();
-  expect(s.screen).toBe('production');
+  expect(s.screen).toBe('greenlight');
+  expect(deriveFocusedDraft(s)!.greenlitOnDay).toBeNull();
 
-  s = studioReducer(s, { type: 'BEGIN_PHOTOGRAPHY' });
+  s = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });
+  expect(s.screen).toBe('production');
+  expect(deriveFocusedDraft(s)!.greenlitOnDay).not.toBeNull();
   expect(deriveFocusedDraft(s)!.photography?.status).toBe('in-progress');
   s = studioReducer(s, { type: 'FINISH_PHOTOGRAPHY', productionId: s.focusedProjectId! });
   expect(deriveFocusedDraft(s)!.photography?.status).toBe('finished');
@@ -124,7 +132,7 @@ function walkFilmThroughWizard(state: GameState): GameState {
   });
 
   expect(() => {
-    s = studioReducer(s, { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    s = studioReducer(s, { type: 'SCHEDULE_RELEASE', releaseDay: s.totalDays });
   }).not.toThrow();
   expect(s.screen).toBe('results');
   expect(playerReleasedFilms(s.projects)).toHaveLength(playerReleasedFilms(state.projects).length + 1);
@@ -182,11 +190,12 @@ describe('wizard run-through: a full film survives every screen transition witho
 
 describe('wizard run-through: going back and forward through already-visited steps never throws', () => {
   it('a Back-then-forward round trip mid-wizard is a pure navigation no-op, not a crash', () => {
-    let s = studioReducer(freshState(5), { type: 'START_NEW_FILM' });
+    const { result: asset, nextSeed } = withRng(freshState(5).rngSeed, (rng) => buildReadyAsset(rng));
+    const seeded: GameState = { ...freshState(5), rngSeed: nextSeed, studio: { ...createInitialStudio(50_000_000), assets: [asset] } };
+
+    let s = studioReducer(seeded, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
     s = studioReducer(s, { type: 'SET_TITLE', title: 'Back And Forth' });
-    s = studioReducer(s, { type: 'SET_GENRE', genre: 'Comedy' });
     s = studioReducer(s, { type: 'SET_TARGET_AUDIENCE', targetAudience: 'Teens' });
-    s = studioReducer(s, { type: 'SELECT_SCRIPT', script: deriveFocusedDraft(s)!.scriptOptions[0] });
     s = studioReducer(s, { type: 'GO_TO_STEP', step: 'talent' });
 
     expect(() => {
@@ -198,17 +207,5 @@ describe('wizard run-through: going back and forward through already-visited ste
       s = studioReducer(s, { type: 'GO_TO_STEP', step: 'talent' }); // forward again, already charged
     }).not.toThrow();
     expect(s.screen).toBe('talent');
-  });
-});
-
-describe('wizard run-through: createEmptyDraft alone is a valid starting point for every wizard action the reducer accepts before a script exists', () => {
-  it('setting genre/audience/title against a brand-new empty draft never throws', () => {
-    const draft = createEmptyDraft();
-    const s0: GameState = { ...freshState(6), screen: 'develop', projects: [playerDraftToProject(draft)], focusedProjectId: draft.id };
-    expect(() => {
-      let s = studioReducer(s0, { type: 'SET_GENRE', genre: 'Horror' });
-      s = studioReducer(s, { type: 'SET_TARGET_AUDIENCE', targetAudience: 'Niche' });
-      s = studioReducer(s, { type: 'SET_TITLE', title: 'Empty Draft Smoke Test' });
-    }).not.toThrow();
   });
 });

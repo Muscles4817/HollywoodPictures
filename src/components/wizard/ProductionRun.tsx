@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { computeStaticProductionRisk, computeRecommendedShootDays, computeSchedulePressure } from '../../engine/production';
-import { computeTalentCost, computeProductionBudgetCost } from '../../engine/cost';
-import { ALL_TALENT_ROLES } from '../../data/talentGeneration';
+import { computeRecommendedShootDays, computeSchedulePressure } from '../../engine/production';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { StatTile } from '../common/StatTile';
@@ -12,10 +10,8 @@ import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { TimeTickIndicator } from '../common/TimeTickIndicator';
-import { nearestLabel } from './ProductionPlanning';
 import { asPlayerDraft, findProject } from '../../engine/project';
 import type { TickSpeedMultiplier } from '../../constants';
-import type { TalentRole } from '../../types';
 
 const TICK_INTERVAL_MS = 500;
 
@@ -45,7 +41,10 @@ export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplie
   const viewingProductionId = state.viewingProductionId;
   const shownId = viewingProductionId ?? state.focusedProjectId;
   const source = asPlayerDraft(findProject(state.projects, shownId));
-  const photography = source?.photography ?? null;
+  // Nullable - photography doesn't exist until GREENLIGHT_PROJECT sets it
+  // (development-pipeline doc), and these two hooks have to run
+  // unconditionally, before the guards below narrow it for good.
+  const livePhotography = source?.photography ?? null;
 
   // Pure UI pause (never persisted, mirrors Dashboard's manual pause) - set
   // the first time daysElapsed crosses recommendedDays, so the shoot stops
@@ -53,17 +52,17 @@ export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplie
   // comparing against the previous daysElapsed rather than exact equality,
   // since a delay event can jump straight past the threshold in one tick.
   const [awaitingContinueDecision, setAwaitingContinueDecision] = useState(false);
-  const prevDaysElapsedRef = useRef(photography?.daysElapsed ?? 0);
+  const prevDaysElapsedRef = useRef(livePhotography?.daysElapsed ?? 0);
 
   useEffect(() => {
-    if (!photography) return;
+    if (!livePhotography) return;
     const prev = prevDaysElapsedRef.current;
-    const curr = photography.daysElapsed;
+    const curr = livePhotography.daysElapsed;
     prevDaysElapsedRef.current = curr;
-    if (photography.status === 'in-progress' && prev < photography.recommendedDays && curr >= photography.recommendedDays) {
+    if (livePhotography.status === 'in-progress' && prev < livePhotography.recommendedDays && curr >= livePhotography.recommendedDays) {
       setAwaitingContinueDecision(true);
     }
-  }, [photography?.daysElapsed, photography?.status, photography?.recommendedDays]);
+  }, [livePhotography?.daysElapsed, livePhotography?.status, livePhotography?.recommendedDays]);
 
   // Ticks one real day of principal photography at a time while it's
   // running - each tick is a genuine dispatched action (ADVANCE_SHOOTING_DAY),
@@ -75,10 +74,10 @@ export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplie
   // "chunky" way, via the shared calendar, same as when nobody's looking at
   // it - see engine/productionsInProgress.ts).
   useEffect(() => {
-    if (viewingProductionId || photography?.status !== 'in-progress' || awaitingContinueDecision) return;
+    if (viewingProductionId || livePhotography?.status !== 'in-progress' || awaitingContinueDecision) return;
     const timer = setInterval(() => dispatch({ type: 'ADVANCE_SHOOTING_DAY' }), TICK_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [viewingProductionId, photography?.status, awaitingContinueDecision, dispatch]);
+  }, [viewingProductionId, livePhotography?.status, awaitingContinueDecision, dispatch]);
 
   if (!source) {
     return (
@@ -89,41 +88,56 @@ export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplie
       </div>
     );
   }
+  if (!source.photography) {
+    // Unreachable through the normal wizard flow - GREENLIGHT_PROJECT is
+    // what sets photography, and it's also what first sends the focused
+    // project to this screen (development-pipeline doc); Dashboard's own
+    // Shooting card (VIEW_PRODUCTION) only ever offers a backgrounded
+    // production that already has one too. Kept as a defensive fallback
+    // rather than a non-null assertion, same reasoning as the `!source`
+    // guard just above.
+    return (
+      <div className="stack">
+        <h1>Production</h1>
+        <p>This project hasn't been greenlit yet.</p>
+        <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Back to Dashboard</Button>
+      </div>
+    );
+  }
   const draft = source;
+  // Non-null assertion, not TS narrowing that doesn't survive `source` being
+  // rebound to `draft` - the guard just above already verified this.
+  const photography = draft.photography!;
 
-  const staticRisk = draft.script && draft.productionChoices && draft.genre
-    ? computeStaticProductionRisk(draft.talent, draft.script, draft.productionChoices, draft.genre)
-    : null;
   const recommendedDays = draft.script && draft.productionChoices
     ? computeRecommendedShootDays(draft.talent, draft.script, draft.productionChoices)
     : 0;
 
   function handleFastForward() {
-    if (!photography) return;
     const remaining = Math.max(0, recommendedDays - photography.daysElapsed);
     for (let i = 0; i < remaining; i++) dispatch({ type: 'ADVANCE_SHOOTING_DAY' });
   }
 
-  const pendingChoice = photography?.pendingChoice ?? null;
+  const pendingChoice = photography.pendingChoice;
 
-  const totalCostDelta = photography ? photography.events.reduce((sum, e) => sum + e.costDelta, 0) : 0;
-  const totalQualityDelta = photography ? photography.events.reduce((sum, e) => sum + e.qualityDelta, 0) : 0;
-  const totalBuzzDelta = photography ? photography.events.reduce((sum, e) => sum + e.buzzDelta, 0) : 0;
-  const finalSchedulePressure = photography ? computeSchedulePressure(photography.daysElapsed, photography.recommendedDays) : 0;
+  const totalCostDelta = photography.events.reduce((sum, e) => sum + e.costDelta, 0);
+  const totalQualityDelta = photography.events.reduce((sum, e) => sum + e.qualityDelta, 0);
+  const totalBuzzDelta = photography.events.reduce((sum, e) => sum + e.buzzDelta, 0);
+  const finalSchedulePressure = computeSchedulePressure(photography.daysElapsed, photography.recommendedDays);
   // Positive = unspent Contingency Reserve credited back to Studio Cash when
   // this shoot wrapped; negative = it ran over the reserve and the excess
   // was charged instead - see FINISH_PHOTOGRAPHY, state/studioReducer.ts.
   const contingencySettlement =
-    photography && draft.productionChoices ? draft.productionChoices.contingencyAmount - photography.runningCost : 0;
+    draft.productionChoices ? draft.productionChoices.contingencyAmount - photography.runningCost : 0;
   // The same reserve, framed live during the shoot rather than only once it
   // wraps - photography.runningCost is entirely contingency burn (see
   // engine/cost.ts:computeDailyContingencyBurn), so this is a direct,
   // always-current reading of how much of the reserve is left, not an
   // estimate.
   const contingencyRemaining =
-    photography && draft.productionChoices ? draft.productionChoices.contingencyAmount - photography.runningCost : 0;
+    draft.productionChoices ? draft.productionChoices.contingencyAmount - photography.runningCost : 0;
   const contingencyPercentConsumed =
-    photography && draft.productionChoices && draft.productionChoices.contingencyAmount > 0
+    draft.productionChoices && draft.productionChoices.contingencyAmount > 0
       ? (photography.runningCost / draft.productionChoices.contingencyAmount) * 100
       : 0;
 
@@ -142,114 +156,7 @@ export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplie
       )}
       {draft.script && <ScriptSummaryCard script={draft.script} />}
 
-      {!photography && (
-        <div className="stack">
-          <div className="card stack">
-            <h2 style={{ margin: 0 }}>Film Overview</h2>
-            <div className="row">
-              <StatTile label="Title" value={draft.title || 'Untitled Film'} />
-              <StatTile label="Genre" value={draft.genre ?? '-'} />
-              <StatTile label="Target Audience" value={draft.targetAudience ?? '-'} />
-            </div>
-            {draft.script && (
-              <div
-                className="row-between"
-                style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}
-              >
-                <span>{draft.script.title} <span style={{ color: 'var(--text-muted)' }}>(script)</span></span>
-                <Money amount={draft.script.cost} />
-              </div>
-            )}
-          </div>
-
-          <div className="card stack">
-            <h2 style={{ margin: 0 }}>Cast & Crew</h2>
-            {ALL_TALENT_ROLES.map((role: TalentRole) => {
-              const hired = draft.talent.filter((t) => t.role === role);
-              if (hired.length === 0) return null;
-              return (
-                <div key={role}>
-                  <div className="stat-label">{role}{hired.length > 1 ? 's' : ''}</div>
-                  {hired.map((t) => (
-                    <div className="row-between" key={t.id}>
-                      <span>{t.name}</span>
-                      <Money amount={t.salary} />
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
-            <div
-              className="row-between"
-              style={{ borderTop: '1px solid var(--border)', paddingTop: 8, fontWeight: 600 }}
-            >
-              <span>Total Cast & Crew Salary</span>
-              <Money amount={computeTalentCost(draft.talent)} />
-            </div>
-          </div>
-
-          {draft.productionChoices && (
-            <div className="card stack">
-              <h2 style={{ margin: 0 }}>Production Plan</h2>
-              <div className="row-between"><span>Contingency Reserve</span><Money amount={draft.productionChoices.contingencyAmount} /></div>
-              <div className="row-between"><span>Set Quality</span><Money amount={draft.productionChoices.setQualityAmount} /></div>
-              <div className="row-between"><span>Practical Effects</span><Money amount={draft.productionChoices.practicalEffectsAmount} /></div>
-              <div className="row-between"><span>VFX Spend</span><Money amount={draft.productionChoices.vfxAmount} /></div>
-              <div className="row-between">
-                <span>Runtime Target</span>
-                <span>{nearestLabel(draft.productionChoices.runtimeIntensity, ['Short', 'Standard', 'Long'])}</span>
-              </div>
-              <div
-                className="row-between"
-                style={{ borderTop: '1px solid var(--border)', paddingTop: 8, fontWeight: 600 }}
-              >
-                <span>Estimated Production Cost</span>
-                <Money amount={computeProductionBudgetCost(draft.productionChoices)} />
-              </div>
-            </div>
-          )}
-
-          {staticRisk && (
-            <div className="card stack">
-              <h2 style={{ margin: 0 }}>Production Risk Profile</h2>
-              <ScoreBar label="Morale Risk" value={staticRisk.moraleRisk} />
-              <ScoreBar label="Safety Risk" value={staticRisk.safetyRisk} />
-              <ScoreBar label="Technical Complexity" value={staticRisk.technicalComplexity} />
-              <ScoreBar label="Budget Risk" value={staticRisk.budgetRisk} />
-              <p style={{ margin: 0 }}>
-                Recommended principal photography: <strong>~{recommendedDays} days</strong>, burning your Contingency
-                Reserve at <Money amount={draft.productionChoices ? draft.productionChoices.contingencyAmount / recommendedDays : 0} />/day
-                (<Money amount={draft.productionChoices?.contingencyAmount ?? 0} /> total if you wrap on schedule).
-                Once you begin, you'll watch the shoot happen one day at a time and can wrap it whenever you choose -
-                cut it short to save money, or let it run long to give the team more room to work, at that same
-                daily cost with no cap. Schedule Pressure will depend on whichever you pick.
-              </p>
-              <p style={{ margin: 0 }}>
-                Cast/crew salaries and the production budget (
-                <Money amount={computeTalentCost(draft.talent) + (draft.productionChoices ? computeProductionBudgetCost(draft.productionChoices) : 0)} />
-                ), plus the full Contingency Reserve above, come out of Studio Cash the moment you begin - that money is
-                committed for the duration of the shoot. Salary and the production budget are spent for good; whatever
-                Contingency Reserve isn't actually burned comes back when you finish principal photography.
-              </p>
-              <div>
-                <Button variant="primary" onClick={() => dispatch({ type: 'BEGIN_PHOTOGRAPHY' })}>
-                  Begin Principal Photography
-                </Button>
-              </div>
-            </div>
-          )}
-
-          <div className="row-between">
-            <div className="row">
-              <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'production-planning' })}>Back</Button>
-              <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Back to Dashboard</Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {photography && (
-        <div className="stack">
+      <div className="stack">
           <div className="row-between">
             {!viewingProductionId && (
               <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
@@ -387,7 +294,7 @@ export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplie
                   variant="primary"
                   onClick={() =>
                     viewingProductionId
-                      ? dispatch({ type: 'RESUME_FOR_POST_PRODUCTION', productionId: viewingProductionId })
+                      ? dispatch({ type: 'RESUME_PROJECT', projectId: viewingProductionId })
                       : dispatch({ type: 'GO_TO_STEP', step: 'post-production' })
                   }
                 >
@@ -397,7 +304,6 @@ export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplie
             </>
           )}
         </div>
-      )}
     </div>
   );
 }

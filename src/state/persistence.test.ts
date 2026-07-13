@@ -249,6 +249,30 @@ describe('old saves migrate safely', () => {
     expect(state.studio.name).not.toBe('Stale Pictures');
   });
 
+  it('a save under the pre-development-pipeline v27 key (no opportunities/assets yet) is invisible to v28 - falls back to a fresh studio rather than a hybrid state', () => {
+    // The development pipeline (docs/DESIGN_REVIEW_development_pipeline.md)
+    // added required GameState.opportunities/nextOpportunityCheckDay and
+    // Studio.assets, and replaced FilmDraft's old scriptOptions-based shape
+    // with assetId/greenlitOnDay - a v27 save's studio/projects have none of
+    // these. Same class of break as every past shape change here: no
+    // migration code, an old save simply isn't found under the new key.
+    globalThis.localStorage.setItem(
+      'hollywood-pictures-save-v27',
+      JSON.stringify({
+        studio: { cash: 1, reputation: 20, name: 'Stale Pictures' },
+        projects: [],
+        focusedProjectId: null,
+        totalDays: 1,
+      }),
+    );
+    const state = loadState();
+    expect(state.projects).toEqual([]);
+    expect(state.opportunities).toEqual([]);
+    expect(state.studio.assets).toEqual([]);
+    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
+    expect(state.studio.name).not.toBe('Stale Pictures');
+  });
+
   it('clearSavedState followed by loadState behaves exactly like no save ever existed', () => {
     const released = studioReducer(buildStateWithReadyDraft(4), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     saveState(released);

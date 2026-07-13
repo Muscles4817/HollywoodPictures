@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { studioReducer } from './studioReducer';
-import { buildStateWithReadyDraft, buildReadyDraft, defaultMarketingChoices } from './testFixtures';
+import { buildStateWithReadyDraft, buildReadyDraft, buildReadyAsset, defaultMarketingChoices } from './testFixtures';
 import { withRng } from '../engine/random';
 import { STUDIO_BOX_OFFICE_SHARE, AVERAGE_TICKET_PRICE } from '../engine/boxOfficeRun';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
@@ -218,12 +218,15 @@ describe('transient view state (viewingRivalStudioName/viewingProductionId) - ro
     }
   });
 
-  it('ordinary wizard navigation (START_NEW_FILM, GO_TO_STEP) clears both, not just viewingProductionId', () => {
-    const afterStart = studioReducer(stateWithBothViewsSet(), { type: 'START_NEW_FILM' });
-    expect(afterStart.viewingRivalStudioName).toBeNull();
-    expect(afterStart.viewingProductionId).toBeNull();
+  it('ordinary wizard navigation (CREATE_PROJECT_FROM_ASSET, GO_TO_STEP) clears both, not just viewingProductionId', () => {
+    const { result: asset } = withRng(99, (rng) => buildReadyAsset(rng));
+    const base = stateWithBothViewsSet();
+    const withAsset: GameState = { ...base, studio: { ...base.studio, assets: [...base.studio.assets, asset] } };
 
-    const withDraft = studioReducer(stateWithBothViewsSet(), { type: 'START_NEW_FILM' });
+    const withDraft = studioReducer(withAsset, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
+    expect(withDraft.viewingRivalStudioName).toBeNull();
+    expect(withDraft.viewingProductionId).toBeNull();
+
     const afterStep = studioReducer(withDraft, { type: 'GO_TO_STEP', step: 'talent' });
     expect(afterStep.viewingRivalStudioName).toBeNull();
     expect(afterStep.viewingProductionId).toBeNull();
@@ -238,21 +241,23 @@ describe('transient view state (viewingRivalStudioName/viewingProductionId) - ro
 });
 
 describe('GameState.projects - roadmap Phase 5 (the flip)', () => {
-  it("a project's id survives unchanged from greenlight (START_NEW_FILM) through release (RELEASE_FILM)", () => {
+  it("a project's id survives unchanged from creation (CREATE_PROJECT_FROM_ASSET) through release (SCHEDULE_RELEASE)", () => {
     const started = studioReducer(buildStateWithReadyDraft(1), { type: 'RETURN_TO_DASHBOARD' });
-    const afterStart = studioReducer(started, { type: 'START_NEW_FILM' });
-    const projectId = afterStart.focusedProjectId!;
-    expect(findProject(afterStart.projects, projectId)?.kind).toBe('player-in-progress');
+    const { result: asset } = withRng(101, (rng) => buildReadyAsset(rng));
+    const withAsset: GameState = { ...started, studio: { ...started.studio, assets: [...started.studio.assets, asset] } };
+    const afterCreate = studioReducer(withAsset, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
+    const projectId = afterCreate.focusedProjectId!;
+    expect(findProject(afterCreate.projects, projectId)?.kind).toBe('player-in-progress');
 
     // Fast-forward this fresh draft to release-ready using the same fixture
     // shape buildStateWithReadyDraft already trusts, just re-pointed at the
-    // id START_NEW_FILM actually assigned - what's under test here is
-    // whether that id survives the kind transition, not the wizard flow
-    // itself (already covered by state/wizardRunThrough.test.ts).
+    // id CREATE_PROJECT_FROM_ASSET actually assigned - what's under test
+    // here is whether that id survives the kind transition, not the wizard
+    // flow itself (already covered by state/wizardRunThrough.test.ts).
     const { result: readyDraft } = withRng(1, (rng) => buildReadyDraft(rng));
     const withReadyDraft: GameState = {
-      ...afterStart,
-      projects: [playerDraftToProject({ ...readyDraft, id: projectId })],
+      ...afterCreate,
+      projects: [playerDraftToProject({ ...readyDraft, id: projectId, assetId: asset.id })],
       focusedProjectId: projectId,
     };
     const released = studioReducer(withReadyDraft, { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
@@ -263,13 +268,20 @@ describe('GameState.projects - roadmap Phase 5 (the flip)', () => {
     expect(project && project.kind === 'released' && project.film.id).toBe(projectId);
   });
 
-  it('RETURN_TO_DASHBOARD discards a project with no photography started, but keeps one that has (backgrounded, not focused)', () => {
-    const withUncommittedDraft = studioReducer(buildStateWithReadyDraft(1), { type: 'RETURN_TO_DASHBOARD' });
-    const afterStart = studioReducer(withUncommittedDraft, { type: 'START_NEW_FILM' });
-    const uncommittedId = afterStart.focusedProjectId!;
-    const discarded = studioReducer(afterStart, { type: 'RETURN_TO_DASHBOARD' });
-    expect(discarded.focusedProjectId).toBeNull();
-    expect(findProject(discarded.projects, uncommittedId)).toBeNull();
+  it('RETURN_TO_DASHBOARD never discards a project any more (development-pipeline doc) - only ABANDON_PROJECT does, and only pre-Greenlight', () => {
+    const { result: asset } = withRng(102, (rng) => buildReadyAsset(rng));
+    const base = studioReducer(buildStateWithReadyDraft(1), { type: 'RETURN_TO_DASHBOARD' });
+    const withAsset: GameState = { ...base, studio: { ...base.studio, assets: [...base.studio.assets, asset] } };
+    const afterCreate = studioReducer(withAsset, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
+    const uncommittedId = afterCreate.focusedProjectId!;
+
+    const keptUnfocused = studioReducer(afterCreate, { type: 'RETURN_TO_DASHBOARD' });
+    expect(keptUnfocused.focusedProjectId).toBeNull();
+    expect(findProject(keptUnfocused.projects, uncommittedId)?.kind).toBe('player-in-progress');
+
+    const abandoned = studioReducer(afterCreate, { type: 'ABANDON_PROJECT' });
+    expect(abandoned.focusedProjectId).toBeNull();
+    expect(findProject(abandoned.projects, uncommittedId)).toBeNull();
 
     const releaseReady = buildStateWithReadyDraft(2); // photography already 'finished' - see testFixtures.ts
     const committedId = releaseReady.focusedProjectId!;

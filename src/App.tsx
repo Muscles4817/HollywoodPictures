@@ -14,10 +14,13 @@ import { Button } from './components/common/Button';
 import { DevelopFilm } from './components/wizard/DevelopFilm';
 import { HireTalent } from './components/wizard/HireTalent';
 import { ProductionPlanning } from './components/wizard/ProductionPlanning';
+import { Greenlight } from './components/wizard/Greenlight';
 import { ProductionRun } from './components/wizard/ProductionRun';
 import { PostProduction } from './components/wizard/PostProduction';
 import { MarketingRelease } from './components/wizard/MarketingRelease';
 import { ReleaseResults } from './components/wizard/ReleaseResults';
+import { OpportunityMarket } from './components/OpportunityMarket';
+import { AssetLibrary } from './components/AssetLibrary';
 import type { Screen } from './types';
 import { DAY_TICK_MS, type TickSpeedMultiplier } from './constants';
 
@@ -28,7 +31,7 @@ import { DAY_TICK_MS, type TickSpeedMultiplier } from './constants';
 // begins (ProductionRun.tsx) - this background tick would otherwise double
 // up with it, or fire uselessly while the player is just reviewing the
 // pre-shoot risk profile.
-const PLANNING_SCREENS = new Set<Screen>(['develop', 'talent', 'production-planning', 'production', 'post-production', 'marketing']);
+const PLANNING_SCREENS = new Set<Screen>(['develop', 'talent', 'production-planning', 'greenlight', 'production', 'post-production', 'marketing']);
 
 // Screens that are a pure read-only detour from the Dashboard - entering or
 // leaving them costs no calendar time of its own (VIEW_RIVAL_STUDIO/
@@ -36,7 +39,7 @@ const PLANNING_SCREENS = new Set<Screen>(['develop', 'talent', 'production-plann
 // studioReducer.ts), so a pause the player set intentionally shouldn't
 // silently lift just because they ducked in to check a rival's page, the
 // stats table, or the release calendar.
-const PAUSE_PERSISTING_SCREENS = new Set<Screen>(['rival-studio', 'stats', 'release-calendar']);
+const PAUSE_PERSISTING_SCREENS = new Set<Screen>(['rival-studio', 'stats', 'release-calendar', 'opportunity-market', 'asset-library']);
 
 /**
  * Whether the background ADVANCE_DAY tick should be running right now - a
@@ -170,6 +173,8 @@ function Screens() {
         return <HireTalent />;
       case 'production-planning':
         return <ProductionPlanning />;
+      case 'greenlight':
+        return <Greenlight />;
       case 'production':
         return (
           <ProductionRun
@@ -192,6 +197,10 @@ function Screens() {
         return <StatsPage />;
       case 'release-calendar':
         return <ReleaseCalendar />;
+      case 'opportunity-market':
+        return <OpportunityMarket />;
+      case 'asset-library':
+        return <AssetLibrary />;
       default:
         return (
           <Dashboard

@@ -141,8 +141,9 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
           <Button onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}>Release Calendar</Button>
           <Button onClick={() => setShowGuide(true)}>How It Works</Button>
           <Button onClick={() => setShowResetPicker(true)}>Reset Studio</Button>
-          <Button variant="primary" onClick={() => dispatch({ type: 'START_NEW_FILM' })}>
-            Start New Film
+          <Button onClick={() => dispatch({ type: 'VIEW_ASSET_LIBRARY' })}>Asset Library</Button>
+          <Button variant="primary" onClick={() => dispatch({ type: 'VIEW_OPPORTUNITY_MARKET' })}>
+            Opportunity Market
           </Button>
         </div>
       </div>

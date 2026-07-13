@@ -100,9 +100,16 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   const productionBudgetCost = computeProductionBudgetCost(input.productionChoices);
   const eventsCostDelta = computeEventsCostDelta(input.events);
   const testScreeningCost = TEST_SCREENING_PROFILES[input.postProductionChoices.testScreeningResponse].cost;
+  // input.script.cost is deliberately NOT part of this sum - it's charged
+  // once, immediately, at Opportunity acquisition (ACQUIRE_OPPORTUNITY,
+  // state/studioReducer.ts), long before a Project (let alone a release)
+  // might ever exist for that script - see
+  // docs/DESIGN_REVIEW_development_pipeline.md. Including it here again
+  // would double-charge every film's production cost by its own script's
+  // price.
   const productionCost = Math.max(
     0,
-    input.script.cost + talentCost + productionBudgetCost + input.photographyCost + eventsCostDelta + testScreeningCost,
+    talentCost + productionBudgetCost + input.photographyCost + eventsCostDelta + testScreeningCost,
   );
   const marketingCost = computeMarketingCost(input.marketingChoices);
   const totalCost = productionCost + marketingCost;

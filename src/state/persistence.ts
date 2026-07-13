@@ -132,7 +132,16 @@ import { randomSeed, withRng } from '../engine/random';
 // a 'scheduled' project (the kind didn't exist yet), and nothing in this
 // version's loadState() needs to handle one anyway - no migration code, same
 // as every past shape change here.
-const SAVE_KEY = 'hollywood-pictures-save-v27';
+// v27 -> v28 (docs/DESIGN_REVIEW_development_pipeline.md): the development
+// pipeline - Opportunity -> Asset -> Project. GameState gained required
+// opportunities/nextOpportunityCheckDay, Studio gained required assets, and
+// FilmDraft replaced its old scriptOptions/START_NEW_FILM-created shape with
+// assetId (always set) and greenlitOnDay - a draft is only ever created from
+// an already-owned Asset now (CREATE_PROJECT_FROM_ASSET), never from nothing
+// (see gameState.ts:createDraftFromAsset). A v27 save has none of these
+// fields in their new shape - no migration code, same as every past shape
+// change here.
+const SAVE_KEY = 'hollywood-pictures-save-v28';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
@@ -160,6 +169,8 @@ export function loadState(): GameState {
       totalDays: 1,
       talentPool: result.talentPool,
       rivalStudios: result.rivalStudios,
+      opportunities: [],
+      nextOpportunityCheckDay: 1,
       viewingRivalStudioName: null,
       viewingProductionId: null,
     };

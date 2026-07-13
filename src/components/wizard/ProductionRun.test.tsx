@@ -45,6 +45,8 @@ function stateWithInProgressShoot(
     totalDays: 1,
     talentPool,
     rivalStudios: [],
+    opportunities: [],
+    nextOpportunityCheckDay: 1,
     viewingRivalStudioName: null,
     viewingProductionId,
   };

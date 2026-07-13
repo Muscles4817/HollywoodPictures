@@ -1,4 +1,4 @@
-import type { Film, FilmDraft, Project, RivalProductionInProgress } from '../types';
+import type { Asset, Film, FilmDraft, Project, RivalProductionInProgress } from '../types';
 
 /**
  * The one stable identity a Project carries for its entire life, regardless
@@ -108,4 +108,40 @@ export function scheduledPlayerReleases(projects: Project[]): Array<{ draft: Fil
     const s = asScheduled(p);
     return s ? [s] : [];
   });
+}
+
+// --- Development pipeline (docs/DESIGN_REVIEW_development_pipeline.md) ---
+
+/** Which Asset a Project was developed from, regardless of which kind it's currently in - null for a rival production (rivals don't go through the Asset pipeline in this MVP) or a released film with no recorded asset (an old save, or a rival's). */
+export function assetIdOfProject(project: Project): string | null {
+  switch (project.kind) {
+    case 'player-in-progress': return project.draft.assetId;
+    case 'scheduled': return project.draft.assetId;
+    case 'released': return project.film.assetId ?? null;
+    case 'rival-in-progress': return null;
+  }
+}
+
+export type AssetStatus =
+  | { status: 'available' }
+  | { status: 'in-development'; projectId: string }
+  | { status: 'used'; projectIds: string[] };
+
+/**
+ * Derived purely from whether any Project currently references this Asset -
+ * Asset itself carries no status flag, same "derive, don't duplicate"
+ * discipline this file already uses for everything else (deriveProjectsView's
+ * old job, playerReleasedFilms, etc.). "in-development" beats "used": a
+ * second attempt from an asset that already produced one released film
+ * still counts as in-development while it's active. "used" only shows once
+ * nothing is currently active - the asset generated one or more films and
+ * is free to try again.
+ */
+export function deriveAssetStatus(asset: Asset, projects: Project[]): AssetStatus {
+  const own = projects.filter((p) => assetIdOfProject(p) === asset.id);
+  const active = own.find((p) => p.kind === 'player-in-progress' || p.kind === 'scheduled');
+  if (active) return { status: 'in-development', projectId: projectId(active) };
+  const releasedIds = own.filter((p) => p.kind === 'released').map(projectId);
+  if (releasedIds.length > 0) return { status: 'used', projectIds: releasedIds };
+  return { status: 'available' };
 }
