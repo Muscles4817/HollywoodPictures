@@ -4818,6 +4818,93 @@ content and its position ahead of Cast & Crew/Reception/Financials), and
 warning, the persistent script card, and the TimeTickIndicator's
 viewing-a-background-production-only visibility). 347 tests total.
 
+### 5.38 Checkbox filtering for the Opportunity Market and Release Calendar (`components/OpportunityMarket.tsx`, `components/ReleaseCalendar.tsx`, `components/common/CheckboxFilterDropdown.tsx`, `components/common/ScriptRatingsFilterDropdown.tsx`, `components/common/ScriptDetails.tsx`, `components/common/StarRating.tsx`, `utils/StarRatingConversion.tsx`, `hooks/useReconciledFilterSelection.ts`, `src/index.css`)
+
+Both list screens (Opportunity Market, Release Calendar) gained multi-select
+checkbox filtering, plus a dedicated Script Ratings filter for the
+Opportunity Market's screenplay stats:
+
+- **`CheckboxFilterDropdown`** - a generic `{id, label}[]` multi-select
+  popover (select all / clear / individual toggles, closes on outside
+  click or Escape) - Source and Acquisition Price on the Opportunity
+  Market, Studio/Genre/Target Audience on the Release Calendar.
+- **`ScriptRatingsFilterDropdown`** - a purpose-built panel for the
+  Opportunity Market only: minimum-star thresholds for the three Writing
+  stats (Dialogue/Characters/Structure) and two Creative stats
+  (Originality/Complexity), plus low/medium/high bands for each of the six
+  Tone Profile axes - all read as star ratings via the new
+  `calculateStarRating`/`StarRating` (`utils/StarRatingConversion.tsx`,
+  extracted from what used to be `StarRating.tsx`'s own inline math, so
+  the filter and the display it's filtering read the exact same
+  conversion).
+
+**A quality pass found and fixed four issues before this milestone note
+was written** (the implementing commits themselves predate this review):
+
+- **Filters didn't pick up newly-appearing options - a real bug, not just
+  a rough edge.** Both screens seeded their "selected" `Set<string>` once,
+  via `useState(() => new Set(optionsAtThatMoment))`. `Opportunity Market`
+  isn't in `App.tsx`'s `PLANNING_SCREENS`, so the background day-tick keeps
+  running while it's open - `engine/opportunities.ts` generates opportunity
+  batches of 2-4 drawn from 4 possible sources, so it's common for not all
+  4 to be present at mount; a source type that first appears in a later
+  batch was silently excluded from the filtered results by default, no
+  different from the player having deliberately unchecked it. Release
+  Calendar actually had a reconciliation `useEffect` for the same problem,
+  with a comment claiming to "include newly appearing studios and genres
+  automatically" - but the implementation only ever filtered stale ids
+  *out* of the current selection, it never added newly-appeared ones *in*,
+  so the same bug existed there too, just with a comment that no longer
+  matched what the code did. Fixed with one shared, tested hook -
+  `useReconciledFilterSelection` (`src/hooks/`) - that starts fully
+  selected and then, as its `optionIds` change, adds genuinely-new ids
+  automatically while leaving anything the player deliberately deselected
+  alone and dropping ids that disappeared. Both screens now call it once
+  per filter category instead of hand-rolling their own (one correct, one
+  buggy) version of the same reconciliation.
+- **`--card-background` and `--blue` were referenced but never defined.**
+  `CheckboxFilterDropdown`'s menu background and `ScriptRatingsFilterDropdown.css`
+  used `var(--card-background, #20242c)`/`var(--blue, ...)` - neither
+  variable exists anywhere in `index.css`'s `:root`/`:root[data-theme='dark']`
+  blocks, so the fallback hex always applied, in both themes. Combined
+  with hardcoded `rgba(255, 255, 255, ...)` borders/backgrounds elsewhere
+  in both files (assuming a dark surface), the filter triggers rendered
+  with near-invisible borders against the app's actual *default* light
+  theme (`--panel: #ffffff`), and both dropdown menus always popped up as
+  a hardcoded dark box regardless of theme. Replaced every occurrence with
+  the theme's real variables (`var(--border)`, `var(--panel)`,
+  `var(--primary)`, `var(--info-bg)`) - the same pattern every other
+  themed surface in this codebase already uses (`textarea, input, select`'s
+  own base rule, `.card-selectable:hover`, etc.).
+- **`ScriptDetails.tsx` picked up unrelated style regressions** in the same
+  pass that added the Ratings filter: "Screenplay Cost" moved from
+  `.card-subtitle` (small, muted) to `.card-title` (bold, full-size),
+  visually competing with the actual title elsewhere in the same card;
+  `describeCostDrivers`/`describeCommercialAppeal` moved to
+  `.card-synopsis`, which is `font-style: italic` - appropriate for
+  `script.synopsis` (which already correctly used it) but not for these
+  plain informational sentences; the Leads/Supporting/Intended Audience
+  rows gained an unexplained `margin: 1rem 3rem 1rem 3rem` inline (48px
+  each side, inside a card with only 16px padding). All three reverted to
+  their pre-existing styling. Two new CSS classes with no clear connection
+  to their content followed the same pattern - `.card-tag` (140px
+  min-width, square corners) replaced the compact rounded `.badge` pill
+  for the small source tag; `.key-stat-label` used `var(--star)` (the
+  gold star-rating color) for the unrelated "Acquisition Price" label -
+  both reverted to the existing `.badge`/`.stat-label` classes already
+  used identically elsewhere on the same screen, and the now-orphaned
+  `.card-tag`/`.key-stat-label`/`--faded-green` rules removed from
+  `index.css`.
+- **Zero test coverage existed for any of this** - a departure from this
+  project's otherwise-consistent "every feature gets regression tests"
+  pattern. `useReconciledFilterSelection.test.ts` covers the fix directly:
+  starts fully selected; a genuinely new option is auto-selected; a
+  deliberately-deselected option stays deselected when unrelated options
+  change; a disappeared option is dropped; the real-world case of an empty
+  option list at mount growing later. Component-level filtering behavior
+  in `OpportunityMarket.tsx`/`ReleaseCalendar.tsx` themselves remains
+  untested - flagged, not fixed, as outside a review pass's own scope.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
