@@ -296,6 +296,30 @@ describe('old saves migrate safely', () => {
     expect(state.studio.name).not.toBe('Stale Pictures');
   });
 
+  it('a save under the pre-AI-Studios-2.0 v29 key (rivals with no cash/brand/prestige) is invisible to v30 - falls back to a fresh studio rather than a hybrid state', () => {
+    // AI Studios 2.0 (docs/DESIGN.md) gave RivalStudio real cash/brand/
+    // prestige/lifetimeRevenue/lifetimeExpenditure - a v29 save's
+    // rivalStudios entries have none of these fields. Same class of break as
+    // every past shape change here: no migration code, an old save simply
+    // isn't found under the new key.
+    globalThis.localStorage.setItem(
+      'hollywood-pictures-save-v29',
+      JSON.stringify({
+        studio: { cash: 1, brand: 20, prestige: 20, name: 'Stale Pictures' },
+        rivalStudios: [{ id: 'rival-studio-0', name: 'Stale Rival', tier: 'Indie', nextSpawnCheckDay: 1 }],
+        projects: [],
+        focusedProjectId: null,
+        totalDays: 1,
+      }),
+    );
+    const state = loadState();
+    expect(state.projects).toEqual([]);
+    expect(state.rivalStudios.every((r) => r.cash > 0)).toBe(true);
+    expect(state.rivalStudios.some((r) => r.name === 'Stale Rival')).toBe(false);
+    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
+    expect(state.studio.name).not.toBe('Stale Pictures');
+  });
+
   it('clearSavedState followed by loadState behaves exactly like no save ever existed', () => {
     const released = studioReducer(buildStateWithReadyDraft(4), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     saveState(released);
