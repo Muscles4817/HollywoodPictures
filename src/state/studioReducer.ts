@@ -31,6 +31,25 @@ const WIZARD_STEP_ORDER: WizardStep[] = [
   'results',
 ];
 
+/**
+ * Clears the transient "which read-only detour am I looking at" fields
+ * (GameState.viewingRivalStudioName/viewingProductionId) - the default for
+ * every action, since most leave neither detour behind. VIEW_RIVAL_STUDIO/
+ * VIEW_PRODUCTION pass an override for the one they're actually setting.
+ * Previously repeated as inline `null` literals at every one of these call
+ * sites, inconsistently (some cleared only viewingProductionId;
+ * VIEW_PRODUCTION didn't clear viewingRivalStudioName at all) - safe to
+ * unify into always-clear-both-unless-overridden, since viewingRivalStudioName
+ * is only ever non-null while screen === 'rival-studio', and none of the
+ * actions reachable from that screen's own UI (RivalStudioPage.tsx) are
+ * among the ones that used to leave it untouched.
+ */
+function clearTransientView(
+  overrides: Partial<Pick<GameState, 'viewingRivalStudioName' | 'viewingProductionId'>> = {},
+): Pick<GameState, 'viewingRivalStudioName' | 'viewingProductionId'> {
+  return { viewingRivalStudioName: null, viewingProductionId: null, ...overrides };
+}
+
 /** Seeds every role's target price at the midpoint of its own salary range. */
 function defaultTalentTargetPrices(): Partial<Record<TalentRole, number>> {
   const result: Partial<Record<TalentRole, number>> = {};
@@ -166,7 +185,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         ...state,
         screen: 'develop',
         draft: { ...createEmptyDraft(), talentTargetPriceByRole: defaultTalentTargetPrices() },
-        viewingProductionId: null,
+        ...clearTransientView(),
       };
 
     case 'GO_TO_STEP': {
@@ -175,7 +194,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // view could shadow the live draft the next time screen becomes
       // 'production' the ordinary way (BEGIN_PHOTOGRAPHY doesn't change
       // screen itself; it's already 'production' by the time it fires).
-      if (!state.draft) return { ...state, screen: action.step, viewingProductionId: null };
+      if (!state.draft) return { ...state, screen: action.step, ...clearTransientView() };
       const fromIdx = WIZARD_STEP_ORDER.indexOf(state.screen as WizardStep);
       const toIdx = WIZARD_STEP_ORDER.indexOf(action.step);
       // Only charge a stage's fixed duration the first time it's genuinely
@@ -184,7 +203,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const isNewForwardProgress = fromIdx >= 0 && toIdx > fromIdx && fromIdx > state.draft.furthestStepIndexCharged;
       const leavingStage = isNewForwardProgress ? (state.screen as WizardStep) : null;
       const stageDuration = leavingStage ? STAGE_DURATIONS[leavingStage] : undefined;
-      if (!stageDuration) return { ...state, screen: action.step, viewingProductionId: null };
+      if (!stageDuration) return { ...state, screen: action.step, ...clearTransientView() };
 
       const totalDaysAfter = state.totalDays + stageDuration;
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
@@ -211,7 +230,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         rivalProductionsInProgress: result.rivalMarket.rivalProductionsInProgress,
         rivalFilmsReleased: result.rivalMarket.rivalFilmsReleased,
         talentPool: result.rivalMarket.talentPool,
-        viewingProductionId: null,
+        ...clearTransientView(),
         studio: {
           ...applyBoxOfficeSettlement(state.studio, result.settlement),
           productionsInProgress: result.productionsInProgress,
@@ -620,7 +639,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         ...state,
         screen: 'post-production',
         draft: production,
-        viewingProductionId: null,
+        ...clearTransientView(),
         studio: {
           ...state.studio,
           productionsInProgress: state.studio.productionsInProgress.filter((p) => p.id !== action.productionId),
@@ -749,6 +768,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         rivalProductionsInProgress: result.rivalMarket.rivalProductionsInProgress,
         rivalFilmsReleased: result.rivalMarket.rivalFilmsReleased,
         talentPool: result.rivalMarket.talentPool,
+        ...clearTransientView(),
         studio: studioAfter,
         draft: { ...d, results: releasedFilm.results },
       };
@@ -777,7 +797,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // re-add an already-released film to Studio.productionsInProgress,
       // since its `photography` is still non-null too.
       if (!d?.photography || d.results) {
-        return { ...state, screen: 'dashboard', draft: null, viewingRivalStudioName: null, viewingProductionId: null };
+        return { ...state, screen: 'dashboard', draft: null, ...clearTransientView() };
       }
       // Photography has started (and this isn't a released film) - send it
       // to the background instead of losing it (docs/DESIGN.md 5.x), and
@@ -798,8 +818,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         ...state,
         screen: 'dashboard',
         draft: null,
-        viewingRivalStudioName: null,
-        viewingProductionId: null,
+        ...clearTransientView(),
         talentPool,
         studio: {
           ...state.studio,
@@ -825,8 +844,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         rivalStudios: result.rivalStudios,
         rivalProductionsInProgress: [],
         rivalFilmsReleased: [],
-        viewingRivalStudioName: null,
-        viewingProductionId: null,
+        ...clearTransientView(),
       };
     }
 
@@ -836,7 +854,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // triggered from. Doesn't touch the calendar; it's just a detour, same
     // as opening the Dashboard's Studio History table.
     case 'VIEW_RIVAL_STUDIO':
-      return { ...state, screen: 'rival-studio', viewingRivalStudioName: action.studioName, viewingProductionId: null };
+      return { ...state, screen: 'rival-studio', ...clearTransientView({ viewingRivalStudioName: action.studioName }) };
 
     // Dashboard's Shooting card -> lets the player check in on a specific
     // background production (events so far, current status) without
@@ -844,12 +862,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // Reachable only from the Dashboard, where `draft` is always already
     // null, so this never competes with unrelated in-progress work.
     case 'VIEW_PRODUCTION':
-      return { ...state, screen: 'production', viewingProductionId: action.productionId };
+      return { ...state, screen: 'production', ...clearTransientView({ viewingProductionId: action.productionId }) };
 
     // Dashboard -> the filterable film-history table. Pure detour, same as
     // VIEW_RIVAL_STUDIO - doesn't touch the calendar.
     case 'VIEW_STATS':
-      return { ...state, screen: 'stats', viewingRivalStudioName: null, viewingProductionId: null };
+      return { ...state, screen: 'stats', ...clearTransientView() };
 
     default:
       return state;

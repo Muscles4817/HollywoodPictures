@@ -165,3 +165,56 @@ describe('deterministic release-day gross', () => {
     expect(film.results.openingWeekend).toBe(expected);
   });
 });
+
+describe('transient view state (viewingRivalStudioName/viewingProductionId) - roadmap Phase 2.1', () => {
+  // Both set at once is unrealistic in real play (the two detours are
+  // mutually exclusive), but it's the most direct way to test the clearing
+  // rule in isolation: whichever of these an action doesn't explicitly set,
+  // it should clear.
+  function stateWithBothViewsSet(): GameState {
+    const base = buildStateWithReadyDraft(1);
+    return { ...base, viewingRivalStudioName: 'A Rival Studio', viewingProductionId: 'some-production-id' };
+  }
+
+  it('VIEW_RIVAL_STUDIO sets viewingRivalStudioName and clears viewingProductionId', () => {
+    const after = studioReducer(stateWithBothViewsSet(), { type: 'VIEW_RIVAL_STUDIO', studioName: 'Another Studio' });
+    expect(after.viewingRivalStudioName).toBe('Another Studio');
+    expect(after.viewingProductionId).toBeNull();
+  });
+
+  it('VIEW_PRODUCTION sets viewingProductionId and clears viewingRivalStudioName', () => {
+    const after = studioReducer(stateWithBothViewsSet(), { type: 'VIEW_PRODUCTION', productionId: 'prod-42' });
+    expect(after.viewingProductionId).toBe('prod-42');
+    expect(after.viewingRivalStudioName).toBeNull();
+  });
+
+  it('VIEW_STATS, RESET_SAVE, and RETURN_TO_DASHBOARD all clear both, even starting from both set', () => {
+    for (const action of [
+      { type: 'VIEW_STATS' as const },
+      { type: 'RESET_SAVE' as const, startingCash: 10_000_000 },
+      { type: 'RETURN_TO_DASHBOARD' as const },
+    ]) {
+      const after = studioReducer(stateWithBothViewsSet(), action);
+      expect(after.viewingRivalStudioName).toBeNull();
+      expect(after.viewingProductionId).toBeNull();
+    }
+  });
+
+  it('ordinary wizard navigation (START_NEW_FILM, GO_TO_STEP) clears both, not just viewingProductionId', () => {
+    const afterStart = studioReducer(stateWithBothViewsSet(), { type: 'START_NEW_FILM' });
+    expect(afterStart.viewingRivalStudioName).toBeNull();
+    expect(afterStart.viewingProductionId).toBeNull();
+
+    const withDraft = studioReducer(stateWithBothViewsSet(), { type: 'START_NEW_FILM' });
+    const afterStep = studioReducer(withDraft, { type: 'GO_TO_STEP', step: 'talent' });
+    expect(afterStep.viewingRivalStudioName).toBeNull();
+    expect(afterStep.viewingProductionId).toBeNull();
+  });
+
+  it('RELEASE_FILM clears both (previously left them untouched, safe since the marketing screen is unreachable while either is set)', () => {
+    const state = { ...buildStateWithReadyDraft(1), viewingRivalStudioName: 'A Rival Studio' };
+    const after = studioReducer(state, { type: 'RELEASE_FILM' });
+    expect(after.viewingRivalStudioName).toBeNull();
+    expect(after.viewingProductionId).toBeNull();
+  });
+});
