@@ -5,7 +5,7 @@ import { pluckDescriptions } from '../../data/describe';
 import { computeMarketingCost } from '../../engine/cost';
 import { marketingDescription } from '../../engine/productionDials';
 import { logAmount } from '../../engine/interpolate';
-import { formatGameDate } from '../../engine/calendar';
+import { formatGameMonthYear, monthYearOf, totalDaysForMonth, MONTH_NAMES } from '../../engine/calendar';
 import { STAGE_DURATIONS } from '../../data/schedule';
 import { ChoiceGroup } from '../common/ChoiceGroup';
 import { RangeSlider } from '../common/RangeSlider';
@@ -16,11 +16,11 @@ import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { deriveFocusedDraft } from '../../state/selectors';
 import type { MarketingChoices, ReleaseType, ReleaseWindow } from '../../types';
 
-// How far out the player can hold a release before scheduling it - a bound
-// on the RangeSlider below, not a real game-design limit; roadmap Phase
-// 7.2's whole point is picking a day beyond the old always-immediate
-// minimum, not an unbounded one.
-const MAX_HOLD_DAYS = 180;
+// How many calendar years out the Year dropdown below offers - a bound on
+// the picker, not a real game-design limit; roadmap Phase 7.2's whole point
+// is picking a date beyond the old always-immediate minimum, not an
+// unbounded one.
+const MAX_HOLD_YEARS = 2;
 
 const RELEASE_TYPES = Object.keys(RELEASE_TYPE_PROFILES) as ReleaseType[];
 const RELEASE_WINDOWS = Object.keys(RELEASE_WINDOW_GENRE_BONUS) as ReleaseWindow[];
@@ -39,12 +39,29 @@ export function MarketingRelease() {
   const choices = draft.marketingChoices ?? DEFAULT_CHOICES;
   // The earliest day this film can actually go out - the same fixed
   // marketing-campaign lead time (data/schedule.ts) the old, always-
-  // immediate RELEASE_FILM action already charged; picking exactly this day
-  // reproduces that same-day behavior exactly. Holding for later is the new
-  // capability (roadmap Phase 7.2).
+  // immediate RELEASE_FILM action already charged; picking exactly the
+  // month that day falls in reproduces that same-day behavior exactly
+  // (SCHEDULE_RELEASE's own clamp handles a month whose 1st lands before
+  // this - see state/studioReducer.ts). Holding for later is the new
+  // capability (roadmap Phase 7.2); the underlying day counter never
+  // changes shape, only how it's presented and picked (Year/Month, not an
+  // exact day - see engine/calendar.ts).
   const minReleaseDay = state.totalDays + (STAGE_DURATIONS.marketing ?? 0);
-  const [releaseDay, setReleaseDay] = useState(minReleaseDay);
-  const holdDays = releaseDay - minReleaseDay;
+  const { year: minYear, monthIndex: minMonthIndex } = monthYearOf(minReleaseDay);
+  const [year, setYear] = useState(minYear);
+  const [monthIndex, setMonthIndex] = useState(minMonthIndex);
+  const releaseDay = totalDaysForMonth(year, monthIndex);
+  const holdMonths = (year - minYear) * 12 + (monthIndex - minMonthIndex);
+
+  const yearOptions = Array.from({ length: MAX_HOLD_YEARS + 1 }, (_, i) => minYear + i);
+  const monthOptions = MONTH_NAMES
+    .map((name, i) => ({ name, i }))
+    .filter(({ i }) => year > minYear || i >= minMonthIndex);
+
+  function handleYearChange(newYear: number) {
+    setYear(newYear);
+    if (newYear === minYear && monthIndex < minMonthIndex) setMonthIndex(minMonthIndex);
+  }
 
   useEffect(() => {
     if (!draft.marketingChoices) {
@@ -107,21 +124,35 @@ export function MarketingRelease() {
         <div className="stat-value"><Money amount={marketingCost} /></div>
       </div>
 
-      <RangeSlider
-        label="Release Date"
-        min={minReleaseDay}
-        max={minReleaseDay + MAX_HOLD_DAYS}
-        value={releaseDay}
-        onChange={(v) => setReleaseDay(Math.round(v))}
-        formatValue={formatGameDate}
-        description={
-          holdDays === 0
-            ? 'As soon as the marketing campaign is ready - the earliest possible date.'
-            : `Held ${holdDays} day${holdDays === 1 ? '' : 's'} past the earliest possible date - check the Dashboard's Release Calendar beforehand to see what else is coming out around then.`
-        }
-        lowLabel="Release ASAP"
-        highLabel="Hold for later"
-      />
+      <div className="card stack">
+        <div className="row-between">
+          <h3 style={{ margin: 0 }}>Release Date</h3>
+          <span style={{ fontSize: '0.95em', fontWeight: 700, color: 'var(--primary)' }}>{formatGameMonthYear(releaseDay)}</span>
+        </div>
+        <div className="row" style={{ gap: 12 }}>
+          <label className="stack" style={{ gap: 4 }}>
+            <span className="stat-label">Year</span>
+            <select value={year} onChange={(e) => handleYearChange(Number(e.target.value))}>
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>Year {y}</option>
+              ))}
+            </select>
+          </label>
+          <label className="stack" style={{ gap: 4 }}>
+            <span className="stat-label">Month</span>
+            <select value={monthIndex} onChange={(e) => setMonthIndex(Number(e.target.value))}>
+              {monthOptions.map(({ name, i }) => (
+                <option key={i} value={i}>{name}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p className="choice-description">
+          {holdMonths === 0
+            ? 'As soon as the marketing campaign is ready - the earliest possible month.'
+            : `Held ${holdMonths} month${holdMonths === 1 ? '' : 's'} past the earliest possible date - check the Dashboard's Release Calendar beforehand to see what else is coming out around then.`}
+        </p>
+      </div>
 
       <div className="row-between">
         <div className="row">
@@ -129,7 +160,7 @@ export function MarketingRelease() {
           <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Back to Dashboard</Button>
         </div>
         <Button variant="primary" onClick={() => dispatch({ type: 'SCHEDULE_RELEASE', releaseDay })}>
-          {holdDays === 0 ? 'Release Film' : `Schedule for ${formatGameDate(releaseDay)}`}
+          {holdMonths === 0 ? 'Release Film' : `Schedule for ${formatGameMonthYear(releaseDay)}`}
         </Button>
       </div>
     </div>

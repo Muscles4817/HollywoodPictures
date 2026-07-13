@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { exportFilmHistory } from '../state/exportFilmHistory';
-import { formatGameDate } from '../engine/calendar';
+import { formatGameDate, formatGameMonthYear } from '../engine/calendar';
 import { Button } from './common/Button';
 import { StatTile } from './common/StatTile';
 import { Money } from './common/Money';
@@ -239,7 +239,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
               {scheduledReleases.map(({ draft, releaseDay }) => (
                 <div className="row-between" key={draft.id}>
                   <span>{draft.title || 'Untitled Film'}</span>
-                  <span style={{ color: 'var(--text-muted)' }}>Releasing {formatGameDate(releaseDay)}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Releasing {formatGameMonthYear(releaseDay)}</span>
                 </div>
               ))}
             </div>

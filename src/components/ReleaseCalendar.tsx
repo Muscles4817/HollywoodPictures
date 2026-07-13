@@ -1,5 +1,5 @@
 import { useStudio } from '../state/StudioContext';
-import { formatGameDate } from '../engine/calendar';
+import { formatGameMonthYear } from '../engine/calendar';
 import { Button } from './common/Button';
 import { asScheduled, asRivalProduction } from '../engine/project';
 
@@ -62,7 +62,7 @@ export function ReleaseCalendar() {
       </div>
       <p className="choice-description" style={{ margin: 0 }}>
         Every release still to come - your own scheduled films and what every rival studio currently has in the
-        works, sorted by expected release day. A rival's title is a working guess (announced only once it actually
+        works, sorted by expected release date. A rival's title is a working guess (announced only once it actually
         releases) - only its scale, genre, studio and timing are known ahead of time.
       </p>
 
@@ -74,7 +74,7 @@ export function ReleaseCalendar() {
             <table>
               <thead>
                 <tr>
-                  <th>Release Day</th>
+                  <th>Release Date</th>
                   <th>Title</th>
                   <th>Genre</th>
                   <th>Studio</th>
@@ -83,7 +83,7 @@ export function ReleaseCalendar() {
               <tbody>
                 {entries.map((entry) => (
                   <tr key={entry.id}>
-                    <td>{formatGameDate(entry.releaseDay)}</td>
+                    <td>{formatGameMonthYear(entry.releaseDay)}</td>
                     <td>{entry.isPlayer ? entry.title : <em>{entry.title}</em>}</td>
                     <td>{entry.genre}</td>
                     <td>{entry.studioName}{entry.isPlayer ? ' (you)' : ''}</td>

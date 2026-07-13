@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStudio } from '../state/StudioContext';
-import { formatGameDate } from '../engine/calendar';
+import { formatGameDate, formatGameMonthYear } from '../engine/calendar';
 import { Button } from './common/Button';
 import { StatTile } from './common/StatTile';
 import { Money } from './common/Money';
@@ -72,7 +72,7 @@ export function RivalStudioPage() {
           {inProgress.map((p) => (
             <div className="row-between" key={p.id}>
               <span>{p.scale} {p.genre} film</span>
-              <span style={{ color: 'var(--text-muted)' }}>Expected {formatGameDate(p.releaseDay)}</span>
+              <span style={{ color: 'var(--text-muted)' }}>Expected {formatGameMonthYear(p.releaseDay)}</span>
             </div>
           ))}
         </div>
