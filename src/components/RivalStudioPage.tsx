@@ -66,6 +66,12 @@ export function RivalStudioPage() {
         <StatTile label="Currently In Production" value={inProgress.length} />
       </div>
 
+      <div className="row">
+        <StatTile label="Cash" value={<Money amount={rival.cash} signColor />} />
+        <StatTile label="Brand Recognition" value={`${rival.brand} / 100`} />
+        <StatTile label="Prestige" value={`${rival.prestige} / 100`} />
+      </div>
+
       {inProgress.length > 0 && (
         <div className="card stack">
           <h2 style={{ margin: 0 }}>In Production</h2>

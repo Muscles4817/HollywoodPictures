@@ -635,6 +635,19 @@ export interface RivalStudio {
   tier: StudioTier;
   /** GameState.totalDays threshold - once reached, this studio attempts a new production if it has spare capacity (see engine/rivalStudios.ts). */
   nextSpawnCheckDay: number;
+  // Milestone: AI Studios 2.0 (engine/rivalStudios.ts) - a rival now has the
+  // same real financial stake in its own productions the player's own
+  // Studio does, instead of an unlimited, untracked production pipeline.
+  /** Real, spendable cash - a production is only ever started if its full total commitment (script + talent + production budget + contingency + marketing + test screening) fits under this, same affordability gate GREENLIGHT_PROJECT applies to the player. */
+  cash: number;
+  /** Same Brand Recognition stat the player's Studio has (engine/reputation.ts) - grows/falls from this studio's own films' commercial performance, and feeds this studio's own future Buzz (see resolveRivalProduction), the same feedback loop the player already has. */
+  brand: number;
+  /** Same Prestige stat the player's Studio has - grows/falls from this studio's own films' critical reception alone. Not yet consumed by any formula here either, same documented gap as the player's own Prestige (docs/DESIGN.md 5.39). */
+  prestige: number;
+  /** Cumulative studioRevenue this studio has ever been credited from box office - debugging/display only (components/dev/RivalFinancesInspector.tsx), never itself read by any formula. */
+  lifetimeRevenue: number;
+  /** Cumulative amount this studio has ever committed to starting productions - debugging/display only, same as lifetimeRevenue. */
+  lifetimeExpenditure: number;
 }
 
 /**

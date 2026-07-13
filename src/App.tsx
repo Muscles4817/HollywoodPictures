@@ -10,6 +10,7 @@ import { StatsPage } from './components/StatsPage';
 import { ReleaseCalendar } from './components/ReleaseCalendar';
 import { RecommendationInspector } from './components/dev/RecommendationInspector';
 import { OutcomeInspector } from './components/dev/OutcomeInspector';
+import { RivalFinancesInspector } from './components/dev/RivalFinancesInspector';
 import { Button } from './components/common/Button';
 import { DevelopFilm } from './components/wizard/DevelopFilm';
 import { HireTalent } from './components/wizard/HireTalent';
@@ -222,12 +223,15 @@ function Screens() {
   );
 }
 
-type DevTool = 'none' | 'recommendation' | 'outcome';
+type DevTool = 'none' | 'recommendation' | 'outcome' | 'rival-finances';
 
 function App() {
   // A developer-only detour, not part of the game's own screen/navigation
-  // system on purpose (see components/dev/RecommendationInspector.tsx and
-  // components/dev/OutcomeInspector.tsx) - never touches GameState, never
+  // system on purpose (see components/dev/RecommendationInspector.tsx,
+  // components/dev/OutcomeInspector.tsx and
+  // components/dev/RivalFinancesInspector.tsx) - never mutates GameState
+  // (RivalFinancesInspector reads it read-only, to inspect a real save;
+  // Recommendation/Outcome Inspector don't touch it at all), never
   // persisted, reachable from any screen.
   const [devTool, setDevTool] = useState<DevTool>('none');
 
@@ -241,6 +245,7 @@ function App() {
             <>
               <Button onClick={() => setDevTool('recommendation')}>Dev: Recommendation Inspector</Button>
               <Button onClick={() => setDevTool('outcome')}>Dev: Outcome Inspector</Button>
+              <Button onClick={() => setDevTool('rival-finances')}>Dev: Rival Finances</Button>
             </>
           ) : (
             <Button onClick={() => setDevTool('none')}>Back to Game</Button>
@@ -248,6 +253,7 @@ function App() {
         </div>
         {devTool === 'recommendation' && <RecommendationInspector />}
         {devTool === 'outcome' && <OutcomeInspector />}
+        {devTool === 'rival-finances' && <RivalFinancesInspector />}
         {devTool === 'none' && <Screens />}
       </StudioProvider>
     </ErrorBoundary>

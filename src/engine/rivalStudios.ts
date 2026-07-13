@@ -17,7 +17,8 @@ import { generateScriptOptions } from './scriptGenerator';
 import { computeRecommendedShootDays } from './production';
 import { computeReleaseResults } from './releaseFilm';
 import { settleBoxOfficeForAllFilms } from './boxOfficeRun';
-import { computeDailyContingencyBurn } from './cost';
+import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
+import { applyStatChange } from './reputation';
 import { findCandidatesNearPrice } from './talentFilter';
 import { logAmount } from './interpolate';
 import { STAGE_DURATIONS } from '../data/schedule';
@@ -61,6 +62,38 @@ const SPAWN_CHECK_INTERVAL_DAYS: Record<StudioTier, [number, number]> = {
 };
 
 const INITIAL_ROSTER_TIERS: StudioTier[] = ['Indie', 'Indie', 'Mid-Size', 'Mid-Size', 'Major', 'Major'];
+
+// Milestone: AI Studios 2.0 - starting cash per tier. Calibrated against a
+// scratch diagnostic sampling real total-commitment costs (script + talent +
+// production budget + contingency + marketing + test screening, the same
+// formula startRivalProduction's affordability check uses below) across 20
+// productions per scale from the real generation functions: Small averaged
+// ~£1.5M (range £0.95M-£2.7M), Medium ~£8.3M (£2.9M-£17.5M), Big ~£70M
+// (£20M-£172M, log-scale spend ranges make the top of Big genuinely
+// blockbuster-priced). Set generously above what each tier's normal cadence
+// needs (Indie only ever runs one Small at a time; Mid-Size one Big OR up to
+// three Medium; Major up to two Big and four Medium at once) so the
+// affordability gate rarely binds in ordinary play - occasional throttling
+// right after a fresh game start, before any box-office revenue has come in
+// and a tier is attempting to fill every production slot at once, is
+// expected and intentional (see this milestone's "Cash Recovery" note in
+// docs/DESIGN.md), not a bug to tune away.
+const STARTING_CASH_BY_TIER: Record<StudioTier, number> = {
+  Indie: 6_000_000,
+  'Mid-Size': 40_000_000,
+  Major: 180_000_000,
+};
+
+// Flavor, not balance - a Major studio has already been making films for
+// years before the player's own studio exists, so it starts already
+// meaningfully known and respected, unlike the player's own fresh
+// Studio.brand/prestige (both 20, gameState.ts:createInitialStudio) or a
+// brand-new Indie rival. Both still grow/fall from the same
+// computeBrandChange/computePrestigeChange formulas as any other studio
+// (see resolveRivalProduction/settleRivalBoxOffice below) - this is only
+// the starting point.
+const STARTING_BRAND_BY_TIER: Record<StudioTier, number> = { Indie: 25, 'Mid-Size': 45, Major: 70 };
+const STARTING_PRESTIGE_BY_TIER: Record<StudioTier, number> = { Indie: 25, 'Mid-Size': 40, Major: 55 };
 
 // Roadmap Phase 7.4: a new production nudges its naive release day forward,
 // one day at a time, while it's within this many days of another release
@@ -112,6 +145,11 @@ export function generateRivalStudios(rng: RandomFn): RivalStudio[] {
       name: name || `Rival Studio ${i + 1}`,
       tier,
       nextSpawnCheckDay: 1 + randInt(rng, 0, SPAWN_CHECK_INTERVAL_DAYS[tier][1]),
+      cash: STARTING_CASH_BY_TIER[tier],
+      brand: STARTING_BRAND_BY_TIER[tier],
+      prestige: STARTING_PRESTIGE_BY_TIER[tier],
+      lifetimeRevenue: 0,
+      lifetimeExpenditure: 0,
     };
   });
 }
@@ -155,8 +193,29 @@ export function startableScales(tier: StudioTier, current: RivalProductionInProg
  * reserve real talent-pool candidates (bookedUntil) for a believable
  * window and know what to resolve into a Film once releaseDay arrives.
  * Returns null if there genuinely isn't enough available talent for some
- * mandatory role right now (the shared pool is temporarily tapped out) -
- * the caller just tries again at this studio's next spawn check.
+ * mandatory role right now (the shared pool is temporarily tapped out), OR
+ * (Milestone: AI Studios 2.0) if `rival` can't afford the production's full
+ * total commitment - either way the caller just tries again at this
+ * studio's next spawn check, same "skip the attempt" fallback either
+ * failure already used before affordability existed.
+ *
+ * The commitment is every real cost this production will ever incur,
+ * charged once, in full, right here: script cost (mirrors what
+ * ACQUIRE_OPPORTUNITY charges the player for a screenplay - rivals don't
+ * go through the Opportunity/Asset pipeline, see docs/DESIGN_REVIEW_development_pipeline.md,
+ * so this charges the same underlying script.cost directly rather than
+ * fabricating a rival-only Opportunity source), talent salaries + production
+ * budget + the full contingency reserve (exactly GREENLIGHT_PROJECT's own
+ * upfrontCharge formula, state/studioReducer.ts), and marketing + test
+ * screening cost (mirrors what SCHEDULE_RELEASE charges the player as the
+ * release-time remainder). A live player production spreads those charges
+ * across three separate decisions (acquire, greenlight, release) with a
+ * contingency-reserve-vs-actual-burn reconciliation at FINISH_PHOTOGRAPHY in
+ * between; a rival production is resolved in one synthesized step
+ * (resolveRivalProduction) with no live shoot to reconcile against, so this
+ * folds every one of those charges into the single real decision point a
+ * rival actually has - deliberately not a full mechanical replica of the
+ * player's own multi-stage cash flow, just its total.
  */
 function startRivalProduction(
   rival: RivalStudio,
@@ -165,7 +224,7 @@ function startRivalProduction(
   talentPool: Record<TalentRole, Talent[]>,
   knownReleaseDays: number[],
   rng: RandomFn,
-): { production: RivalProductionInProgress; talentPool: Record<TalentRole, Talent[]> } | null {
+): { production: RivalProductionInProgress; talentPool: Record<TalentRole, Talent[]>; cost: number } | null {
   const genre = pick(rng, GENRES);
   const script = generateScriptOptions(genre, rng, 1)[0];
   const spendT = randFloat(rng, ...SCALE_SPEND_RANGE[scale]);
@@ -203,6 +262,15 @@ function startRivalProduction(
     releaseWindow: pick(rng, RELEASE_WINDOWS),
   };
 
+  const cost =
+    script.cost +
+    computeTalentCost(talent) +
+    computeProductionBudgetCost(productionChoices) +
+    productionChoices.contingencyAmount +
+    computeMarketingCost(marketingChoices) +
+    TEST_SCREENING_PROFILES[postProductionChoices.testScreeningResponse].cost;
+  if (cost > rival.cash) return null;
+
   const recommendedDays = computeRecommendedShootDays(talent, script, productionChoices);
   const naiveReleaseDay = totalDays + NON_SHOOT_STAGE_DAYS + recommendedDays;
   // Roadmap Phase 7.4 - reads the shared calendar (the player's own
@@ -230,6 +298,7 @@ function startRivalProduction(
       releaseDay,
     },
     talentPool: updatedPool,
+    cost,
   };
 }
 
@@ -240,9 +309,12 @@ function startRivalProduction(
  * Opening Weekend and legs are computed identically, just from a
  * synthesized shoot instead of a lived one. `shootingRatio` is rolled
  * within a plausible band rather than tracked live, since nobody watches a
- * rival's production happen day by day.
+ * rival's production happen day by day. `studioBrand` (Milestone: AI
+ * Studios 2.0) is this rival's own current Brand - the same feedback loop
+ * the player's own Buzz already has, not a flat industry-average stand-in
+ * any more.
  */
-function resolveRivalProduction(production: RivalProductionInProgress, rivalStudioName: string, rng: RandomFn): Film {
+function resolveRivalProduction(production: RivalProductionInProgress, rivalStudioName: string, studioBrand: number, rng: RandomFn): Film {
   const shootingRatio = clamp(randFloat(rng, 0.85, 1.25), 0.5, 2);
   const recommendedDays = computeRecommendedShootDays(production.talent, production.script, production.productionChoices);
   const dailyBurn = computeDailyContingencyBurn(production.productionChoices.contingencyAmount, recommendedDays);
@@ -261,7 +333,7 @@ function resolveRivalProduction(production: RivalProductionInProgress, rivalStud
       events: [],
       photographyCost,
       shootingRatio,
-      studioBrand: 50, // rivals don't carry their own persistent Brand/Prestige - a flat industry-average stand-in for Buzz
+      studioBrand,
     },
     rng,
   );
@@ -299,12 +371,70 @@ export interface RivalMarketUpdate {
 }
 
 /**
+ * Settles box office per rival studio, not once across every rival
+ * combined - engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms returns one
+ * aggregate cashCredit/brandDelta/prestigeDelta for whatever list it's
+ * given, so crediting the right studio means grouping first (by
+ * `Film.releasedBy`, the only rival-studio correlation a resolved Film
+ * carries - see resolveRivalProduction). A studio with no films this call
+ * (nothing in `allRivalFilms` matches its name) is returned untouched.
+ * Reuses settleBoxOfficeForAllFilms exactly, per group - same weekly
+ * settlement, same finished-run brand/prestige computation the player's own
+ * films get, just attributed to the studio that actually earned it instead
+ * of discarded (Milestone: AI Studios 2.0 - previously every rival's box
+ * office ran through this same function with its cash/brand/prestige output
+ * simply thrown away, since no rival carried any of those yet).
+ */
+function settleRivalBoxOffice(
+  rivalStudios: RivalStudio[],
+  allRivalFilms: Film[],
+  totalDays: number,
+): { rivalStudios: RivalStudio[]; filmsReleased: Film[] } {
+  const filmsByStudioName = new Map<string, Film[]>();
+  for (const film of allRivalFilms) {
+    const key = film.releasedBy ?? '';
+    const list = filmsByStudioName.get(key);
+    if (list) list.push(film);
+    else filmsByStudioName.set(key, [film]);
+  }
+
+  const settledById = new Map<string, Film>();
+  const rivalStudiosAfter = rivalStudios.map((rival) => {
+    const studioFilms = filmsByStudioName.get(rival.name);
+    if (!studioFilms || studioFilms.length === 0) return rival;
+    const settlement = settleBoxOfficeForAllFilms(studioFilms, totalDays);
+    for (const film of settlement.filmsReleased) settledById.set(film.id, film);
+    return {
+      ...rival,
+      cash: rival.cash + settlement.cashCredit,
+      brand: applyStatChange(rival.brand, settlement.brandDelta),
+      prestige: applyStatChange(rival.prestige, settlement.prestigeDelta),
+      lifetimeRevenue: rival.lifetimeRevenue + settlement.cashCredit,
+    };
+  });
+
+  return {
+    rivalStudios: rivalStudiosAfter,
+    // Preserves allRivalFilms' own order rather than the grouped-by-studio
+    // order settledById was built in - nothing downstream should care about
+    // rival film order, but there's no reason to reshuffle it either.
+    filmsReleased: allRivalFilms.map((f) => settledById.get(f.id) ?? f),
+  };
+}
+
+/**
  * The whole rival-market tick: resolve anything that's released, settle
- * every rival film's box office (reusing engine/boxOfficeRun.ts exactly -
- * its cash/brand/prestige output is simply discarded here, since none of it
- * is the player's), then let any studio whose spawn-check day has arrived try
- * to start a new production if it has spare capacity. Called from the same
- * places engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms is (see
+ * every rival studio's own box office (crediting cash/brand/prestige to the
+ * studio that actually earned it - settleRivalBoxOffice above), then let
+ * any studio whose spawn-check day has arrived try to start a new
+ * production if it has spare capacity AND (Milestone: AI Studios 2.0) can
+ * actually afford it - startRivalProduction returns null and this loop
+ * falls back to just updating nextSpawnCheckDay exactly the way it already
+ * did for a talent-pool shortage, so an unaffordable studio naturally sits
+ * out this attempt and tries again at its next spawn check once box office
+ * revenue (or a wrapped production freeing up capacity) has had a chance to
+ * change the picture. Called from the same places
+ * engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms is (see
  * state/studioReducer.ts) - every action that can advance GameState.totalDays.
  * Takes a `RivalMarketUpdate`-shaped `current` rather than a `Studio` -
  * rivalStudios/rivalProductionsInProgress/rivalFilmsReleased are world-level
@@ -326,15 +456,16 @@ export function settleRivalMarket(
 ): RivalMarketUpdate {
   const due = current.rivalProductionsInProgress.filter((p) => p.releaseDay <= totalDays);
   const stillInProgress = current.rivalProductionsInProgress.filter((p) => p.releaseDay > totalDays);
-  const newlyReleased = due.map((p) =>
-    resolveRivalProduction(p, current.rivalStudios.find((r) => r.id === p.rivalStudioId)?.name ?? 'A Rival Studio', rng),
-  );
+  const newlyReleased = due.map((p) => {
+    const rival = current.rivalStudios.find((r) => r.id === p.rivalStudioId);
+    return resolveRivalProduction(p, rival?.name ?? 'A Rival Studio', rival?.brand ?? 50, rng);
+  });
 
-  const afterBoxOffice = settleBoxOfficeForAllFilms([...current.rivalFilmsReleased, ...newlyReleased], totalDays);
+  const afterBoxOffice = settleRivalBoxOffice(current.rivalStudios, [...current.rivalFilmsReleased, ...newlyReleased], totalDays);
 
   let talentPool = current.talentPool;
   let productionsInProgress = stillInProgress;
-  const rivalStudios = current.rivalStudios.map((rival) => {
+  const rivalStudios = afterBoxOffice.rivalStudios.map((rival) => {
     if (rival.nextSpawnCheckDay > totalDays) return rival;
     const nextSpawnCheckDay = totalDays + randInt(rng, ...SPAWN_CHECK_INTERVAL_DAYS[rival.tier]);
     const currentForThisStudio = productionsInProgress.filter((p) => p.rivalStudioId === rival.id);
@@ -346,7 +477,12 @@ export function settleRivalMarket(
     if (!started) return { ...rival, nextSpawnCheckDay };
     productionsInProgress = [...productionsInProgress, started.production];
     talentPool = started.talentPool;
-    return { ...rival, nextSpawnCheckDay };
+    return {
+      ...rival,
+      nextSpawnCheckDay,
+      cash: rival.cash - started.cost,
+      lifetimeExpenditure: rival.lifetimeExpenditure + started.cost,
+    };
   });
 
   return {

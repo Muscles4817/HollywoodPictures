@@ -147,7 +147,14 @@ import { randomSeed, withRng } from '../engine/random';
 // FilmResults.reputationChange was likewise split into brandChange/
 // prestigeChange. A v28 save has neither field in their new shape - no
 // migration code, same as every past shape change here.
-const SAVE_KEY = 'hollywood-pictures-save-v29';
+// v29 -> v30 (docs/DESIGN.md - "AI Studios 2.0"): RivalStudio gained
+// required cash/brand/prestige/lifetimeRevenue/lifetimeExpenditure -
+// rivals now obey the same real financial constraints and carry the same
+// Brand/Prestige stats the player's own Studio does, instead of an
+// unlimited, untracked production pipeline. A v29 save's rivalStudios
+// entries have none of these fields - no migration code, same as every
+// past shape change here.
+const SAVE_KEY = 'hollywood-pictures-save-v30';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
