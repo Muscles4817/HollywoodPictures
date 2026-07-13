@@ -340,7 +340,11 @@ A first-match-wins decision tree on `profitRatio = profit / totalCost`:
 5. `profitRatio > 0.8` -> **Hit**
 6. else -> **Modest Success**
 
-### 5.6 Reputation (`engine/reputation.ts`)
+### 5.6 Reputation (`engine/reputation.ts`) - superseded, see 5.39
+
+**This single-stat formula no longer runs - the single `Studio.reputation`
+value was replaced by two independent stats, Brand Recognition and
+Prestige, in 5.39.** Kept below for historical reference only.
 
 Flat delta per outcome (Flop -8, Cult Hit +2, Modest Success +3, Hit +6,
 Blockbuster +10, Masterpiece +15) plus a small critic-score nudge
@@ -4905,6 +4909,159 @@ was written** (the implementing commits themselves predate this review):
   in `OpportunityMarket.tsx`/`ReleaseCalendar.tsx` themselves remains
   untested - flagged, not fixed, as outside a review pass's own scope.
 
+### 5.39 Brand Recognition and Prestige - splitting the single Reputation stat (`engine/reputation.ts`, `engine/outcome.ts`, `types/index.ts`)
+
+**The single `Studio.reputation` (0-100) was replaced by two independent
+long-term stats, `Studio.brand` and `Studio.prestige`.** A studio's real-world
+reputation isn't one thing - Disney/Blumhouse are high Brand, comparatively
+lower Prestige; A24 is the reverse; Peak Warner Bros./Universal are high in
+both; a brand-new indie studio starts low in both. One number quietly forced
+every studio down the same axis; this milestone gives the player two
+genuinely different goals to chase, matching the design brief that opened
+this milestone.
+
+- **Brand Recognition** - how well known and commercially bankable the studio
+  is with general audiences. Grows from strong box office performance,
+  slowly erodes from commercial flops. Feeds pre-release Buzz/marketing
+  mechanics, never critic-facing ones.
+- **Prestige** - how respected the studio is within the industry and by
+  critics. Grows from critical reception alone, independent of whether the
+  film made money - a beloved flop still builds real Prestige.
+
+**Why not route through `OutcomeLabel` (5.5)?** The old
+`computeReputationChange(outcome, criticScore)` took the outcome label *and*
+a separate critic-score nudge on top of it - but `OutcomeLabel` itself
+already blends profit and critical signals into one lossy category ("Hit"
+discards `audienceScore` entirely; "Masterpiece" discards `profitRatio`
+entirely). Reusing it as an input would have meant Brand and Prestige both
+partly reading the same blended, already-lossy signal, undermining the
+whole point of separating them. Instead, `computeBrandChange`/
+`computePrestigeChange` (`engine/reputation.ts`) are computed straight from
+the underlying numbers (`profit`, `totalCost`, `audienceScore`,
+`criticScore`) via a new shared `computeProfitRatio` (`engine/outcome.ts`,
+extracted so `determineOutcome` and `computeBrandChange` can never disagree
+about the divide-by-zero guard). `OutcomeLabel`/`determineOutcome` itself is
+completely unchanged - still the player-facing narrative label, just no
+longer what reputation math is computed *from*.
+
+```
+profitRatio = profit / totalCost (0 if totalCost <= 0)
+
+computeBrandChange(profit, totalCost, audienceScore):
+  base = profitRatio <= -0.3  ? -8   // mirrors determineOutcome's own Flop threshold
+       : profitRatio <  0.15 ? -2
+       : profitRatio <  0.8  ? +3
+       : profitRatio <= 2.5  ? +7
+       :                       +11
+  audienceAdjustment = round((audienceScore - 50) / 20)   // -2..+2
+  return base + audienceAdjustment                         // ~ -10..+13
+
+computePrestigeChange(criticScore):
+  return round((criticScore - 50) / 5)                     // -10..+10, symmetric around a 50 (average) review
+
+applyStatChange(current, change) = clamp(current + change, 0, 100)   // shared by both stats
+```
+
+Brand deliberately has **no "Masterpiece" tier** the way the old single-stat
+formula did - a beloved, low-budget arthouse hit growing Brand as much as a
+true blockbuster would blur the exact distinction Brand/Prestige exists to
+draw. Prestige deliberately never reads `profit` or `audienceScore` at all.
+Independence verified directly in `engine/reputation.test.ts` (a beloved
+flop grows Prestige while Brand falls; a profitable-but-panned film grows
+Brand while Prestige falls; both stats clamp to [0, 100] independently).
+
+**Audit: every existing consumer of the old single `Studio.reputation` /
+`studioReputation`, and what it became.**
+
+| Usage site | Was reading it for | Classification | Why |
+| --- | --- | --- | --- |
+| `engine/scoring.ts:computeBuzzScore` (`reputationBuzz` term) | Pre-release hype sizing | **Brand** (`studioBrand`, term renamed `brandBuzz`) | Hype is "have people heard of this studio" - a commercial-recognition question, not a critical-esteem one. |
+| `engine/audienceSimulationInputs.ts:computeMarketingEfficiency` | How far a marketing pound reaches | **Brand** (`studioBrand`) | An A24-shaped (high-Prestige, low-Brand) studio shouldn't get a marketing-efficiency boost just for being well-reviewed. |
+| `engine/audienceSimulationInputs.ts:computeReleaseStrength` (`RELEASE_STRENGTH_REPUTATION_WEIGHT`) | Wide release's earned rollout ceiling | **Brand** (renamed `RELEASE_STRENGTH_BRAND_WEIGHT`) | Same reasoning as marketing efficiency - it's one of that formula's own two inputs. |
+| `engine/releaseFilm.ts:ReleaseComputationInput.studioReputation` | Pass-through to the two formulas above | **Brand** (`studioBrand`) | Pure plumbing, inherits its consumers' classification. |
+| `engine/scheduledReleases.ts:settleScheduledReleases` | Same pass-through, for a release resolved later than it was scheduled | **Brand** (`studioBrand`) | Same reasoning - proven fresh-at-resolution-time by `scheduledReleases.test.ts`. |
+| `engine/rivalStudios.ts` (`studioReputation: 50` flat stand-in) | A rival's Buzz calculation - rivals don't carry persistent reputation | **Brand** (`studioBrand: 50`) | Still just feeding Buzz; rivals having no persistent Brand/Prestige of their own is unchanged, out of scope here. |
+| `engine/audienceSimulationReporting.ts` (`REPRESENTATIVE_SCENARIO_MATRIX` fixture data) | Diagnostic scenario inputs | **Brand** (`studioBrand`) | Fixture data for the same Brand-only formulas above. |
+| `state/studioReducer.ts` (5 call sites feeding `settleScheduledReleases`) | Same pass-through at the reducer boundary | **Brand** (`state.studio.brand`) | Same reasoning. |
+| `state/studioReducer.ts:applyBoxOfficeSettlement` | Folding a settlement's reputation delta into `Studio` | **Both** (`applyStatChange` called once per stat) | This is the *write* side - both stats change here, from their own independently-computed deltas. |
+| `state/exportFilmHistory.ts` | Debug export of studio state | **Both** (`brand`/`prestige` fields) | A read-only dump - no reason to drop either. |
+| `state/persistence.ts` (`SAVE_KEY`) | Persisted shape | **Both** (v28 -> v29 bump) | Both fields are new required `Studio` fields; no migration, same as every past shape break here. |
+| Dashboard/`ReleaseResults`/`BoxOfficeFinishedPopup`/`OutcomeInspector` (UI) | Surfacing the stat(s) to the player | **Both** (separate tiles/rows for each) | The whole point of this milestone is making the split visible - see below. |
+| `DifficultyPicker`/`GameGuide` (UI copy) | Explaining what a reset wipes / how the mechanic works | **Both** (copy rewritten, not just word-swapped) | Same reasoning; `GameGuide`'s closing section was rewritten to actually explain the split (Buzz section explicitly notes Prestige does *not* feed it). |
+| `data/audiences.ts` (Critics target audience description) | Flavor text ("...boost reputation more with this crowd") | **Prestige** (text only) | Critics-leaning audiences are explicitly a critical-reception crowd - the copy now says so accurately. |
+| `state/gameState.ts:CompletedFilmRecord` | (dead code - confirmed via grep never constructed or consumed anywhere) | **Neither** (deleted) | Nothing to migrate; a stale, disconnected type isn't worth carrying forward through the rename. |
+
+**No usage site turned out to be genuinely "Both" on the *read* side** - every
+formula that consumed the old value was already, on inspection, a
+commercial/Buzz-adjacent mechanic; nothing critic-adjacent ever read it. That
+means **Prestige currently has real, tested growth mechanics but zero
+consuming formulas** - by design, matching this project's "compute and track
+now, wire in later" precedent (`commercialProfile.crossoverPotential` was
+computed and tested for a full milestone, 5.35, before being wired into
+`crossoverCapacityFraction` in 5.34's Milestone 12) and the brief's own
+explicit exclusion of Awards from this pass. The natural first consumer is an
+awards system reading Prestige as a nomination-likelihood input - not built
+here, tracked in section 8.
+
+**Before/after**, same film, three shapes:
+
+| Film | Old (single Reputation) | New (Brand / Prestige) |
+| --- | --- | --- |
+| Profitable blockbuster, mixed reviews (profitRatio 3.0, criticScore 55, audienceScore 75) | outcome "Blockbuster" -> +10 reputation, +1 critic nudge = **+11** | Brand **+12** (blockbuster band +11, audience +1), Prestige **+1** (barely above average) |
+| Beloved flop / "Cult Hit" (profitRatio 0.1, criticScore 88, audienceScore 60) | outcome "Cult Hit" -> +2 reputation, +4 critic nudge = **+6** (commercial failure barely registers) | Brand **-1** (weak band -2, audience +1) - reads as a real commercial miss; Prestige **+8** - reads as a real critical win |
+| Profitable but panned (profitRatio 1.0, criticScore 20, audienceScore 45) | outcome "Hit" -> +6 reputation, -3 critic nudge = **+3** (the panning is barely visible) | Brand **+7** (hit band, audience 0) - the money is real; Prestige **-6** - the panning is real, not diluted by the profit |
+
+The old system's headline failure, visible in the second and third rows: a
+single number always let one signal dilute the other. The new system lets
+both be true at once - a film can (correctly) tank Prestige while growing
+Brand, or vice versa, in the same release.
+
+#### Investigated but deferred: a persistent Asset market
+
+Alongside the Brand/Prestige split, this milestone's brief asked whether the
+`Opportunity` market should become persistent - specifically, whether an
+Asset an AI rival acquires and later abandons could re-enter the market for
+the player to acquire. **Investigated and deliberately not implemented this
+milestone** - it fails the brief's own "is this straightforward" test.
+
+What exists today: `Opportunity` (`types/index.ts`) is world-level and
+strictly time-limited - `engine/opportunities.ts:settleOpportunities` only
+ever expires and discards an opportunity past its `expiresOnDay`, there is no
+re-listing path at all. `Asset` is Studio-private and permanent once
+acquired - the type's own doc comment is explicit that, unlike
+Talent/Opportunity, "nobody else's Studio can reach into this list." Critically,
+**AI rival studios have no Asset-library concept whatsoever**:
+`engine/rivalStudios.ts` generates rival scripts directly via
+`generateScriptOptions`, completely bypassing the shared `Opportunity` pool,
+and `resolveRivalProduction` always resolves a rival production to a release
+- there is no rival project-abandonment path to trigger a re-listing from,
+and no `SELL_ASSET` action exists for anyone, player or rival.
+
+Making the brief's own example scenario ("AI studio buys a screenplay,
+abandons the project years later, sells the asset, it re-enters the market")
+real would require building, from scratch, three new subsystems, not
+extending an existing one:
+
+1. **Rival Asset ownership** - rivals would need their own `Asset[]`,
+   acquiring from `Opportunity` the same way the player does, instead of
+   generating scripts directly.
+2. **An abandonment probability model** - some periodic check on a rival's
+   in-progress or shelved projects that can decide to cancel rather than
+   always resolving to a release.
+3. **A sell-back / re-listing mechanic** - turning an abandoned `Asset` back
+   into a new `Opportunity` (open design question: does it keep its
+   original identity/history, e.g. "previously optioned by Meridian
+   Pictures," or generate fresh, and does its price reflect having aged?).
+
+None of these are a small extension of what's there; each is a genuine new
+mechanic in its own right, several with open design questions this brief
+didn't answer (abandonment odds, pricing on re-entry, whether history is
+preserved and shown to the player). Recommended as its own future milestone,
+most naturally paired with whatever eventually gives rival studios more
+autonomous decision-making generally (an abandonment model is one small step
+from a rival deciding *not* to greenlight in the first place, or to
+prioritize one shelved project over another) - not bolted onto this one.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
@@ -5030,6 +5187,26 @@ quietly leaving implicit:
   - its value is easier to pin down now that real competition (5.24) gives
   "getting to a candidate before a rival does" actual stakes, but the
   mechanic itself isn't scoped yet.
+- **Prestige (5.39) has real, tested growth mechanics but no consuming
+  formula yet.** Deliberately deferred, not an oversight - the brief that
+  introduced Brand/Prestige explicitly excluded Awards from that pass, and
+  Prestige's most natural first consumer is exactly that: an awards system
+  reading accumulated Prestige as a nomination-likelihood input. Until
+  something reads it, Prestige is honestly just a tracked number the player
+  can watch trend up or down from critical reception alone - real
+  information, just not yet acted on by any mechanic, the same "compute and
+  track now, wire in later" gap `commercialProfile.crossoverPotential` sat
+  in for a full milestone (5.35) before 5.34's Milestone 12 wired it in.
+- **A persistent Asset market (Assets an AI rival abandons re-entering the
+  Opportunity pool) was investigated and deliberately deferred - see 5.39's
+  own subsection for the full writeup.** Not a small extension of the
+  current model: rivals have no Asset-library concept at all today
+  (`engine/rivalStudios.ts` generates scripts directly, bypassing
+  `Opportunity` entirely) and never abandon a production in progress
+  (`resolveRivalProduction` always resolves to a release), so this would
+  need three new subsystems built from scratch - rival Asset ownership, an
+  abandonment-probability model, and a sell-back/re-listing mechanic - not
+  one change to `engine/opportunities.ts`.
 - **No postmortem beat connecting named on-set events back to the Results
   screen.** `draft.events` already carries which specific templates fired
   during production (5.9), and `storyReport.ts` (5.13) already proved the
