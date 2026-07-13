@@ -1,6 +1,39 @@
-import type { Film, FilmDraft, Genre, Studio, TalentRole } from '../types';
+import type { Film, FilmDraft, Genre, Project, Studio, TalentRole } from '../types';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { TEST_SCREENING_PROFILES } from '../data/postProduction';
+import { playerDraftToProject, rivalProductionToProject, filmToProject } from '../engine/project';
+import type { GameState } from './gameState';
+
+/**
+ * A temporary compatibility layer for the architecture roadmap's Phase 4:
+ * presents the still-fragmented storage (GameState.draft,
+ * Studio.productionsInProgress, GameState.rivalProductionsInProgress,
+ * Studio.filmsReleased, GameState.rivalFilmsReleased) as one flat
+ * Project[] list, so read-only consumers can migrate to the target shape
+ * before Phase 5 flips the actual source of truth. Computed fresh on every
+ * read, never stored - same "derive, don't duplicate" discipline this file
+ * already uses for its Stats-page aggregates. Deleted once Phase 5 makes
+ * GameState.projects the real field (at which point consumers here just
+ * read that directly).
+ */
+export function deriveProjectsView(state: GameState): Project[] {
+  // A draft with `results` set has already been released by RELEASE_FILM -
+  // it stays populated afterward purely so ReleaseResults.tsx still has
+  // something to show (docs/DESIGN.md), not because it's still "in
+  // progress." The real, canonical record of that same film already exists
+  // in studio.filmsReleased; counting the draft here too would double it.
+  const liveDraft = state.draft && state.draft.results === null ? state.draft : null;
+  const playerInProgress = [
+    ...(liveDraft ? [liveDraft] : []),
+    ...state.studio.productionsInProgress,
+  ].map(playerDraftToProject);
+  const rivalInProgress = state.rivalProductionsInProgress.map(rivalProductionToProject);
+  const released = [
+    ...state.studio.filmsReleased,
+    ...state.rivalFilmsReleased,
+  ].map(filmToProject);
+  return [...playerInProgress, ...rivalInProgress, ...released];
+}
 
 /**
  * Sums whatever costs aren't reflected in studio.cash yet for the film in
