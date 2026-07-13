@@ -1540,8 +1540,10 @@ function `RELEASE_FILM` calls for the player - with a randomly rolled
 `BoxOfficeRun` the same way. Because a rival film is a literal `Film`
 object, it drops straight into `engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms`
 unchanged - the same weekly settlement, the same `BoxOfficeChart`, the same
-`FilmDetailModal` - the only difference is its `cashCredit`/`reputationDelta`
-output is discarded, since none of it is the player's money or reputation.
+`FilmDetailModal`. **As of 5.40, its `cashCredit`/`brandDelta`/`prestigeDelta`
+output is credited to the rival studio that actually earned it, not
+discarded** - at the time this milestone shipped, rivals carried no cash or
+reputation of their own at all, so there was nothing yet to credit it to.
 
 **Talent locking via `Talent.bookedUntil`.** When a rival casts someone,
 that specific pool entry gets `bookedUntil = releaseDay`. Reading it is a
@@ -5061,6 +5063,148 @@ most naturally paired with whatever eventually gives rival studios more
 autonomous decision-making generally (an abandonment model is one small step
 from a rival deciding *not* to greenlight in the first place, or to
 prioritize one shelved project over another) - not bolted onto this one.
+
+### 5.40 AI Studios 2.0 - real financial constraints (`engine/rivalStudios.ts`, `types/index.ts`, `components/RivalStudioPage.tsx`, `components/dev/RivalFinancesInspector.tsx`)
+
+**Explicitly an incremental refactor, not a redesign.** Since 5.24, a rival
+studio's production heuristic (which scale it attempts, how many it runs
+concurrently, how often it checks) has run with an unlimited, untracked
+production pipeline - no `RivalStudio` ever had cash, and every film's own
+`cashCredit`/`brandDelta`/`prestigeDelta` was computed correctly by
+`settleBoxOfficeForAllFilms` and then simply thrown away, since there was
+nothing to credit it to. This milestone gives rivals the same two things the
+player's own `Studio` has - real cash, and the Brand/Prestige split from
+5.39 - and makes every production a genuine cash commitment, gated by
+affordability, exactly the way `GREENLIGHT_PROJECT` already gates the
+player. **Nothing about *which* productions a rival attempts changed** -
+`startableScales`'s per-tier capacity table, `SPAWN_CHECK_INTERVAL_DAYS`,
+and the scale-to-price-band mapping are all untouched; the only new
+behavior is that an attempt can now fail for a reason besides "not enough
+available talent."
+
+**`RivalStudio` gained five fields**: `cash`, `brand`, `prestige`,
+`lifetimeRevenue`, `lifetimeExpenditure` (the latter two debugging/display
+only - see `components/dev/RivalFinancesInspector.tsx` below - never read
+by any formula). Starting values are per-tier constants in
+`engine/rivalStudios.ts`:
+
+| Tier | Starting cash | Starting Brand | Starting Prestige |
+| --- | --- | --- | --- |
+| Indie | £6,000,000 | 25 | 25 |
+| Mid-Size | £40,000,000 | 45 | 40 |
+| Major | £180,000,000 | 70 | 55 |
+
+Brand/Prestige starting points are flavor, not balance - a Major has
+already been making films for years before the player's own studio exists,
+so it starts already meaningfully known and respected (Peak-Warner-Bros-
+shaped), unlike the player's own fresh `Studio.brand`/`.prestige` (both 20,
+`gameState.ts:createInitialStudio`) or a brand-new Indie rival. Both grow
+from the exact same `computeBrandChange`/`computePrestigeChange` formulas
+as any other studio from there.
+
+Starting cash was calibrated against a scratch diagnostic (not kept -
+sampled real `generateScriptOptions`/`generateTalentCandidates`/cost
+functions 20 times per scale) measuring what one production's full total
+commitment (see below) actually costs: Small averaged **~£1.5M** (range
+£0.95M-£2.7M), Medium **~£8.3M** (£2.9M-£17.5M), Big **~£70M** (£20M-£172M -
+the log-scale spend ranges make the top end of Big genuinely
+blockbuster-priced, on par with `MARKETING_SPEND_RANGE`'s own £150M
+ceiling). Each tier's starting cash is set generously above what its normal
+cadence needs (Indie only ever runs one Small at a time; Mid-Size one Big
+*or* up to three Medium; Major up to two Big *and* four Medium at once) so
+the affordability gate rarely binds in ordinary play. **Occasional
+throttling right after a fresh game start - before any box-office revenue
+has come in and a tier is attempting to fill every production slot at
+once - is expected and intentional**, not a balance bug to tune away; see
+Cash Recovery below.
+
+**Income**: `settleRivalMarket` used to call
+`engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms` once, across every
+rival's films combined, and discard the single aggregate result it got
+back. That function returns one `cashCredit`/`brandDelta`/`prestigeDelta`
+for whatever list of films it's handed - crediting the *right* studio
+means grouping first. The new `settleRivalBoxOffice` groups
+`[...rivalFilmsReleased, ...newlyReleased]` by `Film.releasedBy` (the only
+rival-studio correlation a resolved `Film` carries), calls
+`settleBoxOfficeForAllFilms` once per studio's own group, and folds each
+group's own `cashCredit`/`brandDelta`/`prestigeDelta` into that studio's
+`cash`/`brand`/`prestige`/`lifetimeRevenue` via the same `applyStatChange`
+the player's own `applyBoxOfficeSettlement` uses. Every existing weekly-
+settlement/finished-run mechanic is reused byte-for-byte per group - this
+is attribution, not a reimplementation. A rival's own accumulated Brand now
+also feeds its own future Buzz (`resolveRivalProduction`'s `studioBrand`
+parameter, previously a flat `50` "industry average" stand-in) - the same
+feedback loop the player's Brand already has via `computeBuzzScore`.
+
+**Spending**: `startRivalProduction` computes a production's full
+**total commitment** the moment every choice is known (right after casting,
+before booking talent or returning it) and gates on it:
+
+```
+totalCommitment = script.cost                              // mirrors ACQUIRE_OPPORTUNITY
+                 + computeTalentCost(talent)                 // mirrors GREENLIGHT_PROJECT's upfrontCharge
+                 + computeProductionBudgetCost(choices)
+                 + productionChoices.contingencyAmount        // full reserve, not the daily burn
+                 + computeMarketingCost(marketingChoices)     // mirrors SCHEDULE_RELEASE's remainder charge
+                 + TEST_SCREENING_PROFILES[response].cost
+```
+
+If `totalCommitment > rival.cash`, `startRivalProduction` returns `null` -
+the exact same fallback path a mandatory-role talent shortage already used
+(the caller just updates `nextSpawnCheckDay` and tries again next check,
+the production heuristic itself untouched). If affordable, the full amount
+is charged **once**, immediately, folded into the one real decision point a
+rival production has. A live player production spreads the equivalent
+charges across three separate decisions (ACQUIRE_OPPORTUNITY,
+GREENLIGHT_PROJECT, SCHEDULE_RELEASE) with a contingency-reserve-vs-actual-
+burn reconciliation at FINISH_PHOTOGRAPHY in between; a rival production
+resolves in one synthesized step with no live shoot to reconcile against,
+so this deliberately doesn't replicate that multi-stage cash flow
+mechanically - just its total. Rivals still don't participate in the
+Opportunity/Asset pipeline (unchanged from 5.39's persistent-market
+writeup) - `script.cost` is charged directly rather than a fabricated
+rival-only Opportunity source discount/premium.
+
+**No double-charging**: the total commitment is charged exactly once, at
+the spawn decision point, inside `startRivalProduction`. Nothing later
+(`resolveRivalProduction`, `settleRivalBoxOffice`) ever subtracts cash -
+box-office settlement only ever credits revenue. Verified directly in
+`engine/rivalStudios.test.ts`: a studio's own cash delta across a
+`settleRivalMarket` call always equals exactly one of {a new production's
+own cost, a finished run's own `cashCredit`, or zero}, never a combination
+that double-counts.
+
+**Cash Recovery** is the natural consequence of the above, not a separate
+mechanic: a studio that can't afford its next attempt simply returns `null`
+from `startRivalProduction` and tries again at its next spawn check: no
+loans, bankruptcy, investors, emergency funding, asset sales, or studio
+closure exist or are implied. Existing productions continue regardless (an
+affordability failure only ever blocks a *new* attempt, never touches
+`rivalProductionsInProgress`), and completed films release and earn revenue
+exactly as before - so cash naturally trends back up until the next
+attempt clears the gate again.
+
+**UI**: `RivalStudioPage.tsx` gained a second stat row (Cash / Brand
+Recognition / Prestige), the same tiles the player's own Dashboard shows
+for their own Studio. A new developer-only tool,
+`components/dev/RivalFinancesInspector.tsx` (wired into `App.tsx`'s
+existing `DevTool` toggle alongside Recommendation/Outcome Inspector), lists
+every rival's Cash/Brand/Prestige/Lifetime Revenue/Lifetime
+Expenditure/In-Production/Released counts in one table read straight from
+live `GameState` - unlike the other two dev tools, which generate their own
+synthetic samples, this one exists specifically to verify the real
+affordability gate against a real save.
+
+**Save format bumped to v30** (`state/persistence.ts`) - `RivalStudio`
+gained five required fields a v29 save's `rivalStudios` entries don't have;
+no migration, same as every past shape change.
+
+Explicitly out of scope for this milestone, per its own brief: replacing or
+redesigning the AI production heuristic itself, loans/bankruptcy/investors/
+emergency funding/asset sales/studio closure, and any change to
+`startableScales`'s capacity table or `SPAWN_CHECK_INTERVAL_DAYS`. The
+heuristic behaves identically to 5.24 except that it now, genuinely, has to
+be able to afford what it's about to do.
 
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
