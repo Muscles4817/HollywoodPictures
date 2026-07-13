@@ -62,6 +62,38 @@ const SPAWN_CHECK_INTERVAL_DAYS: Record<StudioTier, [number, number]> = {
 
 const INITIAL_ROSTER_TIERS: StudioTier[] = ['Indie', 'Indie', 'Mid-Size', 'Mid-Size', 'Major', 'Major'];
 
+// Roadmap Phase 7.4: a new production nudges its naive release day forward,
+// one day at a time, while it's within this many days of another release
+// already on the shared calendar (the player's own scheduled projects and
+// every other rival's own in-progress production) - a light clustering
+// avoidance, not a hard scheduling algorithm. Deliberately small and
+// deterministic (no rng spent on it) - just enough that two releases don't
+// land on literally the same day by pure chance as often as they otherwise
+// would, without trying to actually optimize the calendar.
+const RELEASE_DAY_CLUSTER_BUFFER = 3;
+const MAX_RELEASE_DAY_NUDGES = 14;
+
+/**
+ * Pushes `naiveDay` forward past any day within RELEASE_DAY_CLUSTER_BUFFER
+ * of an already-known release - see startRivalProduction below. Pure and
+ * rng-free by design: the release-day choice stays fully deterministic
+ * given the same inputs, same as everything else about when a rival's
+ * production starts.
+ */
+function avoidReleaseDayClustering(naiveDay: number, knownReleaseDays: number[]): number {
+  const occupied = new Set<number>();
+  for (const day of knownReleaseDays) {
+    for (let d = day - RELEASE_DAY_CLUSTER_BUFFER; d <= day + RELEASE_DAY_CLUSTER_BUFFER; d++) occupied.add(d);
+  }
+  let day = naiveDay;
+  let nudges = 0;
+  while (occupied.has(day) && nudges < MAX_RELEASE_DAY_NUDGES) {
+    day += 1;
+    nudges += 1;
+  }
+  return day;
+}
+
 /** Generates the persistent roster of AI competitors once, at game start - see docs/DESIGN.md 5.24. */
 export function generateRivalStudios(rng: RandomFn): RivalStudio[] {
   const usedNames = new Set<string>();
@@ -131,6 +163,7 @@ function startRivalProduction(
   scale: ProductionScale,
   totalDays: number,
   talentPool: Record<TalentRole, Talent[]>,
+  knownReleaseDays: number[],
   rng: RandomFn,
 ): { production: RivalProductionInProgress; talentPool: Record<TalentRole, Talent[]> } | null {
   const genre = pick(rng, GENRES);
@@ -171,7 +204,11 @@ function startRivalProduction(
   };
 
   const recommendedDays = computeRecommendedShootDays(talent, script, productionChoices);
-  const releaseDay = totalDays + NON_SHOOT_STAGE_DAYS + recommendedDays;
+  const naiveReleaseDay = totalDays + NON_SHOOT_STAGE_DAYS + recommendedDays;
+  // Roadmap Phase 7.4 - reads the shared calendar (the player's own
+  // scheduled releases, every other rival's already-in-progress production)
+  // instead of picking a day in a vacuum.
+  const releaseDay = avoidReleaseDayClustering(naiveReleaseDay, knownReleaseDays);
 
   const updatedPool = { ...talentPool };
   for (const role of MANDATORY_TALENT_ROLES) {
@@ -273,9 +310,20 @@ export interface RivalMarketUpdate {
  * rivalStudios/rivalProductionsInProgress/rivalFilmsReleased are world-level
  * (GameState), not the player's Studio's own business; only `talentPool` is
  * still Studio-shaped (shared with the player, until it too moves world-level).
- * `totalDays` is passed in explicitly for the same reason.
+ * `totalDays` is passed in explicitly for the same reason. `playerScheduledReleaseDays`
+ * (roadmap Phase 7.4) is the player's own upcoming release days
+ * (engine/project.ts:scheduledPlayerReleases) - threaded through purely so
+ * a newly-started rival production can nudge its own naive release day away
+ * from ones already on the shared calendar (see startRivalProduction's
+ * avoidReleaseDayClustering call) - the player's own choices are never
+ * otherwise read or affected here.
  */
-export function settleRivalMarket(current: RivalMarketUpdate, totalDays: number, rng: RandomFn): RivalMarketUpdate {
+export function settleRivalMarket(
+  current: RivalMarketUpdate,
+  totalDays: number,
+  playerScheduledReleaseDays: number[],
+  rng: RandomFn,
+): RivalMarketUpdate {
   const due = current.rivalProductionsInProgress.filter((p) => p.releaseDay <= totalDays);
   const stillInProgress = current.rivalProductionsInProgress.filter((p) => p.releaseDay > totalDays);
   const newlyReleased = due.map((p) =>
@@ -293,7 +341,8 @@ export function settleRivalMarket(current: RivalMarketUpdate, totalDays: number,
     const scales = startableScales(rival.tier, currentForThisStudio);
     if (scales.length === 0) return { ...rival, nextSpawnCheckDay };
     const scale = pick(rng, scales);
-    const started = startRivalProduction(rival, scale, totalDays, talentPool, rng);
+    const knownReleaseDays = [...playerScheduledReleaseDays, ...productionsInProgress.map((p) => p.releaseDay)];
+    const started = startRivalProduction(rival, scale, totalDays, talentPool, knownReleaseDays, rng);
     if (!started) return { ...rival, nextSpawnCheckDay };
     productionsInProgress = [...productionsInProgress, started.production];
     talentPool = started.talentPool;

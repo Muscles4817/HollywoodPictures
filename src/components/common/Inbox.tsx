@@ -16,16 +16,24 @@ interface InboxProps {
  * entry except the currently-focused one (see engine/project.ts:backgroundedPlayerDrafts).
  * Fixed-position, mounted once alongside DateBar/ThemeToggle so it's
  * reachable from any screen, including mid-wizard while planning a second
- * film. Two kinds of item need attention here:
+ * film. Three kinds of item need attention here:
  *  - 'awaiting-choice': an on-set event paused that specific production -
  *    resolving it here (OnSetDecisionCard, same component ProductionRun.tsx
  *    uses for the focused project) unpauses just that one.
- *  - 'finished': photography wrapped and is waiting to be picked up for
- *    post-production - only actionable while the player isn't already
- *    mid-wizard on something else (state.focusedProjectId !== null), so
- *    this can never silently take over unrelated in-progress work.
- * Opening the Inbox pauses the real-time day tick (see App.tsx's `ticking`),
- * the same way the Dashboard's manual pause button already does - a slow
+ *  - 'wrapped' (photography finished, post-production not started): ready
+ *    to be picked up for post-production.
+ *  - 'parked' (post-production also done, roadmap Phase 7.1/7.3): every
+ *    creative decision is made, it just needs a release day - resuming it
+ *    goes straight to Marketing & Release instead of back through
+ *    post-production choices that are already locked in. Distinct from
+ *    'scheduled' (engine/project.ts) - a parked project hasn't picked a
+ *    release day yet, so it's still an ordinary backgrounded
+ *    'player-in-progress' project, not its own kind.
+ * Both wrapped and parked items are only actionable while the player isn't
+ * already mid-wizard on something else (state.focusedProjectId !== null),
+ * so this can never silently take over unrelated in-progress work. Opening
+ * the Inbox pauses the real-time day tick (see App.tsx's `ticking`), the
+ * same way the Dashboard's manual pause button already does - a slow
  * decision in here shouldn't cost the player time either.
  */
 export function Inbox({ open, onOpenChange }: InboxProps) {
@@ -34,11 +42,13 @@ export function Inbox({ open, onOpenChange }: InboxProps) {
   // focused (unlike Dashboard, where RETURN_TO_DASHBOARD guarantees
   // focusedProjectId is null) - backgroundedPlayerDrafts excludes that
   // focused one, so it's never shown here a second time: its own screen
-  // (ProductionRun.tsx) is where it belongs, not the Inbox.
+  // (ProductionRun.tsx/MarketingRelease.tsx) is where it belongs, not the
+  // Inbox.
   const productions = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
   const awaitingChoice = productions.filter((p) => p.photography?.status === 'awaiting-choice');
-  const finished = productions.filter((p) => p.photography?.status === 'finished');
-  const badgeCount = awaitingChoice.length + finished.length;
+  const wrapped = productions.filter((p) => p.photography?.status === 'finished' && !p.postProductionChoices);
+  const parked = productions.filter((p) => p.photography?.status === 'finished' && p.postProductionChoices);
+  const badgeCount = awaitingChoice.length + wrapped.length + parked.length;
 
   return (
     <>
@@ -77,7 +87,7 @@ export function Inbox({ open, onOpenChange }: InboxProps) {
               ) : null,
             )}
 
-            {finished.map((production) => (
+            {wrapped.map((production) => (
               <div className="card stack" key={production.id}>
                 <div className="card-title">{production.title || 'Untitled Film'}</div>
                 <p style={{ margin: 0, color: 'var(--text-muted)' }}>
@@ -93,6 +103,26 @@ export function Inbox({ open, onOpenChange }: InboxProps) {
                   <div>
                     <Button variant="primary" onClick={() => dispatch({ type: 'RESUME_FOR_POST_PRODUCTION', productionId: production.id })}>
                       Continue to Post-Production
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {parked.map((production) => (
+              <div className="card stack" key={production.id}>
+                <div className="card-title">{production.title || 'Untitled Film'}</div>
+                <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+                  Post-production is done - this film just needs a release day.
+                </p>
+                {state.focusedProjectId ? (
+                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
+                    Finish or leave what you're currently working on before picking this back up.
+                  </p>
+                ) : (
+                  <div>
+                    <Button variant="primary" onClick={() => dispatch({ type: 'RESUME_FOR_POST_PRODUCTION', productionId: production.id })}>
+                      Continue to Marketing &amp; Release
                     </Button>
                   </div>
                 )}

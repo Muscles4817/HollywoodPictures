@@ -13,7 +13,7 @@ import { TimeTickIndicator } from './common/TimeTickIndicator';
 import { TopGrossingPanel } from './common/TopGrossingPanel';
 import { DifficultyPicker } from './common/DifficultyPicker';
 import { computeTopGrossingFilms } from '../state/selectors';
-import { asFilm, asPlayerDraft } from '../engine/project';
+import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
 import type { TickSpeedMultiplier } from '../constants';
 import type { Film } from '../types';
 
@@ -75,6 +75,14 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
     const draft = asPlayerDraft(p);
     return draft ? [draft] : [];
   });
+  // Roadmap Phase 7.2 - every player project that's picked a release day
+  // and is just waiting for it to arrive (see engine/project.ts:Project).
+  const scheduledReleases = projects
+    .flatMap((p) => {
+      const s = asScheduled(p);
+      return s ? [s] : [];
+    })
+    .sort((a, b) => a.releaseDay - b.releaseDay);
   const runningFilms = playerReleasedFilms.filter((f) => f.boxOfficeRun.status === 'running');
   // Only ever surface one at a time, oldest-unseen-first, so a second
   // "film finished" popup doesn't stack behind/interrupt the first.
@@ -130,6 +138,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
             onSetSpeedMultiplier={onSetSpeedMultiplier}
           />
           <Button onClick={() => dispatch({ type: 'VIEW_STATS' })}>Stats</Button>
+          <Button onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}>Release Calendar</Button>
           <Button onClick={() => setShowGuide(true)}>How It Works</Button>
           <Button onClick={() => setShowResetPicker(true)}>Reset Studio</Button>
           <Button variant="primary" onClick={() => dispatch({ type: 'START_NEW_FILM' })}>
@@ -188,7 +197,9 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
               photography.status === 'awaiting-choice'
                 ? 'Awaiting your decision - check the Inbox'
                 : photography.status === 'finished'
-                  ? 'Wrapped - ready for post-production (check the Inbox)'
+                  ? production.postProductionChoices
+                    ? 'Ready for its release day - check the Inbox'
+                    : 'Wrapped - ready for post-production (check the Inbox)'
                   : 'Shooting in the background';
             return (
               <div className="card stack" key={production.id}>
@@ -216,6 +227,23 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
               </div>
             );
           })}
+
+          {scheduledReleases.length > 0 && (
+            <div className="card stack">
+              <div className="row-between">
+                <h2 style={{ margin: 0 }}>Scheduled Releases</h2>
+                <Button className="btn-sm" onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}>
+                  View Release Calendar
+                </Button>
+              </div>
+              {scheduledReleases.map(({ draft, releaseDay }) => (
+                <div className="row-between" key={draft.id}>
+                  <span>{draft.title || 'Untitled Film'}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Releasing {formatGameDate(releaseDay)}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="card">
             <div className="row-between">

@@ -5,7 +5,8 @@ import { withRng } from '../engine/random';
 import { STUDIO_BOX_OFFICE_SHARE, AVERAGE_TICKET_PRICE } from '../engine/boxOfficeRun';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
 import { computeTalentCost, computeProductionBudgetCost } from '../engine/cost';
-import { playerDraftToProject, playerReleasedFilms, findProject } from '../engine/project';
+import { playerDraftToProject, playerReleasedFilms, findProject, asScheduled } from '../engine/project';
+import { STAGE_DURATIONS } from '../data/schedule';
 import type { GameState } from './gameState';
 
 /** Dispatches ADVANCE_DAY n times, threading state through - the same real-time background tick App.tsx fires, just driven directly instead of through a timer. */
@@ -24,7 +25,7 @@ describe('RELEASE_FILM', () => {
   it('produces a coherent Film: week 1 settled immediately, and keeps the exact id the draft carried its whole life', () => {
     const state = buildStateWithReadyDraft(1);
     const draftId = state.focusedProjectId!;
-    const after = studioReducer(state, { type: 'RELEASE_FILM' });
+    const after = studioReducer(state, { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
 
     expect(after.screen).toBe('results');
     const films = playerReleasedFilms(after.projects);
@@ -57,7 +58,7 @@ describe('RELEASE_FILM', () => {
   it('credits week 1\'s studio revenue share to cash as part of the same action', () => {
     const state = buildStateWithReadyDraft(2);
     const cashBefore = state.studio.cash;
-    const after = studioReducer(state, { type: 'RELEASE_FILM' });
+    const after = studioReducer(state, { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     const film = theFilm(after);
 
     // Isolates the box-office revenue credit specifically, independent of
@@ -78,8 +79,8 @@ describe('RELEASE_FILM', () => {
 describe('advancing a calendar jump via repeated ADVANCE_DAY', () => {
   it('settles a run week by week as days pass, and a big jump matches many small ones', () => {
     const seed = 3;
-    const releasedA = studioReducer(buildStateWithReadyDraft(seed), { type: 'RELEASE_FILM' });
-    const releasedB = studioReducer(buildStateWithReadyDraft(seed), { type: 'RELEASE_FILM' });
+    const releasedA = studioReducer(buildStateWithReadyDraft(seed), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    const releasedB = studioReducer(buildStateWithReadyDraft(seed), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
 
     const bigJump = advanceDays(releasedA, MAX_SIMULATION_WEEKS * 7 + 5);
     const smallSteps = advanceDays(releasedB, MAX_SIMULATION_WEEKS * 7 + 5);
@@ -92,7 +93,7 @@ describe('advancing a calendar jump via repeated ADVANCE_DAY', () => {
   });
 
   it('a run finishes, gets its final figures filled in, and never settles again on further advances', () => {
-    const released = studioReducer(buildStateWithReadyDraft(4), { type: 'RELEASE_FILM' });
+    const released = studioReducer(buildStateWithReadyDraft(4), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     const finished = advanceDays(released, MAX_SIMULATION_WEEKS * 7 + 7);
     const film = theFilm(finished);
     expect(film.boxOfficeRun.status).toBe('finished');
@@ -107,7 +108,7 @@ describe('advancing a calendar jump via repeated ADVANCE_DAY', () => {
   });
 
   it('settlement alone never reduces cash - only ever credits it', () => {
-    const released = studioReducer(buildStateWithReadyDraft(5), { type: 'RELEASE_FILM' });
+    const released = studioReducer(buildStateWithReadyDraft(5), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     let state = released;
     let previousCash = state.studio.cash;
     for (let i = 0; i < 30; i++) {
@@ -118,7 +119,7 @@ describe('advancing a calendar jump via repeated ADVANCE_DAY', () => {
   });
 
   it('cash credited across a run matches the sum of settled weekly grosses times the studio share', () => {
-    const released = studioReducer(buildStateWithReadyDraft(6), { type: 'RELEASE_FILM' });
+    const released = studioReducer(buildStateWithReadyDraft(6), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     const cashAfterRelease = released.studio.cash; // already includes week 1's credit, settled as part of RELEASE_FILM itself
     const finished = advanceDays(released, MAX_SIMULATION_WEEKS * 7 + 7);
     const film = theFilm(finished);
@@ -128,7 +129,7 @@ describe('advancing a calendar jump via repeated ADVANCE_DAY', () => {
   });
 
   it('a second film released mid-run settles alongside the first across further calendar jumps', () => {
-    const afterFirst = studioReducer(buildStateWithReadyDraft(7), { type: 'RELEASE_FILM' });
+    const afterFirst = studioReducer(buildStateWithReadyDraft(7), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     const midRun = advanceDays(afterFirst, 21); // 3 weeks in
 
     const { result: secondDraft } = withRng(70, (rng) => buildReadyDraft(rng, defaultMarketingChoices({ releaseType: 'Limited' })));
@@ -137,7 +138,7 @@ describe('advancing a calendar jump via repeated ADVANCE_DAY', () => {
       projects: [...midRun.projects, playerDraftToProject(secondDraft)],
       focusedProjectId: secondDraft.id,
     };
-    const afterSecond = studioReducer(withSecondDraft, { type: 'RELEASE_FILM' });
+    const afterSecond = studioReducer(withSecondDraft, { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     expect(playerReleasedFilms(afterSecond.projects)).toHaveLength(2);
 
     const caughtUp = advanceDays(afterSecond, MAX_SIMULATION_WEEKS * 7 + 30);
@@ -151,7 +152,7 @@ describe('advancing a calendar jump via repeated ADVANCE_DAY', () => {
 
 describe('ACKNOWLEDGE_BOX_OFFICE_RESULTS', () => {
   it('flips acknowledged without touching anything else about the run', () => {
-    const released = studioReducer(buildStateWithReadyDraft(8), { type: 'RELEASE_FILM' });
+    const released = studioReducer(buildStateWithReadyDraft(8), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     const finished = advanceDays(released, MAX_SIMULATION_WEEKS * 7 + 7);
     const filmId = theFilm(finished).id;
     expect(theFilm(finished).boxOfficeRun.acknowledged).toBe(false);
@@ -168,15 +169,15 @@ describe('deterministic release-day gross', () => {
   it('the same draft released twice produces the exact same opening weekend (the audience simulation has no randomness)', () => {
     const stateA = buildStateWithReadyDraft(9);
     const stateB = buildStateWithReadyDraft(9);
-    const afterA = studioReducer(stateA, { type: 'RELEASE_FILM' });
-    const afterB = studioReducer(stateB, { type: 'RELEASE_FILM' });
+    const afterA = studioReducer(stateA, { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    const afterB = studioReducer(stateB, { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     expect(theFilm(afterA).results.openingWeekend).toBe(theFilm(afterB).results.openingWeekend);
     expect(theFilm(afterA).boxOfficeRun.fixed).toEqual(theFilm(afterB).boxOfficeRun.fixed);
   });
 
   it('week 1 gross matches admissions * AVERAGE_TICKET_PRICE, rounded', () => {
     const state = buildStateWithReadyDraft(10);
-    const after = studioReducer(state, { type: 'RELEASE_FILM' });
+    const after = studioReducer(state, { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     const film = theFilm(after);
     const expected = Math.round(film.boxOfficeRun.simWeeks[0].cumulativeTicketsSold * AVERAGE_TICKET_PRICE);
     expect(film.results.openingWeekend).toBe(expected);
@@ -230,7 +231,7 @@ describe('transient view state (viewingRivalStudioName/viewingProductionId) - ro
 
   it('RELEASE_FILM clears both (previously left them untouched, safe since the marketing screen is unreachable while either is set)', () => {
     const state = { ...buildStateWithReadyDraft(1), viewingRivalStudioName: 'A Rival Studio' };
-    const after = studioReducer(state, { type: 'RELEASE_FILM' });
+    const after = studioReducer(state, { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     expect(after.viewingRivalStudioName).toBeNull();
     expect(after.viewingProductionId).toBeNull();
   });
@@ -254,7 +255,7 @@ describe('GameState.projects - roadmap Phase 5 (the flip)', () => {
       projects: [playerDraftToProject({ ...readyDraft, id: projectId })],
       focusedProjectId: projectId,
     };
-    const released = studioReducer(withReadyDraft, { type: 'RELEASE_FILM' });
+    const released = studioReducer(withReadyDraft, { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
 
     expect(released.focusedProjectId).toBe(projectId);
     const project = findProject(released.projects, projectId);
@@ -275,5 +276,81 @@ describe('GameState.projects - roadmap Phase 5 (the flip)', () => {
     const backgrounded = studioReducer(releaseReady, { type: 'RETURN_TO_DASHBOARD' });
     expect(backgrounded.focusedProjectId).toBeNull();
     expect(findProject(backgrounded.projects, committedId)?.kind).toBe('player-in-progress');
+  });
+});
+
+describe('SCHEDULE_RELEASE - real release scheduling (roadmap Phase 7.1/7.2)', () => {
+  it('a same-day pick (releaseDay <= the earliest possible day) resolves immediately, same as the old always-immediate RELEASE_FILM', () => {
+    const state = buildStateWithReadyDraft(1);
+    const draftId = state.focusedProjectId!;
+    const after = studioReducer(state, { type: 'SCHEDULE_RELEASE', releaseDay: state.totalDays });
+    expect(after.screen).toBe('results');
+    expect(after.focusedProjectId).toBe(draftId);
+    expect(findProject(after.projects, draftId)?.kind).toBe('released');
+  });
+
+  it('a future pick parks the project as "scheduled", unfocused, back on the Dashboard - it does not resolve yet', () => {
+    const state = buildStateWithReadyDraft(2);
+    const draftId = state.focusedProjectId!;
+    const farOut = state.totalDays + (STAGE_DURATIONS.marketing ?? 0) + 40;
+    const after = studioReducer(state, { type: 'SCHEDULE_RELEASE', releaseDay: farOut });
+    expect(after.screen).toBe('dashboard');
+    expect(after.focusedProjectId).toBeNull();
+    const project = findProject(after.projects, draftId);
+    expect(project?.kind).toBe('scheduled');
+    expect(project && asScheduled(project)?.releaseDay).toBe(farOut);
+    expect(playerReleasedFilms(after.projects)).toHaveLength(0);
+  });
+
+  it('a pick earlier than the earliest possible day is clamped up, not honored literally', () => {
+    const state = buildStateWithReadyDraft(3);
+    const minPossible = state.totalDays + (STAGE_DURATIONS.marketing ?? 0);
+    const after = studioReducer(state, { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    expect(after.totalDays).toBe(minPossible);
+    expect(after.screen).toBe('results'); // 1 is always <= minPossible, so this always resolves same-day
+  });
+
+  it('advancing the calendar up to a scheduled releaseDay resolves it into a released Film with week 1 already settled, exactly once', () => {
+    const state = buildStateWithReadyDraft(4);
+    const draftId = state.focusedProjectId!;
+    const farOut = state.totalDays + (STAGE_DURATIONS.marketing ?? 0) + 40;
+    const scheduled = studioReducer(state, { type: 'SCHEDULE_RELEASE', releaseDay: farOut });
+    expect(findProject(scheduled.projects, draftId)?.kind).toBe('scheduled');
+
+    // Walk the calendar forward one real-time day at a time, well past
+    // farOut, the same way the background tick actually would. Only the
+    // very first tick where it's found 'released' (the transition itself)
+    // is asserted on in detail - it stays 'released' for every tick after
+    // that too (box office keeps settling), so re-asserting the same
+    // "week 1 only" shape on later ticks would be checking the wrong thing.
+    let s = scheduled;
+    let releasedOnTick: number | null = null;
+    for (let i = 0; i < 60; i++) {
+      s = studioReducer(s, { type: 'ADVANCE_DAY' });
+      const project = findProject(s.projects, draftId);
+      if (project?.kind === 'released' && releasedOnTick === null) {
+        releasedOnTick = i;
+        expect(project.film.releasedOnDay).toBe(farOut); // the scheduled day, not whichever tick crossed it
+        expect(project.film.boxOfficeRun.weeks).toHaveLength(1);
+      }
+    }
+    expect(releasedOnTick).not.toBeNull();
+    expect(playerReleasedFilms(s.projects)).toHaveLength(1);
+  });
+
+  it('reaching a scheduled releaseDay in one 60-tick run matches reaching it via two separate batches (40 then 20) - a big catch-up jump settles identically to many small ones', () => {
+    const seed = 5;
+    const stateA = buildStateWithReadyDraft(seed);
+    const stateB = buildStateWithReadyDraft(seed);
+    const farOut = stateA.totalDays + (STAGE_DURATIONS.marketing ?? 0) + 40;
+
+    const scheduledA = studioReducer(stateA, { type: 'SCHEDULE_RELEASE', releaseDay: farOut });
+    const scheduledB = studioReducer(stateB, { type: 'SCHEDULE_RELEASE', releaseDay: farOut });
+
+    const oneRun = advanceDays(scheduledA, 60);
+    const twoBatches = advanceDays(advanceDays(scheduledB, 40), 20);
+
+    expect(playerReleasedFilms(oneRun.projects)[0].results).toEqual(playerReleasedFilms(twoBatches.projects)[0].results);
+    expect(oneRun.studio.cash).toBe(twoBatches.studio.cash);
   });
 });

@@ -9,10 +9,10 @@ import { computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent,
 import { computeDailyContingencyBurn, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
 import { adaptRecommendationsToProductionChoices } from '../engine/productionChoicesAdapter';
 import { STAGE_DURATIONS } from '../data/schedule';
-import { computeReleaseResults } from '../engine/releaseFilm';
 import { settleBoxOfficeForAllFilms, type BoxOfficeSettlement } from '../engine/boxOfficeRun';
 import { settleRivalMarket, generateRivalStudios } from '../engine/rivalStudios';
 import { settleProductionsInProgress } from '../engine/productionsInProgress';
+import { settleScheduledReleases, type ScheduledRelease } from '../engine/scheduledReleases';
 import { generateTalentPool } from '../engine/talentGenerator';
 import { applyReputationChange } from '../engine/reputation';
 import {
@@ -20,12 +20,14 @@ import {
   findProject,
   asPlayerDraft,
   playerDraftToProject,
+  scheduledDraftToProject,
   rivalProductionToProject,
   filmToProject,
   playerReleasedFilms,
   rivalReleasedFilms,
   rivalProductionsInProgress as rivalProductionsOf,
   backgroundedPlayerDrafts,
+  scheduledPlayerReleases,
 } from '../engine/project';
 
 // The canonical forward order of the wizard - used only to tell a forward
@@ -73,38 +75,45 @@ function defaultTalentTargetPrices(): Partial<Record<TalentRole, number>> {
 /**
  * Folds a settlement's cash/reputation into a Studio object - shared by
  * every reducer case that advances totalDays (GO_TO_STEP,
- * ADVANCE_SHOOTING_DAY, RESOLVE_EVENT_CHOICE, RELEASE_FILM), since any of
- * them can cross a weekly boundary for a film still in theaters. The
- * settled Film records themselves (settlement.filmsReleased) are folded
- * into GameState.projects by the caller instead - see assembleProjects
- * below (roadmap Phase 5: Studio no longer carries filmsReleased at all).
+ * ADVANCE_SHOOTING_DAY, RESOLVE_EVENT_CHOICE, SCHEDULE_RELEASE), since any
+ * of them can cross a weekly boundary for a film still in theaters.
+ * `scheduledReleaseCharge` (roadmap Phase 7.2) is whatever
+ * settleScheduledReleases.costCharged came back as this same call - a
+ * second, independent cash movement (what newly-released scheduled films
+ * owe) folded in here too so every calendar-advancing case only has one
+ * cash line to write instead of two. The settled Film records themselves
+ * (settlement.filmsReleased) are folded into GameState.projects by the
+ * caller instead - see assembleProjects below (roadmap Phase 5: Studio no
+ * longer carries filmsReleased at all).
  */
-function applyBoxOfficeSettlement(studio: Studio, settlement: BoxOfficeSettlement): Studio {
+function applyBoxOfficeSettlement(studio: Studio, settlement: BoxOfficeSettlement, scheduledReleaseCharge = 0): Studio {
   return {
     ...studio,
-    cash: studio.cash + settlement.cashCredit,
+    cash: studio.cash + settlement.cashCredit - scheduledReleaseCharge,
     reputation: applyReputationChange(studio.reputation, settlement.reputationDelta),
   };
 }
 
 /**
  * Rebuilds the whole GameState.projects array from its constituent parts -
- * the same [player-in-progress, rival-in-progress, released] shape
- * deriveProjectsView used to compute on every read (Phase 4), now the real
- * assignment at the end of every reducer case that touches more than one
- * project. `playerDrafts` includes the currently-focused draft too, when
- * there is one and this action didn't just release or discard it - callers
- * are responsible for including or omitting it correctly (see each case
- * below), since only they know which is true.
+ * the same [player-in-progress, scheduled, rival-in-progress, released]
+ * shape deriveProjectsView used to compute on every read (Phase 4), now the
+ * real assignment at the end of every reducer case that touches more than
+ * one project. `playerDrafts` includes the currently-focused draft too,
+ * when there is one and this action didn't just release or discard it -
+ * callers are responsible for including or omitting it correctly (see each
+ * case below), since only they know which is true.
  */
 function assembleProjects(parts: {
   playerDrafts: FilmDraft[];
+  scheduled: ScheduledRelease[];
   rivalProductions: RivalProductionInProgress[];
   playerFilms: Film[];
   rivalFilms: Film[];
 }): Project[] {
   return [
     ...parts.playerDrafts.map(playerDraftToProject),
+    ...parts.scheduled.map((s) => scheduledDraftToProject(s.draft, s.releaseDay)),
     ...parts.rivalProductions.map(rivalProductionToProject),
     ...parts.playerFilms.map(filmToProject),
     ...parts.rivalFilms.map(filmToProject),
@@ -189,8 +198,13 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'ADVANCE_DAY': {
       const totalDaysAfter = state.totalDays + 1;
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      const scheduled = scheduledPlayerReleases(state.projects);
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
-        const settlement = settleBoxOfficeForAllFilms(playerReleasedFilms(state.projects), totalDaysAfter);
+        const scheduledSettlement = settleScheduledReleases(scheduled, totalDaysAfter, state.studio.reputation, rng);
+        const settlement = settleBoxOfficeForAllFilms(
+          [...playerReleasedFilms(state.projects), ...scheduledSettlement.newlyReleased],
+          totalDaysAfter,
+        );
         const rivalMarket = settleRivalMarket(
           {
             rivalStudios: state.rivalStudios,
@@ -199,10 +213,11 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             talentPool: state.talentPool,
           },
           totalDaysAfter,
+          scheduled.map((s) => s.releaseDay),
           rng,
         );
         const productionsInProgress = settleProductionsInProgress(backgroundedPlayerDrafts(state.projects, state.focusedProjectId), 1, state.talentPool, rng);
-        return { settlement, rivalMarket, productionsInProgress };
+        return { settlement, rivalMarket, productionsInProgress, scheduledSettlement };
       });
       return {
         ...state,
@@ -210,9 +225,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         totalDays: totalDaysAfter,
         rivalStudios: result.rivalMarket.rivalStudios,
         talentPool: result.rivalMarket.talentPool,
-        studio: applyBoxOfficeSettlement(state.studio, result.settlement),
+        studio: applyBoxOfficeSettlement(state.studio, result.settlement, result.scheduledSettlement.costCharged),
         projects: assembleProjects({
           playerDrafts: [...(focusedDraft ? [focusedDraft] : []), ...result.productionsInProgress],
+          scheduled: result.scheduledSettlement.stillScheduled,
           rivalProductions: result.rivalMarket.rivalProductionsInProgress,
           playerFilms: result.settlement.filmsReleased,
           rivalFilms: result.rivalMarket.rivalFilmsReleased,
@@ -250,8 +266,13 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       if (!stageDuration) return { ...state, screen: action.step, ...clearTransientView() };
 
       const totalDaysAfter = state.totalDays + stageDuration;
+      const scheduled = scheduledPlayerReleases(state.projects);
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
-        const settlement = settleBoxOfficeForAllFilms(playerReleasedFilms(state.projects), totalDaysAfter);
+        const scheduledSettlement = settleScheduledReleases(scheduled, totalDaysAfter, state.studio.reputation, rng);
+        const settlement = settleBoxOfficeForAllFilms(
+          [...playerReleasedFilms(state.projects), ...scheduledSettlement.newlyReleased],
+          totalDaysAfter,
+        );
         const rivalMarket = settleRivalMarket(
           {
             rivalStudios: state.rivalStudios,
@@ -260,10 +281,11 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             talentPool: state.talentPool,
           },
           totalDaysAfter,
+          scheduled.map((s) => s.releaseDay),
           rng,
         );
         const productionsInProgress = settleProductionsInProgress(backgroundedPlayerDrafts(state.projects, state.focusedProjectId), stageDuration, state.talentPool, rng);
-        return { settlement, rivalMarket, productionsInProgress };
+        return { settlement, rivalMarket, productionsInProgress, scheduledSettlement };
       });
       return {
         ...state,
@@ -273,9 +295,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         rivalStudios: result.rivalMarket.rivalStudios,
         talentPool: result.rivalMarket.talentPool,
         ...clearTransientView(),
-        studio: applyBoxOfficeSettlement(state.studio, result.settlement),
+        studio: applyBoxOfficeSettlement(state.studio, result.settlement, result.scheduledSettlement.costCharged),
         projects: assembleProjects({
           playerDrafts: [{ ...focusedDraft, furthestStepIndexCharged: fromIdx }, ...result.productionsInProgress],
+          scheduled: result.scheduledSettlement.stillScheduled,
           rivalProductions: result.rivalMarket.rivalProductionsInProgress,
           playerFilms: result.settlement.filmsReleased,
           rivalFilms: result.rivalMarket.rivalFilmsReleased,
@@ -486,6 +509,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const usedIds = new Set(d.photography.events.map((e) => e.id));
       const backgrounded = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
       const playerFilms = playerReleasedFilms(state.projects);
+      const scheduled = scheduledPlayerReleases(state.projects);
       const rProductions = rivalProductionsOf(state.projects);
       const rFilms = rivalReleasedFilms(state.projects);
 
@@ -503,7 +527,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         );
         if (rolled && 'pendingChoice' in rolled) {
           const totalDaysAfter = state.totalDays + 1;
-          const settlement = settleBoxOfficeForAllFilms(playerFilms, totalDaysAfter);
+          const scheduledSettlement = settleScheduledReleases(scheduled, totalDaysAfter, state.studio.reputation, rng);
+          const settlement = settleBoxOfficeForAllFilms([...playerFilms, ...scheduledSettlement.newlyReleased], totalDaysAfter);
           const rivalMarket = settleRivalMarket(
             {
               rivalStudios: state.rivalStudios,
@@ -512,15 +537,17 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
               talentPool: state.talentPool,
             },
             totalDaysAfter,
+            scheduled.map((s) => s.releaseDay),
             rng,
           );
           const productionsInProgress = settleProductionsInProgress(backgrounded, 1, state.talentPool, rng);
-          return { kind: 'pendingChoice' as const, pendingChoice: rolled.pendingChoice, totalDaysAfter, settlement, rivalMarket, productionsInProgress };
+          return { kind: 'pendingChoice' as const, pendingChoice: rolled.pendingChoice, totalDaysAfter, settlement, rivalMarket, productionsInProgress, scheduledSettlement };
         }
         const event = rolled?.event ?? null;
         const daysAdvanced = 1 + (event?.delayDaysDelta ?? 0);
         const totalDaysAfter = state.totalDays + daysAdvanced;
-        const settlement = settleBoxOfficeForAllFilms(playerFilms, totalDaysAfter);
+        const scheduledSettlement = settleScheduledReleases(scheduled, totalDaysAfter, state.studio.reputation, rng);
+        const settlement = settleBoxOfficeForAllFilms([...playerFilms, ...scheduledSettlement.newlyReleased], totalDaysAfter);
         const rivalMarket = settleRivalMarket(
           {
             rivalStudios: state.rivalStudios,
@@ -529,10 +556,11 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             talentPool: state.talentPool,
           },
           totalDaysAfter,
+          scheduled.map((s) => s.releaseDay),
           rng,
         );
         const productionsInProgress = settleProductionsInProgress(backgrounded, daysAdvanced, state.talentPool, rng);
-        return { kind: 'event' as const, event, daysAdvanced, totalDaysAfter, settlement, rivalMarket, productionsInProgress };
+        return { kind: 'event' as const, event, daysAdvanced, totalDaysAfter, settlement, rivalMarket, productionsInProgress, scheduledSettlement };
       });
 
       const dailyBurn = computeDailyContingencyBurn(d.productionChoices.contingencyAmount, d.photography.recommendedDays);
@@ -554,9 +582,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           totalDays: result.totalDaysAfter,
           rivalStudios: result.rivalMarket.rivalStudios,
           talentPool: result.rivalMarket.talentPool,
-          studio: applyBoxOfficeSettlement(state.studio, result.settlement),
+          studio: applyBoxOfficeSettlement(state.studio, result.settlement, result.scheduledSettlement.costCharged),
           projects: assembleProjects({
             playerDrafts: [updatedFocused, ...result.productionsInProgress],
+            scheduled: result.scheduledSettlement.stillScheduled,
             rivalProductions: result.rivalMarket.rivalProductionsInProgress,
             playerFilms: result.settlement.filmsReleased,
             rivalFilms: result.rivalMarket.rivalFilmsReleased,
@@ -564,7 +593,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         };
       }
 
-      const { event, daysAdvanced, totalDaysAfter, settlement, rivalMarket, productionsInProgress } = result;
+      const { event, daysAdvanced, totalDaysAfter, settlement, rivalMarket, productionsInProgress, scheduledSettlement } = result;
       const updatedFocused: FilmDraft = {
         ...d,
         photography: {
@@ -580,9 +609,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         totalDays: totalDaysAfter,
         rivalStudios: rivalMarket.rivalStudios,
         talentPool: rivalMarket.talentPool,
-        studio: applyBoxOfficeSettlement(state.studio, settlement),
+        studio: applyBoxOfficeSettlement(state.studio, settlement, scheduledSettlement.costCharged),
         projects: assembleProjects({
           playerDrafts: [updatedFocused, ...productionsInProgress],
+          scheduled: scheduledSettlement.stillScheduled,
           rivalProductions: rivalMarket.rivalProductionsInProgress,
           playerFilms: settlement.filmsReleased,
           rivalFilms: rivalMarket.rivalFilmsReleased,
@@ -614,13 +644,15 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // through untouched either way - see playerDraftsAfter below).
       const otherBackgrounded = backgroundedPlayerDrafts(state.projects, state.focusedProjectId).filter((p) => p.id !== action.productionId);
       const playerFilms = playerReleasedFilms(state.projects);
+      const scheduled = scheduledPlayerReleases(state.projects);
       const rProductions = rivalProductionsOf(state.projects);
       const rFilms = rivalReleasedFilms(state.projects);
 
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
         const event = resolveEventChoice(pendingChoice, action.choiceId, rng);
         const totalDaysAfter = state.totalDays + event.delayDaysDelta;
-        const settlement = settleBoxOfficeForAllFilms(playerFilms, totalDaysAfter);
+        const scheduledSettlement = settleScheduledReleases(scheduled, totalDaysAfter, state.studio.reputation, rng);
+        const settlement = settleBoxOfficeForAllFilms([...playerFilms, ...scheduledSettlement.newlyReleased], totalDaysAfter);
         const rivalMarket = settleRivalMarket(
           {
             rivalStudios: state.rivalStudios,
@@ -629,18 +661,19 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             talentPool: state.talentPool,
           },
           totalDaysAfter,
+          scheduled.map((s) => s.releaseDay),
           rng,
         );
         const productionsInProgress = settleProductionsInProgress(otherBackgrounded, event.delayDaysDelta, state.talentPool, rng);
-        return { event, totalDaysAfter, settlement, rivalMarket, productionsInProgress };
+        return { event, totalDaysAfter, settlement, rivalMarket, productionsInProgress, scheduledSettlement };
       });
-      const { event, totalDaysAfter, settlement, rivalMarket, productionsInProgress } = result;
+      const { event, totalDaysAfter, settlement, rivalMarket, productionsInProgress, scheduledSettlement } = result;
 
       const { draft: resolvedTarget, cashDelta } = resolveChoiceOnDraft(target, pendingChoice, action.choiceId, event, state.talentPool);
 
       const studioAfter: Studio = {
-        ...applyBoxOfficeSettlement(state.studio, settlement),
-        cash: state.studio.cash + settlement.cashCredit + cashDelta,
+        ...applyBoxOfficeSettlement(state.studio, settlement, scheduledSettlement.costCharged),
+        cash: state.studio.cash + settlement.cashCredit - scheduledSettlement.costCharged + cashDelta,
       };
 
       const playerDraftsAfter = isFocused
@@ -656,6 +689,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         studio: studioAfter,
         projects: assembleProjects({
           playerDrafts: playerDraftsAfter,
+          scheduled: scheduledSettlement.stillScheduled,
           rivalProductions: rivalMarket.rivalProductionsInProgress,
           playerFilms: settlement.filmsReleased,
           rivalFilms: rivalMarket.rivalFilmsReleased,
@@ -693,9 +727,14 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       if (state.focusedProjectId) return state;
       const production = asPlayerDraft(findProject(state.projects, action.productionId));
       if (!production?.photography || production.photography.status !== 'finished') return state;
+      // Post-production already done (roadmap Phase 7.1/7.3 - a "parked,
+      // needs a release day" project the Inbox surfaces distinctly, see
+      // components/common/Inbox.tsx) picks up straight at Marketing &
+      // Release instead of revisiting post-production choices that are
+      // already locked in.
       return {
         ...state,
-        screen: 'post-production',
+        screen: production.postProductionChoices ? 'marketing' : 'post-production',
         focusedProjectId: action.productionId,
         ...clearTransientView(),
       };
@@ -713,7 +752,18 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, marketingChoices: action.choices }) };
     }
 
-    case 'RELEASE_FILM': {
+    // Roadmap Phase 7.2 - replaces the old always-immediate RELEASE_FILM.
+    // Marketing's fixed run-up (data/schedule.ts) still always elapses
+    // first, same as RELEASE_FILM always charged it; the player's own
+    // releaseDay pick is clamped to no earlier than that. The focused
+    // project becomes 'scheduled' and is folded into the very same
+    // settleScheduledReleases pass every other calendar-advancing action
+    // uses - so a same-day pick (releaseDay <= totalDaysAfter) resolves
+    // into 'released' within this one dispatch, landing on 'results'
+    // exactly like RELEASE_FILM always did; a later pick just parks it,
+    // unfocused, back on the Dashboard, where the shared settlement
+    // machinery picks it up whenever totalDays actually reaches it.
+    case 'SCHEDULE_RELEASE': {
       const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (
         !d ||
@@ -727,72 +777,29 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       ) {
         return state;
       }
-      const photographyEvents = d.photography.events;
-      const shootingRatio = d.photography.recommendedDays > 0 ? d.photography.daysElapsed / d.photography.recommendedDays : 1;
-      // Marketing's fixed run-up to release (data/schedule.ts) - the one
-      // stage duration not applied via GO_TO_STEP, since RELEASE_FILM jumps
-      // straight to 'results' rather than going through it.
       const totalDaysAfter = state.totalDays + (STAGE_DURATIONS.marketing ?? 0);
+      // releaseDay is a discrete calendar day everywhere else in this
+      // codebase (GameState.totalDays, RivalProductionInProgress.releaseDay)
+      // - rounding here is defensive against a UI slider's genuinely
+      // continuous drag value (components/wizard/MarketingRelease.tsx
+      // rounds too, but a fractional day stored here would silently throw
+      // off every `releaseDay <= totalDays` comparison downstream).
+      const releaseDay = Math.max(Math.round(action.releaseDay), totalDaysAfter);
+      const resolvedNow = releaseDay <= totalDaysAfter;
       const backgrounded = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
+      const otherScheduled = scheduledPlayerReleases(state.projects);
       const playerFilms = playerReleasedFilms(state.projects);
       const rProductions = rivalProductionsOf(state.projects);
       const rFilms = rivalReleasedFilms(state.projects);
 
-      // Everything happens inside one rng chain: the release-day-knowable
-      // results (critic/audience/buzz score, opening weekend, the audience-
-      // simulation's fixed state - see engine/releaseFilm.ts), then an
-      // immediate settlement pass that seeds this film's first box office
-      // week (week 1 is always due the moment it releases - see
-      // engine/boxOfficeRun.ts:weeksDueByNow) and, while it's at it, catches
-      // up any other film still running from before.
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
-        const { results, fixed } = computeReleaseResults(
-          {
-            title: d.title || 'Untitled Film',
-            genre: d.genre!,
-            targetAudience: d.targetAudience!,
-            script: d.script!,
-            talent: d.talent,
-            productionChoices: d.productionChoices!,
-            postProductionChoices: d.postProductionChoices!,
-            marketingChoices: d.marketingChoices!,
-            events: photographyEvents,
-            photographyCost: d.photography!.runningCost,
-            shootingRatio,
-            studioReputation: state.studio.reputation,
-          },
+        const scheduledSettlement = settleScheduledReleases(
+          [...otherScheduled, { draft: d, releaseDay }],
+          totalDaysAfter,
+          state.studio.reputation,
           rng,
         );
-        // Roadmap Phase 5's id-churn fix: the released Film now keeps the
-        // exact id its FilmDraft carried its whole life (engine/project.ts)
-        // instead of a freshly-generated `film-${index}-${day}` string
-        // unrelated to it - one stable identity from greenlight to release,
-        // not two. GameState.focusedProjectId doesn't need to change below
-        // either, for the same reason - it's already pointing at this id.
-        const film: Film = {
-          id: d.id,
-          title: d.title || 'Untitled Film',
-          genre: d.genre!,
-          targetAudience: d.targetAudience!,
-          script: d.script!,
-          talent: d.talent,
-          productionChoices: d.productionChoices!,
-          postProductionChoices: d.postProductionChoices!,
-          marketingChoices: d.marketingChoices!,
-          events: photographyEvents,
-          results,
-          boxOfficeRun: {
-            status: 'running',
-            fixed,
-            simWeeks: [],
-            weeks: [],
-            cumulativeGross: 0,
-            acknowledged: false,
-          },
-          releasedOnDay: totalDaysAfter,
-        };
-        const filmsReleased = [...playerFilms, film];
-        const settlement = settleBoxOfficeForAllFilms(filmsReleased, totalDaysAfter);
+        const settlement = settleBoxOfficeForAllFilms([...playerFilms, ...scheduledSettlement.newlyReleased], totalDaysAfter);
         const rivalMarket = settleRivalMarket(
           {
             rivalStudios: state.rivalStudios,
@@ -801,25 +808,20 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             talentPool: state.talentPool,
           },
           totalDaysAfter,
+          [...otherScheduled.map((s) => s.releaseDay), releaseDay],
           rng,
         );
         const productionsInProgress = settleProductionsInProgress(backgrounded, STAGE_DURATIONS.marketing ?? 0, state.talentPool, rng);
-        return { totalCost: results.totalCost, settlement, rivalMarket, productionsInProgress };
+        return { settlement, rivalMarket, productionsInProgress, scheduledSettlement };
       });
 
-      // Talent salary, the non-contingency production budget, and the
-      // contingency reserve were already deducted (and, for contingency,
-      // settled) at BEGIN_PHOTOGRAPHY/resolveChoiceOnDraft/FINISH_PHOTOGRAPHY
-      // - only the remainder of results.totalCost (script cost, event cost
-      // swings, the test screening fee, and marketing) is still owed here.
-      const alreadyCharged = computeTalentCost(d.talent) + computeProductionBudgetCost(d.productionChoices) + d.photography.runningCost;
-      const cashAfterCosts = state.studio.cash - (result.totalCost - alreadyCharged);
-      const studioAfter = applyBoxOfficeSettlement({ ...state.studio, cash: cashAfterCosts }, result.settlement);
+      const studioAfter = applyBoxOfficeSettlement(state.studio, result.settlement, result.scheduledSettlement.costCharged);
 
       return {
         ...state,
         rngSeed: nextSeed,
-        screen: 'results',
+        screen: resolvedNow ? 'results' : 'dashboard',
+        focusedProjectId: resolvedNow ? state.focusedProjectId : null,
         totalDays: totalDaysAfter,
         rivalStudios: result.rivalMarket.rivalStudios,
         talentPool: result.rivalMarket.talentPool,
@@ -827,6 +829,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         studio: studioAfter,
         projects: assembleProjects({
           playerDrafts: result.productionsInProgress,
+          scheduled: result.scheduledSettlement.stillScheduled,
           rivalProductions: result.rivalMarket.rivalProductionsInProgress,
           playerFilms: result.settlement.filmsReleased,
           rivalFilms: result.rivalMarket.rivalFilmsReleased,
@@ -931,6 +934,11 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // VIEW_RIVAL_STUDIO - doesn't touch the calendar.
     case 'VIEW_STATS':
       return { ...state, screen: 'stats', ...clearTransientView() };
+
+    // Dashboard -> the release calendar (roadmap Phase 7.3). Pure detour,
+    // same as VIEW_STATS/VIEW_RIVAL_STUDIO - doesn't touch the calendar.
+    case 'VIEW_RELEASE_CALENDAR':
+      return { ...state, screen: 'release-calendar', ...clearTransientView() };
 
     default:
       return state;

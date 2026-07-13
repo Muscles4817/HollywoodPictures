@@ -28,7 +28,7 @@ beforeEach(() => {
 });
 
 function releaseOneFilm(seed: number): GameState {
-  return studioReducer(buildStateWithReadyDraft(seed), { type: 'RELEASE_FILM' });
+  return studioReducer(buildStateWithReadyDraft(seed), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
 }
 
 describe('OutcomeInspector loads real data on first mount, without any user interaction', () => {
@@ -55,7 +55,7 @@ describe('OutcomeInspector loads real data on first mount, without any user inte
       const draft = deriveFocusedDraft(buildStateWithReadyDraft(seed))!;
       state = studioReducer(
         { ...state, projects: [...state.projects, playerDraftToProject(draft)], focusedProjectId: draft.id },
-        { type: 'RELEASE_FILM' },
+        { type: 'SCHEDULE_RELEASE', releaseDay: 1 },
       );
     }
     saveState(state);

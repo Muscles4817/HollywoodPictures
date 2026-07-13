@@ -7,6 +7,7 @@ import { Inbox } from './components/common/Inbox';
 import { Dashboard } from './components/Dashboard';
 import { RivalStudioPage } from './components/RivalStudioPage';
 import { StatsPage } from './components/StatsPage';
+import { ReleaseCalendar } from './components/ReleaseCalendar';
 import { RecommendationInspector } from './components/dev/RecommendationInspector';
 import { OutcomeInspector } from './components/dev/OutcomeInspector';
 import { Button } from './components/common/Button';
@@ -31,10 +32,11 @@ const PLANNING_SCREENS = new Set<Screen>(['develop', 'talent', 'production-plann
 
 // Screens that are a pure read-only detour from the Dashboard - entering or
 // leaving them costs no calendar time of its own (VIEW_RIVAL_STUDIO/
-// VIEW_STATS are plain screen changes, see studioReducer.ts), so a pause the
-// player set intentionally shouldn't silently lift just because they ducked
-// in to check a rival's page or the stats table.
-const PAUSE_PERSISTING_SCREENS = new Set<Screen>(['rival-studio', 'stats']);
+// VIEW_STATS/VIEW_RELEASE_CALENDAR are plain screen changes, see
+// studioReducer.ts), so a pause the player set intentionally shouldn't
+// silently lift just because they ducked in to check a rival's page, the
+// stats table, or the release calendar.
+const PAUSE_PERSISTING_SCREENS = new Set<Screen>(['rival-studio', 'stats', 'release-calendar']);
 
 /**
  * Whether the background ADVANCE_DAY tick should be running right now - a
@@ -188,6 +190,8 @@ function Screens() {
         return <RivalStudioPage />;
       case 'stats':
         return <StatsPage />;
+      case 'release-calendar':
+        return <ReleaseCalendar />;
       default:
         return (
           <Dashboard

@@ -1,10 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { MARKETING_SPEND_RANGE, RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS, RELEASE_WINDOW_DESCRIPTIONS } from '../../data/release';
 import { pluckDescriptions } from '../../data/describe';
 import { computeMarketingCost } from '../../engine/cost';
 import { marketingDescription } from '../../engine/productionDials';
 import { logAmount } from '../../engine/interpolate';
+import { formatGameDate } from '../../engine/calendar';
+import { STAGE_DURATIONS } from '../../data/schedule';
 import { ChoiceGroup } from '../common/ChoiceGroup';
 import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
@@ -13,6 +15,12 @@ import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { deriveFocusedDraft } from '../../state/selectors';
 import type { MarketingChoices, ReleaseType, ReleaseWindow } from '../../types';
+
+// How far out the player can hold a release before scheduling it - a bound
+// on the RangeSlider below, not a real game-design limit; roadmap Phase
+// 7.2's whole point is picking a day beyond the old always-immediate
+// minimum, not an unbounded one.
+const MAX_HOLD_DAYS = 180;
 
 const RELEASE_TYPES = Object.keys(RELEASE_TYPE_PROFILES) as ReleaseType[];
 const RELEASE_WINDOWS = Object.keys(RELEASE_WINDOW_GENRE_BONUS) as ReleaseWindow[];
@@ -29,6 +37,14 @@ export function MarketingRelease() {
   const { state, dispatch } = useStudio();
   const draft = deriveFocusedDraft(state)!;
   const choices = draft.marketingChoices ?? DEFAULT_CHOICES;
+  // The earliest day this film can actually go out - the same fixed
+  // marketing-campaign lead time (data/schedule.ts) the old, always-
+  // immediate RELEASE_FILM action already charged; picking exactly this day
+  // reproduces that same-day behavior exactly. Holding for later is the new
+  // capability (roadmap Phase 7.2).
+  const minReleaseDay = state.totalDays + (STAGE_DURATIONS.marketing ?? 0);
+  const [releaseDay, setReleaseDay] = useState(minReleaseDay);
+  const holdDays = releaseDay - minReleaseDay;
 
   useEffect(() => {
     if (!draft.marketingChoices) {
@@ -91,13 +107,29 @@ export function MarketingRelease() {
         <div className="stat-value"><Money amount={marketingCost} /></div>
       </div>
 
+      <RangeSlider
+        label="Release Date"
+        min={minReleaseDay}
+        max={minReleaseDay + MAX_HOLD_DAYS}
+        value={releaseDay}
+        onChange={(v) => setReleaseDay(Math.round(v))}
+        formatValue={formatGameDate}
+        description={
+          holdDays === 0
+            ? 'As soon as the marketing campaign is ready - the earliest possible date.'
+            : `Held ${holdDays} day${holdDays === 1 ? '' : 's'} past the earliest possible date - check the Dashboard's Release Calendar beforehand to see what else is coming out around then.`
+        }
+        lowLabel="Release ASAP"
+        highLabel="Hold for later"
+      />
+
       <div className="row-between">
         <div className="row">
           <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'post-production' })}>Back</Button>
           <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Back to Dashboard</Button>
         </div>
-        <Button variant="primary" onClick={() => dispatch({ type: 'RELEASE_FILM' })}>
-          Release Film
+        <Button variant="primary" onClick={() => dispatch({ type: 'SCHEDULE_RELEASE', releaseDay })}>
+          {holdDays === 0 ? 'Release Film' : `Schedule for ${formatGameDate(releaseDay)}`}
         </Button>
       </div>
     </div>

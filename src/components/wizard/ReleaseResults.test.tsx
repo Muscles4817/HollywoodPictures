@@ -36,7 +36,7 @@ function advanceDays(state: GameState, n: number): GameState {
 
 describe('ReleaseResults - reflects live settlement, not a frozen release-day snapshot', () => {
   it('shows the final outcome/profit once the run finishes while still sitting on this screen', () => {
-    const released = studioReducer(buildStateWithReadyDraft(1), { type: 'RELEASE_FILM' });
+    const released = studioReducer(buildStateWithReadyDraft(1), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     expect(released.screen).toBe('results');
 
     // Long enough to guarantee the run has finished (same bound the existing
@@ -61,7 +61,7 @@ describe('ReleaseResults - reflects live settlement, not a frozen release-day sn
   });
 
   it('still shows "Still playing" for a run genuinely still in progress', () => {
-    const released = studioReducer(buildStateWithReadyDraft(1), { type: 'RELEASE_FILM' });
+    const released = studioReducer(buildStateWithReadyDraft(1), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     expect(playerReleasedFilms(released.projects)[0].boxOfficeRun.status).toBe('running');
     saveState(released);
     render(

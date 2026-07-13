@@ -9,6 +9,7 @@ import type { Film, FilmDraft, Project, RivalProductionInProgress } from '../typ
 export function projectId(project: Project): string {
   switch (project.kind) {
     case 'player-in-progress': return project.draft.id;
+    case 'scheduled': return project.draft.id;
     case 'rival-in-progress': return project.production.id;
     case 'released': return project.film.id;
   }
@@ -18,6 +19,10 @@ export function projectId(project: Project): string {
 
 export function playerDraftToProject(draft: FilmDraft): Project {
   return { kind: 'player-in-progress', draft };
+}
+
+export function scheduledDraftToProject(draft: FilmDraft, releaseDay: number): Project {
+  return { kind: 'scheduled', draft, releaseDay };
 }
 
 export function rivalProductionToProject(production: RivalProductionInProgress): Project {
@@ -35,6 +40,10 @@ export function filmToProject(film: Film): Project {
 
 export function asPlayerDraft(project: Project | null): FilmDraft | null {
   return project?.kind === 'player-in-progress' ? project.draft : null;
+}
+
+export function asScheduled(project: Project | null): { draft: FilmDraft; releaseDay: number } | null {
+  return project?.kind === 'scheduled' ? { draft: project.draft, releaseDay: project.releaseDay } : null;
 }
 
 export function asRivalProduction(project: Project | null): RivalProductionInProgress | null {
@@ -81,11 +90,22 @@ export function rivalProductionsInProgress(projects: Project[]): RivalProduction
  * subset (Studio.productionsInProgress before Phase 5) once the currently-
  * focused one (GameState.focusedProjectId, the live wizard/ProductionRun
  * draft) is pulled out separately. Pass `null` to get every player-in-
- * progress draft with none excluded.
+ * progress draft with none excluded. Deliberately does not include
+ * 'scheduled' projects - their photography/post-production are locked, so
+ * they have nothing left for settleProductionsInProgress to advance; see
+ * scheduledPlayerReleases below for their own dedicated extraction.
  */
 export function backgroundedPlayerDrafts(projects: Project[], excludeId: string | null): FilmDraft[] {
   return projects.flatMap((p) => {
     const draft = asPlayerDraft(p);
     return draft && draft.id !== excludeId ? [draft] : [];
+  });
+}
+
+/** Every player project waiting on its own releaseDay to arrive (roadmap Phase 7.2) - see engine/scheduledReleases.ts. */
+export function scheduledPlayerReleases(projects: Project[]): Array<{ draft: FilmDraft; releaseDay: number }> {
+  return projects.flatMap((p) => {
+    const s = asScheduled(p);
+    return s ? [s] : [];
   });
 }

@@ -669,8 +669,23 @@ export interface FilmDraft {
 // *storage fragmentation* - one flat, world-level array instead of three
 // separate ones - not the type-level distinction between how the player's
 // own films and a rival's are made.
+// Roadmap Phase 7.1/7.2: a fourth variant, 'scheduled' - a player's own
+// project that's made every creative/production decision it's going to
+// (post-production and marketing choices are both locked in) and is now
+// just waiting for its own `releaseDay` to arrive, the same lazy,
+// catch-up-safe settlement pattern RivalProductionInProgress.releaseDay
+// already uses (see engine/rivalStudios.ts) - now the player gets the same
+// real scheduling capability instead of always releasing same-day.
+// Deliberately not a fifth 'completed' variant on top of this: a
+// post-production-done-but-not-yet-scheduled project doesn't need its own
+// kind - it's already fully representable as an ordinary backgrounded
+// 'player-in-progress' project (photography.status === 'finished',
+// postProductionChoices set), the same way a mid-shoot backgrounded draft
+// already is. "Parked" is a UI affordance (Dashboard/Inbox surfacing it
+// distinctly), not a storage-level distinction that needs its own type.
 export type Project =
   | { kind: 'player-in-progress'; draft: FilmDraft }
+  | { kind: 'scheduled'; draft: FilmDraft; releaseDay: number }
   | { kind: 'rival-in-progress'; production: RivalProductionInProgress }
   | { kind: 'released'; film: Film };
 
@@ -683,4 +698,7 @@ export type WizardStep =
   | 'marketing'
   | 'results';
 
-export type Screen = 'dashboard' | WizardStep | 'rival-studio' | 'stats';
+// 'release-calendar' is a Dashboard detour (roadmap Phase 7.3), not a
+// WizardStep - reachable and leavable from the Dashboard like 'rival-studio'/
+// 'stats', not part of the develop-to-release sequence.
+export type Screen = 'dashboard' | WizardStep | 'rival-studio' | 'stats' | 'release-calendar';

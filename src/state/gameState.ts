@@ -147,7 +147,16 @@ export type GameAction =
   | { type: 'FINISH_PHOTOGRAPHY'; productionId: string }
   | { type: 'SET_POST_PRODUCTION_CHOICES'; choices: PostProductionChoices }
   | { type: 'SET_MARKETING_CHOICES'; choices: MarketingChoices }
-  | { type: 'RELEASE_FILM' }
+  // Roadmap Phase 7.2 - replaces the old always-immediate RELEASE_FILM.
+  // `releaseDay` is the player's pick; the reducer clamps it up to at least
+  // "today plus the fixed marketing lead time" (same STAGE_DURATIONS.marketing
+  // run-up RELEASE_FILM always charged), so picking today is still the exact
+  // same-day-release behavior the old action had - the new capability is
+  // being able to pick a day further out instead. The focused project
+  // transitions to 'scheduled' and, if its own releaseDay is already due by
+  // the time that marketing lead time elapses, resolves into 'released'
+  // within this same dispatch (see state/studioReducer.ts).
+  | { type: 'SCHEDULE_RELEASE'; releaseDay: number }
   | { type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS'; filmId: string }
   | { type: 'RETURN_TO_DASHBOARD' }
   | { type: 'RENAME_STUDIO'; name: string }
@@ -157,17 +166,23 @@ export type GameAction =
   // on the 'production' screen without disturbing the focused one (which is
   // always null at this point - see GameState.viewingProductionId).
   | { type: 'VIEW_PRODUCTION'; productionId: string }
-  // Makes a wrapped background production (photography.status === 'finished')
-  // the focused project so the player can walk it through post-production/
-  // marketing/release - see studioReducer.ts. Its kind stays
-  // 'player-in-progress' throughout; nothing moves between arrays any more,
-  // only which id is focused changes. A no-op while something else is
-  // already focused, i.e. the player is mid-wizard on something else; the UI
-  // shouldn't offer this action in that case (see components/common/Inbox.tsx).
+  // Makes a backgrounded project the focused one so the player can walk it
+  // through wherever it's ready to go next - post-production
+  // (photography.status === 'finished', postProductionChoices still null) or
+  // straight to marketing/scheduling (postProductionChoices already set) -
+  // see studioReducer.ts. Its kind stays 'player-in-progress' throughout;
+  // nothing moves between arrays any more, only which id is focused changes.
+  // A no-op while something else is already focused, i.e. the player is
+  // mid-wizard on something else; the UI shouldn't offer this action in that
+  // case (see components/common/Inbox.tsx).
   | { type: 'RESUME_FOR_POST_PRODUCTION'; productionId: string }
   // Dashboard -> the filterable film-history table (components/StatsPage.tsx).
   // No payload, no calendar cost - a pure detour, same as VIEW_RIVAL_STUDIO.
-  | { type: 'VIEW_STATS' };
+  | { type: 'VIEW_STATS' }
+  // Dashboard -> the release calendar (roadmap Phase 7.3): every upcoming
+  // release, the player's own scheduled projects and every rival's
+  // in-progress production, sorted by day. Pure detour, same as VIEW_STATS.
+  | { type: 'VIEW_RELEASE_CALENDAR' };
 
 export interface CompletedFilmRecord {
   film: Film;

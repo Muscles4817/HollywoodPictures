@@ -36,7 +36,7 @@ beforeEach(() => {
 
 describe('save / reload preserves exact run state', () => {
   it('a film mid-run round-trips through saveState/loadState with its boxOfficeRun byte-for-byte identical', () => {
-    const released = studioReducer(buildStateWithReadyDraft(1), { type: 'RELEASE_FILM' });
+    const released = studioReducer(buildStateWithReadyDraft(1), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     let state = released;
     for (let i = 0; i < 21; i++) state = studioReducer(state, { type: 'ADVANCE_DAY' }); // 3 weeks in, still running
 
@@ -51,7 +51,7 @@ describe('save / reload preserves exact run state', () => {
   });
 
   it('a finished run also round-trips exactly, including the final totalBoxOffice/profit/outcome', () => {
-    const released = studioReducer(buildStateWithReadyDraft(2), { type: 'RELEASE_FILM' });
+    const released = studioReducer(buildStateWithReadyDraft(2), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     let state = released;
     for (let i = 0; i < MAX_SIMULATION_WEEKS * 7 + 7; i++) state = studioReducer(state, { type: 'ADVANCE_DAY' });
     expect(playerReleasedFilms(state.projects)[0].boxOfficeRun.status).toBe('finished');
@@ -62,7 +62,7 @@ describe('save / reload preserves exact run state', () => {
   });
 
   it('continuing a reloaded run settles identically to continuing the original in memory', () => {
-    const released = studioReducer(buildStateWithReadyDraft(3), { type: 'RELEASE_FILM' });
+    const released = studioReducer(buildStateWithReadyDraft(3), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     let state = released;
     for (let i = 0; i < 7; i++) state = studioReducer(state, { type: 'ADVANCE_DAY' }); // 1 week in
     saveState(state);
@@ -228,8 +228,29 @@ describe('old saves migrate safely', () => {
     expect(state.studio.name).not.toBe('Stale Pictures');
   });
 
+  it('a save under the pre-Phase-7.2 v26 key (no SCHEDULE_RELEASE/scheduled projects yet) is invisible to v27 - falls back to a fresh studio rather than a hybrid state', () => {
+    // Real release scheduling (architecture roadmap Phase 7.1/7.2) added a
+    // fourth Project kind, 'scheduled', that a v26 save's projects array
+    // can't contain (the kind didn't exist yet). Same class of break as
+    // every past shape change here: no migration code, an old save simply
+    // isn't found under the new key.
+    globalThis.localStorage.setItem(
+      'hollywood-pictures-save-v26',
+      JSON.stringify({
+        studio: { cash: 1, reputation: 20, name: 'Stale Pictures' },
+        projects: [],
+        focusedProjectId: null,
+        totalDays: 1,
+      }),
+    );
+    const state = loadState();
+    expect(state.projects).toEqual([]);
+    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
+    expect(state.studio.name).not.toBe('Stale Pictures');
+  });
+
   it('clearSavedState followed by loadState behaves exactly like no save ever existed', () => {
-    const released = studioReducer(buildStateWithReadyDraft(4), { type: 'RELEASE_FILM' });
+    const released = studioReducer(buildStateWithReadyDraft(4), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     saveState(released);
     clearSavedState();
     const state = loadState();

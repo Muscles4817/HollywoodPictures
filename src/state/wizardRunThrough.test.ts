@@ -124,7 +124,7 @@ function walkFilmThroughWizard(state: GameState): GameState {
   });
 
   expect(() => {
-    s = studioReducer(s, { type: 'RELEASE_FILM' });
+    s = studioReducer(s, { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
   }).not.toThrow();
   expect(s.screen).toBe('results');
   expect(playerReleasedFilms(s.projects)).toHaveLength(playerReleasedFilms(state.projects).length + 1);

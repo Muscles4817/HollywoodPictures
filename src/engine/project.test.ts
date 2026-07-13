@@ -19,7 +19,7 @@ function sampleDraft(): FilmDraft {
 }
 
 function sampleFilm(): Film {
-  const released = studioReducer(buildStateWithReadyDraft(2), { type: 'RELEASE_FILM' });
+  const released = studioReducer(buildStateWithReadyDraft(2), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
   return playerReleasedFilms(released.projects)[0];
 }
 

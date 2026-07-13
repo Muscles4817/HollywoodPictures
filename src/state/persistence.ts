@@ -123,7 +123,16 @@ import { randomSeed, withRng } from '../engine/random';
 // carried its whole life up to that point; a project's id is now stable
 // from greenlight to release. A v25 save has none of these fields in their
 // new shape - no migration code, same as every past shape change here.
-const SAVE_KEY = 'hollywood-pictures-save-v26';
+// v26 -> v27 (architecture roadmap Phase 7.1/7.2): real release scheduling.
+// The old always-immediate RELEASE_FILM action is gone, replaced by
+// SCHEDULE_RELEASE - Project gained a fourth 'scheduled' kind (a draft plus
+// the releaseDay it's waiting on, see types/index.ts:Project), resolved by
+// the new engine/scheduledReleases.ts the same way RivalProductionInProgress.releaseDay
+// already resolves through engine/rivalStudios.ts. A v26 save can't contain
+// a 'scheduled' project (the kind didn't exist yet), and nothing in this
+// version's loadState() needs to handle one anyway - no migration code, same
+// as every past shape change here.
+const SAVE_KEY = 'hollywood-pictures-save-v27';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

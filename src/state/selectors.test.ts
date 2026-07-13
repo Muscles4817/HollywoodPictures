@@ -7,14 +7,14 @@ import { playerReleasedFilms } from '../engine/project';
 
 describe('computeReportedLegs - a derived reported statistic, never a stored driver', () => {
   it('is null while the run is still in theaters - not knowable before the run has a real total', () => {
-    const released = studioReducer(buildStateWithReadyDraft(1), { type: 'RELEASE_FILM' });
+    const released = studioReducer(buildStateWithReadyDraft(1), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     const film = playerReleasedFilms(released.projects)[0];
     expect(film.boxOfficeRun.status).toBe('running');
     expect(computeReportedLegs(film)).toBeNull();
   });
 
   it('equals totalBoxOffice / openingWeekend exactly once the run finishes', () => {
-    const released = studioReducer(buildStateWithReadyDraft(2), { type: 'RELEASE_FILM' });
+    const released = studioReducer(buildStateWithReadyDraft(2), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     let state = released;
     for (let i = 0; i < MAX_SIMULATION_WEEKS * 7 + 7; i++) state = studioReducer(state, { type: 'ADVANCE_DAY' });
     const film = playerReleasedFilms(state.projects)[0];
@@ -27,7 +27,7 @@ describe('computeReportedLegs - a derived reported statistic, never a stored dri
   });
 
   it('updates correctly as actual gross grows - a longer, bigger-grossing run reports proportionally higher legs than a shorter one with the same opening', () => {
-    const released = studioReducer(buildStateWithReadyDraft(3, { releaseType: 'Limited' }), { type: 'RELEASE_FILM' });
+    const released = studioReducer(buildStateWithReadyDraft(3, { releaseType: 'Limited' }), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     let state = released;
     const legsByWeek: number[] = [];
     for (let week = 1; week <= MAX_SIMULATION_WEEKS + 2; week++) {
