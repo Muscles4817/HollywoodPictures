@@ -3,6 +3,8 @@ import { formatGameDate } from '../../engine/calendar';
 import { Button } from './Button';
 import { Money } from './Money';
 import { OnSetDecisionCard } from './OnSetDecisionCard';
+import { deriveProjectsView } from '../../state/selectors';
+import { asPlayerDraft } from '../../engine/project';
 
 interface InboxProps {
   open: boolean;
@@ -28,7 +30,18 @@ interface InboxProps {
  */
 export function Inbox({ open, onOpenChange }: InboxProps) {
   const { state, dispatch } = useStudio();
-  const productions = state.studio.productionsInProgress;
+  // Inbox is mounted globally, including mid-wizard while state.draft is a
+  // live, unreleased draft (unlike Dashboard, where RETURN_TO_DASHBOARD
+  // guarantees draft is null) - deriveProjectsView's player-in-progress
+  // subset includes that live draft alongside the backgrounded productions,
+  // so it has to be filtered back out here: the live draft's own screen
+  // (ProductionRun.tsx) is where it belongs, not this list, same as before.
+  const projects = deriveProjectsView(state);
+  const productions = projects.flatMap((p) => {
+    const draft = asPlayerDraft(p);
+    if (!draft || draft.id === state.draft?.id) return [];
+    return [draft];
+  });
   const awaitingChoice = productions.filter((p) => p.photography?.status === 'awaiting-choice');
   const finished = productions.filter((p) => p.photography?.status === 'finished');
   const badgeCount = awaitingChoice.length + finished.length;

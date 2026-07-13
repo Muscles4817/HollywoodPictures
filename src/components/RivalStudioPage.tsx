@@ -5,26 +5,35 @@ import { Button } from './common/Button';
 import { StatTile } from './common/StatTile';
 import { Money } from './common/Money';
 import { FilmDetailModal } from './common/FilmDetailModal';
+import { deriveProjectsView } from '../state/selectors';
+import { asFilm, asRivalProduction } from '../engine/project';
 import type { Film } from '../types';
 
 /**
- * A rival studio's own read-only page - its released films (GameState.rivalFilmsReleased
- * filtered by name, same as the Top 10 chart) plus a teaser of what it's
- * currently making, without the full detail the player gets on their own
- * production (see engine/rivalStudios.ts:RivalProductionInProgress). Reached
- * from a Top 10 row or the Dashboard's "Rival Studios" list; the only way
- * back is the Home button, same pattern as every other detour screen.
+ * A rival studio's own read-only page - its released films (out of
+ * deriveProjectsView, filtered by name, same as the Top 10 chart) plus a
+ * teaser of what it's currently making, without the full detail the player
+ * gets on their own production (see engine/rivalStudios.ts:RivalProductionInProgress).
+ * Reached from a Top 10 row or the Dashboard's "Rival Studios" list; the
+ * only way back is the Home button, same pattern as every other detour screen.
  */
 export function RivalStudioPage() {
   const { state, dispatch } = useStudio();
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
 
   const rival = state.rivalStudios.find((r) => r.name === state.viewingRivalStudioName);
-  const films = state.rivalFilmsReleased
-    .filter((f) => f.releasedBy === state.viewingRivalStudioName)
+  const projects = deriveProjectsView(state);
+  const films = projects
+    .flatMap((p) => {
+      const film = asFilm(p);
+      return film && film.releasedBy === state.viewingRivalStudioName ? [film] : [];
+    })
     .sort((a, b) => b.releasedOnDay - a.releasedOnDay);
   const inProgress = rival
-    ? state.rivalProductionsInProgress.filter((p) => p.rivalStudioId === rival.id)
+    ? projects.flatMap((p) => {
+        const production = asRivalProduction(p);
+        return production && production.rivalStudioId === rival.id ? [production] : [];
+      })
     : [];
 
   if (!rival) {
