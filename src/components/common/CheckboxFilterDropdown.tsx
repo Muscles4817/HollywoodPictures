@@ -36,9 +36,9 @@ const triggerStyle: CSSProperties = {
   minWidth: '190px',
   minHeight: '42px',
   padding: '0.65rem 0.85rem',
-  border: '1px solid rgba(255, 255, 255, 0.14)',
+  border: '1px solid var(--border)',
   borderRadius: '8px',
-  background: 'rgba(255, 255, 255, 0.055)',
+  background: 'var(--panel)',
   color: 'inherit',
   font: 'inherit',
   cursor: 'pointer',
@@ -53,9 +53,9 @@ const menuStyle: CSSProperties = {
   minWidth: '280px',
   maxWidth: '340px',
   padding: '0.75rem',
-  border: '1px solid rgba(255, 255, 255, 0.12)',
+  border: '1px solid var(--border)',
   borderRadius: '10px',
-  background: 'var(--card-background, #20242c)',
+  background: 'var(--panel)',
   boxShadow: '0 14px 36px rgba(0, 0, 0, 0.35)',
 };
 
@@ -66,7 +66,7 @@ const menuHeaderStyle: CSSProperties = {
   gap: '0.75rem',
   paddingBottom: '0.65rem',
   marginBottom: '0.5rem',
-  borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+  borderBottom: '1px solid var(--border)',
 };
 
 const actionButtonStyle: CSSProperties = {
@@ -188,12 +188,7 @@ export function CheckboxFilterDropdown({
         onClick={() => onToggle(id)}
         style={{
           ...triggerStyle,
-          borderColor: isOpen
-            ? 'rgba(255, 255, 255, 0.32)'
-            : triggerStyle.borderColor,
-          background: isOpen
-            ? 'rgba(255, 255, 255, 0.1)'
-            : triggerStyle.background,
+          borderColor: isOpen ? 'var(--primary)' : triggerStyle.borderColor,
         }}
       >
         <span>
@@ -272,9 +267,7 @@ export function CheckboxFilterDropdown({
                   key={option.id}
                   style={{
                     ...optionStyle,
-                    background: isSelected
-                      ? 'rgba(255, 255, 255, 0.08)'
-                      : 'transparent',
+                    background: isSelected ? 'var(--info-bg)' : 'transparent',
                   }}
                 >
                   <input

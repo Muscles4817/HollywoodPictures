@@ -10,9 +10,9 @@
   min-width: 190px;
   min-height: 42px;
   padding: 0.65rem 0.85rem;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.055);
+  background: var(--panel);
   color: inherit;
   font: inherit;
   text-align: left;
@@ -21,8 +21,7 @@
 
 .script-ratings-filter__trigger:hover,
 .script-ratings-filter__trigger--open {
-  border-color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--primary);
 }
 
 .script-ratings-filter__trigger-label {
@@ -58,9 +57,9 @@
   max-height: min(720px, calc(100vh - 10rem));
   overflow-y: auto;
   padding: 0.9rem;
-  border: 1px solid rgba(255, 255, 255, 0.13);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--card-background, #20242c);
+  background: var(--panel);
   box-shadow: 0 16px 42px rgba(0, 0, 0, 0.4);
 }
 
@@ -93,7 +92,7 @@
 }
 
 .script-ratings-filter__clear:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--info-bg);
   opacity: 1;
 }
 
@@ -103,7 +102,7 @@
 }
 
 .script-ratings-filter__section {
-  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  border-top: 1px solid var(--border);
 }
 
 .script-ratings-filter__section-trigger {
@@ -133,8 +132,8 @@
   margin-left: 0.5rem;
   padding: 0 0.35rem;
   border-radius: 999px;
-  background: rgba(90, 137, 255, 0.2);
-  color: var(--blue, #7da2ff);
+  background: var(--info-bg);
+  color: var(--primary);
   font-size: 0.72rem;
   letter-spacing: normal;
 }
@@ -171,9 +170,9 @@
 .script-ratings-filter__choice {
   min-width: 48px;
   padding: 0.38rem 0.55rem;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--panel);
   color: var(--text-muted);
   font: inherit;
   font-size: 0.78rem;
@@ -181,14 +180,14 @@
 }
 
 .script-ratings-filter__choice:hover {
-  border-color: rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--primary);
+  background: var(--info-bg);
   color: inherit;
 }
 
 .script-ratings-filter__choice--selected {
-  border-color: var(--blue, #5c88ff);
-  background: rgba(92, 136, 255, 0.18);
+  border-color: var(--primary);
+  background: var(--info-bg);
   color: inherit;
 }
 

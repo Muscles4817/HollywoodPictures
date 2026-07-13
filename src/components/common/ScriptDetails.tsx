@@ -33,9 +33,9 @@ export function ScriptDetails({ script }: { script: Script }) {
       <p style={{ margin: '0 0 6px', fontSize: '0.85em', color: 'var(--text-muted)' }}>
         {archetypeProfile.description} {script.storyType !== 'Original' && storyProfile.description} {settingProfile.description}
       </p>
-      <div className="card-title">Screenplay Cost: <Money amount={script.cost} /></div>
-      <p className="card-synopsis">{describeCostDrivers(script)}</p>
-      <p className="card-synopsis">{describeCommercialAppeal(script)}</p>
+      <div className="card-subtitle">Screenplay Cost: <Money amount={script.cost} /></div>
+      <p style={{ margin: '0 0 6px', fontSize: '0.85em' }}>{describeCostDrivers(script)}</p>
+      <p style={{ margin: '0 0 6px', fontSize: '0.85em' }}>{describeCommercialAppeal(script)}</p>
       <div className="row" style={{ gap: 16, flexWrap: 'wrap', margin: '0 0 6px' }}>
         <StatGroup
           title="Writing"
@@ -54,11 +54,9 @@ export function ScriptDetails({ script }: { script: Script }) {
         />
       </div>
       <div style={{ fontSize: '0.85em' }}>
-        <div style={{ gap: '2rem', display: 'flex', margin: '1rem 3rem 1rem 3rem' }}>
-          <div>Leads: {script.requiredLeads}</div>
-          <div>Supporting Roles: {script.requiredSupporting}</div>
-        </div>
-        <div style={{ gap: '2rem', display: 'flex', margin: '0rem 3rem 1rem 3rem' }}>Intended Audience: {script.intendedAudience}</div>
+        <div>Leads: {script.requiredLeads}</div>
+        <div>Supporting Roles: {script.requiredSupporting}</div>
+        <div>Intended Audience: {script.intendedAudience}</div>
       </div>
       <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '6px 0' }}>
         {productionRequirementTags(script).map((tag) => (
