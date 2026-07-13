@@ -657,6 +657,32 @@ export interface FilmDraft {
   results: FilmResults | null;
 }
 
+// --- Project: one entity, one id, across a film's entire life ------------
+//
+// Architecture roadmap Phase 3. Today a film's identity is fragmented
+// across three storage locations with two id schemes: the live
+// GameState.draft, Studio.productionsInProgress (background shoots,
+// same FilmDraft type), and Studio.filmsReleased (a different type, with a
+// freshly-generated id unrelated to the FilmDraft.id it carried its whole
+// life up to that point). Project is a single discriminated union, tagged
+// by `kind`, so every one of the three keeps one stable identity
+// (projectId below) from greenlight through release.
+//
+// Deliberately NOT a full merge of FilmDraft/Film/RivalProductionInProgress
+// into new flattened payload shapes - each variant just nests the existing
+// type wholesale. `RivalProductionInProgress` stays structurally distinct
+// from `FilmDraft` (a synthesized production isn't a lived one - see
+// docs/DESIGN.md, architecture audit Identity #4) rather than being forced
+// into false parity with it; unifying those two deeply is its own,
+// separate, deferrable undertaking. What Project actually fixes is
+// *storage fragmentation* - one flat, world-level array instead of three
+// separate ones - not the type-level distinction between how the player's
+// own films and a rival's are made.
+export type Project =
+  | { kind: 'player-in-progress'; draft: FilmDraft }
+  | { kind: 'rival-in-progress'; production: RivalProductionInProgress }
+  | { kind: 'released'; film: Film };
+
 export type WizardStep =
   | 'develop'
   | 'talent'
