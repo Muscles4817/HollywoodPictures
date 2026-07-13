@@ -846,6 +846,24 @@ th {
   font-size: 0.85em;
 }
 
+/* --- Market Filters --- */
+.market-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.market-filters__label {
+  margin-right: 0.15rem;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
 /* --- Badges --- */
 .badge {
   display: inline-block;
