@@ -19,6 +19,8 @@ import { OutcomeInspector } from './OutcomeInspector';
 import { studioReducer } from '../../state/studioReducer';
 import { saveState } from '../../state/persistence';
 import { buildStateWithReadyDraft } from '../../state/testFixtures';
+import { deriveFocusedDraft } from '../../state/selectors';
+import { playerDraftToProject } from '../../engine/project';
 import type { GameState } from '../../state/gameState';
 
 beforeEach(() => {
@@ -47,10 +49,15 @@ describe('OutcomeInspector loads real data on first mount, without any user inte
 
   it('with several released films - picks the first one automatically', () => {
     let state = releaseOneFilm(2);
-    state = { ...state, draft: null, screen: 'dashboard' };
+    state = { ...state, focusedProjectId: null, screen: 'dashboard' };
     // A second and third film, same pattern persistence.test.ts's fixtures use.
-    state = studioReducer({ ...state, draft: buildStateWithReadyDraft(3).draft }, { type: 'RELEASE_FILM' });
-    state = studioReducer({ ...state, draft: buildStateWithReadyDraft(4).draft }, { type: 'RELEASE_FILM' });
+    for (const seed of [3, 4]) {
+      const draft = deriveFocusedDraft(buildStateWithReadyDraft(seed))!;
+      state = studioReducer(
+        { ...state, projects: [...state.projects, playerDraftToProject(draft)], focusedProjectId: draft.id },
+        { type: 'RELEASE_FILM' },
+      );
+    }
     saveState(state);
 
     render(

@@ -27,13 +27,12 @@ function stateWithGenreSelected(seed: number): GameState {
   let state: GameState = {
     studio,
     screen: 'dashboard',
-    draft: null,
+    projects: [],
+    focusedProjectId: null,
     rngSeed: nextSeed,
     totalDays: 1,
     talentPool: result.talentPool,
     rivalStudios: [],
-    rivalProductionsInProgress: [],
-    rivalFilmsReleased: [],
     viewingRivalStudioName: null,
     viewingProductionId: null,
   };

@@ -3,6 +3,7 @@ import { loadState, saveState, clearSavedState } from './persistence';
 import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft } from './testFixtures';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
+import { playerReleasedFilms } from '../engine/project';
 
 /**
  * A minimal in-memory localStorage, since vitest's default (Node)
@@ -42,9 +43,9 @@ describe('save / reload preserves exact run state', () => {
     saveState(state);
     const reloaded = loadState();
 
-    expect(reloaded.studio.filmsReleased).toHaveLength(1);
-    expect(reloaded.studio.filmsReleased[0].boxOfficeRun).toEqual(state.studio.filmsReleased[0].boxOfficeRun);
-    expect(reloaded.studio.filmsReleased[0].results).toEqual(state.studio.filmsReleased[0].results);
+    expect(playerReleasedFilms(reloaded.projects)).toHaveLength(1);
+    expect(playerReleasedFilms(reloaded.projects)[0].boxOfficeRun).toEqual(playerReleasedFilms(state.projects)[0].boxOfficeRun);
+    expect(playerReleasedFilms(reloaded.projects)[0].results).toEqual(playerReleasedFilms(state.projects)[0].results);
     expect(reloaded.studio.cash).toBe(state.studio.cash);
     expect(reloaded.totalDays).toBe(state.totalDays);
   });
@@ -53,11 +54,11 @@ describe('save / reload preserves exact run state', () => {
     const released = studioReducer(buildStateWithReadyDraft(2), { type: 'RELEASE_FILM' });
     let state = released;
     for (let i = 0; i < MAX_SIMULATION_WEEKS * 7 + 7; i++) state = studioReducer(state, { type: 'ADVANCE_DAY' });
-    expect(state.studio.filmsReleased[0].boxOfficeRun.status).toBe('finished');
+    expect(playerReleasedFilms(state.projects)[0].boxOfficeRun.status).toBe('finished');
 
     saveState(state);
     const reloaded = loadState();
-    expect(reloaded.studio.filmsReleased[0]).toEqual(state.studio.filmsReleased[0]);
+    expect(playerReleasedFilms(reloaded.projects)[0]).toEqual(playerReleasedFilms(state.projects)[0]);
   });
 
   it('continuing a reloaded run settles identically to continuing the original in memory', () => {
@@ -73,7 +74,7 @@ describe('save / reload preserves exact run state', () => {
       continuedOriginal = studioReducer(continuedOriginal, { type: 'ADVANCE_DAY' });
       continuedReloaded = studioReducer(continuedReloaded, { type: 'ADVANCE_DAY' });
     }
-    expect(continuedReloaded.studio.filmsReleased[0].boxOfficeRun).toEqual(continuedOriginal.studio.filmsReleased[0].boxOfficeRun);
+    expect(playerReleasedFilms(continuedReloaded.projects)[0].boxOfficeRun).toEqual(playerReleasedFilms(continuedOriginal.projects)[0].boxOfficeRun);
   });
 });
 
@@ -81,7 +82,7 @@ describe('old saves migrate safely', () => {
   it('no save present at all (fresh browser) falls back to a brand new studio without throwing', () => {
     expect(() => loadState()).not.toThrow();
     const state = loadState();
-    expect(state.studio.filmsReleased).toEqual([]);
+    expect(state.projects).toEqual([]);
     expect(state.screen).toBe('dashboard');
   });
 
@@ -96,14 +97,14 @@ describe('old saves migrate safely', () => {
       JSON.stringify({ studio: { cash: 1, filmsReleased: [{ boxOfficeRun: { legs: 4, retention: 0.8 } }] } }),
     );
     const state = loadState();
-    expect(state.studio.filmsReleased).toEqual([]);
+    expect(state.projects).toEqual([]);
     expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
   });
 
   it('malformed data under the current key also falls back cleanly, rather than throwing', () => {
     globalThis.localStorage.setItem('hollywood-pictures-save-v20', 'not valid json{{{');
     expect(() => loadState()).not.toThrow();
-    expect(loadState().studio.filmsReleased).toEqual([]);
+    expect(loadState().projects).toEqual([]);
   });
 
   it('a save under the pre-Milestone-9 v19 key (missing availability fields on BoxOfficeRun.fixed/simWeeks) is invisible to v20 - falls back to a fresh studio rather than crashing the first time a film\'s week is next advanced', () => {
@@ -138,12 +139,12 @@ describe('old saves migrate safely', () => {
       }),
     );
     const state = loadState();
-    expect(state.studio.filmsReleased).toEqual([]);
+    expect(state.projects).toEqual([]);
     expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
 
     // The actual failure mode: advancing days used to throw once a v19-shaped
     // film reached this code path. With the fresh studio loadState() actually
-    // returns (no filmsReleased), this must be a no-op, not a crash.
+    // returns (no released films), this must be a no-op, not a crash.
     expect(() => studioReducer(state, { type: 'ADVANCE_DAY' })).not.toThrow();
     expect(() => studioReducer(state, { type: 'GO_TO_STEP', step: 'talent' })).not.toThrow();
   });
@@ -159,7 +160,7 @@ describe('old saves migrate safely', () => {
       JSON.stringify({ studio: { cash: 1, totalDays: 999, filmsReleased: [] } }),
     );
     const state = loadState();
-    expect(state.studio.filmsReleased).toEqual([]);
+    expect(state.projects).toEqual([]);
     expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
     expect(state.totalDays).toBe(1); // a genuinely fresh calendar, not the stale save's totalDays: 999
   });
@@ -178,7 +179,7 @@ describe('old saves migrate safely', () => {
       }),
     );
     const state = loadState();
-    expect(state.studio.filmsReleased).toEqual([]);
+    expect(state.projects).toEqual([]);
     expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
     expect(state.rivalStudios).not.toEqual([]); // a genuinely fresh (real) roster, not the stale save's studio-nested one
     expect(state.rivalStudios.some((r) => r.name === 'Stale Pictures')).toBe(false);
@@ -197,10 +198,34 @@ describe('old saves migrate safely', () => {
       }),
     );
     const state = loadState();
-    expect(state.studio.filmsReleased).toEqual([]);
+    expect(state.projects).toEqual([]);
     expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
     expect(state.talentPool.Director.some((t) => t.name === 'Stale Director')).toBe(false);
     expect(state.talentPool.Director.length).toBeGreaterThan(0); // a genuinely fresh (real) pool, not an empty one
+  });
+
+  it('a save under the pre-Phase-5 v25 key (draft/Studio.filmsReleased/Studio.productionsInProgress/rival state instead of GameState.projects) is invisible to v26 - falls back to a fresh studio rather than a hybrid state', () => {
+    // GameState.draft/Studio.filmsReleased/Studio.productionsInProgress/
+    // GameState.rivalProductionsInProgress/GameState.rivalFilmsReleased all
+    // collapsed into GameState.projects/focusedProjectId (architecture
+    // roadmap Phase 5) - a v25 save has none of the new fields at all. Same
+    // class of break as every past shape change here: no migration code, an
+    // old save simply isn't found under the new key.
+    globalThis.localStorage.setItem(
+      'hollywood-pictures-save-v25',
+      JSON.stringify({
+        studio: { cash: 1, reputation: 20, name: 'Stale Pictures', filmsReleased: [], productionsInProgress: [] },
+        draft: null,
+        totalDays: 1,
+        rivalProductionsInProgress: [],
+        rivalFilmsReleased: [],
+      }),
+    );
+    const state = loadState();
+    expect(state.projects).toEqual([]);
+    expect(state.focusedProjectId).toBeNull();
+    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
+    expect(state.studio.name).not.toBe('Stale Pictures');
   });
 
   it('clearSavedState followed by loadState behaves exactly like no save ever existed', () => {
@@ -208,6 +233,6 @@ describe('old saves migrate safely', () => {
     saveState(released);
     clearSavedState();
     const state = loadState();
-    expect(state.studio.filmsReleased).toEqual([]);
+    expect(state.projects).toEqual([]);
   });
 });

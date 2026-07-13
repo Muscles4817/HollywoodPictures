@@ -13,8 +13,9 @@ import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { TimeTickIndicator } from '../common/TimeTickIndicator';
 import { nearestLabel } from './ProductionPlanning';
+import { asPlayerDraft, findProject } from '../../engine/project';
 import type { TickSpeedMultiplier } from '../../constants';
-import type { FilmDraft, TalentRole } from '../../types';
+import type { TalentRole } from '../../types';
 
 const TICK_INTERVAL_MS = 500;
 
@@ -34,15 +35,16 @@ interface ProductionRunProps {
 export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplier, onSetSpeedMultiplier }: ProductionRunProps) {
   const { state, dispatch } = useStudio();
   // GameState.viewingProductionId set (Dashboard's Shooting card) means
-  // "show this backgrounded production instead of the live draft" - only
-  // ever reachable from the Dashboard, where `draft` is already null, so
-  // this never shadows or competes with unrelated in-progress work (see
-  // GameState.viewingProductionId's own comment). null means today's only
-  // behavior: show the live draft.
+  // "show this backgrounded production instead of the focused one" - only
+  // ever reachable from the Dashboard, where focusedProjectId is already
+  // null, so this never shadows or competes with unrelated in-progress work
+  // (see GameState.viewingProductionId's own comment). null means today's
+  // only behavior: show the focused project. Every project - focused or
+  // backgrounded - lives in the same GameState.projects array (roadmap
+  // Phase 5), so this is a single by-id lookup either way.
   const viewingProductionId = state.viewingProductionId;
-  const source: FilmDraft | null = viewingProductionId
-    ? (state.studio.productionsInProgress.find((p) => p.id === viewingProductionId) ?? null)
-    : state.draft;
+  const shownId = viewingProductionId ?? state.focusedProjectId;
+  const source = asPlayerDraft(findProject(state.projects, shownId));
   const photography = source?.photography ?? null;
 
   // Pure UI pause (never persisted, mirrors Dashboard's manual pause) - set
@@ -289,7 +291,7 @@ export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplie
                 <Button onClick={() => setAwaitingContinueDecision(false)}>Keep Filming</Button>
                 <Button
                   variant="primary"
-                  onClick={() => dispatch({ type: 'FINISH_PHOTOGRAPHY', productionId: viewingProductionId ?? undefined })}
+                  onClick={() => dispatch({ type: 'FINISH_PHOTOGRAPHY', productionId: shownId! })}
                 >
                   Finish Principal Photography
                 </Button>
@@ -303,7 +305,7 @@ export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplie
               talent={draft.talent}
               talentPool={state.talentPool}
               script={draft.script}
-              onChoose={(choiceId) => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId, productionId: viewingProductionId ?? undefined })}
+              onChoose={(choiceId) => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId, productionId: shownId! })}
             />
           )}
 
@@ -339,7 +341,7 @@ export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplie
                   )}
                   <Button
                     variant="primary"
-                    onClick={() => dispatch({ type: 'FINISH_PHOTOGRAPHY', productionId: viewingProductionId ?? undefined })}
+                    onClick={() => dispatch({ type: 'FINISH_PHOTOGRAPHY', productionId: shownId! })}
                   >
                     Finish Principal Photography
                   </Button>

@@ -598,24 +598,15 @@ export interface RivalProductionInProgress {
   releaseDay: number;
 }
 
+// Architecture roadmap Phase 5: filmsReleased/productionsInProgress moved to
+// GameState.projects (see Project below) - one flat, world-level store
+// instead of a per-studio one, since it's what fixed the id-churn/storage
+// fragmentation Project exists to solve. Studio itself is now just identity
+// and the two numbers a film actually spends/earns against.
 export interface Studio {
   name: string;
   cash: number;
   reputation: number; // 0-100
-  filmsReleased: Film[];
-  // The player's own shoots running in the background - a FilmDraft sent
-  // here (RETURN_TO_DASHBOARD) instead of being discarded, once its
-  // photography has actually started, so the player can develop/cast/plan a
-  // second film while this one keeps shooting (docs/DESIGN.md 5.x). Reuses
-  // FilmDraft wholesale rather than a parallel type - scriptOptions/
-  // talentTargetPriceByRole/furthestStepIndexCharged just go unused here,
-  // same as they already do once a live draft reaches `production`. Every
-  // entry's `photography` is non-null. Advanced by
-  // engine/productionsInProgress.ts:settleProductionsInProgress, called
-  // from the same reducer sites as settleBoxOfficeForAllFilms/
-  // settleRivalMarket - it progresses as a side effect of the calendar
-  // advancing, not a dedicated ticking screen.
-  productionsInProgress: FilmDraft[];
 }
 
 // The film currently being built in the wizard; fields fill in progressively.

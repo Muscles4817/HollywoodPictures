@@ -14,6 +14,7 @@ import { AVERAGE_TICKET_PRICE, STUDIO_BOX_OFFICE_SHARE } from '../../engine/boxO
 import { determineOutcome } from '../../engine/outcome';
 import { computeReputationChange } from '../../engine/reputation';
 import { createRng } from '../../engine/random';
+import { playerReleasedFilms } from '../../engine/project';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { SeverityBadge } from '../common/SeverityBadge';
@@ -167,7 +168,7 @@ function CompareMoneyRow({ label, original, current }: { label: string; original
 
 export function OutcomeInspector() {
   const { state } = useStudio();
-  const filmsReleased = state.studio.filmsReleased;
+  const filmsReleased = playerReleasedFilms(state.projects);
 
   const [filmId, setFilmId] = useState<string | null>(filmsReleased[0]?.id ?? null);
   const selectedFilm = filmsReleased.find((f) => f.id === filmId) ?? null;

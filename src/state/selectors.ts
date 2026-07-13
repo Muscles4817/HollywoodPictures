@@ -1,38 +1,31 @@
 import type { Film, FilmDraft, Genre, Project, TalentRole } from '../types';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { TEST_SCREENING_PROFILES } from '../data/postProduction';
-import { playerDraftToProject, rivalProductionToProject, filmToProject, asFilm } from '../engine/project';
+import { asFilm, asPlayerDraft, findProject } from '../engine/project';
 import type { GameState } from './gameState';
 
 /**
- * A temporary compatibility layer for the architecture roadmap's Phase 4:
- * presents the still-fragmented storage (GameState.draft,
- * Studio.productionsInProgress, GameState.rivalProductionsInProgress,
- * Studio.filmsReleased, GameState.rivalFilmsReleased) as one flat
- * Project[] list, so read-only consumers can migrate to the target shape
- * before Phase 5 flips the actual source of truth. Computed fresh on every
- * read, never stored - same "derive, don't duplicate" discipline this file
- * already uses for its Stats-page aggregates. Deleted once Phase 5 makes
- * GameState.projects the real field (at which point consumers here just
- * read that directly).
+ * The project the live wizard/ProductionRun screen is currently driving
+ * (GameState.focusedProjectId), narrowed to its FilmDraft shape - null both
+ * when nothing's focused and when the focused project has already
+ * transitioned to 'released' (see deriveFocusedFilm below and RELEASE_FILM,
+ * state/studioReducer.ts). The read-side replacement for the old
+ * `GameState.draft` field (roadmap Phase 5).
  */
-export function deriveProjectsView(state: GameState): Project[] {
-  // A draft with `results` set has already been released by RELEASE_FILM -
-  // it stays populated afterward purely so ReleaseResults.tsx still has
-  // something to show (docs/DESIGN.md), not because it's still "in
-  // progress." The real, canonical record of that same film already exists
-  // in studio.filmsReleased; counting the draft here too would double it.
-  const liveDraft = state.draft && state.draft.results === null ? state.draft : null;
-  const playerInProgress = [
-    ...(liveDraft ? [liveDraft] : []),
-    ...state.studio.productionsInProgress,
-  ].map(playerDraftToProject);
-  const rivalInProgress = state.rivalProductionsInProgress.map(rivalProductionToProject);
-  const released = [
-    ...state.studio.filmsReleased,
-    ...state.rivalFilmsReleased,
-  ].map(filmToProject);
-  return [...playerInProgress, ...rivalInProgress, ...released];
+export function deriveFocusedDraft(state: GameState): FilmDraft | null {
+  return asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+}
+
+/**
+ * The focused project narrowed to its released Film shape - non-null only
+ * right after RELEASE_FILM, while the player is still on the 'results'
+ * screen looking at the film they just released (see
+ * components/wizard/ReleaseResults.tsx). The id is the same one
+ * deriveFocusedDraft would have returned a moment earlier - RELEASE_FILM
+ * doesn't touch focusedProjectId, only the project's own `kind` changes.
+ */
+export function deriveFocusedFilm(state: GameState): Film | null {
+  return asFilm(findProject(state.projects, state.focusedProjectId));
 }
 
 /**
@@ -108,10 +101,10 @@ export interface TopGrossingEntry {
  * made in its own most recently settled week - a real weekend chart, not
  * lifetime gross, so a long-running hit and a film in its second week both
  * compete on the same number. Only films still actually in theaters count;
- * a finished run drops off the chart the same way it would in reality. Reads
- * off deriveProjectsView (roadmap Phase 4.1) - a film is the player's own
- * iff it has no `releasedBy` (see types/index.ts:Film), same convention as
- * collectFilmStats above.
+ * a finished run drops off the chart the same way it would in reality.
+ * Reads off GameState.projects directly (roadmap Phase 5) - a film is the
+ * player's own iff it has no `releasedBy` (see types/index.ts:Film), same
+ * convention as collectFilmStats above.
  */
 export function computeTopGrossingFilms(projects: Project[], playerStudioName: string, limit = 10): TopGrossingEntry[] {
   const candidates: Array<{ film: Film; studioName: string }> = projects.flatMap((project) => {
@@ -139,7 +132,7 @@ export interface FilmStatRow {
 /**
  * Every film ever released, player's own and every rival's, as one flat
  * list - the raw material for the Stats page (components/StatsPage.tsx).
- * Nothing new is tracked here; deriveProjectsView (roadmap Phase 4.1) already
+ * Nothing new is tracked here; GameState.projects (roadmap Phase 5) already
  * folds every release, player's and every rival's, into one list, complete
  * with cast (stable talent ids, since rivals cast from the same shared
  * talent pool - see engine/rivalStudios.ts) and full results. A film is the

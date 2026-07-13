@@ -7,6 +7,7 @@ import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
+import { deriveFocusedDraft } from '../../state/selectors';
 import type { EditStyle, FinalCutFocus, MusicFocus, PostProductionChoices, TestScreeningResponse } from '../../types';
 
 const EDIT_STYLES = Object.keys(EDIT_STYLE_PROFILES) as EditStyle[];
@@ -28,7 +29,7 @@ const DEFAULT_CHOICES: PostProductionChoices = {
 
 export function PostProduction() {
   const { state, dispatch } = useStudio();
-  const draft = state.draft!;
+  const draft = deriveFocusedDraft(state)!;
   const choices = draft.postProductionChoices ?? DEFAULT_CHOICES;
 
   useEffect(() => {

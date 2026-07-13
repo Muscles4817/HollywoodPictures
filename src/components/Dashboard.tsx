@@ -12,7 +12,7 @@ import { FilmDetailModal } from './common/FilmDetailModal';
 import { TimeTickIndicator } from './common/TimeTickIndicator';
 import { TopGrossingPanel } from './common/TopGrossingPanel';
 import { DifficultyPicker } from './common/DifficultyPicker';
-import { computeTopGrossingFilms, deriveProjectsView } from '../state/selectors';
+import { computeTopGrossingFilms } from '../state/selectors';
 import { asFilm, asPlayerDraft } from '../engine/project';
 import type { TickSpeedMultiplier } from '../constants';
 import type { Film } from '../types';
@@ -62,12 +62,11 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
     return <GameGuide onBack={() => setShowGuide(false)} />;
   }
 
-  // deriveProjectsView (roadmap Phase 4.1) folds the still-fragmented
-  // storage into one list; RETURN_TO_DASHBOARD always clears state.draft
-  // (see state/studioReducer.ts), so the 'player-in-progress' subset here is
-  // exactly studio.productionsInProgress - nothing behaves differently by
-  // reading it through the derived view instead.
-  const projects = deriveProjectsView(state);
+  // RETURN_TO_DASHBOARD always clears focusedProjectId (see
+  // state/studioReducer.ts), so every player-in-progress project here is
+  // already exactly the backgrounded set - nothing is ever the live/focused
+  // one while this screen is showing.
+  const { projects } = state;
   const playerReleasedFilms = projects.flatMap((p) => {
     const film = asFilm(p);
     return film && film.releasedBy === undefined ? [film] : [];
@@ -120,7 +119,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
               <Button className="btn-sm" onClick={startEditingName}>Rename</Button>
             </div>
           )}
-          <p>{formatGameDate(state.totalDays)} &middot; {studio.filmsReleased.length} film{studio.filmsReleased.length === 1 ? '' : 's'} released</p>
+          <p>{formatGameDate(state.totalDays)} &middot; {playerReleasedFilms.length} film{playerReleasedFilms.length === 1 ? '' : 's'} released</p>
         </div>
         <div className="row">
           <TimeTickIndicator
@@ -142,7 +141,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
       <div className="row">
         <StatTile label="Studio Cash" value={<Money amount={studio.cash} signColor />} />
         <StatTile label="Reputation" value={`${studio.reputation} / 100`} />
-        <StatTile label="Films Released" value={studio.filmsReleased.length} />
+        <StatTile label="Films Released" value={playerReleasedFilms.length} />
         <StatTile label="Current Date" value={formatGameDate(state.totalDays)} />
       </div>
 
@@ -221,11 +220,11 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
           <div className="card">
             <div className="row-between">
               <h2 style={{ margin: 0 }}>Studio History</h2>
-              <Button disabled={studio.filmsReleased.length === 0} onClick={() => exportFilmHistory(studio, state.totalDays)}>
+              <Button disabled={playerReleasedFilms.length === 0} onClick={() => exportFilmHistory(studio, playerReleasedFilms, state.totalDays)}>
                 Export Film History (JSON)
               </Button>
             </div>
-            {studio.filmsReleased.length === 0 ? (
+            {playerReleasedFilms.length === 0 ? (
               <p>No films released yet. Start your first production to build a track record.</p>
             ) : (
               <div style={{ overflowX: 'auto' }}>
@@ -243,7 +242,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
                     </tr>
                   </thead>
                   <tbody>
-                    {[...studio.filmsReleased].reverse().map((film) => {
+                    {[...playerReleasedFilms].reverse().map((film) => {
                       const running = film.boxOfficeRun.status === 'running';
                       return (
                         <tr key={film.id} className="film-history-row" onClick={() => setSelectedFilm(film)}>

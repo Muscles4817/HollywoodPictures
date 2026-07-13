@@ -11,6 +11,7 @@ import { Button } from '../common/Button';
 import { Money, formatMoney } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
+import { deriveFocusedDraft } from '../../state/selectors';
 import type { MarketingChoices, ReleaseType, ReleaseWindow } from '../../types';
 
 const RELEASE_TYPES = Object.keys(RELEASE_TYPE_PROFILES) as ReleaseType[];
@@ -26,7 +27,7 @@ const DEFAULT_CHOICES: MarketingChoices = {
 
 export function MarketingRelease() {
   const { state, dispatch } = useStudio();
-  const draft = state.draft!;
+  const draft = deriveFocusedDraft(state)!;
   const choices = draft.marketingChoices ?? DEFAULT_CHOICES;
 
   useEffect(() => {

@@ -113,7 +113,17 @@ import { randomSeed, withRng } from '../engine/random';
 // player's own studio's data. A v24 save's studio object still carries
 // talentPool nested inside it and has none at the top level - same class
 // of break as every past shape change here, no migration code.
-const SAVE_KEY = 'hollywood-pictures-save-v25';
+// v25 -> v26 (architecture roadmap Phase 5): GameState.draft/Studio.filmsReleased/
+// Studio.productionsInProgress/GameState.rivalProductionsInProgress/
+// GameState.rivalFilmsReleased all collapsed into one flat GameState.projects
+// array plus GameState.focusedProjectId (see types/index.ts:Project) - the
+// storage-fragmentation fix the whole roadmap was building toward, and it
+// also fixes a real id-churn bug along the way: RELEASE_FILM used to hand a
+// released Film a freshly-generated id unrelated to the FilmDraft.id it
+// carried its whole life up to that point; a project's id is now stable
+// from greenlight to release. A v25 save has none of these fields in their
+// new shape - no migration code, same as every past shape change here.
+const SAVE_KEY = 'hollywood-pictures-save-v26';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
@@ -135,13 +145,12 @@ export function loadState(): GameState {
     return {
       studio: createInitialStudio(DEFAULT_STARTING_CASH),
       screen: 'dashboard',
-      draft: null,
+      projects: [],
+      focusedProjectId: null,
       rngSeed: nextSeed,
       totalDays: 1,
       talentPool: result.talentPool,
       rivalStudios: result.rivalStudios,
-      rivalProductionsInProgress: [],
-      rivalFilmsReleased: [],
       viewingRivalStudioName: null,
       viewingProductionId: null,
     };

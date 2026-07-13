@@ -12,6 +12,7 @@ import { createEmptyDraft, createInitialStudio, type GameState } from './gameSta
 import { generateScriptOptions } from '../engine/scriptGenerator';
 import { generateTalentCandidates, generateTalentPool } from '../engine/talentGenerator';
 import { withRng, type RandomFn } from '../engine/random';
+import { playerDraftToProject } from '../engine/project';
 
 const PRODUCTION_CHOICES: ProductionChoices = {
   contingencyAmount: 500_000,
@@ -65,16 +66,10 @@ export function buildReadyDraft(rng: RandomFn, marketingOverrides: Partial<Marke
   };
 }
 
-/** A GameState with a fresh studio and a release-ready draft loaded - ready to dispatch RELEASE_FILM against. */
+/** A GameState with a fresh studio and a release-ready draft loaded (and focused) - ready to dispatch RELEASE_FILM against. */
 export function buildStateWithReadyDraft(seed: number, marketingOverrides: Partial<MarketingChoices> = {}): GameState {
   const { result, nextSeed } = withRng(seed, (rng) => {
-    // createInitialStudio's return is currently missing productionsInProgress
-    // (unrelated in-progress work elsewhere in the tree, not this
-    // milestone's concern - see docs/DESIGN.md 5.34 Milestone 5's summary)
-    // - settleProductionsInProgress crashes on undefined without this. Not
-    // fixed here since it isn't this fixture's job to patch gameState.ts;
-    // just guaranteeing this test fixture's own studio is well-formed.
-    const studio = { ...createInitialStudio(50_000_000), productionsInProgress: [] };
+    const studio = createInitialStudio(50_000_000);
     const talentPool = generateTalentPool(rng);
     const draft = buildReadyDraft(rng, marketingOverrides);
     return { studio, talentPool, draft };
@@ -82,13 +77,12 @@ export function buildStateWithReadyDraft(seed: number, marketingOverrides: Parti
   return {
     studio: result.studio,
     screen: 'marketing',
-    draft: result.draft,
+    projects: [playerDraftToProject(result.draft)],
+    focusedProjectId: result.draft.id,
     rngSeed: nextSeed,
     totalDays: 1,
     talentPool: result.talentPool,
     rivalStudios: [],
-    rivalProductionsInProgress: [],
-    rivalFilmsReleased: [],
     viewingRivalStudioName: null,
     viewingProductionId: null,
   };

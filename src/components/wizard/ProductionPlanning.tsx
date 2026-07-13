@@ -16,7 +16,7 @@ import {
   type StrategyBreakdown,
 } from '../../engine/recommendation';
 import { synthesizeProductionIdentity, findBiggestTension } from '../../engine/productionIdentity';
-import { computeCommittedSpend } from '../../state/selectors';
+import { computeCommittedSpend, deriveFocusedDraft } from '../../state/selectors';
 import { DistributionEditor } from '../common/DistributionEditor';
 import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
@@ -217,7 +217,7 @@ function RecommendationCard<K extends string>({
 
 export function ProductionPlanning() {
   const { state, dispatch } = useStudio();
-  const draft = state.draft!;
+  const draft = deriveFocusedDraft(state)!;
   const script = draft.script!;
   const genre = draft.genre!;
   const director = draft.talent.find((t): t is DirectorTalent => t.role === 'Director');

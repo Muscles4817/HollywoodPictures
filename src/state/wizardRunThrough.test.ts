@@ -20,21 +20,21 @@ import { createInitialStudio, createEmptyDraft, type GameState } from './gameSta
 import { generateTalentPool } from '../engine/talentGenerator';
 import { withRng } from '../engine/random';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
+import { deriveFocusedDraft } from './selectors';
+import { playerDraftToProject, playerReleasedFilms } from '../engine/project';
 import type { EffectsMethodKey, EnvironmentMethodKey } from '../types';
 
 function freshState(seed: number): GameState {
   const { result, nextSeed } = withRng(seed, (rng) => ({ talentPool: generateTalentPool(rng) }));
-  const studio = { ...createInitialStudio(50_000_000), productionsInProgress: [] };
   return {
-    studio,
+    studio: createInitialStudio(50_000_000),
     screen: 'dashboard',
-    draft: null,
+    projects: [],
+    focusedProjectId: null,
     rngSeed: nextSeed,
     totalDays: 1,
     talentPool: result.talentPool,
     rivalStudios: [],
-    rivalProductionsInProgress: [],
-    rivalFilmsReleased: [],
     viewingRivalStudioName: null,
     viewingProductionId: null,
   };
@@ -56,16 +56,16 @@ function walkFilmThroughWizard(state: GameState): GameState {
   let s = state;
   s = studioReducer(s, { type: 'START_NEW_FILM' });
   expect(s.screen).toBe('develop');
-  expect(s.draft).not.toBeNull();
+  expect(s.focusedProjectId).not.toBeNull();
 
   s = studioReducer(s, { type: 'SET_TITLE', title: 'A Regression Test Picture' });
   s = studioReducer(s, { type: 'SET_GENRE', genre: 'Action' });
   s = studioReducer(s, { type: 'SET_TARGET_AUDIENCE', targetAudience: 'Mass Market' });
-  expect(s.draft!.scriptOptions.length).toBeGreaterThan(0);
+  expect(deriveFocusedDraft(s)!.scriptOptions.length).toBeGreaterThan(0);
 
   // Pick a script and Continue - the exact click sequence the reported bug
   // happened on.
-  s = studioReducer(s, { type: 'SELECT_SCRIPT', script: s.draft!.scriptOptions[0] });
+  s = studioReducer(s, { type: 'SELECT_SCRIPT', script: deriveFocusedDraft(s)!.scriptOptions[0] });
   expect(() => {
     s = studioReducer(s, { type: 'GO_TO_STEP', step: 'talent' });
   }).not.toThrow();
@@ -91,7 +91,7 @@ function walkFilmThroughWizard(state: GameState): GameState {
     contingencyAmount: 500_000,
     runtimeIntensity: 0.5,
   });
-  expect(s.draft!.productionChoices).not.toBeNull();
+  expect(deriveFocusedDraft(s)!.productionChoices).not.toBeNull();
 
   expect(() => {
     s = studioReducer(s, { type: 'GO_TO_STEP', step: 'production' });
@@ -99,9 +99,9 @@ function walkFilmThroughWizard(state: GameState): GameState {
   expect(s.screen).toBe('production');
 
   s = studioReducer(s, { type: 'BEGIN_PHOTOGRAPHY' });
-  expect(s.draft!.photography?.status).toBe('in-progress');
-  s = studioReducer(s, { type: 'FINISH_PHOTOGRAPHY' });
-  expect(s.draft!.photography?.status).toBe('finished');
+  expect(deriveFocusedDraft(s)!.photography?.status).toBe('in-progress');
+  s = studioReducer(s, { type: 'FINISH_PHOTOGRAPHY', productionId: s.focusedProjectId! });
+  expect(deriveFocusedDraft(s)!.photography?.status).toBe('finished');
 
   expect(() => {
     s = studioReducer(s, { type: 'GO_TO_STEP', step: 'post-production' });
@@ -127,11 +127,11 @@ function walkFilmThroughWizard(state: GameState): GameState {
     s = studioReducer(s, { type: 'RELEASE_FILM' });
   }).not.toThrow();
   expect(s.screen).toBe('results');
-  expect(s.studio.filmsReleased).toHaveLength(state.studio.filmsReleased.length + 1);
+  expect(playerReleasedFilms(s.projects)).toHaveLength(playerReleasedFilms(state.projects).length + 1);
 
   s = studioReducer(s, { type: 'RETURN_TO_DASHBOARD' });
   expect(s.screen).toBe('dashboard');
-  expect(s.draft).toBeNull();
+  expect(s.focusedProjectId).toBeNull();
 
   return s;
 }
@@ -139,8 +139,9 @@ function walkFilmThroughWizard(state: GameState): GameState {
 describe('wizard run-through: a full film survives every screen transition without throwing', () => {
   it('start to finish, on a brand-new studio', () => {
     const finalState = walkFilmThroughWizard(freshState(1));
-    expect(finalState.studio.filmsReleased).toHaveLength(1);
-    expect(finalState.studio.filmsReleased[0].boxOfficeRun.status).not.toBe('finished'); // still running, just released
+    const films = playerReleasedFilms(finalState.projects);
+    expect(films).toHaveLength(1);
+    expect(films[0].boxOfficeRun.status).not.toBe('finished'); // still running, just released
   });
 
   it('advancing days after release (the box office settling every day) never throws', () => {
@@ -159,14 +160,14 @@ describe('wizard run-through: a full film survives every screen transition witho
     // not just the one being worked on) - a single-film run doesn't
     // exercise that path at all once the first film reaches 'results'.
     let s = walkFilmThroughWizard(freshState(3));
-    expect(s.studio.filmsReleased).toHaveLength(1);
-    expect(s.studio.filmsReleased[0].boxOfficeRun.status).toBe('running');
+    expect(playerReleasedFilms(s.projects)).toHaveLength(1);
+    expect(playerReleasedFilms(s.projects)[0].boxOfficeRun.status).toBe('running');
 
     // A few days pass with the first film mid-run before starting the second.
     for (let i = 0; i < 10; i++) s = studioReducer(s, { type: 'ADVANCE_DAY' });
 
     s = walkFilmThroughWizard(s);
-    expect(s.studio.filmsReleased).toHaveLength(2);
+    expect(playerReleasedFilms(s.projects)).toHaveLength(2);
   });
 
   it('three films in a row, each released while earlier ones are still running, never throws - a realistic extended play session', () => {
@@ -175,7 +176,7 @@ describe('wizard run-through: a full film survives every screen transition witho
       s = walkFilmThroughWizard(s);
       for (let day = 0; day < 5; day++) s = studioReducer(s, { type: 'ADVANCE_DAY' });
     }
-    expect(s.studio.filmsReleased).toHaveLength(3);
+    expect(playerReleasedFilms(s.projects)).toHaveLength(3);
   });
 });
 
@@ -185,7 +186,7 @@ describe('wizard run-through: going back and forward through already-visited ste
     s = studioReducer(s, { type: 'SET_TITLE', title: 'Back And Forth' });
     s = studioReducer(s, { type: 'SET_GENRE', genre: 'Comedy' });
     s = studioReducer(s, { type: 'SET_TARGET_AUDIENCE', targetAudience: 'Teens' });
-    s = studioReducer(s, { type: 'SELECT_SCRIPT', script: s.draft!.scriptOptions[0] });
+    s = studioReducer(s, { type: 'SELECT_SCRIPT', script: deriveFocusedDraft(s)!.scriptOptions[0] });
     s = studioReducer(s, { type: 'GO_TO_STEP', step: 'talent' });
 
     expect(() => {
@@ -202,7 +203,8 @@ describe('wizard run-through: going back and forward through already-visited ste
 
 describe('wizard run-through: createEmptyDraft alone is a valid starting point for every wizard action the reducer accepts before a script exists', () => {
   it('setting genre/audience/title against a brand-new empty draft never throws', () => {
-    const s0: GameState = { ...freshState(6), screen: 'develop', draft: createEmptyDraft() };
+    const draft = createEmptyDraft();
+    const s0: GameState = { ...freshState(6), screen: 'develop', projects: [playerDraftToProject(draft)], focusedProjectId: draft.id };
     expect(() => {
       let s = studioReducer(s0, { type: 'SET_GENRE', genre: 'Horror' });
       s = studioReducer(s, { type: 'SET_TARGET_AUDIENCE', targetAudience: 'Niche' });

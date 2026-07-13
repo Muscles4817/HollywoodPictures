@@ -5,6 +5,7 @@ import { withRng } from '../engine/random';
 import { STUDIO_BOX_OFFICE_SHARE, AVERAGE_TICKET_PRICE } from '../engine/boxOfficeRun';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
 import { computeTalentCost, computeProductionBudgetCost } from '../engine/cost';
+import { playerDraftToProject, playerReleasedFilms, findProject } from '../engine/project';
 import type { GameState } from './gameState';
 
 /** Dispatches ADVANCE_DAY n times, threading state through - the same real-time background tick App.tsx fires, just driven directly instead of through a timer. */
@@ -14,17 +15,29 @@ function advanceDays(state: GameState, n: number): GameState {
   return s;
 }
 
+/** The player's single released film in a state built by these tests - all of them release exactly one. */
+function theFilm(state: GameState) {
+  return playerReleasedFilms(state.projects)[0];
+}
+
 describe('RELEASE_FILM', () => {
-  it('produces a coherent Film: week 1 settled immediately, results consistent between the draft and Studio History', () => {
+  it('produces a coherent Film: week 1 settled immediately, and keeps the exact id the draft carried its whole life', () => {
     const state = buildStateWithReadyDraft(1);
+    const draftId = state.focusedProjectId!;
     const after = studioReducer(state, { type: 'RELEASE_FILM' });
 
     expect(after.screen).toBe('results');
-    expect(after.studio.filmsReleased).toHaveLength(1);
-    const film = after.studio.filmsReleased[0];
+    const films = playerReleasedFilms(after.projects);
+    expect(films).toHaveLength(1);
+    const film = films[0];
 
-    // The Results screen (draft.results) and Studio History (filmsReleased[0].results) must agree - same object, same call.
-    expect(after.draft?.results).toEqual(film.results);
+    // Roadmap Phase 5's id-churn fix: the released Film keeps the exact id
+    // the FilmDraft carried since START_NEW_FILM (see engine/project.ts) -
+    // one stable identity, not a freshly-generated one - and
+    // focusedProjectId still resolves straight to it, now as 'released'.
+    expect(film.id).toBe(draftId);
+    expect(after.focusedProjectId).toBe(draftId);
+    expect(findProject(after.projects, draftId)?.kind).toBe('released');
 
     expect(film.boxOfficeRun.status).toBe('running');
     expect(film.boxOfficeRun.weeks).toHaveLength(1);
@@ -45,7 +58,7 @@ describe('RELEASE_FILM', () => {
     const state = buildStateWithReadyDraft(2);
     const cashBefore = state.studio.cash;
     const after = studioReducer(state, { type: 'RELEASE_FILM' });
-    const film = after.studio.filmsReleased[0];
+    const film = theFilm(after);
 
     // Isolates the box-office revenue credit specifically, independent of
     // the (unrelated, pre-existing) production-cost bookkeeping RELEASE_FILM
@@ -71,8 +84,8 @@ describe('advancing a calendar jump via repeated ADVANCE_DAY', () => {
     const bigJump = advanceDays(releasedA, MAX_SIMULATION_WEEKS * 7 + 5);
     const smallSteps = advanceDays(releasedB, MAX_SIMULATION_WEEKS * 7 + 5);
 
-    const filmBig = bigJump.studio.filmsReleased[0];
-    const filmSmall = smallSteps.studio.filmsReleased[0];
+    const filmBig = theFilm(bigJump);
+    const filmSmall = theFilm(smallSteps);
     expect(filmBig.boxOfficeRun).toEqual(filmSmall.boxOfficeRun);
     expect(filmBig.results).toEqual(filmSmall.results);
     expect(bigJump.studio.cash).toBe(smallSteps.studio.cash);
@@ -81,15 +94,15 @@ describe('advancing a calendar jump via repeated ADVANCE_DAY', () => {
   it('a run finishes, gets its final figures filled in, and never settles again on further advances', () => {
     const released = studioReducer(buildStateWithReadyDraft(4), { type: 'RELEASE_FILM' });
     const finished = advanceDays(released, MAX_SIMULATION_WEEKS * 7 + 7);
-    const film = finished.studio.filmsReleased[0];
+    const film = theFilm(finished);
     expect(film.boxOfficeRun.status).toBe('finished');
     expect(film.results.totalBoxOffice).toBe(film.boxOfficeRun.cumulativeGross);
     expect(film.results.outcome).not.toBeNull();
 
     const cashAfterFinish = finished.studio.cash;
     const evenLater = advanceDays(finished, 100);
-    expect(evenLater.studio.filmsReleased[0].boxOfficeRun).toEqual(film.boxOfficeRun);
-    expect(evenLater.studio.filmsReleased[0].results).toEqual(film.results);
+    expect(theFilm(evenLater).boxOfficeRun).toEqual(film.boxOfficeRun);
+    expect(theFilm(evenLater).results).toEqual(film.results);
     expect(evenLater.studio.cash).toBe(cashAfterFinish); // no further box-office credit once finished
   });
 
@@ -108,7 +121,7 @@ describe('advancing a calendar jump via repeated ADVANCE_DAY', () => {
     const released = studioReducer(buildStateWithReadyDraft(6), { type: 'RELEASE_FILM' });
     const cashAfterRelease = released.studio.cash; // already includes week 1's credit, settled as part of RELEASE_FILM itself
     const finished = advanceDays(released, MAX_SIMULATION_WEEKS * 7 + 7);
-    const film = finished.studio.filmsReleased[0];
+    const film = theFilm(finished);
     // Only weeks 2+ are newly settled by the ADVANCE_DAY calls this test itself drives.
     const expectedCredit = film.boxOfficeRun.weeks.slice(1).reduce((sum, w) => sum + Math.round(w.gross * STUDIO_BOX_OFFICE_SHARE), 0);
     expect(finished.studio.cash - cashAfterRelease).toBe(expectedCredit);
@@ -119,12 +132,16 @@ describe('advancing a calendar jump via repeated ADVANCE_DAY', () => {
     const midRun = advanceDays(afterFirst, 21); // 3 weeks in
 
     const { result: secondDraft } = withRng(70, (rng) => buildReadyDraft(rng, defaultMarketingChoices({ releaseType: 'Limited' })));
-    const withSecondDraft: GameState = { ...midRun, draft: secondDraft };
+    const withSecondDraft: GameState = {
+      ...midRun,
+      projects: [...midRun.projects, playerDraftToProject(secondDraft)],
+      focusedProjectId: secondDraft.id,
+    };
     const afterSecond = studioReducer(withSecondDraft, { type: 'RELEASE_FILM' });
-    expect(afterSecond.studio.filmsReleased).toHaveLength(2);
+    expect(playerReleasedFilms(afterSecond.projects)).toHaveLength(2);
 
     const caughtUp = advanceDays(afterSecond, MAX_SIMULATION_WEEKS * 7 + 30);
-    for (const film of caughtUp.studio.filmsReleased) {
+    for (const film of playerReleasedFilms(caughtUp.projects)) {
       expect(film.boxOfficeRun.status).toBe('finished');
       expect(film.boxOfficeRun.weeks.length).toBeGreaterThan(0);
       expect(film.boxOfficeRun.weeks.length).toBeLessThanOrEqual(MAX_SIMULATION_WEEKS);
@@ -136,14 +153,14 @@ describe('ACKNOWLEDGE_BOX_OFFICE_RESULTS', () => {
   it('flips acknowledged without touching anything else about the run', () => {
     const released = studioReducer(buildStateWithReadyDraft(8), { type: 'RELEASE_FILM' });
     const finished = advanceDays(released, MAX_SIMULATION_WEEKS * 7 + 7);
-    const filmId = finished.studio.filmsReleased[0].id;
-    expect(finished.studio.filmsReleased[0].boxOfficeRun.acknowledged).toBe(false);
+    const filmId = theFilm(finished).id;
+    expect(theFilm(finished).boxOfficeRun.acknowledged).toBe(false);
 
     const acknowledged = studioReducer(finished, { type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS', filmId });
-    const film = acknowledged.studio.filmsReleased[0];
+    const film = theFilm(acknowledged);
     expect(film.boxOfficeRun.acknowledged).toBe(true);
-    expect(film.boxOfficeRun.weeks).toEqual(finished.studio.filmsReleased[0].boxOfficeRun.weeks);
-    expect(film.results).toEqual(finished.studio.filmsReleased[0].results);
+    expect(film.boxOfficeRun.weeks).toEqual(theFilm(finished).boxOfficeRun.weeks);
+    expect(film.results).toEqual(theFilm(finished).results);
   });
 });
 
@@ -153,14 +170,14 @@ describe('deterministic release-day gross', () => {
     const stateB = buildStateWithReadyDraft(9);
     const afterA = studioReducer(stateA, { type: 'RELEASE_FILM' });
     const afterB = studioReducer(stateB, { type: 'RELEASE_FILM' });
-    expect(afterA.studio.filmsReleased[0].results.openingWeekend).toBe(afterB.studio.filmsReleased[0].results.openingWeekend);
-    expect(afterA.studio.filmsReleased[0].boxOfficeRun.fixed).toEqual(afterB.studio.filmsReleased[0].boxOfficeRun.fixed);
+    expect(theFilm(afterA).results.openingWeekend).toBe(theFilm(afterB).results.openingWeekend);
+    expect(theFilm(afterA).boxOfficeRun.fixed).toEqual(theFilm(afterB).boxOfficeRun.fixed);
   });
 
   it('week 1 gross matches admissions * AVERAGE_TICKET_PRICE, rounded', () => {
     const state = buildStateWithReadyDraft(10);
     const after = studioReducer(state, { type: 'RELEASE_FILM' });
-    const film = after.studio.filmsReleased[0];
+    const film = theFilm(after);
     const expected = Math.round(film.boxOfficeRun.simWeeks[0].cumulativeTicketsSold * AVERAGE_TICKET_PRICE);
     expect(film.results.openingWeekend).toBe(expected);
   });
@@ -216,5 +233,47 @@ describe('transient view state (viewingRivalStudioName/viewingProductionId) - ro
     const after = studioReducer(state, { type: 'RELEASE_FILM' });
     expect(after.viewingRivalStudioName).toBeNull();
     expect(after.viewingProductionId).toBeNull();
+  });
+});
+
+describe('GameState.projects - roadmap Phase 5 (the flip)', () => {
+  it("a project's id survives unchanged from greenlight (START_NEW_FILM) through release (RELEASE_FILM)", () => {
+    const started = studioReducer(buildStateWithReadyDraft(1), { type: 'RETURN_TO_DASHBOARD' });
+    const afterStart = studioReducer(started, { type: 'START_NEW_FILM' });
+    const projectId = afterStart.focusedProjectId!;
+    expect(findProject(afterStart.projects, projectId)?.kind).toBe('player-in-progress');
+
+    // Fast-forward this fresh draft to release-ready using the same fixture
+    // shape buildStateWithReadyDraft already trusts, just re-pointed at the
+    // id START_NEW_FILM actually assigned - what's under test here is
+    // whether that id survives the kind transition, not the wizard flow
+    // itself (already covered by state/wizardRunThrough.test.ts).
+    const { result: readyDraft } = withRng(1, (rng) => buildReadyDraft(rng));
+    const withReadyDraft: GameState = {
+      ...afterStart,
+      projects: [playerDraftToProject({ ...readyDraft, id: projectId })],
+      focusedProjectId: projectId,
+    };
+    const released = studioReducer(withReadyDraft, { type: 'RELEASE_FILM' });
+
+    expect(released.focusedProjectId).toBe(projectId);
+    const project = findProject(released.projects, projectId);
+    expect(project?.kind).toBe('released');
+    expect(project && project.kind === 'released' && project.film.id).toBe(projectId);
+  });
+
+  it('RETURN_TO_DASHBOARD discards a project with no photography started, but keeps one that has (backgrounded, not focused)', () => {
+    const withUncommittedDraft = studioReducer(buildStateWithReadyDraft(1), { type: 'RETURN_TO_DASHBOARD' });
+    const afterStart = studioReducer(withUncommittedDraft, { type: 'START_NEW_FILM' });
+    const uncommittedId = afterStart.focusedProjectId!;
+    const discarded = studioReducer(afterStart, { type: 'RETURN_TO_DASHBOARD' });
+    expect(discarded.focusedProjectId).toBeNull();
+    expect(findProject(discarded.projects, uncommittedId)).toBeNull();
+
+    const releaseReady = buildStateWithReadyDraft(2); // photography already 'finished' - see testFixtures.ts
+    const committedId = releaseReady.focusedProjectId!;
+    const backgrounded = studioReducer(releaseReady, { type: 'RETURN_TO_DASHBOARD' });
+    expect(backgrounded.focusedProjectId).toBeNull();
+    expect(findProject(backgrounded.projects, committedId)?.kind).toBe('player-in-progress');
   });
 });

@@ -5,13 +5,12 @@ import { Button } from './common/Button';
 import { StatTile } from './common/StatTile';
 import { Money } from './common/Money';
 import { FilmDetailModal } from './common/FilmDetailModal';
-import { deriveProjectsView } from '../state/selectors';
 import { asFilm, asRivalProduction } from '../engine/project';
 import type { Film } from '../types';
 
 /**
  * A rival studio's own read-only page - its released films (out of
- * deriveProjectsView, filtered by name, same as the Top 10 chart) plus a
+ * GameState.projects, filtered by name, same as the Top 10 chart) plus a
  * teaser of what it's currently making, without the full detail the player
  * gets on their own production (see engine/rivalStudios.ts:RivalProductionInProgress).
  * Reached from a Top 10 row or the Dashboard's "Rival Studios" list; the
@@ -22,7 +21,7 @@ export function RivalStudioPage() {
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
 
   const rival = state.rivalStudios.find((r) => r.name === state.viewingRivalStudioName);
-  const projects = deriveProjectsView(state);
+  const { projects } = state;
   const films = projects
     .flatMap((p) => {
       const film = asFilm(p);

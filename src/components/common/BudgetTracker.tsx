@@ -1,5 +1,5 @@
 import { useStudio } from '../../state/StudioContext';
-import { computeCommittedSpend } from '../../state/selectors';
+import { computeCommittedSpend, deriveFocusedDraft } from '../../state/selectors';
 import { Money } from './Money';
 import { StatTile } from './StatTile';
 
@@ -11,7 +11,7 @@ import { StatTile } from './StatTile';
  */
 export function BudgetTracker() {
   const { state } = useStudio();
-  const draft = state.draft;
+  const draft = deriveFocusedDraft(state);
   if (!draft) return null;
 
   const committed = computeCommittedSpend(draft);

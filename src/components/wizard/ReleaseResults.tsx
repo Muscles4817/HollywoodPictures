@@ -1,4 +1,5 @@
 import { useStudio } from '../../state/StudioContext';
+import { deriveFocusedFilm } from '../../state/selectors';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { ScoreBar } from '../common/ScoreBar';
@@ -7,21 +8,16 @@ import { StatTile } from '../common/StatTile';
 
 export function ReleaseResults() {
   const { state, dispatch } = useStudio();
-  const draft = state.draft!;
-  // Read the just-released Film's own results from Studio History, not the
-  // draft's frozen results snapshot - RELEASE_FILM only ever freezes one
-  // into draft.results at the moment of release, and nothing refreshes it
-  // afterward. The background day-tick keeps running on this very screen
-  // (docs/DESIGN.md 5.20), which settles state.studio.filmsReleased's copy
-  // week by week - so a short-legged run finishing while the player is
-  // still looking at this page would otherwise display "still playing"
-  // forever, even after Studio History next door already shows the real
-  // final numbers. RELEASE_FILM always appends the new film last and
-  // 'results' is only ever reached immediately after that append, so the
-  // last entry is always this film - falling back to the draft's own
-  // snapshot only if that invariant is somehow violated.
-  const releasedFilm = state.studio.filmsReleased[state.studio.filmsReleased.length - 1];
-  const results = releasedFilm?.results ?? draft.results!;
+  // The focused project's id survives the transition RELEASE_FILM makes
+  // from 'player-in-progress' to 'released' (see engine/project.ts,
+  // state/studioReducer.ts) - so this is always the live, currently-settling
+  // record of this exact film, not a frozen snapshot. The background
+  // day-tick keeps running on this very screen (docs/DESIGN.md 5.20),
+  // settling its box office run week by week, so a short-legged run
+  // finishing while the player is still looking at this page shows the
+  // real final numbers immediately rather than "still playing" forever.
+  const film = deriveFocusedFilm(state)!;
+  const results = film.results;
   // The film has already finished its whole run if the very first
   // settlement pass at release crossed straight to 'finished' (a weak
   // enough reception that legs bottom out after a single week) - rare, but
@@ -30,7 +26,7 @@ export function ReleaseResults() {
 
   return (
     <div className="stack">
-      <h1>{draft.title || 'Untitled Film'} - Opening Weekend</h1>
+      <h1>{film.title} - Opening Weekend</h1>
       {finished ? (
         <div>
           <span className={`badge badge-outcome-${results.outcome!.replace(/\s+/g, '-')}`} style={{ fontSize: '1.1em' }}>

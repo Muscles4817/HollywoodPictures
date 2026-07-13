@@ -6,6 +6,7 @@ import { effectiveRoleCapacity } from '../../engine/castRequirements';
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { formatGameDate } from '../../engine/calendar';
+import { deriveFocusedDraft } from '../../state/selectors';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
@@ -77,7 +78,7 @@ interface RoleHiringDrawerProps {
  */
 export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   const { state, dispatch } = useStudio();
-  const draft = state.draft!;
+  const draft = deriveFocusedDraft(state)!;
   const [pinnedTalentIds, setPinnedTalentIds] = useState<string[]>([]);
 
   // Body scroll lock + Escape-to-close, same conventions any overlay needs.

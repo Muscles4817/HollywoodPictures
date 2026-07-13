@@ -3,7 +3,7 @@ import { useStudio } from '../../state/StudioContext';
 import { MANDATORY_TALENT_ROLES, OPTIONAL_TALENT_ROLES } from '../../data/talentGeneration';
 import { TALENT_PRESENTATION, type RoleCategory } from '../../data/talentPresentation';
 import { effectiveRoleCapacity } from '../../engine/castRequirements';
-import { computeCommittedSpend } from '../../state/selectors';
+import { computeCommittedSpend, deriveFocusedDraft } from '../../state/selectors';
 import { computeTalentCompatibility } from '../../engine/compatibility';
 import { dominantLean, explainEffectsStrategy, explainEnvironmentStrategy } from '../../engine/recommendation';
 import { synthesizeProductionIdentity } from '../../engine/productionIdentity';
@@ -38,7 +38,7 @@ function tileHeadline(talent: Talent, category: RoleCategory): string {
 
 function RoleTile({ role, optional, onOpen }: { role: TalentRole; optional: boolean; onOpen: () => void }) {
   const { state } = useStudio();
-  const draft = state.draft!;
+  const draft = deriveFocusedDraft(state)!;
   const profile = TALENT_PRESENTATION[role];
   const capacity = effectiveRoleCapacity(role, draft.script);
   const hired = draft.talent.filter((t) => t.role === role);
@@ -79,7 +79,7 @@ function RoleTile({ role, optional, onOpen }: { role: TalentRole; optional: bool
 
 export function HireTalent() {
   const { state, dispatch } = useStudio();
-  const draft = state.draft!;
+  const draft = deriveFocusedDraft(state)!;
   const [masterBudget, setMasterBudget] = useState(DEFAULT_MASTER_BUDGET);
   const [openRole, setOpenRole] = useState<TalentRole | null>(null);
 

@@ -3,8 +3,7 @@ import { formatGameDate } from '../../engine/calendar';
 import { Button } from './Button';
 import { Money } from './Money';
 import { OnSetDecisionCard } from './OnSetDecisionCard';
-import { deriveProjectsView } from '../../state/selectors';
-import { asPlayerDraft } from '../../engine/project';
+import { backgroundedPlayerDrafts } from '../../engine/project';
 
 interface InboxProps {
   open: boolean;
@@ -12,36 +11,31 @@ interface InboxProps {
 }
 
 /**
- * Global notification center for Studio.productionsInProgress - the
- * player's own shoots running in the background (docs/DESIGN.md 5.x).
+ * Global notification center for the player's own backgrounded shoots
+ * (docs/DESIGN.md 5.x) - every 'player-in-progress' GameState.projects
+ * entry except the currently-focused one (see engine/project.ts:backgroundedPlayerDrafts).
  * Fixed-position, mounted once alongside DateBar/ThemeToggle so it's
  * reachable from any screen, including mid-wizard while planning a second
  * film. Two kinds of item need attention here:
  *  - 'awaiting-choice': an on-set event paused that specific production -
  *    resolving it here (OnSetDecisionCard, same component ProductionRun.tsx
- *    uses for the live draft) unpauses just that one.
+ *    uses for the focused project) unpauses just that one.
  *  - 'finished': photography wrapped and is waiting to be picked up for
  *    post-production - only actionable while the player isn't already
- *    mid-wizard on something else (state.draft !== null), so this can never
- *    silently take over unrelated in-progress work.
+ *    mid-wizard on something else (state.focusedProjectId !== null), so
+ *    this can never silently take over unrelated in-progress work.
  * Opening the Inbox pauses the real-time day tick (see App.tsx's `ticking`),
  * the same way the Dashboard's manual pause button already does - a slow
  * decision in here shouldn't cost the player time either.
  */
 export function Inbox({ open, onOpenChange }: InboxProps) {
   const { state, dispatch } = useStudio();
-  // Inbox is mounted globally, including mid-wizard while state.draft is a
-  // live, unreleased draft (unlike Dashboard, where RETURN_TO_DASHBOARD
-  // guarantees draft is null) - deriveProjectsView's player-in-progress
-  // subset includes that live draft alongside the backgrounded productions,
-  // so it has to be filtered back out here: the live draft's own screen
-  // (ProductionRun.tsx) is where it belongs, not this list, same as before.
-  const projects = deriveProjectsView(state);
-  const productions = projects.flatMap((p) => {
-    const draft = asPlayerDraft(p);
-    if (!draft || draft.id === state.draft?.id) return [];
-    return [draft];
-  });
+  // Inbox is mounted globally, including mid-wizard while something is
+  // focused (unlike Dashboard, where RETURN_TO_DASHBOARD guarantees
+  // focusedProjectId is null) - backgroundedPlayerDrafts excludes that
+  // focused one, so it's never shown here a second time: its own screen
+  // (ProductionRun.tsx) is where it belongs, not the Inbox.
+  const productions = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
   const awaitingChoice = productions.filter((p) => p.photography?.status === 'awaiting-choice');
   const finished = productions.filter((p) => p.photography?.status === 'finished');
   const badgeCount = awaitingChoice.length + finished.length;
@@ -91,7 +85,7 @@ export function Inbox({ open, onOpenChange }: InboxProps) {
                   {production.photography ? <> at <Money amount={production.photography.runningCost} /> spent</> : null} - ready
                   for post-production.
                 </p>
-                {state.draft ? (
+                {state.focusedProjectId ? (
                   <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
                     Finish or leave what you're currently working on before picking this back up.
                   </p>

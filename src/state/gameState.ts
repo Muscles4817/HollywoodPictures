@@ -8,7 +8,7 @@ import type {
   MarketingChoices,
   NormalizedScalar,
   PostProductionChoices,
-  RivalProductionInProgress,
+  Project,
   RivalStudio,
   Screen,
   Script,
@@ -22,28 +22,38 @@ import type {
 export interface GameState {
   studio: Studio;
   screen: Screen;
-  draft: FilmDraft | null;
+  // Architecture roadmap Phase 5: the single, flat, world-level store for
+  // every film across its whole life - the player's live draft, every
+  // backgrounded shoot, every rival production, and every release, player's
+  // or a rival's. See types/index.ts:Project for why this replaced the old
+  // draft/Studio.productionsInProgress/Studio.filmsReleased/
+  // rivalProductionsInProgress/rivalFilmsReleased five-way split.
+  projects: Project[];
+  // Which entry of `projects` the live wizard/ProductionRun screen is
+  // currently driving, if any - replaces the old `draft !== null` check.
+  // Stays pointed at the same id across BEGIN_PHOTOGRAPHY and RELEASE_FILM
+  // (a project's id is stable for its whole life - see engine/project.ts),
+  // so a released film reached via this screen is still "focused" on the
+  // results screen without needing a second, separate representation of it.
+  // null means nothing is currently focused (Dashboard, a detour screen).
+  focusedProjectId: string | null;
   rngSeed: number;
   /** Days elapsed since day 1 - the single source of truth for the in-game calendar (see engine/calendar.ts), world-level rather than studio-scoped since rival studios and the player share it. */
   totalDays: number;
   /** A small persistent roster of AI competitors, generated once at game start - world-level rather than nested inside the player's own Studio, since it's not the player's data (see docs/DESIGN.md 5.24). */
   rivalStudios: RivalStudio[];
-  rivalProductionsInProgress: RivalProductionInProgress[];
-  /** Parallel to studio.filmsReleased, but never touches the player's own cash/reputation - purely for the market (Top 10 chart, talent contention history). */
-  rivalFilmsReleased: Film[];
   /** The whole hireable roster, generated once at game start - world-level (shared by the player and every rival's own casting, see engine/rivalStudios.ts) rather than nested inside the player's own Studio. */
   talentPool: Record<TalentRole, Talent[]>;
   /** Which rival studio the 'rival-studio' screen is currently showing, if any - identified by name, same as Film.releasedBy (see types/index.ts:Film). */
   viewingRivalStudioName: string | null;
-  // Which Studio.productionsInProgress entry the 'production' screen is
-  // showing, if it's not the live draft - set by VIEW_PRODUCTION (Dashboard's
-  // Shooting card), read by ProductionRun.tsx. null means "show the live
-  // draft" (today's only behavior) - the Dashboard invariant that draft is
-  // always null while screen === 'dashboard' means this is only ever
-  // non-null while draft is null, so viewing a background production can
-  // never shadow or get confused with unrelated in-progress work. Reset to
-  // null by every other navigation action so it can't outlive the view that
-  // set it (see state/studioReducer.ts).
+  // Which `projects` entry the 'production' screen is showing, if it's not
+  // the focused one - set by VIEW_PRODUCTION (Dashboard's Shooting card),
+  // read by ProductionRun.tsx. null means "show the focused project" (today's
+  // only behavior) - reachable only from the Dashboard, where focusedProjectId
+  // is always already null, so viewing a background production can never
+  // shadow or get confused with unrelated in-progress work. Reset to null by
+  // every other navigation action so it can't outlive the view that set it
+  // (see state/studioReducer.ts).
   viewingProductionId: string | null;
 }
 
@@ -59,8 +69,6 @@ export function createInitialStudio(startingCash: number): Studio {
     name: 'Silver Reel Pictures',
     cash: startingCash,
     reputation: 20,
-    filmsReleased: [],
-    productionsInProgress: [],
   };
 }
 
@@ -130,12 +138,13 @@ export type GameAction =
     }
   | { type: 'BEGIN_PHOTOGRAPHY' }
   | { type: 'ADVANCE_SHOOTING_DAY' }
-  // productionId omitted means "the live draft" (ProductionRun.tsx viewing
-  // it directly, GameState.viewingProductionId null); present means "this
-  // entry of Studio.productionsInProgress" (the Inbox, or ProductionRun.tsx
-  // viewing a backgrounded shoot via VIEW_PRODUCTION) - see docs/DESIGN.md 5.x.
-  | { type: 'RESOLVE_EVENT_CHOICE'; choiceId: string; productionId?: string }
-  | { type: 'FINISH_PHOTOGRAPHY'; productionId?: string }
+  // Every project - focused or backgrounded - now lives in the same
+  // GameState.projects array (roadmap Phase 5), so there's no more implicit
+  // "no id means the live draft" case - the dispatcher always names which
+  // one (ProductionRun.tsx passes viewingProductionId ?? focusedProjectId;
+  // the Inbox passes the backgrounded production's own id).
+  | { type: 'RESOLVE_EVENT_CHOICE'; choiceId: string; productionId: string }
+  | { type: 'FINISH_PHOTOGRAPHY'; productionId: string }
   | { type: 'SET_POST_PRODUCTION_CHOICES'; choices: PostProductionChoices }
   | { type: 'SET_MARKETING_CHOICES'; choices: MarketingChoices }
   | { type: 'RELEASE_FILM' }
@@ -145,15 +154,16 @@ export type GameAction =
   | { type: 'RESET_SAVE'; startingCash: number }
   | { type: 'VIEW_RIVAL_STUDIO'; studioName: string }
   // Dashboard's Shooting card -> "view" a specific backgrounded production
-  // on the 'production' screen without disturbing the live draft (which is
+  // on the 'production' screen without disturbing the focused one (which is
   // always null at this point - see GameState.viewingProductionId).
   | { type: 'VIEW_PRODUCTION'; productionId: string }
-  // Pulls a wrapped background production (Studio.productionsInProgress,
-  // photography.status === 'finished') back into the single draft slot so
-  // the player can walk it through post-production/marketing/release - see
-  // studioReducer.ts. A no-op while `draft` isn't already null, i.e. the
-  // player is mid-wizard on something else; the UI shouldn't offer this
-  // action in that case (see components/common/Inbox.tsx).
+  // Makes a wrapped background production (photography.status === 'finished')
+  // the focused project so the player can walk it through post-production/
+  // marketing/release - see studioReducer.ts. Its kind stays
+  // 'player-in-progress' throughout; nothing moves between arrays any more,
+  // only which id is focused changes. A no-op while something else is
+  // already focused, i.e. the player is mid-wizard on something else; the UI
+  // shouldn't offer this action in that case (see components/common/Inbox.tsx).
   | { type: 'RESUME_FOR_POST_PRODUCTION'; productionId: string }
   // Dashboard -> the filterable film-history table (components/StatsPage.tsx).
   // No payload, no calendar cost - a pure detour, same as VIEW_RIVAL_STUDIO.

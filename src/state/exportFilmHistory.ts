@@ -1,4 +1,4 @@
-import type { Studio } from '../types';
+import type { Film, Studio } from '../types';
 import { formatGameDate } from '../engine/calendar';
 
 /**
@@ -10,14 +10,14 @@ import { formatGameDate } from '../engine/calendar';
  * write - the whole point is having exact numbers to check a specific
  * result against, instead of reconstructing them from a screenshot.
  */
-export function exportFilmHistory(studio: Studio, totalDays: number): void {
+export function exportFilmHistory(studio: Studio, filmsReleased: Film[], totalDays: number): void {
   const payload = {
     studioName: studio.name,
     reputation: studio.reputation,
     totalDays,
     currentDate: formatGameDate(totalDays),
     exportedAt: new Date().toISOString(),
-    filmsReleased: studio.filmsReleased,
+    filmsReleased,
   };
 
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });

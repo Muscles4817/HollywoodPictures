@@ -16,6 +16,7 @@ import { STORY_TYPE_PROFILES } from '../../data/storyTypes';
 import { SETTING_PROFILES } from '../../data/settings';
 import { ARCHETYPE_LABELS, STORY_TYPE_LABELS, SETTING_LABELS, SCALE_LABELS } from '../../data/scriptTagLabels';
 import { productionRequirementTags, describeCommercialAppeal, describeCostDrivers } from '../../engine/scriptPresentation';
+import { deriveFocusedDraft } from '../../state/selectors';
 import type { Script } from '../../types';
 
 /** The stat block + tone breakdown shared between a script's grid card and its comparison-panel slot - title is left to each call site since the two show it differently. */
@@ -77,7 +78,7 @@ const MAX_PINNED = 2;
 
 export function DevelopFilm() {
   const { state, dispatch } = useStudio();
-  const draft = state.draft!;
+  const draft = deriveFocusedDraft(state)!;
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
 
   // A new slate (genre change or reroll) makes any pinned ids stale - start fresh rather than comparing scripts that no longer exist.

@@ -16,6 +16,7 @@ import { buildReadyDraft } from '../../state/testFixtures';
 import { saveState } from '../../state/persistence';
 import { generateTalentPool } from '../../engine/talentGenerator';
 import { withRng } from '../../engine/random';
+import { playerDraftToProject } from '../../engine/project';
 import type { FilmDraft, PhotographyState } from '../../types';
 
 beforeEach(() => {
@@ -24,31 +25,35 @@ beforeEach(() => {
 
 const NOOP_TICK_PROPS = { paused: false, onTogglePause: () => {}, tickNonce: 0, speedMultiplier: 1 as const, onSetSpeedMultiplier: () => {} };
 
-function stateWithInProgressShoot(photographyOverrides: Partial<PhotographyState> = {}, viewingProductionId: string | null = null): GameState {
+function stateWithInProgressShoot(
+  photographyOverrides: Partial<PhotographyState> = {},
+  viewingProductionId: string | null = null,
+): { state: GameState; draft: FilmDraft } {
   const studio = createInitialStudio(10_000_000);
   const { result: talentPool, nextSeed } = withRng(1, (rng) => generateTalentPool(rng));
   const draft: FilmDraft = {
     ...withRng(2, (rng) => buildReadyDraft(rng)).result,
+    ...(viewingProductionId ? { id: viewingProductionId } : {}),
     photography: { status: 'in-progress', recommendedDays: 40, daysElapsed: 10, events: [], runningCost: 300_000, pendingChoice: null, ...photographyOverrides },
   };
-  return {
-    studio: viewingProductionId ? { ...studio, productionsInProgress: [{ ...draft, id: viewingProductionId }] } : studio,
+  const state: GameState = {
+    studio,
     screen: 'production',
-    draft: viewingProductionId ? null : draft,
+    projects: [playerDraftToProject(draft)],
+    focusedProjectId: viewingProductionId ? null : draft.id,
     rngSeed: nextSeed,
     totalDays: 1,
     talentPool,
     rivalStudios: [],
-    rivalProductionsInProgress: [],
-    rivalFilmsReleased: [],
     viewingRivalStudioName: null,
     viewingProductionId,
   };
+  return { state, draft };
 }
 
 describe('ProductionRun - Contingency Reserve visible live during filming', () => {
   it('shows Contingency Remaining and a Contingency Reserve Consumed bar while the shoot is in progress', () => {
-    const state = stateWithInProgressShoot();
+    const { state } = stateWithInProgressShoot();
     saveState(state);
     render(
       <StudioProvider>
@@ -62,7 +67,7 @@ describe('ProductionRun - Contingency Reserve visible live during filming', () =
   });
 
   it('shows an overrun warning once running cost exceeds the reserve', () => {
-    const state = stateWithInProgressShoot({ runningCost: 650_000 });
+    const { state } = stateWithInProgressShoot({ runningCost: 650_000 });
     saveState(state);
     render(
       <StudioProvider>
@@ -75,21 +80,21 @@ describe('ProductionRun - Contingency Reserve visible live during filming', () =
 
 describe('ProductionRun - the screenplay stays visible throughout filming', () => {
   it("shows the script's own ScriptSummaryCard while the shoot is in progress", () => {
-    const state = stateWithInProgressShoot();
+    const { state, draft } = stateWithInProgressShoot();
     saveState(state);
     render(
       <StudioProvider>
         <ProductionRun {...NOOP_TICK_PROPS} />
       </StudioProvider>,
     );
-    expect(screen.getByText(state.draft!.script!.title)).toBeInTheDocument();
-    expect(screen.getByText(state.draft!.script!.synopsis)).toBeInTheDocument();
+    expect(screen.getByText(draft.script!.title)).toBeInTheDocument();
+    expect(screen.getByText(draft.script!.synopsis)).toBeInTheDocument();
   });
 });
 
 describe('ProductionRun - day counter/pause control while viewing a backgrounded production', () => {
   it('shows the TimeTickIndicator (Pause Time / speed controls) when viewing a background production', () => {
-    const state = stateWithInProgressShoot({}, 'bg-prod-1');
+    const { state } = stateWithInProgressShoot({}, 'bg-prod-1');
     saveState(state);
     render(
       <StudioProvider>
@@ -100,7 +105,7 @@ describe('ProductionRun - day counter/pause control while viewing a backgrounded
   });
 
   it('does not show the TimeTickIndicator while running the live draft\'s own shoot - it has its own dedicated tick instead', () => {
-    const state = stateWithInProgressShoot();
+    const { state } = stateWithInProgressShoot();
     saveState(state);
     render(
       <StudioProvider>

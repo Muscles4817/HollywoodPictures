@@ -7,6 +7,7 @@ import {
   asPlayerDraft,
   asRivalProduction,
   asFilm,
+  playerReleasedFilms,
 } from './project';
 import { studioReducer } from '../state/studioReducer';
 import { buildStateWithReadyDraft, buildReadyDraft } from '../state/testFixtures';
@@ -19,7 +20,7 @@ function sampleDraft(): FilmDraft {
 
 function sampleFilm(): Film {
   const released = studioReducer(buildStateWithReadyDraft(2), { type: 'RELEASE_FILM' });
-  return released.studio.filmsReleased[0];
+  return playerReleasedFilms(released.projects)[0];
 }
 
 function sampleRivalProduction(): RivalProductionInProgress {
