@@ -1,4 +1,4 @@
-import type { Film, FilmDraft, Genre, Project, Studio, TalentRole } from '../types';
+import type { Film, FilmDraft, Genre, Project, TalentRole } from '../types';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { TEST_SCREENING_PROFILES } from '../data/postProduction';
 import { playerDraftToProject, rivalProductionToProject, filmToProject, asFilm } from '../engine/project';
@@ -104,18 +104,21 @@ export interface TopGrossingEntry {
 }
 
 /**
- * The player's own films plus every rival's (GameState.rivalFilmsReleased,
- * see engine/rivalStudios.ts), ranked by whatever each one made in its own
- * most recently settled week - a real weekend chart, not lifetime gross, so
- * a long-running hit and a film in its second week both compete on the same
- * number. Only films still actually in theaters count; a finished run drops
- * off the chart the same way it would in reality.
+ * The player's own films plus every rival's, ranked by whatever each one
+ * made in its own most recently settled week - a real weekend chart, not
+ * lifetime gross, so a long-running hit and a film in its second week both
+ * compete on the same number. Only films still actually in theaters count;
+ * a finished run drops off the chart the same way it would in reality. Reads
+ * off deriveProjectsView (roadmap Phase 4.1) - a film is the player's own
+ * iff it has no `releasedBy` (see types/index.ts:Film), same convention as
+ * collectFilmStats above.
  */
-export function computeTopGrossingFilms(studio: Studio, rivalFilmsReleased: Film[], limit = 10): TopGrossingEntry[] {
-  const candidates: Array<{ film: Film; studioName: string }> = [
-    ...studio.filmsReleased.map((film) => ({ film, studioName: studio.name })),
-    ...rivalFilmsReleased.map((film) => ({ film, studioName: film.releasedBy ?? 'A Rival Studio' })),
-  ];
+export function computeTopGrossingFilms(projects: Project[], playerStudioName: string, limit = 10): TopGrossingEntry[] {
+  const candidates: Array<{ film: Film; studioName: string }> = projects.flatMap((project) => {
+    const film = asFilm(project);
+    if (!film) return [];
+    return [{ film, studioName: film.releasedBy ?? playerStudioName }];
+  });
 
   const entries: TopGrossingEntry[] = [];
   for (const { film, studioName } of candidates) {

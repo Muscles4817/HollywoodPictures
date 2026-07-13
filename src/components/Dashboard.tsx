@@ -12,7 +12,8 @@ import { FilmDetailModal } from './common/FilmDetailModal';
 import { TimeTickIndicator } from './common/TimeTickIndicator';
 import { TopGrossingPanel } from './common/TopGrossingPanel';
 import { DifficultyPicker } from './common/DifficultyPicker';
-import { computeTopGrossingFilms } from '../state/selectors';
+import { computeTopGrossingFilms, deriveProjectsView } from '../state/selectors';
+import { asFilm, asPlayerDraft } from '../engine/project';
 import type { TickSpeedMultiplier } from '../constants';
 import type { Film } from '../types';
 
@@ -61,10 +62,24 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
     return <GameGuide onBack={() => setShowGuide(false)} />;
   }
 
-  const runningFilms = studio.filmsReleased.filter((f) => f.boxOfficeRun.status === 'running');
+  // deriveProjectsView (roadmap Phase 4.1) folds the still-fragmented
+  // storage into one list; RETURN_TO_DASHBOARD always clears state.draft
+  // (see state/studioReducer.ts), so the 'player-in-progress' subset here is
+  // exactly studio.productionsInProgress - nothing behaves differently by
+  // reading it through the derived view instead.
+  const projects = deriveProjectsView(state);
+  const playerReleasedFilms = projects.flatMap((p) => {
+    const film = asFilm(p);
+    return film && film.releasedBy === undefined ? [film] : [];
+  });
+  const backgroundedDrafts = projects.flatMap((p) => {
+    const draft = asPlayerDraft(p);
+    return draft ? [draft] : [];
+  });
+  const runningFilms = playerReleasedFilms.filter((f) => f.boxOfficeRun.status === 'running');
   // Only ever surface one at a time, oldest-unseen-first, so a second
   // "film finished" popup doesn't stack behind/interrupt the first.
-  const unacknowledgedFinished = studio.filmsReleased.find((f) => f.boxOfficeRun.status === 'finished' && !f.boxOfficeRun.acknowledged);
+  const unacknowledgedFinished = playerReleasedFilms.find((f) => f.boxOfficeRun.status === 'finished' && !f.boxOfficeRun.acknowledged);
 
   return (
     <div className="stack">
@@ -167,7 +182,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
             );
           })}
 
-          {studio.productionsInProgress.map((production) => {
+          {backgroundedDrafts.map((production) => {
             const photography = production.photography;
             if (!photography) return null;
             const statusLabel =
@@ -272,7 +287,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
 
         <div className="dashboard-right-rail">
           <TopGrossingPanel
-            entries={computeTopGrossingFilms(studio, state.rivalFilmsReleased)}
+            entries={computeTopGrossingFilms(projects, studio.name)}
             playerStudioName={studio.name}
             onSelectFilm={setSelectedFilm}
             onSelectStudio={(studioName) => dispatch({ type: 'VIEW_RIVAL_STUDIO', studioName })}
