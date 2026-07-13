@@ -47,7 +47,7 @@ describe('settleScheduledReleases - roadmap Phase 7.2', () => {
     expect(result.stillScheduled).toHaveLength(0);
   });
 
-  it('a higher studioReputation at resolution time (not scheduling time) measurably changes the outcome - proves results are computed fresh on release day, not frozen at SCHEDULE_RELEASE', () => {
+  it('a higher studioBrand at resolution time (not scheduling time) measurably changes the outcome - proves results are computed fresh on release day, not frozen at SCHEDULE_RELEASE', () => {
     const draft = readyDraft(9);
     const { result: lowRep } = withRng(10, (rng) => settleScheduledReleases([{ draft, releaseDay: 40 }], 40, 10, rng));
     const { result: highRep } = withRng(10, (rng) => settleScheduledReleases([{ draft, releaseDay: 40 }], 40, 90, rng));

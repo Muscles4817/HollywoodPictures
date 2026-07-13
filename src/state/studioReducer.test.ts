@@ -52,7 +52,8 @@ describe('RELEASE_FILM', () => {
     expect(film.results.studioRevenue).toBeNull();
     expect(film.results.profit).toBeNull();
     expect(film.results.outcome).toBeNull();
-    expect(film.results.reputationChange).toBeNull();
+    expect(film.results.brandChange).toBeNull();
+    expect(film.results.prestigeChange).toBeNull();
   });
 
   it('credits week 1\'s studio revenue share to cash as part of the same action', () => {

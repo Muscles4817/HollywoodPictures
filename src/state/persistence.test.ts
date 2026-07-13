@@ -273,6 +273,29 @@ describe('old saves migrate safely', () => {
     expect(state.studio.name).not.toBe('Stale Pictures');
   });
 
+  it('a save under the pre-Brand/Prestige v28 key (single reputation stat instead of brand/prestige) is invisible to v29 - falls back to a fresh studio rather than a hybrid state', () => {
+    // Brand Recognition and Prestige (docs/DESIGN.md) replaced the single
+    // Studio.reputation stat with two independent ones, Studio.brand/
+    // Studio.prestige - a v28 save's studio has neither field. Same class of
+    // break as every past shape change here: no migration code, an old save
+    // simply isn't found under the new key.
+    globalThis.localStorage.setItem(
+      'hollywood-pictures-save-v28',
+      JSON.stringify({
+        studio: { cash: 1, reputation: 20, name: 'Stale Pictures' },
+        projects: [],
+        focusedProjectId: null,
+        totalDays: 1,
+      }),
+    );
+    const state = loadState();
+    expect(state.projects).toEqual([]);
+    expect(state.studio.brand).toBeGreaterThan(1);
+    expect(state.studio.prestige).toBeGreaterThan(1);
+    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
+    expect(state.studio.name).not.toBe('Stale Pictures');
+  });
+
   it('clearSavedState followed by loadState behaves exactly like no save ever existed', () => {
     const released = studioReducer(buildStateWithReadyDraft(4), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     saveState(released);

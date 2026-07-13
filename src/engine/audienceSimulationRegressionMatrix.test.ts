@@ -39,7 +39,7 @@ function inputs(overrides: Partial<ReleaseSimulationInputs> = {}): ReleaseSimula
     marketingSpend: 20_000_000,
     directorFame: 50,
     leadFame: 50,
-    studioReputation: 50,
+    studioBrand: 50,
     scriptAccessibility: 50,
     scriptHookStrength: 50,
     scriptCrossoverPotential: 50,
@@ -131,7 +131,7 @@ const ORDINARY_POSITIVE = inputs({
 const STRONG_WOM = inputs({
   audienceScore: 82, criticScore: 70, buzzScore: 45, scriptAccessibility: 60, scriptCrossoverPotential: 40,
   targetAudience: 'Adults', scriptIntendedAudience: 'Adults', marketingSpend: 20_000_000, releaseType: 'Wide',
-  directorFame: 40, leadFame: 45, studioReputation: 40,
+  directorFame: 40, leadFame: 45, studioBrand: 40,
 });
 const SLEEPER_BREAKOUT = inputs({
   audienceScore: 90, criticScore: 85, buzzScore: 10, scriptAccessibility: 80, scriptCrossoverPotential: 65,
@@ -153,13 +153,13 @@ const RARE_PHENOMENON = inputs({
   // regression against this same matrix's own "sustained or growing
   // attendance is possible" requirement) - 85/90/85 clears all three bars
   // (£1.26B, 82.1% saturation, a genuine 2-week growth streak) together.
-  directorFame: 85, leadFame: 90, studioReputation: 85, scriptHookStrength: 85, scriptSpectacle: 85,
+  directorFame: 85, leadFame: 90, studioBrand: 85, scriptHookStrength: 85, scriptSpectacle: 85,
 });
 const WELL_LIKED_NICHE = inputs({
   audienceScore: 88, criticScore: 88, buzzScore: 20, scriptAccessibility: 20, scriptCrossoverPotential: 20,
   targetAudience: 'Niche', scriptIntendedAudience: 'Niche', genre: 'Drama',
   marketingSpend: 1_000_000, releaseType: 'Limited',
-  directorFame: 10, leadFame: 5, studioReputation: 15,
+  directorFame: 10, leadFame: 5, studioBrand: 15,
 });
 const BROAD_DECENT = inputs({
   audienceScore: 70, criticScore: 60, buzzScore: 70, scriptAccessibility: 85, scriptCrossoverPotential: 30,
@@ -172,7 +172,7 @@ const HUGE_OPEN_POOR = inputs({
 const EXCELLENT_WEAK_MARKETING = inputs({
   audienceScore: 92, criticScore: 90, buzzScore: 8, scriptAccessibility: 60, scriptCrossoverPotential: 40,
   targetAudience: 'Adults', scriptIntendedAudience: 'Adults', marketingSpend: 50_000, releaseType: 'Limited',
-  directorFame: 20, leadFame: 15, studioReputation: 25,
+  directorFame: 20, leadFame: 15, studioBrand: 25,
 });
 const ORIGINAL_DISLIKED = inputs({
   audienceScore: 20, criticScore: 25, buzzScore: 40, scriptAccessibility: 40, scriptCrossoverPotential: 90,

@@ -29,7 +29,7 @@ function buildFilm(): Film {
     events: [],
     results: {
       productionCost: 10_000_000, marketingCost: 10_000_000, totalCost: 20_000_000, openingWeekend: 5_000_000,
-      totalBoxOffice: 50_000_000, studioRevenue: 25_000_000, profit: 5_000_000, outcome: 'Hit', reputationChange: 3,
+      totalBoxOffice: 50_000_000, studioRevenue: 25_000_000, profit: 5_000_000, outcome: 'Hit', brandChange: 3, prestigeChange: 2,
       criticScore: 65, audienceScore: 70, buzzScore: 55, qualityScore: 60,
       scriptScore: 60, directionScore: 60, actingScore: 60, productionScore: 60, postProductionScore: 60, eventsScore: 50,
       reviewBlurbs: ['A solid effort.'], storyReport: 'Filming went smoothly.',

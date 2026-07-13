@@ -10,7 +10,7 @@ const RELEASE_INPUTS: ReleaseSimulationInputs = {
   marketingSpend: 20_000_000,
   directorFame: 50,
   leadFame: 50,
-  studioReputation: 50,
+  studioBrand: 50,
   scriptAccessibility: 55,
   scriptHookStrength: 50,
   scriptCrossoverPotential: 40,
@@ -38,7 +38,8 @@ function baseResults(overrides: Partial<FilmResults> = {}): FilmResults {
     studioRevenue: null,
     profit: null,
     outcome: null,
-    reputationChange: null,
+    brandChange: null,
+    prestigeChange: null,
     criticScore: 65,
     audienceScore: 68,
     buzzScore: 55,
@@ -115,7 +116,7 @@ describe('settleBoxOfficeForAllFilms - calendar jumps and catch-up', () => {
     expect(film.results).toEqual(bigJump.results);
   });
 
-  it('a run already finished does not get re-settled by a later call - same object, zero cash/reputation this time', () => {
+  it('a run already finished does not get re-settled by a later call - same object, zero cash/brand/prestige this time', () => {
     let film = freshFilm('done', 1, fixedFor({ criticScore: 10, audienceScore: 8 })); // poor reception - ends well before the hard cap
     let settlement = settleBoxOfficeForAllFilms([film], 1 + MAX_SIMULATION_WEEKS * 7);
     film = settlement.filmsReleased[0];
@@ -128,7 +129,8 @@ describe('settleBoxOfficeForAllFilms - calendar jumps and catch-up', () => {
     expect(settlement.filmsReleased[0].boxOfficeRun).toBe(finishedRun);
     expect(settlement.filmsReleased[0].results).toBe(finishedResults);
     expect(settlement.cashCredit).toBe(0);
-    expect(settlement.reputationDelta).toBe(0);
+    expect(settlement.brandDelta).toBe(0);
+    expect(settlement.prestigeDelta).toBe(0);
   });
 });
 
@@ -207,7 +209,7 @@ describe('settleBoxOfficeForAllFilms - termination', () => {
     expect(settled.boxOfficeRun.weeks.length).toBeLessThanOrEqual(MAX_SIMULATION_WEEKS);
   });
 
-  it('once finished, totalBoxOffice/studioRevenue/profit/outcome/reputationChange are all populated and coherent', () => {
+  it('once finished, totalBoxOffice/studioRevenue/profit/outcome/brandChange/prestigeChange are all populated and coherent', () => {
     const film = freshFilm('coherent', 1, fixedFor({ criticScore: 70, audienceScore: 75 }));
     const settlement = settleBoxOfficeForAllFilms([film], 1 + MAX_SIMULATION_WEEKS * 7);
     const settled = settlement.filmsReleased[0];
@@ -216,7 +218,8 @@ describe('settleBoxOfficeForAllFilms - termination', () => {
     expect(settled.results.studioRevenue).toBe(Math.round(settled.results.totalBoxOffice! * STUDIO_BOX_OFFICE_SHARE));
     expect(settled.results.profit).toBe(settled.results.studioRevenue! - settled.results.totalCost);
     expect(settled.results.outcome).not.toBeNull();
-    expect(settled.results.reputationChange).not.toBeNull();
+    expect(settled.results.brandChange).not.toBeNull();
+    expect(settled.results.prestigeChange).not.toBeNull();
   });
 });
 

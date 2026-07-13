@@ -16,7 +16,7 @@ function inputs(overrides: Partial<ReleaseSimulationInputs> = {}): ReleaseSimula
     marketingSpend: 20_000_000,
     directorFame: 50,
     leadFame: 50,
-    studioReputation: 50,
+    studioBrand: 50,
     scriptAccessibility: 50,
     scriptHookStrength: 50,
     scriptCrossoverPotential: 50,
@@ -219,19 +219,19 @@ describe('Milestone 11 - awareness/interest/distribution separation of concerns 
   // see audienceSimulationInputs.ts's own module header and each function's
   // doc comment for the diagnostic reasoning behind each of these.
 
-  it('marketingEfficiency depends only on studioReputation - completely invariant to scriptAccessibility and scriptCrossoverPotential', () => {
-    const baseline = deriveAudienceSimulationFixedState(inputs({ studioReputation: 42 })).marketingEfficiency;
+  it('marketingEfficiency depends only on studioBrand - completely invariant to scriptAccessibility and scriptCrossoverPotential', () => {
+    const baseline = deriveAudienceSimulationFixedState(inputs({ studioBrand: 42 })).marketingEfficiency;
     for (const scriptAccessibility of [1, 50, 100]) {
       for (const scriptCrossoverPotential of [1, 50, 100]) {
-        const fixed = deriveAudienceSimulationFixedState(inputs({ studioReputation: 42, scriptAccessibility, scriptCrossoverPotential }));
+        const fixed = deriveAudienceSimulationFixedState(inputs({ studioBrand: 42, scriptAccessibility, scriptCrossoverPotential }));
         expect(fixed.marketingEfficiency).toBeCloseTo(baseline, 9);
       }
     }
   });
 
-  it('marketingEfficiency rises monotonically with studioReputation alone', () => {
+  it('marketingEfficiency rises monotonically with studioBrand alone', () => {
     const reputations = [0, 25, 50, 75, 100];
-    const efficiencies = reputations.map((studioReputation) => deriveAudienceSimulationFixedState(inputs({ studioReputation })).marketingEfficiency);
+    const efficiencies = reputations.map((studioBrand) => deriveAudienceSimulationFixedState(inputs({ studioBrand })).marketingEfficiency);
     for (let i = 1; i < efficiencies.length; i++) {
       expect(efficiencies[i]).toBeGreaterThan(efficiencies[i - 1]);
     }
@@ -290,9 +290,9 @@ describe('Milestone 11 - awareness/interest/distribution separation of concerns 
   });
 
   it('computeCastReachFraction: an unknown director/lead pair contributes essentially no awareness even at maximum marketing spend efficiency', () => {
-    const fixed = deriveAudienceSimulationFixedState(inputs({ directorFame: 0, leadFame: 0, marketingSpend: 10_000, studioReputation: 100 }));
+    const fixed = deriveAudienceSimulationFixedState(inputs({ directorFame: 0, leadFame: 0, marketingSpend: 10_000, studioBrand: 100 }));
     // Cast contributes nothing; only the tiny token marketing spend's own reach remains.
-    const withFamousCast = deriveAudienceSimulationFixedState(inputs({ directorFame: 100, leadFame: 100, marketingSpend: 10_000, studioReputation: 100 }));
+    const withFamousCast = deriveAudienceSimulationFixedState(inputs({ directorFame: 100, leadFame: 100, marketingSpend: 10_000, studioBrand: 100 }));
     expect(withFamousCast.initialAwareCount).toBeGreaterThan(fixed.initialAwareCount * 3);
   });
 
@@ -338,14 +338,14 @@ describe('boundaries', () => {
   });
 
   it('a very small Limited release (unknown cast, modest spend) opens and totals far below a maximum-reach Wide release (famous cast, huge spend)', () => {
-    const limited = runFullSimulation(inputs({ releaseType: 'Limited', buzzScore: 20, marketingSpend: 500_000, directorFame: 20, leadFame: 15, studioReputation: 30 }));
-    const wide = runFullSimulation(inputs({ releaseType: 'Wide', buzzScore: 90, marketingSpend: 150_000_000, directorFame: 80, leadFame: 85, studioReputation: 75 }));
+    const limited = runFullSimulation(inputs({ releaseType: 'Limited', buzzScore: 20, marketingSpend: 500_000, directorFame: 20, leadFame: 15, studioBrand: 30 }));
+    const wide = runFullSimulation(inputs({ releaseType: 'Wide', buzzScore: 90, marketingSpend: 150_000_000, directorFame: 80, leadFame: 85, studioBrand: 75 }));
     expect(wide[0].cumulativeTicketsSold).toBeGreaterThan(limited[0].cumulativeTicketsSold * 10);
     expect(totalAdmissions(wide)).toBeGreaterThan(totalAdmissions(limited) * 5);
   });
 
   it('an excellent film with almost no opening awareness (Festival First, unknown cast, no marketing) still opens tiny relative to its addressable audience', () => {
-    const releaseInputs = inputs({ releaseType: 'Festival First', buzzScore: 0, marketingSpend: 10_000, directorFame: 10, leadFame: 8, studioReputation: 15, criticScore: 95, audienceScore: 93 });
+    const releaseInputs = inputs({ releaseType: 'Festival First', buzzScore: 0, marketingSpend: 10_000, directorFame: 10, leadFame: 8, studioBrand: 15, criticScore: 95, audienceScore: 93 });
     const fixed = deriveAudienceSimulationFixedState(releaseInputs);
     const weeks = runFullSimulation(releaseInputs);
     expect(fixed.initialAwareCount).toBeLessThan(fixed.totalAddressableAudience * 0.01);
@@ -355,7 +355,7 @@ describe('boundaries', () => {
   });
 
   it('a terrible film with enormous awareness (Wide, famous cast, maximum marketing, terrible reception) still collapses fast after opening', () => {
-    const releaseInputs = inputs({ releaseType: 'Wide', buzzScore: 100, marketingSpend: 150_000_000, directorFame: 70, leadFame: 75, studioReputation: 60, criticScore: 5, audienceScore: 5 });
+    const releaseInputs = inputs({ releaseType: 'Wide', buzzScore: 100, marketingSpend: 150_000_000, directorFame: 70, leadFame: 75, studioBrand: 60, criticScore: 5, audienceScore: 5 });
     const weeks = runFullSimulation(releaseInputs);
     const admissions = weeklyAdmissions(weeks);
     expect(admissions[0]).toBeGreaterThan(500_000); // huge awareness really does buy a huge opening
@@ -426,7 +426,7 @@ describe('named archetype diagnostics', () => {
     // pushed further into unrealistic input territory.
     const phenomenonInputs = inputs({
       releaseType: 'Wide', buzzScore: 95, marketingSpend: 150_000_000, criticScore: 95, audienceScore: 97,
-      directorFame: 95, leadFame: 98, studioReputation: 95, scriptAccessibility: 90,
+      directorFame: 95, leadFame: 98, studioBrand: 95, scriptAccessibility: 90,
       scriptHookStrength: 95, scriptSpectacle: 95, scriptCrossoverPotential: 75,
     });
     const weeks = runFullSimulation(phenomenonInputs);
@@ -552,7 +552,7 @@ describe('the top end of the range', () => {
       marketingSpend: 10_000,
       directorFame: 0,
       leadFame: 0,
-      studioReputation: 5,
+      studioBrand: 5,
       scriptAccessibility: 10,
       scriptCrossoverPotential: 5,
       criticScore: 40,
@@ -612,26 +612,26 @@ describe('Milestone 12 - commercial believability calibration (docs/DESIGN.md)',
   });
 
   it('Wide release availability scales with release strength (marketing spend + studio reputation) - an unknown, poorly-funded studio does not get the same nationwide rollout as an established one', () => {
-    const tiny = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Wide', directorFame: 5, leadFame: 5, studioReputation: 10, marketingSpend: 50_000 }));
-    const mid = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Wide', studioReputation: 50, marketingSpend: 20_000_000 }));
-    const strong = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Wide', directorFame: 85, leadFame: 90, studioReputation: 85, marketingSpend: 120_000_000 }));
+    const tiny = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Wide', directorFame: 5, leadFame: 5, studioBrand: 10, marketingSpend: 50_000 }));
+    const mid = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Wide', studioBrand: 50, marketingSpend: 20_000_000 }));
+    const strong = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Wide', directorFame: 85, leadFame: 90, studioBrand: 85, marketingSpend: 120_000_000 }));
     expect(tiny.initialAvailabilityFraction).toBeLessThan(mid.initialAvailabilityFraction);
     expect(mid.initialAvailabilityFraction).toBeLessThan(strong.initialAvailabilityFraction);
   });
 
   it('Wide still always beats Limited on availability, even for the weakest possible release strength - Distribution is earned relative to strategy, never inverted', () => {
-    const weakestWide = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Wide', directorFame: 0, leadFame: 0, studioReputation: 0, marketingSpend: 10_000 }));
-    const strongestLimited = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Limited', directorFame: 100, leadFame: 100, studioReputation: 100, marketingSpend: 150_000_000 }));
+    const weakestWide = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Wide', directorFame: 0, leadFame: 0, studioBrand: 0, marketingSpend: 10_000 }));
+    const strongestLimited = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Limited', directorFame: 100, leadFame: 100, studioBrand: 100, marketingSpend: 150_000_000 }));
     expect(weakestWide.initialAvailabilityFraction).toBeGreaterThan(strongestLimited.initialAvailabilityFraction);
   });
 
   it('Limited and Festival First availability stay flat regardless of release strength - only Wide\'s day-one rollout has to be earned', () => {
-    const weak = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Limited', directorFame: 0, leadFame: 0, studioReputation: 0, marketingSpend: 10_000 }));
-    const strong = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Limited', directorFame: 100, leadFame: 100, studioReputation: 100, marketingSpend: 150_000_000 }));
+    const weak = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Limited', directorFame: 0, leadFame: 0, studioBrand: 0, marketingSpend: 10_000 }));
+    const strong = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Limited', directorFame: 100, leadFame: 100, studioBrand: 100, marketingSpend: 150_000_000 }));
     expect(weak.initialAvailabilityFraction).toBeCloseTo(strong.initialAvailabilityFraction, 9);
 
-    const weakFestival = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Festival First', directorFame: 0, leadFame: 0, studioReputation: 0, marketingSpend: 10_000 }));
-    const strongFestival = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Festival First', directorFame: 100, leadFame: 100, studioReputation: 100, marketingSpend: 150_000_000 }));
+    const weakFestival = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Festival First', directorFame: 0, leadFame: 0, studioBrand: 0, marketingSpend: 10_000 }));
+    const strongFestival = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Festival First', directorFame: 100, leadFame: 100, studioBrand: 100, marketingSpend: 150_000_000 }));
     expect(weakFestival.initialAvailabilityFraction).toBeCloseTo(strongFestival.initialAvailabilityFraction, 9);
   });
 
