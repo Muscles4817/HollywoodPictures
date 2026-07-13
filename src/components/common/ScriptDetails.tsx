@@ -36,6 +36,11 @@ export function ScriptDetails({ script }: { script: Script }) {
       <div className="card-subtitle">Screenplay Cost: <Money amount={script.cost} /></div>
       <p style={{ margin: '0 0 6px', fontSize: '0.85em' }}>{describeCostDrivers(script)}</p>
       <p style={{ margin: '0 0 6px', fontSize: '0.85em' }}>{describeCommercialAppeal(script)}</p>
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '6px 0' }}>
+        {productionRequirementTags(script).map((tag) => (
+          <span className="badge" key={tag}>{tag}</span>
+        ))}
+      </div>
       <div className="row" style={{ gap: 16, flexWrap: 'wrap', margin: '0 0 6px' }}>
         <StatGroup
           title="Writing"
@@ -57,11 +62,6 @@ export function ScriptDetails({ script }: { script: Script }) {
         <div>Leads: {script.requiredLeads}</div>
         <div>Supporting Roles: {script.requiredSupporting}</div>
         <div>Intended Audience: {script.intendedAudience}</div>
-      </div>
-      <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '6px 0' }}>
-        {productionRequirementTags(script).map((tag) => (
-          <span className="badge" key={tag}>{tag}</span>
-        ))}
       </div>
       <CompatibilityBadge breakdown={toneProfileBreakdown(script.toneProfile)} />
     </>

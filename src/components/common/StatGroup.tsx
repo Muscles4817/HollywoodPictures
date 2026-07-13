@@ -9,16 +9,64 @@ import { StarRating } from './StarRating';
  * components/common/FilmDetailModal.tsx needed the identical Writing/
  * Creative grouping for a released film's script.
  */
-export function StatGroup({ title, stats }: { title: string; stats: Array<{ label: string; value: number }> }) {
+import { useMemo, useState } from 'react';
+
+type Stat = {
+  label: string;
+  value: number;
+};
+
+type StatGroupProps = {
+  title: string;
+  stats: Stat[];
+  defaultOpen?: boolean;
+};
+
+export function StatGroup({
+  title,
+  stats,
+  defaultOpen = false,
+}: StatGroupProps) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  const average = useMemo(() => {
+    if (stats.length === 0) {
+      return 0;
+    }
+
+    return stats.reduce((sum, stat) => sum + stat.value, 0) / stats.length;
+  }, [stats]);
+
   return (
-    <div>
-      <div className="stat-group-title">{title}</div>
-      {stats.map(({ label, value }) => (
-        <div className="row-between" key={label} style={{ fontSize: '0.85em' }}>
-          <span>{label}</span>
-          <StarRating value={value} />
+    <div className="stat-group">
+      <button
+        type="button"
+        className="stat-group-toggle"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <span className="stat-group-title">{title}</span>
+
+        <span className="stat-group-summary">
+          {!isOpen && <StarRating value={average} />}
+          <span aria-hidden="true">{isOpen ? '▴' : '▾'}</span>
+        </span>
+      </button>
+
+      {isOpen && (
+        <div className="stat-group-details">
+          {stats.map(({ label, value }) => (
+            <div
+              className="row-between"
+              key={label}
+              style={{ fontSize: '0.85em' }}
+            >
+              <span>{label}</span>
+              <StarRating value={value} />
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }

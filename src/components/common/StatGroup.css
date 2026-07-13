@@ -1,0 +1,23 @@
+.stat-group-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.stat-group-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stat-group-details {
+  margin-top: 0.35rem;
+}
