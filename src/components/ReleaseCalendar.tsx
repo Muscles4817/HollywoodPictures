@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useMemo,
   useState,
 } from 'react';
@@ -8,6 +7,7 @@ import { formatGameMonthYear } from '../engine/calendar';
 import { Button } from './common/Button';
 import { CheckboxFilterDropdown, type CheckboxFilterOption } from './common/CheckboxFilterDropdown';
 import { asScheduled, asRivalProduction } from '../engine/project';
+import { useReconciledFilterSelection } from '../hooks/useReconciledFilterSelection';
 
 interface CalendarEntry {
   id: string;
@@ -23,12 +23,6 @@ interface CalendarEntry {
 interface CalendarMonthGroup {
   monthYear: string;
   entries: CalendarEntry[];
-}
-
-interface ReleaseCalendarFilters {
-  studioIds: Set<string>;
-  genres: Set<string>;
-  targetAudiences: Set<string>;
 }
 
 const PLAYER_STUDIO_ID = 'player-studio';
@@ -115,6 +109,11 @@ export function ReleaseCalendar() {
     state.studio.name,
   ]);
 
+  const studioIds = useMemo(
+    () => [PLAYER_STUDIO_ID, ...state.rivalStudios.map((studio) => studio.id)],
+    [state.rivalStudios],
+  );
+
   const studioOptions = useMemo<CheckboxFilterOption[]>(
     () => [
       {
@@ -129,81 +128,45 @@ export function ReleaseCalendar() {
     [state.rivalStudios, state.studio.name],
   );
 
-  const genreOptions = useMemo<CheckboxFilterOption[]>(() => {
-    const genres = [...new Set(entries.map((entry) => entry.genre))];
+  const genreIds = useMemo(
+    () => [...new Set(entries.map((entry) => entry.genre))].sort((a, b) => a.localeCompare(b)),
+    [entries],
+  );
 
-    return genres
-      .sort((a, b) => a.localeCompare(b))
-      .map((genre) => ({
-        id: genre,
-        label: genre,
-      }));
-  }, [entries]);
+  const genreOptions = useMemo<CheckboxFilterOption[]>(
+    () => genreIds.map((genre) => ({ id: genre, label: genre })),
+    [genreIds],
+  );
 
-  const targetAudienceOptions = useMemo<CheckboxFilterOption[]>(() => {
-    const targetAudiences = [...new Set(entries.map((entry) => entry.targetAudience))];
-    
-    return targetAudiences
-      .sort((a, b) => a.localeCompare(b))
-      .map((targetAudience) => ({
-        id: targetAudience,
-        label: targetAudience,
-      }));
-  }, [entries]);
+  const targetAudienceIds = useMemo(
+    () => [...new Set(entries.map((entry) => entry.targetAudience))].sort((a, b) => a.localeCompare(b)),
+    [entries],
+  );
 
-  const [filters, setFilters] = useState<ReleaseCalendarFilters>(() => ({
-    studioIds: new Set(studioOptions.map((option) => option.id)),
-    genres: new Set(genreOptions.map((option) => option.id)),
-    targetAudiences: new Set(targetAudienceOptions.map((option) => option.id)),
-  }));
+  const targetAudienceOptions = useMemo<CheckboxFilterOption[]>(
+    () => targetAudienceIds.map((targetAudience) => ({ id: targetAudience, label: targetAudience })),
+    [targetAudienceIds],
+  );
 
-  /*
-   * Include newly appearing studios and genres automatically without
-   * re-selecting options that the player deliberately unchecked.
-   */
-  useEffect(() => {
-    setFilters((current) => {
-      const knownStudioIds = new Set(
-        studioOptions.map((option) => option.id),
-      );
-
-      const knownGenres = new Set(
-        genreOptions.map((option) => option.id),
-      );
-
-      const knownTargetAudiences = new Set(
-        targetAudienceOptions.map((option) => option.id),
-      );
-
-      return {
-        studioIds: new Set(
-          [...current.studioIds].filter((id) =>
-            knownStudioIds.has(id),
-          ),
-        ),
-        genres: new Set(
-          [...current.genres].filter((genre) =>
-            knownGenres.has(genre),
-          ),
-        ),
-        targetAudiences: new Set(
-          [...current.targetAudiences].filter((targetAudience) =>
-            knownTargetAudiences.has(targetAudience),
-          ),
-        ),
-      };
-    });
-  }, [studioOptions, genreOptions, targetAudienceOptions]);
+  // Each reconciles itself as new studios/genres/target audiences appear
+  // (this screen is a pure read-only detour - PAUSE_PERSISTING_SCREENS in
+  // App.tsx - but the background day-tick still runs while it's open, so
+  // the underlying data can change mid-visit) instead of freezing
+  // "selected" at whatever existed on the very first render - see
+  // useReconciledFilterSelection's own doc comment.
+  const [selectedStudioIds, setSelectedStudioIds] = useReconciledFilterSelection(studioIds);
+  const [selectedGenres, setSelectedGenres] = useReconciledFilterSelection(genreIds);
+  const [selectedTargetAudiences, setSelectedTargetAudiences] = useReconciledFilterSelection(targetAudienceIds);
 
   const filteredEntries = useMemo(
     () =>
       entries.filter(
         (entry) =>
-          filters.studioIds.has(entry.studioId) &&
-          filters.genres.has(entry.genre) &&
-          filters.targetAudiences.has(entry.targetAudience),
+          selectedStudioIds.has(entry.studioId) &&
+          selectedGenres.has(entry.genre) &&
+          selectedTargetAudiences.has(entry.targetAudience),
       ),
-    [entries, filters],
+    [entries, selectedStudioIds, selectedGenres, selectedTargetAudiences],
   );
 
   const entriesByMonth = useMemo(
@@ -228,27 +191,6 @@ export function ReleaseCalendar() {
       ),
     [filteredEntries],
   );
-
-  const setStudioFilter = (studioIds: Set<string>) => {
-    setFilters((current) => ({
-      ...current,
-      studioIds,
-    }));
-  };
-
-  const setGenreFilter = (genres: Set<string>) => {
-    setFilters((current) => ({
-      ...current,
-      genres,
-    }));
-  };
-
-  const setTargetAudienceFilter = (targetAudiences: Set<string>) => {
-    setFilters((current) => ({
-      ...current,
-      targetAudiences,
-    }));
-  };
 
   return (
     <div className="stack">
@@ -283,42 +225,42 @@ export function ReleaseCalendar() {
           id="studio"
           label="Studio"
           options={studioOptions}
-          selectedIds={filters.studioIds}
+          selectedIds={selectedStudioIds}
           allSelectedLabel="All studios"
           noneSelectedLabel="No studios"
           selectedCountLabel={(count) => `${count} studios`}
           isOpen={openFilterId === 'studio'}
           onToggle={toggleFilter}
           onClose={closeFilters}
-          onChange={setStudioFilter}
+          onChange={setSelectedStudioIds}
         />
 
         <CheckboxFilterDropdown
           id="genre"
           label="Genre"
           options={genreOptions}
-          selectedIds={filters.genres}
+          selectedIds={selectedGenres}
           allSelectedLabel="All genres"
           noneSelectedLabel="No genres"
           selectedCountLabel={(count) => `${count} genres`}
           isOpen={openFilterId === 'genre'}
           onToggle={toggleFilter}
           onClose={closeFilters}
-          onChange={setGenreFilter}
+          onChange={setSelectedGenres}
         />
 
         <CheckboxFilterDropdown
           id="targetAudience"
           label="Target Audience"
           options={targetAudienceOptions}
-          selectedIds={filters.targetAudiences}
+          selectedIds={selectedTargetAudiences}
           allSelectedLabel="All target audiences"
           noneSelectedLabel="No target audiences"
           selectedCountLabel={(count) => `${count} target audiences`}
           isOpen={openFilterId === 'targetAudience'}
           onToggle={toggleFilter}
           onClose={closeFilters}
-          onChange={setTargetAudienceFilter}
+          onChange={setSelectedTargetAudiences}
         />
       </div>
 

@@ -18,11 +18,11 @@ import {
   type ToneRatingField,
   type WritingRatingField,
 } from './common/ScriptRatingsFilterDropdown';
+import { useReconciledFilterSelection } from '../hooks/useReconciledFilterSelection';
 import type { Script } from '../types';
 import { calculateStarRating } from '../utils/StarRatingConversion';
 
 interface OpportunityMarketFilters {
-  sources: Set<string>;
   priceBands: Set<string>;
   ratings: ScriptRatingsFilterValue;
 }
@@ -199,20 +199,29 @@ export function OpportunityMarket() {
     [state.opportunities],
   );
 
-  const sourceOptions = useMemo<CheckboxFilterOption[]>(() => {
-    return [
-      ...new Set(
-        opportunities.map(
-          (opportunity) => opportunity.source,
-        ),
+  // A plain, referentially-stable string array (not the {id,label}[] the
+  // dropdown wants) - the dependency useReconciledFilterSelection below
+  // actually needs, kept separate from sourceOptions so mapping to display
+  // labels doesn't create a new array reference every render.
+  const sourceIds = useMemo(
+    () =>
+      [...new Set(opportunities.map((opportunity) => opportunity.source))].sort((a, b) =>
+        a.localeCompare(b),
       ),
-    ]
-      .sort((a, b) => a.localeCompare(b))
-      .map((source) => ({
-        id: source,
-        label: source,
-      }));
-  }, [opportunities]);
+    [opportunities],
+  );
+
+  const sourceOptions = useMemo<CheckboxFilterOption[]>(
+    () => sourceIds.map((source) => ({ id: source, label: source })),
+    [sourceIds],
+  );
+
+  // Milestone: reconciles itself as new opportunity sources appear (e.g. a
+  // background day-tick generating a fresh batch while this screen is
+  // open) instead of freezing "selected sources" at whatever existed on
+  // the very first render - see useReconciledFilterSelection's own doc
+  // comment for the bug this replaced.
+  const [selectedSources, setSelectedSources] = useReconciledFilterSelection(sourceIds);
 
   const priceBandOptions = useMemo<CheckboxFilterOption[]>(
     () =>
@@ -225,10 +234,6 @@ export function OpportunityMarket() {
 
   const [filters, setFilters] =
     useState<OpportunityMarketFilters>(() => ({
-      sources: new Set(
-        sourceOptions.map((option) => option.id),
-      ),
-
       priceBands: new Set(
         priceBandOptions.map((option) => option.id),
       ),
@@ -248,7 +253,7 @@ export function OpportunityMarket() {
 
   const filteredOpportunities = useMemo(() => {
     return opportunities.filter((opportunity) => {
-      const matchesSource = filters.sources.has(
+      const matchesSource = selectedSources.has(
         opportunity.source,
       );
 
@@ -276,7 +281,7 @@ export function OpportunityMarket() {
         matchesRatings
       );
     });
-  }, [opportunities, filters]);
+  }, [opportunities, filters, selectedSources]);
 
   const toggleFilter = (filterId: string) => {
     setOpenFilterId((current) =>
@@ -286,13 +291,6 @@ export function OpportunityMarket() {
 
   const closeFilters = () => {
     setOpenFilterId(null);
-  };
-
-  const setSourceFilter = (sources: Set<string>) => {
-    setFilters((current) => ({
-      ...current,
-      sources,
-    }));
   };
 
   const setPriceBandFilter = (
@@ -352,7 +350,7 @@ export function OpportunityMarket() {
             id="opportunity-source"
             label="Source"
             options={sourceOptions}
-            selectedIds={filters.sources}
+            selectedIds={selectedSources}
             allSelectedLabel="All sources"
             noneSelectedLabel="No sources"
             selectedCountLabel={(count) =>
@@ -363,7 +361,7 @@ export function OpportunityMarket() {
             }
             onToggle={toggleFilter}
             onClose={closeFilters}
-            onChange={setSourceFilter}
+            onChange={setSelectedSources}
           />
 
           <CheckboxFilterDropdown
@@ -424,7 +422,7 @@ export function OpportunityMarket() {
                     className="row-between"
                     style={{ marginBottom: 4 }}
                   >
-                    <span className="card-tag">
+                    <span className="badge">
                       {opportunity.source}
                     </span>
 
@@ -453,7 +451,7 @@ export function OpportunityMarket() {
                     className="row-between"
                     style={{ marginTop: 8 }}
                   >
-                    <span className="key-stat-label">
+                    <span className="stat-label">
                       Acquisition Price
                     </span>
 
