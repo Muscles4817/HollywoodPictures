@@ -41,7 +41,7 @@ export function OpportunityMarket() {
             return (
               <Card key={opportunity.id}>
                 <div className="row-between" style={{ marginBottom: 4 }}>
-                  <span className="badge">{opportunity.source}</span>
+                  <span className="card-tag">{opportunity.source}</span>
                   <span style={{ color: 'var(--text-muted)', fontSize: '0.85em' }}>
                     Expires {formatGameDate(opportunity.expiresOnDay)}
                   </span>
@@ -49,7 +49,7 @@ export function OpportunityMarket() {
                 <div className="card-title">{opportunity.script.title}</div>
                 <ScriptDetails script={opportunity.script} />
                 <div className="row-between" style={{ marginTop: 8 }}>
-                  <span className="stat-label">Acquisition Price</span>
+                  <span className="key-stat-label">Acquisition Price</span>
                   <Money amount={opportunity.acquisitionCost} />
                 </div>
                 <Button
