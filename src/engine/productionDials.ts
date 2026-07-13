@@ -1,8 +1,8 @@
 import {
-  CONTINGENCY_RANGE,
-  CONTINGENCY_ANCHORS,
-  SET_QUALITY_RANGE,
-  SET_QUALITY_ANCHORS,
+  SHOOTING_BUDGET_RANGE,
+  SHOOTING_BUDGET_ANCHORS,
+  ENVIRONMENT_BUDGET_RANGE,
+  ENVIRONMENT_BUDGET_ANCHORS,
   PRACTICAL_EFFECTS_RANGE,
   PRACTICAL_EFFECTS_ANCHORS,
   VFX_RANGE,
@@ -19,9 +19,9 @@ import type { ProductionChoices } from '../types';
 // scoring.ts/production.ts) means the UI and the engine read from the same
 // single source of truth for "what does this slider position mean".
 
-export const contingencyT = (amount: number) => logT(amount, CONTINGENCY_RANGE);
-export const contingencyQuality = (amount: number) => interpolateScale(contingencyT(amount), CONTINGENCY_ANCHORS, 'quality');
-export const contingencyDescription = (amount: number) => describeScale(contingencyT(amount), CONTINGENCY_ANCHORS);
+export const contingencyT = (amount: number) => logT(amount, SHOOTING_BUDGET_RANGE);
+export const contingencyQuality = (amount: number) => interpolateScale(contingencyT(amount), SHOOTING_BUDGET_ANCHORS, 'quality');
+export const contingencyDescription = (amount: number) => describeScale(contingencyT(amount), SHOOTING_BUDGET_ANCHORS);
 
 /**
  * Shooting quality is no longer a slider position - it's read off how the
@@ -41,9 +41,9 @@ export function shootingQualityFromRatio(ratio: number): number {
   return clamp(60 + over * (25 / 1.5), 60, 85);
 }
 
-export const setQualityT = (amount: number) => logT(amount, SET_QUALITY_RANGE);
-export const setQualityScore = (amount: number) => interpolateScale(setQualityT(amount), SET_QUALITY_ANCHORS, 'quality');
-export const setQualityDescription = (amount: number) => describeScale(setQualityT(amount), SET_QUALITY_ANCHORS);
+export const setQualityT = (amount: number) => logT(amount, ENVIRONMENT_BUDGET_RANGE);
+export const setQualityScore = (amount: number) => interpolateScale(setQualityT(amount), ENVIRONMENT_BUDGET_ANCHORS, 'quality');
+export const setQualityDescription = (amount: number) => describeScale(setQualityT(amount), ENVIRONMENT_BUDGET_ANCHORS);
 
 export const practicalEffectsT = (amount: number) => logT(amount, PRACTICAL_EFFECTS_RANGE);
 export const practicalEffectsScore = (amount: number) =>

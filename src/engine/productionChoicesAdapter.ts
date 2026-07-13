@@ -1,5 +1,5 @@
 import type { Distribution, EffectsMethodKey, NormalizedScalar, ProductionChoices } from '../types';
-import { SET_QUALITY_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../data/production';
+import { ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../data/production';
 import { logAmount } from './interpolate';
 
 // TEMPORARY ADAPTER, NOT THE FUTURE ARCHITECTURE. Every downstream cost/
@@ -35,7 +35,7 @@ export function adaptRecommendationsToProductionChoices(
   return {
     contingencyAmount,
     runtimeIntensity,
-    setQualityAmount: logAmount(environmentAmbition, SET_QUALITY_RANGE),
+    setQualityAmount: logAmount(environmentAmbition, ENVIRONMENT_BUDGET_RANGE),
     practicalEffectsAmount: logAmount(effectsAmbition * effectsStrategy.practical, PRACTICAL_EFFECTS_RANGE),
     vfxAmount: logAmount(effectsAmbition * effectsStrategy.digital, VFX_RANGE),
   };

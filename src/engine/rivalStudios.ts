@@ -23,7 +23,7 @@ import { findCandidatesNearPrice } from './talentFilter';
 import { logAmount } from './interpolate';
 import { STAGE_DURATIONS } from '../data/schedule';
 import { GENRE_PROFILES } from '../data/genres';
-import { CONTINGENCY_RANGE, SET_QUALITY_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../data/production';
+import { SHOOTING_BUDGET_RANGE, ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../data/production';
 import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../data/postProduction';
 import { RELEASE_TYPE_PROFILES, RELEASE_WINDOW_BASE_MULTIPLIER, MARKETING_SPEND_RANGE } from '../data/release';
 import { clamp, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
@@ -244,8 +244,8 @@ function startRivalProduction(
   }
 
   const productionChoices: ProductionChoices = {
-    contingencyAmount: logAmount(spendT, CONTINGENCY_RANGE),
-    setQualityAmount: logAmount(spendT, SET_QUALITY_RANGE),
+    contingencyAmount: logAmount(spendT, SHOOTING_BUDGET_RANGE),
+    setQualityAmount: logAmount(spendT, ENVIRONMENT_BUDGET_RANGE),
     practicalEffectsAmount: logAmount(spendT, PRACTICAL_EFFECTS_RANGE),
     vfxAmount: logAmount(spendT, VFX_RANGE),
     runtimeIntensity: rng(),

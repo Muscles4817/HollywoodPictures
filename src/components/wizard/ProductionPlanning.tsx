@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { CONTINGENCY_RANGE } from '../../data/production';
+import { SHOOTING_BUDGET_RANGE } from '../../data/production';
 import { contingencyDescription, runtimeDescription } from '../../engine/productionDials';
 import { logAmount } from '../../engine/interpolate';
 import { GENRE_PROFILES } from '../../data/genres';
@@ -36,7 +36,7 @@ import type {
   Talent,
 } from '../../types';
 
-const DEFAULT_CONTINGENCY = logAmount(0.5, CONTINGENCY_RANGE);
+const DEFAULT_CONTINGENCY = logAmount(0.5, SHOOTING_BUDGET_RANGE);
 const DEFAULT_RUNTIME_INTENSITY = 0.5;
 
 const ENVIRONMENT_METHOD_KEYS: readonly EnvironmentMethodKey[] = ['studio', 'location', 'digital'];
@@ -370,8 +370,8 @@ export function ProductionPlanning() {
 
       <RangeSlider
         label="Contingency Reserve"
-        min={CONTINGENCY_RANGE.min}
-        max={CONTINGENCY_RANGE.max}
+        min={SHOOTING_BUDGET_RANGE.min}
+        max={SHOOTING_BUDGET_RANGE.max}
         logScale
         value={contingencyAmount}
         onChange={(v) => updatePlan({ contingencyAmount: v })}

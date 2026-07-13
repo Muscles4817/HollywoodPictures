@@ -5,7 +5,7 @@ import { TARGET_AUDIENCES } from '../../data/audiences';
 import { TONES, TONE_LABELS } from '../../data/tones';
 import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../../data/postProduction';
 import { RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS, MARKETING_SPEND_RANGE } from '../../data/release';
-import { CONTINGENCY_RANGE, SET_QUALITY_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../../data/production';
+import { SHOOTING_BUDGET_RANGE, ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../../data/production';
 import { computeReleaseResults } from '../../engine/releaseFilm';
 import { deriveCommercialProfile } from '../../engine/commercialProfile';
 import { computeTalentCompatibility, computeTalentCompatibilityBreakdown } from '../../engine/compatibility';
@@ -530,8 +530,8 @@ export function OutcomeInspector() {
         <SliderRow
           label="Contingency Reserve"
           value={productionChoices.contingencyAmount}
-          min={CONTINGENCY_RANGE.min}
-          max={CONTINGENCY_RANGE.max}
+          min={SHOOTING_BUDGET_RANGE.min}
+          max={SHOOTING_BUDGET_RANGE.max}
           step={1000}
           formatValue={(v) => `$${Math.round(v).toLocaleString()}`}
           onChange={(v) => setProductionChoices({ ...productionChoices, contingencyAmount: v })}
@@ -539,8 +539,8 @@ export function OutcomeInspector() {
         <SliderRow
           label="Set Quality"
           value={productionChoices.setQualityAmount}
-          min={SET_QUALITY_RANGE.min}
-          max={SET_QUALITY_RANGE.max}
+          min={ENVIRONMENT_BUDGET_RANGE.min}
+          max={ENVIRONMENT_BUDGET_RANGE.max}
           step={1000}
           formatValue={(v) => `$${Math.round(v).toLocaleString()}`}
           onChange={(v) => setProductionChoices({ ...productionChoices, setQualityAmount: v })}
