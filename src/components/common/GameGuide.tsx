@@ -15,7 +15,7 @@ const SECTIONS: Section[] = [
   {
     title: 'The Loop',
     paragraphs: [
-      'Each film goes through the same seven steps: pick a genre and buy a script, hire your director and cast, plan the production, shoot it, finish it in post, market and release it, then see the results. Your studio\'s cash and reputation carry over between films - everything else (cast pool aside) starts fresh each time.',
+      'Each film goes through the same seven steps: pick a genre and buy a script, hire your director and cast, plan the production, shoot it, finish it in post, market and release it, then see the results. Your studio\'s cash, Brand Recognition, and Prestige carry over between films - everything else (cast pool aside) starts fresh each time.',
     ],
   },
   {
@@ -30,7 +30,7 @@ const SECTIONS: Section[] = [
     paragraphs: [
       'Your Director has their own tone profile, the same six numbers as a script - a director strong in Suspense and Drama is a great match for a tense character piece, a poor one for a broad comedy. "Compatibility" on a director\'s card measures exactly that overlap, weighted toward whichever tones the script leans on hardest.',
       'Actors work differently: instead of a tone profile, they have five performance strengths - Character Transformation, Emotional Performance, Charisma, Comedy, Physical Performance. There\'s no single "acting skill" number. Someone brilliant at broad comedy might be a weak fit for a heavy drama, and that\'s deliberate - the best hire depends on the specific script, not on who has the highest stats.',
-      'Reliability and Ego apply to everyone you hire: an unreliable, high-ego crew raises the odds of a costly incident once filming starts. Fame boosts audience appeal and - along with your studio\'s reputation and how much you spend on marketing - drives pre-release Buzz (more on that below).',
+      'Reliability and Ego apply to everyone you hire: an unreliable, high-ego crew raises the odds of a costly incident once filming starts. Fame boosts audience appeal and - along with your studio\'s Brand Recognition and how much you spend on marketing - drives pre-release Buzz (more on that below).',
     ],
   },
   {
@@ -48,7 +48,7 @@ const SECTIONS: Section[] = [
   {
     title: 'Buzz & Opening Weekend',
     paragraphs: [
-      'Buzz is pure pre-release hype - it has nothing to do with whether the film is actually any good, only with how much anticipation exists before anyone\'s seen it. It\'s built mainly from three things: how famous your director and leads are, how reputable your studio already is, and how much you spend on marketing. Only one of those three is something money can buy directly - fame and reputation have to be earned through who you cast and how your past films did.',
+      'Buzz is pure pre-release hype - it has nothing to do with whether the film is actually any good, only with how much anticipation exists before anyone\'s seen it. It\'s built mainly from three things: how famous your director and leads are, how well known your studio already is (Brand Recognition), and how much you spend on marketing. Only one of those three is something money can buy directly - fame and Brand have to be earned through who you cast and how your past films performed commercially. Prestige, the studio\'s other long-term stat, doesn\'t feed Buzz at all - see below.',
       'Buzz determines your Opening Weekend - and only the opening. A heavily-hyped film with a famous cast and a big marketing spend can open huge even if it turns out to be bad.',
     ],
   },
@@ -66,9 +66,11 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    title: 'Outcome & Reputation',
+    title: 'Outcome, Brand & Prestige',
     paragraphs: [
-      'Your film\'s headline outcome - Flop, Cult Hit, Modest Success, Hit, Blockbuster, or Masterpiece - is based mainly on profit relative to total cost, with quality and critic bonuses unlocking the more prestigious labels regardless of profit (a beloved, critically adored film can be a "Masterpiece" even without blockbuster box office). Reputation shifts after every release based on that outcome and your critic reception, and a stronger reputation feeds directly into more Buzz on your next film - success compounds, but so does a string of flops.',
+      'Your film\'s headline outcome - Flop, Cult Hit, Modest Success, Hit, Blockbuster, or Masterpiece - is based mainly on profit relative to total cost, with quality and critic bonuses unlocking the more prestigious labels regardless of profit (a beloved, critically adored film can be a "Masterpiece" even without blockbuster box office).',
+      'That outcome label blends two things a real studio actually tracks separately, so your studio does too. Brand Recognition is how commercially bankable you are with general audiences - it moves with profit relative to cost (a strong hit builds it, a flop erodes it) and feeds back into Buzz on your next film, so commercial success compounds. Prestige is how respected you are within the industry and by critics - it moves with critic reception alone, completely independent of whether the film made money. A beloved flop still builds real Prestige; a profitable but panned film builds Brand while doing nothing for it.',
+      'The two are deliberately free to diverge: a scrappy studio can rack up acclaim on tiny films (high Prestige, low Brand) while a blockbuster factory can be a household name that critics shrug at (high Brand, low Prestige). Neither stat is strictly better - they\'re different goals.',
     ],
   },
 ];

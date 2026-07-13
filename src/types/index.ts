@@ -466,17 +466,24 @@ export interface FilmResults {
   marketingCost: number;
   totalCost: number;
   openingWeekend: number;
-  // These five are only knowable once the film's BoxOfficeRun finishes
+  // These six are only knowable once the film's BoxOfficeRun finishes
   // (see BoxOfficeRun below and docs/DESIGN.md 5.19) - total gross isn't a
   // single computed figure any more, it's whatever the weekly run actually
-  // adds up to, so profit/outcome/reputation have to wait for it the same
-  // way a real studio doesn't know a film's final numbers on opening night.
-  // null while BoxOfficeRun.status === 'running'.
+  // adds up to, so profit/outcome/brand/prestige have to wait for it the
+  // same way a real studio doesn't know a film's final numbers on opening
+  // night. null while BoxOfficeRun.status === 'running'.
   totalBoxOffice: number | null; // the big headline gross - not what the studio actually keeps, see studioRevenue
   studioRevenue: number | null; // totalBoxOffice after the theatrical revenue split - what profit is actually computed from
   profit: number | null;
   outcome: OutcomeLabel | null;
-  reputationChange: number | null;
+  // Milestone: Brand Recognition and Prestige (engine/reputation.ts) replaced
+  // the single Reputation stat - commercial performance (profit relative to
+  // cost, plus a modest audience-approval nudge) moves brandChange; critical
+  // reception alone moves prestigeChange, deliberately independent of profit
+  // (a beloved flop still builds Prestige; a profitable but panned film does
+  // not - see computeBrandChange/computePrestigeChange for the full reasoning).
+  brandChange: number | null;
+  prestigeChange: number | null;
   criticScore: number; // 0-100
   audienceScore: number; // 0-100
   buzzScore: number; // 0-100
@@ -662,7 +669,17 @@ export interface RivalProductionInProgress {
 export interface Studio {
   name: string;
   cash: number;
-  reputation: number; // 0-100
+  // Milestone: replaces the old single `reputation` stat with two
+  // independent long-term progression stats (engine/reputation.ts) -
+  // avoids one number quietly deciding both "how commercially bankable is
+  // this studio" and "how respected is this studio creatively," which a
+  // real studio's reputation isn't one thing (Disney/Blumhouse are high
+  // Brand, lower Prestige; A24 is the reverse; a new indie studio starts
+  // low in both).
+  /** How well known and commercially bankable the studio is with general audiences - drives pre-release Buzz and marketing efficiency (how far a marketing pound goes), never critic-facing mechanics. */
+  brand: number; // 0-100
+  /** How respected the studio is within the industry and by critics - grows from critical reception alone, independent of a film's commercial outcome. Not yet consumed by any formula (no critic-facing mechanic exists yet) - tracked now so a future system (e.g. awards) has real history to read, the same "compute and track now, wire in later" precedent commercialProfile.crossoverPotential set. */
+  prestige: number; // 0-100
   assets: Asset[];
 }
 

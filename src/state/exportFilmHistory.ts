@@ -13,7 +13,8 @@ import { formatGameDate } from '../engine/calendar';
 export function exportFilmHistory(studio: Studio, filmsReleased: Film[], totalDays: number): void {
   const payload = {
     studioName: studio.name,
-    reputation: studio.reputation,
+    brand: studio.brand,
+    prestige: studio.prestige,
     totalDays,
     currentDate: formatGameDate(totalDays),
     exportedAt: new Date().toISOString(),

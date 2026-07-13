@@ -366,13 +366,16 @@ export function computeAudienceScore(
  * Buzz Score: pre-release hype, not reception - this is what drives Opening
  * Weekend (engine/boxOffice.ts), separately from whether the film is
  * actually any good. Dominated by three things a studio can genuinely
- * build: how famous the director/leads are, how reputable the studio
- * itself is, and how much is spent getting the word out. Money alone
- * (marketing) caps out well short of 100 - fame and reputation aren't for
- * sale, they're earned by who you cast and what you've already released -
- * so a wealthy but unknown studio with no-name talent still can't buy its
- * way to a phenomenon. Events/music/final-cut/script-marketability stay as
- * smaller flavor modifiers on top, same as before.
+ * build: how famous the director/leads are, how commercially recognised
+ * the studio itself is (Brand Recognition - engine/reputation.ts), and how
+ * much is spent getting the word out. Money alone (marketing) caps out
+ * well short of 100 - fame and Brand aren't for sale, they're earned by
+ * who you cast and how your past films performed commercially - so a
+ * wealthy but unknown studio with no-name talent still can't buy its way
+ * to a phenomenon. Deliberately reads Brand, never Prestige - pre-release
+ * hype is a commercial-recognition question ("have people heard of this
+ * studio"), not a critical-esteem one. Events/music/final-cut/script-
+ * marketability stay as smaller flavor modifiers on top, same as before.
  */
 export function computeBuzzScore(
   script: Script,
@@ -380,7 +383,7 @@ export function computeBuzzScore(
   events: ProductionEvent[],
   postProductionChoices: PostProductionChoices,
   marketingChoices: MarketingChoices,
-  studioReputation: number,
+  studioBrand: number,
 ): number {
   const director = getDirector(talent);
   const leads = getLeadActors(talent);
@@ -388,7 +391,7 @@ export function computeBuzzScore(
   const fameAvg = average(buzzworthyFame) ?? 30;
 
   const fameBuzz = (fameAvg - 50) * 0.5;
-  const reputationBuzz = (studioReputation - 50) * 0.4;
+  const brandBuzz = (studioBrand - 50) * 0.4;
   const marketingBuzz = marketingBuzzContribution(marketingChoices.marketingSpend);
 
   const eventsBuzz = events.reduce((sum, e) => sum + e.buzzDelta, 0);
@@ -396,5 +399,5 @@ export function computeBuzzScore(
   const finalCutBuzz = FINAL_CUT_FOCUS_PROFILES[postProductionChoices.finalCutFocus].buzzDelta;
   const scriptBuzz = (deriveCommercialProfile(script).hookStrength - 50) * 0.2;
 
-  return clamp(10 + fameBuzz + reputationBuzz + marketingBuzz + eventsBuzz + musicBuzz + finalCutBuzz + scriptBuzz, 0, 100);
+  return clamp(10 + fameBuzz + brandBuzz + marketingBuzz + eventsBuzz + musicBuzz + finalCutBuzz + scriptBuzz, 0, 100);
 }

@@ -36,7 +36,7 @@ export interface ScheduledReleaseSettlement {
 export function settleScheduledReleases(
   scheduled: ScheduledRelease[],
   totalDays: number,
-  studioReputation: number,
+  studioBrand: number,
   rng: RandomFn,
 ): ScheduledReleaseSettlement {
   const due = scheduled.filter((s) => s.releaseDay <= totalDays);
@@ -59,7 +59,7 @@ export function settleScheduledReleases(
         events: photographyEvents,
         photographyCost: d.photography!.runningCost,
         shootingRatio,
-        studioReputation,
+        studioBrand,
       },
       rng,
     );

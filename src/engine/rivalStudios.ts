@@ -261,7 +261,7 @@ function resolveRivalProduction(production: RivalProductionInProgress, rivalStud
       events: [],
       photographyCost,
       shootingRatio,
-      studioReputation: 50, // rivals don't carry their own persistent reputation - a flat industry-average stand-in for Buzz
+      studioBrand: 50, // rivals don't carry their own persistent Brand/Prestige - a flat industry-average stand-in for Buzz
     },
     rng,
   );
@@ -301,8 +301,8 @@ export interface RivalMarketUpdate {
 /**
  * The whole rival-market tick: resolve anything that's released, settle
  * every rival film's box office (reusing engine/boxOfficeRun.ts exactly -
- * its cash/reputation output is simply discarded here, since none of it is
- * the player's), then let any studio whose spawn-check day has arrived try
+ * its cash/brand/prestige output is simply discarded here, since none of it
+ * is the player's), then let any studio whose spawn-check day has arrived try
  * to start a new production if it has spare capacity. Called from the same
  * places engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms is (see
  * state/studioReducer.ts) - every action that can advance GameState.totalDays.

@@ -35,7 +35,7 @@ export function ReleaseResults() {
         </div>
       ) : (
         <p className="choice-description" style={{ margin: 0 }}>
-          This is just the opening - the film is still playing. Its total gross, profit, outcome and reputation
+          This is just the opening - the film is still playing. Its total gross, profit, outcome, and Brand/Prestige
           effect will all firm up week by week as it plays out; keep an eye on the Dashboard to watch it happen.
         </p>
       )}
@@ -104,18 +104,32 @@ export function ReleaseResults() {
 
       <div className="card row-between">
         <div>
-          <div className="stat-label">Studio Reputation Change</div>
+          <div className="stat-label">Brand Change</div>
           <div className="stat-value">
             {finished ? (
-              <>{results.reputationChange! >= 0 ? '+' : ''}{results.reputationChange}</>
+              <>{results.brandChange! >= 0 ? '+' : ''}{results.brandChange}</>
             ) : (
               <span style={{ color: 'var(--text-muted)', fontSize: '0.7em' }}>Pending run's end</span>
             )}
           </div>
         </div>
         <div>
-          <div className="stat-label">Studio Reputation Now</div>
-          <div className="stat-value">{state.studio.reputation} / 100</div>
+          <div className="stat-label">Prestige Change</div>
+          <div className="stat-value">
+            {finished ? (
+              <>{results.prestigeChange! >= 0 ? '+' : ''}{results.prestigeChange}</>
+            ) : (
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.7em' }}>Pending run's end</span>
+            )}
+          </div>
+        </div>
+        <div>
+          <div className="stat-label">Studio Brand Now</div>
+          <div className="stat-value">{state.studio.brand} / 100</div>
+        </div>
+        <div>
+          <div className="stat-label">Studio Prestige Now</div>
+          <div className="stat-value">{state.studio.prestige} / 100</div>
         </div>
         <div>
           <div className="stat-label">Studio Cash Now</div>

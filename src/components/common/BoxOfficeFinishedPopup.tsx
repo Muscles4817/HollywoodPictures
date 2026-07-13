@@ -7,7 +7,7 @@ import type { Film } from '../../types';
 
 /**
  * Surfaces once a film's BoxOfficeRun finishes and hasn't been seen yet
- * (Film.boxOfficeRun.acknowledged) - the moment profit/outcome/reputation
+ * (Film.boxOfficeRun.acknowledged) - the moment profit/outcome/brand/prestige
  * change are finally knowable, now that the whole theatrical run has played
  * out instead of being computed in one shot at release (docs/DESIGN.md 5.19).
  */
@@ -35,10 +35,17 @@ export function BoxOfficeFinishedPopup({ film }: { film: Film }) {
         </div>
         <div className="row-between">
           <div>
-            <div className="stat-label">Reputation Change</div>
+            <div className="stat-label">Brand Change</div>
             <div className="stat-value">
-              {results.reputationChange !== null && results.reputationChange >= 0 ? '+' : ''}
-              {results.reputationChange}
+              {results.brandChange !== null && results.brandChange >= 0 ? '+' : ''}
+              {results.brandChange}
+            </div>
+          </div>
+          <div>
+            <div className="stat-label">Prestige Change</div>
+            <div className="stat-value">
+              {results.prestigeChange !== null && results.prestigeChange >= 0 ? '+' : ''}
+              {results.prestigeChange}
             </div>
           </div>
         </div>

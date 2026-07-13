@@ -22,7 +22,7 @@ export const AUDIENCE_PROFILES: Record<TargetAudience, AudienceProfile> = {
   },
   Critics: {
     marketSize: 0.55,
-    description: 'A smaller box office ceiling, but strong reviews travel further and boost reputation more with this crowd.',
+    description: 'A smaller box office ceiling, but strong reviews travel further and boost Prestige more with this crowd.',
   },
   Teens: {
     marketSize: 0.8,

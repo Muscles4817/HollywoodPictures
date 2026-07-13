@@ -47,6 +47,8 @@ export const AUDIENCE_WEIGHTS = {
   production: 0.2,
 };
 
-// Box office and reputation are each a multiplicative chain rather than a
-// weighted sum - see engine/boxOffice.ts and engine/reputation.ts, and the
-// "Box Office" / "Reputation" sections of docs/DESIGN.md for the full formula.
+// Box office is a multiplicative chain rather than a weighted sum, and Brand/
+// Prestige are each single formulas rather than a chain - see
+// engine/boxOffice.ts and engine/reputation.ts, and the "Box Office" /
+// "Brand Recognition and Prestige" sections of docs/DESIGN.md for the full
+// formulas.

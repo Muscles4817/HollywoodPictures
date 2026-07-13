@@ -141,7 +141,13 @@ import { randomSeed, withRng } from '../engine/random';
 // (see gameState.ts:createDraftFromAsset). A v27 save has none of these
 // fields in their new shape - no migration code, same as every past shape
 // change here.
-const SAVE_KEY = 'hollywood-pictures-save-v28';
+// v28 -> v29 (docs/DESIGN.md - "Brand Recognition and Prestige"): the single
+// Studio.reputation stat was replaced by two independent long-term stats,
+// Studio.brand and Studio.prestige (engine/reputation.ts), and
+// FilmResults.reputationChange was likewise split into brandChange/
+// prestigeChange. A v28 save has neither field in their new shape - no
+// migration code, same as every past shape change here.
+const SAVE_KEY = 'hollywood-pictures-save-v29';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

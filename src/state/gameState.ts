@@ -3,7 +3,6 @@ import type {
   Distribution,
   EffectsMethodKey,
   EnvironmentMethodKey,
-  Film,
   FilmDraft,
   MarketingChoices,
   NormalizedScalar,
@@ -77,7 +76,8 @@ export function createInitialStudio(startingCash: number): Studio {
   return {
     name: 'Silver Reel Pictures',
     cash: startingCash,
-    reputation: 20,
+    brand: 20,
+    prestige: 20,
     assets: [],
   };
 }
@@ -242,9 +242,3 @@ export type GameAction =
   | { type: 'VIEW_OPPORTUNITY_MARKET' }
   // Dashboard -> the studio's owned Assets. Pure detour, same as VIEW_STATS.
   | { type: 'VIEW_ASSET_LIBRARY' };
-
-export interface CompletedFilmRecord {
-  film: Film;
-  cashAfter: number;
-  reputationAfter: number;
-}

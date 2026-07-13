@@ -150,7 +150,8 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
 
       <div className="row">
         <StatTile label="Studio Cash" value={<Money amount={studio.cash} signColor />} />
-        <StatTile label="Reputation" value={`${studio.reputation} / 100`} />
+        <StatTile label="Brand Recognition" value={`${studio.brand} / 100`} />
+        <StatTile label="Prestige" value={`${studio.prestige} / 100`} />
         <StatTile label="Films Released" value={playerReleasedFilms.length} />
         <StatTile label="Current Date" value={formatGameDate(state.totalDays)} />
       </div>

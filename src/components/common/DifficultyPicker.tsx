@@ -33,7 +33,7 @@ export function DifficultyPicker({ studioName, onConfirm, onCancel }: Difficulty
       <div className="modal-content stack">
         <h2 style={{ margin: 0 }}>Reset {studioName}?</h2>
         <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-          This wipes all cash, reputation, and film history and starts a brand new studio. This can't be undone.
+          This wipes all cash, Brand, Prestige, and film history and starts a brand new studio. This can't be undone.
           Pick a starting budget:
         </p>
         <div className="grid">

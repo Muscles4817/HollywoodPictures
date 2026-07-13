@@ -12,7 +12,7 @@ import { computeTalentCompatibility, computeTalentCompatibilityBreakdown } from 
 import { advanceToWeek, MAX_SIMULATION_WEEKS } from '../../engine/audienceSimulationStep';
 import { AVERAGE_TICKET_PRICE, STUDIO_BOX_OFFICE_SHARE } from '../../engine/boxOfficeRun';
 import { determineOutcome } from '../../engine/outcome';
-import { computeReputationChange } from '../../engine/reputation';
+import { computeBrandChange, computePrestigeChange } from '../../engine/reputation';
 import { createRng } from '../../engine/random';
 import { playerReleasedFilms } from '../../engine/project';
 import { Button } from '../common/Button';
@@ -191,7 +191,7 @@ export function OutcomeInspector() {
   const [productionChoices, setProductionChoices] = useState<ProductionChoices | null>(selectedFilm?.productionChoices ?? null);
   const [postProductionChoices, setPostProductionChoices] = useState<PostProductionChoices | null>(selectedFilm?.postProductionChoices ?? null);
   const [marketingChoices, setMarketingChoices] = useState<MarketingChoices | null>(selectedFilm?.marketingChoices ?? null);
-  const [studioReputation, setStudioReputation] = useState(state.studio.reputation);
+  const [studioBrand, setStudioBrand] = useState(state.studio.brand);
   const [shootingRatio, setShootingRatio] = useState(1);
   const [eventQualityDelta, setEventQualityDelta] = useState(() => selectedFilm?.events.reduce((sum, e) => sum + e.qualityDelta, 0) ?? 0);
   const [eventBuzzDelta, setEventBuzzDelta] = useState(() => selectedFilm?.events.reduce((sum, e) => sum + e.buzzDelta, 0) ?? 0);
@@ -212,7 +212,7 @@ export function OutcomeInspector() {
     setProductionChoices(film.productionChoices);
     setPostProductionChoices(film.postProductionChoices);
     setMarketingChoices(film.marketingChoices);
-    setStudioReputation(state.studio.reputation);
+    setStudioBrand(state.studio.brand);
     setShootingRatio(1);
     const evQuality = film.events.reduce((sum, e) => sum + e.qualityDelta, 0);
     const evBuzz = film.events.reduce((sum, e) => sum + e.buzzDelta, 0);
@@ -295,7 +295,7 @@ export function OutcomeInspector() {
       events,
       photographyCost: 0,
       shootingRatio,
-      studioReputation,
+      studioBrand,
     },
     rng,
   );
@@ -314,7 +314,8 @@ export function OutcomeInspector() {
   const studioRevenue = Math.round(projectedTotalGross * STUDIO_BOX_OFFICE_SHARE);
   const profit = studioRevenue - results.totalCost;
   const outcome = determineOutcome(profit, results.totalCost, results.qualityScore, results.criticScore, results.audienceScore);
-  const reputationChange = computeReputationChange(outcome, results.criticScore);
+  const brandChange = computeBrandChange(profit, results.totalCost, results.audienceScore);
+  const prestigeChange = computePrestigeChange(results.criticScore);
 
   const original = selectedFilm.results;
   // A finished run's totalBoxOffice is already known exactly; a still-running
@@ -391,8 +392,12 @@ export function OutcomeInspector() {
             </span>
           </div>
           <div className="row-between">
-            <span className="score-bar-label">Reputation Change</span>
-            <span>{original.reputationChange ?? 0} → {reputationChange}</span>
+            <span className="score-bar-label">Brand Change</span>
+            <span>{original.brandChange ?? 0} → {brandChange}</span>
+          </div>
+          <div className="row-between">
+            <span className="score-bar-label">Prestige Change</span>
+            <span>{original.prestigeChange ?? 0} → {prestigeChange}</span>
           </div>
         </div>
       </div>
@@ -403,7 +408,7 @@ export function OutcomeInspector() {
         marketingSpend={marketingChoices.marketingSpend}
         directorFame={averageFame(talent, 'Director')}
         leadFame={averageFame(talent, 'Lead Actor')}
-        studioReputation={studioReputation}
+        studioBrand={studioBrand}
         scriptAccessibility={deriveCommercialProfile(script).accessibility}
         scriptHookStrength={deriveCommercialProfile(script).hookStrength}
         scriptCrossoverPotential={deriveCommercialProfile(script).crossoverPotential}
@@ -594,7 +599,7 @@ export function OutcomeInspector() {
 
       <div className="card stack">
         <h2 style={{ margin: 0 }}>Context &amp; Events</h2>
-        <SliderRow label="Studio Reputation" value={studioReputation} min={0} max={100} onChange={setStudioReputation} />
+        <SliderRow label="Studio Brand" value={studioBrand} min={0} max={100} onChange={setStudioBrand} />
         <SliderRow
           label="Shooting Ratio (days elapsed / recommended)"
           value={shootingRatio}

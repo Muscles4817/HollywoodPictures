@@ -1,7 +1,7 @@
 import type { Film } from '../types';
 import { advanceOneWeekWithDiagnostics, hasSimulationEnded } from './audienceSimulationStep';
 import { determineOutcome } from './outcome';
-import { computeReputationChange } from './reputation';
+import { computeBrandChange, computePrestigeChange } from './reputation';
 
 // A week's gross is settled once real in-game days accumulate to it, off
 // the same calendar everything else uses (GameState.totalDays) - there's no
@@ -44,8 +44,10 @@ export interface BoxOfficeSettlement {
   filmsReleased: Film[];
   /** Total studioRevenue across every week newly settled this call, across every running film - credit straight to Studio.cash. */
   cashCredit: number;
-  /** Sum of reputationChange for any film whose run finished this call - apply via applyReputationChange. */
-  reputationDelta: number;
+  /** Sum of brandChange for any film whose run finished this call - apply via applyStatChange. */
+  brandDelta: number;
+  /** Sum of prestigeChange for any film whose run finished this call - apply via applyStatChange. */
+  prestigeDelta: number;
 }
 
 /**
@@ -54,9 +56,9 @@ export interface BoxOfficeSettlement {
  * the player starting their next film while an older one is still in
  * theaters - see docs/DESIGN.md 5.19). A film whose run crosses into
  * 'finished' during this call gets its final totalBoxOffice/studioRevenue/
- * profit/outcome/reputationChange computed right here, from whatever its
- * weeks actually added up to - the same job RELEASE_FILM used to do in one
- * shot at release time.
+ * profit/outcome/brandChange/prestigeChange computed right here, from
+ * whatever its weeks actually added up to - the same job RELEASE_FILM used
+ * to do in one shot at release time.
  *
  * Driven entirely by engine/audienceSimulationStep.ts's weekly step
  * (advanceOneWeekWithDiagnostics) against each run's own `fixed`/`simWeeks`
@@ -67,7 +69,8 @@ export interface BoxOfficeSettlement {
  */
 export function settleBoxOfficeForAllFilms(filmsReleased: Film[], currentTotalDays: number): BoxOfficeSettlement {
   let cashCredit = 0;
-  let reputationDelta = 0;
+  let brandDelta = 0;
+  let prestigeDelta = 0;
 
   const updatedFilms = filmsReleased.map((film): Film => {
     if (film.boxOfficeRun.status !== 'running') return film;
@@ -93,17 +96,19 @@ export function settleBoxOfficeForAllFilms(filmsReleased: Film[], currentTotalDa
       const studioRevenue = Math.round(totalBoxOffice * STUDIO_BOX_OFFICE_SHARE);
       const profit = studioRevenue - film.results.totalCost;
       const outcome = determineOutcome(profit, film.results.totalCost, film.results.qualityScore, film.results.criticScore, film.results.audienceScore);
-      const reputationChange = computeReputationChange(outcome, film.results.criticScore);
-      reputationDelta += reputationChange;
+      const brandChange = computeBrandChange(profit, film.results.totalCost, film.results.audienceScore);
+      const prestigeChange = computePrestigeChange(film.results.criticScore);
+      brandDelta += brandChange;
+      prestigeDelta += prestigeChange;
       return {
         ...film,
         boxOfficeRun: run,
-        results: { ...film.results, totalBoxOffice, studioRevenue, profit, outcome, reputationChange },
+        results: { ...film.results, totalBoxOffice, studioRevenue, profit, outcome, brandChange, prestigeChange },
       };
     }
 
     return { ...film, boxOfficeRun: run };
   });
 
-  return { filmsReleased: updatedFilms, cashCredit, reputationDelta };
+  return { filmsReleased: updatedFilms, cashCredit, brandDelta, prestigeDelta };
 }

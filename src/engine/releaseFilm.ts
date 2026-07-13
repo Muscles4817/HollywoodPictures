@@ -45,7 +45,8 @@ export interface ReleaseComputationInput {
   // quality (engine/productionDials.ts:shootingQualityFromRatio) the way a
   // pre-set pace slider used to.
   shootingRatio: number;
-  studioReputation: number;
+  /** Studio.brand (Brand Recognition, engine/reputation.ts) - never Prestige, see computeBuzzScore/deriveAudienceSimulationFixedState's own doc comments for why. */
+  studioBrand: number;
 }
 
 export interface ReleaseComputationResult {
@@ -63,8 +64,8 @@ export interface ReleaseComputationResult {
  * into its release-day-knowable results. Everything it calls is a pure
  * function, so this stays easy to unit test and easy to extend (e.g.
  * awards, franchises) later. Deliberately does NOT compute totalBoxOffice/
- * studioRevenue/profit/outcome/reputationChange - those depend on the whole
- * theatrical run, which hasn't happened yet at the moment a film releases
+ * studioRevenue/profit/outcome/brandChange/prestigeChange - those depend on
+ * the whole theatrical run, which hasn't happened yet at the moment a film releases
  * (see engine/boxOfficeRun.ts and docs/DESIGN.md 5.19); they come back null
  * here and get filled in once the run finishes.
  */
@@ -93,7 +94,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     input.events,
     input.postProductionChoices,
     input.marketingChoices,
-    input.studioReputation,
+    input.studioBrand,
   );
 
   const talentCost = computeTalentCost(input.talent);
@@ -126,7 +127,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     marketingSpend: input.marketingChoices.marketingSpend,
     directorFame: averageFame(input.talent, 'Director'),
     leadFame: averageFame(input.talent, 'Lead Actor'),
-    studioReputation: input.studioReputation,
+    studioBrand: input.studioBrand,
     scriptAccessibility: commercialProfile.accessibility,
     scriptHookStrength: commercialProfile.hookStrength,
     scriptCrossoverPotential: commercialProfile.crossoverPotential,
@@ -163,7 +164,8 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     studioRevenue: null,
     profit: null,
     outcome: null,
-    reputationChange: null,
+    brandChange: null,
+    prestigeChange: null,
     criticScore: Math.round(criticScore),
     audienceScore: Math.round(audienceScore),
     buzzScore: Math.round(buzzScore),

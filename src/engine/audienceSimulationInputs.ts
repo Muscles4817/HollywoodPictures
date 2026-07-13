@@ -50,10 +50,10 @@ export type SupportedReleaseType = Exclude<ReleaseType, 'Streaming'>;
  * split was based on:
  *
  * - **Awareness inputs** ("do people know this film exists"):
- *   `marketingSpend`, `directorFame`, `leadFame`, `studioReputation`. None
+ *   `marketingSpend`, `directorFame`, `leadFame`, `studioBrand`. None
  *   of these are screenplay traits - a brilliant script does not cause
  *   people to hear about a film, marketing and who's already famous does.
- *   `buzzScore` also belongs conceptually to this family (fame/reputation/
+ *   `buzzScore` also belongs conceptually to this family (fame/Brand/
  *   marketing-driven, engine/scoring.ts:computeBuzzScore) but is kept
  *   separate below since its only remaining job here is pacing urgency, not
  *   awareness reach - see its own doc comment.
@@ -83,8 +83,8 @@ export interface ReleaseSimulationInputs {
   directorFame: number;
   /** Average fame across every hired Lead Actor, 0-100 - the other half of computeCastReachFraction; weighted higher than directorFame since leads are usually the more visible face of a film's marketing. */
   leadFame: number;
-  /** Studio.reputation, 0-100 verbatim - sizes marketingEfficiency (how far a marketing pound actually goes). A brand-new studio's marketing dollar buys less attention than an established one's; this is what makes marketing effectiveness itself a genuine mid/late-game progression mechanic rather than a flat multiplier available from day one. */
-  studioReputation: number;
+  /** Studio.brand (Brand Recognition, engine/reputation.ts), 0-100 verbatim - sizes marketingEfficiency (how far a marketing pound actually goes). A brand-new studio's marketing dollar buys less attention than an established one's; this is what makes marketing effectiveness itself a genuine mid/late-game progression mechanic rather than a flat multiplier available from day one. Deliberately reads Brand, never Prestige - how far a marketing pound reaches is a commercial-recognition question, not a critical-esteem one. */
+  studioBrand: number;
   /** deriveCommercialProfile(script).accessibility, 0-100 - how broad a natural audience the screenplay's *concept* has, independent of how it's marketed. The dominant driver of baseInterestFraction ("of the people who know this exists, how many are even in its natural audience") - see computeBaseInterestFraction. Never touches marketingEfficiency (Milestone 11 - a script being easy to explain doesn't mean it's easy to promote, and either way that's a marketing-side question, not a content one). */
   scriptAccessibility: number;
   /** deriveCommercialProfile(script).hookStrength, 0-100 - how compelling the marketing *proposition* itself is (trailer effectiveness, click-through, "does the pitch land") - a secondary, narrower-range multiplier on baseInterestFraction alongside scriptAccessibility (Milestone 12, see computeBaseInterestFraction). Deliberately distinct from scriptAccessibility's job: a concept can be easy to *understand* without being compellingly *pitched*, and vice versa. No longer feeds crossoverCapacityFraction (Milestone 11 briefly routed it there; Milestone 12 moved crossover onto scriptCrossoverPotential below, a purpose-built value, instead) and never touches awareness/reach - matches Milestone 11's "the screenplay should matter, but much less directly" principle by staying inside interest generation, not awareness. */
@@ -305,21 +305,27 @@ function computeCrossoverCapacityFraction(
 // doesn't make a press release more likely to run, and a script being
 // original doesn't make a media buy less effective - those were both real
 // coupling bugs found via that milestone's diagnostic sweep, see its
-// DESIGN.md note for the numbers). `studioReputation` is what actually
-// drives this now: an established, reputable studio's marketing spend goes
-// further - press pays more attention, distributors give better placement,
-// a trailer from a studio with a track record gets watched - than an
-// unproven newcomer's identical spend. This is also what makes marketing
-// effectiveness itself a genuine progression mechanic (docs/DESIGN.md
-// Milestone 11's "marketing as a progression mechanic" goal): reputation
-// climbs from real outcomes (engine/reputation.ts), starting at 20
-// (state/gameState.ts) for a brand-new studio, so the exact same spend
-// buys meaningfully more awareness once a studio has a few hits behind it.
+// DESIGN.md note for the numbers). `studioBrand` (Brand Recognition,
+// engine/reputation.ts - was the single Studio.reputation stat until a
+// later milestone split it from Prestige) is what actually drives this
+// now: a studio with strong commercial name-recognition sees its marketing
+// spend go further - press pays more attention, distributors give better
+// placement, a trailer from a studio with a track record gets watched -
+// than an unproven newcomer's identical spend. Deliberately Brand, never
+// Prestige: how far a marketing pound reaches is a commercial-recognition
+// question, a critically-respected-but-commercially-unknown studio (an
+// A24-shaped one) doesn't get an efficiency boost here just for being
+// well-reviewed. This is also what makes marketing effectiveness itself a
+// genuine progression mechanic (docs/DESIGN.md Milestone 11's "marketing
+// as a progression mechanic" goal): Brand climbs from real commercial
+// outcomes (engine/reputation.ts), starting at 20 (state/gameState.ts) for
+// a brand-new studio, so the exact same spend buys meaningfully more
+// awareness once a studio has a few hits behind it.
 const MARKETING_EFFICIENCY_FLOOR = 0.3;
 const MARKETING_EFFICIENCY_CEILING = 1.0;
 
-function computeMarketingEfficiency(studioReputation: number): number {
-  return clamp(MARKETING_EFFICIENCY_FLOOR + (MARKETING_EFFICIENCY_CEILING - MARKETING_EFFICIENCY_FLOOR) * (studioReputation / 100), 0, 1);
+function computeMarketingEfficiency(studioBrand: number): number {
+  return clamp(MARKETING_EFFICIENCY_FLOOR + (MARKETING_EFFICIENCY_CEILING - MARKETING_EFFICIENCY_FLOOR) * (studioBrand / 100), 0, 1);
 }
 
 // --- Distribution - release type reinterpreted as its own economic/access
@@ -428,28 +434,28 @@ function distributionProfile(releaseType: SupportedReleaseType): DistributionPro
 //
 // A diagnostic sweep found Wide's initialAvailabilityFraction was a flat
 // 0.95 for *every* studio choosing it - a tiny, unknown, poorly-funded
-// studio (reputation 10, £50k marketing) got the exact same nationwide
-// rollout as a major studio (reputation 85, £120M marketing) for choosing
-// the identical release type, with no mechanism representing "cinemas
-// decide whether to actually give you that distribution." releaseStrength
-// reuses the same marketingReachFraction/marketingEfficiency signals
-// computeInitialAwareCount already computes below (not reinvented) - a
-// studio that can't back "Wide" with real marketing spend or an
-// established reputation doesn't get to skip that cost, the same as it
-// doesn't get to skip it for awareness. Only Wide is scaled this way -
-// Limited/Festival First are already deliberately modest by design (this
-// was never where the "free money" problem lived, per the diagnostic), and
-// both already earn wider distribution through Milestone 9's own
-// performance-driven expansion when a platform release actually takes off
-// - Wide now follows the same "strategy attempted, market decides how much
-// of it lands" principle on day one instead of getting it unconditionally.
+// studio (Brand 10, £50k marketing) got the exact same nationwide rollout
+// as a major studio (Brand 85, £120M marketing) for choosing the identical
+// release type, with no mechanism representing "cinemas decide whether to
+// actually give you that distribution." releaseStrength reuses the same
+// marketingReachFraction/marketingEfficiency signals computeInitialAwareCount
+// already computes below (not reinvented) - a studio that can't back
+// "Wide" with real marketing spend or Brand Recognition doesn't get to
+// skip that cost, the same as it doesn't get to skip it for awareness.
+// Only Wide is scaled this way - Limited/Festival First are already
+// deliberately modest by design (this was never where the "free money"
+// problem lived, per the diagnostic), and both already earn wider
+// distribution through Milestone 9's own performance-driven expansion when
+// a platform release actually takes off - Wide now follows the same
+// "strategy attempted, market decides how much of it lands" principle on
+// day one instead of getting it unconditionally.
 const WIDE_AVAILABILITY_FLOOR = 0.4;
 const RELEASE_STRENGTH_MARKETING_WEIGHT = 0.6;
-const RELEASE_STRENGTH_REPUTATION_WEIGHT = 0.4;
+const RELEASE_STRENGTH_BRAND_WEIGHT = 0.4;
 
 function computeReleaseStrength(marketingSpend: number, marketingEfficiency: number): number {
   return clamp(
-    RELEASE_STRENGTH_MARKETING_WEIGHT * marketingReachFraction(marketingSpend) + RELEASE_STRENGTH_REPUTATION_WEIGHT * marketingEfficiency,
+    RELEASE_STRENGTH_MARKETING_WEIGHT * marketingReachFraction(marketingSpend) + RELEASE_STRENGTH_BRAND_WEIGHT * marketingEfficiency,
     0,
     1,
   );
@@ -503,9 +509,9 @@ function computeConversionPacingBaseline(releaseType: SupportedReleaseType, rele
 // average buzz and moderately famous actors already carry meaningful
 // demand"). Awareness is now built from exactly three inputs, each counted
 // once: marketing spend (dominant - "marketing buys awareness, not
-// quality"), a direct cast/reputation "who's involved" reach term (director
+// quality"), a direct cast/fame "who's involved" reach term (director
 // + lead fame, independent of buzzScore), and marketingEfficiency
-// (studioReputation-driven - see above). `buzzScore` no longer appears
+// (studioBrand-driven - see above). `buzzScore` no longer appears
 // anywhere in this function.
 //
 // The convex low-fame floor mirrors the same shape Milestone 2's reception
@@ -573,8 +579,8 @@ function computeInitialAwareCount(fixed: {
 // function's old release-type scaling for the same reason initial awareness
 // lost it: how widely a film is *playing* is a distribution question, not
 // an awareness one, and there's a real, honest marketing story
-// (marketingEfficiency, driven by studioReputation) still doing the actual
-// scaling work here - a well-reputed studio's marketing keeps paying off a
+// (marketingEfficiency, driven by studioBrand) still doing the actual
+// scaling work here - a well-known studio's marketing keeps paying off a
 // little after opening too, regardless of how many screens the film is on.
 const EXTERNAL_AWARENESS_BASE_RATE = 0.03;
 function computeExternalWeeklyAwarenessRate(marketingEfficiency: number): number {
@@ -598,7 +604,7 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
     inputs.genre,
     inputs.targetAudience,
   );
-  const marketingEfficiency = computeMarketingEfficiency(inputs.studioReputation);
+  const marketingEfficiency = computeMarketingEfficiency(inputs.studioBrand);
   const conversionPacingBaseline = computeConversionPacingBaseline(inputs.releaseType, inputs.releaseWindow, inputs.genre, inputs.buzzScore);
   const externalWeeklyAwarenessRate = computeExternalWeeklyAwarenessRate(marketingEfficiency);
   const initialAwareCount = computeInitialAwareCount(
