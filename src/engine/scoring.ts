@@ -314,15 +314,18 @@ export function computeCriticScore(
   postProductionChoices: PostProductionChoices,
   marketingChoices: MarketingChoices,
 ): number {
-  const editStyleScore = clamp(60 + EDIT_STYLE_PROFILES[postProductionChoices.editStyle].criticDelta * 3, 0, 100);
+  const criticalEditScore = clamp(
+    50 + EDIT_STYLE_PROFILES[postProductionChoices.editStyle].criticDelta * 5,
+    0,
+    100,
+  );
+
   const score =
-    quality.qualityScore * CRITIC_WEIGHTS.quality +
-    script.originality * CRITIC_WEIGHTS.originality +
-    quality.directionScore * CRITIC_WEIGHTS.direction +
-    editStyleScore * CRITIC_WEIGHTS.editStyle;
-  // Festival First courts critics directly; other release types are neutral.
-  const releaseTypeBonus = RELEASE_TYPE_PROFILES[marketingChoices.releaseType].criticBonus;
-  return clamp(score + releaseTypeBonus, 0, 100);
+    quality.qualityScore * 0.78 +
+    script.originality * 0.14 +
+    criticalEditScore * 0.08;
+
+  return clamp(score, 0, 100);
 }
 
 /**
@@ -340,24 +343,28 @@ export function computeAudienceScore(
   productionChoices: ProductionChoices,
   postProductionChoices: PostProductionChoices,
 ): number {
-  const genreFitScore = computeGenreFitScore(script, talent, genre, productionChoices);
-  const leads = getLeadActors(talent);
-  const actorFameScore = average(leads.map((l) => l.fame)) ?? 30;
+  const genreFulfilment = computeGenreFitScore(
+    script,
+    talent,
+    genre,
+    productionChoices,
+  );
 
-  const entertainmentScore = clamp(
-    55 +
-      EDIT_STYLE_PROFILES[postProductionChoices.editStyle].audienceDelta * 3 +
-      FINAL_CUT_FOCUS_PROFILES[postProductionChoices.finalCutFocus].audienceDelta * 3 +
-      (quality.qualityScore - 50) * 0.3,
+  const audienceEditingScore = clamp(
+    50 +
+      EDIT_STYLE_PROFILES[postProductionChoices.editStyle].audienceDelta * 5 +
+      FINAL_CUT_FOCUS_PROFILES[
+        postProductionChoices.finalCutFocus
+      ].audienceDelta * 5,
     0,
     100,
   );
 
   const score =
-    genreFitScore * AUDIENCE_WEIGHTS.genreFit +
-    actorFameScore * AUDIENCE_WEIGHTS.actorFame +
-    entertainmentScore * AUDIENCE_WEIGHTS.entertainment +
-    quality.productionScore * AUDIENCE_WEIGHTS.production;
+    quality.qualityScore * 0.50 +
+    genreFulfilment * 0.25 +
+    audienceEditingScore * 0.15 +
+    quality.productionScore * 0.10;
 
   return clamp(score, 0, 100);
 }
