@@ -455,10 +455,12 @@ export interface MarketingChoices {
 
 export type OutcomeLabel =
   | 'Flop'
-  | 'Cult Hit'
+  | 'Weak'
   | 'Modest Success'
   | 'Hit'
   | 'Blockbuster'
+  | 'Phenomenon'
+  | 'Cult Hit'
   | 'Masterpiece';
 
 export interface FilmResults {
@@ -585,9 +587,9 @@ export interface Film {
 export type OpportunitySource = 'Spec Screenplay' | 'Agent Package' | 'Publisher Rights' | 'Studio Original';
 
 /**
- * Something the studio does not yet own - visible to the player (and, once
- * rivals join this pipeline, every rival too) until it's acquired or its
- * own `expiresOnDay` passes, whichever comes first. Carries a full `Script`
+ * Something the studio does not yet own - visible to the player and every
+ * rival studio (engine/rivalStudios.ts) until it's acquired or its own
+ * `expiresOnDay` passes, whichever comes first. Carries a full `Script`
  * wholesale (engine/scriptGenerator.ts is untouched - this just gives an
  * already-generated script a real, shared, time-bound existence instead of
  * living only inside one draft's ephemeral `scriptOptions`).
@@ -596,9 +598,32 @@ export interface Opportunity {
   id: string;
   source: OpportunitySource;
   script: Script;
+  /** The instant-buy price while uncontested (`bids` empty) - also the floor the first bid on a contested opportunity must clear. */
   acquisitionCost: number;
   /** GameState.totalDays - past this, the opportunity is gone (someone else took it, the rights lapsed, the pitch fell through) whether or not the player ever saw it. */
   expiresOnDay: number;
+  /** GameState.totalDays this opportunity's weekly batch was generated on - drives the Opportunity Market's "New This Week" badge (engine/opportunities.ts:WEEK_LENGTH_DAYS). */
+  postedOnDay: number;
+  /**
+   * Milestone: Opportunity Market bidding. Empty for the common case - an
+   * uncontested opportunity stays an instant Acquire-at-`acquisitionCost`
+   * purchase, exactly as before. The moment any rival studio wants it too
+   * (engine/rivalStudios.ts:considerBiddingOnOpportunity), a bid lands here
+   * instead of an instant sale, and the player's own "Acquire" becomes
+   * "Place Bid" - see engine/opportunities.ts:placeBid/settleOpportunities
+   * for how this resolves at the next weekly tick. English-auction style:
+   * always the full, visible list, never sealed.
+   */
+  bids: OpportunityBid[];
+}
+
+/** One studio's current offer on a contested Opportunity - `bidderId` is the literal `'player'` sentinel or a `RivalStudio.id`, `bidderName` is duplicated for display so the UI never has to cross-reference `state.rivalStudios` just to render a bid. */
+export interface OpportunityBid {
+  bidderId: string;
+  bidderName: string;
+  amount: number;
+  /** Set only for a rival's own bid (engine/rivalStudios.ts:considerBiddingOnOpportunity) - which ProductionScale it intends to make this into if it wins, carried through to the weekly resolution step (startRivalProductionFromWonScript) since a scale's production-budget level can't be re-derived from the script alone. Always absent on the player's own bid. */
+  scale?: ProductionScale;
 }
 
 /**

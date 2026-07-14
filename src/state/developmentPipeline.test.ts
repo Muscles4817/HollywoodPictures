@@ -83,6 +83,88 @@ describe('ACQUIRE_OPPORTUNITY', () => {
     const after = studioReducer(state, { type: 'ACQUIRE_OPPORTUNITY', opportunityId: 'does-not-exist' });
     expect(after).toBe(state);
   });
+
+  // Milestone: Opportunity Market bidding.
+  it('fails safely (no-op) once a rival has expressed interest - a contested opportunity is no longer an instant sale, PLACE_BID is what competes for it instead', () => {
+    const opportunity = oneOpportunity(5);
+    const contested: Opportunity = {
+      ...opportunity,
+      bids: [{ bidderId: 'rival-studio-0', bidderName: 'Northbridge Pictures', amount: opportunity.acquisitionCost + 1000 }],
+    };
+    const state = { ...freshState(5), opportunities: [contested] };
+    const after = studioReducer(state, { type: 'ACQUIRE_OPPORTUNITY', opportunityId: contested.id });
+    expect(after).toBe(state);
+  });
+});
+
+// Milestone: Opportunity Market bidding.
+describe('PLACE_BID', () => {
+  it('places a first bid on an uncontested opportunity - it becomes contested, but cash is not charged yet (only on winning, at the next weekly tick)', () => {
+    const opportunity = oneOpportunity(6);
+    const state = { ...freshState(6), opportunities: [opportunity] };
+    const bidAmount = opportunity.acquisitionCost + 10_000;
+
+    const after = studioReducer(state, { type: 'PLACE_BID', opportunityId: opportunity.id, amount: bidAmount });
+
+    expect(after.studio.cash).toBe(state.studio.cash);
+    const updated = after.opportunities.find((o) => o.id === opportunity.id)!;
+    expect(updated.bids).toEqual([{ bidderId: 'player', bidderName: state.studio.name, amount: bidAmount }]);
+  });
+
+  it("raises the player's own existing bid rather than stacking a second one", () => {
+    const opportunity = oneOpportunity(7);
+    const state = { ...freshState(7), opportunities: [opportunity] };
+    const first = studioReducer(state, { type: 'PLACE_BID', opportunityId: opportunity.id, amount: opportunity.acquisitionCost + 1000 });
+    const second = studioReducer(first, { type: 'PLACE_BID', opportunityId: opportunity.id, amount: opportunity.acquisitionCost + 5000 });
+
+    const updated = second.opportunities.find((o) => o.id === opportunity.id)!;
+    expect(updated.bids).toHaveLength(1);
+    expect(updated.bids[0].amount).toBe(opportunity.acquisitionCost + 5000);
+  });
+
+  it('rejects a bid that does not exceed the current floor (acquisitionCost while uncontested, or the current highest bid once contested)', () => {
+    const opportunity = oneOpportunity(8);
+    const state = { ...freshState(8), opportunities: [opportunity] };
+    const tooLow = studioReducer(state, { type: 'PLACE_BID', opportunityId: opportunity.id, amount: opportunity.acquisitionCost });
+    expect(tooLow).toBe(state);
+  });
+
+  it('rejects a bid the studio could not cover even if it won', () => {
+    const opportunity = oneOpportunity(9);
+    const state = { ...freshState(9, opportunity.acquisitionCost), opportunities: [opportunity] };
+    const tooExpensive = studioReducer(state, { type: 'PLACE_BID', opportunityId: opportunity.id, amount: opportunity.acquisitionCost + 1 });
+    expect(tooExpensive).toBe(state);
+  });
+
+  it('fails safely (no-op) for an expired or unknown opportunity', () => {
+    const opportunity = oneOpportunity(10);
+    const expiredState = { ...freshState(10), opportunities: [opportunity], totalDays: opportunity.expiresOnDay };
+    const afterExpired = studioReducer(expiredState, { type: 'PLACE_BID', opportunityId: opportunity.id, amount: opportunity.acquisitionCost + 1000 });
+    expect(afterExpired).toBe(expiredState);
+
+    const unknownState = freshState(11);
+    const afterUnknown = studioReducer(unknownState, { type: 'PLACE_BID', opportunityId: 'does-not-exist', amount: 1000 });
+    expect(afterUnknown).toBe(unknownState);
+  });
+});
+
+// Milestone: Opportunity Market bidding.
+describe('weekly bid resolution', () => {
+  it('a player win at the weekly tick charges exactly their own bid amount and creates an Asset - the same outcome ACQUIRE_OPPORTUNITY produces instantly for an uncontested one', () => {
+    const opportunity = oneOpportunity(12);
+    const bidState = { ...freshState(12), opportunities: [opportunity], nextOpportunityCheckDay: 8 };
+    const bidAmount = opportunity.acquisitionCost + 20_000;
+    const bidPlaced = studioReducer(bidState, { type: 'PLACE_BID', opportunityId: opportunity.id, amount: bidAmount });
+
+    let s = bidPlaced;
+    for (let i = 0; i < 8; i++) s = studioReducer(s, { type: 'ADVANCE_DAY' });
+
+    expect(s.studio.cash).toBe(bidState.studio.cash - bidAmount);
+    expect(s.studio.assets).toHaveLength(1);
+    expect(s.studio.assets[0].id).toBe(opportunity.id);
+    expect(s.studio.assets[0].acquisitionCost).toBe(bidAmount);
+    expect(s.opportunities.find((o) => o.id === opportunity.id)).toBeUndefined();
+  });
 });
 
 describe('Asset ownership - engine/project.ts:deriveAssetStatus', () => {

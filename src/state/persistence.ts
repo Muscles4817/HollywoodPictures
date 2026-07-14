@@ -154,7 +154,14 @@ import { randomSeed, withRng } from '../engine/random';
 // unlimited, untracked production pipeline. A v29 save's rivalStudios
 // entries have none of these fields - no migration code, same as every
 // past shape change here.
-const SAVE_KEY = 'hollywood-pictures-save-v30';
+// v30 -> v31 (docs/DESIGN.md - "Opportunity Market: weekly cadence and
+// bidding"): Opportunity gained required postedOnDay/bids - the market now
+// generates on a fixed weekly beat (was a randomized [8, 16]-day timer) and
+// supports bidding, with AI rival studios buying scripts from this same
+// pool instead of generating their own. A v30 save's opportunities entries
+// have neither field - no migration code, same as every past shape change
+// here.
+const SAVE_KEY = 'hollywood-pictures-save-v31';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

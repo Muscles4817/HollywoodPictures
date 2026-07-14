@@ -1,11 +1,13 @@
 import type {
   Film,
   MarketingChoices,
+  Opportunity,
   PostProductionChoices,
   ProductionChoices,
   ProductionScale,
   RivalProductionInProgress,
   RivalStudio,
+  Script,
   StudioTier,
   Talent,
   TalentRole,
@@ -13,12 +15,12 @@ import type {
 import { RIVAL_STUDIO_NAME_PREFIXES, RIVAL_STUDIO_NAME_SUFFIXES } from '../data/rivalStudioNames';
 import { MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { effectiveRoleCapacity } from './castRequirements';
-import { generateScriptOptions } from './scriptGenerator';
 import { computeRecommendedShootDays } from './production';
 import { computeReleaseResults } from './releaseFilm';
 import { settleBoxOfficeForAllFilms } from './boxOfficeRun';
 import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
 import { applyStatChange } from './reputation';
+import { highestBid, placeBid, reopenForfeitedOpportunity, type ResolvedBid } from './opportunities';
 import { findCandidatesNearPrice } from './talentFilter';
 import { logAmount } from './interpolate';
 import { STAGE_DURATIONS } from '../data/schedule';
@@ -188,45 +190,108 @@ export function startableScales(tier: StudioTier, current: RivalProductionInProg
   return scales;
 }
 
+// Milestone: Opportunity Market bidding - rivals no longer generate their
+// own scripts (engine/scriptGenerator.ts is untouched, but this module no
+// longer calls it directly). A rival's own "decide to make a film" and
+// "have the script" moments are no longer atomic the way direct generation
+// let them be, since the script now has to actually be won from the shared
+// Opportunity pool first - see considerBiddingOnOpportunity (Phase 1,
+// still on the existing per-tier spawn-check cadence) and
+// startRivalProductionFromWonScript (Phase 2, only reachable once a bid has
+// actually won, at the next weekly market tick - see
+// engine/opportunities.ts:settleOpportunities). No fallback to direct
+// generation if the market has nothing suitable - the rival just skips this
+// attempt and tries again next check, same as a talent-pool shortage
+// already does below.
+
+/** Rough heuristic cap on how much of a rival's *current* cash it's willing to put toward a script bid, leaving room for the rest of the production - re-validated for real (against the actual cast/budget once known) at Phase 2. Not a precise budget split, deliberately - script cost has always been a small slice of total spend (docs/COST_REPORT_film_production.md §1 vs §8). Scaled by the same SCALE_SPEND_RANGE `spendT` position production budget levels already use, so a Small-scale attempt doesn't reach for a Big-scale-priced script just because the studio happens to be cash-rich, and vice versa. */
+const SCRIPT_BUDGET_FRACTION = 0.15;
+/** How much above the floor (the current highest bid, or acquisitionCost if none) a rival is willing to open at. */
+const BID_OPENING_PREMIUM_RANGE: [number, number] = [0, 0.15];
+/** How much above the current leader a rival raises to, when outbid on its own already-active bid. */
+const BID_RAISE_INCREMENT_FRACTION = 0.05;
+
+/** How much a rival is willing to put toward a script bid, for a given scale - see SCRIPT_BUDGET_FRACTION's own doc comment for the reasoning. */
+function scriptBudget(rival: RivalStudio, scale: ProductionScale, rng: RandomFn): number {
+  const spendT = randFloat(rng, ...SCALE_SPEND_RANGE[scale]);
+  return rival.cash * SCRIPT_BUDGET_FRACTION * spendT;
+}
+
 /**
- * Casts and plans one rival production - no live shoot, just enough to
- * reserve real talent-pool candidates (bookedUntil) for a believable
- * window and know what to resolve into a Film once releaseDay arrives.
- * Returns null if there genuinely isn't enough available talent for some
- * mandatory role right now (the shared pool is temporarily tapped out), OR
- * (Milestone: AI Studios 2.0) if `rival` can't afford the production's full
- * total commitment - either way the caller just tries again at this
- * studio's next spawn check, same "skip the attempt" fallback either
- * failure already used before affordability existed.
- *
- * The commitment is every real cost this production will ever incur,
- * charged once, in full, right here: script cost (mirrors what
- * ACQUIRE_OPPORTUNITY charges the player for a screenplay - rivals don't
- * go through the Opportunity/Asset pipeline, see docs/DESIGN_REVIEW_development_pipeline.md,
- * so this charges the same underlying script.cost directly rather than
- * fabricating a rival-only Opportunity source), talent salaries + production
- * budget + the full contingency reserve (exactly GREENLIGHT_PROJECT's own
- * upfrontCharge formula, state/studioReducer.ts), and marketing + test
- * screening cost (mirrors what SCHEDULE_RELEASE charges the player as the
- * release-time remainder). A live player production spreads those charges
- * across three separate decisions (acquire, greenlight, release) with a
- * contingency-reserve-vs-actual-burn reconciliation at FINISH_PHOTOGRAPHY in
- * between; a rival production is resolved in one synthesized step
- * (resolveRivalProduction) with no live shoot to reconcile against, so this
- * folds every one of those charges into the single real decision point a
- * rival actually has - deliberately not a full mechanical replica of the
- * player's own multi-stage cash flow, just its total.
+ * Phase 1: decide whether this rival wants to bid on something this spawn
+ * check, and how much - never starts a production directly, just places
+ * (engine/opportunities.ts:placeBid) or raises a bid. Returns null (skip
+ * this attempt, try again next check) if the rival already has an active
+ * bid outstanding and is still leading it (nothing to do), if it's been
+ * outbid but raising would exceed its own rough budget (no formal "abandon"
+ * action - it just never raises again, same "purely additive" reasoning
+ * engine/opportunities.ts:placeBid's own doc comment uses), or if nothing
+ * in the pool fits its target genre/scale/budget at all.
  */
-function startRivalProduction(
+function considerBiddingOnOpportunity(
   rival: RivalStudio,
   scale: ProductionScale,
+  opportunities: Opportunity[],
+  totalDays: number,
+  rng: RandomFn,
+): { opportunityId: string; amount: number } | null {
+  const active = opportunities.filter((o) => o.expiresOnDay > totalDays);
+
+  const ownOpportunity = active.find((o) => o.bids.some((b) => b.bidderId === rival.id));
+  if (ownOpportunity) {
+    const own = ownOpportunity.bids.find((b) => b.bidderId === rival.id)!;
+    const leader = highestBid(ownOpportunity)!;
+    if (leader.bidderId === rival.id) return null; // still leading - nothing to do
+    // Re-checks against the scale it originally bid with (own.scale), not
+    // whatever scale this spawn check happens to be considering for a
+    // hypothetical new attempt - raising is about defending the one it
+    // already wants, not re-targeting.
+    const budget = scriptBudget(rival, own.scale ?? scale, rng);
+    const raised = Math.round(leader.amount * (1 + BID_RAISE_INCREMENT_FRACTION));
+    if (raised > budget) return null; // outbid beyond what it's worth - let it go
+    return { opportunityId: ownOpportunity.id, amount: raised };
+  }
+
+  const budget = scriptBudget(rival, scale, rng);
+  const genre = pick(rng, GENRES);
+  const withinBudget = (o: Opportunity) => (highestBid(o)?.amount ?? o.acquisitionCost) <= budget;
+  const inGenre = active.filter((o) => o.script.genre === genre && withinBudget(o));
+  const candidates = inGenre.length > 0 ? inGenre : active.filter(withinBudget);
+  if (candidates.length === 0) return null;
+
+  const chosen = pick(rng, candidates);
+  const floor = highestBid(chosen)?.amount ?? chosen.acquisitionCost;
+  const premium = 1 + randFloat(rng, ...BID_OPENING_PREMIUM_RANGE);
+  const amount = Math.min(budget, Math.round(floor * premium));
+  if (amount < floor) return null; // budget too tight even to meet the floor
+  return { opportunityId: chosen.id, amount };
+}
+
+/**
+ * Phase 2: cast, plan, and actually start a production from a script the
+ * rival has just won at a weekly market tick - the same body
+ * `startRivalProduction` always had, minus the `generateScriptOptions` call
+ * it no longer needs (the script - and its own genre - are already decided,
+ * by whichever Opportunity was won). `bidAmount` is what the rival actually
+ * pays for the script - usually *less* than the old flat `script.cost`
+ * charge, since `acquisitionCost` (what a won bid is floored at) is
+ * `script.cost` times a source multiplier that's often under 1 (see
+ * engine/opportunities.ts:SOURCE_COST_MULTIPLIER) - rivals now pay what the
+ * market actually prices it at, same as the player, not a flat proxy.
+ * Returns null (forfeit - the caller reopens the Opportunity, bids cleared)
+ * if capacity or cash no longer supports it by the time this runs, same
+ * "skip the attempt" shape as every other failure mode here.
+ */
+function startRivalProductionFromWonScript(
+  rival: RivalStudio,
+  scale: ProductionScale,
+  script: Script,
+  bidAmount: number,
   totalDays: number,
   talentPool: Record<TalentRole, Talent[]>,
   knownReleaseDays: number[],
   rng: RandomFn,
 ): { production: RivalProductionInProgress; talentPool: Record<TalentRole, Talent[]>; cost: number } | null {
-  const genre = pick(rng, GENRES);
-  const script = generateScriptOptions(genre, rng, 1)[0];
   const spendT = randFloat(rng, ...SCALE_SPEND_RANGE[scale]);
 
   const talent: Talent[] = [];
@@ -263,7 +328,7 @@ function startRivalProduction(
   };
 
   const cost =
-    script.cost +
+    bidAmount +
     computeTalentCost(talent) +
     computeProductionBudgetCost(productionChoices) +
     productionChoices.contingencyAmount +
@@ -288,7 +353,7 @@ function startRivalProduction(
       id: `rival-prod-${rival.id}-${totalDays}-${randInt(rng, 0, 999_999)}`,
       rivalStudioId: rival.id,
       scale,
-      genre,
+      genre: script.genre,
       script,
       talent,
       productionChoices,
@@ -368,6 +433,8 @@ export interface RivalMarketUpdate {
   rivalProductionsInProgress: RivalProductionInProgress[];
   rivalFilmsReleased: Film[];
   talentPool: Record<TalentRole, Talent[]>;
+  /** Milestone: Opportunity Market bidding - the shared pool, already settled for expiry/generation/this-week's-resolutions by the caller (engine/opportunities.ts:settleOpportunities) before being handed in here. */
+  opportunities: Opportunity[];
 }
 
 /**
@@ -423,33 +490,37 @@ function settleRivalBoxOffice(
 }
 
 /**
- * The whole rival-market tick: resolve anything that's released, settle
- * every rival studio's own box office (crediting cash/brand/prestige to the
- * studio that actually earned it - settleRivalBoxOffice above), then let
- * any studio whose spawn-check day has arrived try to start a new
- * production if it has spare capacity AND (Milestone: AI Studios 2.0) can
- * actually afford it - startRivalProduction returns null and this loop
- * falls back to just updating nextSpawnCheckDay exactly the way it already
- * did for a talent-pool shortage, so an unaffordable studio naturally sits
- * out this attempt and tries again at its next spawn check once box office
- * revenue (or a wrapped production freeing up capacity) has had a chance to
- * change the picture. Called from the same places
- * engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms is (see
+ * The whole rival-market tick, in order: resolve anything that's released,
+ * settle every rival studio's own box office (crediting cash/brand/prestige
+ * to the studio that actually earned it - settleRivalBoxOffice above),
+ * apply this week's already-resolved bid wins (Milestone: Opportunity
+ * Market bidding - `resolvedRivalBids` comes from
+ * engine/opportunities.ts:settleOpportunities, already filtered by the
+ * caller to rival winners only; a player win is state/studioReducer.ts's
+ * own, separate concern), then let any studio whose spawn-check day has
+ * arrived try to bid on something new if it has spare capacity AND
+ * (Milestone: AI Studios 2.0) can plausibly afford it -
+ * considerBiddingOnOpportunity returns null and this loop falls back to
+ * just updating nextSpawnCheckDay exactly the way it already did for a
+ * talent-pool shortage, so an unaffordable studio naturally sits out this
+ * attempt and tries again at its next spawn check. Called from the same
+ * places engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms is (see
  * state/studioReducer.ts) - every action that can advance GameState.totalDays.
  * Takes a `RivalMarketUpdate`-shaped `current` rather than a `Studio` -
- * rivalStudios/rivalProductionsInProgress/rivalFilmsReleased are world-level
- * (GameState), not the player's Studio's own business; only `talentPool` is
- * still Studio-shaped (shared with the player, until it too moves world-level).
- * `totalDays` is passed in explicitly for the same reason. `playerScheduledReleaseDays`
- * (roadmap Phase 7.4) is the player's own upcoming release days
- * (engine/project.ts:scheduledPlayerReleases) - threaded through purely so
- * a newly-started rival production can nudge its own naive release day away
- * from ones already on the shared calendar (see startRivalProduction's
- * avoidReleaseDayClustering call) - the player's own choices are never
- * otherwise read or affected here.
+ * rivalStudios/rivalProductionsInProgress/rivalFilmsReleased/opportunities
+ * are world-level (GameState), not the player's Studio's own business; only
+ * `talentPool` is still Studio-shaped (shared with the player, until it too
+ * moves world-level). `totalDays` is passed in explicitly for the same
+ * reason. `playerScheduledReleaseDays` (roadmap Phase 7.4) is the player's
+ * own upcoming release days (engine/project.ts:scheduledPlayerReleases) -
+ * threaded through purely so a newly-started rival production can nudge its
+ * own naive release day away from ones already on the shared calendar (see
+ * startRivalProductionFromWonScript's avoidReleaseDayClustering call) - the
+ * player's own choices are never otherwise read or affected here.
  */
 export function settleRivalMarket(
   current: RivalMarketUpdate,
+  resolvedRivalBids: ResolvedBid[],
   totalDays: number,
   playerScheduledReleaseDays: number[],
   rng: RandomFn,
@@ -465,24 +536,47 @@ export function settleRivalMarket(
 
   let talentPool = current.talentPool;
   let productionsInProgress = stillInProgress;
-  const rivalStudios = afterBoxOffice.rivalStudios.map((rival) => {
+  let opportunities = current.opportunities;
+  let rivalStudiosAfterWins = afterBoxOffice.rivalStudios;
+  for (const resolved of resolvedRivalBids) {
+    const rival = rivalStudiosAfterWins.find((r) => r.id === resolved.winnerId);
+    if (!rival || !resolved.scale) {
+      opportunities = reopenForfeitedOpportunity(opportunities, resolved.opportunity);
+      continue;
+    }
+    const knownReleaseDays = [...playerScheduledReleaseDays, ...productionsInProgress.map((p) => p.releaseDay)];
+    const started = startRivalProductionFromWonScript(
+      rival,
+      resolved.scale,
+      resolved.opportunity.script,
+      resolved.amount,
+      totalDays,
+      talentPool,
+      knownReleaseDays,
+      rng,
+    );
+    if (!started) {
+      opportunities = reopenForfeitedOpportunity(opportunities, resolved.opportunity);
+      continue;
+    }
+    productionsInProgress = [...productionsInProgress, started.production];
+    talentPool = started.talentPool;
+    rivalStudiosAfterWins = rivalStudiosAfterWins.map((r) =>
+      r.id === rival.id ? { ...r, cash: r.cash - started.cost, lifetimeExpenditure: r.lifetimeExpenditure + started.cost } : r,
+    );
+  }
+
+  const rivalStudios = rivalStudiosAfterWins.map((rival) => {
     if (rival.nextSpawnCheckDay > totalDays) return rival;
     const nextSpawnCheckDay = totalDays + randInt(rng, ...SPAWN_CHECK_INTERVAL_DAYS[rival.tier]);
     const currentForThisStudio = productionsInProgress.filter((p) => p.rivalStudioId === rival.id);
     const scales = startableScales(rival.tier, currentForThisStudio);
     if (scales.length === 0) return { ...rival, nextSpawnCheckDay };
     const scale = pick(rng, scales);
-    const knownReleaseDays = [...playerScheduledReleaseDays, ...productionsInProgress.map((p) => p.releaseDay)];
-    const started = startRivalProduction(rival, scale, totalDays, talentPool, knownReleaseDays, rng);
-    if (!started) return { ...rival, nextSpawnCheckDay };
-    productionsInProgress = [...productionsInProgress, started.production];
-    talentPool = started.talentPool;
-    return {
-      ...rival,
-      nextSpawnCheckDay,
-      cash: rival.cash - started.cost,
-      lifetimeExpenditure: rival.lifetimeExpenditure + started.cost,
-    };
+    const bid = considerBiddingOnOpportunity(rival, scale, opportunities, totalDays, rng);
+    if (!bid) return { ...rival, nextSpawnCheckDay };
+    opportunities = placeBid(opportunities, bid.opportunityId, { bidderId: rival.id, bidderName: rival.name, amount: bid.amount, scale });
+    return { ...rival, nextSpawnCheckDay };
   });
 
   return {
@@ -490,5 +584,6 @@ export function settleRivalMarket(
     rivalProductionsInProgress: productionsInProgress,
     rivalFilmsReleased: afterBoxOffice.filmsReleased,
     talentPool,
+    opportunities,
   };
 }

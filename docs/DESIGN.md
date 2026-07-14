@@ -1527,7 +1527,9 @@ same weekly chart.
 Nobody watches a rival's shoot happen, so there's no live event log, no
 `PhotographyState` equivalent. `engine/rivalStudios.ts:startRivalProduction`
 generates a script (`generateScriptOptions`, the exact function the
-player's own Develop screen uses), casts mandatory roles from the shared
+player's own Develop screen uses) **- superseded as of 5.41: a rival now
+wins its script from the shared Opportunity Market instead of generating
+one directly, see that section** -, casts mandatory roles from the shared
 pool near a target price banded by the production's scale, and rolls
 production/post-production/marketing choices randomly. Its production
 window (`releaseDay`) comes from `computeRecommendedShootDays` plus the sum
@@ -5064,6 +5066,16 @@ autonomous decision-making generally (an abandonment model is one small step
 from a rival deciding *not* to greenlight in the first place, or to
 prioritize one shelved project over another) - not bolted onto this one.
 
+**Update, 5.41: item 1 above shipped, items 2-3 remain deferred.** Rivals
+now do acquire from the shared `Opportunity` pool instead of generating
+scripts directly - see 5.41 for the real design (bidding, not a persistent
+rival `Asset[]`; the acquisition and the "start production" decision are
+still collapsed into one moment, deliberately, rather than building a full
+rival Asset library). An abandonment model and a sell-back/re-listing
+mechanic are still exactly as un-built as this section originally found
+them - 5.41 is *not* the fuller persistent-market mechanic this section
+scoped out, just the smaller "AI competes in the same pool" slice of it.
+
 ### 5.40 AI Studios 2.0 - real financial constraints (`engine/rivalStudios.ts`, `types/index.ts`, `components/RivalStudioPage.tsx`, `components/dev/RivalFinancesInspector.tsx`)
 
 **Explicitly an incremental refactor, not a redesign.** Since 5.24, a rival
@@ -5206,6 +5218,169 @@ emergency funding/asset sales/studio closure, and any change to
 heuristic behaves identically to 5.24 except that it now, genuinely, has to
 be able to afford what it's about to do.
 
+### 5.41 Opportunity Market: weekly cadence and bidding (`engine/opportunities.ts`, `engine/rivalStudios.ts`, `types/index.ts`, `state/studioReducer.ts`, `components/OpportunityMarket.tsx`)
+
+**Scope, confirmed with the user up front**: a real weekly cadence, AI
+studios competing in the same `Opportunity` pool the player draws from, and
+bidding for contested items - **not** the fuller "AI owns a persistent Asset
+library, sometimes abandons a project, an abandoned Asset re-lists" mechanic
+5.39's own "Investigated but deferred" subsection scoped out as a separate,
+bigger undertaking. That fuller mechanic (items 2-3 there: an abandonment-
+probability model and a sell-back/re-listing path) remains exactly as
+un-built as 5.39 left it - see that section's own update note.
+
+**Generation is now a fixed weekly beat, not a randomized one.**
+`GENERATION_INTERVAL_DAYS` (a random `[8, 16]` days) is gone, replaced by
+`WEEK_LENGTH_DAYS = 7` - both a fresh batch's own `postedOnDay` and the
+weekly bidding resolution below now run off the same single timer
+(`nextGenerationCheckDay`, name kept, doc comment updated to say it gates
+both). `BATCH_SIZE` widened from `[2, 4]` to `[3, 6]` since the pool now
+also serves AI demand, not just the player's.
+
+**Bidding, the core new mechanic - hybrid, not a full auction.** The design
+goal was explicit: buying an *uncontested* opportunity (the common case)
+should stay exactly as instant as it already was - click Acquire, it's
+yours, no waiting even for a studio nobody else wants. Bidding should only
+enter the picture once something is genuinely contested, and should resolve
+at the next weekly tick rather than instantly. The rule that makes both
+true at once: **rivals never get an instant win.** A rival's interest in an
+opportunity always takes the form of a bid
+(`engine/rivalStudios.ts:considerBiddingOnOpportunity`), never an instant
+purchase - silent from the player's perspective until they actually look at
+the market and see it. `ACQUIRE_OPPORTUNITY` stays instant for as long as
+`Opportunity.bids` is empty; the moment it isn't (always because a rival
+placed one first, since the player has no reason to bid on an empty field
+either - they'd just instant-buy it), `ACQUIRE_OPPORTUNITY` no-ops and
+`PLACE_BID` is what competes for it instead. English-auction style, not
+sealed: the current highest bid and who placed it are always visible
+(`components/OpportunityMarket.tsx`), so the player always knows the exact
+number they need to beat, not a mystery to guess at.
+
+`Opportunity` gained two fields: `postedOnDay` (which weekly batch this
+came from - drives the Market's "New This Week" badge, `totalDays -
+postedOnDay < WEEK_LENGTH_DAYS`) and `bids: OpportunityBid[]`
+(`{ bidderId, bidderName, amount, scale? }` - `bidderId` is the literal
+`'player'` sentinel or a `RivalStudio.id`; `scale` is set only on a rival's
+own bid, carrying its intended `ProductionScale` through to Phase 2 below,
+since a scale's production-budget level can't be re-derived from the script
+alone). `engine/opportunities.ts:placeBid` upserts by `bidderId` - a studio
+never has more than one active bid on the same opportunity, and there's no
+withdrawal action; a bidder who no longer wants to compete simply never
+raises again (their last offer just sits there, still eligible to win if
+nobody raises further) - the same "purely additive, no retraction"
+simplification this codebase already leans on elsewhere (the talent-
+shortage/affordability skip patterns).
+
+**Weekly resolution** (`settleOpportunities`, same tick as generation): for
+every opportunity with at least one bid, the highest wins (ties go to
+whichever bid was placed first - `highestBid`, array order, since bids are
+only ever appended or replaced in place, never reordered), pays their own
+bid amount, and the opportunity leaves the pool. `settleOpportunities`
+itself doesn't *apply* a win - it returns a `resolvedBids: ResolvedBid[]`
+list (winner, amount, the original `Opportunity`) for the caller to act on,
+since actually charging cash or starting a production needs
+`Studio`/`RivalStudio` state this module has no business touching. An
+opportunity with zero bids is completely untouched by resolution - it just
+keeps sitting there, instant-buy-available, exactly as before.
+
+**AI purchasing - the structural change, split into two phases.** A rival
+could previously "decide to make a film" and "have the script" atomically,
+in one `startRivalProduction` call, since it generated its own script
+on the spot (`generateScriptOptions`, bypassing the Opportunity pool
+entirely). That's no longer possible - the script now has to actually be
+*won* from the shared pool first, and winning takes until the next weekly
+tick. The old function splits accordingly:
+
+1. **`considerBiddingOnOpportunity`** (Phase 1, still on the existing
+   per-tier `nextSpawnCheckDay` cadence - completely untouched) - never
+   starts a production, just places or raises a bid. Skips entirely if the
+   rival already has an outstanding bid somewhere (`opportunities.some(o =>
+   o.bids.some(b => b.bidderId === rival.id))` - derived, not a new stored
+   field, same "derive, don't duplicate" discipline `engine/project.ts:deriveAssetStatus`
+   already uses) - one active bid at a time per rival. Picks a random genre
+   first (same flavor the old direct-generation path had), prefers an
+   opportunity in that genre priced inside a scale-appropriate band
+   (`scriptBudget`, `rival.cash x SCRIPT_BUDGET_FRACTION(0.15) x
+   SCALE_SPEND_RANGE[scale]`'s own `spendT` position - a Small-scale
+   attempt won't reach for a Big-scale-priced script just because the
+   studio happens to be cash-rich, and vice versa), falls back to any genre
+   if none match. Opens at the floor (current highest bid, or
+   `acquisitionCost` if still uncontested) plus a small randomized premium
+   (0-15%); if it already has a bid that's since been outbid, raises by a
+   flat 5% over the new leader if that's still within budget, otherwise
+   just lets it go (no formal "abandon," same purely-additive reasoning as
+   `placeBid` itself).
+2. **`startRivalProductionFromWonScript`** (Phase 2, only reachable once a
+   bid has actually won) - the *exact* body `startRivalProduction` always
+   had, minus the `generateScriptOptions` call it no longer needs (the
+   script - and its own genre - are already decided, by whichever
+   Opportunity was won). Takes the winning `bidAmount` as a parameter,
+   standing in for the old flat `script.cost` term in the total-commitment
+   formula - usually a *cheaper* charge than before, since
+   `acquisitionCost` (what a bid is floored at) is `script.cost` times a
+   source multiplier often under 1 (`SOURCE_COST_MULTIPLIER`) - rivals now
+   pay what the market actually prices a script at, same as the player, not
+   a flat proxy. Re-validates capacity and affordability here too, since
+   time has passed since the bid was placed; if either no longer holds, the
+   win is forfeited - `reopenForfeitedOpportunity` puts the original
+   Opportunity back into the pool with `bids: []`, no drama, no compounding
+   failure state, same "skip the attempt" shape every other failure mode in
+   this file already uses.
+
+`settleRivalMarket` grew one field each way on its `RivalMarketUpdate`
+bundle (`opportunities` in, updated `opportunities` out) and one new
+parameter, `resolvedRivalBids: ResolvedBid[]` (rival wins only, already
+filtered by the caller) - applied first, inside the function, using the
+exact same `playerScheduledReleaseDays`/`avoidReleaseDayClustering` context
+Phase 1 spawning already had, before that same call's own spawn-check loop
+places any *new* bids for the week. **No fallback to direct generation** if
+the market has nothing suitable for a rival - it just skips the attempt and
+tries again next check, per the brief's explicit ask to replace direct
+generation, not keep it as a backstop.
+
+**Orchestration** (`state/studioReducer.ts`) - the same pattern repeats
+identically across the six places `settleOpportunities`/`settleRivalMarket`
+are already called from (`ADVANCE_DAY`, `GO_TO_STEP`, both
+`ADVANCE_SHOOTING_DAY` branches, `RESOLVE_EVENT_CHOICE`,
+`SCHEDULE_RELEASE`): call `settleOpportunities` first, apply any player win
+via the new shared `applyOpportunityWins` helper (same charge-cash/create-
+Asset shape `ACQUIRE_OPPORTUNITY`'s own instant-buy path already has -
+re-validates the player's own affordability too, since their cash can move
+between placing a bid and the tick that resolves it, e.g. a
+`GREENLIGHT_PROJECT` in between; an unaffordable win forfeits the same way
+an unaffordable rival win does), then hand the rival-only slice of
+`resolvedBids` into `settleRivalMarket` alongside the already-updated
+`opportunities` pool.
+
+**Purchase volume/rate is deliberately *not* given a new artificial cap** -
+three already-existing mechanisms already throttle it sensibly: per-tier
+spawn-check cadence, concurrent-capacity limits (`startableScales`), and
+cash affordability (5.40). Rough napkin math behind `BATCH_SIZE=[3,6]`: six
+rivals attempting roughly one purchase every ~3-4 days combined (a coarse
+average across each tier's own spawn interval) against a weekly supply of
+3-6 new opportunities (~1 every 1.2-2.3 days) - supply comfortably outpaces
+total demand under normal play, so most opportunities should stay
+uncontested, matching "bidding is the exception, not the rule." Not
+diagnostic-verified with a coded sweep the way some other formulas in this
+document are - worth doing before leaning on these exact numbers for a
+serious rebalancing pass.
+
+**UI** (`components/OpportunityMarket.tsx`) - a "New This Week" badge
+(green, reuses the `.badge-stage-InCinemas` palette) on any card whose
+`postedOnDay` falls within the last `WEEK_LENGTH_DAYS`; a Sort-by control
+(Newest/Acquisition Price/Expiring Soonest, same established `<select>` +
+asc/desc-toggle-`<Button>` pattern `components/StatsPage.tsx` already
+uses) alongside the existing source/price/ratings filters (5.38,
+untouched); and, for a contested card, the Acquire button is replaced by
+the current leading bid (amount + bidder name) and either a "you're
+leading, nothing to do" note or a bid input defaulting to a small increment
+over the floor, with a "resolves in N days" line making the weekly boundary
+legible without exposing the underlying timer.
+
+**Save format bumped to v31** (`state/persistence.ts`) - `Opportunity`
+gained two required fields a v30 save's entries don't have; no migration,
+same as every past shape change.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
@@ -5341,16 +5516,16 @@ quietly leaving implicit:
   information, just not yet acted on by any mechanic, the same "compute and
   track now, wire in later" gap `commercialProfile.crossoverPotential` sat
   in for a full milestone (5.35) before 5.34's Milestone 12 wired it in.
-- **A persistent Asset market (Assets an AI rival abandons re-entering the
-  Opportunity pool) was investigated and deliberately deferred - see 5.39's
-  own subsection for the full writeup.** Not a small extension of the
-  current model: rivals have no Asset-library concept at all today
-  (`engine/rivalStudios.ts` generates scripts directly, bypassing
-  `Opportunity` entirely) and never abandon a production in progress
-  (`resolveRivalProduction` always resolves to a release), so this would
-  need three new subsystems built from scratch - rival Asset ownership, an
-  abandonment-probability model, and a sell-back/re-listing mechanic - not
-  one change to `engine/opportunities.ts`.
+- **Assets re-entering the market after an AI rival abandons them is still
+  deferred, even after 5.41.** 5.41 shipped rivals competing for scripts in
+  the same `Opportunity` pool the player does (bidding, a real weekly
+  cadence), which is a straight read of 5.39's own deferred item 1 - but
+  items 2-3 (an abandonment-probability model, and a sell-back/re-listing
+  mechanic for an Asset once something's abandoned) are still exactly as
+  un-built as 5.39 originally found them. `resolveRivalProduction` still
+  always resolves a won script to a release; there is still no rival
+  project-abandonment path, and still no `SELL_ASSET` action for anyone,
+  player or rival. See 5.39's own subsection and 5.41 for the full picture.
 - **No postmortem beat connecting named on-set events back to the Results
   screen.** `draft.events` already carries which specific templates fired
   during production (5.9), and `storyReport.ts` (5.13) already proved the

@@ -320,6 +320,31 @@ describe('old saves migrate safely', () => {
     expect(state.studio.name).not.toBe('Stale Pictures');
   });
 
+  it('a save under the pre-bidding v30 key (opportunities with no postedOnDay/bids) is invisible to v31 - falls back to a fresh studio rather than a hybrid state', () => {
+    // Opportunity Market: weekly cadence and bidding (docs/DESIGN.md) gave
+    // Opportunity required postedOnDay/bids fields - a v30 save's
+    // opportunities entries have neither. Same class of break as every past
+    // shape change here: no migration code, an old save simply isn't found
+    // under the new key.
+    globalThis.localStorage.setItem(
+      'hollywood-pictures-save-v30',
+      JSON.stringify({
+        studio: { cash: 1, brand: 20, prestige: 20, name: 'Stale Pictures', assets: [] },
+        rivalStudios: [],
+        opportunities: [{ id: 'opp-1', source: 'Studio Original', script: {}, acquisitionCost: 100, expiresOnDay: 100 }],
+        nextOpportunityCheckDay: 1,
+        projects: [],
+        focusedProjectId: null,
+        totalDays: 1,
+      }),
+    );
+    const state = loadState();
+    expect(state.projects).toEqual([]);
+    expect(state.opportunities).toEqual([]);
+    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
+    expect(state.studio.name).not.toBe('Stale Pictures');
+  });
+
   it('clearSavedState followed by loadState behaves exactly like no save ever existed', () => {
     const released = studioReducer(buildStateWithReadyDraft(4), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     saveState(released);

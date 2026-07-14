@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { formatGameDate } from '../engine/calendar';
+import { WEEK_LENGTH_DAYS, highestBid } from '../engine/opportunities';
 import { Card } from './common/Card';
 import { Button } from './common/Button';
 import { Money } from './common/Money';
@@ -19,12 +20,28 @@ import {
   type WritingRatingField,
 } from './common/ScriptRatingsFilterDropdown';
 import { useReconciledFilterSelection } from '../hooks/useReconciledFilterSelection';
-import type { Script } from '../types';
+import type { Opportunity, Script } from '../types';
 import { calculateStarRating } from '../utils/StarRatingConversion';
 
 interface OpportunityMarketFilters {
   priceBands: Set<string>;
   ratings: ScriptRatingsFilterValue;
+}
+
+type OpportunitySortKey = 'newest' | 'price' | 'expiring';
+
+const SORT_OPTIONS: Array<{ value: OpportunitySortKey; label: string }> = [
+  { value: 'newest', label: 'Newest' },
+  { value: 'price', label: 'Acquisition Price' },
+  { value: 'expiring', label: 'Expiring Soonest' },
+];
+
+function sortValue(opportunity: Opportunity, sortKey: OpportunitySortKey): number {
+  switch (sortKey) {
+    case 'newest': return opportunity.postedOnDay;
+    case 'price': return opportunity.acquisitionCost;
+    case 'expiring': return opportunity.expiresOnDay;
+  }
 }
 
 interface AcquisitionPriceBand {
@@ -191,12 +208,17 @@ export function OpportunityMarket() {
     null,
   );
 
+  const [sortKey, setSortKey] = useState<OpportunitySortKey>('newest');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
   const opportunities = useMemo(
-    () =>
-      [...state.opportunities].sort(
-        (a, b) => a.expiresOnDay - b.expiresOnDay,
-      ),
-    [state.opportunities],
+    () => {
+      const sign = sortDirection === 'asc' ? 1 : -1;
+      return [...state.opportunities].sort(
+        (a, b) => sign * (sortValue(a, sortKey) - sortValue(b, sortKey)),
+      );
+    },
+    [state.opportunities, sortKey, sortDirection],
   );
 
   // A plain, referentially-stable string array (not the {id,label}[] the
@@ -311,6 +333,23 @@ export function OpportunityMarket() {
     }));
   };
 
+  // Milestone: Opportunity Market bidding. Per-card draft bid amount, keyed
+  // by opportunity id - lazily defaults to a small increment over whatever
+  // needs beating (the current highest bid, or the listed acquisitionCost
+  // if this is the player's first look at an already-contested one) rather
+  // than starting every input at zero.
+  const [bidAmounts, setBidAmounts] = useState<Record<string, number>>({});
+
+  function bidFloorFor(opportunity: Opportunity): number {
+    return highestBid(opportunity)?.amount ?? opportunity.acquisitionCost;
+  }
+
+  function bidAmountFor(opportunity: Opportunity): number {
+    return bidAmounts[opportunity.id] ?? Math.round(bidFloorFor(opportunity) * 1.1);
+  }
+
+  const daysUntilResolution = Math.max(0, state.nextOpportunityCheckDay - state.totalDays);
+
   return (
     <div className="stack">
       <div className="row-between">
@@ -333,11 +372,13 @@ export function OpportunityMarket() {
         className="choice-description"
         style={{ margin: 0 }}
       >
-        Screenplays and pitches available to acquire — each one
-        expires if left too long, and acquiring it charges its
-        price immediately and adds it to your Asset Library,
-        where you can develop it into a Project whenever
-        you&apos;re ready.
+        Screenplays and pitches available to acquire — a fresh batch
+        posts every week, and rival studios shop here too. Acquiring
+        an uncontested one charges its price immediately and adds it
+        to your Asset Library. The moment a rival also wants the same
+        one, it becomes a bidding war instead — place your own bid to
+        compete, and whoever's leading when the week closes wins it,
+        at their own bid.
       </p>
 
       {opportunities.length > 0 && (
@@ -392,6 +433,24 @@ export function OpportunityMarket() {
             onClose={closeFilters}
             onChange={setRatingsFilter}
           />
+
+          <label className="stack" style={{ gap: 4 }}>
+            <span className="stat-label">Sort By</span>
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value as OpportunitySortKey)}
+            >
+              {SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <Button onClick={() => setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'))}>
+            {sortDirection === 'asc' ? 'Ascending ↑' : 'Descending ↓'}
+          </Button>
         </div>
       )}
 
@@ -415,6 +474,15 @@ export function OpportunityMarket() {
               const affordable =
                 state.studio.cash >=
                 opportunity.acquisitionCost;
+              const isNew =
+                state.totalDays - opportunity.postedOnDay <
+                WEEK_LENGTH_DAYS;
+              const leader = highestBid(opportunity);
+              const playerIsLeading = leader?.bidderId === 'player';
+              const bidAmount = bidAmountFor(opportunity);
+              const bidValid =
+                bidAmount > bidFloorFor(opportunity) &&
+                bidAmount <= state.studio.cash;
 
               return (
                 <Card key={opportunity.id}>
@@ -422,8 +490,15 @@ export function OpportunityMarket() {
                     className="row-between"
                     style={{ marginBottom: 4 }}
                   >
-                    <span className="badge">
-                      {opportunity.source}
+                    <span className="row" style={{ gap: 6 }}>
+                      <span className="badge">
+                        {opportunity.source}
+                      </span>
+                      {isNew && (
+                        <span className="badge badge-stage-InCinemas">
+                          New This Week
+                        </span>
+                      )}
                     </span>
 
                     <span
@@ -447,48 +522,118 @@ export function OpportunityMarket() {
                     script={opportunity.script}
                   />
 
-                  <div
-                    className="row-between"
-                    style={{ marginTop: 8 }}
-                  >
-                    <span className="stat-label">
-                      Acquisition Price
-                    </span>
+                  {leader ? (
+                    <>
+                      <div
+                        className="row-between"
+                        style={{ marginTop: 8 }}
+                      >
+                        <span className="stat-label">
+                          {playerIsLeading
+                            ? 'You Are Leading'
+                            : `Leading: ${leader.bidderName}`}
+                        </span>
 
-                    <Money
-                      amount={
-                        opportunity.acquisitionCost
-                      }
-                    />
-                  </div>
+                        <Money amount={leader.amount} />
+                      </div>
 
-                  <Button
-                    variant="primary"
-                    style={{
-                      marginTop: 8,
-                      width: '100%',
-                    }}
-                    disabled={!affordable}
-                    onClick={() =>
-                      dispatch({
-                        type: 'ACQUIRE_OPPORTUNITY',
-                        opportunityId:
-                          opportunity.id,
-                      })
-                    }
-                  >
-                    Acquire
-                  </Button>
+                      {playerIsLeading ? (
+                        <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: '0.85em' }}>
+                          Resolves in {daysUntilResolution} day{daysUntilResolution === 1 ? '' : 's'} - nothing more to do unless you're outbid.
+                        </p>
+                      ) : (
+                        <>
+                          <div className="row" style={{ marginTop: 8, gap: 8 }}>
+                            <input
+                              type="number"
+                              min={leader.amount + 1}
+                              step={1000}
+                              value={bidAmount}
+                              onChange={(e) =>
+                                setBidAmounts((prev) => ({
+                                  ...prev,
+                                  [opportunity.id]: Number(e.target.value),
+                                }))
+                              }
+                              style={{ flex: 1 }}
+                              aria-label="Your bid"
+                            />
+                            <Button
+                              variant="primary"
+                              disabled={!bidValid}
+                              onClick={() =>
+                                dispatch({
+                                  type: 'PLACE_BID',
+                                  opportunityId: opportunity.id,
+                                  amount: bidAmount,
+                                })
+                              }
+                            >
+                              Outbid
+                            </Button>
+                          </div>
+                          <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: '0.85em' }}>
+                            Resolves in {daysUntilResolution} day{daysUntilResolution === 1 ? '' : 's'} - highest bid wins.
+                          </p>
+                          {!bidValid && bidAmount <= state.studio.cash && (
+                            <p style={{ color: 'var(--red)', marginTop: 6 }}>
+                              Must exceed the current leading bid.
+                            </p>
+                          )}
+                          {bidAmount > state.studio.cash && (
+                            <p style={{ color: 'var(--red)', marginTop: 6 }}>
+                              Can&apos;t afford this bid right now.
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div
+                        className="row-between"
+                        style={{ marginTop: 8 }}
+                      >
+                        <span className="stat-label">
+                          Acquisition Price
+                        </span>
 
-                  {!affordable && (
-                    <p
-                      style={{
-                        color: 'var(--red)',
-                        marginTop: 6,
-                      }}
-                    >
-                      Can&apos;t afford this right now
-                    </p>
+                        <Money
+                          amount={
+                            opportunity.acquisitionCost
+                          }
+                        />
+                      </div>
+
+                      <Button
+                        variant="primary"
+                        style={{
+                          marginTop: 8,
+                          width: '100%',
+                        }}
+                        disabled={!affordable}
+                        onClick={() =>
+                          dispatch({
+                            type: 'ACQUIRE_OPPORTUNITY',
+                            opportunityId:
+                              opportunity.id,
+                          })
+                        }
+                      >
+                        Acquire
+                      </Button>
+
+                      {!affordable && (
+                        <p
+                          style={{
+                            color: 'var(--red)',
+                            marginTop: 6,
+                          }}
+                        >
+                          Can&apos;t afford this right now
+                        </p>
+                      )}
+                    </>
                   )}
                 </Card>
               );

@@ -1,25 +1,126 @@
 import { describe, it, expect } from 'vitest';
 import { generateRivalStudios, settleRivalMarket, type RivalMarketUpdate } from './rivalStudios';
 import { generateTalentPool } from './talentGenerator';
-import { withRng } from './random';
+import { settleOpportunities, type ResolvedBid } from './opportunities';
+import { withRng, type RandomFn } from './random';
 import { applyStatChange } from './reputation';
 import { MAX_SIMULATION_WEEKS } from './audienceSimulationStep';
 
+/**
+ * Milestone: Opportunity Market bidding. A rival no longer starts a
+ * production atomically inside a single settleRivalMarket call - it places
+ * a bid (Phase 1, still on the existing per-tier spawn-check cadence), and
+ * only actually casts/plans/starts one once that bid has won at a weekly
+ * market tick (Phase 2, driven by engine/opportunities.ts:settleOpportunities's
+ * own resolution). This drives both phases for real, the same order
+ * state/studioReducer.ts does, rather than reimplementing the resolution
+ * logic here - `bidDay` is when spawn checks place bids, `resolutionDay`
+ * (>= the pool's own nextGenerationCheckDay) is when they're weighed.
+ */
+function bidThenResolve(
+  market: RivalMarketUpdate,
+  bidDay: number,
+  nextGenerationCheckDay: number,
+  resolutionDay: number,
+  playerScheduledReleaseDays: number[],
+  rng: RandomFn,
+): { afterBid: RivalMarketUpdate; afterResolve: RivalMarketUpdate; resolvedBids: ResolvedBid[] } {
+  const afterBid = settleRivalMarket(market, [], bidDay, playerScheduledReleaseDays, rng);
+  const opportunitySettlement = settleOpportunities(afterBid.opportunities, nextGenerationCheckDay, resolutionDay, rng);
+  const resolvedRivalBids = opportunitySettlement.resolvedBids.filter((b) => b.winnerId !== 'player');
+  const afterResolve = settleRivalMarket(
+    { ...afterBid, opportunities: opportunitySettlement.opportunities },
+    resolvedRivalBids,
+    resolutionDay,
+    playerScheduledReleaseDays,
+    rng,
+  );
+  return { afterBid, afterResolve, resolvedBids: opportunitySettlement.resolvedBids };
+}
+
+/** A market with every rival forced to spawn-check on day 1, and a real freshly-generated batch of Opportunities to bid on - without the latter, considerBiddingOnOpportunity always finds nothing and every test below would be vacuous. */
 function freshMarket(seed: number): { market: RivalMarketUpdate; totalDays: number } {
-  const { result } = withRng(seed, (rng) => ({
-    rivalStudios: generateRivalStudios(rng),
-    talentPool: generateTalentPool(rng),
-  }));
+  const { result } = withRng(seed, (rng) => {
+    const rivalStudios = generateRivalStudios(rng).map((r) => ({ ...r, nextSpawnCheckDay: 1 }));
+    const talentPool = generateTalentPool(rng);
+    const opportunitySettlement = settleOpportunities([], 1, 1, rng);
+    return { rivalStudios, talentPool, opportunities: opportunitySettlement.opportunities, nextGenerationCheckDay: opportunitySettlement.nextGenerationCheckDay };
+  });
   return {
     market: {
-      rivalStudios: result.rivalStudios.map((r) => ({ ...r, nextSpawnCheckDay: 1 })), // force every studio to spawn on the very first settle
+      rivalStudios: result.rivalStudios,
       rivalProductionsInProgress: [],
       rivalFilmsReleased: [],
       talentPool: result.talentPool,
+      opportunities: result.opportunities,
     },
     totalDays: 1,
   };
 }
+
+describe('settleRivalMarket - bidding (Milestone: Opportunity Market bidding)', () => {
+  it('a spawn-checking rival with spare capacity and cash places a bid instead of instantly starting a production', () => {
+    const { market, totalDays } = freshMarket(1);
+    const { result } = withRng(2, (rng) => settleRivalMarket(market, [], totalDays, [], rng));
+    expect(result.rivalProductionsInProgress).toEqual([]); // nothing starts on the bid alone
+    const totalBids = result.opportunities.reduce((sum, o) => sum + o.bids.length, 0);
+    expect(totalBids).toBeGreaterThan(0);
+  });
+
+  it('a rival already carrying an outstanding bid does not place a second, parallel one at its next spawn check', () => {
+    const { market, totalDays } = freshMarket(3);
+    const { result: afterFirst } = withRng(4, (rng) => settleRivalMarket(market, [], totalDays, [], rng));
+    const totalBidsAfterFirst = afterFirst.opportunities.reduce((sum, o) => sum + o.bids.length, 0);
+    // Force every studio to check in again immediately, same market otherwise.
+    const forcedRecheck: RivalMarketUpdate = { ...afterFirst, rivalStudios: afterFirst.rivalStudios.map((r) => ({ ...r, nextSpawnCheckDay: totalDays })) };
+    const { result: afterSecond } = withRng(5, (rng) => settleRivalMarket(forcedRecheck, [], totalDays, [], rng));
+    const totalBidsAfterSecond = afterSecond.opportunities.reduce((sum, o) => sum + o.bids.length, 0);
+    // Bids can still move (a rival that already has one might raise it, still exactly one active bid of its own), but no rival exceeds one active bid.
+    for (const rival of afterSecond.rivalStudios) {
+      const ownBidCount = afterSecond.opportunities.filter((o) => o.bids.some((b) => b.bidderId === rival.id)).length;
+      expect(ownBidCount).toBeLessThanOrEqual(1);
+    }
+    expect(totalBidsAfterSecond).toBeGreaterThanOrEqual(totalBidsAfterFirst);
+  });
+
+  it('once a bid wins at the weekly tick, the rival actually casts and starts a production from that exact script', () => {
+    const { market, totalDays } = freshMarket(20);
+    const { afterBid, afterResolve, resolvedBids } = withRng(21, (rng) =>
+      bidThenResolve(market, totalDays, 8, 8, [], rng),
+    ).result;
+    expect(resolvedBids.length).toBeGreaterThan(0);
+    expect(afterResolve.rivalProductionsInProgress.length).toBeGreaterThan(0);
+    const won = resolvedBids[0];
+    const started = afterResolve.rivalProductionsInProgress.find((p) => p.rivalStudioId === won.winnerId);
+    expect(started).toBeDefined();
+    expect(started!.script.id).toBe(won.opportunity.script.id);
+    // Never both bidding AND already producing from the same win in the intermediate state.
+    expect(afterBid.rivalProductionsInProgress).toEqual([]);
+  });
+
+  it("a rival that can no longer afford its own winning bid at resolution time forfeits cleanly - the opportunity re-enters the pool with bids cleared, not thrown or overspent", () => {
+    const { market, totalDays } = freshMarket(22);
+    // Bankrupt every rival between bidding and resolution, simulating cash
+    // having moved elsewhere in the interim (another win, in real play).
+    const { afterBid } = withRng(23, (rng) => bidThenResolve(market, totalDays, 8, 8, [], rng)).result;
+    const brokeAfterBid: RivalMarketUpdate = { ...afterBid, rivalStudios: afterBid.rivalStudios.map((r) => ({ ...r, cash: 0 })) };
+    const opportunitySettlement = withRng(24, (rng) => settleOpportunities(brokeAfterBid.opportunities, 8, 8, rng)).result;
+    const resolvedRivalBids = opportunitySettlement.resolvedBids.filter((b) => b.winnerId !== 'player');
+    expect(resolvedRivalBids.length).toBeGreaterThan(0); // sanity - this seed produced at least one contested opportunity
+    const { result: afterResolve } = withRng(25, (rng) =>
+      settleRivalMarket({ ...brokeAfterBid, opportunities: opportunitySettlement.opportunities }, resolvedRivalBids, 8, [], rng),
+    );
+    expect(afterResolve.rivalProductionsInProgress).toEqual([]);
+    for (const resolved of resolvedRivalBids) {
+      const reopened = afterResolve.opportunities.find((o) => o.id === resolved.opportunity.id);
+      expect(reopened).toBeDefined();
+      expect(reopened!.bids).toEqual([]);
+    }
+    for (const rival of afterResolve.rivalStudios) {
+      expect(rival.cash).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
 
 describe('settleRivalMarket - shared-calendar awareness (roadmap Phase 7.4)', () => {
   it('a rival still starts a production even when the player has already claimed a huge swath of the calendar (no starvation, just a nudge)', () => {
@@ -28,19 +129,19 @@ describe('settleRivalMarket - shared-calendar awareness (roadmap Phase 7.4)', ()
     // for the light nudge (engine/rivalStudios.ts:avoidReleaseDayClustering
     // gives up after MAX_RELEASE_DAY_NUDGES rather than looping forever).
     const playerScheduledReleaseDays = Array.from({ length: 365 }, (_, i) => totalDays + i);
-    const { result } = withRng(2, (rng) => settleRivalMarket(market, totalDays, playerScheduledReleaseDays, rng));
-    expect(result.rivalProductionsInProgress.length).toBeGreaterThan(0);
+    const { afterResolve } = withRng(2, (rng) => bidThenResolve(market, totalDays, 8, 8, playerScheduledReleaseDays, rng)).result;
+    expect(afterResolve.rivalProductionsInProgress.length).toBeGreaterThan(0);
   });
 
   it("a rival's naive release day nudges away from a day the player already occupies, landing just past the buffer", () => {
     const { market, totalDays } = freshMarket(3);
-    const { result: withoutPlayer } = withRng(4, (rng) => settleRivalMarket(market, totalDays, [], rng));
+    const { afterResolve: withoutPlayer } = withRng(4, (rng) => bidThenResolve(market, totalDays, 8, 8, [], rng)).result;
     const naiveDay = withoutPlayer.rivalProductionsInProgress[0]?.releaseDay;
     expect(naiveDay).toBeDefined();
 
     // Re-run the exact same rng seed, but now with the player occupying
     // that exact naive day - the rival's own day should move, deterministically.
-    const { result: withPlayer } = withRng(4, (rng) => settleRivalMarket(market, totalDays, [naiveDay!], rng));
+    const { afterResolve: withPlayer } = withRng(4, (rng) => bidThenResolve(market, totalDays, 8, 8, [naiveDay!], rng)).result;
     const nudgedDay = withPlayer.rivalProductionsInProgress[0]?.releaseDay;
     expect(nudgedDay).toBeDefined();
     expect(nudgedDay).not.toBe(naiveDay);
@@ -60,38 +161,34 @@ describe('settleRivalMarket - AI Studios 2.0 financial constraints', () => {
     }
   });
 
-  it('a studio with zero cash never starts a new production, but still advances its own spawn-check timer - the same fallback a talent-pool shortage already used', () => {
+  it('a studio with zero cash never places a bid at all - it has no budget to offer for even the cheapest script', () => {
     const { market, totalDays } = freshMarket(10);
     const brokeId = market.rivalStudios[0].id;
     const brokeMarket: RivalMarketUpdate = {
       ...market,
       rivalStudios: market.rivalStudios.map((r) => (r.id === brokeId ? { ...r, cash: 0 } : r)),
     };
-    const { result } = withRng(11, (rng) => settleRivalMarket(brokeMarket, totalDays, [], rng));
+    const { result } = withRng(11, (rng) => settleRivalMarket(brokeMarket, [], totalDays, [], rng));
     const brokeAfter = result.rivalStudios.find((r) => r.id === brokeId)!;
     expect(brokeAfter.cash).toBe(0);
-    expect(result.rivalProductionsInProgress.some((p) => p.rivalStudioId === brokeId)).toBe(false);
+    expect(result.opportunities.some((o) => o.bids.some((b) => b.bidderId === brokeId))).toBe(false);
     // The heuristic itself is untouched - it still checked in and will check again later, exactly
     // like a studio that found no available talent for a mandatory role.
     expect(brokeAfter.nextSpawnCheckDay).toBeGreaterThan(totalDays);
   });
 
-  it('every rival that starts a new production has its own cash reduced by exactly that production\'s total commitment, and lifetimeExpenditure tracks the same amount - with no cross-studio bleed and never overspending', () => {
+  it('every rival whose bid wins has its own cash reduced by exactly that production\'s total commitment (bid + rest), and lifetimeExpenditure tracks the same amount - with no cross-studio bleed and never overspending', () => {
     const { market, totalDays } = freshMarket(20);
-    const { result } = withRng(21, (rng) => settleRivalMarket(market, totalDays, [], rng));
-    expect(result.rivalProductionsInProgress.length).toBeGreaterThan(0); // sanity - this seed actually exercises spawning
-    for (const rivalAfter of result.rivalStudios) {
-      const rivalBefore = market.rivalStudios.find((r) => r.id === rivalAfter.id)!;
-      const started = result.rivalProductionsInProgress.find((p) => p.rivalStudioId === rivalAfter.id);
+    const { afterBid, afterResolve, resolvedBids } = withRng(21, (rng) => bidThenResolve(market, totalDays, 8, 8, [], rng)).result;
+    expect(resolvedBids.length).toBeGreaterThan(0); // sanity - this seed actually exercises bidding+resolution
+    for (const rivalAfter of afterResolve.rivalStudios) {
+      const rivalBefore = afterBid.rivalStudios.find((r) => r.id === rivalAfter.id)!;
+      const started = afterResolve.rivalProductionsInProgress.find((p) => p.rivalStudioId === rivalAfter.id);
       if (started) {
         const spent = rivalBefore.cash - rivalAfter.cash;
         expect(spent).toBeGreaterThan(0);
-        // toBeCloseTo, not toBe: both sides are derived from the same `cost` value, but
-        // `spent` gets there via float subtraction of two large numbers (catastrophic
-        // cancellation can cost a ULP or two) rather than reading `cost` directly.
         expect(rivalAfter.lifetimeExpenditure).toBeCloseTo(spent);
       } else {
-        // No new production and no film released this tick (rivalFilmsReleased started empty) - genuinely untouched.
         expect(rivalAfter.cash).toBe(rivalBefore.cash);
       }
       expect(rivalAfter.cash).toBeGreaterThanOrEqual(0); // AI should never deliberately spend money it doesn't have
@@ -100,7 +197,8 @@ describe('settleRivalMarket - AI Studios 2.0 financial constraints', () => {
 
   it("a finished run's box-office revenue and Brand/Prestige change apply to the studio that actually released the film, matching that film's own recorded studioRevenue/brandChange/prestigeChange - not mixed up with any other rival", () => {
     const { market, totalDays } = freshMarket(50);
-    const { result: afterSpawn } = withRng(51, (rng) => settleRivalMarket(market, totalDays, [], rng));
+    const { afterResolve: afterSpawn, resolvedBids } = withRng(51, (rng) => bidThenResolve(market, totalDays, 8, 8, [], rng)).result;
+    expect(resolvedBids.length).toBeGreaterThan(0);
     const started = afterSpawn.rivalProductionsInProgress[0];
     expect(started).toBeDefined();
 
@@ -116,7 +214,7 @@ describe('settleRivalMarket - AI Studios 2.0 financial constraints', () => {
       rivalProductionsInProgress: [started],
       rivalStudios: afterSpawn.rivalStudios.map((r) => ({ ...r, nextSpawnCheckDay: finishDay + 1 })),
     };
-    const { result: afterFinish } = withRng(52, (rng) => settleRivalMarket(isolatedMarket, finishDay, [], rng));
+    const { result: afterFinish } = withRng(52, (rng) => settleRivalMarket(isolatedMarket, [], finishDay, [], rng));
 
     const studioBefore = afterSpawn.rivalStudios.find((r) => r.id === started.rivalStudioId)!;
     const studioAfter = afterFinish.rivalStudios.find((r) => r.id === started.rivalStudioId)!;

@@ -132,12 +132,22 @@ export type GameAction =
   // Development pipeline (docs/DESIGN_REVIEW_development_pipeline.md).
   // ACQUIRE_OPPORTUNITY charges the opportunity's acquisitionCost
   // immediately and turns it into a permanently-owned Asset - script cost
-  // is never charged again downstream (see engine/releaseFilm.ts).
+  // is never charged again downstream (see engine/releaseFilm.ts). Only
+  // works on an uncontested opportunity (no bids yet, see
+  // types/index.ts:Opportunity.bids) - a contested one is no longer an
+  // instant sale, PLACE_BID is what competes for it instead.
   // CREATE_PROJECT_FROM_ASSET replaces the old START_NEW_FILM - a FilmDraft
   // is only ever created from an already-owned Asset now, never from
   // nothing, and inherits that Asset's script wholesale (no more in-wizard
   // script generation/picking - see gameState.ts:createDraftFromAsset).
   | { type: 'ACQUIRE_OPPORTUNITY'; opportunityId: string }
+  // Milestone: Opportunity Market bidding. Places (or raises) the player's
+  // own bid on a contested Opportunity - resolved, along with every other
+  // rival's own current bid, at the next weekly market tick
+  // (engine/opportunities.ts:settleOpportunities). Charges nothing now;
+  // cash only actually moves if/when the player's bid turns out to be the
+  // winner (state/studioReducer.ts's shared applyOpportunityWin).
+  | { type: 'PLACE_BID'; opportunityId: string; amount: number }
   | { type: 'CREATE_PROJECT_FROM_ASSET'; assetId: string }
   // The one explicit "delete this for real" action for a still-owned
   // Asset's Project attempt - the Asset itself is never touched (see
