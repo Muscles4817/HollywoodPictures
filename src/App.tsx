@@ -22,6 +22,7 @@ import { MarketingRelease } from './components/wizard/MarketingRelease';
 import { ReleaseResults } from './components/wizard/ReleaseResults';
 import { OpportunityMarket } from './components/OpportunityMarket';
 import { AssetLibrary } from './components/AssetLibrary';
+import { ProjectsPage } from './components/ProjectsPage';
 import type { Screen } from './types';
 import { DAY_TICK_MS, type TickSpeedMultiplier } from './constants';
 
@@ -40,7 +41,7 @@ const PLANNING_SCREENS = new Set<Screen>(['develop', 'talent', 'production-plann
 // studioReducer.ts), so a pause the player set intentionally shouldn't
 // silently lift just because they ducked in to check a rival's page, the
 // stats table, or the release calendar.
-const PAUSE_PERSISTING_SCREENS = new Set<Screen>(['rival-studio', 'stats', 'release-calendar', 'opportunity-market', 'asset-library']);
+const PAUSE_PERSISTING_SCREENS = new Set<Screen>(['rival-studio', 'stats', 'release-calendar', 'opportunity-market', 'asset-library', 'projects']);
 
 /**
  * Whether the background ADVANCE_DAY tick should be running right now - a
@@ -202,6 +203,8 @@ function Screens() {
         return <OpportunityMarket />;
       case 'asset-library':
         return <AssetLibrary />;
+      case 'projects':
+        return <ProjectsPage />;
       default:
         return (
           <Dashboard

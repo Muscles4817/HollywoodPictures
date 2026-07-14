@@ -137,6 +137,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
             speedMultiplier={speedMultiplier}
             onSetSpeedMultiplier={onSetSpeedMultiplier}
           />
+          <Button onClick={() => dispatch({ type: 'VIEW_PROJECTS' })}>Projects</Button>
           <Button onClick={() => dispatch({ type: 'VIEW_STATS' })}>Stats</Button>
           <Button onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}>Release Calendar</Button>
           <Button onClick={() => setShowGuide(true)}>How It Works</Button>

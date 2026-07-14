@@ -988,6 +988,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'VIEW_ASSET_LIBRARY':
       return { ...state, screen: 'asset-library', ...clearTransientView() };
 
+    // Dashboard -> every current project, one card each. Pure detour, same as VIEW_STATS.
+    case 'VIEW_PROJECTS':
+      return { ...state, screen: 'projects', ...clearTransientView() };
+
     default:
       return state;
   }

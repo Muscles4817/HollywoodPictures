@@ -1,7 +1,9 @@
-import type { Film, FilmDraft, Genre, Project, TalentRole } from '../types';
+import type { Asset, Film, FilmDraft, Genre, Project, TalentRole, WizardStep } from '../types';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { TEST_SCREENING_PROFILES } from '../data/postProduction';
-import { asFilm, asPlayerDraft, findProject } from '../engine/project';
+import { GENRE_PROFILES } from '../data/genres';
+import { productionRequirementTags } from '../engine/scriptPresentation';
+import { asFilm, asPlayerDraft, findProject, projectId } from '../engine/project';
 import type { GameState } from './gameState';
 
 /**
@@ -377,4 +379,188 @@ export function filterAndSortPersonStats(rows: PersonStatRow[], filters: PersonS
     }
   };
   return [...filtered].sort(compare);
+}
+
+// --- Projects page (components/ProjectsPage.tsx) ---------------------------
+//
+// "Shelved" and "Pre-Production" are the one place stage genuinely depends
+// on focus, not just Project/FilmDraft shape: a photography-less draft that
+// IS the focused project is being actively decided right now (Develop/
+// Talent/Planning/Greenlight); the exact same draft, backgrounded, is
+// frozen - nothing advances it until the player refocuses it (unlike a
+// backgrounded shoot already in photography, which keeps advancing on its
+// own via settleProductionsInProgress). Every other stage is a pure
+// function of the Project/FilmDraft shape alone. Nothing rival-owned ever
+// appears here - neither an in-progress rival production nor an already-
+// released rival film - this page is "your current projects," not the
+// market's.
+export type ProjectStage =
+  | 'pre-production'
+  | 'filming'
+  | 'post-production'
+  | 'scheduled'
+  | 'in-cinemas'
+  | 'archived'
+  | 'shelved';
+
+export function deriveProjectStage(project: Project, focusedProjectId: string | null): ProjectStage | null {
+  if (project.kind === 'rival-in-progress') return null;
+  // A 'released' Project can be a rival's own film too (Film.releasedBy set
+  // - engine/rivalStudios.ts is the only thing that ever stamps it), the
+  // same convention engine/project.ts:playerReleasedFilms/collectFilmStats
+  // already use to tell the two apart. Excluded here, not just left to a
+  // caller to filter - "your current projects" should never include one
+  // that isn't yours regardless of which selector reaches it.
+  if (project.kind === 'released') {
+    if (project.film.releasedBy !== undefined) return null;
+    return project.film.boxOfficeRun.status === 'running' ? 'in-cinemas' : 'archived';
+  }
+  if (project.kind === 'scheduled') return 'scheduled';
+  const { draft } = project;
+  if (!draft.photography) return draft.id === focusedProjectId ? 'pre-production' : 'shelved';
+  return draft.photography.status === 'finished' ? 'post-production' : 'filming';
+}
+
+/**
+ * Same screen RESUME_PROJECT (state/studioReducer.ts) would send a
+ * photography-less/mid-shoot/post-production draft to - re-exported here so
+ * a Projects-page card for the *already-focused* project can jump straight
+ * back into the wizard via GO_TO_STEP (RESUME_PROJECT itself refuses to run
+ * while something's already focused, even if it's this exact project - see
+ * its own reducer guard). A photography-less draft always re-enters at
+ * 'develop' regardless of which of Develop/Talent/Planning/Greenlight it was
+ * last on, same as RESUME_PROJECT's own behavior - everything already
+ * chosen is preserved on the draft either way.
+ */
+export function currentWizardStepFor(draft: FilmDraft): WizardStep {
+  if (!draft.photography) return 'develop';
+  if (draft.photography.status === 'finished') return draft.postProductionChoices ? 'marketing' : 'post-production';
+  return 'production';
+}
+
+/**
+ * Total money committed to this specific project so far, across every
+ * stage - unlike computeCommittedSpend above (which deliberately excludes
+ * whatever's already a real studio.cash movement, to avoid a caller
+ * double-subtracting it from that same cash figure), this is a standalone
+ * per-project running total, so it includes everything: the script's own
+ * acquisition cost (paid once, at ACQUIRE_OPPORTUNITY, looked up from the
+ * still-owned Asset since FilmDraft/Film don't carry it directly), talent,
+ * production budget + contingency once planned, event cost swings once
+ * shooting has happened, test screening once decided, and marketing once
+ * set. A released film reads its own already-settled results.totalCost
+ * instead of re-deriving the production-side terms by hand.
+ */
+export function computeProjectSpendSoFar(project: Project, assets: Asset[]): number {
+  const scriptCostFor = (assetId: string) => assets.find((a) => a.id === assetId)?.acquisitionCost ?? 0;
+
+  if (project.kind === 'released') {
+    const scriptCost = project.film.assetId ? scriptCostFor(project.film.assetId) : 0;
+    return scriptCost + project.film.results.totalCost;
+  }
+  if (project.kind === 'rival-in-progress') return 0;
+
+  const draft = project.draft;
+  let spend = scriptCostFor(draft.assetId) + computeTalentCost(draft.talent);
+  if (draft.productionChoices) spend += computeProductionBudgetCost(draft.productionChoices) + draft.productionChoices.contingencyAmount;
+  if (draft.photography) spend += computeEventsCostDelta(draft.photography.events);
+  if (draft.postProductionChoices) spend += TEST_SCREENING_PROFILES[draft.postProductionChoices.testScreeningResponse].cost;
+  if (draft.marketingChoices) spend += computeMarketingCost(draft.marketingChoices);
+  return spend;
+}
+
+export interface ProjectCardData {
+  projectId: string;
+  stage: ProjectStage;
+  isFocused: boolean;
+  title: string;
+  synopsis: string;
+  genre: Genre;
+  genreDescription: string;
+  tags: string[];
+  director: string | null;
+  leads: string[];
+  spendSoFar: number;
+  /** Only while actually shooting - null at every other stage. */
+  shootProgress: { daysElapsed: number; recommendedDays: number } | null;
+  /** Only for a scheduled project - the release day it's committed to. */
+  scheduledReleaseDay: number | null;
+  /** Only for a released film (in-cinemas or archived). */
+  boxOffice: {
+    running: boolean;
+    cumulativeGross: number;
+    thisWeekGross: number | null;
+    weekNumber: number | null;
+    finalTotal: number | null;
+  } | null;
+}
+
+function creditedNames(talent: Film['talent'], role: TalentRole): string[] {
+  return talent.filter((t) => t.role === role).map((t) => t.name);
+}
+
+/** Builds one card's worth of display data for a single Project - null for a rival production (this page is player-only) or one whose stage can't be derived. */
+export function buildProjectCardData(project: Project, state: GameState): ProjectCardData | null {
+  const stage = deriveProjectStage(project, state.focusedProjectId);
+  if (!stage) return null;
+  const id = projectId(project);
+  const spendSoFar = computeProjectSpendSoFar(project, state.studio.assets);
+
+  if (project.kind === 'released') {
+    const { film } = project;
+    const { boxOfficeRun } = film;
+    const latestWeek = boxOfficeRun.weeks.length > 0 ? boxOfficeRun.weeks[boxOfficeRun.weeks.length - 1] : null;
+    return {
+      projectId: id,
+      stage,
+      isFocused: id === state.focusedProjectId,
+      title: film.title,
+      synopsis: film.script.synopsis,
+      genre: film.genre,
+      genreDescription: GENRE_PROFILES[film.genre].description,
+      tags: productionRequirementTags(film.script),
+      director: creditedNames(film.talent, 'Director')[0] ?? null,
+      leads: creditedNames(film.talent, 'Lead Actor'),
+      spendSoFar,
+      shootProgress: null,
+      scheduledReleaseDay: null,
+      boxOffice: {
+        running: boxOfficeRun.status === 'running',
+        cumulativeGross: boxOfficeRun.cumulativeGross,
+        thisWeekGross: latestWeek?.gross ?? null,
+        weekNumber: latestWeek?.week ?? null,
+        finalTotal: film.results.totalBoxOffice,
+      },
+    };
+  }
+
+  const draft = project.kind === 'scheduled' || project.kind === 'player-in-progress' ? project.draft : null;
+  if (!draft || !draft.script || !draft.genre) return null;
+  return {
+    projectId: id,
+    stage,
+    isFocused: id === state.focusedProjectId,
+    title: draft.title || draft.script.title,
+    synopsis: draft.script.synopsis,
+    genre: draft.genre,
+    genreDescription: GENRE_PROFILES[draft.genre].description,
+    tags: productionRequirementTags(draft.script),
+    director: creditedNames(draft.talent, 'Director')[0] ?? null,
+    leads: creditedNames(draft.talent, 'Lead Actor'),
+    spendSoFar,
+    shootProgress:
+      draft.photography && draft.photography.status !== 'finished'
+        ? { daysElapsed: draft.photography.daysElapsed, recommendedDays: draft.photography.recommendedDays }
+        : null,
+    scheduledReleaseDay: project.kind === 'scheduled' ? project.releaseDay : null,
+    boxOffice: null,
+  };
+}
+
+/** Every one of the player's own current projects, as card data - excludes rival productions entirely. */
+export function collectProjectCards(state: GameState): ProjectCardData[] {
+  return state.projects.flatMap((project) => {
+    const card = buildProjectCardData(project, state);
+    return card ? [card] : [];
+  });
 }

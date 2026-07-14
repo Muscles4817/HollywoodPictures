@@ -241,4 +241,8 @@ export type GameAction =
   // (development-pipeline doc). Pure detour, same as VIEW_STATS.
   | { type: 'VIEW_OPPORTUNITY_MARKET' }
   // Dashboard -> the studio's owned Assets. Pure detour, same as VIEW_STATS.
-  | { type: 'VIEW_ASSET_LIBRARY' };
+  | { type: 'VIEW_ASSET_LIBRARY' }
+  // Dashboard -> every one of the player's own current projects, one card
+  // each, grouped by stage (components/ProjectsPage.tsx). Pure detour, same
+  // as VIEW_STATS - doesn't touch the calendar or focusedProjectId.
+  | { type: 'VIEW_PROJECTS' };

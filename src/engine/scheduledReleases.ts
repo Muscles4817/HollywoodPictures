@@ -100,6 +100,12 @@ export function settleScheduledReleases(
       // convention resolveRivalProduction already uses for
       // Film.releasedOnDay (engine/rivalStudios.ts).
       releasedOnDay: releaseDay,
+      // Carried forward from the draft so engine/project.ts:deriveAssetStatus
+      // can actually find this release once it's done - previously omitted
+      // here, which silently meant no released player film ever counted as
+      // "used" for its originating Asset (state/selectors.ts:computeProjectSpendSoFar's
+      // own tests caught this while adding the Projects page).
+      assetId: d.assetId,
     };
     return film;
   });

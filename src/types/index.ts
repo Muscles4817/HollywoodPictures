@@ -809,8 +809,8 @@ export type WizardStep =
   | 'marketing'
   | 'results';
 
-// 'release-calendar'/'opportunity-market'/'asset-library' are Dashboard
-// detours (roadmap Phase 7.3; development-pipeline doc), not WizardSteps -
-// reachable and leavable from the Dashboard like 'rival-studio'/'stats',
-// not part of the develop-to-release sequence.
-export type Screen = 'dashboard' | WizardStep | 'rival-studio' | 'stats' | 'release-calendar' | 'opportunity-market' | 'asset-library';
+// 'release-calendar'/'opportunity-market'/'asset-library'/'projects' are
+// Dashboard detours (roadmap Phase 7.3; development-pipeline doc), not
+// WizardSteps - reachable and leavable from the Dashboard like
+// 'rival-studio'/'stats', not part of the develop-to-release sequence.
+export type Screen = 'dashboard' | WizardStep | 'rival-studio' | 'stats' | 'release-calendar' | 'opportunity-market' | 'asset-library' | 'projects';

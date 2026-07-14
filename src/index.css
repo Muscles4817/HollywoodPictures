@@ -864,6 +864,32 @@ th {
 .badge-outcome-Blockbuster { background: #cfe0ff; color: #1c3fa0; }
 .badge-outcome-Masterpiece { background: #fdeec2; color: #8a6300; }
 
+/* Projects page (components/ProjectsPage.tsx) - one colour per project
+   stage, applied both to a badge and to the owning card's left border
+   (.project-card-<Stage> below) so a stage reads at a glance without
+   needing to read the badge text. Deliberately a fresh palette, not reused
+   from .badge-outcome-* above, even where a hue is similar (e.g. Archived's
+   grey vs Modest-Success's grey) - the two badge families can appear in the
+   same view (a card's stage vs. a released film's outcome) and shouldn't be
+   mistaken for the same signal. No dark-mode override, same as
+   .badge-outcome-* - a light pastel background with dark text stays
+   readable floating on a dark page. */
+.badge-stage-PreProduction { background: #dbeafe; color: #1e40af; }
+.badge-stage-Filming { background: #ffe0b3; color: #9a5b00; }
+.badge-stage-PostProduction { background: #e6ddfb; color: #4b2a91; }
+.badge-stage-Scheduled { background: #dbe4ff; color: #2f3fa8; }
+.badge-stage-InCinemas { background: #d7f0d9; color: #1a7f37; }
+.badge-stage-Archived { background: #e7e9ed; color: #555; }
+.badge-stage-Shelved { background: #f3e3c9; color: #7a5a1e; }
+
+.project-card-PreProduction { border-left: 3px solid #1e40af; }
+.project-card-Filming { border-left: 3px solid #9a5b00; }
+.project-card-PostProduction { border-left: 3px solid #4b2a91; }
+.project-card-Scheduled { border-left: 3px solid #2f3fa8; }
+.project-card-InCinemas { border-left: 3px solid #1a7f37; }
+.project-card-Archived { border-left: 3px solid #555; }
+.project-card-Shelved { border-left: 3px solid #7a5a1e; }
+
 .severity-badge {
   display: inline-block;
   padding: 1px 8px;

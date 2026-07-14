@@ -7,14 +7,17 @@ interface CardProps {
   /** Visually greyed out and inert - e.g. a candidate that can't be picked because the role is already full. */
   disabled?: boolean;
   onClick?: () => void;
+  /** Extra class(es) appended after the standard set - e.g. components/ProjectsPage.tsx's stage-coloured left border. */
+  className?: string;
 }
 
 /** Generic bordered container. Pass `selectable` + `onClick` to use it as a pick-one card. */
-export function Card({ children, selectable, selected, disabled, onClick }: CardProps) {
+export function Card({ children, selectable, selected, disabled, onClick, className }: CardProps) {
   const classes = ['card'];
   if (selectable) classes.push('card-selectable');
   if (selected) classes.push('card-selected');
   if (disabled) classes.push('card-disabled');
+  if (className) classes.push(className);
 
   const active = selectable && !disabled;
 
