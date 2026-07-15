@@ -29,8 +29,10 @@ import { STAGE_DURATIONS } from '../data/schedule';
 import { GENRE_PROFILES } from '../data/genres';
 import { SHOOTING_BUDGET_RANGE, ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../data/production';
 import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../data/postProduction';
-import { RELEASE_TYPE_PROFILES, RELEASE_WINDOW_BASE_MULTIPLIER, MARKETING_SPEND_RANGE } from '../data/release';
+import { RELEASE_TYPE_PROFILES, MARKETING_SPEND_RANGE } from '../data/release';
 import { clamp, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
+import { deriveReleaseWindowFromDay } from './calendar';
+import { computeCompetitiveCrowding, computeRivalReleaseStrength, type UpcomingRelease } from './releaseCrowding';
 
 const GENRES = Object.keys(GENRE_PROFILES) as Array<keyof typeof GENRE_PROFILES>;
 const EDIT_STYLES = Object.keys(EDIT_STYLE_PROFILES) as PostProductionChoices['editStyle'][];
@@ -38,7 +40,6 @@ const MUSIC_FOCI = Object.keys(MUSIC_FOCUS_PROFILES) as PostProductionChoices['m
 const TEST_SCREENING_RESPONSES = Object.keys(TEST_SCREENING_PROFILES) as PostProductionChoices['testScreeningResponse'][];
 const FINAL_CUT_FOCI = Object.keys(FINAL_CUT_FOCUS_PROFILES) as PostProductionChoices['finalCutFocus'][];
 const RELEASE_TYPES = Object.keys(RELEASE_TYPE_PROFILES) as MarketingChoices['releaseType'][];
-const RELEASE_WINDOWS = Object.keys(RELEASE_WINDOW_BASE_MULTIPLIER) as MarketingChoices['releaseWindow'][];
 
 // Every stage's fixed calendar cost except Photography itself (charged
 // separately via the shoot's own recommended length below) - the same sum
@@ -263,36 +264,48 @@ const STARTING_CASH_BY_TIER: Record<StudioTier, number> = {
 const STARTING_BRAND_BY_TIER: Record<StudioTier, number> = { Indie: 25, 'Mid-Size': 45, Major: 70 };
 const STARTING_PRESTIGE_BY_TIER: Record<StudioTier, number> = { Indie: 25, 'Mid-Size': 40, Major: 55 };
 
-// Roadmap Phase 7.4: a new production nudges its naive release day forward,
-// one day at a time, while it's within this many days of another release
-// already on the shared calendar (the player's own scheduled projects and
-// every other rival's own in-progress production) - a light clustering
-// avoidance, not a hard scheduling algorithm. Deliberately small and
-// deterministic (no rng spent on it) - just enough that two releases don't
-// land on literally the same day by pure chance as often as they otherwise
-// would, without trying to actually optimize the calendar.
-const RELEASE_DAY_CLUSTER_BUFFER = 3;
+// Roadmap Phase 7.4, upgraded for Phase 1 of release scheduling
+// competition: a new production nudges its naive release day forward, one
+// day at a time, while computeCompetitiveCrowding scores it above this
+// threshold against the shared calendar (the player's own scheduled
+// projects and every other rival's own in-progress production) - genre/
+// audience-weighted now, not just date-proximity. Deliberately small and
+// deterministic (no rng spent on it) - just enough that a rival steers away
+// from genuinely stiff competition, without trying to actually optimize
+// the calendar. First-draft, tunable alongside engine/releaseCrowding.ts's
+// own constants.
+const MAX_ACCEPTABLE_CROWDING = 0.35;
 const MAX_RELEASE_DAY_NUDGES = 14;
 
 /**
- * Pushes `naiveDay` forward past any day within RELEASE_DAY_CLUSTER_BUFFER
- * of an already-known release - see startRivalProduction below. Pure and
- * rng-free by design: the release-day choice stays fully deterministic
- * given the same inputs, same as everything else about when a rival's
- * production starts.
+ * Pushes `naiveDay` forward past any day that scores above
+ * MAX_ACCEPTABLE_CROWDING against `known` - see startRivalProductionFromWonScript
+ * below. Pure and rng-free by design: the release-day choice stays fully
+ * deterministic given the same inputs, same as everything else about when
+ * a rival's production starts.
  */
-function avoidReleaseDayClustering(naiveDay: number, knownReleaseDays: number[]): number {
-  const occupied = new Set<number>();
-  for (const day of knownReleaseDays) {
-    for (let d = day - RELEASE_DAY_CLUSTER_BUFFER; d <= day + RELEASE_DAY_CLUSTER_BUFFER; d++) occupied.add(d);
-  }
+function avoidCrowdedReleaseDay(
+  naiveDay: number,
+  candidate: Omit<UpcomingRelease, 'strength' | 'releaseDay'>,
+  known: UpcomingRelease[],
+): number {
   let day = naiveDay;
   let nudges = 0;
-  while (occupied.has(day) && nudges < MAX_RELEASE_DAY_NUDGES) {
+  while (computeCompetitiveCrowding({ releaseDay: day, ...candidate }, known) > MAX_ACCEPTABLE_CROWDING && nudges < MAX_RELEASE_DAY_NUDGES) {
     day += 1;
     nudges += 1;
   }
   return day;
+}
+
+/** A RivalProductionInProgress reduced to what computeCompetitiveCrowding needs - see engine/releaseCrowding.ts:UpcomingRelease. Exported for components/wizard/MarketingRelease.tsx, which needs the same conversion to preview crowding before a release is actually scheduled - one formula, not two independent implementations. */
+export function rivalAsUpcomingRelease(p: RivalProductionInProgress): UpcomingRelease {
+  return {
+    releaseDay: p.releaseDay,
+    genre: p.genre,
+    targetAudience: p.targetAudience,
+    strength: computeRivalReleaseStrength(p.marketingChoices.marketingSpend, p.scale),
+  };
 }
 
 /** Generates the persistent roster of AI competitors once, at game start - see docs/DESIGN.md 5.24. */
@@ -586,7 +599,7 @@ function startRivalProductionFromWonScript(
   bidAmount: number,
   totalDays: number,
   talentPool: Record<TalentProfession, Talent[]>,
-  knownReleaseDays: number[],
+  knownUpcoming: UpcomingRelease[],
   rng: RandomFn,
 ): { production: RivalProductionInProgress; talentPool: Record<TalentProfession, Talent[]>; cost: number } | null {
   const spendPlan = deriveRivalSpendPlan(
@@ -639,6 +652,21 @@ function startRivalProductionFromWonScript(
 
     runtimeIntensity: spendPlan.runtimeIntensity,
   };
+
+  // Computed before marketingChoices now (Phase 1 - release scheduling
+  // competition) specifically so releaseWindow can be derived from the
+  // real releaseDay it ends up on, instead of the two being picked
+  // independently - see engine/calendar.ts:deriveReleaseWindowFromDay.
+  const recommendedDays = computeRecommendedShootDays(talent, script, productionChoices);
+  const naiveReleaseDay = totalDays + NON_SHOOT_STAGE_DAYS + recommendedDays;
+  // Roadmap Phase 7.4, upgraded for Phase 1 of release scheduling
+  // competition: nudges forward while the day is genuinely crowded (genre/
+  // audience-weighted, not just date-proximity) instead of just avoiding
+  // exact-day clustering - reads the shared calendar (the player's own
+  // scheduled releases, every other rival's already-in-progress production)
+  // instead of picking a day in a vacuum.
+  const releaseDay = avoidCrowdedReleaseDay(naiveReleaseDay, { genre: script.genre, targetAudience: script.intendedAudience }, knownUpcoming);
+
   const postProductionChoices: PostProductionChoices = {
     editStyle: pick(rng, EDIT_STYLES),
     musicFocus: pick(rng, MUSIC_FOCI),
@@ -648,7 +676,7 @@ function startRivalProductionFromWonScript(
   const marketingChoices: MarketingChoices = {
     marketingSpend: logAmount(spendPlan.marketingSpendT, MARKETING_SPEND_RANGE),
     releaseType: pick(rng, RELEASE_TYPES),
-    releaseWindow: pick(rng, RELEASE_WINDOWS),
+    releaseWindow: deriveReleaseWindowFromDay(releaseDay),
   };
 
   const cost =
@@ -659,13 +687,6 @@ function startRivalProductionFromWonScript(
     computeMarketingCost(marketingChoices) +
     TEST_SCREENING_PROFILES[postProductionChoices.testScreeningResponse].cost;
   if (cost > rival.cash) return null;
-
-  const recommendedDays = computeRecommendedShootDays(talent, script, productionChoices);
-  const naiveReleaseDay = totalDays + NON_SHOOT_STAGE_DAYS + recommendedDays;
-  // Roadmap Phase 7.4 - reads the shared calendar (the player's own
-  // scheduled releases, every other rival's already-in-progress production)
-  // instead of picking a day in a vacuum.
-  const releaseDay = avoidReleaseDayClustering(naiveReleaseDay, knownReleaseDays);
 
   const updatedPool = { ...talentPool };
   for (const role of MANDATORY_TALENT_ROLES) {
@@ -704,11 +725,21 @@ function startRivalProductionFromWonScript(
  * the player's own Buzz already has, not a flat industry-average stand-in
  * any more.
  */
-function resolveRivalProduction(production: RivalProductionInProgress, rivalStudioName: string, studioBrand: number, rng: RandomFn): Film {
+function resolveRivalProduction(
+  production: RivalProductionInProgress,
+  rivalStudioName: string,
+  studioBrand: number,
+  knownUpcoming: UpcomingRelease[],
+  rng: RandomFn,
+): Film {
   const shootingRatio = clamp(randFloat(rng, 0.85, 1.25), 0.5, 2);
   const recommendedDays = computeRecommendedShootDays(production.talent, production.script, production.productionChoices);
   const dailyBurn = computeDailyContingencyBurn(production.productionChoices.contingencyAmount, recommendedDays);
   const photographyCost = Math.round(dailyBurn * recommendedDays * shootingRatio);
+  const competitiveCrowding = computeCompetitiveCrowding(
+    { releaseDay: production.releaseDay, genre: production.genre, targetAudience: production.targetAudience },
+    knownUpcoming,
+  );
 
   const { results, fixed } = computeReleaseResults(
     {
@@ -724,6 +755,7 @@ function resolveRivalProduction(production: RivalProductionInProgress, rivalStud
       photographyCost,
       shootingRatio,
       studioBrand,
+      competitiveCrowding,
     },
     rng,
   );
@@ -836,25 +868,34 @@ function settleRivalBoxOffice(
  * are world-level (GameState), not the player's Studio's own business; only
  * `talentPool` is still Studio-shaped (shared with the player, until it too
  * moves world-level). `totalDays` is passed in explicitly for the same
- * reason. `playerScheduledReleaseDays` (roadmap Phase 7.4) is the player's
- * own upcoming release days (engine/project.ts:scheduledPlayerReleases) -
- * threaded through purely so a newly-started rival production can nudge its
- * own naive release day away from ones already on the shared calendar (see
- * startRivalProductionFromWonScript's avoidReleaseDayClustering call) - the
- * player's own choices are never otherwise read or affected here.
+ * reason. `playerScheduled` (roadmap Phase 7.4, upgraded for Phase 1 of
+ * release scheduling competition) is the player's own upcoming releases,
+ * reduced to what engine/releaseCrowding.ts:computeCompetitiveCrowding
+ * needs (engine/project.ts:scheduledPlayerReleases) - threaded through so a
+ * newly-started rival production can steer its own naive release day away
+ * from genuinely crowded windows (see startRivalProductionFromWonScript's
+ * avoidCrowdedReleaseDay call) and so a resolving rival production's own
+ * box-office penalty accounts for it too - the player's own choices are
+ * never otherwise read or affected here.
  */
 export function settleRivalMarket(
   current: RivalMarketUpdate,
   resolvedRivalBids: ResolvedBid[],
   totalDays: number,
-  playerScheduledReleaseDays: number[],
+  playerScheduled: UpcomingRelease[],
   rng: RandomFn,
 ): RivalMarketUpdate {
   const due = current.rivalProductionsInProgress.filter((p) => p.releaseDay <= totalDays);
   const stillInProgress = current.rivalProductionsInProgress.filter((p) => p.releaseDay > totalDays);
   const newlyReleased = due.map((p) => {
     const rival = current.rivalStudios.find((r) => r.id === p.rivalStudioId);
-    return resolveRivalProduction(p, rival?.name ?? 'A Rival Studio', rival?.brand ?? 50, rng);
+    // Everyone else still on the shared calendar from this settlement's own
+    // point of view - the player's own upcoming releases plus every other
+    // rival production (due this same pass or still in progress),
+    // excluding this one - same "frozen once, at settlement time" pattern
+    // engine/scheduledReleases.ts uses for the player's own releases.
+    const otherKnown = current.rivalProductionsInProgress.filter((other) => other.id !== p.id).map(rivalAsUpcomingRelease);
+    return resolveRivalProduction(p, rival?.name ?? 'A Rival Studio', rival?.brand ?? 50, [...playerScheduled, ...otherKnown], rng);
   });
 
   const afterBoxOffice = settleRivalBoxOffice(current.rivalStudios, [...current.rivalFilmsReleased, ...newlyReleased], totalDays);
@@ -869,7 +910,7 @@ export function settleRivalMarket(
       opportunities = reopenForfeitedOpportunity(opportunities, resolved.opportunity);
       continue;
     }
-    const knownReleaseDays = [...playerScheduledReleaseDays, ...productionsInProgress.map((p) => p.releaseDay)];
+    const knownUpcoming = [...playerScheduled, ...productionsInProgress.map(rivalAsUpcomingRelease)];
     const started = startRivalProductionFromWonScript(
       rival,
       resolved.scale,
@@ -877,7 +918,7 @@ export function settleRivalMarket(
       resolved.amount,
       totalDays,
       talentPool,
-      knownReleaseDays,
+      knownUpcoming,
       rng,
     );
     if (!started) {

@@ -1,9 +1,9 @@
-import type { Asset, Film, FilmDraft, Genre, ProductionRole, Project, WizardStep } from '../types';
+import type { Asset, Film, FilmDraft, Genre, ProductionRole, Project, RivalStudio, WizardStep } from '../types';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { TEST_SCREENING_PROFILES } from '../data/postProduction';
 import { GENRE_PROFILES } from '../data/genres';
 import { productionRequirementTags } from '../engine/scriptPresentation';
-import { asFilm, asPlayerDraft, findProject, projectId } from '../engine/project';
+import { asFilm, asPlayerDraft, asScheduled, asRivalProduction, findProject, projectId } from '../engine/project';
 import type { GameState } from './gameState';
 
 /**
@@ -563,4 +563,76 @@ export function collectProjectCards(state: GameState): ProjectCardData[] {
     const card = buildProjectCardData(project, state);
     return card ? [card] : [];
   });
+}
+
+export interface CalendarEntry {
+  id: string;
+  title: string;
+  genre: string;
+  targetAudience: string;
+  releaseDay: number;
+  studioId: string;
+  studioName: string;
+  isPlayer: boolean;
+}
+
+export const PLAYER_STUDIO_ID = 'player-studio';
+
+/**
+ * Every upcoming release, the player's own scheduled projects and every
+ * rival's in-progress production, sorted by release day - the shared
+ * source both components/ReleaseCalendar.tsx and
+ * components/wizard/MarketingRelease.tsx's inline release-date picker
+ * (Phase 1 of release scheduling competition) read from, so a rival's
+ * upcoming slate can never look different depending on which screen is
+ * asking. `genre`/`targetAudience` stay plain strings here (not the
+ * stricter Genre/TargetAudience unions) to match CheckboxFilterDropdown's
+ * string-id filter options, which is what this shape was originally built
+ * for - a caller that needs the stricter type back (e.g. to feed
+ * engine/releaseCrowding.ts:computeCompetitiveCrowding) can cast safely,
+ * since every entry here is sourced from a real FilmDraft/RivalProductionInProgress,
+ * never the placeholder '-' fallback (a 'scheduled' project's draft always
+ * has genre/targetAudience set - see state/studioReducer.ts:SCHEDULE_RELEASE's
+ * own guard).
+ */
+export function deriveUpcomingReleaseEntries(projects: Project[], rivalStudios: RivalStudio[], studioName: string): CalendarEntry[] {
+  const rivalNameById = new Map(rivalStudios.map((rival) => [rival.id, rival.name]));
+
+  const entries = projects.flatMap((project): CalendarEntry[] => {
+    const scheduled = asScheduled(project);
+    if (scheduled) {
+      return [
+        {
+          id: scheduled.draft.id,
+          title: scheduled.draft.title || 'Untitled Film',
+          genre: scheduled.draft.genre ?? '-',
+          targetAudience: scheduled.draft.targetAudience ?? '-',
+          releaseDay: scheduled.releaseDay,
+          studioId: PLAYER_STUDIO_ID,
+          studioName,
+          isPlayer: true,
+        },
+      ];
+    }
+
+    const production = asRivalProduction(project);
+    if (production) {
+      return [
+        {
+          id: production.id,
+          title: `${production.scale} ${production.genre} film`,
+          genre: production.genre,
+          targetAudience: production.targetAudience,
+          releaseDay: production.releaseDay,
+          studioId: production.rivalStudioId,
+          studioName: rivalNameById.get(production.rivalStudioId) ?? 'A Rival Studio',
+          isPlayer: false,
+        },
+      ];
+    }
+
+    return [];
+  });
+
+  return entries.sort((a, b) => a.releaseDay - b.releaseDay);
 }

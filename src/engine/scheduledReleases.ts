@@ -1,11 +1,31 @@
-import type { Film, FilmDraft } from '../types';
+import type { Film, FilmDraft, RivalProductionInProgress } from '../types';
 import { computeReleaseResults } from './releaseFilm';
 import { computeTalentCost, computeProductionBudgetCost } from './cost';
+import { computeCompetitiveCrowding, computePlayerReleaseStrength, computeRivalReleaseStrength, type UpcomingRelease } from './releaseCrowding';
 import type { RandomFn } from './random';
 
 export interface ScheduledRelease {
   draft: FilmDraft;
   releaseDay: number;
+}
+
+/** A ScheduledRelease reduced to what computeCompetitiveCrowding needs - see engine/releaseCrowding.ts:UpcomingRelease. Exported for state/studioReducer.ts, which needs the same conversion to build settleRivalMarket's playerScheduled argument - one formula, not two independent implementations. */
+export function asUpcomingRelease(s: ScheduledRelease): UpcomingRelease {
+  return {
+    releaseDay: s.releaseDay,
+    genre: s.draft.genre!,
+    targetAudience: s.draft.targetAudience!,
+    strength: computePlayerReleaseStrength(s.draft.marketingChoices!.marketingSpend, computeProductionBudgetCost(s.draft.productionChoices!)),
+  };
+}
+
+function rivalAsUpcomingRelease(p: RivalProductionInProgress): UpcomingRelease {
+  return {
+    releaseDay: p.releaseDay,
+    genre: p.genre,
+    targetAudience: p.targetAudience,
+    strength: computeRivalReleaseStrength(p.marketingChoices.marketingSpend, p.scale),
+  };
 }
 
 export interface ScheduledReleaseSettlement {
@@ -35,17 +55,31 @@ export interface ScheduledReleaseSettlement {
  */
 export function settleScheduledReleases(
   scheduled: ScheduledRelease[],
+  rivalUpcoming: RivalProductionInProgress[],
   totalDays: number,
   studioBrand: number,
   rng: RandomFn,
 ): ScheduledReleaseSettlement {
   const due = scheduled.filter((s) => s.releaseDay <= totalDays);
   const stillScheduled = scheduled.filter((s) => s.releaseDay > totalDays);
+  const rivalKnown = rivalUpcoming.map(rivalAsUpcomingRelease);
 
   let costCharged = 0;
   const newlyReleased = due.map(({ draft: d, releaseDay }) => {
     const photographyEvents = d.photography!.events;
     const shootingRatio = d.photography!.recommendedDays > 0 ? d.photography!.daysElapsed / d.photography!.recommendedDays : 1;
+    // Everyone else still on the shared calendar from this settlement's own
+    // point of view - every other scheduled player project (whether due
+    // this same pass or still waiting) plus every rival production in
+    // progress, excluding this film itself. Computed once, here, at
+    // settlement time and never revisited - same "frozen once, at release"
+    // semantic every other field of `fixed` already has (see
+    // engine/releaseCrowding.ts's own doc comment).
+    const otherPlayerKnown = scheduled.filter((s) => s.draft.id !== d.id).map(asUpcomingRelease);
+    const competitiveCrowding = computeCompetitiveCrowding(
+      { releaseDay, genre: d.genre!, targetAudience: d.targetAudience! },
+      [...otherPlayerKnown, ...rivalKnown],
+    );
     const { results, fixed } = computeReleaseResults(
       {
         title: d.title || 'Untitled Film',
@@ -60,6 +94,7 @@ export function settleScheduledReleases(
         photographyCost: d.photography!.runningCost,
         shootingRatio,
         studioBrand,
+        competitiveCrowding,
       },
       rng,
     );

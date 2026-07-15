@@ -12,7 +12,8 @@ import { STAGE_DURATIONS } from '../data/schedule';
 import { settleBoxOfficeForAllFilms, type BoxOfficeSettlement } from '../engine/boxOfficeRun';
 import { settleRivalMarket, generateRivalStudios } from '../engine/rivalStudios';
 import { settleProductionsInProgress } from '../engine/productionsInProgress';
-import { settleScheduledReleases, type ScheduledRelease } from '../engine/scheduledReleases';
+import { settleScheduledReleases, asUpcomingRelease, type ScheduledRelease } from '../engine/scheduledReleases';
+import { deriveReleaseWindowFromDay } from '../engine/calendar';
 import { settleOpportunities, reopenForfeitedOpportunity, highestBid, placeBid, type ResolvedBid } from '../engine/opportunities';
 import { generateTalentPool } from '../engine/talentGenerator';
 import { applyStatChange } from '../engine/reputation';
@@ -250,7 +251,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       const scheduled = scheduledPlayerReleases(state.projects);
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
-        const scheduledSettlement = settleScheduledReleases(scheduled, totalDaysAfter, state.studio.brand, rng);
+        const scheduledSettlement = settleScheduledReleases(scheduled, rivalProductionsOf(state.projects), totalDaysAfter, state.studio.brand, rng);
         const settlement = settleBoxOfficeForAllFilms(
           [...playerReleasedFilms(state.projects), ...scheduledSettlement.newlyReleased],
           totalDaysAfter,
@@ -267,7 +268,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           },
           opportunitySettlement.resolvedBids.filter((b) => b.winnerId !== 'player'),
           totalDaysAfter,
-          scheduled.map((s) => s.releaseDay),
+          scheduled.map(asUpcomingRelease),
           rng,
         );
         const productionsInProgress = settleProductionsInProgress(backgroundedPlayerDrafts(state.projects, state.focusedProjectId), 1, state.talentPool, rng);
@@ -412,7 +413,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const totalDaysAfter = state.totalDays + stageDuration;
       const scheduled = scheduledPlayerReleases(state.projects);
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
-        const scheduledSettlement = settleScheduledReleases(scheduled, totalDaysAfter, state.studio.brand, rng);
+        const scheduledSettlement = settleScheduledReleases(scheduled, rivalProductionsOf(state.projects), totalDaysAfter, state.studio.brand, rng);
         const settlement = settleBoxOfficeForAllFilms(
           [...playerReleasedFilms(state.projects), ...scheduledSettlement.newlyReleased],
           totalDaysAfter,
@@ -429,7 +430,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           },
           opportunitySettlement.resolvedBids.filter((b) => b.winnerId !== 'player'),
           totalDaysAfter,
-          scheduled.map((s) => s.releaseDay),
+          scheduled.map(asUpcomingRelease),
           rng,
         );
         const productionsInProgress = settleProductionsInProgress(backgroundedPlayerDrafts(state.projects, state.focusedProjectId), stageDuration, state.talentPool, rng);
@@ -667,7 +668,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         );
         if (rolled && 'pendingChoice' in rolled) {
           const totalDaysAfter = state.totalDays + 1;
-          const scheduledSettlement = settleScheduledReleases(scheduled, totalDaysAfter, state.studio.brand, rng);
+          const scheduledSettlement = settleScheduledReleases(scheduled, rivalProductionsOf(state.projects), totalDaysAfter, state.studio.brand, rng);
           const settlement = settleBoxOfficeForAllFilms([...playerFilms, ...scheduledSettlement.newlyReleased], totalDaysAfter);
           const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng);
           const opportunityWins = applyOpportunityWins(state.studio, opportunitySettlement.resolvedBids, opportunitySettlement.opportunities, totalDaysAfter);
@@ -681,7 +682,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             },
             opportunitySettlement.resolvedBids.filter((b) => b.winnerId !== 'player'),
             totalDaysAfter,
-            scheduled.map((s) => s.releaseDay),
+            scheduled.map(asUpcomingRelease),
             rng,
           );
           const productionsInProgress = settleProductionsInProgress(backgrounded, 1, state.talentPool, rng);
@@ -690,7 +691,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         const event = rolled?.event ?? null;
         const daysAdvanced = 1 + (event?.delayDaysDelta ?? 0);
         const totalDaysAfter = state.totalDays + daysAdvanced;
-        const scheduledSettlement = settleScheduledReleases(scheduled, totalDaysAfter, state.studio.brand, rng);
+        const scheduledSettlement = settleScheduledReleases(scheduled, rivalProductionsOf(state.projects), totalDaysAfter, state.studio.brand, rng);
         const settlement = settleBoxOfficeForAllFilms([...playerFilms, ...scheduledSettlement.newlyReleased], totalDaysAfter);
         const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng);
         const opportunityWins = applyOpportunityWins(state.studio, opportunitySettlement.resolvedBids, opportunitySettlement.opportunities, totalDaysAfter);
@@ -704,7 +705,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           },
           opportunitySettlement.resolvedBids.filter((b) => b.winnerId !== 'player'),
           totalDaysAfter,
-          scheduled.map((s) => s.releaseDay),
+          scheduled.map(asUpcomingRelease),
           rng,
         );
         const productionsInProgress = settleProductionsInProgress(backgrounded, daysAdvanced, state.talentPool, rng);
@@ -803,7 +804,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
         const event = resolveEventChoice(pendingChoice, action.choiceId, rng);
         const totalDaysAfter = state.totalDays + event.delayDaysDelta;
-        const scheduledSettlement = settleScheduledReleases(scheduled, totalDaysAfter, state.studio.brand, rng);
+        const scheduledSettlement = settleScheduledReleases(scheduled, rivalProductionsOf(state.projects), totalDaysAfter, state.studio.brand, rng);
         const settlement = settleBoxOfficeForAllFilms([...playerFilms, ...scheduledSettlement.newlyReleased], totalDaysAfter);
         const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng);
         const opportunityWins = applyOpportunityWins(state.studio, opportunitySettlement.resolvedBids, opportunitySettlement.opportunities, totalDaysAfter);
@@ -817,7 +818,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           },
           opportunitySettlement.resolvedBids.filter((b) => b.winnerId !== 'player'),
           totalDaysAfter,
-          scheduled.map((s) => s.releaseDay),
+          scheduled.map(asUpcomingRelease),
           rng,
         );
         const productionsInProgress = settleProductionsInProgress(otherBackgrounded, event.delayDaysDelta, state.talentPool, rng);
@@ -958,10 +959,18 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const playerFilms = playerReleasedFilms(state.projects);
       const rProductions = rivalProductionsOf(state.projects);
       const rFilms = rivalReleasedFilms(state.projects);
+      // Overrides whatever releaseWindow the wizard step last set
+      // (MarketingRelease.tsx no longer lets the player pick one
+      // independently, but this is the actual choke point that makes it
+      // impossible regardless of what got the draft here) - the one place
+      // a draft's marketingChoices becomes immutable, since asPlayerDraft
+      // returns null for a 'scheduled' project from this point on.
+      const scheduledDraft: FilmDraft = { ...d, marketingChoices: { ...d.marketingChoices, releaseWindow: deriveReleaseWindowFromDay(releaseDay) } };
 
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
         const scheduledSettlement = settleScheduledReleases(
-          [...otherScheduled, { draft: d, releaseDay }],
+          [...otherScheduled, { draft: scheduledDraft, releaseDay }],
+          rProductions,
           totalDaysAfter,
           state.studio.brand,
           rng,
@@ -979,7 +988,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           },
           opportunitySettlement.resolvedBids.filter((b) => b.winnerId !== 'player'),
           totalDaysAfter,
-          [...otherScheduled.map((s) => s.releaseDay), releaseDay],
+          [...otherScheduled.map(asUpcomingRelease), asUpcomingRelease({ draft: scheduledDraft, releaseDay })],
           rng,
         );
         const productionsInProgress = settleProductionsInProgress(backgrounded, STAGE_DURATIONS.marketing ?? 0, state.talentPool, rng);

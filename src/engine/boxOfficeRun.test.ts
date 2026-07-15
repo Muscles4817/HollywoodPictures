@@ -20,6 +20,7 @@ const RELEASE_INPUTS: ReleaseSimulationInputs = {
   genre: 'Action',
   releaseWindow: 'Quiet Month',
   releaseType: 'Wide',
+  competitiveCrowding: 0,
   criticScore: 65,
   audienceScore: 68,
 };

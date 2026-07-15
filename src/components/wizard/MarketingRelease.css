@@ -1,0 +1,63 @@
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.6rem;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 0.1rem;
+}
+
+.month-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.month-cell:hover {
+  border-color: var(--primary);
+}
+
+.month-cell--selected {
+  border-color: var(--primary);
+  background: var(--info-bg);
+}
+
+.month-cell__label {
+  font-size: 0.85em;
+}
+
+.month-cell__window {
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+
+.month-cell__crowding {
+  font-size: 0.78em;
+  font-weight: 600;
+}
+
+.month-cell__crowding--clear {
+  color: var(--green);
+}
+
+.month-cell__crowding--moderate {
+  color: var(--text-muted);
+}
+
+.month-cell__crowding--high {
+  color: var(--red);
+}
+
+.month-cell__slated {
+  font-size: 0.72em;
+  color: var(--text-muted);
+}

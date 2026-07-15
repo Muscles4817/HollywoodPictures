@@ -5,6 +5,7 @@ import { settleOpportunities, type ResolvedBid } from './opportunities';
 import { withRng, type RandomFn } from './random';
 import { applyStatChange } from './reputation';
 import { MAX_SIMULATION_WEEKS } from './audienceSimulationStep';
+import type { UpcomingRelease } from './releaseCrowding';
 
 /**
  * Milestone: Opportunity Market bidding. A rival no longer starts a
@@ -22,17 +23,17 @@ function bidThenResolve(
   bidDay: number,
   nextGenerationCheckDay: number,
   resolutionDay: number,
-  playerScheduledReleaseDays: number[],
+  playerScheduled: UpcomingRelease[],
   rng: RandomFn,
 ): { afterBid: RivalMarketUpdate; afterResolve: RivalMarketUpdate; resolvedBids: ResolvedBid[] } {
-  const afterBid = settleRivalMarket(market, [], bidDay, playerScheduledReleaseDays, rng);
+  const afterBid = settleRivalMarket(market, [], bidDay, playerScheduled, rng);
   const opportunitySettlement = settleOpportunities(afterBid.opportunities, nextGenerationCheckDay, resolutionDay, rng);
   const resolvedRivalBids = opportunitySettlement.resolvedBids.filter((b) => b.winnerId !== 'player');
   const afterResolve = settleRivalMarket(
     { ...afterBid, opportunities: opportunitySettlement.opportunities },
     resolvedRivalBids,
     resolutionDay,
-    playerScheduledReleaseDays,
+    playerScheduled,
     rng,
   );
   return { afterBid, afterResolve, resolvedBids: opportunitySettlement.resolvedBids };
@@ -122,30 +123,49 @@ describe('settleRivalMarket - bidding (Milestone: Opportunity Market bidding)', 
   });
 });
 
+// Every Genre paired with a plausible strength/audience, one entry per day -
+// an adversarial "the whole calendar, in every genre, is crowded" set,
+// deliberately genre-exhaustive since the rival's own actual genre (which
+// engine/releaseCrowding.ts:computeCompetitiveCrowding weighs heavily via
+// its match/mismatch terms) isn't known ahead of a real market resolution.
+const ALL_GENRES = ['Action', 'Comedy', 'Drama', 'Horror', 'Romance', 'Sci-Fi', 'Fantasy', 'Thriller'] as const;
+function adversarialCalendar(totalDays: number, days: number): UpcomingRelease[] {
+  const entries: UpcomingRelease[] = [];
+  for (let i = 0; i < days; i++) {
+    for (const genre of ALL_GENRES) {
+      entries.push({ releaseDay: totalDays + i, genre, targetAudience: 'Mass Market', strength: 1 });
+    }
+  }
+  return entries;
+}
+
 describe('settleRivalMarket - shared-calendar awareness (roadmap Phase 7.4)', () => {
   it('a rival still starts a production even when the player has already claimed a huge swath of the calendar (no starvation, just a nudge)', () => {
     const { market, totalDays } = freshMarket(1);
-    // Every day for the next year is "claimed" - an adversarial worst case
-    // for the light nudge (engine/rivalStudios.ts:avoidReleaseDayClustering
-    // gives up after MAX_RELEASE_DAY_NUDGES rather than looping forever).
-    const playerScheduledReleaseDays = Array.from({ length: 365 }, (_, i) => totalDays + i);
-    const { afterResolve } = withRng(2, (rng) => bidThenResolve(market, totalDays, 8, 8, playerScheduledReleaseDays, rng)).result;
+    // Every day for the next year, every genre, at maximum strength - an
+    // adversarial worst case for the light nudge
+    // (engine/rivalStudios.ts:avoidCrowdedReleaseDay gives up after
+    // MAX_RELEASE_DAY_NUDGES rather than looping forever).
+    const { afterResolve } = withRng(2, (rng) => bidThenResolve(market, totalDays, 8, 8, adversarialCalendar(totalDays, 365), rng)).result;
     expect(afterResolve.rivalProductionsInProgress.length).toBeGreaterThan(0);
   });
 
-  it("a rival's naive release day nudges away from a day the player already occupies, landing just past the buffer", () => {
+  it("a rival's naive release day nudges away from a day the player already occupies with a genre/audience-matching release, landing later", () => {
     const { market, totalDays } = freshMarket(3);
     const { afterResolve: withoutPlayer } = withRng(4, (rng) => bidThenResolve(market, totalDays, 8, 8, [], rng)).result;
-    const naiveDay = withoutPlayer.rivalProductionsInProgress[0]?.releaseDay;
-    expect(naiveDay).toBeDefined();
+    const naive = withoutPlayer.rivalProductionsInProgress[0];
+    expect(naive).toBeDefined();
 
     // Re-run the exact same rng seed, but now with the player occupying
-    // that exact naive day - the rival's own day should move, deterministically.
-    const { afterResolve: withPlayer } = withRng(4, (rng) => bidThenResolve(market, totalDays, 8, 8, [naiveDay!], rng)).result;
+    // that exact naive day with a release that fully matches this rival's
+    // own genre/audience (guaranteeing full-weight crowding, not diluted
+    // by a mismatch) - the rival's own day should move, deterministically.
+    const matchingCompetitor: UpcomingRelease = { releaseDay: naive!.releaseDay, genre: naive!.genre, targetAudience: naive!.targetAudience, strength: 1 };
+    const { afterResolve: withPlayer } = withRng(4, (rng) => bidThenResolve(market, totalDays, 8, 8, [matchingCompetitor], rng)).result;
     const nudgedDay = withPlayer.rivalProductionsInProgress[0]?.releaseDay;
     expect(nudgedDay).toBeDefined();
-    expect(nudgedDay).not.toBe(naiveDay);
-    expect(nudgedDay!).toBeGreaterThan(naiveDay!);
+    expect(nudgedDay).not.toBe(naive!.releaseDay);
+    expect(nudgedDay!).toBeGreaterThan(naive!.releaseDay);
   });
 });
 

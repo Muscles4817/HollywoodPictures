@@ -47,6 +47,8 @@ export interface ReleaseComputationInput {
   shootingRatio: number;
   /** Studio.brand (Brand Recognition, engine/reputation.ts) - never Prestige, see computeBuzzScore/deriveAudienceSimulationFixedState's own doc comments for why. */
   studioBrand: number;
+  /** engine/releaseCrowding.ts:computeCompetitiveCrowding's output, 0-1 - pre-resolved by the caller (engine/scheduledReleases.ts, engine/rivalStudios.ts), since this orchestration point never sees a raw releaseDay itself. Threaded straight into deriveAudienceSimulationFixedState - see ReleaseSimulationInputs.competitiveCrowding's own doc comment for why it dents initialAvailabilityFraction only. */
+  competitiveCrowding: number;
 }
 
 export interface ReleaseComputationResult {
@@ -137,6 +139,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     genre: input.genre,
     releaseWindow: input.marketingChoices.releaseWindow,
     releaseType: input.marketingChoices.releaseType as SupportedReleaseType,
+    competitiveCrowding: input.competitiveCrowding,
     criticScore,
     audienceScore,
   });

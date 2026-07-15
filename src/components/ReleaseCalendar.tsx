@@ -5,26 +5,13 @@ import {
 import { useStudio } from '../state/StudioContext';
 import { formatGameMonthYear } from '../engine/calendar';
 import { CheckboxFilterDropdown, type CheckboxFilterOption } from './common/CheckboxFilterDropdown';
-import { asScheduled, asRivalProduction } from '../engine/project';
+import { deriveUpcomingReleaseEntries, PLAYER_STUDIO_ID, type CalendarEntry } from '../state/selectors';
 import { useReconciledFilterSelection } from '../hooks/useReconciledFilterSelection';
-
-interface CalendarEntry {
-  id: string;
-  title: string;
-  genre: string;
-  targetAudience: string;
-  releaseDay: number;
-  studioId: string;
-  studioName: string;
-  isPlayer: boolean;
-}
 
 interface CalendarMonthGroup {
   monthYear: string;
   entries: CalendarEntry[];
 }
-
-const PLAYER_STUDIO_ID = 'player-studio';
 
 /**
  * Every upcoming release, the player's own scheduled projects and every
@@ -48,65 +35,10 @@ export function ReleaseCalendar() {
     setOpenFilterId(null);
   };
 
-  const rivalNameById = useMemo(
-    () =>
-      new Map(
-        state.rivalStudios.map((rival) => [rival.id, rival.name]),
-      ),
-    [state.rivalStudios],
+  const entries = useMemo(
+    () => deriveUpcomingReleaseEntries(state.projects, state.rivalStudios, state.studio.name),
+    [state.projects, state.rivalStudios, state.studio.name],
   );
-
-  const entries = useMemo<CalendarEntry[]>(() => {
-    const calendarEntries = state.projects.flatMap(
-      (project): CalendarEntry[] => {
-        const scheduled = asScheduled(project);
-
-        if (scheduled) {
-          return [
-            {
-              id: scheduled.draft.id,
-              title: scheduled.draft.title || 'Untitled Film',
-              genre: scheduled.draft.genre ?? '-',
-              targetAudience: scheduled.draft.targetAudience ?? '-',
-              releaseDay: scheduled.releaseDay,
-              studioId: PLAYER_STUDIO_ID,
-              studioName: state.studio.name,
-              isPlayer: true,
-            },
-          ];
-        }
-
-        const production = asRivalProduction(project);
-
-        if (production) {
-          return [
-            {
-              id: production.id,
-              title: `${production.scale} ${production.genre} film`,
-              genre: production.genre,
-              targetAudience: production.targetAudience,
-              releaseDay: production.releaseDay,
-              studioId: production.rivalStudioId,
-              studioName:
-                rivalNameById.get(production.rivalStudioId) ??
-                'A Rival Studio',
-              isPlayer: false,
-            },
-          ];
-        }
-
-        return [];
-      },
-    );
-
-    return calendarEntries.sort(
-      (a, b) => a.releaseDay - b.releaseDay,
-    );
-  }, [
-    rivalNameById,
-    state.projects,
-    state.studio.name,
-  ]);
 
   const studioIds = useMemo(
     () => [PLAYER_STUDIO_ID, ...state.rivalStudios.map((studio) => studio.id)],

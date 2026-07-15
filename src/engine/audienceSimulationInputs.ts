@@ -103,6 +103,18 @@ export interface ReleaseSimulationInputs {
   criticScore: number;
   /** FilmResults.audienceScore, 0-100, reused verbatim. */
   audienceScore: number;
+  /**
+   * engine/releaseCrowding.ts:computeCompetitiveCrowding's output, 0 (wide
+   * open) to 1 (maximally crowded) - how much other genre/audience-overlapping
+   * competition is releasing near this film's own release day. Pre-resolved
+   * by the caller (engine/scheduledReleases.ts, engine/rivalStudios.ts) -
+   * this module never sees a raw releaseDay itself, only the abstract
+   * releaseWindow/releaseType, so the crowding score can't be derived in
+   * here. Dents initialAvailabilityFraction only (see
+   * computeInitialAvailabilityFraction) - a crowded window means fewer
+   * screens at launch, not a smaller natural audience or slower conversion.
+   */
+  competitiveCrowding: number;
 }
 
 // --- Total addressable audience -------------------------------------------
@@ -475,6 +487,15 @@ function computeReleaseStrength(marketingSpend: number, marketingEfficiency: num
   );
 }
 
+// How much of initialAvailabilityFraction a maximally crowded release day
+// (competitiveCrowding == 1) gives up - applied uniformly across every
+// release type (unlike releaseStrength above, which only scales Wide's
+// ceiling): a Limited release still competes with another Limited release
+// for the same arthouse screens, so crowding can't be folded into
+// releaseStrength's Wide-only mechanism. First-draft, tunable alongside
+// engine/releaseCrowding.ts's own constants.
+const CROWDING_PENALTY_WEIGHT = 0.5;
+
 /** DISTRIBUTION_PROFILES[releaseType].initialAvailabilityFraction is Wide's *ceiling*, only reached by a genuinely strong release package - see the module note above. Limited/Festival First are untouched, always at their own flat (already-modest) value regardless of release strength. */
 function computeInitialAvailabilityFraction(releaseType: SupportedReleaseType, releaseStrength: number): number {
   const ceiling = distributionProfile(releaseType).initialAvailabilityFraction;
@@ -706,7 +727,8 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
 
   const distribution = distributionProfile(inputs.releaseType);
   const releaseStrength = computeReleaseStrength(inputs.marketingSpend, marketingEfficiency);
-  const initialAvailabilityFraction = computeInitialAvailabilityFraction(inputs.releaseType, releaseStrength);
+  const uncrowdedAvailabilityFraction = computeInitialAvailabilityFraction(inputs.releaseType, releaseStrength);
+  const initialAvailabilityFraction = uncrowdedAvailabilityFraction * (1 - CROWDING_PENALTY_WEIGHT * inputs.competitiveCrowding);
 
   return createAudienceSimulationFixedState({
     totalAddressableAudience,

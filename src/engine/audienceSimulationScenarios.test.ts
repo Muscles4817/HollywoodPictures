@@ -69,6 +69,7 @@ function baseInputs(overrides: Partial<ReleaseSimulationInputs> = {}): ReleaseSi
     genre: 'Action',
     releaseWindow: 'Quiet Month',
     releaseType: 'Wide',
+    competitiveCrowding: 0,
     criticScore: 55,
     audienceScore: 58,
     ...overrides,

@@ -28,6 +28,7 @@ const scenario: ReportingScenario = {
   genre: 'Action',
   releaseWindow: 'Quiet Month',
   releaseType: 'Wide',
+  competitiveCrowding: 0,
   criticScore: 60,
   audienceScore: 62,
 };
@@ -130,6 +131,7 @@ describe('diagnoseRunShape - the plain-language "why" behind a trajectory', () =
       genre: 'Action',
       releaseWindow: 'Quiet Month',
       releaseType: 'Wide',
+      competitiveCrowding: 0,
       criticScore: 25,
       audienceScore: 20,
     });
@@ -155,6 +157,7 @@ describe('diagnoseRunShape - the plain-language "why" behind a trajectory', () =
       genre: 'Drama',
       releaseWindow: 'Quiet Month',
       releaseType: 'Limited',
+      competitiveCrowding: 0,
       criticScore: 92,
       audienceScore: 95,
     });
@@ -187,6 +190,7 @@ describe('diagnoseRunShape - the plain-language "why" behind a trajectory', () =
       genre: 'Drama',
       releaseWindow: 'Quiet Month',
       releaseType: 'Festival First',
+      competitiveCrowding: 0,
       criticScore: 96,
       audienceScore: 94,
     });

@@ -213,6 +213,11 @@ export function OutcomeInspector() {
     selectedFilm ? inferStudioBrandFromMarketingEfficiency(selectedFilm.boxOfficeRun.fixed.marketingEfficiency) : state.studio.brand,
   );
   const [shootingRatio, setShootingRatio] = useState(1);
+  // Not preserved from the original release (not stored on Film, same as
+  // shootingRatio above) - defaults to 0 (no competing crowding assumed) so
+  // a freshly-loaded film's Current matches Original, freely editable to
+  // experiment with what a crowded release window would have done to it.
+  const [competitiveCrowding, setCompetitiveCrowding] = useState(0);
   const [eventQualityDelta, setEventQualityDelta] = useState(() => selectedFilm?.events.reduce((sum, e) => sum + e.qualityDelta, 0) ?? 0);
   const [eventBuzzDelta, setEventBuzzDelta] = useState(() => selectedFilm?.events.reduce((sum, e) => sum + e.buzzDelta, 0) ?? 0);
   const [eventCostDelta, setEventCostDelta] = useState(() => selectedFilm?.events.reduce((sum, e) => sum + e.costDelta, 0) ?? 0);
@@ -270,6 +275,7 @@ export function OutcomeInspector() {
     setMarketingChoices(film.marketingChoices);
     setStudioBrand(brandForFilm(film));
     setShootingRatio(1);
+    setCompetitiveCrowding(0);
     setPhotographyCost(photographyCostForFilm(film));
     const evQuality = film.events.reduce((sum, e) => sum + e.qualityDelta, 0);
     const evBuzz = film.events.reduce((sum, e) => sum + e.buzzDelta, 0);
@@ -376,6 +382,7 @@ export function OutcomeInspector() {
       photographyCost,
       shootingRatio,
       studioBrand,
+      competitiveCrowding,
     },
     rng,
   );
@@ -505,6 +512,7 @@ export function OutcomeInspector() {
         targetAudience={targetAudience}
         genre={genre}
         releaseWindow={marketingChoices.releaseWindow}
+        competitiveCrowding={competitiveCrowding}
         criticScore={results.criticScore}
         audienceScore={results.audienceScore}
       />
@@ -713,6 +721,21 @@ export function OutcomeInspector() {
           formatValue={(v) => `$${Math.round(v).toLocaleString()}`}
           onChange={setPhotographyCost}
         />
+        <SliderRow
+          label="Competitive Crowding (0 = clear window, 1 = maximally crowded)"
+          value={competitiveCrowding}
+          min={0}
+          max={1}
+          step={0.05}
+          formatValue={(v) => v.toFixed(2)}
+          onChange={setCompetitiveCrowding}
+        />
+        <p className="choice-description" style={{ margin: 0 }}>
+          Not preserved from the original release (not stored on Film) - defaults to 0 (no competing crowding
+          assumed). engine/releaseCrowding.ts:computeCompetitiveCrowding is what derives this for real
+          scheduling/settlement; here it's a free variable so you can see directly how much a crowded release
+          window would have dented this film's initial screen access.
+        </p>
         <SliderRow label="Net Event Quality Impact" value={eventQualityDelta} min={-50} max={50} onChange={setEventQualityDelta} />
         <SliderRow label="Net Event Buzz Impact" value={eventBuzzDelta} min={-50} max={50} onChange={setEventBuzzDelta} />
         <SliderRow

@@ -1,3 +1,5 @@
+import type { ReleaseWindow } from '../types';
+
 /**
  * The in-game calendar is a single running day counter (GameState.totalDays,
  * day 1 = the studio's first day) rather than a year/day pair - one source
@@ -62,4 +64,42 @@ export function formatGameMonthYear(totalDays: number): string {
 export function totalDaysForMonth(year: number, monthIndex: number): number {
   const daysBeforeMonth = MONTH_LENGTHS.slice(0, monthIndex).reduce((sum, d) => sum + d, 0);
   return (year - 1) * DAYS_PER_YEAR + daysBeforeMonth + 1;
+}
+
+// 0-indexed calendar month -> the ReleaseWindow it falls in - first-draft,
+// tunable game-design numbers, not a physical fact (see docs/DESIGN.md if a
+// balance pass ever revisits this). Halloween and Awards Season are
+// deliberately narrow (a strong, scarce bonus that's easy to crowd out);
+// Quiet Month is deliberately wide (the safe default the rest of the
+// calendar falls back to) - matches RELEASE_WINDOW_DESCRIPTIONS'
+// (data/release.ts) own framing of Quiet Month as "a safe, unremarkable
+// baseline."
+const MONTH_RELEASE_WINDOWS: readonly ReleaseWindow[] = [
+  'Awards Season', // January
+  'Awards Season', // February
+  'Quiet Month', // March
+  'Quiet Month', // April
+  'Quiet Month', // May
+  'Summer', // June
+  'Summer', // July
+  'Summer', // August
+  'Quiet Month', // September
+  'Halloween', // October
+  'Christmas', // November
+  'Christmas', // December
+];
+
+/**
+ * The ReleaseWindow a given calendar day actually falls in - the single
+ * source of truth for MarketingChoices.releaseWindow once a release day is
+ * final (state/studioReducer.ts:SCHEDULE_RELEASE, engine/rivalStudios.ts),
+ * so a chosen window can never contradict the chosen date the way an
+ * independently-picked one used to (docs/DESIGN.md). Deliberately not
+ * exposed as player-editable anywhere real gameplay touches it -
+ * components/dev/OutcomeInspector.tsx is the one place a window is still
+ * freely overridable, since it's a pure experimentation sandbox, not a real
+ * release.
+ */
+export function deriveReleaseWindowFromDay(totalDays: number): ReleaseWindow {
+  return MONTH_RELEASE_WINDOWS[monthYearOf(totalDays).monthIndex];
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatGameDate, formatGameMonthYear, monthYearOf, totalDaysForMonth, MONTH_NAMES } from './calendar';
+import { formatGameDate, formatGameMonthYear, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from './calendar';
 
 describe('formatGameDate - unchanged exact-day display', () => {
   it('day 1 is Year 1, Day 1', () => {
@@ -58,5 +58,48 @@ describe('totalDaysForMonth - the inverse of monthYearOf', () => {
     expect(MONTH_NAMES).toHaveLength(12);
     expect(MONTH_NAMES[0]).toBe('January');
     expect(MONTH_NAMES[11]).toBe('December');
+  });
+});
+
+describe('deriveReleaseWindowFromDay - the single source of truth tying ReleaseWindow to the real calendar', () => {
+  it('October is Halloween, regardless of year', () => {
+    expect(deriveReleaseWindowFromDay(totalDaysForMonth(1, 9))).toBe('Halloween');
+    expect(deriveReleaseWindowFromDay(totalDaysForMonth(3, 9))).toBe('Halloween');
+  });
+
+  it('June/July/August are Summer', () => {
+    expect(deriveReleaseWindowFromDay(totalDaysForMonth(1, 5))).toBe('Summer');
+    expect(deriveReleaseWindowFromDay(totalDaysForMonth(1, 6))).toBe('Summer');
+    expect(deriveReleaseWindowFromDay(totalDaysForMonth(1, 7))).toBe('Summer');
+  });
+
+  it('November/December are Christmas', () => {
+    expect(deriveReleaseWindowFromDay(totalDaysForMonth(1, 10))).toBe('Christmas');
+    expect(deriveReleaseWindowFromDay(totalDaysForMonth(1, 11))).toBe('Christmas');
+  });
+
+  it('January/February are Awards Season', () => {
+    expect(deriveReleaseWindowFromDay(totalDaysForMonth(1, 0))).toBe('Awards Season');
+    expect(deriveReleaseWindowFromDay(totalDaysForMonth(1, 1))).toBe('Awards Season');
+  });
+
+  it('every remaining month (March-May, September) is Quiet Month', () => {
+    for (const monthIndex of [2, 3, 4, 8]) {
+      expect(deriveReleaseWindowFromDay(totalDaysForMonth(1, monthIndex))).toBe('Quiet Month');
+    }
+  });
+
+  it('every day within a month maps to the same window, not just the 1st', () => {
+    const octoberFirst = totalDaysForMonth(1, 9);
+    for (let d = 0; d < 31; d++) {
+      expect(deriveReleaseWindowFromDay(octoberFirst + d)).toBe('Halloween');
+    }
+  });
+
+  it('every calendar month maps to exactly one of the five real ReleaseWindow values', () => {
+    const validWindows = new Set(['Quiet Month', 'Summer', 'Awards Season', 'Halloween', 'Christmas']);
+    for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+      expect(validWindows.has(deriveReleaseWindowFromDay(totalDaysForMonth(1, monthIndex)))).toBe(true);
+    }
   });
 });

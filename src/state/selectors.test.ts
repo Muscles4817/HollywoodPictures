@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { computeReportedLegs, computeProjectSpendSoFar, currentWizardStepFor, deriveProjectStage } from './selectors';
+import { computeReportedLegs, computeProjectSpendSoFar, currentWizardStepFor, deriveProjectStage, deriveUpcomingReleaseEntries, PLAYER_STUDIO_ID } from './selectors';
 import { studioReducer } from './studioReducer';
 import { buildReadyDraft, buildStateWithReadyDraft } from './testFixtures';
 import { withRng } from '../engine/random';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
 import { asPlayerDraft, filmToProject, playerDraftToProject, playerReleasedFilms, scheduledDraftToProject } from '../engine/project';
-import type { PhotographyState } from '../types';
+import type { PhotographyState, Project, RivalProductionInProgress, RivalStudio } from '../types';
 
 describe('computeReportedLegs - a derived reported statistic, never a stored driver', () => {
   it('is null while the run is still in theaters - not knowable before the run has a real total', () => {
@@ -182,5 +182,86 @@ describe('computeProjectSpendSoFar', () => {
     const film = playerReleasedFilms(released.projects)[0];
     const spend = computeProjectSpendSoFar(filmToProject(film), released.studio.assets);
     expect(spend).toBe(released.studio.assets[0].acquisitionCost + film.results.totalCost);
+  });
+});
+
+function rivalProductionFixture(overrides: Partial<RivalProductionInProgress> = {}): RivalProductionInProgress {
+  const { result: draft } = withRng(200, (rng) => buildReadyDraft(rng));
+  return {
+    id: 'rival-prod-fixture',
+    rivalStudioId: 'rival-studio-0',
+    scale: 'Medium',
+    genre: draft.genre!,
+    script: draft.script!,
+    talent: draft.talent,
+    productionChoices: draft.productionChoices!,
+    postProductionChoices: draft.postProductionChoices!,
+    marketingChoices: draft.marketingChoices!,
+    targetAudience: draft.targetAudience!,
+    releaseDay: 200,
+    ...overrides,
+  };
+}
+
+const rivalStudioFixture: RivalStudio = {
+  id: 'rival-studio-0',
+  name: 'Test Rival Pictures',
+  tier: 'Indie',
+  cash: 1_000_000,
+  brand: 30,
+  prestige: 30,
+  lifetimeRevenue: 0,
+  lifetimeExpenditure: 0,
+  nextSpawnCheckDay: 1,
+};
+
+describe('deriveUpcomingReleaseEntries - the shared source for the Release Calendar and the Marketing & Release date picker', () => {
+  it('is empty with no scheduled projects and no rival productions', () => {
+    expect(deriveUpcomingReleaseEntries([], [], 'My Studio')).toEqual([]);
+  });
+
+  it('includes a player-scheduled project, tagged isPlayer with the player studio id/name', () => {
+    const { result: draft } = withRng(201, (rng) => buildReadyDraft(rng));
+    const projects: Project[] = [{ kind: 'scheduled', draft, releaseDay: 50 }];
+    const entries = deriveUpcomingReleaseEntries(projects, [], 'My Studio');
+    expect(entries).toHaveLength(1);
+    expect(entries[0].isPlayer).toBe(true);
+    expect(entries[0].studioId).toBe(PLAYER_STUDIO_ID);
+    expect(entries[0].studioName).toBe('My Studio');
+    expect(entries[0].releaseDay).toBe(50);
+    expect(entries[0].genre).toBe(draft.genre);
+  });
+
+  it('includes a rival production in progress, tagged not-isPlayer with the rival studio name resolved from its id', () => {
+    const projects: Project[] = [{ kind: 'rival-in-progress', production: rivalProductionFixture() }];
+    const entries = deriveUpcomingReleaseEntries(projects, [rivalStudioFixture], 'My Studio');
+    expect(entries).toHaveLength(1);
+    expect(entries[0].isPlayer).toBe(false);
+    expect(entries[0].studioId).toBe('rival-studio-0');
+    expect(entries[0].studioName).toBe('Test Rival Pictures');
+  });
+
+  it('falls back to "A Rival Studio" if the rival studio id has no matching entry in rivalStudios', () => {
+    const projects: Project[] = [{ kind: 'rival-in-progress', production: rivalProductionFixture({ rivalStudioId: 'unknown' }) }];
+    const entries = deriveUpcomingReleaseEntries(projects, [], 'My Studio');
+    expect(entries[0].studioName).toBe('A Rival Studio');
+  });
+
+  it('excludes every other project kind (in-progress drafts, released films)', () => {
+    const { result: draft } = withRng(202, (rng) => buildReadyDraft(rng));
+    const projects: Project[] = [{ kind: 'player-in-progress', draft }];
+    expect(deriveUpcomingReleaseEntries(projects, [], 'My Studio')).toEqual([]);
+  });
+
+  it('sorts every entry by releaseDay, player and rival mixed together', () => {
+    const { result: draftA } = withRng(203, (rng) => buildReadyDraft(rng));
+    const { result: draftB } = withRng(204, (rng) => buildReadyDraft(rng));
+    const projects: Project[] = [
+      { kind: 'scheduled', draft: draftA, releaseDay: 300 },
+      { kind: 'rival-in-progress', production: rivalProductionFixture({ releaseDay: 50 }) },
+      { kind: 'scheduled', draft: draftB, releaseDay: 150 },
+    ];
+    const entries = deriveUpcomingReleaseEntries(projects, [rivalStudioFixture], 'My Studio');
+    expect(entries.map((e) => e.releaseDay)).toEqual([50, 150, 300]);
   });
 });
