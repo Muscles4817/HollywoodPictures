@@ -16,6 +16,7 @@ import { settleScheduledReleases, type ScheduledRelease } from '../engine/schedu
 import { settleOpportunities, reopenForfeitedOpportunity, highestBid, placeBid, type ResolvedBid } from '../engine/opportunities';
 import { generateTalentPool } from '../engine/talentGenerator';
 import { applyStatChange } from '../engine/reputation';
+import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 import {
   projectId,
   findProject,
@@ -1044,7 +1045,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         rivalStudios: generateRivalStudios(rng),
       }));
       return {
-        studio: createInitialStudio(action.startingCash),
+        studio: { ...createInitialStudio(action.startingCash), assets: TEST_SCRIPT_ASSETS },
         screen: 'dashboard',
         projects: [],
         focusedProjectId: null,

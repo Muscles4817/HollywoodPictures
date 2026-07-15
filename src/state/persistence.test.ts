@@ -4,6 +4,7 @@ import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft } from './testFixtures';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
 import { playerReleasedFilms } from '../engine/project';
+import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 
 /**
  * A minimal in-memory localStorage, since vitest's default (Node)
@@ -268,7 +269,7 @@ describe('old saves migrate safely', () => {
     const state = loadState();
     expect(state.projects).toEqual([]);
     expect(state.opportunities).toEqual([]);
-    expect(state.studio.assets).toEqual([]);
+    expect(state.studio.assets).toEqual(TEST_SCRIPT_ASSETS);
     expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
     expect(state.studio.name).not.toBe('Stale Pictures');
   });

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type Dispatch } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { formatGameDate } from '../engine/calendar';
 import { Card } from './common/Card';
@@ -8,9 +8,13 @@ import {
   CheckboxFilterDropdown,
   type CheckboxFilterOption,
 } from './common/CheckboxFilterDropdown';
-import { deriveAssetStatus } from '../engine/project';
+import { deriveAssetStatus, type AssetStatus } from '../engine/project';
+import type { GameAction } from '../state/gameState';
+import type { Asset } from '../types';
 import './AssetLibrary.css';
 import { StarRating } from './common/StarRating';
+
+const TEST_SCRIPT_ID_PREFIX = 'test-script-';
 
 type AssetStatusFilter = 'all' | 'available' | 'in-development' | 'used';
 type AssetSort =
@@ -75,6 +79,179 @@ function CompactStarRating({ value }: { value: number }) {
   );
 }
 
+interface AssetCardProps {
+  asset: Asset;
+  status: AssetStatus;
+  isExpanded: boolean;
+  onToggleExpanded: () => void;
+  somethingElseFocused: boolean;
+  dispatch: Dispatch<GameAction>;
+}
+
+function AssetCard({
+  asset,
+  status,
+  isExpanded,
+  onToggleExpanded,
+  somethingElseFocused,
+  dispatch,
+}: AssetCardProps) {
+  const writingScore = getWritingScore(asset.script);
+  const creativeScore = getCreativeScore(asset.script);
+
+  return (
+    <div className="asset-library-card-shell">
+      <Card>
+        <article
+          className={[
+            'asset-library-card',
+            `asset-library-card--${status.status}`,
+          ].join(' ')}
+        >
+          <header className="asset-library-card__header">
+            <div className="asset-library-card__badges">
+              <span
+                className={`asset-status-badge asset-status-badge--${status.status}`}
+              >
+                {status.status === 'available' && 'Available'}
+                {status.status === 'in-development' && 'In Development'}
+                {status.status === 'used' && 'Previously Used'}
+              </span>
+              <span className="badge">{asset.source}</span>
+            </div>
+
+            <span className="asset-library-card__owned-date">
+              {formatGameDate(asset.acquiredOnDay)}
+            </span>
+          </header>
+
+          <div className="asset-library-card__body">
+            <div>
+              <h2 className="asset-library-card__title">
+                {asset.script.title}
+              </h2>
+
+              <div className="asset-library-card__classification">
+                <span>{asset.script.genre}</span>
+                <span>{asset.script.storyType}</span>
+                <span>{asset.script.scale}</span>
+              </div>
+            </div>
+
+            <p className="asset-library-card__synopsis">
+              {asset.script.synopsis}
+            </p>
+
+            <div className="asset-library-card__metrics">
+              <div>
+                <span>Writing</span>
+                <CompactStarRating value={writingScore} />
+              </div>
+              <div>
+                <span>Creative</span>
+                <CompactStarRating value={creativeScore} />
+              </div>
+              <div>
+                <span>Audience</span>
+                <strong>{asset.script.intendedAudience}</strong>
+              </div>
+              <div>
+                <span>Cast</span>
+                <strong>
+                  {asset.script.requiredLeads} lead
+                  {asset.script.requiredLeads === 1 ? '' : 's'} ·{' '}
+                  {asset.script.requiredSupporting} support
+                </strong>
+              </div>
+            </div>
+
+            <div className="asset-library-card__cost-row">
+              <span>Screenplay cost</span>
+              <strong>£{asset.script.cost.toLocaleString('en-GB')}</strong>
+            </div>
+
+            {status.status === 'in-development' && (
+              <p className="asset-library-card__status-copy asset-library-card__status-copy--active">
+                A project based on this asset is currently underway.
+              </p>
+            )}
+
+            {status.status === 'used' && (
+              <p className="asset-library-card__status-copy">
+                Used for {status.projectIds.length} released film
+                {status.projectIds.length === 1 ? '' : 's'}.
+              </p>
+            )}
+
+            {isExpanded && (
+              <div className="asset-library-card__details">
+                <ScriptDetails script={asset.script} />
+              </div>
+            )}
+          </div>
+
+          <footer className="asset-library-card__footer">
+            <button
+              type="button"
+              className="asset-library-details-button"
+              aria-expanded={isExpanded}
+              onClick={onToggleExpanded}
+            >
+              {isExpanded ? 'Hide details' : 'View details'}
+            </button>
+
+            {status.status === 'available' && (
+              <Button
+                variant="primary"
+                onClick={() =>
+                  dispatch({
+                    type: 'CREATE_PROJECT_FROM_ASSET',
+                    assetId: asset.id,
+                  })
+                }
+              >
+                Start Development
+              </Button>
+            )}
+
+            {status.status === 'in-development' && (
+              <Button
+                variant="primary"
+                disabled={somethingElseFocused}
+                title={
+                  somethingElseFocused
+                    ? 'Leave the project currently in focus before opening this one.'
+                    : undefined
+                }
+                onClick={() =>
+                  dispatch({
+                    type: 'RESUME_PROJECT',
+                    projectId: status.projectId,
+                  })
+                }
+              >
+                Open Project
+              </Button>
+            )}
+
+            {status.status === 'used' && (
+              <span className="asset-library-card__archived-label">
+                Archive asset
+              </span>
+            )}
+          </footer>
+
+          {status.status === 'in-development' && somethingElseFocused && (
+            <p className="asset-library-card__blocked-note">
+              Another project is currently in focus.
+            </p>
+          )}
+        </article>
+      </Card>
+    </div>
+  );
+}
+
 /**
  * Every owned Asset (development-pipeline doc) - acquired from the
  * Opportunity Market and permanently the studio's, whether or not it ever
@@ -94,10 +271,26 @@ export function AssetLibrary() {
 
   const assetsWithStatus = useMemo(
     () =>
-      state.studio.assets.map((asset) => ({
-        asset,
-        status: deriveAssetStatus(asset, state.projects),
-      })),
+      state.studio.assets
+        .filter((asset) => !asset.id.startsWith(TEST_SCRIPT_ID_PREFIX))
+        .map((asset) => ({
+          asset,
+          status: deriveAssetStatus(asset, state.projects),
+        })),
+    [state.projects, state.studio.assets],
+  );
+
+  const testScriptsWithStatus = useMemo(
+    () =>
+      state.studio.assets
+        .filter((asset) => asset.id.startsWith(TEST_SCRIPT_ID_PREFIX))
+        .map((asset) => ({
+          asset,
+          status: deriveAssetStatus(asset, state.projects),
+        }))
+        .sort((left, right) =>
+          left.asset.script.title.localeCompare(right.asset.script.title),
+        ),
     [state.projects, state.studio.assets],
   );
 
@@ -424,170 +617,48 @@ export function AssetLibrary() {
             </div>
           ) : (
             <div className="asset-library-grid">
-              {visibleAssets.map(({ asset, status }) => {
-                const isExpanded = expandedAssetId === asset.id;
-                const writingScore = getWritingScore(asset.script);
-                const creativeScore = getCreativeScore(asset.script);
-
-                return (
-                  <div className="asset-library-card-shell" key={asset.id}>
-                    <Card>
-                      <article
-                        className={[
-                          'asset-library-card',
-                          `asset-library-card--${status.status}`,
-                        ].join(' ')}
-                      >
-                        <header className="asset-library-card__header">
-                          <div className="asset-library-card__badges">
-                            <span
-                              className={`asset-status-badge asset-status-badge--${status.status}`}
-                            >
-                              {status.status === 'available' && 'Available'}
-                              {status.status === 'in-development' &&
-                                'In Development'}
-                              {status.status === 'used' && 'Previously Used'}
-                            </span>
-                            <span className="badge">{asset.source}</span>
-                          </div>
-
-                          <span className="asset-library-card__owned-date">
-                            {formatGameDate(asset.acquiredOnDay)}
-                          </span>
-                        </header>
-
-                        <div className="asset-library-card__body">
-                          <div>
-                            <h2 className="asset-library-card__title">
-                              {asset.script.title}
-                            </h2>
-
-                            <div className="asset-library-card__classification">
-                              <span>{asset.script.genre}</span>
-                              <span>{asset.script.storyType}</span>
-                              <span>{asset.script.scale}</span>
-                            </div>
-                          </div>
-
-                          <p className="asset-library-card__synopsis">
-                            {asset.script.synopsis}
-                          </p>
-
-                          <div className="asset-library-card__metrics">
-                            <div>
-                              <span>Writing</span>
-                              <CompactStarRating value={writingScore} />
-                            </div>
-                            <div>
-                              <span>Creative</span>
-                              <CompactStarRating value={creativeScore} />
-                            </div>
-                            <div>
-                              <span>Audience</span>
-                              <strong>{asset.script.intendedAudience}</strong>
-                            </div>
-                            <div>
-                              <span>Cast</span>
-                              <strong>
-                                {asset.script.requiredLeads} lead
-                                {asset.script.requiredLeads === 1 ? '' : 's'} ·{' '}
-                                {asset.script.requiredSupporting} support
-                              </strong>
-                            </div>
-                          </div>
-
-                          <div className="asset-library-card__cost-row">
-                            <span>Screenplay cost</span>
-                            <strong>
-                              £{asset.script.cost.toLocaleString('en-GB')}
-                            </strong>
-                          </div>
-
-                          {status.status === 'in-development' && (
-                            <p className="asset-library-card__status-copy asset-library-card__status-copy--active">
-                              A project based on this asset is currently underway.
-                            </p>
-                          )}
-
-                          {status.status === 'used' && (
-                            <p className="asset-library-card__status-copy">
-                              Used for {status.projectIds.length} released film
-                              {status.projectIds.length === 1 ? '' : 's'}.
-                            </p>
-                          )}
-
-                          {isExpanded && (
-                            <div className="asset-library-card__details">
-                              <ScriptDetails script={asset.script} />
-                            </div>
-                          )}
-                        </div>
-
-                        <footer className="asset-library-card__footer">
-                          <button
-                            type="button"
-                            className="asset-library-details-button"
-                            aria-expanded={isExpanded}
-                            onClick={() => toggleExpandedAsset(asset.id)}
-                          >
-                            {isExpanded ? 'Hide details' : 'View details'}
-                          </button>
-
-                          {status.status === 'available' && (
-                            <Button
-                              variant="primary"
-                              onClick={() =>
-                                dispatch({
-                                  type: 'CREATE_PROJECT_FROM_ASSET',
-                                  assetId: asset.id,
-                                })
-                              }
-                            >
-                              Start Development
-                            </Button>
-                          )}
-
-                          {status.status === 'in-development' && (
-                            <Button
-                              variant="primary"
-                              disabled={somethingElseFocused}
-                              title={
-                                somethingElseFocused
-                                  ? 'Leave the project currently in focus before opening this one.'
-                                  : undefined
-                              }
-                              onClick={() =>
-                                dispatch({
-                                  type: 'RESUME_PROJECT',
-                                  projectId: status.projectId,
-                                })
-                              }
-                            >
-                              Open Project
-                            </Button>
-                          )}
-
-                          {status.status === 'used' && (
-                            <span className="asset-library-card__archived-label">
-                              Archive asset
-                            </span>
-                          )}
-                        </footer>
-
-                        {status.status === 'in-development' &&
-                          somethingElseFocused && (
-                            <p className="asset-library-card__blocked-note">
-                              Another project is currently in focus.
-                            </p>
-                          )}
-                      </article>
-                    </Card>
-                  </div>
-                );
-              })}
+              {visibleAssets.map(({ asset, status }) => (
+                <AssetCard
+                  key={asset.id}
+                  asset={asset}
+                  status={status}
+                  isExpanded={expandedAssetId === asset.id}
+                  onToggleExpanded={() => toggleExpandedAsset(asset.id)}
+                  somethingElseFocused={somethingElseFocused}
+                  dispatch={dispatch}
+                />
+              ))}
             </div>
           )}
         </>
+      )}
+
+      {testScriptsWithStatus.length > 0 && (
+        <section
+          className="asset-library-test-scripts"
+          aria-label="Test scripts"
+        >
+          <h2 style={{ margin: 0 }}>Test Scripts</h2>
+          <p className="choice-description" style={{ margin: 0 }}>
+            Sixteen real, iconic screenplays — two per genre — free to develop
+            any time, for trying out productions without waiting on the
+            Opportunity Market.
+          </p>
+
+          <div className="asset-library-grid">
+            {testScriptsWithStatus.map(({ asset, status }) => (
+              <AssetCard
+                key={asset.id}
+                asset={asset}
+                status={status}
+                isExpanded={expandedAssetId === asset.id}
+                onToggleExpanded={() => toggleExpandedAsset(asset.id)}
+                somethingElseFocused={somethingElseFocused}
+                dispatch={dispatch}
+              />
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

@@ -3,6 +3,7 @@ import { createInitialStudio } from './gameState';
 import { generateRivalStudios } from '../engine/rivalStudios';
 import { generateTalentPool } from '../engine/talentGenerator';
 import { randomSeed, withRng } from '../engine/random';
+import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 
 // Bump this whenever a persisted shape changes incompatibly (e.g. v2 -> v3
 // moved the talent roster from a per-film draft to a persistent Studio
@@ -193,7 +194,7 @@ export function loadState(): GameState {
       rivalStudios: generateRivalStudios(rng),
     }));
     return {
-      studio: createInitialStudio(DEFAULT_STARTING_CASH),
+      studio: { ...createInitialStudio(DEFAULT_STARTING_CASH), assets: TEST_SCRIPT_ASSETS },
       screen: 'dashboard',
       projects: [],
       focusedProjectId: null,
