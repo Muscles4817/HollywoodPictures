@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { formatGameDate, formatGameMonthYear } from '../engine/calendar';
-import { Button } from './common/Button';
 import { StatTile } from './common/StatTile';
 import { Money } from './common/Money';
 import { FilmDetailModal } from './common/FilmDetailModal';
@@ -14,10 +13,10 @@ import type { Film } from '../types';
  * teaser of what it's currently making, without the full detail the player
  * gets on their own production (see engine/rivalStudios.ts:RivalProductionInProgress).
  * Reached from a Top 10 row or the Dashboard's "Rival Studios" list; the
- * only way back is the Home button, same pattern as every other detour screen.
+ * only way back is the header's persistent Dashboard button.
  */
 export function RivalStudioPage() {
-  const { state, dispatch } = useStudio();
+  const { state } = useStudio();
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
 
   const rival = state.rivalStudios.find((r) => r.name === state.viewingRivalStudioName);
@@ -38,10 +37,7 @@ export function RivalStudioPage() {
   if (!rival) {
     return (
       <div className="stack">
-        <div className="row-between">
-          <h1>Studio Not Found</h1>
-          <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Home</Button>
-        </div>
+        <h1>Studio Not Found</h1>
       </div>
     );
   }
@@ -52,12 +48,9 @@ export function RivalStudioPage() {
     <div className="stack">
       {selectedFilm && <FilmDetailModal film={selectedFilm} onClose={() => setSelectedFilm(null)} />}
 
-      <div className="row-between">
-        <div>
-          <h1>{rival.name}</h1>
-          <p><span className="badge">{rival.tier}</span></p>
-        </div>
-        <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Home</Button>
+      <div>
+        <h1>{rival.name}</h1>
+        <p><span className="badge">{rival.tier}</span></p>
       </div>
 
       <div className="row">

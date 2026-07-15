@@ -222,7 +222,6 @@ export function HireTalent() {
           <div className="row">
             <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'develop' })}>Back</Button>
             <Button onClick={() => dispatch({ type: 'ABANDON_PROJECT' })}>Abandon Project</Button>
-            <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Save & Exit</Button>
             <Button variant="primary" disabled={!canContinue} onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'production-planning' })}>
               Confirm Cast & Continue
             </Button>

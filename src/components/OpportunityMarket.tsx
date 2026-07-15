@@ -352,21 +352,9 @@ export function OpportunityMarket() {
 
   return (
     <div className="stack">
-      <div className="row-between">
-        <h1 style={{ margin: 0 }}>
-          Opportunity Market
-        </h1>
-
-        <Button
-          onClick={() =>
-            dispatch({
-              type: 'RETURN_TO_DASHBOARD',
-            })
-          }
-        >
-          Home
-        </Button>
-      </div>
+      <h1 style={{ margin: 0 }}>
+        Opportunity Market
+      </h1>
 
       <p
         className="choice-description"

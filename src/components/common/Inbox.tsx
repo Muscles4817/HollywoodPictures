@@ -1,5 +1,4 @@
 import { useStudio } from '../../state/StudioContext';
-import { formatGameDate } from '../../engine/calendar';
 import { Button } from './Button';
 import { Money } from './Money';
 import { OnSetDecisionCard } from './OnSetDecisionCard';
@@ -131,8 +130,7 @@ export function Inbox({ open, onOpenChange }: InboxProps) {
 
             {productions.length > 0 && (
               <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
-                {formatGameDate(state.totalDays)} &middot; {productions.length} production{productions.length === 1 ? '' : 's'} in
-                the background.
+                {productions.length} production{productions.length === 1 ? '' : 's'} in the background.
               </p>
             )}
           </div>

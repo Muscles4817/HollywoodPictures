@@ -155,10 +155,7 @@ export function MarketingRelease() {
       </div>
 
       <div className="row-between">
-        <div className="row">
-          <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'post-production' })}>Back</Button>
-          <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Back to Dashboard</Button>
-        </div>
+        <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'post-production' })}>Back</Button>
         <Button variant="primary" onClick={() => dispatch({ type: 'SCHEDULE_RELEASE', releaseDay })}>
           {holdMonths === 0 ? 'Release Film' : `Schedule for ${formatGameMonthYear(releaseDay)}`}
         </Button>

@@ -4,7 +4,6 @@ import {
 } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { formatGameMonthYear } from '../engine/calendar';
-import { Button } from './common/Button';
 import { CheckboxFilterDropdown, type CheckboxFilterOption } from './common/CheckboxFilterDropdown';
 import { asScheduled, asRivalProduction } from '../engine/project';
 import { useReconciledFilterSelection } from '../hooks/useReconciledFilterSelection';
@@ -35,7 +34,7 @@ const PLAYER_STUDIO_ID = 'player-studio';
  * RivalStudioPage.tsx.
  */
 export function ReleaseCalendar() {
-  const { state, dispatch } = useStudio();
+  const { state } = useStudio();
 
   const [openFilterId, setOpenFilterId] = useState<string | null>(null);
 
@@ -194,17 +193,7 @@ export function ReleaseCalendar() {
 
   return (
     <div className="stack">
-      <div className="row-between">
-        <h1 style={{ margin: 0 }}>Release Calendar</h1>
-
-        <Button
-          onClick={() =>
-            dispatch({ type: 'RETURN_TO_DASHBOARD' })
-          }
-        >
-          Home
-        </Button>
-      </div>
+      <h1 style={{ margin: 0 }}>Release Calendar</h1>
 
       <p className="choice-description" style={{ margin: 0 }}>
         Every release still to come — your own scheduled films and what

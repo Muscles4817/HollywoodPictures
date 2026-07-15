@@ -1,13 +1,12 @@
 import { useStudio } from '../../state/StudioContext';
 import { deriveFocusedFilm } from '../../state/selectors';
-import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { ScoreBar } from '../common/ScoreBar';
 import { StarRating } from '../common/StarRating';
 import { StatTile } from '../common/StatTile';
 
 export function ReleaseResults() {
-  const { state, dispatch } = useStudio();
+  const { state } = useStudio();
   // The focused project's id survives the transition RELEASE_FILM makes
   // from 'player-in-progress' to 'released' (see engine/project.ts,
   // state/studioReducer.ts) - so this is always the live, currently-settling
@@ -135,13 +134,6 @@ export function ReleaseResults() {
           <div className="stat-label">Studio Cash Now</div>
           <div className="stat-value"><Money amount={state.studio.cash} signColor /></div>
         </div>
-      </div>
-
-      <div className="row-between">
-        <span />
-        <Button variant="primary" onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>
-          Back to Studio Dashboard
-        </Button>
       </div>
     </div>
   );

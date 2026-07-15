@@ -84,7 +84,6 @@ export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplie
       <div className="stack">
         <h1>Production</h1>
         <p>This production isn't available any more - it may have already been picked up from the Inbox.</p>
-        <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Back to Dashboard</Button>
       </div>
     );
   }
@@ -100,7 +99,6 @@ export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplie
       <div className="stack">
         <h1>Production</h1>
         <p>This project hasn't been greenlit yet.</p>
-        <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Back to Dashboard</Button>
       </div>
     );
   }
@@ -157,14 +155,11 @@ export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplie
       {draft.script && <ScriptSummaryCard script={draft.script} />}
 
       <div className="stack">
-          <div className="row-between">
-            {!viewingProductionId && (
-              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
-                The shoot keeps going in the background - head back to the Dashboard to start another film.
-              </p>
-            )}
-            <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Back to Dashboard</Button>
-          </div>
+          {!viewingProductionId && (
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
+              The shoot keeps going in the background - head back to the Dashboard to start another film.
+            </p>
+          )}
           <div className="row">
             <StatTile label="Day" value={`${photography.daysElapsed} of ~${photography.recommendedDays} recommended`} />
             <StatTile label="Spent So Far" value={<Money amount={photography.runningCost} />} />

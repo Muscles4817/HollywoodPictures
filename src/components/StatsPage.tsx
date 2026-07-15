@@ -64,7 +64,7 @@ function creditLine(film: Film, role: ProductionRole): string {
  * tracked state, just four views over what's already stored forever.
  */
 export function StatsPage() {
-  const { state, dispatch } = useStudio();
+  const { state } = useStudio();
   const { studio } = state;
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
 
@@ -116,10 +116,7 @@ export function StatsPage() {
     <div className="stack">
       {selectedFilm && <FilmDetailModal film={selectedFilm} onClose={() => setSelectedFilm(null)} />}
 
-      <div className="row-between">
-        <h1 style={{ margin: 0 }}>Studio Stats</h1>
-        <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Home</Button>
-      </div>
+      <h1 style={{ margin: 0 }}>Studio Stats</h1>
 
       <div className="row" style={{ gap: 8 }}>
         {TABS.map((tab) => (

@@ -1089,19 +1089,35 @@ textarea, input, select {
   padding: 12px 16px;
 }
 
-/* --- Date bar --- */
+/* --- Date bar (also houses the persistent Dashboard shortcut) ---
+   z-index 150, above every overlay in the app (modal-overlay is 100, the
+   highest otherwise) - the Dashboard button and date are meant to be
+   reachable/visible literally always, including with a modal or the Hire
+   Talent drawer open, not just on plain screens. */
 .date-bar {
   position: fixed;
   top: 16px;
   left: 16px;
-  z-index: 50;
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 8px 16px;
+  padding: 4px 12px 4px 4px;
   font-size: 0.9em;
   font-weight: 600;
   color: var(--text-muted);
+}
+
+.date-bar__dashboard-button {
+  font-weight: 600;
+}
+
+.date-bar__date {
+  padding-left: 4px;
+  border-left: 1px solid var(--border);
 }
 
 /* --- Theme toggle --- */

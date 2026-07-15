@@ -440,7 +440,6 @@ export function ProductionPlanning() {
         <div className="row">
           <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'talent' })}>Back</Button>
           <Button onClick={() => dispatch({ type: 'ABANDON_PROJECT' })}>Abandon Project</Button>
-          <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Save & Exit</Button>
         </div>
         <Button variant="primary" disabled={!canAfford} onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'greenlight' })}>
           Continue to Greenlight

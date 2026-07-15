@@ -127,7 +127,7 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
               <Button className="btn-sm" onClick={startEditingName}>Rename</Button>
             </div>
           )}
-          <p>{formatGameDate(state.totalDays)} &middot; {playerReleasedFilms.length} film{playerReleasedFilms.length === 1 ? '' : 's'} released</p>
+          <p>{playerReleasedFilms.length} film{playerReleasedFilms.length === 1 ? '' : 's'} released</p>
         </div>
         <div className="row">
           <TimeTickIndicator
@@ -154,7 +154,6 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
         <StatTile label="Brand Recognition" value={`${studio.brand} / 100`} />
         <StatTile label="Prestige" value={`${studio.prestige} / 100`} />
         <StatTile label="Films Released" value={playerReleasedFilms.length} />
-        <StatTile label="Current Date" value={formatGameDate(state.totalDays)} />
       </div>
 
       <div className="dashboard-layout">

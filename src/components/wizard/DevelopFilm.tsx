@@ -59,10 +59,7 @@ export function DevelopFilm() {
       />
 
       <div className="row-between">
-        <div className="row">
-          <Button onClick={() => dispatch({ type: 'ABANDON_PROJECT' })}>Abandon Project</Button>
-          <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Save & Exit</Button>
-        </div>
+        <Button onClick={() => dispatch({ type: 'ABANDON_PROJECT' })}>Abandon Project</Button>
         <Button variant="primary" disabled={!canContinue} onClick={handleContinue}>
           Continue to Hire Talent
         </Button>

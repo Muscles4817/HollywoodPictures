@@ -101,10 +101,7 @@ export function ProjectsPage() {
       {selectedFilm && <FilmDetailModal film={selectedFilm} onClose={() => setSelectedFilm(null)} />}
       {scheduledCard && <ScheduledProjectModal card={scheduledCard} onClose={() => setSelectedScheduledId(null)} />}
 
-      <div className="row-between">
-        <h1 style={{ margin: 0 }}>Projects</h1>
-        <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Home</Button>
-      </div>
+      <h1 style={{ margin: 0 }}>Projects</h1>
 
       {cards.length === 0 ? (
         <div className="card">

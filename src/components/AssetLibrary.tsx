@@ -442,20 +442,14 @@ export function AssetLibrary() {
 
   return (
     <div className="stack asset-library">
-      <div className="row-between">
-        <div>
-          <h1 style={{ margin: 0 }}>Asset Library</h1>
-          <p className="asset-library__summary">
-            {statusCounts.all} asset{statusCounts.all === 1 ? '' : 's'} ·{' '}
-            {statusCounts.available} available ·{' '}
-            {statusCounts['in-development']} in development ·{' '}
-            {statusCounts.used} previously used
-          </p>
-        </div>
-
-        <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>
-          Home
-        </Button>
+      <div>
+        <h1 style={{ margin: 0 }}>Asset Library</h1>
+        <p className="asset-library__summary">
+          {statusCounts.all} asset{statusCounts.all === 1 ? '' : 's'} ·{' '}
+          {statusCounts.available} available ·{' '}
+          {statusCounts['in-development']} in development ·{' '}
+          {statusCounts.used} previously used
+        </p>
       </div>
 
       <p className="choice-description" style={{ margin: 0 }}>
