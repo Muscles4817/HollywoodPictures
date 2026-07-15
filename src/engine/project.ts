@@ -102,6 +102,18 @@ export function backgroundedPlayerDrafts(projects: Project[], excludeId: string 
   });
 }
 
+/**
+ * How many backgrounded drafts actually need player attention right now -
+ * the Inbox badge count (components/common/Header.tsx,
+ * components/common/Inbox.tsx). A draft still mid-shoot ('in-progress')
+ * doesn't count; only one paused on an on-set choice, or fully wrapped, does.
+ */
+export function inboxBadgeCount(projects: Project[], excludeId: string | null): number {
+  return backgroundedPlayerDrafts(projects, excludeId).filter(
+    (draft) => draft.photography?.status === 'awaiting-choice' || draft.photography?.status === 'finished',
+  ).length;
+}
+
 /** Every player project waiting on its own releaseDay to arrive (roadmap Phase 7.2) - see engine/scheduledReleases.ts. */
 export function scheduledPlayerReleases(projects: Project[]): Array<{ draft: FilmDraft; releaseDay: number }> {
   return projects.flatMap((p) => {

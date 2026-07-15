@@ -2,11 +2,11 @@
 //
 // QoL pass (docs/DESIGN.md): (1) the Contingency Reserve should visibly be
 // consumed live during filming, not just summarized once the shoot wraps;
-// (2) the day counter/pause control should be available on this page while
-// checking on a backgrounded production, mirroring the fix to the pause bug
-// where opening this screen froze that production's day count; (3) the
-// screenplay should stay visible throughout filming, not just before it
-// starts. First test coverage for this component.
+// (2) the screenplay should stay visible throughout filming, not just
+// before it starts. First test coverage for this component. (The day
+// counter/pause control this file used to test here moved to the global
+// Header - components/common/Header.tsx - once it stopped being
+// screen-scoped, so it's no longer this component's own concern.)
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { StudioProvider } from '../../state/StudioContext';
@@ -22,8 +22,6 @@ import type { FilmDraft, PhotographyState } from '../../types';
 beforeEach(() => {
   localStorage.clear();
 });
-
-const NOOP_TICK_PROPS = { paused: false, onTogglePause: () => {}, tickNonce: 0, speedMultiplier: 1 as const, onSetSpeedMultiplier: () => {} };
 
 function stateWithInProgressShoot(
   photographyOverrides: Partial<PhotographyState> = {},
@@ -59,7 +57,7 @@ describe('ProductionRun - Contingency Reserve visible live during filming', () =
     saveState(state);
     render(
       <StudioProvider>
-        <ProductionRun {...NOOP_TICK_PROPS} />
+        <ProductionRun />
       </StudioProvider>,
     );
     // contingencyAmount 500,000 (testFixtures.ts PRODUCTION_CHOICES) - runningCost 300,000 = 200,000 remaining.
@@ -73,7 +71,7 @@ describe('ProductionRun - Contingency Reserve visible live during filming', () =
     saveState(state);
     render(
       <StudioProvider>
-        <ProductionRun {...NOOP_TICK_PROPS} />
+        <ProductionRun />
       </StudioProvider>,
     );
     expect(screen.getByText(/Contingency Reserve exhausted/)).toBeInTheDocument();
@@ -86,34 +84,10 @@ describe('ProductionRun - the screenplay stays visible throughout filming', () =
     saveState(state);
     render(
       <StudioProvider>
-        <ProductionRun {...NOOP_TICK_PROPS} />
+        <ProductionRun />
       </StudioProvider>,
     );
     expect(screen.getByText(draft.script!.title)).toBeInTheDocument();
     expect(screen.getByText(draft.script!.synopsis)).toBeInTheDocument();
-  });
-});
-
-describe('ProductionRun - day counter/pause control while viewing a backgrounded production', () => {
-  it('shows the TimeTickIndicator (Pause Time / speed controls) when viewing a background production', () => {
-    const { state } = stateWithInProgressShoot({}, 'bg-prod-1');
-    saveState(state);
-    render(
-      <StudioProvider>
-        <ProductionRun {...NOOP_TICK_PROPS} />
-      </StudioProvider>,
-    );
-    expect(screen.getByText('Pause Time')).toBeInTheDocument();
-  });
-
-  it('does not show the TimeTickIndicator while running the live draft\'s own shoot - it has its own dedicated tick instead', () => {
-    const { state } = stateWithInProgressShoot();
-    saveState(state);
-    render(
-      <StudioProvider>
-        <ProductionRun {...NOOP_TICK_PROPS} />
-      </StudioProvider>,
-    );
-    expect(screen.queryByText('Pause Time')).not.toBeInTheDocument();
   });
 });

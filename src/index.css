@@ -16,11 +16,12 @@
   --info-bg: #eef2fb;
   --star: #c8871e;
   /* Single source of truth for how much top clearance #root and
-     .wizard-header-sticky both need to sit below the fixed DateBar/
-     ThemeToggle row - one variable so a narrower mobile version of that
-     row (see the phone breakpoint near the end of this file) only needs
-     to change in one place and both stay in sync automatically. */
-  --header-clearance: 72px;
+     .wizard-header-sticky both need to sit below the fixed .app-header bar
+     (components/common/Header.tsx) - one variable so a narrower mobile
+     version of that bar (see the phone breakpoint near the end of this
+     file) only needs to change in one place and both stay in sync
+     automatically. */
+  --header-clearance: 96px;
 }
 
 :root[data-theme='dark'] {
@@ -51,8 +52,8 @@ body {
 }
 
 #root {
-  /* Top padding clears the fixed DateBar/ThemeToggle below, which would
-     otherwise render on top of (and obscure) a screen's opening heading. */
+  /* Top padding clears the fixed .app-header bar, which would otherwise
+     render on top of (and obscure) a screen's opening heading. */
   padding: var(--header-clearance) 20px 80px;
 }
 
@@ -765,8 +766,8 @@ button {
 /* --- Wizard --- */
 .wizard-header-sticky {
   position: sticky;
-  /* Matches #root's top padding so this sticks below the fixed DateBar/
-     ThemeToggle instead of scrolling up underneath them. */
+  /* Matches #root's top padding so this sticks below the fixed .app-header
+     bar instead of scrolling up underneath it. */
   top: var(--header-clearance);
   z-index: 40;
   background: var(--bg);
@@ -1089,58 +1090,64 @@ textarea, input, select {
   padding: 12px 16px;
 }
 
-/* --- Date bar (also houses the persistent Dashboard shortcut) ---
+/* --- App header (components/common/Header.tsx) ---
+   A real full-width bar, not floating pills - it grew too much chrome
+   (Inbox, Dashboard shortcut, date, pause/speed control, dev tools, theme
+   toggle) to keep working as independently-positioned corner pieces once
+   all of it needed to be always-visible rather than screen-specific.
    z-index 150, above every overlay in the app (modal-overlay is 100, the
-   highest otherwise) - the Dashboard button and date are meant to be
-   reachable/visible literally always, including with a modal or the Hire
-   Talent drawer open, not just on plain screens. */
-.date-bar {
+   highest otherwise) - this chrome is meant to be reachable literally
+   always, including with a modal or the Hire Talent drawer open. */
+.app-header {
   position: fixed;
-  top: 16px;
-  left: 16px;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 150;
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  padding: 10px 20px;
   background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-header__group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* The dev-tool switcher sits in the middle, same reasoning as the old
+   .dev-inspector-toggle-fixed placement: it's the least important group,
+   so it gets whatever space the two real ones don't need, and centers in it. */
+.app-header__group--dev {
+  flex: 1;
+  justify-content: center;
+}
+
+.app-header__date-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 4px 12px 4px 4px;
+  padding: 2px 12px 2px 2px;
   font-size: 0.9em;
   font-weight: 600;
   color: var(--text-muted);
 }
 
-.date-bar__dashboard-button {
+.app-header__dashboard-button {
   font-weight: 600;
 }
 
-.date-bar__date {
-  padding-left: 4px;
+.app-header__date {
+  padding-left: 8px;
   border-left: 1px solid var(--border);
-}
-
-/* --- Theme toggle --- */
-.theme-toggle-fixed {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 50;
-}
-
-/* Top-center, same y=16px row as DateBar (left) and ThemeToggle (right) -
-   a proven-safe band, unlike a bottom corner (page content can grow
-   underneath it - see .theme-toggle-fixed history) or stacking below
-   ThemeToggle (measured to actually collide with Dashboard's own header
-   row, which starts higher than expected). Reusing the same safe row
-   DateBar/ThemeToggle already occupy, just the empty middle of it, avoids
-   guessing a second one. */
-.dev-inspector-toggle-fixed {
-  position: fixed;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 50;
 }
 
 /* --- Narrower viewports (tablets and phones): collapse every fixed-plus-
@@ -1190,17 +1197,18 @@ textarea, input, select {
    one column; everything below is specifically about a narrow phone
    viewport, and only ever adds new rules or shrinks existing chrome inside
    this query - nothing outside it changes, so desktop is untouched). ---
-   DateBar + ThemeToggle + the dev toggle all share the same fixed y=16px
-   row (see the comments above) - that row was only ever measured to be
-   safe at desktop widths. On a phone the dev toggle (a developer-only
-   button with a long label, see components/dev/RecommendationInspector.tsx)
-   is the first thing to give: it's never meant to be used from a phone
-   anyway, and removing it is what actually resolves the three-way
-   collision, rather than trying to shrink all three into an ever-smaller
-   space. */
+   .app-header now carries a lot more than it used to (Inbox, Dashboard,
+   date, pause/speed control, dev tools, theme toggle) - it was only ever
+   measured to fit one row at desktop widths. On a phone the dev-tool
+   switcher (developer-only, see components/dev/RecommendationInspector.tsx)
+   is the first thing to give, same reasoning as before: it's never meant
+   to be used from a phone anyway. Everything else shrinks and is allowed
+   to wrap onto a second row (.app-header's own flex-wrap) rather than
+   trying to cram a genuinely wide control surface into one line -
+   --header-clearance grows accordingly so page content still clears it. */
 @media (max-width: 640px) {
   :root {
-    --header-clearance: 60px;
+    --header-clearance: 148px;
   }
 
   #root {
@@ -1208,18 +1216,27 @@ textarea, input, select {
     padding-right: 12px;
   }
 
-  .dev-inspector-toggle-fixed {
+  .app-header {
+    padding: 8px 12px;
+    gap: 8px 12px;
+  }
+
+  .app-header__group--dev {
     display: none;
   }
 
-  .date-bar {
+  .app-header .btn {
     padding: 6px 10px;
+    font-size: 0.8em;
+  }
+
+  .app-header__date-pill {
+    padding: 2px 8px 2px 2px;
     font-size: 0.78em;
   }
 
-  .theme-toggle-fixed .btn {
-    padding: 6px 10px;
-    font-size: 0.85em;
+  .time-tick-bar-track {
+    width: 50px;
   }
 
   .wizard-step {

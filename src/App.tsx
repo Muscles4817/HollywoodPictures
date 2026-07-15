@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { StudioProvider, useStudio } from './state/StudioContext';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
-import { ThemeToggle } from './components/common/ThemeToggle';
-import { DateBar } from './components/common/DateBar';
+import { Header, type DevTool } from './components/common/Header';
 import { Inbox } from './components/common/Inbox';
 import { Dashboard } from './components/Dashboard';
 import { RivalStudioPage } from './components/RivalStudioPage';
@@ -11,7 +10,6 @@ import { ReleaseCalendar } from './components/ReleaseCalendar';
 import { RecommendationInspector } from './components/dev/RecommendationInspector';
 import { OutcomeInspector } from './components/dev/OutcomeInspector';
 import { RivalFinancesInspector } from './components/dev/RivalFinancesInspector';
-import { Button } from './components/common/Button';
 import { DevelopFilm } from './components/wizard/DevelopFilm';
 import { HireTalent } from './components/wizard/HireTalent';
 import { ProductionPlanning } from './components/wizard/ProductionPlanning';
@@ -79,14 +77,14 @@ export function computeTicking(
   return (!PLANNING_SCREENS.has(screen) || backgroundProductionViewed) && !paused && !inboxOpen;
 }
 
-function Screens() {
+function AppShell() {
   const { state, dispatch } = useStudio();
-  // A manual pause on the background day-tick (Dashboard's pause button) -
+  // A manual pause on the background day-tick (Header's pause button) -
   // deliberately not persisted anywhere and reset on every screen change
   // (below), so it can never silently leave time stuck paused on a screen
   // the player has since moved away from and forgotten about.
   const [paused, setPaused] = useState(false);
-  // Bumped every real tick so the tick-progress bar (Dashboard) can restart
+  // Bumped every real tick so the tick-progress bar (Header) can restart
   // its CSS animation in sync with the actual interval, instead of running
   // its own separate, potentially-drifting timer.
   const [tickNonce, setTickNonce] = useState(0);
@@ -94,13 +92,22 @@ function Screens() {
   // resolving a background shoot's paused decision doesn't cost real time
   // either, the same reasoning as the manual pause button.
   const [inboxOpen, setInboxOpen] = useState(false);
-  // A fast-forward multiplier for the Dashboard's own tick, same
-  // session-only lifetime as `paused` - it's a "how fast am I watching this
-  // right now" preference, not game state, so it never persists to a save.
-  // Selecting it doesn't reset on screen change like `paused` does: it just
-  // has no effect anywhere but the Dashboard (see `effectiveTickMs` below),
-  // so there's nothing to silently leave engaged on another screen.
+  // A fast-forward multiplier for the background tick, same session-only
+  // lifetime as `paused` - it's a "how fast am I watching this right now"
+  // preference, not game state, so it never persists to a save.
+  // Selecting it doesn't reset on screen change like `paused` does: the
+  // header is always showing it, so there's nothing to silently leave
+  // engaged on "another screen" the way there was when this control only
+  // existed on the Dashboard.
   const [speedMultiplier, setSpeedMultiplier] = useState<TickSpeedMultiplier>(1);
+  // A developer-only detour, not part of the game's own screen/navigation
+  // system on purpose (see components/dev/RecommendationInspector.tsx,
+  // components/dev/OutcomeInspector.tsx and
+  // components/dev/RivalFinancesInspector.tsx) - never mutates GameState
+  // (RivalFinancesInspector reads it read-only, to inspect a real save;
+  // Recommendation/Outcome Inspector don't touch it at all), never
+  // persisted, reachable from any screen via the header.
+  const [devTool, setDevTool] = useState<DevTool>('none');
 
   // Every screen switch (forward or back) starts scrolled to the top - a
   // long wizard screen doesn't otherwise reset scroll position on
@@ -131,16 +138,15 @@ function Screens() {
     if (!isPauseExemptDetour) setPaused(false);
   }, [state.screen]);
 
-  const viewingBackgroundProduction = isViewingBackgroundProduction(state.screen, state.viewingProductionId);
   const ticking = computeTicking(state.screen, state.viewingProductionId, paused, inboxOpen);
 
-  // The selected speed only ever applies while actually watching a tick by -
-  // Dashboard, or a backgrounded production being watched via its own
-  // TimeTickIndicator (ProductionRun.tsx) - everywhere else falls back to
-  // the base interval even if a faster one is selected, so leaving the
-  // screen that's actually showing the indicator can't silently blow
-  // through days unwatched.
-  const effectiveTickMs = state.screen === 'dashboard' || viewingBackgroundProduction ? DAY_TICK_MS / speedMultiplier : DAY_TICK_MS;
+  // The selected speed applies on any screen where the background tick is
+  // actually running - the control lives in the header now, always visible,
+  // so there's no "screen actually showing the indicator" to restrict it to
+  // any more (that restriction existed only because the indicator itself
+  // used to be screen-scoped, see docs/DESIGN.md 5.22/5.24 history - the
+  // header consolidation superseded it).
+  const effectiveTickMs = DAY_TICK_MS / speedMultiplier;
 
   // Time keeps passing on its own outside the wizard - the Dashboard and
   // the post-release results screen both just sit there otherwise, with no
@@ -160,15 +166,7 @@ function Screens() {
   function renderScreen() {
     switch (state.screen) {
       case 'dashboard':
-        return (
-          <Dashboard
-            paused={paused}
-            onTogglePause={() => setPaused((p) => !p)}
-            tickNonce={tickNonce}
-            speedMultiplier={speedMultiplier}
-            onSetSpeedMultiplier={setSpeedMultiplier}
-          />
-        );
+        return <Dashboard />;
       case 'develop':
         return <DevelopFilm />;
       case 'talent':
@@ -178,15 +176,7 @@ function Screens() {
       case 'greenlight':
         return <Greenlight />;
       case 'production':
-        return (
-          <ProductionRun
-            paused={paused}
-            onTogglePause={() => setPaused((p) => !p)}
-            tickNonce={tickNonce}
-            speedMultiplier={speedMultiplier}
-            onSetSpeedMultiplier={setSpeedMultiplier}
-          />
-        );
+        return <ProductionRun />;
       case 'post-production':
         return <PostProduction />;
       case 'marketing':
@@ -206,58 +196,37 @@ function Screens() {
       case 'projects':
         return <ProjectsPage />;
       default:
-        return (
-          <Dashboard
-            paused={paused}
-            onTogglePause={() => setPaused((p) => !p)}
-            tickNonce={tickNonce}
-            speedMultiplier={speedMultiplier}
-            onSetSpeedMultiplier={setSpeedMultiplier}
-          />
-        );
+        return <Dashboard />;
     }
   }
 
   return (
     <>
-      <Inbox open={inboxOpen} onOpenChange={setInboxOpen} />
-      {renderScreen()}
+      <Header
+        paused={paused}
+        onTogglePause={() => setPaused((p) => !p)}
+        tickNonce={tickNonce}
+        speedMultiplier={speedMultiplier}
+        onSetSpeedMultiplier={setSpeedMultiplier}
+        inboxOpen={inboxOpen}
+        onToggleInbox={() => setInboxOpen((o) => !o)}
+        devTool={devTool}
+        onSetDevTool={setDevTool}
+      />
+      <Inbox open={inboxOpen} onClose={() => setInboxOpen(false)} />
+      {devTool === 'recommendation' && <RecommendationInspector />}
+      {devTool === 'outcome' && <OutcomeInspector />}
+      {devTool === 'rival-finances' && <RivalFinancesInspector />}
+      {devTool === 'none' && renderScreen()}
     </>
   );
 }
 
-type DevTool = 'none' | 'recommendation' | 'outcome' | 'rival-finances';
-
 function App() {
-  // A developer-only detour, not part of the game's own screen/navigation
-  // system on purpose (see components/dev/RecommendationInspector.tsx,
-  // components/dev/OutcomeInspector.tsx and
-  // components/dev/RivalFinancesInspector.tsx) - never mutates GameState
-  // (RivalFinancesInspector reads it read-only, to inspect a real save;
-  // Recommendation/Outcome Inspector don't touch it at all), never
-  // persisted, reachable from any screen.
-  const [devTool, setDevTool] = useState<DevTool>('none');
-
   return (
     <ErrorBoundary>
       <StudioProvider>
-        <DateBar />
-        <ThemeToggle />
-        <div className="dev-inspector-toggle-fixed row" style={{ gap: 8 }}>
-          {devTool === 'none' ? (
-            <>
-              <Button onClick={() => setDevTool('recommendation')}>Dev: Recommendation Inspector</Button>
-              <Button onClick={() => setDevTool('outcome')}>Dev: Outcome Inspector</Button>
-              <Button onClick={() => setDevTool('rival-finances')}>Dev: Rival Finances</Button>
-            </>
-          ) : (
-            <Button onClick={() => setDevTool('none')}>Back to Game</Button>
-          )}
-        </div>
-        {devTool === 'recommendation' && <RecommendationInspector />}
-        {devTool === 'outcome' && <OutcomeInspector />}
-        {devTool === 'rival-finances' && <RivalFinancesInspector />}
-        {devTool === 'none' && <Screens />}
+        <AppShell />
       </StudioProvider>
     </ErrorBoundary>
   );

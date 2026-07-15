@@ -9,26 +9,11 @@ import { SeverityBadge } from '../common/SeverityBadge';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
-import { TimeTickIndicator } from '../common/TimeTickIndicator';
 import { asPlayerDraft, findProject } from '../../engine/project';
-import type { TickSpeedMultiplier } from '../../constants';
 
 const TICK_INTERVAL_MS = 500;
 
-interface ProductionRunProps {
-  // The background day-tick's own pause/speed state (App.tsx's Screens()) -
-  // only meaningful while *viewing* a backgrounded production
-  // (viewingProductionId set below), since that's the only case actually
-  // driven by this tick; the live draft's own shoot always runs on its own
-  // faster, dedicated interval further down, unaffected by any of these.
-  paused: boolean;
-  onTogglePause: () => void;
-  tickNonce: number;
-  speedMultiplier: TickSpeedMultiplier;
-  onSetSpeedMultiplier: (speed: TickSpeedMultiplier) => void;
-}
-
-export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplier, onSetSpeedMultiplier }: ProductionRunProps) {
+export function ProductionRun() {
   const { state, dispatch } = useStudio();
   // GameState.viewingProductionId set (Dashboard's Shooting card) means
   // "show this backgrounded production instead of the focused one" - only
@@ -143,15 +128,6 @@ export function ProductionRun({ paused, onTogglePause, tickNonce, speedMultiplie
     <div className="stack">
       <WizardHeader current="production" />
       <h1>Production</h1>
-      {viewingProductionId && (
-        <TimeTickIndicator
-          paused={paused}
-          onTogglePause={onTogglePause}
-          tickNonce={tickNonce}
-          speedMultiplier={speedMultiplier}
-          onSetSpeedMultiplier={onSetSpeedMultiplier}
-        />
-      )}
       {draft.script && <ScriptSummaryCard script={draft.script} />}
 
       <div className="stack">

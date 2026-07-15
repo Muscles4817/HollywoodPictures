@@ -6,16 +6,17 @@ import { backgroundedPlayerDrafts } from '../../engine/project';
 
 interface InboxProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
 }
 
 /**
  * Global notification center for the player's own backgrounded shoots
  * (docs/DESIGN.md 5.x) - every 'player-in-progress' GameState.projects
  * entry except the currently-focused one (see engine/project.ts:backgroundedPlayerDrafts).
- * Fixed-position, mounted once alongside DateBar/ThemeToggle so it's
- * reachable from any screen, including mid-wizard while planning a second
- * film. Three kinds of item need attention here:
+ * The toggle button/badge lives in Header.tsx now (it's a piece of
+ * persistent chrome, same as the Dashboard button); this component is just
+ * the overlay itself, controlled by `open`. Three kinds of item need
+ * attention here:
  *  - 'awaiting-choice': an on-set event paused that specific production -
  *    resolving it here (OnSetDecisionCard, same component ProductionRun.tsx
  *    uses for the focused project) unpauses just that one.
@@ -35,8 +36,10 @@ interface InboxProps {
  * same way the Dashboard's manual pause button already does - a slow
  * decision in here shouldn't cost the player time either.
  */
-export function Inbox({ open, onOpenChange }: InboxProps) {
+export function Inbox({ open, onClose }: InboxProps) {
   const { state, dispatch } = useStudio();
+  if (!open) return null;
+
   // Inbox is mounted globally, including mid-wizard while something is
   // focused (unlike Dashboard, where RETURN_TO_DASHBOARD guarantees
   // focusedProjectId is null) - backgroundedPlayerDrafts excludes that
@@ -50,92 +53,82 @@ export function Inbox({ open, onOpenChange }: InboxProps) {
   const badgeCount = awaitingChoice.length + wrapped.length + parked.length;
 
   return (
-    <>
-      <div className="inbox-toggle-fixed">
-        <Button onClick={() => onOpenChange(!open)} aria-label="Open Inbox">
-          Inbox{badgeCount > 0 ? ` (${badgeCount})` : ''}
-        </Button>
-      </div>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content stack" onClick={(e) => e.stopPropagation()}>
+        <div className="row-between">
+          <h2 style={{ margin: 0 }}>Inbox</h2>
+          <Button onClick={onClose}>Close</Button>
+        </div>
 
-      {open && (
-        <div className="modal-overlay" onClick={() => onOpenChange(false)}>
-          <div className="modal-content stack" onClick={(e) => e.stopPropagation()}>
-            <div className="row-between">
-              <h2 style={{ margin: 0 }}>Inbox</h2>
-              <Button onClick={() => onOpenChange(false)}>Close</Button>
+        {badgeCount === 0 && (
+          <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+            Nothing needs your attention right now - background shoots keep going on their own.
+          </p>
+        )}
+
+        {awaitingChoice.map((production) =>
+          production.photography?.pendingChoice ? (
+            <div className="stack" key={production.id}>
+              <h3 style={{ margin: 0 }}>{production.title || 'Untitled Film'}</h3>
+              <OnSetDecisionCard
+                pendingChoice={production.photography.pendingChoice}
+                talent={production.talent.map((a) => a.talent)}
+                talentPool={state.talentPool}
+                script={production.script}
+                onChoose={(choiceId) => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId, productionId: production.id })}
+              />
             </div>
+          ) : null,
+        )}
 
-            {badgeCount === 0 && (
-              <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-                Nothing needs your attention right now - background shoots keep going on their own.
-              </p>
-            )}
-
-            {awaitingChoice.map((production) =>
-              production.photography?.pendingChoice ? (
-                <div className="stack" key={production.id}>
-                  <h3 style={{ margin: 0 }}>{production.title || 'Untitled Film'}</h3>
-                  <OnSetDecisionCard
-                    pendingChoice={production.photography.pendingChoice}
-                    talent={production.talent.map((a) => a.talent)}
-                    talentPool={state.talentPool}
-                    script={production.script}
-                    onChoose={(choiceId) => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId, productionId: production.id })}
-                  />
-                </div>
-              ) : null,
-            )}
-
-            {wrapped.map((production) => (
-              <div className="card stack" key={production.id}>
-                <div className="card-title">{production.title || 'Untitled Film'}</div>
-                <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-                  Principal photography wrapped
-                  {production.photography ? <> at <Money amount={production.photography.runningCost} /> spent</> : null} - ready
-                  for post-production.
-                </p>
-                {state.focusedProjectId ? (
-                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
-                    Finish or leave what you're currently working on before picking this back up.
-                  </p>
-                ) : (
-                  <div>
-                    <Button variant="primary" onClick={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })}>
-                      Continue to Post-Production
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {parked.map((production) => (
-              <div className="card stack" key={production.id}>
-                <div className="card-title">{production.title || 'Untitled Film'}</div>
-                <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-                  Post-production is done - this film just needs a release day.
-                </p>
-                {state.focusedProjectId ? (
-                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
-                    Finish or leave what you're currently working on before picking this back up.
-                  </p>
-                ) : (
-                  <div>
-                    <Button variant="primary" onClick={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })}>
-                      Continue to Marketing &amp; Release
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {productions.length > 0 && (
+        {wrapped.map((production) => (
+          <div className="card stack" key={production.id}>
+            <div className="card-title">{production.title || 'Untitled Film'}</div>
+            <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+              Principal photography wrapped
+              {production.photography ? <> at <Money amount={production.photography.runningCost} /> spent</> : null} - ready
+              for post-production.
+            </p>
+            {state.focusedProjectId ? (
               <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
-                {productions.length} production{productions.length === 1 ? '' : 's'} in the background.
+                Finish or leave what you're currently working on before picking this back up.
               </p>
+            ) : (
+              <div>
+                <Button variant="primary" onClick={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })}>
+                  Continue to Post-Production
+                </Button>
+              </div>
             )}
           </div>
-        </div>
-      )}
-    </>
+        ))}
+
+        {parked.map((production) => (
+          <div className="card stack" key={production.id}>
+            <div className="card-title">{production.title || 'Untitled Film'}</div>
+            <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+              Post-production is done - this film just needs a release day.
+            </p>
+            {state.focusedProjectId ? (
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
+                Finish or leave what you're currently working on before picking this back up.
+              </p>
+            ) : (
+              <div>
+                <Button variant="primary" onClick={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })}>
+                  Continue to Marketing &amp; Release
+                </Button>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {productions.length > 0 && (
+          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
+            {productions.length} production{productions.length === 1 ? '' : 's'} in the background.
+          </p>
+        )}
+      </div>
+    </div>
   );
 }

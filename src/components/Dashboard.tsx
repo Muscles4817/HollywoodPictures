@@ -9,23 +9,13 @@ import { GameGuide } from './common/GameGuide';
 import { BoxOfficeChart } from './common/BoxOfficeChart';
 import { BoxOfficeFinishedPopup } from './common/BoxOfficeFinishedPopup';
 import { FilmDetailModal } from './common/FilmDetailModal';
-import { TimeTickIndicator } from './common/TimeTickIndicator';
 import { TopGrossingPanel } from './common/TopGrossingPanel';
 import { DifficultyPicker } from './common/DifficultyPicker';
 import { computeTopGrossingFilms } from '../state/selectors';
 import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
-import type { TickSpeedMultiplier } from '../constants';
 import type { Film } from '../types';
 
-interface DashboardProps {
-  paused: boolean;
-  onTogglePause: () => void;
-  tickNonce: number;
-  speedMultiplier: TickSpeedMultiplier;
-  onSetSpeedMultiplier: (speed: TickSpeedMultiplier) => void;
-}
-
-export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, onSetSpeedMultiplier }: DashboardProps) {
+export function Dashboard() {
   const { state, dispatch } = useStudio();
   const { studio } = state;
   const [showGuide, setShowGuide] = useState(false);
@@ -130,13 +120,6 @@ export function Dashboard({ paused, onTogglePause, tickNonce, speedMultiplier, o
           <p>{playerReleasedFilms.length} film{playerReleasedFilms.length === 1 ? '' : 's'} released</p>
         </div>
         <div className="row">
-          <TimeTickIndicator
-            paused={paused}
-            onTogglePause={onTogglePause}
-            tickNonce={tickNonce}
-            speedMultiplier={speedMultiplier}
-            onSetSpeedMultiplier={onSetSpeedMultiplier}
-          />
           <Button onClick={() => dispatch({ type: 'VIEW_PROJECTS' })}>Projects</Button>
           <Button onClick={() => dispatch({ type: 'VIEW_STATS' })}>Stats</Button>
           <Button onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}>Release Calendar</Button>
