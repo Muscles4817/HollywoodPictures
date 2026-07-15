@@ -33,11 +33,12 @@ import type {
   ReleaseType,
   ReleaseWindow,
   Script,
-  Talent,
+  TalentAssignment,
   TargetAudience,
   TestScreeningResponse,
   Tone,
 } from '../../types';
+import { findAssignedTalent, filterAssignedTalent } from '../../data/helpers';
 
 // Developer-only tool: loads a real film from Studio History, lets the
 // player tweak any single input (a script stat, a talent's fame, a
@@ -72,8 +73,8 @@ function syntheticEvent(qualityDelta: number, buzzDelta: number): ProductionEven
 }
 
 /** Average fame across every hired member of one role - mirrors engine/releaseFilm.ts's own averageFame, used here to feed AudienceSimulationDiagnostics the same directorFame/leadFame inputs a real release computes. */
-function averageFame(talent: Talent[], role: Talent['role']): number {
-  const matching = talent.filter((t) => t.role === role);
+function averageFame(talent: TalentAssignment[], role: TalentAssignment['role']): number {
+  const matching = filterAssignedTalent(talent, role);
   return matching.length > 0 ? matching.reduce((sum, t) => sum + t.fame, 0) / matching.length : 0;
 }
 
@@ -187,7 +188,7 @@ export function OutcomeInspector() {
   const [genre, setGenre] = useState<Genre>(selectedFilm?.genre ?? 'Action');
   const [targetAudience, setTargetAudience] = useState<TargetAudience>(selectedFilm?.targetAudience ?? 'Mass Market');
   const [script, setScript] = useState<Script | null>(selectedFilm?.script ?? null);
-  const [talent, setTalent] = useState<Talent[]>(selectedFilm?.talent ?? []);
+  const [talent, setTalent] = useState<TalentAssignment[]>(selectedFilm?.talent ?? []);
   const [productionChoices, setProductionChoices] = useState<ProductionChoices | null>(selectedFilm?.productionChoices ?? null);
   const [postProductionChoices, setPostProductionChoices] = useState<PostProductionChoices | null>(selectedFilm?.postProductionChoices ?? null);
   const [marketingChoices, setMarketingChoices] = useState<MarketingChoices | null>(selectedFilm?.marketingChoices ?? null);
@@ -228,10 +229,10 @@ export function OutcomeInspector() {
     setScript((s) => (s ? { ...s, toneProfile: { ...s.toneProfile, [tone]: value } } : s));
   }
   function updateDirector<K extends keyof DirectorTalent>(key: K, value: DirectorTalent[K]) {
-    setTalent((t) => t.map((m) => (m.role === 'Director' ? { ...m, [key]: value } : m)));
+    setTalent((t) => t.map((a) => (a.role === 'Director' ? { ...a, talent: { ...(a.talent as DirectorTalent), [key]: value } } : a)));
   }
   function updateGroupFame(role: 'Lead Actor' | 'Supporting Actor', value: number) {
-    setTalent((t) => t.map((m) => (m.role === role ? { ...m, fame: value } : m)));
+    setTalent((t) => t.map((a) => (a.role === role ? { ...a, talent: { ...a.talent, fame: value } } : a)));
   }
 
   if (filmsReleased.length === 0) {
@@ -265,11 +266,11 @@ export function OutcomeInspector() {
     );
   }
 
-  const director = talent.find((t): t is DirectorTalent => t.role === 'Director');
-  const leadCount = talent.filter((t) => t.role === 'Lead Actor').length;
-  const supportCount = talent.filter((t) => t.role === 'Supporting Actor').length;
-  const leadFame = talent.find((t) => t.role === 'Lead Actor')?.fame ?? 0;
-  const supportFame = talent.find((t) => t.role === 'Supporting Actor')?.fame ?? 0;
+  const director = findAssignedTalent(talent, 'Director') as DirectorTalent | undefined;
+  const leadCount = filterAssignedTalent(talent, 'Lead Actor').length;
+  const supportCount = filterAssignedTalent(talent, 'Supporting Actor').length;
+  const leadFame = findAssignedTalent(talent, 'Lead Actor')?.fame ?? 0;
+  const supportFame = findAssignedTalent(talent, 'Supporting Actor')?.fame ?? 0;
 
   const events = [syntheticEvent(eventQualityDelta, eventBuzzDelta)];
 
@@ -307,15 +308,17 @@ export function OutcomeInspector() {
   // only moves when an input changes, the same reasoning
   // components/dev/OutcomeInspector.tsx's Milestone 4 predecessor had for
   // projecting the old model.
+  const totalBoxOffice = results.totalBoxOffice ?? 0;
   const projectedWeeks = advanceToWeek(fixed, [], MAX_SIMULATION_WEEKS);
   const projectedTotalGross =
     projectedWeeks.length > 0 ? Math.round(projectedWeeks[projectedWeeks.length - 1].cumulativeTicketsSold * AVERAGE_TICKET_PRICE) : 0;
   const legs = results.openingWeekend > 0 ? projectedTotalGross / results.openingWeekend : 0;
   const studioRevenue = Math.round(projectedTotalGross * STUDIO_BOX_OFFICE_SHARE);
   const profit = studioRevenue - results.totalCost;
-  const outcome = determineOutcome(profit, results.totalCost, results.qualityScore, results.criticScore, results.audienceScore);
-  const brandChange = computeBrandChange(profit, results.totalCost, results.audienceScore);
-  const prestigeChange = computePrestigeChange(results.criticScore);
+  const outcome = determineOutcome({profit, totalCost: results.totalCost, totalBoxOffice, qualityScore: results.qualityScore, criticScore: results.criticScore, audienceScore: results.audienceScore});
+
+  const brandChange = computeBrandChange({profit, totalCost: results.totalCost, totalBoxOffice, audienceScore: results.audienceScore});
+  const prestigeChange = computePrestigeChange({criticScore: results.criticScore, qualityScore: results.qualityScore });
 
   const original = selectedFilm.results;
   // A finished run's totalBoxOffice is already known exactly; a still-running
@@ -477,19 +480,20 @@ export function OutcomeInspector() {
           discarded by computeCompatibility once it sums them, is actually visible.
         </p>
         {script ? (
-          talent.filter((t) => t.role === 'Director' || t.role === 'Lead Actor' || t.role === 'Supporting Actor').length === 0 ? (
+          talent.filter((a) => a.role === 'Director' || a.role === 'Lead Actor' || a.role === 'Supporting Actor').length === 0 ? (
             <p style={{ margin: 0, color: 'var(--text-muted)' }}>No director or actors hired on this film.</p>
           ) : (
             talent
-              .filter((t) => t.role === 'Director' || t.role === 'Lead Actor' || t.role === 'Supporting Actor')
-              .map((t) => {
+              .filter((a) => a.role === 'Director' || a.role === 'Lead Actor' || a.role === 'Supporting Actor')
+              .map((a) => {
+                const t = a.talent;
                 const breakdown = computeTalentCompatibilityBreakdown(t, script);
                 const score = computeTalentCompatibility(t, script);
                 if (!breakdown) return null;
                 return (
                   <div key={t.id} style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
                     <div className="row-between">
-                      <strong>{t.name} &middot; {t.role}</strong>
+                      <strong>{t.name} &middot; {a.role}</strong>
                       <span>Compatibility {score !== null ? Math.round(score) : '-'}</span>
                     </div>
                     <table>

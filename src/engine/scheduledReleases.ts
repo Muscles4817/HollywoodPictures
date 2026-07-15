@@ -69,7 +69,7 @@ export function settleScheduledReleases(
     // settled) back when photography actually happened - only the
     // remainder of results.totalCost (script cost, event cost swings, the
     // test screening fee, and marketing) is newly charged at release.
-    const alreadyCharged = computeTalentCost(d.talent) + computeProductionBudgetCost(d.productionChoices!) + d.photography!.runningCost;
+    const alreadyCharged = computeTalentCost(d.talent.map((a) => a.talent)) + computeProductionBudgetCost(d.productionChoices!) + d.photography!.runningCost;
     costCharged += results.totalCost - alreadyCharged;
 
     const film: Film = {

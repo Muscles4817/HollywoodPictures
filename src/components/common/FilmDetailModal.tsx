@@ -14,7 +14,7 @@ import { CompatibilityBadge } from './CompatibilityBadge';
 import { BoxOfficeChart } from './BoxOfficeChart';
 import { SeverityBadge } from './SeverityBadge';
 import { computeReportedLegs } from '../../state/selectors';
-import type { Film, Talent, TalentRole } from '../../types';
+import type { Film, Talent } from '../../types';
 
 /**
  * "What film is this" - the screenplay's own concept, craft, production
@@ -76,8 +76,8 @@ function CastCrewSection({ film }: { film: Film }) {
   return (
     <div className="card stack">
       <h3 style={{ margin: 0 }}>Cast &amp; Crew</h3>
-      {ALL_TALENT_ROLES.map((role: TalentRole) => {
-        const hired = film.talent.filter((t) => t.role === role);
+      {ALL_TALENT_ROLES.map((role) => {
+        const hired = film.talent.filter((a) => a.role === role).map((a) => a.talent);
         if (hired.length === 0) return null;
         return (
           <div key={role}>

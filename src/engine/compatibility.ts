@@ -54,7 +54,7 @@ export function deriveToneFromActingStyle(actingStyle: ActingStyle): ToneProfile
  */
 export function computeTalentCompatibility(talent: Talent, script: Script): number | null {
   if (talent.role === 'Director') return computeCompatibility(script.toneProfile, talent.toneProfile);
-  if (talent.role === 'Lead Actor' || talent.role === 'Supporting Actor') {
+  if (talent.role === 'Actor') {
     return computeCompatibility(script.toneProfile, deriveToneFromActingStyle(talent.actingStyle));
   }
   return null;
@@ -102,7 +102,7 @@ export function computeCompatibilityBreakdown(scriptTone: ToneProfile, talentTon
 /** Role-aware wrapper mirroring computeTalentCompatibility's own dispatch - null for crew roles with no tone-comparable stat. */
 export function computeTalentCompatibilityBreakdown(talent: Talent, script: Script): ToneCompatibilityAxis[] | null {
   if (talent.role === 'Director') return computeCompatibilityBreakdown(script.toneProfile, talent.toneProfile);
-  if (talent.role === 'Lead Actor' || talent.role === 'Supporting Actor') {
+  if (talent.role === 'Actor') {
     return computeCompatibilityBreakdown(script.toneProfile, deriveToneFromActingStyle(talent.actingStyle));
   }
   return null;

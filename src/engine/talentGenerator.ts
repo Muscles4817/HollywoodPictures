@@ -4,10 +4,11 @@ import type {
   EffectsMethodKey,
   EnvironmentMethodKey,
   Talent,
-  TalentRole,
+  TalentProfession,
   ToneProfile,
 } from '../types';
-import { ALL_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
+import { ALL_TALENT_PROFESSIONS, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
+import { HANDCRAFTED_TALENTS_BY_ROLE } from '../data/handcraftedTalents';
 import { TALENT_FIRST_NAMES, TALENT_LAST_NAMES } from '../data/talentNames';
 import { TONES } from '../data/tones';
 import { ACTING_STYLE_AXES } from '../data/actingStyle';
@@ -87,6 +88,101 @@ function generateSkill(rng: RandomFn, t: number): number {
   return clamp(Math.round(skillMean + randFloat(rng, -20, 20)), 1, 100);
 }
 
+function generateFame(role: TalentProfession, rng: RandomFn, t: number): number {
+  switch (role) {
+    case 'Actor':
+      return clamp(
+        Math.round(5 + 90 * t + randFloat(rng, -12, 12)),
+        1,
+        100,
+      );
+
+    case 'Director':
+      return clamp(
+        Math.round(8 + 87 * t + randFloat(rng, -10, 10)),
+        1,
+        100,
+      );
+
+    case 'Writer': {
+      const fameT = 0.35 * t + 0.65 * rng();
+      return clamp(
+        Math.round(3 + 49 * fameT + randFloat(rng, -7, 7)),
+        1,
+        100,
+      );
+    }
+
+    case 'Composer': {
+      const fameT = 0.45 * t + 0.55 * rng();
+      return clamp(
+        Math.round(3 + 52 * fameT + randFloat(rng, -8, 8)),
+        1,
+        100,
+      );
+    }
+
+    case 'Cinematographer': {
+      const fameT = 0.2 * t + 0.8 * rng();
+      return clamp(
+        Math.round(2 + 36 * fameT + randFloat(rng, -5, 5)),
+        1,
+        100,
+      );
+    }
+
+    case 'Editor': {
+      const fameT = 0.15 * t + 0.85 * rng();
+      return clamp(
+        Math.round(2 + 28 * fameT + randFloat(rng, -5, 5)),
+        1,
+        100,
+      );
+    }
+
+    case 'VFX Supervisor': {
+      const fameT = 0.15 * t + 0.85 * rng();
+      return clamp(
+        Math.round(2 + 30 * fameT + randFloat(rng, -5, 5)),
+        1,
+        100,
+      );
+    }
+  }
+}
+
+function generateEgo(role: TalentProfession, rng: RandomFn, fame: number): number {
+  const fameInfluence: Record<TalentProfession, number> = {
+    Director: 0.45,
+    'Actor': 0.5,
+    Writer: 0.25,
+    Cinematographer: 0.15,
+    Composer: 0.15,
+    Editor: 0.1,
+    'VFX Supervisor': 0.1,
+  };
+
+  const base: Record<TalentProfession, number> = {
+    Director: 18,
+    'Actor': 18,
+    Writer: 16,
+    Cinematographer: 10,
+    Composer: 10,
+    Editor: 8,
+    'VFX Supervisor': 8,
+  };
+
+  return clamp(
+    Math.round(
+      base[role] +
+      fame * fameInfluence[role] +
+      randFloat(rng, -20, 20),
+    ),
+    1,
+    100,
+  );
+}
+
 /**
  * Generates one candidate for a role at a given point along that role's
  * salary range (t, 0-1 on the log scale - see generateTalentCandidates for
@@ -99,17 +195,16 @@ function generateSkill(rng: RandomFn, t: number): number {
  * separate skill - those five numbers are both their skill and their fit,
  * together (see types/index.ts); everyone else gets a plain skill only.
  */
-function generateTalent(role: TalentRole, rng: RandomFn, t: number): Talent {
+function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Talent {
   const profile = ROLE_GENERATION_PROFILES[role];
   const salary = Math.round(logAmount(t, profile.salaryRange) / 1000) * 1000;
 
-  const fameMean = 10 + (profile.fameCeiling - 10) * t;
-  const fame = clamp(Math.round(fameMean + randFloat(rng, -12, 12)), 1, 100);
+  const fame = generateFame(role, rng, t);
 
   const reliabilityMean = 45 + 25 * t;
   const reliability = clamp(Math.round(reliabilityMean + randFloat(rng, -30, 30)), 1, 100);
 
-  const ego = clamp(Math.round(15 + fame * 0.45 + randFloat(rng, -20, 20)), 1, 100);
+  const ego = generateEgo(role, rng, fame);
 
   const common = {
     id: `talent-${nextTalentId++}`,
@@ -129,7 +224,7 @@ function generateTalent(role: TalentRole, rng: RandomFn, t: number): Talent {
       productionStyle: generateProductionStyle(rng),
     };
   }
-  if (role === 'Lead Actor' || role === 'Supporting Actor') {
+  if (role === 'Actor') {
     return { ...common, role, actingStyle: generateActingStyle(rng) };
   }
   return { ...common, role, skill: generateSkill(rng, t) };
@@ -152,7 +247,7 @@ function generateTalent(role: TalentRole, rng: RandomFn, t: number): Talent {
  * price (see talentFilter.ts) rather than just showing "the N closest" -
  * a sparser pool would make that band come up empty more often.
  */
-export function generateTalentCandidates(role: TalentRole, rng: RandomFn, count = 100): Talent[] {
+export function generateTalentCandidates(role: TalentProfession, rng: RandomFn, count = 100): Talent[] {
   return Array.from({ length: count }, (_, i) => {
     const bandStart = i / count;
     const bandEnd = (i + 1) / count;
@@ -166,16 +261,28 @@ export function generateTalentCandidates(role: TalentRole, rng: RandomFn, count 
 // engine/castRequirements.ts), so a price band needs enough genuinely
 // distinct people in it to actually cast an ensemble from, not just one
 // good match repeated nowhere else nearby.
-const ROLE_POOL_SIZE: Partial<Record<TalentRole, number>> = {
-  'Lead Actor': 200,
-  'Supporting Actor': 200,
+const ROLE_POOL_SIZE: Partial<Record<TalentProfession, number>> = {
+  'Actor': 300,
 };
 
 /** The full studio roster: every role's candidate slate, generated once. */
-export function generateTalentPool(rng: RandomFn): Record<TalentRole, Talent[]> {
-  const pool = {} as Record<TalentRole, Talent[]>;
-  for (const role of ALL_TALENT_ROLES) {
-    pool[role] = generateTalentCandidates(role, rng, ROLE_POOL_SIZE[role]);
+export function generateTalentPool(
+  rng: RandomFn,
+): Record<TalentProfession, Talent[]> {
+  const pool = {} as Record<TalentProfession, Talent[]>;
+
+  for (const role of ALL_TALENT_PROFESSIONS) {
+    const generated = generateTalentCandidates(
+      role,
+      rng,
+      ROLE_POOL_SIZE[role],
+    );
+
+    pool[role] = [
+      ...(HANDCRAFTED_TALENTS_BY_ROLE[role] ?? []),
+      ...generated,
+    ];
   }
+
   return pool;
 }

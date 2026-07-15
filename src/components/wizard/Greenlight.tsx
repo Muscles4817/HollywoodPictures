@@ -7,7 +7,7 @@ import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { nearestLabel } from './ProductionPlanning';
 import { deriveFocusedDraft } from '../../state/selectors';
-import type { TalentRole } from '../../types';
+import type { ProductionRole } from '../../types';
 
 /**
  * The explicit business decision the development-pipeline doc is about -
@@ -24,7 +24,7 @@ export function Greenlight() {
   const script = draft.script!;
   const productionChoices = draft.productionChoices!;
 
-  const talentCost = computeTalentCost(draft.talent);
+  const talentCost = computeTalentCost(draft.talent.map((a) => a.talent));
   const productionCost = computeProductionBudgetCost(productionChoices);
   const contingency = productionChoices.contingencyAmount;
   const totalCommitment = talentCost + productionCost + contingency;
@@ -59,8 +59,8 @@ export function Greenlight() {
 
       <div className="card stack">
         <h2 style={{ margin: 0 }}>Cast & Crew</h2>
-        {ALL_TALENT_ROLES.map((role: TalentRole) => {
-          const hired = draft.talent.filter((t) => t.role === role);
+        {ALL_TALENT_ROLES.map((role: ProductionRole) => {
+          const hired = draft.talent.filter((a) => a.role === role).map((a) => a.talent);
           if (hired.length === 0) return null;
           return (
             <div key={role}>

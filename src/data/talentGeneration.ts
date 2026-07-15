@@ -1,4 +1,4 @@
-import type { TalentRole } from '../types';
+import type { ProductionRole, TalentProfession } from '../types';
 import type { Range } from '../engine/interpolate';
 
 // Per-role calibration for procedural talent generation. Salary ranges span
@@ -13,10 +13,9 @@ export interface RoleGenerationProfile {
   fameCeiling: number;
 }
 
-export const ROLE_GENERATION_PROFILES: Record<TalentRole, RoleGenerationProfile> = {
+export const ROLE_GENERATION_PROFILES: Record<TalentProfession, RoleGenerationProfile> = {
   Director: { salaryRange: { min: 50_000, max: 12_000_000 }, fameCeiling: 98 },
-  'Lead Actor': { salaryRange: { min: 40_000, max: 15_000_000 }, fameCeiling: 98 },
-  'Supporting Actor': { salaryRange: { min: 20_000, max: 4_000_000 }, fameCeiling: 85 },
+  'Actor': { salaryRange: { min: 20_000, max: 15_000_000 }, fameCeiling: 98 },
   Writer: { salaryRange: { min: 15_000, max: 2_000_000 }, fameCeiling: 55 },
   Cinematographer: { salaryRange: { min: 25_000, max: 6_000_000 }, fameCeiling: 62 },
   Composer: { salaryRange: { min: 15_000, max: 2_500_000 }, fameCeiling: 60 },
@@ -27,7 +26,7 @@ export const ROLE_GENERATION_PROFILES: Record<TalentRole, RoleGenerationProfile>
 // Every film needs one of each mandatory role; VFX Supervisor is optional
 // depending on genre. Shared between the reducer (candidate generation,
 // budget splitting) and the Hire Talent screen.
-export const MANDATORY_TALENT_ROLES: TalentRole[] = [
+export const MANDATORY_TALENT_ROLES: ProductionRole[] = [
   'Director',
   'Lead Actor',
   'Supporting Actor',
@@ -36,8 +35,23 @@ export const MANDATORY_TALENT_ROLES: TalentRole[] = [
   'Composer',
   'Editor',
 ];
-export const OPTIONAL_TALENT_ROLES: TalentRole[] = ['VFX Supervisor'];
-export const ALL_TALENT_ROLES: TalentRole[] = [...MANDATORY_TALENT_ROLES, ...OPTIONAL_TALENT_ROLES];
+export const OPTIONAL_TALENT_ROLES: ProductionRole[] = ['VFX Supervisor'];
+export const ALL_TALENT_ROLES: ProductionRole[] = [...MANDATORY_TALENT_ROLES, ...OPTIONAL_TALENT_ROLES];
+
+// Every profession the world talent pool actually generates a candidate
+// slate for - one bucket each, unlike ALL_TALENT_ROLES above (which lists
+// Lead Actor and Supporting Actor as separate casting slots, both of which
+// hire from this same single 'Actor' bucket - see engine/talentGenerator.ts:generateTalentPool
+// and data/helpers.ts:professionForProductionRole).
+export const ALL_TALENT_PROFESSIONS: TalentProfession[] = [
+  'Director',
+  'Actor',
+  'Writer',
+  'Cinematographer',
+  'Composer',
+  'Editor',
+  'VFX Supervisor',
+];
 
 // How many people a role can hold. Most roles are one-in, one-out (hiring
 // someone new replaces whoever's there); Supporting Actor is the first role
@@ -48,7 +62,7 @@ export interface RoleCapacity {
   max: number;
 }
 
-export const ROLE_CAPACITY: Record<TalentRole, RoleCapacity> = {
+export const ROLE_CAPACITY: Record<ProductionRole, RoleCapacity> = {
   Director: { min: 1, max: 1 },
   'Lead Actor': { min: 1, max: 1 },
   'Supporting Actor': { min: 1, max: 4 },

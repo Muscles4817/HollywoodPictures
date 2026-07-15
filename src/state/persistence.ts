@@ -161,7 +161,19 @@ import { randomSeed, withRng } from '../engine/random';
 // pool instead of generating their own. A v30 save's opportunities entries
 // have neither field - no migration code, same as every past shape change
 // here.
-const SAVE_KEY = 'hollywood-pictures-save-v31';
+// v31 -> v32 (finished the Lead Actor/Supporting Actor -> unified Actor
+// refactor): Film.talent and FilmDraft.talent moved from Talent[] to
+// TalentAssignment[] - the per-film Lead/Supporting slot is now carried
+// explicitly on the cast list itself (RivalProductionInProgress.talent
+// already worked this way) instead of being inferred from a Talent.role
+// that can no longer express it (every Actor is now just 'Actor'; Lead vs
+// Supporting only exists as a ProductionRole assignment). GameState.talentPool
+// and FilmDraft.talentTargetPriceByRole's key types changed to match
+// (TalentProfession and ProductionRole respectively, no longer the same
+// key set). A v31 save's talent/talentPool/talentTargetPriceByRole entries
+// are all the old shape - no migration code, same as every past shape
+// change here.
+const SAVE_KEY = 'hollywood-pictures-save-v32';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

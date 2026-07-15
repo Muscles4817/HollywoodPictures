@@ -1,4 +1,4 @@
-import type { Genre, EventChoiceTemplate, EventSeverity, TalentRole } from '../types';
+import type { Genre, EventChoiceTemplate, EventSeverity, ProductionRole } from '../types';
 
 // Templates for randomized production events. The engine picks a handful of
 // these per shoot, biased by an overall risk score, then rolls a concrete
@@ -65,14 +65,14 @@ interface InteractiveProductionEventTemplate {
   // engine/production.ts:rollDayEvent. Only roles guaranteed hired by the
   // time photography starts (every MANDATORY_TALENT_ROLES entry) are safe
   // to use here.
-  involvesRole?: TalentRole;
+  involvesRole?: ProductionRole;
   // If set (requires involvesRole), two real recast candidates are pulled
   // from the studio's talent pool near the departing person's salary and
   // appended to `choices` at roll time (engine/production.ts:rollDayEvent) -
   // an actual replacement decision, not a flavor option, with cost and
   // quality driven by which specific person the player picks. Always
   // `high` severity - recasting mid-shoot is a genuinely big deal.
-  offersReplacementFor?: TalentRole;
+  offersReplacementFor?: ProductionRole;
 }
 
 export type ProductionEventTemplate = SimpleProductionEventTemplate | InteractiveProductionEventTemplate;

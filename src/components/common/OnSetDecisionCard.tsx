@@ -3,18 +3,19 @@ import { TALENT_PRESENTATION } from '../../data/talentPresentation';
 import { Button } from './Button';
 import { Money } from './Money';
 import { SeverityBadge } from './SeverityBadge';
-import type { PendingEventChoice, Script, Talent, TalentRole } from '../../types';
+import { professionForProductionRole } from '../../data/helpers';
+import type { PendingEventChoice, Script, Talent, TalentProfession } from '../../types';
 
 interface OnSetDecisionCardProps {
   pendingChoice: PendingEventChoice;
   talent: Talent[];
-  // The studio's full talent pool, keyed by role - needed to resolve a
+  // The studio's full talent pool, keyed by profession - needed to resolve a
   // recast candidate's full stats (data/productionEvents.ts's
   // EventChoiceTemplate only carries replacementCandidateId/Name/Salary,
   // not the whole Talent record) so the comparison below can show the same
   // depth of profile for a candidate as for the person currently in the
   // role, rather than a name and a salary.
-  talentPool: Record<TalentRole, Talent[]>;
+  talentPool: Record<TalentProfession, Talent[]>;
   script: Script | null;
   onChoose: (choiceId: string) => void;
 }
@@ -46,7 +47,7 @@ export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, o
   const regularChoices = pendingChoice.choices.filter((c) => c.replacementCandidateId === undefined);
 
   const replacementRole = pendingChoice.replacementRole;
-  const replacementPool = replacementRole ? (talentPool[replacementRole] ?? []) : [];
+  const replacementPool = replacementRole ? (talentPool[professionForProductionRole(replacementRole)] ?? []) : [];
   const replacementCategory = replacementRole ? TALENT_PRESENTATION[replacementRole].category : null;
 
   return (

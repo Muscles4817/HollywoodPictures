@@ -22,6 +22,7 @@ import { buildReadyAsset } from './testFixtures';
 import { generateTalentPool } from '../engine/talentGenerator';
 import { withRng } from '../engine/random';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
+import { professionForProductionRole } from '../data/helpers';
 import { deriveFocusedDraft } from './selectors';
 import { playerReleasedFilms } from '../engine/project';
 import type { EffectsMethodKey, EnvironmentMethodKey } from '../types';
@@ -76,8 +77,22 @@ function walkFilmThroughWizard(state: GameState): GameState {
   }).not.toThrow();
   expect(s.screen).toBe('talent');
 
+  // Picks by ascending salary (with a per-profession draw index) rather than
+  // raw pool order, for two reasons: (1) Lead Actor and Supporting Actor now
+  // share one Actor pool (used to be two disjoint pools) and would
+  // otherwise both pick the same real person, which SET_TALENT_FOR_ROLE's
+  // own double-cast guard (state/studioReducer.ts) then correctly rejects;
+  // (2) the handcrafted real-actor entries at the front of that shared pool
+  // (data/handcraftedTalents.ts) are high-fame, high-salary stars - picking
+  // two of them can blow this test's starting cash in a way a single
+  // handcrafted star per role never would have.
+  const drawIndexByProfession = new Map<string, number>();
   for (const role of MANDATORY_TALENT_ROLES) {
-    const candidate = s.talentPool[role]?.[0];
+    const profession = professionForProductionRole(role);
+    const index = drawIndexByProfession.get(profession) ?? 0;
+    drawIndexByProfession.set(profession, index + 1);
+    const cheapest = [...(s.talentPool[profession] ?? [])].sort((a, b) => a.salary - b.salary);
+    const candidate = cheapest[index];
     expect(candidate, `no ${role} candidate in the generated talent pool`).toBeDefined();
     s = studioReducer(s, { type: 'SET_TALENT_FOR_ROLE', role, talent: candidate! });
   }

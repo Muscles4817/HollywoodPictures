@@ -1,8 +1,9 @@
-import type { Asset, Film, FilmDraft, Opportunity, PendingEventChoice, ProductionEvent, Project, RivalProductionInProgress, Studio, Talent, TalentRole, WizardStep } from '../types';
+import type { Asset, Film, FilmDraft, Opportunity, PendingEventChoice, ProductionEvent, ProductionRole, Project, RivalProductionInProgress, Studio, Talent, TalentAssignment, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, clamp } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
 import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
+import { professionForProductionRole } from '../data/helpers';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
 import { computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent, resolveEventChoice } from '../engine/production';
 import { computeDailyContingencyBurn, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
@@ -66,10 +67,10 @@ function clearTransientView(
 }
 
 /** Seeds every role's target price at the midpoint of its own salary range. */
-function defaultTalentTargetPrices(): Partial<Record<TalentRole, number>> {
-  const result: Partial<Record<TalentRole, number>> = {};
+function defaultTalentTargetPrices(): Partial<Record<ProductionRole, number>> {
+  const result: Partial<Record<ProductionRole, number>> = {};
   for (const role of ALL_TALENT_ROLES) {
-    result[role] = logAmount(0.5, ROLE_GENERATION_PROFILES[role].salaryRange);
+    result[role] = logAmount(0.5, ROLE_GENERATION_PROFILES[professionForProductionRole(role)].salaryRange);
   }
   return result;
 }
@@ -189,7 +190,7 @@ function resolveChoiceOnDraft(
   pendingChoice: PendingEventChoice,
   chosenChoiceId: string,
   event: ProductionEvent,
-  talentPool: Record<TalentRole, Talent[]>,
+  talentPool: Record<TalentProfession, Talent[]>,
 ): { draft: FilmDraft; cashDelta: number } {
   const photography = d.photography!;
   const chosen = pendingChoice.choices.find((c) => c.id === chosenChoiceId);
@@ -199,11 +200,12 @@ function resolveChoiceOnDraft(
   let talent = d.talent;
   let cashDelta = 0;
   if (chosen?.replacementCandidateId && pendingChoice.replacementRole) {
-    const candidate = talentPool[pendingChoice.replacementRole]?.find((t) => t.id === chosen.replacementCandidateId);
-    if (candidate) {
-      const outgoing = d.talent.find((t) => t.id === pendingChoice.involvedTalentId);
-      cashDelta = -(candidate.salary - (outgoing?.salary ?? 0));
-      talent = [...d.talent.filter((t) => t.id !== pendingChoice.involvedTalentId), candidate];
+    const pool = talentPool[professionForProductionRole(pendingChoice.replacementRole)];
+    const candidate = pool?.find((t) => t.id === chosen.replacementCandidateId);
+    const outgoing = d.talent.find((a) => a.talent.id === pendingChoice.involvedTalentId);
+    if (candidate && outgoing) {
+      cashDelta = -(candidate.salary - outgoing.talent.salary);
+      talent = [...d.talent.filter((a) => a.talent.id !== pendingChoice.involvedTalentId), { role: outgoing.role, talent: candidate }];
     }
   }
 
@@ -471,8 +473,17 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'SET_TALENT_FOR_ROLE': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;
-      const withoutRole = focusedDraft.talent.filter((t) => t.role !== action.role);
-      const nextTalent = action.talent ? [...withoutRole, action.talent] : withoutRole;
+      // Defensive guard against double-casting the same real person into two
+      // different roles on the same draft - only possible now that Lead
+      // Actor and Supporting Actor share one Actor pool (used to be
+      // structurally impossible, disjoint pools). The UI (RoleHiringDrawer)
+      // already excludes these candidates; this mirrors TOGGLE_TALENT_FOR_ROLE's
+      // own defensive shape below.
+      if (action.talent && focusedDraft.talent.some((a) => a.role !== action.role && a.talent.id === action.talent!.id)) {
+        return state;
+      }
+      const withoutRole = focusedDraft.talent.filter((a) => a.role !== action.role);
+      const nextTalent = action.talent ? [...withoutRole, { role: action.role, talent: action.talent }] : withoutRole;
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, talent: nextTalent }) };
     }
 
@@ -481,19 +492,23 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // engine/castRequirements.ts): add this candidate if there's room, or
     // remove them if already hired. Silently no-ops at capacity rather than
     // erroring - the UI disables unhired candidates once a role is full, so
-    // this is a defensive guard.
+    // this is a defensive guard. Also no-ops if this person is already cast
+    // in a *different* role on this draft, same reasoning as SET_TALENT_FOR_ROLE above.
     case 'TOGGLE_TALENT_FOR_ROLE': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;
-      const current = focusedDraft.talent.filter((t) => t.role === action.role);
-      const alreadyHired = current.some((t) => t.id === action.talent.id);
+      const current = focusedDraft.talent.filter((a) => a.role === action.role);
+      const alreadyHired = current.some((a) => a.talent.id === action.talent.id);
+      if (!alreadyHired && focusedDraft.talent.some((a) => a.role !== action.role && a.talent.id === action.talent.id)) {
+        return state;
+      }
       const capacity = effectiveRoleCapacity(action.role, focusedDraft.script);
 
-      let nextTalent: Talent[];
+      let nextTalent: TalentAssignment[];
       if (alreadyHired) {
-        nextTalent = focusedDraft.talent.filter((t) => t.id !== action.talent.id);
+        nextTalent = focusedDraft.talent.filter((a) => a.talent.id !== action.talent.id);
       } else if (current.length < capacity.max) {
-        nextTalent = [...focusedDraft.talent, action.talent];
+        nextTalent = [...focusedDraft.talent, { role: action.role, talent: action.talent }];
       } else {
         return state;
       }
@@ -528,7 +543,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const perHead = action.totalBudget / totalHeads;
       const updated = { ...focusedDraft.talentTargetPriceByRole };
       for (const role of MANDATORY_TALENT_ROLES) {
-        const range = ROLE_GENERATION_PROFILES[role].salaryRange;
+        const range = ROLE_GENERATION_PROFILES[professionForProductionRole(role)].salaryRange;
         updated[role] = clamp(perHead, range.min, range.max);
       }
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, talentTargetPriceByRole: updated }) };
@@ -585,15 +600,15 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       if (!focusedDraft?.script || !focusedDraft.productionChoices) return state;
       const recommendedDays = computeRecommendedShootDays(focusedDraft.talent, focusedDraft.script, focusedDraft.productionChoices);
       const upfrontCharge =
-        computeTalentCost(focusedDraft.talent) +
+        computeTalentCost(focusedDraft.talent.map((a) => a.talent)) +
         computeProductionBudgetCost(focusedDraft.productionChoices) +
         focusedDraft.productionChoices.contingencyAmount;
       if (upfrontCharge > state.studio.cash) return state;
 
       const bookedUntil = state.totalDays + recommendedDays;
-      const bookedIds = new Set(focusedDraft.talent.map((t) => t.id));
+      const bookedIds = new Set(focusedDraft.talent.map((a) => a.talent.id));
       const talentPool = { ...state.talentPool };
-      for (const role of Object.keys(talentPool) as TalentRole[]) {
+      for (const role of Object.keys(talentPool) as TalentProfession[]) {
         talentPool[role] = talentPool[role].map((t) => (bookedIds.has(t.id) ? { ...t, bookedUntil } : t));
       }
 

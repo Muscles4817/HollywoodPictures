@@ -11,7 +11,7 @@ import { ALL_TALENT_ROLES } from '../data/talentGeneration';
 import { Button } from './common/Button';
 import { Money } from './common/Money';
 import { FilmDetailModal } from './common/FilmDetailModal';
-import type { Film, Genre, TalentRole } from '../types';
+import type { Film, Genre, ProductionRole } from '../types';
 
 const SORT_OPTIONS: Array<{ value: FilmStatSortKey; label: string }> = [
   { value: 'releasedOnDay', label: 'Release Date' },
@@ -37,7 +37,7 @@ const AGG_SORT_OPTIONS: Array<{ value: StatSortKey; label: string }> = [
   { value: 'hitCount', label: 'Hits' },
 ];
 
-const ACTOR_ROLES: TalentRole[] = ['Lead Actor', 'Supporting Actor'];
+const ACTOR_ROLES: ProductionRole[] = ['Lead Actor', 'Supporting Actor'];
 
 type StatsTab = 'studio' | 'film' | 'director' | 'actor';
 const TABS: Array<{ value: StatsTab; label: string }> = [
@@ -48,8 +48,8 @@ const TABS: Array<{ value: StatsTab; label: string }> = [
 ];
 
 /** Director credit, or the leads (a script can call for more than one) - same fallback either table row needs. */
-function creditLine(film: Film, role: TalentRole): string {
-  const names = film.talent.filter((t) => t.role === role).map((t) => t.name);
+function creditLine(film: Film, role: ProductionRole): string {
+  const names = film.talent.filter((a) => a.role === role).map((a) => a.talent.name);
   return names.length > 0 ? names.join(', ') : '-';
 }
 
@@ -75,7 +75,7 @@ export function StatsPage() {
   const [genre, setGenre] = useState<Genre | 'all'>('all');
 
   // Film tab.
-  const [role, setRole] = useState<TalentRole | 'any'>('any');
+  const [role, setRole] = useState<ProductionRole | 'any'>('any');
   const [personName, setPersonName] = useState('');
   const [filmSortBy, setFilmSortBy] = useState<FilmStatSortKey>('releasedOnDay');
   const [filmSortDirection, setFilmSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -86,7 +86,7 @@ export function StatsPage() {
 
   // Director/Actor tabs.
   const [personSearch, setPersonSearch] = useState('');
-  const [actorRoleFilter, setActorRoleFilter] = useState<TalentRole | 'any'>('any');
+  const [actorRoleFilter, setActorRoleFilter] = useState<ProductionRole | 'any'>('any');
 
   const allRows = collectFilmStats(state.projects, studio.name);
   const baseRows = genre === 'all' ? allRows : allRows.filter((row) => row.film.genre === genre);
@@ -105,7 +105,7 @@ export function StatsPage() {
     { nameSearch: personSearch, sortBy: aggSortBy, sortDirection: aggSortDirection },
   );
 
-  function jumpToFilmsFor(filters: { studioName?: string | 'all'; role?: TalentRole | 'any'; personName?: string }) {
+  function jumpToFilmsFor(filters: { studioName?: string | 'all'; role?: ProductionRole | 'any'; personName?: string }) {
     setActiveTab('film');
     setStudioName(filters.studioName ?? 'all');
     setRole(filters.role ?? 'any');
@@ -155,7 +155,7 @@ export function StatsPage() {
 
             <label className="stack" style={{ gap: 4 }}>
               <span className="stat-label">Role</span>
-              <select value={role} onChange={(e) => setRole(e.target.value as TalentRole | 'any')}>
+              <select value={role} onChange={(e) => setRole(e.target.value as ProductionRole | 'any')}>
                 <option value="any">Any Role</option>
                 {ALL_TALENT_ROLES.map((r) => (
                   <option key={r} value={r}>{r}</option>
@@ -193,7 +193,7 @@ export function StatsPage() {
         {activeTab === 'actor' && (
           <label className="stack" style={{ gap: 4 }}>
             <span className="stat-label">Credit</span>
-            <select value={actorRoleFilter} onChange={(e) => setActorRoleFilter(e.target.value as TalentRole | 'any')}>
+            <select value={actorRoleFilter} onChange={(e) => setActorRoleFilter(e.target.value as ProductionRole | 'any')}>
               <option value="any">Lead + Supporting</option>
               <option value="Lead Actor">Lead Actor</option>
               <option value="Supporting Actor">Supporting Actor</option>

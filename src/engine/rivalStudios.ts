@@ -10,10 +10,12 @@ import type {
   Script,
   StudioTier,
   Talent,
-  TalentRole,
+  TalentAssignment,
+  TalentProfession,
 } from '../types';
 import { RIVAL_STUDIO_NAME_PREFIXES, RIVAL_STUDIO_NAME_SUFFIXES } from '../data/rivalStudioNames';
 import { MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
+import { professionForProductionRole } from '../data/helpers';
 import { effectiveRoleCapacity } from './castRequirements';
 import { computeRecommendedShootDays } from './production';
 import { computeReleaseResults } from './releaseFilm';
@@ -53,6 +55,170 @@ const SCALE_SPEND_RANGE: Record<ProductionScale, [number, number]> = {
   Medium: [0.32, 0.65],
   Big: [0.65, 0.98],
 };
+
+interface RivalSpendPlan {
+  talentSpendT: number;
+  shootingSpendT: number;
+  environmentSpendT: number;
+  practicalSpendT: number;
+  vfxSpendT: number;
+  marketingSpendT: number;
+  runtimeIntensity: number;
+}
+
+function jitter(
+  rng: RandomFn,
+  value: number,
+  amount = 0.06,
+): number {
+  return clamp(
+    value + randFloat(rng, -amount, amount),
+    0,
+    1,
+  );
+}
+
+function deriveRivalSpendPlan(
+  rival: RivalStudio,
+  scale: ProductionScale,
+  script: Script,
+  rng: RandomFn,
+): RivalSpendPlan {
+  const [minSpend, maxSpend] = SCALE_SPEND_RANGE[scale];
+
+  // One broad ambition roll still exists, but it no longer controls every
+  // department identically.
+  const baseSpendT = randFloat(rng, minSpend, maxSpend);
+
+  const genreProfile = GENRE_PROFILES[script.genre];
+  const complexityT = script.complexity / 100;
+
+  const tierAdjustment: Record<StudioTier, number> = {
+    Indie: -0.06,
+    'Mid-Size': 0,
+    Major: 0.08,
+  };
+
+  const adjustedBase = clamp(
+    baseSpendT + tierAdjustment[rival.tier],
+    0,
+    1,
+  );
+
+  const talentFocusedGenres = new Set([
+    'Drama',
+    'Comedy',
+    'Romance',
+    'Thriller',
+  ]);
+
+  const spectacleGenres = new Set([
+    'Action',
+    'Fantasy',
+    'Sci-Fi',
+  ]);
+
+  const practicalFriendlyGenres = new Set([
+    'Action',
+    'Horror',
+    'Thriller',
+  ]);
+
+  const talentGenreBonus = talentFocusedGenres.has(script.genre)
+    ? 0.10
+    : 0;
+
+  const spectacleGenreBonus = spectacleGenres.has(script.genre)
+    ? 0.08
+    : 0;
+
+  const practicalGenreBonus = practicalFriendlyGenres.has(script.genre)
+    ? 0.06
+    : 0;
+
+  // Indies concentrate more of their limited resources into people.
+  // Majors are more willing to pay for recognisable/high-end talent.
+  const talentTierBonus =
+    rival.tier === 'Indie'
+      ? 0.06
+      : rival.tier === 'Major'
+        ? 0.10
+        : 0;
+
+  const talentSpendT = jitter(
+    rng,
+    adjustedBase + talentGenreBonus + talentTierBonus,
+  );
+
+  // Complex scripts and large productions require more shooting resource.
+  const shootingSpendT = jitter(
+    rng,
+    adjustedBase +
+      (complexityT - 0.5) * 0.16 +
+      (scale === 'Big' ? 0.06 : 0),
+  );
+
+  // Environment spend loosely follows scale, complexity and spectacle.
+  const environmentSpendT = jitter(
+    rng,
+    adjustedBase +
+      spectacleGenreBonus +
+      (complexityT - 0.5) * 0.12,
+  );
+
+  // Genre profiles already describe how important practical effects are.
+  const practicalSpendT = jitter(
+    rng,
+    adjustedBase +
+      (genreProfile.practicalEffectsImportance - 0.5) * 0.30 +
+      practicalGenreBonus,
+  );
+
+  // Likewise, VFX spend should respond directly to the genre's VFX needs.
+  const vfxSpendT = jitter(
+    rng,
+    adjustedBase +
+      (genreProfile.vfxImportance - 0.5) * 0.38 +
+      spectacleGenreBonus,
+  );
+
+  // Majors market aggressively; Indies are more conservative.
+  // Blockbuster-friendly genres also justify broader campaigns.
+  const marketingTierAdjustment =
+    rival.tier === 'Indie'
+      ? -0.12
+      : rival.tier === 'Major'
+        ? 0.14
+        : 0;
+
+  const marketingSpendT = jitter(
+    rng,
+    adjustedBase +
+      marketingTierAdjustment +
+      spectacleGenreBonus,
+  );
+
+  // More complex and larger films tend toward greater runtime ambition.
+  // Still imperfect: this is an AI preference, not an optimal answer.
+  const runtimeIntensity = jitter(
+    rng,
+    0.38 +
+      complexityT * 0.35 +
+      (scale === 'Big' ? 0.12 : 0) -
+      (scale === 'Small' ? 0.08 : 0),
+    0.08,
+  );
+
+  return {
+    talentSpendT,
+    shootingSpendT,
+    environmentSpendT,
+    practicalSpendT,
+    vfxSpendT,
+    marketingSpendT,
+    runtimeIntensity,
+  };
+}
 
 // How often (in days) each studio tier attempts to start a new production,
 // once it has spare capacity - a Major has more going on at once, so it
@@ -228,6 +394,114 @@ function scriptBudget(rival: RivalStudio, scale: ProductionScale, rng: RandomFn)
  * engine/opportunities.ts:placeBid's own doc comment uses), or if nothing
  * in the pool fits its target genre/scale/budget at all.
  */
+
+function scriptCraftScore(script: Script): number {
+  return (
+    script.originality +
+    script.structure +
+    script.characters +
+    script.dialogue
+  ) / 4;
+}
+
+const GENRE_TIER_BIAS: Record<
+  StudioTier,
+  Partial<Record<Script['genre'], number>>
+> = {
+  Indie: {
+    Drama: 18,
+    Horror: 14,
+    Thriller: 14,
+    Romance: 10,
+    Comedy: 4,
+    Action: -12,
+    Fantasy: -20,
+    'Sci-Fi': -16,
+  },
+
+  'Mid-Size': {
+    Horror: 18,
+    Thriller: 16,
+    Action: 12,
+    Comedy: 10,
+    Drama: 4,
+    Romance: 4,
+    'Sci-Fi': 0,
+    Fantasy: -4,
+  },
+
+  Major: {
+    Action: 18,
+    Fantasy: 20,
+    'Sci-Fi': 18,
+    Comedy: 6,
+    Horror: 2,
+    Thriller: 4,
+    Drama: -6,
+    Romance: -6,
+  },
+};
+
+function genreTierBias(tier: StudioTier, script: Script): number {
+  return GENRE_TIER_BIAS[tier][script.genre] ?? 0;
+}
+
+function evaluateOpportunityForTier(
+  rival: RivalStudio,
+  scale: ProductionScale,
+  opportunity: Opportunity,
+  budget: number,
+): number {
+  const script = opportunity.script;
+  const craft = scriptCraftScore(script);
+  const originality = script.originality;
+  
+  const currentPrice =
+    highestBid(opportunity)?.amount ??
+    opportunity.acquisitionCost;
+
+  const affordability =
+    budget > 0
+      ? clamp(100 - (currentPrice / budget) * 100, 0, 100)
+      : 0;
+
+  const genreBias = genreTierBias(rival.tier, script);
+
+  let score: number;
+
+  if (rival.tier === 'Indie') {
+    score =
+      craft * 0.50 +
+      originality * 0.30 +
+      affordability * 0.20 +
+      genreBias;
+  } else if (rival.tier === 'Mid-Size') {
+    score =
+      craft * 0.45 +
+      originality * 0.15 +
+      affordability * 0.40 +
+      genreBias;
+  } else {
+    score =
+      craft * 0.40 +
+      originality * 0.10 +
+      affordability * 0.20 +
+      genreBias;
+  }
+
+  // Small productions should be more price-sensitive.
+  if (scale === 'Small') {
+    score += affordability * 0.10;
+  }
+
+  // Majors planning Big films lean harder into blockbuster-friendly genres.
+  if (rival.tier === 'Major' && scale === 'Big') {
+    score += genreBias * 0.50;
+  }
+
+  return score;
+}
+
 function considerBiddingOnOpportunity(
   rival: RivalStudio,
   scale: ProductionScale,
@@ -253,13 +527,36 @@ function considerBiddingOnOpportunity(
   }
 
   const budget = scriptBudget(rival, scale, rng);
-  const genre = pick(rng, GENRES);
-  const withinBudget = (o: Opportunity) => (highestBid(o)?.amount ?? o.acquisitionCost) <= budget;
-  const inGenre = active.filter((o) => o.script.genre === genre && withinBudget(o));
-  const candidates = inGenre.length > 0 ? inGenre : active.filter(withinBudget);
+
+  const candidates = active.filter(
+    (opportunity) =>
+      (highestBid(opportunity)?.amount ??
+        opportunity.acquisitionCost) <= budget,
+  );
+
   if (candidates.length === 0) return null;
 
-  const chosen = pick(rng, candidates);
+  const ranked = candidates
+    .map((opportunity) => ({
+      opportunity,
+      score: evaluateOpportunityForTier(
+        rival,
+        scale,
+        opportunity,
+        budget,
+      ),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const bestScore = ranked[0].score;
+
+  // Do not make the AI perfectly deterministic.
+  // Pick among scripts close enough to the best option.
+  const competitiveCandidates = ranked.filter(
+    (candidate) => candidate.score >= bestScore - 8,
+  );
+
+  const chosen = pick(rng, competitiveCandidates).opportunity;
   const floor = highestBid(chosen)?.amount ?? chosen.acquisitionCost;
   const premium = 1 + randFloat(rng, ...BID_OPENING_PREMIUM_RANGE);
   const amount = Math.min(budget, Math.round(floor * premium));
@@ -288,32 +585,59 @@ function startRivalProductionFromWonScript(
   script: Script,
   bidAmount: number,
   totalDays: number,
-  talentPool: Record<TalentRole, Talent[]>,
+  talentPool: Record<TalentProfession, Talent[]>,
   knownReleaseDays: number[],
   rng: RandomFn,
-): { production: RivalProductionInProgress; talentPool: Record<TalentRole, Talent[]>; cost: number } | null {
-  const spendT = randFloat(rng, ...SCALE_SPEND_RANGE[scale]);
+): { production: RivalProductionInProgress; talentPool: Record<TalentProfession, Talent[]>; cost: number } | null {
+  const spendPlan = deriveRivalSpendPlan(
+    rival,
+    scale,
+    script,
+    rng,
+  );
 
-  const talent: Talent[] = [];
+  // Lead Actor and Supporting Actor both draw from the same shared Actor
+  // pool now (used to be two disjoint pools, so no cross-role collision was
+  // possible) - bookedIds accumulates across every role processed so far in
+  // this loop and is excluded from `available`, so this rival can't cast the
+  // same real person as both its own lead and a supporting actor.
+  const talent: TalentAssignment[] = [];
   const bookedIds = new Set<string>();
   for (const role of MANDATORY_TALENT_ROLES) {
     const capacity = effectiveRoleCapacity(role, script);
-    const targetPrice = logAmount(spendT, ROLE_GENERATION_PROFILES[role].salaryRange);
-    const available = talentPool[role].filter((t) => !t.bookedUntil || t.bookedUntil <= totalDays);
+    const profession = professionForProductionRole(role);
+    const targetPrice = logAmount(spendPlan.talentSpendT, ROLE_GENERATION_PROFILES[profession].salaryRange);
+    const available = talentPool[profession].filter((t) => (!t.bookedUntil || t.bookedUntil <= totalDays) && !bookedIds.has(t.id));
     if (available.length < capacity.min) return null;
     const { candidates } = findCandidatesNearPrice(available, targetPrice, Math.max(capacity.max * 3, 6));
     const picked = pickMany(rng, candidates, Math.min(capacity.max, candidates.length));
     if (picked.length < capacity.min) return null;
     for (const p of picked) bookedIds.add(p.id);
-    talent.push(...picked);
+    talent.push(...picked.map((t) => ({ role, talent: t })));
   }
 
   const productionChoices: ProductionChoices = {
-    contingencyAmount: logAmount(spendT, SHOOTING_BUDGET_RANGE),
-    setQualityAmount: logAmount(spendT, ENVIRONMENT_BUDGET_RANGE),
-    practicalEffectsAmount: logAmount(spendT, PRACTICAL_EFFECTS_RANGE),
-    vfxAmount: logAmount(spendT, VFX_RANGE),
-    runtimeIntensity: rng(),
+    contingencyAmount: logAmount(
+      spendPlan.shootingSpendT,
+      SHOOTING_BUDGET_RANGE,
+    ),
+
+    setQualityAmount: logAmount(
+      spendPlan.environmentSpendT,
+      ENVIRONMENT_BUDGET_RANGE,
+    ),
+
+    practicalEffectsAmount: logAmount(
+      spendPlan.practicalSpendT,
+      PRACTICAL_EFFECTS_RANGE,
+    ),
+
+    vfxAmount: logAmount(
+      spendPlan.vfxSpendT,
+      VFX_RANGE,
+    ),
+
+    runtimeIntensity: spendPlan.runtimeIntensity,
   };
   const postProductionChoices: PostProductionChoices = {
     editStyle: pick(rng, EDIT_STYLES),
@@ -322,14 +646,14 @@ function startRivalProductionFromWonScript(
     finalCutFocus: pick(rng, FINAL_CUT_FOCI),
   };
   const marketingChoices: MarketingChoices = {
-    marketingSpend: logAmount(spendT, MARKETING_SPEND_RANGE),
+    marketingSpend: logAmount(spendPlan.marketingSpendT, MARKETING_SPEND_RANGE),
     releaseType: pick(rng, RELEASE_TYPES),
     releaseWindow: pick(rng, RELEASE_WINDOWS),
   };
 
   const cost =
     bidAmount +
-    computeTalentCost(talent) +
+    computeTalentCost(talent.map((a) => a.talent)) +
     computeProductionBudgetCost(productionChoices) +
     productionChoices.contingencyAmount +
     computeMarketingCost(marketingChoices) +
@@ -345,7 +669,8 @@ function startRivalProductionFromWonScript(
 
   const updatedPool = { ...talentPool };
   for (const role of MANDATORY_TALENT_ROLES) {
-    updatedPool[role] = updatedPool[role].map((t) => (bookedIds.has(t.id) ? { ...t, bookedUntil: releaseDay } : t));
+    const profession = professionForProductionRole(role);
+    updatedPool[profession] = updatedPool[profession].map((t) => (bookedIds.has(t.id) ? { ...t, bookedUntil: releaseDay } : t));
   }
 
   return {
@@ -432,7 +757,7 @@ export interface RivalMarketUpdate {
   rivalStudios: RivalStudio[];
   rivalProductionsInProgress: RivalProductionInProgress[];
   rivalFilmsReleased: Film[];
-  talentPool: Record<TalentRole, Talent[]>;
+  talentPool: Record<TalentProfession, Talent[]>;
   /** Milestone: Opportunity Market bidding - the shared pool, already settled for expiry/generation/this-week's-resolutions by the caller (engine/opportunities.ts:settleOpportunities) before being handed in here. */
   opportunities: Opportunity[];
 }

@@ -5,10 +5,12 @@ import type {
   PendingEventChoice,
   ProductionChoices,
   ProductionEvent,
+  ProductionRole,
   Script,
   StaticProductionRisk,
   Talent,
-  TalentRole,
+  TalentAssignment,
+  TalentProfession,
 } from '../types';
 import {
   POSITIVE_EVENT_TEMPLATES,
@@ -21,6 +23,7 @@ import { GENRE_PROFILES } from '../data/genres';
 import { contingencyT, practicalEffectsT, vfxT, overallSpendT } from './productionDials';
 import { computeTalentCompatibility } from './compatibility';
 import { findCandidatesNearPrice } from './talentFilter';
+import { professionForProductionRole, filterAssignedTalent } from '../data/helpers';
 import { clamp, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
 
 const BASE_SHOOT_DAYS = 18;
@@ -39,7 +42,7 @@ const CAST_SIZE_BASELINE = 6; // roughly the mandatory-roles floor before any mu
  * time than a small, simple one, independent of how many days the player
  * actually gives it.
  */
-export function computeRecommendedShootDays(talent: Talent[], script: Script, choices: ProductionChoices): number {
+export function computeRecommendedShootDays(talent: TalentAssignment[], script: Script, choices: ProductionChoices): number {
   const complexityDays = (script.complexity / 100) * MAX_COMPLEXITY_DAYS;
   const castDays = clamp((talent.length - CAST_SIZE_BASELINE) * 1.5, 0, MAX_CAST_SIZE_DAYS);
   const runtimeDays = choices.runtimeIntensity * MAX_RUNTIME_DAYS;
@@ -56,13 +59,13 @@ export function computeRecommendedShootDays(talent: Talent[], script: Script, ch
  * in or cut) - see docs/DESIGN.md 5.9 for the full reasoning.
  */
 export function computeStaticProductionRisk(
-  talent: Talent[],
+  talent: TalentAssignment[],
   script: Script,
   choices: ProductionChoices,
   genre: Genre,
 ): StaticProductionRisk {
-  const avgReliability = talent.length ? talent.reduce((sum, t) => sum + t.reliability, 0) / talent.length : 70;
-  const avgEgo = talent.length ? talent.reduce((sum, t) => sum + t.ego, 0) / talent.length : 50;
+  const avgReliability = talent.length ? talent.reduce((sum, a) => sum + a.talent.reliability, 0) / talent.length : 70;
+  const avgEgo = talent.length ? talent.reduce((sum, a) => sum + a.talent.ego, 0) / talent.length : 50;
   const unreliabilityRisk = 100 - avgReliability;
 
   // Interpersonal friction - unreliable, high-ego casts are more likely to
@@ -172,8 +175,8 @@ function talentSkillScore(talent: Talent | undefined, script: Script | null): nu
 }
 
 /** Picks the specific hired talent an `involvesRole` event is about - a random one, for a multi-hire role. */
-function resolveInvolvedTalent(role: TalentRole, talent: Talent[], rng: RandomFn): Talent | undefined {
-  const hired = talent.filter((t) => t.role === role);
+function resolveInvolvedTalent(role: ProductionRole, talent: TalentAssignment[], rng: RandomFn): Talent | undefined {
+  const hired = filterAssignedTalent(talent, role);
   return hired.length > 0 ? pick(rng, hired) : undefined;
 }
 
@@ -227,7 +230,7 @@ const RUSH_HIRE_PREMIUM_RATE = 0.3;
 // Recasting a Lead Actor means reshooting anything they're already in;
 // swapping in a new Director or crew member doesn't carry that same reshoot
 // cost, just ramp-up time.
-const REPLACEMENT_DELAY_DAYS: Partial<Record<TalentRole, [number, number]>> = {
+const REPLACEMENT_DELAY_DAYS: Partial<Record<ProductionRole, [number, number]>> = {
   'Lead Actor': [3, 6],
   'Supporting Actor': [2, 4],
 };
@@ -243,7 +246,7 @@ const REPLACEMENT_CANDIDATE_COUNT = 2;
  * one the player picks is what determines the cost, same as any other hire.
  */
 function buildReplacementChoices(
-  role: TalentRole,
+  role: ProductionRole,
   departing: Talent,
   pool: Talent[],
   script: Script | null,
@@ -357,9 +360,9 @@ export function rollDayEvent(
   recommendedDays: number,
   genre: Genre,
   usedIds: ReadonlySet<string>,
-  talent: Talent[],
+  talent: TalentAssignment[],
   script: Script | null,
-  talentPool: Record<TalentRole, Talent[]>,
+  talentPool: Record<TalentProfession, Talent[]>,
   rng: RandomFn,
 ): { event: ProductionEvent } | { pendingChoice: PendingEventChoice } | null {
   const schedulePressure = computeSchedulePressure(daysElapsed, recommendedDays);
@@ -401,7 +404,7 @@ export function rollDayEvent(
   const situation = involved ? interpolateName(template.situation, involved.name) : template.situation;
 
   if (template.offersReplacementFor && involved) {
-    const replacementPool = talentPool[template.offersReplacementFor] ?? [];
+    const replacementPool = talentPool[professionForProductionRole(template.offersReplacementFor)] ?? [];
     choices = [...choices, ...buildReplacementChoices(template.offersReplacementFor, involved, replacementPool, script, rng)];
   }
 

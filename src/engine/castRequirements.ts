@@ -1,4 +1,4 @@
-import type { Script, TalentRole } from '../types';
+import type { ProductionRole, Script } from '../types';
 import { ROLE_CAPACITY, type RoleCapacity } from '../data/talentGeneration';
 
 /**
@@ -10,7 +10,7 @@ import { ROLE_CAPACITY, type RoleCapacity } from '../data/talentGeneration';
  * to that same static capacity for Lead/Supporting too before a script is
  * picked, since the wizard doesn't reach Hire Talent without one selected.
  */
-export function effectiveRoleCapacity(role: TalentRole, script: Script | null): RoleCapacity {
+export function effectiveRoleCapacity(role: ProductionRole, script: Script | null): RoleCapacity {
   if (script) {
     if (role === 'Lead Actor') return { min: script.requiredLeads, max: script.requiredLeads };
     if (role === 'Supporting Actor') return { min: script.requiredSupporting, max: script.requiredSupporting };

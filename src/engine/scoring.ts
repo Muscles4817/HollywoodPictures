@@ -7,12 +7,13 @@ import type {
   ProductionChoices,
   ProductionEvent,
   Script,
-  Talent,
+  TalentAssignment,
 } from '../types';
 import { GENRE_PROFILES } from '../data/genres';
 import { TONES } from '../data/tones';
 import { computeTalentCompatibility } from './compatibility';
 import { deriveCommercialProfile } from './commercialProfile';
+import { findAssignedTalent, filterAssignedTalent } from '../data/helpers';
 import {
   contingencyQuality,
   overallSpendT,
@@ -29,17 +30,17 @@ import { AUDIENCE_WEIGHTS, CRITIC_WEIGHTS } from '../data/scoringWeights';
 import { computeQualityWeights } from './genreWeights';
 import { clamp } from './random';
 
-function getDirector(talent: Talent[]): DirectorTalent | undefined {
-  return talent.find((t): t is DirectorTalent => t.role === 'Director');
+function getDirector(talent: TalentAssignment[]): DirectorTalent | undefined {
+  return findAssignedTalent(talent, 'Director') as DirectorTalent | undefined;
 }
 
 /** A script can call for more than one lead (Script.requiredLeads) - see castRequirements.ts. */
-function getLeadActors(talent: Talent[]): ActorTalent[] {
-  return talent.filter((t): t is ActorTalent => t.role === 'Lead Actor');
+function getLeadActors(talent: TalentAssignment[]): ActorTalent[] {
+  return filterAssignedTalent(talent, 'Lead Actor') as ActorTalent[];
 }
 
-function getSupportingActors(talent: Talent[]): ActorTalent[] {
-  return talent.filter((t): t is ActorTalent => t.role === 'Supporting Actor');
+function getSupportingActors(talent: TalentAssignment[]): ActorTalent[] {
+  return filterAssignedTalent(talent, 'Supporting Actor') as ActorTalent[];
 }
 
 /** How well a hired talent suits this specific script - see computeTalentCompatibility. */
@@ -83,7 +84,7 @@ function deriveGenreFit(script: Script, genre: Genre): number {
 }
 
 /** Director's contribution: raw skill plus how well their style suits this script. */
-export function computeDirectionScore(talent: Talent[], script: Script): number {
+export function computeDirectionScore(talent: TalentAssignment[], script: Script): number {
   const director = getDirector(talent);
   if (!director) return 35; // no director hired is a serious quality hit
   return director.skill * 0.6 + compatibility(director, script) * 0.4;
@@ -100,7 +101,7 @@ export function computeDirectionScore(talent: Talent[], script: Script): number 
  * not summed: a two-lead buddy film doesn't automatically outscore a
  * one-lead film, it's the average fit of whoever's cast in those roles.
  */
-export function computeActingScore(talent: Talent[], script: Script): number {
+export function computeActingScore(talent: TalentAssignment[], script: Script): number {
   const leads = getLeadActors(talent);
   const supports = getSupportingActors(talent);
 
@@ -162,7 +163,7 @@ export function computePostProductionScore(choices: PostProductionChoices): numb
 }
 
 /** How well the whole package (script, key talent, budget) suits the chosen genre. */
-export function computeGenreFitScore(script: Script, talent: Talent[], genre: Genre, choices: ProductionChoices): number {
+export function computeGenreFitScore(script: Script, talent: TalentAssignment[], genre: Genre, choices: ProductionChoices): number {
   const profile = GENRE_PROFILES[genre];
   const director = getDirector(talent);
   const leads = getLeadActors(talent);
@@ -184,7 +185,7 @@ export function computeGenreFitScore(script: Script, talent: Talent[], genre: Ge
 }
 
 /** How sellable the film looks, independent of how it eventually gets marketed. */
-export function computeMarketabilityScore(script: Script, talent: Talent[], choices: ProductionChoices): number {
+export function computeMarketabilityScore(script: Script, talent: TalentAssignment[], choices: ProductionChoices): number {
   const leads = getLeadActors(talent);
   const supports = getSupportingActors(talent);
   const leadFameAvg = average(leads.map((l) => l.fame)) ?? 30;
@@ -260,7 +261,7 @@ const FOOTAGE_PRODUCTION_WEIGHT = 0.3;
  */
 export function computeQualityBreakdown(
   script: Script,
-  talent: Talent[],
+  talent: TalentAssignment[],
   genre: Genre,
   productionChoices: ProductionChoices,
   postProductionChoices: PostProductionChoices,
@@ -338,7 +339,7 @@ export function computeCriticScore(
 export function computeAudienceScore(
   quality: QualityBreakdown,
   script: Script,
-  talent: Talent[],
+  talent: TalentAssignment[],
   genre: Genre,
   productionChoices: ProductionChoices,
   postProductionChoices: PostProductionChoices,
@@ -386,7 +387,7 @@ export function computeAudienceScore(
  */
 export function computeBuzzScore(
   script: Script,
-  talent: Talent[],
+  talent: TalentAssignment[],
   events: ProductionEvent[],
   postProductionChoices: PostProductionChoices,
   marketingChoices: MarketingChoices,

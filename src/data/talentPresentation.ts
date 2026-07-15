@@ -1,4 +1,4 @@
-import type { TalentRole } from '../types';
+import type { ProductionRole } from '../types';
 
 // Every role is still hired through the same underlying mechanism (a price
 // slider + a candidate grid, see components/wizard/RoleHiringDrawer.tsx),
@@ -19,7 +19,7 @@ export interface TalentPresentationProfile {
   hook: string;
 }
 
-export const TALENT_PRESENTATION: Record<TalentRole, TalentPresentationProfile> = {
+export const TALENT_PRESENTATION: Record<ProductionRole, TalentPresentationProfile> = {
   Director: {
     category: 'director',
     blurb:

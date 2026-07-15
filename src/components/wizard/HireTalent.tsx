@@ -16,7 +16,8 @@ import { Money, formatMoney } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
 import { CompatibilityBadge } from '../common/CompatibilityBadge';
 import { RoleHiringDrawer } from './RoleHiringDrawer';
-import type { DirectorTalent, EffectsMethodKey, EnvironmentMethodKey, Talent, TalentRole } from '../../types';
+import { findAssignedTalent } from '../../data/helpers';
+import type { DirectorTalent, EffectsMethodKey, EnvironmentMethodKey, ProductionRole, Talent } from '../../types';
 
 const MASTER_BUDGET_RANGE = { min: 300_000, max: 30_000_000 };
 const DEFAULT_MASTER_BUDGET = 3_000_000;
@@ -36,12 +37,12 @@ function tileHeadline(talent: Talent, category: RoleCategory): string {
   return 'skill' in talent ? `Skill ${talent.skill}` : '';
 }
 
-function RoleTile({ role, optional, onOpen }: { role: TalentRole; optional: boolean; onOpen: () => void }) {
+function RoleTile({ role, optional, onOpen }: { role: ProductionRole; optional: boolean; onOpen: () => void }) {
   const { state } = useStudio();
   const draft = deriveFocusedDraft(state)!;
   const profile = TALENT_PRESENTATION[role];
   const capacity = effectiveRoleCapacity(role, draft.script);
-  const hired = draft.talent.filter((t) => t.role === role);
+  const hired = draft.talent.filter((a) => a.role === role).map((a) => a.talent);
   const isMulti = capacity.max > 1;
   const filled = hired.length >= capacity.min;
 
@@ -81,13 +82,16 @@ export function HireTalent() {
   const { state, dispatch } = useStudio();
   const draft = deriveFocusedDraft(state)!;
   const [masterBudget, setMasterBudget] = useState(DEFAULT_MASTER_BUDGET);
-  const [openRole, setOpenRole] = useState<TalentRole | null>(null);
+  const [openRole, setOpenRole] = useState<ProductionRole | null>(null);
 
-  function talentsForRole(role: TalentRole): Talent[] {
-    return draft.talent.filter((t) => t.role === role);
+  function talentsForRole(role: ProductionRole): Talent[] {
+    return draft.talent.filter((a) => a.role === role).map((a) => a.talent);
   }
 
-  const totalSalary = draft.talent.reduce((sum, t) => sum + t.salary, 0);
+  // Role-agnostic aggregates - flattened once, ignoring which slot each hire is in.
+  const allTalent = draft.talent.map((a) => a.talent);
+
+  const totalSalary = allTalent.reduce((sum, t) => sum + t.salary, 0);
   const missingMandatory = MANDATORY_TALENT_ROLES.filter(
     (role) => talentsForRole(role).length < effectiveRoleCapacity(role, draft.script).min,
   );
@@ -105,7 +109,7 @@ export function HireTalent() {
   // uses later (engine/productionIdentity.ts), shown as soon as it's
   // computable (script + a director) rather than waiting for that screen -
   // both Strategy recommendations only ever needed those two things.
-  const director = draft.talent.find((t): t is DirectorTalent => t.role === 'Director');
+  const director = findAssignedTalent(draft.talent, 'Director') as DirectorTalent | undefined;
   const identity =
     draft.script && director
       ? synthesizeProductionIdentity(draft.script, explainEnvironmentStrategy(draft.script, director), explainEffectsStrategy(draft.script, director))
@@ -115,16 +119,16 @@ export function HireTalent() {
   // roles and affordability already do that below). Both need at least a
   // couple of hires before they mean anything, so an almost-empty cast
   // doesn't trip a false alarm.
-  const compatScores = draft.talent
+  const compatScores = allTalent
     .map((t) => (draft.script ? computeTalentCompatibility(t, draft.script) : null))
     .filter((s): s is number => s !== null);
   const avgCompat = compatScores.length > 0 ? compatScores.reduce((a, b) => a + b, 0) / compatScores.length : null;
   const lowCompatWarning = compatScores.length >= 2 && avgCompat !== null && avgCompat < 45;
 
-  const avgReliability = draft.talent.length > 0 ? draft.talent.reduce((s, t) => s + t.reliability, 0) / draft.talent.length : null;
-  const avgEgo = draft.talent.length > 0 ? draft.talent.reduce((s, t) => s + t.ego, 0) / draft.talent.length : null;
+  const avgReliability = allTalent.length > 0 ? allTalent.reduce((s, t) => s + t.reliability, 0) / allTalent.length : null;
+  const avgEgo = allTalent.length > 0 ? allTalent.reduce((s, t) => s + t.ego, 0) / allTalent.length : null;
   const temperamentWarning =
-    draft.talent.length >= 2 && avgReliability !== null && avgEgo !== null && (avgReliability < 45 || avgEgo > 65);
+    allTalent.length >= 2 && avgReliability !== null && avgEgo !== null && (avgReliability < 45 || avgEgo > 65);
 
   return (
     <div className="stack">

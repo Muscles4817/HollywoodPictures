@@ -7,12 +7,13 @@ import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { formatGameDate } from '../../engine/calendar';
 import { deriveFocusedDraft } from '../../state/selectors';
+import { professionForProductionRole } from '../../data/helpers';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
 import { formatMoney } from '../common/Money';
 import { TalentStats } from '../common/TalentStats';
-import type { Script, Talent, TalentRole } from '../../types';
+import type { ProductionRole, Script, Talent } from '../../types';
 
 const VFX_RECOMMENDED_GENRES = new Set(['Action', 'Sci-Fi', 'Fantasy']);
 const VISIBLE_CANDIDATE_COUNT = 9;
@@ -24,7 +25,7 @@ const AUTO_CLOSE_DELAY_MS = 500;
 
 interface CandidateCardProps {
   talent: Talent;
-  role: TalentRole;
+  role: ProductionRole;
   category: RoleCategory;
   script: Script | null;
   selected: boolean;
@@ -64,7 +65,7 @@ function CandidateCard({ talent, category, script, selected, disabled, booked, p
 }
 
 interface RoleHiringDrawerProps {
-  role: TalentRole;
+  role: ProductionRole;
   onClose: () => void;
 }
 
@@ -96,17 +97,21 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   }, [onClose]);
 
   const profile = TALENT_PRESENTATION[role];
-  const range = ROLE_GENERATION_PROFILES[role].salaryRange;
+  const range = ROLE_GENERATION_PROFILES[professionForProductionRole(role)].salaryRange;
   const capacity = effectiveRoleCapacity(role, draft.script);
   const targetPrice = draft.talentTargetPriceByRole[role] ?? logAmount(0.5, range);
-  const candidates = state.talentPool[role];
-  const hired = draft.talent.filter((t) => t.role === role);
+  // Excludes anyone already cast into a *different* role on this draft - the
+  // shared Actor pool means the same real person could otherwise show up as
+  // selectable for both Lead Actor and Supporting Actor at once.
+  const hiredElsewhereIds = new Set(draft.talent.filter((a) => a.role !== role).map((a) => a.talent.id));
+  const candidates = state.talentPool[professionForProductionRole(role)].filter((t) => !hiredElsewhereIds.has(t.id));
+  const hired = draft.talent.filter((a) => a.role === role).map((a) => a.talent);
   const atCap = hired.length >= capacity.max;
   const showVfxHint = role === 'VFX Supervisor' && draft.genre && VFX_RECOMMENDED_GENRES.has(draft.genre);
 
   const { candidates: visible, toleranceUsed } = findCandidatesNearPrice(candidates, targetPrice, VISIBLE_CANDIDATE_COUNT);
   const hiredNotVisible = hired.filter((h) => !visible.some((v) => v.id === h.id));
-  const displayList = [...hiredNotVisible, ...visible];
+  const displayList = [...hiredNotVisible, ...visible].sort(talent => talent.salary);
   const tolerancePercent = Math.round(toleranceUsed * 100);
 
   const allTalent = Object.values(state.talentPool).flat();

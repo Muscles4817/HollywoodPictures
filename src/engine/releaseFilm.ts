@@ -6,7 +6,7 @@ import type {
   ProductionChoices,
   ProductionEvent,
   Script,
-  Talent,
+  TalentAssignment,
   TargetAudience,
 } from '../types';
 import { computeAudienceScore, computeBuzzScore, computeCriticScore, computeQualityBreakdown } from './scoring';
@@ -21,10 +21,10 @@ import { generateStoryReport } from './storyReport';
 import type { RandomFn } from './random';
 import type { AudienceSimulationFixedState } from './audienceSimulation';
 
-function averageFame(talent: Talent[], role: Talent['role']): number {
+function averageFame(talent: TalentAssignment[], role: TalentAssignment['role']): number {
   const matching = talent.filter((t) => t.role === role);
   if (matching.length === 0) return 0;
-  return matching.reduce((sum, t) => sum + t.fame, 0) / matching.length;
+  return matching.reduce((sum, t) => sum + t.talent.fame, 0) / matching.length;
 }
 
 export interface ReleaseComputationInput {
@@ -32,7 +32,7 @@ export interface ReleaseComputationInput {
   genre: Genre;
   targetAudience: TargetAudience;
   script: Script;
-  talent: Talent[];
+  talent: TalentAssignment[];
   productionChoices: ProductionChoices;
   postProductionChoices: PostProductionChoices;
   marketingChoices: MarketingChoices;
@@ -97,7 +97,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     input.studioBrand,
   );
 
-  const talentCost = computeTalentCost(input.talent);
+  const talentCost = computeTalentCost(input.talent.map(t => t.talent));
   const productionBudgetCost = computeProductionBudgetCost(input.productionChoices);
   const eventsCostDelta = computeEventsCostDelta(input.events);
   const testScreeningCost = TEST_SCREENING_PROFILES[input.postProductionChoices.testScreeningResponse].cost;

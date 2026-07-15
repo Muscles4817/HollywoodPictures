@@ -59,13 +59,17 @@ export function buildReadyAsset(rng: RandomFn): Asset {
 export function buildReadyDraft(rng: RandomFn, marketingOverrides: Partial<MarketingChoices> = {}): FilmDraft {
   const asset = buildReadyAsset(rng);
   const director = generateTalentCandidates('Director', rng, 1)[0];
-  const lead = generateTalentCandidates('Lead Actor', rng, 1)[0];
-  const support = generateTalentCandidates('Supporting Actor', rng, 1)[0];
+  const lead = generateTalentCandidates('Actor', rng, 1)[0];
+  const support = generateTalentCandidates('Actor', rng, 1)[0];
 
   return {
     ...createDraftFromAsset(asset, {}),
     targetAudience: 'Mass Market',
-    talent: [director, lead, support],
+    talent: [
+      { role: 'Director', talent: director },
+      { role: 'Lead Actor', talent: lead },
+      { role: 'Supporting Actor', talent: support },
+    ],
     productionChoices: PRODUCTION_CHOICES,
     greenlitOnDay: 1,
     photography: finishedPhotography(40),

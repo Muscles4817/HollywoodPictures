@@ -71,7 +71,7 @@ describe('computeTalentCompatibilityBreakdown', () => {
     productionStyle: { environmentStrategy: { studio: 0.34, location: 0.33, digital: 0.33 }, effectsStrategy: { practical: 0.5, digital: 0.5 } },
   };
   const actor: ActorTalent = {
-    id: 'a1', name: 'Test Actor', role: 'Lead Actor', fame: 50, reliability: 50, ego: 50, salary: 100_000,
+    id: 'a1', name: 'Test Actor', role: 'Actor', fame: 50, reliability: 50, ego: 50, salary: 100_000,
     actingStyle: { characterTransformation: 60, emotionalPerformance: 60, charisma: 60, comedy: 20, physicalPerformance: 40 },
   };
   const script = { toneProfile: tone({ suspense: 85, comedy: 15 }) } as unknown as Script;

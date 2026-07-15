@@ -10,14 +10,14 @@ import type { CrewTalent, DirectorTalent, Script, Talent } from '../../types';
 
 /** Director and crew roles have a plain Skill rating; Actors don't (see types/index.ts). */
 export function hasSkill(t: Talent): t is DirectorTalent | CrewTalent {
-  return t.role !== 'Lead Actor' && t.role !== 'Supporting Actor';
+  return t.role !== 'Actor';
 }
 
 export function talentBreakdown(talent: Talent): { breakdown: Array<{ label: string; value: number }>; defaultLabel: string } | null {
   if (talent.role === 'Director') {
     return { breakdown: toneProfileBreakdown(talent.toneProfile), defaultLabel: 'Tone Profile' };
   }
-  if (talent.role === 'Lead Actor' || talent.role === 'Supporting Actor') {
+  if (talent.role === 'Actor') {
     return {
       breakdown: ACTING_STYLE_AXES.map((axis) => ({ label: ACTING_STYLE_LABELS[axis], value: talent.actingStyle[axis] })),
       defaultLabel: 'Acting Style',

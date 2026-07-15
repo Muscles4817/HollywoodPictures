@@ -17,6 +17,7 @@ import {
 } from '../../engine/recommendation';
 import { synthesizeProductionIdentity, findBiggestTension } from '../../engine/productionIdentity';
 import { computeCommittedSpend, deriveFocusedDraft } from '../../state/selectors';
+import { findAssignedTalent } from '../../data/helpers';
 import { DistributionEditor } from '../common/DistributionEditor';
 import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
@@ -33,7 +34,7 @@ import type {
   ProductionChoices,
   Recommendation,
   Script,
-  Talent,
+  TalentAssignment,
 } from '../../types';
 
 const DEFAULT_CONTINGENCY = logAmount(0.5, SHOOTING_BUDGET_RANGE);
@@ -70,7 +71,7 @@ function ambitionLabel(value: NormalizedScalar): string {
 }
 
 /** Cost/schedule this card's current values are responsible for - "current plan" minus "current plan with this card's contribution zeroed out," the same counterfactual idea the recommendation engine already uses for reason-ordering. */
-function consequenceOf(current: ProductionChoices, withoutThisCard: ProductionChoices, talent: Talent[], script: Script) {
+function consequenceOf(current: ProductionChoices, withoutThisCard: ProductionChoices, talent: TalentAssignment[], script: Script) {
   const costDelta = computeProductionBudgetCost(current) - computeProductionBudgetCost(withoutThisCard);
   const daysDelta = computeRecommendedShootDays(talent, script, current) - computeRecommendedShootDays(talent, script, withoutThisCard);
   return { costDelta, daysDelta };
@@ -220,7 +221,7 @@ export function ProductionPlanning() {
   const draft = deriveFocusedDraft(state)!;
   const script = draft.script!;
   const genre = draft.genre!;
-  const director = draft.talent.find((t): t is DirectorTalent => t.role === 'Director');
+  const director = findAssignedTalent(draft.talent, 'Director') as DirectorTalent | undefined;
 
   const envBreakdown = director ? explainEnvironmentStrategy(script, director) : null;
   const fxBreakdown = director ? explainEffectsStrategy(script, director) : null;

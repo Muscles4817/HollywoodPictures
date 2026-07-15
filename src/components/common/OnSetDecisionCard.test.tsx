@@ -10,11 +10,11 @@ import { render, screen } from '@testing-library/react';
 import { OnSetDecisionCard } from './OnSetDecisionCard';
 import { generateTalentCandidates } from '../../engine/talentGenerator';
 import { createRng } from '../../engine/random';
-import type { PendingEventChoice, Talent, TalentRole } from '../../types';
+import type { PendingEventChoice, Talent, TalentProfession } from '../../types';
 
-function emptyPool(): Record<TalentRole, Talent[]> {
+function emptyPool(): Record<TalentProfession, Talent[]> {
   return {
-    Director: [], 'Lead Actor': [], 'Supporting Actor': [], Writer: [], Cinematographer: [], Composer: [], Editor: [], 'VFX Supervisor': [],
+    Director: [], Actor: [], Writer: [], Cinematographer: [], Composer: [], Editor: [], 'VFX Supervisor': [],
   };
 }
 

@@ -13,7 +13,8 @@ import type {
   Screen,
   Studio,
   Talent,
-  TalentRole,
+  TalentProfession,
+  ProductionRole,
   TargetAudience,
   WizardStep,
 } from '../types';
@@ -42,7 +43,7 @@ export interface GameState {
   /** A small persistent roster of AI competitors, generated once at game start - world-level rather than nested inside the player's own Studio, since it's not the player's data (see docs/DESIGN.md 5.24). */
   rivalStudios: RivalStudio[];
   /** The whole hireable roster, generated once at game start - world-level (shared by the player and every rival's own casting, see engine/rivalStudios.ts) rather than nested inside the player's own Studio. */
-  talentPool: Record<TalentRole, Talent[]>;
+  talentPool: Record<TalentProfession, Talent[]>;
   // Development pipeline (docs/DESIGN_REVIEW_development_pipeline.md) -
   // world-level and shared, same reasoning as talentPool: an Opportunity
   // isn't anyone's property yet, so it can't live inside one Studio. Not
@@ -103,7 +104,7 @@ function generateDraftId(): string {
  * used to pre-fill them from a freshly-picked script, since here that
  * "pick" already happened back at Opportunity acquisition.
  */
-export function createDraftFromAsset(asset: Asset, talentTargetPriceByRole: Partial<Record<TalentRole, number>>): FilmDraft {
+export function createDraftFromAsset(asset: Asset, talentTargetPriceByRole: Partial<Record<ProductionRole, number>>): FilmDraft {
   return {
     id: generateDraftId(),
     assetId: asset.id,
@@ -161,9 +162,9 @@ export type GameAction =
   | { type: 'GO_TO_STEP'; step: WizardStep }
   | { type: 'SET_TITLE'; title: string }
   | { type: 'SET_TARGET_AUDIENCE'; targetAudience: TargetAudience }
-  | { type: 'SET_TALENT_FOR_ROLE'; role: TalentRole; talent: Talent | null }
-  | { type: 'TOGGLE_TALENT_FOR_ROLE'; role: TalentRole; talent: Talent }
-  | { type: 'SET_TALENT_TARGET_PRICE'; role: TalentRole; price: number }
+  | { type: 'SET_TALENT_FOR_ROLE'; role: ProductionRole; talent: Talent | null }
+  | { type: 'TOGGLE_TALENT_FOR_ROLE'; role: ProductionRole; talent: Talent }
+  | { type: 'SET_TALENT_TARGET_PRICE'; role: ProductionRole; price: number }
   | { type: 'SET_TALENT_BUDGET_SPLIT'; totalBudget: number }
   // Replaces the old SET_PRODUCTION_CHOICES - the player now edits Strategy/
   // Ambition values directly (Plan Production, docs/DESIGN.md), and the

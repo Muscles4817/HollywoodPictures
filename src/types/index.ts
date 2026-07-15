@@ -26,7 +26,16 @@ export type TargetAudience =
   | 'Adults'
   | 'Niche';
 
-export type TalentRole =
+export type TalentProfession =
+  | 'Director'
+  | 'Actor'
+  | 'Writer'
+  | 'Cinematographer'
+  | 'Composer'
+  | 'Editor'
+  | 'VFX Supervisor';
+
+export type ProductionRole =
   | 'Director'
   | 'Lead Actor'
   | 'Supporting Actor'
@@ -153,7 +162,7 @@ export interface DirectorTalent extends TalentCommon {
 }
 
 export interface ActorTalent extends TalentCommon {
-  role: 'Lead Actor' | 'Supporting Actor';
+  role: 'Actor';
   actingStyle: ActingStyle;
 }
 
@@ -377,10 +386,10 @@ export interface PendingEventChoice {
   // RESOLVE_EVENT_CHOICE knows who to remove from the cast on a replacement.
   involvedTalentId?: string;
   involvedTalentName?: string;
-  involvedRole?: TalentRole;
+  involvedRole?: ProductionRole;
   // Set alongside involvedRole when this event offers a real recast
   // decision - which role any replacementCandidateId choices are hiring for.
-  replacementRole?: TalentRole;
+  replacementRole?: ProductionRole;
 }
 
 // The four risk dimensions knowable *before* a day of filming has happened -
@@ -552,7 +561,7 @@ export interface Film {
   genre: Genre;
   targetAudience: TargetAudience;
   script: Script;
-  talent: Talent[];
+  talent: TalentAssignment[];
   productionChoices: ProductionChoices;
   postProductionChoices: PostProductionChoices;
   marketingChoices: MarketingChoices;
@@ -688,7 +697,7 @@ export interface RivalProductionInProgress {
   scale: ProductionScale;
   genre: Genre;
   script: Script;
-  talent: Talent[];
+  talent: TalentAssignment[];
   productionChoices: ProductionChoices;
   postProductionChoices: PostProductionChoices;
   marketingChoices: MarketingChoices;
@@ -721,6 +730,12 @@ export interface Studio {
   assets: Asset[];
 }
 
+export interface TalentAssignment {
+  role: ProductionRole;
+  talent: Talent;
+}
+
+
 // The film currently being built in the wizard; fields fill in progressively.
 export interface FilmDraft {
   // Stable identity, needed once a draft can be sent to
@@ -745,9 +760,9 @@ export interface FilmDraft {
   // existing consumer's null-narrowing keeps working unchanged - a
   // deliberately minimal-diff choice, not an oversight.
   script: Script | null;
-  talent: Talent[];
-  /** The price the player is currently targeting for each role - filters GameState.talentPool down to who's shown. */
-  talentTargetPriceByRole: Partial<Record<TalentRole, number>>;
+  talent: TalentAssignment[];
+  /** The price the player is currently targeting for each casting slot - filters GameState.talentPool (once mapped to the underlying TalentProfession) down to who's shown. Keyed by ProductionRole, not TalentProfession, since Lead Actor and Supporting Actor need independent target prices even though both hire from the same Actor pool. */
+  talentTargetPriceByRole: Partial<Record<ProductionRole, number>>;
   // The player's own Strategy/Ambition choices from the redesigned Plan
   // Production screen - null until that screen has been visited at least
   // once. `productionChoices` below is still what every downstream system
