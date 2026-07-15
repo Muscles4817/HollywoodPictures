@@ -92,18 +92,57 @@ export function settleBoxOfficeForAllFilms(filmsReleased: Film[], currentTotalDa
     if (run === film.boxOfficeRun) return film; // nothing newly due this call
 
     if (run.status === 'finished') {
-      const totalBoxOffice = run.cumulativeGross;
-      const studioRevenue = Math.round(totalBoxOffice * STUDIO_BOX_OFFICE_SHARE);
-      const profit = studioRevenue - film.results.totalCost;
-      const outcome = determineOutcome(profit, film.results.totalCost, film.results.qualityScore, film.results.criticScore, film.results.audienceScore);
-      const brandChange = computeBrandChange(profit, film.results.totalCost, film.results.audienceScore);
-      const prestigeChange = computePrestigeChange(film.results.criticScore);
+      const totalBoxOffice =
+        run.cumulativeGross;
+
+      const studioRevenue = Math.round(
+        totalBoxOffice *
+          STUDIO_BOX_OFFICE_SHARE,
+      );
+
+      const profit =
+        studioRevenue -
+        film.results.totalCost;
+
+      const outcome = determineOutcome({
+        profit,
+        totalCost: film.results.totalCost,
+        totalBoxOffice,
+        qualityScore: film.results.qualityScore,
+        criticScore: film.results.criticScore,
+        audienceScore: film.results.audienceScore,
+      });
+
+      const brandChange = computeBrandChange({
+        profit,
+        totalCost: film.results.totalCost,
+        totalBoxOffice,
+        audienceScore: film.results.audienceScore,
+      });
+
+      const prestigeChange =
+        computePrestigeChange({
+          criticScore:
+            film.results.criticScore,
+          qualityScore:
+            film.results.qualityScore,
+        });
+
       brandDelta += brandChange;
       prestigeDelta += prestigeChange;
+
       return {
         ...film,
         boxOfficeRun: run,
-        results: { ...film.results, totalBoxOffice, studioRevenue, profit, outcome, brandChange, prestigeChange },
+        results: {
+          ...film.results,
+          totalBoxOffice,
+          studioRevenue,
+          profit,
+          outcome,
+          brandChange,
+          prestigeChange,
+        },
       };
     }
 

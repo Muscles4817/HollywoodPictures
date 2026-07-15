@@ -19,11 +19,13 @@ import { clamp } from './random';
 // player-facing narrative label ("Flop"/"Masterpiece"/...), just no
 // longer what reputation math is computed *from*.
 
-const BRAND_FLOP_DELTA = -8;
-const BRAND_WEAK_DELTA = -2;
-const BRAND_MODEST_DELTA = 3;
-const BRAND_HIT_DELTA = 7;
-const BRAND_BLOCKBUSTER_DELTA = 11;
+interface BrandChangeInputs {
+  profit: number;
+  totalCost: number;
+  totalBoxOffice: number;
+  audienceScore: number;
+}
+
 
 /**
  * Brand Recognition change - how well known and commercially bankable the
@@ -39,34 +41,121 @@ const BRAND_BLOCKBUSTER_DELTA = 11;
  * as a true blockbuster would blur the exact distinction Brand/Prestige
  * exists to draw.
  */
-export function computeBrandChange(profit: number, totalCost: number, audienceScore: number): number {
-  const profitRatio = computeProfitRatio(profit, totalCost);
-  const base =
-    profitRatio <= -0.3 ? BRAND_FLOP_DELTA :
-    profitRatio < 0.15 ? BRAND_WEAK_DELTA :
-    profitRatio < 0.8 ? BRAND_MODEST_DELTA :
-    profitRatio <= 2.5 ? BRAND_HIT_DELTA :
-    BRAND_BLOCKBUSTER_DELTA;
-  const audienceAdjustment = Math.round((audienceScore - 50) / 20); // -2..+2
-  return base + audienceAdjustment;
+export function computeBrandChange({
+  profit,
+  totalCost,
+  totalBoxOffice,
+  audienceScore,
+}: BrandChangeInputs): number {
+  const profitRatio = computeProfitRatio(
+    profit,
+    totalCost,
+  );
+
+  const profitabilityChange =
+    profitRatio <= -0.5
+      ? -8
+      : profitRatio < 0.1
+        ? -2
+        : profitRatio < 0.5
+          ? 2
+          : profitRatio < 1.25
+            ? 5
+            : 7;
+
+  const reachChange =
+    totalBoxOffice >= 750_000_000
+      ? 6
+      : totalBoxOffice >= 250_000_000
+        ? 4
+        : totalBoxOffice >= 100_000_000
+          ? 2
+          : totalBoxOffice >= 30_000_000
+            ? 1
+            : 0;
+
+  const audienceAdjustment = clampInteger(
+    Math.round((audienceScore - 50) / 15),
+    -3,
+    3,
+  );
+
+  return (
+    profitabilityChange +
+    reachChange +
+    audienceAdjustment
+  );
 }
+
+function clampInteger(
+  value: number,
+  minimum: number,
+  maximum: number,
+): number {
+  return Math.max(
+    minimum,
+    Math.min(maximum, value),
+  );
+}
+
+interface PrestigeChangeInputs {
+  criticScore: number;
+  qualityScore: number;
+}
+
 
 /**
  * Prestige change - how respected the studio is within the industry and by
- * critics. Driven by criticScore alone, deliberately independent of profit
- * or audience score: a beloved-but-unprofitable film ("Cult Hit"-shaped,
- * in OutcomeLabel terms) still builds real Prestige; a profitable-but-panned
- * one erodes it regardless of how much money it made. Symmetric around a
- * criticScore of 50 (a genuinely average review), same shape as the old
- * formula's own critic adjustment, just no longer riding on top of an
- * outcome-label delta that was itself already partly critic-driven.
+ * critics. Driven by critical/craft reception alone, deliberately
+ * independent of profit or audience score: a beloved-but-unprofitable film
+ * ("Cult Hit"-shaped, in OutcomeLabel terms) still builds real Prestige; a
+ * profitable-but-panned one erodes it regardless of how much money it made.
+ * The signal blends criticScore (75%) with qualityScore (25%) rather than
+ * criticScore alone, so genuine craft still counts for something even when
+ * critics under- or over-shoot it. Banded around a signal of 50 (a
+ * genuinely average reception), but *not* symmetric - the bands step down
+ * faster below 50 than they step up above it (e.g. a signal of 40 costs -1,
+ * while the mirror-image 60 is still within the 0 band), so a mediocre film
+ * loses Prestige noticeably faster than an equally-mediocre-but-good film
+ * gains it.
  */
-export function computePrestigeChange(criticScore: number): number {
-  // `+ 0` normalizes a `-0` result (criticScore just under 50) to `0` -
-  // otherwise harmless, but JSON.stringify/parse (state/persistence.ts)
-  // silently turns -0 into 0 on save/reload, which fails a strict toEqual
-  // in state/persistence.test.ts even though nothing actually changed.
-  return Math.round((criticScore - 50) / 5) + 0; // -10..+10
+export function computePrestigeChange({
+  criticScore,
+  qualityScore,
+}: PrestigeChangeInputs): number {
+  const prestigeSignal =
+    criticScore * 0.75 +
+    qualityScore * 0.25;
+
+  if (prestigeSignal < 25) {
+    return -6;
+  }
+
+  if (prestigeSignal < 40) {
+    return -3;
+  }
+
+  if (prestigeSignal < 50) {
+    return -1;
+  }
+
+  if (prestigeSignal < 65) {
+    return 0;
+  }
+
+  if (prestigeSignal < 75) {
+    return 1;
+  }
+
+  if (prestigeSignal < 85) {
+    return 2;
+  }
+
+  if (prestigeSignal < 92) {
+    return 3;
+  }
+
+  return 4;
 }
 
 export function applyStatChange(current: number, change: number): number {
