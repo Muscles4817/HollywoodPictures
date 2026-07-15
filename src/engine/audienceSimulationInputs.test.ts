@@ -312,8 +312,10 @@ describe('boundaries', () => {
   // alone no longer moves awareness or opening in any meaningful way, so the
   // old "Buzz 0 vs Buzz 100" boundary test's premise is gone. Replaced with
   // the two levers that now actually own awareness: marketing spend
-  // (dominant, MARKETING_REACH_WEIGHT=0.75) and cast fame (secondary,
-  // CAST_REACH_WEIGHT=0.25) - checked against a scratch diagnostic sweep
+  // (dominant) and cast fame (secondary, capped at MAX_CAST_ORGANIC_REACH so
+  // a genuinely obscure cast produces negligible organic reach on its own -
+  // see audienceSimulationInputs.ts:computeCastReachFraction/
+  // combineIndependentReach) - checked against a scratch diagnostic sweep
   // before being written in, per this project's calibration discipline.
   it('marketing spend 0 vs maximum, everything else fixed - a heavily marketed film opens dramatically bigger, not just modestly so', () => {
     const week1AtMin = runFullSimulation(inputs({ marketingSpend: 10_000 }))[0].cumulativeTicketsSold;
@@ -327,8 +329,8 @@ describe('boundaries', () => {
     const week1AtMaxFame = runFullSimulation(inputs({ directorFame: 100, leadFame: 100 }))[0].cumulativeTicketsSold;
     const fameRatio = week1AtMaxFame / week1AtZeroFame;
     const marketingRatio = runFullSimulation(inputs({ marketingSpend: 150_000_000 }))[0].cumulativeTicketsSold / runFullSimulation(inputs({ marketingSpend: 10_000 }))[0].cumulativeTicketsSold;
-    expect(fameRatio).toBeGreaterThan(1.5); // real diagnostic: ~2.06x - fame alone is a genuine lever, not a no-op
-    expect(fameRatio).toBeLessThan(marketingRatio); // but CAST_REACH_WEIGHT (0.25) < MARKETING_REACH_WEIGHT (0.75) - marketing must swing harder
+    expect(fameRatio).toBeGreaterThan(1.15); // real diagnostic: ~1.24x - fame alone is a genuine lever, not a no-op, but MAX_CAST_ORGANIC_REACH's 0.1 ceiling deliberately keeps it modest
+    expect(fameRatio).toBeLessThan(marketingRatio); // marketing must still swing harder than cast fame alone
   });
 
   it('zero vs maximum marketing spend, everything else fixed - more spend clearly opens bigger', () => {
@@ -401,7 +403,16 @@ describe('named archetype diagnostics', () => {
   });
 
   it('2. sleeper hit: tiny opening, but a later week matches or exceeds an earlier one - real growth, not just a slow decline', () => {
-    const sleeperInputs = inputs({ releaseType: 'Limited', buzzScore: 15, marketingSpend: 300_000, scriptCrossoverPotential: 70, criticScore: 92, audienceScore: 95 });
+    // Awareness itself no longer grows over the run (built almost entirely
+    // at release - see audienceSimulationStep.ts's module header), so a
+    // "sleeper hit" here means something more realistic than an ever-widening
+    // audience: a slow-building Festival First release where week 1's low
+    // baseline conversion pacing undersells the already-aware audience, and
+    // strong reception (via steps 5/6/8) converts more of that same aware
+    // pool into tickets over the next few weeks before the run eventually
+    // turns over into decline - a genuine early climb, not instant
+    // saturation, even though total awareness itself was fixed at release.
+    const sleeperInputs = inputs({ releaseType: 'Festival First', buzzScore: 10, marketingSpend: 100_000, scriptCrossoverPotential: 90, criticScore: 96, audienceScore: 96 });
     const fixed = deriveAudienceSimulationFixedState(sleeperInputs);
     const weeks = runFullSimulation(sleeperInputs);
     const admissions = weeklyAdmissions(weeks);
@@ -506,16 +517,20 @@ describe('named archetype diagnostics', () => {
   it('9. ordinary mid-performing film: unremarkable, but genuinely sustained - later weeks decline gently, they do not collapse the way a poor-reception film does', () => {
     const weeks = runFullSimulation(inputs({ releaseType: 'Wide', buzzScore: 45, marketingSpend: 15_000_000, criticScore: 55, audienceScore: 58 }));
     const admissions = weeklyAdmissions(weeks);
-    // Distinguishing shape from archetype 1/8 (poor reception): "most films
-    // decline from opening, strong WOM can flatten the decline" (see the
-    // Quantum Signal incident fix, docs/DESIGN.md 5.34) - only *strong*
-    // reception should hold flat or grow, so a merely-ordinary film
-    // declining gently by week 10 is the correct shape, not a regression.
-    // What must still hold is the *contrast* with archetype 8's poor-
-    // reception collapse (admissions[9] < admissions[0] * 0.35): ordinary
-    // reception should decay far more gently than that, never collapsing.
-    const later = admissions[Math.min(9, admissions.length - 1)];
-    expect(later).toBeGreaterThan(admissions[0] * 0.5);
+    const poorWeeks = runFullSimulation(inputs({ releaseType: 'Wide', buzzScore: 85, marketingSpend: 150_000_000, criticScore: 20, audienceScore: 18 }));
+    const poorAdmissions = weeklyAdmissions(poorWeeks);
+    // Every film now declines from opening (awareness is built almost
+    // entirely up front, at release - see audienceSimulationStep.ts's
+    // module header - so there's no ongoing awareness growth left to hold
+    // admissions flat the way old WOM-driven-awareness builds could).
+    // What still distinguishes reception quality is *how fast* that decline
+    // is: reception still drives steps 5/6/8 (interest conversion,
+    // crossover, pull-forward) against whatever audience is already aware,
+    // so an ordinary film's week-10 retention should be meaningfully better
+    // than a poorly-received film's, not just technically nonzero.
+    const laterRatio = admissions[Math.min(9, admissions.length - 1)] / admissions[0];
+    const poorLaterRatio = poorAdmissions[Math.min(9, poorAdmissions.length - 1)] / poorAdmissions[0];
+    expect(laterRatio).toBeGreaterThan(poorLaterRatio * 1.5);
   });
 });
 

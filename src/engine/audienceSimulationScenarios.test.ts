@@ -169,15 +169,20 @@ describe('named archetype regression scenarios', () => {
   it('sleeper hit: small opening, real growth, strong WOM, high legs relative to opening', () => {
     const r = run(SLEEPER_HIT);
     expect(r.openingGross).toBeLessThan(r.fixed.totalAddressableAudience * AVERAGE_TICKET_PRICE * 0.005);
-    // At least one later week matches or beats an earlier one.
-    const laterWeek = r.admissions[Math.min(9, r.admissions.length - 1)];
-    expect(laterWeek).toBeGreaterThanOrEqual(r.admissions[0]);
-    // Multiple flat-or-increasing transitions, not just one - genuine sustained growth.
+    // Awareness itself no longer grows over a run (see
+    // audienceSimulationStep.ts's module header - it's built almost
+    // entirely at release now), so growth here means a genuine early climb
+    // as WOM converts more of the already-aware pool each week, peaking a
+    // few weeks in before eventual decline - not a week 10 that still beats
+    // week 1, which would need awareness itself to keep expanding.
+    const peakWeek = Math.max(...r.admissions);
+    expect(peakWeek).toBeGreaterThan(r.admissions[0]);
+    // Multiple flat-or-increasing transitions on the way to that peak, not just one.
     let growthWeeks = 0;
     for (let i = 1; i < r.admissions.length; i++) if (r.admissions[i] >= r.admissions[i - 1]) growthWeeks++;
-    expect(growthWeeks).toBeGreaterThanOrEqual(3);
-    // Legs is high relative to the opening - a small opening stretched into a much bigger total.
-    expect(r.legs).toBeGreaterThan(20);
+    expect(growthWeeks).toBeGreaterThanOrEqual(2);
+    // Legs is high relative to an ordinary mid-performer's - a small opening stretched into a much bigger total than a typical film manages.
+    expect(r.legs).toBeGreaterThan(run(ORDINARY_MID_PERFORMER).legs * 1.75);
   });
 
   it('huge opening with exceptional reception: enormous opening, no early decline, very large total, reaches the simulation\'s extreme upper range', () => {
@@ -246,11 +251,16 @@ describe('named archetype regression scenarios', () => {
     const r = run(EXCELLENT_POORLY_MARKETED);
     // Weak opening - a tiny fraction of the ceiling.
     expect(r.openingGross).toBeLessThan(r.ceiling * AVERAGE_TICKET_PRICE * 0.01);
-    // Potential WOM recovery - the run genuinely grows well past its opening.
-    expect(r.totalAdmissions).toBeGreaterThan(r.admissions[0] * 20);
+    // "Recovery" here is steps 5/6/8 converting the already-aware pool
+    // faster as reception-driven WOM builds, not awareness itself growing
+    // (see audienceSimulationStep.ts's module header) - still a genuine
+    // multi-week climb before the run turns over into decline, just a
+    // smaller total multiple of the opening than the old awareness-growth
+    // model produced.
+    expect(r.totalAdmissions).toBeGreaterThan(r.admissions[0] * 15);
     let growthWeeks = 0;
     for (let i = 1; i < r.admissions.length; i++) if (r.admissions[i] >= r.admissions[i - 1]) growthWeeks++;
-    expect(growthWeeks).toBeGreaterThanOrEqual(5);
+    expect(growthWeeks).toBeGreaterThanOrEqual(3);
     // No instant Wide-blockbuster trajectory - even at its peak, this run's biggest single week never approaches a real Wide blockbuster's opening.
     const blockbuster = run(HUGE_OPENING_EXCEPTIONAL);
     expect(Math.max(...r.admissions)).toBeLessThan(blockbuster.admissions[0] * 0.1);

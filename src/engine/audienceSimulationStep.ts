@@ -64,9 +64,21 @@ export function applyReleaseDayAwarenessSeed(fixed: AudienceSimulationFixedState
 }
 
 /** Step 1: a constant fraction of the still-unaware population becomes aware from non-word-of-mouth sources every week, including week 1 - see AudienceSimulationFixedState.externalWeeklyAwarenessRate. */
-export function applyExternalAwarenessGrowth(fixed: AudienceSimulationFixedState, awareCount: number): number {
-  const unaware = Math.max(0, fixed.totalAddressableAudience - awareCount);
-  return awareCount + unaware * fixed.externalWeeklyAwarenessRate;
+export function applyExternalAwarenessGrowth(
+  fixed: AudienceSimulationFixedState,
+  awareCount: number,
+  weekNumber: number,
+): number {
+  const unaware = Math.max(
+    0,
+    fixed.totalAddressableAudience - awareCount,
+  );
+
+  const ageMultiplier = Math.pow(0.55, Math.max(0, weekNumber - 1));
+  const weeklyRate =
+    fixed.externalWeeklyAwarenessRate * ageMultiplier;
+
+  return awareCount + unaware * weeklyRate;
 }
 
 /** Step 2: of a batch of newly-aware people, the fraction with genuine natural fit (baseInterestFraction) become interested immediately - bounded by whatever natural-audience headroom is actually left. */
@@ -501,10 +513,22 @@ function computeCriticOnlyReceptionMultiplier(fixed: AudienceSimulationFixedStat
  * distributors reading reviews, not by general audiences who mostly
  * haven't had the chance to see it yet.
  */
-function computeExpansionReceptionGate(fixed: AudienceSimulationFixedState): number {
+function computeFestivalCriticGate(criticScore: number): number {
+  if (criticScore <= 60) return 0;
+
+  const normalized = (criticScore - 60) / 40;
+
+  return clamp(Math.pow(normalized, 1.5), 0, 1);
+}
+
+function computeExpansionReceptionGate(
+  fixed: AudienceSimulationFixedState,
+): number {
   if (fixed.criticLedExpansionWeight <= 0) return 1;
-  const criticOnly = computeCriticOnlyReceptionMultiplier(fixed);
-  return 1 - fixed.criticLedExpansionWeight * (1 - criticOnly);
+
+  const festivalGate = computeFestivalCriticGate(fixed.criticScore);
+
+  return 1 - fixed.criticLedExpansionWeight * (1 - festivalGate);
 }
 
 /**
@@ -547,13 +571,52 @@ export function computeAvailabilityPerformanceAdjustment(fixed: AudienceSimulati
   return rawPerformanceAdjustment > 0 ? rawPerformanceAdjustment * expansionGate : rawPerformanceAdjustment;
 }
 
-export function computeNextAvailability(fixed: AudienceSimulationFixedState, currentAvailability: number, demandUtilisation: number): number {
-  const performanceAdjustment = computeAvailabilityPerformanceAdjustment(fixed, demandUtilisation);
-  const netRate = clamp(performanceAdjustment - fixed.availabilityBaseWeeklyDecay, -MAX_AVAILABILITY_RATE_MAGNITUDE, MAX_AVAILABILITY_RATE_MAGNITUDE);
+const MAX_WEEKLY_EXPANSION_MULTIPLIER = 1.75;
+const MAX_WEEKLY_EXPANSION_POINTS = 0.12;
+
+export function computeNextAvailability(
+  fixed: AudienceSimulationFixedState,
+  currentAvailability: number,
+  demandUtilisation: number,
+): number {
+  const performanceAdjustment =
+    computeAvailabilityPerformanceAdjustment(fixed, demandUtilisation);
+
+  const netRate = clamp(
+    performanceAdjustment - fixed.availabilityBaseWeeklyDecay,
+    -MAX_AVAILABILITY_RATE_MAGNITUDE,
+    MAX_AVAILABILITY_RATE_MAGNITUDE,
+  );
+
   if (netRate >= 0) {
-    return clamp(currentAvailability + (AVAILABILITY_CEILING - currentAvailability) * netRate, AVAILABILITY_FLOOR, AVAILABILITY_CEILING);
+    const normalizedPositiveRate =
+      netRate / MAX_AVAILABILITY_RATE_MAGNITUDE;
+
+    const multiplicativeTarget =
+      currentAvailability *
+      (
+        1 +
+        normalizedPositiveRate *
+          (MAX_WEEKLY_EXPANSION_MULTIPLIER - 1)
+      );
+
+    const absoluteTarget =
+      currentAvailability +
+      normalizedPositiveRate * MAX_WEEKLY_EXPANSION_POINTS;
+
+    return clamp(
+      Math.min(multiplicativeTarget, absoluteTarget),
+      AVAILABILITY_FLOOR,
+      AVAILABILITY_CEILING,
+    );
   }
-  return clamp(currentAvailability - (currentAvailability - AVAILABILITY_FLOOR) * -netRate, AVAILABILITY_FLOOR, AVAILABILITY_CEILING);
+
+  return clamp(
+    currentAvailability -
+      (currentAvailability - AVAILABILITY_FLOOR) * -netRate,
+    AVAILABILITY_FLOOR,
+    AVAILABILITY_CEILING,
+  );
 }
 
 /**
@@ -640,7 +703,11 @@ export function advanceOneWeekWithDiagnostics(
   const newlyAwareFromReleaseDaySeed = awareAfterSeed - priorWeek.awareCount;
 
   // Step 1 + 2: external awareness growth, and the natural-fit slice of it converting to interest immediately.
-  const awareAfterExternal = applyExternalAwarenessGrowth(fixed, awareAfterSeed);
+  const awareAfterExternal = applyExternalAwarenessGrowth(
+    fixed,
+    awareAfterSeed,
+    nextWeekNumber,
+  );
   const newlyAwareFromExternal = awareAfterExternal - awareAfterSeed;
   const newlyAwareExternal = awareAfterExternal - priorWeek.awareCount;
   const deltaInterestExternal = convertNewAwarenessToBaseInterest(fixed, newlyAwareExternal, totalEverInterested);
@@ -656,8 +723,10 @@ export function advanceOneWeekWithDiagnostics(
   const womInfluence = womInfluenceOverride ?? computeCurrentWomInfluence(fixed, weeks, weeks.length);
 
   // Step 4: word of mouth spreads awareness further.
-  const awareCount = applyWomAwarenessGrowth(fixed, awareAfterExternal, womInfluence);
-  const newlyAwareFromWom = awareCount - awareAfterExternal;
+  // const awareCount = applyWomAwarenessGrowth(fixed, awareAfterExternal, womInfluence);
+  // const newlyAwareFromWom = awareCount - awareAfterExternal;
+  const awareCount = awareAfterExternal;
+  const newlyAwareFromWom = 0;
 
   // Step 5: word of mouth convinces aware-but-undecided people within the natural audience.
   const deltaInterestNatural = deriveWomNaturalInterestGrowth(fixed, awareCount, totalEverInterested, womInfluence);

@@ -241,15 +241,20 @@ describe('regression matrix: 3. genuine sleeper breakout', () => {
   });
 
   it('several flat-or-increasing weeks are possible', () => {
-    expect(summary.longestGrowthStreak).toBeGreaterThanOrEqual(3);
+    // Awareness itself no longer grows over a run (see
+    // audienceSimulationStep.ts's module header) - a sleeper breakout's
+    // growth streak now comes purely from steps 5/6/8 converting an
+    // already-aware pool faster as WOM influence ramps up, which tapers off
+    // sooner than the old awareness-replenishing model did.
+    expect(summary.longestGrowthStreak).toBeGreaterThanOrEqual(2);
   });
 
   it('peak occurs after opening', () => {
     expect(summary.peakIndex).toBeGreaterThan(0);
   });
 
-  it('final multiplier can be very high', () => {
-    expect(summary.legs).toBeGreaterThan(20);
+  it('final multiplier is meaningfully higher than an ordinary-positive film\'s', () => {
+    expect(summary.legs).toBeGreaterThan(summarize(ORDINARY_POSITIVE).legs * 1.25);
   });
 
   it('weekly gross does not become dozens of times larger than opening', () => {
@@ -299,9 +304,15 @@ describe('regression matrix: 4. rare phenomenon', () => {
 describe('regression matrix: 5. well-liked but niche film', () => {
   const summary = summarize(WELL_LIKED_NICHE);
   const broad = summarize(BROAD_DECENT);
+  const ordinary = summarize(ORDINARY_POSITIVE);
 
-  it('shows excellent retention within its niche (high legs)', () => {
-    expect(summary.legs).toBeGreaterThan(50);
+  // Retention (legs) compresses across the board now that awareness itself
+  // no longer grows over a run (see audienceSimulationStep.ts's module
+  // header) - "excellent retention" is judged relative to an ordinary-
+  // positive film's own legs now, not a fixed historical constant that
+  // assumed ongoing WOM-driven awareness growth.
+  it('shows excellent retention within its niche (high legs) relative to an ordinary-positive film', () => {
+    expect(summary.legs).toBeGreaterThan(ordinary.legs * 1.25);
   });
 
   it('has higher legs than a broad crowd-pleaser, because its opening is small', () => {

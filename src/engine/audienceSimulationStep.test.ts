@@ -240,6 +240,12 @@ describe('boundary cases', () => {
       criticScore: 95,
       audienceScore: 97,
       externalWeeklyAwarenessRate: 0.3,
+      // A real release-day awareness seed - awareness itself no longer
+      // grows over the run (see audienceSimulationStep.ts's module header,
+      // it's built almost entirely at release now, not word-of-mouth), so
+      // without a real seed here there would be almost nobody left for
+      // crossover to ever reach regardless of how strong reception is.
+      initialAwareCount: 300_000,
     });
     const weeks = runFullSimulation(f);
     const naturalCeiling = f.baseInterestFraction * f.totalAddressableAudience;
@@ -264,12 +270,19 @@ describe('boundary cases', () => {
   });
 
   it('a highly original but poorly received film does not realize its crossover capacity - capacity alone is not enough', () => {
+    // Both share the same real release-day awareness seed (a real released
+    // film always has one - see the previous test's comment for why
+    // initialAwareCount: 0 no longer produces a meaningful aware pool on
+    // its own now that awareness doesn't grow over the run) - the only
+    // difference between the two is reception, isolating exactly what this
+    // test claims to prove.
     const wellReceived = fixed({
       totalAddressableAudience: 1_000_000,
       baseInterestFraction: 0.1,
       crossoverCapacityFraction: 0.6,
       criticScore: 90,
       audienceScore: 92,
+      initialAwareCount: 500_000,
     });
     const poorlyReceived = fixed({
       totalAddressableAudience: 1_000_000,
@@ -277,25 +290,13 @@ describe('boundary cases', () => {
       crossoverCapacityFraction: 0.6, // same large capacity
       criticScore: 15,
       audienceScore: 10, // but badly received
+      initialAwareCount: 500_000,
     });
     const wellReceivedMax = Math.max(...runFullSimulation(wellReceived).map((w) => w.interestedRemaining + w.cumulativeTicketsSold));
     const poorlyReceivedMax = Math.max(...runFullSimulation(poorlyReceived).map((w) => w.interestedRemaining + w.cumulativeTicketsSold));
     // Same capacity, meaningfully different realization - proves capacity
     // is necessary but not sufficient, matching the design's "capacity vs
-    // realization" split. Threshold lowered twice: 1.5x -> 1.4x in the
-    // Quantum Signal incident fix (tempering NATURAL_INTEREST_RESPONSE's
-    // sensitivity narrowed the gap at this small, short-run scale), then
-    // 1.4x -> 1.15x in Milestone 9 (availability): at this test's tiny
-    // 1,000,000-scale totalAddressableAudience, the *same* release-day
-    // exhibition capacity (both films share initialAwareCount: 0, so both
-    // bootstrap from the same availability floor - see ANCHOR_FLOOR_FRACTION
-    // in audienceSimulationStep.ts) is now a genuinely shared constraint for
-    // several early weeks regardless of reception, further compressing how
-    // far reception alone can differentiate the two within 20 weeks. The
-    // actual ratio here is now ~1.18x - still a real, verified difference
-    // (capacity alone truly isn't sufficient - a poorly-received film with
-    // identical capacity still realizes meaningfully less), just smaller
-    // than either predecessor threshold.
+    // realization" split.
     expect(wellReceivedMax).toBeGreaterThan(poorlyReceivedMax * 1.15);
   });
 

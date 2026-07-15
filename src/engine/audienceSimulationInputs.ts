@@ -520,10 +520,22 @@ function computeConversionPacingBaseline(releaseType: SupportedReleaseType, rele
 // the data-table level, not the formula level): a genuinely obscure cast
 // must produce negligible organic reach on its own, not a respectable
 // baseline.
-function computeCastReachFraction(directorFame: number, leadFame: number): number {
-  const combinedFame = clamp(directorFame, 0, 100) * 0.35 + clamp(leadFame, 0, 100) * 0.65;
-  return (combinedFame / 100) ** 2;
+const MAX_CAST_ORGANIC_REACH = 0.1;
+
+function computeCastReachFraction(
+  directorFame: number,
+  leadFame: number,
+): number {
+  const combinedFame =
+    clamp(directorFame, 0, 100) * 0.25 +
+    clamp(leadFame, 0, 100) * 0.75;
+
+  return (
+    MAX_CAST_ORGANIC_REACH *
+    (combinedFame / 100) ** 2
+  );
 }
+
 
 // Log-scale anchors mapping a marketing spend amount (data/release.ts's
 // £10k-£150M range) onto a 0-1 raw reach fraction, before marketingEfficiency
@@ -537,39 +549,103 @@ function computeCastReachFraction(directorFame: number, leadFame: number): numbe
 // as a satisfying, dramatic progression lever across a playthrough rather
 // than saturating early.
 const MARKETING_REACH_ANCHORS: ScaleAnchor<'reach'>[] = [
-  { t: 0, values: { reach: 0 }, description: 'Essentially no marketing reach.' },
-  { t: 0.25, values: { reach: 0.03 }, description: 'A modest local campaign.' },
-  { t: 0.5, values: { reach: 0.12 }, description: 'A real regional campaign.' },
-  { t: 0.75, values: { reach: 0.35 }, description: 'A national blitz.' },
-  { t: 1, values: { reach: 0.85 }, description: 'A global blockbuster campaign.' },
+  {
+    t: 0,
+    values: { reach: 0 },
+    description:
+      'A token campaign with almost no measurable reach.',
+  },
+  {
+    t: 0.25,
+    values: { reach: 0.03 },
+    description:
+      'A small targeted or local campaign.',
+  },
+  {
+    t: 0.5,
+    values: { reach: 0.12 },
+    description:
+      'A meaningful specialist or regional campaign.',
+  },
+  {
+    t: 0.75,
+    values: { reach: 0.35 },
+    description:
+      'A major national campaign with broad public visibility.',
+  },
+  {
+    t: 0.9,
+    values: { reach: 0.62 },
+    description:
+      'A major international campaign across mass media and digital channels.',
+  },
+  {
+    t: 1,
+    values: { reach: 0.85 },
+    description:
+      'An exceptional global blockbuster campaign with near-ubiquitous visibility.',
+  },
 ];
 
-function marketingReachFraction(marketingSpend: number): number {
-  const t = logT(marketingSpend, MARKETING_SPEND_RANGE);
-  return interpolateScale(t, MARKETING_REACH_ANCHORS, 'reach');
+
+function marketingReachFraction(
+  marketingSpend: number,
+): number {
+  const t = logT(
+    marketingSpend,
+    MARKETING_SPEND_RANGE,
+  );
+
+  return interpolateScale(
+    t,
+    MARKETING_REACH_ANCHORS,
+    'reach',
+  );
 }
 
-// Marketing weighted far higher than the cast/reputation "who's involved"
-// channel - satisfies the explicit "marketing should become one of the
-// strongest progression mechanics... marketing buys awareness, not
-// quality" brief. The cast channel still keeps a real, nonzero floor: a
-// famous director/cast can still carry a meaningful opening on reputation
-// alone even with a token marketing spend, the same "genuinely obscure
-// cast produces negligible reach, genuinely famous cast still matters"
-// shape as before, just no longer the dominant channel.
-const CAST_REACH_WEIGHT = 0.25;
-const MARKETING_REACH_WEIGHT = 0.75;
-
-function computeInitialAwareCount(fixed: {
-  totalAddressableAudience: number;
-  marketingEfficiency: number;
-}, directorFame: number, leadFame: number, marketingSpend: number): number {
-  const rawReach = clamp(
-    CAST_REACH_WEIGHT * computeCastReachFraction(directorFame, leadFame) + MARKETING_REACH_WEIGHT * marketingReachFraction(marketingSpend) * fixed.marketingEfficiency,
-    0,
+function combineIndependentReach(
+  ...reachFractions: number[]
+): number {
+  const unreachedFraction = reachFractions.reduce(
+    (remaining, reach) =>
+      remaining * (1 - clamp(reach, 0, 1)),
     1,
   );
-  return fixed.totalAddressableAudience * rawReach;
+
+  return 1 - unreachedFraction;
+}
+
+
+function computeInitialAwareCount(
+  fixed: {
+    totalAddressableAudience: number;
+    marketingEfficiency: number;
+  },
+  directorFame: number,
+  leadFame: number,
+  marketingSpend: number,
+): number {
+  const marketingReach = clamp(
+    marketingReachFraction(marketingSpend) *
+      fixed.marketingEfficiency,
+    0,
+    0.95,
+  );
+
+  const castReach = computeCastReachFraction(
+    directorFame,
+    leadFame,
+  );
+
+  const combinedReach = combineIndependentReach(
+    marketingReach,
+    castReach,
+  );
+
+  return Math.round(
+    fixed.totalAddressableAudience *
+      combinedReach,
+  );
 }
 
 // --- Ongoing external awareness trickle -------------------------------------
