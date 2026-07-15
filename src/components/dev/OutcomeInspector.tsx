@@ -7,9 +7,11 @@ import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES, FIN
 import { RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS, MARKETING_SPEND_RANGE } from '../../data/release';
 import { SHOOTING_BUDGET_RANGE, ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../../data/production';
 import { computeReleaseResults } from '../../engine/releaseFilm';
+import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta } from '../../engine/cost';
 import { deriveCommercialProfile } from '../../engine/commercialProfile';
 import { computeTalentCompatibility, computeTalentCompatibilityBreakdown } from '../../engine/compatibility';
 import { advanceToWeek, MAX_SIMULATION_WEEKS } from '../../engine/audienceSimulationStep';
+import { inferStudioBrandFromMarketingEfficiency } from '../../engine/audienceSimulationInputs';
 import { AVERAGE_TICKET_PRICE, STUDIO_BOX_OFFICE_SHARE } from '../../engine/boxOfficeRun';
 import { determineOutcome } from '../../engine/outcome';
 import { computeBrandChange, computePrestigeChange } from '../../engine/reputation';
@@ -64,12 +66,14 @@ const FINAL_CUT_FOCI = Object.keys(FINAL_CUT_FOCUS_PROFILES) as FinalCutFocus[];
 const RELEASE_TYPES = Object.keys(RELEASE_TYPE_PROFILES) as ReleaseType[];
 const RELEASE_WINDOWS = Object.keys(RELEASE_WINDOW_GENRE_BONUS) as ReleaseWindow[];
 
-// A synthetic single-line placeholder for the two aggregate event-impact
-// sliders below - only qualityDelta/buzzDelta actually reach any formula
-// (computeEventsScore/computeBuzzScore), the rest exist purely to satisfy
-// ProductionEvent's shape.
-function syntheticEvent(qualityDelta: number, buzzDelta: number): ProductionEvent {
-  return { id: 'synthetic', description: 'Aggregate event impact (Outcome Inspector)', severity: 'medium', costDelta: 0, qualityDelta, buzzDelta, delayDaysDelta: 0 };
+// A synthetic single-line placeholder for the three aggregate event-impact
+// sliders below - qualityDelta/buzzDelta/costDelta all actually reach a
+// formula (computeEventsScore/computeBuzzScore/computeEventsCostDelta
+// respectively); delayDaysDelta doesn't (it only ever affected live
+// scheduling during principal photography, which has already happened by
+// release time) and severity is purely cosmetic, so neither is exposed here.
+function syntheticEvent(qualityDelta: number, buzzDelta: number, costDelta: number): ProductionEvent {
+  return { id: 'synthetic', description: 'Aggregate event impact (Outcome Inspector)', severity: 'medium', costDelta, qualityDelta, buzzDelta, delayDaysDelta: 0 };
 }
 
 /** Average fame across every hired member of one role - mirrors engine/releaseFilm.ts's own averageFame, used here to feed AudienceSimulationDiagnostics the same directorFame/leadFame inputs a real release computes. */
@@ -205,10 +209,14 @@ export function OutcomeInspector() {
   const [productionChoices, setProductionChoices] = useState<ProductionChoices | null>(selectedFilm?.productionChoices ?? null);
   const [postProductionChoices, setPostProductionChoices] = useState<PostProductionChoices | null>(selectedFilm?.postProductionChoices ?? null);
   const [marketingChoices, setMarketingChoices] = useState<MarketingChoices | null>(selectedFilm?.marketingChoices ?? null);
-  const [studioBrand, setStudioBrand] = useState(state.studio.brand);
+  const [studioBrand, setStudioBrand] = useState(() =>
+    selectedFilm ? inferStudioBrandFromMarketingEfficiency(selectedFilm.boxOfficeRun.fixed.marketingEfficiency) : state.studio.brand,
+  );
   const [shootingRatio, setShootingRatio] = useState(1);
   const [eventQualityDelta, setEventQualityDelta] = useState(() => selectedFilm?.events.reduce((sum, e) => sum + e.qualityDelta, 0) ?? 0);
   const [eventBuzzDelta, setEventBuzzDelta] = useState(() => selectedFilm?.events.reduce((sum, e) => sum + e.buzzDelta, 0) ?? 0);
+  const [eventCostDelta, setEventCostDelta] = useState(() => selectedFilm?.events.reduce((sum, e) => sum + e.costDelta, 0) ?? 0);
+  const [photographyCost, setPhotographyCost] = useState(() => (selectedFilm ? photographyCostForFilm(selectedFilm) : 0));
   // Seeds computeReleaseResults' rng - only ever consumed for review-blurb/
   // story-report flavor text now (the audience simulation itself has no
   // randomness at all, docs/DESIGN.md 5.34 Milestone 5), recreated fresh
@@ -217,13 +225,38 @@ export function OutcomeInspector() {
   // "Reroll Flavor Text" changes it.
   const [varianceSeed, setVarianceSeed] = useState(() => Date.now());
 
-  // A rival's own Brand, not the player's - loadFilm below seeds
-  // studioBrand from whichever studio actually released the selected film,
-  // since Buzz Score (and therefore every downstream score) is driven by
-  // the releasing studio's own Brand, not the player's.
+  // The releasing studio's Brand as it actually was on this film's release
+  // day - not its current Brand, which almost certainly has moved since
+  // (Brand changes after every release, engine/reputation.ts). Buzz Score
+  // and the whole audience simulation are driven by studioBrand
+  // (engine/scoring.ts:computeBuzzScore, engine/audienceSimulationInputs.ts),
+  // so seeding from current Brand made "Current" permanently diverge from
+  // the stored "Original" even with zero edits, and made "Reset to
+  // Original" unable to ever close that gap. Recovered exactly from this
+  // film's own frozen boxOfficeRun.fixed.marketingEfficiency instead -
+  // computed once at release and never recomputed, same as every other
+  // field loadFilm seeds from the selected Film itself.
   function brandForFilm(film: Film): number {
-    if (film.releasedBy === undefined) return state.studio.brand;
-    return state.rivalStudios.find((r) => r.name === film.releasedBy)?.brand ?? state.studio.brand;
+    return inferStudioBrandFromMarketingEfficiency(film.boxOfficeRun.fixed.marketingEfficiency);
+  }
+
+  // Contingency's actual daily-burn total from the real shoot
+  // (PhotographyState.runningCost) - not stored on Film, but exactly
+  // recoverable by subtraction: every other component of
+  // FilmResults.productionCost (talent, production budget, real events'
+  // cost deltas, test screening) is already reproduced verbatim from the
+  // Film's own stored fields, so whatever's left over after subtracting
+  // those from the stored productionCost must be the photography cost that
+  // was originally charged. Was previously hardcoded to 0, silently making
+  // every loaded film's Total Cost/Profit read lower than its real release
+  // - clamped at 0 for the (essentially unreachable) edge case where the
+  // original sum itself clamped there first (engine/releaseFilm.ts).
+  function photographyCostForFilm(film: Film): number {
+    const talentCost = computeTalentCost(film.talent.map((a) => a.talent));
+    const productionBudgetCost = computeProductionBudgetCost(film.productionChoices);
+    const eventsCostDelta = computeEventsCostDelta(film.events);
+    const testScreeningCost = TEST_SCREENING_PROFILES[film.postProductionChoices.testScreeningResponse].cost;
+    return Math.max(0, film.results.productionCost - talentCost - productionBudgetCost - eventsCostDelta - testScreeningCost);
   }
 
   function loadFilm(film: Film) {
@@ -237,10 +270,13 @@ export function OutcomeInspector() {
     setMarketingChoices(film.marketingChoices);
     setStudioBrand(brandForFilm(film));
     setShootingRatio(1);
+    setPhotographyCost(photographyCostForFilm(film));
     const evQuality = film.events.reduce((sum, e) => sum + e.qualityDelta, 0);
     const evBuzz = film.events.reduce((sum, e) => sum + e.buzzDelta, 0);
+    const evCost = film.events.reduce((sum, e) => sum + e.costDelta, 0);
     setEventQualityDelta(evQuality);
     setEventBuzzDelta(evBuzz);
+    setEventCostDelta(evCost);
     setVarianceSeed(Date.now());
   }
 
@@ -312,16 +348,19 @@ export function OutcomeInspector() {
   const leadFame = findAssignedTalent(talent, 'Lead Actor')?.fame ?? 0;
   const supportFame = findAssignedTalent(talent, 'Supporting Actor')?.fame ?? 0;
 
-  const events = [syntheticEvent(eventQualityDelta, eventBuzzDelta)];
+  const events = [syntheticEvent(eventQualityDelta, eventBuzzDelta, eventCostDelta)];
 
   // Runs the exact same orchestration RELEASE_FILM does (state/studioReducer.ts)
   // against the editable working copy - quality/critic/audience/buzz,
   // opening weekend, total cost, and the audience simulation's release-day
   // fixed state all come back from this one call, so there's no separate
-  // formula-by-formula reimplementation to drift out of sync.
-  // photographyCost is approximated as 0 - not tracked on Film (not
-  // preserved from the original release), and it doesn't affect any rating,
-  // only nudges the profit figure below.
+  // formula-by-formula reimplementation to drift out of sync. photographyCost
+  // is seeded from photographyCostForFilm above (reconstructed by
+  // subtraction, exact on load), not hardcoded - shootingRatio remains a
+  // genuine unknown (defaults to 1.0, see its own slider caption below) since
+  // it isn't recoverable the same way: it feeds a nonlinear/clamped formula
+  // (engine/productionDials.ts:shootingQualityFromRatio), not a simple
+  // additive cost term, so there's no exact inverse.
   const rng = createRng(varianceSeed);
   const { results, fixed } = computeReleaseResults(
     {
@@ -334,7 +373,7 @@ export function OutcomeInspector() {
       postProductionChoices,
       marketingChoices,
       events,
-      photographyCost: 0,
+      photographyCost,
       shootingRatio,
       studioBrand,
     },
@@ -660,10 +699,31 @@ export function OutcomeInspector() {
           onChange={setShootingRatio}
         />
         <p className="choice-description" style={{ margin: 0 }}>
-          Not preserved from the original release (not stored on Film) - defaults to 1.0 (on schedule).
+          Not preserved from the original release (not stored on Film) - defaults to 1.0 (on schedule). Unlike
+          Photography Cost below, this can't be reconstructed exactly: it feeds a nonlinear formula, not a plain
+          additive cost, so any real deviation from an on-schedule shoot is a genuine, small, unrecoverable gap
+          between Original and Current here.
         </p>
+        <SliderRow
+          label="Photography Cost (Contingency burn from the real shoot)"
+          value={photographyCost}
+          min={0}
+          max={SHOOTING_BUDGET_RANGE.max}
+          step={1000}
+          formatValue={(v) => `$${Math.round(v).toLocaleString()}`}
+          onChange={setPhotographyCost}
+        />
         <SliderRow label="Net Event Quality Impact" value={eventQualityDelta} min={-50} max={50} onChange={setEventQualityDelta} />
         <SliderRow label="Net Event Buzz Impact" value={eventBuzzDelta} min={-50} max={50} onChange={setEventBuzzDelta} />
+        <SliderRow
+          label="Net Event Cost Impact"
+          value={eventCostDelta}
+          min={-500_000}
+          max={500_000}
+          step={1000}
+          formatValue={(v) => `$${Math.round(v).toLocaleString()}`}
+          onChange={setEventCostDelta}
+        />
         {selectedFilm.events.length > 0 && (
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
             <p className="choice-description" style={{ margin: '0 0 8px' }}>This film's real on-set events (read-only reference)</p>
@@ -673,7 +733,11 @@ export function OutcomeInspector() {
                   <SeverityBadge severity={event.severity} />
                   <span>{event.description}</span>
                 </span>
-                <span>Quality {event.qualityDelta >= 0 ? '+' : ''}{event.qualityDelta.toFixed(1)} &middot; Buzz {event.buzzDelta >= 0 ? '+' : ''}{event.buzzDelta.toFixed(1)}</span>
+                <span>
+                  Quality {event.qualityDelta >= 0 ? '+' : ''}{event.qualityDelta.toFixed(1)} &middot; Buzz{' '}
+                  {event.buzzDelta >= 0 ? '+' : ''}{event.buzzDelta.toFixed(1)} &middot; Cost{' '}
+                  <Money amount={event.costDelta} showSign />
+                </span>
               </div>
             ))}
           </div>

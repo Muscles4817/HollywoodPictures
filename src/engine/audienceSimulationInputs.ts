@@ -328,6 +328,20 @@ function computeMarketingEfficiency(studioBrand: number): number {
   return clamp(MARKETING_EFFICIENCY_FLOOR + (MARKETING_EFFICIENCY_CEILING - MARKETING_EFFICIENCY_FLOOR) * (studioBrand / 100), 0, 1);
 }
 
+/**
+ * Inverts computeMarketingEfficiency - recovers the studioBrand value that
+ * produced a Film's frozen BoxOfficeRun.fixed.marketingEfficiency, for
+ * tools that need "what was Brand on this film's actual release day"
+ * (components/dev/OutcomeInspector.tsx) without a dedicated stored field.
+ * Exact, not an approximation: for any studioBrand in the real 0-100
+ * range, 0.3 + 0.7*(studioBrand/100) already sits inside [0, 1], so
+ * computeMarketingEfficiency's own outer clamp never actually engages -
+ * this is a plain affine inverse, not a lossy one.
+ */
+export function inferStudioBrandFromMarketingEfficiency(marketingEfficiency: number): number {
+  return ((marketingEfficiency - MARKETING_EFFICIENCY_FLOOR) / (MARKETING_EFFICIENCY_CEILING - MARKETING_EFFICIENCY_FLOOR)) * 100;
+}
+
 // --- Distribution - release type reinterpreted as its own economic/access
 // concept, not an awareness lever ------------------------------------------
 //
