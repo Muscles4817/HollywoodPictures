@@ -14,7 +14,7 @@ import { AVERAGE_TICKET_PRICE, STUDIO_BOX_OFFICE_SHARE } from '../../engine/boxO
 import { determineOutcome } from '../../engine/outcome';
 import { computeBrandChange, computePrestigeChange } from '../../engine/reputation';
 import { createRng } from '../../engine/random';
-import { playerReleasedFilms } from '../../engine/project';
+import { playerReleasedFilms, rivalReleasedFilms } from '../../engine/project';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { SeverityBadge } from '../common/SeverityBadge';
@@ -169,7 +169,20 @@ function CompareMoneyRow({ label, original, current }: { label: string; original
 
 export function OutcomeInspector() {
   const { state } = useStudio();
-  const filmsReleased = playerReleasedFilms(state.projects);
+  // Every released film, player's and every rival's, so a real rival
+  // release can be loaded and experimented with directly instead of
+  // needing a player-made film to exist first - see studioFilter below for
+  // narrowing this back down to one studio at a time.
+  const playerFilms = playerReleasedFilms(state.projects);
+  const rivalFilms = rivalReleasedFilms(state.projects);
+  const allFilms = [...playerFilms, ...rivalFilms];
+  const studioNameFor = (film: Film) => film.releasedBy ?? state.studio.name;
+  const studioNames = [...new Set(allFilms.map(studioNameFor))].sort((a, b) =>
+    a === state.studio.name ? -1 : b === state.studio.name ? 1 : a.localeCompare(b),
+  );
+
+  const [studioFilter, setStudioFilter] = useState<string>('all');
+  const filmsReleased = studioFilter === 'all' ? allFilms : allFilms.filter((f) => studioNameFor(f) === studioFilter);
 
   const [filmId, setFilmId] = useState<string | null>(filmsReleased[0]?.id ?? null);
   const selectedFilm = filmsReleased.find((f) => f.id === filmId) ?? null;
@@ -204,6 +217,15 @@ export function OutcomeInspector() {
   // "Reroll Flavor Text" changes it.
   const [varianceSeed, setVarianceSeed] = useState(() => Date.now());
 
+  // A rival's own Brand, not the player's - loadFilm below seeds
+  // studioBrand from whichever studio actually released the selected film,
+  // since Buzz Score (and therefore every downstream score) is driven by
+  // the releasing studio's own Brand, not the player's.
+  function brandForFilm(film: Film): number {
+    if (film.releasedBy === undefined) return state.studio.brand;
+    return state.rivalStudios.find((r) => r.name === film.releasedBy)?.brand ?? state.studio.brand;
+  }
+
   function loadFilm(film: Film) {
     setFilmId(film.id);
     setGenre(film.genre);
@@ -213,13 +235,25 @@ export function OutcomeInspector() {
     setProductionChoices(film.productionChoices);
     setPostProductionChoices(film.postProductionChoices);
     setMarketingChoices(film.marketingChoices);
-    setStudioBrand(state.studio.brand);
+    setStudioBrand(brandForFilm(film));
     setShootingRatio(1);
     const evQuality = film.events.reduce((sum, e) => sum + e.qualityDelta, 0);
     const evBuzz = film.events.reduce((sum, e) => sum + e.buzzDelta, 0);
     setEventQualityDelta(evQuality);
     setEventBuzzDelta(evBuzz);
     setVarianceSeed(Date.now());
+  }
+
+  // Narrowing the studio filter can leave the currently-loaded film outside
+  // the newly-visible list (its <option> no longer renders) - load the new
+  // list's first film automatically rather than leaving the picker showing
+  // a stale, no-longer-listed selection.
+  function handleStudioFilterChange(name: string) {
+    setStudioFilter(name);
+    const nextList = name === 'all' ? allFilms : allFilms.filter((f) => studioNameFor(f) === name);
+    if (nextList.length > 0 && !nextList.some((f) => f.id === filmId)) {
+      loadFilm(nextList[0]);
+    }
   }
 
   function updateScript<K extends keyof Script>(key: K, value: Script[K]) {
@@ -235,12 +269,12 @@ export function OutcomeInspector() {
     setTalent((t) => t.map((a) => (a.role === role ? { ...a, talent: { ...a.talent, fame: value } } : a)));
   }
 
-  if (filmsReleased.length === 0) {
+  if (allFilms.length === 0) {
     return (
       <div className="stack">
         <h1 style={{ margin: 0 }}>Box Office &amp; Ratings Inspector</h1>
         <p style={{ color: 'var(--text-muted)' }}>
-          No released films yet - release one first, then come back here to experiment with what moves its outcome.
+          No released films yet - release one first (yours or a rival's), then come back here to experiment with what moves its outcome.
         </p>
       </div>
     );
@@ -252,13 +286,19 @@ export function OutcomeInspector() {
       <div className="stack">
         <h1 style={{ margin: 0 }}>Box Office &amp; Ratings Inspector</h1>
         <div className="row">
+          <select value={studioFilter} onChange={(e) => handleStudioFilterChange(e.target.value)}>
+            <option value="all">All Studios</option>
+            {studioNames.map((name) => (
+              <option key={name} value={name}>{name === state.studio.name ? `${name} (Mine)` : name}</option>
+            ))}
+          </select>
           <select value={filmId ?? ''} onChange={(e) => {
             const f = filmsReleased.find((x) => x.id === e.target.value);
             if (f) loadFilm(f);
           }}>
             <option value="" disabled>Load a film from Studio History...</option>
             {filmsReleased.map((f) => (
-              <option key={f.id} value={f.id}>{f.title}</option>
+              <option key={f.id} value={f.id}>{studioFilter === 'all' ? `${f.title} — ${studioNameFor(f)}` : f.title}</option>
             ))}
           </select>
         </div>
@@ -346,12 +386,18 @@ export function OutcomeInspector() {
       </div>
 
       <div className="row" style={{ alignItems: 'center' }}>
+        <select value={studioFilter} onChange={(e) => handleStudioFilterChange(e.target.value)}>
+          <option value="all">All Studios</option>
+          {studioNames.map((name) => (
+            <option key={name} value={name}>{name === state.studio.name ? `${name} (Mine)` : name}</option>
+          ))}
+        </select>
         <select value={filmId ?? ''} onChange={(e) => {
           const f = filmsReleased.find((x) => x.id === e.target.value);
           if (f) loadFilm(f);
         }}>
           {filmsReleased.map((f) => (
-            <option key={f.id} value={f.id}>{f.title}</option>
+            <option key={f.id} value={f.id}>{studioFilter === 'all' ? `${f.title} — ${studioNameFor(f)}` : f.title}</option>
           ))}
         </select>
         <Button onClick={() => loadFilm(selectedFilm)}>Reset to Original</Button>
