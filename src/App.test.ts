@@ -35,7 +35,7 @@ describe('computeTicking - the background ADVANCE_DAY tick', () => {
   });
 
   it('stays paused on every other planning screen regardless of viewingProductionId', () => {
-    for (const screen of ['develop', 'talent', 'production-planning', 'post-production', 'marketing'] as const) {
+    for (const screen of ['workspace', 'post-production', 'marketing'] as const) {
       expect(computeTicking(screen, null, false, false)).toBe(false);
       expect(computeTicking(screen, 'prod-1', false, false)).toBe(false);
     }

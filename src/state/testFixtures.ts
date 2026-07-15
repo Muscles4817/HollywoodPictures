@@ -91,6 +91,7 @@ export function buildStateWithReadyDraft(seed: number, marketingOverrides: Parti
     screen: 'marketing',
     projects: [playerDraftToProject(result.draft)],
     focusedProjectId: result.draft.id,
+    projectWorkspaceSection: 'overview',
     rngSeed: nextSeed,
     totalDays: 1,
     talentPool: result.talentPool,

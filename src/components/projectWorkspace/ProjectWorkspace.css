@@ -1,0 +1,17 @@
+.workspace-nav-status {
+  display: inline-block;
+  margin-right: 6px;
+  font-weight: 700;
+}
+
+.workspace-nav-status-complete {
+  color: var(--green);
+}
+
+.workspace-nav-status-warning {
+  color: #b3822b;
+}
+
+.workspace-nav-status-incomplete {
+  color: var(--text-muted);
+}

@@ -10,10 +10,7 @@ import { ReleaseCalendar } from './components/ReleaseCalendar';
 import { RecommendationInspector } from './components/dev/RecommendationInspector';
 import { OutcomeInspector } from './components/dev/OutcomeInspector';
 import { RivalFinancesInspector } from './components/dev/RivalFinancesInspector';
-import { DevelopFilm } from './components/wizard/DevelopFilm';
-import { HireTalent } from './components/wizard/HireTalent';
-import { ProductionPlanning } from './components/wizard/ProductionPlanning';
-import { Greenlight } from './components/wizard/Greenlight';
+import { ProjectWorkspace } from './components/projectWorkspace/ProjectWorkspace';
 import { ProductionRun } from './components/wizard/ProductionRun';
 import { PostProduction } from './components/wizard/PostProduction';
 import { MarketingRelease } from './components/wizard/MarketingRelease';
@@ -31,7 +28,7 @@ import { DAY_TICK_MS, type TickSpeedMultiplier } from './constants';
 // begins (ProductionRun.tsx) - this background tick would otherwise double
 // up with it, or fire uselessly while the player is just reviewing the
 // pre-shoot risk profile.
-const PLANNING_SCREENS = new Set<Screen>(['develop', 'talent', 'production-planning', 'greenlight', 'production', 'post-production', 'marketing']);
+const PLANNING_SCREENS = new Set<Screen>(['workspace', 'production', 'post-production', 'marketing']);
 
 // Screens that are a pure read-only detour from the Dashboard - entering or
 // leaving them costs no calendar time of its own (VIEW_RIVAL_STUDIO/
@@ -167,14 +164,8 @@ function AppShell() {
     switch (state.screen) {
       case 'dashboard':
         return <Dashboard />;
-      case 'develop':
-        return <DevelopFilm />;
-      case 'talent':
-        return <HireTalent />;
-      case 'production-planning':
-        return <ProductionPlanning />;
-      case 'greenlight':
-        return <Greenlight />;
+      case 'workspace':
+        return <ProjectWorkspace />;
       case 'production':
         return <ProductionRun />;
       case 'post-production':

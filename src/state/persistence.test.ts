@@ -147,7 +147,7 @@ describe('old saves migrate safely', () => {
     // film reached this code path. With the fresh studio loadState() actually
     // returns (no released films), this must be a no-op, not a crash.
     expect(() => studioReducer(state, { type: 'ADVANCE_DAY' })).not.toThrow();
-    expect(() => studioReducer(state, { type: 'GO_TO_STEP', step: 'talent' })).not.toThrow();
+    expect(() => studioReducer(state, { type: 'GO_TO_STEP', step: 'production' })).not.toThrow();
   });
 
   it('a save under the pre-Phase-1.1 v22 key (Studio.totalDays nested, no top-level GameState.totalDays) is invisible to v23 - falls back to a fresh studio rather than a hybrid state', () => {

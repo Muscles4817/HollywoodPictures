@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStudio } from '../state/StudioContext';
-import { collectProjectCards, currentWizardStepFor, type ProjectCardData, type ProjectStage } from '../state/selectors';
+import { collectProjectCards, currentScreenFor, type ProjectCardData, type ProjectStage } from '../state/selectors';
 import { asPlayerDraft, findProject, asFilm } from '../engine/project';
 import { formatGameDate } from '../engine/calendar';
 import { Card } from './common/Card';
@@ -88,7 +88,10 @@ export function ProjectsPage() {
     }
     if (card.isFocused) {
       const draft = asPlayerDraft(findProject(state.projects, card.projectId));
-      if (draft) dispatch({ type: 'GO_TO_STEP', step: currentWizardStepFor(draft) });
+      if (!draft) return;
+      const screen = currentScreenFor(draft);
+      if (screen === 'workspace') dispatch({ type: 'OPEN_PROJECT_WORKSPACE_SECTION', section: 'overview' });
+      else dispatch({ type: 'GO_TO_STEP', step: screen });
       return;
     }
     if (!somethingElseFocused) {

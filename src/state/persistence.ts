@@ -174,7 +174,18 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // key set). A v31 save's talent/talentPool/talentTargetPriceByRole entries
 // are all the old shape - no migration code, same as every past shape
 // change here.
-const SAVE_KEY = 'hollywood-pictures-save-v32';
+// v32 -> v33 (PRODUCER_WORKSPACE_DESIGN.md, Phase 1): replaced the linear
+// pre-greenlight wizard (Develop -> Hire Talent -> Plan Production ->
+// Greenlight) with a freely-navigable Producer Workspace. WizardStep
+// dropped 'develop'/'talent'/'production-planning'/'greenlight' (only
+// post-greenlight steps remain); Screen gained 'workspace'; GameState
+// gained a required projectWorkspaceSection. Pre-production's fixed
+// per-stage calendar cost (data/schedule.ts:STAGE_DURATIONS) was replaced
+// by a single lump sum charged at Greenlight (engine/production.ts:
+// computeRecommendedPreProductionDays). A v32 save's `screen` can be one of
+// the four retired WizardStep values and has no projectWorkspaceSection at
+// all - no migration code, same as every past shape change here.
+const SAVE_KEY = 'hollywood-pictures-save-v33';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
@@ -198,6 +209,7 @@ export function loadState(): GameState {
       screen: 'dashboard',
       projects: [],
       focusedProjectId: null,
+      projectWorkspaceSection: 'overview',
       rngSeed: nextSeed,
       totalDays: 1,
       talentPool: result.talentPool,

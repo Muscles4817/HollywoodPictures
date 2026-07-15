@@ -1,10 +1,11 @@
 import type { WizardStep } from '../../types';
 
+// Post-greenlight only now - Develop/Hire Talent/Plan Production/Greenlight
+// used to sit ahead of 'production' here, but they're the free-navigation
+// Producer Workspace's territory now (PRODUCER_WORKSPACE_DESIGN.md), which
+// has its own nav (components/projectWorkspace/ProjectWorkspaceNav.tsx)
+// instead of this fixed numbered strip.
 const STEP_ORDER: WizardStep[] = [
-  'develop',
-  'talent',
-  'production-planning',
-  'greenlight',
   'production',
   'post-production',
   'marketing',
@@ -12,10 +13,6 @@ const STEP_ORDER: WizardStep[] = [
 ];
 
 const STEP_LABELS: Record<WizardStep, string> = {
-  develop: 'Develop',
-  talent: 'Hire Talent',
-  'production-planning': 'Plan Production',
-  greenlight: 'Greenlight',
   production: 'Film It',
   'post-production': 'Post-Production',
   marketing: 'Market & Release',

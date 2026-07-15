@@ -834,23 +834,45 @@ export type Project =
   | { kind: 'rival-in-progress'; production: RivalProductionInProgress }
   | { kind: 'released'; film: Film };
 
-// 'greenlight' sits between planning and shooting (development-pipeline
-// doc) - the explicit business decision that used to be an implicit
-// "Begin Principal Photography" button inside the 'production' screen
-// itself. Nothing about WIZARD_STEP_ORDER's forward/backward logic
-// (state/studioReducer.ts) changes shape by inserting one more step.
+// Post-greenlight only, now that Develop/Hire Talent/Plan Production/
+// Greenlight have been replaced by the free-navigation Producer Workspace
+// (see ProjectWorkspaceSection below, and 'workspace' on Screen) - those
+// four used to sit ahead of 'production' here, each with a fixed forward
+// order STAGE_DURATIONS/WIZARD_STEP_ORDER (state/studioReducer.ts) charged
+// calendar time against. That fixed-order premise doesn't hold once the
+// player can move between workspace sections freely, so pre-production
+// time is now charged as one lump sum at Greenlight instead
+// (engine/production.ts:computeRecommendedPreProductionDays) - this type
+// only needs to describe what's still genuinely sequential.
 export type WizardStep =
-  | 'develop'
-  | 'talent'
-  | 'production-planning'
-  | 'greenlight'
   | 'production'
   | 'post-production'
   | 'marketing'
   | 'results';
 
+// The pre-greenlight areas of a project (Producer Workspace redesign,
+// PRODUCER_WORKSPACE_DESIGN.md) - freely navigable via
+// OPEN_PROJECT_WORKSPACE_SECTION (state/studioReducer.ts), not a fixed
+// forward sequence like WizardStep above. 'director'/'cast'/'crew' don't
+// exist as independent sections yet (Phase 1 keeps them combined under
+// 'cast-and-crew', reusing components/wizard/HireTalent.tsx wholesale) -
+// deferred to a later phase per PRODUCER_WORKSPACE_DESIGN.md's own phasing.
+export type ProjectWorkspaceSection = 'overview' | 'cast-and-crew' | 'production' | 'finance';
+
+// 'workspace' is the single screen a pre-greenlight project lives on now -
+// which of its sections is showing is GameState.projectWorkspaceSection,
+// not a family of Screen values the way the old wizard steps were.
 // 'release-calendar'/'opportunity-market'/'asset-library'/'projects' are
 // Dashboard detours (roadmap Phase 7.3; development-pipeline doc), not
 // WizardSteps - reachable and leavable from the Dashboard like
 // 'rival-studio'/'stats', not part of the develop-to-release sequence.
-export type Screen = 'dashboard' | WizardStep | 'rival-studio' | 'stats' | 'release-calendar' | 'opportunity-market' | 'asset-library' | 'projects';
+export type Screen =
+  | 'dashboard'
+  | 'workspace'
+  | WizardStep
+  | 'rival-studio'
+  | 'stats'
+  | 'release-calendar'
+  | 'opportunity-market'
+  | 'asset-library'
+  | 'projects';

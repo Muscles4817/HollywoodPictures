@@ -50,6 +50,35 @@ export function computeRecommendedShootDays(talent: TalentAssignment[], script: 
   return Math.round(BASE_SHOOT_DAYS + complexityDays + castDays + runtimeDays + effectsDays);
 }
 
+const BASE_PREPRODUCTION_DAYS = 14;
+const MAX_SCALE_PREPRODUCTION_DAYS = 18;
+const MAX_CAST_SIZE_PREPRODUCTION_DAYS = 10;
+const MAX_AMBITION_PREPRODUCTION_DAYS = 14;
+const SCALE_PREPRODUCTION_FRACTION: Record<Script['scale'], number> = { Intimate: 0, Medium: 0.5, Epic: 1 };
+
+/**
+ * How many days of pre-production this film calls for - locking cast/crew
+ * deals, scouting/building sets, previs for anything effects-heavy, before
+ * a single day of Principal Photography. Charged once, in full, at
+ * Greenlight (state/studioReducer.ts:GREENLIGHT_PROJECT) - the Producer
+ * Workspace's free navigation between sections (PRODUCER_WORKSPACE_DESIGN.md)
+ * has no fixed forward order left to charge calendar time against
+ * incrementally the way the old wizard's STAGE_DURATIONS did, so this
+ * replaces that entirely with one scaled lump sum instead of a flat total
+ * for every film. Same three inputs computeRecommendedShootDays already
+ * reads (bigger cast, bigger scale, heavier effects ambition all mean more
+ * to lock down before shooting can start), calibrated so a typical
+ * mid-scope project lands near the old flat total (~26 days) while small/
+ * simple and large/ambitious projects diverge from there - first-draft,
+ * tunable constants like every other numeric constant in this simulation.
+ */
+export function computeRecommendedPreProductionDays(talent: TalentAssignment[], script: Script, choices: ProductionChoices): number {
+  const scaleDays = SCALE_PREPRODUCTION_FRACTION[script.scale] * MAX_SCALE_PREPRODUCTION_DAYS;
+  const castDays = clamp((talent.length - CAST_SIZE_BASELINE) * 1.2, 0, MAX_CAST_SIZE_PREPRODUCTION_DAYS);
+  const ambitionDays = ((practicalEffectsT(choices.practicalEffectsAmount) + vfxT(choices.vfxAmount)) / 2) * MAX_AMBITION_PREPRODUCTION_DAYS;
+  return Math.round(BASE_PREPRODUCTION_DAYS + scaleDays + castDays + ambitionDays);
+}
+
 /**
  * The four risk dimensions knowable before a single day of filming happens
  * - see types/index.ts:StaticProductionRisk for why Schedule Pressure isn't

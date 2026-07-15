@@ -23,6 +23,7 @@ import { generateTalentPool } from '../engine/talentGenerator';
 import { withRng } from '../engine/random';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
+import { effectiveRoleCapacity } from '../engine/castRequirements';
 import { deriveFocusedDraft } from './selectors';
 import { playerReleasedFilms } from '../engine/project';
 import type { EffectsMethodKey, EnvironmentMethodKey } from '../types';
@@ -34,6 +35,7 @@ function freshState(seed: number): GameState {
     screen: 'dashboard',
     projects: [],
     focusedProjectId: null,
+    projectWorkspaceSection: 'overview',
     rngSeed: nextSeed,
     totalDays: 1,
     talentPool: result.talentPool,
@@ -65,7 +67,8 @@ function walkFilmThroughWizard(state: GameState): GameState {
   let s: GameState = { ...state, rngSeed: nextSeed, studio: { ...state.studio, assets: [...state.studio.assets, asset] } };
 
   s = studioReducer(s, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
-  expect(s.screen).toBe('develop');
+  expect(s.screen).toBe('workspace');
+  expect(s.projectWorkspaceSection).toBe('overview');
   expect(s.focusedProjectId).not.toBeNull();
   expect(deriveFocusedDraft(s)!.script).not.toBeNull();
 
@@ -73,34 +76,45 @@ function walkFilmThroughWizard(state: GameState): GameState {
   s = studioReducer(s, { type: 'SET_TARGET_AUDIENCE', targetAudience: 'Mass Market' });
 
   expect(() => {
-    s = studioReducer(s, { type: 'GO_TO_STEP', step: 'talent' });
+    s = studioReducer(s, { type: 'OPEN_PROJECT_WORKSPACE_SECTION', section: 'cast-and-crew' });
   }).not.toThrow();
-  expect(s.screen).toBe('talent');
+  expect(s.projectWorkspaceSection).toBe('cast-and-crew');
 
-  // Picks by ascending salary (with a per-profession draw index) rather than
-  // raw pool order, for two reasons: (1) Lead Actor and Supporting Actor now
-  // share one Actor pool (used to be two disjoint pools) and would
-  // otherwise both pick the same real person, which SET_TALENT_FOR_ROLE's
-  // own double-cast guard (state/studioReducer.ts) then correctly rejects;
-  // (2) the handcrafted real-actor entries at the front of that shared pool
-  // (data/handcraftedTalents.ts) are high-fame, high-salary stars - picking
-  // two of them can blow this test's starting cash in a way a single
-  // handcrafted star per role never would have.
+  // Hires enough candidates to satisfy every role's own
+  // effectiveRoleCapacity.min, not just one each - Lead Actor/Supporting
+  // Actor can each require more than one hire, per this script's own
+  // requiredLeads/requiredSupporting (engine/castRequirements.ts).
+  // engine/projectReadiness.ts's readiness gate (now enforced by
+  // GREENLIGHT_PROJECT itself, not just the UI) checks against that same
+  // capacity, so under-hiring a multi-slot role here would leave the draft
+  // permanently un-greenlightable. Picks by ascending salary (with a
+  // per-profession draw index) rather than raw pool order, for two reasons:
+  // (1) Lead Actor and Supporting Actor now share one Actor pool (used to
+  // be two disjoint pools) and would otherwise both pick the same real
+  // person, which the double-cast guard (state/studioReducer.ts) then
+  // correctly rejects; (2) the handcrafted real-actor entries at the front
+  // of that shared pool (data/handcraftedTalents.ts) are high-fame,
+  // high-salary stars - picking several of them can blow this test's
+  // starting cash in a way cheap candidates never would have.
+  const script = deriveFocusedDraft(s)!.script!;
   const drawIndexByProfession = new Map<string, number>();
   for (const role of MANDATORY_TALENT_ROLES) {
     const profession = professionForProductionRole(role);
-    const index = drawIndexByProfession.get(profession) ?? 0;
-    drawIndexByProfession.set(profession, index + 1);
-    const cheapest = [...(s.talentPool[profession] ?? [])].sort((a, b) => a.salary - b.salary);
-    const candidate = cheapest[index];
-    expect(candidate, `no ${role} candidate in the generated talent pool`).toBeDefined();
-    s = studioReducer(s, { type: 'SET_TALENT_FOR_ROLE', role, talent: candidate! });
+    const need = Math.max(1, effectiveRoleCapacity(role, script).min);
+    for (let i = 0; i < need; i++) {
+      const index = drawIndexByProfession.get(profession) ?? 0;
+      drawIndexByProfession.set(profession, index + 1);
+      const cheapest = [...(s.talentPool[profession] ?? [])].sort((a, b) => a.salary - b.salary);
+      const candidate = cheapest[index];
+      expect(candidate, `no ${role} candidate in the generated talent pool`).toBeDefined();
+      s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, talent: candidate! });
+    }
   }
 
   expect(() => {
-    s = studioReducer(s, { type: 'GO_TO_STEP', step: 'production-planning' });
+    s = studioReducer(s, { type: 'OPEN_PROJECT_WORKSPACE_SECTION', section: 'production' });
   }).not.toThrow();
-  expect(s.screen).toBe('production-planning');
+  expect(s.projectWorkspaceSection).toBe('production');
 
   s = studioReducer(s, {
     type: 'SET_PRODUCTION_PLAN',
@@ -112,11 +126,6 @@ function walkFilmThroughWizard(state: GameState): GameState {
     runtimeIntensity: 0.5,
   });
   expect(deriveFocusedDraft(s)!.productionChoices).not.toBeNull();
-
-  expect(() => {
-    s = studioReducer(s, { type: 'GO_TO_STEP', step: 'greenlight' });
-  }).not.toThrow();
-  expect(s.screen).toBe('greenlight');
   expect(deriveFocusedDraft(s)!.greenlitOnDay).toBeNull();
 
   s = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });
@@ -203,24 +212,31 @@ describe('wizard run-through: a full film survives every screen transition witho
   });
 });
 
-describe('wizard run-through: going back and forward through already-visited steps never throws', () => {
-  it('a Back-then-forward round trip mid-wizard is a pure navigation no-op, not a crash', () => {
+describe('wizard run-through: freely navigating the Producer Workspace never throws or costs calendar time', () => {
+  it('bouncing between workspace sections in any order is a pure navigation no-op, not a crash', () => {
     const { result: asset, nextSeed } = withRng(freshState(5).rngSeed, (rng) => buildReadyAsset(rng));
     const seeded: GameState = { ...freshState(5), rngSeed: nextSeed, studio: { ...createInitialStudio(50_000_000), assets: [asset] } };
 
     let s = studioReducer(seeded, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
     s = studioReducer(s, { type: 'SET_TITLE', title: 'Back And Forth' });
     s = studioReducer(s, { type: 'SET_TARGET_AUDIENCE', targetAudience: 'Teens' });
-    s = studioReducer(s, { type: 'GO_TO_STEP', step: 'talent' });
+    const totalDaysAtStart = s.totalDays;
 
     expect(() => {
-      s = studioReducer(s, { type: 'GO_TO_STEP', step: 'develop' }); // Back
+      s = studioReducer(s, { type: 'OPEN_PROJECT_WORKSPACE_SECTION', section: 'cast-and-crew' });
     }).not.toThrow();
-    expect(s.screen).toBe('develop');
+    expect(s.projectWorkspaceSection).toBe('cast-and-crew');
 
     expect(() => {
-      s = studioReducer(s, { type: 'GO_TO_STEP', step: 'talent' }); // forward again, already charged
+      s = studioReducer(s, { type: 'OPEN_PROJECT_WORKSPACE_SECTION', section: 'overview' }); // Back
     }).not.toThrow();
-    expect(s.screen).toBe('talent');
+    expect(s.projectWorkspaceSection).toBe('overview');
+
+    expect(() => {
+      s = studioReducer(s, { type: 'OPEN_PROJECT_WORKSPACE_SECTION', section: 'cast-and-crew' }); // forward again
+    }).not.toThrow();
+    expect(s.projectWorkspaceSection).toBe('cast-and-crew');
+    expect(s.screen).toBe('workspace');
+    expect(s.totalDays).toBe(totalDaysAtStart); // free navigation never advances the calendar
   });
 });

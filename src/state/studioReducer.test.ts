@@ -1,12 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft, buildReadyDraft, buildReadyAsset, defaultMarketingChoices } from './testFixtures';
+import { createInitialStudio } from './gameState';
 import { withRng } from '../engine/random';
 import { STUDIO_BOX_OFFICE_SHARE, AVERAGE_TICKET_PRICE } from '../engine/boxOfficeRun';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
 import { computeTalentCost, computeProductionBudgetCost } from '../engine/cost';
-import { playerDraftToProject, playerReleasedFilms, findProject, asScheduled } from '../engine/project';
+import { computeRecommendedPreProductionDays } from '../engine/production';
+import { effectiveRoleCapacity } from '../engine/castRequirements';
+import { generateTalentPool, generateTalentCandidates } from '../engine/talentGenerator';
+import { playerDraftToProject, playerReleasedFilms, findProject, asScheduled, asPlayerDraft } from '../engine/project';
 import { STAGE_DURATIONS } from '../data/schedule';
+import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
+import { professionForProductionRole } from '../data/helpers';
 import type { GameState } from './gameState';
 
 /** Dispatches ADVANCE_DAY n times, threading state through - the same real-time background tick App.tsx fires, just driven directly instead of through a timer. */
@@ -228,7 +234,7 @@ describe('transient view state (viewingRivalStudioName/viewingProductionId) - ro
     expect(withDraft.viewingRivalStudioName).toBeNull();
     expect(withDraft.viewingProductionId).toBeNull();
 
-    const afterStep = studioReducer(withDraft, { type: 'GO_TO_STEP', step: 'talent' });
+    const afterStep = studioReducer(withDraft, { type: 'GO_TO_STEP', step: 'production' });
     expect(afterStep.viewingRivalStudioName).toBeNull();
     expect(afterStep.viewingProductionId).toBeNull();
   });
@@ -365,5 +371,174 @@ describe('SCHEDULE_RELEASE - real release scheduling (roadmap Phase 7.1/7.2)', (
 
     expect(playerReleasedFilms(oneRun.projects)[0].results).toEqual(playerReleasedFilms(twoBatches.projects)[0].results);
     expect(oneRun.studio.cash).toBe(twoBatches.studio.cash);
+  });
+});
+
+// Producer Workspace redesign (PRODUCER_WORKSPACE_DESIGN.md, Phase 1) - free
+// navigation (OPEN_PROJECT_WORKSPACE_SECTION) and GREENLIGHT_PROJECT's new
+// role as a real calendar-advancing action. Charge/readiness-gate coverage
+// for GREENLIGHT_PROJECT itself lives in state/developmentPipeline.test.ts;
+// this file's job is the two things specific to the workspace shell: free
+// navigation costs nothing, and Greenlight's new lump pre-production charge
+// actually runs the same settlement machinery every other calendar advance
+// does.
+function freshWorkspaceState(seed: number, startingCash = 50_000_000): GameState {
+  const { result, nextSeed } = withRng(seed, (rng) => ({ talentPool: generateTalentPool(rng) }));
+  return {
+    studio: createInitialStudio(startingCash),
+    screen: 'dashboard',
+    projects: [],
+    focusedProjectId: null,
+    projectWorkspaceSection: 'overview',
+    rngSeed: nextSeed,
+    totalDays: 1,
+    talentPool: result.talentPool,
+    rivalStudios: [],
+    opportunities: [],
+    nextOpportunityCheckDay: 1,
+    viewingRivalStudioName: null,
+    viewingProductionId: null,
+  };
+}
+
+/** A freshly-created, fully-cast, planned pre-greenlight project - ready for GREENLIGHT_PROJECT to succeed. */
+function stateReadyToGreenlight(seed: number, startingCash = 50_000_000): GameState {
+  const { result: asset } = withRng(seed, (rng) => buildReadyAsset(rng));
+  let s = freshWorkspaceState(seed, startingCash);
+  s = { ...s, studio: { ...s.studio, assets: [asset] } };
+  s = studioReducer(s, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
+
+  const script = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!.script!;
+  let drawSeed = seed + 1;
+  for (const role of MANDATORY_TALENT_ROLES) {
+    const profession = professionForProductionRole(role);
+    const need = Math.max(1, effectiveRoleCapacity(role, script).min);
+    const { result: candidates } = withRng(drawSeed, (rng) => generateTalentCandidates(profession, rng, need));
+    drawSeed += 1;
+    for (const talent of candidates) {
+      s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, talent });
+    }
+  }
+
+  s = studioReducer(s, {
+    type: 'SET_PRODUCTION_PLAN',
+    environmentStrategy: { studio: 0.4, location: 0.4, digital: 0.2 },
+    environmentAmbition: 0.5,
+    effectsStrategy: { practical: 0.5, digital: 0.5 },
+    effectsAmbition: 0.5,
+    contingencyAmount: 500_000,
+    runtimeIntensity: 0.5,
+  });
+  return s;
+}
+
+describe('OPEN_PROJECT_WORKSPACE_SECTION - free navigation', () => {
+  it('switches the section and screen with no calendar cost', () => {
+    const s = stateReadyToGreenlight(200);
+    const totalDaysBefore = s.totalDays;
+    const after = studioReducer(s, { type: 'OPEN_PROJECT_WORKSPACE_SECTION', section: 'finance' });
+    expect(after.screen).toBe('workspace');
+    expect(after.projectWorkspaceSection).toBe('finance');
+    expect(after.totalDays).toBe(totalDaysBefore);
+  });
+
+  it('is a no-op when nothing is focused', () => {
+    const s = freshWorkspaceState(201);
+    const after = studioReducer(s, { type: 'OPEN_PROJECT_WORKSPACE_SECTION', section: 'finance' });
+    expect(after).toBe(s);
+  });
+
+  it('is a no-op once the focused project is already greenlit (past the workspace)', () => {
+    const ready = stateReadyToGreenlight(202);
+    const greenlit = studioReducer(ready, { type: 'GREENLIGHT_PROJECT' });
+    expect(greenlit.screen).toBe('production'); // sanity: greenlight actually succeeded
+    const after = studioReducer(greenlit, { type: 'OPEN_PROJECT_WORKSPACE_SECTION', section: 'overview' });
+    expect(after).toBe(greenlit);
+  });
+});
+
+describe('GREENLIGHT_PROJECT - the new lump pre-production time charge', () => {
+  it('advances totalDays by exactly computeRecommendedPreProductionDays, not a flat/zero amount', () => {
+    const s = stateReadyToGreenlight(210);
+    const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
+    const expectedDays = computeRecommendedPreProductionDays(draft.talent, draft.script!, draft.productionChoices!);
+    expect(expectedDays).toBeGreaterThan(0);
+
+    const after = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });
+    expect(after.totalDays).toBe(s.totalDays + expectedDays);
+    const draftAfter = asPlayerDraft(findProject(after.projects, after.focusedProjectId))!;
+    expect(draftAfter.greenlitOnDay).toBe(after.totalDays);
+  });
+
+  it('runs the same settlement machinery GO_TO_STEP does - a scheduled release due within the pre-production window actually resolves', () => {
+    // An Epic-scale project at max effects ambition to guarantee a large
+    // enough preProductionDays (see MAX_SCALE_PREPRODUCTION_DAYS/
+    // MAX_AMBITION_PREPRODUCTION_DAYS, engine/production.ts) to exceed
+    // STAGE_DURATIONS.marketing's own lead time - otherwise SCHEDULE_RELEASE
+    // would clamp the second project's releaseDay past this window entirely,
+    // and it could never resolve during this specific GREENLIGHT_PROJECT
+    // dispatch. Only settles if GREENLIGHT_PROJECT genuinely runs
+    // settleScheduledReleases, the same way advancing the calendar via
+    // GO_TO_STEP already does.
+    const { result: asset } = withRng(220, (rng) => buildReadyAsset(rng));
+    const epicAsset = { ...asset, script: { ...asset.script, scale: 'Epic' as const } };
+    let s = freshWorkspaceState(220);
+    s = { ...s, studio: { ...s.studio, assets: [epicAsset] } };
+    s = studioReducer(s, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: epicAsset.id });
+
+    const script = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!.script!;
+    let drawSeed = 221;
+    for (const role of MANDATORY_TALENT_ROLES) {
+      const profession = professionForProductionRole(role);
+      const need = Math.max(1, effectiveRoleCapacity(role, script).min);
+      const { result: candidates } = withRng(drawSeed, (rng) => generateTalentCandidates(profession, rng, need));
+      drawSeed += 1;
+      for (const talent of candidates) s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, talent });
+    }
+    s = studioReducer(s, {
+      type: 'SET_PRODUCTION_PLAN',
+      environmentStrategy: { studio: 0.4, location: 0.4, digital: 0.2 },
+      environmentAmbition: 0.5,
+      effectsStrategy: { practical: 0.5, digital: 0.5 },
+      effectsAmbition: 1,
+      contingencyAmount: 500_000,
+      runtimeIntensity: 0.5,
+    });
+    const readyToGreenlight = s;
+
+    const draft = asPlayerDraft(findProject(readyToGreenlight.projects, readyToGreenlight.focusedProjectId))!;
+    const preProductionDays = computeRecommendedPreProductionDays(draft.talent, draft.script!, draft.productionChoices!);
+    expect(preProductionDays).toBeGreaterThan(STAGE_DURATIONS.marketing ?? 0); // otherwise this test can't exercise what it's testing
+
+    const scheduledState = buildStateWithReadyDraft(222);
+    const releaseDay = readyToGreenlight.totalDays + (STAGE_DURATIONS.marketing ?? 0) + 1; // just past the earliest SCHEDULE_RELEASE will honor, so it stays 'scheduled' rather than resolving same-day
+    let combined: GameState = {
+      ...readyToGreenlight,
+      projects: [...readyToGreenlight.projects, ...scheduledState.projects],
+      focusedProjectId: scheduledState.focusedProjectId, // focus the second project so SCHEDULE_RELEASE acts on it
+    };
+    combined = studioReducer(combined, { type: 'SCHEDULE_RELEASE', releaseDay });
+    // Refocus back onto the first, still-pre-greenlight project for GREENLIGHT_PROJECT to act on.
+    combined = { ...combined, focusedProjectId: readyToGreenlight.focusedProjectId };
+    expect(findProject(combined.projects, scheduledState.focusedProjectId!)?.kind).toBe('scheduled');
+
+    const after = studioReducer(combined, { type: 'GREENLIGHT_PROJECT' });
+    // SCHEDULE_RELEASE (dispatched above, against the second project) itself
+    // already advanced totalDays by its own marketing lead time - that's the
+    // baseline GREENLIGHT_PROJECT's own lump charge stacks on top of.
+    expect(after.totalDays).toBe(combined.totalDays + preProductionDays);
+    expect(findProject(after.projects, scheduledState.focusedProjectId!)?.kind).toBe('released');
+  });
+
+  it('is blocked by the readiness gate even when fully affordable - e.g. a still-missing crew role', () => {
+    const s = stateReadyToGreenlight(230);
+    const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
+    const withoutWriter = { ...draft, talent: draft.talent.filter((a) => a.role !== 'Writer') };
+    const projects = s.projects.map((p) => (p.kind === 'player-in-progress' && p.draft.id === withoutWriter.id ? playerDraftToProject(withoutWriter) : p));
+    const understaffed: GameState = { ...s, projects };
+
+    const after = studioReducer(understaffed, { type: 'GREENLIGHT_PROJECT' });
+    expect(after).toBe(understaffed);
+    expect(after.screen).toBe('workspace');
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeReportedLegs, computeProjectSpendSoFar, currentWizardStepFor, deriveProjectStage, deriveUpcomingReleaseEntries, PLAYER_STUDIO_ID } from './selectors';
+import { computeReportedLegs, computeProjectSpendSoFar, currentScreenFor, deriveProjectStage, deriveUpcomingReleaseEntries, PLAYER_STUDIO_ID } from './selectors';
 import { studioReducer } from './studioReducer';
 import { buildReadyDraft, buildStateWithReadyDraft } from './testFixtures';
 import { withRng } from '../engine/random';
@@ -131,27 +131,27 @@ describe('deriveProjectStage - Projects page (components/ProjectsPage.tsx)', () 
   });
 });
 
-describe('currentWizardStepFor', () => {
-  it('a photography-less draft always re-enters at develop', () => {
+describe('currentScreenFor', () => {
+  it('a photography-less draft always re-enters at the Producer Workspace', () => {
     const { result: draft } = withRng(110, (rng) => buildReadyDraft(rng));
-    expect(currentWizardStepFor({ ...draft, photography: null })).toBe('develop');
+    expect(currentScreenFor({ ...draft, photography: null })).toBe('workspace');
   });
 
   it('mid-shoot photography re-enters at production', () => {
     const { result: draft } = withRng(111, (rng) => buildReadyDraft(rng));
-    expect(currentWizardStepFor({ ...draft, photography: inProgressPhotography() })).toBe('production');
+    expect(currentScreenFor({ ...draft, photography: inProgressPhotography() })).toBe('production');
   });
 
   it('finished photography with no post-production choices yet re-enters at post-production', () => {
     const { result: draft } = withRng(112, (rng) => buildReadyDraft(rng));
     const wrapped = { ...draft, photography: inProgressPhotography({ status: 'finished' }), postProductionChoices: null };
-    expect(currentWizardStepFor(wrapped)).toBe('post-production');
+    expect(currentScreenFor(wrapped)).toBe('post-production');
   });
 
   it('finished photography with post-production choices already made re-enters at marketing', () => {
     const state = buildStateWithReadyDraft(113);
     const draft = asPlayerDraft(state.projects[0])!;
-    expect(currentWizardStepFor(draft)).toBe('marketing');
+    expect(currentScreenFor(draft)).toBe('marketing');
   });
 });
 

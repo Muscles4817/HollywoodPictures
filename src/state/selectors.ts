@@ -423,19 +423,53 @@ export function deriveProjectStage(project: Project, focusedProjectId: string | 
 
 /**
  * Same screen RESUME_PROJECT (state/studioReducer.ts) would send a
- * photography-less/mid-shoot/post-production draft to - re-exported here so
- * a Projects-page card for the *already-focused* project can jump straight
- * back into the wizard via GO_TO_STEP (RESUME_PROJECT itself refuses to run
- * while something's already focused, even if it's this exact project - see
- * its own reducer guard). A photography-less draft always re-enters at
- * 'develop' regardless of which of Develop/Talent/Planning/Greenlight it was
- * last on, same as RESUME_PROJECT's own behavior - everything already
- * chosen is preserved on the draft either way.
+ * pre-greenlight/mid-shoot/post-production draft to - re-exported here so a
+ * Projects-page card for the *already-focused* project can jump straight
+ * back to it (RESUME_PROJECT itself refuses to run while something's
+ * already focused, even if it's this exact project - see its own reducer
+ * guard). A pre-greenlight draft (no `photography` yet) always re-enters the
+ * Producer Workspace's Overview tab regardless of which section it was last
+ * on, same as RESUME_PROJECT's own behavior - everything already chosen is
+ * preserved on the draft either way. Narrower than `Screen` on purpose (see
+ * types/index.ts) - every value this can actually return is either
+ * 'workspace' or a WizardStep, so a caller dispatching off this return value
+ * doesn't need to re-narrow away the rest of Screen's members by hand.
  */
-export function currentWizardStepFor(draft: FilmDraft): WizardStep {
-  if (!draft.photography) return 'develop';
+export function currentScreenFor(draft: FilmDraft): 'workspace' | WizardStep {
+  if (!draft.photography) return 'workspace';
   if (draft.photography.status === 'finished') return draft.postProductionChoices ? 'marketing' : 'post-production';
   return 'production';
+}
+
+/**
+ * The full Greenlight cost breakdown - talent salary, the non-contingency
+ * production budget, and the contingency reserve, summed into one
+ * commitment against current studio cash. Extracted from the old
+ * Greenlight.tsx screen's own inline calculation (development-pipeline
+ * doc) so the Producer Workspace's Finance tab, its Greenlight confirmation
+ * modal, and Overview's financial summary all read the exact same numbers -
+ * none of them can ever disagree, because none of them compute this
+ * independently any more. `productionChoices` may still be null this early
+ * (the player hasn't opened Production yet) - the breakdown just reads as
+ * "nothing planned yet" rather than throwing, same as
+ * engine/projectReadiness.ts's own handling of the same gap.
+ */
+export interface GreenlightCommitment {
+  talentCost: number;
+  productionCost: number;
+  contingency: number;
+  totalCommitment: number;
+  cashAfter: number;
+  canAfford: boolean;
+}
+
+export function deriveGreenlightCommitment(draft: FilmDraft, studioCash: number): GreenlightCommitment {
+  const talentCost = computeTalentCost(draft.talent.map((a) => a.talent));
+  const productionCost = draft.productionChoices ? computeProductionBudgetCost(draft.productionChoices) : 0;
+  const contingency = draft.productionChoices ? draft.productionChoices.contingencyAmount : 0;
+  const totalCommitment = talentCost + productionCost + contingency;
+  const cashAfter = studioCash - totalCommitment;
+  return { talentCost, productionCost, contingency, totalCommitment, cashAfter, canAfford: cashAfter >= 0 };
 }
 
 /**

@@ -1,13 +1,14 @@
-import type { Asset, Film, FilmDraft, Opportunity, PendingEventChoice, ProductionEvent, ProductionRole, Project, RivalProductionInProgress, Studio, Talent, TalentAssignment, TalentProfession, WizardStep } from '../types';
+import type { Asset, Film, FilmDraft, Opportunity, PendingEventChoice, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, Studio, Talent, TalentAssignment, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, clamp } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
 import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
-import { computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent, resolveEventChoice } from '../engine/production';
+import { computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent, resolveEventChoice } from '../engine/production';
 import { computeDailyContingencyBurn, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
 import { adaptRecommendationsToProductionChoices } from '../engine/productionChoicesAdapter';
+import { deriveProjectReadiness } from '../engine/projectReadiness';
 import { STAGE_DURATIONS } from '../data/schedule';
 import { settleBoxOfficeForAllFilms, type BoxOfficeSettlement } from '../engine/boxOfficeRun';
 import { settleRivalMarket, generateRivalStudios } from '../engine/rivalStudios';
@@ -18,6 +19,7 @@ import { settleOpportunities, reopenForfeitedOpportunity, highestBid, placeBid, 
 import { generateTalentPool } from '../engine/talentGenerator';
 import { applyStatChange } from '../engine/reputation';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
+import { currentScreenFor } from './selectors';
 import {
   projectId,
   findProject,
@@ -34,15 +36,16 @@ import {
   deriveAssetStatus,
 } from '../engine/project';
 
-// The canonical forward order of the wizard - used only to tell a forward
-// GO_TO_STEP (advance the calendar by that stage's fixed duration, see
-// data/schedule.ts) apart from a backward one (Back buttons; no time cost
-// for revisiting a screen you're still deciding on).
+// The canonical forward order of what's left of the wizard, post-greenlight
+// only - used only to tell a forward GO_TO_STEP (advance the calendar by
+// that stage's fixed duration, see data/schedule.ts) apart from a backward
+// one (Back buttons; no time cost for revisiting a screen you're still
+// deciding on). Used to also list develop/talent/production-planning/
+// greenlight ahead of 'production' - those are gone now that the
+// Producer Workspace (PRODUCER_WORKSPACE_DESIGN.md) replaced them with free
+// navigation; GREENLIGHT_PROJECT below charges pre-production's calendar
+// cost as its own lump sum instead of relying on this fixed order.
 const WIZARD_STEP_ORDER: WizardStep[] = [
-  'develop',
-  'talent',
-  'production-planning',
-  'greenlight',
   'production',
   'post-production',
   'marketing',
@@ -365,11 +368,26 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const draft = createDraftFromAsset(asset, defaultTalentTargetPrices());
       return {
         ...state,
-        screen: 'develop',
+        screen: 'workspace',
+        projectWorkspaceSection: 'overview',
         projects: [...state.projects, playerDraftToProject(draft)],
         focusedProjectId: draft.id,
         ...clearTransientView(),
       };
+    }
+
+    // Producer Workspace free navigation (PRODUCER_WORKSPACE_DESIGN.md) -
+    // unlike GO_TO_STEP, never advances the calendar and never touches
+    // STAGE_DURATIONS; moving between workspace sections is meant to cost
+    // nothing. A no-op if nothing's focused or the focused project is past
+    // Greenlight (already has `photography` - the workspace only exists for
+    // pre-greenlight projects; a greenlit one lives on 'production'/
+    // 'post-production'/'marketing'/'results' instead, reached via
+    // GO_TO_STEP as before).
+    case 'OPEN_PROJECT_WORKSPACE_SECTION': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft || focusedDraft.photography) return state;
+      return { ...state, screen: 'workspace', projectWorkspaceSection: action.section, ...clearTransientView() };
     }
 
     // The one explicit "delete this for real" action for a still-owned
@@ -600,29 +618,93 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'GREENLIGHT_PROJECT': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft?.script || !focusedDraft.productionChoices) return state;
+      // The reducer-level readiness gate (engine/projectReadiness.ts) -
+      // defensive, since the Greenlight button is already disabled in the
+      // UI until this is true, but the Producer Workspace's free navigation
+      // means there's no fixed forward order forcing the player through
+      // every prerequisite screen first any more, so this is now the only
+      // real guard. Covers affordability too (cannot-afford-greenlight), so
+      // no separate cash check is needed below.
+      if (!deriveProjectReadiness(focusedDraft, state.studio.cash).ready) return state;
+
       const recommendedDays = computeRecommendedShootDays(focusedDraft.talent, focusedDraft.script, focusedDraft.productionChoices);
+      // How long pre-production itself takes, scaled to this project's own
+      // scope (engine/production.ts) - charged as a single lump sum here,
+      // replacing the old per-wizard-stage STAGE_DURATIONS charges GO_TO_STEP
+      // used to apply one at a time on the way to this point (data/schedule.ts).
+      const preProductionDays = computeRecommendedPreProductionDays(focusedDraft.talent, focusedDraft.script, focusedDraft.productionChoices);
       const upfrontCharge =
         computeTalentCost(focusedDraft.talent.map((a) => a.talent)) +
         computeProductionBudgetCost(focusedDraft.productionChoices) +
         focusedDraft.productionChoices.contingencyAmount;
-      if (upfrontCharge > state.studio.cash) return state;
 
-      const bookedUntil = state.totalDays + recommendedDays;
+      // Greenlight now advances the calendar for real (by preProductionDays),
+      // so it has to run the same settlement machinery every other
+      // calendar-advancing action does (GO_TO_STEP above) - scheduled
+      // releases, box office, the opportunity market, rival studios, and
+      // every other backgrounded production all keep moving during
+      // pre-production exactly as they would during any other multi-day
+      // stage transition.
+      const totalDaysAfter = state.totalDays + preProductionDays;
+      const scheduled = scheduledPlayerReleases(state.projects);
+      const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
+        const scheduledSettlement = settleScheduledReleases(scheduled, rivalProductionsOf(state.projects), totalDaysAfter, state.studio.brand, rng);
+        const settlement = settleBoxOfficeForAllFilms(
+          [...playerReleasedFilms(state.projects), ...scheduledSettlement.newlyReleased],
+          totalDaysAfter,
+        );
+        const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng);
+        const opportunityWins = applyOpportunityWins(state.studio, opportunitySettlement.resolvedBids, opportunitySettlement.opportunities, totalDaysAfter);
+        const rivalMarket = settleRivalMarket(
+          {
+            rivalStudios: state.rivalStudios,
+            rivalProductionsInProgress: rivalProductionsOf(state.projects),
+            rivalFilmsReleased: rivalReleasedFilms(state.projects),
+            talentPool: state.talentPool,
+            opportunities: opportunityWins.opportunities,
+          },
+          opportunitySettlement.resolvedBids.filter((b) => b.winnerId !== 'player'),
+          totalDaysAfter,
+          scheduled.map(asUpcomingRelease),
+          rng,
+        );
+        const productionsInProgress = settleProductionsInProgress(backgroundedPlayerDrafts(state.projects, state.focusedProjectId), preProductionDays, state.talentPool, rng);
+        return { settlement, rivalMarket, productionsInProgress, scheduledSettlement, opportunitySettlement, opportunityWins };
+      });
+
+      const bookedUntil = totalDaysAfter + recommendedDays;
       const bookedIds = new Set(focusedDraft.talent.map((a) => a.talent.id));
-      const talentPool = { ...state.talentPool };
+      const talentPool = { ...result.rivalMarket.talentPool };
       for (const role of Object.keys(talentPool) as TalentProfession[]) {
         talentPool[role] = talentPool[role].map((t) => (bookedIds.has(t.id) ? { ...t, bookedUntil } : t));
       }
 
+      const studioAfterSettlement = applyBoxOfficeSettlement(result.opportunityWins.studio, result.settlement, result.scheduledSettlement.costCharged);
+
       return {
         ...state,
+        rngSeed: nextSeed,
         screen: 'production',
+        totalDays: totalDaysAfter,
+        rivalStudios: result.rivalMarket.rivalStudios,
         talentPool,
-        studio: { ...state.studio, cash: state.studio.cash - upfrontCharge },
-        projects: replaceDraft(state.projects, {
-          ...focusedDraft,
-          greenlitOnDay: state.totalDays,
-          photography: { status: 'in-progress', recommendedDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
+        opportunities: result.rivalMarket.opportunities,
+        nextOpportunityCheckDay: result.opportunitySettlement.nextGenerationCheckDay,
+        ...clearTransientView(),
+        studio: { ...studioAfterSettlement, cash: studioAfterSettlement.cash - upfrontCharge },
+        projects: assembleProjects({
+          playerDrafts: [
+            {
+              ...focusedDraft,
+              greenlitOnDay: totalDaysAfter,
+              photography: { status: 'in-progress', recommendedDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
+            },
+            ...result.productionsInProgress,
+          ],
+          scheduled: result.scheduledSettlement.stillScheduled,
+          rivalProductions: result.rivalMarket.rivalProductionsInProgress,
+          playerFilms: result.settlement.filmsReleased,
+          rivalFilms: result.rivalMarket.rivalFilmsReleased,
         }),
       };
     }
@@ -895,15 +977,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       if (state.focusedProjectId) return state;
       const project = asPlayerDraft(findProject(state.projects, action.projectId));
       if (!project) return state;
-      const screen: WizardStep = !project.photography
-        ? 'develop'
-        : project.photography.status === 'finished'
-          ? (project.postProductionChoices ? 'marketing' : 'post-production')
-          : 'production';
+      const screen = currentScreenFor(project);
       return {
         ...state,
         screen,
         focusedProjectId: action.projectId,
+        ...(screen === 'workspace' ? { projectWorkspaceSection: 'overview' as ProjectWorkspaceSection } : {}),
         ...clearTransientView(),
       };
     }
@@ -1058,6 +1137,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         screen: 'dashboard',
         projects: [],
         focusedProjectId: null,
+        projectWorkspaceSection: 'overview',
         rngSeed: nextSeed,
         totalDays: 1,
         talentPool: result.talentPool,

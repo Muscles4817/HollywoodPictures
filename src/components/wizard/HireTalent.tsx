@@ -9,11 +9,9 @@ import { dominantLean, explainEffectsStrategy, explainEnvironmentStrategy } from
 import { synthesizeProductionIdentity } from '../../engine/productionIdentity';
 import { toneProfileBreakdown } from '../../data/tones';
 import { Card } from '../common/Card';
-import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
 import { ScoreBar } from '../common/ScoreBar';
 import { Money, formatMoney } from '../common/Money';
-import { WizardHeader } from '../common/WizardHeader';
 import { CompatibilityBadge } from '../common/CompatibilityBadge';
 import { RoleHiringDrawer } from './RoleHiringDrawer';
 import { findAssignedTalent } from '../../data/helpers';
@@ -98,7 +96,6 @@ export function HireTalent() {
   const filledMandatoryCount = MANDATORY_TALENT_ROLES.length - missingMandatory.length;
   const committedSpend = computeCommittedSpend(draft);
   const canAfford = state.studio.cash >= committedSpend;
-  const canContinue = missingMandatory.length === 0 && canAfford;
 
   function handleMasterBudgetChange(value: number) {
     setMasterBudget(value);
@@ -132,7 +129,6 @@ export function HireTalent() {
 
   return (
     <div className="stack">
-      <WizardHeader current="talent" />
       <h1>Cast & Crew</h1>
       <p className="choice-description">
         Assemble your production one hire at a time. Fame boosts box office appeal - especially your lead actor's.
@@ -218,13 +214,6 @@ export function HireTalent() {
           <div>
             <div className="stat-label">Total Cast Salary</div>
             <div className="stat-value"><Money amount={totalSalary} /></div>
-          </div>
-          <div className="row">
-            <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'develop' })}>Back</Button>
-            <Button onClick={() => dispatch({ type: 'ABANDON_PROJECT' })}>Abandon Project</Button>
-            <Button variant="primary" disabled={!canContinue} onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'production-planning' })}>
-              Confirm Cast & Continue
-            </Button>
           </div>
         </div>
         {missingMandatory.length > 0 && (

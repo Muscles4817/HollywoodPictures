@@ -39,6 +39,7 @@ function stateWithInProgressShoot(
     screen: 'production',
     projects: [playerDraftToProject(draft)],
     focusedProjectId: viewingProductionId ? null : draft.id,
+    projectWorkspaceSection: 'overview',
     rngSeed: nextSeed,
     totalDays: 1,
     talentPool,

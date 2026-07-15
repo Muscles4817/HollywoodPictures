@@ -9,6 +9,7 @@ import type {
   Opportunity,
   PostProductionChoices,
   Project,
+  ProjectWorkspaceSection,
   RivalStudio,
   Screen,
   Studio,
@@ -37,6 +38,14 @@ export interface GameState {
   // results screen without needing a second, separate representation of it.
   // null means nothing is currently focused (Dashboard, a detour screen).
   focusedProjectId: string | null;
+  // Which Producer Workspace tab is showing while `screen` is 'workspace'
+  // (PRODUCER_WORKSPACE_DESIGN.md) - non-nullable, defaults to 'overview'.
+  // Set only by OPEN_PROJECT_WORKSPACE_SECTION, which - unlike GO_TO_STEP -
+  // charges no calendar time, making navigation between sections genuinely
+  // free. Meaningless while `screen` isn't 'workspace', same as
+  // viewingRivalStudioName/viewingProductionId below are meaningless outside
+  // their own screens - just stale rather than actively read.
+  projectWorkspaceSection: ProjectWorkspaceSection;
   rngSeed: number;
   /** Days elapsed since day 1 - the single source of truth for the in-game calendar (see engine/calendar.ts), world-level rather than studio-scoped since rival studios and the player share it. */
   totalDays: number;
@@ -150,6 +159,14 @@ export type GameAction =
   // winner (state/studioReducer.ts's shared applyOpportunityWin).
   | { type: 'PLACE_BID'; opportunityId: string; amount: number }
   | { type: 'CREATE_PROJECT_FROM_ASSET'; assetId: string }
+  // Producer Workspace free navigation (PRODUCER_WORKSPACE_DESIGN.md) - the
+  // only way GameState.projectWorkspaceSection changes. Unlike GO_TO_STEP,
+  // charges no calendar time and never touches STAGE_DURATIONS: moving
+  // between Overview/Cast & Crew/Production/Finance is meant to cost
+  // nothing, since none of them commit anything on their own. A no-op if
+  // nothing's focused or the focused project is past Greenlight (already
+  // has `photography`) - see state/studioReducer.ts.
+  | { type: 'OPEN_PROJECT_WORKSPACE_SECTION'; section: ProjectWorkspaceSection }
   // The one explicit "delete this for real" action for a still-owned
   // Asset's Project attempt - the Asset itself is never touched (see
   // engine/project.ts:deriveAssetStatus, which derives "available again"

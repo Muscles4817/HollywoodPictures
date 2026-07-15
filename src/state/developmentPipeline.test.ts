@@ -17,6 +17,7 @@ import { computeTalentCost, computeProductionBudgetCost } from '../engine/cost';
 import { deriveAssetStatus, findProject, asPlayerDraft, playerReleasedFilms } from '../engine/project';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
+import { effectiveRoleCapacity } from '../engine/castRequirements';
 import type { EffectsMethodKey, EnvironmentMethodKey, Opportunity } from '../types';
 
 function freshState(seed: number, startingCash = 50_000_000): GameState {
@@ -26,6 +27,7 @@ function freshState(seed: number, startingCash = 50_000_000): GameState {
     screen: 'dashboard',
     projects: [],
     focusedProjectId: null,
+    projectWorkspaceSection: 'overview',
     rngSeed: nextSeed,
     totalDays: 1,
     talentPool: result.talentPool,
@@ -47,28 +49,38 @@ const ENVIRONMENT_STRATEGY: Record<EnvironmentMethodKey, number> = { studio: 0.4
 const EFFECTS_STRATEGY: Record<EffectsMethodKey, number> = { practical: 0.5, digital: 0.5 };
 
 /**
- * Hires a distinct, cheap candidate for every MANDATORY_TALENT_ROLES slot -
- * picks by ascending salary (with a per-profession draw index) rather than
- * raw pool order, for two reasons: (1) Lead Actor and Supporting Actor now
- * share one Actor pool (used to be two disjoint pools) and would otherwise
- * both pick the same real person, which SET_TALENT_FOR_ROLE's own
- * double-cast guard (state/studioReducer.ts) then correctly rejects; (2)
- * the handcrafted real-actor entries at the front of that shared pool
- * (data/handcraftedTalents.ts) are high-fame, high-salary stars - picking
- * two of them (one per Actor slot) can blow a modest test budget that a
- * single handcrafted star per role never would have. Sorting by salary
- * keeps this test about reducer behavior, not about affording specific
- * real actors.
+ * Hires enough distinct, cheap candidates to satisfy every MANDATORY_TALENT_ROLES
+ * slot's own effectiveRoleCapacity.min (not just one each - Lead Actor/
+ * Supporting Actor can each require more than one hire, per the owned
+ * script's own requiredLeads/requiredSupporting, see engine/castRequirements.ts)
+ * - engine/projectReadiness.ts's missing-lead-cast/missing-supporting-cast
+ * blockers (and, since the Producer Workspace redesign, GREENLIGHT_PROJECT's
+ * own reducer-level readiness gate) both check against that same capacity,
+ * not a flat "one hire is enough." Uses TOGGLE_TALENT_FOR_ROLE (add-if-room)
+ * rather than SET_TALENT_FOR_ROLE (replace) so a multi-hire role actually
+ * accumulates hires instead of always ending at exactly one. Picks by
+ * ascending salary (with a per-profession draw index) rather than raw pool
+ * order, for two reasons: (1) Lead Actor and Supporting Actor now share one
+ * Actor pool (used to be two disjoint pools) and would otherwise both pick
+ * the same real person, which the double-cast guard (state/studioReducer.ts)
+ * then correctly rejects; (2) the handcrafted real-actor entries at the
+ * front of that shared pool (data/handcraftedTalents.ts) are high-fame,
+ * high-salary stars - picking several of them can blow a modest test budget
+ * that cheap candidates never would have.
  */
 function hireMandatoryRoles(s: GameState): GameState {
+  const script = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!.script!;
   const drawIndexByProfession = new Map<string, number>();
   for (const role of MANDATORY_TALENT_ROLES) {
     const profession = professionForProductionRole(role);
-    const index = drawIndexByProfession.get(profession) ?? 0;
-    drawIndexByProfession.set(profession, index + 1);
-    const cheapest = [...s.talentPool[profession]].sort((a, b) => a.salary - b.salary);
-    const candidate = cheapest[index];
-    s = studioReducer(s, { type: 'SET_TALENT_FOR_ROLE', role, talent: candidate! });
+    const need = Math.max(1, effectiveRoleCapacity(role, script).min);
+    for (let i = 0; i < need; i++) {
+      const index = drawIndexByProfession.get(profession) ?? 0;
+      drawIndexByProfession.set(profession, index + 1);
+      const cheapest = [...s.talentPool[profession]].sort((a, b) => a.salary - b.salary);
+      const candidate = cheapest[index];
+      s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, talent: candidate! });
+    }
   }
   return s;
 }
@@ -249,7 +261,8 @@ describe('leaving and resuming a Project before Greenlight', () => {
 
     const resumed = studioReducer(left, { type: 'RESUME_PROJECT', projectId });
     expect(resumed.focusedProjectId).toBe(projectId);
-    expect(resumed.screen).toBe('develop');
+    expect(resumed.screen).toBe('workspace');
+    expect(resumed.projectWorkspaceSection).toBe('overview');
     expect(asPlayerDraft(findProject(resumed.projects, projectId))?.title).toBe('Resumable Picture');
   });
 });
@@ -261,7 +274,6 @@ describe('GREENLIGHT_PROJECT', () => {
     let s: GameState = { ...freshState(seed, startingCash), studio: { ...freshState(seed, startingCash).studio, assets: [asset] } };
     s = studioReducer(s, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
     s = hireMandatoryRoles(s);
-    s = studioReducer(s, { type: 'GO_TO_STEP', step: 'production-planning' });
     s = studioReducer(s, {
       type: 'SET_PRODUCTION_PLAN',
       environmentStrategy: ENVIRONMENT_STRATEGY,
@@ -271,7 +283,6 @@ describe('GREENLIGHT_PROJECT', () => {
       contingencyAmount: 500_000,
       runtimeIntensity: 0.5,
     });
-    s = studioReducer(s, { type: 'GO_TO_STEP', step: 'greenlight' });
     return s;
   }
 
@@ -291,7 +302,7 @@ describe('GREENLIGHT_PROJECT', () => {
     const s = stateReadyToGreenlight(31, 1); // effectively no cash
     const after = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });
     expect(after).toBe(s);
-    expect(after.screen).toBe('greenlight');
+    expect(after.screen).toBe('workspace');
     const draft = asPlayerDraft(findProject(after.projects, after.focusedProjectId))!;
     expect(draft.photography).toBeNull();
     expect(draft.greenlitOnDay).toBeNull();
@@ -341,7 +352,6 @@ describe('no double-charging: the script cost is charged exactly once, at acquis
 
     s = studioReducer(s, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
     s = hireMandatoryRoles(s);
-    s = studioReducer(s, { type: 'GO_TO_STEP', step: 'production-planning' });
     s = studioReducer(s, {
       type: 'SET_PRODUCTION_PLAN',
       environmentStrategy: ENVIRONMENT_STRATEGY,
@@ -351,7 +361,6 @@ describe('no double-charging: the script cost is charged exactly once, at acquis
       contingencyAmount: 300_000,
       runtimeIntensity: 0.5,
     });
-    s = studioReducer(s, { type: 'GO_TO_STEP', step: 'greenlight' });
     const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
     const greenlightCharge =
       computeTalentCost(draft.talent.map((a) => a.talent)) + computeProductionBudgetCost(draft.productionChoices!) + draft.productionChoices!.contingencyAmount;

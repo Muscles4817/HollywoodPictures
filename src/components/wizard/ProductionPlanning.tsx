@@ -23,7 +23,6 @@ import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
 import { ScoreBar } from '../common/ScoreBar';
 import { Money, formatMoney } from '../common/Money';
-import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import type {
   DirectorTalent,
@@ -262,9 +261,7 @@ export function ProductionPlanning() {
   if (!director || !envBreakdown || !fxBreakdown || !environmentStrategyOrNull || !effectsStrategyOrNull) {
     return (
       <div className="stack">
-        <WizardHeader current="production-planning" />
-        <p>No director hired yet - go back and hire one first.</p>
-        <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'talent' })}>Back</Button>
+        <p>No director hired yet - hire one from the Cast & Crew tab first.</p>
       </div>
     );
   }
@@ -328,7 +325,6 @@ export function ProductionPlanning() {
 
   return (
     <div className="stack">
-      <WizardHeader current="production-planning" />
       <h1>Production Planning</h1>
       <ScriptSummaryCard script={script} />
 
@@ -435,16 +431,6 @@ export function ProductionPlanning() {
         <Money amount={contingencyAmount} /> reserve spent. Wrapping early spends less than planned; running longer
         keeps burning at that same daily rate with no cap.
       </p>
-
-      <div className="row-between">
-        <div className="row">
-          <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'talent' })}>Back</Button>
-          <Button onClick={() => dispatch({ type: 'ABANDON_PROJECT' })}>Abandon Project</Button>
-        </div>
-        <Button variant="primary" disabled={!canAfford} onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'greenlight' })}>
-          Continue to Greenlight
-        </Button>
-      </div>
     </div>
   );
 }

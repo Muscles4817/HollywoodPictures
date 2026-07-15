@@ -6,15 +6,18 @@
 // OutcomeInspector.test.tsx for the same jsdom+StudioProvider pattern this
 // borrows). Catches exactly the class of bug tsc can't: a null-reference or
 // missing-import inside ScriptDetails that only surfaces at render time.
-// Development-pipeline doc: DevelopFilm.tsx no longer generates or picks a
-// script itself - a Project's script is inherited wholesale from the Asset
-// it was created from (state/gameState.ts:createDraftFromAsset), so this
-// file builds that Asset/Project directly via CREATE_PROJECT_FROM_ASSET
-// rather than the old START_NEW_FILM/SET_GENRE/SELECT_SCRIPT sequence.
+// Retargeted from the retired DevelopFilm.tsx onto ProjectOverview.tsx - the
+// Producer Workspace's landing page absorbed DevelopFilm's title/script/
+// target-audience content wholesale (PRODUCER_WORKSPACE_DESIGN.md), so this
+// is the same regression coverage, just against its new home. Development-
+// pipeline doc: a Project's script is inherited wholesale from the Asset it
+// was created from (state/gameState.ts:createDraftFromAsset), so this file
+// builds that Asset/Project directly via CREATE_PROJECT_FROM_ASSET rather
+// than the old START_NEW_FILM/SET_GENRE/SELECT_SCRIPT sequence.
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { StudioProvider } from '../../state/StudioContext';
-import { DevelopFilm } from './DevelopFilm';
+import { ProjectOverview } from './ProjectOverview';
 import { studioReducer } from '../../state/studioReducer';
 import { createInitialStudio, type GameState } from '../../state/gameState';
 import { generateTalentPool } from '../../engine/talentGenerator';
@@ -39,6 +42,7 @@ function stateWithFocusedAssetDraft(seed: number, genre: Genre): GameState {
     screen: 'dashboard',
     projects: [],
     focusedProjectId: null,
+    projectWorkspaceSection: 'overview',
     rngSeed: nextSeed,
     totalDays: 1,
     talentPool: result.talentPool,
@@ -51,14 +55,14 @@ function stateWithFocusedAssetDraft(seed: number, genre: Genre): GameState {
   return studioReducer(state, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
 }
 
-describe('DevelopFilm - the redesigned screenplay card renders without crashing', () => {
+describe('ProjectOverview - the redesigned screenplay card renders without crashing', () => {
   it('renders the concept/production/commercial descriptors, for every genre', () => {
     for (const genre of ['Action', 'Comedy', 'Drama', 'Horror', 'Romance', 'Sci-Fi', 'Fantasy', 'Thriller'] as const) {
       const state = stateWithFocusedAssetDraft(1, genre);
       saveState(state);
       const { unmount } = render(
         <StudioProvider>
-          <DevelopFilm />
+          <ProjectOverview />
         </StudioProvider>,
       );
       expect(screen.getAllByText(/Priced for|A modest, straightforward production\./).length).toBeGreaterThanOrEqual(1);
@@ -72,20 +76,20 @@ describe('DevelopFilm - the redesigned screenplay card renders without crashing'
     saveState(state);
     render(
       <StudioProvider>
-        <DevelopFilm />
+        <ProjectOverview />
       </StudioProvider>,
     );
     expect(screen.getByText((text) => text.startsWith('Pre-filled from'))).toBeInTheDocument();
   });
 });
 
-describe('DevelopFilm - presentation polish pass (docs/DESIGN.md)', () => {
+describe('ProjectOverview - presentation polish pass (docs/DESIGN.md)', () => {
   it('groups the five quality stats under "Writing"/"Creative" headings, and shows "Intended Audience"/"Screenplay Cost" instead of the old "Written For"/"Cost" wording', () => {
     const state = stateWithFocusedAssetDraft(3, 'Action');
     saveState(state);
     render(
       <StudioProvider>
-        <DevelopFilm />
+        <ProjectOverview />
       </StudioProvider>,
     );
     expect(screen.getAllByText('Writing').length).toBeGreaterThanOrEqual(1);
@@ -101,7 +105,7 @@ describe('DevelopFilm - presentation polish pass (docs/DESIGN.md)', () => {
     saveState(state);
     render(
       <StudioProvider>
-        <DevelopFilm />
+        <ProjectOverview />
       </StudioProvider>,
     );
     expect(screen.queryByText(/Production Style:/)).not.toBeInTheDocument();
@@ -112,7 +116,7 @@ describe('DevelopFilm - presentation polish pass (docs/DESIGN.md)', () => {
     saveState(state);
     render(
       <StudioProvider>
-        <DevelopFilm />
+        <ProjectOverview />
       </StudioProvider>,
     );
     // One script x 5 stats = 5 star-rating widgets.
@@ -124,7 +128,7 @@ describe('DevelopFilm - presentation polish pass (docs/DESIGN.md)', () => {
     saveState(state);
     render(
       <StudioProvider>
-        <DevelopFilm />
+        <ProjectOverview />
       </StudioProvider>,
     );
     expect(screen.queryByText('ComingOfAge')).not.toBeInTheDocument();
