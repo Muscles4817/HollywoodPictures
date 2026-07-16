@@ -1,6 +1,6 @@
 import type {
   Distribution,
-  DirectorTalent,
+  DirectorCareer,
   EffectsMethodKey,
   EnvironmentMethodKey,
   NormalizedScalar,
@@ -212,7 +212,7 @@ const ENVIRONMENT_LABELS: Record<EnvironmentMethodKey, string> = {
  */
 function computeEnvironmentStrategyBreakdown(
   script: Script,
-  director: DirectorTalent,
+  director: DirectorCareer,
 ): StrategyBreakdown<EnvironmentMethodKey> {
   const scriptDist = script.environmentStrategy;
   const directorDist = director.productionStyle.environmentStrategy;
@@ -266,13 +266,13 @@ function computeEnvironmentStrategyBreakdown(
 
 export function recommendEnvironmentStrategy(
   script: Script,
-  director: DirectorTalent,
+  director: DirectorCareer,
 ): Recommendation<Distribution<EnvironmentMethodKey>> {
   return computeEnvironmentStrategyBreakdown(script, director).recommendation;
 }
 
 /** Every intermediate value behind recommendEnvironmentStrategy - see StrategyBreakdown. */
-export function explainEnvironmentStrategy(script: Script, director: DirectorTalent): StrategyBreakdown<EnvironmentMethodKey> {
+export function explainEnvironmentStrategy(script: Script, director: DirectorCareer): StrategyBreakdown<EnvironmentMethodKey> {
   return computeEnvironmentStrategyBreakdown(script, director);
 }
 
@@ -286,7 +286,7 @@ const EFFECTS_LABELS: Record<EffectsMethodKey, string> = {
 };
 
 /** Practical vs. digital, same shape of blend/damping as Environment Strategy but kept as its own function - see the file header on why. */
-function computeEffectsStrategyBreakdown(script: Script, director: DirectorTalent): StrategyBreakdown<EffectsMethodKey> {
+function computeEffectsStrategyBreakdown(script: Script, director: DirectorCareer): StrategyBreakdown<EffectsMethodKey> {
   const scriptDist = script.effectsStrategy;
   const directorDist = director.productionStyle.effectsStrategy;
   const reasons: WeightedReason[] = [];
@@ -335,13 +335,13 @@ function computeEffectsStrategyBreakdown(script: Script, director: DirectorTalen
 
 export function recommendEffectsStrategy(
   script: Script,
-  director: DirectorTalent,
+  director: DirectorCareer,
 ): Recommendation<Distribution<EffectsMethodKey>> {
   return computeEffectsStrategyBreakdown(script, director).recommendation;
 }
 
 /** Every intermediate value behind recommendEffectsStrategy - see StrategyBreakdown. */
-export function explainEffectsStrategy(script: Script, director: DirectorTalent): StrategyBreakdown<EffectsMethodKey> {
+export function explainEffectsStrategy(script: Script, director: DirectorCareer): StrategyBreakdown<EffectsMethodKey> {
   return computeEffectsStrategyBreakdown(script, director);
 }
 

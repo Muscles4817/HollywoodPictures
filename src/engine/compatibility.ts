@@ -1,6 +1,7 @@
-import type { ActingStyle, Script, Talent, Tone, ToneProfile } from '../types';
+import type { ActingStyle, Person, ProductionRole, Script, Tone, ToneProfile } from '../types';
 import { TONES } from '../data/tones';
 import { ACTING_STYLE_TONE_WEIGHTS } from '../data/actingStyle';
+import { professionForProductionRole } from '../data/helpers';
 import { clamp } from './random';
 
 /**
@@ -46,16 +47,24 @@ export function deriveToneFromActingStyle(actingStyle: ActingStyle): ToneProfile
 }
 
 /**
- * Compatibility for whichever talent role actually has a tone-comparable
- * stat - Director compares its ToneProfile directly, Actors go through
- * deriveToneFromActingStyle first, and crew roles (Writer/Composer/Editor/
- * VFX Supervisor) have neither, so this returns null for them rather than a
- * meaningless number.
+ * Compatibility for whichever career `role` actually engages - Director
+ * compares its ToneProfile directly, Actor (Lead or Supporting) goes
+ * through deriveToneFromActingStyle first, and crew roles (Writer/Composer/
+ * Editor/VFX Supervisor) have neither, so this returns null for them rather
+ * than a meaningless number. `role` (not just whichever careers the person
+ * happens to have) is what determines which career is read - the same
+ * person could hold both an Actor and a Director career and be cast under
+ * either one on different films.
  */
-export function computeTalentCompatibility(talent: Talent, script: Script): number | null {
-  if (talent.role === 'Director') return computeCompatibility(script.toneProfile, talent.toneProfile);
-  if (talent.role === 'Actor') {
-    return computeCompatibility(script.toneProfile, deriveToneFromActingStyle(talent.actingStyle));
+export function computeTalentCompatibility(person: Person, role: ProductionRole, script: Script): number | null {
+  const profession = professionForProductionRole(role);
+  if (profession === 'Director') {
+    const career = person.careers.director;
+    return career ? computeCompatibility(script.toneProfile, career.toneProfile) : null;
+  }
+  if (profession === 'Actor') {
+    const career = person.careers.actor;
+    return career ? computeCompatibility(script.toneProfile, deriveToneFromActingStyle(career.actingStyle)) : null;
   }
   return null;
 }
@@ -100,10 +109,15 @@ export function computeCompatibilityBreakdown(scriptTone: ToneProfile, talentTon
 }
 
 /** Role-aware wrapper mirroring computeTalentCompatibility's own dispatch - null for crew roles with no tone-comparable stat. */
-export function computeTalentCompatibilityBreakdown(talent: Talent, script: Script): ToneCompatibilityAxis[] | null {
-  if (talent.role === 'Director') return computeCompatibilityBreakdown(script.toneProfile, talent.toneProfile);
-  if (talent.role === 'Actor') {
-    return computeCompatibilityBreakdown(script.toneProfile, deriveToneFromActingStyle(talent.actingStyle));
+export function computeTalentCompatibilityBreakdown(person: Person, role: ProductionRole, script: Script): ToneCompatibilityAxis[] | null {
+  const profession = professionForProductionRole(role);
+  if (profession === 'Director') {
+    const career = person.careers.director;
+    return career ? computeCompatibilityBreakdown(script.toneProfile, career.toneProfile) : null;
+  }
+  if (profession === 'Actor') {
+    const career = person.careers.actor;
+    return career ? computeCompatibilityBreakdown(script.toneProfile, deriveToneFromActingStyle(career.actingStyle)) : null;
   }
   return null;
 }

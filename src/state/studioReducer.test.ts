@@ -76,7 +76,7 @@ describe('RELEASE_FILM', () => {
     // (this fixture's photography.runningCost is 0) is exactly the
     // "already charged" amount studioReducer.ts:RELEASE_FILM subtracts back
     // out of totalCost before applying it here.
-    const alreadyCharged = computeTalentCost(film.talent.map((a) => a.talent)) + computeProductionBudgetCost(film.productionChoices);
+    const alreadyCharged = computeTalentCost(film.talent) + computeProductionBudgetCost(film.productionChoices);
     const costChargedThisAction = film.results.totalCost - alreadyCharged;
     const expectedRevenueCredit = Math.round(film.results.openingWeekend * STUDIO_BOX_OFFICE_SHARE);
     expect(after.studio.cash).toBe(cashBefore - costChargedThisAction + expectedRevenueCredit);
@@ -415,8 +415,8 @@ function stateReadyToGreenlight(seed: number, startingCash = 50_000_000): GameSt
     const need = Math.max(1, effectiveRoleCapacity(role, script).min);
     const { result: candidates } = withRng(drawSeed, (rng) => generateTalentCandidates(profession, rng, need));
     drawSeed += 1;
-    for (const talent of candidates) {
-      s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, talent });
+    for (const person of candidates) {
+      s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, person });
     }
   }
 
@@ -493,7 +493,7 @@ describe('GREENLIGHT_PROJECT - the new lump pre-production time charge', () => {
       const need = Math.max(1, effectiveRoleCapacity(role, script).min);
       const { result: candidates } = withRng(drawSeed, (rng) => generateTalentCandidates(profession, rng, need));
       drawSeed += 1;
-      for (const talent of candidates) s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, talent });
+      for (const person of candidates) s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, person });
     }
     s = studioReducer(s, {
       type: 'SET_PRODUCTION_PLAN',

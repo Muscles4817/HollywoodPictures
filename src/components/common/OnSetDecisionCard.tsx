@@ -4,18 +4,18 @@ import { Button } from './Button';
 import { Money } from './Money';
 import { SeverityBadge } from './SeverityBadge';
 import { professionForProductionRole } from '../../data/helpers';
-import type { PendingEventChoice, Script, Talent, TalentProfession } from '../../types';
+import type { PendingEventChoice, Person, Script, TalentProfession } from '../../types';
 
 interface OnSetDecisionCardProps {
   pendingChoice: PendingEventChoice;
-  talent: Talent[];
+  talent: Person[];
   // The studio's full talent pool, keyed by profession - needed to resolve a
   // recast candidate's full stats (data/productionEvents.ts's
   // EventChoiceTemplate only carries replacementCandidateId/Name/Salary,
-  // not the whole Talent record) so the comparison below can show the same
+  // not the whole Person record) so the comparison below can show the same
   // depth of profile for a candidate as for the person currently in the
   // role, rather than a name and a salary.
-  talentPool: Record<TalentProfession, Talent[]>;
+  talentPool: Record<TalentProfession, Person[]>;
   script: Script | null;
   onChoose: (choiceId: string) => void;
 }
@@ -57,11 +57,11 @@ export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, o
         <SeverityBadge severity={pendingChoice.severity} />
       </div>
 
-      {involvedTalent && involvedCategory && replacementChoices.length === 0 && (
+      {involvedTalent && involvedCategory && pendingChoice.involvedRole && replacementChoices.length === 0 && (
         <div className="card">
-          <div className="card-title">{involvedTalent.name}</div>
+          <div className="card-title">{involvedTalent.identity.name}</div>
           <div className="card-subtitle">Currently {pendingChoice.involvedRole}</div>
-          <TalentStats talent={involvedTalent} category={involvedCategory} script={script} />
+          <TalentStats person={involvedTalent} role={pendingChoice.involvedRole} category={involvedCategory} script={script} />
         </div>
       )}
 
@@ -83,11 +83,11 @@ export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, o
         <div className="stack event-people-panel">
           <h3 style={{ margin: 0 }}>People Involved - compare before you choose</h3>
           <div className="talent-compare-row">
-            {involvedTalent && involvedCategory && (
+            {involvedTalent && involvedCategory && pendingChoice.involvedRole && (
               <div className="card talent-compare-card">
-                <div className="card-title">{involvedTalent.name}</div>
+                <div className="card-title">{involvedTalent.identity.name}</div>
                 <div className="card-subtitle">Currently {pendingChoice.involvedRole}</div>
-                <TalentStats talent={involvedTalent} category={involvedCategory} script={script} />
+                <TalentStats person={involvedTalent} role={pendingChoice.involvedRole} category={involvedCategory} script={script} />
               </div>
             )}
             {replacementChoices.map((choice) => {
@@ -95,8 +95,8 @@ export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, o
               return (
                 <div className="card talent-compare-card" key={choice.id}>
                   <div className="card-title">{choice.replacementCandidateName}</div>
-                  {candidate && replacementCategory ? (
-                    <TalentStats talent={candidate} category={replacementCategory} script={script} />
+                  {candidate && replacementCategory && replacementRole ? (
+                    <TalentStats person={candidate} role={replacementRole} category={replacementCategory} script={script} />
                   ) : (
                     choice.replacementCandidateSalary !== undefined && (
                       <div className="card-subtitle"><Money amount={choice.replacementCandidateSalary} /></div>

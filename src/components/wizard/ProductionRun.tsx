@@ -180,7 +180,7 @@ export function ProductionRun() {
           {photography.status === 'awaiting-choice' && pendingChoice && (
             <OnSetDecisionCard
               pendingChoice={pendingChoice}
-              talent={draft.talent.map((a) => a.talent)}
+              talent={draft.talent.map((a) => a.person)}
               talentPool={state.talentPool}
               script={draft.script}
               onChoose={(choiceId) => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId, productionId: shownId! })}

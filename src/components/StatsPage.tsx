@@ -49,7 +49,7 @@ const TABS: Array<{ value: StatsTab; label: string }> = [
 
 /** Director credit, or the leads (a script can call for more than one) - same fallback either table row needs. */
 function creditLine(film: Film, role: ProductionRole): string {
-  const names = film.talent.filter((a) => a.role === role).map((a) => a.talent.name);
+  const names = film.talent.filter((a) => a.role === role).map((a) => a.person.identity.name);
   return names.length > 0 ? names.join(', ') : '-';
 }
 

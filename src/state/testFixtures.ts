@@ -66,9 +66,9 @@ export function buildReadyDraft(rng: RandomFn, marketingOverrides: Partial<Marke
     ...createDraftFromAsset(asset, {}),
     targetAudience: 'Mass Market',
     talent: [
-      { role: 'Director', talent: director },
-      { role: 'Lead Actor', talent: lead },
-      { role: 'Supporting Actor', talent: support },
+      { role: 'Director', person: director },
+      { role: 'Lead Actor', person: lead },
+      { role: 'Supporting Actor', person: support },
     ],
     productionChoices: PRODUCTION_CHOICES,
     greenlitOnDay: 1,

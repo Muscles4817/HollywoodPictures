@@ -24,7 +24,7 @@ import type { AudienceSimulationFixedState } from './audienceSimulation';
 function averageFame(talent: TalentAssignment[], role: TalentAssignment['role']): number {
   const matching = talent.filter((t) => t.role === role);
   if (matching.length === 0) return 0;
-  return matching.reduce((sum, t) => sum + t.talent.fame, 0) / matching.length;
+  return matching.reduce((sum, t) => sum + t.person.reputation.fame, 0) / matching.length;
 }
 
 export interface ReleaseComputationInput {
@@ -99,7 +99,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     input.studioBrand,
   );
 
-  const talentCost = computeTalentCost(input.talent.map(t => t.talent));
+  const talentCost = computeTalentCost(input.talent);
   const productionBudgetCost = computeProductionBudgetCost(input.productionChoices);
   const eventsCostDelta = computeEventsCostDelta(input.events);
   const testScreeningCost = TEST_SCREENING_PROFILES[input.postProductionChoices.testScreeningResponse].cost;

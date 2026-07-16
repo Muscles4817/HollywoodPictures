@@ -8,12 +8,12 @@ import type {
   NormalizedScalar,
   Opportunity,
   PostProductionChoices,
+  Person,
   Project,
   ProjectWorkspaceSection,
   RivalStudio,
   Screen,
   Studio,
-  Talent,
   TalentProfession,
   ProductionRole,
   TargetAudience,
@@ -52,7 +52,7 @@ export interface GameState {
   /** A small persistent roster of AI competitors, generated once at game start - world-level rather than nested inside the player's own Studio, since it's not the player's data (see docs/DESIGN.md 5.24). */
   rivalStudios: RivalStudio[];
   /** The whole hireable roster, generated once at game start - world-level (shared by the player and every rival's own casting, see engine/rivalStudios.ts) rather than nested inside the player's own Studio. */
-  talentPool: Record<TalentProfession, Talent[]>;
+  talentPool: Record<TalentProfession, Person[]>;
   // Development pipeline (docs/DESIGN_REVIEW_development_pipeline.md) -
   // world-level and shared, same reasoning as talentPool: an Opportunity
   // isn't anyone's property yet, so it can't live inside one Studio. Not
@@ -179,8 +179,8 @@ export type GameAction =
   | { type: 'GO_TO_STEP'; step: WizardStep }
   | { type: 'SET_TITLE'; title: string }
   | { type: 'SET_TARGET_AUDIENCE'; targetAudience: TargetAudience }
-  | { type: 'SET_TALENT_FOR_ROLE'; role: ProductionRole; talent: Talent | null }
-  | { type: 'TOGGLE_TALENT_FOR_ROLE'; role: ProductionRole; talent: Talent }
+  | { type: 'SET_TALENT_FOR_ROLE'; role: ProductionRole; person: Person | null }
+  | { type: 'TOGGLE_TALENT_FOR_ROLE'; role: ProductionRole; person: Person }
   | { type: 'SET_TALENT_TARGET_PRICE'; role: ProductionRole; price: number }
   | { type: 'SET_TALENT_BUDGET_SPLIT'; totalBudget: number }
   // Replaces the old SET_PRODUCTION_CHOICES - the player now edits Strategy/

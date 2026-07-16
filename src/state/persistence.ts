@@ -185,7 +185,18 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // computeRecommendedPreProductionDays). A v32 save's `screen` can be one of
 // the four retired WizardStep values and has no projectWorkspaceSection at
 // all - no migration code, same as every past shape change here.
-const SAVE_KEY = 'hollywood-pictures-save-v33';
+// v33 -> v34 (PERSON_MODEL_REDESIGN.md): the single-role Talent union
+// (DirectorTalent/ActorTalent/CrewTalent) was replaced by Person - shared
+// identity/personality/reputation plus one or more role-specific careers
+// (Person.careers.director/actor/writer/...). TalentAssignment.talent
+// (a Talent) became TalentAssignment.person (a Person); GameState.talentPool
+// and every HANDCRAFTED_* roster are now Person[]. bookedUntil was replaced
+// by PersonAvailability.commitments (a list of {projectId, role, startDay,
+// endDay} spans, supporting more than one simultaneous commitment once a
+// person can hold more than one career). A v33 save's talent/talentPool
+// entries are all the old flat Talent shape - no migration code, same as
+// every past shape change here.
+const SAVE_KEY = 'hollywood-pictures-save-v34';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

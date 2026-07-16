@@ -90,7 +90,7 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
   // settled) back when photography actually happened - only the remainder
   // of results.totalCost (script cost, event cost swings, the test
   // screening fee, and marketing) is newly charged at release.
-  const alreadyCharged = computeTalentCost(draft.talent.map((a) => a.talent)) + computeProductionBudgetCost(draft.productionChoices!) + draft.photography!.runningCost;
+  const alreadyCharged = computeTalentCost(draft.talent) + computeProductionBudgetCost(draft.productionChoices!) + draft.photography!.runningCost;
   const costCharged = results.totalCost - alreadyCharged;
 
   const film: Film = {

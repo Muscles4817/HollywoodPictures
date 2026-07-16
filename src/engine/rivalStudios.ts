@@ -2,6 +2,7 @@ import type {
   Film,
   MarketingChoices,
   Opportunity,
+  Person,
   PostProductionChoices,
   ProductionChoices,
   ProductionScale,
@@ -9,13 +10,13 @@ import type {
   RivalStudio,
   Script,
   StudioTier,
-  Talent,
   TalentAssignment,
   TalentProfession,
 } from '../types';
 import { RIVAL_STUDIO_NAME_PREFIXES, RIVAL_STUDIO_NAME_SUFFIXES } from '../data/rivalStudioNames';
 import { MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
+import { isPersonAvailableOnDay, withCommitment } from './person';
 import { effectiveRoleCapacity } from './castRequirements';
 import { computeRecommendedShootDays } from './production';
 import { computeReleaseResults } from './releaseFilm';
@@ -596,10 +597,14 @@ function startRivalProductionFromWonScript(
   script: Script,
   bidAmount: number,
   totalDays: number,
-  talentPool: Record<TalentProfession, Talent[]>,
+  talentPool: Record<TalentProfession, Person[]>,
   knownUpcoming: UpcomingRelease[],
   rng: RandomFn,
-): { production: RivalProductionInProgress; talentPool: Record<TalentProfession, Talent[]>; cost: number } | null {
+): { production: RivalProductionInProgress; talentPool: Record<TalentProfession, Person[]>; cost: number } | null {
+  // Assigned up front (not just at the return, the way this used to build
+  // its id) so it's available to tag each hire's own commitment with below.
+  const productionId = `rival-prod-${rival.id}-${totalDays}-${randInt(rng, 0, 999_999)}`;
+
   const spendPlan = deriveRivalSpendPlan(
     rival,
     scale,
@@ -618,13 +623,13 @@ function startRivalProductionFromWonScript(
     const capacity = effectiveRoleCapacity(role, script);
     const profession = professionForProductionRole(role);
     const targetPrice = logAmount(spendPlan.talentSpendT, ROLE_GENERATION_PROFILES[profession].salaryRange);
-    const available = talentPool[profession].filter((t) => (!t.bookedUntil || t.bookedUntil <= totalDays) && !bookedIds.has(t.id));
+    const available = talentPool[profession].filter((t) => isPersonAvailableOnDay(t, totalDays) && !bookedIds.has(t.id));
     if (available.length < capacity.min) return null;
-    const { candidates } = findCandidatesNearPrice(available, targetPrice, Math.max(capacity.max * 3, 6));
+    const { candidates } = findCandidatesNearPrice(available, role, targetPrice, Math.max(capacity.max * 3, 6));
     const picked = pickMany(rng, candidates, Math.min(capacity.max, candidates.length));
     if (picked.length < capacity.min) return null;
     for (const p of picked) bookedIds.add(p.id);
-    talent.push(...picked.map((t) => ({ role, talent: t })));
+    talent.push(...picked.map((person) => ({ role, person })));
   }
 
   const productionChoices: ProductionChoices = {
@@ -679,22 +684,30 @@ function startRivalProductionFromWonScript(
 
   const cost =
     bidAmount +
-    computeTalentCost(talent.map((a) => a.talent)) +
+    computeTalentCost(talent) +
     computeProductionBudgetCost(productionChoices) +
     productionChoices.contingencyAmount +
     computeMarketingCost(marketingChoices) +
     TEST_SCREENING_PROFILES[postProductionChoices.testScreeningResponse].cost;
   if (cost > rival.cash) return null;
 
+  // Per-assignment, not per-role-then-profession: Lead Actor and Supporting
+  // Actor share the same 'Actor' pool, so looping MANDATORY_TALENT_ROLES and
+  // updating updatedPool[profession] each time would visit that pool twice
+  // and double up every actor's commitment. Each TalentAssignment already
+  // carries the exact role its person was actually cast under.
   const updatedPool = { ...talentPool };
-  for (const role of MANDATORY_TALENT_ROLES) {
-    const profession = professionForProductionRole(role);
-    updatedPool[profession] = updatedPool[profession].map((t) => (bookedIds.has(t.id) ? { ...t, bookedUntil: releaseDay } : t));
+  for (const assignment of talent) {
+    const profession = professionForProductionRole(assignment.role);
+    const commitment = { projectId: productionId, role: assignment.role, startDay: totalDays, endDay: releaseDay };
+    updatedPool[profession] = updatedPool[profession].map((t) =>
+      t.id === assignment.person.id ? withCommitment(t, commitment) : t,
+    );
   }
 
   return {
     production: {
-      id: `rival-prod-${rival.id}-${totalDays}-${randInt(rng, 0, 999_999)}`,
+      id: productionId,
       rivalStudioId: rival.id,
       scale,
       genre: script.genre,
@@ -787,7 +800,7 @@ export interface RivalMarketUpdate {
   rivalStudios: RivalStudio[];
   rivalProductionsInProgress: RivalProductionInProgress[];
   rivalFilmsReleased: Film[];
-  talentPool: Record<TalentProfession, Talent[]>;
+  talentPool: Record<TalentProfession, Person[]>;
   /** Milestone: Opportunity Market bidding - the shared pool, already settled for expiry/generation/this-week's-resolutions by the caller (engine/opportunities.ts:settleOpportunities) before being handed in here. */
   opportunities: Opportunity[];
 }

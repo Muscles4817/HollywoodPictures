@@ -6,13 +6,14 @@ import { TARGET_AUDIENCES, AUDIENCE_PROFILES } from '../../data/audiences';
 import { pluckDescriptions } from '../../data/describe';
 import { synthesizeProductionIdentity } from '../../engine/productionIdentity';
 import { explainEffectsStrategy, explainEnvironmentStrategy } from '../../engine/recommendation';
-import { findAssignedTalent } from '../../data/helpers';
+import { findAssignedPerson } from '../../data/helpers';
+import { getDirectorCareer } from '../../engine/person';
 import { ChoiceGroup } from '../common/ChoiceGroup';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { ScriptDetails } from '../common/ScriptDetails';
 import { GreenlightConfirmation } from './GreenlightConfirmation';
-import type { DirectorTalent, ProjectWorkspaceSection } from '../../types';
+import type { ProjectWorkspaceSection } from '../../types';
 
 const AUDIENCE_DESCRIPTIONS = pluckDescriptions(AUDIENCE_PROFILES);
 
@@ -42,10 +43,11 @@ export function ProjectOverview() {
   const readiness = deriveProjectReadiness(draft, state.studio.cash);
   const commitment = deriveGreenlightCommitment(draft, state.studio.cash);
 
-  const director = findAssignedTalent(draft.talent, 'Director') as DirectorTalent | undefined;
+  const director = findAssignedPerson(draft.talent, 'Director');
+  const directorCareer = director && getDirectorCareer(director);
   const identity =
-    director && script
-      ? synthesizeProductionIdentity(script, explainEnvironmentStrategy(script, director), explainEffectsStrategy(script, director))
+    directorCareer && script
+      ? synthesizeProductionIdentity(script, explainEnvironmentStrategy(script, directorCareer), explainEffectsStrategy(script, directorCareer))
       : null;
 
   return (

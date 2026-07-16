@@ -1,10 +1,11 @@
-import type { MarketingChoices, ProductionChoices, ProductionEvent, Talent } from '../types';
+import type { MarketingChoices, ProductionChoices, ProductionEvent, TalentAssignment } from '../types';
 import { runtimeCostMultiplier } from './productionDials';
 import { RELEASE_TYPE_PROFILES } from '../data/release';
+import { getTypicalSalaryForRole } from './person';
 
-/** Sum of all hired talent salaries. */
-export function computeTalentCost(talent: Talent[]): number {
-  return talent.reduce((sum, t) => sum + t.salary, 0);
+/** Sum of every hired person's typical salary under the role they were actually cast in. */
+export function computeTalentCost(talent: TalentAssignment[]): number {
+  return talent.reduce((sum, a) => sum + getTypicalSalaryForRole(a.person, a.role), 0);
 }
 
 /**

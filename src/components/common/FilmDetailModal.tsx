@@ -14,7 +14,8 @@ import { CompatibilityBadge } from './CompatibilityBadge';
 import { BoxOfficeChart } from './BoxOfficeChart';
 import { SeverityBadge } from './SeverityBadge';
 import { computeReportedLegs } from '../../state/selectors';
-import type { Film, Talent } from '../../types';
+import { getCareerForRole } from '../../engine/person';
+import type { Film, Person, ProductionRole } from '../../types';
 
 /**
  * "What film is this" - the screenplay's own concept, craft, production
@@ -65,10 +66,11 @@ function ScriptSection({ film }: { film: Film }) {
   );
 }
 
-/** A talent's role-appropriate "how good/how well they fit" reading - skill for crew, script compatibility for actors/director. */
-function talentStatLine(talent: Talent, script: Film['script']): string {
-  if ('skill' in talent) return `Skill ${talent.skill}`;
-  const compat = computeTalentCompatibility(talent, script);
+/** A person's role-appropriate "how good/how well they fit" reading - skill for crew, script compatibility for actors/director. */
+function talentStatLine(person: Person, role: ProductionRole, script: Film['script']): string {
+  const career = getCareerForRole(person, role);
+  if (career && 'skill' in career) return `Skill ${career.skill}`;
+  const compat = computeTalentCompatibility(person, role, script);
   return compat === null ? '' : `Compatibility ${Math.round(compat)}`;
 }
 
@@ -77,19 +79,22 @@ function CastCrewSection({ film }: { film: Film }) {
     <div className="card stack">
       <h3 style={{ margin: 0 }}>Cast &amp; Crew</h3>
       {ALL_TALENT_ROLES.map((role) => {
-        const hired = film.talent.filter((a) => a.role === role).map((a) => a.talent);
+        const hired = film.talent.filter((a) => a.role === role).map((a) => a.person);
         if (hired.length === 0) return null;
         return (
           <div key={role}>
             <div className="stat-label">{role}{hired.length > 1 ? 's' : ''}</div>
-            {hired.map((t) => (
-              <div className="row-between" key={t.id}>
-                <span>{t.name}</span>
-                <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
-                  {talentStatLine(t, film.script)} &middot; Fame {t.fame} &middot; Reliability {t.reliability} &middot; Ego {t.ego} &middot; <Money amount={t.salary} />
-                </span>
-              </div>
-            ))}
+            {hired.map((p) => {
+              const career = getCareerForRole(p, role);
+              return (
+                <div className="row-between" key={p.id}>
+                  <span>{p.identity.name}</span>
+                  <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+                    {talentStatLine(p, role, film.script)} &middot; Fame {p.reputation.fame} &middot; Reliability {p.reputation.reliability} &middot; Ego {p.personality.ego} &middot; <Money amount={career?.typicalSalary ?? 0} />
+                  </span>
+                </div>
+              );
+            })}
           </div>
         );
       })}

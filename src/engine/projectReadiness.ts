@@ -1,6 +1,7 @@
-import type { DirectorTalent, FilmDraft, ProjectWorkspaceSection } from '../types';
+import type { FilmDraft, ProjectWorkspaceSection } from '../types';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
-import { findAssignedTalent } from '../data/helpers';
+import { findAssignedPerson } from '../data/helpers';
+import { getDirectorCareer } from './person';
 import { effectiveRoleCapacity } from './castRequirements';
 import { computeTalentCost, computeProductionBudgetCost } from './cost';
 import { computeStaticProductionRisk } from './production';
@@ -85,7 +86,7 @@ export function deriveProjectReadiness(draft: FilmDraft, studioCash: number): Pr
   const warnings: ProjectReadinessIssue[] = [];
 
   const talentForRole = (role: (typeof MANDATORY_TALENT_ROLES)[number]) =>
-    draft.talent.filter((a) => a.role === role).map((a) => a.talent);
+    draft.talent.filter((a) => a.role === role).map((a) => a.person);
 
   const hasDirector = talentForRole('Director').length >= effectiveRoleCapacity('Director', draft.script).min;
   if (!hasDirector) blockers.push({ code: 'missing-director', message: 'Hire a director.' });
@@ -109,7 +110,7 @@ export function deriveProjectReadiness(draft: FilmDraft, studioCash: number): Pr
     blockers.push({ code: 'production-plan-incomplete', message: 'Set your production plan.' });
   }
 
-  const talentCost = computeTalentCost(draft.talent.map((a) => a.talent));
+  const talentCost = computeTalentCost(draft.talent);
   const productionCost = hasProductionPlan ? computeProductionBudgetCost(draft.productionChoices!) : 0;
   const contingency = hasProductionPlan ? draft.productionChoices!.contingencyAmount : 0;
   const totalCommitment = talentCost + productionCost + contingency;
@@ -134,10 +135,11 @@ export function deriveProjectReadiness(draft: FilmDraft, studioCash: number): Pr
     }
   }
 
-  const director = findAssignedTalent(draft.talent, 'Director') as DirectorTalent | undefined;
-  if (draft.script && director) {
-    const envBreakdown = explainEnvironmentStrategy(draft.script, director);
-    const fxBreakdown = explainEffectsStrategy(draft.script, director);
+  const director = findAssignedPerson(draft.talent, 'Director');
+  const directorCareer = director && getDirectorCareer(director);
+  if (draft.script && directorCareer) {
+    const envBreakdown = explainEnvironmentStrategy(draft.script, directorCareer);
+    const fxBreakdown = explainEffectsStrategy(draft.script, directorCareer);
     if (envBreakdown.agreementState === 'disagree' || fxBreakdown.agreementState === 'disagree') {
       warnings.push({ code: 'director-production-disagreement', message: 'Your director and this screenplay disagree on approach.' });
     }

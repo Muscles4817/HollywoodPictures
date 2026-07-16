@@ -22,7 +22,7 @@ function buildFilm(): Film {
     genre: 'Action',
     targetAudience: 'Mass Market',
     script,
-    talent: [{ role: 'Director', talent: director }],
+    talent: [{ role: 'Director', person: director }],
     productionChoices: { contingencyAmount: 500_000, setQualityAmount: 500_000, practicalEffectsAmount: 500_000, vfxAmount: 500_000, runtimeIntensity: 0.5 },
     postProductionChoices: { editStyle: 'Balanced', musicFocus: 'Standard', testScreeningResponse: 'Ignore', finalCutFocus: 'Trailer-focused' },
     marketingChoices: { marketingSpend: 10_000_000, releaseType: 'Wide', releaseWindow: 'Quiet Month' },

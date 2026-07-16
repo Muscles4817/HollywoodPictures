@@ -201,7 +201,7 @@ describe('old saves migrate safely', () => {
     const state = loadState();
     expect(state.projects).toEqual([]);
     expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
-    expect(state.talentPool.Director.some((t) => t.name === 'Stale Director')).toBe(false);
+    expect(state.talentPool.Director.some((t) => t.identity.name === 'Stale Director')).toBe(false);
     expect(state.talentPool.Director.length).toBeGreaterThan(0); // a genuinely fresh (real) pool, not an empty one
   });
 

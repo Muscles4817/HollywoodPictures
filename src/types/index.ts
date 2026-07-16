@@ -127,20 +127,124 @@ export type NormalizedScalar = number;
 export type EnvironmentMethodKey = 'studio' | 'location' | 'digital';
 export type EffectsMethodKey = 'practical' | 'digital';
 
-interface TalentCommon {
-  id: string;
+// --- Person model (PERSON_MODEL_REDESIGN.md) --------------------------
+//
+// The canonical entity is a Person, not a single-role Talent record - a
+// person may hold any combination of role-specific careers (an actor who
+// also directs, a writer/director, ...) rather than being permanently
+// locked to the one role they were first generated as. Shared identity,
+// personality and reputation live on Person; everything role-specific
+// (skill, ActingStyle, ToneProfile, salary, ...) lives one level down, in a
+// career record under Person.careers. See engine/person.ts for the helper
+// API (career access/guards, salary/reputation lookups, availability).
+
+export type PersonId = string;
+export type GameDay = number;
+export type Money = number;
+export type NormalizedStat = number; // 1-100
+
+export type Gender = 'Male' | 'Female' | 'NonBinary';
+
+// Every role a person's career data can be filed under - reuses
+// TalentProfession rather than introducing a differently-named but
+// identical concept (the redesign doc calls this TalentRole; this codebase
+// already has the same 7-value union under this name, used pervasively -
+// see data/talentGeneration.ts, data/helpers.ts:professionForProductionRole).
+export type CrewRole = Exclude<TalentProfession, 'Actor' | 'Director'>;
+
+// The in-fiction calendar as an actual year/month/day, for facts (like a
+// birth date) that need to be compared across people rather than just
+// displayed - distinct from GameState.totalDays (engine/calendar.ts), which
+// is the single running day counter everything else is driven by. Nothing
+// currently anchors this to totalDays' own year-1-is-day-1 origin, so
+// PersonIdentity.dateOfBirth stays optional (see below) rather than forcing
+// every migrated/generated person to carry a fabricated birth date.
+export interface GameDate {
+  year: number;
+  month: number;
+  day: number;
+}
+
+// Subjective/casting-relevant physical qualities, as tags rather than a
+// numeric "attractiveness" score - see PERSON_MODEL_REDESIGN.md for why.
+// Purely descriptive for now; no current system reads these.
+export type AppearanceTag =
+  | 'ConventionallyAttractive'
+  | 'Striking'
+  | 'Intimidating'
+  | 'Approachable'
+  | 'Elegant'
+  | 'Rugged'
+  | 'Youthful'
+  | 'Mature'
+  | 'PhysicallyImposing'
+  | 'Athletic'
+  | 'DistinctiveVoice';
+
+export interface PersonIdentity {
   name: string;
-  fame: number; // 1-100
-  reliability: number; // 1-100
-  ego: number; // 1-100
-  salary: number;
-  // GameState.totalDays this person is committed through - a rival studio
-  // production currently has them cast (see engine/rivalStudios.ts). Absent
-  // or <= the current day means available. Never set by the player's own
-  // hires - only one of the player's own films is ever in production at a
-  // time, so there's nothing for that to conflict with (see docs/DESIGN.md
-  // 5.24 and Known Limitations).
-  bookedUntil?: number;
+  // Optional, deliberately - deviates from the redesign doc's non-optional
+  // fields. Every existing handcrafted/generated person predates this
+  // model, and neither is real, verified public data for ~500 real people;
+  // fabricating either would be a data-quality regression for a roster this
+  // session hand-authored specifically to be realistic. Left unset on
+  // migrated data rather than guessed; a future data-entry pass can fill
+  // these in for real people without any further architecture change.
+  gender?: Gender;
+  dateOfBirth?: GameDate;
+  nationality?: string;
+  heightCm?: number;
+  appearanceTags: AppearanceTag[];
+}
+
+/** currentDate.year/month/day compared against dateOfBirth - undefined if dateOfBirth isn't known (see PersonIdentity's own comment on why that's common right now). */
+export function getPersonAge(dateOfBirth: GameDate | undefined, currentDate: GameDate): number | undefined {
+  if (!dateOfBirth) return undefined;
+  let age = currentDate.year - dateOfBirth.year;
+  const birthdayHasPassed =
+    currentDate.month > dateOfBirth.month ||
+    (currentDate.month === dateOfBirth.month && currentDate.day >= dateOfBirth.day);
+  if (!birthdayHasPassed) age -= 1;
+  return age;
+}
+
+// A focused set of behavioural attributes - the architecture for
+// personality-driven behaviour, connected to systems incrementally rather
+// than all at once (see PERSON_MODEL_REDESIGN.md Phase 5). No current
+// formula reads these yet; each is carried on every Person as a genuine
+// simulation input waiting for a consumer, not decoration.
+export interface PersonPersonality {
+  professionalism: NormalizedStat;
+  ambition: NormalizedStat;
+  loyalty: NormalizedStat;
+  ego: NormalizedStat;
+  temperament: NormalizedStat;
+  pressureHandling: NormalizedStat;
+  controversy: NormalizedStat;
+  adaptability: NormalizedStat;
+}
+
+export interface PersonReputation {
+  fame: NormalizedStat;
+  prestige: NormalizedStat;
+  industryRespect: NormalizedStat;
+  reliability: NormalizedStat;
+  currentHeat: NormalizedStat;
+}
+
+// Fields every role-specific career shares - salary and reputation are
+// role-specific on purpose (a famous actor making a directing debut
+// shouldn't command their acting salary as a director, or be treated as an
+// equally proven one) - see PERSON_MODEL_REDESIGN.md.
+export interface RoleCareerCommon<TRole extends TalentProfession> {
+  role: TRole;
+  active: boolean;
+  experience: NormalizedStat;
+  roleReputation: NormalizedStat;
+  minimumSalary: Money;
+  typicalSalary: Money;
+  careerStartDay?: GameDay;
+  lastWorkedDay?: GameDay;
 }
 
 // A director's own leanings on *how* a production gets made - orthogonal to
@@ -154,16 +258,28 @@ export interface DirectorProductionStyle {
   effectsStrategy: Distribution<EffectsMethodKey>;
 }
 
-export interface DirectorTalent extends TalentCommon {
-  role: 'Director';
+export interface DirectorCareer extends RoleCareerCommon<'Director'> {
   skill: number; // 1-100
   toneProfile: ToneProfile;
   productionStyle: DirectorProductionStyle;
 }
 
-export interface ActorTalent extends TalentCommon {
-  role: 'Actor';
+// Retains the existing acting model verbatim - actors still have no
+// separate stored skill value, these five numbers are both their skill and
+// their fit together (see ActingStyle above).
+export interface ActorCareer extends RoleCareerCommon<'Actor'> {
   actingStyle: ActingStyle;
+}
+
+/** Derived aggregate actor ability, for anywhere a single number is genuinely needed - ActingStyle itself stays the stored, five-dimensional source of truth (see ActorCareer). */
+export function computeActorAbility(style: ActingStyle): number {
+  return (
+    style.characterTransformation +
+    style.emotionalPerformance +
+    style.charisma +
+    style.comedy +
+    style.physicalPerformance
+  ) / 5;
 }
 
 // Writer, Cinematographer, Composer, Editor, VFX Supervisor - a plain skill
@@ -172,13 +288,74 @@ export interface ActorTalent extends TalentCommon {
 // engine/scoring.ts:computeScriptScore), but does drive skillSensitive
 // outcomes on any on-set event that involvesRole them (see docs/DESIGN.md
 // 5.18). Cinematographer shares this same shape rather than a bespoke one -
-// see docs/DESIGN.md 5.32 for why.
-export interface CrewTalent extends TalentCommon {
-  role: 'Writer' | 'Cinematographer' | 'Composer' | 'Editor' | 'VFX Supervisor';
+// see docs/DESIGN.md 5.32 for why. Kept flat rather than given a bespoke
+// per-role skill profile until the simulation has mechanics that would
+// actually consume one (see PERSON_MODEL_REDESIGN.md).
+export interface CrewCareer<TRole extends CrewRole> extends RoleCareerCommon<TRole> {
   skill: number; // 1-100
 }
 
-export type Talent = DirectorTalent | ActorTalent | CrewTalent;
+export interface PersonCareers {
+  actor?: ActorCareer;
+  director?: DirectorCareer;
+  writer?: CrewCareer<'Writer'>;
+  cinematographer?: CrewCareer<'Cinematographer'>;
+  composer?: CrewCareer<'Composer'>;
+  editor?: CrewCareer<'Editor'>;
+  vfxSupervisor?: CrewCareer<'VFX Supervisor'>;
+}
+
+// Replaces the old single bookedUntil?: number - a person can hold more
+// than one overlapping-in-time obligation once multiple careers are in play
+// (booked as an actor on one production, separately attached as a writer on
+// another), which one flat "committed through" day can't represent. See
+// engine/person.ts:deriveBookedUntil for the derived single-value reading
+// existing display code still wants.
+export interface PersonCommitment {
+  projectId: string;
+  role: ProductionRole;
+  startDay: GameDay;
+  endDay: GameDay;
+}
+
+export interface PersonAvailability {
+  commitments: PersonCommitment[];
+}
+
+// Notable behaviours/identities/modifiers, distinct from the continuous
+// PersonPersonality values above - a visible, narratively legible shorthand
+// (e.g. ego: 89 + temperament: 31 reads as "DifficultToWorkWith") rather
+// than a replacement for them. May remain empty until a system consumes it
+// - see PERSON_MODEL_REDESIGN.md.
+export type PersonTrait =
+  | 'Perfectionist'
+  | 'Workaholic'
+  | 'MethodPerformer'
+  | 'NaturalImproviser'
+  | 'DifficultToWorkWith'
+  | 'MediaDarling'
+  | 'HighlyPrivate'
+  | 'PrestigeFocused'
+  | 'PaychequeDriven'
+  | 'RiskTaker'
+  | 'Mentor'
+  | 'ScandalProne'
+  | 'MultiHyphenate';
+
+export interface Person {
+  id: PersonId;
+  identity: PersonIdentity;
+  personality: PersonPersonality;
+  reputation: PersonReputation;
+  // For UI display, filtering, and default categorisation only - never a
+  // substitute for checking the relevant career record. A person's other
+  // careers remain fully real and hireable regardless of which role this
+  // says (see engine/person.ts:personCanPerformRole).
+  primaryRole: TalentProfession;
+  careers: PersonCareers;
+  availability: PersonAvailability;
+  traits: PersonTrait[];
+}
 
 // --- Screenplay identity (docs/DESIGN.md - screenplay redesign) -----------
 //
@@ -732,7 +909,7 @@ export interface Studio {
 
 export interface TalentAssignment {
   role: ProductionRole;
-  talent: Talent;
+  person: Person;
 }
 
 

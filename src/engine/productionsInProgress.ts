@@ -1,4 +1,4 @@
-import type { FilmDraft, Talent, TalentProfession } from '../types';
+import type { FilmDraft, Person, TalentProfession } from '../types';
 import { computeStaticProductionRisk, rollDayEvent } from './production';
 import { computeDailyContingencyBurn } from './cost';
 import type { RandomFn } from './random';
@@ -23,14 +23,14 @@ import type { RandomFn } from './random';
 export function settleProductionsInProgress(
   productions: FilmDraft[],
   daysToAdvance: number,
-  talentPool: Record<TalentProfession, Talent[]>,
+  talentPool: Record<TalentProfession, Person[]>,
   rng: RandomFn,
 ): FilmDraft[] {
   if (daysToAdvance <= 0) return productions;
   return productions.map((d) => advanceOne(d, daysToAdvance, talentPool, rng));
 }
 
-function advanceOne(d: FilmDraft, daysToAdvance: number, talentPool: Record<TalentProfession, Talent[]>, rng: RandomFn): FilmDraft {
+function advanceOne(d: FilmDraft, daysToAdvance: number, talentPool: Record<TalentProfession, Person[]>, rng: RandomFn): FilmDraft {
   if (!d.photography || d.photography.status !== 'in-progress' || !d.script || !d.productionChoices || !d.genre) {
     return d;
   }

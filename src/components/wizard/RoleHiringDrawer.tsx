@@ -5,6 +5,7 @@ import { TALENT_PRESENTATION, type RoleCategory } from '../../data/talentPresent
 import { effectiveRoleCapacity } from '../../engine/castRequirements';
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
+import { deriveBookedUntil, getTypicalSalaryForRole } from '../../engine/person';
 import { formatGameDate } from '../../engine/calendar';
 import { deriveFocusedDraft } from '../../state/selectors';
 import { professionForProductionRole } from '../../data/helpers';
@@ -13,7 +14,7 @@ import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
 import { formatMoney } from '../common/Money';
 import { TalentStats } from '../common/TalentStats';
-import type { ProductionRole, Script, Talent } from '../../types';
+import type { Person, ProductionRole, Script } from '../../types';
 
 const VFX_RECOMMENDED_GENRES = new Set(['Action', 'Sci-Fi', 'Fantasy']);
 const VISIBLE_CANDIDATE_COUNT = 9;
@@ -24,7 +25,7 @@ const MAX_PINNED = 2;
 const AUTO_CLOSE_DELAY_MS = 500;
 
 interface CandidateCardProps {
-  talent: Talent;
+  person: Person;
   role: ProductionRole;
   category: RoleCategory;
   script: Script | null;
@@ -37,11 +38,12 @@ interface CandidateCardProps {
   onTogglePin: () => void;
 }
 
-function CandidateCard({ talent, category, script, selected, disabled, booked, pinned, pinCapped, onSelect, onTogglePin }: CandidateCardProps) {
+function CandidateCard({ person, role, category, script, selected, disabled, booked, pinned, pinCapped, onSelect, onTogglePin }: CandidateCardProps) {
+  const bookedUntil = deriveBookedUntil(person.availability.commitments);
   return (
     <Card selectable selected={selected} disabled={disabled} onClick={onSelect}>
-      <div className="card-title">{talent.name}</div>
-      <TalentStats talent={talent} category={category} script={script} />
+      <div className="card-title">{person.identity.name}</div>
+      <TalentStats person={person} role={role} category={category} script={script} />
       <Button
         className="btn-sm"
         variant={pinned ? 'primary' : 'secondary'}
@@ -57,7 +59,7 @@ function CandidateCard({ talent, category, script, selected, disabled, booked, p
       </Button>
       {selected && <p style={{ color: 'var(--green)', marginTop: 6 }}>Hired</p>}
       {!selected && booked && (
-        <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>Filming elsewhere until {formatGameDate(talent.bookedUntil!)}</p>
+        <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>Filming elsewhere until {formatGameDate(bookedUntil!)}</p>
       )}
       {!selected && !booked && disabled && <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>Cast full</p>}
     </Card>
@@ -103,33 +105,33 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   // Excludes anyone already cast into a *different* role on this draft - the
   // shared Actor pool means the same real person could otherwise show up as
   // selectable for both Lead Actor and Supporting Actor at once.
-  const hiredElsewhereIds = new Set(draft.talent.filter((a) => a.role !== role).map((a) => a.talent.id));
+  const hiredElsewhereIds = new Set(draft.talent.filter((a) => a.role !== role).map((a) => a.person.id));
   const candidates = state.talentPool[professionForProductionRole(role)].filter((t) => !hiredElsewhereIds.has(t.id));
-  const hired = draft.talent.filter((a) => a.role === role).map((a) => a.talent);
+  const hired = draft.talent.filter((a) => a.role === role).map((a) => a.person);
   const atCap = hired.length >= capacity.max;
   const showVfxHint = role === 'VFX Supervisor' && draft.genre && VFX_RECOMMENDED_GENRES.has(draft.genre);
 
-  const { candidates: visible, toleranceUsed } = findCandidatesNearPrice(candidates, targetPrice, VISIBLE_CANDIDATE_COUNT);
+  const { candidates: visible, toleranceUsed } = findCandidatesNearPrice(candidates, role, targetPrice, VISIBLE_CANDIDATE_COUNT);
   const hiredNotVisible = hired.filter((h) => !visible.some((v) => v.id === h.id));
-  const displayList = [...hiredNotVisible, ...visible].sort(talent => talent.salary);
+  const displayList = [...hiredNotVisible, ...visible].sort((person) => getTypicalSalaryForRole(person, role));
   const tolerancePercent = Math.round(toleranceUsed * 100);
 
   const allTalent = Object.values(state.talentPool).flat();
-  const pinnedTalent = pinnedTalentIds.map((id) => allTalent.find((t) => t.id === id)).filter((t): t is Talent => t !== undefined);
+  const pinnedTalent = pinnedTalentIds.map((id) => allTalent.find((t) => t.id === id)).filter((t): t is Person => t !== undefined);
 
-  function togglePin(talent: Talent) {
+  function togglePin(person: Person) {
     setPinnedTalentIds((prev) => {
-      if (prev.includes(talent.id)) return prev.filter((id) => id !== talent.id);
+      if (prev.includes(person.id)) return prev.filter((id) => id !== person.id);
       if (prev.length >= MAX_PINNED) return prev;
-      return [...prev, talent.id];
+      return [...prev, person.id];
     });
   }
 
-  function selectTalent(talent: Talent) {
+  function selectPerson(person: Person) {
     if (capacity.max === 1) {
       const current = hired[0];
       const wasEmpty = !current;
-      dispatch({ type: 'SET_TALENT_FOR_ROLE', role, talent: current?.id === talent.id ? null : talent });
+      dispatch({ type: 'SET_TALENT_FOR_ROLE', role, person: current?.id === person.id ? null : person });
       // Only auto-close on a genuinely new hire, not on deselecting one -
       // a player who just cleared this role almost certainly wants to pick
       // someone else immediately, not get bounced back to the hub.
@@ -140,7 +142,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
     }
     // Multi-hire role: stays open regardless, so several people can be
     // hired in one visit - see "X/Y hired" below.
-    dispatch({ type: 'TOGGLE_TALENT_FOR_ROLE', role, talent });
+    dispatch({ type: 'TOGGLE_TALENT_FOR_ROLE', role, person });
   }
 
   const roleLabel = capacity.max > 1 ? `${role} - ${hired.length}/${capacity.max} hired` : role;
@@ -178,16 +180,17 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
         {showVfxHint && <p style={{ margin: 0 }}>This genre benefits strongly from VFX - consider hiring a supervisor.</p>}
 
         <div className="grid grid-wide">
-          {displayList.map((talent) => {
-            const selected = hired.some((h) => h.id === talent.id);
-            const booked = !selected && !!talent.bookedUntil && talent.bookedUntil > state.totalDays;
+          {displayList.map((person) => {
+            const selected = hired.some((h) => h.id === person.id);
+            const bookedUntil = deriveBookedUntil(person.availability.commitments);
+            const booked = !selected && !!bookedUntil && bookedUntil > state.totalDays;
             const disabled = !selected && (atCap || booked);
-            const pinned = pinnedTalentIds.includes(talent.id);
+            const pinned = pinnedTalentIds.includes(person.id);
             const pinCapped = pinnedTalentIds.length >= MAX_PINNED;
             return (
               <CandidateCard
-                key={talent.id}
-                talent={talent}
+                key={person.id}
+                person={person}
                 role={role}
                 category={profile.category}
                 script={draft.script}
@@ -196,8 +199,8 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
                 booked={booked}
                 pinned={pinned}
                 pinCapped={pinCapped}
-                onSelect={() => selectTalent(talent)}
-                onTogglePin={() => togglePin(talent)}
+                onSelect={() => selectPerson(person)}
+                onTogglePin={() => togglePin(person)}
               />
             );
           })}
@@ -207,20 +210,20 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
           <div className="stack">
             <h3 style={{ margin: 0 }}>Comparing</h3>
             <div className={pinnedTalentIds.length >= MAX_PINNED ? 'compare-slots compare-slots-double' : 'compare-slots'}>
-              {pinnedTalent.map((talent) => {
-                const talentHired = hired.some((h) => h.id === talent.id);
+              {pinnedTalent.map((person) => {
+                const talentHired = hired.some((h) => h.id === person.id);
                 return (
-                  <div className="card compare-slot" key={talent.id}>
+                  <div className="card compare-slot" key={person.id}>
                     <div className="row-between">
-                      <div className="card-title" style={{ marginBottom: 0 }}>{talent.name}</div>
-                      <Button variant="text" onClick={() => togglePin(talent)}>Unpin</Button>
+                      <div className="card-title" style={{ marginBottom: 0 }}>{person.identity.name}</div>
+                      <Button variant="text" onClick={() => togglePin(person)}>Unpin</Button>
                     </div>
-                    <TalentStats talent={talent} category={profile.category} script={draft.script} />
+                    <TalentStats person={person} role={role} category={profile.category} script={draft.script} />
                     <Button
                       variant="primary"
                       style={{ marginTop: 8 }}
                       disabled={!talentHired && atCap}
-                      onClick={() => selectTalent(talent)}
+                      onClick={() => selectPerson(person)}
                     >
                       {talentHired ? 'Hired' : atCap ? 'Cast Full' : 'Hire'}
                     </Button>

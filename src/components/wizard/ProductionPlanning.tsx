@@ -17,7 +17,8 @@ import {
 } from '../../engine/recommendation';
 import { synthesizeProductionIdentity, findBiggestTension } from '../../engine/productionIdentity';
 import { computeCommittedSpend, deriveFocusedDraft } from '../../state/selectors';
-import { findAssignedTalent } from '../../data/helpers';
+import { findAssignedPerson } from '../../data/helpers';
+import { getDirectorCareer } from '../../engine/person';
 import { DistributionEditor } from '../common/DistributionEditor';
 import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
@@ -25,7 +26,6 @@ import { ScoreBar } from '../common/ScoreBar';
 import { Money, formatMoney } from '../common/Money';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import type {
-  DirectorTalent,
   Distribution,
   EffectsMethodKey,
   EnvironmentMethodKey,
@@ -220,10 +220,11 @@ export function ProductionPlanning() {
   const draft = deriveFocusedDraft(state)!;
   const script = draft.script!;
   const genre = draft.genre!;
-  const director = findAssignedTalent(draft.talent, 'Director') as DirectorTalent | undefined;
+  const director = findAssignedPerson(draft.talent, 'Director');
+  const directorCareer = director && getDirectorCareer(director);
 
-  const envBreakdown = director ? explainEnvironmentStrategy(script, director) : null;
-  const fxBreakdown = director ? explainEffectsStrategy(script, director) : null;
+  const envBreakdown = directorCareer ? explainEnvironmentStrategy(script, directorCareer) : null;
+  const fxBreakdown = directorCareer ? explainEffectsStrategy(script, directorCareer) : null;
   const envAmbitionRec = recommendEnvironmentAmbition(script);
   const fxAmbitionRec = recommendEffectsAmbition(script);
 

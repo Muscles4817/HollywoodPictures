@@ -12,10 +12,55 @@ import {
   deriveToneFromActingStyle,
 } from './compatibility';
 import { TONES } from '../data/tones';
-import type { ActorTalent, DirectorTalent, Script, ToneProfile } from '../types';
+import type { ActingStyle, Person, Script, ToneProfile } from '../types';
 
 function tone(overrides: Partial<ToneProfile> = {}): ToneProfile {
   return { action: 50, comedy: 50, romance: 50, suspense: 50, drama: 50, spectacle: 50, ...overrides };
+}
+
+function personBase(id: string, name: string): Pick<Person, 'id' | 'identity' | 'personality' | 'reputation' | 'availability' | 'traits'> {
+  return {
+    id,
+    identity: { name, appearanceTags: [] },
+    personality: { professionalism: 50, ambition: 50, loyalty: 50, ego: 50, temperament: 50, pressureHandling: 50, controversy: 50, adaptability: 50 },
+    reputation: { fame: 50, prestige: 50, industryRespect: 50, reliability: 50, currentHeat: 50 },
+    availability: { commitments: [] },
+    traits: [],
+  };
+}
+
+function directorPerson(id: string, name: string, skill: number, toneProfile: ToneProfile): Person {
+  return {
+    ...personBase(id, name),
+    primaryRole: 'Director',
+    careers: {
+      director: {
+        role: 'Director', active: true, experience: skill, roleReputation: 50, minimumSalary: 100_000, typicalSalary: 100_000,
+        skill, toneProfile,
+        productionStyle: { environmentStrategy: { studio: 0.34, location: 0.33, digital: 0.33 }, effectsStrategy: { practical: 0.5, digital: 0.5 } },
+      },
+    },
+  };
+}
+
+function actorPerson(id: string, name: string, actingStyle: ActingStyle): Person {
+  return {
+    ...personBase(id, name),
+    primaryRole: 'Actor',
+    careers: {
+      actor: { role: 'Actor', active: true, experience: 50, roleReputation: 50, minimumSalary: 100_000, typicalSalary: 100_000, actingStyle },
+    },
+  };
+}
+
+function writerPerson(id: string, name: string, skill: number): Person {
+  return {
+    ...personBase(id, name),
+    primaryRole: 'Writer',
+    careers: {
+      writer: { role: 'Writer', active: true, experience: skill, roleReputation: 50, minimumSalary: 50_000, typicalSalary: 50_000, skill },
+    },
+  };
 }
 
 describe('computeCompatibilityBreakdown', () => {
@@ -65,40 +110,35 @@ describe('computeCompatibilityBreakdown', () => {
 });
 
 describe('computeTalentCompatibilityBreakdown', () => {
-  const director: DirectorTalent = {
-    id: 'd1', name: 'Test Director', role: 'Director', fame: 50, reliability: 50, ego: 50, salary: 100_000,
-    skill: 70, toneProfile: tone({ suspense: 80 }),
-    productionStyle: { environmentStrategy: { studio: 0.34, location: 0.33, digital: 0.33 }, effectsStrategy: { practical: 0.5, digital: 0.5 } },
-  };
-  const actor: ActorTalent = {
-    id: 'a1', name: 'Test Actor', role: 'Actor', fame: 50, reliability: 50, ego: 50, salary: 100_000,
-    actingStyle: { characterTransformation: 60, emotionalPerformance: 60, charisma: 60, comedy: 20, physicalPerformance: 40 },
-  };
+  const directorToneProfile = tone({ suspense: 80 });
+  const director = directorPerson('d1', 'Test Director', 70, directorToneProfile);
+  const actingStyle: ActingStyle = { characterTransformation: 60, emotionalPerformance: 60, charisma: 60, comedy: 20, physicalPerformance: 40 };
+  const actor = actorPerson('a1', 'Test Actor', actingStyle);
   const script = { toneProfile: tone({ suspense: 85, comedy: 15 }) } as unknown as Script;
 
   it("a Director's breakdown compares the script directly against their own toneProfile - matches computeCompatibility exactly", () => {
-    const rows = computeTalentCompatibilityBreakdown(director, script);
+    const rows = computeTalentCompatibilityBreakdown(director, 'Director', script);
     expect(rows).not.toBeNull();
     const suspenseRow = rows!.find((r) => r.tone === 'suspense')!;
-    expect(suspenseRow.talentValue).toBe(director.toneProfile.suspense);
-    const score = computeTalentCompatibility(director, script);
+    expect(suspenseRow.talentValue).toBe(directorToneProfile.suspense);
+    const score = computeTalentCompatibility(director, 'Director', script);
     const total = rows!.reduce((sum, r) => sum + r.contribution, 0);
     const weight = rows!.reduce((sum, r) => sum + r.scriptValue, 0);
     expect(100 - total / weight).toBeCloseTo(score!, 6);
   });
 
   it("an Actor's breakdown compares the script against their tone derived from ActingStyle, not a raw toneProfile", () => {
-    const rows = computeTalentCompatibilityBreakdown(actor, script);
+    const rows = computeTalentCompatibilityBreakdown(actor, 'Lead Actor', script);
     expect(rows).not.toBeNull();
-    const derived = deriveToneFromActingStyle(actor.actingStyle);
+    const derived = deriveToneFromActingStyle(actingStyle);
     for (const row of rows!) {
       expect(row.talentValue).toBeCloseTo(derived[row.tone], 6);
     }
   });
 
   it('returns null for crew roles with no tone-comparable stat, same as computeTalentCompatibility', () => {
-    const writer = { id: 'w1', name: 'Test Writer', role: 'Writer' as const, fame: 50, reliability: 50, ego: 50, salary: 50_000, skill: 60 };
-    expect(computeTalentCompatibilityBreakdown(writer, script)).toBeNull();
-    expect(computeTalentCompatibility(writer, script)).toBeNull();
+    const writer = writerPerson('w1', 'Test Writer', 60);
+    expect(computeTalentCompatibilityBreakdown(writer, 'Writer', script)).toBeNull();
+    expect(computeTalentCompatibility(writer, 'Writer', script)).toBeNull();
   });
 });

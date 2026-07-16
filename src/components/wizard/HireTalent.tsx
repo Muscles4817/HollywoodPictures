@@ -5,6 +5,7 @@ import { TALENT_PRESENTATION, type RoleCategory } from '../../data/talentPresent
 import { effectiveRoleCapacity } from '../../engine/castRequirements';
 import { computeCommittedSpend, deriveFocusedDraft } from '../../state/selectors';
 import { computeTalentCompatibility } from '../../engine/compatibility';
+import { computeTalentCost } from '../../engine/cost';
 import { dominantLean, explainEffectsStrategy, explainEnvironmentStrategy } from '../../engine/recommendation';
 import { synthesizeProductionIdentity } from '../../engine/productionIdentity';
 import { toneProfileBreakdown } from '../../data/tones';
@@ -14,8 +15,9 @@ import { ScoreBar } from '../common/ScoreBar';
 import { Money, formatMoney } from '../common/Money';
 import { CompatibilityBadge } from '../common/CompatibilityBadge';
 import { RoleHiringDrawer } from './RoleHiringDrawer';
-import { findAssignedTalent } from '../../data/helpers';
-import type { DirectorTalent, EffectsMethodKey, EnvironmentMethodKey, ProductionRole, Talent } from '../../types';
+import { findAssignedPerson } from '../../data/helpers';
+import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole } from '../../engine/person';
+import type { EffectsMethodKey, EnvironmentMethodKey, Person, ProductionRole } from '../../types';
 
 const MASTER_BUDGET_RANGE = { min: 300_000, max: 30_000_000 };
 const DEFAULT_MASTER_BUDGET = 3_000_000;
@@ -24,15 +26,15 @@ const ENV_LEAN_SHORT: Record<EnvironmentMethodKey, string> = { studio: 'studio',
 const EFFECTS_LEAN_SHORT: Record<EffectsMethodKey, string> = { practical: 'practical effects', digital: 'digital effects' };
 
 /** A one-line tile summary of whoever's hired, role-category-aware - a condensed cousin of RoleHiringDrawer's fuller candidate stats. */
-function tileHeadline(talent: Talent, category: RoleCategory): string {
-  if (category === 'director') {
-    const t = talent as DirectorTalent;
-    const env = dominantLean(t.productionStyle.environmentStrategy);
-    const fx = dominantLean(t.productionStyle.effectsStrategy);
+function tileHeadline(person: Person, role: ProductionRole, category: RoleCategory): string {
+  const career = getCareerForRole(person, role);
+  if (category === 'director' && career && 'productionStyle' in career) {
+    const env = dominantLean(career.productionStyle.environmentStrategy);
+    const fx = dominantLean(career.productionStyle.effectsStrategy);
     return `Leans ${ENV_LEAN_SHORT[env.key]}, ${EFFECTS_LEAN_SHORT[fx.key]}`;
   }
-  if (category === 'actor') return `Fame ${talent.fame}`;
-  return 'skill' in talent ? `Skill ${talent.skill}` : '';
+  if (category === 'actor') return `Fame ${person.reputation.fame}`;
+  return career && 'skill' in career ? `Skill ${career.skill}` : '';
 }
 
 function RoleTile({ role, optional, onOpen }: { role: ProductionRole; optional: boolean; onOpen: () => void }) {
@@ -40,7 +42,7 @@ function RoleTile({ role, optional, onOpen }: { role: ProductionRole; optional: 
   const draft = deriveFocusedDraft(state)!;
   const profile = TALENT_PRESENTATION[role];
   const capacity = effectiveRoleCapacity(role, draft.script);
-  const hired = draft.talent.filter((a) => a.role === role).map((a) => a.talent);
+  const hired = draft.talent.filter((a) => a.role === role).map((a) => a.person);
   const isMulti = capacity.max > 1;
   const filled = hired.length >= capacity.min;
 
@@ -59,16 +61,16 @@ function RoleTile({ role, optional, onOpen }: { role: ProductionRole; optional: 
         <div className="stack" style={{ gap: 2 }}>
           {hired.map((h) => (
             <div key={h.id} className="row-between">
-              <span>{h.name}</span>
-              <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>{tileHeadline(h, profile.category)}</span>
+              <span>{h.identity.name}</span>
+              <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>{tileHeadline(h, role, profile.category)}</span>
             </div>
           ))}
         </div>
       ) : (
         <>
-          <div className="card-title" style={{ fontSize: '1em', marginBottom: 2 }}>{hired[0].name}</div>
+          <div className="card-title" style={{ fontSize: '1em', marginBottom: 2 }}>{hired[0].identity.name}</div>
           <div style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
-            {tileHeadline(hired[0], profile.category)} &middot; <Money amount={hired[0].salary} />
+            {tileHeadline(hired[0], role, profile.category)} &middot; <Money amount={getTypicalSalaryForRole(hired[0], role)} />
           </div>
         </>
       )}
@@ -82,14 +84,14 @@ export function HireTalent() {
   const [masterBudget, setMasterBudget] = useState(DEFAULT_MASTER_BUDGET);
   const [openRole, setOpenRole] = useState<ProductionRole | null>(null);
 
-  function talentsForRole(role: ProductionRole): Talent[] {
-    return draft.talent.filter((a) => a.role === role).map((a) => a.talent);
+  function talentsForRole(role: ProductionRole): Person[] {
+    return draft.talent.filter((a) => a.role === role).map((a) => a.person);
   }
 
   // Role-agnostic aggregates - flattened once, ignoring which slot each hire is in.
-  const allTalent = draft.talent.map((a) => a.talent);
+  const allTalent = draft.talent.map((a) => a.person);
 
-  const totalSalary = allTalent.reduce((sum, t) => sum + t.salary, 0);
+  const totalSalary = computeTalentCost(draft.talent);
   const missingMandatory = MANDATORY_TALENT_ROLES.filter(
     (role) => talentsForRole(role).length < effectiveRoleCapacity(role, draft.script).min,
   );
@@ -106,24 +108,25 @@ export function HireTalent() {
   // uses later (engine/productionIdentity.ts), shown as soon as it's
   // computable (script + a director) rather than waiting for that screen -
   // both Strategy recommendations only ever needed those two things.
-  const director = findAssignedTalent(draft.talent, 'Director') as DirectorTalent | undefined;
+  const director = findAssignedPerson(draft.talent, 'Director');
+  const directorCareer = director && getDirectorCareer(director);
   const identity =
-    draft.script && director
-      ? synthesizeProductionIdentity(draft.script, explainEnvironmentStrategy(draft.script, director), explainEffectsStrategy(draft.script, director))
+    draft.script && directorCareer
+      ? synthesizeProductionIdentity(draft.script, explainEnvironmentStrategy(draft.script, directorCareer), explainEffectsStrategy(draft.script, directorCareer))
       : null;
 
   // Soft quality warnings - informational, never block Continue (missing
   // roles and affordability already do that below). Both need at least a
   // couple of hires before they mean anything, so an almost-empty cast
   // doesn't trip a false alarm.
-  const compatScores = allTalent
-    .map((t) => (draft.script ? computeTalentCompatibility(t, draft.script) : null))
+  const compatScores = draft.talent
+    .map((a) => (draft.script ? computeTalentCompatibility(a.person, a.role, draft.script) : null))
     .filter((s): s is number => s !== null);
   const avgCompat = compatScores.length > 0 ? compatScores.reduce((a, b) => a + b, 0) / compatScores.length : null;
   const lowCompatWarning = compatScores.length >= 2 && avgCompat !== null && avgCompat < 45;
 
-  const avgReliability = allTalent.length > 0 ? allTalent.reduce((s, t) => s + t.reliability, 0) / allTalent.length : null;
-  const avgEgo = allTalent.length > 0 ? allTalent.reduce((s, t) => s + t.ego, 0) / allTalent.length : null;
+  const avgReliability = allTalent.length > 0 ? allTalent.reduce((s, t) => s + t.reputation.reliability, 0) / allTalent.length : null;
+  const avgEgo = allTalent.length > 0 ? allTalent.reduce((s, t) => s + t.personality.ego, 0) / allTalent.length : null;
   const temperamentWarning =
     allTalent.length >= 2 && avgReliability !== null && avgEgo !== null && (avgReliability < 45 || avgEgo > 65);
 

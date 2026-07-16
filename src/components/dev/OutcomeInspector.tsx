@@ -22,7 +22,6 @@ import { Money } from '../common/Money';
 import { SeverityBadge } from '../common/SeverityBadge';
 import { AudienceSimulationDiagnostics } from './AudienceSimulationDiagnostics';
 import type {
-  DirectorTalent,
   EditStyle,
   Film,
   FinalCutFocus,
@@ -40,7 +39,8 @@ import type {
   TestScreeningResponse,
   Tone,
 } from '../../types';
-import { findAssignedTalent, filterAssignedTalent } from '../../data/helpers';
+import { findAssignedPerson, filterAssignedPeople } from '../../data/helpers';
+import { getDirectorCareer } from '../../engine/person';
 
 // Developer-only tool: loads a real film from Studio History, lets the
 // player tweak any single input (a script stat, a talent's fame, a
@@ -78,8 +78,8 @@ function syntheticEvent(qualityDelta: number, buzzDelta: number, costDelta: numb
 
 /** Average fame across every hired member of one role - mirrors engine/releaseFilm.ts's own averageFame, used here to feed AudienceSimulationDiagnostics the same directorFame/leadFame inputs a real release computes. */
 function averageFame(talent: TalentAssignment[], role: TalentAssignment['role']): number {
-  const matching = filterAssignedTalent(talent, role);
-  return matching.length > 0 ? matching.reduce((sum, t) => sum + t.fame, 0) / matching.length : 0;
+  const matching = filterAssignedPeople(talent, role);
+  return matching.length > 0 ? matching.reduce((sum, t) => sum + t.reputation.fame, 0) / matching.length : 0;
 }
 
 function SliderRow({
@@ -257,7 +257,7 @@ export function OutcomeInspector() {
   // - clamped at 0 for the (essentially unreachable) edge case where the
   // original sum itself clamped there first (engine/releaseFilm.ts).
   function photographyCostForFilm(film: Film): number {
-    const talentCost = computeTalentCost(film.talent.map((a) => a.talent));
+    const talentCost = computeTalentCost(film.talent);
     const productionBudgetCost = computeProductionBudgetCost(film.productionChoices);
     const eventsCostDelta = computeEventsCostDelta(film.events);
     const testScreeningCost = TEST_SCREENING_PROFILES[film.postProductionChoices.testScreeningResponse].cost;
@@ -304,11 +304,20 @@ export function OutcomeInspector() {
   function updateTone(tone: Tone, value: number) {
     setScript((s) => (s ? { ...s, toneProfile: { ...s.toneProfile, [tone]: value } } : s));
   }
-  function updateDirector<K extends keyof DirectorTalent>(key: K, value: DirectorTalent[K]) {
-    setTalent((t) => t.map((a) => (a.role === 'Director' ? { ...a, talent: { ...(a.talent as DirectorTalent), [key]: value } } : a)));
+  function updateDirectorSkill(value: number) {
+    setTalent((t) =>
+      t.map((a) => {
+        const career = a.role === 'Director' ? getDirectorCareer(a.person) : null;
+        if (!career) return a;
+        return { ...a, person: { ...a.person, careers: { ...a.person.careers, director: { ...career, skill: value } } } };
+      }),
+    );
+  }
+  function updateDirectorFame(value: number) {
+    setTalent((t) => t.map((a) => (a.role === 'Director' ? { ...a, person: { ...a.person, reputation: { ...a.person.reputation, fame: value } } } : a)));
   }
   function updateGroupFame(role: 'Lead Actor' | 'Supporting Actor', value: number) {
-    setTalent((t) => t.map((a) => (a.role === role ? { ...a, talent: { ...a.talent, fame: value } } : a)));
+    setTalent((t) => t.map((a) => (a.role === role ? { ...a, person: { ...a.person, reputation: { ...a.person.reputation, fame: value } } } : a)));
   }
 
   if (allFilms.length === 0) {
@@ -348,11 +357,12 @@ export function OutcomeInspector() {
     );
   }
 
-  const director = findAssignedTalent(talent, 'Director') as DirectorTalent | undefined;
-  const leadCount = filterAssignedTalent(talent, 'Lead Actor').length;
-  const supportCount = filterAssignedTalent(talent, 'Supporting Actor').length;
-  const leadFame = findAssignedTalent(talent, 'Lead Actor')?.fame ?? 0;
-  const supportFame = findAssignedTalent(talent, 'Supporting Actor')?.fame ?? 0;
+  const director = findAssignedPerson(talent, 'Director');
+  const directorCareer = director && getDirectorCareer(director);
+  const leadCount = filterAssignedPeople(talent, 'Lead Actor').length;
+  const supportCount = filterAssignedPeople(talent, 'Supporting Actor').length;
+  const leadFame = findAssignedPerson(talent, 'Lead Actor')?.reputation.fame ?? 0;
+  const supportFame = findAssignedPerson(talent, 'Supporting Actor')?.reputation.fame ?? 0;
 
   const events = [syntheticEvent(eventQualityDelta, eventBuzzDelta, eventCostDelta)];
 
@@ -541,10 +551,10 @@ export function OutcomeInspector() {
 
       <div className="card stack">
         <h2 style={{ margin: 0 }}>Cast</h2>
-        {director ? (
+        {director && directorCareer ? (
           <>
-            <SliderRow label="Director Skill" value={director.skill} min={0} max={100} onChange={(v) => updateDirector('skill', v)} />
-            <SliderRow label="Director Fame" value={director.fame} min={0} max={100} onChange={(v) => updateDirector('fame', v)} />
+            <SliderRow label="Director Skill" value={directorCareer.skill} min={0} max={100} onChange={updateDirectorSkill} />
+            <SliderRow label="Director Fame" value={director.reputation.fame} min={0} max={100} onChange={updateDirectorFame} />
           </>
         ) : (
           <p style={{ margin: 0, color: 'var(--text-muted)' }}>No director on this film.</p>
@@ -579,14 +589,14 @@ export function OutcomeInspector() {
             talent
               .filter((a) => a.role === 'Director' || a.role === 'Lead Actor' || a.role === 'Supporting Actor')
               .map((a) => {
-                const t = a.talent;
-                const breakdown = computeTalentCompatibilityBreakdown(t, script);
-                const score = computeTalentCompatibility(t, script);
+                const t = a.person;
+                const breakdown = computeTalentCompatibilityBreakdown(t, a.role, script);
+                const score = computeTalentCompatibility(t, a.role, script);
                 if (!breakdown) return null;
                 return (
                   <div key={t.id} style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
                     <div className="row-between">
-                      <strong>{t.name} &middot; {a.role}</strong>
+                      <strong>{t.identity.name} &middot; {a.role}</strong>
                       <span>Compatibility {score !== null ? Math.round(score) : '-'}</span>
                     </div>
                     <table>

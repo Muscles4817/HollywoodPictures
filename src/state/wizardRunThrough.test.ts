@@ -24,6 +24,7 @@ import { withRng } from '../engine/random';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
+import { getTypicalSalaryForRole } from '../engine/person';
 import { deriveFocusedDraft } from './selectors';
 import { playerReleasedFilms } from '../engine/project';
 import type { EffectsMethodKey, EnvironmentMethodKey } from '../types';
@@ -104,10 +105,10 @@ function walkFilmThroughWizard(state: GameState): GameState {
     for (let i = 0; i < need; i++) {
       const index = drawIndexByProfession.get(profession) ?? 0;
       drawIndexByProfession.set(profession, index + 1);
-      const cheapest = [...(s.talentPool[profession] ?? [])].sort((a, b) => a.salary - b.salary);
+      const cheapest = [...(s.talentPool[profession] ?? [])].sort((a, b) => getTypicalSalaryForRole(a, role) - getTypicalSalaryForRole(b, role));
       const candidate = cheapest[index];
       expect(candidate, `no ${role} candidate in the generated talent pool`).toBeDefined();
-      s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, talent: candidate! });
+      s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, person: candidate! });
     }
   }
 

@@ -72,7 +72,7 @@ export function Inbox({ open, onClose }: InboxProps) {
               <h3 style={{ margin: 0 }}>{production.title || 'Untitled Film'}</h3>
               <OnSetDecisionCard
                 pendingChoice={production.photography.pendingChoice}
-                talent={production.talent.map((a) => a.talent)}
+                talent={production.talent.map((a) => a.person)}
                 talentPool={state.talentPool}
                 script={production.script}
                 onChoose={(choiceId) => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId, productionId: production.id })}

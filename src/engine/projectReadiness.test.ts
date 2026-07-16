@@ -8,6 +8,7 @@ import { effectiveRoleCapacity } from './castRequirements';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
 import { PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../data/production';
+import { computeTalentCost } from './cost';
 import type { FilmDraft, ProductionChoices, ProductionRole, TalentAssignment } from '../types';
 
 const CHEAP_CHOICES: ProductionChoices = {
@@ -33,7 +34,7 @@ function fullCast(seed: number, draft: FilmDraft): TalentAssignment[] {
     const need = Math.max(1, effectiveRoleCapacity(role, draft.script).min);
     const { result: candidates } = withRng(drawSeed, (rng) => generateTalentCandidates(profession, rng, need));
     drawSeed += 1;
-    for (const talent of candidates) assignments.push({ role, talent });
+    for (const person of candidates) assignments.push({ role, person });
   }
   return assignments;
 }
@@ -118,7 +119,7 @@ describe('deriveProjectReadiness - production plan and affordability', () => {
 
   it('low-cash-reserve is a warning, not a blocker, when cash after greenlighting is thin but non-negative', () => {
     const draft = readyDraft(22);
-    const talentCost = draft.talent.reduce((sum, a) => sum + a.talent.salary, 0);
+    const talentCost = computeTalentCost(draft.talent);
     const totalCommitment = talentCost + draft.productionChoices!.contingencyAmount + draft.productionChoices!.setQualityAmount + PRACTICAL_EFFECTS_RANGE.min + VFX_RANGE.min;
     const readiness = deriveProjectReadiness(draft, totalCommitment + 50_000);
     expect(readiness.ready).toBe(true);

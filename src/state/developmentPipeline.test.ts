@@ -14,6 +14,7 @@ import { generateTalentPool } from '../engine/talentGenerator';
 import { settleOpportunities } from '../engine/opportunities';
 import { withRng } from '../engine/random';
 import { computeTalentCost, computeProductionBudgetCost } from '../engine/cost';
+import { getTypicalSalaryForRole, deriveBookedUntil } from '../engine/person';
 import { deriveAssetStatus, findProject, asPlayerDraft, playerReleasedFilms } from '../engine/project';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
@@ -77,9 +78,9 @@ function hireMandatoryRoles(s: GameState): GameState {
     for (let i = 0; i < need; i++) {
       const index = drawIndexByProfession.get(profession) ?? 0;
       drawIndexByProfession.set(profession, index + 1);
-      const cheapest = [...s.talentPool[profession]].sort((a, b) => a.salary - b.salary);
+      const cheapest = [...s.talentPool[profession]].sort((a, b) => getTypicalSalaryForRole(a, role) - getTypicalSalaryForRole(b, role));
       const candidate = cheapest[index];
-      s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, talent: candidate! });
+      s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, person: candidate! });
     }
   }
   return s;
@@ -291,8 +292,8 @@ describe('GREENLIGHT_PROJECT', () => {
     expect(s.studio.cash).toBe(50_000_000);
     const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
     for (const a of draft.talent) {
-      const inPool = s.talentPool[professionForProductionRole(a.role)]?.find((p) => p.id === a.talent.id);
-      expect(inPool?.bookedUntil).toBeUndefined();
+      const inPool = s.talentPool[professionForProductionRole(a.role)]?.find((p) => p.id === a.person.id);
+      expect(deriveBookedUntil(inPool?.availability.commitments ?? [])).toBeUndefined();
     }
     expect(draft.greenlitOnDay).toBeNull();
     expect(draft.photography).toBeNull();
@@ -312,7 +313,7 @@ describe('GREENLIGHT_PROJECT', () => {
     const s = stateReadyToGreenlight(32);
     const draftBefore = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
     const expectedCharge =
-      computeTalentCost(draftBefore.talent.map((a) => a.talent)) + computeProductionBudgetCost(draftBefore.productionChoices!) + draftBefore.productionChoices!.contingencyAmount;
+      computeTalentCost(draftBefore.talent) + computeProductionBudgetCost(draftBefore.productionChoices!) + draftBefore.productionChoices!.contingencyAmount;
 
     const after = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });
 
@@ -322,8 +323,8 @@ describe('GREENLIGHT_PROJECT', () => {
     expect(draftAfter.greenlitOnDay).toBe(after.totalDays);
     expect(draftAfter.photography?.status).toBe('in-progress');
     for (const a of draftAfter.talent) {
-      const inPool = after.talentPool[professionForProductionRole(a.role)]?.find((p) => p.id === a.talent.id);
-      expect(inPool?.bookedUntil).toBeGreaterThan(after.totalDays - 1);
+      const inPool = after.talentPool[professionForProductionRole(a.role)]?.find((p) => p.id === a.person.id);
+      expect(deriveBookedUntil(inPool?.availability.commitments ?? [])).toBeGreaterThan(after.totalDays - 1);
     }
 
     // A second GREENLIGHT_PROJECT dispatch against the same (now-shooting)
@@ -363,7 +364,7 @@ describe('no double-charging: the script cost is charged exactly once, at acquis
     });
     const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
     const greenlightCharge =
-      computeTalentCost(draft.talent.map((a) => a.talent)) + computeProductionBudgetCost(draft.productionChoices!) + draft.productionChoices!.contingencyAmount;
+      computeTalentCost(draft.talent) + computeProductionBudgetCost(draft.productionChoices!) + draft.productionChoices!.contingencyAmount;
     const cashBeforeGreenlight = s.studio.cash;
 
     s = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });
@@ -393,7 +394,7 @@ describe('no double-charging: the script cost is charged exactly once, at acquis
     // exactly talent + production budget - the full contingency reserve
     // isn't part of this figure either (only what's actually burned would
     // be, via photographyCost - see engine/releaseFilm.ts).
-    const expectedProductionCost = computeTalentCost(film.talent.map((a) => a.talent)) + computeProductionBudgetCost(film.productionChoices);
+    const expectedProductionCost = computeTalentCost(film.talent) + computeProductionBudgetCost(film.productionChoices);
     expect(film.results.productionCost).toBeCloseTo(expectedProductionCost, 0);
     expect(film.results.productionCost).not.toBeCloseTo(expectedProductionCost + asset.script.cost, 0);
   });

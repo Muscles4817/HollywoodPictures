@@ -3,7 +3,8 @@ import type {
   DirectorProductionStyle,
   EffectsMethodKey,
   EnvironmentMethodKey,
-  Talent,
+  Person,
+  PersonCareers,
   TalentProfession,
   ToneProfile,
 } from '../types';
@@ -12,7 +13,8 @@ import { HANDCRAFTED_TALENTS_BY_ROLE } from '../data/handcraftedTalents';
 import { TALENT_FIRST_NAMES, TALENT_LAST_NAMES } from '../data/talentNames';
 import { TONES } from '../data/tones';
 import { ACTING_STYLE_AXES } from '../data/actingStyle';
-import { logAmount } from './interpolate';
+import { CREW_CAREER_KEY } from './person';
+import { logAmount, logT } from './interpolate';
 import { clamp, normalizeWeights, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
 
 let nextTalentId = 1;
@@ -194,8 +196,10 @@ function generateEgo(role: TalentProfession, rng: RandomFn, fame: number): numbe
  * ToneProfile shared with Script; Actors get an ActingStyle instead of a
  * separate skill - those five numbers are both their skill and their fit,
  * together (see types/index.ts); everyone else gets a plain skill only.
+ * Every generated person has exactly one career (see PERSON_MODEL_REDESIGN.md
+ * Phase 4 - multiple careers are only ever hand-authored, never generated).
  */
-function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Talent {
+function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Person {
   const profile = ROLE_GENERATION_PROFILES[role];
   const salary = Math.round(logAmount(t, profile.salaryRange) / 1000) * 1000;
 
@@ -206,28 +210,60 @@ function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Talen
 
   const ego = generateEgo(role, rng, fame);
 
-  const common = {
-    id: `talent-${nextTalentId++}`,
-    name: randomName(rng),
-    fame,
-    reliability,
-    ego,
-    salary,
+  const roleCareerCommon = {
+    active: true,
+    roleReputation: fame,
+    minimumSalary: salary,
+    typicalSalary: salary,
   };
 
+  let careers: PersonCareers;
   if (role === 'Director') {
-    return {
-      ...common,
-      role,
-      skill: generateSkill(rng, t),
-      toneProfile: generateToneProfile(rng),
-      productionStyle: generateProductionStyle(rng),
+    const skill = generateSkill(rng, t);
+    careers = {
+      director: {
+        role,
+        ...roleCareerCommon,
+        experience: skill,
+        skill,
+        toneProfile: generateToneProfile(rng),
+        productionStyle: generateProductionStyle(rng),
+      },
     };
+  } else if (role === 'Actor') {
+    const actingStyle = generateActingStyle(rng);
+    careers = {
+      actor: {
+        role,
+        ...roleCareerCommon,
+        experience: Math.round((actingStyle.characterTransformation + actingStyle.emotionalPerformance + actingStyle.charisma + actingStyle.comedy + actingStyle.physicalPerformance) / 5),
+        actingStyle,
+      },
+    };
+  } else {
+    const skill = generateSkill(rng, t);
+    careers = { [CREW_CAREER_KEY[role]]: { role, ...roleCareerCommon, experience: skill, skill } };
   }
-  if (role === 'Actor') {
-    return { ...common, role, actingStyle: generateActingStyle(rng) };
-  }
-  return { ...common, role, skill: generateSkill(rng, t) };
+
+  return {
+    id: `talent-${nextTalentId++}`,
+    identity: { name: randomName(rng), appearanceTags: [] },
+    personality: {
+      professionalism: reliability,
+      ambition: 50,
+      loyalty: 50,
+      ego,
+      temperament: 50,
+      pressureHandling: 50,
+      controversy: 20,
+      adaptability: 50,
+    },
+    reputation: { fame, prestige: fame, industryRespect: reliability, reliability, currentHeat: fame },
+    primaryRole: role,
+    careers,
+    availability: { commitments: [] },
+    traits: [],
+  };
 }
 
 /**
@@ -247,41 +283,47 @@ function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Talen
  * price (see talentFilter.ts) rather than just showing "the N closest" -
  * a sparser pool would make that band come up empty more often.
  */
-export function generateTalentCandidates(role: TalentProfession, rng: RandomFn, count = 100): Talent[] {
+export function generateTalentCandidates(role: TalentProfession, rng: RandomFn, count = 100, tRange: [number, number] = [0, 1]): Person[] {
+  const [tMin, tMax] = tRange;
   return Array.from({ length: count }, (_, i) => {
-    const bandStart = i / count;
-    const bandEnd = (i + 1) / count;
+    const bandStart = tMin + (i / count) * (tMax - tMin);
+    const bandEnd = tMin + ((i + 1) / count) * (tMax - tMin);
     const t = randFloat(rng, bandStart, bandEnd);
     return generateTalent(role, rng, t);
   });
 }
 
-// Lead/Supporting Actor get a bigger pool than everyone else - a script can
-// now require several leads or a big supporting ensemble at once (see
-// engine/castRequirements.ts), so a price band needs enough genuinely
-// distinct people in it to actually cast an ensemble from, not just one
-// good match repeated nowhere else nearby.
-const ROLE_POOL_SIZE: Partial<Record<TalentProfession, number>> = {
-  'Actor': 300,
-};
+// Below this salary, an actor is background/extras-tier - nobody a player
+// would recognize by name, so a procedurally generated unknown reads as
+// authentic rather than a gap in the handcrafted roster. Above it, every
+// actor is hand-authored (see the comment in the loop below).
+const BUDGET_ACTOR_SALARY_CEILING = 300_000;
+const BUDGET_ACTOR_POOL_SIZE = 150;
 
 /** The full studio roster: every role's candidate slate, generated once. */
 export function generateTalentPool(
   rng: RandomFn,
-): Record<TalentProfession, Talent[]> {
-  const pool = {} as Record<TalentProfession, Talent[]>;
+): Record<TalentProfession, Person[]> {
+  const pool = {} as Record<TalentProfession, Person[]>;
 
   for (const role of ALL_TALENT_PROFESSIONS) {
-    const generated = generateTalentCandidates(
-      role,
-      rng,
-      ROLE_POOL_SIZE[role],
-    );
+    const handcrafted = HANDCRAFTED_TALENTS_BY_ROLE[role] ?? [];
 
-    pool[role] = [
-      ...(HANDCRAFTED_TALENTS_BY_ROLE[role] ?? []),
-      ...generated,
-    ];
+    // Every recognizable actor is hand-authored now, real name and
+    // realistic stats - but the handcrafted roster doesn't reach down into
+    // background/extras-tier pay, so procedural generation is kept around
+    // just for that bottom slice of the market, capped below
+    // BUDGET_ACTOR_SALARY_CEILING so it never produces a "random" A-lister.
+    if (role === 'Actor') {
+      const budgetTMax = logT(BUDGET_ACTOR_SALARY_CEILING, ROLE_GENERATION_PROFILES.Actor.salaryRange);
+      pool[role] = [
+        ...handcrafted,
+        ...generateTalentCandidates(role, rng, BUDGET_ACTOR_POOL_SIZE, [0, budgetTMax]),
+      ];
+      continue;
+    }
+
+    pool[role] = [...handcrafted, ...generateTalentCandidates(role, rng)];
   }
 
   return pool;

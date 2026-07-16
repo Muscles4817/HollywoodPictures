@@ -24,9 +24,9 @@ function baseScript(seed: number, overrides: Partial<Script> = {}): Script {
 
 function assignmentsOfSize(seed: number, count: number): TalentAssignment[] {
   const { result: director } = withRng(seed, (rng) => generateTalentCandidates('Director', rng, 1)[0]);
-  const assignments: TalentAssignment[] = [{ role: 'Director', talent: director }];
+  const assignments: TalentAssignment[] = [{ role: 'Director', person: director }];
   const { result: actors } = withRng(seed + 1, (rng) => generateTalentCandidates('Actor', rng, Math.max(0, count - 1)));
-  actors.forEach((talent, i) => assignments.push({ role: i === 0 ? 'Lead Actor' : 'Supporting Actor', talent }));
+  actors.forEach((person, i) => assignments.push({ role: i === 0 ? 'Lead Actor' : 'Supporting Actor', person }));
   return assignments.slice(0, count);
 }
 

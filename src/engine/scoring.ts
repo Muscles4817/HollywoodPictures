@@ -1,8 +1,7 @@
 import type {
-  ActorTalent,
-  DirectorTalent,
   Genre,
   MarketingChoices,
+  Person,
   PostProductionChoices,
   ProductionChoices,
   ProductionEvent,
@@ -13,7 +12,8 @@ import { GENRE_PROFILES } from '../data/genres';
 import { TONES } from '../data/tones';
 import { computeTalentCompatibility } from './compatibility';
 import { deriveCommercialProfile } from './commercialProfile';
-import { findAssignedTalent, filterAssignedTalent } from '../data/helpers';
+import { findAssignedPerson, filterAssignedPeople } from '../data/helpers';
+import { getDirectorCareer } from './person';
 import {
   contingencyQuality,
   overallSpendT,
@@ -30,23 +30,23 @@ import { AUDIENCE_WEIGHTS, CRITIC_WEIGHTS } from '../data/scoringWeights';
 import { computeQualityWeights } from './genreWeights';
 import { clamp } from './random';
 
-function getDirector(talent: TalentAssignment[]): DirectorTalent | undefined {
-  return findAssignedTalent(talent, 'Director') as DirectorTalent | undefined;
+function getDirector(talent: TalentAssignment[]): Person | undefined {
+  return findAssignedPerson(talent, 'Director');
 }
 
 /** A script can call for more than one lead (Script.requiredLeads) - see castRequirements.ts. */
-function getLeadActors(talent: TalentAssignment[]): ActorTalent[] {
-  return filterAssignedTalent(talent, 'Lead Actor') as ActorTalent[];
+function getLeadActors(talent: TalentAssignment[]): Person[] {
+  return filterAssignedPeople(talent, 'Lead Actor');
 }
 
-function getSupportingActors(talent: TalentAssignment[]): ActorTalent[] {
-  return filterAssignedTalent(talent, 'Supporting Actor') as ActorTalent[];
+function getSupportingActors(talent: TalentAssignment[]): Person[] {
+  return filterAssignedPeople(talent, 'Supporting Actor');
 }
 
-/** How well a hired talent suits this specific script - see computeTalentCompatibility. */
-function compatibility(t: DirectorTalent | ActorTalent | undefined, script: Script): number {
-  if (!t) return 50; // no one hired for this role -> neutral default
-  return computeTalentCompatibility(t, script) ?? 50;
+/** How well a hired person suits this specific script under `role` - see computeTalentCompatibility. */
+function compatibility(person: Person | undefined, role: 'Director' | 'Lead Actor' | 'Supporting Actor', script: Script): number {
+  if (!person) return 50; // no one hired for this role -> neutral default
+  return computeTalentCompatibility(person, role, script) ?? 50;
 }
 
 function average(values: number[]): number | null {
@@ -86,8 +86,9 @@ function deriveGenreFit(script: Script, genre: Genre): number {
 /** Director's contribution: raw skill plus how well their style suits this script. */
 export function computeDirectionScore(talent: TalentAssignment[], script: Script): number {
   const director = getDirector(talent);
-  if (!director) return 35; // no director hired is a serious quality hit
-  return director.skill * 0.6 + compatibility(director, script) * 0.4;
+  const career = director && getDirectorCareer(director);
+  if (!career) return 35; // no director hired is a serious quality hit
+  return career.skill * 0.6 + compatibility(director, 'Director', script) * 0.4;
 }
 
 /**
@@ -105,8 +106,8 @@ export function computeActingScore(talent: TalentAssignment[], script: Script): 
   const leads = getLeadActors(talent);
   const supports = getSupportingActors(talent);
 
-  const leadScoreAvg = average(leads.map((l) => compatibility(l, script)));
-  const supportScoreAvg = average(supports.map((s) => compatibility(s, script)));
+  const leadScoreAvg = average(leads.map((l) => compatibility(l, 'Lead Actor', script)));
+  const supportScoreAvg = average(supports.map((s) => compatibility(s, 'Supporting Actor', script)));
 
   return (leadScoreAvg ?? 30) * 0.7 + (supportScoreAvg ?? 30) * 0.3;
 }
@@ -167,8 +168,8 @@ export function computeGenreFitScore(script: Script, talent: TalentAssignment[],
   const profile = GENRE_PROFILES[genre];
   const director = getDirector(talent);
   const leads = getLeadActors(talent);
-  const leadFit = average(leads.map((l) => compatibility(l, script))) ?? 50;
-  const talentFit = (compatibility(director, script) + leadFit) / 2;
+  const leadFit = average(leads.map((l) => compatibility(l, 'Lead Actor', script))) ?? 50;
+  const talentFit = (compatibility(director, 'Director', script) + leadFit) / 2;
 
   // A low overall spend only suits genres tagged as low-budget-friendly (e.g.
   // Horror); the penalty tapers off linearly and is gone entirely a third of
@@ -188,8 +189,8 @@ export function computeGenreFitScore(script: Script, talent: TalentAssignment[],
 export function computeMarketabilityScore(script: Script, talent: TalentAssignment[], choices: ProductionChoices): number {
   const leads = getLeadActors(talent);
   const supports = getSupportingActors(talent);
-  const leadFameAvg = average(leads.map((l) => l.fame)) ?? 30;
-  const supportFameAvg = average(supports.map((s) => s.fame)) ?? 30;
+  const leadFameAvg = average(leads.map((l) => l.reputation.fame)) ?? 30;
+  const supportFameAvg = average(supports.map((s) => s.reputation.fame)) ?? 30;
   const fameAvg = (leadFameAvg + supportFameAvg) / 2;
   const runtimeDelta = runtimeMarketabilityDelta(choices.runtimeIntensity);
   return clamp(deriveCommercialProfile(script).hookStrength * 0.5 + fameAvg * 0.45 + runtimeDelta, 0, 100);
@@ -395,7 +396,7 @@ export function computeBuzzScore(
 ): number {
   const director = getDirector(talent);
   const leads = getLeadActors(talent);
-  const buzzworthyFame = [director?.fame, ...leads.map((l) => l.fame)].filter((f): f is number => f !== undefined);
+  const buzzworthyFame = [director?.reputation.fame, ...leads.map((l) => l.reputation.fame)].filter((f): f is number => f !== undefined);
   const fameAvg = average(buzzworthyFame) ?? 30;
 
   const fameBuzz = (fameAvg - 50) * 0.5;

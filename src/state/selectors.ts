@@ -59,7 +59,7 @@ export function computeCommittedSpend(draft: FilmDraft | null): number {
     // as the estimate - the same number ProductionPlanning.tsx shows
     // directly, so this stays consistent with what the player can already
     // see on screen.
-    total += computeTalentCost(draft.talent.map((a) => a.talent));
+    total += computeTalentCost(draft.talent);
     if (draft.productionChoices) {
       total += computeProductionBudgetCost(draft.productionChoices);
       total += draft.productionChoices.contingencyAmount;
@@ -179,8 +179,8 @@ function profitSortValue(film: Film): number {
 function matchesPerson(row: FilmStatRow, role: ProductionRole | 'any', personName: string): boolean {
   const needle = personName.trim().toLowerCase();
   if (!needle) return true;
-  const candidates = (role === 'any' ? row.film.talent : row.film.talent.filter((a) => a.role === role)).map((a) => a.talent);
-  return candidates.some((t) => t.name.toLowerCase().includes(needle));
+  const candidates = (role === 'any' ? row.film.talent : row.film.talent.filter((a) => a.role === role)).map((a) => a.person);
+  return candidates.some((p) => p.identity.name.toLowerCase().includes(needle));
 }
 
 export function filterAndSortFilmStats(rows: FilmStatRow[], filters: FilmStatsFilters): FilmStatRow[] {
@@ -338,7 +338,7 @@ export interface PersonStatRow {
  */
 export function collectPersonStats(rows: FilmStatRow[], roles: ProductionRole[]): PersonStatRow[] {
   const map = aggregateFilmStats(rows, (row) =>
-    row.film.talent.filter((a) => roles.includes(a.role)).map((a) => ({ key: a.talent.id, label: a.talent.name })),
+    row.film.talent.filter((a) => roles.includes(a.role)).map((a) => ({ key: a.person.id, label: a.person.identity.name })),
   );
   return [...map.entries()].map(([id, acc]) => ({
     id,
@@ -464,7 +464,7 @@ export interface GreenlightCommitment {
 }
 
 export function deriveGreenlightCommitment(draft: FilmDraft, studioCash: number): GreenlightCommitment {
-  const talentCost = computeTalentCost(draft.talent.map((a) => a.talent));
+  const talentCost = computeTalentCost(draft.talent);
   const productionCost = draft.productionChoices ? computeProductionBudgetCost(draft.productionChoices) : 0;
   const contingency = draft.productionChoices ? draft.productionChoices.contingencyAmount : 0;
   const totalCommitment = talentCost + productionCost + contingency;
@@ -495,7 +495,7 @@ export function computeProjectSpendSoFar(project: Project, assets: Asset[]): num
   if (project.kind === 'rival-in-progress') return 0;
 
   const draft = project.draft;
-  let spend = scriptCostFor(draft.assetId) + computeTalentCost(draft.talent.map((a) => a.talent));
+  let spend = scriptCostFor(draft.assetId) + computeTalentCost(draft.talent);
   if (draft.productionChoices) spend += computeProductionBudgetCost(draft.productionChoices) + draft.productionChoices.contingencyAmount;
   if (draft.photography) spend += computeEventsCostDelta(draft.photography.events);
   if (draft.postProductionChoices) spend += TEST_SCREENING_PROFILES[draft.postProductionChoices.testScreeningResponse].cost;
@@ -530,7 +530,7 @@ export interface ProjectCardData {
 }
 
 function creditedNames(talent: Film['talent'], role: ProductionRole): string[] {
-  return talent.filter((a) => a.role === role).map((a) => a.talent.name);
+  return talent.filter((a) => a.role === role).map((a) => a.person.identity.name);
 }
 
 /** Builds one card's worth of display data for a single Project - null for a rival production (this page is player-only) or one whose stage can't be derived. */

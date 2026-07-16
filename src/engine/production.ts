@@ -3,12 +3,12 @@ import type {
   EventSeverity,
   Genre,
   PendingEventChoice,
+  Person,
   ProductionChoices,
   ProductionEvent,
   ProductionRole,
   Script,
   StaticProductionRisk,
-  Talent,
   TalentAssignment,
   TalentProfession,
 } from '../types';
@@ -23,7 +23,8 @@ import { GENRE_PROFILES } from '../data/genres';
 import { contingencyT, practicalEffectsT, vfxT, overallSpendT } from './productionDials';
 import { computeTalentCompatibility } from './compatibility';
 import { findCandidatesNearPrice } from './talentFilter';
-import { professionForProductionRole, filterAssignedTalent } from '../data/helpers';
+import { professionForProductionRole, filterAssignedPeople } from '../data/helpers';
+import { getCareerForRole, getTypicalSalaryForRole } from './person';
 import { clamp, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
 
 const BASE_SHOOT_DAYS = 18;
@@ -93,8 +94,8 @@ export function computeStaticProductionRisk(
   choices: ProductionChoices,
   genre: Genre,
 ): StaticProductionRisk {
-  const avgReliability = talent.length ? talent.reduce((sum, a) => sum + a.talent.reliability, 0) / talent.length : 70;
-  const avgEgo = talent.length ? talent.reduce((sum, a) => sum + a.talent.ego, 0) / talent.length : 50;
+  const avgReliability = talent.length ? talent.reduce((sum, a) => sum + a.person.reputation.reliability, 0) / talent.length : 70;
+  const avgEgo = talent.length ? talent.reduce((sum, a) => sum + a.person.personality.ego, 0) / talent.length : 50;
   const unreliabilityRisk = 100 - avgReliability;
 
   // Interpersonal friction - unreliable, high-ego casts are more likely to
@@ -190,22 +191,25 @@ function rollChoiceOutcome(pending: PendingEventChoice, choice: EventChoiceTempl
 }
 
 /**
- * A single 0-100 "how good are they" reading for any talent, regardless of
- * role - their plain skill for Director/Writer/Composer/Editor/VFX
+ * A single 0-100 "how good are they" reading for any hire, regardless of
+ * role - their plain career skill for Director/Writer/Composer/Editor/VFX
  * Supervisor, or (since actors have no separate skill number, see
- * types/index.ts:ActorTalent) how well their ActingStyle actually suits
+ * types/index.ts:ActorCareer) how well their ActingStyle actually suits
  * this script. Used to bias `skillSensitive` event choices toward a better
- * outcome for a stronger hire, worse for a weaker one.
+ * outcome for a stronger hire, worse for a weaker one. `role` is the
+ * ProductionRole they were actually cast under, since that's what
+ * determines which of their careers is even in play.
  */
-function talentSkillScore(talent: Talent | undefined, script: Script | null): number {
-  if (!talent) return 50;
-  if ('skill' in talent) return talent.skill;
-  return (script && computeTalentCompatibility(talent, script)) ?? 50;
+function talentSkillScore(person: Person | undefined, role: ProductionRole | undefined, script: Script | null): number {
+  if (!person || !role) return 50;
+  const career = getCareerForRole(person, role);
+  if (career && 'skill' in career) return career.skill;
+  return (script && computeTalentCompatibility(person, role, script)) ?? 50;
 }
 
-/** Picks the specific hired talent an `involvesRole` event is about - a random one, for a multi-hire role. */
-function resolveInvolvedTalent(role: ProductionRole, talent: TalentAssignment[], rng: RandomFn): Talent | undefined {
-  const hired = filterAssignedTalent(talent, role);
+/** Picks the specific hired person an `involvesRole` event is about - a random one, for a multi-hire role. */
+function resolveInvolvedTalent(role: ProductionRole, talent: TalentAssignment[], rng: RandomFn): Person | undefined {
+  const hired = filterAssignedPeople(talent, role);
   return hired.length > 0 ? pick(rng, hired) : undefined;
 }
 
@@ -276,36 +280,39 @@ const REPLACEMENT_CANDIDATE_COUNT = 2;
  */
 function buildReplacementChoices(
   role: ProductionRole,
-  departing: Talent,
-  pool: Talent[],
+  departing: Person,
+  pool: Person[],
   script: Script | null,
   rng: RandomFn,
 ): EventChoiceTemplate[] {
+  const departingSalary = getTypicalSalaryForRole(departing, role);
   const { candidates } = findCandidatesNearPrice(
     pool.filter((t) => t.id !== departing.id),
-    departing.salary,
+    role,
+    departingSalary,
     8,
   );
   if (candidates.length === 0) return [];
   const picked = pickMany(rng, candidates, Math.min(REPLACEMENT_CANDIDATE_COUNT, candidates.length));
-  const departingSkill = talentSkillScore(departing, script);
+  const departingSkill = talentSkillScore(departing, role, script);
   const delayRange = REPLACEMENT_DELAY_DAYS[role] ?? DEFAULT_REPLACEMENT_DELAY;
 
   return picked.map((candidate) => {
-    const candidateSkill = talentSkillScore(candidate, script);
+    const candidateSalary = getTypicalSalaryForRole(candidate, role);
+    const candidateSkill = talentSkillScore(candidate, role, script);
     const qualitySwing = (candidateSkill - departingSkill) / 8; // modest - a recast is a gamble, not a guaranteed upgrade
-    const disruptionCost = Math.round(departing.salary * SEVERANCE_RATE + candidate.salary * RUSH_HIRE_PREMIUM_RATE);
+    const disruptionCost = Math.round(departingSalary * SEVERANCE_RATE + candidateSalary * RUSH_HIRE_PREMIUM_RATE);
     return {
       id: `replace-with:${candidate.id}`,
-      label: `Recast with ${candidate.name}`,
-      description: `Severance for ${departing.name}, a rush-hire premium, and the disruption of bringing someone new in mid-shoot.`,
+      label: `Recast with ${candidate.identity.name}`,
+      description: `Severance for ${departing.identity.name}, a rush-hire premium, and the disruption of bringing someone new in mid-shoot.`,
       costRange: [disruptionCost, disruptionCost],
       qualityRange: [qualitySwing - 2, qualitySwing + 3],
       buzzRange: [0, 0],
       delayDaysRange: delayRange,
       replacementCandidateId: candidate.id,
-      replacementCandidateName: candidate.name,
-      replacementCandidateSalary: candidate.salary,
+      replacementCandidateName: candidate.identity.name,
+      replacementCandidateSalary: candidateSalary,
     };
   });
 }
@@ -391,7 +398,7 @@ export function rollDayEvent(
   usedIds: ReadonlySet<string>,
   talent: TalentAssignment[],
   script: Script | null,
-  talentPool: Record<TalentProfession, Talent[]>,
+  talentPool: Record<TalentProfession, Person[]>,
   rng: RandomFn,
 ): { event: ProductionEvent } | { pendingChoice: PendingEventChoice } | null {
   const schedulePressure = computeSchedulePressure(daysElapsed, recommendedDays);
@@ -428,9 +435,9 @@ export function rollDayEvent(
   // show a decision about someone who doesn't exist.
   if (template.involvesRole && !involved) return null;
 
-  const skillScore = involved ? talentSkillScore(involved, script) : 50;
-  let choices = involved ? prepareChoicesForInvolvedTalent(template.choices, involved.name, skillScore) : template.choices;
-  const situation = involved ? interpolateName(template.situation, involved.name) : template.situation;
+  const skillScore = involved ? talentSkillScore(involved, template.involvesRole, script) : 50;
+  let choices = involved ? prepareChoicesForInvolvedTalent(template.choices, involved.identity.name, skillScore) : template.choices;
+  const situation = involved ? interpolateName(template.situation, involved.identity.name) : template.situation;
 
   if (template.offersReplacementFor && involved) {
     const replacementPool = talentPool[professionForProductionRole(template.offersReplacementFor)] ?? [];
@@ -445,7 +452,7 @@ export function rollDayEvent(
       severity: template.severity,
       choices,
       involvedTalentId: involved?.id,
-      involvedTalentName: involved?.name,
+      involvedTalentName: involved?.identity.name,
       involvedRole: template.involvesRole,
       replacementRole: template.offersReplacementFor,
     },

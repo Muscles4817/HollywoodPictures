@@ -3,6 +3,7 @@ import { deriveFocusedDraft, deriveGreenlightCommitment } from '../../state/sele
 import { ALL_TALENT_ROLES } from '../../data/talentGeneration';
 import { Money } from '../common/Money';
 import { nearestLabel } from '../wizard/ProductionPlanning';
+import { getTypicalSalaryForRole } from '../../engine/person';
 import type { ProductionRole } from '../../types';
 
 /**
@@ -31,15 +32,15 @@ export function ProjectFinance() {
         <h2 style={{ margin: 0 }}>Cast & Crew</h2>
         {draft.talent.length === 0 && <p style={{ margin: 0, color: 'var(--text-muted)' }}>Nobody hired yet.</p>}
         {ALL_TALENT_ROLES.map((role: ProductionRole) => {
-          const hired = draft.talent.filter((a) => a.role === role).map((a) => a.talent);
+          const hired = draft.talent.filter((a) => a.role === role).map((a) => a.person);
           if (hired.length === 0) return null;
           return (
             <div key={role}>
               <div className="stat-label">{role}{hired.length > 1 ? 's' : ''}</div>
               {hired.map((t) => (
                 <div className="row-between" key={t.id}>
-                  <span>{t.name}</span>
-                  <Money amount={t.salary} />
+                  <span>{t.identity.name}</span>
+                  <Money amount={getTypicalSalaryForRole(t, role)} />
                 </div>
               ))}
             </div>

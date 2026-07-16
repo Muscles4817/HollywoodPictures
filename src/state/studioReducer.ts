@@ -1,4 +1,4 @@
-import type { Asset, Film, FilmDraft, Opportunity, PendingEventChoice, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, Talent, TalentAssignment, TalentProfession, WizardStep } from '../types';
+import type { Asset, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, clamp, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
@@ -7,6 +7,7 @@ import { professionForProductionRole } from '../data/helpers';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
 import { computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent, resolveEventChoice } from '../engine/production';
 import { computeDailyContingencyBurn, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
+import { getTypicalSalaryForRole, withCommitment } from '../engine/person';
 import { adaptRecommendationsToProductionChoices } from '../engine/productionChoicesAdapter';
 import { deriveProjectReadiness } from '../engine/projectReadiness';
 import { STAGE_DURATIONS } from '../data/schedule';
@@ -127,7 +128,7 @@ function applyOpportunityWins(
 export interface CalendarSettlementResult {
   studio: Studio;
   rivalStudios: RivalStudio[];
-  talentPool: Record<TalentProfession, Talent[]>;
+  talentPool: Record<TalentProfession, Person[]>;
   opportunities: Opportunity[];
   nextOpportunityCheckDay: number;
   stillScheduled: ScheduledRelease[];
@@ -280,7 +281,7 @@ function resolveChoiceOnDraft(
   pendingChoice: PendingEventChoice,
   chosenChoiceId: string,
   event: ProductionEvent,
-  talentPool: Record<TalentProfession, Talent[]>,
+  talentPool: Record<TalentProfession, Person[]>,
 ): { draft: FilmDraft; cashDelta: number } {
   const photography = d.photography!;
   const chosen = pendingChoice.choices.find((c) => c.id === chosenChoiceId);
@@ -292,10 +293,11 @@ function resolveChoiceOnDraft(
   if (chosen?.replacementCandidateId && pendingChoice.replacementRole) {
     const pool = talentPool[professionForProductionRole(pendingChoice.replacementRole)];
     const candidate = pool?.find((t) => t.id === chosen.replacementCandidateId);
-    const outgoing = d.talent.find((a) => a.talent.id === pendingChoice.involvedTalentId);
+    const outgoing = d.talent.find((a) => a.person.id === pendingChoice.involvedTalentId);
     if (candidate && outgoing) {
-      cashDelta = -(candidate.salary - outgoing.talent.salary);
-      talent = [...d.talent.filter((a) => a.talent.id !== pendingChoice.involvedTalentId), { role: outgoing.role, talent: candidate }];
+      const role = pendingChoice.replacementRole;
+      cashDelta = -(getTypicalSalaryForRole(candidate, role) - getTypicalSalaryForRole(outgoing.person, role));
+      talent = [...d.talent.filter((a) => a.person.id !== pendingChoice.involvedTalentId), { role: outgoing.role, person: candidate }];
     }
   }
 
@@ -544,11 +546,11 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // structurally impossible, disjoint pools). The UI (RoleHiringDrawer)
       // already excludes these candidates; this mirrors TOGGLE_TALENT_FOR_ROLE's
       // own defensive shape below.
-      if (action.talent && focusedDraft.talent.some((a) => a.role !== action.role && a.talent.id === action.talent!.id)) {
+      if (action.person && focusedDraft.talent.some((a) => a.role !== action.role && a.person.id === action.person!.id)) {
         return state;
       }
       const withoutRole = focusedDraft.talent.filter((a) => a.role !== action.role);
-      const nextTalent = action.talent ? [...withoutRole, { role: action.role, talent: action.talent }] : withoutRole;
+      const nextTalent = action.person ? [...withoutRole, { role: action.role, person: action.person }] : withoutRole;
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, talent: nextTalent }) };
     }
 
@@ -563,17 +565,17 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;
       const current = focusedDraft.talent.filter((a) => a.role === action.role);
-      const alreadyHired = current.some((a) => a.talent.id === action.talent.id);
-      if (!alreadyHired && focusedDraft.talent.some((a) => a.role !== action.role && a.talent.id === action.talent.id)) {
+      const alreadyHired = current.some((a) => a.person.id === action.person.id);
+      if (!alreadyHired && focusedDraft.talent.some((a) => a.role !== action.role && a.person.id === action.person.id)) {
         return state;
       }
       const capacity = effectiveRoleCapacity(action.role, focusedDraft.script);
 
       let nextTalent: TalentAssignment[];
       if (alreadyHired) {
-        nextTalent = focusedDraft.talent.filter((a) => a.talent.id !== action.talent.id);
+        nextTalent = focusedDraft.talent.filter((a) => a.person.id !== action.person.id);
       } else if (current.length < capacity.max) {
-        nextTalent = [...focusedDraft.talent, { role: action.role, talent: action.talent }];
+        nextTalent = [...focusedDraft.talent, { role: action.role, person: action.person }];
       } else {
         return state;
       }
@@ -679,7 +681,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // used to apply one at a time on the way to this point (data/schedule.ts).
       const preProductionDays = computeRecommendedPreProductionDays(focusedDraft.talent, focusedDraft.script, focusedDraft.productionChoices);
       const upfrontCharge =
-        computeTalentCost(focusedDraft.talent.map((a) => a.talent)) +
+        computeTalentCost(focusedDraft.talent) +
         computeProductionBudgetCost(focusedDraft.productionChoices) +
         focusedDraft.productionChoices.contingencyAmount;
 
@@ -697,11 +699,18 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         return { settlement, productionsInProgress };
       });
 
+      // Per-assignment, not per-role-then-profession: Lead Actor and
+      // Supporting Actor share one Actor pool, so looping over pool keys and
+      // re-filtering by id would visit that pool once per role and double up
+      // an actor's commitment (see the identical fix in rivalStudios.ts).
       const bookedUntil = totalDaysAfter + recommendedDays;
-      const bookedIds = new Set(focusedDraft.talent.map((a) => a.talent.id));
       const talentPool = { ...result.settlement.talentPool };
-      for (const role of Object.keys(talentPool) as TalentProfession[]) {
-        talentPool[role] = talentPool[role].map((t) => (bookedIds.has(t.id) ? { ...t, bookedUntil } : t));
+      for (const assignment of focusedDraft.talent) {
+        const profession = professionForProductionRole(assignment.role);
+        const commitment = { projectId: focusedDraft.id, role: assignment.role, startDay: state.totalDays, endDay: bookedUntil };
+        talentPool[profession] = talentPool[profession].map((t) =>
+          t.id === assignment.person.id ? withCommitment(t, commitment) : t,
+        );
       }
 
       return {

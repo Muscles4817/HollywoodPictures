@@ -15,7 +15,8 @@ import {
 } from '../../engine/recommendation';
 import { Button } from '../common/Button';
 import { ScoreBar } from '../common/ScoreBar';
-import type { DirectorTalent, Distribution, Genre, NormalizedScalar, Recommendation, Script } from '../../types';
+import { getDirectorCareer } from '../../engine/person';
+import type { Distribution, Genre, NormalizedScalar, Person, Recommendation, Script } from '../../types';
 
 // Developer-only tool for inspecting the recommendation engine
 // (engine/recommendation.ts) directly against dozens of generated script/
@@ -131,17 +132,18 @@ export function RecommendationInspector() {
   // Defaults to a real reference pair rather than a random one - easier to
   // start reasoning from something with a known real-world answer.
   const [script, setScript] = useState<Script>(REFERENCE_SCRIPTS[0]);
-  const [director, setDirector] = useState<DirectorTalent>(REFERENCE_DIRECTORS[0]);
+  const [director, setDirector] = useState<Person>(REFERENCE_DIRECTORS[0]);
+  const directorCareer = getDirectorCareer(director)!;
 
   function rerollScript(forGenre: Genre = genre) {
     setScript(generateScriptOptions(forGenre, rngRef.current, 1)[0]);
   }
   function rerollDirector() {
-    setDirector(generateTalentCandidates('Director', rngRef.current, 1)[0] as DirectorTalent);
+    setDirector(generateTalentCandidates('Director', rngRef.current, 1)[0]);
   }
 
-  const envStrategy = explainEnvironmentStrategy(script, director);
-  const fxStrategy = explainEffectsStrategy(script, director);
+  const envStrategy = explainEnvironmentStrategy(script, directorCareer);
+  const fxStrategy = explainEffectsStrategy(script, directorCareer);
   const envAmbition = recommendEnvironmentAmbition(script);
   const fxAmbition = recommendEffectsAmbition(script);
 
@@ -212,7 +214,7 @@ export function RecommendationInspector() {
           </option>
           {REFERENCE_DIRECTORS.map((d) => (
             <option key={d.id} value={d.id}>
-              {d.name}
+              {d.identity.name}
             </option>
           ))}
         </select>
@@ -241,16 +243,16 @@ export function RecommendationInspector() {
         <div className="card stack" style={{ flex: 1 }}>
           <h2 style={{ margin: 0 }}>Director</h2>
           <p style={{ margin: 0 }}>
-            <strong>{director.name}</strong> &middot; skill {director.skill}
+            <strong>{director.identity.name}</strong> &middot; skill {directorCareer.skill}
           </p>
           <div className="row">
             <div style={{ flex: 1 }}>
               <div className="stat-label">Environment Strategy</div>
-              <DistributionBars dist={director.productionStyle.environmentStrategy} />
+              <DistributionBars dist={directorCareer.productionStyle.environmentStrategy} />
             </div>
             <div style={{ flex: 1 }}>
               <div className="stat-label">Effects Strategy</div>
-              <DistributionBars dist={director.productionStyle.effectsStrategy} />
+              <DistributionBars dist={directorCareer.productionStyle.effectsStrategy} />
             </div>
           </div>
         </div>
