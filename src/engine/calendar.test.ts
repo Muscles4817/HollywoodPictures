@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatGameDate, formatGameMonthYear, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from './calendar';
+import { formatGameDate, formatGameDateWithMonth, formatGameMonthYear, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from './calendar';
 
 describe('formatGameDate - unchanged exact-day display', () => {
   it('day 1 is Year 1, Day 1', () => {
@@ -8,6 +8,32 @@ describe('formatGameDate - unchanged exact-day display', () => {
 
   it('day 366 rolls over into Year 2', () => {
     expect(formatGameDate(366)).toBe('Year 2, Day 1');
+  });
+});
+
+describe('formatGameDateWithMonth - the same exact day, as a human calendar date', () => {
+  it('day 1 is Year 1, January 1', () => {
+    expect(formatGameDateWithMonth(1)).toBe('Year 1, January 1');
+  });
+
+  it('day 32 (the first day past January\'s 31) is Year 1, February 1', () => {
+    expect(formatGameDateWithMonth(32)).toBe('Year 1, February 1');
+  });
+
+  it('day 366 rolls over into Year 2, January 1 - not still December of Year 1', () => {
+    expect(formatGameDateWithMonth(366)).toBe('Year 2, January 1');
+  });
+
+  it('the last day of the year (365) is Year 1, December 31', () => {
+    expect(formatGameDateWithMonth(365)).toBe('Year 1, December 31');
+  });
+
+  it('agrees with monthYearOf on which month/year every day of a year falls in', () => {
+    for (let d = 1; d <= 365; d++) {
+      const totalDays = totalDaysForMonth(1, 0) + d - 1;
+      const { year, monthIndex } = monthYearOf(totalDays);
+      expect(formatGameDateWithMonth(totalDays)).toContain(`Year ${year}, ${MONTH_NAMES[monthIndex]} `);
+    }
   });
 });
 

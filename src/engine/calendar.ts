@@ -66,6 +66,23 @@ export function totalDaysForMonth(year: number, monthIndex: number): number {
   return (year - 1) * DAYS_PER_YEAR + daysBeforeMonth + 1;
 }
 
+/**
+ * "Year Y, Month D" - a friendlier precise reading than formatGameDate's raw
+ * day-of-year, for the header's always-visible date ticker (components/common/
+ * Header.tsx), where a human calendar date reads more naturally on every
+ * tick than "Day 176" does. Still exact (unlike formatGameMonthYear's
+ * deliberately coarser month-only reading) - built from the same
+ * yearAndDayOfYear/monthIndexOfDayOfYear derivation as everything else here,
+ * just with the day-of-month worked out too.
+ */
+export function formatGameDateWithMonth(totalDays: number): string {
+  const { year, dayOfYear } = yearAndDayOfYear(totalDays);
+  const monthIndex = monthIndexOfDayOfYear(dayOfYear);
+  const daysBeforeMonth = MONTH_LENGTHS.slice(0, monthIndex).reduce((sum, d) => sum + d, 0);
+  const dayOfMonth = dayOfYear - daysBeforeMonth + 1;
+  return `Year ${year}, ${MONTH_NAMES[monthIndex]} ${dayOfMonth}`;
+}
+
 // 0-indexed calendar month -> the ReleaseWindow it falls in - first-draft,
 // tunable game-design numbers, not a physical fact (see docs/DESIGN.md if a
 // balance pass ever revisits this). Halloween and Awards Season are

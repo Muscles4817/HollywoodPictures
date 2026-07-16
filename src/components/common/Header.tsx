@@ -1,5 +1,5 @@
 import { useStudio } from '../../state/StudioContext';
-import { formatGameDate } from '../../engine/calendar';
+import { formatGameDateWithMonth } from '../../engine/calendar';
 import { inboxBadgeCount } from '../../engine/project';
 import { useTheme } from '../../hooks/useTheme';
 import { Button } from './Button';
@@ -66,7 +66,7 @@ export function Header({
           >
             Dashboard
           </Button>
-          <span className="app-header__date">{formatGameDate(state.totalDays)}</span>
+          <span className="app-header__date">{formatGameDateWithMonth(state.totalDays)}</span>
         </div>
 
         <TimeTickIndicator
