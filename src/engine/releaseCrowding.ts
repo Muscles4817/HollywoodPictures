@@ -1,6 +1,7 @@
-import type { Genre, ProductionScale, TargetAudience } from '../types';
+import type { Film, Genre, ProductionScale, TargetAudience } from '../types';
 import { logT, type Range } from './interpolate';
 import { MARKETING_SPEND_RANGE } from '../data/release';
+import { computeRunningFilmStrength } from './audienceSimulationStep';
 
 /**
  * One other release already on the shared calendar - either a player's own
@@ -108,4 +109,44 @@ export function computePlayerReleaseStrength(marketingSpend: number, productionB
     0,
     Math.min(1, 0.7 * marketingStrengthFraction(marketingSpend) + 0.3 * logT(productionBudgetCost, PRODUCTION_BUDGET_STRENGTH_RANGE)),
   );
+}
+
+/**
+ * A *currently-running* film's own live competitive strength - the third
+ * way to build an UpcomingRelease, alongside computeRivalReleaseStrength/
+ * computePlayerReleaseStrength above (both pre-release proxies for a
+ * production that hasn't opened yet). engine/marketSettlement.ts calls this
+ * fresh every settled week for every still-running film, so a film's pull
+ * on its competitors' screen access evolves with its *actual* performance
+ * instead of a one-time snapshot frozen at release - see
+ * engine/audienceSimulationStep.ts:computeRunningFilmStrength's own doc
+ * comment for why this is a derived read of the film's own weekly history,
+ * not a new stored field (DESIGN.md 5.34's "Momentum" rejection).
+ *
+ * Zero for a film with no settled week yet (simWeeks.length === 0) - a
+ * film that opened *this same week* hasn't sold a single ticket yet, so it
+ * has no real performance to be pulling screens with; its pull on siblings
+ * starts as soon as it has its own first settled week, using everything
+ * settled so far (asOfWeekIndex = simWeeks.length, not simWeeks.length - 1 -
+ * matching exactly how computeCurrentWomInfluence reads a film's own
+ * history for its own next-week transition, e.g.
+ * computeCurrentWomInfluence(fixed, weeks, weeks.length) inside
+ * advanceOneWeekWithDiagnostics: deriveWordOfMouthActivity's own
+ * asOfWeekIndex means "looking back from just before this index," so
+ * simWeeks.length - 1 would exclude the film's own most-recent settled
+ * week entirely - silently zero for any film with fewer than two settled
+ * weeks). Its own opening-week access is still shaped by the existing
+ * one-time computeCompetitiveCrowding dent at resolution
+ * (engine/releaseFilm.ts:computeReleaseResults), unchanged - this function
+ * only concerns itself with a running film's *ongoing* pull on others.
+ */
+export function runningFilmAsUpcomingRelease(film: Film): UpcomingRelease | null {
+  const { simWeeks, fixed } = film.boxOfficeRun;
+  if (simWeeks.length === 0) return null;
+  return {
+    releaseDay: film.releasedOnDay,
+    genre: film.genre,
+    targetAudience: film.targetAudience,
+    strength: computeRunningFilmStrength(fixed, simWeeks, simWeeks.length),
+  };
 }

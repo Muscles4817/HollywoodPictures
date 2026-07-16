@@ -6,8 +6,10 @@ import {
   advanceToWeekWithDiagnostics,
   hasSimulationEnded,
   computeCurrentWomInfluence,
+  computeRunningFilmStrength,
   computeReceptionResponseMultiplier,
   computeWomReproductionRatio,
+  computeNextAvailability,
   getBaselineAttendanceProbability,
   applyWomPullForward,
   pullForwardUrgencySignal,
@@ -207,6 +209,109 @@ describe('word-of-mouth recency-weighted lookback', () => {
 
   it('is zero before any week has settled (week 1 has no prior word of mouth)', () => {
     expect(computeCurrentWomInfluence(fixed(), [], 0)).toBe(0);
+  });
+});
+
+// "Live screen competition" implementation plan - computeRunningFilmStrength
+// is computeCurrentWomInfluence's own activityFraction half, extracted so a
+// film's current heat can be read from *outside* its own weekly step
+// (engine/marketSettlement.ts uses this for every other currently-running
+// film's pull on a given film's own availability). No new formula: these
+// tests pin the exact relationship to computeCurrentWomInfluence rather than
+// re-deriving the underlying math a second time.
+describe('computeRunningFilmStrength - a running film\'s own current heat, readable from outside its weekly step', () => {
+  it('equals computeCurrentWomInfluence with the reception multiplier divided back out, for the same fixed/weeks/index', () => {
+    const f = fixed({ criticScore: 80, audienceScore: 65 });
+    const weeks: AudienceSimulationWeekState[] = [];
+    let cumulative = 0;
+    for (let w = 1; w <= 4; w++) {
+      cumulative += 20_000;
+      weeks.push({ week: w, awareCount: 300_000, interestedRemaining: 40_000, cumulativeTicketsSold: cumulative, availabilityFraction: 0.9, cumulativeCrossoverRealized: 0 });
+    }
+    const strength = computeRunningFilmStrength(f, weeks, weeks.length);
+    const influence = computeCurrentWomInfluence(f, weeks, weeks.length);
+    expect(strength).toBeCloseTo(influence / computeReceptionResponseMultiplier(f), 10);
+  });
+
+  it('is zero before any week has settled, same as computeCurrentWomInfluence', () => {
+    expect(computeRunningFilmStrength(fixed(), [], 0)).toBe(0);
+  });
+
+  it('is always in [0, 1], regardless of reception - unlike computeCurrentWomInfluence, it never gets scaled down by a poor critic/audience score', () => {
+    const weeks: AudienceSimulationWeekState[] = [{ week: 1, awareCount: 900_000, interestedRemaining: 100_000, cumulativeTicketsSold: 900_000, availabilityFraction: 1, cumulativeCrossoverRealized: 0 }];
+    const badReception = fixed({ totalAddressableAudience: 1_000_000, criticScore: 0, audienceScore: 0 });
+    const goodReception = fixed({ totalAddressableAudience: 1_000_000, criticScore: 90, audienceScore: 90 });
+    const strengthBad = computeRunningFilmStrength(badReception, weeks, 1);
+    const strengthGood = computeRunningFilmStrength(goodReception, weeks, 1);
+    // Same weekly history, same totalAddressableAudience/baseInterestFraction/crossoverCapacityFraction (maxInterestedAudience only depends on those) -
+    // strength itself doesn't read criticScore/audienceScore at all, so it's identical regardless of reception.
+    expect(strengthBad).toBeCloseTo(strengthGood, 10);
+    expect(strengthBad).toBeGreaterThan(0);
+    expect(strengthBad).toBeLessThanOrEqual(1);
+  });
+
+  it('a film with more recent admissions activity has higher strength than one with less, all else equal', () => {
+    const f = fixed({ totalAddressableAudience: 1_000_000 });
+    const quiet: AudienceSimulationWeekState[] = [{ week: 1, awareCount: 200_000, interestedRemaining: 50_000, cumulativeTicketsSold: 5_000, availabilityFraction: 0.9, cumulativeCrossoverRealized: 0 }];
+    const hot: AudienceSimulationWeekState[] = [{ week: 1, awareCount: 200_000, interestedRemaining: 50_000, cumulativeTicketsSold: 100_000, availabilityFraction: 0.9, cumulativeCrossoverRealized: 0 }];
+    expect(computeRunningFilmStrength(f, hot, 1)).toBeGreaterThan(computeRunningFilmStrength(f, quiet, 1));
+  });
+});
+
+describe('computeNextAvailability - competitivePressure (Live screen competition)', () => {
+  it('defaults to zero and is a complete no-op when omitted - identical to passing 0 explicitly', () => {
+    const f = fixed();
+    const withDefault = computeNextAvailability(f, 0.8, 1.0);
+    const withExplicitZero = computeNextAvailability(f, 0.8, 1.0, 0);
+    expect(withDefault).toBe(withExplicitZero);
+  });
+
+  it('a higher competitivePressure contracts availability faster than zero pressure, all else equal', () => {
+    const f = fixed();
+    const noPressure = computeNextAvailability(f, 0.8, 1.0, 0);
+    const somePressure = computeNextAvailability(f, 0.8, 1.0, 0.5);
+    const maxPressure = computeNextAvailability(f, 0.8, 1.0, 1);
+    expect(somePressure).toBeLessThan(noPressure);
+    expect(maxPressure).toBeLessThan(somePressure);
+  });
+
+  it('never pushes availability below the existing floor, however high pressure is - the existing rate-magnitude clamp still bounds it', () => {
+    const f = fixed();
+    const result = computeNextAvailability(f, 0.03, 0, 1); // already near the floor, weak demand, max pressure
+    expect(result).toBeGreaterThanOrEqual(0.02); // AVAILABILITY_FLOOR
+  });
+});
+
+describe('advanceOneWeek/advanceOneWeekWithDiagnostics - competitivePressure threading (Live screen competition)', () => {
+  it('threads competitivePressure through to computeNextAvailability exactly - nextAvailabilityFraction matches a direct computeNextAvailability call fed the same availabilityFraction/demandUtilisation this same week already reports, and competitivePressure is recorded verbatim', () => {
+    // Deliberately not asserting a hand-picked "more pressure -> lower
+    // availability" inequality here - a cold week 1's own demandUtilisation
+    // can already saturate MAX_AVAILABILITY_RATE_MAGNITUDE on performance
+    // alone regardless of pressure (see computeNextAvailability's own
+    // dedicated, clamp-aware tests above for that claim). This test proves
+    // the *wiring* instead: whatever computeNextAvailability would produce
+    // for this week's own reported inputs is exactly what
+    // advanceOneWeekWithDiagnostics actually used.
+    const f = fixed();
+    const { diagnostics } = advanceOneWeekWithDiagnostics(f, [], undefined, 0.6);
+    expect(diagnostics.competitivePressure).toBe(0.6);
+    const expectedNextAvailability = computeNextAvailability(f, diagnostics.availabilityFraction, diagnostics.demandUtilisation, 0.6);
+    expect(diagnostics.nextAvailabilityFraction).toBe(expectedNextAvailability);
+  });
+
+  it('advanceOneWeek (the diagnostics-free wrapper) accepts the same competitivePressure argument and matches advanceOneWeekWithDiagnostics.next', () => {
+    const f = fixed();
+    const viaPlain = advanceOneWeek(f, [], 0.4);
+    const { next: viaDiagnostics } = advanceOneWeekWithDiagnostics(f, [], undefined, 0.4);
+    expect(viaPlain).toEqual(viaDiagnostics);
+  });
+
+  it('every existing call site (advanceToWeek, advanceToWeekWithDiagnostics) omits competitivePressure and is completely unaffected by its existence - defaults to 0 throughout', () => {
+    const f = fixed();
+    const weeks = advanceToWeek(f, [], 5);
+    let manual: AudienceSimulationWeekState[] = [];
+    for (let i = 0; i < 5; i++) manual = [...manual, advanceOneWeek(f, manual, 0)];
+    expect(weeks).toEqual(manual);
   });
 });
 

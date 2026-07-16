@@ -157,9 +157,28 @@ export function computeReceptionResponseMultiplier(fixed: AudienceSimulationFixe
   return RECEPTION_FLOOR + (1 - RECEPTION_FLOOR) * weighted * weighted;
 }
 
+/**
+ * "How large and recent is the pool of people currently talking about this
+ * film," normalized against maxInterestedAudience (the realistic ceiling of
+ * people who could ever be interested) rather than totalAddressableAudience
+ * - same normalization choice computeCurrentWomInfluence below already
+ * makes, for the same reason (measuring against the whole population would
+ * dilute the signal to near-nothing for any film with a narrow natural
+ * fit). Extracted as its own export so a film's current "heat" can be read
+ * from *outside* its own weekly step - engine/marketSettlement.ts uses this
+ * as competing films' live competitive strength (how much screen-worthy
+ * buzz a rival's still-running film currently has), the same "derived, not
+ * stored" principle DESIGN.md 5.34 already established for a film's own WOM
+ * pulse (see module header) - no new Momentum-style field, just this same
+ * formula read for someone else's film instead of your own.
+ */
+export function computeRunningFilmStrength(fixed: AudienceSimulationFixedState, weeks: AudienceSimulationWeekState[], asOfWeekIndex: number): number {
+  return clamp(deriveWordOfMouthActivity(weeks, asOfWeekIndex) / maxInterestedAudience(fixed), 0, 1);
+}
+
 /** Step 3: "current WOM influence" - recent-admissions activity (Milestone 1's deriveWordOfMouthActivity, recomputed from the stored weekly history, never its own stored field) scaled by how well the film was actually received. Normalized against maxInterestedAudience (the realistic ceiling of people who could ever be interested), not totalAddressableAudience - measuring "how much of the reachable audience is currently talking about this" against the whole population would dilute the signal to near-nothing for any film with a narrow natural fit, making crossover structurally unreachable regardless of reception. Always in [0,1]. */
 export function computeCurrentWomInfluence(fixed: AudienceSimulationFixedState, weeks: AudienceSimulationWeekState[], asOfWeekIndex: number): number {
-  const activityFraction = clamp(deriveWordOfMouthActivity(weeks, asOfWeekIndex) / maxInterestedAudience(fixed), 0, 1);
+  const activityFraction = computeRunningFilmStrength(fixed, weeks, asOfWeekIndex);
   return activityFraction * computeReceptionResponseMultiplier(fixed);
 }
 
@@ -574,16 +593,37 @@ export function computeAvailabilityPerformanceAdjustment(fixed: AudienceSimulati
 const MAX_WEEKLY_EXPANSION_MULTIPLIER = 1.75;
 const MAX_WEEKLY_EXPANSION_POINTS = 0.12;
 
+// How much a maximally crowded *live* competitive week (competitivePressure
+// == 1 - see engine/releaseCrowding.ts:computeCompetitiveCrowding, now fed
+// currently-running films' own live strength every week rather than only a
+// one-time pre-release snapshot) adds to this week's contraction, on top of
+// availabilityBaseWeeklyDecay's own age-based term. Mirrors
+// engine/audienceSimulationInputs.ts's CROWDING_PENALTY_WEIGHT (the
+// analogous one-time release-day dent) - same idea, applied every week
+// instead of once. Deliberately modest relative to MAX_AVAILABILITY_RATE_MAGNITUDE
+// (0.2): Wide's own availabilityBaseWeeklyDecay (0.18,
+// engine/audienceSimulationInputs.ts) already consumes nearly the whole
+// clamp on its own at neutral demand, so a weight anywhere near that would
+// saturate the clamp - and flatten competitivePressure's own effect to an
+// on/off switch - the moment any real crowding showed up for a Wide
+// release specifically. This value keeps competitivePressure's effect
+// smoothly graded across ordinary-to-heavy crowding for every release type,
+// only saturating (alongside age decay) at genuinely severe, near-maximal
+// crowding. First-draft, tunable alongside every other constant in this
+// file.
+const COMPETITIVE_PRESSURE_WEIGHT = 0.05;
+
 export function computeNextAvailability(
   fixed: AudienceSimulationFixedState,
   currentAvailability: number,
   demandUtilisation: number,
+  competitivePressure = 0,
 ): number {
   const performanceAdjustment =
     computeAvailabilityPerformanceAdjustment(fixed, demandUtilisation);
 
   const netRate = clamp(
-    performanceAdjustment - fixed.availabilityBaseWeeklyDecay,
+    performanceAdjustment - fixed.availabilityBaseWeeklyDecay - COMPETITIVE_PRESSURE_WEIGHT * competitivePressure,
     -MAX_AVAILABILITY_RATE_MAGNITUDE,
     MAX_AVAILABILITY_RATE_MAGNITUDE,
   );
@@ -668,6 +708,8 @@ export interface WeekDiagnostics {
   performanceAdjustment: number;
   /** Step 9.5d's output - next week's availabilityFraction, computed from this week's demandUtilisation. Deliberately not this week's own availabilityFraction - see the availability step's module header for why the feedback loop is one-week-lagged. */
   nextAvailabilityFraction: number;
+  /** The `competitivePressure` argument this week's transition was actually called with (see advanceOneWeekWithDiagnostics) - 0 for a film with no genre/audience/timing-overlapping competition currently active, engine/releaseCrowding.ts:computeCompetitiveCrowding's output otherwise. Recorded here (not just consumed) so components/dev/OutcomeInspector.tsx can show it like every other diagnostic input. */
+  competitivePressure: number;
   weeklyAdmissions: number;
   cumulativeTicketsSold: number;
   /**
@@ -693,6 +735,7 @@ export function advanceOneWeekWithDiagnostics(
   fixed: AudienceSimulationFixedState,
   weeks: AudienceSimulationWeekState[],
   womInfluenceOverride?: number,
+  competitivePressure = 0,
 ): { next: AudienceSimulationWeekState; diagnostics: WeekDiagnostics } {
   const priorWeek = weeks.length > 0 ? weeks[weeks.length - 1] : WEEK_ZERO;
   const nextWeekNumber = priorWeek.week + 1;
@@ -788,7 +831,7 @@ export function advanceOneWeekWithDiagnostics(
   const ticketsThisWeek = Math.min(unconstrainedDemand, maxServiceableDemand);
   const demandUtilisation = computeDemandUtilisation(unconstrainedDemand, maxServiceableDemand);
   const performanceAdjustment = computeAvailabilityPerformanceAdjustment(fixed, demandUtilisation);
-  const nextAvailabilityFraction = computeNextAvailability(fixed, availabilityThisWeek, demandUtilisation);
+  const nextAvailabilityFraction = computeNextAvailability(fixed, availabilityThisWeek, demandUtilisation, competitivePressure);
 
   // Defensive final clamp - the step-by-step headroom bounding above should
   // already guarantee these never exceed their ceilings, but floating-point
@@ -837,6 +880,7 @@ export function advanceOneWeekWithDiagnostics(
     expectedAgeContraction: fixed.availabilityBaseWeeklyDecay,
     performanceAdjustment,
     nextAvailabilityFraction,
+    competitivePressure,
     weeklyAdmissions: next.cumulativeTicketsSold - priorWeek.cumulativeTicketsSold,
     cumulativeTicketsSold: next.cumulativeTicketsSold,
     womReproductionRatio: NaN,
@@ -905,8 +949,8 @@ export function computeWomReproductionRatio(fixed: AudienceSimulationFixedState,
  * run" algorithm. A thin wrapper over advanceOneWeekWithDiagnostics - see
  * that function for the actual step sequence.
  */
-export function advanceOneWeek(fixed: AudienceSimulationFixedState, weeks: AudienceSimulationWeekState[]): AudienceSimulationWeekState {
-  return advanceOneWeekWithDiagnostics(fixed, weeks).next;
+export function advanceOneWeek(fixed: AudienceSimulationFixedState, weeks: AudienceSimulationWeekState[], competitivePressure = 0): AudienceSimulationWeekState {
+  return advanceOneWeekWithDiagnostics(fixed, weeks, undefined, competitivePressure).next;
 }
 
 // Step 11 constants - independently defined here rather than imported from

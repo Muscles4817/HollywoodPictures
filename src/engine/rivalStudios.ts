@@ -19,9 +19,7 @@ import { professionForProductionRole } from '../data/helpers';
 import { effectiveRoleCapacity } from './castRequirements';
 import { computeRecommendedShootDays } from './production';
 import { computeReleaseResults } from './releaseFilm';
-import { settleBoxOfficeForAllFilms } from './boxOfficeRun';
 import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
-import { applyStatChange } from './reputation';
 import { highestBid, placeBid, reopenForfeitedOpportunity, type ResolvedBid } from './opportunities';
 import { findCandidatesNearPrice } from './talentFilter';
 import { logAmount } from './interpolate';
@@ -725,7 +723,7 @@ function startRivalProductionFromWonScript(
  * the player's own Buzz already has, not a flat industry-average stand-in
  * any more.
  */
-function resolveRivalProduction(
+export function resolveRivalProduction(
   production: RivalProductionInProgress,
   rivalStudioName: string,
   studioBrand: number,
@@ -795,88 +793,42 @@ export interface RivalMarketUpdate {
 }
 
 /**
- * Settles box office per rival studio, not once across every rival
- * combined - engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms returns one
- * aggregate cashCredit/brandDelta/prestigeDelta for whatever list it's
- * given, so crediting the right studio means grouping first (by
- * `Film.releasedBy`, the only rival-studio correlation a resolved Film
- * carries - see resolveRivalProduction). A studio with no films this call
- * (nothing in `allRivalFilms` matches its name) is returned untouched.
- * Reuses settleBoxOfficeForAllFilms exactly, per group - same weekly
- * settlement, same finished-run brand/prestige computation the player's own
- * films get, just attributed to the studio that actually earned it instead
- * of discarded (Milestone: AI Studios 2.0 - previously every rival's box
- * office ran through this same function with its cash/brand/prestige output
- * simply thrown away, since no rival carried any of those yet).
- */
-function settleRivalBoxOffice(
-  rivalStudios: RivalStudio[],
-  allRivalFilms: Film[],
-  totalDays: number,
-): { rivalStudios: RivalStudio[]; filmsReleased: Film[] } {
-  const filmsByStudioName = new Map<string, Film[]>();
-  for (const film of allRivalFilms) {
-    const key = film.releasedBy ?? '';
-    const list = filmsByStudioName.get(key);
-    if (list) list.push(film);
-    else filmsByStudioName.set(key, [film]);
-  }
-
-  const settledById = new Map<string, Film>();
-  const rivalStudiosAfter = rivalStudios.map((rival) => {
-    const studioFilms = filmsByStudioName.get(rival.name);
-    if (!studioFilms || studioFilms.length === 0) return rival;
-    const settlement = settleBoxOfficeForAllFilms(studioFilms, totalDays);
-    for (const film of settlement.filmsReleased) settledById.set(film.id, film);
-    return {
-      ...rival,
-      cash: rival.cash + settlement.cashCredit,
-      brand: applyStatChange(rival.brand, settlement.brandDelta),
-      prestige: applyStatChange(rival.prestige, settlement.prestigeDelta),
-      lifetimeRevenue: rival.lifetimeRevenue + settlement.cashCredit,
-    };
-  });
-
-  return {
-    rivalStudios: rivalStudiosAfter,
-    // Preserves allRivalFilms' own order rather than the grouped-by-studio
-    // order settledById was built in - nothing downstream should care about
-    // rival film order, but there's no reason to reshuffle it either.
-    filmsReleased: allRivalFilms.map((f) => settledById.get(f.id) ?? f),
-  };
-}
-
-/**
- * The whole rival-market tick, in order: resolve anything that's released,
- * settle every rival studio's own box office (crediting cash/brand/prestige
- * to the studio that actually earned it - settleRivalBoxOffice above),
- * apply this week's already-resolved bid wins (Milestone: Opportunity
- * Market bidding - `resolvedRivalBids` comes from
- * engine/opportunities.ts:settleOpportunities, already filtered by the
- * caller to rival winners only; a player win is state/studioReducer.ts's
- * own, separate concern), then let any studio whose spawn-check day has
- * arrived try to bid on something new if it has spare capacity AND
- * (Milestone: AI Studios 2.0) can plausibly afford it -
+ * The rival market's bidding/Opportunity-market tick: apply this week's
+ * already-resolved bid wins (Milestone: Opportunity Market bidding -
+ * `resolvedRivalBids` comes from engine/opportunities.ts:settleOpportunities,
+ * already filtered by the caller to rival winners only; a player win is
+ * state/studioReducer.ts's own, separate concern), then let any studio
+ * whose spawn-check day has arrived try to bid on something new if it has
+ * spare capacity AND (Milestone: AI Studios 2.0) can plausibly afford it -
  * considerBiddingOnOpportunity returns null and this loop falls back to
  * just updating nextSpawnCheckDay exactly the way it already did for a
  * talent-pool shortage, so an unaffordable studio naturally sits out this
- * attempt and tries again at its next spawn check. Called from the same
- * places engine/boxOfficeRun.ts:settleBoxOfficeForAllFilms is (see
- * state/studioReducer.ts) - every action that can advance GameState.totalDays.
- * Takes a `RivalMarketUpdate`-shaped `current` rather than a `Studio` -
- * rivalStudios/rivalProductionsInProgress/rivalFilmsReleased/opportunities
- * are world-level (GameState), not the player's Studio's own business; only
- * `talentPool` is still Studio-shaped (shared with the player, until it too
- * moves world-level). `totalDays` is passed in explicitly for the same
- * reason. `playerScheduled` (roadmap Phase 7.4, upgraded for Phase 1 of
- * release scheduling competition) is the player's own upcoming releases,
- * reduced to what engine/releaseCrowding.ts:computeCompetitiveCrowding
- * needs (engine/project.ts:scheduledPlayerReleases) - threaded through so a
+ * attempt and tries again at its next spawn check.
+ *
+ * Release resolution and box office settlement - what this function used to
+ * do first, before the bidding logic below - moved to
+ * engine/marketSettlement.ts:settleTheatricalMarket (the "Live screen
+ * competition" implementation plan): unifying every rival's box office with
+ * the player's own into one settlement pass is what lets a film actually
+ * compete for screens against a rival's, not just its own owner's other
+ * films. `current.rivalStudios`/`rivalFilmsReleased`/
+ * `rivalProductionsInProgress` are expected to already reflect that pass's
+ * own results by the time they reach here (see state/studioReducer.ts) -
+ * this function only ever adds *bidding* activity on top, never touches box
+ * office itself. Takes a `RivalMarketUpdate`-shaped `current` rather than a
+ * `Studio` - rivalStudios/rivalProductionsInProgress/rivalFilmsReleased/
+ * opportunities are world-level (GameState), not the player's Studio's own
+ * business; only `talentPool` is still Studio-shaped (shared with the
+ * player, until it too moves world-level). `totalDays` is passed in
+ * explicitly for the same reason. `playerScheduled` (roadmap Phase 7.4,
+ * upgraded for Phase 1 of release scheduling competition) is the player's
+ * own upcoming releases, reduced to what
+ * engine/releaseCrowding.ts:computeCompetitiveCrowding needs
+ * (engine/project.ts:scheduledPlayerReleases) - threaded through so a
  * newly-started rival production can steer its own naive release day away
  * from genuinely crowded windows (see startRivalProductionFromWonScript's
- * avoidCrowdedReleaseDay call) and so a resolving rival production's own
- * box-office penalty accounts for it too - the player's own choices are
- * never otherwise read or affected here.
+ * avoidCrowdedReleaseDay call) - the player's own choices are never
+ * otherwise read or affected here.
  */
 export function settleRivalMarket(
   current: RivalMarketUpdate,
@@ -885,25 +837,10 @@ export function settleRivalMarket(
   playerScheduled: UpcomingRelease[],
   rng: RandomFn,
 ): RivalMarketUpdate {
-  const due = current.rivalProductionsInProgress.filter((p) => p.releaseDay <= totalDays);
-  const stillInProgress = current.rivalProductionsInProgress.filter((p) => p.releaseDay > totalDays);
-  const newlyReleased = due.map((p) => {
-    const rival = current.rivalStudios.find((r) => r.id === p.rivalStudioId);
-    // Everyone else still on the shared calendar from this settlement's own
-    // point of view - the player's own upcoming releases plus every other
-    // rival production (due this same pass or still in progress),
-    // excluding this one - same "frozen once, at settlement time" pattern
-    // engine/scheduledReleases.ts uses for the player's own releases.
-    const otherKnown = current.rivalProductionsInProgress.filter((other) => other.id !== p.id).map(rivalAsUpcomingRelease);
-    return resolveRivalProduction(p, rival?.name ?? 'A Rival Studio', rival?.brand ?? 50, [...playerScheduled, ...otherKnown], rng);
-  });
-
-  const afterBoxOffice = settleRivalBoxOffice(current.rivalStudios, [...current.rivalFilmsReleased, ...newlyReleased], totalDays);
-
   let talentPool = current.talentPool;
-  let productionsInProgress = stillInProgress;
+  let productionsInProgress = current.rivalProductionsInProgress;
   let opportunities = current.opportunities;
-  let rivalStudiosAfterWins = afterBoxOffice.rivalStudios;
+  let rivalStudiosAfterWins = current.rivalStudios;
   for (const resolved of resolvedRivalBids) {
     const rival = rivalStudiosAfterWins.find((r) => r.id === resolved.winnerId);
     if (!rival || !resolved.scale) {
@@ -948,7 +885,7 @@ export function settleRivalMarket(
   return {
     rivalStudios,
     rivalProductionsInProgress: productionsInProgress,
-    rivalFilmsReleased: afterBoxOffice.filmsReleased,
+    rivalFilmsReleased: current.rivalFilmsReleased,
     talentPool,
     opportunities,
   };

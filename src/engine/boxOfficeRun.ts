@@ -1,5 +1,6 @@
 import type { Film } from '../types';
 import { advanceOneWeekWithDiagnostics, hasSimulationEnded } from './audienceSimulationStep';
+import { computeCompetitiveCrowding, runningFilmAsUpcomingRelease, type UpcomingRelease } from './releaseCrowding';
 import { determineOutcome } from './outcome';
 import { computeBrandChange, computePrestigeChange } from './reputation';
 
@@ -50,15 +51,158 @@ export interface BoxOfficeSettlement {
   prestigeDelta: number;
 }
 
+/** A run that just crossed into 'finished' - computes totalBoxOffice/studioRevenue/profit/outcome/brandChange/prestigeChange from whatever its weeks actually added up to, the same job RELEASE_FILM used to do in one shot at release time. */
+function finishFilm(film: Film): { film: Film; brandChange: number; prestigeChange: number } {
+  const totalBoxOffice = film.boxOfficeRun.cumulativeGross;
+  const studioRevenue = Math.round(totalBoxOffice * STUDIO_BOX_OFFICE_SHARE);
+  const profit = studioRevenue - film.results.totalCost;
+
+  const outcome = determineOutcome({
+    profit,
+    totalCost: film.results.totalCost,
+    totalBoxOffice,
+    qualityScore: film.results.qualityScore,
+    criticScore: film.results.criticScore,
+    audienceScore: film.results.audienceScore,
+  });
+
+  const brandChange = computeBrandChange({
+    profit,
+    totalCost: film.results.totalCost,
+    totalBoxOffice,
+    audienceScore: film.results.audienceScore,
+  });
+
+  const prestigeChange = computePrestigeChange({
+    criticScore: film.results.criticScore,
+    qualityScore: film.results.qualityScore,
+  });
+
+  return {
+    film: {
+      ...film,
+      results: { ...film.results, totalBoxOffice, studioRevenue, profit, outcome, brandChange, prestigeChange },
+    },
+    brandChange,
+    prestigeChange,
+  };
+}
+
+/** The real calendar day this film's *next* not-yet-settled week starts on - films are numbered from their own releasedOnDay (week 1 = release week), not a shared industry-wide Friday, so this is what orders different films' pending weeks against each other on one shared timeline. */
+function nextWeekStartDay(film: Film): number {
+  return film.releasedOnDay + film.boxOfficeRun.simWeeks.length * WEEK_LENGTH_DAYS;
+}
+
+/**
+ * Every currently-running film's live pull on its competitors this week -
+ * engine/releaseCrowding.ts:computeCompetitiveCrowding fed every *other*
+ * still-running film in this same settlement batch (via
+ * runningFilmAsUpcomingRelease, itself a fresh read of each film's own
+ * already-stored weekly history - no new state). Reused for both the
+ * ongoing per-week pressure below and could be reused identically by a
+ * caller resolving a brand-new release's own one-time crowding dent against
+ * this same set of running films (engine/marketSettlement.ts).
+ */
+export function competitivePressureOn(target: Film, others: Film[]): number {
+  const known: UpcomingRelease[] = others
+    .filter((f) => f.id !== target.id && f.boxOfficeRun.status === 'running')
+    .map(runningFilmAsUpcomingRelease)
+    .filter((u): u is UpcomingRelease => u !== null);
+  return computeCompetitiveCrowding(
+    { releaseDay: target.releasedOnDay, genre: target.genre, targetAudience: target.targetAudience },
+    known,
+  );
+}
+
+export interface NextDueFilm {
+  film: Film;
+  /** The real calendar day `film`'s next not-yet-settled week starts on - what engine/marketSettlement.ts compares against pending releases' own releaseDay to decide what's genuinely due soonest. */
+  startDay: number;
+}
+
+/** Whichever still-running, still-behind film's next week starts soonest (by real calendar day) - null once nothing in the map is due by currentTotalDays. The shared "what's next" scan both settleBoxOfficeForAllFilms's own loop and engine/marketSettlement.ts's richer loop (which also has to compare against pending *releases*, not just already-running films) are built from. */
+export function nextDueFilm(filmsById: ReadonlyMap<string, Film>, currentTotalDays: number): NextDueFilm | null {
+  let next: NextDueFilm | null = null;
+  for (const film of filmsById.values()) {
+    if (film.boxOfficeRun.status !== 'running') continue;
+    if (film.boxOfficeRun.simWeeks.length >= weeksDueByNow(film.releasedOnDay, currentTotalDays)) continue;
+    const startDay = nextWeekStartDay(film);
+    if (!next || startDay < next.startDay) {
+      next = { film, startDay };
+    }
+  }
+  return next;
+}
+
+export interface WeekAdvanceResult {
+  filmsById: Map<string, Film>;
+  /** Which film actually advanced - null (with `filmsById` returned unchanged) when nothing was due. Lets a caller that's mixing several owners together (engine/marketSettlement.ts) attribute cashCredit/brandDelta/prestigeDelta to the right one. */
+  advancedFilmId: string | null;
+  cashCredit: number;
+  brandDelta: number;
+  prestigeDelta: number;
+}
+
+/**
+ * Advances exactly one film - whichever one nextDueFilm picks - by exactly
+ * one week, with this week's competitivePressureOn computed fresh from
+ * every other film currently in `filmsById`. The single step both
+ * settleBoxOfficeForAllFilms's own loop and engine/marketSettlement.ts's
+ * richer loop (which also interleaves brand-new releases becoming due
+ * mid-catch-up) are built from - one implementation, not two that could
+ * drift apart. Returns the *same* `filmsById` reference back (and
+ * `advancedFilmId: null`) when nothing was due, so a caller can use that as
+ * its own loop's exit condition.
+ */
+export function advanceEarliestDueFilmByOneWeek(filmsById: ReadonlyMap<string, Film>, currentTotalDays: number): WeekAdvanceResult {
+  const due = nextDueFilm(filmsById, currentTotalDays);
+  if (!due) return { filmsById: filmsById as Map<string, Film>, advancedFilmId: null, cashCredit: 0, brandDelta: 0, prestigeDelta: 0 };
+  const { film } = due;
+
+  const run = film.boxOfficeRun;
+  const competitivePressure = competitivePressureOn(film, [...filmsById.values()]);
+  const { next: nextSimWeek, diagnostics } = advanceOneWeekWithDiagnostics(run.fixed, run.simWeeks, undefined, competitivePressure);
+  const gross = Math.round(diagnostics.weeklyAdmissions * AVERAGE_TICKET_PRICE);
+  const simWeeks = [...run.simWeeks, nextSimWeek];
+  const weeks = [...run.weeks, { week: nextSimWeek.week, gross }];
+  const cumulativeGross = run.cumulativeGross + gross;
+  const cashCredit = Math.round(gross * STUDIO_BOX_OFFICE_SHARE);
+
+  const finished = hasSimulationEnded(simWeeks);
+  const updatedRun = { ...run, simWeeks, weeks, cumulativeGross, status: finished ? ('finished' as const) : ('running' as const) };
+  let updatedFilm: Film = { ...film, boxOfficeRun: updatedRun };
+  let brandDelta = 0;
+  let prestigeDelta = 0;
+
+  if (finished) {
+    const result = finishFilm(updatedFilm);
+    updatedFilm = result.film;
+    brandDelta = result.brandChange;
+    prestigeDelta = result.prestigeChange;
+  }
+
+  const updated = new Map(filmsById);
+  updated.set(film.id, updatedFilm);
+  return { filmsById: updated, advancedFilmId: film.id, cashCredit, brandDelta, prestigeDelta };
+}
+
 /**
  * Catches every running film's BoxOfficeRun up to how many days have
- * actually passed, across every film in the list at once (nothing stops
- * the player starting their next film while an older one is still in
- * theaters - see docs/DESIGN.md 5.19). A film whose run crosses into
- * 'finished' during this call gets its final totalBoxOffice/studioRevenue/
- * profit/outcome/brandChange/prestigeChange computed right here, from
- * whatever its weeks actually added up to - the same job RELEASE_FILM used
- * to do in one shot at release time.
+ * actually passed, every film in the list mutually visible to every other
+ * (nothing stops the player starting their next film while an older one is
+ * still in theaters - see docs/DESIGN.md 5.19, and nothing stops a rival's
+ * release from squeezing an already-running film's own screen access, the
+ * live-competition gap this function used to have entirely).
+ *
+ * A thin loop over advanceEarliestDueFilmByOneWeek - see that function for
+ * the actual per-step logic. Processing real calendar days one at a time
+ * (rather than fully catching one film up before starting the next) is what
+ * makes a film in week 3 feel a rival's week 1 the moment that rival's
+ * first real week actually elapses, instead of only once this film's own
+ * catch-up loop happens to reach it, and is also what guarantees a big
+ * multi-week calendar jump settles identically to the same span done as
+ * several smaller ones: every step only ever reads state that was already
+ * settled *before* it runs, never anything produced later in the same call.
  *
  * Driven entirely by engine/audienceSimulationStep.ts's weekly step
  * (advanceOneWeekWithDiagnostics) against each run's own `fixed`/`simWeeks`
@@ -71,83 +215,16 @@ export function settleBoxOfficeForAllFilms(filmsReleased: Film[], currentTotalDa
   let cashCredit = 0;
   let brandDelta = 0;
   let prestigeDelta = 0;
+  let filmsById: Map<string, Film> = new Map(filmsReleased.map((f) => [f.id, f]));
 
-  const updatedFilms = filmsReleased.map((film): Film => {
-    if (film.boxOfficeRun.status !== 'running') return film;
+  for (;;) {
+    const step = advanceEarliestDueFilmByOneWeek(filmsById, currentTotalDays);
+    if (!step.advancedFilmId) break;
+    filmsById = step.filmsById;
+    cashCredit += step.cashCredit;
+    brandDelta += step.brandDelta;
+    prestigeDelta += step.prestigeDelta;
+  }
 
-    let run = film.boxOfficeRun;
-    const due = weeksDueByNow(film.releasedOnDay, currentTotalDays);
-    while (run.status === 'running' && run.simWeeks.length < due) {
-      const { next: nextSimWeek, diagnostics } = advanceOneWeekWithDiagnostics(run.fixed, run.simWeeks);
-      const gross = Math.round(diagnostics.weeklyAdmissions * AVERAGE_TICKET_PRICE);
-      const simWeeks = [...run.simWeeks, nextSimWeek];
-      const weeks = [...run.weeks, { week: nextSimWeek.week, gross }];
-      const cumulativeGross = run.cumulativeGross + gross;
-      cashCredit += Math.round(gross * STUDIO_BOX_OFFICE_SHARE);
-
-      const finished = hasSimulationEnded(simWeeks);
-      run = { ...run, simWeeks, weeks, cumulativeGross, status: finished ? 'finished' : 'running' };
-    }
-
-    if (run === film.boxOfficeRun) return film; // nothing newly due this call
-
-    if (run.status === 'finished') {
-      const totalBoxOffice =
-        run.cumulativeGross;
-
-      const studioRevenue = Math.round(
-        totalBoxOffice *
-          STUDIO_BOX_OFFICE_SHARE,
-      );
-
-      const profit =
-        studioRevenue -
-        film.results.totalCost;
-
-      const outcome = determineOutcome({
-        profit,
-        totalCost: film.results.totalCost,
-        totalBoxOffice,
-        qualityScore: film.results.qualityScore,
-        criticScore: film.results.criticScore,
-        audienceScore: film.results.audienceScore,
-      });
-
-      const brandChange = computeBrandChange({
-        profit,
-        totalCost: film.results.totalCost,
-        totalBoxOffice,
-        audienceScore: film.results.audienceScore,
-      });
-
-      const prestigeChange =
-        computePrestigeChange({
-          criticScore:
-            film.results.criticScore,
-          qualityScore:
-            film.results.qualityScore,
-        });
-
-      brandDelta += brandChange;
-      prestigeDelta += prestigeChange;
-
-      return {
-        ...film,
-        boxOfficeRun: run,
-        results: {
-          ...film.results,
-          totalBoxOffice,
-          studioRevenue,
-          profit,
-          outcome,
-          brandChange,
-          prestigeChange,
-        },
-      };
-    }
-
-    return { ...film, boxOfficeRun: run };
-  });
-
-  return { filmsReleased: updatedFilms, cashCredit, brandDelta, prestigeDelta };
+  return { filmsReleased: [...filmsById.values()], cashCredit, brandDelta, prestigeDelta };
 }

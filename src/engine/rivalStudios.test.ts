@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { generateRivalStudios, settleRivalMarket, type RivalMarketUpdate } from './rivalStudios';
+import { settleTheatricalMarket } from './marketSettlement';
 import { generateTalentPool } from './talentGenerator';
 import { settleOpportunities, type ResolvedBid } from './opportunities';
 import { withRng, type RandomFn } from './random';
-import { applyStatChange } from './reputation';
 import { MAX_SIMULATION_WEEKS } from './audienceSimulationStep';
 import type { UpcomingRelease } from './releaseCrowding';
 
@@ -216,56 +216,47 @@ describe('settleRivalMarket - AI Studios 2.0 financial constraints', () => {
   });
 
   it("a finished run's box-office revenue and Brand/Prestige change apply to the studio that actually released the film, matching that film's own recorded studioRevenue/brandChange/prestigeChange - not mixed up with any other rival", () => {
+    // Release resolution and box office settlement moved to
+    // engine/marketSettlement.ts:settleTheatricalMarket (the "Live screen
+    // competition" implementation plan) - settleRivalMarket itself is
+    // bidding-only now, so this drives that function directly instead. No
+    // spawn-check isolation needed any more either: unlike settleRivalMarket,
+    // settleTheatricalMarket has no bidding/spawning logic of its own to
+    // confound the tracked studio's cash delta with a second production.
     const { market, totalDays } = freshMarket(50);
     const { afterResolve: afterSpawn, resolvedBids } = withRng(51, (rng) => bidThenResolve(market, totalDays, 8, 8, [], rng)).result;
     expect(resolvedBids.length).toBeGreaterThan(0);
     const started = afterSpawn.rivalProductionsInProgress[0];
     expect(started).toBeDefined();
+    const rivalName = afterSpawn.rivalStudios.find((r) => r.id === started.rivalStudioId)!.name;
 
-    // Isolate: only the tracked studio's own production is left in progress, and every
-    // studio (including the tracked one) is pushed well past the eventual settlement day
-    // so nothing spawns a *second* production in the same call as the box-office
-    // resolution - a big day-jump gives every studio's own spawn check plenty of time to
-    // fire too, which would otherwise confound the tracked studio's own cash delta with a
-    // genuine new expenditure alongside its box-office income, not evidence of a bug.
     const finishDay = started.releaseDay + MAX_SIMULATION_WEEKS * 7;
-    const isolatedMarket: RivalMarketUpdate = {
-      ...afterSpawn,
-      rivalProductionsInProgress: [started],
-      rivalStudios: afterSpawn.rivalStudios.map((r) => ({ ...r, nextSpawnCheckDay: finishDay + 1 })),
-    };
-    const { result: afterFinish } = withRng(52, (rng) => settleRivalMarket(isolatedMarket, [], finishDay, [], rng));
+    const { result: settlement } = withRng(52, (rng) => settleTheatricalMarket([], [], [started], afterSpawn.rivalStudios, finishDay, 50, rng));
 
-    const studioBefore = afterSpawn.rivalStudios.find((r) => r.id === started.rivalStudioId)!;
-    const studioAfter = afterFinish.rivalStudios.find((r) => r.id === started.rivalStudioId)!;
-    const film = afterFinish.rivalFilmsReleased.find((f) => f.id === `rival-film-${started.id}`);
+    const film = settlement.settledFilms.find((f) => f.id === `rival-film-${started.id}`);
     expect(film).toBeDefined();
     expect(film!.results.totalBoxOffice).not.toBeNull();
     expect(film!.results.studioRevenue).not.toBeNull();
     expect(film!.results.brandChange).not.toBeNull();
     expect(film!.results.prestigeChange).not.toBeNull();
 
-    // cashCredit (what actually lands in .cash/.lifetimeRevenue) is the sum of each
-    // settled week's own rounded studio share, not a single round of the final total -
-    // the same two independently-rounded figures boxOfficeRun.test.ts's own "cashCredit
-    // equals the sum of each newly-settled week's gross times the studio share" test
-    // documents, so they can drift by a rounding unit or two per settled week rather
-    // than match results.studioRevenue exactly.
-    const cashDelta = studioAfter.cash - studioBefore.cash;
-    expect(cashDelta).toBeGreaterThan(0);
-    expect(studioAfter.lifetimeRevenue).toBeCloseTo(cashDelta); // both come from the exact same cashCredit
-    expect(Math.abs(cashDelta - film!.results.studioRevenue!)).toBeLessThanOrEqual(MAX_SIMULATION_WEEKS);
-    expect(studioAfter.brand).toBe(applyStatChange(studioBefore.brand, film!.results.brandChange!));
-    expect(studioAfter.prestige).toBe(applyStatChange(studioBefore.prestige, film!.results.prestigeChange!));
+    const delta = settlement.rivalDeltas.get(rivalName);
+    expect(delta).toBeDefined();
+    // cashCredit is the sum of each settled week's own rounded studio share,
+    // not a single round of the final total - the same two independently-
+    // rounded figures boxOfficeRun.test.ts's own "cashCredit equals the sum
+    // of each newly-settled week's gross times the studio share" test
+    // documents, so they can drift by a rounding unit or two per settled
+    // week rather than match results.studioRevenue exactly.
+    expect(delta!.cashCredit).toBeGreaterThan(0);
+    expect(Math.abs(delta!.cashCredit - film!.results.studioRevenue!)).toBeLessThanOrEqual(MAX_SIMULATION_WEEKS);
+    expect(delta!.brandDelta).toBe(film!.results.brandChange);
+    expect(delta!.prestigeDelta).toBe(film!.results.prestigeChange);
 
-    // Every other studio's own finances are completely untouched by this one studio's film.
-    for (const other of afterFinish.rivalStudios) {
+    // No other rival studio is credited anything from this one studio's film.
+    for (const other of afterSpawn.rivalStudios) {
       if (other.id === started.rivalStudioId) continue;
-      const otherBefore = afterSpawn.rivalStudios.find((r) => r.id === other.id)!;
-      expect(other.cash).toBe(otherBefore.cash);
-      expect(other.brand).toBe(otherBefore.brand);
-      expect(other.prestige).toBe(otherBefore.prestige);
-      expect(other.lifetimeRevenue).toBe(otherBefore.lifetimeRevenue);
+      expect(settlement.rivalDeltas.has(other.name)).toBe(false);
     }
   });
 });

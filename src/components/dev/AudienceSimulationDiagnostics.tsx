@@ -136,6 +136,7 @@ export function AudienceSimulationDiagnostics(inputs: ReleaseSimulationInputs) {
               <th>Capacity</th>
               <th>Utilisation</th>
               <th>Age Contr.</th>
+              <th>Comp. Pressure</th>
               <th>Perf. Adj.</th>
               <th>Next Avail.</th>
               <th>Admissions</th>
@@ -162,6 +163,7 @@ export function AudienceSimulationDiagnostics(inputs: ReleaseSimulationInputs) {
                 <td>{formatPeople(r.maxServiceableDemand)}</td>
                 <td>{r.demandUtilisation.toFixed(2)}x</td>
                 <td>{formatPercent(r.expectedAgeContraction)}</td>
+                <td>{formatPercent(r.competitivePressure)}</td>
                 <td>{r.performanceAdjustment >= 0 ? '+' : ''}{formatPercent(r.performanceAdjustment)}</td>
                 <td>{formatPercent(r.nextAvailabilityFraction)}</td>
                 <td>{formatPeople(r.weeklyAdmissions)}</td>

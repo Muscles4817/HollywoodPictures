@@ -238,3 +238,116 @@ describe('rival films settle through the exact same function', () => {
     expect(settledRival.boxOfficeRun.simWeeks).toEqual(settledPlayer.boxOfficeRun.simWeeks);
   });
 });
+
+// Deliberately not built via fixedFor()/deriveAudienceSimulationFixedState -
+// a realistic Wide release's own demand routinely runs at 15-60% of its own
+// capacity for its first month at these inputs (performanceAdjustment
+// already deeply negative on its own), which pins netRate at
+// -MAX_AVAILABILITY_RATE_MAGNITUDE regardless of competitivePressure -
+// correct behavior (a film already losing screens at the fastest allowed
+// rate from its own poor performance can't lose them *faster* just because
+// a competitor exists too), but it makes competitivePressure's own marginal
+// effect unobservable in these specific tests, the same reason
+// 'settleBoxOfficeForAllFilms - termination' above already needed a
+// purpose-built fixed state instead of fixedFor() for its own early-finish
+// case. Tuned (empirically, the same way that describe block's own comment
+// documents doing) so demandUtilisation sits close to 1 - near-neutral
+// performance, with real headroom under the clamp for competitivePressure's
+// contraction to actually show through.
+function neutralDemandFixed(overrides: Partial<Parameters<typeof createAudienceSimulationFixedState>[0]> = {}): AudienceSimulationFixedState {
+  return createAudienceSimulationFixedState({
+    totalAddressableAudience: 5_000_000,
+    baseInterestFraction: 0.2,
+    marketingEfficiency: 0.5,
+    crossoverCapacityFraction: 0,
+    conversionPacingBaseline: 0.35,
+    externalWeeklyAwarenessRate: 0.2,
+    criticScore: 75,
+    audienceScore: 78,
+    initialAwareCount: 100_000,
+    initialAvailabilityFraction: 0.5,
+    availabilityBaseWeeklyDecay: 0.02,
+    criticLedExpansionWeight: 0,
+    ...overrides,
+  });
+}
+
+// "Live screen competition" implementation plan - settleBoxOfficeForAllFilms
+// now processes every film in its own input list mutually visible to every
+// other, real calendar day by real calendar day, instead of independently.
+describe('settleBoxOfficeForAllFilms - live screen competition (competitivePressure)', () => {
+  it("two concurrently-running, same-genre/audience films pull each other's availability down, relative to either one running alone", () => {
+    const fixed = neutralDemandFixed();
+    const together = settleBoxOfficeForAllFilms([freshFilm('a', 1, fixed), freshFilm('b', 1, fixed)], 1 + 4 * 7);
+    const alone = settleBoxOfficeForAllFilms([freshFilm('solo', 1, fixed)], 1 + 4 * 7);
+
+    const togetherWeeks = together.filmsReleased[0].boxOfficeRun.simWeeks;
+    const aloneWeeks = alone.filmsReleased[0].boxOfficeRun.simWeeks;
+    // Same fixed state, same release day, same span - the only difference is whether a same-genre/audience competitor exists alongside it.
+    expect(togetherWeeks[togetherWeeks.length - 1].availabilityFraction).toBeLessThan(aloneWeeks[aloneWeeks.length - 1].availabilityFraction);
+  });
+
+  it('a same-genre/audience competitor pulls availability down further than a mismatched one, all else equal', () => {
+    const fixed = neutralDemandFixed();
+    const matchingSibling = freshFilm('match', 1, fixed);
+    const targetWithMatch = freshFilm('target-a', 1, fixed);
+    const withMatch = settleBoxOfficeForAllFilms([targetWithMatch, matchingSibling], 1 + 4 * 7);
+
+    const mismatchedSibling = { ...freshFilm('mismatch', 1, fixed), genre: 'Horror' as const, targetAudience: 'Niche' as const };
+    const targetWithMismatch = freshFilm('target-b', 1, fixed);
+    const withMismatch = settleBoxOfficeForAllFilms([targetWithMismatch, mismatchedSibling], 1 + 4 * 7);
+
+    const matchWeeks = withMatch.filmsReleased.find((f) => f.id === 'target-a')!.boxOfficeRun.simWeeks;
+    const mismatchWeeks = withMismatch.filmsReleased.find((f) => f.id === 'target-b')!.boxOfficeRun.simWeeks;
+    expect(matchWeeks[matchWeeks.length - 1].availabilityFraction).toBeLessThan(mismatchWeeks[mismatchWeeks.length - 1].availabilityFraction);
+  });
+
+  it('a lone film with no siblings in the same settlement call is completely unaffected - competitivePressure is 0 throughout, identical to a single-film call before this feature existed', () => {
+    const fixed = fixedFor({ criticScore: 70, audienceScore: 72 });
+    const solo = settleBoxOfficeForAllFilms([freshFilm('only', 1, fixed)], 1 + MAX_SIMULATION_WEEKS * 7).filmsReleased[0];
+    // Reconstructed independently via advanceOneWeek with an explicit 0 pressure, week by week - must match exactly.
+    let weeks: ReturnType<typeof advanceOneWeek>[] = [];
+    for (let i = 0; i < solo.boxOfficeRun.simWeeks.length; i++) weeks = [...weeks, advanceOneWeek(fixed, weeks, 0)];
+    expect(solo.boxOfficeRun.simWeeks).toEqual(weeks);
+  });
+
+  it('a big multi-week jump across two mutually-competing films settles identically to the same span done as several smaller calls', () => {
+    const fixed = fixedFor({ criticScore: 75, audienceScore: 78 });
+    const bigJump = settleBoxOfficeForAllFilms([freshFilm('x', 1, fixed), freshFilm('y', 1, fixed)], 1 + 8 * 7);
+
+    let films = [freshFilm('x', 1, fixed), freshFilm('y', 1, fixed)];
+    for (let week = 1; week <= 8; week++) {
+      films = settleBoxOfficeForAllFilms(films, 1 + week * 7).filmsReleased;
+    }
+
+    const byId = (list: Film[]) => [...list].sort((a, b) => a.id.localeCompare(b.id));
+    expect(byId(films).map((f) => f.boxOfficeRun)).toEqual(byId(bigJump.filmsReleased).map((f) => f.boxOfficeRun));
+    expect(byId(films).map((f) => f.results)).toEqual(byId(bigJump.filmsReleased).map((f) => f.results));
+  });
+
+  it('three same-genre competitors released on different days all settle without error, ordered by real calendar day rather than by list position', () => {
+    // 'late' (day 15) listed first, 'early' (day 1) second, 'mid' (day 8)
+    // third - if the settlement loop picked "who's next" by list position
+    // rather than each film's own nextWeekStartDay, 'late' would wrongly
+    // advance weeks before 'early' even has a week 1. Released close enough
+    // together to be inside CROWDING_WINDOW_DAYS (45) of each other, so all
+    // three are genuinely competing, not just coexisting.
+    const fixed = neutralDemandFixed();
+    const films = [freshFilm('late', 15, fixed), freshFilm('early', 1, fixed), freshFilm('mid', 8, fixed)];
+    const settlement = settleBoxOfficeForAllFilms(films, 1 + 6 * 7);
+    for (const film of settlement.filmsReleased) {
+      // Every film reached exactly as many settled weeks as its own release
+      // day and the batch's end date allow - 'late' (day 15) has fewer due
+      // than 'early' (day 1) by the same end date, which only holds if each
+      // film's own release day - not its position in the input list - drove
+      // how many weeks it was due for.
+      const days = 1 + 6 * 7 - film.releasedOnDay;
+      const expectedWeeks = Math.min(Math.floor(days / 7) + 1, MAX_SIMULATION_WEEKS);
+      expect(film.boxOfficeRun.simWeeks.length).toBeLessThanOrEqual(expectedWeeks);
+      expect(film.boxOfficeRun.simWeeks.length).toBeGreaterThan(0);
+    }
+    const early = settlement.filmsReleased.find((f) => f.id === 'early')!;
+    const late = settlement.filmsReleased.find((f) => f.id === 'late')!;
+    expect(early.boxOfficeRun.simWeeks.length).toBeGreaterThan(late.boxOfficeRun.simWeeks.length);
+  });
+});
