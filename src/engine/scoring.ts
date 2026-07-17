@@ -25,7 +25,7 @@ import {
   runtimeMarketabilityDelta,
   marketingBuzzContribution,
 } from './productionDials';
-import { EDIT_STYLE_PROFILES, FINAL_CUT_FOCUS_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES } from '../data/postProduction';
+import { EDIT_STYLE_PROFILES, FINAL_CUT_FOCUS_PROFILES, MUSIC_FOCUS_PROFILES } from '../data/postProduction';
 import { RELEASE_TYPE_PROFILES } from '../data/release';
 import { AUDIENCE_WEIGHTS, CRITIC_WEIGHTS } from '../data/scoringWeights';
 import { computeQualityWeights } from './genreWeights';
@@ -182,13 +182,25 @@ export function computeEventsScore(events: ProductionEvent[]): number {
   return clamp(50 + totalQualityDelta * 2, 0, 100);
 }
 
-/** Post-production craft score from editing, music and test-screening choices. */
+/**
+ * Post-production craft score from editing and music choices. No longer
+ * reads a testScreeningResponse term (Post-Production Redesign, Phase B -
+ * docs/DESIGN_REVIEW_post_production_redesign.md section 2): a real test
+ * screening now happens, and its resolved quality outcome reaches the film
+ * through the same eventsQualityDelta pathway an on-set event already uses
+ * (folded into PhotographyState.events, read by computeQualityBreakdown
+ * below), not through a flat blind choice made before any screening
+ * happened. "Release As-Is" - the new zero-quality-change baseline choice -
+ * is what the old default ('Minor Changes', +8) used to paper over for
+ * free; a player who genuinely does nothing now correctly sees no boost,
+ * same as this function's own base score always meant "no post-production
+ * choices have helped yet."
+ */
 export function computePostProductionScore(choices: PostProductionChoices): number {
   const base = 55;
-  const testScreening = TEST_SCREENING_PROFILES[choices.testScreeningResponse].qualityDelta;
   const music = MUSIC_FOCUS_PROFILES[choices.musicFocus].qualityDelta;
   const balancedBonus = choices.editStyle === 'Balanced' ? 5 : 0;
-  return clamp(base + testScreening + music + balancedBonus, 0, 100);
+  return clamp(base + music + balancedBonus, 0, 100);
 }
 
 /** How well the whole package (script, key talent, budget) suits the chosen genre. */

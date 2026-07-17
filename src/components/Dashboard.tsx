@@ -130,6 +130,16 @@ export function Dashboard() {
           actionLabel: 'Open project',
           onAction: () => dispatch({ type: 'VIEW_PRODUCTION', productionId: production.id }),
         });
+      } else if (production.testScreeningPendingChoice) {
+        items.push({
+          id: `${production.id}-screening`,
+          tone: 'urgent',
+          eyebrow: 'Decision required',
+          title,
+          detail: 'A test screening is in and waiting on your response before post-production can wrap.',
+          actionLabel: 'Open project',
+          onAction: () => dispatch({ type: 'VIEW_PRODUCTION', productionId: production.id }),
+        });
       } else if (status === 'finished') {
         items.push({
           id: `${production.id}-wrapped`,
@@ -340,18 +350,19 @@ export function Dashboard() {
                   const photography = production.photography;
                   if (!photography) return null;
 
-                  const statusLabel = photography.status === 'awaiting-choice'
+                  const statusLabel = photography.status === 'awaiting-choice' || production.testScreeningPendingChoice
                     ? 'Decision required'
                     : photography.status === 'finished'
                       ? production.postProductionChoices
                         ? 'Awaiting release'
                         : 'Ready for post-production'
                       : 'Principal photography';
+                  const statusClass = production.testScreeningPendingChoice ? 'awaiting-choice' : photography.status;
 
                   return (
                     <article className="dashboard-project-row" key={production.id}>
                       <div className="dashboard-project-main">
-                        <span className={`dashboard-status-pill dashboard-status-${photography.status}`}>
+                        <span className={`dashboard-status-pill dashboard-status-${statusClass}`}>
                           {statusLabel}
                         </span>
                         <strong>{production.title || 'Untitled Film'}</strong>

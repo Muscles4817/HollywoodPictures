@@ -233,7 +233,19 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // (engine/production.ts:computeRecommendedPostProductionDays). A v38 save's
 // FilmDraft entries have no such field at all - no migration code, same as
 // every past shape change here.
-const SAVE_KEY = 'hollywood-pictures-save-v39';
+// v39 -> v40 (docs/DESIGN_REVIEW_post_production_redesign.md, Phase B):
+// FilmDraft's postProductionEstimatedCompletionDay was renamed to
+// postProductionScreeningReadyDay (see that field's own doc comment,
+// types/index.ts, for why), and FilmDraft gained two required new fields -
+// testScreeningPendingChoice: PendingEventChoice | null and
+// testScreeningResolved: boolean - for the new test-screening pending
+// decision (engine/testScreening.ts). PostProductionChoices also lost its
+// old testScreeningResponse field, retired in favor of the new decision. A
+// v39 save's FilmDraft entries have the old field name and neither new
+// field, and postProductionChoices (if already set) still carries the old
+// testScreeningResponse key - no migration code, same as every past shape
+// change here.
+const SAVE_KEY = 'hollywood-pictures-save-v40';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

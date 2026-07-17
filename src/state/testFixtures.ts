@@ -7,12 +7,13 @@
 // already exercised elsewhere; this milestone's tests are about box office
 // settlement, not wizard-flow correctness, so a draft assembled directly is
 // both faster and more focused than driving 20+ reducer actions per test.
-import type { Asset, FilmDraft, MarketingChoices, PhotographyState, PostProductionChoices, ProductionChoices } from '../types';
+import type { Asset, FilmDraft, MarketingChoices, PhotographyState, ProductionChoices } from '../types';
 import { createDraftFromAsset, createInitialStudio, type GameState } from './gameState';
 import { generateScriptOptions } from '../engine/scriptGenerator';
 import { generateTalentCandidates, generateTalentPool } from '../engine/talentGenerator';
 import { withRng, type RandomFn } from '../engine/random';
 import { playerDraftToProject } from '../engine/project';
+import { DEFAULT_POST_PRODUCTION_CHOICES } from '../data/postProduction';
 
 const PRODUCTION_CHOICES: ProductionChoices = {
   contingencyAmount: 500_000,
@@ -20,13 +21,6 @@ const PRODUCTION_CHOICES: ProductionChoices = {
   practicalEffectsAmount: 500_000,
   vfxAmount: 500_000,
   runtimeIntensity: 0.5,
-};
-
-const POST_PRODUCTION_CHOICES: PostProductionChoices = {
-  editStyle: 'Balanced',
-  musicFocus: 'Standard',
-  testScreeningResponse: 'Ignore',
-  finalCutFocus: 'Trailer-focused',
 };
 
 function finishedPhotography(recommendedDays: number): PhotographyState {
@@ -73,7 +67,7 @@ export function buildReadyDraft(rng: RandomFn, marketingOverrides: Partial<Marke
     productionChoices: PRODUCTION_CHOICES,
     greenlitOnDay: 1,
     photography: finishedPhotography(40),
-    postProductionChoices: POST_PRODUCTION_CHOICES,
+    postProductionChoices: DEFAULT_POST_PRODUCTION_CHOICES,
     marketingChoices: defaultMarketingChoices(marketingOverrides),
   };
 }

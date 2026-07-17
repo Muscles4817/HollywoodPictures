@@ -27,7 +27,7 @@ import { logAmount } from './interpolate';
 import { STAGE_DURATIONS } from '../data/schedule';
 import { GENRE_PROFILES } from '../data/genres';
 import { SHOOTING_BUDGET_RANGE, ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../data/production';
-import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../data/postProduction';
+import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../data/postProduction';
 import { RELEASE_TYPE_PROFILES, MARKETING_SPEND_RANGE } from '../data/release';
 import { clamp, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
 import { deriveReleaseWindowFromDay } from './calendar';
@@ -36,7 +36,6 @@ import { computeCompetitiveCrowding, computeRivalReleaseStrength, type UpcomingR
 const GENRES = Object.keys(GENRE_PROFILES) as Array<keyof typeof GENRE_PROFILES>;
 const EDIT_STYLES = Object.keys(EDIT_STYLE_PROFILES) as PostProductionChoices['editStyle'][];
 const MUSIC_FOCI = Object.keys(MUSIC_FOCUS_PROFILES) as PostProductionChoices['musicFocus'][];
-const TEST_SCREENING_RESPONSES = Object.keys(TEST_SCREENING_PROFILES) as PostProductionChoices['testScreeningResponse'][];
 const FINAL_CUT_FOCI = Object.keys(FINAL_CUT_FOCUS_PROFILES) as PostProductionChoices['finalCutFocus'][];
 const RELEASE_TYPES = Object.keys(RELEASE_TYPE_PROFILES) as MarketingChoices['releaseType'][];
 
@@ -673,7 +672,6 @@ function startRivalProductionFromWonScript(
   const postProductionChoices: PostProductionChoices = {
     editStyle: pick(rng, EDIT_STYLES),
     musicFocus: pick(rng, MUSIC_FOCI),
-    testScreeningResponse: pick(rng, TEST_SCREENING_RESPONSES),
     finalCutFocus: pick(rng, FINAL_CUT_FOCI),
   };
   const marketingChoices: MarketingChoices = {
@@ -687,8 +685,7 @@ function startRivalProductionFromWonScript(
     computeTalentCost(talent) +
     computeProductionBudgetCost(productionChoices) +
     productionChoices.contingencyAmount +
-    computeMarketingCost(marketingChoices) +
-    TEST_SCREENING_PROFILES[postProductionChoices.testScreeningResponse].cost;
+    computeMarketingCost(marketingChoices);
   if (cost > rival.cash) return null;
 
   // Per-assignment, not per-role-then-profession: Lead Actor and Supporting

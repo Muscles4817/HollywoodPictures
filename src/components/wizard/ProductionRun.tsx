@@ -235,6 +235,18 @@ export function ProductionRun() {
             )}
           </div>
 
+          {photography.status === 'finished' && draft.testScreeningPendingChoice && (
+            <OnSetDecisionCard
+              pendingChoice={draft.testScreeningPendingChoice}
+              talent={draft.talent.map((a) => a.person)}
+              talentPool={state.talentPool}
+              script={draft.script}
+              totalDays={state.totalDays}
+              pausedMessage="Post-production can't wrap until you respond to the test screening."
+              onChoose={(choiceId) => dispatch({ type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId, productionId: shownId! })}
+            />
+          )}
+
           {photography.status === 'finished' && (
             <>
               <div className="row">

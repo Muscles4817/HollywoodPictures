@@ -6,6 +6,7 @@ import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } fr
 import { professionForProductionRole } from '../data/helpers';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
 import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent, resolveEventChoice } from '../engine/production';
+import { generateTestScreeningPendingChoice } from '../engine/testScreening';
 import { computeDailyContingencyBurn, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
 import { getTypicalSalaryForRole, withCommitment } from '../engine/person';
 import { adaptRecommendationsToProductionChoices } from '../engine/productionChoicesAdapter';
@@ -319,6 +320,34 @@ function resolveChoiceOnDraft(
   };
 }
 
+/**
+ * Fires the one test screening a film ever gets, the moment totalDaysAfter
+ * reaches its postProductionScreeningReadyDay - the same "PendingEventChoice
+ * surfaces through the calendar tick" shape PhotographyState.pendingChoice
+ * already uses for on-set events (see engine/testScreening.ts), just
+ * checked here instead of rolled from data/productionEvents.ts, since this
+ * fires after photography is already 'finished' rather than during a shoot
+ * day. Applied to the focused draft and every backgrounded one at every
+ * calendar-advancing reducer case below (docs/DESIGN_REVIEW_post_production_redesign.md
+ * section 2) - a no-op for anything not finished shooting, not yet at its
+ * ready day, or already resolved/pending (testScreeningResolved is what
+ * stops this from re-firing once the same field, now advanced past its
+ * post-screening meaning, happens to reach totalDaysAfter a second time).
+ */
+function checkTestScreeningReadiness(draft: FilmDraft, totalDaysAfter: number, rng: RandomFn): FilmDraft {
+  if (
+    !draft.photography ||
+    draft.photography.status !== 'finished' ||
+    draft.postProductionScreeningReadyDay === null ||
+    totalDaysAfter < draft.postProductionScreeningReadyDay ||
+    draft.testScreeningResolved ||
+    draft.testScreeningPendingChoice
+  ) {
+    return draft;
+  }
+  return { ...draft, testScreeningPendingChoice: generateTestScreeningPendingChoice(draft, rng) };
+}
+
 // Talent salary, the non-contingency production budget, and the contingency
 // reserve are charged/settled as production actually happens (BEGIN_PHOTOGRAPHY,
 // resolveChoiceOnDraft, FINISH_PHOTOGRAPHY, below) - only script cost, event
@@ -352,10 +381,18 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         // experiences time through, unlike the occasional multi-day jumps
         // GREENLIGHT_PROJECT/SCHEDULE_RELEASE/etc cause.
         const tickedFocusedDraft = focusedDraft
-          ? tickCastingCalls(focusedDraft, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng)
+          ? checkTestScreeningReadiness(
+              tickCastingCalls(focusedDraft, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng),
+              totalDaysAfter,
+              rng,
+            )
           : null;
         const tickedProductionsInProgress = productionsInProgress.map((d) =>
-          tickCastingCalls(d, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng),
+          checkTestScreeningReadiness(
+            tickCastingCalls(d, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng),
+            totalDaysAfter,
+            rng,
+          ),
         );
         return { settlement, productionsInProgress: tickedProductionsInProgress, focusedDraft: tickedFocusedDraft };
       });
@@ -514,7 +551,9 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
         const settlement = runCalendarSettlement(state, totalDaysAfter, rng);
         const productionsInProgress = settleProductionsInProgress(backgroundedPlayerDrafts(state.projects, state.focusedProjectId), stageDuration, state.talentPool, rng);
-        return { settlement, productionsInProgress };
+        const checkedFocusedDraft = checkTestScreeningReadiness({ ...focusedDraft, furthestStepIndexCharged: fromIdx }, totalDaysAfter, rng);
+        const checkedProductionsInProgress = productionsInProgress.map((d) => checkTestScreeningReadiness(d, totalDaysAfter, rng));
+        return { settlement, productionsInProgress: checkedProductionsInProgress, focusedDraft: checkedFocusedDraft };
       });
       return {
         ...state,
@@ -528,7 +567,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         ...clearTransientView(),
         studio: result.settlement.studio,
         projects: assembleProjects({
-          playerDrafts: [{ ...focusedDraft, furthestStepIndexCharged: fromIdx }, ...result.productionsInProgress],
+          playerDrafts: [result.focusedDraft, ...result.productionsInProgress],
           scheduled: result.settlement.stillScheduled,
           rivalProductions: result.settlement.rivalProductionsInProgress,
           playerFilms: result.settlement.playerFilms,
@@ -739,7 +778,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const totalDaysAfter = state.totalDays + preProductionDays;
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
         const settlement = runCalendarSettlement(state, totalDaysAfter, rng);
-        const productionsInProgress = settleProductionsInProgress(backgroundedPlayerDrafts(state.projects, state.focusedProjectId), preProductionDays, state.talentPool, rng);
+        const productionsInProgress = settleProductionsInProgress(backgroundedPlayerDrafts(state.projects, state.focusedProjectId), preProductionDays, state.talentPool, rng)
+          .map((d) => checkTestScreeningReadiness(d, totalDaysAfter, rng));
         return { settlement, productionsInProgress };
       });
 
@@ -823,14 +863,16 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         if (rolled && 'pendingChoice' in rolled) {
           const totalDaysAfter = state.totalDays + 1;
           const settlement = runCalendarSettlement(state, totalDaysAfter, rng);
-          const productionsInProgress = settleProductionsInProgress(backgrounded, 1, state.talentPool, rng);
+          const productionsInProgress = settleProductionsInProgress(backgrounded, 1, state.talentPool, rng)
+            .map((p) => checkTestScreeningReadiness(p, totalDaysAfter, rng));
           return { kind: 'pendingChoice' as const, pendingChoice: rolled.pendingChoice, totalDaysAfter, settlement, productionsInProgress };
         }
         const event = rolled?.event ?? null;
         const daysAdvanced = 1 + (event?.delayDaysDelta ?? 0);
         const totalDaysAfter = state.totalDays + daysAdvanced;
         const settlement = runCalendarSettlement(state, totalDaysAfter, rng);
-        const productionsInProgress = settleProductionsInProgress(backgrounded, daysAdvanced, state.talentPool, rng);
+        const productionsInProgress = settleProductionsInProgress(backgrounded, daysAdvanced, state.talentPool, rng)
+          .map((p) => checkTestScreeningReadiness(p, totalDaysAfter, rng));
         return { kind: 'event' as const, event, daysAdvanced, totalDaysAfter, settlement, productionsInProgress };
       });
 
@@ -923,10 +965,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         const event = resolveEventChoice(pendingChoice, action.choiceId, rng);
         const totalDaysAfter = state.totalDays + event.delayDaysDelta;
         const settlement = runCalendarSettlement(state, totalDaysAfter, rng);
-        const productionsInProgress = settleProductionsInProgress(otherBackgrounded, event.delayDaysDelta, state.talentPool, rng);
-        return { event, totalDaysAfter, settlement, productionsInProgress };
+        const productionsInProgress = settleProductionsInProgress(otherBackgrounded, event.delayDaysDelta, state.talentPool, rng)
+          .map((p) => checkTestScreeningReadiness(p, totalDaysAfter, rng));
+        const checkedFocusedDraft = focusedDraft ? checkTestScreeningReadiness(focusedDraft, totalDaysAfter, rng) : null;
+        return { event, totalDaysAfter, settlement, productionsInProgress, checkedFocusedDraft };
       });
-      const { event, totalDaysAfter, settlement, productionsInProgress } = result;
+      const { event, totalDaysAfter, settlement, productionsInProgress, checkedFocusedDraft } = result;
 
       const { draft: resolvedTarget, cashDelta } = resolveChoiceOnDraft(target, pendingChoice, action.choiceId, event, state.talentPool);
 
@@ -934,7 +978,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
 
       const playerDraftsAfter = isFocused
         ? [resolvedTarget, ...productionsInProgress]
-        : [...(focusedDraft ? [focusedDraft] : []), ...productionsInProgress, resolvedTarget];
+        : [...(checkedFocusedDraft ? [checkedFocusedDraft] : []), ...productionsInProgress, resolvedTarget];
 
       return {
         ...state,
@@ -967,13 +1011,13 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const target = asPlayerDraft(findProject(state.projects, action.productionId));
       if (!target?.photography || target.photography.status !== 'in-progress' || !target.productionChoices) return state;
       const contingencySettlement = target.productionChoices.contingencyAmount - target.photography.runningCost;
-      // Post-Production Redesign, Phase A (docs/DESIGN_REVIEW_post_production_redesign.md
-      // section 1) - computed exactly once, here, same "at the moment this
-      // stage's clock actually starts" timing PhotographyState.recommendedDays
+      // Post-Production Redesign, Phase A/B (docs/DESIGN_REVIEW_post_production_redesign.md
+      // sections 1-2) - computed exactly once, here, same "at the moment
+      // this stage's clock actually starts" timing PhotographyState.recommendedDays
       // itself uses at BEGIN_PHOTOGRAPHY. Not recomputed anywhere else -
-      // FilmDraft.postProductionEstimatedCompletionDay is a snapshot, not a
-      // live reading.
-      const postProductionEstimatedCompletionDay =
+      // FilmDraft.postProductionScreeningReadyDay is a snapshot, not a live
+      // reading, until RESOLVE_TEST_SCREENING_CHOICE advances it once.
+      const postProductionScreeningReadyDay =
         state.totalDays + computeRecommendedPostProductionDays(target.talent, target.productionChoices);
       return {
         ...state,
@@ -981,7 +1025,50 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         projects: replaceDraft(state.projects, {
           ...target,
           photography: { ...target.photography, status: 'finished' },
-          postProductionEstimatedCompletionDay,
+          postProductionScreeningReadyDay,
+        }),
+      };
+    }
+
+    // Resolves FilmDraft.testScreeningPendingChoice - the one test screening
+    // a film ever gets (docs/DESIGN_REVIEW_post_production_redesign.md
+    // section 2). Unlike RESOLVE_EVENT_CHOICE, the resolved cost is charged
+    // immediately, right here, against studio.cash (gated by affordability,
+    // same "cannot-afford" shape GREENLIGHT_PROJECT already uses) rather than
+    // deferred to RELEASE_FILM the way on-set event costs and the old
+    // testScreeningResponse fee both were - see state/selectors.ts's
+    // computeProjectSpendSoFar for the corresponding display note. The
+    // resolved ProductionEvent is still appended to photography.events (with
+    // costDelta zeroed, since it was just charged directly above) purely so
+    // its quality/buzz swing flows through the existing
+    // computeQualityBreakdown/eventsQualityDelta pipeline exactly like any
+    // other on-set event - no parallel scoring path. delayDaysDelta advances
+    // postProductionScreeningReadyDay itself, which is safe to reuse for a
+    // second meaning ("revised completion estimate") specifically because
+    // testScreeningResolved guarantees only one screening ever fires per
+    // film (see checkTestScreeningReadiness above). Never reopens
+    // `photography` (stays 'finished') - Pickups/Major Reshoots are
+    // deliberately abstract outcomes this phase, not a live second shoot.
+    case 'RESOLVE_TEST_SCREENING_CHOICE': {
+      const target = asPlayerDraft(findProject(state.projects, action.productionId));
+      if (!target?.photography || !target.testScreeningPendingChoice || target.postProductionScreeningReadyDay === null) {
+        return state;
+      }
+      const pendingChoice = target.testScreeningPendingChoice;
+      const { result: rolled, nextSeed } = withRng(state.rngSeed, (rng) => resolveEventChoice(pendingChoice, action.choiceId, rng));
+
+      if (state.studio.cash < rolled.costDelta) return state;
+
+      return {
+        ...state,
+        rngSeed: nextSeed,
+        studio: { ...state.studio, cash: state.studio.cash - rolled.costDelta },
+        projects: replaceDraft(state.projects, {
+          ...target,
+          photography: { ...target.photography, events: [...target.photography.events, { ...rolled, costDelta: 0 }] },
+          postProductionScreeningReadyDay: target.postProductionScreeningReadyDay + rolled.delayDaysDelta,
+          testScreeningPendingChoice: null,
+          testScreeningResolved: true,
         }),
       };
     }
@@ -1077,7 +1164,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         // not yet reflected in state.projects at dispatch time, so
         // runCalendarSettlement can't derive it the normal way.
         const settlement = runCalendarSettlement(state, totalDaysAfter, rng, [...otherScheduled, { draft: scheduledDraft, releaseDay }]);
-        const productionsInProgress = settleProductionsInProgress(backgrounded, STAGE_DURATIONS.marketing ?? 0, state.talentPool, rng);
+        const productionsInProgress = settleProductionsInProgress(backgrounded, STAGE_DURATIONS.marketing ?? 0, state.talentPool, rng)
+          .map((p) => checkTestScreeningReadiness(p, totalDaysAfter, rng));
         return { settlement, productionsInProgress };
       });
 

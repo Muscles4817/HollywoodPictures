@@ -124,9 +124,15 @@ export interface InboxItems {
 export function deriveInboxItems(projects: Project[], excludeId: string | null): InboxItems {
   const productions = backgroundedPlayerDrafts(projects, excludeId);
   return {
-    awaitingChoice: productions.filter((p) => p.photography?.status === 'awaiting-choice'),
-    wrapped: productions.filter((p) => p.photography?.status === 'finished' && !p.postProductionChoices),
-    parked: productions.filter((p) => p.photography?.status === 'finished' && p.postProductionChoices),
+    // Post-Production Redesign, Phase B - a pending test screening surfaces
+    // here too, alongside an on-set pendingChoice, even for a project that
+    // already has postProductionChoices set (the screening is calendar-
+    // driven, independent of whether the player has ever opened the
+    // Post-Production screen) - see components/common/Inbox.tsx, which picks
+    // whichever of the two a given production actually has pending.
+    awaitingChoice: productions.filter((p) => p.photography?.status === 'awaiting-choice' || p.testScreeningPendingChoice),
+    wrapped: productions.filter((p) => p.photography?.status === 'finished' && !p.testScreeningPendingChoice && !p.postProductionChoices),
+    parked: productions.filter((p) => p.photography?.status === 'finished' && !p.testScreeningPendingChoice && p.postProductionChoices),
     casting: productions
       .filter((p) => !p.photography)
       .map((p) => ({ production: p, calls: castingCallsAwaitingReview(p) }))

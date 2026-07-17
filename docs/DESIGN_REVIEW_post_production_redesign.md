@@ -1,11 +1,14 @@
 # Design Review: Post-Production Redesign — Estimates, Trade-offs, Not a Second Live Process
 
-Status: **Phase A shipped** (§Phasing's own table) - the post-production
-duration estimate exists, is computed once at `FINISH_PHOTOGRAPHY`, and is
-shown to the player as an explicitly-labeled preview on the still-unchanged
-instant Post-Production form. Phases B-D (the pending-decision Test
-Screening, decoupled Marketing, and the Post-Wrap Workspace) remain design
-only - see each phase's own row below. Round 2 of a two-pass review
+Status: **Phases A-B shipped** (§Phasing's own table) - the post-production
+duration estimate exists, is computed once at `FINISH_PHOTOGRAPHY`, and the
+test screening it triggers is a real pending decision (§2), reusing the
+on-set pending-choice machinery end to end. The field it all hangs off was
+renamed `postProductionScreeningReadyDay` during Phase B (see §1's own
+update) - it was never actually "estimated completion," it's "when the test
+screening happens." Phases C-D (decoupled Marketing, the Post-Wrap
+Workspace) remain design only - see each phase's own row below. Round 2 of
+a two-pass review
 (`Post_Production_Redesign_Review.md` was the original proposal; this
 supersedes it with the direction agreed after Round 1's pushback against a
 second live-simulation system). Builds directly on systems already shipped:
@@ -186,71 +189,95 @@ rendering nobody skilled is touching, or vice versa. No `script` parameter
 (dropped from the signature entirely) - the design review's own "avoid
 double-counting complexity runtime/VFX ambition already capture" ruled out
 a `script.complexity` term the way the shoot-day/pre-production siblings
-have one. `FilmDraft.postProductionEstimatedCompletionDay` is set inside
-`FINISH_PHOTOGRAPHY` exactly as designed, and shown on the still-unchanged
-`PostProduction.tsx` form as an explicitly-labeled "(preview)" forecast -
-Phase A deliberately stops there; see §8 for when it becomes the real,
-enforced flow.
+have one. Set inside `FINISH_PHOTOGRAPHY` exactly as designed, and shown on
+the Post-Production form as an explicitly-labeled "(preview)" forecast card.
+
+**Renamed in Phase B**: `FilmDraft.postProductionEstimatedCompletionDay` is
+now `postProductionScreeningReadyDay`. Phase B's own spec caught this before
+implementation - the field never meant "the film is ready for release," it
+meant "the initial cut is ready for a test screening," and Phase B was about
+to grow more consumers of it, so the misleading name got fixed rather than
+preserved for compatibility. The same field carries a second, narrower
+meaning after the one screening a film gets has resolved - see §2's
+Resolution bullet below - which is safe specifically because Phase B is
+scoped to one screening per film, never a second reading of the same field
+under two different questions.
 
 ---
 
-## 2. Test Screening as a pending decision, not a menu
+## 2. Test Screening as a pending decision, not a menu — **Shipped (Phase B)**
 
-Once `totalDays >= postProductionEstimatedCompletionDay`, a test screening
-becomes available - **not** as a form the player navigates to (that's the
-old model), but as a pending decision, structurally identical to an on-set
-event:
+Once `totalDays >= postProductionScreeningReadyDay`, a test screening
+becomes available - not as a form the player navigates to (that was the old
+model), but as a pending decision, structurally identical to an on-set
+event. Shipped essentially as designed below, with the resolutions noted
+inline.
 
-- **The qualitative read** comes from `pickDepartmentBlurb` fed a
-  *provisional* `computeQualityBreakdown` - script/direction/acting/
-  production scores are all knowable at this point (nothing about them
-  depends on post-production choices), but `postProductionScore` itself
-  needs a placeholder, since the whole point is the player hasn't locked
-  those choices in yet. Reads the default `PostProductionChoices` the old
-  form already ships (`Balanced`/`Standard`/`Minor Changes`/
-  `Trailer-focused`) as that placeholder - a test screening genuinely can't
-  know the final cut's exact quality any more than a real one can, so an
-  unremarkable-but-plausible baseline reads as correct, not as a bug to
-  fix later.
+- **The qualitative read** (`engine/testScreening.ts:generateTestScreeningPendingChoice`)
+  comes from `pickDepartmentBlurb` fed a *provisional* `computeQualityBreakdown`
+  - script/direction/acting/production scores are all knowable at this
+  point, but `postProductionScore` itself needs a placeholder, since the
+  whole point is the player hasn't locked those choices in yet. Reads the
+  new shared `DEFAULT_POST_PRODUCTION_CHOICES` (`data/postProduction.ts`)
+  as that placeholder - one exported constant, not a locally duplicated
+  default, used identically by the real Post-Production form, this
+  provisional read, and (later) Phase C's marketing-buzz preview.
 - **The decision itself** is `EventChoiceTemplate[]` with four entries -
-  Release As-Is / Re-edit / Pickups / Major Reshoots - each already
-  expressible in the existing shape: `costRange`, `qualityRange`,
-  `delayDaysRange` (added straight onto the completion estimate), and
-  optionally `buzzRange` (a rough cut leaking as "in trouble" vs. "buzzed
-  about" is a real, cheap flavor addition, not a new mechanic). Release
-  As-Is is the zero-cost, zero-delay, zero-quality-change baseline -
-  exactly what `TEST_SCREENING_PROFILES.Ignore` already is today, just
-  reframed as one of four options instead of the only one with no cost.
-  Re-edit and the existing `Minor Changes`/`Major Changes` tiers are
-  near-direct renames. Pickups and Major Reshoots are the genuinely new
-  tiers - bigger cost/delay/quality swings, and Pickups in particular
-  plausibly wants to touch `FilmDraft.talent` (a recast or an addition),
-  which `resolveChoiceOnDraft` already knows how to do for on-set
-  replacement decisions.
-- **Resolution** reuses `resolveEventChoice`/`resolveChoiceOnDraft`
-  (`engine/production.ts`) as-is for the roll/apply math - they operate on
-  a `PendingEventChoice` and a `FilmDraft`, not on `photography`
-  specifically. What needs writing is a sibling to `RESOLVE_EVENT_CHOICE`
-  (e.g. `RESOLVE_TEST_SCREENING_CHOICE`) with its own guard (checking a
-  new `postProductionPendingChoice` field, or reusing `PendingEventChoice`
-  itself under a new name on `FilmDraft`) rather than modifying
-  `RESOLVE_EVENT_CHOICE`'s existing hard-wired guard - that reducer case
-  earns its narrowness (it's mid-shoot-specific: it also advances
-  `photography.daysElapsed`, which a test screening has no equivalent of).
-- **Surfacing**: this is exactly the shape `Inbox.tsx`/the Dashboard
-  "Staffing" slot already handle - a backgrounded project with something
-  waiting on the player. A test screening ready to review is a new Inbox
-  category (`'awaiting-choice'`-equivalent, matching how a mid-shoot
-  `pendingChoice` already surfaces there today via `OnSetDecisionCard`) -
-  no new UI paradigm, one more branch on a pattern used twice already this
-  session (casting notifications, the Staffing slot).
+  Release As-Is / Re-edit / Pickups / Major Reshoots - `costRange`,
+  `qualityRange`, `delayDaysRange` (added onto `postProductionScreeningReadyDay`
+  itself), and `buzzRange`. Release As-Is is the zero-cost, zero-delay,
+  zero-quality-change baseline, retiring `TEST_SCREENING_PROFILES.Ignore`
+  and the old single-dropdown `testScreeningResponse` field entirely (both
+  removed from `PostProductionChoices`/`data/postProduction.ts`). Re-edit,
+  Pickups, and Major Reshoots are calibrated as a genuine cost/delay/risk
+  ladder - see the completion report for the exact ranges - with Major
+  Reshoots deliberately the only one carrying real downside risk (a
+  negative quality floor), so affording it is never the mathematically
+  obvious pick. All three are `skillSensitive`, reusing
+  `prepareChoicesForInvolvedTalent`/`talentSkillScore` (now exported from
+  `engine/production.ts`) against the film's Editor.
+- **Resolution**: `resolveEventChoice` is reused as-is for the roll math.
+  `resolveChoiceOnDraft` turned out to be genuinely non-reusable once
+  actually read (hard-wired to `photography` mid-shoot semantics -
+  advances `daysElapsed`, expects `status: 'awaiting-choice'`), confirming
+  the design review's own prediction - a new `RESOLVE_TEST_SCREENING_CHOICE`
+  reducer case applies the outcome instead, with one deliberate deviation
+  from on-set events: the resolved cost is charged **immediately** against
+  `studio.cash` (gated by affordability, the same shape `GREENLIGHT_PROJECT`
+  already uses), not deferred to `RELEASE_FILM` the way on-set event costs
+  and the old `testScreeningResponse` fee both were - seeing a real charge
+  land the moment a $2-4.5M Major Reshoots gets picked reads as more honest
+  than a silent promise to pay later. The resolved `ProductionEvent` is
+  still appended to `photography.events` (with `costDelta` zeroed, since it
+  was already charged) purely so its quality/buzz swing flows through the
+  existing `computeQualityBreakdown` pipeline - no parallel scoring path.
+  `testScreeningResolved: boolean` (new `FilmDraft` field) is the explicit
+  guarantee behind "one screening per film" - without it, `totalDays`
+  reaching the same (now-advanced) `postProductionScreeningReadyDay` a
+  second time would be genuinely ambiguous between "never fired" and
+  "already resolved."
+- **Firing**: hooked into a new `checkTestScreeningReadiness` helper
+  (`state/studioReducer.ts`), applied to the focused draft and every
+  backgrounded one at each of the calendar-advancing reducer cases
+  (`ADVANCE_DAY`, `GO_TO_STEP`, `GREENLIGHT_PROJECT`, `ADVANCE_SHOOTING_DAY`,
+  `RESOLVE_EVENT_CHOICE`, `SCHEDULE_RELEASE`) - the same per-draft-tick
+  shape `tickCastingCalls` established for Casting Redesign Phase B, just
+  applied more broadly (every site, not just `ADVANCE_DAY`) since a
+  screening firing on time matters more than a casting call's own
+  real-time-only precedent.
+- **Surfacing**: exactly the shape predicted - `Inbox.tsx`'s existing
+  `awaitingChoice` category now picks either `photography.pendingChoice` or
+  `testScreeningPendingChoice` per production (`engine/project.ts:deriveInboxItems`
+  widened accordingly, since a pending screening can coexist with
+  `postProductionChoices` already being set), and the Dashboard's activity
+  feed/project rows get a dedicated "Decision required" read for it.
+  `OnSetDecisionCard` itself needed exactly one small addition - an
+  optional `pausedMessage` prop overriding its "Filming is paused..." line,
+  since a test screening fires after photography has already wrapped.
 
-Choosing Major Reshoots does **not** reopen live Photography. It's a
-larger entry in the same choice table - a bigger delay, a bigger cost, a
-bigger quality swing, resolved the same instant way every other event
-choice already resolves. Keeping it abstract here is deliberate: giving it
-its own mini-photography-loop would be exactly the "second live
-simulation" Round 1 already ruled out, just relocated instead of avoided.
+Choosing Major Reshoots does **not** reopen live Photography, exactly as
+designed - it's a larger entry in the same choice table, resolved the same
+instant way every other event choice already resolves.
 
 ---
 
@@ -393,7 +420,7 @@ is, not as a dashboard metric changing.
 | Phase | Ships | Player-visible behavior change | Risk |
 |---|---|---|---|
 | **A - Estimated completion, still the old linear flow** ✅ shipped | `computeRecommendedPostProductionDays`; `postProductionEstimatedCompletionDay` set at `FINISH_PHOTOGRAPHY`; Editor/VFX Supervisor skill get their first real read. Old `PostProduction.tsx` form still exists and still works unmodified (same instant `SET_POST_PRODUCTION_CHOICES`, same flat 45/30-day `STAGE_DURATIONS` charges), now showing a clearly-labeled "(preview)" forecast card alongside it rather than being instant. | The estimate is visible and reads real crew skill, but nothing yet forces the player to wait for it - a soft preview of the mechanic before the flow around it changes. | Low - one new formula mirroring two that already exist, one new field, no reducer/UI restructuring. Confirmed: `SAVE_KEY` bumped to v39 with a matching invisibility test, 17 new tests (9 formula, 4 reducer timing/snapshot, 1 persistence, 3 component render), full suite/tsc/oxlint clean. |
-| **B - Test Screening as a real pending decision** | The four-option choice (§2) replaces `testScreeningResponse`'s single dropdown, fires once the estimate's day arrives, uses `pickDepartmentBlurb` for real qualitative feedback, reuses `resolveEventChoice`/`resolveChoiceOnDraft` via a new sibling reducer case. Inbox/Dashboard surfacing for a pending test screening. | The moment post-production stops being a form and starts being something that *happens to* the film, with a real decision attached. | Medium - the provisional-quality wrinkle (§2) and the new reducer case are real, scoped work; no new UI paradigm. |
+| **B - Test Screening as a real pending decision** ✅ shipped | Field renamed `postProductionScreeningReadyDay` (§1). The four-option choice (§2) replaces `testScreeningResponse`'s single dropdown, fires once the ready day arrives (checked at every calendar-advancing reducer case), uses `pickDepartmentBlurb` for real qualitative feedback against the new shared `DEFAULT_POST_PRODUCTION_CHOICES`, reuses `resolveEventChoice` via a new `RESOLVE_TEST_SCREENING_CHOICE` reducer case (cost charged immediately, not deferred). Inbox/Dashboard/ProductionRun/PostProduction surfacing for a pending test screening; "Continue to Marketing" is blocked while one is pending. | The moment post-production stops being a form and starts being something that *happens to* the film, with a real decision attached. | Medium, landed as scoped. `resolveChoiceOnDraft` was confirmed non-reusable as predicted. 26 new tests (7 generator, 9 reducer firing/resolution, 2 Inbox categorization, 5 component render, 1 persistence, plus 2 UI-decision-blocking) on top of the full existing suite; `SAVE_KEY` bumped to v40; full suite/tsc/oxlint clean. |
 | **C - Marketing decoupled, release-window tension live** | Marketing reachable independently of post-production completion (§3); `STAGE_DURATIONS.marketing`/`.post-production` retired; release-window picking reuses the existing crowding UI fed a moving target date (§4). | The core "is this delay worth it" tension actually bites - a Test Screening choice can now visibly threaten a release window the player already committed to. | Medium - mostly sequencing/reachability changes plus the buzz-provisional-defaults wrinkle; the crowding math itself is unchanged. |
 | **D - Post-Wrap Workspace** | Post-production/marketing/release get the same free-navigation shell Cast & Crew/Production/Finance already have (§5); `currentScreenFor` routes a finished-photography draft there instead of the old linear wizard steps. | The post-wrap phase finally *feels* like the same kind of screen the pre-Greenlight side already does - a workspace, not a sequence of forms. | Low-Medium - shell pattern is proven; main work is deciding what Overview shows and wiring existing sections into it, not inventing new mechanics. |
 

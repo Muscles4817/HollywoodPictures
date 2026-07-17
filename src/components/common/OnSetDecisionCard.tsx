@@ -19,6 +19,10 @@ interface OnSetDecisionCardProps {
   script: Script | null;
   totalDays: number;
   onChoose: (choiceId: string) => void;
+  // Overrides the default "Filming is paused..." line for reuse outside an
+  // active shoot (e.g. a test-screening decision, where photography has
+  // already finished) - see components/wizard/PostProduction.tsx.
+  pausedMessage?: string;
 }
 
 /**
@@ -40,7 +44,7 @@ interface OnSetDecisionCardProps {
  * three full profiles on a small screen is still one full card at a time
  * rather than illegibly shrunk text.
  */
-export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, totalDays, onChoose }: OnSetDecisionCardProps) {
+export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, totalDays, onChoose, pausedMessage }: OnSetDecisionCardProps) {
   const involvedTalent = pendingChoice.involvedTalentId ? talent.find((t) => t.id === pendingChoice.involvedTalentId) : undefined;
   const involvedCategory = pendingChoice.involvedRole ? TALENT_PRESENTATION[pendingChoice.involvedRole].category : null;
 
@@ -67,7 +71,7 @@ export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, t
       )}
 
       <p style={{ margin: 0 }}>{pendingChoice.situation}</p>
-      <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>Filming is paused until you pick.</p>
+      <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>{pausedMessage ?? 'Filming is paused until you pick.'}</p>
 
       <div className="stack">
         {regularChoices.map((choice) => (

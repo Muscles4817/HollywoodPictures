@@ -11,7 +11,6 @@ import type {
 } from '../types';
 import { computeAudienceScore, computeBuzzScore, computeCriticScore, computeQualityBreakdown } from './scoring';
 import { computeEventsCostDelta, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
-import { TEST_SCREENING_PROFILES } from '../data/postProduction';
 import { deriveAudienceSimulationFixedState, type SupportedReleaseType } from './audienceSimulationInputs';
 import { deriveCommercialProfile } from './commercialProfile';
 import { advanceOneWeek } from './audienceSimulationStep';
@@ -101,8 +100,13 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
 
   const talentCost = computeTalentCost(input.talent);
   const productionBudgetCost = computeProductionBudgetCost(input.productionChoices);
+  // Post-Production Redesign, Phase B - the old flat testScreeningCost term
+  // is gone. A real test screening's resolved cost is now charged
+  // immediately, at RESOLVE_TEST_SCREENING_CHOICE (state/studioReducer.ts),
+  // the same way GREENLIGHT_PROJECT already charges talent/production cash
+  // up front rather than deferring it - not summed again here, which would
+  // double-charge it.
   const eventsCostDelta = computeEventsCostDelta(input.events);
-  const testScreeningCost = TEST_SCREENING_PROFILES[input.postProductionChoices.testScreeningResponse].cost;
   // input.script.cost is deliberately NOT part of this sum - it's charged
   // once, immediately, at Opportunity acquisition (ACQUIRE_OPPORTUNITY,
   // state/studioReducer.ts), long before a Project (let alone a release)
@@ -112,7 +116,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // price.
   const productionCost = Math.max(
     0,
-    talentCost + productionBudgetCost + input.photographyCost + eventsCostDelta + testScreeningCost,
+    talentCost + productionBudgetCost + input.photographyCost + eventsCostDelta,
   );
   const marketingCost = computeMarketingCost(input.marketingChoices);
   const totalCost = productionCost + marketingCost;

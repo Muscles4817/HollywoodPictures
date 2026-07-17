@@ -14,6 +14,7 @@ import {
 import { studioReducer } from '../state/studioReducer';
 import { buildStateWithReadyDraft, buildReadyDraft, buildReadyAsset } from '../state/testFixtures';
 import { openCastingCall } from './castingCalls';
+import { generateTestScreeningPendingChoice } from './testScreening';
 import { withRng } from './random';
 import type { Film, FilmDraft, RivalProductionInProgress } from '../types';
 
@@ -124,5 +125,23 @@ describe('deriveInboxItems / inboxBadgeCount', () => {
     const items = deriveInboxItems(projects, null);
     const total = items.awaitingChoice.length + items.wrapped.length + items.parked.length + items.casting.length;
     expect(inboxBadgeCount(projects, null)).toBe(total);
+  });
+
+  // Post-Production Redesign, Phase B - a pending test screening surfaces
+  // through the same awaitingChoice category an on-set pendingChoice
+  // already uses (components/common/Inbox.tsx picks whichever of the two a
+  // given production actually has), even though buildReadyDraft's draft
+  // already has postProductionChoices set (the screening is calendar-driven,
+  // independent of whether the player ever opened Post-Production) - so it
+  // must NOT also land in `parked`.
+  it('counts a backgrounded draft with a pending test screening under awaitingChoice, not parked', () => {
+    const base = sampleDraft();
+    const pendingChoice = withRng(4, (rng) => generateTestScreeningPendingChoice(base, rng)).result;
+    const draft = { ...base, id: 'draft-screening', testScreeningPendingChoice: pendingChoice };
+    const projects = [playerDraftToProject(draft)];
+    const items = deriveInboxItems(projects, null);
+    expect(items.awaitingChoice.map((p) => p.id)).toContain('draft-screening');
+    expect(items.parked.map((p) => p.id)).not.toContain('draft-screening');
+    expect(items.wrapped.map((p) => p.id)).not.toContain('draft-screening');
   });
 });

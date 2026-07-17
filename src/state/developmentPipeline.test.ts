@@ -374,7 +374,7 @@ describe('no double-charging: the script cost is charged exactly once, at acquis
     s = studioReducer(s, { type: 'GO_TO_STEP', step: 'post-production' });
     s = studioReducer(s, {
       type: 'SET_POST_PRODUCTION_CHOICES',
-      choices: { editStyle: 'Balanced', musicFocus: 'Standard', testScreeningResponse: 'Ignore', finalCutFocus: 'Trailer-focused' },
+      choices: { editStyle: 'Balanced', musicFocus: 'Standard', finalCutFocus: 'Trailer-focused' },
     });
     s = studioReducer(s, { type: 'GO_TO_STEP', step: 'marketing' });
     s = studioReducer(s, {

@@ -132,7 +132,9 @@ export function createDraftFromAsset(asset: Asset, talentTargetPriceByRole: Part
     greenlitOnDay: null,
     photography: null,
     furthestStepIndexCharged: -1,
-    postProductionEstimatedCompletionDay: null,
+    postProductionScreeningReadyDay: null,
+    testScreeningPendingChoice: null,
+    testScreeningResolved: false,
     postProductionChoices: null,
     marketingChoices: null,
     results: null,
@@ -234,6 +236,16 @@ export type GameAction =
   // the Inbox passes the backgrounded production's own id).
   | { type: 'RESOLVE_EVENT_CHOICE'; choiceId: string; productionId: string }
   | { type: 'FINISH_PHOTOGRAPHY'; productionId: string }
+  // Post-Production Redesign, Phase B (docs/DESIGN_REVIEW_post_production_redesign.md
+  // section 2) - resolves FilmDraft.testScreeningPendingChoice, same
+  // "productionId names whichever draft this is about" shape RESOLVE_EVENT_CHOICE
+  // uses above, since a screening can just as easily be resolved from the
+  // Inbox for a backgrounded production as from the focused Post-Production
+  // screen. Deliberately its own action rather than broadening
+  // RESOLVE_EVENT_CHOICE - that one stays hard-scoped to `photography`
+  // in-progress/awaiting-choice semantics; this fires *after* photography is
+  // already 'finished' and never reopens it.
+  | { type: 'RESOLVE_TEST_SCREENING_CHOICE'; choiceId: string; productionId: string }
   | { type: 'SET_POST_PRODUCTION_CHOICES'; choices: PostProductionChoices }
   | { type: 'SET_MARKETING_CHOICES'; choices: MarketingChoices }
   // Roadmap Phase 7.2 - replaces the old always-immediate RELEASE_FILM.

@@ -143,7 +143,7 @@ function walkFilmThroughWizard(state: GameState): GameState {
 
   s = studioReducer(s, {
     type: 'SET_POST_PRODUCTION_CHOICES',
-    choices: { editStyle: 'Balanced', musicFocus: 'Standard', testScreeningResponse: 'Ignore', finalCutFocus: 'Trailer-focused' },
+    choices: { editStyle: 'Balanced', musicFocus: 'Standard', finalCutFocus: 'Trailer-focused' },
   });
 
   expect(() => {

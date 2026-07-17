@@ -313,7 +313,7 @@ function rollChoiceOutcome(pending: PendingEventChoice, choice: EventChoiceTempl
  * ProductionRole they were actually cast under, since that's what
  * determines which of their careers is even in play.
  */
-function talentSkillScore(person: Person | undefined, role: ProductionRole | undefined, script: Script | null): number {
+export function talentSkillScore(person: Person | undefined, role: ProductionRole | undefined, script: Script | null): number {
   if (!person || !role) return 50;
   const career = getCareerForRole(person, role);
   if (career && 'skill' in career) return career.skill;
@@ -352,7 +352,7 @@ function adjustDelayForSkill(range: [number, number], skillScore: number): [numb
 }
 
 /** Applies skillSensitive adjustments and {name} interpolation to an involvesRole template's choices, once, at roll time. */
-function prepareChoicesForInvolvedTalent(
+export function prepareChoicesForInvolvedTalent(
   choices: EventChoiceTemplate[],
   talentName: string,
   skillScore: number,

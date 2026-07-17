@@ -3,7 +3,7 @@ import { useStudio } from '../../state/StudioContext';
 import { GENRES } from '../../data/genres';
 import { TARGET_AUDIENCES } from '../../data/audiences';
 import { TONES, TONE_LABELS } from '../../data/tones';
-import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../../data/postProduction';
+import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../../data/postProduction';
 import { RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS, MARKETING_SPEND_RANGE } from '../../data/release';
 import { SHOOTING_BUDGET_RANGE, ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../../data/production';
 import { computeReleaseResults } from '../../engine/releaseFilm';
@@ -36,7 +36,6 @@ import type {
   Script,
   TalentAssignment,
   TargetAudience,
-  TestScreeningResponse,
   Tone,
 } from '../../types';
 import { findAssignedPerson, filterAssignedPeople } from '../../data/helpers';
@@ -61,7 +60,6 @@ import { getDirectorCareer } from '../../engine/person';
 
 const EDIT_STYLES = Object.keys(EDIT_STYLE_PROFILES) as EditStyle[];
 const MUSIC_FOCI = Object.keys(MUSIC_FOCUS_PROFILES) as MusicFocus[];
-const TEST_SCREENING_RESPONSES = Object.keys(TEST_SCREENING_PROFILES) as TestScreeningResponse[];
 const FINAL_CUT_FOCI = Object.keys(FINAL_CUT_FOCUS_PROFILES) as FinalCutFocus[];
 const RELEASE_TYPES = Object.keys(RELEASE_TYPE_PROFILES) as ReleaseType[];
 const RELEASE_WINDOWS = Object.keys(RELEASE_WINDOW_GENRE_BONUS) as ReleaseWindow[];
@@ -249,19 +247,21 @@ export function OutcomeInspector() {
   // (PhotographyState.runningCost) - not stored on Film, but exactly
   // recoverable by subtraction: every other component of
   // FilmResults.productionCost (talent, production budget, real events'
-  // cost deltas, test screening) is already reproduced verbatim from the
-  // Film's own stored fields, so whatever's left over after subtracting
-  // those from the stored productionCost must be the photography cost that
-  // was originally charged. Was previously hardcoded to 0, silently making
-  // every loaded film's Total Cost/Profit read lower than its real release
-  // - clamped at 0 for the (essentially unreachable) edge case where the
-  // original sum itself clamped there first (engine/releaseFilm.ts).
+  // cost deltas) is already reproduced verbatim from the Film's own stored
+  // fields, so whatever's left over after subtracting those from the stored
+  // productionCost must be the photography cost that was originally
+  // charged. Was previously hardcoded to 0, silently making every loaded
+  // film's Total Cost/Profit read lower than its real release - clamped at
+  // 0 for the (essentially unreachable) edge case where the original sum
+  // itself clamped there first (engine/releaseFilm.ts). No longer subtracts
+  // a testScreeningCost term (Post-Production Redesign, Phase B) - that
+  // cost is charged immediately at resolution now, never part of
+  // productionCost in the first place.
   function photographyCostForFilm(film: Film): number {
     const talentCost = computeTalentCost(film.talent);
     const productionBudgetCost = computeProductionBudgetCost(film.productionChoices);
     const eventsCostDelta = computeEventsCostDelta(film.events);
-    const testScreeningCost = TEST_SCREENING_PROFILES[film.postProductionChoices.testScreeningResponse].cost;
-    return Math.max(0, film.results.productionCost - talentCost - productionBudgetCost - eventsCostDelta - testScreeningCost);
+    return Math.max(0, film.results.productionCost - talentCost - productionBudgetCost - eventsCostDelta);
   }
 
   function loadFilm(film: Film) {
@@ -685,7 +685,6 @@ export function OutcomeInspector() {
         <h2 style={{ margin: 0 }}>Post-Production</h2>
         <SelectRow label="Edit Style" value={postProductionChoices.editStyle} options={EDIT_STYLES} onChange={(v) => setPostProductionChoices({ ...postProductionChoices, editStyle: v })} />
         <SelectRow label="Music Focus" value={postProductionChoices.musicFocus} options={MUSIC_FOCI} onChange={(v) => setPostProductionChoices({ ...postProductionChoices, musicFocus: v })} />
-        <SelectRow label="Test Screening" value={postProductionChoices.testScreeningResponse} options={TEST_SCREENING_RESPONSES} onChange={(v) => setPostProductionChoices({ ...postProductionChoices, testScreeningResponse: v })} />
         <SelectRow label="Final Cut Focus" value={postProductionChoices.finalCutFocus} options={FINAL_CUT_FOCI} onChange={(v) => setPostProductionChoices({ ...postProductionChoices, finalCutFocus: v })} />
       </div>
 

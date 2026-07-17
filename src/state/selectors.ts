@@ -1,6 +1,5 @@
 import type { Asset, Film, FilmDraft, Genre, ProductionRole, Project, RivalStudio, WizardStep } from '../types';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
-import { TEST_SCREENING_PROFILES } from '../data/postProduction';
 import { GENRE_PROFILES } from '../data/genres';
 import { productionRequirementTags } from '../engine/scriptPresentation';
 import { asFilm, asPlayerDraft, asScheduled, asRivalProduction, findProject, projectId } from '../engine/project';
@@ -66,9 +65,6 @@ export function computeCommittedSpend(draft: FilmDraft | null): number {
     }
   } else {
     total += computeEventsCostDelta(draft.photography.events);
-  }
-  if (draft.postProductionChoices) {
-    total += TEST_SCREENING_PROFILES[draft.postProductionChoices.testScreeningResponse].cost;
   }
   if (draft.marketingChoices) total += computeMarketingCost(draft.marketingChoices);
 
@@ -510,7 +506,12 @@ export function computeProjectSpendSoFar(project: Project, assets: Asset[]): num
   let spend = scriptCostFor(draft.assetId) + computeTalentCost(draft.talent);
   if (draft.productionChoices) spend += computeProductionBudgetCost(draft.productionChoices) + draft.productionChoices.contingencyAmount;
   if (draft.photography) spend += computeEventsCostDelta(draft.photography.events);
-  if (draft.postProductionChoices) spend += TEST_SCREENING_PROFILES[draft.postProductionChoices.testScreeningResponse].cost;
+  // Post-Production Redesign, Phase B - a resolved test-screening choice's
+  // cost is charged immediately, straight out of Studio.cash
+  // (RESOLVE_TEST_SCREENING_CHOICE), not deferred and re-summed here the
+  // way the old blind testScreeningResponse cost used to be - see
+  // engine/testScreening.ts's own note on why its appended ProductionEvent
+  // always carries costDelta: 0.
   if (draft.marketingChoices) spend += computeMarketingCost(draft.marketingChoices);
   return spend;
 }

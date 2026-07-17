@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 //
-// Post-Production Redesign, Phase A
-// (docs/DESIGN_REVIEW_post_production_redesign.md section 1) - a real render
-// of the provisional-forecast card, standing in for a manual browser check
-// (see ProjectOverview.test.tsx/ProductionRun.test.tsx for the same
+// Post-Production Redesign, Phase A/B
+// (docs/DESIGN_REVIEW_post_production_redesign.md sections 1-2) - a real
+// render of the provisional-forecast card and the test-screening decision
+// card, standing in for a manual browser check (see
+// ProjectOverview.test.tsx/ProductionRun.test.tsx for the same
 // jsdom+StudioProvider pattern this borrows). Catches exactly the class of
 // bug tsc can't - a null-reference or formatting bug that only surfaces at
-// render time - and specifically guards against the forecast reading as
-// enforced when it isn't yet (Phase A's own explicit restraint).
+// render time.
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { StudioProvider } from '../../state/StudioContext';
@@ -19,18 +19,19 @@ import { generateTalentPool } from '../../engine/talentGenerator';
 import { withRng } from '../../engine/random';
 import { playerDraftToProject } from '../../engine/project';
 import { formatGameDate } from '../../engine/calendar';
+import { generateTestScreeningPendingChoice } from '../../engine/testScreening';
 import type { FilmDraft } from '../../types';
 
 beforeEach(() => {
   localStorage.clear();
 });
 
-function stateOnPostProductionScreen(postProductionEstimatedCompletionDay: number | null): { state: GameState; draft: FilmDraft } {
+function stateOnPostProductionScreen(overrides: Partial<FilmDraft>): { state: GameState; draft: FilmDraft } {
   const studio = createInitialStudio(10_000_000);
   const { result: talentPool, nextSeed } = withRng(1, (rng) => generateTalentPool(rng));
   const draft: FilmDraft = {
     ...withRng(2, (rng) => buildReadyDraft(rng)).result,
-    postProductionEstimatedCompletionDay,
+    ...overrides,
   };
   const state: GameState = {
     studio,
@@ -51,42 +52,84 @@ function stateOnPostProductionScreen(postProductionEstimatedCompletionDay: numbe
 }
 
 describe('PostProduction - the provisional post-production forecast', () => {
-  it('shows the estimated ready date once FINISH_PHOTOGRAPHY has computed one', () => {
-    const { state, draft } = stateOnPostProductionScreen(45);
+  it('shows the screening-ready forecast once FINISH_PHOTOGRAPHY has computed one', () => {
+    const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: 45 });
     saveState(state);
     render(
       <StudioProvider>
         <PostProduction />
       </StudioProvider>,
     );
-    expect(screen.getByText('Estimated Post-Production Length (preview)')).toBeInTheDocument();
+    expect(screen.getByText('Test Screening (preview)')).toBeInTheDocument();
     expect(screen.getByText(`Ready around ${formatGameDate(45)}`)).toBeInTheDocument();
-    void draft;
   });
 
-  it("is honest that the forecast isn't enforced yet - the existing instant form still completes normally", () => {
-    const { state } = stateOnPostProductionScreen(45);
+  it('never describes the estimate as the film being ready for release - it is explicitly the test screening', () => {
+    const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: 45 });
     saveState(state);
     render(
       <StudioProvider>
         <PostProduction />
       </StudioProvider>,
     );
-    expect(screen.getByText(/not enforced yet/)).toBeInTheDocument();
-    expect(screen.getByText(/still completes the moment you continue to Marketing/)).toBeInTheDocument();
-    // The real, still-instant form is still there, untouched.
-    expect(screen.getByText('Edit Style')).toBeInTheDocument();
-    expect(screen.getByText('Continue to Marketing')).toBeInTheDocument();
+    expect(screen.queryByText(/ready for release/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/a test screening will surface here/)).toBeInTheDocument();
   });
 
   it('renders no forecast card at all if the estimate is somehow still null (defensive - should never happen once photography has finished)', () => {
-    const { state } = stateOnPostProductionScreen(null);
+    const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: null });
     saveState(state);
     render(
       <StudioProvider>
         <PostProduction />
       </StudioProvider>,
     );
-    expect(screen.queryByText('Estimated Post-Production Length (preview)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Test Screening (preview)')).not.toBeInTheDocument();
+  });
+
+  it('hides the forecast card once the screening has actually resolved', () => {
+    const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: 45, testScreeningResolved: true });
+    saveState(state);
+    render(
+      <StudioProvider>
+        <PostProduction />
+      </StudioProvider>,
+    );
+    expect(screen.queryByText('Test Screening (preview)')).not.toBeInTheDocument();
+  });
+});
+
+describe('PostProduction - the test-screening decision', () => {
+  it('renders the pending screening as a decision card with all four choices, and blocks Continue to Marketing', () => {
+    const { state, draft } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: 45 });
+    const pendingChoice = withRng(3, (rng) => generateTestScreeningPendingChoice(draft, rng)).result;
+    const stateWithPending: GameState = {
+      ...state,
+      projects: [playerDraftToProject({ ...draft, testScreeningPendingChoice: pendingChoice })],
+    };
+    saveState(stateWithPending);
+    render(
+      <StudioProvider>
+        <PostProduction />
+      </StudioProvider>,
+    );
+    expect(screen.getByText('A Decision Is Needed')).toBeInTheDocument();
+    expect(screen.getByText('Release As-Is')).toBeInTheDocument();
+    expect(screen.getByText('Re-edit')).toBeInTheDocument();
+    expect(screen.getByText('Pickups')).toBeInTheDocument();
+    expect(screen.getByText('Major Reshoots')).toBeInTheDocument();
+    expect(screen.getByText('Continue to Marketing')).toBeDisabled();
+  });
+
+  it('does not render a decision card and leaves Continue to Marketing enabled when nothing is pending', () => {
+    const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: 45 });
+    saveState(state);
+    render(
+      <StudioProvider>
+        <PostProduction />
+      </StudioProvider>,
+    );
+    expect(screen.queryByText('A Decision Is Needed')).not.toBeInTheDocument();
+    expect(screen.getByText('Continue to Marketing')).not.toBeDisabled();
   });
 });

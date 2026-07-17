@@ -1,4 +1,4 @@
-import type { EditStyle, MusicFocus, TestScreeningResponse, FinalCutFocus } from '../types';
+import type { EditStyle, MusicFocus, FinalCutFocus, PostProductionChoices } from '../types';
 
 export const EDIT_STYLE_PROFILES: Record<EditStyle, { criticDelta: number; audienceDelta: number; description: string }> = {
   Commercial: {
@@ -21,22 +21,18 @@ export const MUSIC_FOCUS_PROFILES: Record<MusicFocus, { buzzDelta: number; quali
   Heavy: { buzzDelta: 8, qualityDelta: 8, description: 'A bold, memorable score built to be talked about. Boosts both quality and buzz.' },
 };
 
-export const TEST_SCREENING_PROFILES: Record<
-  TestScreeningResponse,
-  { cost: number; qualityDelta: number; description: string }
-> = {
-  Ignore: {
-    cost: 0, qualityDelta: -5,
-    description: 'Skip the reshoots. Free, but the film ships with whatever problems the test audience flagged.',
-  },
-  'Minor Changes': {
-    cost: 250_000, qualityDelta: 8,
-    description: 'A modest reshoot/re-edit pass based on test audience feedback. Worthwhile quality gain for a moderate cost.',
-  },
-  'Major Changes': {
-    cost: 1_000_000, qualityDelta: 15,
-    description: 'A substantial rework chasing every note from the test screening. Expensive, but the biggest quality gain available here.',
-  },
+// Post-Production Redesign, Phase B - the single source used by the real
+// Post-Production form (components/wizard/PostProduction.tsx), the
+// provisional quality/blurb read a test screening needs before those
+// choices are actually locked in (engine/testScreening.ts), and later
+// Phase C's own marketing-buzz preview. One export, never duplicated -
+// three call sites reading a copy each would risk drifting apart exactly
+// the way Header.tsx/Inbox.tsx's inbox-count logic once did (Casting
+// Redesign, Phase C's own fix for that).
+export const DEFAULT_POST_PRODUCTION_CHOICES: PostProductionChoices = {
+  editStyle: 'Balanced',
+  musicFocus: 'Standard',
+  finalCutFocus: 'Trailer-focused',
 };
 
 export const FINAL_CUT_FOCUS_PROFILES: Record<

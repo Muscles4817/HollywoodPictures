@@ -716,13 +716,20 @@ export interface PhotographyState {
 
 export type EditStyle = 'Commercial' | 'Artistic' | 'Balanced';
 export type MusicFocus = 'Minimal' | 'Standard' | 'Heavy';
-export type TestScreeningResponse = 'Ignore' | 'Minor Changes' | 'Major Changes';
 export type FinalCutFocus = 'Trailer-focused' | 'Critic-focused' | 'Star-focused' | 'Mystery-focused';
 
+// Post-Production Redesign, Phase B (docs/DESIGN_REVIEW_post_production_redesign.md
+// section 2) - the old TestScreeningResponse dropdown ('Ignore'/'Minor
+// Changes'/'Major Changes', picked blind, before any screening happened) is
+// retired. A real test screening now happens - see
+// FilmDraft.testScreeningPendingChoice/testScreeningResolved below - and its
+// resolved quality/buzz outcome reaches the final film the same way an
+// on-set event already does (folded into PhotographyState.events, read by
+// engine/scoring.ts:computeQualityBreakdown's existing eventsQualityDelta
+// term), not through a PostProductionChoices field at all.
 export interface PostProductionChoices {
   editStyle: EditStyle;
   musicFocus: MusicFocus;
-  testScreeningResponse: TestScreeningResponse;
   finalCutFocus: FinalCutFocus;
 }
 
@@ -1106,18 +1113,43 @@ export interface FilmDraft {
   // Back-then-forward round trip from paying the same stage's duration
   // twice; only genuinely new forward progress advances the calendar.
   furthestStepIndexCharged: number;
-  // Post-Production Redesign, Phase A (docs/DESIGN_REVIEW_post_production_redesign.md
-  // section 1) - computed once, at FINISH_PHOTOGRAPHY, from
-  // engine/production.ts:computeRecommendedPostProductionDays, the same
+  // Post-Production Redesign, Phase A/B (docs/DESIGN_REVIEW_post_production_redesign.md
+  // sections 1-2). Renamed from Phase A's postProductionEstimatedCompletionDay
+  // once Phase B gave it a second life: it does NOT mean "the film is ready
+  // for release" - it means "the initial cut is ready for a test screening."
+  // Computed once, at FINISH_PHOTOGRAPHY, from
+  // engine/production.ts:computeRecommendedPostProductionDays (same
   // "estimate computed once and stored" shape PhotographyState.recommendedDays
-  // already uses. null before photography finishes (nothing to estimate
-  // yet) and, once set, never recomputed - a snapshot of the estimate as of
-  // wrap, not a live reading that drifts if talent/choices change
-  // afterward (they can't - Post-Production's own choices are independent
-  // of this). Phase A only *computes and displays* this; the existing
-  // instant Post-Production form and its flat STAGE_DURATIONS charge are
-  // untouched until a later phase actually enforces it.
-  postProductionEstimatedCompletionDay: GameDay | null;
+  // already uses); null before photography finishes. Once the test
+  // screening actually fires and resolves (testScreeningPendingChoice/
+  // testScreeningResolved below), the SAME field gets bumped forward by
+  // whatever delay the player's choice carries - at that point, since only
+  // one screening ever happens per film (Phase B scope), it's read as the
+  // revised estimate for when post-production as a whole wraps, not a
+  // second screening date. Never a live/recomputed reading either way - a
+  // snapshot, updated only by FINISH_PHOTOGRAPHY (setting it) and
+  // RESOLVE_TEST_SCREENING_CHOICE (advancing it).
+  postProductionScreeningReadyDay: GameDay | null;
+  // Post-Production Redesign, Phase B (docs/DESIGN_REVIEW_post_production_redesign.md
+  // section 2) - set once totalDays reaches postProductionScreeningReadyDay
+  // (runCalendarSettlement, state/studioReducer.ts), the same
+  // "PendingEventChoice surfaces through the calendar tick, resolved via its
+  // own dedicated action" shape PhotographyState.pendingChoice already uses
+  // for on-set events - reuses the identical PendingEventChoice/
+  // EventChoiceTemplate types and resolveEventChoice's roll math, but
+  // resolved through RESOLVE_TEST_SCREENING_CHOICE rather than
+  // RESOLVE_EVENT_CHOICE (which stays hard-scoped to `photography`, since
+  // this fires after photography is already 'finished' and never restarts
+  // it - see engine/testScreening.ts).
+  testScreeningPendingChoice: PendingEventChoice | null;
+  // True once the one test screening this film ever gets has been resolved
+  // - the explicit state that stops runCalendarSettlement from generating a
+  // second one purely because postProductionScreeningReadyDay (now advanced
+  // past its original meaning) has, coincidentally, also been reached again.
+  // Phase B is deliberately one screening per film (design review's own
+  // "Repeat screenings" scoping) - this flag is what makes that a real
+  // guarantee rather than an incidental default.
+  testScreeningResolved: boolean;
   postProductionChoices: PostProductionChoices | null;
   marketingChoices: MarketingChoices | null;
   results: FilmResults | null;

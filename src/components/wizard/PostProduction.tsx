@@ -1,41 +1,32 @@
 import { useEffect } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, TEST_SCREENING_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../../data/postProduction';
+import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, FINAL_CUT_FOCUS_PROFILES, DEFAULT_POST_PRODUCTION_CHOICES } from '../../data/postProduction';
 import { pluckDescriptions } from '../../data/describe';
 import { ChoiceGroup } from '../common/ChoiceGroup';
 import { Button } from '../common/Button';
-import { Money } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
+import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { deriveFocusedDraft } from '../../state/selectors';
 import { formatGameDate } from '../../engine/calendar';
-import type { EditStyle, FinalCutFocus, MusicFocus, PostProductionChoices, TestScreeningResponse } from '../../types';
+import type { EditStyle, FinalCutFocus, MusicFocus, PostProductionChoices } from '../../types';
 
 const EDIT_STYLES = Object.keys(EDIT_STYLE_PROFILES) as EditStyle[];
 const MUSIC_FOCUSES = Object.keys(MUSIC_FOCUS_PROFILES) as MusicFocus[];
-const TEST_SCREENING_RESPONSES = Object.keys(TEST_SCREENING_PROFILES) as TestScreeningResponse[];
 const FINAL_CUT_FOCUSES = Object.keys(FINAL_CUT_FOCUS_PROFILES) as FinalCutFocus[];
 
 const EDIT_STYLE_DESCRIPTIONS = pluckDescriptions(EDIT_STYLE_PROFILES);
 const MUSIC_FOCUS_DESCRIPTIONS = pluckDescriptions(MUSIC_FOCUS_PROFILES);
-const TEST_SCREENING_DESCRIPTIONS = pluckDescriptions(TEST_SCREENING_PROFILES);
 const FINAL_CUT_FOCUS_DESCRIPTIONS = pluckDescriptions(FINAL_CUT_FOCUS_PROFILES);
-
-const DEFAULT_CHOICES: PostProductionChoices = {
-  editStyle: 'Balanced',
-  musicFocus: 'Standard',
-  testScreeningResponse: 'Minor Changes',
-  finalCutFocus: 'Trailer-focused',
-};
 
 export function PostProduction() {
   const { state, dispatch } = useStudio();
   const draft = deriveFocusedDraft(state)!;
-  const choices = draft.postProductionChoices ?? DEFAULT_CHOICES;
+  const choices = draft.postProductionChoices ?? DEFAULT_POST_PRODUCTION_CHOICES;
 
   useEffect(() => {
     if (!draft.postProductionChoices) {
-      dispatch({ type: 'SET_POST_PRODUCTION_CHOICES', choices: DEFAULT_CHOICES });
+      dispatch({ type: 'SET_POST_PRODUCTION_CHOICES', choices: DEFAULT_POST_PRODUCTION_CHOICES });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -44,7 +35,7 @@ export function PostProduction() {
     dispatch({ type: 'SET_POST_PRODUCTION_CHOICES', choices: { ...choices, [key]: value } });
   }
 
-  const testScreeningCost = TEST_SCREENING_PROFILES[choices.testScreeningResponse].cost;
+  const pendingScreeningChoice = draft.testScreeningPendingChoice;
 
   return (
     <div className="stack">
@@ -52,15 +43,28 @@ export function PostProduction() {
       <h1>Post-Production</h1>
       {draft.script && <ScriptSummaryCard script={draft.script} />}
 
-      {draft.postProductionEstimatedCompletionDay !== null && (
+      {draft.postProductionScreeningReadyDay !== null && !draft.testScreeningResolved && !pendingScreeningChoice && (
         <div className="card" style={{ borderColor: 'var(--primary)' }}>
-          <div className="stat-label">Estimated Post-Production Length (preview)</div>
-          <div className="stat-value">Ready around {formatGameDate(draft.postProductionEstimatedCompletionDay)}</div>
+          <div className="stat-label">Test Screening (preview)</div>
+          <div className="stat-value">Ready around {formatGameDate(draft.postProductionScreeningReadyDay)}</div>
           <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
-            A forecast based on this film's runtime, VFX ambition, and your Editor/VFX Supervisor's skill - not
-            enforced yet. Post-Production below still completes the moment you continue to Marketing.
+            A forecast based on this film's runtime, VFX ambition, and your Editor/VFX Supervisor's skill - once
+            reached, a test screening will surface here (and in the Inbox/Dashboard if you've moved on) with real
+            audience feedback and a decision on how to respond.
           </p>
         </div>
+      )}
+
+      {pendingScreeningChoice && (
+        <OnSetDecisionCard
+          pendingChoice={pendingScreeningChoice}
+          talent={draft.talent.map((a) => a.person)}
+          talentPool={state.talentPool}
+          script={draft.script}
+          totalDays={state.totalDays}
+          pausedMessage="Marketing can't begin until you respond to the test screening."
+          onChoose={(choiceId) => dispatch({ type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId, productionId: draft.id })}
+        />
       )}
 
       <ChoiceGroup
@@ -79,14 +83,6 @@ export function PostProduction() {
         descriptions={MUSIC_FOCUS_DESCRIPTIONS}
       />
       <ChoiceGroup
-        label="Test Screening Response"
-        options={TEST_SCREENING_RESPONSES}
-        value={choices.testScreeningResponse}
-        onChange={(v) => update('testScreeningResponse', v)}
-        hint="Acting on test screening feedback costs money but improves quality."
-        descriptions={TEST_SCREENING_DESCRIPTIONS}
-      />
-      <ChoiceGroup
         label="Final Marketing Cut"
         options={FINAL_CUT_FOCUSES}
         value={choices.finalCutFocus}
@@ -94,14 +90,15 @@ export function PostProduction() {
         descriptions={FINAL_CUT_FOCUS_DESCRIPTIONS}
       />
 
-      <div className="card">
-        <div className="stat-label">Test Screening Cost</div>
-        <div className="stat-value"><Money amount={testScreeningCost} /></div>
-      </div>
-
       <div className="row-between">
         <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'production' })}>Back</Button>
-        <Button variant="primary" onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'marketing' })}>Continue to Marketing</Button>
+        <Button
+          variant="primary"
+          disabled={!!pendingScreeningChoice}
+          onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'marketing' })}
+        >
+          Continue to Marketing
+        </Button>
       </div>
     </div>
   );

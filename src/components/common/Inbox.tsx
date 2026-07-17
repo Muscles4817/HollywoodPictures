@@ -81,21 +81,40 @@ export function Inbox({ open, onClose }: InboxProps) {
           </p>
         )}
 
-        {awaitingChoice.map((production) =>
-          production.photography?.pendingChoice ? (
-            <div className="stack" key={production.id}>
-              <h3 style={{ margin: 0 }}>{production.title || 'Untitled Film'}</h3>
-              <OnSetDecisionCard
-                pendingChoice={production.photography.pendingChoice}
-                talent={production.talent.map((a) => a.person)}
-                talentPool={state.talentPool}
-                script={production.script}
-                totalDays={state.totalDays}
-                onChoose={(choiceId) => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId, productionId: production.id })}
-              />
-            </div>
-          ) : null,
-        )}
+        {awaitingChoice.map((production) => {
+          if (production.photography?.pendingChoice) {
+            return (
+              <div className="stack" key={production.id}>
+                <h3 style={{ margin: 0 }}>{production.title || 'Untitled Film'}</h3>
+                <OnSetDecisionCard
+                  pendingChoice={production.photography.pendingChoice}
+                  talent={production.talent.map((a) => a.person)}
+                  talentPool={state.talentPool}
+                  script={production.script}
+                  totalDays={state.totalDays}
+                  onChoose={(choiceId) => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId, productionId: production.id })}
+                />
+              </div>
+            );
+          }
+          if (production.testScreeningPendingChoice) {
+            return (
+              <div className="stack" key={production.id}>
+                <h3 style={{ margin: 0 }}>{production.title || 'Untitled Film'}</h3>
+                <OnSetDecisionCard
+                  pendingChoice={production.testScreeningPendingChoice}
+                  talent={production.talent.map((a) => a.person)}
+                  talentPool={state.talentPool}
+                  script={production.script}
+                  totalDays={state.totalDays}
+                  pausedMessage="Post-production can't wrap until you respond to the test screening."
+                  onChoose={(choiceId) => dispatch({ type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId, productionId: production.id })}
+                />
+              </div>
+            );
+          }
+          return null;
+        })}
 
         {wrapped.map((production) => (
           <div className="card stack" key={production.id}>
