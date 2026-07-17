@@ -28,7 +28,7 @@ describe('OnSetDecisionCard - a simple (non-replacement) decision involving one 
       involvedTalentId: director.id, involvedTalentName: director.identity.name, involvedRole: 'Director',
     };
     render(
-      <OnSetDecisionCard pendingChoice={pendingChoice} talent={[director]} talentPool={emptyPool()} script={null} onChoose={() => {}} />,
+      <OnSetDecisionCard pendingChoice={pendingChoice} talent={[director]} talentPool={emptyPool()} script={null} totalDays={1} onChoose={() => {}} />,
     );
     expect(screen.getByText(director.identity.name)).toBeInTheDocument();
     expect(screen.getByText('Currently Director')).toBeInTheDocument();
@@ -52,7 +52,7 @@ describe('OnSetDecisionCard - a replacement (recast) decision', () => {
     };
     const talentPool = { ...emptyPool(), Director: candidates };
     render(
-      <OnSetDecisionCard pendingChoice={pendingChoice} talent={[director]} talentPool={talentPool} script={null} onChoose={() => {}} />,
+      <OnSetDecisionCard pendingChoice={pendingChoice} talent={[director]} talentPool={talentPool} script={null} totalDays={1} onChoose={() => {}} />,
     );
     // The currently-involved director and both candidates each get their own full card.
     expect(screen.getByText(director.identity.name)).toBeInTheDocument();
@@ -76,7 +76,7 @@ describe('OnSetDecisionCard - a replacement (recast) decision', () => {
       involvedTalentId: director.id, involvedTalentName: director.identity.name, involvedRole: 'Director', replacementRole: 'Director',
     };
     render(
-      <OnSetDecisionCard pendingChoice={pendingChoice} talent={[director]} talentPool={emptyPool()} script={null} onChoose={() => {}} />,
+      <OnSetDecisionCard pendingChoice={pendingChoice} talent={[director]} talentPool={emptyPool()} script={null} totalDays={1} onChoose={() => {}} />,
     );
     expect(screen.getByText('Ghost Candidate')).toBeInTheDocument();
   });

@@ -183,6 +183,7 @@ export function ProductionRun() {
               talent={draft.talent.map((a) => a.person)}
               talentPool={state.talentPool}
               script={draft.script}
+              totalDays={state.totalDays}
               onChoose={(choiceId) => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId, productionId: shownId! })}
             />
           )}

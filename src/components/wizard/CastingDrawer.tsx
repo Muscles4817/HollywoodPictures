@@ -7,17 +7,15 @@ import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { computeActorAppeal, resolveOfferResponse, type OfferResponse } from '../../engine/castingAppeal';
 import { describeApplicantInterest, describeOfferRejection } from '../../engine/castingPresentation';
-import { deriveBookedUntil, getTypicalSalaryForRole } from '../../engine/person';
+import { deriveBookedUntil } from '../../engine/person';
 import { formatGameDate } from '../../engine/calendar';
 import { formatMoney } from '../common/Money';
 import { CHARACTER_ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
-import { Money } from '../common/Money';
-import { CompatibilityBadge } from '../common/CompatibilityBadge';
-import { ACTING_STYLE_AXES, ACTING_STYLE_LABELS } from '../../data/actingStyle';
-import type { CastingChannel, Person, ScriptCharacter } from '../../types';
+import { TalentStats } from '../common/TalentStats';
+import type { CastingChannel, Person, Script, ScriptCharacter } from '../../types';
 
 type CastingTab = 'open-casting' | 'direct-approach';
 
@@ -34,19 +32,29 @@ interface CastingDrawerProps {
 }
 
 /**
- * One candidate's own card, shared by both tabs below - Suitability
- * (starred, same 5-axis breakdown as their own ActingStyle), Fame, salary
- * ask, availability, and a one-line reason they're receptive
- * (engine/castingPresentation.ts) - the balance the player is meant to
- * weigh (Casting Redesign Additional Notes, point 2), not just "who's the
- * biggest star." `actionLabel` differs by tab ("Cast" vs "Make Offer") -
- * the underlying resolution (engine/castingAppeal.ts:resolveOfferResponse)
- * is identical either way (design review TL;DR - "one appeal function,
- * three front doors").
+ * One candidate's own card, shared by both tabs below - built on the same
+ * TalentStats every other hiring/casting screen uses (RoleHiringDrawer.tsx,
+ * OnSetDecisionCard.tsx) rather than a second, thinner one-line
+ * implementation that had quietly drifted from it (no Reliability, no Ego,
+ * no age/gender/traits - the exact gap a UI review of this screen surfaced).
+ * `character` gets TalentStats' own character-specific "Role Demands"
+ * badge, the same computeActorCharacterCompatibility score
+ * engine/castingAppeal.ts:ActorAppealFactors.suitability already reads for
+ * `overall` below - never two different numbers claiming to be
+ * "suitability" on the same card. Availability, the InterestedTalent tag,
+ * and the one-line appeal reason (engine/castingPresentation.ts) stay
+ * layered on top, specific to casting rather than hiring in general.
+ * `actionLabel` differs by tab ("Cast" vs "Make Offer") - the underlying
+ * resolution (engine/castingAppeal.ts:resolveOfferResponse) is identical
+ * either way (design review TL;DR - "one appeal function, three front
+ * doors").
  */
 function CandidateCard({
   person,
   role,
+  script,
+  character,
+  totalDays,
   overall,
   channel,
   actionLabel,
@@ -55,30 +63,24 @@ function CandidateCard({
 }: {
   person: Person;
   role: 'Lead Actor' | 'Supporting Actor';
+  script: Script | null;
+  character: ScriptCharacter;
+  totalDays: number;
   overall: ReturnType<typeof computeActorAppeal>;
   channel?: CastingChannel;
   actionLabel: string;
   canAct: boolean;
   onAct: () => void;
 }) {
-  const career = person.careers.actor;
   const bookedUntil = deriveBookedUntil(person.availability.commitments);
   const available = !bookedUntil;
 
   return (
     <Card>
       <div className="card-title">{person.identity.name}</div>
-      <div className="card-subtitle"><Money amount={career ? getTypicalSalaryForRole(person, role) : 0} /></div>
-      <div className="candidate-headline">
-        <div className="candidate-headline-stat">Fame {person.reputation.fame}</div>
-        {career && (
-          <CompatibilityBadge
-            score={overall?.suitability}
-            breakdown={ACTING_STYLE_AXES.map((axis) => ({ label: ACTING_STYLE_LABELS[axis], value: career.actingStyle[axis] }))}
-            defaultLabel="Acting Style"
-          />
-        )}
-        <div className="candidate-headline-stat">{available ? 'Available now' : `Booked until ${formatGameDate(bookedUntil!)}`}</div>
+      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} />
+      <div className="candidate-headline-stat" style={{ marginTop: 4 }}>
+        {available ? 'Available now' : `Booked until ${formatGameDate(bookedUntil!)}`}
       </div>
       {channel === 'InterestedTalent' && (
         <p style={{ margin: '6px 0 0', fontSize: '0.8em', color: 'var(--primary)', fontWeight: 600 }}>
@@ -283,6 +285,9 @@ export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDr
                         key={applicant.person.id}
                         person={applicant.person}
                         role={role}
+                        script={draft.script}
+                        character={character}
+                        totalDays={state.totalDays}
                         overall={appealByPersonId.get(applicant.person.id) ?? null}
                         channel={applicant.channel}
                         actionLabel="Cast"
@@ -309,6 +314,9 @@ export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDr
                   key={person.id}
                   person={person}
                   role={role}
+                  script={draft.script}
+                  character={character}
+                  totalDays={state.totalDays}
                   overall={appealFor(person)}
                   actionLabel="Make Offer"
                   canAct={canActFromHere}

@@ -30,6 +30,7 @@ interface CandidateCardProps {
   category: RoleCategory;
   script: Script | null;
   character: ScriptCharacter | null;
+  totalDays: number;
   selected: boolean;
   disabled: boolean;
   booked: boolean;
@@ -39,13 +40,13 @@ interface CandidateCardProps {
   onTogglePin: () => void;
 }
 
-function CandidateCard({ person, role, category, script, character, selected, disabled, booked, pinned, pinCapped, onSelect, onTogglePin }: CandidateCardProps) {
+function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, onSelect, onTogglePin }: CandidateCardProps) {
   const bookedUntil = deriveBookedUntil(person.availability.commitments);
   const isActor = category === 'actor';
   return (
     <Card selectable selected={selected} disabled={disabled} onClick={onSelect}>
       <div className="card-title">{person.identity.name}</div>
-      <TalentStats person={person} role={role} category={category} script={script} character={character} />
+      <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} />
       <Button
         className="btn-sm"
         variant={pinned ? 'primary' : 'secondary'}
@@ -223,6 +224,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
                 category={profile.category}
                 script={draft.script}
                 character={characterForCandidate(person)}
+                totalDays={state.totalDays}
                 selected={selected}
                 disabled={disabled}
                 booked={booked}
@@ -247,7 +249,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
                       <div className="card-title" style={{ marginBottom: 0 }}>{person.identity.name}</div>
                       <Button variant="text" onClick={() => togglePin(person)}>Unpin</Button>
                     </div>
-                    <TalentStats person={person} role={role} category={profile.category} script={draft.script} character={characterForCandidate(person)} />
+                    <TalentStats person={person} role={role} category={profile.category} script={draft.script} character={characterForCandidate(person)} totalDays={state.totalDays} />
                     <Button
                       variant="primary"
                       style={{ marginTop: 8 }}

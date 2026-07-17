@@ -1,4 +1,4 @@
-import type { ReleaseWindow } from '../types';
+import type { GameDate, ReleaseWindow } from '../types';
 
 /**
  * The in-game calendar is a single running day counter (GameState.totalDays,
@@ -76,11 +76,17 @@ export function totalDaysForMonth(year: number, monthIndex: number): number {
  * just with the day-of-month worked out too.
  */
 export function formatGameDateWithMonth(totalDays: number): string {
+  const { year, month, day } = gameDateFromTotalDays(totalDays);
+  return `Year ${year}, ${MONTH_NAMES[month - 1]} ${day}`;
+}
+
+/** totalDays as a full {year, month, day} GameDate (1-indexed month) - what types/index.ts:getPersonAge needs for "today" to compare a dateOfBirth against. Extracted from formatGameDateWithMonth's own inline day-of-month math once a second caller needed the raw numbers rather than a formatted string. */
+export function gameDateFromTotalDays(totalDays: number): GameDate {
   const { year, dayOfYear } = yearAndDayOfYear(totalDays);
   const monthIndex = monthIndexOfDayOfYear(dayOfYear);
   const daysBeforeMonth = MONTH_LENGTHS.slice(0, monthIndex).reduce((sum, d) => sum + d, 0);
-  const dayOfMonth = dayOfYear - daysBeforeMonth + 1;
-  return `Year ${year}, ${MONTH_NAMES[monthIndex]} ${dayOfMonth}`;
+  const day = dayOfYear - daysBeforeMonth + 1;
+  return { year, month: monthIndex + 1, day };
 }
 
 // 0-indexed calendar month -> the ReleaseWindow it falls in - first-draft,

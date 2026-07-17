@@ -1,6 +1,8 @@
 import { computeTalentCompatibility, computeActorCharacterCompatibility, ACTING_STYLE_TO_CHARACTER_TRAIT } from '../../engine/compatibility';
 import { dominantLean } from '../../engine/recommendation';
 import { getCareerForRole } from '../../engine/person';
+import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../../engine/personTraits';
+import { gameDateFromTotalDays } from '../../engine/calendar';
 import { toneProfileBreakdown } from '../../data/tones';
 import { ENV_LEAN_SHORT, EFFECTS_LEAN_SHORT } from '../../data/productionStyleLabels';
 import { ACTING_STYLE_AXES, ACTING_STYLE_LABELS } from '../../data/actingStyle';
@@ -8,7 +10,15 @@ import { CHARACTER_ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
 import type { RoleCategory } from '../../data/talentPresentation';
 import { Money } from './Money';
 import { CompatibilityBadge } from './CompatibilityBadge';
+import { getPersonAge } from '../../types';
 import type { DirectorCareer, Person, ProductionRole, Script, ScriptCharacter } from '../../types';
+
+// A card only has room for a couple of traits before it starts reading as a
+// stat dump rather than a quick read - same "top few, not everything"
+// judgment call engine/castingPresentation.ts:describeApplicantInterest
+// already makes for appeal factors (APPEAL_MAX_NOTES). Order in
+// deriveTraits isn't meaningful, so this is just "first N", not "top N."
+const MAX_DISPLAYED_TRAITS = 3;
 
 export function talentBreakdown(person: Person, role: ProductionRole): { breakdown: Array<{ label: string; value: number }>; defaultLabel: string } | null {
   const career = getCareerForRole(person, role);
@@ -62,15 +72,24 @@ function characterTraitBreakdown(character: ScriptCharacter): Array<{ label: str
  * whole. null for every non-actor role and for a script with no matching
  * character at that slot (e.g. hiring past requiredLeads).
  */
-export function TalentStats({ person, role, category, script, character = null }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null }) {
+export function TalentStats({ person, role, category, script, character = null, totalDays }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number }) {
   const compatInfo = talentBreakdown(person, role);
   const compatScore = script ? computeTalentCompatibility(person, role, script) : null;
   const characterScore = character ? computeActorCharacterCompatibility(person, character) : null;
   const career = getCareerForRole(person, role);
   const skill = career && 'skill' in career ? career.skill : undefined;
 
+  // Both optional (see PersonIdentity's own comment, types/index.ts) - real,
+  // handcrafted people deliberately carry neither rather than a fabricated
+  // guess, so this line renders only what's actually known, or not at all.
+  const age = getPersonAge(person.identity.dateOfBirth, gameDateFromTotalDays(totalDays));
+  const identityLine = [age !== undefined ? `${age}` : null, person.identity.gender ?? null].filter((v) => v !== null).join(' · ');
+
+  const traits = deriveTraits(person).slice(0, MAX_DISPLAYED_TRAITS);
+
   return (
     <>
+      {identityLine && <div className="candidate-identity-line">{identityLine}</div>}
       <div className="card-subtitle"><Money amount={career?.typicalSalary ?? 0} /></div>
 
       <div className="candidate-headline">
@@ -113,6 +132,16 @@ export function TalentStats({ person, role, category, script, character = null }
         {(category === 'director' || category === 'crew') && <div>Fame: {person.reputation.fame}</div>}
         <div>Ego: {person.personality.ego}</div>
       </div>
+
+      {traits.length > 0 && (
+        <div className="candidate-traits">
+          {traits.map((trait) => (
+            <span key={trait} className="candidate-trait-tag" title={TRAIT_DESCRIPTIONS[trait]}>
+              {TRAIT_LABELS[trait]}
+            </span>
+          ))}
+        </div>
+      )}
     </>
   );
 }

@@ -90,6 +90,7 @@ export function Inbox({ open, onClose }: InboxProps) {
                 talent={production.talent.map((a) => a.person)}
                 talentPool={state.talentPool}
                 script={production.script}
+                totalDays={state.totalDays}
                 onChoose={(choiceId) => dispatch({ type: 'RESOLVE_EVENT_CHOICE', choiceId, productionId: production.id })}
               />
             </div>

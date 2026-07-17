@@ -17,6 +17,7 @@ interface OnSetDecisionCardProps {
   // role, rather than a name and a salary.
   talentPool: Record<TalentProfession, Person[]>;
   script: Script | null;
+  totalDays: number;
   onChoose: (choiceId: string) => void;
 }
 
@@ -39,7 +40,7 @@ interface OnSetDecisionCardProps {
  * three full profiles on a small screen is still one full card at a time
  * rather than illegibly shrunk text.
  */
-export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, onChoose }: OnSetDecisionCardProps) {
+export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, totalDays, onChoose }: OnSetDecisionCardProps) {
   const involvedTalent = pendingChoice.involvedTalentId ? talent.find((t) => t.id === pendingChoice.involvedTalentId) : undefined;
   const involvedCategory = pendingChoice.involvedRole ? TALENT_PRESENTATION[pendingChoice.involvedRole].category : null;
 
@@ -61,7 +62,7 @@ export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, o
         <div className="card">
           <div className="card-title">{involvedTalent.identity.name}</div>
           <div className="card-subtitle">Currently {pendingChoice.involvedRole}</div>
-          <TalentStats person={involvedTalent} role={pendingChoice.involvedRole} category={involvedCategory} script={script} />
+          <TalentStats person={involvedTalent} role={pendingChoice.involvedRole} category={involvedCategory} script={script} totalDays={totalDays} />
         </div>
       )}
 
@@ -87,7 +88,7 @@ export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, o
               <div className="card talent-compare-card">
                 <div className="card-title">{involvedTalent.identity.name}</div>
                 <div className="card-subtitle">Currently {pendingChoice.involvedRole}</div>
-                <TalentStats person={involvedTalent} role={pendingChoice.involvedRole} category={involvedCategory} script={script} />
+                <TalentStats person={involvedTalent} role={pendingChoice.involvedRole} category={involvedCategory} script={script} totalDays={totalDays} />
               </div>
             )}
             {replacementChoices.map((choice) => {
@@ -96,7 +97,7 @@ export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, o
                 <div className="card talent-compare-card" key={choice.id}>
                   <div className="card-title">{choice.replacementCandidateName}</div>
                   {candidate && replacementCategory && replacementRole ? (
-                    <TalentStats person={candidate} role={replacementRole} category={replacementCategory} script={script} />
+                    <TalentStats person={candidate} role={replacementRole} category={replacementCategory} script={script} totalDays={totalDays} />
                   ) : (
                     choice.replacementCandidateSalary !== undefined && (
                       <div className="card-subtitle"><Money amount={choice.replacementCandidateSalary} /></div>

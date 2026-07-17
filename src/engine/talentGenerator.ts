@@ -3,6 +3,8 @@ import type {
   DirectorProductionStyle,
   EffectsMethodKey,
   EnvironmentMethodKey,
+  GameDate,
+  Gender,
   Person,
   PersonCareers,
   TalentProfession,
@@ -15,12 +17,35 @@ import { TONES } from '../data/tones';
 import { ACTING_STYLE_AXES } from '../data/actingStyle';
 import { CREW_CAREER_KEY } from './person';
 import { logAmount, logT } from './interpolate';
-import { clamp, normalizeWeights, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
+import { clamp, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn } from './random';
 
 let nextTalentId = 1;
 
 function randomName(rng: RandomFn): string {
   return `${pick(rng, TALENT_FIRST_NAMES)} ${pick(rng, TALENT_LAST_NAMES)}`;
+}
+
+const GENDERS: readonly Gender[] = ['Male', 'Female', 'NonBinary'];
+
+// TALENT_FIRST_NAMES is a single unisex pool by design (data/talentNames.ts)
+// rather than split by gender, so this is drawn independently rather than
+// correlated to the name already picked - matches how neither the pool nor
+// any name in it was ever meant to imply a gender.
+function generateGender(rng: RandomFn): Gender {
+  return weightedPick(rng, GENDERS, { Male: 1, Female: 1, NonBinary: 0.06 });
+}
+
+// Every generated person is a working professional, so the range skews
+// toward a plausible career-active adult rather than including anyone
+// still a minor - averaging two independent rolls (a triangular rather than
+// flat distribution) keeps the bulk in a normal working-age band without
+// entirely excluding a rare very-young or very-old outlier. Talent pools
+// are only ever generated at RESET_SAVE/a fresh save (both always at
+// GameState.totalDays === 1, Year 1) - see generateTalentPool - so "Year 1"
+// is always genuinely "now" at the moment this runs, not a stale anchor.
+function generateDateOfBirth(rng: RandomFn): GameDate {
+  const age = Math.round((randInt(rng, 20, 68) + randInt(rng, 20, 68)) / 2);
+  return { year: 1 - age, month: randInt(rng, 1, 12), day: randInt(rng, 1, 28) };
 }
 
 // Kept off the 1/100 extremes on purpose (see data/genres.ts for the same
@@ -258,7 +283,7 @@ function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Perso
 
   return {
     id: `talent-${nextTalentId++}`,
-    identity: { name: randomName(rng), appearanceTags: [] },
+    identity: { name: randomName(rng), gender: generateGender(rng), dateOfBirth: generateDateOfBirth(rng), appearanceTags: [] },
     personality: {
       professionalism: reliability,
       ambition: 50,
