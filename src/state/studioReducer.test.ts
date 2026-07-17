@@ -542,3 +542,64 @@ describe('GREENLIGHT_PROJECT - the new lump pre-production time charge', () => {
     expect(after.screen).toBe('workspace');
   });
 });
+
+// Casting Redesign, Phase B (docs/DESIGN_REVIEW_casting_redesign.md
+// sections 1-2) - no dedicated reducer coverage existed for OPEN_CASTING_CALL
+// or the ADVANCE_DAY weekly tick before this.
+function focusedDraftScript(state: GameState) {
+  return asPlayerDraft(findProject(state.projects, state.focusedProjectId))!.script!;
+}
+
+/** A freshly-created project with a script but nobody cast yet - unlike stateReadyToGreenlight, Lead/Supporting Actor are deliberately left open so a casting call actually has room to generate applicants into. */
+function stateWithFreshProject(seed: number, startingCash = 50_000_000): GameState {
+  const { result: asset } = withRng(seed, (rng) => buildReadyAsset(rng));
+  let s = freshWorkspaceState(seed, startingCash);
+  s = { ...s, studio: { ...s.studio, assets: [asset] } };
+  return studioReducer(s, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
+}
+
+describe('OPEN_CASTING_CALL', () => {
+  it('adds a new, empty casting call for the given Character', () => {
+    const s = stateWithFreshProject(300);
+    const character = focusedDraftScript(s).cast.find((c) => c.prominence === 'Lead')!;
+    const after = studioReducer(s, { type: 'OPEN_CASTING_CALL', characterId: character.id, role: 'Lead Actor' });
+    const draft = asPlayerDraft(findProject(after.projects, after.focusedProjectId))!;
+    expect(draft.castingCalls).toHaveLength(1);
+    expect(draft.castingCalls[0].characterId).toBe(character.id);
+    expect(draft.castingCalls[0].applicants).toEqual([]);
+  });
+
+  it('is a no-op if a call is already open for this Character', () => {
+    const s = stateWithFreshProject(301);
+    const character = focusedDraftScript(s).cast.find((c) => c.prominence === 'Lead')!;
+    const once = studioReducer(s, { type: 'OPEN_CASTING_CALL', characterId: character.id, role: 'Lead Actor' });
+    const twice = studioReducer(once, { type: 'OPEN_CASTING_CALL', characterId: character.id, role: 'Lead Actor' });
+    expect(twice).toBe(once);
+  });
+
+  it('is a no-op when nothing is focused', () => {
+    const s = freshWorkspaceState(302);
+    const after = studioReducer(s, { type: 'OPEN_CASTING_CALL', characterId: 'anything', role: 'Lead Actor' });
+    expect(after).toBe(s);
+  });
+});
+
+describe('ADVANCE_DAY - Open Casting calls tick on the focused draft', () => {
+  it('accrues applicants on the focused, still-in-Development draft once a week passes', () => {
+    const s = stateWithFreshProject(303);
+    const character = focusedDraftScript(s).cast.find((c) => c.prominence === 'Lead')!;
+    const withCall = studioReducer(s, { type: 'OPEN_CASTING_CALL', characterId: character.id, role: 'Lead Actor' });
+    const aWeekLater = advanceDays(withCall, 8);
+    const draft = asPlayerDraft(findProject(aWeekLater.projects, aWeekLater.focusedProjectId))!;
+    expect(draft.castingCalls[0].applicants.length).toBeGreaterThan(0);
+  });
+
+  it("doesn't touch castingCalls at all before a week has passed", () => {
+    const s = stateWithFreshProject(304);
+    const character = focusedDraftScript(s).cast.find((c) => c.prominence === 'Lead')!;
+    const withCall = studioReducer(s, { type: 'OPEN_CASTING_CALL', characterId: character.id, role: 'Lead Actor' });
+    const aFewDaysLater = advanceDays(withCall, 3);
+    const draft = asPlayerDraft(findProject(aFewDaysLater.projects, aFewDaysLater.focusedProjectId))!;
+    expect(draft.castingCalls[0].applicants).toEqual([]);
+  });
+});

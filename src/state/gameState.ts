@@ -123,6 +123,7 @@ export function createDraftFromAsset(asset: Asset, talentTargetPriceByRole: Part
     script: asset.script,
     talent: [],
     talentTargetPriceByRole,
+    castingCalls: [],
     environmentStrategy: null,
     environmentAmbition: null,
     effectsStrategy: null,
@@ -183,6 +184,11 @@ export type GameAction =
   | { type: 'TOGGLE_TALENT_FOR_ROLE'; role: ProductionRole; person: Person }
   | { type: 'SET_TALENT_TARGET_PRICE'; role: ProductionRole; price: number }
   | { type: 'SET_TALENT_BUDGET_SPLIT'; totalBudget: number }
+  // Casting Redesign, Phase B (docs/DESIGN_REVIEW_casting_redesign.md
+  // section 1) - opens a new Open Casting call for one Lead/Supporting
+  // Character. No-ops if one's already open for this character (see the
+  // reducer case) - there's only ever at most one call per character.
+  | { type: 'OPEN_CASTING_CALL'; characterId: string; role: 'Lead Actor' | 'Supporting Actor' }
   // Replaces the old SET_PRODUCTION_CHOICES - the player now edits Strategy/
   // Ambition values directly (Plan Production, docs/DESIGN.md), and the
   // reducer derives ProductionChoices from them via

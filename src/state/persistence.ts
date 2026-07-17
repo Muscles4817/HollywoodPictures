@@ -205,7 +205,13 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // (on every Asset, FilmDraft, Film, and RivalProductionInProgress) have the
 // old `setting` field and no `cast` at all - no migration code, same as
 // every past shape change here.
-const SAVE_KEY = 'hollywood-pictures-save-v35';
+// v35 -> v36 (docs/DESIGN_REVIEW_casting_redesign.md, Phase B): FilmDraft
+// gained a required castingCalls: CastingCall[] - Open Casting calls for a
+// script's Lead/Supporting characters now live on the draft itself, ticking
+// weekly (engine/castingCalls.ts). A v35 save's FilmDraft entries have no
+// `castingCalls` at all - no migration code, same as every past shape
+// change here.
+const SAVE_KEY = 'hollywood-pictures-save-v36';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

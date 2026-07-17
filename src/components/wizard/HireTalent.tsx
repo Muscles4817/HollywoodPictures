@@ -18,6 +18,7 @@ import { ScoreBar } from '../common/ScoreBar';
 import { Money, formatMoney } from '../common/Money';
 import { CompatibilityBadge } from '../common/CompatibilityBadge';
 import { RoleHiringDrawer } from './RoleHiringDrawer';
+import { OpenCastingDrawer } from './OpenCastingDrawer';
 import { findAssignedPerson } from '../../data/helpers';
 import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole } from '../../engine/person';
 import type { EffectsMethodKey, EnvironmentMethodKey, Person, ProductionRole, Script, ScriptCharacter } from '../../types';
@@ -147,12 +148,17 @@ function castableCharacters(script: Script): Array<{ character: ScriptCharacter;
  * Replaces the old aggregate "Lead Actor"/"Supporting Actor" tiles with one
  * row per Character - "We're still looking for our villain," not "Lead
  * Actor 0/1" (Casting Redesign design review, section 8/Additional Notes
- * point 1). Opening any row still opens the same per-role RoleHiringDrawer
- * as before (unchanged mechanism - see the design doc's own note on why
- * slot-targeted casting stays out of scope for this phase); the row is
- * purely a more legible way to see what's already true about `draft.talent`.
+ * point 1). Opening a row now opens Open Casting for that specific
+ * Character (Phase B - components/wizard/OpenCastingDrawer.tsx), not the
+ * old shared-per-role RoleHiringDrawer Phase A used as a stopgap.
  */
-function CharacterCastingSection({ script, onOpenRole }: { script: Script; onOpenRole: (role: ProductionRole) => void }) {
+function CharacterCastingSection({
+  script,
+  onOpenCharacter,
+}: {
+  script: Script;
+  onOpenCharacter: (character: ScriptCharacter, role: 'Lead Actor' | 'Supporting Actor', slotIndex: number) => void;
+}) {
   const entries = castableCharacters(script);
   if (entries.length === 0) return null;
   return (
@@ -165,7 +171,7 @@ function CharacterCastingSection({ script, onOpenRole }: { script: Script; onOpe
             character={character}
             role={role}
             slotIndex={slotIndex}
-            onOpen={() => onOpenRole(role)}
+            onOpen={() => onOpenCharacter(character, role, slotIndex)}
           />
         ))}
       </div>
@@ -178,6 +184,10 @@ export function HireTalent() {
   const draft = deriveFocusedDraft(state)!;
   const [masterBudget, setMasterBudget] = useState(DEFAULT_MASTER_BUDGET);
   const [openRole, setOpenRole] = useState<ProductionRole | null>(null);
+  // Casting Redesign, Phase B - separate from `openRole` above (which still
+  // drives Director/crew's unchanged RoleHiringDrawer flow) since Open
+  // Casting is scoped to one specific Character, not a whole role.
+  const [openCharacter, setOpenCharacter] = useState<{ character: ScriptCharacter; role: 'Lead Actor' | 'Supporting Actor'; slotIndex: number } | null>(null);
 
   function talentsForRole(role: ProductionRole): Person[] {
     return draft.talent.filter((a) => a.role === role).map((a) => a.person);
@@ -323,7 +333,12 @@ export function HireTalent() {
         </div>
       )}
 
-      {draft.script && <CharacterCastingSection script={draft.script} onOpenRole={setOpenRole} />}
+      {draft.script && (
+        <CharacterCastingSection
+          script={draft.script}
+          onOpenCharacter={(character, role, slotIndex) => setOpenCharacter({ character, role, slotIndex })}
+        />
+      )}
 
       <div className="grid">
         {crewRoles.map((role) => (
@@ -335,6 +350,14 @@ export function HireTalent() {
       </div>
 
       {openRole && <RoleHiringDrawer role={openRole} onClose={() => setOpenRole(null)} />}
+      {openCharacter && (
+        <OpenCastingDrawer
+          character={openCharacter.character}
+          role={openCharacter.role}
+          slotIndex={openCharacter.slotIndex}
+          onClose={() => setOpenCharacter(null)}
+        />
+      )}
 
       <div className="sticky-footer">
         <div className="row-between">

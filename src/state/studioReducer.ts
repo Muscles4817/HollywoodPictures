@@ -17,6 +17,7 @@ import { settleProductionsInProgress } from '../engine/productionsInProgress';
 import { asUpcomingRelease, type ScheduledRelease } from '../engine/scheduledReleases';
 import { deriveReleaseWindowFromDay } from '../engine/calendar';
 import { settleOpportunities, reopenForfeitedOpportunity, highestBid, placeBid, type ResolvedBid } from '../engine/opportunities';
+import { openCastingCall, tickCastingCalls } from '../engine/castingCalls';
 import { generateTalentPool } from '../engine/talentGenerator';
 import { applyStatChange } from '../engine/reputation';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
@@ -342,7 +343,21 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
         const settlement = runCalendarSettlement(state, totalDaysAfter, rng);
         const productionsInProgress = settleProductionsInProgress(backgroundedPlayerDrafts(state.projects, state.focusedProjectId), 1, state.talentPool, rng);
-        return { settlement, productionsInProgress };
+        // Casting Redesign, Phase B - Open Casting calls tick on the same
+        // real-time beat, for the focused draft and every backgrounded one.
+        // This is the one calendar-advancing action casting calls are wired
+        // into for now (docs/DESIGN_REVIEW_casting_redesign.md's own note on
+        // this being a scoped Phase B limitation) - ADVANCE_DAY is the
+        // dominant, continuous path a still-being-cast draft actually
+        // experiences time through, unlike the occasional multi-day jumps
+        // GREENLIGHT_PROJECT/SCHEDULE_RELEASE/etc cause.
+        const tickedFocusedDraft = focusedDraft
+          ? tickCastingCalls(focusedDraft, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng)
+          : null;
+        const tickedProductionsInProgress = productionsInProgress.map((d) =>
+          tickCastingCalls(d, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng),
+        );
+        return { settlement, productionsInProgress: tickedProductionsInProgress, focusedDraft: tickedFocusedDraft };
       });
       return {
         ...state,
@@ -354,7 +369,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
         studio: result.settlement.studio,
         projects: assembleProjects({
-          playerDrafts: [...(focusedDraft ? [focusedDraft] : []), ...result.productionsInProgress],
+          playerDrafts: [...(result.focusedDraft ? [result.focusedDraft] : []), ...result.productionsInProgress],
           scheduled: result.settlement.stillScheduled,
           rivalProductions: result.settlement.rivalProductionsInProgress,
           playerFilms: result.settlement.playerFilms,
@@ -580,6 +595,20 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         return state;
       }
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, talent: nextTalent }) };
+    }
+
+    // Casting Redesign, Phase B - opens a new Open Casting call for one
+    // Character, defensively no-op if one already exists (e.g. a stale
+    // double-click) rather than opening a second, redundant call for the
+    // same character.
+    case 'OPEN_CASTING_CALL': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft || focusedDraft.castingCalls.some((c) => c.characterId === action.characterId)) return state;
+      const call = openCastingCall(action.characterId, action.role, state.totalDays);
+      return {
+        ...state,
+        projects: replaceDraft(state.projects, { ...focusedDraft, castingCalls: [...focusedDraft.castingCalls, call] }),
+      };
     }
 
     case 'SET_TALENT_TARGET_PRICE': {

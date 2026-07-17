@@ -1015,6 +1015,34 @@ export interface TalentAssignment {
   person: Person;
 }
 
+// --- Casting Redesign, Phase B (docs/DESIGN_REVIEW_casting_redesign.md
+// sections 1-2) - Open Casting: a persistent, per-Character call that
+// accumulates applicants over real calendar time instead of the whole
+// Actor talent pool being instantly browsable. Deliberately no fixed
+// duration (see the design review's own pushback on that) - a call just
+// stays open, ticking weekly, until the role is cast or the player stops
+// checking it.
+
+/** How this call's applicants are being found - a union of one today so a later search-method addition (Agency Outreach, Personal Network, ...) is a variant addition, not a redesign (design review section 10). */
+export type CastingChannel = 'OpenCasting';
+
+/** A specific Person who has applied - who and when, nothing else. Suitability/Interest/salary read/Availability are always derived fresh from `person` + the live script/studio/draft state (engine/castingAppeal.ts), never frozen here - only *who showed up and when* needs remembering. */
+export interface CastingApplicant {
+  person: Person;
+  appliedOnDay: GameDay;
+}
+
+export interface CastingCall {
+  id: string;
+  /** ScriptCharacter.id - one call per Character, not per role slot. */
+  characterId: string;
+  role: 'Lead Actor' | 'Supporting Actor';
+  channel: CastingChannel;
+  openedOnDay: GameDay;
+  /** Mirrors engine/opportunities.ts's own nextGenerationCheckDay pattern - the next weekly beat a fresh batch of applicants is due. */
+  nextApplicantCheckDay: GameDay;
+  applicants: CastingApplicant[];
+}
 
 // The film currently being built in the wizard; fields fill in progressively.
 export interface FilmDraft {
@@ -1043,6 +1071,8 @@ export interface FilmDraft {
   talent: TalentAssignment[];
   /** The price the player is currently targeting for each casting slot - filters GameState.talentPool (once mapped to the underlying TalentProfession) down to who's shown. Keyed by ProductionRole, not TalentProfession, since Lead Actor and Supporting Actor need independent target prices even though both hire from the same Actor pool. */
   talentTargetPriceByRole: Partial<Record<ProductionRole, number>>;
+  /** Casting Redesign, Phase B - every Open Casting call in progress for this draft's Lead/Supporting characters, at most one per Character. Empty until the player opens one; ticks weekly via engine/castingCalls.ts:tickCastingCalls. */
+  castingCalls: CastingCall[];
   // The player's own Strategy/Ambition choices from the redesigned Plan
   // Production screen - null until that screen has been visited at least
   // once. `productionChoices` below is still what every downstream system
