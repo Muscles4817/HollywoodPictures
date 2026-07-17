@@ -5,7 +5,7 @@ import { logAmount } from '../engine/interpolate';
 import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
-import { computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent, resolveEventChoice } from '../engine/production';
+import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent, resolveEventChoice } from '../engine/production';
 import { computeDailyContingencyBurn, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
 import { getTypicalSalaryForRole, withCommitment } from '../engine/person';
 import { adaptRecommendationsToProductionChoices } from '../engine/productionChoicesAdapter';
@@ -967,10 +967,22 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const target = asPlayerDraft(findProject(state.projects, action.productionId));
       if (!target?.photography || target.photography.status !== 'in-progress' || !target.productionChoices) return state;
       const contingencySettlement = target.productionChoices.contingencyAmount - target.photography.runningCost;
+      // Post-Production Redesign, Phase A (docs/DESIGN_REVIEW_post_production_redesign.md
+      // section 1) - computed exactly once, here, same "at the moment this
+      // stage's clock actually starts" timing PhotographyState.recommendedDays
+      // itself uses at BEGIN_PHOTOGRAPHY. Not recomputed anywhere else -
+      // FilmDraft.postProductionEstimatedCompletionDay is a snapshot, not a
+      // live reading.
+      const postProductionEstimatedCompletionDay =
+        state.totalDays + computeRecommendedPostProductionDays(target.talent, target.productionChoices);
       return {
         ...state,
         studio: { ...state.studio, cash: state.studio.cash + contingencySettlement },
-        projects: replaceDraft(state.projects, { ...target, photography: { ...target.photography, status: 'finished' } }),
+        projects: replaceDraft(state.projects, {
+          ...target,
+          photography: { ...target.photography, status: 'finished' },
+          postProductionEstimatedCompletionDay,
+        }),
       };
     }
 

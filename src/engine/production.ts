@@ -24,8 +24,8 @@ import { SETTING_ARCHETYPE_PROFILES } from '../data/settings';
 import { contingencyT, practicalEffectsT, vfxT, overallSpendT } from './productionDials';
 import { computeTalentCompatibility } from './compatibility';
 import { findCandidatesNearPrice } from './talentFilter';
-import { professionForProductionRole, filterAssignedPeople } from '../data/helpers';
-import { getCareerForRole, getTypicalSalaryForRole } from './person';
+import { professionForProductionRole, filterAssignedPeople, findAssignedPerson } from '../data/helpers';
+import { getCareerForRole, getCrewCareer, getTypicalSalaryForRole } from './person';
 import { clamp, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
 
 const BASE_SHOOT_DAYS = 18;
@@ -86,6 +86,95 @@ export function computeRecommendedPreProductionDays(talent: TalentAssignment[], 
   const castDays = clamp((talent.length - CAST_SIZE_BASELINE) * 1.2, 0, MAX_CAST_SIZE_PREPRODUCTION_DAYS);
   const ambitionDays = ((practicalEffectsT(choices.practicalEffectsAmount) + vfxT(choices.vfxAmount)) / 2) * MAX_AMBITION_PREPRODUCTION_DAYS;
   return Math.round(BASE_PREPRODUCTION_DAYS + scaleDays + castDays + ambitionDays);
+}
+
+// Post-Production Redesign, Phase A (docs/DESIGN_REVIEW_post_production_redesign.md
+// section 1) - editorial and VFX are two independent components, not
+// blended into one pool, so a great Editor speeds up the edit specifically
+// without also (nonsensically) speeding up VFX rendering nobody skilled is
+// touching, and vice versa. Deliberately reads only the four signals the
+// design review specified (runtime, Editor skill, VFX ambition, VFX
+// Supervisor skill) - no script.complexity/cast-size/setting term the way
+// the shoot-day and pre-production siblings above have: those would
+// double-count complexity that runtime intensity and VFX ambition already
+// stand in for here.
+const BASE_EDITORIAL_DAYS = 20; // baseline edit/sound/color pass every film needs, even a short, effects-free one
+const MAX_RUNTIME_EDITORIAL_DAYS = 18; // a Long-intensity film has meaningfully more footage to assemble than a Short one
+const MAX_VFX_DAYS = 35; // VFX compositing/rendering is the single biggest post-production time sink in real filmmaking - deliberately the largest individual term here
+
+// Skill compresses or stretches its own department's days by up to 30%
+// either way (skill 100 -> 0.7x, skill 0 -> 1.3x, skill 50 -> neutral
+// 1.0x) - meaningful, never extreme: even a legendary Editor can't cut a
+// three-hour epic in a week, and a poor one doesn't triple the schedule
+// either. Shared by both departments below, applied to each independently.
+const SKILL_MULTIPLIER_FLOOR = 0.7;
+const SKILL_MULTIPLIER_CEILING = 1.3;
+const SKILL_MULTIPLIER_NEUTRAL = 1.0;
+const SKILL_MULTIPLIER_SWING = 0.3;
+
+function postProductionSkillMultiplier(skill: number): number {
+  return clamp(
+    SKILL_MULTIPLIER_NEUTRAL - ((skill - 50) / 50) * SKILL_MULTIPLIER_SWING,
+    SKILL_MULTIPLIER_FLOOR,
+    SKILL_MULTIPLIER_CEILING,
+  );
+}
+
+// No VFX Supervisor hired (optional role, same "doesn't block Greenlight,
+// materially improves an existing mechanic when present" shape as Casting
+// Director - see data/talentGeneration.ts:OPTIONAL_TALENT_ROLES) - VFX work
+// still happens (outside vendors, the Director filling the gap), just
+// without anyone dedicated to running that pipeline efficiently. Worse than
+// a neutral (skill-50) supervisor's 1.0x, better than the worst-case hired
+// one's 1.3x (skill 0) - "unmanaged," not "incompetently managed."
+const NO_VFX_SUPERVISOR_MULTIPLIER = 1.15;
+
+/**
+ * How many days of post-production this film calls for - computed once, at
+ * FINISH_PHOTOGRAPHY, and stored as FilmDraft.postProductionEstimatedCompletionDay
+ * (state/studioReducer.ts). Same "one number, computed once" shape
+ * computeRecommendedShootDays/computeRecommendedPreProductionDays above
+ * already use - no new day-by-day state, no second live process (Round 1 of
+ * the design review's own explicit pushback against that).
+ *
+ * Editorial and VFX are summed as two independent components. Editorial
+ * (baseline + runtime) is always present and always scaled by the Editor's
+ * own skill - Editor is a mandatory role (data/talentGeneration.ts:MANDATORY_TALENT_ROLES),
+ * guaranteed hired by the time a film reaches FINISH_PHOTOGRAPHY, so this
+ * never needs an "unhired" fallback the way VFX does; a defensive `?? 50`
+ * default is kept anyway, matching how every other career-stat lookup in
+ * this codebase (e.g. computeDirectionScore) stays honest under an
+ * impossible-in-practice missing-hire case rather than assuming it can't
+ * happen. VFX scales with vfxT(choices.vfxAmount) - already a 0-1 ambition
+ * reading (the same one computeRecommendedShootDays/computeProductionScore
+ * both already read) - so a Drama with near-zero VFX spend is barely
+ * affected by VFX Supervisor skill, or the lack of one, either way: vfxDays
+ * itself is already close to zero regardless of the multiplier applied to it.
+ *
+ * Documented bounds: editorial alone ranges
+ * [BASE_EDITORIAL_DAYS * 0.7, (BASE_EDITORIAL_DAYS + MAX_RUNTIME_EDITORIAL_DAYS) * 1.3]
+ * = [14, 49.4]; VFX alone ranges [0, MAX_VFX_DAYS * 1.3] = [0, 45.5] (0
+ * whenever vfxAmount sits at VFX_RANGE's own minimum). Combined, the
+ * realistic total spans roughly 14 days (a short, VFX-free film with a
+ * strong Editor) to roughly 90-95 days (a long, VFX-heavy tentpole with a
+ * weak Editor and either a weak or absent VFX Supervisor) - comparable in
+ * scale to computeRecommendedShootDays' own ~18-89 day range, which is
+ * intentional: post shouldn't structurally dwarf or trivialize the shoot it
+ * follows.
+ */
+export function computeRecommendedPostProductionDays(talent: TalentAssignment[], choices: ProductionChoices): number {
+  const editor = findAssignedPerson(talent, 'Editor');
+  const editorSkill = (editor && getCrewCareer(editor, 'Editor')?.skill) ?? 50;
+  const editorialDays =
+    (BASE_EDITORIAL_DAYS + choices.runtimeIntensity * MAX_RUNTIME_EDITORIAL_DAYS) * postProductionSkillMultiplier(editorSkill);
+
+  const vfxSupervisor = findAssignedPerson(talent, 'VFX Supervisor');
+  const vfxSupervisorSkill = vfxSupervisor ? getCrewCareer(vfxSupervisor, 'VFX Supervisor')?.skill : undefined;
+  const vfxMultiplier =
+    vfxSupervisorSkill !== undefined ? postProductionSkillMultiplier(vfxSupervisorSkill) : NO_VFX_SUPERVISOR_MULTIPLIER;
+  const vfxDays = vfxT(choices.vfxAmount) * MAX_VFX_DAYS * vfxMultiplier;
+
+  return Math.round(editorialDays + vfxDays);
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk } from './production';
+import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk } from './production';
 import { generateScriptOptions } from './scriptGenerator';
 import { generateTalentCandidates } from './talentGenerator';
 import { withRng } from './random';
@@ -28,6 +28,21 @@ function assignmentsOfSize(seed: number, count: number): TalentAssignment[] {
   const { result: actors } = withRng(seed + 1, (rng) => generateTalentCandidates('Actor', rng, Math.max(0, count - 1)));
   actors.forEach((person, i) => assignments.push({ role: i === 0 ? 'Lead Actor' : 'Supporting Actor', person }));
   return assignments.slice(0, count);
+}
+
+/** An Editor TalentAssignment with a forced skill value, for exercising computeRecommendedPostProductionDays' own skill sensitivity directly rather than hoping a generated candidate happens to land at a useful value. */
+function editorWithSkill(seed: number, skill: number): TalentAssignment {
+  const { result: editor } = withRng(seed, (rng) => generateTalentCandidates('Editor', rng, 1)[0]);
+  return { role: 'Editor', person: { ...editor, careers: { ...editor.careers, editor: { ...editor.careers.editor!, skill } } } };
+}
+
+/** Same idea as editorWithSkill, for VFX Supervisor. */
+function vfxSupervisorWithSkill(seed: number, skill: number): TalentAssignment {
+  const { result: vfxSupervisor } = withRng(seed, (rng) => generateTalentCandidates('VFX Supervisor', rng, 1)[0]);
+  return {
+    role: 'VFX Supervisor',
+    person: { ...vfxSupervisor, careers: { ...vfxSupervisor.careers, vfxSupervisor: { ...vfxSupervisor.careers.vfxSupervisor!, skill } } },
+  };
 }
 
 describe('computeRecommendedPreProductionDays', () => {
@@ -80,6 +95,84 @@ describe('computeRecommendedPreProductionDays', () => {
     );
     expect(daysAtMaxRuntime).toBe(days);
     expect(daysAtHighSpend).toBe(days);
+  });
+});
+
+// Post-Production Redesign, Phase A
+// (docs/DESIGN_REVIEW_post_production_redesign.md section 1).
+describe('computeRecommendedPostProductionDays', () => {
+  it('is always a positive whole number of days', () => {
+    const talent = [...assignmentsOfSize(20, 6), editorWithSkill(20, 50)];
+    const days = computeRecommendedPostProductionDays(talent, baseChoices());
+    expect(days).toBeGreaterThan(0);
+    expect(Number.isInteger(days)).toBe(true);
+  });
+
+  it('a Long-intensity film needs more post-production than a Short one, all else equal', () => {
+    const talent = [...assignmentsOfSize(21, 6), editorWithSkill(21, 50)];
+    const shortDays = computeRecommendedPostProductionDays(talent, baseChoices({ runtimeIntensity: 0 }));
+    const longDays = computeRecommendedPostProductionDays(talent, baseChoices({ runtimeIntensity: 1 }));
+    expect(longDays).toBeGreaterThan(shortDays);
+  });
+
+  it('heavier VFX ambition needs more post-production than minimal VFX spend, all else equal', () => {
+    const talent = [...assignmentsOfSize(22, 6), editorWithSkill(22, 50)];
+    const minimalVfxDays = computeRecommendedPostProductionDays(talent, baseChoices({ vfxAmount: VFX_RANGE.min }));
+    const heavyVfxDays = computeRecommendedPostProductionDays(talent, baseChoices({ vfxAmount: VFX_RANGE.max }));
+    expect(heavyVfxDays).toBeGreaterThan(minimalVfxDays);
+  });
+
+  it('does not read practicalEffectsAmount at all - only vfxAmount drives the VFX component', () => {
+    const talent = [...assignmentsOfSize(23, 6), editorWithSkill(23, 50)];
+    const minimalPractical = computeRecommendedPostProductionDays(talent, baseChoices({ practicalEffectsAmount: PRACTICAL_EFFECTS_RANGE.min }));
+    const heavyPractical = computeRecommendedPostProductionDays(talent, baseChoices({ practicalEffectsAmount: PRACTICAL_EFFECTS_RANGE.max }));
+    expect(heavyPractical).toBe(minimalPractical);
+  });
+
+  it('a stronger Editor produces a shorter estimate than a weaker one, all else equal', () => {
+    const choices = baseChoices({ runtimeIntensity: 1 });
+    const base = assignmentsOfSize(24, 6);
+    const weakEditorDays = computeRecommendedPostProductionDays([...base, editorWithSkill(24, 0)], choices);
+    const strongEditorDays = computeRecommendedPostProductionDays([...base, editorWithSkill(24, 100)], choices);
+    expect(strongEditorDays).toBeLessThan(weakEditorDays);
+  });
+
+  it('a stronger VFX Supervisor produces a shorter estimate than a weaker one, when VFX ambition is high', () => {
+    const choices = baseChoices({ vfxAmount: VFX_RANGE.max });
+    const base = [...assignmentsOfSize(25, 6), editorWithSkill(25, 50)];
+    const weakVfxSupDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(25, 0)], choices);
+    const strongVfxSupDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(25, 100)], choices);
+    expect(strongVfxSupDays).toBeLessThan(weakVfxSupDays);
+  });
+
+  it('VFX Supervisor skill barely moves the estimate when VFX ambition is minimal - the term it scales is already close to zero', () => {
+    const choices = baseChoices({ vfxAmount: VFX_RANGE.min });
+    const base = [...assignmentsOfSize(26, 6), editorWithSkill(26, 50)];
+    const weakVfxSupDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(26, 0)], choices);
+    const strongVfxSupDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(26, 100)], choices);
+    expect(weakVfxSupDays - strongVfxSupDays).toBeLessThanOrEqual(2);
+  });
+
+  it('works correctly with no VFX Supervisor hired - lands strictly between a weak (skill 0) and a neutral (skill 50) hired one', () => {
+    const choices = baseChoices({ vfxAmount: VFX_RANGE.max });
+    const base = [...assignmentsOfSize(27, 6), editorWithSkill(27, 50)];
+    const noSupervisorDays = computeRecommendedPostProductionDays(base, choices);
+    const weakSupervisorDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(27, 0)], choices);
+    const neutralSupervisorDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(27, 50)], choices);
+    expect(noSupervisorDays).toBeLessThan(weakSupervisorDays);
+    expect(noSupervisorDays).toBeGreaterThan(neutralSupervisorDays);
+  });
+
+  it('never compresses below, or stretches beyond, the documented bounds across extreme combinations', () => {
+    const weakestCrew = [...assignmentsOfSize(28, 6), editorWithSkill(28, 100)];
+    const cheapestFilm = baseChoices({ runtimeIntensity: 0, vfxAmount: VFX_RANGE.min });
+    const floor = computeRecommendedPostProductionDays(weakestCrew, cheapestFilm);
+    expect(floor).toBeGreaterThanOrEqual(14);
+
+    const strongestDemandNoSupervisor = [...assignmentsOfSize(29, 6), editorWithSkill(29, 0)];
+    const mostAmbitiousFilm = baseChoices({ runtimeIntensity: 1, vfxAmount: VFX_RANGE.max });
+    const ceiling = computeRecommendedPostProductionDays(strongestDemandNoSupervisor, mostAmbitiousFilm);
+    expect(ceiling).toBeLessThanOrEqual(95);
   });
 });
 

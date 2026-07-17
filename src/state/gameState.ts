@@ -132,6 +132,7 @@ export function createDraftFromAsset(asset: Asset, talentTargetPriceByRole: Part
     greenlitOnDay: null,
     photography: null,
     furthestStepIndexCharged: -1,
+    postProductionEstimatedCompletionDay: null,
     postProductionChoices: null,
     marketingChoices: null,
     results: null,

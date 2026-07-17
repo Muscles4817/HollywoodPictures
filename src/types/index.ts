@@ -1106,6 +1106,18 @@ export interface FilmDraft {
   // Back-then-forward round trip from paying the same stage's duration
   // twice; only genuinely new forward progress advances the calendar.
   furthestStepIndexCharged: number;
+  // Post-Production Redesign, Phase A (docs/DESIGN_REVIEW_post_production_redesign.md
+  // section 1) - computed once, at FINISH_PHOTOGRAPHY, from
+  // engine/production.ts:computeRecommendedPostProductionDays, the same
+  // "estimate computed once and stored" shape PhotographyState.recommendedDays
+  // already uses. null before photography finishes (nothing to estimate
+  // yet) and, once set, never recomputed - a snapshot of the estimate as of
+  // wrap, not a live reading that drifts if talent/choices change
+  // afterward (they can't - Post-Production's own choices are independent
+  // of this). Phase A only *computes and displays* this; the existing
+  // instant Post-Production form and its flat STAGE_DURATIONS charge are
+  // untouched until a later phase actually enforces it.
+  postProductionEstimatedCompletionDay: GameDay | null;
   postProductionChoices: PostProductionChoices | null;
   marketingChoices: MarketingChoices | null;
   results: FilmResults | null;

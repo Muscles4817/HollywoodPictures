@@ -472,6 +472,38 @@ describe('old saves migrate safely', () => {
     expect(state.studio.name).not.toBe('Stale Pictures');
   });
 
+  it('a save under the pre-Post-Production-Redesign v38 key (a FilmDraft with no postProductionEstimatedCompletionDay) is invisible to v39 - falls back to a fresh studio rather than a hybrid state', () => {
+    // Post-Production Redesign, Phase A (docs/DESIGN_REVIEW_post_production_redesign.md)
+    // gave FilmDraft a required postProductionEstimatedCompletionDay:
+    // GameDay | null - a v38 save's FilmDraft entries have no such field at
+    // all. Same class of break as every past shape change here: no
+    // migration code, an old save simply isn't found under the new key.
+    globalThis.localStorage.setItem(
+      'hollywood-pictures-save-v38',
+      JSON.stringify({
+        studio: { cash: 1, brand: 20, prestige: 20, name: 'Stale Pictures', assets: [] },
+        rivalStudios: [],
+        opportunities: [],
+        nextOpportunityCheckDay: 1,
+        projects: [
+          {
+            kind: 'player-in-progress',
+            draft: {
+              id: 'draft-1', title: 'Stale Draft', talent: [], talentTargetPriceByRole: {},
+              castingCalls: [], photography: { status: 'finished', recommendedDays: 20, daysElapsed: 20, events: [], runningCost: 0, pendingChoice: null },
+            },
+          },
+        ],
+        focusedProjectId: 'draft-1',
+        totalDays: 1,
+      }),
+    );
+    const state = loadState();
+    expect(state.projects).toEqual([]);
+    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
+    expect(state.studio.name).not.toBe('Stale Pictures');
+  });
+
   it('clearSavedState followed by loadState behaves exactly like no save ever existed', () => {
     const released = studioReducer(buildStateWithReadyDraft(4), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     saveState(released);

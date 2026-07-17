@@ -227,7 +227,13 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // CastingCall entries still carry the old top-level `channel` and their
 // applicants have none - no migration code, same as every past shape
 // change here.
-const SAVE_KEY = 'hollywood-pictures-save-v38';
+// v38 -> v39 (docs/DESIGN_REVIEW_post_production_redesign.md, Phase A):
+// FilmDraft gained a required postProductionEstimatedCompletionDay:
+// GameDay | null, computed once at FINISH_PHOTOGRAPHY
+// (engine/production.ts:computeRecommendedPostProductionDays). A v38 save's
+// FilmDraft entries have no such field at all - no migration code, same as
+// every past shape change here.
+const SAVE_KEY = 'hollywood-pictures-save-v39';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

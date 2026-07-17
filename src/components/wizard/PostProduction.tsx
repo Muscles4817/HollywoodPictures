@@ -8,6 +8,7 @@ import { Money } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { deriveFocusedDraft } from '../../state/selectors';
+import { formatGameDate } from '../../engine/calendar';
 import type { EditStyle, FinalCutFocus, MusicFocus, PostProductionChoices, TestScreeningResponse } from '../../types';
 
 const EDIT_STYLES = Object.keys(EDIT_STYLE_PROFILES) as EditStyle[];
@@ -50,6 +51,17 @@ export function PostProduction() {
       <WizardHeader current="post-production" />
       <h1>Post-Production</h1>
       {draft.script && <ScriptSummaryCard script={draft.script} />}
+
+      {draft.postProductionEstimatedCompletionDay !== null && (
+        <div className="card" style={{ borderColor: 'var(--primary)' }}>
+          <div className="stat-label">Estimated Post-Production Length (preview)</div>
+          <div className="stat-value">Ready around {formatGameDate(draft.postProductionEstimatedCompletionDay)}</div>
+          <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
+            A forecast based on this film's runtime, VFX ambition, and your Editor/VFX Supervisor's skill - not
+            enforced yet. Post-Production below still completes the moment you continue to Marketing.
+          </p>
+        </div>
+      )}
 
       <ChoiceGroup
         label="Edit Style"

@@ -6,7 +6,7 @@ import { withRng } from '../engine/random';
 import { STUDIO_BOX_OFFICE_SHARE, AVERAGE_TICKET_PRICE } from '../engine/boxOfficeRun';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
 import { computeTalentCost, computeProductionBudgetCost } from '../engine/cost';
-import { computeRecommendedPreProductionDays } from '../engine/production';
+import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays } from '../engine/production';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
 import { generateTalentPool, generateTalentCandidates } from '../engine/talentGenerator';
 import { playerDraftToProject, playerReleasedFilms, findProject, asScheduled, asPlayerDraft } from '../engine/project';
@@ -540,6 +540,53 @@ describe('GREENLIGHT_PROJECT - the new lump pre-production time charge', () => {
     const after = studioReducer(understaffed, { type: 'GREENLIGHT_PROJECT' });
     expect(after).toBe(understaffed);
     expect(after.screen).toBe('workspace');
+  });
+});
+
+// Post-Production Redesign, Phase A
+// (docs/DESIGN_REVIEW_post_production_redesign.md section 1) - the estimate
+// is a snapshot computed once, at FINISH_PHOTOGRAPHY, not a live reading -
+// this is what actually proves that (GREENLIGHT_PROJECT's own lump-sum
+// pre-production charge above is the closest existing precedent for "one
+// number, computed once, at a specific transition").
+describe('FINISH_PHOTOGRAPHY - post-production estimate (Post-Production Redesign, Phase A)', () => {
+  it('is null before photography finishes', () => {
+    const greenlit = studioReducer(stateReadyToGreenlight(230), { type: 'GREENLIGHT_PROJECT' });
+    const draft = asPlayerDraft(findProject(greenlit.projects, greenlit.focusedProjectId))!;
+    expect(draft.photography?.status).toBe('in-progress'); // sanity - still shooting
+    expect(draft.postProductionEstimatedCompletionDay).toBeNull();
+  });
+
+  it('is set to totalDays + computeRecommendedPostProductionDays exactly once photography finishes', () => {
+    const greenlit = studioReducer(stateReadyToGreenlight(231), { type: 'GREENLIGHT_PROJECT' });
+    const draftBefore = asPlayerDraft(findProject(greenlit.projects, greenlit.focusedProjectId))!;
+    const expectedDays = computeRecommendedPostProductionDays(draftBefore.talent, draftBefore.productionChoices!);
+    expect(expectedDays).toBeGreaterThan(0);
+
+    const finished = studioReducer(greenlit, { type: 'FINISH_PHOTOGRAPHY', productionId: greenlit.focusedProjectId! });
+    const draftAfter = asPlayerDraft(findProject(finished.projects, finished.focusedProjectId))!;
+    expect(draftAfter.photography?.status).toBe('finished'); // sanity
+    expect(draftAfter.postProductionEstimatedCompletionDay).toBe(finished.totalDays + expectedDays);
+  });
+
+  it('stays exactly the same value afterward - a snapshot, not something later actions recompute', () => {
+    const greenlit = studioReducer(stateReadyToGreenlight(232), { type: 'GREENLIGHT_PROJECT' });
+    const finished = studioReducer(greenlit, { type: 'FINISH_PHOTOGRAPHY', productionId: greenlit.focusedProjectId! });
+    const estimateRightAfterFinish = asPlayerDraft(findProject(finished.projects, finished.focusedProjectId))!.postProductionEstimatedCompletionDay;
+
+    const afterMoreDays = studioReducer(finished, { type: 'ADVANCE_DAY' });
+    const estimateAfterAdvancing = asPlayerDraft(findProject(afterMoreDays.projects, afterMoreDays.focusedProjectId))!.postProductionEstimatedCompletionDay;
+
+    expect(estimateAfterAdvancing).toBe(estimateRightAfterFinish);
+  });
+
+  it('does not change the existing 45-day flat Post-Production charge - GO_TO_STEP still charges STAGE_DURATIONS.post-production unmodified', () => {
+    const greenlit = studioReducer(stateReadyToGreenlight(233), { type: 'GREENLIGHT_PROJECT' });
+    const finished = studioReducer(greenlit, { type: 'FINISH_PHOTOGRAPHY', productionId: greenlit.focusedProjectId! });
+    const onPostProductionScreen = studioReducer(finished, { type: 'GO_TO_STEP', step: 'post-production' });
+    const totalDaysBeforeLeaving = onPostProductionScreen.totalDays;
+    const afterLeaving = studioReducer(onPostProductionScreen, { type: 'GO_TO_STEP', step: 'marketing' });
+    expect(afterLeaving.totalDays).toBe(totalDaysBeforeLeaving + 45);
   });
 });
 

@@ -1,6 +1,11 @@
 # Design Review: Post-Production Redesign — Estimates, Trade-offs, Not a Second Live Process
 
-Status: **Design review, nothing built.** Round 2 of a two-pass review
+Status: **Phase A shipped** (§Phasing's own table) - the post-production
+duration estimate exists, is computed once at `FINISH_PHOTOGRAPHY`, and is
+shown to the player as an explicitly-labeled preview on the still-unchanged
+instant Post-Production form. Phases B-D (the pending-decision Test
+Screening, decoupled Marketing, and the Post-Wrap Workspace) remain design
+only - see each phase's own row below. Round 2 of a two-pass review
 (`Post_Production_Redesign_Review.md` was the original proposal; this
 supersedes it with the direction agreed after Round 1's pushback against a
 second live-simulation system). Builds directly on systems already shipped:
@@ -149,15 +154,14 @@ sum instead of a flat total for every film." That reasoning applies
 identically to post-production once it also becomes free-navigation (§8) -
 this is not a new argument, it's the same one that already shipped once.
 
-A new `computeRecommendedPostProductionDays(talent, script,
-productionChoices)` mirrors the existing two functions exactly in shape,
-reading:
+A new `computeRecommendedPostProductionDays(talent, productionChoices)`
+mirrors the existing two functions exactly in shape, reading:
 
 - **Runtime** (`productionChoices.runtimeIntensity`, already read by
   `computeRecommendedShootDays`).
 - **Editor skill** (`getCrewCareer(editor, 'Editor')?.skill` - first real
   consumer of this stat anywhere in the engine).
-- **VFX ambition** (`productionChoices.vfxAmount`, already read by
+- **VFX ambition** (`vfxT(productionChoices.vfxAmount)`, already read by
   `computeRecommendedShootDays`/`computeProductionScore`).
 - **VFX Supervisor skill**, if one's hired (optional role, same "purely
   additive, works fine without one" shape Casting Director already
@@ -172,6 +176,21 @@ state, no events, no tick loop of its own. As `Studio.totalDays` advances
 through whatever the player is already doing (ADVANCE_DAY, same mechanism
 casting calls and box office already ride), the estimate either has been
 reached or hasn't - a pure comparison, not a simulation.
+
+**Shipped (Phase A)**: `engine/production.ts:computeRecommendedPostProductionDays`
+sums two independent components - editorial (baseline + runtime, scaled by
+Editor skill) and VFX (`vfxT(vfxAmount)` scaled by VFX Supervisor skill, or
+a fixed `NO_VFX_SUPERVISOR_MULTIPLIER` when none is hired) - rather than one
+blended total, so a great Editor never nonsensically speeds up VFX
+rendering nobody skilled is touching, or vice versa. No `script` parameter
+(dropped from the signature entirely) - the design review's own "avoid
+double-counting complexity runtime/VFX ambition already capture" ruled out
+a `script.complexity` term the way the shoot-day/pre-production siblings
+have one. `FilmDraft.postProductionEstimatedCompletionDay` is set inside
+`FINISH_PHOTOGRAPHY` exactly as designed, and shown on the still-unchanged
+`PostProduction.tsx` form as an explicitly-labeled "(preview)" forecast -
+Phase A deliberately stops there; see §8 for when it becomes the real,
+enforced flow.
 
 ---
 
@@ -373,7 +392,7 @@ is, not as a dashboard metric changing.
 
 | Phase | Ships | Player-visible behavior change | Risk |
 |---|---|---|---|
-| **A - Estimated completion, still the old linear flow** | `computeRecommendedPostProductionDays`; `postProductionEstimatedCompletionDay` set at `FINISH_PHOTOGRAPHY`; Editor/VFX Supervisor skill get their first real read. Old `PostProduction.tsx` form still exists and still works, but now shows "estimated ready: Day N" alongside it rather than being instant. | The estimate is visible and reads real crew skill, but nothing yet forces the player to wait for it - a soft preview of the mechanic before the flow around it changes. | Low - one new formula mirroring two that already exist, one new field, no reducer/UI restructuring. |
+| **A - Estimated completion, still the old linear flow** ✅ shipped | `computeRecommendedPostProductionDays`; `postProductionEstimatedCompletionDay` set at `FINISH_PHOTOGRAPHY`; Editor/VFX Supervisor skill get their first real read. Old `PostProduction.tsx` form still exists and still works unmodified (same instant `SET_POST_PRODUCTION_CHOICES`, same flat 45/30-day `STAGE_DURATIONS` charges), now showing a clearly-labeled "(preview)" forecast card alongside it rather than being instant. | The estimate is visible and reads real crew skill, but nothing yet forces the player to wait for it - a soft preview of the mechanic before the flow around it changes. | Low - one new formula mirroring two that already exist, one new field, no reducer/UI restructuring. Confirmed: `SAVE_KEY` bumped to v39 with a matching invisibility test, 17 new tests (9 formula, 4 reducer timing/snapshot, 1 persistence, 3 component render), full suite/tsc/oxlint clean. |
 | **B - Test Screening as a real pending decision** | The four-option choice (§2) replaces `testScreeningResponse`'s single dropdown, fires once the estimate's day arrives, uses `pickDepartmentBlurb` for real qualitative feedback, reuses `resolveEventChoice`/`resolveChoiceOnDraft` via a new sibling reducer case. Inbox/Dashboard surfacing for a pending test screening. | The moment post-production stops being a form and starts being something that *happens to* the film, with a real decision attached. | Medium - the provisional-quality wrinkle (§2) and the new reducer case are real, scoped work; no new UI paradigm. |
 | **C - Marketing decoupled, release-window tension live** | Marketing reachable independently of post-production completion (§3); `STAGE_DURATIONS.marketing`/`.post-production` retired; release-window picking reuses the existing crowding UI fed a moving target date (§4). | The core "is this delay worth it" tension actually bites - a Test Screening choice can now visibly threaten a release window the player already committed to. | Medium - mostly sequencing/reachability changes plus the buzz-provisional-defaults wrinkle; the crowding math itself is unchanged. |
 | **D - Post-Wrap Workspace** | Post-production/marketing/release get the same free-navigation shell Cast & Crew/Production/Finance already have (§5); `currentScreenFor` routes a finished-photography draft there instead of the old linear wizard steps. | The post-wrap phase finally *feels* like the same kind of screen the pre-Greenlight side already does - a workspace, not a sequence of forms. | Low-Medium - shell pattern is proven; main work is deciding what Overview shows and wiring existing sections into it, not inventing new mechanics. |
