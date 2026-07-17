@@ -218,7 +218,16 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // no-softlock widening formula reads. A v36 save's castingCalls entries
 // have no `rejectionCount` at all - no migration code, same as every past
 // shape change here.
-const SAVE_KEY = 'hollywood-pictures-save-v37';
+// v37 -> v38 (docs/DESIGN_REVIEW_casting_redesign.md, Phase D): CastingCall
+// lost its old `channel` field (each call could only ever be one channel) -
+// it moved onto CastingApplicant instead, since a single call can now host
+// both Open Casting and InterestedTalent arrivals at once
+// (engine/castingCalls.ts:tickCastingCalls). Person also gained an optional
+// `careers.castingDirector` (the new Casting Director role). A v37 save's
+// CastingCall entries still carry the old top-level `channel` and their
+// applicants have none - no migration code, same as every past shape
+// change here.
+const SAVE_KEY = 'hollywood-pictures-save-v38';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

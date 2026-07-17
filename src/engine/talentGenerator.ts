@@ -150,6 +150,15 @@ function generateFame(role: TalentProfession, rng: RandomFn, t: number): number 
         100,
       );
     }
+
+    case 'Casting Director': {
+      const fameT = 0.15 * t + 0.85 * rng();
+      return clamp(
+        Math.round(2 + 20 * fameT + randFloat(rng, -4, 4)),
+        1,
+        100,
+      );
+    }
   }
 }
 
@@ -162,6 +171,7 @@ function generateEgo(role: TalentProfession, rng: RandomFn, fame: number): numbe
     Composer: 0.15,
     Editor: 0.1,
     'VFX Supervisor': 0.1,
+    'Casting Director': 0.1,
   };
 
   const base: Record<TalentProfession, number> = {
@@ -172,6 +182,7 @@ function generateEgo(role: TalentProfession, rng: RandomFn, fame: number): numbe
     Composer: 10,
     Editor: 8,
     'VFX Supervisor': 8,
+    'Casting Director': 8,
   };
 
   return clamp(

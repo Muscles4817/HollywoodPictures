@@ -9,10 +9,11 @@
 import type { FilmDraft, GameDay, Money, Person, Script, ScriptCharacter, Studio, TalentAssignment } from '../types';
 import { ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { professionForProductionRole, findAssignedPerson } from '../data/helpers';
+import { getCrewCareer } from './person';
 import { logAmount } from './interpolate';
-import { computeActorAppeal } from './castingAppeal';
+import { computeActorAppeal, resolveOfferResponse } from './castingAppeal';
 import { WEEK_LENGTH_DAYS } from './opportunities';
-import { randInt, type RandomFn } from './random';
+import { clamp, pick, randInt, type RandomFn } from './random';
 
 export { WEEK_LENGTH_DAYS };
 
@@ -39,15 +40,42 @@ const MIN_APPLICANT_WEIGHT = 5;
 const MAX_REJECTION_BATCH_BONUS = 3;
 const WEIGHT_FLOOR_PER_REJECTION = 4;
 
+// Casting Director (Phase D, design review section 11) - "volume" and
+// "curation" are kept as genuinely independent effects, per that section's
+// own framing ("not simply increase applicant volume"): a bigger batch is
+// one thing, a batch skewed harder toward whoever actually suits the role
+// is another. skillT is 0 with nobody hired (the existing unbiased,
+// wide-variance sampling), rising toward 1 at skill 100.
+const CASTING_DIRECTOR_MAX_BATCH_BONUS = 2;
+const CASTING_DIRECTOR_MAX_CURATION_EXPONENT = 1.6;
+// "Discovery" - a skilled Casting Director occasionally surfaces a
+// genuinely well-suited but low-fame unknown who wouldn't naturally have
+// floated to the top of a fame-correlated appeal score. Never guaranteed,
+// even at max skill - the fantasy is "saves the producer time," not
+// "flips a switch that finds a star every week."
+const DISCOVERY_MAX_CHANCE = 0.35;
+const DISCOVERY_FAME_CEILING = 25;
+const DISCOVERY_SUITABILITY_FLOOR = 60;
+
+// Interested Talent (Phase D, design review section 6) - the reverse of
+// Direct Approach: a small, mostly-empty-handed sample of the unattached
+// pool is checked each week against the exact same acceptance threshold
+// Direct Approach itself uses, and whoever would already say yes is
+// surfaced without the player ever having searched for them. Deliberately
+// rare (MAX_HITS caps it at one per tick) - this is reputation quietly
+// working *for* the player, not a second applicant flood layered on top
+// of Open Casting's own.
+const INTERESTED_TALENT_SAMPLE_SIZE = 6;
+const INTERESTED_TALENT_MAX_HITS = 1;
+
 let nextCallId = 1;
 
-/** A fresh, empty Open Casting call for one Character - the only channel that exists yet (design review section 10). */
+/** A fresh, empty casting call for one Character. */
 export function openCastingCall(characterId: string, role: 'Lead Actor' | 'Supporting Actor', openedOnDay: GameDay): FilmDraft['castingCalls'][number] {
   return {
     id: `casting-call-${nextCallId++}`,
     characterId,
     role,
-    channel: 'OpenCasting',
     openedOnDay,
     nextApplicantCheckDay: openedOnDay + WEEK_LENGTH_DAYS,
     applicants: [],
@@ -85,9 +113,12 @@ function weightedSampleWithoutReplacement(rng: RandomFn, entries: Array<{ person
  * probability weighted toward higher computeActorAppeal (engine/castingAppeal.ts),
  * not drawn uniformly, so who shows up already reflects Suitability, the
  * studio's Brand/Prestige fit, salary, and schedule rather than being
- * filtered after the fact. No Casting Director exists yet (Phase D), so
- * this is always the unbiased, wide-variance version of sampling the
- * design review's section 11 describes as the baseline.
+ * filtered after the fact. `castingDirectorSkill` is undefined with nobody
+ * hired for the role - the baseline, unbiased, wide-variance sampling the
+ * design review's section 11 describes; a skilled one both widens the
+ * batch and skews it toward the top of the appeal distribution, plus an
+ * occasional low-fame "discovery" pick outside the normal weighting
+ * entirely.
  */
 export function generateCastingApplicants(
   character: ScriptCharacter,
@@ -100,21 +131,87 @@ export function generateCastingApplicants(
   talentPool: Person[],
   excludeIds: Set<string>,
   rejectionCount: number,
+  castingDirectorSkill: number | undefined,
   rng: RandomFn,
 ): Person[] {
   const eligible = talentPool.filter((p) => !excludeIds.has(p.id));
   if (eligible.length === 0) return [];
+
+  const skillT = clamp((castingDirectorSkill ?? 0) / 100, 0, 1);
   const weightFloor = MIN_APPLICANT_WEIGHT + rejectionCount * WEIGHT_FLOOR_PER_REJECTION;
-  const weighted = eligible.map((person) => ({
-    person,
-    weight: Math.max(
-      weightFloor,
-      computeActorAppeal(person, character, script, studio, director, currentTalent, offeredSalary, plannedStartDay)?.overall ?? weightFloor,
-    ),
-  }));
-  const maxBatch = APPLICANT_BATCH_SIZE[1] + Math.min(MAX_REJECTION_BATCH_BONUS, rejectionCount);
+  const curationExponent = 1 + skillT * (CASTING_DIRECTOR_MAX_CURATION_EXPONENT - 1);
+
+  const appealByPersonId = new Map(
+    eligible.map((person) => [
+      person.id,
+      computeActorAppeal(person, character, script, studio, director, currentTalent, offeredSalary, plannedStartDay),
+    ]),
+  );
+
+  const weighted = eligible.map((person) => {
+    const rawWeight = Math.max(weightFloor, appealByPersonId.get(person.id)?.overall ?? weightFloor);
+    return { person, weight: Math.pow(rawWeight, curationExponent) };
+  });
+
+  const maxBatch = APPLICANT_BATCH_SIZE[1] + Math.min(MAX_REJECTION_BATCH_BONUS, rejectionCount) + Math.round(skillT * CASTING_DIRECTOR_MAX_BATCH_BONUS);
   const batchSize = Math.min(randInt(rng, APPLICANT_BATCH_SIZE[0], maxBatch), weighted.length);
-  return weightedSampleWithoutReplacement(rng, weighted, batchSize);
+  const batch = weightedSampleWithoutReplacement(rng, weighted, batchSize);
+
+  if (castingDirectorSkill && rng() < skillT * DISCOVERY_MAX_CHANCE) {
+    const batchIds = new Set(batch.map((p) => p.id));
+    const discoveryPool = eligible.filter((p) => {
+      if (batchIds.has(p.id) || p.reputation.fame > DISCOVERY_FAME_CEILING) return false;
+      return (appealByPersonId.get(p.id)?.suitability ?? 0) >= DISCOVERY_SUITABILITY_FLOOR;
+    });
+    if (discoveryPool.length > 0) batch.push(pick(rng, discoveryPool));
+  }
+
+  return batch;
+}
+
+/**
+ * Interested Talent (Phase D, design review section 6) - checks a small
+ * sample of the currently-unattached pool against the same acceptance
+ * threshold Direct Approach itself uses (engine/castingAppeal.ts:resolveOfferResponse),
+ * and returns whoever would already say yes. The reverse of Direct
+ * Approach: instead of the player naming one person and rolling their
+ * response, this rolls many people and keeps whoever clears the bar
+ * unprompted.
+ */
+export function generateInterestedTalent(
+  character: ScriptCharacter,
+  script: Script,
+  studio: Studio,
+  director: Person | undefined,
+  currentTalent: TalentAssignment[],
+  offeredSalary: Money,
+  plannedStartDay: GameDay,
+  talentPool: Person[],
+  excludeIds: Set<string>,
+  rejectionCount: number,
+  daysOpen: number,
+  rng: RandomFn,
+): Person[] {
+  const eligible = talentPool.filter((p) => !excludeIds.has(p.id));
+  if (eligible.length === 0) return [];
+
+  const sampleSize = Math.min(INTERESTED_TALENT_SAMPLE_SIZE, eligible.length);
+  const pool = [...eligible];
+  const sample: Person[] = [];
+  for (let i = 0; i < sampleSize; i++) {
+    const index = randInt(rng, 0, pool.length - 1);
+    sample.push(pool[index]);
+    pool.splice(index, 1);
+  }
+
+  const hits: Person[] = [];
+  for (const person of sample) {
+    if (hits.length >= INTERESTED_TALENT_MAX_HITS) break;
+    const appeal = computeActorAppeal(person, character, script, studio, director, currentTalent, offeredSalary, plannedStartDay);
+    if (!appeal) continue;
+    if (resolveOfferResponse(appeal, person, rejectionCount, daysOpen).status === 'accepted') hits.push(person);
+  }
+  return hits;
 }
 
 /** Whether the Character at this call already has someone cast - the same slot-index positional read HireTalent.tsx's CharacterCastingRow already does, reused here so a filled role stops generating pointless further applicants, and by components/common/Inbox.tsx to know which calls are actually still worth surfacing. */
@@ -138,18 +235,20 @@ export function castingCallsAwaitingReview(draft: FilmDraft): FilmDraft['casting
 }
 
 /**
- * The weekly tick for one draft's whole set of Open Casting calls - due
- * calls each get one fresh batch of applicants, folded onto whatever's
- * already accumulated; calls not yet due, or whose Character is already
- * cast, are left untouched. Called from state/studioReducer.ts's
- * ADVANCE_DAY case for the focused draft and every backgrounded one, the
- * same real-time beat everything else week-driven in this codebase already
- * rides.
+ * The weekly tick for one draft's whole set of casting calls - due calls
+ * each get one fresh batch of Open Casting applicants plus a shot at
+ * Interested Talent, folded onto whatever's already accumulated; calls not
+ * yet due, or whose Character is already cast, are left untouched. Called
+ * from state/studioReducer.ts's ADVANCE_DAY case for the focused draft and
+ * every backgrounded one, the same real-time beat everything else
+ * week-driven in this codebase already rides.
  */
 export function tickCastingCalls(draft: FilmDraft, totalDays: number, studio: Studio, talentPool: Person[], rng: RandomFn): FilmDraft {
   if (!draft.script || draft.castingCalls.length === 0) return draft;
   const script = draft.script;
   const director = findAssignedPerson(draft.talent, 'Director');
+  const castingDirector = findAssignedPerson(draft.talent, 'Casting Director');
+  const castingDirectorSkill = castingDirector ? getCrewCareer(castingDirector, 'Casting Director')?.skill : undefined;
   let changed = false;
 
   const updatedCalls = draft.castingCalls.map((call) => {
@@ -158,7 +257,7 @@ export function tickCastingCalls(draft: FilmDraft, totalDays: number, studio: St
     if (!character || isCharacterCast(draft, character, call.role)) return call;
 
     changed = true;
-    const excludeIds = new Set([...draft.talent.map((a) => a.person.id), ...call.applicants.map((a) => a.person.id)]);
+    const alreadyInvolvedIds = new Set([...draft.talent.map((a) => a.person.id), ...call.applicants.map((a) => a.person.id)]);
     const range = ROLE_GENERATION_PROFILES[professionForProductionRole(call.role)].salaryRange;
     const offeredSalary = draft.talentTargetPriceByRole[call.role] ?? logAmount(0.5, range);
     // No real "planned shoot start day" exists pre-Greenlight (development-pipeline
@@ -166,7 +265,7 @@ export function tickCastingCalls(draft: FilmDraft, totalDays: number, studio: St
     // now," matching how every other hire in this game is instant rather
     // than scheduled in advance. Revisit if/when a real target start date
     // exists to read instead.
-    const newApplicants = generateCastingApplicants(
+    const openApplicants = generateCastingApplicants(
       character,
       script,
       studio,
@@ -175,14 +274,35 @@ export function tickCastingCalls(draft: FilmDraft, totalDays: number, studio: St
       offeredSalary,
       totalDays,
       talentPool,
-      excludeIds,
+      alreadyInvolvedIds,
       call.rejectionCount,
+      castingDirectorSkill,
+      rng,
+    );
+
+    const excludingThisWeeksApplicants = new Set([...alreadyInvolvedIds, ...openApplicants.map((p) => p.id)]);
+    const interestedTalent = generateInterestedTalent(
+      character,
+      script,
+      studio,
+      director,
+      draft.talent,
+      offeredSalary,
+      totalDays,
+      talentPool,
+      excludingThisWeeksApplicants,
+      call.rejectionCount,
+      totalDays - call.openedOnDay,
       rng,
     );
 
     return {
       ...call,
-      applicants: [...call.applicants, ...newApplicants.map((person) => ({ person, appliedOnDay: totalDays }))],
+      applicants: [
+        ...call.applicants,
+        ...openApplicants.map((person) => ({ person, appliedOnDay: totalDays, channel: 'OpenCasting' as const })),
+        ...interestedTalent.map((person) => ({ person, appliedOnDay: totalDays, channel: 'InterestedTalent' as const })),
+      ],
       nextApplicantCheckDay: totalDays + WEEK_LENGTH_DAYS,
     };
   });

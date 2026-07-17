@@ -21,11 +21,14 @@ export const ROLE_GENERATION_PROFILES: Record<TalentProfession, RoleGenerationPr
   Composer: { salaryRange: { min: 15_000, max: 2_500_000 }, fameCeiling: 60 },
   Editor: { salaryRange: { min: 10_000, max: 1_200_000 }, fameCeiling: 45 },
   'VFX Supervisor': { salaryRange: { min: 30_000, max: 5_000_000 }, fameCeiling: 65 },
+  'Casting Director': { salaryRange: { min: 20_000, max: 3_000_000 }, fameCeiling: 40 },
 };
 
-// Every film needs one of each mandatory role; VFX Supervisor is optional
-// depending on genre. Shared between the reducer (candidate generation,
-// budget splitting) and the Hire Talent screen.
+// Every film needs one of each mandatory role; VFX Supervisor and Casting
+// Director are both optional (Casting Redesign, Phase D - biases
+// engine/castingCalls.ts's applicant generation when present, never blocks
+// Greenlight without one, same shape as VFX Supervisor). Shared between the
+// reducer (candidate generation, budget splitting) and the Hire Talent screen.
 export const MANDATORY_TALENT_ROLES: ProductionRole[] = [
   'Director',
   'Lead Actor',
@@ -35,7 +38,7 @@ export const MANDATORY_TALENT_ROLES: ProductionRole[] = [
   'Composer',
   'Editor',
 ];
-export const OPTIONAL_TALENT_ROLES: ProductionRole[] = ['VFX Supervisor'];
+export const OPTIONAL_TALENT_ROLES: ProductionRole[] = ['VFX Supervisor', 'Casting Director'];
 export const ALL_TALENT_ROLES: ProductionRole[] = [...MANDATORY_TALENT_ROLES, ...OPTIONAL_TALENT_ROLES];
 
 // Every profession the world talent pool actually generates a candidate
@@ -51,6 +54,7 @@ export const ALL_TALENT_PROFESSIONS: TalentProfession[] = [
   'Composer',
   'Editor',
   'VFX Supervisor',
+  'Casting Director',
 ];
 
 // How many people a role can hold. Most roles are one-in, one-out (hiring
@@ -71,4 +75,5 @@ export const ROLE_CAPACITY: Record<ProductionRole, RoleCapacity> = {
   Composer: { min: 1, max: 1 },
   Editor: { min: 1, max: 1 },
   'VFX Supervisor': { min: 0, max: 1 },
+  'Casting Director': { min: 0, max: 1 },
 };

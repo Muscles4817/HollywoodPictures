@@ -25,12 +25,13 @@ export function getDirectorCareer(person: Person): DirectorCareer | null {
   return person.careers.director ?? null;
 }
 
-export const CREW_CAREER_KEY: Record<CrewRole, 'writer' | 'cinematographer' | 'composer' | 'editor' | 'vfxSupervisor'> = {
+export const CREW_CAREER_KEY: Record<CrewRole, 'writer' | 'cinematographer' | 'composer' | 'editor' | 'vfxSupervisor' | 'castingDirector'> = {
   Writer: 'writer',
   Cinematographer: 'cinematographer',
   Composer: 'composer',
   Editor: 'editor',
   'VFX Supervisor': 'vfxSupervisor',
+  'Casting Director': 'castingDirector',
 };
 
 export function getCrewCareer(person: Person, role: CrewRole): CrewCareer<CrewRole> | null {
@@ -82,7 +83,7 @@ export function getMinimumSalaryForRole(person: Person, role: ProductionRole): M
 }
 
 /** Every crew profession, for callers that need to enumerate them (e.g. generation). */
-export const CREW_ROLES: readonly CrewRole[] = ['Writer', 'Cinematographer', 'Composer', 'Editor', 'VFX Supervisor'];
+export const CREW_ROLES: readonly CrewRole[] = ['Writer', 'Cinematographer', 'Composer', 'Editor', 'VFX Supervisor', 'Casting Director'];
 
 export { isCrewRole };
 

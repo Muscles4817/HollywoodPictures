@@ -2,7 +2,8 @@
 // sections 1-2) - no dedicated test coverage existed for this file before
 // it was added.
 import { describe, it, expect } from 'vitest';
-import { openCastingCall, findOrOpenCastingCall, castingCallsAwaitingReview, generateCastingApplicants, tickCastingCalls, WEEK_LENGTH_DAYS } from './castingCalls';
+import { openCastingCall, findOrOpenCastingCall, castingCallsAwaitingReview, generateCastingApplicants, generateInterestedTalent, tickCastingCalls, WEEK_LENGTH_DAYS } from './castingCalls';
+import { computeActorAppeal, resolveOfferResponse } from './castingAppeal';
 import { createDraftFromAsset } from '../state/gameState';
 import { generateScriptOptions } from './scriptGenerator';
 import { generateTalentCandidates } from './talentGenerator';
@@ -35,7 +36,6 @@ describe('openCastingCall', () => {
     const call = openCastingCall('char-1', 'Lead Actor', 10);
     expect(call.characterId).toBe('char-1');
     expect(call.role).toBe('Lead Actor');
-    expect(call.channel).toBe('OpenCasting');
     expect(call.openedOnDay).toBe(10);
     expect(call.nextApplicantCheckDay).toBe(10 + WEEK_LENGTH_DAYS);
     expect(call.applicants).toEqual([]);
@@ -76,7 +76,7 @@ describe('generateCastingApplicants', () => {
     const pool = actorPool(1, 5);
     const rng = createRng(1);
     const applicants = generateCastingApplicants(
-      character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(pool.map((p) => p.id)), 0, rng,
+      character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(pool.map((p) => p.id)), 0, undefined, rng,
     );
     expect(applicants).toEqual([]);
   });
@@ -88,7 +88,7 @@ describe('generateCastingApplicants', () => {
     const excluded = new Set([pool[0].id, pool[1].id]);
     const rng = createRng(2);
     for (let i = 0; i < 20; i++) {
-      const applicants = generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, excluded, 0, rng);
+      const applicants = generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, excluded, 0, undefined, rng);
       expect(applicants.some((p) => excluded.has(p.id))).toBe(false);
     }
   });
@@ -98,7 +98,7 @@ describe('generateCastingApplicants', () => {
     const character = leadCharacter(draft.script!);
     const pool = actorPool(3, 8);
     const rng = createRng(3);
-    const applicants = generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 0, rng);
+    const applicants = generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 0, undefined, rng);
     const ids = applicants.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -192,13 +192,146 @@ describe('generateCastingApplicants - no-softlock widening', () => {
     let maxAtManyRejections = 0;
     for (let seed = 1; seed <= 40; seed++) {
       const rng = createRng(seed);
-      maxAtZeroRejections = Math.max(maxAtZeroRejections, generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 0, rng).length);
+      maxAtZeroRejections = Math.max(maxAtZeroRejections, generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 0, undefined, rng).length);
     }
     for (let seed = 1; seed <= 40; seed++) {
       const rng = createRng(seed);
-      maxAtManyRejections = Math.max(maxAtManyRejections, generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 8, rng).length);
+      maxAtManyRejections = Math.max(maxAtManyRejections, generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 8, undefined, rng).length);
     }
     expect(maxAtManyRejections).toBeGreaterThan(maxAtZeroRejections);
+  });
+});
+
+// Casting Redesign, Phase D, section 11 - a Casting Director's two effects
+// (volume and curation) are deliberately independent, per the design
+// review's own framing. Kept as three separate tests rather than one, so a
+// regression in just one effect doesn't hide behind the other two still
+// passing.
+describe('generateCastingApplicants - Casting Director (Phase D)', () => {
+  it('a maxed-skill Casting Director can produce a larger batch than is ever possible with none hired, given the same pool', () => {
+    const draft = draftFor(14);
+    const character = leadCharacter(draft.script!);
+    const pool = actorPool(14, 20);
+    let maxWithNone = 0;
+    let maxAtMaxSkill = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const rng = createRng(seed);
+      maxWithNone = Math.max(maxWithNone, generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 0, undefined, rng).length);
+    }
+    for (let seed = 1; seed <= 40; seed++) {
+      const rng = createRng(seed);
+      maxAtMaxSkill = Math.max(maxAtMaxSkill, generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 0, 100, rng).length);
+    }
+    expect(maxAtMaxSkill).toBeGreaterThan(maxWithNone);
+  });
+
+  it('a maxed-skill Casting Director skews the sampled batch toward higher-appeal people, on average, than none hired does', () => {
+    const draft = draftFor(15);
+    const character = leadCharacter(draft.script!);
+    const pool = actorPool(15, 20);
+    function averageOverall(skill: number | undefined): number {
+      let total = 0;
+      let count = 0;
+      for (let seed = 1; seed <= 60; seed++) {
+        const rng = createRng(seed);
+        const batch = generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 0, skill, rng);
+        for (const person of batch) {
+          const appeal = computeActorAppeal(person, character, draft.script!, studio(), undefined, [], 1_000_000, 1);
+          if (appeal) {
+            total += appeal.overall;
+            count++;
+          }
+        }
+      }
+      return count > 0 ? total / count : 0;
+    }
+    expect(averageOverall(100)).toBeGreaterThan(averageOverall(undefined));
+  });
+
+  it("a maxed-skill Casting Director can surface a 'discovery' pick beyond the batch size any amount of rejection-widening alone could ever produce", () => {
+    // At rejectionCount 0 and skill 100, the formula's own ceiling
+    // (APPLICANT_BATCH_SIZE[1]=3 + rejection bonus 0 + skill batch bonus
+    // round(1 * CASTING_DIRECTOR_MAX_BATCH_BONUS=2)) is 5 - a 6th applicant
+    // can only come from the separate discovery pass, not a bigger regular
+    // batch.
+    const draft = draftFor(14);
+    const character = leadCharacter(draft.script!);
+    const pool = actorPool(14, 30);
+    let maxBatchLength = 0;
+    for (let seed = 1; seed <= 300; seed++) {
+      const rng = createRng(seed);
+      const batch = generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 0, 100, rng);
+      maxBatchLength = Math.max(maxBatchLength, batch.length);
+    }
+    expect(maxBatchLength).toBeGreaterThan(5);
+  });
+
+  it('never discovers with no Casting Director hired, across the same range that reliably discovers at max skill', () => {
+    const draft = draftFor(14);
+    const character = leadCharacter(draft.script!);
+    const pool = actorPool(14, 30);
+    let maxBatchLength = 0;
+    for (let seed = 1; seed <= 300; seed++) {
+      const rng = createRng(seed);
+      const batch = generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 0, undefined, rng);
+      maxBatchLength = Math.max(maxBatchLength, batch.length);
+    }
+    expect(maxBatchLength).toBeLessThanOrEqual(3); // APPLICANT_BATCH_SIZE[1], no rejection or skill bonus at all
+  });
+});
+
+// Casting Redesign, Phase D, section 6 - Interested Talent is the reverse
+// of Direct Approach: a small sample of the unattached pool, checked
+// against the exact same acceptance threshold, surfaced without the player
+// ever having searched for them.
+describe('generateInterestedTalent', () => {
+  it('returns no one when the whole pool is excluded', () => {
+    const draft = draftFor(16);
+    const character = leadCharacter(draft.script!);
+    const pool = actorPool(16, 6);
+    const rng = createRng(16);
+    const hits = generateInterestedTalent(
+      character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(pool.map((p) => p.id)), 0, 0, rng,
+    );
+    expect(hits).toEqual([]);
+  });
+
+  it('never returns more than INTERESTED_TALENT_MAX_HITS (1) in a single call, across many seeds', () => {
+    const draft = draftFor(17);
+    const character = leadCharacter(draft.script!);
+    const pool = actorPool(17, 15);
+    for (let seed = 1; seed <= 60; seed++) {
+      const rng = createRng(seed);
+      const hits = generateInterestedTalent(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 0, 0, rng);
+      expect(hits.length).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('never returns an excluded person, even across many seeds', () => {
+    const draft = draftFor(18);
+    const character = leadCharacter(draft.script!);
+    const pool = actorPool(18, 15);
+    const excluded = new Set([pool[0].id, pool[1].id, pool[2].id]);
+    for (let seed = 1; seed <= 60; seed++) {
+      const rng = createRng(seed);
+      const hits = generateInterestedTalent(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, excluded, 0, 0, rng);
+      expect(hits.some((p) => excluded.has(p.id))).toBe(false);
+    }
+  });
+
+  it('only ever returns someone whose own resolveOfferResponse against the same appeal is actually accepted', () => {
+    const draft = draftFor(19);
+    const character = leadCharacter(draft.script!);
+    const pool = actorPool(19, 15);
+    for (let seed = 1; seed <= 60; seed++) {
+      const rng = createRng(seed);
+      const hits = generateInterestedTalent(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 0, 0, rng);
+      for (const person of hits) {
+        const appeal = computeActorAppeal(person, character, draft.script!, studio(), undefined, [], 1_000_000, 1);
+        expect(appeal).not.toBeNull();
+        expect(resolveOfferResponse(appeal!, person, 0, 0).status).toBe('accepted');
+      }
+    }
   });
 });
 
@@ -207,7 +340,7 @@ describe('castingCallsAwaitingReview', () => {
     const draft = draftFor(11);
     const character = leadCharacter(draft.script!);
     const [applicant] = actorPool(11, 1);
-    const call = { ...openCastingCall(character.id, 'Lead Actor', 1), applicants: [{ person: applicant, appliedOnDay: 1 }] };
+    const call = { ...openCastingCall(character.id, 'Lead Actor', 1), applicants: [{ person: applicant, appliedOnDay: 1, channel: 'OpenCasting' as const }] };
     const withCall = { ...draft, castingCalls: [call] };
     expect(castingCallsAwaitingReview(withCall)).toEqual([call]);
   });
@@ -224,7 +357,7 @@ describe('castingCallsAwaitingReview', () => {
     const draft = draftFor(13);
     const character = leadCharacter(draft.script!);
     const [applicant, castPerson] = actorPool(13, 2);
-    const call = { ...openCastingCall(character.id, 'Lead Actor', 1), applicants: [{ person: applicant, appliedOnDay: 1 }] };
+    const call = { ...openCastingCall(character.id, 'Lead Actor', 1), applicants: [{ person: applicant, appliedOnDay: 1, channel: 'OpenCasting' as const }] };
     const talent: TalentAssignment[] = [{ role: 'Lead Actor', person: castPerson }];
     const withCall = { ...draft, castingCalls: [call], talent };
     expect(castingCallsAwaitingReview(withCall)).toEqual([]);

@@ -64,4 +64,10 @@ export const TALENT_PRESENTATION: Record<ProductionRole, TalentPresentationProfi
     blurb: 'Oversees the digital effects work, if this production leans on any. Optional - skip it for effects-light films.',
     hook: 'Optional - only matters for effects-heavy films.',
   },
+  'Casting Director': {
+    category: 'crew',
+    blurb:
+      "Curates who shows up for your open roles - not just more applicants, but better-suited ones, and an occasional exceptional unknown a wider net alone wouldn't have surfaced. Optional - Open Casting still works without one, just with more variance.",
+    hook: 'Saves time finding the right people for your roles.',
+  },
 };

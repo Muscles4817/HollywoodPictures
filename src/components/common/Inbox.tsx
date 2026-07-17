@@ -29,10 +29,12 @@ interface InboxProps {
  *    'scheduled' (engine/project.ts) - a parked project hasn't picked a
  *    release day yet, so it's still an ordinary backgrounded
  *    'player-in-progress' project, not its own kind.
- *  - 'casting' (Casting Redesign, Phase C) - a still-in-Development
- *    project (no photography yet) with new Open Casting applicants
+ *  - 'casting' (Casting Redesign, Phase C, extended Phase D) - a still-in-
+ *    Development project (no photography yet) with new casting applicants
  *    waiting on a Character that isn't cast yet
- *    (engine/castingCalls.ts:castingCallsAwaitingReview). Read-only here -
+ *    (engine/castingCalls.ts:castingCallsAwaitingReview) - both Open Casting
+ *    responses and InterestedTalent arrivals (the latter called out by name,
+ *    section 6). Read-only here -
  *    resolving it means going back into Cast & Crew, not something the
  *    Inbox itself can do, since casting decisions are per-Character (see
  *    components/wizard/CastingDrawer.tsx), not a single yes/no this list
@@ -136,29 +138,43 @@ export function Inbox({ open, onClose }: InboxProps) {
           </div>
         ))}
 
-        {casting.map(({ production, calls }) => (
-          <div className="card stack" key={production.id}>
-            <div className="card-title">{production.title || 'Untitled Film'}</div>
-            <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-              New casting applicants waiting on{' '}
-              {calls
-                .map((call) => production.script?.cast.find((c) => c.id === call.characterId)?.name ?? 'a role')
-                .join(', ')}
-              .
-            </p>
-            {state.focusedProjectId ? (
-              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
-                Finish or leave what you're currently working on before picking this back up.
+        {casting.map(({ production, calls }) => {
+          // Phase D (docs/DESIGN_REVIEW_casting_redesign.md section 6) -
+          // an InterestedTalent applicant reached out on their own, unprompted,
+          // rather than answering an Open Casting call - worth calling out by
+          // name here rather than folding into the same generic line.
+          const interestedNames = calls
+            .flatMap((call) => call.applicants.filter((a) => a.channel === 'InterestedTalent'))
+            .map((a) => a.person.identity.name);
+          return (
+            <div className="card stack" key={production.id}>
+              <div className="card-title">{production.title || 'Untitled Film'}</div>
+              <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+                New casting applicants waiting on{' '}
+                {calls
+                  .map((call) => production.script?.cast.find((c) => c.id === call.characterId)?.name ?? 'a role')
+                  .join(', ')}
+                .
               </p>
-            ) : (
-              <div>
-                <Button variant="primary" onClick={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })}>
-                  Continue Casting
-                </Button>
-              </div>
-            )}
-          </div>
-        ))}
+              {interestedNames.length > 0 && (
+                <p style={{ margin: 0, color: 'var(--primary)', fontWeight: 600 }}>
+                  {interestedNames.join(', ')} reached out directly, interested in joining.
+                </p>
+              )}
+              {state.focusedProjectId ? (
+                <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
+                  Finish or leave what you're currently working on before picking this back up.
+                </p>
+              ) : (
+                <div>
+                  <Button variant="primary" onClick={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })}>
+                    Continue Casting
+                  </Button>
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {productions.length > 0 && (
           <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>

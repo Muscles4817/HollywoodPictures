@@ -89,7 +89,7 @@ function draftWithPendingCastingApplicant(seed: number, id: string): FilmDraft {
   const base = withRng(seed, (rng) => buildReadyDraft(rng)).result;
   const [applicant] = withRng(seed + 100, (rng) => buildReadyDraft(rng)).result.talent.map((a) => a.person);
   const leadCharacter = asset.script.cast.find((c) => c.prominence === 'Lead')!;
-  const call = { ...openCastingCall(leadCharacter.id, 'Lead Actor', 1), applicants: [{ person: applicant, appliedOnDay: 1 }] };
+  const call = { ...openCastingCall(leadCharacter.id, 'Lead Actor', 1), applicants: [{ person: applicant, appliedOnDay: 1, channel: 'OpenCasting' as const }] };
   // buildReadyDraft sets photography to a finished shoot (it's meant for
   // release-flow tests) - castingCallsAwaitingReview is scoped to
   // still-in-Development drafts, so this needs clearing back to null.

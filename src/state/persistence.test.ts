@@ -437,6 +437,41 @@ describe('old saves migrate safely', () => {
     expect(state.studio.name).not.toBe('Stale Pictures');
   });
 
+  it('a save under the pre-Casting-Redesign-Phase-D v37 key (channel on the CastingCall itself, not its applicants) is invisible to v38 - falls back to a fresh studio rather than a hybrid state', () => {
+    // Casting Redesign, Phase D (docs/DESIGN_REVIEW_casting_redesign.md)
+    // moved `channel` off CastingCall and onto each CastingApplicant
+    // instead - a v37 save's applicants have no such field at all. Same
+    // class of break as every past shape change here: no migration code, an
+    // old save simply isn't found under the new key.
+    globalThis.localStorage.setItem(
+      'hollywood-pictures-save-v37',
+      JSON.stringify({
+        studio: { cash: 1, brand: 20, prestige: 20, name: 'Stale Pictures', assets: [] },
+        rivalStudios: [],
+        opportunities: [],
+        nextOpportunityCheckDay: 1,
+        projects: [
+          {
+            kind: 'player-in-progress',
+            draft: {
+              id: 'draft-1', title: 'Stale Draft', talent: [], talentTargetPriceByRole: {},
+              castingCalls: [{
+                id: 'call-1', characterId: 'char-1', role: 'Lead Actor', channel: 'OpenCasting', openedOnDay: 1, nextApplicantCheckDay: 8, rejectionCount: 0,
+                applicants: [{ person: { id: 'p-1' }, appliedOnDay: 1 }],
+              }],
+            },
+          },
+        ],
+        focusedProjectId: 'draft-1',
+        totalDays: 1,
+      }),
+    );
+    const state = loadState();
+    expect(state.projects).toEqual([]);
+    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
+    expect(state.studio.name).not.toBe('Stale Pictures');
+  });
+
   it('clearSavedState followed by loadState behaves exactly like no save ever existed', () => {
     const released = studioReducer(buildStateWithReadyDraft(4), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     saveState(released);

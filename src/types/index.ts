@@ -33,7 +33,8 @@ export type TalentProfession =
   | 'Cinematographer'
   | 'Composer'
   | 'Editor'
-  | 'VFX Supervisor';
+  | 'VFX Supervisor'
+  | 'Casting Director';
 
 export type ProductionRole =
   | 'Director'
@@ -43,7 +44,8 @@ export type ProductionRole =
   | 'Cinematographer'
   | 'Composer'
   | 'Editor'
-  | 'VFX Supervisor';
+  | 'VFX Supervisor'
+  | 'Casting Director';
 
 // The emotional/tonal axes every script and every Director are scored on -
 // a compatibility question instead of a flat per-genre lookup (see
@@ -303,6 +305,8 @@ export interface PersonCareers {
   composer?: CrewCareer<'Composer'>;
   editor?: CrewCareer<'Editor'>;
   vfxSupervisor?: CrewCareer<'VFX Supervisor'>;
+  /** Casting Redesign, Phase D (docs/DESIGN_REVIEW_casting_redesign.md section 11) - optional, same "doesn't block Greenlight, materially improves an existing mechanic when present" shape as vfxSupervisor above. Biases engine/castingCalls.ts:generateCastingApplicants's volume/curation and unlocks a small "discovery" chance. */
+  castingDirector?: CrewCareer<'Casting Director'>;
 }
 
 // Replaces the old single bookedUntil?: number - a person can hold more
@@ -1023,13 +1027,14 @@ export interface TalentAssignment {
 // stays open, ticking weekly, until the role is cast or the player stops
 // checking it.
 
-/** How this call's applicants are being found - a union of one today so a later search-method addition (Agency Outreach, Personal Network, ...) is a variant addition, not a redesign (design review section 10). */
-export type CastingChannel = 'OpenCasting';
+/** How a specific applicant found their way to this call - a per-applicant field (not per-call - Phase D's Interested Talent means one call can host both organic and inbound applicants side by side) so a later search-method addition (Agency Outreach, Personal Network, ...) is a variant addition, not a redesign (design review section 10). */
+export type CastingChannel = 'OpenCasting' | 'InterestedTalent';
 
-/** A specific Person who has applied - who and when, nothing else. Suitability/Interest/salary read/Availability are always derived fresh from `person` + the live script/studio/draft state (engine/castingAppeal.ts), never frozen here - only *who showed up and when* needs remembering. */
+/** A specific Person who has applied - who, when, and how they found this call. Suitability/Interest/salary read/Availability are always derived fresh from `person` + the live script/studio/draft state (engine/castingAppeal.ts), never frozen here - only *who showed up, when, and via which channel* needs remembering. */
 export interface CastingApplicant {
   person: Person;
   appliedOnDay: GameDay;
+  channel: CastingChannel;
 }
 
 export interface CastingCall {
@@ -1037,7 +1042,6 @@ export interface CastingCall {
   /** ScriptCharacter.id - one call per Character, not per role slot. */
   characterId: string;
   role: 'Lead Actor' | 'Supporting Actor';
-  channel: CastingChannel;
   openedOnDay: GameDay;
   /** Mirrors engine/opportunities.ts's own nextGenerationCheckDay pattern - the next weekly beat a fresh batch of applicants is due. */
   nextApplicantCheckDay: GameDay;

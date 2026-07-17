@@ -15,7 +15,7 @@ import type { PendingEventChoice, Person, TalentProfession } from '../../types';
 
 function emptyPool(): Record<TalentProfession, Person[]> {
   return {
-    Director: [], Actor: [], Writer: [], Cinematographer: [], Composer: [], Editor: [], 'VFX Supervisor': [],
+    Director: [], Actor: [], Writer: [], Cinematographer: [], Composer: [], Editor: [], 'VFX Supervisor': [], 'Casting Director': [],
   };
 }
 

@@ -17,7 +17,7 @@ import { RangeSlider } from '../common/RangeSlider';
 import { Money } from '../common/Money';
 import { CompatibilityBadge } from '../common/CompatibilityBadge';
 import { ACTING_STYLE_AXES, ACTING_STYLE_LABELS } from '../../data/actingStyle';
-import type { Person, ScriptCharacter } from '../../types';
+import type { CastingChannel, Person, ScriptCharacter } from '../../types';
 
 type CastingTab = 'open-casting' | 'direct-approach';
 
@@ -48,6 +48,7 @@ function CandidateCard({
   person,
   role,
   overall,
+  channel,
   actionLabel,
   canAct,
   onAct,
@@ -55,6 +56,7 @@ function CandidateCard({
   person: Person;
   role: 'Lead Actor' | 'Supporting Actor';
   overall: ReturnType<typeof computeActorAppeal>;
+  channel?: CastingChannel;
   actionLabel: string;
   canAct: boolean;
   onAct: () => void;
@@ -78,6 +80,11 @@ function CandidateCard({
         )}
         <div className="candidate-headline-stat">{available ? 'Available now' : `Booked until ${formatGameDate(bookedUntil!)}`}</div>
       </div>
+      {channel === 'InterestedTalent' && (
+        <p style={{ margin: '6px 0 0', fontSize: '0.8em', color: 'var(--primary)', fontWeight: 600 }}>
+          Reached out to you directly
+        </p>
+      )}
       <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
         {overall ? describeApplicantInterest(overall) : ''}
       </p>
@@ -118,6 +125,11 @@ export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDr
 
   const call = draft.castingCalls.find((c) => c.characterId === character.id) ?? null;
   const director = findAssignedPerson(draft.talent, 'Director');
+  // No hint once one's hired - Casting Director's effect (wider, better-
+  // curated batches) is already visible in the applicant list itself by
+  // then; the hint is only useful before that, to explain why hiring one
+  // would help (docs/DESIGN_REVIEW_casting_redesign.md section 11).
+  const showCastingDirectorHint = !findAssignedPerson(draft.talent, 'Casting Director');
   const hired = draft.talent.filter((a) => a.role === role).map((a) => a.person);
   const alreadyCast = slotIndex < hired.length;
   // Casting stays append-order for now (see docs/DESIGN_REVIEW_casting_redesign.md's
@@ -252,24 +264,35 @@ export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDr
                   Open the Call
                 </Button>
               </div>
-            ) : call.applicants.length === 0 ? (
-              <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-                Casting is open - no applicants yet. Check back as time passes.
-              </p>
             ) : (
-              <div className="grid grid-wide">
-                {sortedApplicants.map((applicant) => (
-                  <CandidateCard
-                    key={applicant.person.id}
-                    person={applicant.person}
-                    role={role}
-                    overall={appealByPersonId.get(applicant.person.id) ?? null}
-                    actionLabel="Cast"
-                    canAct={canActFromHere}
-                    onAct={() => attemptToAttach(applicant.person)}
-                  />
-                ))}
-              </div>
+              <>
+                {showCastingDirectorHint && (
+                  <p style={{ margin: 0 }}>
+                    Hiring a Casting Director brings in more applicants and better-suited ones - and every so often,
+                    a promising unknown a wider net alone wouldn't have found.
+                  </p>
+                )}
+                {call.applicants.length === 0 ? (
+                  <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+                    Casting is open - no applicants yet. Check back as time passes.
+                  </p>
+                ) : (
+                  <div className="grid grid-wide">
+                    {sortedApplicants.map((applicant) => (
+                      <CandidateCard
+                        key={applicant.person.id}
+                        person={applicant.person}
+                        role={role}
+                        overall={appealByPersonId.get(applicant.person.id) ?? null}
+                        channel={applicant.channel}
+                        actionLabel="Cast"
+                        canAct={canActFromHere}
+                        onAct={() => attemptToAttach(applicant.person)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

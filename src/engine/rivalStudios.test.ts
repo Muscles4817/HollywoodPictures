@@ -86,7 +86,7 @@ describe('settleRivalMarket - bidding (Milestone: Opportunity Market bidding)', 
 
   it('once a bid wins at the weekly tick, the rival actually casts and starts a production from that exact script', () => {
     const { market, totalDays } = freshMarket(20);
-    const { afterBid, afterResolve, resolvedBids } = withRng(21, (rng) =>
+    const { afterBid, afterResolve, resolvedBids } = withRng(22, (rng) =>
       bidThenResolve(market, totalDays, 8, 8, [], rng),
     ).result;
     expect(resolvedBids.length).toBeGreaterThan(0);
