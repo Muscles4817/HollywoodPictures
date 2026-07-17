@@ -26,8 +26,6 @@ import {
   marketingBuzzContribution,
 } from './productionDials';
 import { EDIT_STYLE_PROFILES, FINAL_CUT_FOCUS_PROFILES, MUSIC_FOCUS_PROFILES } from '../data/postProduction';
-import { RELEASE_TYPE_PROFILES } from '../data/release';
-import { AUDIENCE_WEIGHTS, CRITIC_WEIGHTS } from '../data/scoringWeights';
 import { computeQualityWeights } from './genreWeights';
 import { clamp } from './random';
 
@@ -369,12 +367,11 @@ export function computeQualityBreakdown(
   return { scriptScore, directionScore, actingScore, productionScore, postProductionScore, eventsScore, qualityScore };
 }
 
-/** Critic Score: craft-driven - quality, originality, direction, edit style, release type. */
+/** Critic Score: craft-driven - quality, originality, direction, edit style. */
 export function computeCriticScore(
   quality: QualityBreakdown,
   script: Script,
   postProductionChoices: PostProductionChoices,
-  marketingChoices: MarketingChoices,
 ): number {
   const criticalEditScore = clamp(
     50 + EDIT_STYLE_PROFILES[postProductionChoices.editStyle].criticDelta * 5,

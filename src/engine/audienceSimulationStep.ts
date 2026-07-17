@@ -511,12 +511,6 @@ const AVAILABILITY_RESPONSE_SENSITIVITY = 0.5;
 // approach itself already being asymptotic (see computeNextAvailability).
 const MAX_AVAILABILITY_RATE_MAGNITUDE = 0.2;
 
-/** How much a given critic score alone (ignoring audience score entirely) amplifies availability expansion - same convex shape as computeReceptionResponseMultiplier, but critic-only, for Festival First's "critic-led before general audiences get a vote" phase (see criticLedExpansionWeight). */
-function computeCriticOnlyReceptionMultiplier(fixed: AudienceSimulationFixedState): number {
-  const weighted = fixed.criticScore / 100;
-  return RECEPTION_FLOOR + (1 - RECEPTION_FLOOR) * weighted * weighted;
-}
-
 /**
  * How much this week's *expansion* signal (the positive/growth half of
  * computeNextAvailability only - contraction is never gated by reception,

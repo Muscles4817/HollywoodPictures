@@ -82,7 +82,6 @@ export function Dashboard() {
     .sort((a, b) => a.releaseDay - b.releaseDay);
 
   const runningFilms = playerReleasedFilms.filter((film) => film.boxOfficeRun.status === 'running');
-  const finishedFilms = playerReleasedFilms.filter((film) => film.boxOfficeRun.status === 'finished');
   const unacknowledgedFinished = playerReleasedFilms.find(
     (film) => film.boxOfficeRun.status === 'finished' && !film.boxOfficeRun.acknowledged,
   );

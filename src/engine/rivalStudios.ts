@@ -33,7 +33,6 @@ import { clamp, pick, pickMany, randFloat, randInt, type RandomFn } from './rand
 import { deriveReleaseWindowFromDay } from './calendar';
 import { computeCompetitiveCrowding, computeRivalReleaseStrength, type UpcomingRelease } from './releaseCrowding';
 
-const GENRES = Object.keys(GENRE_PROFILES) as Array<keyof typeof GENRE_PROFILES>;
 const EDIT_STYLES = Object.keys(EDIT_STYLE_PROFILES) as PostProductionChoices['editStyle'][];
 const MUSIC_FOCI = Object.keys(MUSIC_FOCUS_PROFILES) as PostProductionChoices['musicFocus'][];
 const FINAL_CUT_FOCI = Object.keys(FINAL_CUT_FOCUS_PROFILES) as PostProductionChoices['finalCutFocus'][];
