@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { exportFilmHistory } from '../state/exportFilmHistory';
 import { formatGameDate, formatGameMonthYear } from '../engine/calendar';
@@ -14,6 +14,17 @@ import { DifficultyPicker } from './common/DifficultyPicker';
 import { computeTopGrossingFilms } from '../state/selectors';
 import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
 import type { Film } from '../types';
+import './Dashboard.css';
+
+type ActivityItem = {
+  id: string;
+  tone: 'urgent' | 'warning' | 'positive' | 'neutral';
+  eyebrow: string;
+  title: string;
+  detail: string;
+  actionLabel?: string;
+  onAction?: () => void;
+};
 
 export function Dashboard() {
   const { state, dispatch } = useStudio();
@@ -23,9 +34,6 @@ export function Dashboard() {
   const [showResetPicker, setShowResetPicker] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(studio.name);
-  // Which running-film panels are collapsed - plain UI state, not persisted,
-  // same as everything else in this component that's about how the
-  // Dashboard looks rather than the game itself.
   const [collapsedFilmIds, setCollapsedFilmIds] = useState<Set<string>>(new Set());
 
   function startEditingName() {
@@ -52,34 +60,129 @@ export function Dashboard() {
     return <GameGuide onBack={() => setShowGuide(false)} />;
   }
 
-  // RETURN_TO_DASHBOARD always clears focusedProjectId (see
-  // state/studioReducer.ts), so every player-in-progress project here is
-  // already exactly the backgrounded set - nothing is ever the live/focused
-  // one while this screen is showing.
   const { projects } = state;
-  const playerReleasedFilms = projects.flatMap((p) => {
-    const film = asFilm(p);
+
+  const playerReleasedFilms = projects.flatMap((project) => {
+    const film = asFilm(project);
     return film && film.releasedBy === undefined ? [film] : [];
   });
-  const backgroundedDrafts = projects.flatMap((p) => {
-    const draft = asPlayerDraft(p);
+
+  const backgroundedDrafts = projects.flatMap((project) => {
+    const draft = asPlayerDraft(project);
     return draft ? [draft] : [];
   });
-  // Roadmap Phase 7.2 - every player project that's picked a release day
-  // and is just waiting for it to arrive (see engine/project.ts:Project).
+
   const scheduledReleases = projects
-    .flatMap((p) => {
-      const s = asScheduled(p);
-      return s ? [s] : [];
+    .flatMap((project) => {
+      const scheduled = asScheduled(project);
+      return scheduled ? [scheduled] : [];
     })
     .sort((a, b) => a.releaseDay - b.releaseDay);
-  const runningFilms = playerReleasedFilms.filter((f) => f.boxOfficeRun.status === 'running');
-  // Only ever surface one at a time, oldest-unseen-first, so a second
-  // "film finished" popup doesn't stack behind/interrupt the first.
-  const unacknowledgedFinished = playerReleasedFilms.find((f) => f.boxOfficeRun.status === 'finished' && !f.boxOfficeRun.acknowledged);
+
+  const runningFilms = playerReleasedFilms.filter((film) => film.boxOfficeRun.status === 'running');
+  const finishedFilms = playerReleasedFilms.filter((film) => film.boxOfficeRun.status === 'finished');
+  const unacknowledgedFinished = playerReleasedFilms.find(
+    (film) => film.boxOfficeRun.status === 'finished' && !film.boxOfficeRun.acknowledged,
+  );
+
+  const attentionDrafts = backgroundedDrafts.filter((production) => {
+    const status = production.photography?.status;
+    return status === 'awaiting-choice' || status === 'finished';
+  });
+
+  const activeShoots = backgroundedDrafts.filter(
+    (production) => production.photography?.status === 'in-progress',
+  );
+
+  const weeklyGross = runningFilms.reduce((total, film) => {
+    const latestWeek = film.boxOfficeRun.weeks.at(-1);
+    return total + getWeekGross(latestWeek);
+  }, 0);
+
+  const nextRelease = scheduledReleases[0];
+
+  const activityItems = useMemo<ActivityItem[]>(() => {
+    const items: ActivityItem[] = [];
+
+    attentionDrafts.forEach((production) => {
+      const status = production.photography?.status;
+      const title = production.title || 'Untitled Film';
+
+      if (status === 'awaiting-choice') {
+        items.push({
+          id: `${production.id}-decision`,
+          tone: 'urgent',
+          eyebrow: 'Decision required',
+          title,
+          detail: 'Production is paused until you resolve the latest on-set decision.',
+          actionLabel: 'Open project',
+          onAction: () => dispatch({ type: 'VIEW_PRODUCTION', productionId: production.id }),
+        });
+      } else if (status === 'finished') {
+        items.push({
+          id: `${production.id}-wrapped`,
+          tone: 'warning',
+          eyebrow: production.postProductionChoices ? 'Release preparation' : 'Post-production ready',
+          title,
+          detail: production.postProductionChoices
+            ? 'The film is complete and waiting for its release day.'
+            : 'Principal photography has wrapped and the film is ready for post-production.',
+          actionLabel: 'Open project',
+          onAction: () => dispatch({ type: 'VIEW_PRODUCTION', productionId: production.id }),
+        });
+      }
+    });
+
+    runningFilms.forEach((film) => {
+      const latestWeek = film.boxOfficeRun.weeks.at(-1);
+      items.push({
+        id: `${film.id}-cinemas`,
+        tone: 'positive',
+        eyebrow: `In theatres · Week ${film.boxOfficeRun.weeks.length}`,
+        title: film.title,
+        detail: latestWeek
+          ? `${formatMoney(getWeekGross(latestWeek))} this week · ${formatMoney(film.boxOfficeRun.cumulativeGross)} total`
+          : `${formatMoney(film.boxOfficeRun.cumulativeGross)} gross so far`,
+        actionLabel: 'View performance',
+        onAction: () => setSelectedFilm(film),
+      });
+    });
+
+    if (nextRelease) {
+      items.push({
+        id: `${nextRelease.draft.id}-release`,
+        tone: 'neutral',
+        eyebrow: 'Next release',
+        title: nextRelease.draft.title || 'Untitled Film',
+        detail: `Scheduled for ${formatGameMonthYear(nextRelease.releaseDay)}.`,
+        actionLabel: 'Open calendar',
+        onAction: () => dispatch({ type: 'VIEW_RELEASE_CALENDAR' }),
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        id: 'start-first-film',
+        tone: 'neutral',
+        eyebrow: 'Your studio is ready',
+        title: 'Find your first project',
+        detail: 'Browse the Opportunity Market, acquire a script and begin building your slate.',
+        actionLabel: 'Browse opportunities',
+        onAction: () => dispatch({ type: 'VIEW_OPPORTUNITY_MARKET' }),
+      });
+    }
+
+    return items.slice(0, 5);
+  }, [attentionDrafts, dispatch, nextRelease, runningFilms]);
+
+  const studioTier = playerReleasedFilms.length >= 10
+    ? 'Major studio'
+    : playerReleasedFilms.length >= 4
+      ? 'Established studio'
+      : 'Independent studio';
 
   return (
-    <div className="stack">
+    <div className="dashboard-page">
       {unacknowledgedFinished && <BoxOfficeFinishedPopup film={unacknowledgedFinished} />}
       {selectedFilm && <FilmDetailModal film={selectedFilm} onClose={() => setSelectedFilm(null)} />}
       {showResetPicker && (
@@ -93,64 +196,198 @@ export function Dashboard() {
         />
       )}
 
-      <div className="row-between">
-        <div>
+      <section className="dashboard-hero">
+        <div className="dashboard-identity">
           {editingName ? (
-            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+            <div className="dashboard-name-editor">
               <input
                 type="text"
                 value={nameDraft}
-                onChange={(e) => setNameDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') commitNameEdit();
-                  if (e.key === 'Escape') setEditingName(false);
+                onChange={(event) => setNameDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') commitNameEdit();
+                  if (event.key === 'Escape') setEditingName(false);
                 }}
                 autoFocus
-                style={{ fontSize: '1.5em', fontWeight: 700, maxWidth: 360 }}
               />
               <Button className="btn-sm" variant="primary" onClick={commitNameEdit}>Save</Button>
               <Button className="btn-sm" onClick={() => setEditingName(false)}>Cancel</Button>
             </div>
           ) : (
-            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-              <h1 style={{ margin: 0 }}>{studio.name}</h1>
-              <Button className="btn-sm" onClick={startEditingName}>Rename</Button>
+            <div className="dashboard-title-row">
+              <div>
+                <div className="dashboard-kicker">{studioTier}</div>
+                <h1>{studio.name}</h1>
+              </div>
+              <Button className="btn-sm dashboard-rename" onClick={startEditingName}>Rename</Button>
             </div>
           )}
-          <p>{playerReleasedFilms.length} film{playerReleasedFilms.length === 1 ? '' : 's'} released</p>
+
+          <div className="dashboard-identity-meta">
+            <span>Year {Math.floor(state.totalDays / 365) + 1}</span>
+            <span>{projects.length} active project{projects.length === 1 ? '' : 's'}</span>
+            <span>{playerReleasedFilms.length} released film{playerReleasedFilms.length === 1 ? '' : 's'}</span>
+          </div>
         </div>
-        <div className="row">
-          <Button onClick={() => dispatch({ type: 'VIEW_PROJECTS' })}>Projects</Button>
-          <Button onClick={() => dispatch({ type: 'VIEW_STATS' })}>Stats</Button>
-          <Button onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}>Release Calendar</Button>
-          <Button onClick={() => setShowGuide(true)}>How It Works</Button>
-          <Button onClick={() => setShowResetPicker(true)}>Reset Studio</Button>
-          <Button onClick={() => dispatch({ type: 'VIEW_ASSET_LIBRARY' })}>Asset Library</Button>
+
+        <div className="dashboard-primary-actions">
+          <Button onClick={() => dispatch({ type: 'VIEW_PROJECTS' })}>View projects</Button>
           <Button variant="primary" onClick={() => dispatch({ type: 'VIEW_OPPORTUNITY_MARKET' })}>
-            Opportunity Market
+            Find a project
           </Button>
         </div>
-      </div>
+      </section>
 
-      <div className="row">
-        <StatTile label="Studio Cash" value={<Money amount={studio.cash} signColor />} />
-        <StatTile label="Brand Recognition" value={`${studio.brand} / 100`} />
-        <StatTile label="Prestige" value={`${studio.prestige} / 100`} />
-        <StatTile label="Films Released" value={playerReleasedFilms.length} />
-      </div>
+      <nav className="dashboard-subnav" aria-label="Studio navigation">
+        <button type="button" onClick={() => dispatch({ type: 'VIEW_ASSET_LIBRARY' })}>Asset Library</button>
+        <button type="button" onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}>Release Calendar</button>
+        <button type="button" onClick={() => dispatch({ type: 'VIEW_STATS' })}>Studio Stats</button>
+        <button type="button" onClick={() => setShowGuide(true)}>How It Works</button>
+        <button type="button" className="dashboard-danger-link" onClick={() => setShowResetPicker(true)}>Reset Studio</button>
+      </nav>
 
-      <div className="dashboard-layout">
-        <div className="stack">
+      <section className="dashboard-metrics" aria-label="Studio overview">
+        <div className="dashboard-metric dashboard-metric-money">
+          <span className="dashboard-metric-label">Studio cash</span>
+          <strong><Money amount={studio.cash} signColor /></strong>
+          <span className="dashboard-metric-note">Available to invest</span>
+        </div>
+        <div className="dashboard-metric dashboard-metric-brand">
+          <span className="dashboard-metric-label">Brand recognition</span>
+          <strong>{studio.brand}<small>/100</small></strong>
+          <div className="dashboard-meter"><span style={{ width: `${studio.brand}%` }} /></div>
+        </div>
+        <div className="dashboard-metric dashboard-metric-prestige">
+          <span className="dashboard-metric-label">Prestige</span>
+          <strong>{studio.prestige}<small>/100</small></strong>
+          <div className="dashboard-meter"><span style={{ width: `${studio.prestige}%` }} /></div>
+        </div>
+        <div className="dashboard-metric dashboard-metric-revenue">
+          <span className="dashboard-metric-label">Weekly box office</span>
+          <strong><Money amount={weeklyGross} /></strong>
+          <span className="dashboard-metric-note">
+            {runningFilms.length} film{runningFilms.length === 1 ? '' : 's'} currently playing
+          </span>
+        </div>
+      </section>
+
+      <div className="dashboard-main-grid">
+        <main className="dashboard-main-column">
+          <section className="dashboard-card dashboard-attention-card">
+            <div className="dashboard-card-heading">
+              <div>
+                <span className="dashboard-section-kicker">Command centre</span>
+                <h2>What’s happening</h2>
+              </div>
+              {attentionDrafts.length > 0 && (
+                <span className="dashboard-attention-count">{attentionDrafts.length} need attention</span>
+              )}
+            </div>
+
+            <div className="dashboard-activity-list">
+              {activityItems.map((item) => (
+                <article key={item.id} className={`dashboard-activity dashboard-activity-${item.tone}`}>
+                  <span className="dashboard-activity-dot" aria-hidden="true" />
+                  <div className="dashboard-activity-copy">
+                    <span className="dashboard-activity-eyebrow">{item.eyebrow}</span>
+                    <strong>{item.title}</strong>
+                    <p>{item.detail}</p>
+                  </div>
+                  {item.onAction && item.actionLabel && (
+                    <Button className="btn-sm" onClick={item.onAction}>{item.actionLabel}</Button>
+                  )}
+                </article>
+              ))}
+            </div>
+          </section>
+
+          {(backgroundedDrafts.length > 0 || scheduledReleases.length > 0) && (
+            <section className="dashboard-card">
+              <div className="dashboard-card-heading">
+                <div>
+                  <span className="dashboard-section-kicker">Your slate</span>
+                  <h2>Production pipeline</h2>
+                </div>
+                <Button className="btn-sm" onClick={() => dispatch({ type: 'VIEW_PROJECTS' })}>All projects</Button>
+              </div>
+
+              <div className="dashboard-pipeline-summary">
+                <PipelineStat label="Filming" value={activeShoots.length} />
+                <PipelineStat label="Needs attention" value={attentionDrafts.length} emphasis={attentionDrafts.length > 0} />
+                <PipelineStat label="Scheduled" value={scheduledReleases.length} />
+                <PipelineStat label="In theatres" value={runningFilms.length} />
+              </div>
+
+              <div className="dashboard-project-list">
+                {backgroundedDrafts.map((production) => {
+                  const photography = production.photography;
+                  if (!photography) return null;
+
+                  const statusLabel = photography.status === 'awaiting-choice'
+                    ? 'Decision required'
+                    : photography.status === 'finished'
+                      ? production.postProductionChoices
+                        ? 'Awaiting release'
+                        : 'Ready for post-production'
+                      : 'Principal photography';
+
+                  return (
+                    <article className="dashboard-project-row" key={production.id}>
+                      <div className="dashboard-project-main">
+                        <span className={`dashboard-status-pill dashboard-status-${photography.status}`}>
+                          {statusLabel}
+                        </span>
+                        <strong>{production.title || 'Untitled Film'}</strong>
+                        <span className="dashboard-project-meta">
+                          Day {photography.daysElapsed} of ~{photography.recommendedDays} · <Money amount={photography.runningCost} /> spent
+                        </span>
+                      </div>
+                      <div className="dashboard-project-actions">
+                        <Button className="btn-sm" onClick={() => dispatch({ type: 'VIEW_PRODUCTION', productionId: production.id })}>
+                          Open
+                        </Button>
+                        {photography.status === 'in-progress' && (
+                          <Button
+                            className="btn-sm"
+                            onClick={() => dispatch({ type: 'FINISH_PHOTOGRAPHY', productionId: production.id })}
+                          >
+                            Finish shoot
+                          </Button>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+
+                {scheduledReleases.map(({ draft, releaseDay }) => (
+                  <article className="dashboard-project-row" key={draft.id}>
+                    <div className="dashboard-project-main">
+                      <span className="dashboard-status-pill dashboard-status-scheduled">Scheduled release</span>
+                      <strong>{draft.title || 'Untitled Film'}</strong>
+                      <span className="dashboard-project-meta">Releasing {formatGameMonthYear(releaseDay)}</span>
+                    </div>
+                    <Button className="btn-sm" onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}>Calendar</Button>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+
           {runningFilms.map((film) => {
             const collapsed = collapsedFilmIds.has(film.id);
+            const latestWeek = film.boxOfficeRun.weeks.at(-1);
+
             return (
-              <div className="card stack" key={film.id}>
-                <div className="row-between">
-                  <h2 style={{ margin: 0 }}>{film.title} - In Theaters</h2>
-                  <div className="row" style={{ gap: 12 }}>
+              <section className="dashboard-card dashboard-box-office-card" key={film.id}>
+                <div className="dashboard-card-heading">
+                  <div>
+                    <span className="dashboard-section-kicker">Now playing · Week {film.boxOfficeRun.weeks.length}</span>
+                    <h2>{film.title}</h2>
+                  </div>
+                  <div className="dashboard-heading-actions">
                     {collapsed && (
-                      <span style={{ color: 'var(--text-muted)', fontSize: '0.85em' }}>
-                        Week {film.boxOfficeRun.weeks.length} &middot; <Money amount={film.boxOfficeRun.cumulativeGross} /> so far
+                      <span className="dashboard-muted">
+                        <Money amount={film.boxOfficeRun.cumulativeGross} /> total
                       </span>
                     )}
                     <Button className="btn-sm" onClick={() => toggleCollapsed(film.id)}>
@@ -158,89 +395,47 @@ export function Dashboard() {
                     </Button>
                   </div>
                 </div>
+
                 {!collapsed && (
                   <>
-                    <div className="row">
-                      <StatTile label="Week" value={film.boxOfficeRun.weeks.length} />
+                    <div className="dashboard-film-metrics">
+                      <StatTile label="This Week" value={<Money amount={getWeekGross(latestWeek)} />} />
                       <StatTile label="Opening Weekend" value={<Money amount={film.results.openingWeekend} />} />
                       <StatTile label="Gross So Far" value={<Money amount={film.boxOfficeRun.cumulativeGross} />} />
                     </div>
                     <BoxOfficeChart weeks={film.boxOfficeRun.weeks} />
-                    <p className="choice-description" style={{ margin: 0 }}>
-                      Updates as time passes - keep developing your next film and the numbers here will keep climbing (or fading) week by week.
-                    </p>
                   </>
                 )}
-              </div>
+              </section>
             );
           })}
 
-          {backgroundedDrafts.map((production) => {
-            const photography = production.photography;
-            if (!photography) return null;
-            const statusLabel =
-              photography.status === 'awaiting-choice'
-                ? 'Awaiting your decision - check the Inbox'
-                : photography.status === 'finished'
-                  ? production.postProductionChoices
-                    ? 'Ready for its release day - check the Inbox'
-                    : 'Wrapped - ready for post-production (check the Inbox)'
-                  : 'Shooting in the background';
-            return (
-              <div className="card stack" key={production.id}>
-                <div className="row-between">
-                  <h2 style={{ margin: 0 }}>{production.title || 'Untitled Film'}</h2>
-                  <div className="row" style={{ gap: 8 }}>
-                    <Button className="btn-sm" onClick={() => dispatch({ type: 'VIEW_PRODUCTION', productionId: production.id })}>
-                      View
-                    </Button>
-                    {photography.status === 'in-progress' && (
-                      <Button
-                        className="btn-sm"
-                        onClick={() => dispatch({ type: 'FINISH_PHOTOGRAPHY', productionId: production.id })}
-                      >
-                        Finish Principal Photography
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                <div className="row">
-                  <StatTile label="Status" value={statusLabel} />
-                  <StatTile label="Day" value={`${photography.daysElapsed} of ~${photography.recommendedDays} recommended`} />
-                  <StatTile label="Spent So Far" value={<Money amount={photography.runningCost} />} />
-                </div>
+          <section className="dashboard-card">
+            <div className="dashboard-card-heading">
+              <div>
+                <span className="dashboard-section-kicker">Track record</span>
+                <h2>Filmography</h2>
               </div>
-            );
-          })}
-
-          {scheduledReleases.length > 0 && (
-            <div className="card stack">
-              <div className="row-between">
-                <h2 style={{ margin: 0 }}>Scheduled Releases</h2>
-                <Button className="btn-sm" onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}>
-                  View Release Calendar
-                </Button>
-              </div>
-              {scheduledReleases.map(({ draft, releaseDay }) => (
-                <div className="row-between" key={draft.id}>
-                  <span>{draft.title || 'Untitled Film'}</span>
-                  <span style={{ color: 'var(--text-muted)' }}>Releasing {formatGameMonthYear(releaseDay)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="card">
-            <div className="row-between">
-              <h2 style={{ margin: 0 }}>Studio History</h2>
-              <Button disabled={playerReleasedFilms.length === 0} onClick={() => exportFilmHistory(studio, playerReleasedFilms, state.totalDays)}>
-                Export Film History (JSON)
+              <Button
+                className="btn-sm"
+                disabled={playerReleasedFilms.length === 0}
+                onClick={() => exportFilmHistory(studio, playerReleasedFilms, state.totalDays)}
+              >
+                Export JSON
               </Button>
             </div>
+
             {playerReleasedFilms.length === 0 ? (
-              <p>No films released yet. Start your first production to build a track record.</p>
+              <div className="dashboard-empty-state">
+                <span className="dashboard-empty-icon" aria-hidden="true">◆</span>
+                <h3>Your story starts with the first release</h3>
+                <p>Completed films, studio records and long-term performance will appear here.</p>
+                <Button variant="primary" onClick={() => dispatch({ type: 'VIEW_OPPORTUNITY_MARKET' })}>
+                  Browse the Opportunity Market
+                </Button>
+              </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
+              <div className="dashboard-table-wrap">
                 <table>
                   <thead>
                     <tr>
@@ -259,33 +454,29 @@ export function Dashboard() {
                       const running = film.boxOfficeRun.status === 'running';
                       return (
                         <tr key={film.id} className="film-history-row" onClick={() => setSelectedFilm(film)}>
-                          <td>{film.title}</td>
+                          <td><strong>{film.title}</strong></td>
                           <td>{film.genre}</td>
                           <td>{formatGameDate(film.releasedOnDay)}</td>
                           <td><Money amount={film.results.totalCost} /></td>
                           <td>
-                            {running ? (
-                              <span style={{ color: 'var(--text-muted)' }}><Money amount={film.boxOfficeRun.cumulativeGross} /> so far</span>
-                            ) : (
-                              <Money amount={film.results.totalBoxOffice ?? 0} />
-                            )}
+                            {running
+                              ? <span className="dashboard-muted"><Money amount={film.boxOfficeRun.cumulativeGross} /> so far</span>
+                              : <Money amount={film.results.totalBoxOffice ?? 0} />}
                           </td>
                           <td>{film.results.criticScore}</td>
                           <td>
-                            {running || !film.results.outcome ? (
-                              <span className="badge">In Theaters</span>
-                            ) : (
-                              <span className={`badge badge-outcome-${film.results.outcome.replace(/\s+/g, '-')}`}>
-                                {film.results.outcome}
-                              </span>
-                            )}
+                            {running || !film.results.outcome
+                              ? <span className="badge">In Theaters</span>
+                              : (
+                                <span className={`badge badge-outcome-${film.results.outcome.replace(/\s+/g, '-')}`}>
+                                  {film.results.outcome}
+                                </span>
+                              )}
                           </td>
                           <td>
-                            {running || film.results.profit === null ? (
-                              <span style={{ color: 'var(--text-muted)' }}>Pending</span>
-                            ) : (
-                              <Money amount={film.results.profit} signColor showSign />
-                            )}
+                            {running || film.results.profit === null
+                              ? <span className="dashboard-muted">Pending</span>
+                              : <Money amount={film.results.profit} signColor showSign />}
                           </td>
                         </tr>
                       );
@@ -294,36 +485,107 @@ export function Dashboard() {
                 </table>
               </div>
             )}
-          </div>
-        </div>
+          </section>
+        </main>
 
-        <div className="dashboard-right-rail">
-          <TopGrossingPanel
-            entries={computeTopGrossingFilms(projects, studio.name)}
-            playerStudioName={studio.name}
-            onSelectFilm={setSelectedFilm}
-            onSelectStudio={(studioName) => dispatch({ type: 'VIEW_RIVAL_STUDIO', studioName })}
-          />
+        <aside className="dashboard-sidebar">
+          <section className="dashboard-card dashboard-sidebar-card dashboard-box-office-sidebar">
+            <div className="dashboard-card-heading dashboard-sidebar-heading">
+              <div>
+                <span className="dashboard-section-kicker">Industry pulse</span>
+                <h2>Box office this week</h2>
+              </div>
+            </div>
+            <TopGrossingPanel
+              entries={computeTopGrossingFilms(projects, studio.name)}
+              playerStudioName={studio.name}
+              onSelectFilm={setSelectedFilm}
+              onSelectStudio={(studioName) => dispatch({ type: 'VIEW_RIVAL_STUDIO', studioName })}
+            />
+          </section>
 
-          <div className="card stack">
-            <h2 style={{ margin: 0 }}>Rival Studios</h2>
-            <div className="stack" style={{ gap: 10 }}>
+          <section className="dashboard-card dashboard-sidebar-card">
+            <div className="dashboard-card-heading dashboard-sidebar-heading">
+              <div>
+                <span className="dashboard-section-kicker">Coming up</span>
+                <h2>Release calendar</h2>
+              </div>
+              <Button className="btn-sm" onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}>View</Button>
+            </div>
+
+            {scheduledReleases.length === 0 ? (
+              <p className="dashboard-sidebar-empty">No player releases are currently scheduled.</p>
+            ) : (
+              <div className="dashboard-upcoming-list">
+                {scheduledReleases.slice(0, 4).map(({ draft, releaseDay }) => (
+                  <button
+                    type="button"
+                    key={draft.id}
+                    className="dashboard-upcoming-row"
+                    onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}
+                  >
+                    <span>
+                      <strong>{draft.title || 'Untitled Film'}</strong>
+                      <small>Your studio</small>
+                    </span>
+                    <time>{formatGameMonthYear(releaseDay)}</time>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="dashboard-card dashboard-sidebar-card">
+            <div className="dashboard-card-heading dashboard-sidebar-heading">
+              <div>
+                <span className="dashboard-section-kicker">Competition</span>
+                <h2>Rival studios</h2>
+              </div>
+            </div>
+            <div className="dashboard-rival-list">
               {state.rivalStudios.map((rival) => (
                 <button
+                  type="button"
                   key={rival.id}
-                  className="top-grossing-row"
+                  className="dashboard-rival-row"
                   onClick={() => dispatch({ type: 'VIEW_RIVAL_STUDIO', studioName: rival.name })}
                 >
-                  <span className="top-grossing-details">
-                    <span className="top-grossing-title">{rival.name}</span>
-                    <span className="top-grossing-studio">{rival.tier}</span>
+                  <span>
+                    <strong>{rival.name}</strong>
+                    <small>{rival.tier}</small>
                   </span>
+                  <span aria-hidden="true">›</span>
                 </button>
               ))}
             </div>
-          </div>
-        </div>
+          </section>
+        </aside>
       </div>
     </div>
   );
+}
+
+function PipelineStat({ label, value, emphasis = false }: { label: string; value: number; emphasis?: boolean }) {
+  return (
+    <div className={emphasis ? 'dashboard-pipeline-stat dashboard-pipeline-stat-emphasis' : 'dashboard-pipeline-stat'}>
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function formatMoney(amount: number): string {
+  return new Intl.NumberFormat('en-GB', {
+    style: 'currency',
+    currency: 'GBP',
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(amount);
+}
+
+function getWeekGross(week: unknown): number {
+  if (!week || typeof week !== 'object') return 0;
+  const record = week as Record<string, unknown>;
+  const value = record.gross ?? record.weeklyGross ?? record.boxOffice ?? record.revenue;
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
