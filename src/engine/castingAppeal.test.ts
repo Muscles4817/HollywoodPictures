@@ -152,6 +152,38 @@ describe('computeActorAppeal', () => {
     const result = computeActorAppeal(person, testCharacter, script, studio(), undefined, [], 1_000_000, 1)!;
     expect(result.suitability).toBeGreaterThan(90);
   });
+
+  // UI review (user report, screenshot): overall appeal barely moved with
+  // studio reputation before this - a studio going from brand/prestige 20 to
+  // 90 only shifted `overall` by ~7-10 points, since brandFit/prestigeFit
+  // sharing one effective weight (via prestigeLean's complementary split)
+  // wasn't accounted for when they were each weighted independently in a
+  // naive sum-to-1 table. Fixed by giving the blended (brandFit +
+  // prestigeFit) signal one proper weight, same magnitude as suitability.
+  it('overall appeal moves substantially - not marginally - between an unproven indie studio and a major one, holding everything else fixed', () => {
+    const script = scriptFor(15);
+    const testCharacter = character();
+    // Split ambition/ego from prestige right down the middle so this actor's
+    // own lean doesn't fully starve one of brandFit/prestigeFit - the
+    // scenario where the old per-key weighting most badly undercounted
+    // reputation's actual felt effect.
+    const person = actorPerson('a15', { reputation: { fame: 50, prestige: 50 }, personality: { ambition: 50, ego: 50 } });
+    const indie = computeActorAppeal(person, testCharacter, script, studio({ brand: 20, prestige: 20 }), undefined, [], 1_000_000, 1)!;
+    const major = computeActorAppeal(person, testCharacter, script, studio({ brand: 90, prestige: 90 }), undefined, [], 1_000_000, 1)!;
+    expect(major.overall - indie.overall).toBeGreaterThan(12);
+  });
+
+  it('reads as noticeably less prestigious with no director attached than with a well-regarded one, even at the same studio', () => {
+    const script = scriptFor(16);
+    const prestigeActor = actorPerson('a16', { reputation: { prestige: 90 }, personality: { ambition: 10, ego: 10 } });
+    const lowRepStudio = studio({ brand: 20, prestige: 20 });
+    const noDirector = computeActorAppeal(prestigeActor, character(), script, lowRepStudio, undefined, [], 1_000_000, 1)!;
+    const respectedDirector = actorPerson('director16', { reputation: { prestige: 95, fame: 95 } });
+    const withDirector = computeActorAppeal(prestigeActor, character(), script, lowRepStudio, respectedDirector, [], 1_000_000, 1)!;
+    expect(withDirector.prestigeFit).toBeGreaterThan(noDirector.prestigeFit);
+    // Not just lower than the director case - genuinely low in absolute terms, reflecting an unproven pitch with nobody attached yet.
+    expect(noDirector.prestigeFit).toBeLessThan(40);
+  });
 });
 
 // Casting Redesign, Phase C (docs/DESIGN_REVIEW_casting_redesign.md

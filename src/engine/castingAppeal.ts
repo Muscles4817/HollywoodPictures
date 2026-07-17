@@ -32,15 +32,27 @@ export interface ActorAppealFactors {
 }
 
 // First-draft, tunable weights, like every other numeric constant in this
-// simulation - sums to 1 so `overall` stays on the same 0-100 scale as its
-// inputs.
-const APPEAL_WEIGHTS: Record<keyof ActorAppealFactors, number> = {
+// simulation. brandFit and prestigeFit are NOT independent budget the way
+// suitability/salaryFit/scheduleFit/attachmentMomentum are - prestigeLean
+// always splits a given actor between the two as complementary fractions
+// (studio.brand*(1-lean) and prestigeSignal*lean), so summing both at their
+// own weight (the naive "every factor sums to 1" reading this table used to
+// have, at 0.15/0.15) only ever gives the *blended* reputation-fit signal an
+// EFFECTIVE weight equal to that one shared weight, never their sum -
+// measured directly: a studio going from brand/prestige 20 to 90 (an
+// unproven indie to a major studio) only moved `overall` by ~7-10 points at
+// 0.15 each. reputationFit below is computed explicitly (brandFit +
+// prestigeFit, which - because of that same complementary-fraction property
+// - already reads as one blended 0-100ish signal, not an additive stack)
+// and given its own single weight, on equal footing with suitability - the
+// studio's standing should be as real a factor in who's interested as
+// whether they'd actually suit the role, not a rounding error next to it.
+const WEIGHTS = {
   suitability: 0.3,
-  brandFit: 0.15,
-  prestigeFit: 0.15,
-  salaryFit: 0.2,
-  scheduleFit: 0.1,
-  attachmentMomentum: 0.1,
+  reputationFit: 0.3,
+  salaryFit: 0.25,
+  scheduleFit: 0.075,
+  attachmentMomentum: 0.075,
 };
 
 /**
@@ -64,9 +76,20 @@ function computeBrandFit(studio: Studio, lean: number): number {
   return studio.brand * (1 - lean);
 }
 
+// No-director default for the term below - deliberately low, not a neutral
+// midpoint. A flat 50 (measured) let a totally unproven studio with nobody
+// attached still read as moderately prestigious to prestige-leaning actors,
+// undercutting projectReadiness.ts's own "cast-before-director" nudge
+// ("actors read a studio's pitch more strongly once one is attached") -
+// matches createInitialStudio's own starting brand/prestige (20), the same
+// "unproven until you show something" read a fresh studio itself gets.
+const NO_DIRECTOR_REPUTATION_DEFAULT = 20;
+
 function computePrestigeFit(studio: Studio, script: Script, director: Person | undefined, lean: number): number {
   const scriptQuality = computeScriptScore(script);
-  const directorReputation = director ? (director.reputation.prestige + director.reputation.industryRespect) / 2 : 50;
+  const directorReputation = director
+    ? (director.reputation.prestige + director.reputation.industryRespect) / 2
+    : NO_DIRECTOR_REPUTATION_DEFAULT;
   const prestigeSignal = studio.prestige * 0.4 + scriptQuality * 0.3 + directorReputation * 0.3;
   return prestigeSignal * lean;
 }
@@ -128,10 +151,15 @@ export function computeActorAppeal(
     attachmentMomentum: computeAttachmentMomentum(currentTalent),
   };
 
-  const overall = (Object.keys(APPEAL_WEIGHTS) as Array<keyof ActorAppealFactors>).reduce(
-    (sum, key) => sum + factors[key] * APPEAL_WEIGHTS[key],
-    0,
-  );
+  // brandFit + prestigeFit, not each weighted separately - see WEIGHTS' own
+  // comment on why that pair is one blended signal, not two independent ones.
+  const reputationFit = factors.brandFit + factors.prestigeFit;
+  const overall =
+    factors.suitability * WEIGHTS.suitability +
+    reputationFit * WEIGHTS.reputationFit +
+    factors.salaryFit * WEIGHTS.salaryFit +
+    factors.scheduleFit * WEIGHTS.scheduleFit +
+    factors.attachmentMomentum * WEIGHTS.attachmentMomentum;
 
   return { ...factors, overall: clamp(overall, 0, 100) };
 }

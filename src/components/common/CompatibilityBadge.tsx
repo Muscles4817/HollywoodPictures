@@ -23,7 +23,12 @@ interface CompatibilityBadgeProps {
  * row heights stay consistent without needing a flyout trick.
  */
 export function CompatibilityBadge({ score, breakdown, defaultLabel = 'Tone Profile' }: CompatibilityBadgeProps) {
-  const label = score !== undefined ? `Compatibility: ${Math.round(score)}` : defaultLabel;
+  // Always keeps defaultLabel's own context (e.g. "Acting Style" vs "Role
+  // Demands") even once a score is known - collapsing both to a generic
+  // "Compatibility: N" made two badges on the same TalentStats card
+  // (whole-script fit and character-specific fit) read as indistinguishable
+  // duplicates, since both use the same underlying ActingStyle axis names.
+  const label = score !== undefined ? `${defaultLabel}: ${Math.round(score)}` : defaultLabel;
 
   return (
     <div className="compat-badge">
