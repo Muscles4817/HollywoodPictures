@@ -8,7 +8,10 @@ import { computeTalentCompatibility } from '../../engine/compatibility';
 import { computeTalentCost } from '../../engine/cost';
 import { dominantLean, explainEffectsStrategy, explainEnvironmentStrategy } from '../../engine/recommendation';
 import { synthesizeProductionIdentity } from '../../engine/productionIdentity';
+import { describeCharacterDemands } from '../../engine/scriptPresentation';
+import { deriveProjectReadiness } from '../../engine/projectReadiness';
 import { toneProfileBreakdown } from '../../data/tones';
+import { CHARACTER_ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
 import { Card } from '../common/Card';
 import { RangeSlider } from '../common/RangeSlider';
 import { ScoreBar } from '../common/ScoreBar';
@@ -17,7 +20,7 @@ import { CompatibilityBadge } from '../common/CompatibilityBadge';
 import { RoleHiringDrawer } from './RoleHiringDrawer';
 import { findAssignedPerson } from '../../data/helpers';
 import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole } from '../../engine/person';
-import type { EffectsMethodKey, EnvironmentMethodKey, Person, ProductionRole } from '../../types';
+import type { EffectsMethodKey, EnvironmentMethodKey, Person, ProductionRole, Script, ScriptCharacter } from '../../types';
 
 const MASTER_BUDGET_RANGE = { min: 300_000, max: 30_000_000 };
 const DEFAULT_MASTER_BUDGET = 3_000_000;
@@ -78,6 +81,98 @@ function RoleTile({ role, optional, onOpen }: { role: ProductionRole; optional: 
   );
 }
 
+/**
+ * Casting Redesign, Phase A (docs/DESIGN_REVIEW_casting_redesign.md
+ * section 8) - one row per Lead/Supporting `ScriptCharacter` instead of an
+ * aggregate "Lead Actor 0/4" tile, so the player reads this section as "who
+ * plays our villain" rather than "how many of role slot #2 are filled."
+ * `slotIndex` is this character's position among every character of the
+ * same prominence (`script.cast.filter(c => c.prominence === character.prominence)`)
+ * - the same positional contract `characterForRoleSlot` already establishes
+ * for scoring, reused here purely for display. Whoever currently occupies
+ * that position in `draft.talent` (append-order, unchanged in this phase -
+ * see the design doc's own note that slot-stable recasting is deliberately
+ * out of scope here) is read live off state, never stored on the row
+ * itself, so removing an earlier cast member correctly reflows who this
+ * row shows without any extra bookkeeping.
+ */
+function CharacterCastingRow({
+  character,
+  role,
+  slotIndex,
+  onOpen,
+}: {
+  character: ScriptCharacter;
+  role: 'Lead Actor' | 'Supporting Actor';
+  slotIndex: number;
+  onOpen: () => void;
+}) {
+  const { state } = useStudio();
+  const draft = deriveFocusedDraft(state)!;
+  const hired = draft.talent.filter((a) => a.role === role).map((a) => a.person);
+  const cast = hired[slotIndex] ?? null;
+
+  return (
+    <Card selectable onClick={onOpen}>
+      <div className="row-between">
+        <div className="card-title">{character.name}</div>
+        <span className="badge">{character.prominence} &middot; {CHARACTER_ARCHETYPE_LABELS[character.archetype]}</span>
+      </div>
+      <p style={{ color: 'var(--text-muted)', margin: '4px 0 8px', fontSize: '0.85em' }}>{describeCharacterDemands(character)}</p>
+      {cast ? (
+        <div style={{ fontSize: '0.85em' }}>
+          <div className="card-title" style={{ fontSize: '1em', marginBottom: 2 }}>{cast.identity.name}</div>
+          <div style={{ color: 'var(--text-muted)' }}>
+            Fame {cast.reputation.fame} &middot; <Money amount={getTypicalSalaryForRole(cast, role)} />
+          </div>
+        </div>
+      ) : (
+        <p style={{ margin: 0, color: 'var(--red)' }}>Not yet cast</p>
+      )}
+    </Card>
+  );
+}
+
+/** Every Lead/Supporting Character in cast order - Minor characters aren't cast at all (see types/index.ts:Script.cast), so they're excluded here entirely rather than shown as permanently uncastable rows. */
+function castableCharacters(script: Script): Array<{ character: ScriptCharacter; role: 'Lead Actor' | 'Supporting Actor'; slotIndex: number }> {
+  const leads = script.cast.filter((c) => c.prominence === 'Lead');
+  const supporting = script.cast.filter((c) => c.prominence === 'Supporting');
+  return [
+    ...leads.map((character, slotIndex) => ({ character, role: 'Lead Actor' as const, slotIndex })),
+    ...supporting.map((character, slotIndex) => ({ character, role: 'Supporting Actor' as const, slotIndex })),
+  ];
+}
+
+/**
+ * Replaces the old aggregate "Lead Actor"/"Supporting Actor" tiles with one
+ * row per Character - "We're still looking for our villain," not "Lead
+ * Actor 0/1" (Casting Redesign design review, section 8/Additional Notes
+ * point 1). Opening any row still opens the same per-role RoleHiringDrawer
+ * as before (unchanged mechanism - see the design doc's own note on why
+ * slot-targeted casting stays out of scope for this phase); the row is
+ * purely a more legible way to see what's already true about `draft.talent`.
+ */
+function CharacterCastingSection({ script, onOpenRole }: { script: Script; onOpenRole: (role: ProductionRole) => void }) {
+  const entries = castableCharacters(script);
+  if (entries.length === 0) return null;
+  return (
+    <div className="stack">
+      <h3 style={{ margin: 0 }}>Cast</h3>
+      <div className="grid">
+        {entries.map(({ character, role, slotIndex }) => (
+          <CharacterCastingRow
+            key={character.id}
+            character={character}
+            role={role}
+            slotIndex={slotIndex}
+            onOpen={() => onOpenRole(role)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function HireTalent() {
   const { state, dispatch } = useStudio();
   const draft = deriveFocusedDraft(state)!;
@@ -130,14 +225,31 @@ export function HireTalent() {
   const temperamentWarning =
     allTalent.length >= 2 && avgReliability !== null && avgEgo !== null && (avgReliability < 45 || avgEgo > 65);
 
+  // Casting Redesign, Phase A - the single source of truth for readiness
+  // (engine/projectReadiness.ts), reused here rather than re-deriving a
+  // second, locally-scoped "still need to cast/hire" list. Also carries the
+  // new cast-before-director nudge (section 8 of the design review).
+  const readiness = deriveProjectReadiness(draft, state.studio.cash);
+  // Director gets its own standalone tile above (see below - "director
+  // first" is reinforced by ordering, not just the nudge). Lead/Supporting
+  // Actor move to CharacterCastingSection entirely.
+  const crewRoles = MANDATORY_TALENT_ROLES.filter(
+    (role) => role !== 'Director' && role !== 'Lead Actor' && role !== 'Supporting Actor',
+  );
+  const castBeforeDirectorNudge = readiness.warnings.find((w) => w.code === 'cast-before-director');
+  const stillNeeded = readiness.blockers.filter((b) =>
+    ['missing-director', 'missing-lead-cast', 'missing-supporting-cast', 'missing-mandatory-crew'].includes(b.code),
+  );
+
   return (
     <div className="stack">
       <h1>Cast & Crew</h1>
       <p className="choice-description">
-        Assemble your production one hire at a time. Fame boosts box office appeal - especially your lead actor's.
-        Your director and crew have a Skill rating; actors instead have five specific Acting Style strengths - there's
-        no single "acting skill," just how well their particular strengths suit this script. Reliability and Ego apply
-        across everyone you hire: an unreliable, high-ego crew raises the odds of a costly incident once filming starts.
+        Cast your key roles and hire your crew one attachment at a time. Fame boosts box office appeal - especially
+        your lead's. Your director and crew have a Skill rating; actors instead have five specific Acting Style
+        strengths - there's no single "acting skill," just how well their particular strengths suit the character
+        they'd play. Reliability and Ego apply across everyone attached to the production: an unreliable, high-ego
+        team raises the odds of a costly incident once filming starts.
       </p>
 
       <div className="row">
@@ -202,7 +314,19 @@ export function HireTalent() {
       />
 
       <div className="grid">
-        {MANDATORY_TALENT_ROLES.map((role) => (
+        <RoleTile role="Director" optional={false} onOpen={() => setOpenRole('Director')} />
+      </div>
+
+      {castBeforeDirectorNudge && (
+        <div className="card production-tension" style={{ margin: 0 }}>
+          {castBeforeDirectorNudge.message}
+        </div>
+      )}
+
+      {draft.script && <CharacterCastingSection script={draft.script} onOpenRole={setOpenRole} />}
+
+      <div className="grid">
+        {crewRoles.map((role) => (
           <RoleTile key={role} role={role} optional={false} onOpen={() => setOpenRole(role)} />
         ))}
         {OPTIONAL_TALENT_ROLES.map((role) => (
@@ -219,8 +343,8 @@ export function HireTalent() {
             <div className="stat-value"><Money amount={totalSalary} /></div>
           </div>
         </div>
-        {missingMandatory.length > 0 && (
-          <p style={{ color: 'var(--red)', margin: '8px 0 0' }}>Still need to hire: {missingMandatory.join(', ')}</p>
+        {stillNeeded.length > 0 && (
+          <p style={{ color: 'var(--red)', margin: '8px 0 0' }}>{stillNeeded.map((b) => b.message).join(' ')}</p>
         )}
         {!canAfford && <p style={{ color: 'var(--red)', margin: '8px 0 0' }}>You can't afford this so far. Adjust your picks.</p>}
       </div>

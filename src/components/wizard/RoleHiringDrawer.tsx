@@ -41,6 +41,7 @@ interface CandidateCardProps {
 
 function CandidateCard({ person, role, category, script, character, selected, disabled, booked, pinned, pinCapped, onSelect, onTogglePin }: CandidateCardProps) {
   const bookedUntil = deriveBookedUntil(person.availability.commitments);
+  const isActor = category === 'actor';
   return (
     <Card selectable selected={selected} disabled={disabled} onClick={onSelect}>
       <div className="card-title">{person.identity.name}</div>
@@ -58,11 +59,11 @@ function CandidateCard({ person, role, category, script, character, selected, di
       >
         {pinned ? 'Unpin from Compare' : 'Pin to Compare'}
       </Button>
-      {selected && <p style={{ color: 'var(--green)', marginTop: 6 }}>Hired</p>}
+      {selected && <p style={{ color: 'var(--green)', marginTop: 6 }}>{isActor ? 'Cast' : 'Hired'}</p>}
       {!selected && booked && (
         <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>Filming elsewhere until {formatGameDate(bookedUntil!)}</p>
       )}
-      {!selected && !booked && disabled && <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>Cast full</p>}
+      {!selected && !booked && disabled && <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>{isActor ? 'Fully cast' : 'Cast full'}</p>}
     </Card>
   );
 }
@@ -111,6 +112,14 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   const hired = draft.talent.filter((a) => a.role === role).map((a) => a.person);
   const atCap = hired.length >= capacity.max;
   const showVfxHint = role === 'VFX Supervisor' && draft.genre && VFX_RECOMMENDED_GENRES.has(draft.genre);
+  const isActor = profile.category === 'actor';
+  // Which specific Character the *next* hire would fill - same slot-index
+  // contract as characterForCandidate below, surfaced once in the drawer's
+  // own header rather than only per-candidate-card, so opening "Cast
+  // Supporting Actor" reads as "Casting: Mercedes (Supporting)" (Casting
+  // Redesign, Additional Notes point 1 - "we're still looking for our
+  // villain," not "Character #4 isn't assigned").
+  const nextCharacter = draft.script && !atCap ? characterForRoleSlot(draft.script, role, hired.length) : null;
 
   const { candidates: visible, toleranceUsed } = findCandidatesNearPrice(candidates, role, targetPrice, VISIBLE_CANDIDATE_COUNT);
   const hiredNotVisible = hired.filter((h) => !visible.some((v) => v.id === h.id));
@@ -159,15 +168,20 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
     dispatch({ type: 'TOGGLE_TALENT_FOR_ROLE', role, person });
   }
 
-  const roleLabel = capacity.max > 1 ? `${role} - ${hired.length}/${capacity.max} hired` : role;
+  const roleLabel = capacity.max > 1 ? `${role} - ${hired.length}/${capacity.max} ${isActor ? 'cast' : 'hired'}` : role;
 
   return (
     <>
       <div className="role-drawer-backdrop" onClick={onClose} />
-      <div className="role-drawer stack" role="dialog" aria-label={`Hire ${role}`}>
+      <div className="role-drawer stack" role="dialog" aria-label={`${isActor ? 'Cast' : 'Hire'} ${role}`}>
         <div className="row-between">
           <div>
             <h2 style={{ margin: 0 }}>{roleLabel}</h2>
+            {nextCharacter && (
+              <p style={{ margin: '2px 0 0', fontWeight: 600 }}>
+                Casting: {nextCharacter.name} ({nextCharacter.prominence})
+              </p>
+            )}
             <p style={{ margin: '4px 0 0', color: 'var(--text-muted)' }}>{profile.blurb}</p>
           </div>
           <Button onClick={onClose}>Close</Button>
@@ -240,7 +254,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
                       disabled={!talentHired && atCap}
                       onClick={() => selectPerson(person)}
                     >
-                      {talentHired ? 'Hired' : atCap ? 'Cast Full' : 'Hire'}
+                      {talentHired ? (isActor ? 'Cast' : 'Hired') : atCap ? (isActor ? 'Fully Cast' : 'Full') : isActor ? 'Cast' : 'Hire'}
                     </Button>
                   </div>
                 );

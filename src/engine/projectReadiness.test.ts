@@ -158,3 +158,30 @@ describe('deriveProjectReadiness - setting-underfunded warning', () => {
     expect(readiness.warnings.map((w) => w.code)).not.toContain('setting-underfunded');
   });
 });
+
+// Casting Redesign, Phase A (docs/DESIGN_REVIEW_casting_redesign.md
+// section 8) - a soft nudge, never a blocker, once there's still real
+// casting to do and no Director attached yet.
+describe('deriveProjectReadiness - cast-before-director warning', () => {
+  it('fires when a Lead/Supporting role still needs casting and no Director is hired', () => {
+    const draft = readyDraft(33);
+    const withoutDirector = { ...draft, talent: draft.talent.filter((a) => a.role !== 'Director' && a.role !== 'Lead Actor') };
+    const readiness = deriveProjectReadiness(withoutDirector, 50_000_000);
+    expect(readiness.warnings.map((w) => w.code)).toContain('cast-before-director');
+    expect(readiness.blockers.map((b) => b.code)).toContain('missing-director');
+  });
+
+  it('does not fire once every Lead/Supporting role is cast, even with no Director', () => {
+    const draft = readyDraft(34);
+    const withoutDirector = { ...draft, talent: draft.talent.filter((a) => a.role !== 'Director') };
+    const readiness = deriveProjectReadiness(withoutDirector, 50_000_000);
+    expect(readiness.warnings.map((w) => w.code)).not.toContain('cast-before-director');
+  });
+
+  it('does not fire once a Director is hired, regardless of remaining cast', () => {
+    const draft = readyDraft(35);
+    const withoutLead = { ...draft, talent: draft.talent.filter((a) => a.role !== 'Lead Actor') };
+    const readiness = deriveProjectReadiness(withoutLead, 50_000_000);
+    expect(readiness.warnings.map((w) => w.code)).not.toContain('cast-before-director');
+  });
+});

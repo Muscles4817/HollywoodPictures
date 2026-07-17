@@ -23,7 +23,8 @@ export type ProjectReadinessWarningCode =
   | 'director-production-disagreement'
   | 'optional-vfx-supervisor-missing'
   | 'high-production-risk'
-  | 'setting-underfunded';
+  | 'setting-underfunded'
+  | 'cast-before-director';
 
 export interface ProjectReadinessIssue {
   code: ProjectReadinessIssueCode | ProjectReadinessWarningCode;
@@ -111,6 +112,17 @@ export function deriveProjectReadiness(draft: FilmDraft, studioCash: number): Pr
   const hasSupportingCast =
     talentForRole('Supporting Actor').length >= effectiveRoleCapacity('Supporting Actor', draft.script).min;
   if (!hasSupportingCast) blockers.push({ code: 'missing-supporting-cast', message: 'Cast your supporting role(s).' });
+
+  // Casting Redesign, Phase A (docs/DESIGN_REVIEW_casting_redesign.md
+  // section 8) - never a blocker (the Producer Workspace's free navigation
+  // deliberately doesn't force a fixed order), just a nudge that casting
+  // will read as more attractive to actors once a director is attached.
+  if (draft.script && !hasDirector && (!hasLeadCast || !hasSupportingCast)) {
+    warnings.push({
+      code: 'cast-before-director',
+      message: "No director attached yet - actors read a studio's pitch more strongly once one is.",
+    });
+  }
 
   const missingCrew = MANDATORY_CREW_ROLES.filter(
     (role) => talentForRole(role).length < effectiveRoleCapacity(role, draft.script).min,
