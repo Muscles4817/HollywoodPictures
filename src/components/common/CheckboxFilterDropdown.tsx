@@ -1,9 +1,5 @@
-import {
-  useEffect,
-  useRef,
-  type CSSProperties,
-  type ReactNode,
-} from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import './CheckboxFilterDropdown.css';
 
 export interface CheckboxFilterOption {
   id: string;
@@ -23,83 +19,6 @@ interface CheckboxFilterDropdownProps {
   onClose: () => void;
   onChange: (selectedIds: Set<string>) => void;
 }
-
-const containerStyle: CSSProperties = {
-  position: 'relative',
-};
-
-const triggerStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '0.75rem',
-  minWidth: '190px',
-  minHeight: '42px',
-  padding: '0.65rem 0.85rem',
-  border: '1px solid var(--border)',
-  borderRadius: '8px',
-  background: 'var(--panel)',
-  color: 'inherit',
-  font: 'inherit',
-  cursor: 'pointer',
-  textAlign: 'left',
-};
-
-const menuStyle: CSSProperties = {
-  position: 'absolute',
-  top: 'calc(100% + 0.5rem)',
-  left: 0,
-  zIndex: 20,
-  minWidth: '280px',
-  maxWidth: '340px',
-  padding: '0.75rem',
-  border: '1px solid var(--border)',
-  borderRadius: '10px',
-  background: 'var(--panel)',
-  boxShadow: '0 14px 36px rgba(0, 0, 0, 0.35)',
-};
-
-const menuHeaderStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '0.75rem',
-  paddingBottom: '0.65rem',
-  marginBottom: '0.5rem',
-  borderBottom: '1px solid var(--border)',
-};
-
-const actionButtonStyle: CSSProperties = {
-  padding: '0.35rem 0.55rem',
-  border: 0,
-  borderRadius: '6px',
-  background: 'transparent',
-  color: 'inherit',
-  font: 'inherit',
-  fontSize: '0.875rem',
-  cursor: 'pointer',
-  opacity: 0.85,
-};
-
-const optionsStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.3rem',
-  maxHeight: '280px',
-  overflowY: 'auto',
-  paddingRight: '0.2rem',
-};
-
-const optionStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.7rem',
-  minHeight: '38px',
-  padding: '0.45rem 0.55rem',
-  borderRadius: '7px',
-  cursor: 'pointer',
-  userSelect: 'none',
-};
 
 export function CheckboxFilterDropdown({
   id,
@@ -180,117 +99,60 @@ export function CheckboxFilterDropdown({
   };
 
   return (
-    <div ref={dropdownRef} style={containerStyle}>
+    <div ref={dropdownRef} className="checkbox-filter">
       <button
         type="button"
         aria-expanded={isOpen}
         aria-controls={`${id}-filter-menu`}
         onClick={() => onToggle(id)}
-        style={{
-          ...triggerStyle,
-          borderColor: isOpen ? 'var(--primary)' : triggerStyle.borderColor,
-        }}
+        className={`checkbox-filter__trigger${isOpen ? ' checkbox-filter__trigger--open' : ''}`}
       >
         <span>
-          <span
-            style={{
-              display: 'block',
-              marginBottom: '0.1rem',
-              fontSize: '0.75rem',
-              opacity: 0.65,
-            }}
-          >
-            {label}
-          </span>
-
-          <span
-            style={{
-              display: 'block',
-              fontWeight: 600,
-            }}
-          >
-            {summary}
-          </span>
+          <span className="checkbox-filter__trigger-label">{label}</span>
+          <span className="checkbox-filter__trigger-value">{summary}</span>
         </span>
 
         <span
           aria-hidden="true"
-          style={{
-            display: 'inline-block',
-            fontSize: '0.8rem',
-            transform: isOpen ? 'rotate(180deg)' : undefined,
-            transition: 'transform 150ms ease',
-          }}
+          className={`checkbox-filter__chevron${isOpen ? ' checkbox-filter__chevron--open' : ''}`}
         >
           ▼
         </span>
       </button>
 
       {isOpen && (
-        <div
-          id={`${id}-filter-menu`}
-          style={menuStyle}
-        >
-          <div style={menuHeaderStyle}>
+        <div id={`${id}-filter-menu`} className="checkbox-filter__menu">
+          <div className="checkbox-filter__header">
             <strong style={{ fontSize: '0.9rem' }}>{label}</strong>
 
-            <div
-              style={{
-                display: 'flex',
-                gap: '0.25rem',
-              }}
-            >
-              <button
-                type="button"
-                onClick={selectAll}
-                style={actionButtonStyle}
-              >
+            <div className="checkbox-filter__actions">
+              <button type="button" onClick={selectAll} className="checkbox-filter__action">
                 Select all
               </button>
 
-              <button
-                type="button"
-                onClick={clearAll}
-                style={actionButtonStyle}
-              >
+              <button type="button" onClick={clearAll} className="checkbox-filter__action">
                 Clear
               </button>
             </div>
           </div>
 
-          <div style={optionsStyle}>
+          <div className="checkbox-filter__options">
             {options.map((option) => {
               const isSelected = selectedIds.has(option.id);
 
               return (
                 <label
                   key={option.id}
-                  style={{
-                    ...optionStyle,
-                    background: isSelected ? 'var(--info-bg)' : 'transparent',
-                  }}
+                  className={`checkbox-filter__option${isSelected ? ' checkbox-filter__option--selected' : ''}`}
                 >
                   <input
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => toggleOption(option.id)}
-                    style={{
-                      width: '17px',
-                      height: '17px',
-                      margin: 0,
-                      cursor: 'pointer',
-                      accentColor: 'currentColor',
-                    }}
+                    className="checkbox-filter__checkbox"
                   />
 
-                  <span
-                    style={{
-                      flex: 1,
-                      lineHeight: 1.3,
-                    }}
-                  >
-                    {option.label}
-                  </span>
+                  <span className="checkbox-filter__option-label">{option.label}</span>
                 </label>
               );
             })}

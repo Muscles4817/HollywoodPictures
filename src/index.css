@@ -1500,4 +1500,16 @@ textarea, input, select {
     flex: 0 0 85%;
     scroll-snap-align: center;
   }
+
+  /* TopGrossingPanel's studio-name link is a small inline <span> (nested
+     inside the row's own larger clickable button, since it needs its own
+     separate click handler) - at its natural inline size the tap target is
+     just the text's own line-height. Widened via padding + an equal
+     negative margin so the added tap area doesn't visually shift the
+     "{studio} · Week N" line it sits in. */
+  .top-grossing-studio-link {
+    display: inline-block;
+    padding: 6px 2px;
+    margin: -6px -2px;
+  }
 }

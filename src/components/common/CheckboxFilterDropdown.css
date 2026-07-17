@@ -1,0 +1,162 @@
+.checkbox-filter {
+  position: relative;
+}
+
+.checkbox-filter__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 190px;
+  min-height: 42px;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.checkbox-filter__trigger:hover,
+.checkbox-filter__trigger--open {
+  border-color: var(--primary);
+}
+
+.checkbox-filter__trigger-label {
+  display: block;
+  margin-bottom: 0.1rem;
+  font-size: 0.75rem;
+  opacity: 0.65;
+}
+
+.checkbox-filter__trigger-value {
+  display: block;
+  font-weight: 600;
+}
+
+.checkbox-filter__chevron {
+  display: inline-block;
+  font-size: 0.8rem;
+  transition: transform 150ms ease;
+}
+
+.checkbox-filter__chevron--open {
+  transform: rotate(180deg);
+}
+
+/* Tablet/mobile-portrait overflow fix: several screens (Release Calendar,
+   Opportunity Market, Asset Library) place multiple of these dropdowns in a
+   wrapping row - a trigger anchored near the right edge previously opened a
+   fixed-width menu at `left: 0` with no viewport awareness at all, which
+   could push the menu (and the page's own scrollable width) past the right
+   edge on a ~768px tablet-portrait viewport. `width: min(...)` caps the menu
+   to the viewport regardless of where the trigger sits; the sub-620px
+   override below (mirroring ScriptRatingsFilterDropdown.css's own fix for
+   the same shape of problem) drops position entirely in favor of a
+   trigger-position-independent full-screen sheet, since a menu that's
+   already this width relative to a narrow phone viewport reads better as
+   its own sheet than a popover anyway. */
+.checkbox-filter__menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 20;
+  width: min(340px, calc(100vw - 2rem));
+  min-width: 280px;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35);
+}
+
+.checkbox-filter__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.65rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.checkbox-filter__actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.checkbox-filter__action {
+  padding: 0.35rem 0.55rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.checkbox-filter__action:hover {
+  background: var(--info-bg);
+  opacity: 1;
+}
+
+.checkbox-filter__options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.checkbox-filter__option {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 38px;
+  padding: 0.45rem 0.55rem;
+  border-radius: 7px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-filter__option--selected {
+  background: var(--info-bg);
+}
+
+.checkbox-filter__checkbox {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: currentColor;
+}
+
+.checkbox-filter__option-label {
+  flex: 1;
+  line-height: 1.3;
+}
+
+@media (max-width: 620px) {
+  .checkbox-filter__menu {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+    left: 1rem;
+    width: auto;
+    min-width: 0;
+    max-height: none;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .checkbox-filter__options {
+    max-height: none;
+    flex: 1;
+  }
+}

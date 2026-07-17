@@ -555,3 +555,16 @@
     display: none;
   }
 }
+
+/* Touch targets (tablet pass) - mirrors index.css's own
+   @media (pointer: coarse) block (viewport-width-independent, same
+   reasoning: a touch laptop at a wide viewport has the same precision
+   problem a phone does). Dashboard.css grew outside index.css and never
+   picked up that shared coverage - .dashboard-subnav's buttons are raw
+   <button>s, not the shared Button component, so they never got its
+   pointer:coarse padding bump either. */
+@media (pointer: coarse) {
+  .dashboard-subnav button {
+    padding: 11px 12px;
+  }
+}

@@ -410,3 +410,23 @@
     text-align: left;
   }
 }
+
+/* Touch targets (tablet pass) - mirrors index.css's own
+   @media (pointer: coarse) block (viewport-width-independent). This file
+   grew outside index.css and never picked up that shared coverage - these
+   three controls are raw <button>s, not the shared Button component, and
+   sit under the ~40-44px touch-target guideline at their base sizes
+   (.asset-library-status-tab/.asset-library-details-button already declare
+   min-height: 36px above; .asset-library-clear-filters declares none at
+   all). */
+@media (pointer: coarse) {
+  .asset-library-status-tab,
+  .asset-library-details-button {
+    min-height: 44px;
+  }
+
+  .asset-library-clear-filters {
+    min-height: 44px;
+    padding: 0.7rem 0.9rem;
+  }
+}
