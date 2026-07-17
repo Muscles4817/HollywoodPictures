@@ -159,3 +159,35 @@ export function computeActorCharacterCompatibility(person: Person, character: Sc
   const career = person.careers.actor;
   return career ? computeCharacterCompatibility(career.actingStyle, character.traits) : null;
 }
+
+/** One ActingStyle axis's contribution to computeCharacterCompatibility - see computeCharacterCompatibilityBreakdown. Mirrors ToneCompatibilityAxis's shape for the character-fit side of casting. */
+export interface CharacterCompatibilityAxis {
+  axis: keyof ActingStyle;
+  actorValue: number;
+  characterValue: number;
+  /** Absolute mismatch between the two, unweighted - same gap computeCharacterCompatibility averages across all five axes. */
+  gap: number;
+  /** 100 - gap, clamped - "how well does the actor's own value on this one axis suit what the character demands," the per-axis reading a casting UI actually wants (Talent Card UX Redesign) rather than two raw numbers side by side. */
+  matchScore: number;
+}
+
+/**
+ * The per-axis breakdown behind computeCharacterCompatibility's aggregate
+ * score - lets a casting UI show "how well does the actor match the role"
+ * one dimension at a time (Character Transformation, Comedy, etc.) instead
+ * of two duplicate stat blocks the player has to compare by eye themselves
+ * (Talent Card UX Redesign). Pure arithmetic restatement of
+ * computeCharacterCompatibility's own loop, same relationship
+ * computeCompatibilityBreakdown has to computeCompatibility - deliberately a
+ * second function rather than changing computeCharacterCompatibility's
+ * return shape, so every existing gameplay call site is untouched.
+ */
+export function computeCharacterCompatibilityBreakdown(actingStyle: ActingStyle, traits: CharacterTraitProfile): CharacterCompatibilityAxis[] {
+  const axes = Object.keys(ACTING_STYLE_TO_CHARACTER_TRAIT) as Array<keyof ActingStyle>;
+  return axes.map((axis) => {
+    const actorValue = actingStyle[axis];
+    const characterValue = traits[ACTING_STYLE_TO_CHARACTER_TRAIT[axis]];
+    const gap = Math.abs(actorValue - characterValue);
+    return { axis, actorValue, characterValue, gap, matchScore: clamp(100 - gap, 0, 100) };
+  });
+}

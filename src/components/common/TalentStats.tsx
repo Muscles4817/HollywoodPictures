@@ -1,15 +1,22 @@
-import { computeTalentCompatibility, computeActorCharacterCompatibility, ACTING_STYLE_TO_CHARACTER_TRAIT } from '../../engine/compatibility';
+import {
+  computeTalentCompatibility,
+  computeActorCharacterCompatibility,
+  computeTalentCompatibilityBreakdown,
+  computeCharacterCompatibilityBreakdown,
+} from '../../engine/compatibility';
 import { dominantLean } from '../../engine/recommendation';
-import { getCareerForRole } from '../../engine/person';
+import { getCareerForRole, deriveBookedUntil } from '../../engine/person';
 import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../../engine/personTraits';
-import { gameDateFromTotalDays } from '../../engine/calendar';
-import { toneProfileBreakdown } from '../../data/tones';
+import { gameDateFromTotalDays, formatGameDate } from '../../engine/calendar';
+import { TONE_LABELS } from '../../data/tones';
 import { ENV_LEAN_SHORT, EFFECTS_LEAN_SHORT } from '../../data/productionStyleLabels';
-import { ACTING_STYLE_AXES, ACTING_STYLE_LABELS } from '../../data/actingStyle';
+import { ACTING_STYLE_LABELS } from '../../data/actingStyle';
 import { CHARACTER_ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
 import type { RoleCategory } from '../../data/talentPresentation';
 import { Money } from './Money';
-import { CompatibilityBadge } from './CompatibilityBadge';
+import { StarRating } from './StarRating';
+import { MatchBreakdown } from './MatchBreakdown';
+import { deriveHiringVerdict } from '../../utils/StarRatingConversion';
 import { getPersonAge } from '../../types';
 import type { DirectorCareer, Person, ProductionRole, Script, ScriptCharacter } from '../../types';
 
@@ -20,21 +27,6 @@ import type { DirectorCareer, Person, ProductionRole, Script, ScriptCharacter } 
 // deriveTraits isn't meaningful, so this is just "first N", not "top N."
 const MAX_DISPLAYED_TRAITS = 3;
 
-export function talentBreakdown(person: Person, role: ProductionRole): { breakdown: Array<{ label: string; value: number }>; defaultLabel: string } | null {
-  const career = getCareerForRole(person, role);
-  if (!career) return null;
-  if ('toneProfile' in career) {
-    return { breakdown: toneProfileBreakdown(career.toneProfile), defaultLabel: 'Tone Profile' };
-  }
-  if ('actingStyle' in career) {
-    return {
-      breakdown: ACTING_STYLE_AXES.map((axis) => ({ label: ACTING_STYLE_LABELS[axis], value: career.actingStyle[axis] })),
-      defaultLabel: 'Acting Style',
-    };
-  }
-  return null;
-}
-
 /** A director's own production leanings, compact enough for a candidate card - "Leans location, practical effects." See engine/recommendation.ts:dominantLean, the same math Plan Production's cards use. */
 export function describeProductionStyle(director: DirectorCareer): string {
   const env = dominantLean(director.productionStyle.environmentStrategy);
@@ -42,19 +34,78 @@ export function describeProductionStyle(director: DirectorCareer): string {
   return `Leans ${ENV_LEAN_SHORT[env.key]}, ${EFFECTS_LEAN_SHORT[fx.key]}`;
 }
 
-/** The specific Character's own trait demands, in the same shape/order as talentBreakdown's ActingStyle rows, so the "what does this role need" badge lines up axis-for-axis with the "what does this actor bring" badge above it (engine/compatibility.ts:ACTING_STYLE_TO_CHARACTER_TRAIT). */
-function characterTraitBreakdown(character: ScriptCharacter): Array<{ label: string; value: number }> {
-  return ACTING_STYLE_AXES.map((axis) => ({
-    label: ACTING_STYLE_LABELS[axis],
-    value: character.traits[ACTING_STYLE_TO_CHARACTER_TRAIT[axis]],
-  }));
+/**
+ * The single "should I hire this person" reading the card leads with
+ * (Talent Card UX Redesign) - reuses whichever existing compatibility
+ * calculation is most specific to what's actually being decided, never a
+ * new scoring formula:
+ *  - an actor being sized up against a specific Character uses that
+ *    character-fit score (the most specific reading there is);
+ *  - an actor with no Character context, or a director, falls back to
+ *    whole-script tone compatibility;
+ *  - crew has no compatibility concept at all today (see
+ *    engine/compatibility.ts) - skill is the only "how good a hire is this"
+ *    number that exists for them, so it doubles as the fit score here.
+ * null when nothing above is computable (no script and no character to
+ * compare against) - the summary section simply doesn't render rather than
+ * showing a meaningless number.
+ */
+function deriveOverallScore(person: Person, role: ProductionRole, category: RoleCategory, script: Script | null, character: ScriptCharacter | null): number | null {
+  if (category === 'actor' && character) {
+    return computeActorCharacterCompatibility(person, character);
+  }
+  if (category === 'crew') {
+    const career = getCareerForRole(person, role);
+    return career && 'skill' in career ? career.skill : null;
+  }
+  return script ? computeTalentCompatibility(person, role, script) : null;
 }
 
 /**
- * The full stat display for one person under a specific role - headline row
- * (role-category-aware) plus a small secondary block - shared by every
- * screen that needs to show "who is this and how do they suit this script":
- * Hire Talent's candidate grid/comparison slots, and on-set decisions that
+ * The per-dimension match breakdown backing the summary score above -
+ * replaces the old pattern of two side-by-side raw-stat blocks ("Actor's
+ * Acting Style" vs "Role Demands") the player had to compare by eye
+ * (Talent Card UX Redesign) with one row per dimension, already scored as
+ * "how well does this match." Character-fit (the more specific reading)
+ * wins when a Character is known; otherwise falls back to the same
+ * whole-script tone breakdown deriveOverallScore does. null for crew (no
+ * per-axis dimensions exist for them) and for an actor/director with
+ * nothing to compare against.
+ */
+function deriveRoleFitBreakdown(
+  person: Person,
+  role: ProductionRole,
+  category: RoleCategory,
+  script: Script | null,
+  character: ScriptCharacter | null,
+): { title: string; rows: Array<{ label: string; matchScore: number }> } | null {
+  if (category === 'actor' && character) {
+    const actorCareer = person.careers.actor;
+    if (!actorCareer) return null;
+    const breakdown = computeCharacterCompatibilityBreakdown(actorCareer.actingStyle, character.traits);
+    return { title: 'Role Fit', rows: breakdown.map((a) => ({ label: ACTING_STYLE_LABELS[a.axis], matchScore: a.matchScore })) };
+  }
+  if (script && (category === 'actor' || category === 'director')) {
+    const breakdown = computeTalentCompatibilityBreakdown(person, role, script);
+    if (!breakdown) return null;
+    return { title: 'Tone Fit', rows: breakdown.map((t) => ({ label: TONE_LABELS[t.tone], matchScore: 100 - t.gap })) };
+  }
+  return null;
+}
+
+function StatRow({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="talent-stat-row">
+      <span>{label}</span>
+      <StarRating value={value} />
+    </div>
+  );
+}
+
+/**
+ * The full stat display for one person under a specific role - shared by
+ * every screen that needs to show "should I hire this person": Hire
+ * Talent's candidate grid/comparison slots, and on-set decisions that
  * involve a specific hired or replacement person
  * (components/common/OnSetDecisionCard.tsx). Extracted from
  * components/wizard/RoleHiringDrawer.tsx once a second consumer needed the
@@ -63,27 +114,41 @@ function characterTraitBreakdown(character: ScriptCharacter): Array<{ label: str
  * determines which career's stats actually show - the same person could in
  * principle hold more than one career (see PERSON_MODEL_REDESIGN.md).
  *
+ * Talent Card UX Redesign - reorganized end to end around "should I hire
+ * this person," answerable in about three seconds, rather than a flat list
+ * of every stat the simulation tracks: identity (age/gender/salary - name
+ * itself is the caller's own card-title, directly above this), a single
+ * "Overall Hiring Summary" verdict as the card's focal point, a
+ * conversational availability read, a per-dimension role-fit breakdown
+ * (replacing two raw stat blocks the player used to have to compare
+ * themselves), then Industry (how the business sees them) and Risk Profile
+ * (what they're like to work with) as their own grouped sections, with
+ * traits closing out the story. The underlying simulation is unchanged -
+ * this is purely a presentation reorganization.
+ *
  * `character` - which specific Lead/Supporting Character (script.cast) this
  * candidate is being evaluated to play, if the role/slot resolves to one
- * (engine/castRequirements.ts:characterForRoleSlot) - shows a second,
- * role-specific fit badge alongside the whole-script one above it, per
- * docs/CHARACTER_AND_SETTING_FOUNDATIONS.md section 7: casting should
- * reflect the specific role an actor would play, not just the script as a
- * whole. null for every non-actor role and for a script with no matching
- * character at that slot (e.g. hiring past requiredLeads).
+ * (engine/castRequirements.ts:characterForRoleSlot) - drives the
+ * character-specific "Role Fit" reading above the whole-script "Tone Fit"
+ * one, per docs/CHARACTER_AND_SETTING_FOUNDATIONS.md section 7: casting
+ * should reflect the specific role an actor would play, not just the script
+ * as a whole. null for every non-actor role and for a script with no
+ * matching character at that slot (e.g. hiring past requiredLeads).
  */
 export function TalentStats({ person, role, category, script, character = null, totalDays }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number }) {
-  const compatInfo = talentBreakdown(person, role);
-  const compatScore = script ? computeTalentCompatibility(person, role, script) : null;
-  const characterScore = character ? computeActorCharacterCompatibility(person, character) : null;
   const career = getCareerForRole(person, role);
-  const skill = career && 'skill' in career ? career.skill : undefined;
+  const overallScore = deriveOverallScore(person, role, category, script, character);
+  const roleFit = deriveRoleFitBreakdown(person, role, category, script, character);
 
   // Both optional (see PersonIdentity's own comment, types/index.ts) - real,
   // handcrafted people deliberately carry neither rather than a fabricated
   // guess, so this line renders only what's actually known, or not at all.
   const age = getPersonAge(person.identity.dateOfBirth, gameDateFromTotalDays(totalDays));
   const identityLine = [age !== undefined ? `${age}` : null, person.identity.gender ?? null].filter((v) => v !== null).join(' · ');
+
+  const bookedUntil = deriveBookedUntil(person.availability.commitments);
+  const isBusy = !!bookedUntil && bookedUntil > totalDays;
+  const delayDays = isBusy ? bookedUntil! - totalDays : 0;
 
   const traits = deriveTraits(person).slice(0, MAX_DISPLAYED_TRAITS);
 
@@ -92,45 +157,52 @@ export function TalentStats({ person, role, category, script, character = null, 
       {identityLine && <div className="candidate-identity-line">{identityLine}</div>}
       <div className="card-subtitle"><Money amount={career?.typicalSalary ?? 0} /></div>
 
-      <div className="candidate-headline">
-        {category === 'director' && career && 'productionStyle' in career && (
+      {category === 'director' && career && 'productionStyle' in career && (
+        <p className="talent-flavor-line">{describeProductionStyle(career)}</p>
+      )}
+
+      {overallScore !== null && (
+        <div className="hiring-verdict">
+          <StarRating value={overallScore} />
+          <span className="hiring-verdict-label">{deriveHiringVerdict(overallScore)}</span>
+        </div>
+      )}
+
+      <div className="talent-availability">
+        {isBusy ? (
           <>
-            <div className="candidate-headline-stat">{describeProductionStyle(career)}</div>
-            {compatInfo && <CompatibilityBadge score={compatScore ?? undefined} breakdown={compatInfo.breakdown} defaultLabel={compatInfo.defaultLabel} />}
-            <div className="candidate-headline-stat">Reliability {person.reputation.reliability}</div>
+            <div className="talent-availability-status">Busy until {formatGameDate(bookedUntil!)}.</div>
+            <div className="talent-availability-detail">Hiring them would delay production by {delayDays} day{delayDays === 1 ? '' : 's'}.</div>
           </>
-        )}
-        {category === 'actor' && (
+        ) : (
           <>
-            <div className="candidate-headline-stat">Fame {person.reputation.fame}</div>
-            {compatInfo && <CompatibilityBadge score={compatScore ?? undefined} breakdown={compatInfo.breakdown} defaultLabel={compatInfo.defaultLabel} />}
-            <div className="candidate-headline-stat">Reliability {person.reputation.reliability}</div>
-          </>
-        )}
-        {category === 'crew' && (
-          <>
-            <div className="candidate-headline-stat">Skill {skill ?? '-'}</div>
-            <div className="candidate-headline-stat">Reliability {person.reputation.reliability}</div>
+            <div className="talent-availability-status talent-availability-available">✓ Available immediately</div>
+            <div className="talent-availability-detail">Ready to begin as soon as you are.</div>
           </>
         )}
       </div>
 
       {category === 'actor' && character && (
-        <div className="candidate-headline">
-          <div className="candidate-headline-stat">
-            Up for: {character.name} ({character.prominence} {CHARACTER_ARCHETYPE_LABELS[character.archetype]})
-          </div>
-          <CompatibilityBadge
-            score={characterScore ?? undefined}
-            breakdown={characterTraitBreakdown(character)}
-            defaultLabel="Role Demands"
-          />
-        </div>
+        <p className="talent-flavor-line">
+          Up for: {character.name} ({character.prominence} {CHARACTER_ARCHETYPE_LABELS[character.archetype]})
+        </p>
       )}
 
-      <div className="candidate-secondary-stats">
-        {(category === 'director' || category === 'crew') && <div>Fame: {person.reputation.fame}</div>}
-        <div>Ego: {person.personality.ego}</div>
+      {roleFit && <MatchBreakdown title={roleFit.title} rows={roleFit.rows} />}
+
+      <div className="talent-section">
+        <div className="stat-group-title">Industry</div>
+        <StatRow label="Fame" value={person.reputation.fame} />
+        <StatRow label="Prestige" value={person.reputation.prestige} />
+        <StatRow label="Reliability" value={person.reputation.reliability} />
+      </div>
+
+      <div className="talent-section">
+        <div className="stat-group-title">Risk Profile</div>
+        <StatRow label="Professionalism" value={person.personality.professionalism} />
+        <StatRow label="Temperament" value={person.personality.temperament} />
+        <StatRow label="Ego" value={person.personality.ego} />
+        <StatRow label="Controversy" value={person.personality.controversy} />
       </div>
 
       {traits.length > 0 && (

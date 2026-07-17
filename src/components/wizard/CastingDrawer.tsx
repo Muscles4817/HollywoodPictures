@@ -7,8 +7,6 @@ import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { computeActorAppeal, resolveOfferResponse, type OfferResponse } from '../../engine/castingAppeal';
 import { describeApplicantInterest, describeOfferRejection } from '../../engine/castingPresentation';
-import { deriveBookedUntil } from '../../engine/person';
-import { formatGameDate } from '../../engine/calendar';
 import { formatMoney } from '../common/Money';
 import { CHARACTER_ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
 import { Card } from '../common/Card';
@@ -72,16 +70,12 @@ function CandidateCard({
   canAct: boolean;
   onAct: () => void;
 }) {
-  const bookedUntil = deriveBookedUntil(person.availability.commitments);
-  const available = !bookedUntil;
-
   return (
     <Card>
       <div className="card-title">{person.identity.name}</div>
+      {/* TalentStats' own Availability section already covers "available
+          now" vs "busy until X" - no need to repeat it here. */}
       <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} />
-      <div className="candidate-headline-stat" style={{ marginTop: 4 }}>
-        {available ? 'Available now' : `Booked until ${formatGameDate(bookedUntil!)}`}
-      </div>
       {channel === 'InterestedTalent' && (
         <p style={{ margin: '6px 0 0', fontSize: '0.8em', color: 'var(--primary)', fontWeight: 600 }}>
           Reached out to you directly

@@ -1083,6 +1083,106 @@ textarea, input, select {
   cursor: default;
 }
 
+/* --- Talent Card UX Redesign ---
+   "Should I hire this person" answered in about three seconds: a single
+   elevated verdict block as the card's focal point, a conversational
+   availability read, per-dimension match breakdowns, and grouped
+   Industry/Risk Profile sections - all sharing .stat-group-title with every
+   other stat-group heading in the app (script/finance panels) rather than a
+   redesign-specific heading style of their own. */
+
+/* A short narrative caption - a director's production leanings, which
+   Character an actor is up for - that doesn't fit .card-subtitle's
+   money-only role but shouldn't compete with the verdict block below it. */
+.talent-flavor-line {
+  margin: 0 0 6px;
+  font-size: 0.82em;
+  color: var(--text-muted);
+}
+
+/* The one deliberately elevated block on the card - everything else here
+   uses a plain top-border divider (.talent-section), this gets a filled
+   background so the eye lands here first. */
+.hiring-verdict {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--info-bg);
+  border: 1px solid var(--border);
+}
+
+.hiring-verdict .star-rating {
+  font-size: 1.3em;
+}
+
+.hiring-verdict-label {
+  font-weight: 700;
+  font-size: 0.95em;
+}
+
+.talent-availability {
+  margin: 8px 0;
+  font-size: 0.85em;
+}
+
+.talent-availability-status {
+  font-weight: 600;
+}
+
+.talent-availability-available {
+  color: var(--green);
+}
+
+.talent-availability-detail {
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Every grouped section below the verdict/availability block (Role Fit/Tone
+   Fit, Industry, Risk Profile) - a plain top-border divider, not a second
+   nested .card, so a candidate grid card (as narrow as 220px) doesn't stack
+   heavy nested boxes inside an already-bordered card. */
+.talent-section {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.talent-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.85em;
+  padding: 3px 0;
+}
+
+.talent-match-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+}
+
+.talent-match-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.talent-match-row-label {
+  font-size: 0.85em;
+}
+
+.talent-match-quality {
+  font-size: 0.75em;
+  color: var(--text-muted);
+}
+
 /* --- Plan Production: identity, tension, recommendation cards --- */
 .production-identity {
   font-size: 1.05em;

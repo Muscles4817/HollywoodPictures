@@ -8,6 +8,7 @@ import {
   computeCompatibility,
   computeCompatibilityBreakdown,
   computeCharacterCompatibility,
+  computeCharacterCompatibilityBreakdown,
   computeActorCharacterCompatibility,
   computeTalentCompatibility,
   computeTalentCompatibilityBreakdown,
@@ -190,6 +191,44 @@ describe('computeCharacterCompatibility', () => {
     }));
     expect(score).toBeGreaterThanOrEqual(0);
     expect(score).toBeLessThanOrEqual(100);
+  });
+});
+
+// Talent Card UX Redesign - the per-axis breakdown a casting card uses to
+// show "how well does the actor match the role" one dimension at a time,
+// instead of two raw stat blocks the player had to compare themselves.
+describe('computeCharacterCompatibilityBreakdown', () => {
+  it('has exactly one row per ActingStyle axis, in the same five dimensions computeCharacterCompatibility averages', () => {
+    const acting: ActingStyle = { characterTransformation: 50, emotionalPerformance: 50, charisma: 50, comedy: 50, physicalPerformance: 50 };
+    const rows = computeCharacterCompatibilityBreakdown(acting, traits());
+    expect(rows.map((r) => r.axis).sort()).toEqual(
+      ['characterTransformation', 'emotionalPerformance', 'charisma', 'comedy', 'physicalPerformance'].sort(),
+    );
+  });
+
+  it('matchScore is exactly 100 - gap for each axis, clamped to [0, 100]', () => {
+    const acting: ActingStyle = { characterTransformation: 90, emotionalPerformance: 50, charisma: 50, comedy: 50, physicalPerformance: 50 };
+    const rows = computeCharacterCompatibilityBreakdown(acting, traits({ transformationDemand: 20 }));
+    const row = rows.find((r) => r.axis === 'characterTransformation')!;
+    expect(row.actorValue).toBe(90);
+    expect(row.characterValue).toBe(20);
+    expect(row.gap).toBe(70);
+    expect(row.matchScore).toBe(30);
+  });
+
+  it('a perfect match on an axis scores 100 (5 stars), a maximal mismatch scores 0', () => {
+    const acting: ActingStyle = { characterTransformation: 50, emotionalPerformance: 1, charisma: 50, comedy: 50, physicalPerformance: 50 };
+    const rows = computeCharacterCompatibilityBreakdown(acting, traits({ transformationDemand: 50, emotionalDemand: 100 }));
+    expect(rows.find((r) => r.axis === 'characterTransformation')!.matchScore).toBe(100);
+    expect(rows.find((r) => r.axis === 'emotionalPerformance')!.matchScore).toBe(1);
+  });
+
+  it('averaging every row\'s matchScore reconstructs computeCharacterCompatibility\'s own aggregate exactly', () => {
+    const acting: ActingStyle = { characterTransformation: 65, emotionalPerformance: 40, charisma: 75, comedy: 30, physicalPerformance: 55 };
+    const demands = traits({ transformationDemand: 70, emotionalDemand: 20, charismaDemand: 60, comedyDemand: 90, physicalDemand: 10 });
+    const rows = computeCharacterCompatibilityBreakdown(acting, demands);
+    const avgMatchScore = rows.reduce((sum, r) => sum + r.matchScore, 0) / rows.length;
+    expect(avgMatchScore).toBeCloseTo(computeCharacterCompatibility(acting, demands), 6);
   });
 });
 

@@ -6,7 +6,6 @@ import { effectiveRoleCapacity, characterForRoleSlot } from '../../engine/castRe
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { deriveBookedUntil, getTypicalSalaryForRole } from '../../engine/person';
-import { formatGameDate } from '../../engine/calendar';
 import { deriveFocusedDraft } from '../../state/selectors';
 import { professionForProductionRole } from '../../data/helpers';
 import { Card } from '../common/Card';
@@ -41,11 +40,14 @@ interface CandidateCardProps {
 }
 
 function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, onSelect, onTogglePin }: CandidateCardProps) {
-  const bookedUntil = deriveBookedUntil(person.availability.commitments);
   const isActor = category === 'actor';
   return (
     <Card selectable selected={selected} disabled={disabled} onClick={onSelect}>
       <div className="card-title">{person.identity.name}</div>
+      {/* TalentStats' own Availability section already says "Busy until X" -
+          the drawer only needs to add its own casting-flow state on top
+          (Cast/Hired, or Fully cast once the role's at capacity), not repeat
+          the calendar read a second time. */}
       <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} />
       <Button
         className="btn-sm"
@@ -61,9 +63,6 @@ function CandidateCard({ person, role, category, script, character, totalDays, s
         {pinned ? 'Unpin from Compare' : 'Pin to Compare'}
       </Button>
       {selected && <p style={{ color: 'var(--green)', marginTop: 6 }}>{isActor ? 'Cast' : 'Hired'}</p>}
-      {!selected && booked && (
-        <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>Filming elsewhere until {formatGameDate(bookedUntil!)}</p>
-      )}
       {!selected && !booked && disabled && <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>{isActor ? 'Fully cast' : 'Cast full'}</p>}
     </Card>
   );
