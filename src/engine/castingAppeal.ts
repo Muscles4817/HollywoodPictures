@@ -14,6 +14,7 @@ import { computeActorCharacterCompatibility } from './compatibility';
 import { computeScriptScore } from './scoring';
 import { getActorCareer, deriveBookedUntil } from './person';
 import { clamp } from './random';
+import { WEEK_LENGTH_DAYS } from './opportunities';
 
 export interface ActorAppealFactors {
   /** computeActorCharacterCompatibility - reused directly, unchanged. */
@@ -133,4 +134,69 @@ export function computeActorAppeal(
   );
 
   return { ...factors, overall: clamp(overall, 0, 100) };
+}
+
+// --- Phase C - Direct Approach's accept/decline (docs/DESIGN_REVIEW_casting_redesign.md
+// section 5), and the same resolution reused for an Open Casting "Cast"
+// click now that applicants aren't automatically willing (section 13's
+// phasing table: "applied to both Direct Approach *and* Open Casting
+// applicants"). A deliberately deterministic threshold comparison, not a
+// dice roll - `overall` is already a real, legible number the player can
+// see and manage (Suitability/Fame/salary/schedule cards, describeApplicantInterest),
+// so "did it clear the bar" reads as a consequence of decisions already
+// visible on screen rather than one more hidden probability.
+
+/** Which factor to blame - the single lowest-scoring one among the four an offer can actually act on. brandFit/prestigeFit collapse into one reading (whichever this actor's own lean actually weights - the other is already ~0 by construction and would otherwise unfairly dominate "why they said no"); attachmentMomentum isn't something an offer's own terms can move, so it's never the named reason. */
+export type OfferRejectionReason = 'suitability' | 'brand-prestige-mismatch' | 'salary' | 'schedule';
+
+export type OfferResponse = { status: 'accepted' } | { status: 'rejected'; reason: OfferRejectionReason };
+
+function offerRejectionReason(factors: ActorAppealFactors): OfferRejectionReason {
+  const reputationFit = Math.max(factors.brandFit, factors.prestigeFit);
+  const candidates: Array<[OfferRejectionReason, number]> = [
+    ['suitability', factors.suitability],
+    ['brand-prestige-mismatch', reputationFit],
+    ['salary', factors.salaryFit],
+    ['schedule', factors.scheduleFit],
+  ];
+  return candidates.reduce((worst, candidate) => (candidate[1] < worst[1] ? candidate : worst))[0];
+}
+
+// First-draft, tunable - a bigger star (higher fame) or a bigger ego both
+// plausibly raise how much it takes to land them, independent of how well
+// the role itself actually suits them.
+const BASE_ACCEPTANCE_THRESHOLD = 45;
+const MAX_SELECTIVENESS_BONUS = 25;
+
+// No-softlock widening (design review section 9) - every rejection this
+// Character has accumulated, and every full week its call has stayed open,
+// softens the bar a little further, capped so it never disappears entirely
+// (a role should get easier to fill, not free). "Days open" reads as 0 for
+// a Direct Approach with no call yet (findOrOpenCastingCall opens one the
+// same day), so a first offer is never pre-widened.
+const WIDENING_PER_REJECTION = 4;
+const WIDENING_PER_WEEK_OPEN = 2;
+const MAX_WIDENING = 30;
+const MIN_ACCEPTANCE_THRESHOLD = 15;
+
+export function computeAcceptanceThreshold(person: Person, rejectionCount: number, daysOpen: number): number {
+  const selectiveness = (person.reputation.fame + person.personality.ego) / 2;
+  const base = BASE_ACCEPTANCE_THRESHOLD + (selectiveness / 100) * MAX_SELECTIVENESS_BONUS;
+  const widening = Math.min(
+    MAX_WIDENING,
+    rejectionCount * WIDENING_PER_REJECTION + Math.floor(Math.max(0, daysOpen) / WEEK_LENGTH_DAYS) * WIDENING_PER_WEEK_OPEN,
+  );
+  return clamp(base - widening, MIN_ACCEPTANCE_THRESHOLD, 100);
+}
+
+/** Resolves one offer - Direct Approach or an Open Casting "Cast" click alike - against this Character's own accumulated rejectionCount/daysOpen. */
+export function resolveOfferResponse(
+  appeal: ActorAppealFactors & { overall: number },
+  person: Person,
+  rejectionCount: number,
+  daysOpen: number,
+): OfferResponse {
+  const threshold = computeAcceptanceThreshold(person, rejectionCount, daysOpen);
+  if (appeal.overall >= threshold) return { status: 'accepted' };
+  return { status: 'rejected', reason: offerRejectionReason(appeal) };
 }

@@ -611,6 +611,21 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    // Casting Redesign, Phase C - find-or-open this Character's call and
+    // bump its rejectionCount by one. The UI has already resolved the
+    // offer as rejected (engine/castingAppeal.ts:resolveOfferResponse) by
+    // the time this dispatches - this action only ever records the
+    // outcome, never decides it.
+    case 'RECORD_CASTING_REJECTION': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const existing = focusedDraft.castingCalls.find((c) => c.characterId === action.characterId);
+      const nextCalls = existing
+        ? focusedDraft.castingCalls.map((c) => (c.characterId === action.characterId ? { ...c, rejectionCount: c.rejectionCount + 1 } : c))
+        : [...focusedDraft.castingCalls, { ...openCastingCall(action.characterId, action.role, state.totalDays), rejectionCount: 1 }];
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, castingCalls: nextCalls }) };
+    }
+
     case 'SET_TALENT_TARGET_PRICE': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;

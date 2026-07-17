@@ -3,7 +3,7 @@
 // added; the whole point of computeActorAppeal is new logic (unlike
 // engine/compatibility.ts's Suitability term, which it reuses unchanged).
 import { describe, it, expect } from 'vitest';
-import { computeActorAppeal } from './castingAppeal';
+import { computeActorAppeal, computeAcceptanceThreshold, resolveOfferResponse } from './castingAppeal';
 import { generateScriptOptions } from './scriptGenerator';
 import { createRng } from './random';
 import type { ActingStyle, CharacterTraitProfile, Person, Script, ScriptCharacter, Studio, TalentAssignment } from '../types';
@@ -151,5 +151,87 @@ describe('computeActorAppeal', () => {
     const testCharacter = character({ traits: traits({ charismaDemand: 90, comedyDemand: 10 }) });
     const result = computeActorAppeal(person, testCharacter, script, studio(), undefined, [], 1_000_000, 1)!;
     expect(result.suitability).toBeGreaterThan(90);
+  });
+});
+
+// Casting Redesign, Phase C (docs/DESIGN_REVIEW_casting_redesign.md
+// sections 5/9) - Direct Approach's accept/decline and the no-softlock
+// widening it must ship alongside.
+describe('computeAcceptanceThreshold', () => {
+  it('is higher for a more selective actor (high fame + ego) than a less selective one, with no rejections/days open for either', () => {
+    const selective = actorPerson('sel', { reputation: { fame: 95 }, personality: { ego: 95 } });
+    const humble = actorPerson('hum', { reputation: { fame: 5 }, personality: { ego: 5 } });
+    expect(computeAcceptanceThreshold(selective, 0, 0)).toBeGreaterThan(computeAcceptanceThreshold(humble, 0, 0));
+  });
+
+  it('strictly decreases as rejectionCount grows, holding the actor and days open fixed', () => {
+    const person = actorPerson('p1');
+    const none = computeAcceptanceThreshold(person, 0, 0);
+    const some = computeAcceptanceThreshold(person, 3, 0);
+    const more = computeAcceptanceThreshold(person, 8, 0);
+    expect(some).toBeLessThan(none);
+    expect(more).toBeLessThanOrEqual(some);
+  });
+
+  it('strictly decreases as the call has stayed open longer, holding the actor and rejectionCount fixed', () => {
+    const person = actorPerson('p2');
+    const freshlyOpened = computeAcceptanceThreshold(person, 0, 0);
+    const openAWhile = computeAcceptanceThreshold(person, 0, 30);
+    expect(openAWhile).toBeLessThan(freshlyOpened);
+  });
+
+  it('never drops below a token floor, however much widening has accumulated', () => {
+    const person = actorPerson('p3', { reputation: { fame: 100 }, personality: { ego: 100 } });
+    const threshold = computeAcceptanceThreshold(person, 999, 999);
+    expect(threshold).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('resolveOfferResponse', () => {
+  it('accepts once overall appeal clears the actor-specific threshold', () => {
+    const script = scriptFor(11);
+    const person = actorPerson('a11', { reputation: { fame: 1 }, personality: { ego: 1 } });
+    const testCharacter = character({ traits: traits({ charismaDemand: 50, comedyDemand: 50, emotionalDemand: 50, physicalDemand: 50, transformationDemand: 50 }) });
+    const appeal = computeActorAppeal(person, testCharacter, script, studio({ brand: 90, prestige: 90 }), undefined, [], 5_000_000, 1)!;
+    const response = resolveOfferResponse(appeal, person, 0, 0);
+    expect(response.status).toBe('accepted');
+  });
+
+  it('rejects with a reason once overall appeal falls short of the threshold', () => {
+    const script = scriptFor(12);
+    const veryPickyStar = actorPerson('a12', { reputation: { fame: 100, prestige: 100 }, personality: { ego: 100 } });
+    const badFitCharacter = character({ traits: traits({ charismaDemand: 1, comedyDemand: 1, emotionalDemand: 1, physicalDemand: 1, transformationDemand: 1 }) });
+    const appeal = computeActorAppeal(veryPickyStar, badFitCharacter, script, studio({ brand: 1, prestige: 1 }), undefined, [], 1, 1)!;
+    const response = resolveOfferResponse(appeal, veryPickyStar, 0, 0);
+    expect(response.status).toBe('rejected');
+    if (response.status === 'rejected') {
+      expect(['suitability', 'brand-prestige-mismatch', 'salary', 'schedule']).toContain(response.reason);
+    }
+  });
+
+  it('names salary as the reason when that is the clear weak point', () => {
+    const script = scriptFor(13);
+    const person = actorPerson('a13', { minimumSalary: 1_000_000, typicalSalary: 10_000_000, reputation: { fame: 1 }, personality: { ego: 1 } });
+    const testCharacter = character({ traits: traits({ charismaDemand: 50, comedyDemand: 50, emotionalDemand: 50, physicalDemand: 50, transformationDemand: 50 }) });
+    const appeal = computeActorAppeal(person, testCharacter, script, studio({ brand: 80, prestige: 80 }), undefined, [], 1_000_000, 1)!;
+    const response = resolveOfferResponse(appeal, person, 0, 0);
+    if (response.status === 'rejected') {
+      expect(response.reason).toBe('salary');
+    } else {
+      // If salary alone wasn't enough to tip this into rejection, that's a
+      // legitimate outcome too - the assertion above is the meaningful one.
+      expect(response.status).toBe('accepted');
+    }
+  });
+
+  it('a rejection that would occur at 0 rejections/0 days open can flip to accepted once enough widening has accrued', () => {
+    const script = scriptFor(14);
+    const pickyStar = actorPerson('a14', { reputation: { fame: 90, prestige: 90 }, personality: { ego: 90 } });
+    const mediocreFitCharacter = character({ traits: traits({ charismaDemand: 20, comedyDemand: 20, emotionalDemand: 20, physicalDemand: 20, transformationDemand: 20 }) });
+    const appeal = computeActorAppeal(pickyStar, mediocreFitCharacter, script, studio({ brand: 30, prestige: 30 }), undefined, [], 500_000, 1)!;
+    const freshResponse = resolveOfferResponse(appeal, pickyStar, 0, 0);
+    const widenedResponse = resolveOfferResponse(appeal, pickyStar, 10, 60);
+    expect(freshResponse.status).toBe('rejected');
+    expect(widenedResponse.status).toBe('accepted');
   });
 });

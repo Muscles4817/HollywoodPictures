@@ -603,3 +603,34 @@ describe('ADVANCE_DAY - Open Casting calls tick on the focused draft', () => {
     expect(draft.castingCalls[0].applicants).toEqual([]);
   });
 });
+
+// Casting Redesign, Phase C - the reducer only ever records an
+// already-resolved rejection (engine/castingAppeal.ts:resolveOfferResponse
+// runs client-side); no dedicated coverage existed for this action before.
+describe('RECORD_CASTING_REJECTION', () => {
+  it('bumps rejectionCount on an already-open call for this Character', () => {
+    const s = stateWithFreshProject(305);
+    const character = focusedDraftScript(s).cast.find((c) => c.prominence === 'Lead')!;
+    const withCall = studioReducer(s, { type: 'OPEN_CASTING_CALL', characterId: character.id, role: 'Lead Actor' });
+    const afterOneRejection = studioReducer(withCall, { type: 'RECORD_CASTING_REJECTION', characterId: character.id, role: 'Lead Actor' });
+    const afterTwoRejections = studioReducer(afterOneRejection, { type: 'RECORD_CASTING_REJECTION', characterId: character.id, role: 'Lead Actor' });
+    const draft = asPlayerDraft(findProject(afterTwoRejections.projects, afterTwoRejections.focusedProjectId))!;
+    expect(draft.castingCalls[0].rejectionCount).toBe(2);
+  });
+
+  it('opens a fresh call (rejectionCount 1) if none existed yet - Direct Approach can reject before Open Casting ever ran', () => {
+    const s = stateWithFreshProject(306);
+    const character = focusedDraftScript(s).cast.find((c) => c.prominence === 'Lead')!;
+    expect(asPlayerDraft(findProject(s.projects, s.focusedProjectId))!.castingCalls).toEqual([]);
+    const after = studioReducer(s, { type: 'RECORD_CASTING_REJECTION', characterId: character.id, role: 'Lead Actor' });
+    const draft = asPlayerDraft(findProject(after.projects, after.focusedProjectId))!;
+    expect(draft.castingCalls).toHaveLength(1);
+    expect(draft.castingCalls[0].rejectionCount).toBe(1);
+  });
+
+  it('is a no-op when nothing is focused', () => {
+    const s = freshWorkspaceState(307);
+    const after = studioReducer(s, { type: 'RECORD_CASTING_REJECTION', characterId: 'anything', role: 'Lead Actor' });
+    expect(after).toBe(s);
+  });
+});

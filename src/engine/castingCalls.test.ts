@@ -2,7 +2,7 @@
 // sections 1-2) - no dedicated test coverage existed for this file before
 // it was added.
 import { describe, it, expect } from 'vitest';
-import { openCastingCall, generateCastingApplicants, tickCastingCalls, WEEK_LENGTH_DAYS } from './castingCalls';
+import { openCastingCall, findOrOpenCastingCall, castingCallsAwaitingReview, generateCastingApplicants, tickCastingCalls, WEEK_LENGTH_DAYS } from './castingCalls';
 import { createDraftFromAsset } from '../state/gameState';
 import { generateScriptOptions } from './scriptGenerator';
 import { generateTalentCandidates } from './talentGenerator';
@@ -46,6 +46,27 @@ describe('openCastingCall', () => {
     const b = openCastingCall('char-2', 'Supporting Actor', 1);
     expect(a.id).not.toBe(b.id);
   });
+
+  it('starts rejectionCount at 0 (Phase C)', () => {
+    expect(openCastingCall('char-1', 'Lead Actor', 1).rejectionCount).toBe(0);
+  });
+});
+
+// Casting Redesign, Phase C - Direct Approach needs somewhere to track
+// rejectionCount even if Open Casting was never used for this Character.
+describe('findOrOpenCastingCall', () => {
+  it('returns the existing call for this Character if one is already open', () => {
+    const existing = openCastingCall('char-1', 'Lead Actor', 5);
+    const found = findOrOpenCastingCall([existing], 'char-1', 'Lead Actor', 20);
+    expect(found).toBe(existing);
+  });
+
+  it('opens a fresh call, today, if none exists yet for this Character', () => {
+    const found = findOrOpenCastingCall([], 'char-1', 'Lead Actor', 20);
+    expect(found.characterId).toBe('char-1');
+    expect(found.openedOnDay).toBe(20);
+    expect(found.rejectionCount).toBe(0);
+  });
 });
 
 describe('generateCastingApplicants', () => {
@@ -55,7 +76,7 @@ describe('generateCastingApplicants', () => {
     const pool = actorPool(1, 5);
     const rng = createRng(1);
     const applicants = generateCastingApplicants(
-      character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(pool.map((p) => p.id)), rng,
+      character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(pool.map((p) => p.id)), 0, rng,
     );
     expect(applicants).toEqual([]);
   });
@@ -67,7 +88,7 @@ describe('generateCastingApplicants', () => {
     const excluded = new Set([pool[0].id, pool[1].id]);
     const rng = createRng(2);
     for (let i = 0; i < 20; i++) {
-      const applicants = generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, excluded, rng);
+      const applicants = generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, excluded, 0, rng);
       expect(applicants.some((p) => excluded.has(p.id))).toBe(false);
     }
   });
@@ -77,7 +98,7 @@ describe('generateCastingApplicants', () => {
     const character = leadCharacter(draft.script!);
     const pool = actorPool(3, 8);
     const rng = createRng(3);
-    const applicants = generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), rng);
+    const applicants = generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 0, rng);
     const ids = applicants.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -156,5 +177,56 @@ describe('tickCastingCalls', () => {
     const withCall = { ...draft, castingCalls: [call], talent };
     const result = tickCastingCalls(withCall, call.nextApplicantCheckDay, studio(), pool, createRng(9));
     expect(result.castingCalls[0].applicants.some((a) => a.person.id === alreadyAttached.id)).toBe(false);
+  });
+});
+
+// Casting Redesign, Phase C, section 9 - no-softlock widening on the Open
+// Casting side: a Character with accumulated rejections should see a
+// wider net, not the same narrow one forever.
+describe('generateCastingApplicants - no-softlock widening', () => {
+  it('can produce a larger batch once rejectionCount is high than it ever does at rejectionCount 0, given the same pool', () => {
+    const draft = draftFor(10);
+    const character = leadCharacter(draft.script!);
+    const pool = actorPool(10, 20);
+    let maxAtZeroRejections = 0;
+    let maxAtManyRejections = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const rng = createRng(seed);
+      maxAtZeroRejections = Math.max(maxAtZeroRejections, generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 0, rng).length);
+    }
+    for (let seed = 1; seed <= 40; seed++) {
+      const rng = createRng(seed);
+      maxAtManyRejections = Math.max(maxAtManyRejections, generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 8, rng).length);
+    }
+    expect(maxAtManyRejections).toBeGreaterThan(maxAtZeroRejections);
+  });
+});
+
+describe('castingCallsAwaitingReview', () => {
+  it('returns calls with at least one applicant whose Character is not yet cast', () => {
+    const draft = draftFor(11);
+    const character = leadCharacter(draft.script!);
+    const [applicant] = actorPool(11, 1);
+    const call = { ...openCastingCall(character.id, 'Lead Actor', 1), applicants: [{ person: applicant, appliedOnDay: 1 }] };
+    const withCall = { ...draft, castingCalls: [call] };
+    expect(castingCallsAwaitingReview(withCall)).toEqual([call]);
+  });
+
+  it('excludes calls with no applicants yet', () => {
+    const draft = draftFor(12);
+    const character = leadCharacter(draft.script!);
+    const call = openCastingCall(character.id, 'Lead Actor', 1);
+    const withCall = { ...draft, castingCalls: [call] };
+    expect(castingCallsAwaitingReview(withCall)).toEqual([]);
+  });
+
+  it('excludes calls whose Character is already cast, even with applicants waiting', () => {
+    const draft = draftFor(13);
+    const character = leadCharacter(draft.script!);
+    const [applicant, castPerson] = actorPool(13, 2);
+    const call = { ...openCastingCall(character.id, 'Lead Actor', 1), applicants: [{ person: applicant, appliedOnDay: 1 }] };
+    const talent: TalentAssignment[] = [{ role: 'Lead Actor', person: castPerson }];
+    const withCall = { ...draft, castingCalls: [call], talent };
+    expect(castingCallsAwaitingReview(withCall)).toEqual([]);
   });
 });

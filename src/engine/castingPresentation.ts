@@ -5,7 +5,7 @@
 // numeric profile into a short, capped sentence rather than a stat block -
 // same job, different profile (ActorAppealFactors instead of SettingProfile/
 // CharacterTraitProfile).
-import type { ActorAppealFactors } from './castingAppeal';
+import type { ActorAppealFactors, OfferRejectionReason } from './castingAppeal';
 
 const APPEAL_NOTABLE = 60;
 const APPEAL_MAX_NOTES = 2;
@@ -40,4 +40,16 @@ export function describeApplicantInterest(factors: ActorAppealFactors): string {
   if (top.length === 0) return 'Applying on spec - nothing about this pitch stands out to them yet.';
   const sentence = top.map((e) => POSITIVE_LABELS[e.key]).join(' and ');
   return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}.`;
+}
+
+const REJECTION_LABELS: Record<OfferRejectionReason, string> = {
+  suitability: "doesn't feel right for the role",
+  'brand-prestige-mismatch': "isn't where they want their name attached right now",
+  salary: 'wants more money than this offer',
+  schedule: "can't clear their existing commitments in time",
+};
+
+/** "Why did they say no" - engine/castingAppeal.ts:OfferRejectionReason turned into a sentence a producer would actually say, per section 7's "rejected offers should explain the primary reason." */
+export function describeOfferRejection(reason: OfferRejectionReason): string {
+  return `They passed - ${REJECTION_LABELS[reason]}.`;
 }

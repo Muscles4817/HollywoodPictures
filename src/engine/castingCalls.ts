@@ -28,6 +28,17 @@ const APPLICANT_BATCH_SIZE: [number, number] = [1, 3];
 // surprise the player, not just confirm the math.
 const MIN_APPLICANT_WEIGHT = 5;
 
+// No-softlock widening (design review section 9), the Open Casting half -
+// engine/castingAppeal.ts's computeAcceptanceThreshold softens who'll say
+// yes; this softens who shows up in the first place. Each rejection this
+// Character has accumulated both grows the batch (a wider net) and flattens
+// the appeal-weighted curve (a floor rising toward the middle of the pack
+// means low-suitability/low-reputation-fit people stop being drowned out) -
+// "introducing stronger unknown talent" from the design brief falls out of
+// the same floor rising, not a separate mechanic.
+const MAX_REJECTION_BATCH_BONUS = 3;
+const WEIGHT_FLOOR_PER_REJECTION = 4;
+
 let nextCallId = 1;
 
 /** A fresh, empty Open Casting call for one Character - the only channel that exists yet (design review section 10). */
@@ -40,7 +51,13 @@ export function openCastingCall(characterId: string, role: 'Lead Actor' | 'Suppo
     openedOnDay,
     nextApplicantCheckDay: openedOnDay + WEEK_LENGTH_DAYS,
     applicants: [],
+    rejectionCount: 0,
   };
+}
+
+/** Finds this Character's existing call, or opens a fresh one - Direct Approach (Phase C) can target someone before Open Casting has ever been used, but still needs somewhere to track rejectionCount for the no-softlock widening below. */
+export function findOrOpenCastingCall(calls: FilmDraft['castingCalls'], characterId: string, role: 'Lead Actor' | 'Supporting Actor', today: GameDay): FilmDraft['castingCalls'][number] {
+  return calls.find((c) => c.characterId === characterId) ?? openCastingCall(characterId, role, today);
 }
 
 function weightedSampleWithoutReplacement(rng: RandomFn, entries: Array<{ person: Person; weight: number }>, count: number): Person[] {
@@ -82,28 +99,42 @@ export function generateCastingApplicants(
   plannedStartDay: GameDay,
   talentPool: Person[],
   excludeIds: Set<string>,
+  rejectionCount: number,
   rng: RandomFn,
 ): Person[] {
   const eligible = talentPool.filter((p) => !excludeIds.has(p.id));
   if (eligible.length === 0) return [];
+  const weightFloor = MIN_APPLICANT_WEIGHT + rejectionCount * WEIGHT_FLOOR_PER_REJECTION;
   const weighted = eligible.map((person) => ({
     person,
     weight: Math.max(
-      MIN_APPLICANT_WEIGHT,
-      computeActorAppeal(person, character, script, studio, director, currentTalent, offeredSalary, plannedStartDay)?.overall ?? MIN_APPLICANT_WEIGHT,
+      weightFloor,
+      computeActorAppeal(person, character, script, studio, director, currentTalent, offeredSalary, plannedStartDay)?.overall ?? weightFloor,
     ),
   }));
-  const batchSize = Math.min(randInt(rng, ...APPLICANT_BATCH_SIZE), weighted.length);
+  const maxBatch = APPLICANT_BATCH_SIZE[1] + Math.min(MAX_REJECTION_BATCH_BONUS, rejectionCount);
+  const batchSize = Math.min(randInt(rng, APPLICANT_BATCH_SIZE[0], maxBatch), weighted.length);
   return weightedSampleWithoutReplacement(rng, weighted, batchSize);
 }
 
-/** Whether the Character at this call already has someone cast - the same slot-index positional read HireTalent.tsx's CharacterCastingRow already does, reused here so a filled role stops generating pointless further applicants. */
-function isCharacterCast(draft: FilmDraft, character: ScriptCharacter, role: 'Lead Actor' | 'Supporting Actor'): boolean {
+/** Whether the Character at this call already has someone cast - the same slot-index positional read HireTalent.tsx's CharacterCastingRow already does, reused here so a filled role stops generating pointless further applicants, and by components/common/Inbox.tsx to know which calls are actually still worth surfacing. */
+export function isCharacterCast(draft: FilmDraft, character: ScriptCharacter, role: 'Lead Actor' | 'Supporting Actor'): boolean {
   if (!draft.script) return false;
   const sameProminence = draft.script.cast.filter((c) => c.prominence === character.prominence);
   const slotIndex = sameProminence.findIndex((c) => c.id === character.id);
   const hiredCount = draft.talent.filter((a) => a.role === role).length;
   return slotIndex >= 0 && slotIndex < hiredCount;
+}
+
+/** Every open call on this draft that has at least one applicant waiting and whose Character isn't cast yet - what components/common/Inbox.tsx surfaces as "new casting options" for a backgrounded production the player isn't currently looking at. */
+export function castingCallsAwaitingReview(draft: FilmDraft): FilmDraft['castingCalls'] {
+  if (!draft.script) return [];
+  const script = draft.script;
+  return draft.castingCalls.filter((call) => {
+    if (call.applicants.length === 0) return false;
+    const character = script.cast.find((c) => c.id === call.characterId);
+    return character !== undefined && !isCharacterCast(draft, character, call.role);
+  });
 }
 
 /**
@@ -145,6 +176,7 @@ export function tickCastingCalls(draft: FilmDraft, totalDays: number, studio: St
       totalDays,
       talentPool,
       excludeIds,
+      call.rejectionCount,
       rng,
     );
 

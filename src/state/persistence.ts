@@ -211,7 +211,14 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // weekly (engine/castingCalls.ts). A v35 save's FilmDraft entries have no
 // `castingCalls` at all - no migration code, same as every past shape
 // change here.
-const SAVE_KEY = 'hollywood-pictures-save-v36';
+// v36 -> v37 (docs/DESIGN_REVIEW_casting_redesign.md, Phase C): CastingCall
+// gained a required rejectionCount: number - Direct Approach and Open
+// Casting "Cast" attempts can now actually be turned down
+// (engine/castingAppeal.ts:resolveOfferResponse), and this is what the
+// no-softlock widening formula reads. A v36 save's castingCalls entries
+// have no `rejectionCount` at all - no migration code, same as every past
+// shape change here.
+const SAVE_KEY = 'hollywood-pictures-save-v37';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

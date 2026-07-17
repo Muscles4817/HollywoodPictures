@@ -3,6 +3,7 @@ import { Button } from './Button';
 import { Money } from './Money';
 import { OnSetDecisionCard } from './OnSetDecisionCard';
 import { backgroundedPlayerDrafts } from '../../engine/project';
+import { castingCallsAwaitingReview } from '../../engine/castingCalls';
 
 interface InboxProps {
   open: boolean;
@@ -29,6 +30,17 @@ interface InboxProps {
  *    'scheduled' (engine/project.ts) - a parked project hasn't picked a
  *    release day yet, so it's still an ordinary backgrounded
  *    'player-in-progress' project, not its own kind.
+ *  - 'casting' (Casting Redesign, Phase C) - a still-in-Development
+ *    project (no photography yet) with new Open Casting applicants
+ *    waiting on a Character that isn't cast yet
+ *    (engine/castingCalls.ts:castingCallsAwaitingReview). Read-only here -
+ *    resolving it means going back into Cast & Crew, not something the
+ *    Inbox itself can do, since casting decisions are per-Character (see
+ *    components/wizard/CastingDrawer.tsx), not a single yes/no this list
+ *    can surface directly. Only the focused draft's own applicants are
+ *    invisible while it's showing on its own screen already - the same
+ *    "the currently-focused project never needs a second, redundant entry
+ *    here" rule the other three kinds already follow.
  * Both wrapped and parked items are only actionable while the player isn't
  * already mid-wizard on something else (state.focusedProjectId !== null),
  * so this can never silently take over unrelated in-progress work. Opening
@@ -50,7 +62,11 @@ export function Inbox({ open, onClose }: InboxProps) {
   const awaitingChoice = productions.filter((p) => p.photography?.status === 'awaiting-choice');
   const wrapped = productions.filter((p) => p.photography?.status === 'finished' && !p.postProductionChoices);
   const parked = productions.filter((p) => p.photography?.status === 'finished' && p.postProductionChoices);
-  const badgeCount = awaitingChoice.length + wrapped.length + parked.length;
+  const casting = productions
+    .filter((p) => !p.photography)
+    .map((p) => ({ production: p, calls: castingCallsAwaitingReview(p) }))
+    .filter((c) => c.calls.length > 0);
+  const badgeCount = awaitingChoice.length + wrapped.length + parked.length + casting.length;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -117,6 +133,30 @@ export function Inbox({ open, onClose }: InboxProps) {
               <div>
                 <Button variant="primary" onClick={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })}>
                   Continue to Marketing &amp; Release
+                </Button>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {casting.map(({ production, calls }) => (
+          <div className="card stack" key={production.id}>
+            <div className="card-title">{production.title || 'Untitled Film'}</div>
+            <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+              New casting applicants waiting on{' '}
+              {calls
+                .map((call) => production.script?.cast.find((c) => c.id === call.characterId)?.name ?? 'a role')
+                .join(', ')}
+              .
+            </p>
+            {state.focusedProjectId ? (
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
+                Finish or leave what you're currently working on before picking this back up.
+              </p>
+            ) : (
+              <div>
+                <Button variant="primary" onClick={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })}>
+                  Continue Casting
                 </Button>
               </div>
             )}

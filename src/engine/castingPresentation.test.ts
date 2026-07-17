@@ -1,8 +1,8 @@
 // Casting Redesign (docs/DESIGN_REVIEW_casting_redesign.md section 7) - no
 // dedicated test coverage existed for this file before it was added.
 import { describe, it, expect } from 'vitest';
-import { describeApplicantInterest } from './castingPresentation';
-import type { ActorAppealFactors } from './castingAppeal';
+import { describeApplicantInterest, describeOfferRejection } from './castingPresentation';
+import type { ActorAppealFactors, OfferRejectionReason } from './castingAppeal';
 
 function factors(overrides: Partial<ActorAppealFactors> = {}): ActorAppealFactors {
   return {
@@ -31,6 +31,22 @@ describe('describeApplicantInterest', () => {
   it('always returns a non-empty sentence', () => {
     for (const suitability of [0, 25, 50, 75, 100]) {
       expect(describeApplicantInterest(factors({ suitability })).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('describeOfferRejection', () => {
+  const reasons: OfferRejectionReason[] = ['suitability', 'brand-prestige-mismatch', 'salary', 'schedule'];
+
+  it('returns a distinct, non-empty sentence for every reason', () => {
+    const descriptions = reasons.map(describeOfferRejection);
+    expect(new Set(descriptions).size).toBe(reasons.length);
+    for (const d of descriptions) expect(d.length).toBeGreaterThan(0);
+  });
+
+  it('always starts with the same "they passed" framing', () => {
+    for (const reason of reasons) {
+      expect(describeOfferRejection(reason)).toMatch(/^They passed - /);
     }
   });
 });

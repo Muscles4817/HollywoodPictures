@@ -18,7 +18,7 @@ import { ScoreBar } from '../common/ScoreBar';
 import { Money, formatMoney } from '../common/Money';
 import { CompatibilityBadge } from '../common/CompatibilityBadge';
 import { RoleHiringDrawer } from './RoleHiringDrawer';
-import { OpenCastingDrawer } from './OpenCastingDrawer';
+import { CastingDrawer } from './CastingDrawer';
 import { findAssignedPerson } from '../../data/helpers';
 import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole } from '../../engine/person';
 import type { EffectsMethodKey, EnvironmentMethodKey, Person, ProductionRole, Script, ScriptCharacter } from '../../types';
@@ -148,9 +148,9 @@ function castableCharacters(script: Script): Array<{ character: ScriptCharacter;
  * Replaces the old aggregate "Lead Actor"/"Supporting Actor" tiles with one
  * row per Character - "We're still looking for our villain," not "Lead
  * Actor 0/1" (Casting Redesign design review, section 8/Additional Notes
- * point 1). Opening a row now opens Open Casting for that specific
- * Character (Phase B - components/wizard/OpenCastingDrawer.tsx), not the
- * old shared-per-role RoleHiringDrawer Phase A used as a stopgap.
+ * point 1). Opening a row now opens Open Casting/Direct Approach for that
+ * specific Character (components/wizard/CastingDrawer.tsx), not the old
+ * shared-per-role RoleHiringDrawer Phase A used as a stopgap.
  */
 function CharacterCastingSection({
   script,
@@ -351,7 +351,7 @@ export function HireTalent() {
 
       {openRole && <RoleHiringDrawer role={openRole} onClose={() => setOpenRole(null)} />}
       {openCharacter && (
-        <OpenCastingDrawer
+        <CastingDrawer
           character={openCharacter.character}
           role={openCharacter.role}
           slotIndex={openCharacter.slotIndex}

@@ -189,6 +189,14 @@ export type GameAction =
   // Character. No-ops if one's already open for this character (see the
   // reducer case) - there's only ever at most one call per character.
   | { type: 'OPEN_CASTING_CALL'; characterId: string; role: 'Lead Actor' | 'Supporting Actor' }
+  // Casting Redesign, Phase C (docs/DESIGN_REVIEW_casting_redesign.md
+  // section 5/9) - an offer (Direct Approach or an Open Casting "Cast"
+  // click) that engine/castingAppeal.ts:resolveOfferResponse already
+  // determined was rejected, client-side, before this ever dispatches.
+  // Bumps this Character's own rejectionCount for the no-softlock
+  // widening formula - opens a call first if Direct Approach reached this
+  // Character before Open Casting ever did.
+  | { type: 'RECORD_CASTING_REJECTION'; characterId: string; role: 'Lead Actor' | 'Supporting Actor' }
   // Replaces the old SET_PRODUCTION_CHOICES - the player now edits Strategy/
   // Ambition values directly (Plan Production, docs/DESIGN.md), and the
   // reducer derives ProductionChoices from them via

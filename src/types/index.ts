@@ -1042,6 +1042,8 @@ export interface CastingCall {
   /** Mirrors engine/opportunities.ts's own nextGenerationCheckDay pattern - the next weekly beat a fresh batch of applicants is due. */
   nextApplicantCheckDay: GameDay;
   applicants: CastingApplicant[];
+  /** Casting Redesign, Phase C - how many offers (Direct Approach or an Open Casting "Cast" click) this Character has had turned down. Drives engine/castingAppeal.ts's no-softlock widening (a lower acceptance bar, a wider/less selective applicant pool) so a run of bad luck can never make a role permanently uncastable. */
+  rejectionCount: number;
 }
 
 // The film currently being built in the wizard; fields fill in progressively.

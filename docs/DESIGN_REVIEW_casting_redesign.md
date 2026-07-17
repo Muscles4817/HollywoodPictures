@@ -1,13 +1,23 @@
 # Design Review: Casting Redesign — Producing a Cast Instead of Buying Actors
 
-Status: **pure conceptual exercise - no code, no implementation.** Builds
-directly on three already-shipped systems: the Person model (canonical
-identity + role-specific careers, `types/index.ts`), the Character and
-Setting Foundations milestone (`ScriptCharacter`/`CharacterTraitProfile`,
-`engine/castRequirements.ts`, `engine/compatibility.ts`), and the Producer
-Workspace (`components/projectWorkspace/`, free navigation between
-Overview/Cast & Crew/Production/Finance). Nothing here is decided until
-it's built and folded into `DESIGN.md`.
+Status: **Phases A, B, and C shipped** (§13's own table) - character-first
+Cast & Crew, Open Casting, and Direct Approach with real accept/decline +
+the no-softlock widening formula are all live. One piece of Phase D was
+pulled forward into the same pass as Phase C, at the user's own direction:
+Inbox notifications for new Open Casting applicants on a backgrounded
+project (`components/common/Inbox.tsx`, reading
+`engine/castingCalls.ts:castingCallsAwaitingReview`) - narrower than §6's
+full Interested Talent (which still reads someone's appeal *before* they've
+applied, reusing the appeal function in reverse; the Inbox addition just
+surfaces applicants who've already applied through an open call). Casting
+Director and true Interested Talent (the rest of Phase D) remain unbuilt.
+Builds directly on three already-shipped systems: the Person model
+(canonical identity + role-specific careers, `types/index.ts`), the
+Character and Setting Foundations milestone
+(`ScriptCharacter`/`CharacterTraitProfile`, `engine/castRequirements.ts`,
+`engine/compatibility.ts`), and the Producer Workspace
+(`components/projectWorkspace/`, free navigation between Overview/Cast &
+Crew/Production/Finance).
 
 ---
 
@@ -549,10 +559,10 @@ milestones and shouldn't land as one commit.
 
 | Phase | Ships | Player-visible behavior change | Risk |
 |---|---|---|---|
-| **A - Character-first reframe** | Cast & Crew's Lead/Supporting section becomes one row per `ScriptCharacter` instead of per-role tiles; Suitability badge always visible (already computable today); Director-first soft nudge; player-facing terminology pass (§12) | Casting *looks* and *reads* completely different, but the underlying mechanic is identical - instant-pick from `state.talentPool`, no rejection yet. | Low - no new state, no new formulas, purely a UI/readiness/copy change over existing data. |
-| **B - Open Casting** | `CastingCall`/`CastingApplicant` state, weekly applicant generation (§2) mirroring `engine/opportunities.ts`'s cadence, still instant-accept-whoever-the-player-picks; `describeApplicantInterest` (§7) surfaced per applicant | Casting a role becomes a multi-week activity with a growing, self-explaining applicant list instead of an instant static pool-browse. | Medium - new persistent state, new weekly tick logic, but no rejection risk yet (todays "willing" semantics hold). |
-| **C - Direct Approach + real acceptance** | `computeActorAppeal` (§3, including `attachmentMomentum`), `OfferResponse` + `describeOfferRejection` (§5/§7), applied to both Direct Approach *and* Open Casting applicants (an applicant can now, in principle, decline if the player's offered terms don't clear their threshold) | Actors can say no for the first time, and say why. This is the phase that actually changes the core loop. | Highest - must ship alongside §9's no-softlock widening formula in the same phase, not after, or a bad-luck stretch of rejections becomes a real dead end. |
-| **D - Casting Director + Interested Talent** | New optional `Casting Director` role (§11) biasing applicant curation; inbound Interested Talent via the Inbox (§6), reusing Phase C's appeal function in reverse | Reputation starts working *for* the player proactively, not just when they go looking. | Low - both features are thin wrappers around Phase C's already-built appeal function. |
+| **A - Character-first reframe** ✅ shipped | Cast & Crew's Lead/Supporting section becomes one row per `ScriptCharacter` instead of per-role tiles; Suitability badge always visible (already computable today); Director-first soft nudge; player-facing terminology pass (§12) | Casting *looks* and *reads* completely different, but the underlying mechanic is identical - instant-pick from `state.talentPool`, no rejection yet. | Low - no new state, no new formulas, purely a UI/readiness/copy change over existing data. |
+| **B - Open Casting** ✅ shipped | `CastingCall`/`CastingApplicant` state, weekly applicant generation (§2) mirroring `engine/opportunities.ts`'s cadence, still instant-accept-whoever-the-player-picks; `describeApplicantInterest` (§7) surfaced per applicant | Casting a role becomes a multi-week activity with a growing, self-explaining applicant list instead of an instant static pool-browse. | Medium - new persistent state, new weekly tick logic, but no rejection risk yet (todays "willing" semantics hold). |
+| **C - Direct Approach + real acceptance** ✅ shipped | `computeActorAppeal` (§3, including `attachmentMomentum`), `OfferResponse` + `describeOfferRejection` (§5/§7), applied to both Direct Approach *and* Open Casting applicants (an applicant can now, in principle, decline if the player's offered terms don't clear their threshold). Also carries one piece pulled forward from Phase D: Inbox notifications for a backgrounded project's new Open Casting applicants (`engine/castingCalls.ts:castingCallsAwaitingReview`) - not the full Interested Talent reverse-appeal flow, just surfacing applicants who've already applied. | Actors can say no for the first time, and say why. This is the phase that actually changes the core loop. | Highest - shipped alongside §9's no-softlock widening formula in the same phase, not after, so a bad-luck stretch of rejections was never a real dead end. |
+| **D - Casting Director + Interested Talent** | New optional `Casting Director` role (§11) biasing applicant curation; *true* inbound Interested Talent (§6) - an unattached person surfaced *before* ever applying, reusing the appeal function in reverse against people who haven't sought the role out. The Inbox's own applicant-arrival notifications (pulled into Phase C above) are not this - they're a lighter, already-applied-based signal. | Reputation starts working *for* the player proactively, not just when they go looking. | Low - both features are thin wrappers around Phase C's already-built appeal function. |
 | **E - Future** (not scoped) | Negotiation/counter-offers extending `OfferResponse`, additional `CastingChannel` variants (§10), chemistry, deadlines, competing offers, relationship history, and shortlisting (Additional Notes point 9 - promoting a subset of `CastingApplicant`s within an open call before committing; genuinely low-cost whenever it lands, just not essential to any phase above) | — | Deferred entirely, per the brief's own scoping. |
 
 Phase C is the one I'd expect to need the same heavily-tested, one-continuous-effort
