@@ -41,7 +41,7 @@ const STAGE_BLURBS: Record<ProjectStage, string> = {
   scheduled: 'Every choice is locked in - waiting on its committed release day.',
   'in-cinemas': 'Currently playing - box office settles week by week.',
   archived: 'Its theatrical run has finished.',
-  shelved: 'Backgrounded before photography started - nothing moves here until you come back to it.',
+  shelved: "Acquired but untouched - nobody's been hired and nothing's been planned yet.",
 };
 
 // Stages RESUME_PROJECT/GO_TO_STEP can actually send you into - the other

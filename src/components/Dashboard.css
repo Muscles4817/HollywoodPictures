@@ -293,7 +293,7 @@
 
 .dashboard-pipeline-summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 14px;
 }
@@ -366,6 +366,7 @@
 .dashboard-status-finished { background: color-mix(in srgb, #ffb256 14%, transparent); color: #ffc477; }
 .dashboard-status-in-progress { background: color-mix(in srgb, #5d8cff 14%, transparent); color: #8eaaff; }
 .dashboard-status-scheduled { background: color-mix(in srgb, #b47cff 14%, transparent); color: #c89cff; }
+.dashboard-status-staffing { background: color-mix(in srgb, #4cc9a0 16%, transparent); color: #6fdcb8; }
 
 .dashboard-box-office-card {
   border-color: color-mix(in srgb, #e3b23c 34%, var(--dashboard-border));

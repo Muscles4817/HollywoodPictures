@@ -383,17 +383,22 @@ export function filterAndSortPersonStats(rows: PersonStatRow[], filters: PersonS
 
 // --- Projects page (components/ProjectsPage.tsx) ---------------------------
 //
-// "Shelved" and "Pre-Production" are the one place stage genuinely depends
-// on focus, not just Project/FilmDraft shape: a photography-less draft that
-// IS the focused project is being actively decided right now (Develop/
-// Talent/Planning/Greenlight); the exact same draft, backgrounded, is
-// frozen - nothing advances it until the player refocuses it (unlike a
-// backgrounded shoot already in photography, which keeps advancing on its
-// own via settleProductionsInProgress). Every other stage is a pure
-// function of the Project/FilmDraft shape alone. Nothing rival-owned ever
-// appears here - neither an in-progress rival production nor an already-
-// released rival film - this page is "your current projects," not the
-// market's.
+// "Shelved" and "Pre-Production" split a photography-less draft two ways:
+// focused (being actively decided right now) or carrying genuine progress
+// already (hasDraftProgress below) both read as 'pre-production' - the
+// industry term is accurate either way, whether or not the player happens
+// to be looking at it this exact moment. Only a draft with neither - a
+// script sitting untouched since acquisition - is genuinely 'shelved'.
+// This used to be a pure focus check (a hired director and an unopened
+// script both read as "shelved" the instant they weren't focused), which
+// misrepresented a project the player had already started staffing as
+// abandoned. Note a backgrounded pre-photography draft isn't actually
+// frozen even so - Casting Redesign calls keep ticking on it via
+// ADVANCE_DAY (engine/castingCalls.ts:tickCastingCalls) regardless of which
+// stage it reads as here. Every other stage is a pure function of the
+// Project/FilmDraft shape alone. Nothing rival-owned ever appears here -
+// neither an in-progress rival production nor an already-released rival
+// film - this page is "your current projects," not the market's.
 export type ProjectStage =
   | 'pre-production'
   | 'filming'
@@ -402,6 +407,11 @@ export type ProjectStage =
   | 'in-cinemas'
   | 'archived'
   | 'shelved';
+
+/** Whether a pre-photography draft has any real commitment on it yet - someone hired, a casting call opened, or a production plan set - as opposed to a script that's simply been acquired and never opened. Shared by deriveProjectStage below and Dashboard.tsx's own "Staffing" slate slot, so the two can never disagree about what counts as "started." */
+export function hasDraftProgress(draft: FilmDraft): boolean {
+  return draft.talent.length > 0 || draft.castingCalls.length > 0 || draft.productionChoices !== null;
+}
 
 export function deriveProjectStage(project: Project, focusedProjectId: string | null): ProjectStage | null {
   if (project.kind === 'rival-in-progress') return null;
@@ -417,7 +427,9 @@ export function deriveProjectStage(project: Project, focusedProjectId: string | 
   }
   if (project.kind === 'scheduled') return 'scheduled';
   const { draft } = project;
-  if (!draft.photography) return draft.id === focusedProjectId ? 'pre-production' : 'shelved';
+  if (!draft.photography) {
+    return draft.id === focusedProjectId || hasDraftProgress(draft) ? 'pre-production' : 'shelved';
+  }
   return draft.photography.status === 'finished' ? 'post-production' : 'filming';
 }
 

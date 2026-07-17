@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { computeReportedLegs, computeProjectSpendSoFar, currentScreenFor, deriveProjectStage, deriveUpcomingReleaseEntries, PLAYER_STUDIO_ID } from './selectors';
+import { computeReportedLegs, computeProjectSpendSoFar, currentScreenFor, deriveProjectStage, deriveUpcomingReleaseEntries, hasDraftProgress, PLAYER_STUDIO_ID } from './selectors';
+import { openCastingCall } from '../engine/castingCalls';
 import { studioReducer } from './studioReducer';
 import { buildReadyDraft, buildStateWithReadyDraft } from './testFixtures';
 import { withRng } from '../engine/random';
@@ -49,14 +50,46 @@ function inProgressPhotography(overrides: Partial<PhotographyState> = {}): Photo
   return { status: 'in-progress', recommendedDays: 40, daysElapsed: 5, events: [], runningCost: 0, pendingChoice: null, ...overrides };
 }
 
+describe('hasDraftProgress - Dashboard.tsx "Staffing" slot / deriveProjectStage shelved-vs-pre-production split', () => {
+  it('is false for a script with no hires, no casting calls, and no production plan', () => {
+    const { result: draft } = withRng(102, (rng) => buildReadyDraft(rng));
+    expect(hasDraftProgress({ ...draft, talent: [], productionChoices: null, castingCalls: [] })).toBe(false);
+  });
+
+  it('is true once anyone is hired, even with no production plan or casting calls', () => {
+    const { result: draft } = withRng(103, (rng) => buildReadyDraft(rng));
+    expect(hasDraftProgress({ ...draft, productionChoices: null, castingCalls: [] })).toBe(true);
+  });
+
+  it('is true once a casting call is open, even with nobody hired yet and no production plan', () => {
+    const { result: draft } = withRng(104, (rng) => buildReadyDraft(rng));
+    const call = openCastingCall('char-1', 'Lead Actor', 1);
+    expect(hasDraftProgress({ ...draft, talent: [], productionChoices: null, castingCalls: [call] })).toBe(true);
+  });
+
+  it('is true once a production plan is set, even with nobody hired and no casting calls open', () => {
+    const { result: draft } = withRng(105, (rng) => buildReadyDraft(rng));
+    expect(hasDraftProgress({ ...draft, talent: [], castingCalls: [] })).toBe(true);
+  });
+});
+
 describe('deriveProjectStage - Projects page (components/ProjectsPage.tsx)', () => {
-  it('a photography-less draft is pre-production while focused, shelved while backgrounded - the one place stage depends on focus, not just shape', () => {
+  it('a genuinely untouched photography-less draft (no hires, no casting calls, no production plan) is pre-production while focused, shelved while backgrounded', () => {
+    const { result: draft } = withRng(100, (rng) => buildReadyDraft(rng));
+    const untouched = { ...draft, photography: null, talent: [], productionChoices: null, castingCalls: [] };
+    const project = playerDraftToProject(untouched);
+    expect(deriveProjectStage(project, untouched.id)).toBe('pre-production');
+    expect(deriveProjectStage(project, null)).toBe('shelved');
+    expect(deriveProjectStage(project, 'some-other-project-id')).toBe('shelved');
+  });
+
+  it('a photography-less draft with real progress (talent already hired) reads as pre-production even while backgrounded - not shelved, since hasDraftProgress is true', () => {
     const { result: draft } = withRng(100, (rng) => buildReadyDraft(rng));
     const preShoot = { ...draft, photography: null };
     const project = playerDraftToProject(preShoot);
     expect(deriveProjectStage(project, preShoot.id)).toBe('pre-production');
-    expect(deriveProjectStage(project, null)).toBe('shelved');
-    expect(deriveProjectStage(project, 'some-other-project-id')).toBe('shelved');
+    expect(deriveProjectStage(project, null)).toBe('pre-production');
+    expect(deriveProjectStage(project, 'some-other-project-id')).toBe('pre-production');
   });
 
   it('mid-shoot photography (in-progress or awaiting-choice) is always filming, regardless of focus - a backgrounded shoot keeps advancing on its own', () => {

@@ -11,9 +11,11 @@ import { BoxOfficeFinishedPopup } from './common/BoxOfficeFinishedPopup';
 import { FilmDetailModal } from './common/FilmDetailModal';
 import { TopGrossingPanel } from './common/TopGrossingPanel';
 import { DifficultyPicker } from './common/DifficultyPicker';
-import { computeTopGrossingFilms } from '../state/selectors';
+import { computeTopGrossingFilms, hasDraftProgress } from '../state/selectors';
 import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
-import type { Film } from '../types';
+import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
+import { effectiveRoleCapacity } from '../engine/castRequirements';
+import type { Film, FilmDraft } from '../types';
 import './Dashboard.css';
 
 type ActivityItem = {
@@ -92,6 +94,16 @@ export function Dashboard() {
 
   const activeShoots = backgroundedDrafts.filter(
     (production) => production.photography?.status === 'in-progress',
+  );
+
+  // A backgrounded draft the player has started staffing (a hire, a
+  // casting call, or a production plan) but hasn't greenlit yet - these
+  // used to be entirely invisible here (the row list below only ever
+  // rendered drafts with `photography` set) and read as "Shelved" on the
+  // Projects page, indistinguishable from a script nobody's touched since
+  // acquisition (state/selectors.ts:hasDraftProgress).
+  const staffingDrafts = backgroundedDrafts.filter(
+    (production) => !production.photography && hasDraftProgress(production),
   );
 
   const weeklyGross = runningFilms.reduce((total, film) => {
@@ -312,6 +324,7 @@ export function Dashboard() {
               </div>
 
               <div className="dashboard-pipeline-summary">
+                <PipelineStat label="Staffing" value={staffingDrafts.length} />
                 <PipelineStat label="Filming" value={activeShoots.length} />
                 <PipelineStat label="Needs attention" value={attentionDrafts.length} emphasis={attentionDrafts.length > 0} />
                 <PipelineStat label="Scheduled" value={scheduledReleases.length} />
@@ -319,6 +332,10 @@ export function Dashboard() {
               </div>
 
               <div className="dashboard-project-list">
+                {staffingDrafts.map((production) => (
+                  <StaffingProjectRow key={production.id} production={production} onOpen={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })} />
+                ))}
+
                 {backgroundedDrafts.map((production) => {
                   const photography = production.photography;
                   if (!photography) return null;
@@ -562,6 +579,28 @@ export function Dashboard() {
         </aside>
       </div>
     </div>
+  );
+}
+
+/** One row for a backgrounded, pre-photography draft with real progress on it (hasDraftProgress) - the "Staffing" slate slot. Mirrors the photography rows' shape (status pill, title, a one-line progress meta, an Open button) but reads roles-filled progress instead of shoot-day progress, since there's no photography state yet to read from. */
+function StaffingProjectRow({ production, onOpen }: { production: FilmDraft; onOpen: () => void }) {
+  const filledMandatoryCount = MANDATORY_TALENT_ROLES.filter(
+    (role) => production.talent.filter((a) => a.role === role).length >= effectiveRoleCapacity(role, production.script).min,
+  ).length;
+
+  return (
+    <article className="dashboard-project-row">
+      <div className="dashboard-project-main">
+        <span className="dashboard-status-pill dashboard-status-staffing">Staffing</span>
+        <strong>{production.title || 'Untitled Film'}</strong>
+        <span className="dashboard-project-meta">
+          {filledMandatoryCount}/{MANDATORY_TALENT_ROLES.length} roles filled
+        </span>
+      </div>
+      <div className="dashboard-project-actions">
+        <Button className="btn-sm" onClick={onOpen}>Open</Button>
+      </div>
+    </article>
   );
 }
 
