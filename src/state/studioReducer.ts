@@ -1123,16 +1123,29 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     }
 
     // Roadmap Phase 7.2 - replaces the old always-immediate RELEASE_FILM.
-    // Marketing's fixed run-up (data/schedule.ts) still always elapses
-    // first, same as RELEASE_FILM always charged it; the player's own
-    // releaseDay pick is clamped to no earlier than that. The focused
-    // project becomes 'scheduled' and is folded into the very same
-    // settleScheduledReleases pass every other calendar-advancing action
-    // uses - so a same-day pick (releaseDay <= totalDaysAfter) resolves
-    // into 'released' within this one dispatch, landing on 'results'
-    // exactly like RELEASE_FILM always did; a later pick just parks it,
-    // unfocused, back on the Dashboard, where the shared settlement
-    // machinery picks it up whenever totalDays actually reaches it.
+    // The focused project becomes 'scheduled' and is folded into the very
+    // same settleScheduledReleases pass every other calendar-advancing
+    // action uses - so a same-day pick (releaseDay <= totalDaysAfter)
+    // resolves into 'released' within this one dispatch, landing on
+    // 'results' exactly like RELEASE_FILM always did; a later pick just
+    // parks it, unfocused, back on the Dashboard, where the shared
+    // settlement machinery picks it up whenever totalDays actually reaches
+    // it.
+    //
+    // Post-Production Redesign, Phase C (docs/DESIGN_REVIEW_post_production_redesign.md
+    // section 4) - the player's own releaseDay pick is clamped to no
+    // earlier than the film's own current post-production completion
+    // estimate (postProductionFinalReadyDay once the test screening has
+    // resolved, postProductionScreeningReadyDay before that), not a flat
+    // marketing-campaign lead time any more (STAGE_DURATIONS.marketing,
+    // retired alongside post-production's own flat charge - see
+    // data/schedule.ts). This is what makes "is improving this film worth
+    // delaying its release" a real, felt tension - a Test Screening choice
+    // that pushes the estimate later now visibly moves the earliest this
+    // film can actually go out. Also refuses to schedule at all while a
+    // test screening is still pending an unresolved choice - defensive
+    // symmetry with PostProduction.tsx's own "Continue to Marketing" block
+    // and WizardSteps.tsx's nav, in case either is ever bypassed.
     case 'SCHEDULE_RELEASE': {
       const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (
@@ -1143,11 +1156,14 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         !d.productionChoices ||
         !d.photography ||
         !d.postProductionChoices ||
-        !d.marketingChoices
+        !d.marketingChoices ||
+        d.testScreeningPendingChoice
       ) {
         return state;
       }
-      const totalDaysAfter = state.totalDays + (STAGE_DURATIONS.marketing ?? 0);
+      const postProductionEstimate = d.postProductionFinalReadyDay ?? d.postProductionScreeningReadyDay ?? state.totalDays;
+      const totalDaysAfter = Math.max(state.totalDays, postProductionEstimate);
+      const daysAdvanced = totalDaysAfter - state.totalDays;
       // releaseDay is a discrete calendar day everywhere else in this
       // codebase (GameState.totalDays, RivalProductionInProgress.releaseDay)
       // - rounding here is defensive against a UI slider's genuinely
@@ -1171,7 +1187,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         // not yet reflected in state.projects at dispatch time, so
         // runCalendarSettlement can't derive it the normal way.
         const settlement = runCalendarSettlement(state, totalDaysAfter, rng, [...otherScheduled, { draft: scheduledDraft, releaseDay }]);
-        const productionsInProgress = settleProductionsInProgress(backgrounded, STAGE_DURATIONS.marketing ?? 0, state.talentPool, rng)
+        const productionsInProgress = settleProductionsInProgress(backgrounded, daysAdvanced, state.talentPool, rng)
           .map((p) => checkTestScreeningReadiness(p, totalDaysAfter, rng));
         return { settlement, productionsInProgress };
       });

@@ -1,25 +1,30 @@
 import type { WizardStep } from '../types';
 
-// Fixed in-game days spent leaving each remaining wizard stage - editing,
-// running up to release, etc. Deliberately not modeled as anything the
-// player watches happen (that's what Principal Photography is for, see
-// engine/production.ts:computeRecommendedShootDays and PhotographyState) -
-// these are flat costs applied once, when the player moves on to the next
-// stage. No entry for 'production' or 'results': photography's days accrue
-// one at a time as they're actually lived through
-// (state/studioReducer.ts:ADVANCE_SHOOTING_DAY), and there's nothing after
-// 'results' to advance away from.
+// Fixed in-game days spent leaving a wizard stage, charged once when the
+// player moves on to the next one (state/studioReducer.ts:GO_TO_STEP) -
+// deliberately not modeled as anything the player watches happen (that's
+// what Principal Photography is for, see
+// engine/production.ts:computeRecommendedShootDays and PhotographyState).
 //
-// Producer Workspace redesign (PRODUCER_WORKSPACE_DESIGN.md): used to also
-// have develop/talent/production-planning entries, charged one at a time as
-// the player left each wizard stage going forward (GO_TO_STEP,
-// state/studioReducer.ts) - that only worked because the pre-greenlight
-// wizard had a fixed forward order. Free navigation between Producer
-// Workspace sections breaks that premise, so all of pre-production's
-// calendar cost is now charged as a single lump sum at Greenlight instead
-// (engine/production.ts:computeRecommendedPreProductionDays), scaled to the
-// project's own scope rather than a flat total for every film.
-export const STAGE_DURATIONS: Partial<Record<WizardStep, number>> = {
-  'post-production': 45,
-  marketing: 30,
-};
+// Producer Workspace redesign (PRODUCER_WORKSPACE_DESIGN.md) already
+// retired this pattern for develop/talent/production-planning: free
+// navigation between Producer Workspace sections has no fixed forward order
+// left to charge a per-stage lump sum against, so all of pre-production's
+// calendar cost moved to a single scaled charge at Greenlight instead
+// (engine/production.ts:computeRecommendedPreProductionDays).
+//
+// Post-Production Redesign, Phase C (docs/DESIGN_REVIEW_post_production_redesign.md
+// section 3) retires the last two entries here for the identical reason -
+// once Marketing is reachable independently of post-production completion,
+// there's no `GO_TO_STEP` "leaving this stage" transition left to hang a
+// flat 45/30-day charge off of. The real calendar cost of getting a film
+// ready now comes from `computeRecommendedPostProductionDays` (the
+// estimate `FINISH_PHOTOGRAPHY` computes, read as SCHEDULE_RELEASE's own
+// floor - state/studioReducer.ts) instead of a fixed post-hoc charge for
+// leaving a screen. Kept as an empty, still-typed constant rather than
+// deleted outright - `GO_TO_STEP`'s own `STAGE_DURATIONS[leavingStage]`
+// lookup stays generically correct (every step now costs nothing to leave,
+// which is the whole point) without needing its own rewrite; a future
+// phase that retires the WizardStep screens entirely (§5's Post-Wrap
+// Workspace) is the natural point to remove this file for good.
+export const STAGE_DURATIONS: Partial<Record<WizardStep, number>> = {};

@@ -811,6 +811,22 @@ button {
   color: var(--text-muted);
 }
 
+/* Post-Production Redesign, Phase C - a reachable step
+   (state/selectors.ts:deriveReachableWizardSteps) renders as a real
+   <button> rather than a <span>, needing an explicit border-reset (buttons
+   carry one by default) and a hover affordance the plain, non-interactive
+   pills never needed. */
+.wizard-step-clickable {
+  border: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.wizard-step-clickable:hover {
+  background: var(--info-bg);
+  color: var(--primary);
+}
+
 .wizard-step-active {
   background: var(--primary);
   color: white;
