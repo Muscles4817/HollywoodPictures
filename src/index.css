@@ -148,6 +148,17 @@ button {
   cursor: not-allowed;
 }
 
+/* Casting Redesign - a Character row waiting on an earlier same-prominence
+   role to be cast first. Deliberately lighter than .card-disabled: this
+   row stays fully clickable (a call can still be opened, applicants can
+   still arrive, ahead of its own turn), it's just not this one's turn to
+   finalize yet - the muted look and dashed border read as "not yet," not
+   "can't." */
+.casting-row-blocked {
+  opacity: 0.75;
+  border-style: dashed;
+}
+
 .card-title {
   font-weight: 600;
   margin-bottom: 4px;
@@ -1119,6 +1130,30 @@ textarea, input, select {
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+/* A count-in-parentheses inside plain button text is easy to miss at a
+   glance - this reads as a real notification the way an unread-count
+   pill does everywhere else, not just more label text. */
+.app-header__inbox-button {
+  position: relative;
+}
+
+.app-header__inbox-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.7em;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--panel);
 }
 
 /* The dev-tool switcher sits in the middle, same reasoning as the old

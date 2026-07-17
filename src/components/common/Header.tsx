@@ -50,12 +50,13 @@ export function Header({
     <header className="app-header">
       <div className="app-header__group">
         <Button
-          className="btn-sm"
+          className="btn-sm app-header__inbox-button"
           variant={inboxOpen ? 'primary' : 'secondary'}
           onClick={onToggleInbox}
-          aria-label="Open Inbox"
+          aria-label={badgeCount > 0 ? `Open Inbox - ${badgeCount} item${badgeCount === 1 ? '' : 's'} need attention` : 'Open Inbox'}
         >
-          Inbox{badgeCount > 0 ? ` (${badgeCount})` : ''}
+          Inbox
+          {badgeCount > 0 && <span className="app-header__inbox-badge">{badgeCount}</span>}
         </Button>
 
         <div className="app-header__date-pill">

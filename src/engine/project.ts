@@ -1,4 +1,5 @@
-import type { Asset, Film, FilmDraft, Project, RivalProductionInProgress } from '../types';
+import type { Asset, CastingCall, Film, FilmDraft, Project, RivalProductionInProgress } from '../types';
+import { castingCallsAwaitingReview } from './castingCalls';
 
 /**
  * The one stable identity a Project carries for its entire life, regardless
@@ -103,15 +104,40 @@ export function backgroundedPlayerDrafts(projects: Project[], excludeId: string 
 }
 
 /**
- * How many backgrounded drafts actually need player attention right now -
- * the Inbox badge count (components/common/Header.tsx,
- * components/common/Inbox.tsx). A draft still mid-shoot ('in-progress')
- * doesn't count; only one paused on an on-set choice, or fully wrapped, does.
+ * Every backgrounded draft actually worth surfacing in the Inbox, grouped
+ * by why - the one canonical derivation both components/common/Header.tsx's
+ * badge count and components/common/Inbox.tsx's own rendering read, so the
+ * two can never quietly drift apart again the way they once did (the badge
+ * undercounted new casting applicants for a stretch because Inbox.tsx grew
+ * its own 'casting' category locally without this shared function knowing
+ * about it). A draft still mid-shoot ('in-progress') never contributes
+ * anything here - only one paused on an on-set choice, fully wrapped, or
+ * still in Development with new Casting Redesign applicants waiting does.
  */
+export interface InboxItems {
+  awaitingChoice: FilmDraft[];
+  wrapped: FilmDraft[];
+  parked: FilmDraft[];
+  casting: Array<{ production: FilmDraft; calls: CastingCall[] }>;
+}
+
+export function deriveInboxItems(projects: Project[], excludeId: string | null): InboxItems {
+  const productions = backgroundedPlayerDrafts(projects, excludeId);
+  return {
+    awaitingChoice: productions.filter((p) => p.photography?.status === 'awaiting-choice'),
+    wrapped: productions.filter((p) => p.photography?.status === 'finished' && !p.postProductionChoices),
+    parked: productions.filter((p) => p.photography?.status === 'finished' && p.postProductionChoices),
+    casting: productions
+      .filter((p) => !p.photography)
+      .map((p) => ({ production: p, calls: castingCallsAwaitingReview(p) }))
+      .filter((c) => c.calls.length > 0),
+  };
+}
+
+/** The Inbox badge count (components/common/Header.tsx) - the sum of every category deriveInboxItems groups. */
 export function inboxBadgeCount(projects: Project[], excludeId: string | null): number {
-  return backgroundedPlayerDrafts(projects, excludeId).filter(
-    (draft) => draft.photography?.status === 'awaiting-choice' || draft.photography?.status === 'finished',
-  ).length;
+  const items = deriveInboxItems(projects, excludeId);
+  return items.awaitingChoice.length + items.wrapped.length + items.parked.length + items.casting.length;
 }
 
 /** Every player project waiting on its own releaseDay to arrive (roadmap Phase 7.2) - see engine/scheduledReleases.ts. */

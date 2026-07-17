@@ -124,8 +124,14 @@ export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDr
   // own note on why slot-targeted recasting is out of scope this phase) -
   // an applicant can only actually be *cast* once every earlier same-
   // prominence character already is, even though a call can be opened (and
-  // Direct Approach attempted) for any of them in any order.
+  // Direct Approach attempted) for any of them in any order. Named
+  // explicitly (blockingCharacter), not just "cast earlier roles first" -
+  // a player shouldn't have to guess which one.
   const canActFromHere = !alreadyCast && slotIndex === hired.length;
+  const blockingCharacter =
+    !alreadyCast && !canActFromHere
+      ? (draft.script?.cast.filter((c) => c.prominence === character.prominence)[hired.length] ?? null)
+      : null;
 
   const range = ROLE_GENERATION_PROFILES[professionForProductionRole(role)].salaryRange;
   const offeredSalary = draft.talentTargetPriceByRole[role] ?? logAmount(0.5, range);
@@ -190,10 +196,11 @@ export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDr
           <p style={{ margin: 0 }}>Already cast: {hired[slotIndex].identity.name}. Recasting isn't supported yet.</p>
         )}
         {!alreadyCast && !canActFromHere && (
-          <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-            Cast earlier {character.prominence.toLowerCase()} roles in this section first - applicants can still apply
-            here, and offers can still be made, in the meantime.
-          </p>
+          <div className="card production-tension" style={{ margin: 0 }}>
+            Cast {blockingCharacter?.name ?? 'an earlier role'} first - {character.prominence.toLowerCase()} roles cast
+            in order. Applicants can still apply here, and offers can still be made, in the meantime; nobody can
+            actually be confirmed until it's {character.name}'s turn.
+          </div>
         )}
 
         <RangeSlider

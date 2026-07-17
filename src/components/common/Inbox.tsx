@@ -2,8 +2,7 @@ import { useStudio } from '../../state/StudioContext';
 import { Button } from './Button';
 import { Money } from './Money';
 import { OnSetDecisionCard } from './OnSetDecisionCard';
-import { backgroundedPlayerDrafts } from '../../engine/project';
-import { castingCallsAwaitingReview } from '../../engine/castingCalls';
+import { backgroundedPlayerDrafts, deriveInboxItems } from '../../engine/project';
 
 interface InboxProps {
   open: boolean;
@@ -54,18 +53,16 @@ export function Inbox({ open, onClose }: InboxProps) {
 
   // Inbox is mounted globally, including mid-wizard while something is
   // focused (unlike Dashboard, where RETURN_TO_DASHBOARD guarantees
-  // focusedProjectId is null) - backgroundedPlayerDrafts excludes that
-  // focused one, so it's never shown here a second time: its own screen
+  // focusedProjectId is null) - deriveInboxItems excludes that focused one
+  // internally, so it's never shown here a second time: its own screen
   // (ProductionRun.tsx/MarketingRelease.tsx) is where it belongs, not the
-  // Inbox.
+  // Inbox. The exact same derivation Header.tsx's badge count reads
+  // (engine/project.ts:inboxBadgeCount), so the two can never drift apart.
+  const { awaitingChoice, wrapped, parked, casting } = deriveInboxItems(state.projects, state.focusedProjectId);
+  // Every backgrounded draft, regardless of category - the "N productions
+  // in the background" reassurance line below, distinct from badgeCount
+  // (only the ones actually needing attention).
   const productions = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
-  const awaitingChoice = productions.filter((p) => p.photography?.status === 'awaiting-choice');
-  const wrapped = productions.filter((p) => p.photography?.status === 'finished' && !p.postProductionChoices);
-  const parked = productions.filter((p) => p.photography?.status === 'finished' && p.postProductionChoices);
-  const casting = productions
-    .filter((p) => !p.photography)
-    .map((p) => ({ production: p, calls: castingCallsAwaitingReview(p) }))
-    .filter((c) => c.calls.length > 0);
   const badgeCount = awaitingChoice.length + wrapped.length + parked.length + casting.length;
 
   return (

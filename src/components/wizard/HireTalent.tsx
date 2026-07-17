@@ -112,9 +112,20 @@ function CharacterCastingRow({
   const draft = deriveFocusedDraft(state)!;
   const hired = draft.talent.filter((a) => a.role === role).map((a) => a.person);
   const cast = hired[slotIndex] ?? null;
+  // Casting stays append-order (see CastingDrawer.tsx's own note on why
+  // slot-targeted recasting is out of scope) - this row can only actually
+  // be cast once it's the *next* same-prominence Character in line. Naming
+  // exactly who that is directly on the card, rather than only inside the
+  // drawer, is what stops "why can't I cast my Supporting Actor" from ever
+  // requiring a click to answer.
+  const isNextUp = slotIndex === hired.length;
+  const blockingCharacter =
+    !cast && !isNextUp
+      ? (draft.script?.cast.filter((c) => c.prominence === character.prominence)[hired.length] ?? null)
+      : null;
 
   return (
-    <Card selectable onClick={onOpen}>
+    <Card selectable onClick={onOpen} className={!cast && !isNextUp ? 'casting-row-blocked' : undefined}>
       <div className="row-between">
         <div className="card-title">{character.name}</div>
         <span className="badge">{character.prominence} &middot; {CHARACTER_ARCHETYPE_LABELS[character.archetype]}</span>
@@ -127,8 +138,12 @@ function CharacterCastingRow({
             Fame {cast.reputation.fame} &middot; <Money amount={getTypicalSalaryForRole(cast, role)} />
           </div>
         </div>
-      ) : (
+      ) : isNextUp ? (
         <p style={{ margin: 0, color: 'var(--red)' }}>Not yet cast</p>
+      ) : (
+        <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+          Waiting - cast {blockingCharacter?.name ?? 'an earlier role'} first
+        </p>
       )}
     </Card>
   );
