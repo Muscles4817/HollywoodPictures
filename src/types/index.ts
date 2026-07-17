@@ -185,13 +185,15 @@ export type AppearanceTag =
 
 export interface PersonIdentity {
   name: string;
-  // Optional, deliberately - deviates from the redesign doc's non-optional
-  // fields. Every existing handcrafted/generated person predates this
-  // model, and neither is real, verified public data for ~500 real people;
-  // fabricating either would be a data-quality regression for a roster this
-  // session hand-authored specifically to be realistic. Left unset on
-  // migrated data rather than guessed; a future data-entry pass can fill
-  // these in for real people without any further architecture change.
+  // Optional, not required - deviates from the redesign doc's non-optional
+  // fields. Now populated for everyone: the handcrafted, real-named roster
+  // (data/handcraftedTalents.ts) carries real, hand-entered public data
+  // (each real person's actual gender and birth year, re-expressed relative
+  // to GameState.totalDays' own Year-1-is-day-1 origin - see GameDate's own
+  // comment above), and every procedurally generated person gets a rolled
+  // gender/dateOfBirth (engine/talentGenerator.ts). Stays optional on the
+  // type regardless - not every consumer of this shape (an older save, a
+  // future migration) is guaranteed to carry it.
   gender?: Gender;
   dateOfBirth?: GameDate;
   nationality?: string;

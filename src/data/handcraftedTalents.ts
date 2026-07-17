@@ -14,6 +14,8 @@ export const HANDCRAFTED_DIRECTORS: Person[] = [
         identity: {
             name: 'Steven Spielberg',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -79, month: 7, day: 1 },
         },
         personality: {
             professionalism: 98,
@@ -71,6 +73,8 @@ export const HANDCRAFTED_DIRECTORS: Person[] = [
         identity: {
             name: 'Christopher Nolan',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,
@@ -128,6 +132,8 @@ export const HANDCRAFTED_DIRECTORS: Person[] = [
         identity: {
             name: 'James Cameron',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -71, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -185,6 +191,8 @@ export const HANDCRAFTED_DIRECTORS: Person[] = [
         identity: {
             name: 'Martin Scorsese',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -83, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -245,6 +253,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Matthew McConaughey',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 91,
@@ -289,6 +299,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Tom Hanks',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -69, month: 7, day: 1 },
         },
         personality: {
             professionalism: 98,
@@ -333,6 +345,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Benedict Cumberbatch',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -377,6 +391,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Idris Elba',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -53, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -421,6 +437,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Hugh Jackman',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -57, month: 7, day: 1 },
         },
         personality: {
             professionalism: 97,
@@ -465,6 +483,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Chris Hemsworth',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -42, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -509,6 +529,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Chris Evans',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -44, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -553,6 +575,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Henry Cavill',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -42, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -597,6 +621,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Sebastian Stan',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -641,6 +667,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Aaron Taylor-Johnson',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -35, month: 7, day: 1 },
         },
         personality: {
             professionalism: 89,
@@ -685,6 +713,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Dev Patel',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -35, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -729,6 +759,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Daniel Kaluuya',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -36, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -773,6 +805,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Daniel Craig',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -57, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -817,6 +851,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ralph Fiennes',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -63, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -861,6 +897,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Gary Oldman',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -67, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -905,6 +943,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Emily Blunt',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -42, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -949,6 +989,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Amy Adams',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -51, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -993,6 +1035,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Charlize Theron',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -50, month: 7, day: 1 },
         },
         personality: {
             professionalism: 91,
@@ -1037,6 +1081,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Saoirse Ronan',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -31, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -1081,6 +1127,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jennifer Lawrence',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -35, month: 7, day: 1 },
         },
         personality: {
             professionalism: 86,
@@ -1125,6 +1173,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Robert Pattinson',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -39, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -1169,6 +1219,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Andrew Garfield',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -42, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -1213,6 +1265,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jake Gyllenhaal',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -45, month: 7, day: 1 },
         },
         personality: {
             professionalism: 89,
@@ -1257,6 +1311,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Adam Driver',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -42, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -1301,6 +1357,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ana de Armas',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -37, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -1345,6 +1403,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Margot Robbie',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -35, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -1389,6 +1449,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Florence Pugh',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -29, month: 7, day: 1 },
         },
         personality: {
             professionalism: 91,
@@ -1433,6 +1495,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Glen Powell',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -37, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -1477,6 +1541,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jessie Buckley',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -36, month: 7, day: 1 },
         },
         personality: {
             professionalism: 91,
@@ -1521,6 +1587,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Leonardo DiCaprio',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -51, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -1565,6 +1633,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Tom Cruise',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -63, month: 7, day: 1 },
         },
         personality: {
             professionalism: 98,
@@ -1609,6 +1679,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ryan Gosling',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -45, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -1653,6 +1725,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Cillian Murphy',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -1697,6 +1771,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Pedro Pascal',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -50, month: 7, day: 1 },
         },
         personality: {
             professionalism: 91,
@@ -1741,6 +1817,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Michael B. Jordan',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -38, month: 7, day: 1 },
         },
         personality: {
             professionalism: 89,
@@ -1785,6 +1863,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Timothée Chalamet',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -30, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -1829,6 +1909,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Zendaya',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -29, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -1873,6 +1955,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Emma Stone',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -37, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -1917,6 +2001,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Denzel Washington',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -71, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -1961,6 +2047,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Brad Pitt',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -62, month: 7, day: 1 },
         },
         personality: {
             professionalism: 89,
@@ -2005,6 +2093,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Christian Bale',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -51, month: 7, day: 1 },
         },
         personality: {
             professionalism: 86,
@@ -2049,6 +2139,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Matt Damon',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -2093,6 +2185,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Robert Downey Jr.',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -60, month: 7, day: 1 },
         },
         personality: {
             professionalism: 83,
@@ -2137,6 +2231,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ryan Reynolds',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 91,
@@ -2181,6 +2277,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Keanu Reeves',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -61, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -2225,6 +2323,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Oscar Isaac',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -46, month: 7, day: 1 },
         },
         personality: {
             professionalism: 91,
@@ -2269,6 +2369,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Colin Farrell',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -2313,6 +2415,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Austin Butler',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -34, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -2357,6 +2461,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Joaquin Phoenix',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -51, month: 7, day: 1 },
         },
         personality: {
             professionalism: 72,
@@ -2401,6 +2507,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Paul Giamatti',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -58, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,
@@ -2445,6 +2553,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'J.K. Simmons',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -70, month: 7, day: 1 },
         },
         personality: {
             professionalism: 97,
@@ -2489,6 +2599,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Giancarlo Esposito',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -67, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -2533,6 +2645,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Willem Dafoe',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -70, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -2577,6 +2691,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Stanley Tucci',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -65, month: 7, day: 1 },
         },
         personality: {
             professionalism: 97,
@@ -2621,6 +2737,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Mark Ruffalo',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -58, month: 7, day: 1 },
         },
         personality: {
             professionalism: 91,
@@ -2665,6 +2783,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jeffrey Wright',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -60, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -2709,6 +2829,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Brendan Gleeson',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -70, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -2753,6 +2875,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'John Goodman',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -73, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -2797,6 +2921,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Bryan Cranston',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -69, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -2841,6 +2967,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ben Mendelsohn',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -2885,6 +3013,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Stephen Graham',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -52, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,
@@ -2929,6 +3059,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Andy Serkis',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -61, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -2973,6 +3105,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'John C. Reilly',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -60, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -3017,6 +3151,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Barry Keoghan',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -33, month: 7, day: 1 },
         },
         personality: {
             professionalism: 86,
@@ -3061,6 +3197,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Meryl Streep',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -76, month: 7, day: 1 },
         },
         personality: {
             professionalism: 98,
@@ -3105,6 +3243,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Viola Davis',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -60, month: 7, day: 1 },
         },
         personality: {
             professionalism: 97,
@@ -3149,6 +3289,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Cate Blanchett',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,
@@ -3193,6 +3335,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Nicole Kidman',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -58, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -3237,6 +3381,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Julia Roberts',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -58, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -3281,6 +3427,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Sandra Bullock',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -61, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -3325,6 +3473,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Anne Hathaway',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -3369,6 +3519,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Scarlett Johansson',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -41, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -3413,6 +3565,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Natalie Portman',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -44, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -3457,6 +3611,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Reese Witherspoon',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -3501,6 +3657,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jessica Chastain',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -48, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -3545,6 +3703,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Michelle Yeoh',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -63, month: 7, day: 1 },
         },
         personality: {
             professionalism: 97,
@@ -3589,6 +3749,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Lupita Nyong\'o',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -42, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -3633,6 +3795,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Halle Berry',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -59, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -3677,6 +3841,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Angela Bassett',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -67, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -3721,6 +3887,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Gal Gadot',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -40, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -3765,6 +3933,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Brie Larson',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -36, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -3809,6 +3979,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Elizabeth Olsen',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -36, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -3853,6 +4025,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kristen Stewart',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -35, month: 7, day: 1 },
         },
         personality: {
             professionalism: 87,
@@ -3897,6 +4071,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Anya Taylor-Joy',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -29, month: 7, day: 1 },
         },
         personality: {
             professionalism: 91,
@@ -3941,6 +4117,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Sydney Sweeney',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -28, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -3985,6 +4163,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jenna Ortega',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -23, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -4029,6 +4209,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Zoe Saldaña',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -47, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -4073,6 +4255,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kate Winslet',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -50, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -4117,6 +4301,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Keira Knightley',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -40, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -4161,6 +4347,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Rachel Weisz',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -4205,6 +4393,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Marion Cotillard',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -50, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -4249,6 +4439,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Penélope Cruz',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -51, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -4293,6 +4485,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Javier Bardem',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -4337,6 +4531,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Antonio Banderas',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -65, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -4381,6 +4577,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Salma Hayek',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -59, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -4425,6 +4623,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Al Pacino',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -85, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -4469,6 +4669,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Robert De Niro',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -82, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -4513,6 +4715,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Anthony Hopkins',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -88, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,
@@ -4557,6 +4761,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Michael Caine',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -92, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,
@@ -4601,6 +4807,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ian McKellen',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -86, month: 7, day: 1 },
         },
         personality: {
             professionalism: 97,
@@ -4645,6 +4853,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Russell Crowe',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -61, month: 7, day: 1 },
         },
         personality: {
             professionalism: 78,
@@ -4689,6 +4899,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Hugh Grant',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -65, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -4733,6 +4945,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Colin Firth',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -65, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -4777,6 +4991,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ewan McGregor',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -4821,6 +5037,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jude Law',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -53, month: 7, day: 1 },
         },
         personality: {
             professionalism: 91,
@@ -4865,6 +5083,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Tom Hardy',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -48, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -4909,6 +5129,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jeremy Renner',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -4953,6 +5175,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kevin Costner',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -70, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -4997,6 +5221,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Harrison Ford',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -83, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -5041,6 +5267,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Samuel L. Jackson',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -77, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -5085,6 +5313,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Bill Murray',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -75, month: 7, day: 1 },
         },
         personality: {
             professionalism: 68,
@@ -5129,6 +5359,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Adam Sandler',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -59, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -5173,6 +5405,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jim Carrey',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -63, month: 7, day: 1 },
         },
         personality: {
             professionalism: 78,
@@ -5217,6 +5451,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Eddie Murphy',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -64, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -5261,6 +5497,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Nicolas Cage',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -61, month: 7, day: 1 },
         },
         personality: {
             professionalism: 72,
@@ -5305,6 +5543,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'John Travolta',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -71, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -5349,6 +5589,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Sylvester Stallone',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -79, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -5393,6 +5635,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Arnold Schwarzenegger',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -78, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -5437,6 +5681,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Dwayne Johnson',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -53, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -5481,6 +5727,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Vin Diesel',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -58, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -5525,6 +5773,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jason Statham',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -58, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -5569,6 +5819,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Liam Neeson',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -73, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -5613,6 +5865,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Mark Wahlberg',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 87,
@@ -5657,6 +5911,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Will Smith',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -57, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -5701,6 +5957,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Morgan Freeman',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -88, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -5745,6 +6003,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Forest Whitaker',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -64, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -5789,6 +6049,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Chris Pratt',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -46, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -5833,6 +6095,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Chris Pine',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -45, month: 7, day: 1 },
         },
         personality: {
             professionalism: 91,
@@ -5877,6 +6141,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Steve Carell',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -63, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -5921,6 +6187,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Will Ferrell',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -58, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -5965,6 +6233,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Bradley Cooper',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -50, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -6009,6 +6279,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jamie Foxx',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -58, month: 7, day: 1 },
         },
         personality: {
             professionalism: 84,
@@ -6053,6 +6325,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jackie Chan',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -71, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -6097,6 +6371,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Shah Rukh Khan',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -60, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -6141,6 +6417,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Deepika Padukone',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -39, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -6185,6 +6463,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Priyanka Chopra',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -6229,6 +6509,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Tilda Swinton',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -65, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,
@@ -6273,6 +6555,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Patrick Stewart',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -85, month: 7, day: 1 },
         },
         personality: {
             professionalism: 97,
@@ -6317,6 +6601,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Seth Rogen',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -6361,6 +6647,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Paul Rudd',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -6405,6 +6693,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Michael Fassbender',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -48, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -6449,6 +6739,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'James McAvoy',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -46, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -6493,6 +6785,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Eddie Redmayne',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -6537,6 +6831,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Josh Brolin',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -57, month: 7, day: 1 },
         },
         personality: {
             professionalism: 91,
@@ -6581,6 +6877,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Sam Rockwell',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -57, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -6625,6 +6923,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Woody Harrelson',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -64, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -6669,6 +6969,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Christoph Waltz',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -69, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -6713,6 +7015,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'John Malkovich',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -72, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -6757,6 +7061,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Miles Teller',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -38, month: 7, day: 1 },
         },
         personality: {
             professionalism: 89,
@@ -6801,6 +7107,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Mahershala Ali',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -51, month: 7, day: 1 },
         },
         personality: {
             professionalism: 97,
@@ -6845,6 +7153,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Sterling K. Brown',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,
@@ -6889,6 +7199,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Don Cheadle',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -61, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -6933,6 +7245,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Anthony Mackie',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -47, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -6977,6 +7291,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'John Boyega',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -33, month: 7, day: 1 },
         },
         personality: {
             professionalism: 89,
@@ -7021,6 +7337,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Riz Ahmed',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -7065,6 +7383,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'John Cho',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -53, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -7109,6 +7429,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Steven Yeun',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -42, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -7153,6 +7475,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Sandra Oh',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -7197,6 +7521,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Donnie Yen',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -62, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -7241,6 +7567,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Tony Leung Chiu-wai',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -63, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,
@@ -7285,6 +7613,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Zhang Ziyi',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -46, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -7329,6 +7659,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Song Kang-ho',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -58, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,
@@ -7373,6 +7705,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Youn Yuh-jung',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -78, month: 7, day: 1 },
         },
         personality: {
             professionalism: 97,
@@ -7417,6 +7751,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Toni Collette',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -53, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -7461,6 +7797,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Michael Peña',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -7505,6 +7843,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Michael Shannon',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -51, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -7549,6 +7889,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Michael Rooker',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -70, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -7593,6 +7935,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Clifton Collins Jr.',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -7637,6 +7981,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Danny Trejo',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -81, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -7681,6 +8027,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Djimon Hounsou',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -61, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -7725,6 +8073,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Terry Crews',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -57, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -7769,6 +8119,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Common',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -53, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -7813,6 +8165,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'LL Cool J',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -57, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -7857,6 +8211,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Method Man',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -7901,6 +8257,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ice Cube',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -7945,6 +8303,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ice-T',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -67, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -7989,6 +8349,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Cuba Gooding Jr.',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -57, month: 7, day: 1 },
         },
         personality: {
             professionalism: 65,
@@ -8033,6 +8395,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Wesley Snipes',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -63, month: 7, day: 1 },
         },
         personality: {
             professionalism: 78,
@@ -8077,6 +8441,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Terrence Howard',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 70,
@@ -8121,6 +8487,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Anthony Anderson',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -8165,6 +8533,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Craig Robinson',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -8209,6 +8579,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ken Jeong',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -8253,6 +8625,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Rob Riggle',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -8297,6 +8671,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'David Koechner',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -63, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -8341,6 +8717,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Nick Offerman',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -8385,6 +8763,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Megan Mullally',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -67, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -8429,6 +8809,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Rainn Wilson',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -59, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -8473,6 +8855,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ike Barinholtz',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -48, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -8517,6 +8901,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Thomas Middleditch',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -8561,6 +8947,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kumail Nanjiani',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -47, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -8605,6 +8993,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Aziz Ansari',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -42, month: 7, day: 1 },
         },
         personality: {
             professionalism: 78,
@@ -8649,6 +9039,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Keegan-Michael Key',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -8693,6 +9085,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Nick Kroll',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -47, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -8737,6 +9131,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Danny McBride',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -8781,6 +9177,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Rob Corddry',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -8825,6 +9223,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Paul Scheer',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -8869,6 +9269,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Adam Scott',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -52, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -8913,6 +9315,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Bobby Cannavale',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -8957,6 +9361,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kathryn Hahn',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -52, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -9001,6 +9407,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Judy Greer',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -50, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -9045,6 +9453,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Allison Janney',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -66, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,
@@ -9089,6 +9499,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Toby Jones',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -59, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -9133,6 +9545,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Mark Strong',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -62, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -9177,6 +9591,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'David Thewlis',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -62, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -9221,6 +9637,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Timothy Spall',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -68, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -9265,6 +9683,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Rhys Ifans',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -58, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -9309,6 +9729,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Sam Neill',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -78, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -9353,6 +9775,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ciarán Hinds',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -72, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -9397,6 +9821,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jason Isaacs',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -62, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -9441,6 +9867,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Rupert Grint',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -37, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -9485,6 +9913,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Tom Felton',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -38, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -9529,6 +9959,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Sean Astin',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -9573,6 +10005,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Billy Boyd',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -57, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -9617,6 +10051,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Dominic Monaghan',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -9661,6 +10097,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Elijah Wood',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -44, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -9705,6 +10143,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'John Cusack',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -59, month: 7, day: 1 },
         },
         personality: {
             professionalism: 78,
@@ -9749,6 +10189,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Cole Hauser',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -50, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -9793,6 +10235,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Taylor Kitsch',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -44, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -9837,6 +10281,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Josh Duhamel',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -53, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -9881,6 +10327,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Milo Ventimiglia',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -48, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -9925,6 +10373,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Scott Adkins',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -9969,6 +10419,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Michael Jai White',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -58, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -10013,6 +10465,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Frank Grillo',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -60, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -10057,6 +10511,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Dolph Lundgren',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -68, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -10101,6 +10557,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Eric Roberts',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -69, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -10145,6 +10603,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ving Rhames',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -66, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -10189,6 +10649,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Michael Madsen',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -68, month: 7, day: 1 },
         },
         personality: {
             professionalism: 78,
@@ -10233,6 +10695,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Robert Patrick',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -67, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -10277,6 +10741,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Lance Henriksen',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -85, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -10321,6 +10787,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Michael Biehn',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -69, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -10365,6 +10833,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Bruce Campbell',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -67, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -10409,6 +10879,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Neve Campbell',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -52, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -10453,6 +10925,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'David Arquette',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -10497,6 +10971,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Danielle Harris',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -48, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -10541,6 +11017,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Katherine Heigl',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -47, month: 7, day: 1 },
         },
         personality: {
             professionalism: 68,
@@ -10585,6 +11063,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ali Larter',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -10629,6 +11109,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Rose Byrne',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -46, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -10673,6 +11155,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Isla Fisher',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -10717,6 +11201,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Rebecca Hall',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -10761,6 +11247,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Emma Roberts',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -34, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -10805,6 +11293,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Lucy Hale',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -36, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -10849,6 +11339,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kaitlyn Dever',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -29, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -10893,6 +11385,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Odeya Rush',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -28, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -10937,6 +11431,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Maika Monroe',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -32, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -10981,6 +11477,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Lily Collins',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -36, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -11025,6 +11523,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Vanessa Hudgens',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -37, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -11069,6 +11569,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Camila Mendes',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -31, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -11113,6 +11615,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Madelaine Petsch',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -31, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -11157,6 +11661,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Lili Reinhart',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -29, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -11201,6 +11707,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Constance Wu',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -11245,6 +11753,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Randall Park',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -51, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -11289,6 +11799,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ali Wong',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -11333,6 +11845,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Awkwafina',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -37, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -11377,6 +11891,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Simu Liu',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -36, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -11421,6 +11937,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Paul Walter Hauser',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -39, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -11465,6 +11983,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Brian Tyree Henry',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -11509,6 +12029,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jason Mitchell',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -35, month: 7, day: 1 },
         },
         personality: {
             professionalism: 75,
@@ -11553,6 +12075,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'LaKeith Stanfield',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -34, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -11597,6 +12121,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Colman Domingo',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -11641,6 +12167,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Julianne Nicholson',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -11685,6 +12213,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Steve Zahn',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -58, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -11729,6 +12259,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Thomas Haden Church',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -65, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -11773,6 +12305,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'William H. Macy',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -75, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -11817,6 +12351,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Holly Hunter',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -67, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -11861,6 +12397,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Gerard Butler',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -11905,6 +12443,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'John Cena',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -48, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -11949,6 +12489,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Dave Bautista',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -11993,6 +12535,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kevin James',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -60, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -12037,6 +12581,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jack Black',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -12081,6 +12627,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Owen Wilson',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -57, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -12125,6 +12673,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Luke Wilson',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -12169,6 +12719,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Vince Vaughn',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -12213,6 +12765,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'David Spade',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -61, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -12257,6 +12811,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Rob Schneider',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -62, month: 7, day: 1 },
         },
         personality: {
             professionalism: 78,
@@ -12301,6 +12857,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Fred Armisen',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -59, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -12345,6 +12903,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Bill Hader',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -47, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -12389,6 +12949,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jason Sudeikis',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -50, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -12433,6 +12995,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ed Helms',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -51, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -12477,6 +13041,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jason Bateman',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -12521,6 +13087,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Zach Galifianakis',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 78,
@@ -12565,6 +13133,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Chris Tucker',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 55,
@@ -12609,6 +13179,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Martin Lawrence',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -60, month: 7, day: 1 },
         },
         personality: {
             professionalism: 68,
@@ -12653,6 +13225,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Marlon Wayans',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -53, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -12697,6 +13271,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Tracy Morgan',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -57, month: 7, day: 1 },
         },
         personality: {
             professionalism: 70,
@@ -12741,6 +13317,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kevin Hart',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -46, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -12785,6 +13363,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'J.B. Smoove',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -60, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -12829,6 +13409,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Cedric the Entertainer',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -61, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -12873,6 +13455,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Mike Epps',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -12917,6 +13501,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Nick Cannon',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -45, month: 7, day: 1 },
         },
         personality: {
             professionalism: 78,
@@ -12961,6 +13547,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Taye Diggs',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -13005,6 +13593,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Michael Ealy',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -52, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -13049,6 +13639,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Omar Epps',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -52, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -13093,6 +13685,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Morris Chestnut',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -13137,6 +13731,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Sanaa Lathan',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -13181,6 +13777,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Regina Hall',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -13225,6 +13823,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Tiffany Haddish',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -46, month: 7, day: 1 },
         },
         personality: {
             professionalism: 75,
@@ -13269,6 +13869,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Gabrielle Union',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -53, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -13313,6 +13915,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Meagan Good',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -44, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -13357,6 +13961,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kerry Washington',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -48, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -13401,6 +14007,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jeffrey Dean Morgan',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -59, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -13445,6 +14053,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Norman Reedus',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -13489,6 +14099,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Andrew Lincoln',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -52, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -13533,6 +14145,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Lauren Cohan',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -13577,6 +14191,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Danai Gurira',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -47, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -13621,6 +14237,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Steven Ogg',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -52, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -13665,6 +14283,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Christian Serratos',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -35, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -13709,6 +14329,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ross Marquand',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -44, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -13753,6 +14375,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Eugenio Derbez',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -64, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -13797,6 +14421,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Diego Luna',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -46, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -13841,6 +14467,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Gael García Bernal',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -47, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -13885,6 +14513,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Demián Bichir',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -62, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -13929,6 +14559,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Diego Boneta',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -35, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -13973,6 +14605,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kate del Castillo',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -53, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -14017,6 +14651,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'William Levy',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -45, month: 7, day: 1 },
         },
         personality: {
             professionalism: 78,
@@ -14061,6 +14697,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Édgar Ramírez',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -48, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -14105,6 +14743,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Wagner Moura',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -14149,6 +14789,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Rodrigo Santoro',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -50, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -14193,6 +14835,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Alice Braga',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -42, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -14237,6 +14881,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Rosario Dawson',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -46, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -14281,6 +14927,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Michelle Rodriguez',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -47, month: 7, day: 1 },
         },
         personality: {
             professionalism: 78,
@@ -14325,6 +14973,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Zoe Kravitz',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -37, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -14369,6 +15019,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jharrel Jerome',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -28, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -14413,6 +15065,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Algee Smith',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -31, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -14457,6 +15111,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jacob Latimore',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -29, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -14501,6 +15157,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Marsai Martin',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -21, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -14545,6 +15203,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Yara Shahidi',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -26, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -14589,6 +15249,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Storm Reid',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -22, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -14633,6 +15295,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Caleb McLaughlin',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -24, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -14677,6 +15341,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Sadie Sink',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -23, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -14721,6 +15387,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Noah Schnapp',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -21, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -14765,6 +15433,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Gaten Matarazzo',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -23, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -14809,6 +15479,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Finn Wolfhard',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -23, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -14853,6 +15525,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Joe Keery',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -33, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -14897,6 +15571,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Natalia Dyer',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -28, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -14941,6 +15617,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Charlie Heaton',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -31, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -14985,6 +15663,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Winona Ryder',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -15029,6 +15709,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'David Harbour',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -50, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -15073,6 +15755,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Paul Reiser',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -69, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -15117,6 +15801,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Matthew Modine',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -66, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -15161,6 +15847,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Joe Pesci',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -82, month: 7, day: 1 },
         },
         personality: {
             professionalism: 78,
@@ -15205,6 +15893,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Chazz Palminteri',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -73, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -15249,6 +15939,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Vincent D\'Onofrio',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -66, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -15293,6 +15985,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Steve Buscemi',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -68, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -15337,6 +16031,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'John Turturro',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -68, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -15381,6 +16077,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Bill Camp',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -64, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -15425,6 +16123,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Michael Stuhlbarg',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -57, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -15469,6 +16169,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Peter Sarsgaard',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -15513,6 +16215,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ethan Hawke',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -15557,6 +16261,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Josh Hartnett',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -47, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -15601,6 +16307,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Freddie Prinze Jr.',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -15645,6 +16353,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jason Lee',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -15689,6 +16399,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Breckin Meyer',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -51, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -15733,6 +16445,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Seann William Scott',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -15777,6 +16491,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jason Biggs',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -47, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -15821,6 +16537,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Chris Klein',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -46, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -15865,6 +16583,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Tara Reid',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -50, month: 7, day: 1 },
         },
         personality: {
             professionalism: 62,
@@ -15909,6 +16629,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Thomas Ian Nicholas',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -45, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -15953,6 +16675,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Eddie Kaye Thomas',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -45, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -15997,6 +16721,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Mena Suvari',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -46, month: 7, day: 1 },
         },
         personality: {
             professionalism: 80,
@@ -16041,6 +16767,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Shannon Elizabeth',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -52, month: 7, day: 1 },
         },
         personality: {
             professionalism: 78,
@@ -16085,6 +16813,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Elizabeth Banks',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -51, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -16129,6 +16859,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Amanda Peet',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -53, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -16173,6 +16905,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Julia Stiles',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -44, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -16217,6 +16951,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kate Hudson',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -46, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -16261,6 +16997,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Casper Van Dien',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -57, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -16305,6 +17043,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Steven Seagal',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -73, month: 7, day: 1 },
         },
         personality: {
             professionalism: 55,
@@ -16349,6 +17089,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Vinnie Jones',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -60, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -16393,6 +17135,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Luke Goss',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -57, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -16437,6 +17181,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Cam Gigandet',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -16481,6 +17227,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'C. Thomas Howell',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -59, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -16525,6 +17273,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Costas Mandylor',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -60, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -16569,6 +17319,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Tobin Bell',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -83, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -16613,6 +17365,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Shawnee Smith',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -16657,6 +17411,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Robert Englund',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -78, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -16701,6 +17457,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Doug Bradley',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -71, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -16745,6 +17503,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Bill Moseley',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -74, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -16789,6 +17549,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Heather Langenkamp',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -61, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -16833,6 +17595,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Amanda Wyss',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -65, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -16877,6 +17641,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kane Hodder',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -70, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -16921,6 +17687,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Corey Feldman',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 55,
@@ -16965,6 +17733,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Judge Reinhold',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -68, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -17009,6 +17779,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ione Skye',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -17053,6 +17825,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ally Sheedy',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -63, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -17097,6 +17871,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Molly Ringwald',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -57, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -17141,6 +17917,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Anthony Michael Hall',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -57, month: 7, day: 1 },
         },
         personality: {
             professionalism: 80,
@@ -17185,6 +17963,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Andrew McCarthy',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -63, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -17229,6 +18009,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Emilio Estevez',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -63, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -17273,6 +18055,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Lacey Chabert',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -17317,6 +18101,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Danica McKellar',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -50, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -17361,6 +18147,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Autumn Reeser',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -45, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -17405,6 +18193,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Alicia Witt',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -50, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -17449,6 +18239,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ashley Williams',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -47, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -17493,6 +18285,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Andrew Walker',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -46, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -17537,6 +18331,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Paul Campbell',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -51, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -17581,6 +18377,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Tyler Hynes',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -39, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -17625,6 +18423,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Luke Macfarlane',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -45, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -17669,6 +18469,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Chad Michael Murray',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -44, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -17713,6 +18515,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Colin Egglesfield',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -52, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -17757,6 +18561,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kirk Cameron',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 78,
@@ -17801,6 +18607,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kevin Sorbo',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -67, month: 7, day: 1 },
         },
         personality: {
             professionalism: 75,
@@ -17845,6 +18653,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'David A.R. White',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -17889,6 +18699,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Candace Cameron Bure',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -17933,6 +18745,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Alexa PenaVega',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -37, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -17977,6 +18791,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Carlos PenaVega',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -36, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -18021,6 +18837,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kellan Lutz',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -40, month: 7, day: 1 },
         },
         personality: {
             professionalism: 78,
@@ -18065,6 +18883,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Peter Facinelli',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -52, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -18109,6 +18929,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ashley Greene',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -38, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -18153,6 +18975,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Nikki Reed',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -37, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -18197,6 +19021,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jackson Rathbone',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -41, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -18241,6 +19067,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Booboo Stewart',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -31, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -18285,6 +19113,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'BD Wong',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -65, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -18329,6 +19159,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kelli Giddish',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -45, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -18373,6 +19205,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Chris Meloni',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -60, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -18417,6 +19251,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Mariska Hargitay',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -61, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -18461,6 +19297,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Peter Bergman',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -72, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -18505,6 +19343,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Eric Braeden',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -84, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -18549,6 +19389,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Susan Lucci',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -79, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -18593,6 +19435,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Maura West',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -51, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -18637,6 +19481,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Michael Trevino',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -40, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -18681,6 +19527,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ian Somerhalder',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -47, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -18725,6 +19573,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Nina Dobrev',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -36, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -18769,6 +19619,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Paul Wesley',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -18813,6 +19665,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Zach Roerig',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -40, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -18857,6 +19711,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Candice King',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -38, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -18901,6 +19757,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kat Graham',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -36, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -18945,6 +19803,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Steven R. McQueen',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -32, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -18989,6 +19849,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Matt Davis',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -47, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -19033,6 +19895,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Torrey DeVitto',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -41, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -19077,6 +19941,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Claire Holt',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -37, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -19121,6 +19987,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Phoebe Tonkin',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -36, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -19165,6 +20033,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Joseph Morgan',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -44, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -19209,6 +20079,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Daniel Gillies',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -19253,6 +20125,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Charles Michael Davis',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -40, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -19297,6 +20171,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Riley Voelkel',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -35, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -19341,6 +20217,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Danielle Campbell',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -30, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -19385,6 +20263,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Yusuf Gatewood',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -19429,6 +20309,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Freya Tingley',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -31, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -19473,6 +20355,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Christian Kane',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -53, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -19517,6 +20401,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Adrianne Palicki',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -42, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -19561,6 +20447,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Rachael Taylor',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -41, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -19605,6 +20493,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Sarah Michelle Gellar',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -48, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -19649,6 +20539,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Alyson Hannigan',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -51, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -19693,6 +20585,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Nicholas Brendon',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 68,
@@ -19737,6 +20631,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'James Marsters',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -63, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -19781,6 +20677,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Amber Benson',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -48, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -19825,6 +20723,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Charisma Carpenter',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -19869,6 +20769,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Emma Caulfield',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -52, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -19913,6 +20815,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'David Boreanaz',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -19957,6 +20861,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Julie Benz',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -53, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -20001,6 +20907,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'J. August Richards',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -52, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -20045,6 +20953,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Amy Acker',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -20089,6 +20999,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Tom Lenk',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -20133,6 +21045,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Iyari Limon',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -20177,6 +21091,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Kristy Swanson',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -20221,6 +21137,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jason Priestley',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -20265,6 +21183,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Jennie Garth',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -53, month: 7, day: 1 },
         },
         personality: {
             professionalism: 85,
@@ -20309,6 +21229,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Tori Spelling',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -52, month: 7, day: 1 },
         },
         personality: {
             professionalism: 70,
@@ -20353,6 +21275,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Ian Ziering',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -61, month: 7, day: 1 },
         },
         personality: {
             professionalism: 78,
@@ -20397,6 +21321,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Brian Austin Green',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -52, month: 7, day: 1 },
         },
         personality: {
             professionalism: 80,
@@ -20441,6 +21367,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Gabrielle Carteris',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -64, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -20485,6 +21413,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Vivica A. Fox',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -61, month: 7, day: 1 },
         },
         personality: {
             professionalism: 82,
@@ -20529,6 +21459,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Loretta Devine',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -76, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -20573,6 +21505,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Tia Mowry',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -47, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -20617,6 +21551,8 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         identity: {
             name: 'Tichina Arnold',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -56, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -20664,6 +21600,8 @@ export const HANDCRAFTED_WRITERS: Person[] = [
         identity: {
             name: 'Aaron Sorkin',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -64, month: 7, day: 1 },
         },
         personality: {
             professionalism: 89,
@@ -20702,6 +21640,8 @@ export const HANDCRAFTED_WRITERS: Person[] = [
         identity: {
             name: 'Tony Kushner',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -69, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -20740,6 +21680,8 @@ export const HANDCRAFTED_WRITERS: Person[] = [
         identity: {
             name: 'Eric Roth',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -80, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,
@@ -20778,6 +21720,8 @@ export const HANDCRAFTED_WRITERS: Person[] = [
         identity: {
             name: 'Jonathan Nolan',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -20816,6 +21760,8 @@ export const HANDCRAFTED_WRITERS: Person[] = [
         identity: {
             name: 'Damon Lindelof',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -52, month: 7, day: 1 },
         },
         personality: {
             professionalism: 88,
@@ -20854,6 +21800,8 @@ export const HANDCRAFTED_WRITERS: Person[] = [
         identity: {
             name: 'Phoebe Waller-Bridge',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -40, month: 7, day: 1 },
         },
         personality: {
             professionalism: 91,
@@ -20892,6 +21840,8 @@ export const HANDCRAFTED_WRITERS: Person[] = [
         identity: {
             name: 'Taika Waititi',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -50, month: 7, day: 1 },
         },
         personality: {
             professionalism: 84,
@@ -20930,6 +21880,8 @@ export const HANDCRAFTED_WRITERS: Person[] = [
         identity: {
             name: 'Charlie Kaufman',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -67, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -20968,6 +21920,8 @@ export const HANDCRAFTED_WRITERS: Person[] = [
         identity: {
             name: 'Jordan Peele',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -46, month: 7, day: 1 },
         },
         personality: {
             professionalism: 91,
@@ -21006,6 +21960,8 @@ export const HANDCRAFTED_WRITERS: Person[] = [
         identity: {
             name: 'Taylor Sheridan',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -55, month: 7, day: 1 },
         },
         personality: {
             professionalism: 90,
@@ -21047,6 +22003,8 @@ export const HANDCRAFTED_CINEMATOGRAPHERS: Person[] = [
         identity: {
             name: 'Roger Deakins',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -76, month: 7, day: 1 },
         },
         personality: {
             professionalism: 98,
@@ -21085,6 +22043,8 @@ export const HANDCRAFTED_CINEMATOGRAPHERS: Person[] = [
         identity: {
             name: 'Greig Fraser',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -50, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,
@@ -21123,6 +22083,8 @@ export const HANDCRAFTED_CINEMATOGRAPHERS: Person[] = [
         identity: {
             name: 'Hoyte van Hoytema',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -54, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,
@@ -21161,6 +22123,8 @@ export const HANDCRAFTED_CINEMATOGRAPHERS: Person[] = [
         identity: {
             name: 'Emmanuel Lubezki',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -61, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -21199,6 +22163,8 @@ export const HANDCRAFTED_CINEMATOGRAPHERS: Person[] = [
         identity: {
             name: 'Robert Richardson',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -70, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -21237,6 +22203,8 @@ export const HANDCRAFTED_CINEMATOGRAPHERS: Person[] = [
         identity: {
             name: 'Claudio Miranda',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -60, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -21275,6 +22243,8 @@ export const HANDCRAFTED_CINEMATOGRAPHERS: Person[] = [
         identity: {
             name: 'Linus Sandgren',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -53, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -21313,6 +22283,8 @@ export const HANDCRAFTED_CINEMATOGRAPHERS: Person[] = [
         identity: {
             name: 'Dan Laustsen',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -71, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -21351,6 +22323,8 @@ export const HANDCRAFTED_CINEMATOGRAPHERS: Person[] = [
         identity: {
             name: 'Bradford Young',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -48, month: 7, day: 1 },
         },
         personality: {
             professionalism: 89,
@@ -21389,6 +22363,8 @@ export const HANDCRAFTED_CINEMATOGRAPHERS: Person[] = [
         identity: {
             name: 'Steve Yedlin',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -53, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -21427,6 +22403,8 @@ export const HANDCRAFTED_CINEMATOGRAPHERS: Person[] = [
         identity: {
             name: 'Rachel Morrison',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -47, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -21465,6 +22443,8 @@ export const HANDCRAFTED_CINEMATOGRAPHERS: Person[] = [
         identity: {
             name: 'Mandy Walker',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -62, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -21503,6 +22483,8 @@ export const HANDCRAFTED_CINEMATOGRAPHERS: Person[] = [
         identity: {
             name: 'Jarin Blaschke',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -49, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -21541,6 +22523,8 @@ export const HANDCRAFTED_CINEMATOGRAPHERS: Person[] = [
         identity: {
             name: 'Larry Fong',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -63, month: 7, day: 1 },
         },
         personality: {
             professionalism: 93,
@@ -21579,6 +22563,8 @@ export const HANDCRAFTED_CINEMATOGRAPHERS: Person[] = [
         identity: {
             name: 'Barry Ackroyd',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -71, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -21620,6 +22606,8 @@ export const HANDCRAFTED_COMPOSERS: Person[] = [
         identity: {
             name: 'Hans Zimmer',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -68, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -21658,6 +22646,8 @@ export const HANDCRAFTED_COMPOSERS: Person[] = [
         identity: {
             name: 'John Williams',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -93, month: 7, day: 1 },
         },
         personality: {
             professionalism: 98,
@@ -21696,6 +22686,8 @@ export const HANDCRAFTED_COMPOSERS: Person[] = [
         identity: {
             name: 'Ludwig Göransson',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -41, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,
@@ -21734,6 +22726,8 @@ export const HANDCRAFTED_COMPOSERS: Person[] = [
         identity: {
             name: 'Michael Giacchino',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -58, month: 7, day: 1 },
         },
         personality: {
             professionalism: 97,
@@ -21772,6 +22766,8 @@ export const HANDCRAFTED_COMPOSERS: Person[] = [
         identity: {
             name: 'Alexandre Desplat',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -64, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,
@@ -21810,6 +22806,8 @@ export const HANDCRAFTED_COMPOSERS: Person[] = [
         identity: {
             name: 'James Newton Howard',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -74, month: 7, day: 1 },
         },
         personality: {
             professionalism: 97,
@@ -21848,6 +22846,8 @@ export const HANDCRAFTED_COMPOSERS: Person[] = [
         identity: {
             name: 'Howard Shore',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -79, month: 7, day: 1 },
         },
         personality: {
             professionalism: 97,
@@ -21886,6 +22886,8 @@ export const HANDCRAFTED_COMPOSERS: Person[] = [
         identity: {
             name: 'Danny Elfman',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -72, month: 7, day: 1 },
         },
         personality: {
             professionalism: 91,
@@ -21924,6 +22926,8 @@ export const HANDCRAFTED_COMPOSERS: Person[] = [
         identity: {
             name: 'Thomas Newman',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -70, month: 7, day: 1 },
         },
         personality: {
             professionalism: 97,
@@ -21962,6 +22966,8 @@ export const HANDCRAFTED_COMPOSERS: Person[] = [
         identity: {
             name: 'Ramin Djawadi',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -51, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -22000,6 +23006,8 @@ export const HANDCRAFTED_COMPOSERS: Person[] = [
         identity: {
             name: 'Bear McCreary',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -46, month: 7, day: 1 },
         },
         personality: {
             professionalism: 95,
@@ -22038,6 +23046,8 @@ export const HANDCRAFTED_COMPOSERS: Person[] = [
         identity: {
             name: 'Hildur Guðnadóttir',
             appearanceTags: [],
+            gender: 'Female',
+            dateOfBirth: { year: -43, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -22076,6 +23086,8 @@ export const HANDCRAFTED_COMPOSERS: Person[] = [
         identity: {
             name: 'Daniel Pemberton',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -48, month: 7, day: 1 },
         },
         personality: {
             professionalism: 94,
@@ -22114,6 +23126,8 @@ export const HANDCRAFTED_COMPOSERS: Person[] = [
         identity: {
             name: 'Tom Holkenborg',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -58, month: 7, day: 1 },
         },
         personality: {
             professionalism: 92,
@@ -22152,6 +23166,8 @@ export const HANDCRAFTED_COMPOSERS: Person[] = [
         identity: {
             name: 'John Powell',
             appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -62, month: 7, day: 1 },
         },
         personality: {
             professionalism: 96,

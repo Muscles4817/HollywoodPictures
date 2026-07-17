@@ -1,9 +1,9 @@
 // Age/gender generation - no dedicated test coverage existed for this file
-// before now. PersonIdentity.gender/dateOfBirth are optional specifically
-// because the handcrafted, real-named roster (data/handcraftedTalents.ts)
-// deliberately leaves them unset rather than fabricate data for real people
-// (see PersonIdentity's own comment, types/index.ts) - only the procedural
-// generator here should ever populate them.
+// before now. The handcrafted, real-named roster (data/handcraftedTalents.ts)
+// carries real, hand-entered gender/dateOfBirth for every person now (not
+// fabricated - see that file's own entries) - generateTalentPool must never
+// overwrite or regenerate those, only populate them for the procedurally
+// generated pool sitting alongside the handcrafted one.
 import { describe, it, expect } from 'vitest';
 import { generateTalentCandidates, generateTalentPool } from './talentGenerator';
 import { getPersonAge } from '../types';
@@ -37,19 +37,26 @@ describe('generateTalentCandidates - gender/dateOfBirth', () => {
   });
 });
 
-describe('generateTalentPool - handcrafted (real-named) talent is left untouched', () => {
-  it('never assigns gender/dateOfBirth to the handcrafted Actor roster, only to procedurally generated ones', () => {
+describe('generateTalentPool - every person, handcrafted and generated, carries gender/dateOfBirth', () => {
+  it('every Actor in the pool - handcrafted or generated - has both fields set', () => {
     const pool = generateTalentPool(createRng(4));
-    const handcraftedIds = new Set(HANDCRAFTED_TALENTS_BY_ROLE.Actor?.map((p) => p.id) ?? []);
-    expect(handcraftedIds.size).toBeGreaterThan(0); // sanity - there really is a handcrafted roster to check
+    expect(pool.Actor.length).toBeGreaterThan(0);
     for (const person of pool.Actor) {
-      if (handcraftedIds.has(person.id)) {
-        expect(person.identity.gender).toBeUndefined();
-        expect(person.identity.dateOfBirth).toBeUndefined();
-      } else {
-        expect(person.identity.gender).toBeDefined();
-        expect(person.identity.dateOfBirth).toBeDefined();
-      }
+      expect(person.identity.gender).toBeDefined();
+      expect(person.identity.dateOfBirth).toBeDefined();
+    }
+  });
+
+  it("never overwrites the handcrafted roster's own hand-entered gender/dateOfBirth", () => {
+    const handcrafted = HANDCRAFTED_TALENTS_BY_ROLE.Actor ?? [];
+    expect(handcrafted.length).toBeGreaterThan(0); // sanity - there really is a handcrafted roster to check
+    const pool = generateTalentPool(createRng(5));
+    const byId = new Map(pool.Actor.map((p) => [p.id, p]));
+    for (const original of handcrafted) {
+      const inPool = byId.get(original.id);
+      expect(inPool).toBeDefined();
+      expect(inPool!.identity.gender).toBe(original.identity.gender);
+      expect(inPool!.identity.dateOfBirth).toEqual(original.identity.dateOfBirth);
     }
   });
 });

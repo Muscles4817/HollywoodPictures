@@ -21,10 +21,10 @@ describe('TalentStats - age/gender identity line', () => {
     expect(screen.getByText(`${age} · ${person.identity.gender}`)).toBeInTheDocument();
   });
 
-  it('renders nothing for a person with neither gender nor dateOfBirth set (the handcrafted, real-named roster)', () => {
+  it('renders nothing when neither field is set (both are optional on PersonIdentity - the card must degrade gracefully, not just for currently-known data)', () => {
     const [generated] = generateTalentCandidates('Actor', createRng(2), 1);
-    const realNamed: Person = { ...generated, identity: { ...generated.identity, gender: undefined, dateOfBirth: undefined } };
-    const { container } = render(<TalentStats person={realNamed} role="Lead Actor" category="actor" script={null} totalDays={1} />);
+    const unknown: Person = { ...generated, identity: { ...generated.identity, gender: undefined, dateOfBirth: undefined } };
+    const { container } = render(<TalentStats person={unknown} role="Lead Actor" category="actor" script={null} totalDays={1} />);
     expect(container.querySelector('.candidate-identity-line')).toBeNull();
   });
 
