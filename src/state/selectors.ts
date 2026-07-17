@@ -506,12 +506,18 @@ export function computeProjectSpendSoFar(project: Project, assets: Asset[]): num
   let spend = scriptCostFor(draft.assetId) + computeTalentCost(draft.talent);
   if (draft.productionChoices) spend += computeProductionBudgetCost(draft.productionChoices) + draft.productionChoices.contingencyAmount;
   if (draft.photography) spend += computeEventsCostDelta(draft.photography.events);
-  // Post-Production Redesign, Phase B - a resolved test-screening choice's
-  // cost is charged immediately, straight out of Studio.cash
-  // (RESOLVE_TEST_SCREENING_CHOICE), not deferred and re-summed here the
-  // way the old blind testScreeningResponse cost used to be - see
-  // engine/testScreening.ts's own note on why its appended ProductionEvent
-  // always carries costDelta: 0.
+  // Architecture cleanup (post-Phase-B post-production redesign) - a
+  // resolved test-screening choice's cost is charged immediately, straight
+  // out of Studio.cash (RESOLVE_TEST_SCREENING_CHOICE), the same way
+  // talent/production/contingency above already are once `draft.photography`
+  // exists - real cash movements already reflected in studio.cash, not a
+  // projection, but still real spend this project has incurred, so (unlike
+  // computeCommittedSpend above, which deliberately excludes them) it
+  // belongs in a "spend so far" total. Lives on its own
+  // draft.postProductionEvents collection now rather than a zeroed-out entry
+  // hidden inside draft.photography.events - see that field's own comment
+  // (types/index.ts) for why.
+  spend += computeEventsCostDelta(draft.postProductionEvents);
   if (draft.marketingChoices) spend += computeMarketingCost(draft.marketingChoices);
   return spend;
 }

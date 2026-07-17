@@ -859,6 +859,12 @@ export interface Film {
   postProductionChoices: PostProductionChoices;
   marketingChoices: MarketingChoices;
   events: ProductionEvent[];
+  // Architecture cleanup (post-Phase-B post-production redesign) - the
+  // resolved test-screening outcome, carried over from
+  // FilmDraft.postProductionEvents at release, kept separate from `events`
+  // (on-set only) for the same reason it's separate on FilmDraft - see that
+  // field's own doc comment.
+  postProductionEvents: ProductionEvent[];
   results: FilmResults;
   boxOfficeRun: BoxOfficeRun;
   /** GameState.totalDays at the moment this film was released - see engine/calendar.ts:formatGameDate. */
@@ -1120,16 +1126,25 @@ export interface FilmDraft {
   // Computed once, at FINISH_PHOTOGRAPHY, from
   // engine/production.ts:computeRecommendedPostProductionDays (same
   // "estimate computed once and stored" shape PhotographyState.recommendedDays
-  // already uses); null before photography finishes. Once the test
-  // screening actually fires and resolves (testScreeningPendingChoice/
-  // testScreeningResolved below), the SAME field gets bumped forward by
-  // whatever delay the player's choice carries - at that point, since only
-  // one screening ever happens per film (Phase B scope), it's read as the
-  // revised estimate for when post-production as a whole wraps, not a
-  // second screening date. Never a live/recomputed reading either way - a
-  // snapshot, updated only by FINISH_PHOTOGRAPHY (setting it) and
-  // RESOLVE_TEST_SCREENING_CHOICE (advancing it).
+  // already uses); null before photography finishes.
+  //
+  // Architecture cleanup (post-Phase-B): this field used to also get bumped
+  // forward once the screening resolved, doubling as "the revised completion
+  // estimate" - a single date field whose meaning silently depended on
+  // whether testScreeningResolved was true. That's gone: this field is now a
+  // fixed historical milestone ("when the screening happened"), set once and
+  // never touched again. postProductionFinalReadyDay below is the separate,
+  // explicit field for "when post-production as a whole wraps."
   postProductionScreeningReadyDay: GameDay | null;
+  // Architecture cleanup (post-Phase-B) - the explicit final-readiness date
+  // postProductionScreeningReadyDay used to double as after the screening
+  // resolved. Null until RESOLVE_TEST_SCREENING_CHOICE sets it: Release
+  // As-Is sets it to postProductionScreeningReadyDay with no additional
+  // delay; Re-edit/Pickups/Major Reshoots set it to
+  // postProductionScreeningReadyDay plus their resolved delayDaysDelta.
+  // Future release-readiness checks (Phase C) should read this field, not
+  // postProductionScreeningReadyDay, for "is post-production actually done."
+  postProductionFinalReadyDay: GameDay | null;
   // Post-Production Redesign, Phase B (docs/DESIGN_REVIEW_post_production_redesign.md
   // section 2) - set once totalDays reaches postProductionScreeningReadyDay
   // (runCalendarSettlement, state/studioReducer.ts), the same
@@ -1144,12 +1159,26 @@ export interface FilmDraft {
   testScreeningPendingChoice: PendingEventChoice | null;
   // True once the one test screening this film ever gets has been resolved
   // - the explicit state that stops runCalendarSettlement from generating a
-  // second one purely because postProductionScreeningReadyDay (now advanced
-  // past its original meaning) has, coincidentally, also been reached again.
-  // Phase B is deliberately one screening per film (design review's own
-  // "Repeat screenings" scoping) - this flag is what makes that a real
-  // guarantee rather than an incidental default.
+  // second one. Phase B is deliberately one screening per film (design
+  // review's own "Repeat screenings" scoping) - this flag is what makes that
+  // a real guarantee rather than an incidental default.
   testScreeningResolved: boolean;
+  // Architecture cleanup (post-Phase-B) - the resolved test-screening
+  // outcome's own ProductionEvent (real costDelta/qualityDelta/buzzDelta/
+  // delayDaysDelta from resolveEventChoice), set once at
+  // RESOLVE_TEST_SCREENING_CHOICE. Deliberately NOT folded into
+  // photography.events any more - that array is "what happened during the
+  // shoot," and a test screening happens after photography has already
+  // finished, so appending to it was a misleading reuse (it required
+  // zeroing costDelta there to avoid double-charging, since this cost is
+  // charged immediately rather than deferred like an on-set event's). Reuses
+  // the same ProductionEvent shape - see
+  // engine/scoring.ts:combineProductionEvents for how quality/buzz reads
+  // still combine this with photography.events without a second scoring
+  // system, and engine/releaseFilm.ts/state/selectors.ts for how its cost
+  // (already charged) is reported without being charged again. Empty until
+  // resolved (at most one entry - one screening per film).
+  postProductionEvents: ProductionEvent[];
   postProductionChoices: PostProductionChoices | null;
   marketingChoices: MarketingChoices | null;
   results: FilmResults | null;

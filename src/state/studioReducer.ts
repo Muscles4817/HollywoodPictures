@@ -330,9 +330,11 @@ function resolveChoiceOnDraft(
  * day. Applied to the focused draft and every backgrounded one at every
  * calendar-advancing reducer case below (docs/DESIGN_REVIEW_post_production_redesign.md
  * section 2) - a no-op for anything not finished shooting, not yet at its
- * ready day, or already resolved/pending (testScreeningResolved is what
- * stops this from re-firing once the same field, now advanced past its
- * post-screening meaning, happens to reach totalDaysAfter a second time).
+ * ready day, or already resolved/pending. postProductionScreeningReadyDay is
+ * a fixed historical milestone (architecture cleanup, post-Phase-B) - once
+ * totalDaysAfter crosses it, it stays crossed forever, so testScreeningResolved
+ * (not the date itself) is what actually stops this from re-firing on every
+ * later calendar tick.
  */
 function checkTestScreeningReadiness(draft: FilmDraft, totalDaysAfter: number, rng: RandomFn): FilmDraft {
   if (
@@ -1014,9 +1016,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // Post-Production Redesign, Phase A/B (docs/DESIGN_REVIEW_post_production_redesign.md
       // sections 1-2) - computed exactly once, here, same "at the moment
       // this stage's clock actually starts" timing PhotographyState.recommendedDays
-      // itself uses at BEGIN_PHOTOGRAPHY. Not recomputed anywhere else -
-      // FilmDraft.postProductionScreeningReadyDay is a snapshot, not a live
-      // reading, until RESOLVE_TEST_SCREENING_CHOICE advances it once.
+      // itself uses at BEGIN_PHOTOGRAPHY. A fixed historical snapshot, never
+      // recomputed or advanced anywhere else (architecture cleanup,
+      // post-Phase-B) - postProductionFinalReadyDay is the separate field
+      // RESOLVE_TEST_SCREENING_CHOICE sets once the screening resolves.
       const postProductionScreeningReadyDay =
         state.totalDays + computeRecommendedPostProductionDays(target.talent, target.productionChoices);
       return {
@@ -1036,17 +1039,21 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // immediately, right here, against studio.cash (gated by affordability,
     // same "cannot-afford" shape GREENLIGHT_PROJECT already uses) rather than
     // deferred to RELEASE_FILM the way on-set event costs and the old
-    // testScreeningResponse fee both were - see state/selectors.ts's
-    // computeProjectSpendSoFar for the corresponding display note. The
-    // resolved ProductionEvent is still appended to photography.events (with
-    // costDelta zeroed, since it was just charged directly above) purely so
-    // its quality/buzz swing flows through the existing
-    // computeQualityBreakdown/eventsQualityDelta pipeline exactly like any
-    // other on-set event - no parallel scoring path. delayDaysDelta advances
-    // postProductionScreeningReadyDay itself, which is safe to reuse for a
-    // second meaning ("revised completion estimate") specifically because
-    // testScreeningResolved guarantees only one screening ever fires per
-    // film (see checkTestScreeningReadiness above). Never reopens
+    // testScreeningResponse fee both were - see engine/releaseFilm.ts's own
+    // note on how that's kept from being charged a second time at release.
+    // Architecture cleanup (post-Phase-B): the resolved ProductionEvent now
+    // goes to its own postProductionEvents (real costDelta - already charged
+    // above, not zeroed any more; the double-charge risk that used to
+    // justify zeroing it is handled by keeping this collection separate from
+    // photography.events entirely, not by lying about the event's own cost),
+    // not appended to photography.events - a test screening happens after
+    // photography has already finished, so folding it in there was a
+    // misleading reuse. Quality/buzz still reach the final film through the
+    // same pipeline either way (engine/scoring.ts:combineProductionEvents).
+    // postProductionScreeningReadyDay is left untouched (a fixed historical
+    // milestone now, never advanced) - postProductionFinalReadyDay is the
+    // new field this sets, to postProductionScreeningReadyDay plus the
+    // resolved delayDaysDelta (zero for Release As-Is). Never reopens
     // `photography` (stays 'finished') - Pickups/Major Reshoots are
     // deliberately abstract outcomes this phase, not a live second shoot.
     case 'RESOLVE_TEST_SCREENING_CHOICE': {
@@ -1065,8 +1072,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         studio: { ...state.studio, cash: state.studio.cash - rolled.costDelta },
         projects: replaceDraft(state.projects, {
           ...target,
-          photography: { ...target.photography, events: [...target.photography.events, { ...rolled, costDelta: 0 }] },
-          postProductionScreeningReadyDay: target.postProductionScreeningReadyDay + rolled.delayDaysDelta,
+          postProductionEvents: [...target.postProductionEvents, rolled],
+          postProductionFinalReadyDay: target.postProductionScreeningReadyDay + rolled.delayDaysDelta,
           testScreeningPendingChoice: null,
           testScreeningResolved: true,
         }),

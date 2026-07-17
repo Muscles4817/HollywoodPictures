@@ -1,7 +1,7 @@
 import type { Film, FilmDraft, RivalProductionInProgress, RivalStudio } from '../types';
 import type { RandomFn } from './random';
 import { computeReleaseResults } from './releaseFilm';
-import { computeTalentCost, computeProductionBudgetCost } from './cost';
+import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta } from './cost';
 import { computeCompetitiveCrowding, runningFilmAsUpcomingRelease, type UpcomingRelease } from './releaseCrowding';
 import { resolveRivalProduction, rivalAsUpcomingRelease } from './rivalStudios';
 import { nextDueFilm, advanceEarliestDueFilmByOneWeek } from './boxOfficeRun';
@@ -63,6 +63,7 @@ function knownCompetitorsExcluding(
 /** Resolves a due player draft into a real Film - mirrors engine/scheduledReleases.ts's retired settleScheduledReleases body exactly (same computeReleaseResults call, same cost-charged accounting), just fed a richer `known` list that now includes currently-running films alongside other pending releases. */
 function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand: number, known: UpcomingRelease[], rng: RandomFn): { film: Film; costCharged: number } {
   const photographyEvents = draft.photography!.events;
+  const postProductionEvents = draft.postProductionEvents;
   const shootingRatio = draft.photography!.recommendedDays > 0 ? draft.photography!.daysElapsed / draft.photography!.recommendedDays : 1;
   const competitiveCrowding = computeCompetitiveCrowding({ releaseDay, genre: draft.genre!, targetAudience: draft.targetAudience! }, known);
 
@@ -77,6 +78,7 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
       postProductionChoices: draft.postProductionChoices!,
       marketingChoices: draft.marketingChoices!,
       events: photographyEvents,
+      postProductionEvents,
       photographyCost: draft.photography!.runningCost,
       shootingRatio,
       studioBrand,
@@ -87,10 +89,19 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
 
   // Talent salary, the non-contingency production budget, and the
   // contingency reserve were already deducted (and, for contingency,
-  // settled) back when photography actually happened - only the remainder
-  // of results.totalCost (script cost, event cost swings, the test
-  // screening fee, and marketing) is newly charged at release.
-  const alreadyCharged = computeTalentCost(draft.talent) + computeProductionBudgetCost(draft.productionChoices!) + draft.photography!.runningCost;
+  // settled) back when photography actually happened; a resolved
+  // post-production intervention's cost was already deducted too, at
+  // RESOLVE_TEST_SCREENING_CHOICE - all four are included here so the
+  // remainder (script cost, on-set event cost swings, and marketing) is all
+  // that's newly charged at release. results.totalCost folds the
+  // intervention cost in too (engine/releaseFilm.ts), purely for reporting -
+  // including it in both places is what makes it cancel out below instead
+  // of being charged a second time.
+  const alreadyCharged =
+    computeTalentCost(draft.talent) +
+    computeProductionBudgetCost(draft.productionChoices!) +
+    draft.photography!.runningCost +
+    computeEventsCostDelta(postProductionEvents);
   const costCharged = results.totalCost - alreadyCharged;
 
   const film: Film = {
@@ -104,6 +115,7 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
     postProductionChoices: draft.postProductionChoices!,
     marketingChoices: draft.marketingChoices!,
     events: photographyEvents,
+    postProductionEvents,
     results,
     boxOfficeRun: { status: 'running', fixed, simWeeks: [], weeks: [], cumulativeGross: 0, acknowledged: false },
     releasedOnDay: releaseDay,

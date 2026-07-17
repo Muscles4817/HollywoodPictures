@@ -166,11 +166,31 @@ export function computeProductionScore(choices: ProductionChoices, genre: Genre,
 }
 
 /**
+ * Combines a film's on-set (PhotographyState.events) and post-production
+ * (FilmDraft.postProductionEvents) event histories into the one list every
+ * quality/buzz reader below actually consumes - the single seam that lets
+ * the two stay separate, honestly-named collections in storage (a test
+ * screening happens after the shoot wraps, so it was never really a
+ * "photography" event) while still reaching the same scoring pipeline as
+ * a single, undivided sum. Cost is deliberately NOT combined this way
+ * anywhere - a resolved post-production intervention's cost is charged
+ * immediately (state/studioReducer.ts:RESOLVE_TEST_SCREENING_CHOICE), not
+ * deferred like an on-set event's, so callers that sum costDelta (e.g.
+ * engine/cost.ts:computeEventsCostDelta at RELEASE_FILM time) read the two
+ * collections separately - see engine/releaseFilm.ts's own note.
+ */
+export function combineProductionEvents(photographyEvents: ProductionEvent[], postProductionEvents: ProductionEvent[]): ProductionEvent[] {
+  return [...photographyEvents, ...postProductionEvents];
+}
+
+/**
  * Net quality swing from every rolled production event (positive and
  * negative), as a display-only 0-100 reading (FilmDetailModal,
  * ReleaseResults) - not what actually feeds Quality Score any more, see
  * computeQualityBreakdown's own comment for where the raw qualityDelta sum
- * actually lands (folded into Production, unamplified).
+ * actually lands (folded into Production, unamplified). Fed
+ * combineProductionEvents' output by callers that want on-set and
+ * post-production events both represented, same as everywhere else.
  */
 export function computeEventsScore(events: ProductionEvent[]): number {
   const totalQualityDelta = events.reduce((sum, e) => sum + e.qualityDelta, 0);

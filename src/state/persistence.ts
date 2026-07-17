@@ -245,7 +245,18 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // field, and postProductionChoices (if already set) still carries the old
 // testScreeningResponse key - no migration code, same as every past shape
 // change here.
-const SAVE_KEY = 'hollywood-pictures-save-v40';
+// v40 -> v41 (docs/DESIGN_REVIEW_post_production_redesign.md, Phase B
+// architecture cleanup): postProductionScreeningReadyDay is now a fixed
+// historical milestone, never advanced after being set - FilmDraft/Film
+// both gained postProductionFinalReadyDay: GameDay | null (FilmDraft only)
+// and postProductionEvents: ProductionEvent[] (both), the resolved
+// test-screening outcome's new, honest home (previously smuggled into
+// photography.events with a zeroed costDelta). A v40 save's FilmDraft/Film
+// entries have none of these fields, and any resolved screening's
+// event is still sitting inside photography.events/events with its real
+// quality/buzz but a lying costDelta: 0 - no migration code, same as every
+// past shape change here.
+const SAVE_KEY = 'hollywood-pictures-save-v41';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

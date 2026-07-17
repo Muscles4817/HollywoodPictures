@@ -13,7 +13,7 @@ import { settleTheatricalMarket } from './marketSettlement';
 import { buildReadyDraft } from '../state/testFixtures';
 import { withRng } from './random';
 import type { ScheduledRelease } from './scheduledReleases';
-import type { RivalProductionInProgress, RivalStudio } from '../types';
+import type { ProductionEvent, RivalProductionInProgress, RivalStudio } from '../types';
 
 function readyDraft(seed: number) {
   return withRng(seed, (rng) => buildReadyDraft(rng)).result;
@@ -192,5 +192,72 @@ describe('settleTheatricalMarket - big jump consistency across player and rival 
 
     const byId = (films: typeof runningFilms) => [...films].sort((a, b) => a.id.localeCompare(b.id));
     expect(byId(runningFilms).map((f) => f.boxOfficeRun)).toEqual(byId(bigJump.settledFilms).map((f) => f.boxOfficeRun));
+  });
+});
+
+// Post-Production Redesign Phase B architecture cleanup
+// (docs/DESIGN_REVIEW_post_production_redesign.md section 2) - a resolved
+// test-screening intervention's own ProductionEvent now lives on
+// FilmDraft.postProductionEvents, charged immediately at
+// RESOLVE_TEST_SCREENING_CHOICE (state/studioReducer.ts), not deferred like
+// an on-set event. These cover the three things that change at release:
+// its cost is reported (results.totalCost) but never charged a second time
+// here, its quality/buzz reach scoring the same way an on-set event's would,
+// and the resolved outcome itself carries over onto the released Film.
+describe('settleTheatricalMarket - resolved post-production intervention accounting (architecture cleanup)', () => {
+  const INTERVENTION_EVENT: ProductionEvent = {
+    id: 'test-screening',
+    description: 'Resolved: Major Reshoots.',
+    severity: 'high',
+    costDelta: 3_000_000,
+    qualityDelta: 8,
+    buzzDelta: 2,
+    delayDaysDelta: 30,
+  };
+
+  it("carries FilmDraft.postProductionEvents over onto the released Film verbatim, and folds its cost into results.totalCost for reporting", () => {
+    const draft = readyDraft(60);
+    const withIntervention = { ...draft, postProductionEvents: [INTERVENTION_EVENT] };
+    const scheduled: ScheduledRelease = { draft: withIntervention, releaseDay: 40 };
+    const { result } = withRng(61, (rng) => settleTheatricalMarket([], [scheduled], [], [], 40, 50, rng));
+    const film = result.settledFilms[0];
+    expect(film.postProductionEvents).toEqual([INTERVENTION_EVENT]);
+
+    const withoutScheduled: ScheduledRelease = { draft, releaseDay: 40 };
+    const { result: withoutResult } = withRng(61, (rng) => settleTheatricalMarket([], [withoutScheduled], [], [], 40, 50, rng));
+    const filmWithout = withoutResult.settledFilms[0];
+
+    expect(film.results.productionCost).toBe(filmWithout.results.productionCost + INTERVENTION_EVENT.costDelta);
+    expect(film.results.totalCost).toBe(filmWithout.results.totalCost + INTERVENTION_EVENT.costDelta);
+  });
+
+  it("does not charge the intervention's cost again at settlement - playerCostCharged is identical whether or not it's present, since it was already deducted from studio.cash immediately at resolution", () => {
+    const draft = readyDraft(62);
+    const withIntervention = { ...draft, postProductionEvents: [INTERVENTION_EVENT] };
+    const scheduledWith: ScheduledRelease = { draft: withIntervention, releaseDay: 40 };
+    const scheduledWithout: ScheduledRelease = { draft, releaseDay: 40 };
+
+    const { result: withResult } = withRng(63, (rng) => settleTheatricalMarket([], [scheduledWith], [], [], 40, 50, rng));
+    const { result: withoutResult } = withRng(63, (rng) => settleTheatricalMarket([], [scheduledWithout], [], [], 40, 50, rng));
+
+    expect(withResult.playerCostCharged).toBe(withoutResult.playerCostCharged);
+  });
+
+  it("a resolved intervention's quality/buzz reach the released film's scoring, combined with any on-set events, without a parallel scoring system", () => {
+    const draft = readyDraft(64);
+    const withIntervention = { ...draft, postProductionEvents: [INTERVENTION_EVENT] };
+    const scheduled: ScheduledRelease = { draft: withIntervention, releaseDay: 40 };
+    const { result } = withRng(65, (rng) => settleTheatricalMarket([], [scheduled], [], [], 40, 50, rng));
+    const film = result.settledFilms[0];
+
+    const withoutScheduled: ScheduledRelease = { draft, releaseDay: 40 };
+    const { result: withoutResult } = withRng(65, (rng) => settleTheatricalMarket([], [withoutScheduled], [], [], 40, 50, rng));
+    const filmWithout = withoutResult.settledFilms[0];
+
+    // The intervention's own qualityDelta/buzzDelta genuinely moved the
+    // final numbers, same as an on-set event's would - not silently dropped
+    // for living on a separate collection from photography.events.
+    expect(film.results.eventsScore).not.toBe(filmWithout.results.eventsScore);
+    expect(film.results.buzzScore).not.toBe(filmWithout.results.buzzScore);
   });
 });

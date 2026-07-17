@@ -55,6 +55,13 @@ export function PostProduction() {
         </div>
       )}
 
+      {draft.testScreeningResolved && draft.postProductionFinalReadyDay !== null && (
+        <div className="card" style={{ borderColor: 'var(--primary)' }}>
+          <div className="stat-label">Post-Production</div>
+          <div className="stat-value">Wraps around {formatGameDate(draft.postProductionFinalReadyDay)}</div>
+        </div>
+      )}
+
       {pendingScreeningChoice && (
         <OnSetDecisionCard
           pendingChoice={pendingScreeningChoice}

@@ -539,6 +539,42 @@ describe('old saves migrate safely', () => {
     expect(state.studio.name).not.toBe('Stale Pictures');
   });
 
+  it('a save under the pre-cleanup v40 key (a FilmDraft with no postProductionFinalReadyDay/postProductionEvents) is invisible to v41 - falls back to a fresh studio rather than a hybrid state', () => {
+    // Post-Production Redesign Phase B architecture cleanup
+    // (docs/DESIGN_REVIEW_post_production_redesign.md section 2) split the
+    // old dual-meaning postProductionScreeningReadyDay into that fixed field
+    // plus a new postProductionFinalReadyDay, and gave FilmDraft/Film both a
+    // new postProductionEvents: ProductionEvent[] field - a v40 save's
+    // FilmDraft entries have neither new field. Same class of break as every
+    // past shape change here: no migration code, an old save simply isn't
+    // found under the new key.
+    globalThis.localStorage.setItem(
+      'hollywood-pictures-save-v40',
+      JSON.stringify({
+        studio: { cash: 1, brand: 20, prestige: 20, name: 'Stale Pictures', assets: [] },
+        rivalStudios: [],
+        opportunities: [],
+        nextOpportunityCheckDay: 1,
+        projects: [
+          {
+            kind: 'player-in-progress',
+            draft: {
+              id: 'draft-1', title: 'Stale Draft', talent: [], talentTargetPriceByRole: {},
+              castingCalls: [], photography: { status: 'finished', recommendedDays: 20, daysElapsed: 20, events: [], runningCost: 0, pendingChoice: null },
+              postProductionScreeningReadyDay: 40, testScreeningPendingChoice: null, testScreeningResolved: false,
+            },
+          },
+        ],
+        focusedProjectId: 'draft-1',
+        totalDays: 1,
+      }),
+    );
+    const state = loadState();
+    expect(state.projects).toEqual([]);
+    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
+    expect(state.studio.name).not.toBe('Stale Pictures');
+  });
+
   it('clearSavedState followed by loadState behaves exactly like no save ever existed', () => {
     const released = studioReducer(buildStateWithReadyDraft(4), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     saveState(released);

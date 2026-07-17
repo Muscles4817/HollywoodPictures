@@ -207,6 +207,31 @@ function EventsSection({ film }: { film: Film }) {
   );
 }
 
+/** The resolved test-screening outcome (Post-Production Redesign, Phase B) - kept in its own section/collection from on-set events, since it happened after photography had already wrapped. Absent entirely for a film released before this system existed. */
+function PostProductionEventsSection({ film }: { film: Film }) {
+  if (film.postProductionEvents.length === 0) return null;
+  return (
+    <div className="card stack">
+      <h3 style={{ margin: 0 }}>Test Screening Outcome</h3>
+      {film.postProductionEvents.map((event, i) => (
+        <div
+          key={`${event.id}-${i}`}
+          className="row-between"
+          style={{ borderBottom: '1px solid var(--border)', paddingBottom: 8 }}
+        >
+          <span className="row" style={{ gap: 8 }}>
+            <SeverityBadge severity={event.severity} />
+            <span>{event.description}</span>
+          </span>
+          <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+            Cost <Money amount={event.costDelta} signColor invertColor showSign /> &middot; Quality {event.qualityDelta >= 0 ? '+' : ''}{event.qualityDelta.toFixed(1)} &middot; Buzz {event.buzzDelta >= 0 ? '+' : ''}{event.buzzDelta.toFixed(1)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ReviewsSection({ film }: { film: Film }) {
   return (
     <div className="card stack">
@@ -253,6 +278,7 @@ export function FilmDetailModal({ film, onClose }: { film: Film; onClose: () => 
         <ScriptSection film={film} />
         <CastCrewSection film={film} />
         <EventsSection film={film} />
+        <PostProductionEventsSection film={film} />
         <ReceptionSection film={film} />
         <FinancialsSection film={film} />
         <ReviewsSection film={film} />

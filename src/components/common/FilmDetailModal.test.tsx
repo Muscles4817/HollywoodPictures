@@ -27,6 +27,7 @@ function buildFilm(): Film {
     postProductionChoices: { editStyle: 'Balanced', musicFocus: 'Standard', finalCutFocus: 'Trailer-focused' },
     marketingChoices: { marketingSpend: 10_000_000, releaseType: 'Wide', releaseWindow: 'Quiet Month' },
     events: [],
+    postProductionEvents: [],
     results: {
       productionCost: 10_000_000, marketingCost: 10_000_000, totalCost: 20_000_000, openingWeekend: 5_000_000,
       totalBoxOffice: 50_000_000, studioRevenue: 25_000_000, profit: 5_000_000, outcome: 'Hit', brandChange: 3, prestigeChange: 2,

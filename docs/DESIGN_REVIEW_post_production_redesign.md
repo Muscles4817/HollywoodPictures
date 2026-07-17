@@ -1,14 +1,20 @@
 # Design Review: Post-Production Redesign — Estimates, Trade-offs, Not a Second Live Process
 
-Status: **Phases A-B shipped** (§Phasing's own table) - the post-production
-duration estimate exists, is computed once at `FINISH_PHOTOGRAPHY`, and the
-test screening it triggers is a real pending decision (§2), reusing the
-on-set pending-choice machinery end to end. The field it all hangs off was
-renamed `postProductionScreeningReadyDay` during Phase B (see §1's own
-update) - it was never actually "estimated completion," it's "when the test
-screening happens." Phases C-D (decoupled Marketing, the Post-Wrap
-Workspace) remain design only - see each phase's own row below. Round 2 of
-a two-pass review
+Status: **Phases A-B shipped, plus a post-B architecture cleanup pass**
+(§Phasing's own table) - the post-production duration estimate exists, is
+computed once at `FINISH_PHOTOGRAPHY`, and the test screening it triggers is
+a real pending decision (§2), reusing the on-set pending-choice machinery
+end to end. The field it all hangs off was renamed
+`postProductionScreeningReadyDay` during Phase B (see §1's own update) - it
+was never actually "estimated completion," it's "when the test screening
+happens." The cleanup pass (§1a/§2a/§2b) went further: that field no longer
+doubles as "final completion" once resolved either - `postProductionFinalReadyDay`
+is now its own explicit field - and the resolved screening's own outcome
+moved off `photography.events` onto `FilmDraft.postProductionEvents`, its
+own honestly-named home, with its already-charged cost now genuinely
+visible in the project finance breakdown instead of a zeroed-out event
+hiding it. Phases C-D (decoupled Marketing, the Post-Wrap Workspace) remain
+design only - see each phase's own row below. Round 2 of a two-pass review
 (`Post_Production_Redesign_Review.md` was the original proposal; this
 supersedes it with the direction agreed after Round 1's pushback against a
 second live-simulation system). Builds directly on systems already shipped:
@@ -197,11 +203,22 @@ now `postProductionScreeningReadyDay`. Phase B's own spec caught this before
 implementation - the field never meant "the film is ready for release," it
 meant "the initial cut is ready for a test screening," and Phase B was about
 to grow more consumers of it, so the misleading name got fixed rather than
-preserved for compatibility. The same field carries a second, narrower
-meaning after the one screening a film gets has resolved - see §2's
-Resolution bullet below - which is safe specifically because Phase B is
-scoped to one screening per film, never a second reading of the same field
-under two different questions.
+preserved for compatibility.
+
+**Split further in the post-B cleanup pass**: Phase B's own first cut still
+had this field carry a *second*, narrower meaning once the one screening a
+film gets had resolved - "when the screening happened" before resolution,
+"the revised completion estimate" after. Safe in the sense that nothing
+broke (Phase B is scoped to one screening per film), but still a single date
+field whose meaning silently depended on whether `testScreeningResolved` was
+true - exactly the kind of implicit-state smell worth fixing before Phase C
+grew more readers of it. `postProductionScreeningReadyDay` is now a genuinely
+fixed historical milestone, set once at `FINISH_PHOTOGRAPHY` and never
+touched again; `postProductionFinalReadyDay: GameDay | null` is the new,
+separate field `RESOLVE_TEST_SCREENING_CHOICE` sets once, to
+`postProductionScreeningReadyDay` plus the resolved choice's `delayDaysDelta`
+(zero for Release As-Is). Any future release-readiness check (Phase C) reads
+`postProductionFinalReadyDay`, not the screening-day field.
 
 ---
 
@@ -247,15 +264,77 @@ inline.
   already uses), not deferred to `RELEASE_FILM` the way on-set event costs
   and the old `testScreeningResponse` fee both were - seeing a real charge
   land the moment a $2-4.5M Major Reshoots gets picked reads as more honest
-  than a silent promise to pay later. The resolved `ProductionEvent` is
-  still appended to `photography.events` (with `costDelta` zeroed, since it
-  was already charged) purely so its quality/buzz swing flows through the
-  existing `computeQualityBreakdown` pipeline - no parallel scoring path.
-  `testScreeningResolved: boolean` (new `FilmDraft` field) is the explicit
-  guarantee behind "one screening per film" - without it, `totalDays`
-  reaching the same (now-advanced) `postProductionScreeningReadyDay` a
-  second time would be genuinely ambiguous between "never fired" and
-  "already resolved."
+  than a silent promise to pay later. The resolved `ProductionEvent` lives
+  on its own `FilmDraft.postProductionEvents` collection (post-B cleanup -
+  see below; originally appended to `photography.events` with `costDelta`
+  zeroed, a misleading reuse this pass retired) so its quality/buzz swing
+  still flows through the existing `computeQualityBreakdown` pipeline - no
+  parallel scoring path, just a second, honestly-named source feeding the
+  same one. `testScreeningResolved: boolean` (new `FilmDraft` field) is the
+  explicit guarantee behind "one screening per film" - without it, `totalDays`
+  staying past `postProductionScreeningReadyDay` forever (a fixed date, once
+  crossed, always crossed) would otherwise regenerate a pending choice on
+  every later calendar tick.
+
+### 2a. Post-B cleanup: `postProductionEvents`, not `photography.events`
+
+Phase B's first cut appended the resolved test-screening event straight
+onto `photography.events`, with `costDelta` zeroed to avoid double-charging
+a cost that was actually paid immediately. Workable, but the domain state
+was lying: that array means "what happened during the shoot," and a test
+screening happens after `photography.status` is already `'finished'`. Fixed
+by giving it a proper home:
+
+- **`FilmDraft.postProductionEvents: ProductionEvent[]`** (and the parallel
+  `Film.postProductionEvents` once released) - same `ProductionEvent` shape
+  reused verbatim (`id`/`description`/`severity`/`costDelta`/`qualityDelta`/
+  `buzzDelta`/`delayDaysDelta`), just stored separately. Empty until the
+  screening resolves; at most one entry, same one-screening-per-film scoping
+  as everything else here. `RESOLVE_TEST_SCREENING_CHOICE` appends the
+  **real**, non-zeroed resolved event here now - the double-charge risk that
+  used to justify zeroing it is handled by keeping this collection separate
+  from `photography.events` entirely, not by lying about the event's own
+  cost.
+- **`engine/scoring.ts:combineProductionEvents(photographyEvents, postProductionEvents)`**
+  is the one new function this required - a plain concatenation, not a new
+  scoring formula. Every caller that wants quality/buzz to reflect both
+  on-set and post-production events (`engine/releaseFilm.ts:computeReleaseResults`,
+  `engine/testScreening.ts`'s own provisional read, `components/dev/OutcomeInspector.tsx`'s
+  dev-calibration recompute) combines the two collections before calling the
+  *same*, unmodified `computeQualityBreakdown`/`computeBuzzScore`/
+  `computeEventsScore` - none of those three functions changed at all.
+  Cost is deliberately **not** combined this way anywhere: a resolved
+  intervention's cost is charged immediately, not deferred like an on-set
+  event's, so cost-summing callers (`computeEventsCostDelta` at
+  `RELEASE_FILM` time) read the two collections separately, on purpose.
+- **Reporting vs. charging, kept honestly separate**: `computeReleaseResults`
+  now folds `computeEventsCostDelta(postProductionEvents)` into
+  `productionCost`/`totalCost`, purely so a film's *reported* total cost is
+  its true all-in cost regardless of when each piece was actually charged
+  (the same reason already-charged talent/production/contingency costs are
+  still summed into `productionCost` too). This does **not** charge cash a
+  second time: `engine/marketSettlement.ts:resolvePlayerRelease`'s own
+  `alreadyCharged` calculation includes the exact same
+  `computeEventsCostDelta(postProductionEvents)` term, so the amount
+  actually deducted at settlement (`results.totalCost - alreadyCharged`)
+  nets out identically whether or not an intervention resolved - see
+  `marketSettlement.test.ts`'s dedicated coverage. `state/selectors.ts:computeProjectSpendSoFar`
+  (the project finance breakdown) gained the same term directly, so the
+  cost is visible pre-release too, not just folded silently into a released
+  film's `results.totalCost`. `computeCommittedSpend` (the *not-yet-in-cash*
+  preview used by `BudgetTracker`/`HireTalent`/`ProductionPlanning`)
+  deliberately does **not** gain this term - an immediately-charged cost is,
+  by that function's own existing logic, already a real cash movement, not
+  a projection, the same reason it already excludes talent/production/
+  contingency once `photography` exists.
+- **UI**: `components/common/FilmDetailModal.tsx` gained a
+  `PostProductionEventsSection`, distinct from the existing `EventsSection`
+  ("On-Set Events" vs. "Test Screening Outcome") - satisfies "the UI can
+  distinguish the type of intervention where appropriate" without merging
+  the two into one ambiguous list. `components/wizard/PostProduction.tsx`'s
+  forecast card also now has a resolved-state sibling showing
+  `postProductionFinalReadyDay` once set, so the field's only real consumer
+  isn't otherwise invisible.
 - **Firing**: hooked into a new `checkTestScreeningReadiness` helper
   (`state/studioReducer.ts`), applied to the focused draft and every
   backgrounded one at each of the calendar-advancing reducer cases
@@ -420,7 +499,7 @@ is, not as a dashboard metric changing.
 | Phase | Ships | Player-visible behavior change | Risk |
 |---|---|---|---|
 | **A - Estimated completion, still the old linear flow** ✅ shipped | `computeRecommendedPostProductionDays`; `postProductionEstimatedCompletionDay` set at `FINISH_PHOTOGRAPHY`; Editor/VFX Supervisor skill get their first real read. Old `PostProduction.tsx` form still exists and still works unmodified (same instant `SET_POST_PRODUCTION_CHOICES`, same flat 45/30-day `STAGE_DURATIONS` charges), now showing a clearly-labeled "(preview)" forecast card alongside it rather than being instant. | The estimate is visible and reads real crew skill, but nothing yet forces the player to wait for it - a soft preview of the mechanic before the flow around it changes. | Low - one new formula mirroring two that already exist, one new field, no reducer/UI restructuring. Confirmed: `SAVE_KEY` bumped to v39 with a matching invisibility test, 17 new tests (9 formula, 4 reducer timing/snapshot, 1 persistence, 3 component render), full suite/tsc/oxlint clean. |
-| **B - Test Screening as a real pending decision** ✅ shipped | Field renamed `postProductionScreeningReadyDay` (§1). The four-option choice (§2) replaces `testScreeningResponse`'s single dropdown, fires once the ready day arrives (checked at every calendar-advancing reducer case), uses `pickDepartmentBlurb` for real qualitative feedback against the new shared `DEFAULT_POST_PRODUCTION_CHOICES`, reuses `resolveEventChoice` via a new `RESOLVE_TEST_SCREENING_CHOICE` reducer case (cost charged immediately, not deferred). Inbox/Dashboard/ProductionRun/PostProduction surfacing for a pending test screening; "Continue to Marketing" is blocked while one is pending. | The moment post-production stops being a form and starts being something that *happens to* the film, with a real decision attached. | Medium, landed as scoped. `resolveChoiceOnDraft` was confirmed non-reusable as predicted. 26 new tests (7 generator, 9 reducer firing/resolution, 2 Inbox categorization, 5 component render, 1 persistence, plus 2 UI-decision-blocking) on top of the full existing suite; `SAVE_KEY` bumped to v40; full suite/tsc/oxlint clean. |
+| **B - Test Screening as a real pending decision** ✅ shipped, plus a post-B cleanup pass | Field renamed `postProductionScreeningReadyDay` (§1). The four-option choice (§2) replaces `testScreeningResponse`'s single dropdown, fires once the ready day arrives (checked at every calendar-advancing reducer case), uses `pickDepartmentBlurb` for real qualitative feedback against the new shared `DEFAULT_POST_PRODUCTION_CHOICES`, reuses `resolveEventChoice` via a new `RESOLVE_TEST_SCREENING_CHOICE` reducer case (cost charged immediately, not deferred). Inbox/Dashboard/ProductionRun/PostProduction surfacing for a pending test screening; "Continue to Marketing" is blocked while one is pending. **Cleanup pass (§1/§2a)**: split the dual-meaning ready-day field into `postProductionScreeningReadyDay` (fixed) + `postProductionFinalReadyDay` (set on resolution); moved the resolved outcome off `photography.events` onto its own `FilmDraft.postProductionEvents`/`Film.postProductionEvents`, combined back in for scoring via the new `combineProductionEvents`; made the already-charged intervention cost show up in `computeProjectSpendSoFar` and a released film's `results.totalCost` without ever charging it twice. | The moment post-production stops being a form and starts being something that *happens to* the film, with a real decision attached. The cleanup pass is invisible to the player - same numbers, just no more implicit-state field or hidden cost. | Medium, landed as scoped. `resolveChoiceOnDraft` was confirmed non-reusable as predicted. Original: 26 new tests. Cleanup pass added/rewrote 9 more (2 rewritten for the new field/collection, 4 new reducer-level, 3 `marketSettlement`/`selectors` double-charge and scoring-combination coverage) - 718 total in the suite. `SAVE_KEY` bumped to v40 then v41; full suite/tsc/oxlint clean throughout. |
 | **C - Marketing decoupled, release-window tension live** | Marketing reachable independently of post-production completion (§3); `STAGE_DURATIONS.marketing`/`.post-production` retired; release-window picking reuses the existing crowding UI fed a moving target date (§4). | The core "is this delay worth it" tension actually bites - a Test Screening choice can now visibly threaten a release window the player already committed to. | Medium - mostly sequencing/reachability changes plus the buzz-provisional-defaults wrinkle; the crowding math itself is unchanged. |
 | **D - Post-Wrap Workspace** | Post-production/marketing/release get the same free-navigation shell Cast & Crew/Production/Finance already have (§5); `currentScreenFor` routes a finished-photography draft there instead of the old linear wizard steps. | The post-wrap phase finally *feels* like the same kind of screen the pre-Greenlight side already does - a workspace, not a sequence of forms. | Low-Medium - shell pattern is proven; main work is deciding what Overview shows and wiring existing sections into it, not inventing new mechanics. |
 

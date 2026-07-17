@@ -10,6 +10,7 @@ import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDa
 import { effectiveRoleCapacity } from '../engine/castRequirements';
 import { generateTalentPool, generateTalentCandidates } from '../engine/talentGenerator';
 import { playerDraftToProject, playerReleasedFilms, findProject, asScheduled, asPlayerDraft } from '../engine/project';
+import { computeProjectSpendSoFar } from './selectors';
 import { STAGE_DURATIONS } from '../data/schedule';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
@@ -633,36 +634,78 @@ describe('Test Screening (Post-Production Redesign, Phase B)', () => {
     void pending;
   });
 
-  it('Release As-Is: no cost, no delay, resolved event carries zero quality/buzz', () => {
+  it('Release As-Is: no cost, no delay, resolved event carries zero quality/buzz, postProductionFinalReadyDay set with no extra delay', () => {
     const { state, readyDay } = stateJustFinishedPhotography(303);
     const atReadyDay = advanceDays(state, readyDay - state.totalDays);
     const cashBefore = atReadyDay.studio.cash;
     const resolved = studioReducer(atReadyDay, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'release-as-is', productionId: atReadyDay.focusedProjectId! });
     const draft = asPlayerDraft(findProject(resolved.projects, resolved.focusedProjectId))!;
     expect(resolved.studio.cash).toBe(cashBefore);
+    // postProductionScreeningReadyDay is now a fixed historical milestone -
+    // resolving the screening never touches it (architecture cleanup).
     expect(draft.postProductionScreeningReadyDay).toBe(readyDay);
+    expect(draft.postProductionFinalReadyDay).toBe(readyDay);
     expect(draft.testScreeningResolved).toBe(true);
     expect(draft.photography!.status).toBe('finished'); // never reopens photography
-    const lastEvent = draft.photography!.events.at(-1)!;
+    // The resolved outcome lives on its own collection now, not folded into
+    // photography.events (architecture cleanup) - that array is untouched.
+    expect(draft.photography!.events).toEqual([]);
+    const lastEvent = draft.postProductionEvents.at(-1)!;
+    expect(draft.postProductionEvents).toHaveLength(1);
     expect(lastEvent.costDelta).toBe(0);
     expect(lastEvent.qualityDelta).toBe(0);
     expect(lastEvent.buzzDelta).toBe(0);
     expect(lastEvent.delayDaysDelta).toBe(0);
   });
 
-  it('Major Reshoots: charges cost immediately from studio.cash and advances postProductionScreeningReadyDay by the resolved delay', () => {
+  it('Major Reshoots: charges cost immediately from studio.cash, records the real (non-zeroed) event on postProductionEvents, and sets postProductionFinalReadyDay from the resolved delay without touching postProductionScreeningReadyDay', () => {
     const { state, readyDay } = stateJustFinishedPhotography(304);
     const atReadyDay = advanceDays(state, readyDay - state.totalDays);
     const cashBefore = atReadyDay.studio.cash;
     const resolved = studioReducer(atReadyDay, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'major-reshoots', productionId: atReadyDay.focusedProjectId! });
     const draft = asPlayerDraft(findProject(resolved.projects, resolved.focusedProjectId))!;
-    const lastEvent = draft.photography!.events.at(-1)!;
-    expect(lastEvent.costDelta).toBe(0); // zeroed on the event - charged directly below instead
+    expect(draft.photography!.events).toEqual([]); // untouched - never appended to any more
+    expect(draft.postProductionEvents).toHaveLength(1);
+    const lastEvent = draft.postProductionEvents[0];
+    expect(lastEvent.costDelta).toBeGreaterThan(0); // the real, non-zeroed cost - no longer smuggled/zeroed
     expect(lastEvent.delayDaysDelta).toBeGreaterThan(0);
-    expect(resolved.studio.cash).toBeLessThan(cashBefore); // the real charge landed on studio.cash directly
-    expect(draft.postProductionScreeningReadyDay).toBe(readyDay + lastEvent.delayDaysDelta);
+    expect(resolved.studio.cash).toBe(cashBefore - lastEvent.costDelta); // charged immediately, exactly once
+    expect(draft.postProductionScreeningReadyDay).toBe(readyDay); // fixed - never advances
+    expect(draft.postProductionFinalReadyDay).toBe(readyDay + lastEvent.delayDaysDelta);
     expect(draft.testScreeningPendingChoice).toBeNull();
     expect(draft.testScreeningResolved).toBe(true);
+  });
+
+  it('postProductionFinalReadyDay is null before the screening resolves, even once the screening itself is pending', () => {
+    const { state, readyDay } = stateJustFinishedPhotography(310);
+    const beforeReady = asPlayerDraft(findProject(state.projects, state.focusedProjectId))!;
+    expect(beforeReady.postProductionFinalReadyDay).toBeNull();
+    const atReadyDay = advanceDays(state, readyDay - state.totalDays);
+    const pendingDraft = asPlayerDraft(findProject(atReadyDay.projects, atReadyDay.focusedProjectId))!;
+    expect(pendingDraft.testScreeningPendingChoice).not.toBeNull();
+    expect(pendingDraft.postProductionFinalReadyDay).toBeNull();
+  });
+
+  it('computeProjectSpendSoFar reflects a resolved intervention cost immediately, and the released film reports the same total without charging it again', () => {
+    const { state, readyDay } = stateJustFinishedPhotography(311);
+    const atReadyDay = advanceDays(state, readyDay - state.totalDays);
+    const cashBefore = atReadyDay.studio.cash;
+    const resolved = studioReducer(atReadyDay, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'major-reshoots', productionId: atReadyDay.focusedProjectId! });
+    const draft = asPlayerDraft(findProject(resolved.projects, resolved.focusedProjectId))!;
+    const interventionCost = cashBefore - resolved.studio.cash;
+    expect(interventionCost).toBeGreaterThan(0);
+
+    const project = findProject(resolved.projects, draft.id)!;
+    const spendSoFar = computeProjectSpendSoFar(project, resolved.studio.assets);
+    // Not an exact equality (talent/production/contingency/script are also
+    // part of spendSoFar) - just confirms the resolved cost is genuinely
+    // counted in, not silently dropped the way the old zeroed-event design
+    // required it to be.
+    const spendWithoutIntervention = computeProjectSpendSoFar(
+      { ...project, draft: { ...draft, postProductionEvents: [] } } as typeof project,
+      resolved.studio.assets,
+    );
+    expect(spendSoFar - spendWithoutIntervention).toBe(interventionCost);
   });
 
   it('is blocked (a no-op) when the studio cannot afford the resolved cost', () => {

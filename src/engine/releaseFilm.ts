@@ -9,7 +9,7 @@ import type {
   TalentAssignment,
   TargetAudience,
 } from '../types';
-import { computeAudienceScore, computeBuzzScore, computeCriticScore, computeQualityBreakdown } from './scoring';
+import { computeAudienceScore, computeBuzzScore, computeCriticScore, computeQualityBreakdown, combineProductionEvents } from './scoring';
 import { computeEventsCostDelta, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
 import { deriveAudienceSimulationFixedState, type SupportedReleaseType } from './audienceSimulationInputs';
 import { deriveCommercialProfile } from './commercialProfile';
@@ -35,7 +35,17 @@ export interface ReleaseComputationInput {
   productionChoices: ProductionChoices;
   postProductionChoices: PostProductionChoices;
   marketingChoices: MarketingChoices;
+  /** On-set events only (PhotographyState.events) - see postProductionEvents below for the separate collection. */
   events: ProductionEvent[];
+  // Architecture cleanup (post-Phase-B post-production redesign) - the
+  // resolved test-screening outcome (FilmDraft.postProductionEvents),
+  // combined with `events` above (engine/scoring.ts:combineProductionEvents)
+  // for the quality/buzz reads below, but deliberately NOT summed into
+  // `events` itself and NOT included when computeEventsCostDelta reads
+  // `events` for productionCost's photography-cost term - its own cost was
+  // already charged immediately, at RESOLVE_TEST_SCREENING_CHOICE, and is
+  // folded into productionCost separately, below, for reporting only.
+  postProductionEvents: ProductionEvent[];
   // Contingency's actual daily-burn total from principal photography
   // (PhotographyState.runningCost) - not part of computeProductionBudgetCost
   // any more, since it's no longer a flat lump sum (see engine/cost.ts).
@@ -71,13 +81,19 @@ export interface ReleaseComputationResult {
  * here and get filled in once the run finishes.
  */
 export function computeReleaseResults(input: ReleaseComputationInput, rng: RandomFn): ReleaseComputationResult {
+  // Quality/buzz read on-set and post-production events as one combined
+  // history (engine/scoring.ts:combineProductionEvents) - a test screening's
+  // resolved outcome is just as real a part of "what happened to this film"
+  // as an on-set event, even though it's stored separately (see
+  // ReleaseComputationInput.postProductionEvents's own comment).
+  const allEvents = combineProductionEvents(input.events, input.postProductionEvents);
   const quality = computeQualityBreakdown(
     input.script,
     input.talent,
     input.genre,
     input.productionChoices,
     input.postProductionChoices,
-    input.events,
+    allEvents,
     input.shootingRatio,
   );
   const criticScore = computeCriticScore(quality, input.script, input.postProductionChoices, input.marketingChoices);
@@ -92,7 +108,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   const buzzScore = computeBuzzScore(
     input.script,
     input.talent,
-    input.events,
+    allEvents,
     input.postProductionChoices,
     input.marketingChoices,
     input.studioBrand,
@@ -107,6 +123,19 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // up front rather than deferring it - not summed again here, which would
   // double-charge it.
   const eventsCostDelta = computeEventsCostDelta(input.events);
+  // Architecture cleanup (post-Phase-B) - a resolved post-production
+  // intervention's cost was ALSO already charged immediately, the same as
+  // the on-set eventsCostDelta term above is deliberately excluded from
+  // being charged twice. Unlike that term, though, this one IS folded into
+  // productionCost below - purely for reporting (a film's totalCost should
+  // read as its true all-in cost regardless of when each piece was actually
+  // charged, same as talentCost/productionBudgetCost above, both already
+  // charged at GREENLIGHT_PROJECT and still summed here for the same
+  // reason). The caller (engine/marketSettlement.ts:resolvePlayerRelease)
+  // is what keeps this honest - its own alreadyCharged calculation includes
+  // this exact same amount, so the settlement-time cash charge nets out to
+  // never re-deduct it.
+  const postProductionInterventionCost = computeEventsCostDelta(input.postProductionEvents);
   // input.script.cost is deliberately NOT part of this sum - it's charged
   // once, immediately, at Opportunity acquisition (ACQUIRE_OPPORTUNITY,
   // state/studioReducer.ts), long before a Project (let alone a release)
@@ -116,7 +145,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // price.
   const productionCost = Math.max(
     0,
-    talentCost + productionBudgetCost + input.photographyCost + eventsCostDelta,
+    talentCost + productionBudgetCost + input.photographyCost + eventsCostDelta + postProductionInterventionCost,
   );
   const marketingCost = computeMarketingCost(input.marketingChoices);
   const totalCost = productionCost + marketingCost;

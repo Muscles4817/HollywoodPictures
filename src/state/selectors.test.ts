@@ -216,6 +216,27 @@ describe('computeProjectSpendSoFar', () => {
     const spend = computeProjectSpendSoFar(filmToProject(film), released.studio.assets);
     expect(spend).toBe(released.studio.assets[0].acquisitionCost + film.results.totalCost);
   });
+
+  // Architecture cleanup (post-Phase-B post-production redesign, item 3) - a
+  // resolved test-screening intervention's cost is charged immediately
+  // (state/studioReducer.ts:RESOLVE_TEST_SCREENING_CHOICE) and lives on its
+  // own draft.postProductionEvents collection - this is what makes that
+  // spend actually show up in the project finance breakdown instead of
+  // silently disappearing the way the old zeroed-costDelta design required.
+  it("includes a resolved post-production intervention's cost, on top of everything else", () => {
+    const { result: draft } = withRng(123, (rng) => buildReadyDraft(rng));
+    const asset = { id: draft.assetId, script: draft.script!, source: 'Studio Original' as const, acquisitionCost: 10_000, acquiredOnDay: 1 };
+    const before = computeProjectSpendSoFar(playerDraftToProject(draft), [asset]);
+
+    const withIntervention = {
+      ...draft,
+      postProductionEvents: [
+        { id: 'test-screening', description: 'Resolved: Pickups.', severity: 'medium' as const, costDelta: 800_000, qualityDelta: 5, buzzDelta: 1, delayDaysDelta: 12 },
+      ],
+    };
+    const after = computeProjectSpendSoFar(playerDraftToProject(withIntervention), [asset]);
+    expect(after).toBe(before + 800_000);
+  });
 });
 
 function rivalProductionFixture(overrides: Partial<RivalProductionInProgress> = {}): RivalProductionInProgress {

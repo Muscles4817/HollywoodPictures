@@ -760,6 +760,7 @@ export function resolveRivalProduction(
       postProductionChoices: production.postProductionChoices,
       marketingChoices: production.marketingChoices,
       events: [],
+      postProductionEvents: [],
       photographyCost,
       shootingRatio,
       studioBrand,
@@ -779,6 +780,7 @@ export function resolveRivalProduction(
     postProductionChoices: production.postProductionChoices,
     marketingChoices: production.marketingChoices,
     events: [],
+    postProductionEvents: [],
     results,
     boxOfficeRun: {
       status: 'running',

@@ -7,6 +7,7 @@ import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, FINAL_CUT_FOCUS_PROFILES } f
 import { RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS, MARKETING_SPEND_RANGE } from '../../data/release';
 import { SHOOTING_BUDGET_RANGE, ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../../data/production';
 import { computeReleaseResults } from '../../engine/releaseFilm';
+import { combineProductionEvents } from '../../engine/scoring';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta } from '../../engine/cost';
 import { deriveCommercialProfile } from '../../engine/commercialProfile';
 import { computeTalentCompatibility, computeTalentCompatibilityBreakdown } from '../../engine/compatibility';
@@ -216,9 +217,13 @@ export function OutcomeInspector() {
   // a freshly-loaded film's Current matches Original, freely editable to
   // experiment with what a crowded release window would have done to it.
   const [competitiveCrowding, setCompetitiveCrowding] = useState(0);
-  const [eventQualityDelta, setEventQualityDelta] = useState(() => selectedFilm?.events.reduce((sum, e) => sum + e.qualityDelta, 0) ?? 0);
-  const [eventBuzzDelta, setEventBuzzDelta] = useState(() => selectedFilm?.events.reduce((sum, e) => sum + e.buzzDelta, 0) ?? 0);
-  const [eventCostDelta, setEventCostDelta] = useState(() => selectedFilm?.events.reduce((sum, e) => sum + e.costDelta, 0) ?? 0);
+  // Combines on-set and post-production events (engine/scoring.ts:combineProductionEvents)
+  // into the one synthetic event these sliders drive (syntheticEvent below) -
+  // a resolved test screening's outcome is just as real a contributor to a
+  // loaded film's original numbers as an on-set event.
+  const [eventQualityDelta, setEventQualityDelta] = useState(() => combinedFilmEvents(selectedFilm).reduce((sum, e) => sum + e.qualityDelta, 0));
+  const [eventBuzzDelta, setEventBuzzDelta] = useState(() => combinedFilmEvents(selectedFilm).reduce((sum, e) => sum + e.buzzDelta, 0));
+  const [eventCostDelta, setEventCostDelta] = useState(() => combinedFilmEvents(selectedFilm).reduce((sum, e) => sum + e.costDelta, 0));
   const [photographyCost, setPhotographyCost] = useState(() => (selectedFilm ? photographyCostForFilm(selectedFilm) : 0));
   // Seeds computeReleaseResults' rng - only ever consumed for review-blurb/
   // story-report flavor text now (the audience simulation itself has no
@@ -261,7 +266,18 @@ export function OutcomeInspector() {
     const talentCost = computeTalentCost(film.talent);
     const productionBudgetCost = computeProductionBudgetCost(film.productionChoices);
     const eventsCostDelta = computeEventsCostDelta(film.events);
-    return Math.max(0, film.results.productionCost - talentCost - productionBudgetCost - eventsCostDelta);
+    // Architecture cleanup (post-Phase-B) - film.results.productionCost now
+    // also folds in a resolved test screening's own cost (for reporting;
+    // it's charged immediately, not at release - see engine/releaseFilm.ts),
+    // so it has to come back out here too, or this subtraction would
+    // overstate photographyCost by that exact amount.
+    const postProductionCostDelta = computeEventsCostDelta(film.postProductionEvents);
+    return Math.max(0, film.results.productionCost - talentCost - productionBudgetCost - eventsCostDelta - postProductionCostDelta);
+  }
+
+  /** On-set and post-production events combined - see engine/scoring.ts:combineProductionEvents. */
+  function combinedFilmEvents(film: Film | null): ProductionEvent[] {
+    return film ? combineProductionEvents(film.events, film.postProductionEvents) : [];
   }
 
   function loadFilm(film: Film) {
@@ -277,9 +293,10 @@ export function OutcomeInspector() {
     setShootingRatio(1);
     setCompetitiveCrowding(0);
     setPhotographyCost(photographyCostForFilm(film));
-    const evQuality = film.events.reduce((sum, e) => sum + e.qualityDelta, 0);
-    const evBuzz = film.events.reduce((sum, e) => sum + e.buzzDelta, 0);
-    const evCost = film.events.reduce((sum, e) => sum + e.costDelta, 0);
+    const combined = combinedFilmEvents(film);
+    const evQuality = combined.reduce((sum, e) => sum + e.qualityDelta, 0);
+    const evBuzz = combined.reduce((sum, e) => sum + e.buzzDelta, 0);
+    const evCost = combined.reduce((sum, e) => sum + e.costDelta, 0);
     setEventQualityDelta(evQuality);
     setEventBuzzDelta(evBuzz);
     setEventCostDelta(evCost);
@@ -364,6 +381,15 @@ export function OutcomeInspector() {
   const leadFame = findAssignedPerson(talent, 'Lead Actor')?.reputation.fame ?? 0;
   const supportFame = findAssignedPerson(talent, 'Supporting Actor')?.reputation.fame ?? 0;
 
+  // One slider-driven synthetic event standing in for the combined effect of
+  // every on-set and post-production event a loaded film actually had -
+  // fed as `events` (photography-equivalent, deferred-cost) with
+  // `postProductionEvents: []` below, rather than trying to reconstruct
+  // which portion of the editable net delta was actually the immediately-
+  // charged post-production kind. photographyCostForFilm above already
+  // nets that split back out correctly for the Photography Cost slider
+  // itself - this is a dev-calibration simplification for the combined
+  // quality/buzz/cost sliders only.
   const events = [syntheticEvent(eventQualityDelta, eventBuzzDelta, eventCostDelta)];
 
   // Runs the exact same orchestration RELEASE_FILM does (state/studioReducer.ts)
@@ -389,6 +415,7 @@ export function OutcomeInspector() {
       postProductionChoices,
       marketingChoices,
       events,
+      postProductionEvents: [],
       photographyCost,
       shootingRatio,
       studioBrand,
@@ -760,6 +787,24 @@ export function OutcomeInspector() {
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
             <p className="choice-description" style={{ margin: '0 0 8px' }}>This film's real on-set events (read-only reference)</p>
             {selectedFilm.events.map((event, i) => (
+              <div key={`${event.id}-${i}`} className="row-between" style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+                <span className="row" style={{ gap: 8 }}>
+                  <SeverityBadge severity={event.severity} />
+                  <span>{event.description}</span>
+                </span>
+                <span>
+                  Quality {event.qualityDelta >= 0 ? '+' : ''}{event.qualityDelta.toFixed(1)} &middot; Buzz{' '}
+                  {event.buzzDelta >= 0 ? '+' : ''}{event.buzzDelta.toFixed(1)} &middot; Cost{' '}
+                  <Money amount={event.costDelta} showSign />
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        {selectedFilm.postProductionEvents.length > 0 && (
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+            <p className="choice-description" style={{ margin: '0 0 8px' }}>This film's real test-screening outcome (read-only reference, already charged immediately - not part of the sliders' deferred-cost preview)</p>
+            {selectedFilm.postProductionEvents.map((event, i) => (
               <div key={`${event.id}-${i}`} className="row-between" style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
                 <span className="row" style={{ gap: 8 }}>
                   <SeverityBadge severity={event.severity} />

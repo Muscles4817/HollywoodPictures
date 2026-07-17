@@ -8,7 +8,7 @@
 // components/common/OnSetDecisionCard.tsx need no test-screening-specific
 // branching at all.
 import type { EventChoiceTemplate, EventSeverity, FilmDraft, PendingEventChoice } from '../types';
-import { computeQualityBreakdown } from './scoring';
+import { computeQualityBreakdown, combineProductionEvents } from './scoring';
 import { pickDepartmentBlurb } from './reviews';
 import { DEFAULT_POST_PRODUCTION_CHOICES } from '../data/postProduction';
 import { findAssignedPerson } from '../data/helpers';
@@ -91,13 +91,16 @@ const MAJOR_RESHOOTS_CHOICE: EventChoiceTemplate = {
 export function generateTestScreeningPendingChoice(draft: FilmDraft, rng: RandomFn): PendingEventChoice {
   const photography = draft.photography!;
   const shootingRatio = photography.recommendedDays > 0 ? photography.daysElapsed / photography.recommendedDays : 1;
+  // draft.postProductionEvents is always empty at this point (this is what
+  // generates the one screening a film ever gets, before it's resolved) -
+  // combined anyway for consistency with every other quality read.
   const quality = computeQualityBreakdown(
     draft.script!,
     draft.talent,
     draft.genre!,
     draft.productionChoices!,
     DEFAULT_POST_PRODUCTION_CHOICES,
-    photography.events,
+    combineProductionEvents(photography.events, draft.postProductionEvents),
     shootingRatio,
   );
 

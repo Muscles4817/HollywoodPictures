@@ -85,6 +85,7 @@ function freshFilm(id: string, releasedOnDay: number, fixed: AudienceSimulationF
     postProductionChoices: { editStyle: 'Balanced', musicFocus: 'Standard', finalCutFocus: 'Trailer-focused' },
     marketingChoices: { marketingSpend: RELEASE_INPUTS.marketingSpend, releaseType: RELEASE_INPUTS.releaseType, releaseWindow: RELEASE_INPUTS.releaseWindow },
     events: [],
+    postProductionEvents: [],
     results: baseResults({ openingWeekend: Math.round(week1.cumulativeTicketsSold * AVERAGE_TICKET_PRICE) }),
     boxOfficeRun: { status: 'running', fixed, simWeeks: [], weeks: [], cumulativeGross: 0, acknowledged: false },
     releasedOnDay,
