@@ -7,12 +7,14 @@ import { describe, it, expect } from 'vitest';
 import {
   computeCompatibility,
   computeCompatibilityBreakdown,
+  computeCharacterCompatibility,
+  computeActorCharacterCompatibility,
   computeTalentCompatibility,
   computeTalentCompatibilityBreakdown,
   deriveToneFromActingStyle,
 } from './compatibility';
 import { TONES } from '../data/tones';
-import type { ActingStyle, Person, Script, ToneProfile } from '../types';
+import type { ActingStyle, CharacterTraitProfile, Person, Script, ScriptCharacter, ToneProfile } from '../types';
 
 function tone(overrides: Partial<ToneProfile> = {}): ToneProfile {
   return { action: 50, comedy: 50, romance: 50, suspense: 50, drama: 50, spectacle: 50, ...overrides };
@@ -140,5 +142,67 @@ describe('computeTalentCompatibilityBreakdown', () => {
     const writer = writerPerson('w1', 'Test Writer', 60);
     expect(computeTalentCompatibilityBreakdown(writer, 'Writer', script)).toBeNull();
     expect(computeTalentCompatibility(writer, 'Writer', script)).toBeNull();
+  });
+});
+
+function traits(overrides: Partial<CharacterTraitProfile> = {}): CharacterTraitProfile {
+  return {
+    dramaticDepth: 50, charismaDemand: 50, comedyDemand: 50, emotionalDemand: 50, physicalDemand: 50,
+    transformationDemand: 50, audienceAccessibility: 50, distinctiveness: 50, merchandisePotential: 50,
+    ...overrides,
+  };
+}
+
+function character(overrides: Partial<ScriptCharacter> = {}): ScriptCharacter {
+  return { id: 'char-1', name: 'Test Character', archetype: 'Other', prominence: 'Lead', traits: traits(), ...overrides };
+}
+
+// Character and Setting Foundations milestone (docs/CHARACTER_AND_SETTING_FOUNDATIONS.md
+// section 7) - "does this actor's style suit the specific role they'd play,"
+// a second, independent reading from computeTalentCompatibility above.
+describe('computeCharacterCompatibility', () => {
+  it('scores 100 for a perfect match across all five shared axes', () => {
+    const acting: ActingStyle = { characterTransformation: 70, emotionalPerformance: 60, charisma: 80, comedy: 20, physicalPerformance: 40 };
+    const score = computeCharacterCompatibility(acting, traits({
+      transformationDemand: 70, emotionalDemand: 60, charismaDemand: 80, comedyDemand: 20, physicalDemand: 40,
+    }));
+    expect(score).toBe(100);
+  });
+
+  it('a bigger mismatch on the shared axes always scores strictly lower than a smaller one', () => {
+    const acting: ActingStyle = { characterTransformation: 50, emotionalPerformance: 50, charisma: 50, comedy: 50, physicalPerformance: 50 };
+    const closeFit = computeCharacterCompatibility(acting, traits({ charismaDemand: 60 }));
+    const farFit = computeCharacterCompatibility(acting, traits({ charismaDemand: 95 }));
+    expect(closeFit).toBeGreaterThan(farFit);
+  });
+
+  it('is unaffected by axes CharacterTraitProfile has no ActingStyle equivalent for (dramaticDepth/audienceAccessibility/distinctiveness/merchandisePotential)', () => {
+    const acting: ActingStyle = { characterTransformation: 50, emotionalPerformance: 50, charisma: 50, comedy: 50, physicalPerformance: 50 };
+    const low = computeCharacterCompatibility(acting, traits({ dramaticDepth: 0, audienceAccessibility: 0, distinctiveness: 0, merchandisePotential: 0 }));
+    const high = computeCharacterCompatibility(acting, traits({ dramaticDepth: 100, audienceAccessibility: 100, distinctiveness: 100, merchandisePotential: 100 }));
+    expect(low).toBe(high);
+  });
+
+  it('never leaves [0, 100] even at the most extreme possible mismatch', () => {
+    const acting: ActingStyle = { characterTransformation: 1, emotionalPerformance: 1, charisma: 1, comedy: 1, physicalPerformance: 1 };
+    const score = computeCharacterCompatibility(acting, traits({
+      transformationDemand: 100, emotionalDemand: 100, charismaDemand: 100, comedyDemand: 100, physicalDemand: 100,
+    }));
+    expect(score).toBeGreaterThanOrEqual(0);
+    expect(score).toBeLessThanOrEqual(100);
+  });
+});
+
+describe('computeActorCharacterCompatibility', () => {
+  it('matches computeCharacterCompatibility exactly for a person with an Actor career', () => {
+    const actingStyle: ActingStyle = { characterTransformation: 65, emotionalPerformance: 40, charisma: 75, comedy: 30, physicalPerformance: 55 };
+    const actor = actorPerson('a1', 'Test Actor', actingStyle);
+    const role = character({ traits: traits({ charismaDemand: 70 }) });
+    expect(computeActorCharacterCompatibility(actor, role)).toBe(computeCharacterCompatibility(actingStyle, role.traits));
+  });
+
+  it('returns null for a person with no Actor career, same null-for-not-applicable convention as computeTalentCompatibility', () => {
+    const writer = writerPerson('w1', 'Test Writer', 60);
+    expect(computeActorCharacterCompatibility(writer, character())).toBeNull();
   });
 });

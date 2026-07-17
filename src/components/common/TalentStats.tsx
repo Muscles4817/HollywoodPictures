@@ -1,13 +1,14 @@
-import { computeTalentCompatibility } from '../../engine/compatibility';
+import { computeTalentCompatibility, computeActorCharacterCompatibility, ACTING_STYLE_TO_CHARACTER_TRAIT } from '../../engine/compatibility';
 import { dominantLean } from '../../engine/recommendation';
 import { getCareerForRole } from '../../engine/person';
 import { toneProfileBreakdown } from '../../data/tones';
 import { ENV_LEAN_SHORT, EFFECTS_LEAN_SHORT } from '../../data/productionStyleLabels';
 import { ACTING_STYLE_AXES, ACTING_STYLE_LABELS } from '../../data/actingStyle';
+import { CHARACTER_ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
 import type { RoleCategory } from '../../data/talentPresentation';
 import { Money } from './Money';
 import { CompatibilityBadge } from './CompatibilityBadge';
-import type { DirectorCareer, Person, ProductionRole, Script } from '../../types';
+import type { DirectorCareer, Person, ProductionRole, Script, ScriptCharacter } from '../../types';
 
 export function talentBreakdown(person: Person, role: ProductionRole): { breakdown: Array<{ label: string; value: number }>; defaultLabel: string } | null {
   const career = getCareerForRole(person, role);
@@ -31,6 +32,14 @@ export function describeProductionStyle(director: DirectorCareer): string {
   return `Leans ${ENV_LEAN_SHORT[env.key]}, ${EFFECTS_LEAN_SHORT[fx.key]}`;
 }
 
+/** The specific Character's own trait demands, in the same shape/order as talentBreakdown's ActingStyle rows, so the "what does this role need" badge lines up axis-for-axis with the "what does this actor bring" badge above it (engine/compatibility.ts:ACTING_STYLE_TO_CHARACTER_TRAIT). */
+function characterTraitBreakdown(character: ScriptCharacter): Array<{ label: string; value: number }> {
+  return ACTING_STYLE_AXES.map((axis) => ({
+    label: ACTING_STYLE_LABELS[axis],
+    value: character.traits[ACTING_STYLE_TO_CHARACTER_TRAIT[axis]],
+  }));
+}
+
 /**
  * The full stat display for one person under a specific role - headline row
  * (role-category-aware) plus a small secondary block - shared by every
@@ -43,10 +52,20 @@ export function describeProductionStyle(director: DirectorCareer): string {
  * drifting from it (docs/DESIGN.md). `role` (not just `category`) is what
  * determines which career's stats actually show - the same person could in
  * principle hold more than one career (see PERSON_MODEL_REDESIGN.md).
+ *
+ * `character` - which specific Lead/Supporting Character (script.cast) this
+ * candidate is being evaluated to play, if the role/slot resolves to one
+ * (engine/castRequirements.ts:characterForRoleSlot) - shows a second,
+ * role-specific fit badge alongside the whole-script one above it, per
+ * docs/CHARACTER_AND_SETTING_FOUNDATIONS.md section 7: casting should
+ * reflect the specific role an actor would play, not just the script as a
+ * whole. null for every non-actor role and for a script with no matching
+ * character at that slot (e.g. hiring past requiredLeads).
  */
-export function TalentStats({ person, role, category, script }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null }) {
+export function TalentStats({ person, role, category, script, character = null }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null }) {
   const compatInfo = talentBreakdown(person, role);
   const compatScore = script ? computeTalentCompatibility(person, role, script) : null;
+  const characterScore = character ? computeActorCharacterCompatibility(person, character) : null;
   const career = getCareerForRole(person, role);
   const skill = career && 'skill' in career ? career.skill : undefined;
 
@@ -76,6 +95,19 @@ export function TalentStats({ person, role, category, script }: { person: Person
           </>
         )}
       </div>
+
+      {category === 'actor' && character && (
+        <div className="candidate-headline">
+          <div className="candidate-headline-stat">
+            Up for: {character.name} ({character.prominence} {CHARACTER_ARCHETYPE_LABELS[character.archetype]})
+          </div>
+          <CompatibilityBadge
+            score={characterScore ?? undefined}
+            breakdown={characterTraitBreakdown(character)}
+            defaultLabel="Role Demands"
+          />
+        </div>
+      )}
 
       <div className="candidate-secondary-stats">
         {(category === 'director' || category === 'crew') && <div>Fame: {person.reputation.fame}</div>}

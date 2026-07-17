@@ -140,7 +140,7 @@ describe('ProjectOverview - presentation polish pass (docs/DESIGN.md)', () => {
 
   it('formats camelCase/PascalCase tag values into readable prose', () => {
     expect(STORY_TYPE_LABELS.ComingOfAge).toBe('Coming of Age');
-    expect(SETTING_LABELS.SciFi).toBe('Sci-Fi');
+    expect(SETTING_LABELS.PostApocalypticWasteland).toBe('Post-Apocalyptic Wasteland');
     expect(ARCHETYPE_LABELS.CrowdPleaser).toBe('Crowd-Pleaser');
     expect(ARCHETYPE_LABELS.OriginalVision).toBe('Original Vision');
     expect(ARCHETYPE_LABELS.GenreFormula).toBe('Genre Formula');

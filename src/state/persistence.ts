@@ -196,7 +196,16 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // person can hold more than one career). A v33 save's talent/talentPool
 // entries are all the old flat Talent shape - no migration code, same as
 // every past shape change here.
-const SAVE_KEY = 'hollywood-pictures-save-v34';
+// v34 -> v35 (docs/CHARACTER_AND_SETTING_FOUNDATIONS.md): Script.setting (a
+// 5-value Setting) was replaced by Script.primarySetting (a 20-value
+// SettingArchetype), and Script gained a required cast: ScriptCharacter[] -
+// every screenplay now carries its own concrete Lead/Supporting/Minor
+// characters and a specific production-pressure-bearing setting, both
+// generated alongside it rather than left implicit. A v34 save's scripts
+// (on every Asset, FilmDraft, Film, and RivalProductionInProgress) have the
+// old `setting` field and no `cast` at all - no migration code, same as
+// every past shape change here.
+const SAVE_KEY = 'hollywood-pictures-save-v35';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

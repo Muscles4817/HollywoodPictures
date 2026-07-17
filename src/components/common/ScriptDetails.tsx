@@ -4,9 +4,15 @@ import { CompatibilityBadge } from './CompatibilityBadge';
 import { toneProfileBreakdown } from '../../data/tones';
 import { SCRIPT_ARCHETYPE_PROFILES } from '../../data/scriptArchetypes';
 import { STORY_TYPE_PROFILES } from '../../data/storyTypes';
-import { SETTING_PROFILES } from '../../data/settings';
-import { ARCHETYPE_LABELS, STORY_TYPE_LABELS, SETTING_LABELS, SCALE_LABELS } from '../../data/scriptTagLabels';
-import { productionRequirementTags, describeCommercialAppeal, describeCostDrivers } from '../../engine/scriptPresentation';
+import { SETTING_ARCHETYPE_PROFILES } from '../../data/settings';
+import { ARCHETYPE_LABELS, CHARACTER_ARCHETYPE_LABELS, STORY_TYPE_LABELS, SETTING_LABELS, SCALE_LABELS } from '../../data/scriptTagLabels';
+import {
+  productionRequirementTags,
+  describeCommercialAppeal,
+  describeCostDrivers,
+  describeSettingImplication,
+  describeCharacterDemands,
+} from '../../engine/scriptPresentation';
 import type { Script } from '../../types';
 
 /**
@@ -20,13 +26,13 @@ import type { Script } from '../../types';
 export function ScriptDetails({ script }: { script: Script }) {
   const archetypeProfile = SCRIPT_ARCHETYPE_PROFILES[script.archetype];
   const storyProfile = STORY_TYPE_PROFILES[script.storyType];
-  const settingProfile = SETTING_PROFILES[script.setting];
+  const settingProfile = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
   return (
     <>
       <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '2px 0 6px' }}>
         <span className="badge">{ARCHETYPE_LABELS[script.archetype]}</span>
         {script.storyType !== 'Original' && <span className="badge">{STORY_TYPE_LABELS[script.storyType]}</span>}
-        <span className="badge">{SETTING_LABELS[script.setting]}</span>
+        <span className="badge">{SETTING_LABELS[script.primarySetting]}</span>
         <span className="badge">{SCALE_LABELS[script.scale]}</span>
       </div>
       <p className="card-synopsis">{script.synopsis}</p>
@@ -64,6 +70,27 @@ export function ScriptDetails({ script }: { script: Script }) {
         <div>Intended Audience: {script.intendedAudience}</div>
       </div>
       <CompatibilityBadge breakdown={toneProfileBreakdown(script.toneProfile)} />
+
+      <div style={{ margin: '6px 0 0' }}>
+        <div className="stat-label">Setting: {SETTING_LABELS[script.primarySetting]}</div>
+        <p style={{ margin: '2px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>{describeSettingImplication(script.primarySetting)}</p>
+      </div>
+
+      {script.cast.filter((c) => c.prominence !== 'Minor').length > 0 && (
+        <div style={{ margin: '6px 0 0' }}>
+          <div className="stat-label">Cast</div>
+          <div className="stack" style={{ gap: 2 }}>
+            {script.cast
+              .filter((c) => c.prominence !== 'Minor')
+              .map((character) => (
+                <div key={character.id} style={{ fontSize: '0.85em' }}>
+                  <strong>{character.name}</strong> — {character.prominence} {CHARACTER_ARCHETYPE_LABELS[character.archetype]}
+                  <div style={{ color: 'var(--text-muted)' }}>{describeCharacterDemands(character)}</div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
     </>
   );
 }

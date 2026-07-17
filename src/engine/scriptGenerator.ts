@@ -1,4 +1,7 @@
 import type {
+  CharacterArchetype,
+  CharacterProminence,
+  CharacterTraitProfile,
   Distribution,
   EffectsMethodKey,
   EnvironmentMethodKey,
@@ -6,18 +9,22 @@ import type {
   NormalizedScalar,
   ProductionRequirements,
   Script,
+  ScriptCharacter,
+  StoryType,
   TargetAudience,
   Tone,
   ToneProfile,
 } from '../types';
-import { GENRE_PROFILES, GENRE_TYPICAL_AUDIENCES } from '../data/genres';
+import { GENRE_PROFILES, GENRE_SETTING_AFFINITY, GENRE_TYPICAL_AUDIENCES } from '../data/genres';
 import { SCRIPT_TITLE_WORDS } from '../data/scriptWords';
 import { TONES } from '../data/tones';
 import { TARGET_AUDIENCES } from '../data/audiences';
 import { SCRIPT_ARCHETYPES, SCRIPT_ARCHETYPE_PROFILES, type QualityRange } from '../data/scriptArchetypes';
 import { STORY_TYPES, STORY_TYPE_PROFILES, type StoryTypeProfile } from '../data/storyTypes';
-import { SETTINGS, SETTING_PROFILES, type SettingProfile } from '../data/settings';
+import { SETTING_ARCHETYPES, SETTING_ARCHETYPE_PROFILES, type SettingProfile } from '../data/settings';
+import { CHARACTER_ARCHETYPES, CHARACTER_ARCHETYPE_PROFILES } from '../data/characterArchetypes';
 import { SCRIPT_SCALES, SCRIPT_SCALE_PROFILES, type ScriptScaleProfile } from '../data/scale';
+import { TALENT_FIRST_NAMES, TALENT_LAST_NAMES } from '../data/talentNames';
 import { generatePremise } from './premiseGenerator';
 import { type RandomFn, clamp, combineWeights, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick } from './random';
 
@@ -106,15 +113,28 @@ function jitterWeight(base: number, rng: RandomFn): number {
   return Math.max(0.02, base + randFloat(rng, -STRATEGY_JITTER, STRATEGY_JITTER));
 }
 
+// Derived, not stored - see data/settings.ts:SettingProfile's own doc
+// comment on why practicalBias/vfxBias/digitalEnvironmentBias aren't fields
+// on the profile itself any more. Kept as small additive biases (roughly
+// the same magnitude the old stored fields used to span) rather than letting
+// the raw 0-1 pressure readings dominate the story type's own baseline.
+function settingPracticalBias(setting: SettingProfile): number {
+  return clamp(setting.setConstructionDemand * 0.3 + setting.practicalLogisticsDemand * 0.15, 0, 0.5);
+}
+function settingVfxBias(setting: SettingProfile): number {
+  return setting.vfxEnvironmentDemand * 0.5;
+}
+
 /**
  * Step 5 of generation (docs/DESIGN.md - screenplay redesign): "production
  * requirements should emerge naturally from the screenplay rather than
  * being generated independently." Blends the chosen Story Type's own
  * baseline intensities with the chosen Production Scale's floors (an Epic
  * production needs real crowd/location work even for a story type that
- * doesn't usually call for it) and the chosen Setting's biases (Historical/
- * Fantasy/SciFi/Space all pull practical/VFX intensity differently), then
- * lifts practical/VFX a little further by Complexity - the one quality
+ * doesn't usually call for it) and the chosen Setting Archetype's own
+ * production-pressure profile (a Futuristic City and a Single Interior
+ * Location pull practical/VFX/extras/location intensity very differently),
+ * then lifts practical/VFX a little further by Complexity - the one quality
  * attribute that's always been about production difficulty, not craft (see
  * types/index.ts:Script.complexity).
  */
@@ -127,13 +147,13 @@ function generateProductionRequirements(
 ): ProductionRequirements {
   const complexityLift = (complexity / 100) * 0.15;
   return {
-    extras: jitterIntensity(Math.max(story.extras, scale.extrasFloor), rng),
-    locations: jitterIntensity(Math.max(story.locations, scale.locationsFloor), rng),
+    extras: jitterIntensity(Math.max(story.extras, scale.extrasFloor, setting.extrasDemand * 0.6), rng),
+    locations: jitterIntensity(Math.max(story.locations, scale.locationsFloor, setting.locationComplexity * 0.7), rng),
     periodSetting: setting.periodSetting,
     vehicles: rng() < clamp(story.vehiclesLikely + setting.vehiclesLikely, 0, 1),
     animals: rng() < story.animalsLikely,
-    practicalEffects: jitterIntensity(clamp(story.practicalEffects + setting.practicalBias + complexityLift, 0, 1), rng),
-    vfx: jitterIntensity(clamp(story.vfx + setting.vfxBias + complexityLift, 0, 1), rng),
+    practicalEffects: jitterIntensity(clamp(story.practicalEffects + settingPracticalBias(setting) + complexityLift, 0, 1), rng),
+    vfx: jitterIntensity(clamp(story.vfx + settingVfxBias(setting) + complexityLift, 0, 1), rng),
     stunts: jitterIntensity(story.stunts, rng),
     choreography: jitterIntensity(story.choreography, rng),
     crowdWork: jitterIntensity(Math.max(story.crowdWork, scale.crowdWorkFloor), rng),
@@ -163,15 +183,17 @@ function generateEffectsAmbition(req: ProductionRequirements, complexity: number
 
 /**
  * The screenplay's own implied environment approach - `req.vfx` and the
- * chosen Setting's own digitalEnvironmentBias (Fantasy/SciFi/Space lean
- * digital far more than a Modern setting) decide how much of the split goes
- * to "digital"; `req.locations` splits what's left between location and
- * studio - a location-heavy story type (War, Sports) leans location, an
- * intimate/contained one (ComingOfAge, Mystery) leans studio.
+ * chosen Setting Archetype's own vfxEnvironmentDemand (a Futuristic City or
+ * Alien World leans digital far more than a Contemporary City) decide how
+ * much of the split goes to "digital"; `req.locations` splits what's left
+ * between location and studio - a location-heavy story type (War, Sports)
+ * leans location, an intimate/contained one (ComingOfAge, Mystery) leans
+ * studio, and a high containedProductionAffinity setting (Single Interior
+ * Location, a Spacecraft) pulls the remainder back toward studio too.
  */
 function generateEnvironmentStrategy(req: ProductionRequirements, setting: SettingProfile, rng: RandomFn): Distribution<EnvironmentMethodKey> {
-  const digitalBase = clamp(req.vfx * 0.5 + setting.digitalEnvironmentBias, 0, 1);
-  const locationBase = req.locations * (1 - digitalBase);
+  const digitalBase = clamp(req.vfx * 0.5 + setting.vfxEnvironmentDemand * 0.4, 0, 1);
+  const locationBase = req.locations * (1 - digitalBase) * (1 - setting.containedProductionAffinity * 0.5);
   const studioBase = Math.max(0.05, 1 - digitalBase - locationBase);
   return normalizeWeights({
     studio: jitterWeight(studioBase, rng),
@@ -180,11 +202,94 @@ function generateEnvironmentStrategy(req: ProductionRequirements, setting: Setti
   });
 }
 
-/** How demanding the script's environment vision is, independent of the studio/location/digital split - locations, extras and crowd work all add up to "how much does this world need to be built out," lifted a little further by complexity. */
-function generateEnvironmentAmbition(req: ProductionRequirements, complexity: number, rng: RandomFn): NormalizedScalar {
-  const base = req.locations * 0.5 + req.extras * 0.2 + req.crowdWork * 0.3;
+/** How demanding the script's environment vision is, independent of the studio/location/digital split - locations, extras and crowd work all add up to "how much does this world need to be built out," lifted further by the Setting Archetype's own environmentScale and by complexity. */
+function generateEnvironmentAmbition(req: ProductionRequirements, setting: SettingProfile, complexity: number, rng: RandomFn): NormalizedScalar {
+  const base = req.locations * 0.35 + req.extras * 0.15 + req.crowdWork * 0.2 + setting.environmentScale * 0.3;
   const complexityLift = (complexity / 100) * 0.2;
   return clamp(base * 0.8 + complexityLift + randFloat(rng, -0.1, 0.1), 0, 1);
+}
+
+// --- Script Characters (Character and Setting Foundations milestone) -----
+// Genre/story-type/prominence-weighted, the same archetype-first philosophy
+// the rest of generation already uses - see data/characterArchetypes.ts's
+// own doc comment.
+
+let nextCharacterId = 1;
+
+const TRAIT_JITTER = 12;
+
+function jitterTrait(base: number, rng: RandomFn): number {
+  return clamp(Math.round(base + randFloat(rng, -TRAIT_JITTER, TRAIT_JITTER)), 1, 100);
+}
+
+/** Bounded per-axis variation around an archetype's baseTraits, so two characters sharing an archetype don't read identically (data/characterArchetypes.ts). */
+function generateCharacterTraits(base: CharacterTraitProfile, rng: RandomFn): CharacterTraitProfile {
+  return {
+    dramaticDepth: jitterTrait(base.dramaticDepth, rng),
+    charismaDemand: jitterTrait(base.charismaDemand, rng),
+    comedyDemand: jitterTrait(base.comedyDemand, rng),
+    emotionalDemand: jitterTrait(base.emotionalDemand, rng),
+    physicalDemand: jitterTrait(base.physicalDemand, rng),
+    transformationDemand: jitterTrait(base.transformationDemand, rng),
+    audienceAccessibility: jitterTrait(base.audienceAccessibility, rng),
+    distinctiveness: jitterTrait(base.distinctiveness, rng),
+    merchandisePotential: jitterTrait(base.merchandisePotential, rng),
+  };
+}
+
+/** Each character archetype's own genre likelihood (default 1 for a genre it doesn't list) - see data/characterArchetypes.ts:genreAffinity. */
+function characterArchetypeWeightsForGenre(genre: Genre): Partial<Record<CharacterArchetype, number>> {
+  const weights: Partial<Record<CharacterArchetype, number>> = {};
+  for (const archetype of CHARACTER_ARCHETYPES) weights[archetype] = CHARACTER_ARCHETYPE_PROFILES[archetype].genreAffinity[genre] ?? 1;
+  return weights;
+}
+
+function characterArchetypeWeightsForStoryType(storyType: StoryType): Partial<Record<CharacterArchetype, number>> {
+  const weights: Partial<Record<CharacterArchetype, number>> = {};
+  for (const archetype of CHARACTER_ARCHETYPES) weights[archetype] = CHARACTER_ARCHETYPE_PROFILES[archetype].storyTypeAffinity[storyType] ?? 1;
+  return weights;
+}
+
+function characterArchetypeWeightsForProminence(prominence: CharacterProminence): Partial<Record<CharacterArchetype, number>> {
+  const weights: Partial<Record<CharacterArchetype, number>> = {};
+  for (const archetype of CHARACTER_ARCHETYPES) weights[archetype] = CHARACTER_ARCHETYPE_PROFILES[archetype].prominenceAffinity[prominence] ?? 1;
+  return weights;
+}
+
+function generateCharacter(prominence: CharacterProminence, genre: Genre, storyType: StoryType, rng: RandomFn): ScriptCharacter {
+  const weights = combineWeights(CHARACTER_ARCHETYPES, [
+    characterArchetypeWeightsForGenre(genre),
+    characterArchetypeWeightsForStoryType(storyType),
+    characterArchetypeWeightsForProminence(prominence),
+  ]);
+  const archetype = weightedPick(rng, CHARACTER_ARCHETYPES, weights);
+  return {
+    id: `character-${nextCharacterId++}`,
+    name: `${pick(rng, TALENT_FIRST_NAMES)} ${pick(rng, TALENT_LAST_NAMES)}`,
+    archetype,
+    prominence,
+    traits: generateCharacterTraits(CHARACTER_ARCHETYPE_PROFILES[archetype].baseTraits, rng),
+  };
+}
+
+// A handful of Minor characters beyond the required Lead/Supporting cast -
+// pure flavor (no cast-requirement system consumes Minor characters), so
+// kept light: 0 about half the time, rarely more than 2.
+const MINOR_CHARACTER_COUNT_WEIGHTS = [0, 0, 0, 1, 1, 2];
+
+/**
+ * Exactly `requiredLeads` Lead characters followed by exactly
+ * `requiredSupporting` Supporting ones, per types/index.ts:Script.cast's own
+ * contract - engine/castRequirements.ts:characterForRoleSlot depends on this
+ * ordering to map a specific hired actor to a specific character.
+ */
+function generateCast(genre: Genre, storyType: StoryType, requiredLeads: number, requiredSupporting: number, rng: RandomFn): ScriptCharacter[] {
+  const cast: ScriptCharacter[] = [];
+  for (let i = 0; i < requiredLeads; i++) cast.push(generateCharacter('Lead', genre, storyType, rng));
+  for (let i = 0; i < requiredSupporting; i++) cast.push(generateCharacter('Supporting', genre, storyType, rng));
+  const minorCount = pick(rng, MINOR_CHARACTER_COUNT_WEIGHTS);
+  for (let i = 0; i < minorCount; i++) cast.push(generateCharacter('Minor', genre, storyType, rng));
+  return cast;
 }
 
 // Mostly a single protagonist; occasionally a pair or a true ensemble lead -
@@ -262,20 +367,22 @@ function generateScript(genre: Genre, rng: RandomFn, title: string): Script {
   const scale = weightedPick(rng, SCRIPT_SCALES, scaleWeights);
   const scaleProfile = SCRIPT_SCALE_PROFILES[scale];
 
-  const setting = weightedPick(rng, SETTINGS, storyProfile.settingAffinity ?? {});
-  const settingProfile = SETTING_PROFILES[setting];
+  const settingWeights = combineWeights(SETTING_ARCHETYPES, [GENRE_SETTING_AFFINITY[genre], storyProfile.settingAffinity]);
+  const primarySetting = weightedPick(rng, SETTING_ARCHETYPES, settingWeights);
+  const settingProfile = SETTING_ARCHETYPE_PROFILES[primarySetting];
 
   const { profile: toneProfile, flavorTones } = generateToneProfile(genre, rng);
 
   const productionRequirements = generateProductionRequirements(storyProfile, scaleProfile, settingProfile, complexity, rng);
   const environmentStrategy = generateEnvironmentStrategy(productionRequirements, settingProfile, rng);
-  const environmentAmbition = generateEnvironmentAmbition(productionRequirements, complexity, rng);
+  const environmentAmbition = generateEnvironmentAmbition(productionRequirements, settingProfile, complexity, rng);
   const effectsStrategy = generateEffectsStrategy(productionRequirements, rng);
   const effectsAmbition = generateEffectsAmbition(productionRequirements, complexity, rng);
 
   const castMultiplier = storyProfile.castSizeMultiplier * scaleProfile.castMultiplier;
   const requiredLeads = Math.max(1, Math.round(pick(rng, LEAD_COUNT_WEIGHTS) * castMultiplier));
   const requiredSupporting = Math.max(0, Math.round(pick(rng, SUPPORTING_COUNT_WEIGHTS) * castMultiplier));
+  const cast = generateCast(genre, storyType, requiredLeads, requiredSupporting, rng);
 
   const audienceWeights = combineWeights(TARGET_AUDIENCES, [
     storyProfile.targetAudienceWeights,
@@ -290,7 +397,7 @@ function generateScript(genre: Genre, rng: RandomFn, title: string): Script {
     genre,
     archetype,
     storyType,
-    setting,
+    primarySetting,
     scale,
     originality,
     structure,
@@ -308,6 +415,7 @@ function generateScript(genre: Genre, rng: RandomFn, title: string): Script {
     requiredLeads,
     requiredSupporting,
     intendedAudience,
+    cast,
   };
 }
 

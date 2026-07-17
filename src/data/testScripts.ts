@@ -1,5 +1,6 @@
-import type { Asset, Script } from '../types';
+import type { Asset, CharacterArchetype, CharacterProminence, Script, ScriptCharacter } from '../types';
 import { estimateScriptCost } from '../engine/scriptGenerator';
+import { CHARACTER_ARCHETYPE_PROFILES } from './characterArchetypes';
 
 // Sixteen real films, hand-authored rather than procedurally generated -
 // two per Genre, permanently visible in the Asset Library's "Test Scripts"
@@ -37,6 +38,16 @@ function testAsset(s: Script): Asset {
   return { id: s.id, script: s, source: 'Studio Original', acquisitionCost: 0, acquiredOnDay: 1 };
 }
 
+// Hand-picked, not procedurally generated - same judgment-call philosophy as
+// every other field in this file. baseTraits are taken verbatim from each
+// Character Archetype's own profile (data/characterArchetypes.ts) rather
+// than hand-tuned per character, since these are illustrative real-film
+// casts, not calibration fixtures.
+function character(name: string, archetype: CharacterArchetype, prominence: CharacterProminence): ScriptCharacter {
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  return { id, name, archetype, prominence, traits: { ...CHARACTER_ARCHETYPE_PROFILES[archetype].baseTraits } };
+}
+
 const TEST_SCRIPTS: Script[] = [
   // --- Action ---------------------------------------------------------
   script({
@@ -45,7 +56,7 @@ const TEST_SCRIPTS: Script[] = [
     genre: 'Action',
     archetype: 'Spectacle',
     storyType: 'Original',
-    setting: 'SciFi',
+    primarySetting: 'PostApocalypticWasteland',
     scale: 'Epic',
     originality: 85,
     structure: 75,
@@ -65,6 +76,13 @@ const TEST_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 3,
     intendedAudience: 'Mass Market',
+    cast: [
+      character('Max', 'Survivor', 'Lead'),
+      character('Furiosa', 'Antihero', 'Lead'),
+      character('Immortan Joe', 'Villain', 'Supporting'),
+      character('Nux', 'TragicVillain', 'Supporting'),
+      character('Splendid', 'EnsembleMember', 'Supporting'),
+    ],
   }),
   script({
     id: 'test-script-die-hard',
@@ -72,7 +90,7 @@ const TEST_SCRIPTS: Script[] = [
     genre: 'Action',
     archetype: 'CrowdPleaser',
     storyType: 'Crime',
-    setting: 'Modern',
+    primarySetting: 'Workplace',
     scale: 'Medium',
     originality: 70,
     structure: 85,
@@ -92,6 +110,13 @@ const TEST_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 3,
     intendedAudience: 'Mass Market',
+    cast: [
+      character('John McClane', 'ReluctantHero', 'Lead'),
+      character('Hans Gruber', 'Villain', 'Lead'),
+      character('Holly Gennaro', 'LoveInterest', 'Supporting'),
+      character('Sgt. Al Powell', 'BestFriend', 'Supporting'),
+      character('Karl', 'Rival', 'Supporting'),
+    ],
   }),
 
   // --- Comedy ----------------------------------------------------------
@@ -101,7 +126,7 @@ const TEST_SCRIPTS: Script[] = [
     genre: 'Comedy',
     archetype: 'Prestige',
     storyType: 'Original',
-    setting: 'Historical',
+    primarySetting: 'HistoricalCity',
     scale: 'Medium',
     originality: 90,
     structure: 82,
@@ -125,6 +150,14 @@ const TEST_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 4,
     intendedAudience: 'Adults',
+    cast: [
+      character('M. Gustave', 'IdealisticHero', 'Lead'),
+      character('Zero Moustafa', 'Outsider', 'Lead'),
+      character('Madame D.', 'FamilyMember', 'Supporting'),
+      character('Dmitri', 'Villain', 'Supporting'),
+      character('Agatha', 'LoveInterest', 'Supporting'),
+      character('Deputy Kovacs', 'AuthorityFigure', 'Supporting'),
+    ],
   }),
   script({
     id: 'test-script-superbad',
@@ -132,7 +165,7 @@ const TEST_SCRIPTS: Script[] = [
     genre: 'Comedy',
     archetype: 'CrowdPleaser',
     storyType: 'ComingOfAge',
-    setting: 'Modern',
+    primarySetting: 'SchoolOrUniversity',
     scale: 'Intimate',
     originality: 65,
     structure: 70,
@@ -152,6 +185,12 @@ const TEST_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 2,
     intendedAudience: 'Teens',
+    cast: [
+      character('Seth', 'ReluctantHero', 'Lead'),
+      character('Evan', 'BestFriend', 'Lead'),
+      character('Fogell', 'ComicRelief', 'Supporting'),
+      character('Officer Slater', 'ComicRelief', 'Supporting'),
+    ],
   }),
 
   // --- Drama -------------------------------------------------------------
@@ -161,7 +200,7 @@ const TEST_SCRIPTS: Script[] = [
     genre: 'Drama',
     archetype: 'Prestige',
     storyType: 'Original',
-    setting: 'Modern',
+    primarySetting: 'SingleInteriorLocation',
     scale: 'Intimate',
     originality: 78,
     structure: 95,
@@ -181,6 +220,13 @@ const TEST_SCRIPTS: Script[] = [
     requiredLeads: 1,
     requiredSupporting: 4,
     intendedAudience: 'Critics',
+    cast: [
+      character('Juror 8', 'IdealisticHero', 'Lead'),
+      character('Juror 3', 'Antihero', 'Supporting'),
+      character('Juror 10', 'Villain', 'Supporting'),
+      character('Juror 4', 'AuthorityFigure', 'Supporting'),
+      character('Juror 9', 'Mentor', 'Supporting'),
+    ],
   }),
   script({
     id: 'test-script-shawshank',
@@ -188,7 +234,7 @@ const TEST_SCRIPTS: Script[] = [
     genre: 'Drama',
     archetype: 'Prestige',
     storyType: 'Original',
-    setting: 'Historical',
+    primarySetting: 'SingleInteriorLocation',
     scale: 'Medium',
     originality: 75,
     structure: 90,
@@ -208,6 +254,13 @@ const TEST_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 3,
     intendedAudience: 'Mass Market',
+    cast: [
+      character('Andy Dufresne', 'ReluctantHero', 'Lead'),
+      character('Red', 'Mentor', 'Lead'),
+      character('Warden Norton', 'Villain', 'Supporting'),
+      character('Captain Hadley', 'Villain', 'Supporting'),
+      character('Brooks', 'TragicVillain', 'Supporting'),
+    ],
   }),
 
   // --- Horror --------------------------------------------------------
@@ -217,7 +270,7 @@ const TEST_SCRIPTS: Script[] = [
     genre: 'Horror',
     archetype: 'OriginalVision',
     storyType: 'Original',
-    setting: 'Modern',
+    primarySetting: 'RuralWilderness',
     scale: 'Intimate',
     originality: 92,
     structure: 60,
@@ -237,6 +290,11 @@ const TEST_SCRIPTS: Script[] = [
     requiredLeads: 3,
     requiredSupporting: 0,
     intendedAudience: 'Niche',
+    cast: [
+      character('Heather', 'ReluctantHero', 'Lead'),
+      character('Josh', 'Outsider', 'Lead'),
+      character('Mike', 'Survivor', 'Lead'),
+    ],
   }),
   script({
     id: 'test-script-hereditary',
@@ -244,7 +302,7 @@ const TEST_SCRIPTS: Script[] = [
     genre: 'Horror',
     archetype: 'OriginalVision',
     storyType: 'Original',
-    setting: 'Modern',
+    primarySetting: 'HauntedLocation',
     scale: 'Intimate',
     originality: 88,
     structure: 75,
@@ -264,6 +322,12 @@ const TEST_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 2,
     intendedAudience: 'Adults',
+    cast: [
+      character('Annie Graham', 'Survivor', 'Lead'),
+      character('Peter Graham', 'Outsider', 'Lead'),
+      character('Charlie Graham', 'FamilyMember', 'Supporting'),
+      character('Steve Graham', 'FamilyMember', 'Supporting'),
+    ],
   }),
 
   // --- Romance -------------------------------------------------------
@@ -273,7 +337,7 @@ const TEST_SCRIPTS: Script[] = [
     genre: 'Romance',
     archetype: 'Prestige',
     storyType: 'Original',
-    setting: 'Modern',
+    primarySetting: 'ContemporaryCity',
     scale: 'Intimate',
     originality: 82,
     structure: 70,
@@ -293,6 +357,10 @@ const TEST_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 0,
     intendedAudience: 'Adults',
+    cast: [
+      character('Jesse', 'IdealisticHero', 'Lead'),
+      character('Celine', 'LoveInterest', 'Lead'),
+    ],
   }),
   script({
     id: 'test-script-titanic',
@@ -300,7 +368,7 @@ const TEST_SCRIPTS: Script[] = [
     genre: 'Romance',
     archetype: 'Spectacle',
     storyType: 'Original',
-    setting: 'Historical',
+    primarySetting: 'Other',
     scale: 'Epic',
     originality: 60,
     structure: 80,
@@ -320,6 +388,13 @@ const TEST_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 3,
     intendedAudience: 'Mass Market',
+    cast: [
+      character('Jack Dawson', 'IdealisticHero', 'Lead'),
+      character('Rose DeWitt Bukater', 'ReluctantHero', 'Lead'),
+      character('Cal Hockley', 'Villain', 'Supporting'),
+      character('Ruth DeWitt Bukater', 'AuthorityFigure', 'Supporting'),
+      character('Fabrizio', 'BestFriend', 'Supporting'),
+    ],
   }),
 
   // --- Sci-Fi ----------------------------------------------------------
@@ -329,7 +404,7 @@ const TEST_SCRIPTS: Script[] = [
     genre: 'Sci-Fi',
     archetype: 'Spectacle',
     storyType: 'Original',
-    setting: 'SciFi',
+    primarySetting: 'FuturisticCity',
     scale: 'Epic',
     originality: 88,
     structure: 82,
@@ -349,6 +424,13 @@ const TEST_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 3,
     intendedAudience: 'Mass Market',
+    cast: [
+      character('Neo', 'ChosenOne', 'Lead'),
+      character('Trinity', 'LoveInterest', 'Lead'),
+      character('Morpheus', 'Mentor', 'Supporting'),
+      character('Agent Smith', 'Villain', 'Supporting'),
+      character('Cypher', 'TragicVillain', 'Supporting'),
+    ],
   }),
   script({
     id: 'test-script-gravity',
@@ -356,7 +438,7 @@ const TEST_SCRIPTS: Script[] = [
     genre: 'Sci-Fi',
     archetype: 'Spectacle',
     storyType: 'Original',
-    setting: 'Space',
+    primarySetting: 'SpacecraftOrStation',
     scale: 'Medium',
     originality: 85,
     structure: 80,
@@ -376,6 +458,11 @@ const TEST_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 1,
     intendedAudience: 'Mass Market',
+    cast: [
+      character('Dr. Ryan Stone', 'Survivor', 'Lead'),
+      character('Matt Kowalski', 'Mentor', 'Lead'),
+      character('Shariff', 'EnsembleMember', 'Supporting'),
+    ],
   }),
 
   // --- Fantasy ---------------------------------------------------------
@@ -385,7 +472,7 @@ const TEST_SCRIPTS: Script[] = [
     genre: 'Fantasy',
     archetype: 'Spectacle',
     storyType: 'Original',
-    setting: 'Fantasy',
+    primarySetting: 'FantasyRealm',
     scale: 'Epic',
     originality: 80,
     structure: 85,
@@ -405,6 +492,16 @@ const TEST_SCRIPTS: Script[] = [
     requiredLeads: 4,
     requiredSupporting: 4,
     intendedAudience: 'Mass Market',
+    cast: [
+      character('Frodo Baggins', 'ReluctantHero', 'Lead'),
+      character('Gandalf', 'Mentor', 'Lead'),
+      character('Aragorn', 'IdealisticHero', 'Lead'),
+      character('Samwise Gamgee', 'BestFriend', 'Lead'),
+      character('Boromir', 'TragicVillain', 'Supporting'),
+      character('Legolas', 'EnsembleMember', 'Supporting'),
+      character('Gimli', 'ComicRelief', 'Supporting'),
+      character('Saruman', 'Villain', 'Supporting'),
+    ],
   }),
   script({
     id: 'test-script-pans-labyrinth',
@@ -412,7 +509,7 @@ const TEST_SCRIPTS: Script[] = [
     genre: 'Fantasy',
     archetype: 'Prestige',
     storyType: 'War',
-    setting: 'Historical',
+    primarySetting: 'HistoricalBattlefield',
     scale: 'Medium',
     originality: 92,
     structure: 80,
@@ -432,6 +529,12 @@ const TEST_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 2,
     intendedAudience: 'Critics',
+    cast: [
+      character('Ofelia', 'ChosenOne', 'Lead'),
+      character('Captain Vidal', 'Villain', 'Lead'),
+      character('Mercedes', 'BestFriend', 'Supporting'),
+      character('The Faun', 'MonsterOrCreature', 'Supporting'),
+    ],
   }),
 
   // --- Thriller --------------------------------------------------------
@@ -441,7 +544,7 @@ const TEST_SCRIPTS: Script[] = [
     genre: 'Thriller',
     archetype: 'CrowdPleaser',
     storyType: 'Original',
-    setting: 'Modern',
+    primarySetting: 'SmallTown',
     scale: 'Medium',
     originality: 75,
     structure: 88,
@@ -461,6 +564,13 @@ const TEST_SCRIPTS: Script[] = [
     requiredLeads: 3,
     requiredSupporting: 2,
     intendedAudience: 'Mass Market',
+    cast: [
+      character('Chief Brody', 'ReluctantHero', 'Lead'),
+      character('Matt Hooper', 'IdealisticHero', 'Lead'),
+      character('Quint', 'Antihero', 'Lead'),
+      character('Ellen Brody', 'FamilyMember', 'Supporting'),
+      character('Mayor Vaughn', 'AuthorityFigure', 'Supporting'),
+    ],
   }),
   script({
     id: 'test-script-se7en',
@@ -468,7 +578,7 @@ const TEST_SCRIPTS: Script[] = [
     genre: 'Thriller',
     archetype: 'Prestige',
     storyType: 'Mystery',
-    setting: 'Modern',
+    primarySetting: 'ContemporaryCity',
     scale: 'Medium',
     originality: 80,
     structure: 88,
@@ -488,6 +598,12 @@ const TEST_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 2,
     intendedAudience: 'Adults',
+    cast: [
+      character('Det. David Mills', 'ReluctantHero', 'Lead'),
+      character('Det. William Somerset', 'Detective', 'Lead'),
+      character('Tracy Mills', 'LoveInterest', 'Supporting'),
+      character('John Doe', 'Villain', 'Supporting'),
+    ],
   }),
 ];
 

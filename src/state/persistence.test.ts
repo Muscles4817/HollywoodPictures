@@ -346,6 +346,41 @@ describe('old saves migrate safely', () => {
     expect(state.studio.name).not.toBe('Stale Pictures');
   });
 
+  it('a save under the pre-Character-and-Setting-Foundations v34 key (scripts with a `setting` field and no `cast`) is invisible to v35 - falls back to a fresh studio rather than a hybrid state', () => {
+    // Character and Setting Foundations (docs/CHARACTER_AND_SETTING_FOUNDATIONS.md)
+    // replaced Script.setting (a 5-value Setting) with Script.primarySetting
+    // (a 20-value SettingArchetype) and added a required Script.cast -
+    // a v34 save's scripts have the old `setting` field and no `cast` at
+    // all. Same class of break as every past shape change here: no
+    // migration code, an old save simply isn't found under the new key - and
+    // the fresh studio it falls back to seeds its Asset Library from
+    // data/testScripts.ts, whose scripts all carry primarySetting/cast, so
+    // no Script a player can reach is ever left with the old, empty shape
+    // (section 13's "no migration, but no dangling old-shape Script either").
+    globalThis.localStorage.setItem(
+      'hollywood-pictures-save-v34',
+      JSON.stringify({
+        studio: {
+          cash: 1, brand: 20, prestige: 20, name: 'Stale Pictures',
+          assets: [{ id: 'asset-1', script: { id: 'script-1', title: 'Stale Script', setting: 'Modern' }, source: 'Studio Original', acquisitionCost: 0, acquiredOnDay: 1 }],
+        },
+        rivalStudios: [],
+        opportunities: [],
+        nextOpportunityCheckDay: 1,
+        projects: [],
+        focusedProjectId: null,
+        totalDays: 1,
+      }),
+    );
+    const state = loadState();
+    expect(state.projects).toEqual([]);
+    expect(state.studio.assets.some((a) => a.script.title === 'Stale Script')).toBe(false);
+    expect(state.studio.assets.length).toBeGreaterThan(0);
+    expect(state.studio.assets.every((a) => a.script.primarySetting !== undefined && Array.isArray(a.script.cast))).toBe(true);
+    expect(state.studio.cash).toBeGreaterThan(1); // a genuinely fresh studio's starting cash, not the stale save's
+    expect(state.studio.name).not.toBe('Stale Pictures');
+  });
+
   it('clearSavedState followed by loadState behaves exactly like no save ever existed', () => {
     const released = studioReducer(buildStateWithReadyDraft(4), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     saveState(released);

@@ -10,10 +10,11 @@ import type {
 } from '../types';
 import { GENRE_PROFILES } from '../data/genres';
 import { TONES } from '../data/tones';
-import { computeTalentCompatibility } from './compatibility';
+import { computeCharacterCompatibility, computeTalentCompatibility } from './compatibility';
 import { deriveCommercialProfile } from './commercialProfile';
 import { findAssignedPerson, filterAssignedPeople } from '../data/helpers';
-import { getDirectorCareer } from './person';
+import { getActorCareer, getDirectorCareer } from './person';
+import { characterForRoleSlot } from './castRequirements';
 import {
   contingencyQuality,
   overallSpendT,
@@ -91,23 +92,50 @@ export function computeDirectionScore(talent: TalentAssignment[], script: Script
   return career.skill * 0.6 + compatibility(director, 'Director', script) * 0.4;
 }
 
+// How much a specific Character's own trait demands weigh against overall
+// script-tone compatibility for a given hire (Character and Setting
+// Foundations milestone) - script-tone fit stays the majority share (this
+// is still fundamentally "does their style suit this film"), but a genuine,
+// not-purely-decorative share now goes to "do they suit the actual role
+// they're playing," per the milestone's own central design principle.
+const CHARACTER_COMPATIBILITY_WEIGHT = 0.4;
+
+/**
+ * A hired actor's fit for the specific slot they're cast in - blends their
+ * overall script-tone compatibility with computeCharacterCompatibility
+ * against whichever Character sits at this slot (castRequirements.ts:
+ * characterForRoleSlot). Falls back to script-tone compatibility alone if
+ * this slot has no matching Character (shouldn't happen once generation
+ * keeps requiredLeads/requiredSupporting and Script.cast in lockstep, but
+ * stays honest rather than assuming it always will).
+ */
+function actorFitScore(person: Person, role: 'Lead Actor' | 'Supporting Actor', slotIndex: number, script: Script): number {
+  const scriptFit = compatibility(person, role, script);
+  const character = characterForRoleSlot(script, role, slotIndex);
+  const actorCareer = getActorCareer(person);
+  if (!character || !actorCareer) return scriptFit;
+  const characterFit = computeCharacterCompatibility(actorCareer.actingStyle, character.traits);
+  return scriptFit * (1 - CHARACTER_COMPATIBILITY_WEIGHT) + characterFit * CHARACTER_COMPATIBILITY_WEIGHT;
+}
+
 /**
  * Combined lead + supporting acting quality, weighted toward the leads.
  * Unlike Direction, this is compatibility alone - an actor's ActingStyle
  * has no separate "skill" number sitting next to it (see types/index.ts),
- * so how well their specific strengths suit this script IS their
- * contribution. Both Lead Actor and Supporting Actor can now hold more than
- * one person - a script's requiredLeads/requiredSupporting sets exactly how
- * many (see engine/castRequirements.ts) - and either ensemble is *averaged*,
- * not summed: a two-lead buddy film doesn't automatically outscore a
- * one-lead film, it's the average fit of whoever's cast in those roles.
+ * so how well their specific strengths suit this script and this specific
+ * Character IS their contribution (see actorFitScore above). Both Lead
+ * Actor and Supporting Actor can now hold more than one person - a script's
+ * requiredLeads/requiredSupporting sets exactly how many (see
+ * engine/castRequirements.ts) - and either ensemble is *averaged*, not
+ * summed: a two-lead buddy film doesn't automatically outscore a one-lead
+ * film, it's the average fit of whoever's cast in those roles.
  */
 export function computeActingScore(talent: TalentAssignment[], script: Script): number {
   const leads = getLeadActors(talent);
   const supports = getSupportingActors(talent);
 
-  const leadScoreAvg = average(leads.map((l) => compatibility(l, 'Lead Actor', script)));
-  const supportScoreAvg = average(supports.map((s) => compatibility(s, 'Supporting Actor', script)));
+  const leadScoreAvg = average(leads.map((l, i) => actorFitScore(l, 'Lead Actor', i, script)));
+  const supportScoreAvg = average(supports.map((s, i) => actorFitScore(s, 'Supporting Actor', i, script)));
 
   return (leadScoreAvg ?? 30) * 0.7 + (supportScoreAvg ?? 30) * 0.3;
 }

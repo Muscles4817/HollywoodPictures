@@ -1,4 +1,4 @@
-import type { Genre, TargetAudience, ToneProfile } from '../types';
+import type { Genre, SettingArchetype, TargetAudience, ToneProfile } from '../types';
 
 // Data-driven genre profile: describes how much each production lever matters
 // for a genre, plus its baseline audience popularity. Tweak these numbers to
@@ -91,4 +91,28 @@ export const GENRE_TYPICAL_AUDIENCES: Record<Genre, TargetAudience[]> = {
   'Sci-Fi': ['Mass Market', 'Teens', 'Niche'],
   Fantasy: ['Families', 'Teens', 'Mass Market'],
   Thriller: ['Adults', 'Mass Market'],
+};
+
+// Which Setting Archetypes a genre naturally reaches for (Character and
+// Setting Foundations milestone) - combined with the chosen Story Type's own
+// settingAffinity (data/storyTypes.ts) via combineWeights during generation,
+// same "several partial weight tables feeding one weightedPick" pattern
+// GENRE_TYPICAL_AUDIENCES/archetypeWeightsForGenre already use. Deliberately
+// a soft nudge, not an exclusive list - an unlisted archetype still has its
+// normal base weight of 1, so unusual genre/setting pairings stay reachable.
+export const GENRE_SETTING_AFFINITY: Record<Genre, Partial<Record<SettingArchetype, number>>> = {
+  Action: { ContemporaryCity: 1.8, ModernWarzone: 1.6, GlobalMultiLocation: 1.6, FuturisticCity: 1.3 },
+  Comedy: { ContemporaryCity: 1.3, Workplace: 1.3, SchoolOrUniversity: 1.2, SuburbanCommunity: 1.2 },
+  Drama: {
+    ContemporaryCity: 1.5, SmallTown: 1.5, Workplace: 1.5, SchoolOrUniversity: 1.3,
+    SingleInteriorLocation: 1.3, SuburbanCommunity: 1.2,
+  },
+  Horror: { HauntedLocation: 2.5, SingleInteriorLocation: 1.8, SmallTown: 1.5, RuralWilderness: 1.5, SuburbanCommunity: 1.2 },
+  Romance: { ContemporaryCity: 1.3, SmallTown: 1.2, SuburbanCommunity: 1.2 },
+  'Sci-Fi': {
+    FuturisticCity: 2, SpacecraftOrStation: 2, AlienWorld: 1.8, PostApocalypticWasteland: 1.5,
+    ContemporaryCity: 0.6,
+  },
+  Fantasy: { MedievalKingdom: 2.2, FantasyRealm: 2.2, HauntedLocation: 0.8 },
+  Thriller: { ContemporaryCity: 1.3, ModernWarzone: 1.1, GlobalMultiLocation: 1.2, SingleInteriorLocation: 1.1 },
 };

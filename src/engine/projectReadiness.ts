@@ -1,10 +1,13 @@
 import type { FilmDraft, ProjectWorkspaceSection } from '../types';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
+import { SETTING_ARCHETYPE_PROFILES } from '../data/settings';
+import { SETTING_LABELS } from '../data/scriptTagLabels';
 import { findAssignedPerson } from '../data/helpers';
 import { getDirectorCareer } from './person';
 import { effectiveRoleCapacity } from './castRequirements';
 import { computeTalentCost, computeProductionBudgetCost } from './cost';
 import { computeStaticProductionRisk } from './production';
+import { overallSpendT } from './productionDials';
 import { explainEffectsStrategy, explainEnvironmentStrategy } from './recommendation';
 
 export type ProjectReadinessIssueCode =
@@ -19,7 +22,8 @@ export type ProjectReadinessWarningCode =
   | 'low-cash-reserve'
   | 'director-production-disagreement'
   | 'optional-vfx-supervisor-missing'
-  | 'high-production-risk';
+  | 'high-production-risk'
+  | 'setting-underfunded';
 
 export interface ProjectReadinessIssue {
   code: ProjectReadinessIssueCode | ProjectReadinessWarningCode;
@@ -62,6 +66,16 @@ const LOW_CASH_RESERVE_THRESHOLD = 250_000;
 // consequences - same 0-100 scale ProductionPlanning.tsx's own risk bars
 // already use, just averaged into one number here.
 const HIGH_PRODUCTION_RISK_THRESHOLD = 65;
+
+// How far overall spend can trail a Setting Archetype's own production-
+// pressure reading before it's worth a dedicated, setting-named warning -
+// same 0-1 scale computeStaticProductionRisk's own budgetRisk term already
+// compares settingAmbition against spendT with, just a coarser pass/fail
+// cut rather than a continuous risk contribution. Deliberately never a
+// blocker (see docs/CHARACTER_AND_SETTING_FOUNDATIONS.md section 8 - "the
+// player should retain full control") - underfunding an ambitious setting
+// is a real, allowed choice, just one the player should see coming.
+const SETTING_UNDERFUNDED_GAP = 0.35;
 
 /**
  * The single source of truth for whether a pre-greenlight project is
@@ -132,6 +146,16 @@ export function deriveProjectReadiness(draft: FilmDraft, studioCash: number): Pr
     const avgRisk = (risk.moraleRisk + risk.safetyRisk + risk.technicalComplexity + risk.budgetRisk) / 4;
     if (avgRisk >= HIGH_PRODUCTION_RISK_THRESHOLD) {
       warnings.push({ code: 'high-production-risk', message: 'This plan carries substantial production risk - review the risk profile before greenlighting.' });
+    }
+
+    const settingProfile = SETTING_ARCHETYPE_PROFILES[draft.script.primarySetting];
+    const settingAmbition = (settingProfile.environmentScale + settingProfile.setConstructionDemand + settingProfile.vfxEnvironmentDemand) / 3;
+    const spendT = overallSpendT(draft.productionChoices!);
+    if (settingAmbition - spendT >= SETTING_UNDERFUNDED_GAP) {
+      warnings.push({
+        code: 'setting-underfunded',
+        message: `${SETTING_LABELS[draft.script.primarySetting]} is an ambitious setting for this budget - expect lower production quality and added risk unless you spend to match it.`,
+      });
     }
   }
 

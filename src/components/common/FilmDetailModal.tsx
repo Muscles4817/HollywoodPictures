@@ -2,8 +2,8 @@ import { formatGameDate } from '../../engine/calendar';
 import { computeTalentCompatibility } from '../../engine/compatibility';
 import { ALL_TALENT_ROLES } from '../../data/talentGeneration';
 import { toneProfileBreakdown } from '../../data/tones';
-import { ARCHETYPE_LABELS, STORY_TYPE_LABELS, SETTING_LABELS, SCALE_LABELS } from '../../data/scriptTagLabels';
-import { productionRequirementTags } from '../../engine/scriptPresentation';
+import { ARCHETYPE_LABELS, CHARACTER_ARCHETYPE_LABELS, STORY_TYPE_LABELS, SETTING_LABELS, SCALE_LABELS } from '../../data/scriptTagLabels';
+import { productionRequirementTags, describeSettingImplication, describeCharacterDemands } from '../../engine/scriptPresentation';
 import { Button } from './Button';
 import { Money } from './Money';
 import { ScoreBar } from './ScoreBar';
@@ -35,7 +35,7 @@ function ScriptSection({ film }: { film: Film }) {
       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
         <span className="badge">{ARCHETYPE_LABELS[script.archetype]}</span>
         {script.storyType !== 'Original' && <span className="badge">{STORY_TYPE_LABELS[script.storyType]}</span>}
-        <span className="badge">{SETTING_LABELS[script.setting]}</span>
+        <span className="badge">{SETTING_LABELS[script.primarySetting]}</span>
         <span className="badge">{SCALE_LABELS[script.scale]}</span>
       </div>
       <p className="card-synopsis" style={{ margin: 0 }}>{script.synopsis}</p>
@@ -62,6 +62,27 @@ function ScriptSection({ film }: { film: Film }) {
         ))}
       </div>
       <CompatibilityBadge breakdown={toneProfileBreakdown(script.toneProfile)} />
+
+      <div>
+        <div className="stat-label">Setting: {SETTING_LABELS[script.primarySetting]}</div>
+        <p style={{ margin: '2px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>{describeSettingImplication(script.primarySetting)}</p>
+      </div>
+
+      {script.cast.filter((c) => c.prominence !== 'Minor').length > 0 && (
+        <div>
+          <div className="stat-label">Cast</div>
+          <div className="stack" style={{ gap: 2 }}>
+            {script.cast
+              .filter((c) => c.prominence !== 'Minor')
+              .map((character) => (
+                <div key={character.id} style={{ fontSize: '0.85em' }}>
+                  <strong>{character.name}</strong> — {character.prominence} {CHARACTER_ARCHETYPE_LABELS[character.archetype]}
+                  <div style={{ color: 'var(--text-muted)' }}>{describeCharacterDemands(character)}</div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

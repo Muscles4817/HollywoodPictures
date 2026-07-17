@@ -21,20 +21,18 @@ describe('productionRequirementTags', () => {
   });
 
   it('tags Period Costumes and Period Sets together, only when the screenplay is set in a Historical period', () => {
-    const historical: Script = { ...scriptFor('Drama', 2), setting: 'Historical', productionRequirements: { ...scriptFor('Drama', 2).productionRequirements, periodSetting: true } };
-    const modern: Script = { ...scriptFor('Drama', 2), setting: 'Modern', productionRequirements: { ...scriptFor('Drama', 2).productionRequirements, periodSetting: false } };
+    const historical: Script = { ...scriptFor('Drama', 2), primarySetting: 'HistoricalCity', productionRequirements: { ...scriptFor('Drama', 2).productionRequirements, periodSetting: true } };
+    const modern: Script = { ...scriptFor('Drama', 2), primarySetting: 'ContemporaryCity', productionRequirements: { ...scriptFor('Drama', 2).productionRequirements, periodSetting: false } };
     expect(productionRequirementTags(historical)).toEqual(expect.arrayContaining(['Period Costumes', 'Period Sets']));
     expect(productionRequirementTags(modern)).not.toEqual(expect.arrayContaining(['Period Costumes']));
   });
 
-  it('tags Spacecraft Sets for a Space setting and Constructed Worlds for a Fantasy setting, never both at once', () => {
+  it('tags Constructed Worlds only when the Setting Archetype carries heavy VFX-environment demand', () => {
     const base = scriptFor('Sci-Fi', 3);
-    const space: Script = { ...base, setting: 'Space' };
-    const fantasy: Script = { ...base, setting: 'Fantasy' };
-    expect(productionRequirementTags(space)).toContain('Spacecraft Sets');
-    expect(productionRequirementTags(space)).not.toContain('Constructed Worlds');
-    expect(productionRequirementTags(fantasy)).toContain('Constructed Worlds');
-    expect(productionRequirementTags(fantasy)).not.toContain('Spacecraft Sets');
+    const heavy: Script = { ...base, primarySetting: 'SpacecraftOrStation' };
+    const light: Script = { ...base, primarySetting: 'SingleInteriorLocation' };
+    expect(productionRequirementTags(heavy)).toContain('Constructed Worlds');
+    expect(productionRequirementTags(light)).not.toContain('Constructed Worlds');
   });
 
   it('tags Heavy VFX only once vfx intensity crosses the heavy threshold', () => {

@@ -402,8 +402,36 @@ export type StoryType =
 // When and where the story takes place - independent of genre and story
 // type (a Historical War film and a Historical Romance both need period
 // costuming; a Sci-Fi Heist and a Space Heist both need very different
-// production requirements from a Modern one).
-export type Setting = 'Modern' | 'Historical' | 'Fantasy' | 'SciFi' | 'Space';
+// production requirements from a Modern one). Character and Setting
+// Foundations milestone: replaces the old, much coarser five-value Setting
+// ('Modern'/'Historical'/'Fantasy'/'SciFi'/'Space') with a richer, more
+// legible archetype - the old values were really "which broad reality does
+// this story occupy," not "what does the shoot actually look like" (a
+// Modern-setting film could be a Contemporary City chase or a Single
+// Interior Location two-hander, with very different production needs). See
+// data/settings.ts:SettingProfile for the production-pressure profile each
+// archetype carries.
+export type SettingArchetype =
+  | 'ContemporaryCity'
+  | 'SmallTown'
+  | 'SuburbanCommunity'
+  | 'RuralWilderness'
+  | 'SingleInteriorLocation'
+  | 'HauntedLocation'
+  | 'SchoolOrUniversity'
+  | 'Workplace'
+  | 'HistoricalCity'
+  | 'HistoricalBattlefield'
+  | 'MedievalKingdom'
+  | 'FantasyRealm'
+  | 'ModernWarzone'
+  | 'FuturisticCity'
+  | 'SpacecraftOrStation'
+  | 'AlienWorld'
+  | 'PostApocalypticWasteland'
+  | 'UnderwaterEnvironment'
+  | 'GlobalMultiLocation'
+  | 'Other';
 
 // How big the production this screenplay implies actually is - cast size,
 // location count, crowd work, cost. Named ScriptScale (not just `Scale`) to
@@ -430,13 +458,80 @@ export interface ProductionRequirements {
   crowdWork: NormalizedScalar; // large coordinated crowd/battle/riot scenes, distinct from ordinary extras
 }
 
+// --- Script Characters (Character and Setting Foundations milestone) -----
+//
+// Script-local value objects, not persistent world-level entities yet - see
+// docs/CHARACTER_AND_SETTING_FOUNDATIONS.md. They live and travel entirely
+// inside their own Script (Opportunity -> Asset -> Project -> Film all just
+// carry the Script wholesale already, so no separate copy-through logic is
+// needed), and their own `id` is only ever unique *within* that Script, not
+// globally - a future IP-promotion system may later lift a specific
+// ScriptCharacter/setting out into a persistent, globally-identified entity,
+// but nothing here assumes that will happen.
+
+export type CharacterProminence = 'Lead' | 'Supporting' | 'Minor';
+
+export type CharacterArchetype =
+  | 'ReluctantHero'
+  | 'IdealisticHero'
+  | 'Antihero'
+  | 'ChosenOne'
+  | 'Outsider'
+  | 'Detective'
+  | 'Survivor'
+  | 'Mentor'
+  | 'Rival'
+  | 'Villain'
+  | 'TragicVillain'
+  | 'AuthorityFigure'
+  | 'LoveInterest'
+  | 'ComicRelief'
+  | 'BestFriend'
+  | 'FamilyMember'
+  | 'EnsembleMember'
+  | 'MonsterOrCreature'
+  | 'Other';
+
+// What this role demands from whoever plays it, and what kind of audience
+// potential the character itself has - not actor stats (see ActorCareer/
+// ActingStyle). Deliberately the same 1-100 scale ActingStyle already uses
+// for the five dimensions they overlap on (transformationDemand vs.
+// characterTransformation, etc. - see engine/compatibility.ts:
+// computeCharacterCompatibility) so they're directly comparable without a
+// conversion step; the remaining four (dramaticDepth, audienceAccessibility,
+// distinctiveness, merchandisePotential) have no actor-stat equivalent and
+// deliberately don't map to casting compatibility yet (see
+// engine/commercialProfile.ts for where distinctiveness/accessibility do
+// feed in, modestly, and CHARACTER_AND_SETTING_FOUNDATIONS.md section 7 for
+// why merchandisePotential stays inert until a future IP system consumes it).
+export interface CharacterTraitProfile {
+  dramaticDepth: number; // 1-100
+  charismaDemand: number; // 1-100
+  comedyDemand: number; // 1-100
+  emotionalDemand: number; // 1-100
+  physicalDemand: number; // 1-100
+  transformationDemand: number; // 1-100
+  audienceAccessibility: number; // 1-100
+  distinctiveness: number; // 1-100
+  merchandisePotential: number; // 1-100 - stored for a future IP system, no direct effect yet
+}
+
+export interface ScriptCharacter {
+  /** Stable only within this Script - see this section's own header comment on why these aren't globally identified yet. */
+  id: string;
+  name: string;
+  archetype: CharacterArchetype;
+  prominence: CharacterProminence;
+  traits: CharacterTraitProfile;
+}
+
 export interface Script {
   id: string;
   title: string;
   genre: Genre;
   archetype: ScriptArchetype;
   storyType: StoryType;
-  setting: Setting;
+  primarySetting: SettingArchetype;
   scale: ScriptScale;
   // The five intrinsic screenplay-craft attributes - deliberately kept
   // small, and each with exactly one job (docs/DESIGN.md): what the
@@ -475,6 +570,14 @@ export interface Script {
   // The audience this script was written for - pre-fills Target Audience
   // when the script is picked, but stays fully overridable.
   intendedAudience: TargetAudience;
+  // Exactly requiredLeads Lead-prominence characters followed by exactly
+  // requiredSupporting Supporting-prominence ones (plus, occasionally, a
+  // handful of Minor ones) - see ScriptCharacter's own header comment.
+  // Casting evaluates a specific hired actor against the character at the
+  // same position within this array as their hire is within their own role
+  // group (engine/castRequirements.ts:characterForRoleSlot), not against the
+  // script as one undifferentiated whole.
+  cast: ScriptCharacter[];
 }
 
 // Every production dial is continuous rather than a fixed tier: the four

@@ -11,6 +11,7 @@ import { createRng } from './random';
 import { GENRES } from '../data/genres';
 import { SCRIPT_ARCHETYPES } from '../data/scriptArchetypes';
 import { STORY_TYPES } from '../data/storyTypes';
+import { SETTING_ARCHETYPE_PROFILES } from '../data/settings';
 import type { Genre, Script } from '../types';
 
 /** A large same-genre sample to compute stable per-archetype/per-story-type/per-scale statistics from. */
@@ -55,6 +56,31 @@ describe('generateScriptOptions - structural validity', () => {
         expect(script.environmentAmbition).toBeLessThanOrEqual(1);
         expect(script.effectsAmbition).toBeGreaterThanOrEqual(0);
         expect(script.effectsAmbition).toBeLessThanOrEqual(1);
+
+        expect(SETTING_ARCHETYPE_PROFILES[script.primarySetting]).toBeDefined();
+
+        const leads = script.cast.filter((c) => c.prominence === 'Lead');
+        const supporting = script.cast.filter((c) => c.prominence === 'Supporting');
+        const minor = script.cast.filter((c) => c.prominence === 'Minor');
+        expect(leads.length).toBe(script.requiredLeads);
+        expect(supporting.length).toBe(script.requiredSupporting);
+        expect(minor.length).toBeGreaterThanOrEqual(0);
+        expect(minor.length).toBeLessThanOrEqual(2);
+        // Lead-then-Supporting-then-Minor ordering is a contract
+        // (engine/castRequirements.ts:characterForRoleSlot relies on it) -
+        // not just a coincidence of how generateCast happens to build the array.
+        expect(script.cast.slice(0, leads.length).every((c) => c.prominence === 'Lead')).toBe(true);
+        expect(script.cast.slice(leads.length, leads.length + supporting.length).every((c) => c.prominence === 'Supporting')).toBe(true);
+
+        const characterIds = new Set(script.cast.map((c) => c.id));
+        expect(characterIds.size).toBe(script.cast.length);
+        for (const character of script.cast) {
+          expect(character.name.length).toBeGreaterThan(0);
+          for (const value of Object.values(character.traits)) {
+            expect(value).toBeGreaterThanOrEqual(1);
+            expect(value).toBeLessThanOrEqual(100);
+          }
+        }
       }
     }
   });
@@ -65,13 +91,18 @@ describe('generateScriptOptions - structural validity', () => {
     expect(titles.size).toBe(scripts.length);
   });
 
-  it('is deterministic - the same seed produces an identical slate, aside from the process-global id counter', () => {
-    // `id` is a module-level monotonic counter (nextScriptId), not derived
-    // from the rng - two calls in the same test process never get the same
-    // ids even with an identical seed, by design (ids just need to be
-    // unique within a process, not reproducible). Every other field is
-    // fully rng-derived and must match exactly.
-    const stripId = (scripts: ReturnType<typeof generateScriptOptions>) => scripts.map(({ id: _id, ...rest }) => rest);
+  it('is deterministic - the same seed produces an identical slate, aside from the process-global id counters', () => {
+    // Both `id` (nextScriptId) and each cast member's `id` (nextCharacterId)
+    // are module-level monotonic counters, not derived from the rng - two
+    // calls in the same test process never get the same ids even with an
+    // identical seed, by design (ids just need to be unique within a
+    // process, not reproducible). Every other field, including every other
+    // ScriptCharacter field, is fully rng-derived and must match exactly.
+    const stripId = (scripts: ReturnType<typeof generateScriptOptions>) =>
+      scripts.map(({ id: _id, cast, ...rest }) => ({
+        ...rest,
+        cast: cast.map(({ id: _characterId, ...character }) => character),
+      }));
     const a = generateScriptOptions('Drama', createRng(777), 12);
     const b = generateScriptOptions('Drama', createRng(777), 12);
     expect(stripId(a)).toEqual(stripId(b));
@@ -136,11 +167,11 @@ describe('production requirements emerge from the concept, not independently', (
     );
   });
 
-  it('Historical-setting scripts always carry periodSetting: true; Modern-setting scripts never do', () => {
+  it("a script's periodSetting always matches its Setting Archetype's own periodSetting flag", () => {
     const sample = bigSample('Drama', 16, 300);
     for (const script of sample) {
-      if (script.setting === 'Historical') expect(script.productionRequirements.periodSetting).toBe(true);
-      if (script.setting === 'Modern') expect(script.productionRequirements.periodSetting).toBe(false);
+      const setting = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
+      expect(script.productionRequirements.periodSetting).toBe(setting.periodSetting);
     }
   });
 
@@ -151,6 +182,45 @@ describe('production requirements emerge from the concept, not independently', (
     expect(epic.length).toBeGreaterThan(0);
     expect(intimate.length).toBeGreaterThan(0);
     expect(average(epic.map((s) => s.cost))).toBeGreaterThan(average(intimate.map((s) => s.cost)) * 1.3);
+  });
+});
+
+// Character and Setting Foundations milestone
+// (docs/CHARACTER_AND_SETTING_FOUNDATIONS.md section 4) - Setting Archetype
+// and Character Archetype generation are genre/story-type-weighted, not
+// independent uniform rolls, mirroring the same coherence guarantee already
+// tested above for Script Archetype/Story Type/production requirements.
+describe('generateScriptOptions - genre-weighted Setting and Character generation', () => {
+  it('Horror scripts land on Horror-affine settings (HauntedLocation/RuralWilderness/SingleInteriorLocation/SmallTown) far more often than Romance scripts do', () => {
+    const horrorAffine = new Set(['HauntedLocation', 'RuralWilderness', 'SingleInteriorLocation', 'SmallTown']);
+    const horror = bigSample('Horror', 20, 500);
+    const romance = bigSample('Romance', 21, 500);
+    const horrorFraction = horror.filter((s) => horrorAffine.has(s.primarySetting)).length / horror.length;
+    const romanceFraction = romance.filter((s) => horrorAffine.has(s.primarySetting)).length / romance.length;
+    expect(horrorFraction).toBeGreaterThan(romanceFraction);
+  });
+
+  it('Horror scripts cast Survivor/MonsterOrCreature/Outsider leads meaningfully more often than Romance scripts do', () => {
+    const horrorAffineArchetypes = new Set(['Survivor', 'MonsterOrCreature', 'Outsider']);
+    const horror = bigSample('Horror', 22, 500);
+    const romance = bigSample('Romance', 23, 500);
+    const fractionOf = (scripts: Script[]) => {
+      const leads = scripts.flatMap((s) => s.cast.filter((c) => c.prominence === 'Lead'));
+      return leads.filter((c) => horrorAffineArchetypes.has(c.archetype)).length / leads.length;
+    };
+    expect(fractionOf(horror)).toBeGreaterThan(fractionOf(romance));
+  });
+
+  it('LoveInterest characters appear meaningfully more often in Romance scripts than in War scripts', () => {
+    const romance = bigSample('Romance', 24, 500);
+    const war = bigSample('Drama', 25, 500).filter((s) => s.storyType === 'War');
+    const fractionOf = (scripts: Script[]) => {
+      const totalCast = scripts.flatMap((s) => s.cast);
+      if (totalCast.length === 0) return 0;
+      return totalCast.filter((c) => c.archetype === 'LoveInterest').length / totalCast.length;
+    };
+    expect(war.length).toBeGreaterThan(0);
+    expect(fractionOf(romance)).toBeGreaterThan(fractionOf(war));
   });
 });
 

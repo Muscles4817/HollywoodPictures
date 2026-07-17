@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
 import { TALENT_PRESENTATION, type RoleCategory } from '../../data/talentPresentation';
-import { effectiveRoleCapacity } from '../../engine/castRequirements';
+import { effectiveRoleCapacity, characterForRoleSlot } from '../../engine/castRequirements';
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { deriveBookedUntil, getTypicalSalaryForRole } from '../../engine/person';
@@ -14,7 +14,7 @@ import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
 import { formatMoney } from '../common/Money';
 import { TalentStats } from '../common/TalentStats';
-import type { Person, ProductionRole, Script } from '../../types';
+import type { Person, ProductionRole, Script, ScriptCharacter } from '../../types';
 
 const VFX_RECOMMENDED_GENRES = new Set(['Action', 'Sci-Fi', 'Fantasy']);
 const VISIBLE_CANDIDATE_COUNT = 9;
@@ -29,6 +29,7 @@ interface CandidateCardProps {
   role: ProductionRole;
   category: RoleCategory;
   script: Script | null;
+  character: ScriptCharacter | null;
   selected: boolean;
   disabled: boolean;
   booked: boolean;
@@ -38,12 +39,12 @@ interface CandidateCardProps {
   onTogglePin: () => void;
 }
 
-function CandidateCard({ person, role, category, script, selected, disabled, booked, pinned, pinCapped, onSelect, onTogglePin }: CandidateCardProps) {
+function CandidateCard({ person, role, category, script, character, selected, disabled, booked, pinned, pinCapped, onSelect, onTogglePin }: CandidateCardProps) {
   const bookedUntil = deriveBookedUntil(person.availability.commitments);
   return (
     <Card selectable selected={selected} disabled={disabled} onClick={onSelect}>
       <div className="card-title">{person.identity.name}</div>
-      <TalentStats person={person} role={role} category={category} script={script} />
+      <TalentStats person={person} role={role} category={category} script={script} character={character} />
       <Button
         className="btn-sm"
         variant={pinned ? 'primary' : 'secondary'}
@@ -118,6 +119,19 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
 
   const allTalent = Object.values(state.talentPool).flat();
   const pinnedTalent = pinnedTalentIds.map((id) => allTalent.find((t) => t.id === id)).filter((t): t is Person => t !== undefined);
+
+  // Which specific script.cast Character a candidate is being sized up
+  // against - an already-hired person keeps the slot they actually filled,
+  // an unhired candidate is evaluated against whichever slot they'd fill
+  // *next* (hired.length), matching characterForRoleSlot's own
+  // fill-in-order contract (engine/castRequirements.ts). null for every
+  // non-actor role and once a role's Character slots are exhausted.
+  function characterForCandidate(person: Person): ReturnType<typeof characterForRoleSlot> | null {
+    if (!draft.script) return null;
+    const selected = hired.some((h) => h.id === person.id);
+    const slotIndex = selected ? hired.findIndex((h) => h.id === person.id) : hired.length;
+    return characterForRoleSlot(draft.script, role, slotIndex);
+  }
 
   function togglePin(person: Person) {
     setPinnedTalentIds((prev) => {
@@ -194,6 +208,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
                 role={role}
                 category={profile.category}
                 script={draft.script}
+                character={characterForCandidate(person)}
                 selected={selected}
                 disabled={disabled}
                 booked={booked}
@@ -218,7 +233,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
                       <div className="card-title" style={{ marginBottom: 0 }}>{person.identity.name}</div>
                       <Button variant="text" onClick={() => togglePin(person)}>Unpin</Button>
                     </div>
-                    <TalentStats person={person} role={role} category={profile.category} script={draft.script} />
+                    <TalentStats person={person} role={role} category={profile.category} script={draft.script} character={characterForCandidate(person)} />
                     <Button
                       variant="primary"
                       style={{ marginTop: 8 }}

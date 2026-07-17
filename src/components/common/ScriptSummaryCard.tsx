@@ -26,7 +26,7 @@ export function ScriptSummaryCard({ script }: { script: Script }) {
       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
         <span className="badge">{ARCHETYPE_LABELS[script.archetype]}</span>
         {script.storyType !== 'Original' && <span className="badge">{STORY_TYPE_LABELS[script.storyType]}</span>}
-        <span className="badge">{SETTING_LABELS[script.setting]}</span>
+        <span className="badge">{SETTING_LABELS[script.primarySetting]}</span>
         <span className="badge">{SCALE_LABELS[script.scale]}</span>
       </div>
       <p className="card-synopsis" style={{ margin: 0 }}>{script.synopsis}</p>

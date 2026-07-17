@@ -372,7 +372,7 @@ export function AssetLibrary() {
         asset.script.synopsis,
         asset.script.genre,
         asset.script.storyType,
-        asset.script.setting,
+        asset.script.primarySetting,
         asset.script.scale,
         asset.script.intendedAudience,
         asset.source,

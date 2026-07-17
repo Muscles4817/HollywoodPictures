@@ -14,6 +14,8 @@ const base = {
   structure: 50,
   characters: 50,
   originality: 50,
+  primarySetting: 'ContemporaryCity' as const,
+  cast: [],
 };
 
 describe('deriveCommercialProfile', () => {

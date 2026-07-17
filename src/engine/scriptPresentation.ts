@@ -6,30 +6,27 @@
 // logic - kept here, not in a component file, since neither function
 // touches JSX.
 import { deriveCommercialProfile } from './commercialProfile';
-import type { Script } from '../types';
+import { SETTING_ARCHETYPE_PROFILES, type SettingProfile } from '../data/settings';
+import type { Script, ScriptCharacter, SettingArchetype } from '../types';
 
 // Threshold-to-tag mapping - drawn from the screenplay's own concept
-// (ProductionRequirements plus Setting/Story Type/Scale, never randomly),
-// answering "why is this production difficult or expensive" in concrete,
-// actionable terms instead of an abstract lean summary.
-//
-// A couple of the illustrative tags from the original design brief (child
-// actors, underwater filming) don't have an honest source in the current
-// model - nothing about a screenplay signals "shoots underwater," and
-// Coming of Age implies a young cast in general, not specifically child
-// actors - so they're approximated (`Young Cast`) or left out entirely
-// rather than fabricated. See docs/DESIGN.md for the full list of what
-// maps to what.
+// (ProductionRequirements plus the chosen Setting Archetype's own
+// production-pressure profile, Story Type, never randomly), answering "why
+// is this production difficult or expensive" in concrete, actionable terms
+// instead of an abstract lean summary. Reads SettingProfile's numeric
+// fields rather than checking specific archetype names, so adding a new
+// Setting Archetype later never means touching this function (Character and
+// Setting Foundations milestone).
 const HEAVY = 0.5;
 const NOTABLE = 0.4;
 export function productionRequirementTags(script: Script): string[] {
   const req = script.productionRequirements;
+  const setting = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
   const tags: string[] = [];
 
   if (req.periodSetting) tags.push('Period Costumes', 'Period Sets');
-  if (script.setting === 'Space') tags.push('Spacecraft Sets');
-  else if (script.setting === 'Fantasy') tags.push('Constructed Worlds');
-  else if (script.setting === 'SciFi' && req.locations >= HEAVY) tags.push('Remote Locations');
+  if (setting.vfxEnvironmentDemand >= HEAVY) tags.push('Constructed Worlds');
+  if (setting.containedProductionAffinity < NOTABLE && req.locations >= HEAVY) tags.push('Remote Locations');
 
   if (req.extras >= NOTABLE) tags.push('Large Ensemble');
   if (req.crowdWork >= NOTABLE) tags.push('Crowd Scenes');
@@ -45,9 +42,10 @@ export function productionRequirementTags(script: Script): string[] {
   if (script.storyType === 'Musical') tags.push('Musical Numbers');
   if (req.choreography >= NOTABLE) tags.push('Choreography');
 
-  if (!req.periodSetting && script.setting !== 'Space' && script.setting !== 'Fantasy' && req.locations >= HEAVY) {
+  if (setting.containedProductionAffinity < NOTABLE && req.locations >= HEAVY && !tags.includes('Remote Locations')) {
     tags.push('Large Locations');
   }
+  if (setting.travelDemand >= HEAVY) tags.push('Extensive Travel');
 
   return tags.length > 0 ? tags : ['Contained, straightforward production'];
 }
@@ -74,4 +72,60 @@ export function describeCostDrivers(script: Script): string {
   if (avgCraft >= 70) drivers.push('exceptional craft');
   if (drivers.length === 0) return 'A modest, straightforward production.';
   return `Priced for ${drivers.join(' and ')}.`;
+}
+
+const SETTING_IMPLICATION_HEAVY = 0.55;
+const SETTING_IMPLICATION_MAX_NOTES = 3;
+
+/**
+ * "What does this Setting Archetype actually imply for the shoot" - one
+ * short, plain-English sentence built from SettingProfile's own numeric
+ * pressure fields, e.g. "High environmental ambition, heavy digital
+ * environment work, and substantial production-design pressure." (Character
+ * and Setting Foundations milestone, section 6). Capped at three notes so a
+ * setting with several high readings doesn't turn into an unreadable list.
+ */
+export function describeSettingImplication(setting: SettingArchetype): string {
+  const profile: SettingProfile = SETTING_ARCHETYPE_PROFILES[setting];
+  const notes: string[] = [];
+  if (profile.environmentScale >= SETTING_IMPLICATION_HEAVY) notes.push('high environmental ambition');
+  else if (profile.containedProductionAffinity >= SETTING_IMPLICATION_HEAVY) notes.push('a contained, easily controlled shoot');
+  if (profile.vfxEnvironmentDemand >= SETTING_IMPLICATION_HEAVY) notes.push('heavy digital environment work');
+  if (profile.setConstructionDemand >= SETTING_IMPLICATION_HEAVY) notes.push('substantial production-design pressure');
+  if (profile.practicalLogisticsDemand >= SETTING_IMPLICATION_HEAVY) notes.push('significant real-world logistics');
+  if (profile.travelDemand >= SETTING_IMPLICATION_HEAVY) notes.push('a travel-heavy shoot');
+  if (profile.extrasDemand >= SETTING_IMPLICATION_HEAVY) notes.push('a large background cast');
+  if (notes.length === 0) return 'A moderate, unremarkable production footprint.';
+  const chosen = notes.slice(0, SETTING_IMPLICATION_MAX_NOTES);
+  const sentence = chosen.join(', ');
+  return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}.`;
+}
+
+const CHARACTER_DEMAND_NOTABLE = 45;
+const CHARACTER_DEMAND_MAX_NOTES = 3;
+
+/**
+ * "What does this role actually demand from whoever plays it" - the two or
+ * three highest CharacterTraitProfile readings among the five that map onto
+ * ActingStyle (see engine/compatibility.ts:computeCharacterCompatibility),
+ * e.g. "High charisma, emotional performance, and physical-performance
+ * demands." (section 6). dramaticDepth/audienceAccessibility/
+ * distinctiveness/merchandisePotential deliberately aren't shown here -
+ * they're not things an actor's own stats can satisfy.
+ */
+export function describeCharacterDemands(character: ScriptCharacter): string {
+  const { traits } = character;
+  const entries: Array<[label: string, value: number]> = [
+    ['charisma', traits.charismaDemand],
+    ['emotional performance', traits.emotionalDemand],
+    ['comedy', traits.comedyDemand],
+    ['physical performance', traits.physicalDemand],
+    ['transformation', traits.transformationDemand],
+  ];
+  const top = entries
+    .filter(([, value]) => value >= CHARACTER_DEMAND_NOTABLE)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, CHARACTER_DEMAND_MAX_NOTES);
+  if (top.length === 0) return 'No standout role demands.';
+  return `High ${top.map(([label]) => label).join(', ')} demand${top.length > 1 ? 's' : ''}.`;
 }

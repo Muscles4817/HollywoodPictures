@@ -137,3 +137,24 @@ describe('deriveProjectReadiness - warnings never block readiness', () => {
     expect(readiness.warnings.map((w) => w.code)).toContain('optional-vfx-supervisor-missing');
   });
 });
+
+// Character and Setting Foundations milestone
+// (docs/CHARACTER_AND_SETTING_FOUNDATIONS.md section 8) - underfunding an
+// ambitious Setting Archetype should surface a visible, non-blocking warning
+// rather than silently degrading quality with no explanation.
+describe('deriveProjectReadiness - setting-underfunded warning', () => {
+  it('fires, without blocking readiness, for an ambitious setting at a minimal (CHEAP_CHOICES) spend', () => {
+    const draft = readyDraft(31);
+    const ambitious = { ...draft, script: { ...draft.script!, primarySetting: 'FuturisticCity' as const } };
+    const readiness = deriveProjectReadiness(ambitious, 50_000_000);
+    expect(readiness.ready).toBe(true);
+    expect(readiness.warnings.map((w) => w.code)).toContain('setting-underfunded');
+  });
+
+  it('does not fire for a modest, low-ambition setting at the same minimal spend', () => {
+    const draft = readyDraft(32);
+    const modest = { ...draft, script: { ...draft.script!, primarySetting: 'SuburbanCommunity' as const } };
+    const readiness = deriveProjectReadiness(modest, 50_000_000);
+    expect(readiness.warnings.map((w) => w.code)).not.toContain('setting-underfunded');
+  });
+});

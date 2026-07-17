@@ -535,7 +535,7 @@ export function OutcomeInspector() {
         <SliderRow label="Dialogue" value={script.dialogue} min={0} max={100} onChange={(v) => updateScript('dialogue', v)} />
         <SliderRow label="Complexity" value={script.complexity} min={0} max={100} onChange={(v) => updateScript('complexity', v)} />
         <p className="choice-description" style={{ margin: '4px 0 0' }}>
-          {script.archetype} &middot; {script.storyType} &middot; {script.setting} &middot; {script.scale}
+          {script.archetype} &middot; {script.storyType} &middot; {script.primarySetting} &middot; {script.scale}
         </p>
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
           <p className="choice-description" style={{ margin: '0 0 8px' }}>

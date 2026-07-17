@@ -1,5 +1,6 @@
-import type { Script } from '../../types';
+import type { CharacterArchetype, CharacterProminence, Script, ScriptCharacter } from '../../types';
 import { estimateScriptCost } from '../../engine/scriptGenerator';
+import { CHARACTER_ARCHETYPE_PROFILES } from '../characterArchetypes';
 
 // Ten real films, hand-authored rather than procedurally generated - for
 // the Recommendation Inspector only (components/dev/RecommendationInspector.tsx).
@@ -21,6 +22,14 @@ function script(fields: Omit<Script, 'id' | 'cost'> & { id: string }): Script {
   return { ...fields, cost: estimateScriptCost(fields) };
 }
 
+// Same hand-picked, baseTraits-verbatim approach as data/testScripts.ts -
+// see that file's own comment. Kept independent on purpose (this file's own
+// header comment already explains why the two never share code).
+function character(name: string, archetype: CharacterArchetype, prominence: CharacterProminence): ScriptCharacter {
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  return { id, name, archetype, prominence, traits: { ...CHARACTER_ARCHETYPE_PROFILES[archetype].baseTraits } };
+}
+
 export const REFERENCE_SCRIPTS: Script[] = [
   script({
     id: 'ref-script-the-matrix',
@@ -28,7 +37,7 @@ export const REFERENCE_SCRIPTS: Script[] = [
     genre: 'Sci-Fi',
     archetype: 'Spectacle',
     storyType: 'Original',
-    setting: 'SciFi',
+    primarySetting: 'FuturisticCity',
     scale: 'Epic',
     originality: 88,
     structure: 82,
@@ -48,6 +57,13 @@ export const REFERENCE_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 3,
     intendedAudience: 'Mass Market',
+    cast: [
+      character('Neo', 'ChosenOne', 'Lead'),
+      character('Trinity', 'LoveInterest', 'Lead'),
+      character('Morpheus', 'Mentor', 'Supporting'),
+      character('Agent Smith', 'Villain', 'Supporting'),
+      character('Cypher', 'TragicVillain', 'Supporting'),
+    ],
   }),
   script({
     id: 'ref-script-jaws',
@@ -55,7 +71,7 @@ export const REFERENCE_SCRIPTS: Script[] = [
     genre: 'Thriller',
     archetype: 'CrowdPleaser',
     storyType: 'Original',
-    setting: 'Modern',
+    primarySetting: 'SmallTown',
     scale: 'Medium',
     originality: 75,
     structure: 88,
@@ -75,6 +91,13 @@ export const REFERENCE_SCRIPTS: Script[] = [
     requiredLeads: 3,
     requiredSupporting: 2,
     intendedAudience: 'Mass Market',
+    cast: [
+      character('Chief Brody', 'ReluctantHero', 'Lead'),
+      character('Matt Hooper', 'IdealisticHero', 'Lead'),
+      character('Quint', 'Antihero', 'Lead'),
+      character('Ellen Brody', 'FamilyMember', 'Supporting'),
+      character('Mayor Vaughn', 'AuthorityFigure', 'Supporting'),
+    ],
   }),
   script({
     id: 'ref-script-blair-witch',
@@ -82,7 +105,7 @@ export const REFERENCE_SCRIPTS: Script[] = [
     genre: 'Horror',
     archetype: 'OriginalVision',
     storyType: 'Original',
-    setting: 'Modern',
+    primarySetting: 'RuralWilderness',
     scale: 'Intimate',
     originality: 92,
     structure: 60,
@@ -102,6 +125,11 @@ export const REFERENCE_SCRIPTS: Script[] = [
     requiredLeads: 3,
     requiredSupporting: 0,
     intendedAudience: 'Niche',
+    cast: [
+      character('Heather', 'ReluctantHero', 'Lead'),
+      character('Josh', 'Outsider', 'Lead'),
+      character('Mike', 'Survivor', 'Lead'),
+    ],
   }),
   script({
     id: 'ref-script-fellowship',
@@ -109,7 +137,7 @@ export const REFERENCE_SCRIPTS: Script[] = [
     genre: 'Fantasy',
     archetype: 'Spectacle',
     storyType: 'Original',
-    setting: 'Fantasy',
+    primarySetting: 'FantasyRealm',
     scale: 'Epic',
     originality: 80,
     structure: 85,
@@ -129,6 +157,16 @@ export const REFERENCE_SCRIPTS: Script[] = [
     requiredLeads: 4,
     requiredSupporting: 4,
     intendedAudience: 'Mass Market',
+    cast: [
+      character('Frodo Baggins', 'ReluctantHero', 'Lead'),
+      character('Gandalf', 'Mentor', 'Lead'),
+      character('Aragorn', 'IdealisticHero', 'Lead'),
+      character('Samwise Gamgee', 'BestFriend', 'Lead'),
+      character('Boromir', 'TragicVillain', 'Supporting'),
+      character('Legolas', 'EnsembleMember', 'Supporting'),
+      character('Gimli', 'ComicRelief', 'Supporting'),
+      character('Saruman', 'Villain', 'Supporting'),
+    ],
   }),
   script({
     id: 'ref-script-before-sunrise',
@@ -136,7 +174,7 @@ export const REFERENCE_SCRIPTS: Script[] = [
     genre: 'Romance',
     archetype: 'Prestige',
     storyType: 'Original',
-    setting: 'Modern',
+    primarySetting: 'ContemporaryCity',
     scale: 'Intimate',
     originality: 82,
     structure: 70,
@@ -156,6 +194,10 @@ export const REFERENCE_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 0,
     intendedAudience: 'Adults',
+    cast: [
+      character('Jesse', 'IdealisticHero', 'Lead'),
+      character('Celine', 'LoveInterest', 'Lead'),
+    ],
   }),
   script({
     id: 'ref-script-fury-road',
@@ -163,7 +205,7 @@ export const REFERENCE_SCRIPTS: Script[] = [
     genre: 'Action',
     archetype: 'Spectacle',
     storyType: 'Original',
-    setting: 'SciFi',
+    primarySetting: 'PostApocalypticWasteland',
     scale: 'Epic',
     originality: 85,
     structure: 75,
@@ -183,6 +225,13 @@ export const REFERENCE_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 3,
     intendedAudience: 'Mass Market',
+    cast: [
+      character('Max', 'Survivor', 'Lead'),
+      character('Furiosa', 'Antihero', 'Lead'),
+      character('Immortan Joe', 'Villain', 'Supporting'),
+      character('Nux', 'TragicVillain', 'Supporting'),
+      character('Splendid', 'EnsembleMember', 'Supporting'),
+    ],
   }),
   script({
     id: 'ref-script-gravity',
@@ -190,7 +239,7 @@ export const REFERENCE_SCRIPTS: Script[] = [
     genre: 'Sci-Fi',
     archetype: 'Spectacle',
     storyType: 'Original',
-    setting: 'Space',
+    primarySetting: 'SpacecraftOrStation',
     scale: 'Medium',
     originality: 85,
     structure: 80,
@@ -210,6 +259,11 @@ export const REFERENCE_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 1,
     intendedAudience: 'Mass Market',
+    cast: [
+      character('Dr. Ryan Stone', 'Survivor', 'Lead'),
+      character('Matt Kowalski', 'Mentor', 'Lead'),
+      character('Shariff', 'EnsembleMember', 'Supporting'),
+    ],
   }),
   script({
     id: 'ref-script-12-angry-men',
@@ -217,7 +271,7 @@ export const REFERENCE_SCRIPTS: Script[] = [
     genre: 'Drama',
     archetype: 'Prestige',
     storyType: 'Original',
-    setting: 'Modern',
+    primarySetting: 'SingleInteriorLocation',
     scale: 'Intimate',
     originality: 78,
     structure: 95,
@@ -237,6 +291,13 @@ export const REFERENCE_SCRIPTS: Script[] = [
     requiredLeads: 1,
     requiredSupporting: 4,
     intendedAudience: 'Critics',
+    cast: [
+      character('Juror 8', 'IdealisticHero', 'Lead'),
+      character('Juror 3', 'Antihero', 'Supporting'),
+      character('Juror 10', 'Villain', 'Supporting'),
+      character('Juror 4', 'AuthorityFigure', 'Supporting'),
+      character('Juror 9', 'Mentor', 'Supporting'),
+    ],
   }),
   script({
     id: 'ref-script-jurassic-park',
@@ -244,7 +305,7 @@ export const REFERENCE_SCRIPTS: Script[] = [
     genre: 'Sci-Fi',
     archetype: 'Spectacle',
     storyType: 'Original',
-    setting: 'Modern',
+    primarySetting: 'RuralWilderness',
     scale: 'Epic',
     originality: 82,
     structure: 85,
@@ -264,6 +325,13 @@ export const REFERENCE_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 3,
     intendedAudience: 'Mass Market',
+    cast: [
+      character('Dr. Alan Grant', 'ReluctantHero', 'Lead'),
+      character('Dr. Ellie Sattler', 'IdealisticHero', 'Lead'),
+      character('John Hammond', 'Mentor', 'Supporting'),
+      character('Ian Malcolm', 'Rival', 'Supporting'),
+      character('Dennis Nedry', 'Villain', 'Supporting'),
+    ],
   }),
   script({
     id: 'ref-script-grand-budapest',
@@ -271,7 +339,7 @@ export const REFERENCE_SCRIPTS: Script[] = [
     genre: 'Comedy',
     archetype: 'Prestige',
     storyType: 'Original',
-    setting: 'Historical',
+    primarySetting: 'HistoricalCity',
     scale: 'Medium',
     originality: 90,
     structure: 82,
@@ -295,5 +363,13 @@ export const REFERENCE_SCRIPTS: Script[] = [
     requiredLeads: 2,
     requiredSupporting: 4,
     intendedAudience: 'Adults',
+    cast: [
+      character('M. Gustave', 'IdealisticHero', 'Lead'),
+      character('Zero Moustafa', 'Outsider', 'Lead'),
+      character('Madame D.', 'FamilyMember', 'Supporting'),
+      character('Dmitri', 'Villain', 'Supporting'),
+      character('Agatha', 'LoveInterest', 'Supporting'),
+      character('Deputy Kovacs', 'AuthorityFigure', 'Supporting'),
+    ],
   }),
 ];

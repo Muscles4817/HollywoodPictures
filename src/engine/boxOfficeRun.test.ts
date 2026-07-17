@@ -67,7 +67,7 @@ function freshFilm(id: string, releasedOnDay: number, fixed: AudienceSimulationF
     targetAudience: RELEASE_INPUTS.targetAudience,
     script: {
       id: 'script-1', title: 'Test Script', genre: RELEASE_INPUTS.genre,
-      archetype: 'GenreFormula', storyType: 'Original', setting: 'Modern', scale: 'Medium',
+      archetype: 'GenreFormula', storyType: 'Original', primarySetting: 'ContemporaryCity', scale: 'Medium',
       originality: 40,
       structure: 60, characters: 60, dialogue: 60, complexity: 50, cost: 1_000_000,
       toneProfile: { action: 50, comedy: 50, romance: 50, suspense: 50, drama: 50, spectacle: RELEASE_INPUTS.scriptSpectacle },
@@ -78,6 +78,7 @@ function freshFilm(id: string, releasedOnDay: number, fixed: AudienceSimulationF
         practicalEffects: 0.3, vfx: 0.3, stunts: 0.2, choreography: 0.1, crowdWork: 0.2,
       },
       synopsis: '', requiredLeads: 1, requiredSupporting: 1, intendedAudience: RELEASE_INPUTS.targetAudience,
+      cast: [],
     },
     talent: [],
     productionChoices: { contingencyAmount: 500_000, setQualityAmount: 500_000, practicalEffectsAmount: 500_000, vfxAmount: 500_000, runtimeIntensity: 0.5 },

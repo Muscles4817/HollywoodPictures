@@ -1,4 +1,4 @@
-import type { NormalizedScalar, StoryType, TargetAudience } from '../types';
+import type { NormalizedScalar, SettingArchetype, StoryType, TargetAudience } from '../types';
 
 // What a story hook implies about a production, independent of genre - a
 // Sports Drama and a Crime Drama are both Drama, but call for very
@@ -31,7 +31,7 @@ export interface StoryTypeProfile {
   // Nudges which ScriptScale/Setting/TargetAudience this story type
   // tends toward - default weight is 1 for any key left unlisted.
   scaleAffinity?: Partial<Record<'Intimate' | 'Medium' | 'Epic', number>>;
-  settingAffinity?: Partial<Record<'Modern' | 'Historical' | 'Fantasy' | 'SciFi' | 'Space', number>>;
+  settingAffinity?: Partial<Record<SettingArchetype, number>>;
   targetAudienceWeights: Partial<Record<TargetAudience, number>>;
 }
 
@@ -66,7 +66,10 @@ export const STORY_TYPE_PROFILES: Record<StoryType, StoryTypeProfile> = {
     extras: 0.3, locations: 0.4, practicalEffects: 0.25, vfx: 0.1, stunts: 0.1, choreography: 0.05, crowdWork: 0.2,
     vehiclesLikely: 0.15, animalsLikely: 0.05, castSizeMultiplier: 0.9,
     accessibility: 50, hookiness: 45,
-    settingAffinity: { Historical: 2, Modern: 1.3, Fantasy: 0.1, SciFi: 0.1, Space: 0.05 },
+    settingAffinity: {
+      HistoricalCity: 2, HistoricalBattlefield: 1.3, ContemporaryCity: 1.5, SmallTown: 1.2, Workplace: 1.2,
+      FantasyRealm: 0.1, AlienWorld: 0.05, SpacecraftOrStation: 0.05, FuturisticCity: 0.1,
+    },
     targetAudienceWeights: { Adults: 3, Critics: 2, 'Mass Market': 1 },
   },
   Documentary: {
@@ -75,7 +78,10 @@ export const STORY_TYPE_PROFILES: Record<StoryType, StoryTypeProfile> = {
     vehiclesLikely: 0.1, animalsLikely: 0.15, castSizeMultiplier: 0.15,
     accessibility: 25, hookiness: 20,
     scaleAffinity: { Intimate: 2.5, Medium: 1, Epic: 0.1 },
-    settingAffinity: { Modern: 2, Historical: 1, Fantasy: 0.02, SciFi: 0.02, Space: 0.02 },
+    settingAffinity: {
+      ContemporaryCity: 1.8, SmallTown: 1.5, Workplace: 1.5, RuralWilderness: 1.3, HistoricalCity: 1,
+      FantasyRealm: 0.02, AlienWorld: 0.02, SpacecraftOrStation: 0.02, FuturisticCity: 0.05,
+    },
     targetAudienceWeights: { Critics: 3, Niche: 3, Adults: 2 },
   },
   Crime: {
@@ -97,7 +103,10 @@ export const STORY_TYPE_PROFILES: Record<StoryType, StoryTypeProfile> = {
     extras: 0.5, locations: 0.4, practicalEffects: 0.4, vfx: 0.85, stunts: 0.75, choreography: 0.15, crowdWork: 0.6,
     vehiclesLikely: 0.3, animalsLikely: 0.02, castSizeMultiplier: 1,
     accessibility: 80, hookiness: 75,
-    settingAffinity: { Modern: 2, SciFi: 1.5, Fantasy: 1, Historical: 0.1, Space: 0.5 },
+    settingAffinity: {
+      ContemporaryCity: 2, FuturisticCity: 1.5, FantasyRealm: 1, HistoricalCity: 0.1, AlienWorld: 0.4,
+      SpacecraftOrStation: 0.4, ModernWarzone: 0.8,
+    },
     targetAudienceWeights: { 'Mass Market': 3, Teens: 3, Families: 1 },
   },
   War: {
@@ -105,7 +114,10 @@ export const STORY_TYPE_PROFILES: Record<StoryType, StoryTypeProfile> = {
     extras: 0.6, locations: 0.55, practicalEffects: 0.55, vfx: 0.35, stunts: 0.55, choreography: 0.05, crowdWork: 0.75,
     vehiclesLikely: 0.5, animalsLikely: 0.1, castSizeMultiplier: 1.1,
     accessibility: 45, hookiness: 45,
-    settingAffinity: { Historical: 2.5, Modern: 1, SciFi: 0.6, Space: 0.4, Fantasy: 0.4 },
+    settingAffinity: {
+      HistoricalBattlefield: 2.5, HistoricalCity: 1, ModernWarzone: 2, FuturisticCity: 0.4, AlienWorld: 0.2,
+      MedievalKingdom: 0.5, FantasyRealm: 0.3,
+    },
     targetAudienceWeights: { Adults: 3, 'Mass Market': 2, Critics: 1 },
   },
   ComingOfAge: {

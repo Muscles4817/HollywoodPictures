@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeRecommendedPreProductionDays } from './production';
+import { computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk } from './production';
 import { generateScriptOptions } from './scriptGenerator';
 import { generateTalentCandidates } from './talentGenerator';
 import { withRng } from './random';
@@ -80,5 +80,43 @@ describe('computeRecommendedPreProductionDays', () => {
     );
     expect(daysAtMaxRuntime).toBe(days);
     expect(daysAtHighSpend).toBe(days);
+  });
+});
+
+// Character and Setting Foundations milestone
+// (docs/CHARACTER_AND_SETTING_FOUNDATIONS.md section 8) - a travel-heavy,
+// logistically complex Setting Archetype should add real schedule and risk
+// pressure beyond what complexity/cast/effects ambition already capture.
+describe('computeRecommendedShootDays - Setting Archetype influence', () => {
+  it('a Global Multi-Location setting needs more shoot days than a Single Interior Location setting, all else equal', () => {
+    const talent = assignmentsOfSize(8, 6);
+    const choices = baseChoices();
+    const contained = baseScript(8, { primarySetting: 'SingleInteriorLocation' });
+    const travelHeavy = baseScript(8, { primarySetting: 'GlobalMultiLocation' });
+    expect(computeRecommendedShootDays(talent, travelHeavy, choices)).toBeGreaterThan(
+      computeRecommendedShootDays(talent, contained, choices),
+    );
+  });
+});
+
+describe('computeStaticProductionRisk - Setting Archetype influence', () => {
+  it('a logistically demanding setting (Underwater) carries more safety risk than a contained one (Single Interior Location), all else equal', () => {
+    const talent = assignmentsOfSize(9, 6);
+    const choices = baseChoices();
+    const contained = baseScript(9, { primarySetting: 'SingleInteriorLocation' });
+    const demanding = baseScript(9, { primarySetting: 'UnderwaterEnvironment' });
+    const containedRisk = computeStaticProductionRisk(talent, contained, choices, 'Action');
+    const demandingRisk = computeStaticProductionRisk(talent, demanding, choices, 'Action');
+    expect(demandingRisk.safetyRisk).toBeGreaterThan(containedRisk.safetyRisk);
+  });
+
+  it('an ambitious setting (Futuristic City) underfunded relative to a minimal spend carries more budget risk than a modest setting at the same spend', () => {
+    const talent = assignmentsOfSize(10, 6);
+    const minimalSpend = baseChoices({ practicalEffectsAmount: PRACTICAL_EFFECTS_RANGE.min, vfxAmount: VFX_RANGE.min, contingencyAmount: 0, setQualityAmount: 0 });
+    const modest = baseScript(10, { primarySetting: 'SuburbanCommunity' });
+    const ambitious = baseScript(10, { primarySetting: 'FuturisticCity' });
+    const modestRisk = computeStaticProductionRisk(talent, modest, minimalSpend, 'Action');
+    const ambitiousRisk = computeStaticProductionRisk(talent, ambitious, minimalSpend, 'Action');
+    expect(ambitiousRisk.budgetRisk).toBeGreaterThan(modestRisk.budgetRisk);
   });
 });

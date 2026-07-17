@@ -20,6 +20,7 @@ import {
   type ProductionEventTemplate,
 } from '../data/productionEvents';
 import { GENRE_PROFILES } from '../data/genres';
+import { SETTING_ARCHETYPE_PROFILES } from '../data/settings';
 import { contingencyT, practicalEffectsT, vfxT, overallSpendT } from './productionDials';
 import { computeTalentCompatibility } from './compatibility';
 import { findCandidatesNearPrice } from './talentFilter';
@@ -32,6 +33,7 @@ const MAX_COMPLEXITY_DAYS = 35;
 const MAX_CAST_SIZE_DAYS = 12;
 const MAX_RUNTIME_DAYS = 12;
 const MAX_EFFECTS_DAYS = 15;
+const MAX_SETTING_DAYS = 12;
 const CAST_SIZE_BASELINE = 6; // roughly the mandatory-roles floor before any multi-hire roles kick in
 
 /**
@@ -41,14 +43,20 @@ const CAST_SIZE_BASELINE = 6; // roughly the mandatory-roles floor before any mu
  * they're done. Driven by the same inputs already behind the risk
  * dimensions below: a complex, ensemble, effects-heavy film needs more
  * time than a small, simple one, independent of how many days the player
- * actually gives it.
+ * actually gives it. `settingDays` (Character and Setting Foundations
+ * milestone) adds real schedule pressure for a travel-heavy or logistically
+ * complex Setting Archetype (Global Multi-Location, Underwater) beyond what
+ * complexity/cast/effects already capture - a Single Interior Location sits
+ * near zero here, a Global Multi-Location shoot adds real time.
  */
 export function computeRecommendedShootDays(talent: TalentAssignment[], script: Script, choices: ProductionChoices): number {
   const complexityDays = (script.complexity / 100) * MAX_COMPLEXITY_DAYS;
   const castDays = clamp((talent.length - CAST_SIZE_BASELINE) * 1.5, 0, MAX_CAST_SIZE_DAYS);
   const runtimeDays = choices.runtimeIntensity * MAX_RUNTIME_DAYS;
   const effectsDays = (practicalEffectsT(choices.practicalEffectsAmount) + vfxT(choices.vfxAmount)) * (MAX_EFFECTS_DAYS / 2);
-  return Math.round(BASE_SHOOT_DAYS + complexityDays + castDays + runtimeDays + effectsDays);
+  const settingProfile = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
+  const settingDays = (settingProfile.travelDemand * 0.6 + settingProfile.locationComplexity * 0.4) * MAX_SETTING_DAYS;
+  return Math.round(BASE_SHOOT_DAYS + complexityDays + castDays + runtimeDays + effectsDays + settingDays);
 }
 
 const BASE_PREPRODUCTION_DAYS = 14;
@@ -102,11 +110,20 @@ export function computeStaticProductionRisk(
   // clash or flake, independent of the shoot's physical/technical demands.
   const moraleRisk = clamp(Math.round(unreliabilityRisk * 0.6 + avgEgo * 0.4), 0, 100);
 
+  const settingProfile = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
+
   // Physical/stunt danger: how ambitious the practical-effects spend is,
-  // offset by how much contingency margin exists to do it safely.
+  // plus how logistically demanding the Setting Archetype itself is
+  // (Underwater/Rural Wilderness carry real physical risk independent of
+  // the effects budget), offset by how much contingency margin exists to
+  // do it safely.
   const practicalAmbitionT = practicalEffectsT(choices.practicalEffectsAmount);
   const contingencyMitigation = contingencyT(choices.contingencyAmount);
-  const safetyRisk = clamp(Math.round(20 + practicalAmbitionT * 60 - contingencyMitigation * 35), 0, 100);
+  const safetyRisk = clamp(
+    Math.round(20 + practicalAmbitionT * 50 + settingProfile.practicalLogisticsDemand * 20 - contingencyMitigation * 35),
+    0,
+    100,
+  );
 
   // Technical/creative difficulty: VFX ambition and script complexity,
   // offset by contingency margin (money helps absorb a technical hiccup,
@@ -121,14 +138,21 @@ export function computeStaticProductionRisk(
 
   // Is this production resourced for what it's actually trying to do? Not
   // "is the budget low" in isolation but low *relative to* what the
-  // genre's VFX/practical importance and the script's own complexity call
-  // for - an Action film and a Drama at the same spend level don't carry
-  // the same risk.
+  // genre's VFX/practical importance, the script's own complexity, and the
+  // chosen Setting Archetype's own production-pressure profile call for -
+  // an Action film and a Drama at the same spend level don't carry the same
+  // risk, and neither do a Single Interior Location and a Futuristic City
+  // script at the same spend level. This is the "underfunded ambitious
+  // setting" signal the milestone's own design calls for (see
+  // engine/projectReadiness.ts's setting-underfunded warning) - never a
+  // hard block, just a visible risk reading the player can choose to ignore.
   const genreProfile = GENRE_PROFILES[genre];
   const genreAmbition = (genreProfile.vfxImportance + genreProfile.practicalEffectsImportance) / 2;
+  const settingAmbition =
+    (settingProfile.environmentScale + settingProfile.setConstructionDemand + settingProfile.vfxEnvironmentDemand) / 3;
   const spendT = overallSpendT(choices);
   const budgetRisk = clamp(
-    Math.round(20 + (genreAmbition - spendT) * 60 + (complexityT - spendT) * 20),
+    Math.round(20 + (genreAmbition - spendT) * 40 + (settingAmbition - spendT) * 25 + (complexityT - spendT) * 20),
     0,
     100,
   );

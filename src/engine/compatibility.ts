@@ -1,4 +1,4 @@
-import type { ActingStyle, Person, ProductionRole, Script, Tone, ToneProfile } from '../types';
+import type { ActingStyle, CharacterTraitProfile, Person, ProductionRole, Script, ScriptCharacter, Tone, ToneProfile } from '../types';
 import { TONES } from '../data/tones';
 import { ACTING_STYLE_TONE_WEIGHTS } from '../data/actingStyle';
 import { professionForProductionRole } from '../data/helpers';
@@ -120,4 +120,42 @@ export function computeTalentCompatibilityBreakdown(person: Person, role: Produc
     return career ? computeCompatibilityBreakdown(script.toneProfile, deriveToneFromActingStyle(career.actingStyle)) : null;
   }
   return null;
+}
+
+// --- Character compatibility (Character and Setting Foundations milestone) -
+//
+// A second, independent compatibility reading, alongside (not instead of)
+// computeTalentCompatibility above - that one asks "does this actor's whole
+// style suit the film's tone," this one asks "does this actor's style suit
+// the *specific role* they'd be playing." See
+// docs/CHARACTER_AND_SETTING_FOUNDATIONS.md section 7.
+
+/** ActingStyle's five axes, mapped onto the CharacterTraitProfile fields they overlap with - the only two vocabularies compared here (dramaticDepth/audienceAccessibility/distinctiveness/merchandisePotential have no actor-stat equivalent, see ScriptCharacter's own doc comment in types/index.ts). Exported so UI (components/common/TalentStats.tsx) can build a matching per-axis breakdown for the character-fit badge without duplicating this mapping. */
+export const ACTING_STYLE_TO_CHARACTER_TRAIT: Record<keyof ActingStyle, keyof CharacterTraitProfile> = {
+  characterTransformation: 'transformationDemand',
+  emotionalPerformance: 'emotionalDemand',
+  charisma: 'charismaDemand',
+  comedy: 'comedyDemand',
+  physicalPerformance: 'physicalDemand',
+};
+
+/**
+ * How well an actor's own ActingStyle suits a *specific* Character's trait
+ * demands - a direct, unweighted 1-100 comparison across the five
+ * dimensions the two vocabularies share, deliberately simpler than
+ * computeCompatibility's tone-weighted formula (this is explicitly a
+ * first-pass calculation, see the design doc). A high-comedy actor reads as
+ * a strong fit for a high-comedyDemand character regardless of what either
+ * number says about drama or physicality.
+ */
+export function computeCharacterCompatibility(actingStyle: ActingStyle, traits: CharacterTraitProfile): number {
+  const axes = Object.keys(ACTING_STYLE_TO_CHARACTER_TRAIT) as Array<keyof ActingStyle>;
+  const totalGap = axes.reduce((sum, axis) => sum + Math.abs(actingStyle[axis] - traits[ACTING_STYLE_TO_CHARACTER_TRAIT[axis]]), 0);
+  return clamp(100 - totalGap / axes.length, 0, 100);
+}
+
+/** Person-level wrapper - null if this person has no Actor career at all (mirrors computeTalentCompatibility's own null-for-not-applicable convention). */
+export function computeActorCharacterCompatibility(person: Person, character: ScriptCharacter): number | null {
+  const career = person.careers.actor;
+  return career ? computeCharacterCompatibility(career.actingStyle, character.traits) : null;
 }
