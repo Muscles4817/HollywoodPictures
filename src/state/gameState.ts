@@ -273,4 +273,18 @@ export type GameAction =
   // Dashboard -> every one of the player's own current projects, one card
   // each, grouped by stage (components/ProjectsPage.tsx). Pure detour, same
   // as VIEW_STATS - doesn't touch the calendar or focusedProjectId.
-  | { type: 'VIEW_PROJECTS' };
+  | { type: 'VIEW_PROJECTS' }
+  // Driven by the browser's own Back/Forward buttons (App.tsx), never
+  // dispatched directly by the UI - restores an exact prior screen/focus/
+  // detour snapshot rather than deriving it from the current one, since
+  // Back/Forward can jump more than one step in either direction. See
+  // studioReducer.ts's own case for why this is the one navigation action
+  // that has to tolerate a stale project/rival reference.
+  | {
+      type: 'RESTORE_NAVIGATION';
+      screen: Screen;
+      focusedProjectId: string | null;
+      projectWorkspaceSection: ProjectWorkspaceSection;
+      viewingRivalStudioName: string | null;
+      viewingProductionId: string | null;
+    };

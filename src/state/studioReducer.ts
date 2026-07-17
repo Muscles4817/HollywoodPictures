@@ -1136,6 +1136,31 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'VIEW_PROJECTS':
       return { ...state, screen: 'projects', ...clearTransientView() };
 
+    // Restores an exact prior "page" - see GameAction's own comment on why
+    // this one, unlike every other navigation action, can't just trust its
+    // payload: the project or rival a browser history entry points at may
+    // have been abandoned or otherwise stopped existing since the player was
+    // last there. Falls back to the Dashboard, exactly like
+    // RETURN_TO_DASHBOARD, rather than restoring a reference to something
+    // that's gone.
+    case 'RESTORE_NAVIGATION': {
+      const focusedStillExists = action.focusedProjectId === null || findProject(state.projects, action.focusedProjectId) !== null;
+      const viewedProductionStillExists = action.viewingProductionId === null || findProject(state.projects, action.viewingProductionId) !== null;
+      const viewedRivalStillExists =
+        action.viewingRivalStudioName === null || state.rivalStudios.some((r) => r.name === action.viewingRivalStudioName);
+      if (!focusedStillExists || !viewedProductionStillExists || !viewedRivalStillExists) {
+        return { ...state, screen: 'dashboard', focusedProjectId: null, projectWorkspaceSection: 'overview', ...clearTransientView() };
+      }
+      return {
+        ...state,
+        screen: action.screen,
+        focusedProjectId: action.focusedProjectId,
+        projectWorkspaceSection: action.projectWorkspaceSection,
+        viewingRivalStudioName: action.viewingRivalStudioName,
+        viewingProductionId: action.viewingProductionId,
+      };
+    }
+
     default:
       return state;
   }

@@ -18,7 +18,7 @@ import { ReleaseResults } from './components/wizard/ReleaseResults';
 import { OpportunityMarket } from './components/OpportunityMarket';
 import { AssetLibrary } from './components/AssetLibrary';
 import { ProjectsPage } from './components/ProjectsPage';
-import type { Screen } from './types';
+import type { ProjectWorkspaceSection, Screen } from './types';
 import { DAY_TICK_MS, type TickSpeedMultiplier } from './constants';
 
 // Every wizard screen where the player is setting choices with no clock
@@ -74,6 +74,30 @@ export function computeTicking(
   return (!PLANNING_SCREENS.has(screen) || backgroundProductionViewed) && !paused && !inboxOpen;
 }
 
+// The full "which page is the player on" reading - every field the browser
+// history wiring below (and state/gameState.ts:RESTORE_NAVIGATION) treats as
+// one navigable "page." Mirrors exactly the five GameState fields TOGGLE/
+// VIEW_*/OPEN_PROJECT_WORKSPACE_SECTION actions themselves set, since
+// restoring a workspace tab or a detour view on Back/Forward needs the same
+// fields a normal in-game navigation does.
+interface NavigationSnapshot {
+  screen: Screen;
+  focusedProjectId: string | null;
+  projectWorkspaceSection: ProjectWorkspaceSection;
+  viewingRivalStudioName: string | null;
+  viewingProductionId: string | null;
+}
+
+function navigationSnapshotOf(state: NavigationSnapshot): NavigationSnapshot {
+  return {
+    screen: state.screen,
+    focusedProjectId: state.focusedProjectId,
+    projectWorkspaceSection: state.projectWorkspaceSection,
+    viewingRivalStudioName: state.viewingRivalStudioName,
+    viewingProductionId: state.viewingProductionId,
+  };
+}
+
 function AppShell() {
   const { state, dispatch } = useStudio();
   // A manual pause on the background day-tick (Header's pause button) -
@@ -106,6 +130,33 @@ function AppShell() {
   // persisted, reachable from any screen via the header.
   const [devTool, setDevTool] = useState<DevTool>('none');
 
+  // Spacebar toggles the same manual pause the header's own Pause/Resume
+  // button does - a common enough game convention that it's worth wiring up
+  // globally rather than only from that one button. Skipped while focus is
+  // on an interactive element (a text field, a range slider, a button, ...)
+  // so it doesn't hijack space's own native behavior there (typing a space,
+  // dragging a slider, activating a focused button) - a focused Pause button
+  // in particular would otherwise double-toggle: once from the browser's own
+  // "space activates the focused button" behavior, once from this handler.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.code !== 'Space') return;
+      const active = document.activeElement;
+      const isInteractive =
+        active instanceof HTMLElement &&
+        (active.tagName === 'INPUT' ||
+          active.tagName === 'TEXTAREA' ||
+          active.tagName === 'SELECT' ||
+          active.tagName === 'BUTTON' ||
+          active.isContentEditable);
+      if (isInteractive) return;
+      e.preventDefault(); // stop the page from scrolling on space
+      setPaused((p) => !p);
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Every screen switch (forward or back) starts scrolled to the top - a
   // long wizard screen doesn't otherwise reset scroll position on
   // navigation, which left the player dropped mid-page on whatever the
@@ -115,6 +166,47 @@ function AppShell() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [state.screen]);
+
+  // Makes the browser's own Back/Forward buttons move through the game's
+  // in-game navigation history instead of leaving the app (or doing nothing,
+  // with no history entries of our own). Every distinct screen/focused-
+  // project/workspace-tab/detour combination pushes its own history entry,
+  // carrying the full NavigationSnapshot as history.state rather than just a
+  // screen name; RESTORE_NAVIGATION (state/studioReducer.ts) is what
+  // actually applies it once popped. Guarded by lastPushedSnapshotRef so
+  // this doesn't push a *second* entry for the same navigation it's already
+  // pushed one for, and - critically - doesn't push at all when the state
+  // change it's reacting to was itself a pop (see the popstate handler
+  // below, which updates the ref before dispatching).
+  const lastPushedSnapshotRef = useRef<string | null>(null);
+  const isFirstNavigationRef = useRef(true);
+  useEffect(() => {
+    const snapshot = navigationSnapshotOf(state);
+    const key = JSON.stringify(snapshot);
+    if (key === lastPushedSnapshotRef.current) return;
+    lastPushedSnapshotRef.current = key;
+    // The very first entry (the page's own initial load) has no state of
+    // ours on it yet - replace it in place rather than pushing on top, so
+    // Back from the second "page" lands on a real snapshot (the starting
+    // Dashboard) instead of an empty one.
+    if (isFirstNavigationRef.current) {
+      isFirstNavigationRef.current = false;
+      window.history.replaceState(snapshot, '');
+    } else {
+      window.history.pushState(snapshot, '');
+    }
+  }, [state.screen, state.focusedProjectId, state.projectWorkspaceSection, state.viewingRivalStudioName, state.viewingProductionId]);
+
+  useEffect(() => {
+    function handlePopState(e: PopStateEvent) {
+      const snapshot = e.state as NavigationSnapshot | null;
+      if (!snapshot) return; // predates our own history entries - nothing to restore
+      lastPushedSnapshotRef.current = JSON.stringify(snapshot);
+      dispatch({ type: 'RESTORE_NAVIGATION', ...snapshot });
+    }
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [dispatch]);
 
   // A screen change clears any manual pause - see `paused` above. Most
   // time-costing player actions (GO_TO_STEP, RELEASE_FILM) are themselves
