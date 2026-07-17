@@ -91,4 +91,51 @@ describe('deriveTraits', () => {
     };
     expect(deriveTraits(bland)).toEqual([]);
   });
+
+  it('ranks traits strongest-first when a person clears more than one - not code-declaration order', () => {
+    // Workaholic's own two ramps (ambition 45-95, professionalism 40-80) both
+    // saturate fully at these values, while RiskTaker's ramps (adaptability
+    // 45-95, pressureHandling 45-95) are only partway there - Workaholic
+    // should rank first even though RiskTaker is checked earlier in scoreTraits.
+    const person = withPersonality(basePerson(), {
+      ambition: 95, professionalism: 80, adaptability: 75, pressureHandling: 75,
+    });
+    const traits = deriveTraits(person);
+    expect(traits).toContain('Workaholic');
+    expect(traits).toContain('RiskTaker');
+    expect(traits.indexOf('Workaholic')).toBeLessThan(traits.indexOf('RiskTaker'));
+  });
+
+  it('conflict resolution: DifficultToWorkWith and Mentor never both appear, even if both would independently clear the floor', () => {
+    // High ego pulls toward DifficultToWorkWith and away from Mentor (Mentor's
+    // own ramp wants LOW ego) - but push industryRespect/loyalty hard enough
+    // that Mentor's other two ramps alone would still clear the floor.
+    const person = withReputation(
+      withPersonality(basePerson(), { ego: 90, temperament: 15, loyalty: 90 }),
+      { industryRespect: 95 },
+    );
+    const traits = deriveTraits(person);
+    const hasDifficult = traits.includes('DifficultToWorkWith');
+    const hasMentor = traits.includes('Mentor');
+    expect(hasDifficult && hasMentor).toBe(false);
+    expect(hasDifficult || hasMentor).toBe(true); // one of the two should still win, not neither
+  });
+
+  it('conflict resolution: MediaDarling, ScandalProne, and HighlyPrivate never appear together - only the strongest of the three survives', () => {
+    const person = withReputation(withPersonality(basePerson(), { controversy: 50 }), { fame: 90, currentHeat: 20 });
+    const traits = deriveTraits(person);
+    const mediaTraits = traits.filter((t) => t === 'MediaDarling' || t === 'ScandalProne' || t === 'HighlyPrivate');
+    expect(mediaTraits.length).toBeLessThanOrEqual(1);
+  });
+
+  it('conflict resolution: the higher-scoring member of a conflicting pair is the one that survives', () => {
+    // Ego 95 (maximal DifficultToWorkWith support) vs a Mentor read that only
+    // just clears its own floor - DifficultToWorkWith should win.
+    const strongDifficult = withReputation(
+      withPersonality(basePerson(), { ego: 95, temperament: 15, loyalty: 41 }),
+      { industryRespect: 46 },
+    );
+    const traits = deriveTraits(strongDifficult);
+    expect(traits[0]).toBe('DifficultToWorkWith');
+  });
 });

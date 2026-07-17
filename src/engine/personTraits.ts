@@ -10,37 +10,60 @@
 // introduce state when reality genuinely requires it" rule (docs/DESIGN.md
 // 5.34): nothing here can ever go stale, because nothing is stored.
 //
-// First-draft thresholds, tunable like every other cutoff in this
-// simulation - a person can and often will match more than one.
+// Scored, not boolean: each trait gets a continuous 0-100 match strength
+// (via `ramp` below) rather than a single hard cutoff, so two people who
+// both clear a threshold don't read as identically "difficult" when one is
+// barely over the line and the other is off the scale - and so the trait
+// list can be genuinely ranked (deriveTraits returns strongest-first, not
+// "whichever happened to be checked first in code"). Conflict resolution
+// (CONFLICT_GROUPS) then drops the weaker member of any pair/group of
+// traits that can't both be someone's defining characteristic at once (a
+// person reads as either the Difficult one or the Mentor, not both, even if
+// their raw stats technically clear both floors). First-draft thresholds,
+// tunable like every other cutoff in this simulation.
 import type { Person, PersonTrait } from '../types';
+import { clamp } from './random';
 
-const HIGH = 70;
+/** Linear 0-100 ramp from `from` to `to` - `to` can be lower than `from` for a "low value = full support" signal (e.g. ramp(temperament, 55, 15) reads low temperament as strong support). */
+function ramp(value: number, from: number, to: number): number {
+  if (from === to) return value >= from ? 100 : 0;
+  return clamp(((value - from) / (to - from)) * 100, 0, 100);
+}
 
-export function deriveTraits(person: Person): PersonTrait[] {
-  const { personality: p, reputation: r } = person;
-  const traits: PersonTrait[] = [];
+const ELIGIBLE_FLOOR = 50;
 
-  // The type's own worked example, verbatim.
-  if (p.ego >= HIGH && p.temperament <= 35) traits.push('DifficultToWorkWith');
-  if (p.controversy >= HIGH) traits.push('ScandalProne');
-  // Famous and well-liked by the press, as opposed to famous-and-controversial.
-  if (r.fame >= HIGH && p.controversy <= 35) traits.push('MediaDarling');
-  // A real career (fame >= 50) with none of the tabloid churn (currentHeat,
-  // "how much buzz right now," notably lower than the fame that would
-  // normally generate) - deliberately keeps a low profile.
-  if (r.fame >= 50 && r.currentHeat <= 25) traits.push('HighlyPrivate');
-  // Critical respect meaningfully outpacing stardom, not just present.
-  if (r.prestige - r.fame >= 20 && r.prestige >= 55) traits.push('PrestigeFocused');
-  // High ambition without the loyalty to match - chases the next deal, not the studio relationship.
-  if (p.ambition >= HIGH && p.loyalty <= 35) traits.push('PaychequeDriven');
-  if (p.professionalism >= 75 && p.adaptability <= 40) traits.push('Perfectionist');
-  if (p.ambition >= HIGH && p.professionalism >= 60) traits.push('Workaholic');
-  if (p.adaptability >= HIGH && p.pressureHandling >= 65) traits.push('RiskTaker');
-  // Respected, loyal, and not so ego-driven that generosity toward a younger cast reads as implausible.
-  if (r.industryRespect >= HIGH && p.loyalty >= 60 && p.ego <= 55) traits.push('Mentor');
+/** Traits that can't both be a person's defining characteristic at once - whichever scores higher survives, the rest are dropped from the ranked list entirely (not just deprioritized). */
+const CONFLICT_GROUPS: PersonTrait[][] = [
+  ['DifficultToWorkWith', 'Mentor'],
+  ['MediaDarling', 'ScandalProne', 'HighlyPrivate'],
+  ['PrestigeFocused', 'PaychequeDriven'],
+];
 
+function scoreTraits(person: Person): Array<[PersonTrait, number]> {
+  const p = person.personality;
+  const r = person.reputation;
+  const scores: Array<[PersonTrait, number]> = [
+    // The type's own worked example, made continuous.
+    ['DifficultToWorkWith', Math.min(ramp(p.ego, 45, 95), ramp(p.temperament, 55, 15))],
+    ['ScandalProne', ramp(p.controversy, 45, 95)],
+    // Famous and well-liked by the press, as opposed to famous-and-controversial.
+    ['MediaDarling', Math.min(ramp(r.fame, 45, 95), ramp(p.controversy, 55, 15))],
+    // A real career with none of the tabloid churn ("current heat," low despite decent fame) - deliberately keeps a low profile.
+    ['HighlyPrivate', Math.min(ramp(r.fame, 35, 75), ramp(r.currentHeat, 45, 5))],
+    // Critical respect meaningfully outpacing stardom, not just present.
+    ['PrestigeFocused', Math.min(ramp(r.prestige - r.fame, 5, 35), ramp(r.prestige, 40, 80))],
+    // High ambition without the loyalty to match - chases the next deal, not the studio relationship.
+    ['PaychequeDriven', Math.min(ramp(p.ambition, 45, 95), ramp(p.loyalty, 55, 15))],
+    ['Perfectionist', Math.min(ramp(p.professionalism, 55, 95), ramp(p.adaptability, 60, 20))],
+    ['Workaholic', Math.min(ramp(p.ambition, 45, 95), ramp(p.professionalism, 40, 80))],
+    ['RiskTaker', Math.min(ramp(p.adaptability, 45, 95), ramp(p.pressureHandling, 45, 95))],
+    // Respected, loyal, and not so ego-driven that generosity toward a younger cast reads as implausible.
+    ['Mentor', Math.min(ramp(r.industryRespect, 45, 95), ramp(p.loyalty, 40, 80), ramp(p.ego, 75, 25))],
+  ];
+
+  // Structural, not a personality gradient - either they genuinely hold more than one active career or they don't.
   const activeCareerCount = Object.values(person.careers).filter((career) => career?.active).length;
-  if (activeCareerCount > 1) traits.push('MultiHyphenate');
+  scores.push(['MultiHyphenate', activeCareerCount > 1 ? 100 : 0]);
 
   // The two acting-specific traits read the actor career's own ActingStyle
   // axes directly, not generic personality - there's no equivalent signal
@@ -48,11 +71,26 @@ export function deriveTraits(person: Person): PersonTrait[] {
   // actor career.
   const actingStyle = person.careers.actor?.actingStyle;
   if (actingStyle) {
-    if (actingStyle.characterTransformation >= 75 && p.professionalism >= 60) traits.push('MethodPerformer');
-    if (p.adaptability >= HIGH && (actingStyle.comedy >= 65 || actingStyle.charisma >= 65)) traits.push('NaturalImproviser');
+    scores.push(['MethodPerformer', Math.min(ramp(actingStyle.characterTransformation, 55, 95), ramp(p.professionalism, 40, 80))]);
+    scores.push(['NaturalImproviser', Math.min(ramp(p.adaptability, 45, 95), Math.max(ramp(actingStyle.comedy, 45, 85), ramp(actingStyle.charisma, 45, 85)))]);
   }
 
-  return traits;
+  return scores;
+}
+
+/** Every trait clearing ELIGIBLE_FLOOR, strongest-first, with the weaker member of any CONFLICT_GROUPS pair dropped entirely - a caller wanting only the top few (e.g. a card with limited room) can just slice the front of this array, since it's already ranked by how defining each trait actually is. */
+export function deriveTraits(person: Person): PersonTrait[] {
+  const eligible = scoreTraits(person)
+    .filter(([, score]) => score >= ELIGIBLE_FLOOR)
+    .sort((a, b) => b[1] - a[1]);
+
+  const kept: PersonTrait[] = [];
+  for (const [trait] of eligible) {
+    const group = CONFLICT_GROUPS.find((g) => g.includes(trait));
+    const suppressed = group?.some((other) => other !== trait && kept.includes(other));
+    if (!suppressed) kept.push(trait);
+  }
+  return kept;
 }
 
 export const TRAIT_LABELS: Record<PersonTrait, string> = {
