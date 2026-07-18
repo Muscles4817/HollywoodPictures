@@ -4,7 +4,8 @@ import { randomSeed, withRng, clamp, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
 import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
-import { effectiveRoleCapacity } from '../engine/castRequirements';
+import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequirements';
+import { personMeetsCharacterGender } from '../engine/casting';
 import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent, resolveEventChoice } from '../engine/production';
 import { generateTestScreeningPendingChoice } from '../engine/testScreening';
 import { computeDailyContingencyBurn, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
@@ -697,6 +698,18 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       if (action.person && focusedDraft.talent.some((a) => a.role !== action.role && a.person.id === action.person!.id)) {
         return state;
       }
+      // Gender enforcement (engine/casting.ts): a single-capacity actor role
+      // fills character slot 0; reject an actor whose gender doesn't match it.
+      // No-ops for every non-actor role (characterForRoleSlot returns null,
+      // which reads as unconstrained). Defensive - the drawer already hides
+      // ineligible candidates - but keeps the rule true even for direct dispatch.
+      if (
+        action.person &&
+        focusedDraft.script &&
+        !personMeetsCharacterGender(action.person, characterForRoleSlot(focusedDraft.script, action.role, 0))
+      ) {
+        return state;
+      }
       const withoutRole = focusedDraft.talent.filter((a) => a.role !== action.role);
       const nextTalent = action.person ? [...withoutRole, { role: action.role, person: action.person }] : withoutRole;
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, talent: nextTalent }) };
@@ -718,6 +731,18 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         return state;
       }
       const capacity = effectiveRoleCapacity(action.role, focusedDraft.script);
+
+      // Gender enforcement (engine/casting.ts): a new hire fills the next
+      // open slot (current.length); reject an actor whose gender doesn't
+      // match that character. Removing an already-hired actor is always
+      // allowed. Defensive mirror of the drawer's own candidate filtering.
+      if (
+        !alreadyHired &&
+        focusedDraft.script &&
+        !personMeetsCharacterGender(action.person, characterForRoleSlot(focusedDraft.script, action.role, current.length))
+      ) {
+        return state;
+      }
 
       let nextTalent: TalentAssignment[];
       if (alreadyHired) {

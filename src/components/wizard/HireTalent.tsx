@@ -3,6 +3,7 @@ import { useStudio } from '../../state/StudioContext';
 import { MANDATORY_TALENT_ROLES, OPTIONAL_TALENT_ROLES } from '../../data/talentGeneration';
 import { TALENT_PRESENTATION, type RoleCategory } from '../../data/talentPresentation';
 import { effectiveRoleCapacity } from '../../engine/castRequirements';
+import { castingGenderLabel } from '../../engine/casting';
 import { computeCommittedSpend, deriveFocusedDraft } from '../../state/selectors';
 import { computeTalentCompatibility } from '../../engine/compatibility';
 import { computeTalentCost } from '../../engine/cost';
@@ -128,7 +129,14 @@ function CharacterCastingRow({
     <Card selectable onClick={onOpen} className={!cast && !isNextUp ? 'casting-row-blocked' : undefined}>
       <div className="row-between">
         <div className="card-title">{character.name}</div>
-        <span className="badge">{character.prominence} &middot; {CHARACTER_ARCHETYPE_LABELS[character.archetype]}</span>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {character.castingGender && character.castingGender !== 'Any' && (
+            <span className="badge" title="Only actors of this gender can be cast in this role.">
+              {castingGenderLabel(character.castingGender)}
+            </span>
+          )}
+          <span className="badge">{character.prominence} &middot; {CHARACTER_ARCHETYPE_LABELS[character.archetype]}</span>
+        </div>
       </div>
       <p style={{ color: 'var(--text-muted)', margin: '4px 0 8px', fontSize: '0.85em' }}>{describeCharacterDemands(character)}</p>
       {cast ? (
