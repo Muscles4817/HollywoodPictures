@@ -1,6 +1,7 @@
-import type { Film, FilmDraft, RivalProductionInProgress, RivalStudio } from '../types';
+import type { Film, FilmDraft, Person, RivalProductionInProgress, RivalStudio } from '../types';
 import type { RandomFn } from './random';
 import { computeReleaseResults } from './releaseFilm';
+import { computeProducerEffects, producersByIds, totalAttachedPerFilmFees } from './producers';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta } from './cost';
 import { computeCompetitiveCrowding, runningFilmAsUpcomingRelease, type UpcomingRelease } from './releaseCrowding';
 import { resolveRivalProduction, rivalAsUpcomingRelease } from './rivalStudios';
@@ -61,11 +62,17 @@ function knownCompetitorsExcluding(
 }
 
 /** Resolves a due player draft into a real Film - mirrors engine/scheduledReleases.ts's retired settleScheduledReleases body exactly (same computeReleaseResults call, same cost-charged accounting), just fed a richer `known` list that now includes currently-running films alongside other pending releases. */
-function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand: number, known: UpcomingRelease[], rng: RandomFn): { film: Film; costCharged: number } {
+function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand: number, known: UpcomingRelease[], producerPool: Person[], rng: RandomFn): { film: Film; costCharged: number } {
   const photographyEvents = draft.photography!.events;
   const postProductionEvents = draft.postProductionEvents;
   const shootingRatio = draft.photography!.recommendedDays > 0 ? draft.photography!.daysElapsed / draft.photography!.recommendedDays : 1;
   const competitiveCrowding = computeCompetitiveCrowding({ releaseDay, genre: draft.genre!, targetAudience: draft.targetAudience! }, known);
+
+  // Attached producers were locked in pre-greenlight; resolve them against the
+  // world pool now to apply their combined boost and fold in their fees.
+  const attachedIds = draft.attachedProducerIds ?? [];
+  const producerEffects = computeProducerEffects(producersByIds(producerPool, attachedIds), draft.genre!);
+  const producerFees = totalAttachedPerFilmFees(producerPool, attachedIds);
 
   const { results, fixed } = computeReleaseResults(
     {
@@ -83,6 +90,8 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
       shootingRatio,
       studioBrand,
       competitiveCrowding,
+      producerEffects,
+      producerFees,
     },
     rng,
   );
@@ -152,6 +161,10 @@ export function settleTheatricalMarket(
   totalDays: number,
   playerStudioBrand: number,
   rng: RandomFn,
+  // Trailing + defaulted so every existing caller (and the whole test suite)
+  // that predates producers keeps working unchanged - an empty pool means no
+  // film has any producers attached, which is exactly their world.
+  producerPool: Person[] = [],
 ): TheatricalMarketSettlement {
   let filmsById: Map<string, Film> = new Map(runningFilms.map((f) => [f.id, f]));
   let scheduled = playerScheduled;
@@ -181,7 +194,7 @@ export function settleTheatricalMarket(
     if (scheduledDay <= rivalDay && scheduledDay <= filmDay) {
       const draft = nextScheduled!.draft;
       const known = knownCompetitorsExcluding(draft.id, scheduled, inProgress, filmsById);
-      const { film, costCharged } = resolvePlayerRelease(draft, nextScheduled!.releaseDay, playerStudioBrand, known, rng);
+      const { film, costCharged } = resolvePlayerRelease(draft, nextScheduled!.releaseDay, playerStudioBrand, known, producerPool, rng);
       filmsById.set(film.id, film);
       scheduled = scheduled.filter((s) => s.draft.id !== draft.id);
       playerCostCharged += costCharged;

@@ -2,7 +2,7 @@
 // Plain data in, plain data out, no React, no state - the same discipline as
 // the rest of engine/. Generation lives in engine/talentGenerator.ts; the
 // tunable numbers live in data/producers.ts.
-import type { Genre, Money, Person, ProducerCareer, ProducerSpecialty, Studio } from '../types';
+import type { Genre, Money, Person, ProducerCareer, ProducerSpecialty, ProductionEvent, Studio } from '../types';
 import {
   EVENT_IMPACT_MULTIPLIER_FLOOR,
   MAX_MARKETING_EFFICIENCY_MULTIPLIER,
@@ -153,6 +153,20 @@ export function computeProducerEffects(producers: Person[], genre: Genre | null)
     flatBuzzDelta: flatBuzz,
     eventNegativeImpactMultiplier: clamp(1 - eventMitigation, EVENT_IMPACT_MULTIPLIER_FLOOR, 1),
   };
+}
+
+/**
+ * Apply a Fixer's mitigation to a set of events for the *quality* path only:
+ * each event's negative qualityDelta is softened toward zero by the
+ * multiplier; positive (good) events and all cost figures are left untouched.
+ * Deliberately does not touch costDelta - on-set event cost accounting is
+ * settled elsewhere and folding a mitigation into it would risk double-count
+ * (docs/DESIGN_REVIEW_production_office.md §7). `multiplier` is
+ * ProducerEffects.eventNegativeImpactMultiplier (1 == no mitigation).
+ */
+export function mitigateEventQualityImpact(events: ProductionEvent[], multiplier: number): ProductionEvent[] {
+  if (multiplier >= 1) return events;
+  return events.map((e) => (e.qualityDelta < 0 ? { ...e, qualityDelta: e.qualityDelta * multiplier } : e));
 }
 
 // --- Office / employment helpers -------------------------------------------

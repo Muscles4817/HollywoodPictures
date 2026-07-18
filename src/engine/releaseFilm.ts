@@ -17,7 +17,8 @@ import { advanceOneWeek } from './audienceSimulationStep';
 import { AVERAGE_TICKET_PRICE } from './boxOfficeRun';
 import { pickReviewBlurbs, pickDepartmentBlurb } from './reviews';
 import { generateStoryReport } from './storyReport';
-import type { RandomFn } from './random';
+import { mitigateEventQualityImpact, NEUTRAL_PRODUCER_EFFECTS, type ProducerEffects } from './producers';
+import { clamp, type RandomFn } from './random';
 import type { AudienceSimulationFixedState } from './audienceSimulation';
 
 function averageFame(talent: TalentAssignment[], role: TalentAssignment['role']): number {
@@ -58,6 +59,19 @@ export interface ReleaseComputationInput {
   studioBrand: number;
   /** engine/releaseCrowding.ts:computeCompetitiveCrowding's output, 0-1 - pre-resolved by the caller (engine/scheduledReleases.ts, engine/rivalStudios.ts), since this orchestration point never sees a raw releaseDay itself. Threaded straight into deriveAudienceSimulationFixedState - see ReleaseSimulationInputs.competitiveCrowding's own doc comment for why it dents initialAvailabilityFraction only. */
   competitiveCrowding: number;
+  /**
+   * Combined boost from producers attached to this film
+   * (docs/DESIGN_REVIEW_production_office.md). Optional - absent (rivals, older
+   * call sites) means NEUTRAL_PRODUCER_EFFECTS, i.e. no change.
+   */
+  producerEffects?: ProducerEffects;
+  /**
+   * Total per-film fees for the attached producers, folded into productionCost
+   * (and therefore totalCost) so it's charged once, at release, alongside
+   * marketing - never in the greenlight upfront charge, so it isn't in
+   * resolvePlayerRelease's alreadyCharged either. Optional; defaults to 0.
+   */
+  producerFees?: number;
 }
 
 export interface ReleaseComputationResult {
@@ -86,15 +100,23 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // resolved outcome is just as real a part of "what happened to this film"
   // as an on-set event, even though it's stored separately (see
   // ReleaseComputationInput.postProductionEvents's own comment).
+  const producerEffects = input.producerEffects ?? NEUTRAL_PRODUCER_EFFECTS;
+  const producerFees = input.producerFees ?? 0;
+
   const allEvents = combineProductionEvents(input.events, input.postProductionEvents);
+  // Fixer softens the quality damage from bad events only (costs are settled
+  // elsewhere - see mitigateEventQualityImpact). Buzz keeps reading the raw
+  // events; a Fixer isn't a hype mechanic.
+  const qualityEvents = mitigateEventQualityImpact(allEvents, producerEffects.eventNegativeImpactMultiplier);
   const quality = computeQualityBreakdown(
     input.script,
     input.talent,
     input.genre,
     input.productionChoices,
     input.postProductionChoices,
-    allEvents,
+    qualityEvents,
     input.shootingRatio,
+    producerEffects.postProductionDelta, // Creative
   );
   const criticScore = computeCriticScore(quality, input.script, input.postProductionChoices);
   const audienceScore = computeAudienceScore(
@@ -105,7 +127,9 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     input.productionChoices,
     input.postProductionChoices,
   );
-  const buzzScore = computeBuzzScore(
+  // Executive adds flat Buzz (the marketing-efficiency half is applied to the
+  // sim's marketing spend below).
+  const rawBuzz = computeBuzzScore(
     input.script,
     input.talent,
     allEvents,
@@ -113,9 +137,14 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     input.marketingChoices,
     input.studioBrand,
   );
+  const buzzScore = clamp(rawBuzz + producerEffects.flatBuzzDelta, 0, 100);
 
   const talentCost = computeTalentCost(input.talent);
-  const productionBudgetCost = computeProductionBudgetCost(input.productionChoices);
+  // Line trims the production budget (sets/practical/VFX). Charged in full at
+  // greenlight, so the reduction lands as a release-time credit via
+  // resolvePlayerRelease's totalCost - alreadyCharged netting - the arithmetic
+  // works out to the player paying the reduced amount overall.
+  const productionBudgetCost = computeProductionBudgetCost(input.productionChoices) * producerEffects.productionCostMultiplier;
   // Post-Production Redesign, Phase B - the old flat testScreeningCost term
   // is gone. A real test screening's resolved cost is now charged
   // immediately, at RESOLVE_TEST_SCREENING_CHOICE (state/studioReducer.ts),
@@ -145,7 +174,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // price.
   const productionCost = Math.max(
     0,
-    talentCost + productionBudgetCost + input.photographyCost + eventsCostDelta + postProductionInterventionCost,
+    talentCost + productionBudgetCost + input.photographyCost + eventsCostDelta + postProductionInterventionCost + producerFees,
   );
   const marketingCost = computeMarketingCost(input.marketingChoices);
   const totalCost = productionCost + marketingCost;
@@ -159,7 +188,10 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   const commercialProfile = deriveCommercialProfile(input.script);
   const fixed = deriveAudienceSimulationFixedState({
     buzzScore,
-    marketingSpend: input.marketingChoices.marketingSpend,
+    // Executive's marketing-efficiency half: each pound of the real spend
+    // behaves like more when it comes to converting Buzz into an opening,
+    // without changing the actual cash marketingCost.
+    marketingSpend: input.marketingChoices.marketingSpend * producerEffects.marketingEfficiencyMultiplier,
     directorFame: averageFame(input.talent, 'Director'),
     leadFame: averageFame(input.talent, 'Lead Actor'),
     studioBrand: input.studioBrand,

@@ -193,6 +193,7 @@ function runCalendarSettlement(
     totalDaysAfter,
     state.studio.brand,
     rng,
+    state.producerPool ?? [],
   );
 
   const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng);
