@@ -175,6 +175,21 @@ export type GameAction =
   // winner (state/studioReducer.ts's shared applyOpportunityWin).
   | { type: 'PLACE_BID'; opportunityId: string; amount: number }
   | { type: 'CREATE_PROJECT_FROM_ASSET'; assetId: string }
+  // Production Office & Producers (docs/DESIGN_REVIEW_production_office.md).
+  // UNLOCK is milestone-gated (films shipped OR Brand), not bought - no-op
+  // until the milestone is met. UPGRADE/HIRE deduct cash immediately at the
+  // studio level (the same immediate path ACQUIRE_OPPORTUNITY uses), gated on
+  // affordability. ATTACH/DETACH only mutate the focused draft's
+  // attachedProducerIds - no cash moves until RELEASE_FILM, like every other
+  // production cost. All six fail safely (no-op) when their preconditions
+  // aren't met. Invariant: a draft's attached producers are always a subset
+  // of the bench (ATTACH requires bench membership; FIRE detaches).
+  | { type: 'UNLOCK_PRODUCTION_OFFICE' }
+  | { type: 'UPGRADE_PRODUCTION_OFFICE' }
+  | { type: 'HIRE_PRODUCER'; producerId: string }
+  | { type: 'FIRE_PRODUCER'; producerId: string }
+  | { type: 'ATTACH_PRODUCER'; producerId: string }
+  | { type: 'DETACH_PRODUCER'; producerId: string }
   // Producer Workspace free navigation (PRODUCER_WORKSPACE_DESIGN.md) - the
   // only way GameState.projectWorkspaceSection changes. Unlike GO_TO_STEP,
   // charges no calendar time and never touches STAGE_DURATIONS: moving
