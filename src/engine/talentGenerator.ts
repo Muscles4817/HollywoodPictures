@@ -7,10 +7,19 @@ import type {
   Gender,
   Person,
   PersonCareers,
+  ProducerCareer,
   TalentProfession,
   ToneProfile,
 } from '../types';
 import { ALL_TALENT_PROFESSIONS, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
+import { GENRES } from '../data/genres';
+import {
+  PRODUCER_MAX_AFFINITIES,
+  PRODUCER_MIN_AFFINITIES,
+  PRODUCER_POOL_SIZE,
+  PRODUCER_SALARY_RANGE,
+  PRODUCER_SPECIALTIES,
+} from '../data/producers';
 import { HANDCRAFTED_TALENTS_BY_ROLE } from '../data/handcraftedTalents';
 import { TALENT_FIRST_NAMES, TALENT_LAST_NAMES } from '../data/talentNames';
 import { TONES } from '../data/tones';
@@ -363,4 +372,56 @@ export function generateTalentPool(
   }
 
   return pool;
+}
+
+// --- Producers (docs/DESIGN_REVIEW_production_office.md) --------------------
+// Generated with the same person-assembly machinery as everyone else, but
+// producers are NOT a TalentProfession - they carry a standalone
+// ProducerCareer and live in their own pool (GameState.producerPool), never
+// the profession-keyed talentPool, so they can never leak into casting. Fame
+// is kept modest (producers aren't front-facing); specialty and genre
+// affinity are what actually differentiate them (see engine/producers.ts).
+
+function generateProducer(rng: RandomFn, t: number): Person {
+  // t is the 0-1 position along the pay/skill spread (stratified, like
+  // generateTalentCandidates) - a cheap junior at 0, a seasoned ace near 1.
+  const salary = Math.round(logAmount(t, PRODUCER_SALARY_RANGE) / 1000) * 1000;
+  const skill = generateSkill(rng, t);
+  const fame = clamp(Math.round(15 + 30 * t + randFloat(rng, -12, 12)), 1, 70);
+  const reliability = clamp(Math.round(45 + 25 * t + randFloat(rng, -30, 30)), 1, 100);
+  const ego = clamp(Math.round(14 + fame * 0.35 + randFloat(rng, -18, 18)), 1, 100);
+
+  const specialty = pick(rng, PRODUCER_SPECIALTIES);
+  const affinityCount = randInt(rng, PRODUCER_MIN_AFFINITIES, PRODUCER_MAX_AFFINITIES);
+  const genreAffinity = pickMany(rng, GENRES, affinityCount);
+
+  const producer: ProducerCareer = { specialty, skill, genreAffinity, typicalSalary: salary };
+
+  return {
+    id: `producer-${nextTalentId++}`,
+    identity: { name: randomName(rng), gender: generateGender(rng), dateOfBirth: generateDateOfBirth(rng), appearanceTags: [] },
+    personality: {
+      professionalism: reliability,
+      ambition: 55,
+      loyalty: 50,
+      ego,
+      temperament: 50,
+      pressureHandling: 55,
+      controversy: 18,
+      adaptability: 55,
+    },
+    reputation: { fame, prestige: fame, industryRespect: reliability, reliability, currentHeat: fame },
+    primaryRole: 'Producer',
+    careers: { producer },
+    availability: { commitments: [] },
+    traits: [],
+  };
+}
+
+/** The hireable producer roster, generated once at game start - the office's talent market. */
+export function generateProducerPool(rng: RandomFn, count = PRODUCER_POOL_SIZE): Person[] {
+  return Array.from({ length: count }, (_, i) => {
+    const t = randFloat(rng, i / count, (i + 1) / count);
+    return generateProducer(rng, t);
+  });
 }

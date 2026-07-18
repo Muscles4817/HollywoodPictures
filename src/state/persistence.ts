@@ -1,7 +1,7 @@
 import type { GameState } from './gameState';
 import { createInitialStudio } from './gameState';
 import { generateRivalStudios } from '../engine/rivalStudios';
-import { generateTalentPool } from '../engine/talentGenerator';
+import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
 import { randomSeed, withRng } from '../engine/random';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 
@@ -274,6 +274,7 @@ export function loadState(): GameState {
     const { result, nextSeed } = withRng(randomSeed(), (rng) => ({
       talentPool: generateTalentPool(rng),
       rivalStudios: generateRivalStudios(rng),
+      producerPool: generateProducerPool(rng),
     }));
     return {
       studio: { ...createInitialStudio(DEFAULT_STARTING_CASH), assets: TEST_SCRIPT_ASSETS },
@@ -285,6 +286,7 @@ export function loadState(): GameState {
       totalDays: 1,
       talentPool: result.talentPool,
       rivalStudios: result.rivalStudios,
+      producerPool: result.producerPool,
       opportunities: [],
       nextOpportunityCheckDay: 1,
       viewingRivalStudioName: null,
