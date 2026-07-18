@@ -7,6 +7,22 @@ import type { Range } from '../engine/interpolate';
 
 export const PRODUCER_SPECIALTIES: readonly ProducerSpecialty[] = ['Line', 'Creative', 'Executive', 'Fixer'];
 
+// Player-facing names and one-line "what this producer does" blurbs, so the
+// Production Office UI can explain each specialty without hardcoding copy.
+export const PRODUCER_SPECIALTY_LABEL: Record<ProducerSpecialty, string> = {
+  Line: 'Line Producer',
+  Creative: 'Creative Producer',
+  Executive: 'Executive Producer',
+  Fixer: 'Fixer',
+};
+
+export const PRODUCER_SPECIALTY_BLURB: Record<ProducerSpecialty, string> = {
+  Line: 'Trims production spend.',
+  Creative: 'Lifts post-production quality.',
+  Executive: 'Boosts marketing buzz.',
+  Fixer: 'Softens on-set disasters.',
+};
+
 // Each specialty's raw effect is `lerp(min, max, skill/100)` (skill 1-100),
 // before affinity, reliability, and stacking are applied (engine/producers.ts).
 // Ranges are chosen against the real sim scale: sub-scores are 0-100 (the

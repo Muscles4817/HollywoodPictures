@@ -1,0 +1,129 @@
+/* Production Office card + hire modal (docs/DESIGN_REVIEW_production_office.md, increment 4). */
+
+.office-milestone {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0 0 4px;
+}
+
+.office-tier-pill {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--info-bg);
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+.office-bench-count {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.office-bench-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.office-bench-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.office-bench-row small {
+  color: var(--text-muted);
+}
+
+.office-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* --- Hire modal --- */
+
+.office-modal {
+  gap: 12px;
+}
+
+.office-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.office-modal-head h2 {
+  margin: 0 0 4px;
+}
+
+.office-modal-head p {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.office-modal-subhead {
+  margin: 4px 0 0;
+  font-size: 0.95rem;
+}
+
+.producer-card-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.producer-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.producer-card-body {
+  min-width: 0;
+}
+
+.producer-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.producer-card-blurb {
+  margin: 4px 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.producer-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.producer-card-affinity {
+  color: var(--primary);
+}
+
+.producer-card-action {
+  flex-shrink: 0;
+}

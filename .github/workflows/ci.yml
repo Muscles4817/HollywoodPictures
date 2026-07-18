@@ -35,10 +35,8 @@ jobs:
       - name: Tests
         run: npm test        # vitest run
 
-      # Non-blocking for now: master carries a pre-existing rules-of-hooks
-      # error (Dashboard.tsx) unrelated to any single PR. Kept visible here
-      # so the debt is tracked, but not gating merges until it's fixed - flip
-      # continue-on-error off once lint is clean.
-      - name: Lint (non-blocking)
+      # Now a hard gate: the pre-existing rules-of-hooks error (Dashboard.tsx)
+      # that kept this non-blocking has been fixed, and oxlint is clean, so a
+      # new lint error should block merge like the build and tests do.
+      - name: Lint
         run: npm run lint     # oxlint
-        continue-on-error: true
