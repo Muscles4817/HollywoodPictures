@@ -1,5 +1,6 @@
-import type { Asset, Film, FilmDraft, Genre, ProductionRole, Project, RivalStudio, WizardStep } from '../types';
+import type { Asset, Film, FilmDraft, Genre, Person, ProductionRole, Project, RivalStudio, WizardStep } from '../types';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
+import { totalAttachedPerFilmFees } from '../engine/producers';
 import { GENRE_PROFILES } from '../data/genres';
 import { productionRequirementTags } from '../engine/scriptPresentation';
 import { asFilm, asPlayerDraft, asScheduled, asRivalProduction, findProject, projectId } from '../engine/project';
@@ -46,10 +47,15 @@ export function deriveFocusedFilm(state: GameState): Film | null {
  * this preview's caller is about to subtract a second time from a cash
  * figure that's already down that amount.
  */
-export function computeCommittedSpend(draft: FilmDraft | null): number {
+export function computeCommittedSpend(draft: FilmDraft | null, producerPool: Person[] = []): number {
   if (!draft) return 0;
 
   let total = 0;
+  // Attached producers' per-film fees are a release-time cost (like marketing
+  // below), not charged at Greenlight - included here so the projected all-in
+  // spend is honest. Pool is optional/defaulted so callers that don't have it
+  // (or predate producers) simply see no fee, never a crash.
+  total += totalAttachedPerFilmFees(producerPool, draft.attachedProducerIds ?? []);
   if (!draft.photography) {
     // Not charged yet - BEGIN_PHOTOGRAPHY is what actually deducts these,
     // so until then this is a pure "what would this cost" projection. Uses

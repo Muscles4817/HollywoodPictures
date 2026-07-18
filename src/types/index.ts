@@ -1305,7 +1305,7 @@ export type WizardStep =
 // exist as independent sections yet (Phase 1 keeps them combined under
 // 'cast-and-crew', reusing components/wizard/HireTalent.tsx wholesale) -
 // deferred to a later phase per PRODUCER_WORKSPACE_DESIGN.md's own phasing.
-export type ProjectWorkspaceSection = 'overview' | 'cast-and-crew' | 'production' | 'finance';
+export type ProjectWorkspaceSection = 'overview' | 'cast-and-crew' | 'production' | 'producers' | 'finance';
 
 // 'workspace' is the single screen a pre-greenlight project lives on now -
 // which of its sections is showing is GameState.projectWorkspaceSection,

@@ -3,6 +3,7 @@ import { deriveFocusedDraft } from '../../state/selectors';
 import { ProjectWorkspaceHeader } from './ProjectWorkspaceHeader';
 import { ProjectWorkspaceNav } from './ProjectWorkspaceNav';
 import { ProjectOverview } from './ProjectOverview';
+import { ProjectProducers } from './ProjectProducers';
 import { ProjectFinance } from './ProjectFinance';
 import { HireTalent } from '../wizard/HireTalent';
 import { ProductionPlanning } from '../wizard/ProductionPlanning';
@@ -32,6 +33,7 @@ export function ProjectWorkspace() {
       {state.projectWorkspaceSection === 'overview' && <ProjectOverview />}
       {state.projectWorkspaceSection === 'cast-and-crew' && <HireTalent />}
       {state.projectWorkspaceSection === 'production' && <ProductionPlanning />}
+      {state.projectWorkspaceSection === 'producers' && <ProjectProducers />}
       {state.projectWorkspaceSection === 'finance' && <ProjectFinance />}
     </div>
   );

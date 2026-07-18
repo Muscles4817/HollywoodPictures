@@ -298,7 +298,7 @@ export function ProductionPlanning() {
     adaptRecommendationsToProductionChoices(environmentAmbition, effectsStrategy, effectsAmbition, contingencyAmount, runtimeIntensity);
 
   const estimatedCost = computeProductionBudgetCost(currentChoices);
-  const canAfford = state.studio.cash - computeCommittedSpend(draft) >= 0;
+  const canAfford = state.studio.cash - computeCommittedSpend(draft, state.producerPool ?? []) >= 0;
   const genreProfile = GENRE_PROFILES[genre];
   const recommendedDays = computeRecommendedShootDays(draft.talent, script, currentChoices);
   const dailyShootCost = computeDailyContingencyBurn(currentChoices.contingencyAmount, recommendedDays);
