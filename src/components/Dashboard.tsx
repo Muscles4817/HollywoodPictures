@@ -11,6 +11,7 @@ import { BoxOfficeFinishedPopup } from './common/BoxOfficeFinishedPopup';
 import { FilmDetailModal } from './common/FilmDetailModal';
 import { TopGrossingPanel } from './common/TopGrossingPanel';
 import { DifficultyPicker } from './common/DifficultyPicker';
+import { ProductionOfficeCard } from './ProductionOfficeCard';
 import { computeTopGrossingFilms, hasDraftProgress } from '../state/selectors';
 import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
@@ -56,10 +57,6 @@ export function Dashboard() {
       else next.add(filmId);
       return next;
     });
-  }
-
-  if (showGuide) {
-    return <GameGuide onBack={() => setShowGuide(false)} />;
   }
 
   const { projects } = state;
@@ -201,6 +198,12 @@ export function Dashboard() {
     : playerReleasedFilms.length >= 4
       ? 'Established studio'
       : 'Independent studio';
+
+  // Rendered after every hook has run - keeping this above the useMemo above
+  // made it a conditional hook call (react-hooks/rules-of-hooks).
+  if (showGuide) {
+    return <GameGuide onBack={() => setShowGuide(false)} />;
+  }
 
   return (
     <div className="dashboard-page">
@@ -530,6 +533,8 @@ export function Dashboard() {
               onSelectStudio={(studioName) => dispatch({ type: 'VIEW_RIVAL_STUDIO', studioName })}
             />
           </section>
+
+          <ProductionOfficeCard />
 
           <section className="dashboard-card dashboard-sidebar-card">
             <div className="dashboard-card-heading dashboard-sidebar-heading">

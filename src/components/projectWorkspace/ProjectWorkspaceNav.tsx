@@ -8,6 +8,7 @@ const SECTION_LABELS: Record<ProjectWorkspaceSection, string> = {
   overview: 'Overview',
   'cast-and-crew': 'Cast & Crew',
   production: 'Production',
+  producers: 'Producers',
   finance: 'Finance',
 };
 
@@ -35,7 +36,9 @@ export function ProjectWorkspaceNav({ active }: { active: ProjectWorkspaceSectio
 
   const readiness = deriveProjectReadiness(draft, state.studio.cash);
   const statusFor = (section: ProjectWorkspaceSection): SectionReadiness['status'] | null => {
-    if (section === 'overview') return null;
+    // Overview is the landing page and Producers is always optional (attaching
+    // never blocks Greenlight), so neither carries a readiness glyph.
+    if (section === 'overview' || section === 'producers') return null;
     if (section === 'cast-and-crew') return readiness.sections.castAndCrew.status;
     if (section === 'production') return readiness.sections.production.status;
     return readiness.sections.finance.status;

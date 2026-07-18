@@ -21,6 +21,7 @@ const SECTION_LABELS: Record<ProjectWorkspaceSection, string> = {
   overview: 'Overview',
   'cast-and-crew': 'Cast & Crew',
   production: 'Production',
+  producers: 'Producers',
   finance: 'Finance',
 };
 
