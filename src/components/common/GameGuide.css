@@ -1,0 +1,67 @@
+/* How It Works / FAQ (GameGuide.tsx). */
+
+.faq-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.faq-chip {
+  font-size: 0.85rem;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  text-decoration: none;
+  background: var(--bg);
+}
+
+.faq-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.faq-category {
+  scroll-margin-top: 16px;
+}
+
+.faq-item {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.faq-item:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.faq-item > summary {
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Replace the default disclosure triangle with a consistent, themed one. */
+.faq-item > summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-item > summary::before {
+  content: '+';
+  display: inline-block;
+  width: 1em;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.faq-item[open] > summary::before {
+  content: '−';
+}
+
+.faq-item > p {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+}
