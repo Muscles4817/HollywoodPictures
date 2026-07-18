@@ -47,6 +47,17 @@ export type ProductionRole =
   | 'VFX Supervisor'
   | 'Casting Director';
 
+// Producer (docs/DESIGN_REVIEW_production_office.md) is deliberately NOT a
+// TalentProfession or a ProductionRole: producers are employed at the studio
+// level and attached on the Producer Workspace, never cast via the Hire
+// Talent wizard. Keeping them out of those unions keeps them out of the
+// profession-keyed talentPool (Record<TalentProfession, Person[]>) and every
+// casting flow by construction rather than by filtering. `primaryRole` is
+// widened to carry the label for display/categorisation only - nothing
+// indexes a Record<TalentProfession, ...> by it or switches exhaustively on
+// it (verified at introduction), so widening it is safe.
+export type PersonPrimaryRole = TalentProfession | 'Producer';
+
 // The emotional/tonal axes every script and every Director are scored on -
 // a compatibility question instead of a flat per-genre lookup (see
 // engine/compatibility.ts). Only Director shares this space directly with
@@ -299,6 +310,30 @@ export interface CrewCareer<TRole extends CrewRole> extends RoleCareerCommon<TRo
   skill: number; // 1-100
 }
 
+// A producer's specialty - which single engine system their boost pulls.
+// Chosen so all four are non-overlapping (each hits a different system), so
+// a producing team's boosts add up honestly (docs/DESIGN_REVIEW_production_office.md §4/§7):
+//   Line      -> production budget cost   (engine/cost.ts)
+//   Creative  -> a craft sub-score        (engine/scoring.ts)
+//   Executive -> marketing efficiency/Buzz (box-office chain)
+//   Fixer     -> on-set event impact       (data/productionEvents.ts)
+export type ProducerSpecialty = 'Line' | 'Creative' | 'Executive' | 'Fixer';
+
+// A Producer career on the shared Person - the base layers (identity,
+// personality.ego, reputation.fame/reliability, traits, availability) are
+// reused from Person; only these fields are producer-specific. Deliberately a
+// standalone shape rather than extending RoleCareerCommon<'Producer'>, since
+// that common shape is bound to TalentProfession (which producers are not -
+// see PersonPrimaryRole above) and carries cast/crew concepts producers don't
+// use. The per-film fee is `typicalSalary`; the one-time hiring fee derives as
+// a multiple of it (engine/producers.ts), so it isn't stored.
+export interface ProducerCareer {
+  specialty: ProducerSpecialty;
+  skill: number; // 1-100, scales the boost magnitude via lerp (engine/producers.ts)
+  genreAffinity: Genre[]; // genres where this producer's boost is amplified (amplify-only, never a penalty)
+  typicalSalary: Money; // the per-film fee
+}
+
 export interface PersonCareers {
   actor?: ActorCareer;
   director?: DirectorCareer;
@@ -309,6 +344,8 @@ export interface PersonCareers {
   vfxSupervisor?: CrewCareer<'VFX Supervisor'>;
   /** Casting Redesign, Phase D (docs/DESIGN_REVIEW_casting_redesign.md section 11) - optional, same "doesn't block Greenlight, materially improves an existing mechanic when present" shape as vfxSupervisor above. Biases engine/castingCalls.ts:generateCastingApplicants's volume/curation and unlocks a small "discovery" chance. */
   castingDirector?: CrewCareer<'Casting Director'>;
+  /** Production Office (docs/DESIGN_REVIEW_production_office.md) - present on producer-Persons only; never cast via the wizard, attached on the Producer Workspace instead. */
+  producer?: ProducerCareer;
 }
 
 // Replaces the old single bookedUntil?: number - a person can hold more
@@ -357,7 +394,7 @@ export interface Person {
   // substitute for checking the relevant career record. A person's other
   // careers remain fully real and hireable regardless of which role this
   // says (see engine/person.ts:personCanPerformRole).
-  primaryRole: TalentProfession;
+  primaryRole: PersonPrimaryRole;
   careers: PersonCareers;
   availability: PersonAvailability;
   traits: PersonTrait[];
@@ -855,6 +892,8 @@ export interface Film {
   targetAudience: TargetAudience;
   script: Script;
   talent: TalentAssignment[];
+  /** Producers attached to this film, by PersonId (docs/DESIGN_REVIEW_production_office.md). Optional/absent on saves predating the Production Office; read as `[]`. */
+  attachedProducerIds?: PersonId[];
   productionChoices: ProductionChoices;
   postProductionChoices: PostProductionChoices;
   marketingChoices: MarketingChoices;
@@ -1027,6 +1066,22 @@ export interface Studio {
   /** How respected the studio is within the industry and by critics - grows from critical reception alone, independent of a film's commercial outcome. Not yet consumed by any formula (no critic-facing mechanic exists yet) - tracked now so a future system (e.g. awards) has real history to read, the same "compute and track now, wire in later" precedent commercialProfile.crossoverPotential set. */
   prestige: number; // 0-100
   assets: Asset[];
+  /**
+   * The Production Office facility (docs/DESIGN_REVIEW_production_office.md).
+   * `null`/absent means not yet unlocked (the initial state, and every save
+   * predating this feature - read defensively, there is no migration pass,
+   * see state/persistence.ts). The object's presence == unlocked; `tier`
+   * governs bench capacity (data/producers.ts:OFFICE_BENCH_CAPACITY_BY_TIER).
+   * Hired producers are referenced by id; the Person records live in
+   * GameState.producerPool, never duplicated here.
+   */
+  productionOffice?: ProductionOffice | null;
+}
+
+export interface ProductionOffice {
+  tier: number; // 1..OFFICE_MAX_TIER
+  /** Hired producers, by PersonId - the Persons themselves live in GameState.producerPool. */
+  benchProducerIds: PersonId[];
 }
 
 export interface TalentAssignment {
@@ -1090,6 +1145,8 @@ export interface FilmDraft {
   // deliberately minimal-diff choice, not an oversight.
   script: Script | null;
   talent: TalentAssignment[];
+  /** Producers attached to this in-progress film, by PersonId (docs/DESIGN_REVIEW_production_office.md). Charged (per-film fee) only at RELEASE_FILM, like every other production cost. Optional/absent on older drafts; read as `[]`. */
+  attachedProducerIds?: PersonId[];
   /** The price the player is currently targeting for each casting slot - filters GameState.talentPool (once mapped to the underlying TalentProfession) down to who's shown. Keyed by ProductionRole, not TalentProfession, since Lead Actor and Supporting Actor need independent target prices even though both hire from the same Actor pool. */
   talentTargetPriceByRole: Partial<Record<ProductionRole, number>>;
   /** Casting Redesign, Phase B - every Open Casting call in progress for this draft's Lead/Supporting characters, at most one per Character. Empty until the player opens one; ticks weekly via engine/castingCalls.ts:tickCastingCalls. */

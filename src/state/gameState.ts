@@ -53,6 +53,14 @@ export interface GameState {
   rivalStudios: RivalStudio[];
   /** The whole hireable roster, generated once at game start - world-level (shared by the player and every rival's own casting, see engine/rivalStudios.ts) rather than nested inside the player's own Studio. */
   talentPool: Record<TalentProfession, Person[]>;
+  /**
+   * The hireable Producer roster (docs/DESIGN_REVIEW_production_office.md) -
+   * kept separate from `talentPool` (which is profession-keyed and feeds
+   * casting) so producers can never leak into the Hire Talent wizard.
+   * Optional/absent on saves predating the Production Office; read as `[]`
+   * (there is no migration pass - see state/persistence.ts).
+   */
+  producerPool?: Person[];
   // Development pipeline (docs/DESIGN_REVIEW_development_pipeline.md) -
   // world-level and shared, same reasoning as talentPool: an Opportunity
   // isn't anyone's property yet, so it can't live inside one Studio. Not
@@ -89,6 +97,7 @@ export function createInitialStudio(startingCash: number): Studio {
     brand: 20,
     prestige: 20,
     assets: [],
+    productionOffice: null, // locked until the unlock milestone (docs/DESIGN_REVIEW_production_office.md)
   };
 }
 
@@ -122,6 +131,7 @@ export function createDraftFromAsset(asset: Asset, talentTargetPriceByRole: Part
     targetAudience: asset.script.intendedAudience,
     script: asset.script,
     talent: [],
+    attachedProducerIds: [],
     talentTargetPriceByRole,
     castingCalls: [],
     environmentStrategy: null,
