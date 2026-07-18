@@ -19,7 +19,16 @@ import { asUpcomingRelease, type ScheduledRelease } from '../engine/scheduledRel
 import { deriveReleaseWindowFromDay } from '../engine/calendar';
 import { settleOpportunities, reopenForfeitedOpportunity, highestBid, placeBid, type ResolvedBid } from '../engine/opportunities';
 import { openCastingCall, tickCastingCalls } from '../engine/castingCalls';
-import { generateTalentPool } from '../engine/talentGenerator';
+import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
+import {
+  benchCapacity,
+  benchProducerIds,
+  canUnlockOffice,
+  isOfficeUnlocked,
+  isProducer,
+  officeUpgradeCost,
+  producerHiringFee,
+} from '../engine/producers';
 import { applyStatChange } from '../engine/reputation';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 import { currentScreenFor } from './selectors';
@@ -495,6 +504,88 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         focusedProjectId: draft.id,
         ...clearTransientView(),
       };
+    }
+
+    // --- Production Office & Producers (docs/DESIGN_REVIEW_production_office.md) ---
+
+    case 'UNLOCK_PRODUCTION_OFFICE': {
+      if (isOfficeUnlocked(state.studio)) return state;
+      if (!canUnlockOffice(state.studio.brand, playerReleasedFilms(state.projects).length)) return state;
+      return { ...state, studio: { ...state.studio, productionOffice: { tier: 1, benchProducerIds: [] } } };
+    }
+
+    case 'UPGRADE_PRODUCTION_OFFICE': {
+      // officeUpgradeCost is null when locked or already at the max tier, so
+      // a non-null cost implies an unlocked, upgradeable office.
+      const cost = officeUpgradeCost(state.studio);
+      if (cost == null || state.studio.cash < cost) return state;
+      const office = state.studio.productionOffice!;
+      return {
+        ...state,
+        studio: { ...state.studio, cash: state.studio.cash - cost, productionOffice: { ...office, tier: office.tier + 1 } },
+      };
+    }
+
+    case 'HIRE_PRODUCER': {
+      if (!isOfficeUnlocked(state.studio)) return state;
+      const office = state.studio.productionOffice!;
+      const person = (state.producerPool ?? []).find((p) => p.id === action.producerId);
+      if (!person || !isProducer(person)) return state;
+      if (office.benchProducerIds.includes(person.id)) return state; // already hired
+      if (office.benchProducerIds.length >= benchCapacity(state.studio)) return state; // bench full for this tier
+      const fee = producerHiringFee(person);
+      if (state.studio.cash < fee) return state;
+      return {
+        ...state,
+        studio: {
+          ...state.studio,
+          cash: state.studio.cash - fee,
+          productionOffice: { ...office, benchProducerIds: [...office.benchProducerIds, person.id] },
+        },
+      };
+    }
+
+    case 'FIRE_PRODUCER': {
+      if (!isOfficeUnlocked(state.studio)) return state;
+      const office = state.studio.productionOffice!;
+      if (!office.benchProducerIds.includes(action.producerId)) return state;
+      // Detach from every in-progress player draft too, so "attached is a
+      // subset of the bench" always holds. No refund - firing is final.
+      let nextProjects = state.projects;
+      for (const project of state.projects) {
+        const draft = asPlayerDraft(project);
+        if (draft && (draft.attachedProducerIds ?? []).includes(action.producerId)) {
+          nextProjects = replaceDraft(nextProjects, {
+            ...draft,
+            attachedProducerIds: (draft.attachedProducerIds ?? []).filter((pid) => pid !== action.producerId),
+          });
+        }
+      }
+      return {
+        ...state,
+        projects: nextProjects,
+        studio: {
+          ...state.studio,
+          productionOffice: { ...office, benchProducerIds: office.benchProducerIds.filter((pid) => pid !== action.producerId) },
+        },
+      };
+    }
+
+    case 'ATTACH_PRODUCER': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      if (!benchProducerIds(state.studio).includes(action.producerId)) return state; // only bench producers attach
+      const attached = focusedDraft.attachedProducerIds ?? [];
+      if (attached.includes(action.producerId)) return state;
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, attachedProducerIds: [...attached, action.producerId] }) };
+    }
+
+    case 'DETACH_PRODUCER': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const attached = focusedDraft.attachedProducerIds ?? [];
+      if (!attached.includes(action.producerId)) return state;
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, attachedProducerIds: attached.filter((pid) => pid !== action.producerId) }) };
     }
 
     // Producer Workspace free navigation (PRODUCER_WORKSPACE_DESIGN.md) -
@@ -1231,6 +1322,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const { result, nextSeed } = withRng(randomSeed(), (rng) => ({
         talentPool: generateTalentPool(rng),
         rivalStudios: generateRivalStudios(rng),
+        producerPool: generateProducerPool(rng),
       }));
       return {
         studio: { ...createInitialStudio(action.startingCash), assets: TEST_SCRIPT_ASSETS },
@@ -1242,6 +1334,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         totalDays: 1,
         talentPool: result.talentPool,
         rivalStudios: result.rivalStudios,
+        producerPool: result.producerPool,
         opportunities: [],
         nextOpportunityCheckDay: 1,
         ...clearTransientView(),
