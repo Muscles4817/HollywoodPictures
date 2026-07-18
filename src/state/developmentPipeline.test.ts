@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { studioReducer } from './studioReducer';
 import { createInitialStudio, type GameState } from './gameState';
-import { buildReadyAsset } from './testFixtures';
+import { buildReadyAsset, conformActorGenderToSlot } from './testFixtures';
 import { generateTalentPool } from '../engine/talentGenerator';
 import { settleOpportunities } from '../engine/opportunities';
 import { withRng } from '../engine/random';
@@ -80,7 +80,7 @@ function hireMandatoryRoles(s: GameState): GameState {
       drawIndexByProfession.set(profession, index + 1);
       const cheapest = [...s.talentPool[profession]].sort((a, b) => getTypicalSalaryForRole(a, role) - getTypicalSalaryForRole(b, role));
       const candidate = cheapest[index];
-      s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, person: candidate! });
+      s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, person: conformActorGenderToSlot(candidate!, script, role, i) });
     }
   }
   return s;

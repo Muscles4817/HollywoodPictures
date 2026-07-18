@@ -158,6 +158,16 @@ export type NormalizedStat = number; // 1-100
 
 export type Gender = 'Male' | 'Female' | 'NonBinary';
 
+// What gender a written Character calls for when casting - distinct from a
+// real Person's own Gender above. 'Any' is a genuinely open role that any
+// actor can play (many villains, mentors, ensemble parts), not a fourth
+// gender. A Character with no castingGender at all (older saves, scripts
+// authored before this field existed) is read as 'Any' everywhere, so the
+// constraint is strictly additive and never retroactively blocks an
+// existing cast. See engine/casting.ts:actorMeetsCharacterGender for the
+// single match rule every consumer shares.
+export type CastingGender = 'Male' | 'Female' | 'Any';
+
 // Every role a person's career data can be filed under - reuses
 // TalentProfession rather than introducing a differently-named but
 // identical concept (the redesign doc calls this TalentRole; this codebase
@@ -565,6 +575,14 @@ export interface ScriptCharacter {
   name: string;
   archetype: CharacterArchetype;
   prominence: CharacterProminence;
+  /**
+   * Which gender this role is written for. Enforced when casting: only an
+   * actor whose own identity.gender matches can be hired into the slot (see
+   * engine/casting.ts). Optional so older saved scripts and any code that
+   * builds a Character without it keep working - absent is read as 'Any',
+   * i.e. no constraint.
+   */
+  castingGender?: CastingGender;
   traits: CharacterTraitProfile;
 }
 

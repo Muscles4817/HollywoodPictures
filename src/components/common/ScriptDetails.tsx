@@ -13,6 +13,7 @@ import {
   describeSettingImplication,
   describeCharacterDemands,
 } from '../../engine/scriptPresentation';
+import { castingGenderLabel } from '../../engine/casting';
 import type { Script } from '../../types';
 
 /**
@@ -85,6 +86,11 @@ export function ScriptDetails({ script }: { script: Script }) {
               .map((character) => (
                 <div key={character.id} style={{ fontSize: '0.85em' }}>
                   <strong>{character.name}</strong> — {character.prominence} {CHARACTER_ARCHETYPE_LABELS[character.archetype]}
+                  {character.castingGender && character.castingGender !== 'Any' && (
+                    <span className="badge" style={{ marginLeft: 6 }} title="Only actors of this gender can be cast in this role.">
+                      {castingGenderLabel(character.castingGender)}
+                    </span>
+                  )}
                   <div style={{ color: 'var(--text-muted)' }}>{describeCharacterDemands(character)}</div>
                 </div>
               ))}

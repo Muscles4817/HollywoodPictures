@@ -1,4 +1,5 @@
 import type {
+  CastingGender,
   CharacterArchetype,
   CharacterProminence,
   CharacterTraitProfile,
@@ -256,6 +257,47 @@ function characterArchetypeWeightsForProminence(prominence: CharacterProminence)
   return weights;
 }
 
+// How often a generated Character is written as gender-open ('Any') rather
+// than a specific Male/Female role, keyed by archetype - creatures, ensemble
+// bodies and pure "figure" roles are the ones most naturally cast either
+// way, while a LoveInterest is almost always written for a specific gender.
+// Everything not listed uses DEFAULT_ANY_CHANCE. Non-'Any' roles then split
+// Male/Female evenly. Tunable like every other generation constant here.
+const CASTING_GENDER_ANY_CHANCE: Partial<Record<CharacterArchetype, number>> = {
+  MonsterOrCreature: 0.8,
+  Other: 0.65,
+  EnsembleMember: 0.6,
+  AuthorityFigure: 0.4,
+  Villain: 0.35,
+  Rival: 0.35,
+  Mentor: 0.35,
+  Detective: 0.3,
+  LoveInterest: 0.05,
+};
+const DEFAULT_ANY_CHANCE = 0.18;
+
+/** A stable 0-1 hash of a string (FNV-1a) - used to derive castingGender below without drawing from the shared RandomFn stream. */
+function hashUnit(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 4294967296;
+}
+
+// Deliberately derived from the character's own (already-generated) name
+// rather than a fresh rng() draw: assigning gender must NOT advance the
+// shared generation stream, or every seeded sequence downstream (rival
+// scripts, talent, box-office scenarios) would shift. Hashing the name gives
+// stable, well-distributed, archetype-weighted genders for free - two
+// distinct names almost never collide, and the same seed still reproduces
+// the same slate exactly.
+function castingGenderForCharacter(archetype: CharacterArchetype, name: string): CastingGender {
+  if (hashUnit(`${name}|any`) < (CASTING_GENDER_ANY_CHANCE[archetype] ?? DEFAULT_ANY_CHANCE)) return 'Any';
+  return hashUnit(`${name}|mf`) < 0.5 ? 'Male' : 'Female';
+}
+
 function generateCharacter(prominence: CharacterProminence, genre: Genre, storyType: StoryType, rng: RandomFn): ScriptCharacter {
   const weights = combineWeights(CHARACTER_ARCHETYPES, [
     characterArchetypeWeightsForGenre(genre),
@@ -263,11 +305,13 @@ function generateCharacter(prominence: CharacterProminence, genre: Genre, storyT
     characterArchetypeWeightsForProminence(prominence),
   ]);
   const archetype = weightedPick(rng, CHARACTER_ARCHETYPES, weights);
+  const name = `${pick(rng, TALENT_FIRST_NAMES)} ${pick(rng, TALENT_LAST_NAMES)}`;
   return {
     id: `character-${nextCharacterId++}`,
-    name: `${pick(rng, TALENT_FIRST_NAMES)} ${pick(rng, TALENT_LAST_NAMES)}`,
+    name,
     archetype,
     prominence,
+    castingGender: castingGenderForCharacter(archetype, name),
     traits: generateCharacterTraits(CHARACTER_ARCHETYPE_PROFILES[archetype].baseTraits, rng),
   };
 }

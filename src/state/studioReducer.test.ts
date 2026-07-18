@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { studioReducer } from './studioReducer';
-import { buildStateWithReadyDraft, buildReadyDraft, buildReadyAsset, defaultMarketingChoices } from './testFixtures';
+import { buildStateWithReadyDraft, buildReadyDraft, buildReadyAsset, defaultMarketingChoices, conformActorGenderToSlot } from './testFixtures';
 import { createInitialStudio } from './gameState';
 import { withRng } from '../engine/random';
 import { STUDIO_BOX_OFFICE_SHARE, AVERAGE_TICKET_PRICE } from '../engine/boxOfficeRun';
@@ -416,9 +416,9 @@ function stateReadyToGreenlight(seed: number, startingCash = 50_000_000): GameSt
     const need = Math.max(1, effectiveRoleCapacity(role, script).min);
     const { result: candidates } = withRng(drawSeed, (rng) => generateTalentCandidates(profession, rng, need));
     drawSeed += 1;
-    for (const person of candidates) {
-      s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, person });
-    }
+    candidates.forEach((person, slot) => {
+      s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, person: conformActorGenderToSlot(person, script, role, slot) });
+    });
   }
 
   s = studioReducer(s, {
@@ -432,6 +432,62 @@ function stateReadyToGreenlight(seed: number, startingCash = 50_000_000): GameSt
   });
   return s;
 }
+
+describe('gender enforcement when casting (engine/casting.ts)', () => {
+  // Build a workspace state whose focused draft's first Lead character is
+  // written for `leadGender`, then return the state plus that draft's script.
+  function stateWithGenderedLead(seed: number, leadGender: 'Male' | 'Female') {
+    const { result: asset } = withRng(seed, (rng) => buildReadyAsset(rng));
+    const firstLeadId = asset.script.cast.find((c) => c.prominence === 'Lead')!.id;
+    const gendered = {
+      ...asset,
+      script: {
+        ...asset.script,
+        cast: asset.script.cast.map((c) => (c.id === firstLeadId ? { ...c, castingGender: leadGender } : c)),
+      },
+    };
+    let s = freshWorkspaceState(seed);
+    s = { ...s, studio: { ...s.studio, assets: [gendered] } };
+    s = studioReducer(s, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: gendered.id });
+    return { s, script: gendered.script };
+  }
+
+  function anActor(seed: number, gender: 'Male' | 'Female') {
+    const { result } = withRng(seed, (rng) => generateTalentCandidates('Actor', rng, 1));
+    return { ...result[0], identity: { ...result[0].identity, gender } };
+  }
+
+  it('rejects an actor whose gender does not match the Lead slot, and accepts one who does', () => {
+    const { s: base } = stateWithGenderedLead(4040, 'Female');
+
+    const afterWrong = studioReducer(base, { type: 'TOGGLE_TALENT_FOR_ROLE', role: 'Lead Actor', person: anActor(1, 'Male') });
+    const wrongDraft = asPlayerDraft(findProject(afterWrong.projects, afterWrong.focusedProjectId))!;
+    expect(wrongDraft.talent.some((a) => a.role === 'Lead Actor')).toBe(false);
+
+    const afterRight = studioReducer(base, { type: 'TOGGLE_TALENT_FOR_ROLE', role: 'Lead Actor', person: anActor(2, 'Female') });
+    const rightDraft = asPlayerDraft(findProject(afterRight.projects, afterRight.focusedProjectId))!;
+    expect(rightDraft.talent.filter((a) => a.role === 'Lead Actor')).toHaveLength(1);
+  });
+
+  it('an Any role (or absent castingGender) accepts any gender', () => {
+    const { s: base } = stateWithGenderedLead(4041, 'Male');
+    // Overwrite the same lead back to an open role and confirm a mismatched-by-name actor still gets cast.
+    const draft = asPlayerDraft(findProject(base.projects, base.focusedProjectId))!;
+    const leadId = draft.script!.cast.find((c) => c.prominence === 'Lead')!.id;
+    const openScript = { ...draft.script!, cast: draft.script!.cast.map((c) => (c.id === leadId ? { ...c, castingGender: 'Any' as const } : c)) };
+    let s = base;
+    s = {
+      ...s,
+      projects: s.projects.map((p) =>
+        p.kind === 'player-in-progress' && p.draft.id === s.focusedProjectId ? { ...p, draft: { ...p.draft, script: openScript } } : p,
+      ),
+    };
+
+    const after = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role: 'Lead Actor', person: anActor(3, 'Female') });
+    const afterDraft = asPlayerDraft(findProject(after.projects, after.focusedProjectId))!;
+    expect(afterDraft.talent.filter((a) => a.role === 'Lead Actor')).toHaveLength(1);
+  });
+});
 
 describe('OPEN_PROJECT_WORKSPACE_SECTION - free navigation', () => {
   it('switches the section and screen with no calendar cost', () => {
@@ -494,7 +550,7 @@ describe('GREENLIGHT_PROJECT - the new lump pre-production time charge', () => {
       const need = Math.max(1, effectiveRoleCapacity(role, script).min);
       const { result: candidates } = withRng(drawSeed, (rng) => generateTalentCandidates(profession, rng, need));
       drawSeed += 1;
-      for (const person of candidates) s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, person });
+      candidates.forEach((person, slot) => { s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, person: conformActorGenderToSlot(person, script, role, slot) }); });
     }
     s = studioReducer(s, {
       type: 'SET_PRODUCTION_PLAN',

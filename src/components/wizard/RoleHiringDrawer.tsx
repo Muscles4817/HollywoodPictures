@@ -3,6 +3,7 @@ import { useStudio } from '../../state/StudioContext';
 import { ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
 import { TALENT_PRESENTATION, type RoleCategory } from '../../data/talentPresentation';
 import { effectiveRoleCapacity, characterForRoleSlot } from '../../engine/castRequirements';
+import { actorMeetsCharacterGender, castingGenderLabel } from '../../engine/casting';
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { deriveBookedUntil, getTypicalSalaryForRole } from '../../engine/person';
@@ -108,9 +109,16 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   // shared Actor pool means the same real person could otherwise show up as
   // selectable for both Lead Actor and Supporting Actor at once.
   const hiredElsewhereIds = new Set(draft.talent.filter((a) => a.role !== role).map((a) => a.person.id));
-  const candidates = state.talentPool[professionForProductionRole(role)].filter((t) => !hiredElsewhereIds.has(t.id));
   const hired = draft.talent.filter((a) => a.role === role).map((a) => a.person);
   const atCap = hired.length >= capacity.max;
+  // The Character the next hire would fill (null for non-actor roles / once
+  // every slot is taken). Its castingGender gates who can even appear as a
+  // candidate below - a hard block, so an ineligible actor never shows up
+  // for a role they can't play (matches the reducer's own assignment guard).
+  const nextCharacter = draft.script && !atCap ? characterForRoleSlot(draft.script, role, hired.length) : null;
+  const candidates = state.talentPool[professionForProductionRole(role)].filter(
+    (t) => !hiredElsewhereIds.has(t.id) && (!nextCharacter || actorMeetsCharacterGender(t.identity.gender, nextCharacter.castingGender)),
+  );
   const showVfxHint = role === 'VFX Supervisor' && draft.genre && VFX_RECOMMENDED_GENRES.has(draft.genre);
   const isActor = profile.category === 'actor';
   // Which specific Character the *next* hire would fill - same slot-index
@@ -119,7 +127,6 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   // Supporting Actor" reads as "Casting: Mercedes (Supporting)" (Casting
   // Redesign, Additional Notes point 1 - "we're still looking for our
   // villain," not "Character #4 isn't assigned").
-  const nextCharacter = draft.script && !atCap ? characterForRoleSlot(draft.script, role, hired.length) : null;
 
   const { candidates: visible, toleranceUsed } = findCandidatesNearPrice(candidates, role, targetPrice, VISIBLE_CANDIDATE_COUNT);
   const hiredNotVisible = hired.filter((h) => !visible.some((v) => v.id === h.id));
@@ -180,6 +187,11 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
             {nextCharacter && (
               <p style={{ margin: '2px 0 0', fontWeight: 600 }}>
                 Casting: {nextCharacter.name} ({nextCharacter.prominence})
+                {nextCharacter.castingGender && nextCharacter.castingGender !== 'Any' && (
+                  <span className="badge" style={{ marginLeft: 8 }}>
+                    {castingGenderLabel(nextCharacter.castingGender)}
+                  </span>
+                )}
               </p>
             )}
             <p style={{ margin: '4px 0 0', color: 'var(--text-muted)' }}>{profile.blurb}</p>
