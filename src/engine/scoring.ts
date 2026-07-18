@@ -326,12 +326,17 @@ export function computeQualityBreakdown(
   postProductionChoices: PostProductionChoices,
   events: ProductionEvent[],
   shootingRatio: number,
+  // A flat bonus added to the post-production sub-score before it propagates
+  // into qualityScore - the hook a Creative producer's boost uses
+  // (docs/DESIGN_REVIEW_production_office.md). Defaults to 0, so every existing
+  // caller (and every rival) is unaffected.
+  postProductionScoreBonus = 0,
 ): QualityBreakdown {
   const scriptScore = computeScriptScore(script);
   const directionScore = computeDirectionScore(talent, script);
   const actingScore = computeActingScore(talent, script);
   const productionScore = computeProductionScore(productionChoices, genre, shootingRatio);
-  const postProductionScore = computePostProductionScore(postProductionChoices);
+  const postProductionScore = clamp(computePostProductionScore(postProductionChoices) + postProductionScoreBonus, 0, 100);
   const eventsScore = computeEventsScore(events);
 
   const scriptRatio = scriptScore / 100;

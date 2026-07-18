@@ -3,8 +3,8 @@ import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft } from './testFixtures';
 import type { GameState } from './gameState';
 import type { Person, ProducerSpecialty } from '../types';
-import { asPlayerDraft, findProject } from '../engine/project';
-import { producerHiringFee } from '../engine/producers';
+import { asPlayerDraft, findProject, playerReleasedFilms } from '../engine/project';
+import { producerHiringFee, producerPerFilmFee } from '../engine/producers';
 import { OFFICE_BENCH_CAPACITY_BY_TIER, OFFICE_UNLOCK_BRAND, OFFICE_UPGRADE_COST_BY_TIER } from '../data/producers';
 
 let idCounter = 0;
@@ -159,5 +159,21 @@ describe('ATTACH_PRODUCER / DETACH_PRODUCER', () => {
     const attached = studioReducer(s, { type: 'ATTACH_PRODUCER', producerId: p.id });
     const detached = studioReducer(attached, { type: 'DETACH_PRODUCER', producerId: p.id });
     expect(focusedAttached(detached)).toEqual([]);
+  });
+});
+
+describe('per-film fee reaches the released film (end to end)', () => {
+  it("a Creative producer's fee lands in the film's totalCost at release", () => {
+    // Creative changes quality but never cost, so the whole totalCost delta
+    // between the attached and un-attached run is exactly the per-film fee.
+    const p = makeProducer('Creative', 300_000);
+    const base = stateWith({ pool: [p], tier: 1, bench: [p.id], cash: 50_000_000 });
+
+    const baseline = playerReleasedFilms(studioReducer(base, { type: 'SCHEDULE_RELEASE', releaseDay: 1 }).projects)[0];
+
+    const attached = studioReducer(base, { type: 'ATTACH_PRODUCER', producerId: p.id });
+    const withProducer = playerReleasedFilms(studioReducer(attached, { type: 'SCHEDULE_RELEASE', releaseDay: 1 }).projects)[0];
+
+    expect(withProducer.results.totalCost).toBe(baseline.results.totalCost + producerPerFilmFee(p));
   });
 });
