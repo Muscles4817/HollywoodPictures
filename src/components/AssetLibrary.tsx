@@ -634,7 +634,7 @@ export function AssetLibrary() {
         >
           <h2 style={{ margin: 0 }}>Test Scripts</h2>
           <p className="choice-description" style={{ margin: 0 }}>
-            Sixty-four real, iconic screenplays — eight per genre — free to
+            Eighty-eight real, iconic screenplays — eleven per genre — free to
             develop any time, for trying out productions without waiting on the
             Opportunity Market.
           </p>
