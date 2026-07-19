@@ -1529,6 +1529,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'VIEW_PROJECTS':
       return { ...state, screen: 'projects', ...clearTransientView() };
 
+    // Dashboard -> the Academy Awards screen. Pure detour, same as VIEW_STATS.
+    case 'VIEW_AWARDS':
+      return { ...state, screen: 'awards', ...clearTransientView() };
+
     // Restores an exact prior "page" - see GameAction's own comment on why
     // this one, unlike every other navigation action, can't just trust its
     // payload: the project or rival a browser history entry points at may

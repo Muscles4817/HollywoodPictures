@@ -1396,4 +1396,5 @@ export type Screen =
   | 'release-calendar'
   | 'opportunity-market'
   | 'asset-library'
-  | 'projects';
+  | 'projects'
+  | 'awards';

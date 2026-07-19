@@ -342,6 +342,8 @@ export type GameAction =
   // each, grouped by stage (components/ProjectsPage.tsx). Pure detour, same
   // as VIEW_STATS - doesn't touch the calendar or focusedProjectId.
   | { type: 'VIEW_PROJECTS' }
+  // Dashboard -> the Academy Awards screen (campaign + history). Pure detour, same as VIEW_STATS.
+  | { type: 'VIEW_AWARDS' }
   // Driven by the browser's own Back/Forward buttons (App.tsx), never
   // dispatched directly by the UI - restores an exact prior screen/focus/
   // detour snapshot rather than deriving it from the current one, since

@@ -1,0 +1,107 @@
+/* The Academy Awards screen (AwardsPage.tsx). */
+
+.awards-muted {
+  color: var(--text-muted);
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.awards-countdown {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--info-bg);
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+.awards-campaign-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.awards-campaign-film small {
+  display: block;
+  color: var(--text-muted);
+}
+
+.awards-campaign-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.awards-campaign-buttons small {
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.awards-campaign-total {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  font-weight: 600;
+}
+
+.awards-ceremony {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.awards-ceremony:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.awards-ceremony > summary {
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.05rem;
+}
+
+.awards-ceremony-haul {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.awards-categories {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.awards-category h4 {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+}
+
+.awards-category ul {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+
+.awards-category li {
+  padding: 2px 0;
+  color: var(--text-muted);
+}
+
+.awards-category li.awards-winner {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.awards-player-film {
+  color: var(--primary);
+}
