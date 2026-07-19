@@ -17,7 +17,7 @@ import type {
   ToneProfile,
 } from '../types';
 import { GENRE_PROFILES, GENRE_SETTING_AFFINITY, GENRE_TYPICAL_AUDIENCES } from '../data/genres';
-import { SCRIPT_TITLE_WORDS } from '../data/scriptWords';
+import { uniqueTitle } from './titleGenerator';
 import { TONES } from '../data/tones';
 import { TARGET_AUDIENCES } from '../data/audiences';
 import { SCRIPT_ARCHETYPES, SCRIPT_ARCHETYPE_PROFILES, type QualityRange } from '../data/scriptArchetypes';
@@ -30,29 +30,6 @@ import { generatePremise } from './premiseGenerator';
 import { type RandomFn, clamp, combineWeights, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick } from './random';
 
 let nextScriptId = 1;
-
-function randomTitle(genre: Genre, rng: RandomFn): string {
-  const bank = SCRIPT_TITLE_WORDS[genre];
-  return `${pick(rng, bank.adjectives)} ${pick(rng, bank.nouns)}`;
-}
-
-const TITLE_RETRY_LIMIT = 15;
-
-/** Re-rolls on a collision so one slate never shows the same title twice - see data/scriptWords.ts. */
-function uniqueTitle(genre: Genre, rng: RandomFn, usedTitles: Set<string>): string {
-  for (let attempt = 0; attempt < TITLE_RETRY_LIMIT; attempt++) {
-    const title = randomTitle(genre, rng);
-    if (!usedTitles.has(title)) {
-      usedTitles.add(title);
-      return title;
-    }
-  }
-  // Word bank exhausted for this slate (shouldn't happen at 144 combinations
-  // for a 12-script slate, but don't loop forever if it ever does).
-  const title = randomTitle(genre, rng);
-  usedTitles.add(title);
-  return title;
-}
 
 const TONE_JITTER = 15;
 
