@@ -1,4 +1,4 @@
-import type { Asset, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentProfession, WizardStep } from '../types';
+import type { Asset, AwardsState, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, clamp, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
@@ -17,7 +17,9 @@ import { settleTheatricalMarket } from '../engine/marketSettlement';
 import { settleRivalMarket, generateRivalStudios } from '../engine/rivalStudios';
 import { settleProductionsInProgress } from '../engine/productionsInProgress';
 import { asUpcomingRelease, type ScheduledRelease } from '../engine/scheduledReleases';
-import { deriveReleaseWindowFromDay } from '../engine/calendar';
+import { deriveReleaseWindowFromDay, DAYS_PER_YEAR, firstDayOfYear, yearOf } from '../engine/calendar';
+import { computeBoxOfficeBump, computeCeremony, computeStudioAwardDeltas, filmsForAwardsYear } from '../engine/awards';
+import { CEREMONY_DELAY_DAYS } from '../data/awards';
 import { settleOpportunities, reopenForfeitedOpportunity, highestBid, placeBid, type ResolvedBid } from '../engine/opportunities';
 import { openCastingCall, tickCastingCalls } from '../engine/castingCalls';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
@@ -135,6 +137,93 @@ function applyOpportunityWins(
     nextStudio = { ...nextStudio, cash: nextStudio.cash - resolved.amount, assets: [...nextStudio.assets, asset] };
   }
   return { studio: nextStudio, opportunities: nextOpportunities };
+}
+
+/** Awards state for a state that predates the feature: no history, no open season, next season at the coming year boundary. */
+function awardsStateOrDefault(state: GameState): AwardsState {
+  return state.awards ?? { history: [], season: null, nextSeasonDay: firstDayOfYear(yearOf(state.totalDays) + 1) };
+}
+
+/**
+ * Awards Season settlement (docs/DESIGN_REVIEW_awards_season.md, increment 2).
+ * Runs once a day inside ADVANCE_DAY, AFTER every other rng draw in that tick,
+ * so its (rare, ceremony-day-only) jitter never perturbs any other system's
+ * seeded outcomes. Opens a season at the year boundary and resolves the
+ * ceremony ~45 days later, folding payoffs into the player's and rivals'
+ * cash/Brand/Prestige.
+ */
+function settleAwards(
+  awardsIn: AwardsState,
+  studioIn: Studio,
+  rivalsIn: RivalStudio[],
+  allFilms: Film[],
+  totalDaysAfter: number,
+  rng: RandomFn,
+): { studio: Studio; rivalStudios: RivalStudio[]; awards: AwardsState } {
+  let awards = awardsIn;
+  let studio = studioIn;
+  let rivals = rivalsIn;
+
+  // Open a season once the year boundary is reached, honouring the year just
+  // completed. If no film was released that year, skip straight to next year.
+  if (!awards.season && totalDaysAfter >= awards.nextSeasonDay) {
+    const year = yearOf(totalDaysAfter) - 1;
+    const eligible = filmsForAwardsYear(allFilms, year);
+    awards =
+      eligible.length > 0
+        ? {
+            ...awards,
+            nextSeasonDay: awards.nextSeasonDay + DAYS_PER_YEAR,
+            season: { year, eligibleFilmIds: eligible.map((f) => f.id), ceremonyDay: totalDaysAfter + CEREMONY_DELAY_DAYS, campaignByFilm: {} },
+          }
+        : { ...awards, nextSeasonDay: awards.nextSeasonDay + DAYS_PER_YEAR };
+  }
+
+  // Resolve the ceremony once its day arrives.
+  if (awards.season && totalDaysAfter >= awards.season.ceremonyDay) {
+    const season = awards.season;
+    const eligibleFilms = allFilms.filter((f) => season.eligibleFilmIds.includes(f.id));
+    const prestigeForFilm = (film: Film): number =>
+      film.releasedBy === undefined ? studio.prestige : (rivals.find((r) => r.name === film.releasedBy)?.prestige ?? 20);
+    const ceremony = computeCeremony({
+      year: season.year,
+      ceremonyDay: totalDaysAfter,
+      eligibleFilms,
+      campaignByFilm: season.campaignByFilm,
+      studioPrestigeForFilm: prestigeForFilm,
+      rng,
+    });
+
+    // Player payoff: Prestige + Brand from the tally, cash from the box-office bump.
+    const playerFilms = eligibleFilms.filter((f) => f.releasedBy === undefined);
+    const playerDeltas = computeStudioAwardDeltas(ceremony, new Set(playerFilms.map((f) => f.id)));
+    const playerBump = playerFilms.reduce((sum, f) => sum + computeBoxOfficeBump(f, ceremony), 0);
+    studio = {
+      ...studio,
+      prestige: applyStatChange(studio.prestige, playerDeltas.prestige),
+      brand: applyStatChange(studio.brand, playerDeltas.brand),
+      cash: studio.cash + playerBump,
+    };
+
+    // Rivals get the same treatment for their own films.
+    rivals = rivals.map((rival) => {
+      const films = eligibleFilms.filter((f) => f.releasedBy === rival.name);
+      if (films.length === 0) return rival;
+      const deltas = computeStudioAwardDeltas(ceremony, new Set(films.map((f) => f.id)));
+      const bump = films.reduce((sum, f) => sum + computeBoxOfficeBump(f, ceremony), 0);
+      return {
+        ...rival,
+        prestige: applyStatChange(rival.prestige, deltas.prestige),
+        brand: applyStatChange(rival.brand, deltas.brand),
+        cash: rival.cash + bump,
+        lifetimeRevenue: rival.lifetimeRevenue + bump,
+      };
+    });
+
+    awards = { ...awards, season: null, history: [...awards.history, ceremony] };
+  }
+
+  return { studio, rivalStudios: rivals, awards };
 }
 
 export interface CalendarSettlementResult {
@@ -407,17 +496,28 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             rng,
           ),
         );
-        return { settlement, productionsInProgress: tickedProductionsInProgress, focusedDraft: tickedFocusedDraft };
+        // Awards runs LAST in the tick, so its ceremony-day-only jitter draws
+        // never shift the rng any other system above consumed.
+        const awardsResult = settleAwards(
+          awardsStateOrDefault(state),
+          settlement.studio,
+          settlement.rivalStudios,
+          [...settlement.playerFilms, ...settlement.rivalFilms],
+          totalDaysAfter,
+          rng,
+        );
+        return { settlement, awardsResult, productionsInProgress: tickedProductionsInProgress, focusedDraft: tickedFocusedDraft };
       });
       return {
         ...state,
         rngSeed: nextSeed,
         totalDays: totalDaysAfter,
-        rivalStudios: result.settlement.rivalStudios,
+        rivalStudios: result.awardsResult.rivalStudios,
         talentPool: result.settlement.talentPool,
         opportunities: result.settlement.opportunities,
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
-        studio: result.settlement.studio,
+        studio: result.awardsResult.studio,
+        awards: result.awardsResult.awards,
         projects: assembleProjects({
           playerDrafts: [...(result.focusedDraft ? [result.focusedDraft] : []), ...result.productionsInProgress],
           scheduled: result.settlement.stillScheduled,
@@ -425,6 +525,28 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           playerFilms: result.settlement.playerFilms,
           rivalFilms: result.settlement.rivalFilms,
         }),
+      };
+    }
+
+    // Awards Season (docs/DESIGN_REVIEW_awards_season.md) - set/replace a
+    // player film's campaign budget during an open season. Delta-based, so
+    // lowering it refunds; charged immediately (a studio-level spend). No-op
+    // when there's no open season, the film isn't eligible or isn't the
+    // player's, or an increase is unaffordable.
+    case 'SET_AWARDS_CAMPAIGN': {
+      const awards = state.awards;
+      if (!awards?.season || !awards.season.eligibleFilmIds.includes(action.filmId)) return state;
+      if (!playerReleasedFilms(state.projects).some((f) => f.id === action.filmId)) return state;
+      const amount = Math.max(0, Math.round(action.amount));
+      const delta = amount - (awards.season.campaignByFilm[action.filmId] ?? 0);
+      if (delta > 0 && state.studio.cash < delta) return state;
+      return {
+        ...state,
+        studio: { ...state.studio, cash: state.studio.cash - delta },
+        awards: {
+          ...awards,
+          season: { ...awards.season, campaignByFilm: { ...awards.season.campaignByFilm, [action.filmId]: amount } },
+        },
       };
     }
 
@@ -1363,6 +1485,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         producerPool: result.producerPool,
         opportunities: [],
         nextOpportunityCheckDay: 1,
+        awards: { history: [], season: null, nextSeasonDay: firstDayOfYear(2) },
         ...clearTransientView(),
       };
     }

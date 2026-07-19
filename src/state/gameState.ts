@@ -1,5 +1,6 @@
 import type {
   Asset,
+  AwardsState,
   Distribution,
   EffectsMethodKey,
   EnvironmentMethodKey,
@@ -81,6 +82,13 @@ export interface GameState {
   // every other navigation action so it can't outlive the view that set it
   // (see state/studioReducer.ts).
   viewingProductionId: string | null;
+  /**
+   * Awards Season (docs/DESIGN_REVIEW_awards_season.md) - resolved history, the
+   * open season (campaign phase), and when the next opens. Optional/absent on
+   * saves predating awards; read defensively via awardsStateOrDefault (there is
+   * no migration pass - see state/persistence.ts).
+   */
+  awards?: AwardsState;
 }
 
 /**
@@ -184,6 +192,12 @@ export type GameAction =
   // production cost. All six fail safely (no-op) when their preconditions
   // aren't met. Invariant: a draft's attached producers are always a subset
   // of the bench (ATTACH requires bench membership; FIRE detaches).
+  // Awards Season (docs/DESIGN_REVIEW_awards_season.md) - set (replace) the
+  // campaign budget for one of the player's eligible films during an open
+  // season. Delta cash moves immediately (refunds on a decrease); a no-op if
+  // no season is open, the film isn't the player's, isn't eligible, or the
+  // increase is unaffordable.
+  | { type: 'SET_AWARDS_CAMPAIGN'; filmId: string; amount: number }
   | { type: 'UNLOCK_PRODUCTION_OFFICE' }
   | { type: 'UPGRADE_PRODUCTION_OFFICE' }
   | { type: 'HIRE_PRODUCER'; producerId: string }

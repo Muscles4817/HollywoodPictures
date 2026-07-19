@@ -3,6 +3,7 @@ import { createInitialStudio } from './gameState';
 import { generateRivalStudios } from '../engine/rivalStudios';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
 import { randomSeed, withRng } from '../engine/random';
+import { firstDayOfYear } from '../engine/calendar';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 
 // Bump this whenever a persisted shape changes incompatibly (e.g. v2 -> v3
@@ -289,6 +290,7 @@ export function loadState(): GameState {
       producerPool: result.producerPool,
       opportunities: [],
       nextOpportunityCheckDay: 1,
+      awards: { history: [], season: null, nextSeasonDay: firstDayOfYear(2) },
       viewingRivalStudioName: null,
       viewingProductionId: null,
     };
