@@ -834,7 +834,7 @@ describe('SCHEDULE_RELEASE - gated on the test screening', () => {
   });
 
   it('the release day is never earlier than postProductionFinalReadyDay (a Major Reshoots delay is respected)', () => {
-    let s = stateWithScreeningPending(942);
+    let s = stateWithScreeningPending(943);
     s = studioReducer(s, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'major-reshoots', productionId: s.focusedProjectId! });
     const finalReady = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!.postProductionFinalReadyDay!;
     // Ask to release "today", well before post-production may have wrapped.
