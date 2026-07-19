@@ -371,7 +371,7 @@ function randIntRange(rng: RandomFn, range: QualityRange[keyof QualityRange]): n
  * different archetype/story-type/scale/setting tags, not because their
  * stat rolls happened to differ.
  */
-function generateScript(genre: Genre, rng: RandomFn, title: string): Script {
+function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses: Set<string>): Script {
   const archetype = weightedPick(rng, SCRIPT_ARCHETYPES, archetypeWeightsForGenre(genre));
   const archetypeProfile = SCRIPT_ARCHETYPE_PROFILES[archetype];
 
@@ -432,7 +432,7 @@ function generateScript(genre: Genre, rng: RandomFn, title: string): Script {
     effectsStrategy,
     effectsAmbition,
     productionRequirements,
-    synopsis: generatePremise(genre, flavorTones[0] ?? null, rng),
+    synopsis: generatePremise(genre, storyType, primarySetting, flavorTones[0] ?? null, usedSynopses, rng),
     requiredLeads,
     requiredSupporting,
     intendedAudience,
@@ -443,5 +443,6 @@ function generateScript(genre: Genre, rng: RandomFn, title: string): Script {
 /** Generates a slate of script options for the player to choose from. */
 export function generateScriptOptions(genre: Genre, rng: RandomFn, count = 12): Script[] {
   const usedTitles = new Set<string>();
-  return Array.from({ length: count }, () => generateScript(genre, rng, uniqueTitle(genre, rng, usedTitles)));
+  const usedSynopses = new Set<string>();
+  return Array.from({ length: count }, () => generateScript(genre, rng, uniqueTitle(genre, rng, usedTitles), usedSynopses));
 }
