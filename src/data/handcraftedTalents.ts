@@ -6192,6 +6192,52 @@ export const HANDCRAFTED_ACTORS: Person[] = [
         traits: [],
     },
     {
+        id: 'real-lead-actor-joseph-gordon-levitt',
+        identity: {
+            name: 'Joseph Gordon-Levitt',
+            appearanceTags: [],
+            gender: 'Male',
+            dateOfBirth: { year: -44, month: 2, day: 17 },
+        },
+        personality: {
+            professionalism: 92,
+            ambition: 58,
+            loyalty: 55,
+            ego: 22,
+            temperament: 55,
+            pressureHandling: 55,
+            controversy: 10,
+            adaptability: 60,
+        },
+        reputation: {
+            fame: 78,
+            prestige: 74,
+            industryRespect: 82,
+            reliability: 90,
+            currentHeat: 70,
+        },
+        primaryRole: 'Actor',
+        careers: {
+            actor: {
+                role: 'Actor',
+                active: true,
+                experience: 55,
+                roleReputation: 80,
+                minimumSalary: 5_000_000,
+                typicalSalary: 5_000_000,
+                actingStyle: {
+                    characterTransformation: 78,
+                    emotionalPerformance: 82,
+                    charisma: 80,
+                    comedy: 62,
+                    physicalPerformance: 58,
+                },
+            },
+        },
+        availability: { commitments: [] },
+        traits: [],
+    },
+    {
         id: 'real-lead-actor-pedro-pascal',
         identity: {
             name: 'Pedro Pascal',
