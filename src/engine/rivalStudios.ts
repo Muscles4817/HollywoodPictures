@@ -48,10 +48,16 @@ const NON_SHOOT_STAGE_DAYS = Object.values(STAGE_DURATIONS).reduce((sum, days) =
 // Where a production's target price (0-1, log-scale) lands based on its
 // scale - governs both casting price and production spend, same way the
 // player's own sliders do.
+// Big's band is lifted (0.65-0.98 -> 0.75-1.0) so a Major's tentpoles cluster
+// nearer the top of the log-scale budget ranges - the ranges themselves
+// already reach genuine tentpole figures (VFX alone up to £150M), the AI just
+// wasn't reaching for them often. Pushes the average Big budget up toward real
+// blockbuster scale without touching Small/Medium. See
+// docs/DESIGN_REVIEW_ai_studio_behavior.md "Reality check".
 const SCALE_SPEND_RANGE: Record<ProductionScale, [number, number]> = {
   Small: [0.08, 0.32],
   Medium: [0.32, 0.65],
-  Big: [0.65, 0.98],
+  Big: [0.75, 1.0],
 };
 
 interface RivalSpendPlan {
@@ -252,10 +258,18 @@ const INITIAL_ROSTER_TIERS: StudioTier[] = [
 // and a tier is attempting to fill every production slot at once, is
 // expected and intentional (see this milestone's "Cash Recovery" note in
 // docs/DESIGN.md), not a bug to tune away.
+// Major raised 180M -> 260M alongside the lifted Big spend band above: a
+// tentpole now clusters nearer the top of the budget ranges (talent alone
+// averages ~£27M, total commitment can approach £200M), so the bump keeps a
+// Major able to carry two concurrent Big films once box-office revenue starts
+// flowing, rather than the second Big waiting on cash. It's headroom, not a
+// throughput lever - the 6-year Big-vs-Medium share is governed by
+// production-slot and shoot-length dynamics, not this float (verified via
+// engine/rivalStudios.diagnostic.test.ts: the bump barely moves the mix).
 const STARTING_CASH_BY_TIER: Record<StudioTier, number> = {
   Indie: 6_000_000,
   'Mid-Size': 40_000_000,
-  Major: 180_000_000,
+  Major: 260_000_000,
 };
 
 // Flavor, not balance - a Major studio has already been making films for
