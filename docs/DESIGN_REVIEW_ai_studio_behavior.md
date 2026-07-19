@@ -189,6 +189,12 @@ and craft runs *opposite* to budget — is visible in real-world data. The
 gaps are all calibration (absolute budget ceiling, exact frequencies), not
 direction.
 
+> Note on numbers: the per-tier figures in sections 1–3 and the gap callouts
+> below are the **pre-tuning baseline**. The three gaps flagged here
+> (indie horror, star ceiling, tentpole budget band) were subsequently
+> addressed in this PR — see **Tuning applied** at the end of this section for
+> the before → after.
+
 > A scale note first: the game runs in compressed nominal figures. Its total
 > production commitment averages ~£1.5M / ~£8M / ~£70M for Small / Medium /
 > Big (see `rivalStudios.ts:STARTING_CASH_BY_TIER` comment). Real modern
@@ -283,10 +289,43 @@ script and win on spend.
 | Fame tracks spend | ✅ Strong |
 | Craft inverse to budget | ✅ Strongly validated |
 
-**Optional tuning ideas** (none required, and none in this PR): raise the Big
-target-price band / star ceiling to widen the top of the budget ladder toward
-real tentpole scale; shift a slice of the Indie genre bias from Drama toward
-Horror to match how real boutiques actually make their money.
+### Tuning applied (this PR)
+
+The three calibration gaps above were addressed as three focused commits, all
+verified against the diagnostic harness (16 seeds × 6 years, same as the
+baseline table):
+
+1. **Indie genre bias → Horror.** `GENRE_TIER_BIAS.Indie` Horror 14 → 20,
+   Drama 18 → 15, so a boutique's slate leans on its real profit engine.
+2. **Star salary ceiling.** `ROLE_GENERATION_PROFILES.Actor` max £15M → £25M,
+   so a Major's target price can actually reach the ~£20M handcrafted A-listers
+   (real upfront pay is $20–30M/film).
+3. **Big-scale budget band.** `SCALE_SPEND_RANGE.Big` 0.65–0.98 → 0.75–1.0
+   (tentpoles cluster nearer the top of the existing budget ranges), with a
+   companion `STARTING_CASH_BY_TIER.Major` 180M → 260M for headroom.
+
+Before → after (aggregate of the same sweep):
+
+| Signal | Before | After | Toward real? |
+|---|---|---|---|
+| Indie Horror share | 14% | **24%** | ✅ boutiques lean on horror |
+| Indie Drama share | 47% | 38% | ✅ still drama-led, less monolithic |
+| Major avg talent spend | £22.1M | **£26.7M** | ✅ nearer A-list/tentpole pay |
+| Major lead-actor fame | 73.6 | **77.2** | ✅ bigger stars |
+| Mid-Size avg talent spend | £5.7M | £7.1M | ✅ occasionally reaches names |
+| Major Big-scale share | 22% | 16% | ↔ fewer, *larger* tentpoles |
+| Major productions/yr | 8.7 | 7.6 | ↔ same tradeoff — bigger films, fewer of them |
+| Major script craft (inversion) | 66.3 | 66.7 | ✅ inversion preserved |
+
+The one deliberate tradeoff: bigger tentpoles tie up a Big production slot a
+little longer, so Majors make slightly *fewer* Big films — which is itself the
+real pattern (a handful of large tentpoles, not a conveyor belt). Frequency
+ordering, genre identity, the fame-tracks-spend ladder, and the craft-vs-spend
+inversion all hold.
+
+**Not tuned** (out of scope here): the absolute *ceiling* of the budget ladder
+(already high — VFX reaches £150M) and the game's overall compressed nominal
+scale, both of which are deliberate legibility choices rather than gaps.
 
 ### Sources
 
