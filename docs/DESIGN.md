@@ -1599,6 +1599,18 @@ below 80/100 (crew roles) or 146/200 (Lead/Supporting Actor), so the
 shared pool has comfortable headroom even with the full field casting from
 it concurrently.
 
+**Emergent tier behaviour** (production frequency, genre/scale mix, and the
+talent each tier hires) is characterised empirically in
+`docs/DESIGN_REVIEW_ai_studio_behavior.md`, backed by a reproducible
+diagnostic harness (`engine/rivalStudios.diagnostic.test.ts`) that drives
+the real settlement loop over several in-game years. In short: a Major
+starts films ~3.6x as often as an Indie, each tier makes a recognisable and
+barely-overlapping slate (Indie Drama, Mid-Size Horror/Thriller, Major
+Fantasy/Sci-Fi/Action), scale is effectively tier-locked, and cast fame
+tracks spend (Indie ~£1.1M / fame ~31, Major ~£22M / fame ~74) - while a
+Major's *scripts* are on average lower-craft than an Indie's, since the
+tiers weight craft vs. genre-fit differently at bid time.
+
 **The Top 10 chart** (`state/selectors.ts:computeTopGrossingFilms`,
 `components/common/TopGrossingPanel.tsx`) combines the player's own
 `filmsReleased` and `Studio.rivalFilmsReleased`, keeps only whichever are
