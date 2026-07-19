@@ -13,7 +13,7 @@ import type {
   TalentAssignment,
   TalentProfession,
 } from '../types';
-import { RIVAL_STUDIO_NAME_PREFIXES, RIVAL_STUDIO_NAME_SUFFIXES } from '../data/rivalStudioNames';
+import { RIVAL_STUDIO_NAMES_BY_TIER } from '../data/rivalStudioNames';
 import { MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
 import { isPersonAvailableOnDay, withCommitment } from './person';
@@ -227,7 +227,15 @@ const SPAWN_CHECK_INTERVAL_DAYS: Record<StudioTier, [number, number]> = {
   Major: [10, 20],
 };
 
-const INITIAL_ROSTER_TIERS: StudioTier[] = ['Indie', 'Indie', 'Mid-Size', 'Mid-Size', 'Major', 'Major'];
+// Doubled from the original six-studio roster (2/2/2) to twelve (4/4/4) so the
+// weekly chart and Opportunity Market are contested by a fuller field of AI
+// competitors - the shared talentPool has comfortable headroom for it (see
+// docs/DESIGN.md 5.24).
+const INITIAL_ROSTER_TIERS: StudioTier[] = [
+  'Indie', 'Indie', 'Indie', 'Indie',
+  'Mid-Size', 'Mid-Size', 'Mid-Size', 'Mid-Size',
+  'Major', 'Major', 'Major', 'Major',
+];
 
 // Milestone: AI Studios 2.0 - starting cash per tier. Calibrated against a
 // scratch diagnostic sampling real total-commitment costs (script + talent +
@@ -305,22 +313,19 @@ export function rivalAsUpcomingRelease(p: RivalProductionInProgress): UpcomingRe
   };
 }
 
-/** Generates the persistent roster of AI competitors once, at game start - see docs/DESIGN.md 5.24. */
+/** Generates the persistent roster of AI competitors once, at game start - see docs/DESIGN.md 5.24. Each studio is named after a real-world studio drawn from its own tier's pool (data/rivalStudioNames.ts), without replacement, so no two rivals ever share a name and a Major reads like a real major, an Indie like a real independent. */
 export function generateRivalStudios(rng: RandomFn): RivalStudio[] {
-  const usedNames = new Set<string>();
+  const remainingNamesByTier: Record<StudioTier, string[]> = {
+    Indie: [...RIVAL_STUDIO_NAMES_BY_TIER.Indie],
+    'Mid-Size': [...RIVAL_STUDIO_NAMES_BY_TIER['Mid-Size']],
+    Major: [...RIVAL_STUDIO_NAMES_BY_TIER.Major],
+  };
   return INITIAL_ROSTER_TIERS.map((tier, i) => {
-    let name = '';
-    for (let attempt = 0; attempt < 20; attempt++) {
-      const candidate = `${pick(rng, RIVAL_STUDIO_NAME_PREFIXES)} ${pick(rng, RIVAL_STUDIO_NAME_SUFFIXES)}`;
-      if (!usedNames.has(candidate)) {
-        name = candidate;
-        usedNames.add(candidate);
-        break;
-      }
-    }
+    const pool = remainingNamesByTier[tier];
+    const name = pool.length > 0 ? pool.splice(randInt(rng, 0, pool.length - 1), 1)[0] : `Rival Studio ${i + 1}`;
     return {
       id: `rival-studio-${i}`,
-      name: name || `Rival Studio ${i + 1}`,
+      name,
       tier,
       nextSpawnCheckDay: 1 + randInt(rng, 0, SPAWN_CHECK_INTERVAL_DAYS[tier][1]),
       cash: STARTING_CASH_BY_TIER[tier],

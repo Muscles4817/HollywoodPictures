@@ -223,15 +223,15 @@ describe('settleRivalMarket - AI Studios 2.0 financial constraints', () => {
     // spawn-check isolation needed any more either: unlike settleRivalMarket,
     // settleTheatricalMarket has no bidding/spawning logic of its own to
     // confound the tracked studio's cash delta with a second production.
-    const { market, totalDays } = freshMarket(50);
-    const { afterResolve: afterSpawn, resolvedBids } = withRng(51, (rng) => bidThenResolve(market, totalDays, 8, 8, [], rng)).result;
+    const { market, totalDays } = freshMarket(51);
+    const { afterResolve: afterSpawn, resolvedBids } = withRng(52, (rng) => bidThenResolve(market, totalDays, 8, 8, [], rng)).result;
     expect(resolvedBids.length).toBeGreaterThan(0);
     const started = afterSpawn.rivalProductionsInProgress[0];
     expect(started).toBeDefined();
     const rivalName = afterSpawn.rivalStudios.find((r) => r.id === started.rivalStudioId)!.name;
 
     const finishDay = started.releaseDay + MAX_SIMULATION_WEEKS * 7;
-    const { result: settlement } = withRng(52, (rng) => settleTheatricalMarket([], [], [started], afterSpawn.rivalStudios, finishDay, 50, rng));
+    const { result: settlement } = withRng(53, (rng) => settleTheatricalMarket([], [], [started], afterSpawn.rivalStudios, finishDay, 50, rng));
 
     const film = settlement.settledFilms.find((f) => f.id === `rival-film-${started.id}`);
     expect(film).toBeDefined();

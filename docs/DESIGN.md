@@ -1586,13 +1586,18 @@ five call sites `settleBoxOfficeForAllFilms` already runs from
 `settleRivalMarket`, which also resolves any production whose `releaseDay`
 has arrived and settles every rival film's box office in the same pass.
 
-**Studio names** come from a small new word bank
-(`data/rivalStudioNames.ts`, 18 prefixes x 5 suffixes), same pattern as
-script titles - "Northbridge Pictures," "Cobalt Media." A 500-day
+**Studio names** are drawn from real Hollywood studios
+(`data/rivalStudioNames.ts`), one tier-matched pool each: a Major reads like
+a real major ("Warner Bros. Pictures," "Universal Pictures"), a Mid-Size
+like a real mini-major ("Lionsgate," "New Line Cinema"), an Indie like a
+real independent ("A24," "Neon"). Names are drawn without replacement within
+a tier, so no two rivals ever share one, and each pool holds more names than
+the roster needs so games still vary. The initial roster is twelve studios
+(4 Indie / 4 Mid-Size / 4 Major - doubled from the original six). A 500-day
 diagnostic never dropped any mandatory role's available-candidate count
 below 80/100 (crew roles) or 146/200 (Lead/Supporting Actor), so the
-shared pool has comfortable headroom even with 5-6 rivals casting from it
-concurrently.
+shared pool has comfortable headroom even with the full field casting from
+it concurrently.
 
 **The Top 10 chart** (`state/selectors.ts:computeTopGrossingFilms`,
 `components/common/TopGrossingPanel.tsx`) combines the player's own
