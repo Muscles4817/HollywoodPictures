@@ -83,6 +83,14 @@ export function buildReadyDraft(rng: RandomFn, marketingOverrides: Partial<Marke
     productionChoices: PRODUCTION_CHOICES,
     greenlitOnDay: 1,
     photography: finishedPhotography(40),
+    // A release-ready draft is one whose post-production has fully wrapped -
+    // the mandatory test screening has fired and been resolved (Release
+    // As-Is: no delay), which SCHEDULE_RELEASE now requires before a film can
+    // go out (state/studioReducer.ts). Both ready-day fields sit in the past
+    // so the release-day clamp is a no-op for these box-office fixtures.
+    postProductionScreeningReadyDay: 1,
+    postProductionFinalReadyDay: 1,
+    testScreeningResolved: true,
     postProductionChoices: DEFAULT_POST_PRODUCTION_CHOICES,
     marketingChoices: defaultMarketingChoices(marketingOverrides),
   };

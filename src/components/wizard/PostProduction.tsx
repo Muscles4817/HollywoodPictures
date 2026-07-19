@@ -47,10 +47,16 @@ export function PostProduction() {
         <div className="card" style={{ borderColor: 'var(--primary)' }}>
           <div className="stat-label">Test Screening (preview)</div>
           <div className="stat-value">Ready around {formatGameDate(draft.postProductionScreeningReadyDay)}</div>
+          {draft.postProductionScreeningReadyDay > state.totalDays && (
+            <div style={{ fontSize: '0.8em', fontWeight: 600, color: 'var(--text-muted)' }}>
+              about {draft.postProductionScreeningReadyDay - state.totalDays} days out
+            </div>
+          )}
           <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
             A forecast based on this film's runtime, VFX ambition, and your Editor/VFX Supervisor's skill - once
             reached, a test screening will surface here (and in the Inbox/Dashboard if you've moved on) with real
-            audience feedback and a decision on how to respond.
+            audience feedback and a decision on how to respond. You'll need to respond to it before the film can be
+            scheduled for release.
           </p>
         </div>
       )}
