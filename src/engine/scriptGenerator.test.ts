@@ -91,6 +91,29 @@ describe('generateScriptOptions - structural validity', () => {
     expect(titles.size).toBe(scripts.length);
   });
 
+  it('shows near-unique synopses within a slate (slate-level de-dup)', () => {
+    // The expanded, concept-aware premise pools plus per-slate de-dup make a
+    // full 12-script slate show ~12 distinct log-lines. It can dip below 12
+    // only when many scripts in one slate collapse onto the same narrow
+    // concept pool (e.g. several same-setting Heists) - de-dup can't invent
+    // log-lines a pool doesn't have. Assert the aggregate is very high and the
+    // overwhelming majority of slates are perfectly unique, across every genre.
+    let totalDistinct = 0;
+    let slates = 0;
+    let perfectSlates = 0;
+    for (const genre of GENRES) {
+      for (let seed = 1; seed <= 25; seed++) {
+        const scripts = generateScriptOptions(genre, createRng(seed), 12);
+        const distinct = new Set(scripts.map((s) => s.synopsis)).size;
+        totalDistinct += distinct;
+        slates += 1;
+        if (distinct === scripts.length) perfectSlates += 1;
+      }
+    }
+    expect(totalDistinct / slates).toBeGreaterThan(11.5); // avg distinct per 12-slate
+    expect(perfectSlates / slates).toBeGreaterThan(0.8); // most slates fully unique
+  });
+
   it('is deterministic - the same seed produces an identical slate, aside from the process-global id counters', () => {
     // Both `id` (nextScriptId) and each cast member's `id` (nextCharacterId)
     // are module-level monotonic counters, not derived from the rng - two
