@@ -259,6 +259,47 @@ const TEST_SCRIPTS: Script[] = [
     ],
   }),
   script({
+    id: 'test-script-suicide-squad',
+    title: 'Suicide Squad',
+    genre: 'Action',
+    // A big, star-studded comic-book Spectacle whose *screenplay* is the weak
+    // link - notoriously choppy structure and thin dialogue after heavy
+    // reshoots (real Metacritic 40 / RT 26% critics). Low structure/dialogue/
+    // characters dials are the whole point: this is the "expensive, well-cast,
+    // heavily-marketed, but badly-written" case, the commercial foil to
+    // Inception's craft showcase.
+    archetype: 'Spectacle',
+    storyType: 'Superhero',
+    primarySetting: 'ContemporaryCity',
+    scale: 'Epic',
+    originality: 45,
+    structure: 32,
+    characters: 48,
+    dialogue: 38,
+    complexity: 42,
+    toneProfile: { action: 78, comedy: 45, romance: 25, suspense: 45, drama: 40, spectacle: 82 },
+    environmentStrategy: { studio: 0.4, location: 0.45, digital: 0.15 },
+    environmentAmbition: 0.8,
+    effectsStrategy: { practical: 0.45, digital: 0.55 },
+    effectsAmbition: 0.85,
+    productionRequirements: {
+      extras: 0.55, locations: 0.5, periodSetting: false, vehicles: true, animals: false,
+      practicalEffects: 0.5, vfx: 0.75, stunts: 0.7, choreography: 0.15, crowdWork: 0.5,
+    },
+    synopsis: 'A secret agency presses a squad of imprisoned supervillains into a black-ops mission, holding their lives hostage against a world-ending threat one of their own unleashes.',
+    requiredLeads: 2,
+    requiredSupporting: 4,
+    intendedAudience: 'Mass Market',
+    cast: [
+      character('Deadshot', 'Antihero', 'Lead', 'Male'),
+      character('Harley Quinn', 'Antihero', 'Lead', 'Female'),
+      character('Amanda Waller', 'AuthorityFigure', 'Supporting', 'Female'),
+      character('Rick Flag', 'ReluctantHero', 'Supporting', 'Male'),
+      character('The Joker', 'Villain', 'Supporting', 'Male'),
+      character('Enchantress', 'TragicVillain', 'Supporting', 'Female'),
+    ],
+  }),
+  script({
     id: 'test-script-terminator-2',
     title: 'Terminator 2: Judgment Day',
     genre: 'Action',

@@ -4,17 +4,30 @@
 // real reducer, settle the full box-office run, and assert the resulting
 // craft scores and box office "make sense".
 //
+// Two films anchor the two ends of the "does the model make sense" question:
+//
+//   - Inception (great script + Nolan + an A-list ensemble + a blockbuster
+//     budget) - the craft showcase. Should land as a clearly well-reviewed,
+//     profitable hit, never a flop and never an impossible 100.
+//
+//   - Suicide Squad (a big, star-studded, heavily-marketed comic-book film
+//     with a notoriously *weak screenplay*) - the "bad but sells" case.
+//     Note the real film was NOT a box-office failure: it was critically
+//     savaged (Metacritic 40 / RT 26%) yet grossed ~$747M worldwide and made
+//     money. The recreation must reproduce exactly that shape - low craft
+//     scores, but still commercially profitable - which is the interesting
+//     property: star power + IP + marketing can carry a badly-written film
+//     commercially, so a weak critic score must NOT force a money-loss.
+//
 // Two kinds of assertion, on purpose:
-//   1. Sanity ranges - a faithful, well-funded recreation of a great film
-//      (Inception: Nolan + an A-list ensemble + a blockbuster budget) lands
-//      in the "clearly a well-reviewed hit" part of the scale, not a flop and
-//      not a literally-impossible 100.
-//   2. Comparative/monotonic - the faithful recreation out-scores AND
-//      out-earns a deliberately weak recreation of the SAME script (no-name
-//      director, cheap low-range actors, a shoestring marketing spend). This
-//      is the durable half: it keeps holding as the scoring/box-office
-//      formulas get retuned, because it only asserts an ordering, never an
-//      absolute number a tuning pass could move.
+//   1. Sanity/reality ranges - each recreation lands in the part of the scale
+//      its real counterpart occupies (Inception a strong hit; Suicide Squad
+//      panned-but-profitable), with headroom so a tuning pass doesn't break
+//      them but a real regression does.
+//   2. Comparative/monotonic - orderings that must survive any retuning: the
+//      faithful Inception out-scores and out-earns a deliberately weak
+//      recreation of its own script; and the well-written Inception out-scores
+//      the badly-written Suicide Squad on every craft axis.
 //
 // It also doubles as a roster guard - findByName throws if any of the real
 // people an established film needs has been renamed or dropped from
@@ -206,6 +219,18 @@ const INCEPTION: FilmRecreation = {
   marketingSpend: 100_000_000,
 };
 
+const SUICIDE_SQUAD: FilmRecreation = {
+  scriptId: 'test-script-suicide-squad',
+  director: 'David Ayer',
+  // Cast order matches the script's own: Deadshot, Harley Quinn (leads);
+  // Amanda Waller, Rick Flag, The Joker, Enchantress (supporting).
+  leads: ['Will Smith', 'Margot Robbie'],
+  supporting: ['Viola Davis', 'Joel Kinnaman', 'Jared Leto', 'Cara Delevingne'],
+  // A real tentpole marketing blitz - the spend that carries a weak film
+  // commercially.
+  marketingSpend: 150_000_000,
+};
+
 describe('real-film regression: Inception', () => {
   it('has the whole cast and crew present in the handcrafted roster', () => {
     // Throws (failing the test) if any needed real person is missing/renamed.
@@ -291,5 +316,79 @@ describe('real-film regression: Inception', () => {
     expect(strong.audienceScore).toBeGreaterThan(weak.audienceScore);
     expect(strong.totalBoxOffice!).toBeGreaterThan(weak.totalBoxOffice!);
     expect(strong.profit!).toBeGreaterThan(weak.profit!);
+  });
+});
+
+describe('real-film regression: Suicide Squad (bad reviews, still made money)', () => {
+  it('has the whole cast and crew present in the handcrafted roster', () => {
+    expect(() => realTalent(SUICIDE_SQUAD)).not.toThrow();
+    const talent = realTalent(SUICIDE_SQUAD);
+    expect(talent).toHaveLength(7); // 1 director + 2 leads + 4 supporting
+  });
+
+  it('recreates the real shape: critically panned on craft, but a commercially profitable release', () => {
+    // How the recreation lines up against Suicide Squad (2016, Warner Bros.):
+    //
+    //   metric            real                    recreation      read
+    //   ----------------  ----------------------  --------------  -------------------
+    //   critic score      Metacritic 40 / RT 26%  ~49             bad, as it should be
+    //   script quality    "incoherent, choppy"    ~41             the weakest axis
+    //   audience score    RT ~58% / CinemaScore B+ ~68            mediocre-to-ok
+    //   worldwide gross   $746.8M                 ~$785M          within ~5%
+    //   total cost        ~$175M + ~$150M mktg    ~$274M          close
+    //   headline outcome  profitable despite pans  Modest Success matches reality
+    //
+    // The point of this case: a weak *screenplay* correctly tanks the craft
+    // scores (critic/script well below Inception's) even with A-list stars,
+    // yet the film still MAKES MONEY, because star power + IP + a huge
+    // marketing spend drive the box office. A bad critic score must never, by
+    // itself, force a commercial loss - that's the real-world truth this
+    // recreation is here to keep honest.
+    const results = releaseAndSettle(buildRecreationState(101, SUICIDE_SQUAD, 400_000_000, realTalent(SUICIDE_SQUAD)));
+
+    // Craft: genuinely poorly reviewed - the script is the weak link.
+    expect(results.criticScore).toBeLessThan(62); // real Metacritic 40
+    expect(results.scriptScore).toBeLessThan(55);
+    // Audience is more forgiving than critics for a crowd-pleasing spectacle.
+    expect(results.audienceScore).toBeGreaterThan(50);
+    expect(results.audienceScore).toBeLessThan(82);
+
+    // ...but it still made money. This is the defining fact about the real
+    // film, and the recreation reproduces it.
+    expect(results.totalBoxOffice!).toBeGreaterThan(400_000_000); // real $746.8M
+    expect(results.profit!).toBeGreaterThan(0);
+    expect(results.outcome).not.toBe('Flop');
+    // Not a craft accolade, and not the top commercial tiers either - a
+    // middling-return crowd hit.
+    expect(results.outcome).not.toBe('Masterpiece');
+    expect(results.outcome).not.toBe('Phenomenon');
+    expect(results.outcome).not.toBe('Blockbuster');
+  });
+
+  it('is out-classed on every craft axis by the well-written Inception (bad script scores below good script)', () => {
+    // Same everything the sim can hold equal (budget dials, seed); the films
+    // differ in script quality and cast. A durable ordering: a great
+    // screenplay + great director must beat a weak screenplay on craft,
+    // regardless of how the absolute numbers are later retuned.
+    const inception = releaseAndSettle(buildRecreationState(303, INCEPTION, 400_000_000, realTalent(INCEPTION)));
+    const suicideSquad = releaseAndSettle(buildRecreationState(303, SUICIDE_SQUAD, 400_000_000, realTalent(SUICIDE_SQUAD)));
+
+    expect(inception.criticScore).toBeGreaterThan(suicideSquad.criticScore);
+    expect(inception.scriptScore).toBeGreaterThan(suicideSquad.scriptScore);
+    expect(inception.qualityScore).toBeGreaterThan(suicideSquad.qualityScore);
+  });
+
+  it("a bad script only profits BECAUSE of its stars and marketing - strip those and the same film barely survives", () => {
+    // The commercial success is attributable to star power + spend, NOT the
+    // screenplay: give the identical (weak) script a no-name cast and a
+    // shoestring marketing budget and its profit return collapses toward zero.
+    // This is what makes Suicide Squad "critic-proof" rather than "good".
+    const starVehicle = releaseAndSettle(buildRecreationState(404, SUICIDE_SQUAD, 400_000_000, realTalent(SUICIDE_SQUAD)));
+    const stripped = releaseAndSettle(buildRecreationState(404, { ...SUICIDE_SQUAD, marketingSpend: 3_000_000 }, 400_000_000, weakTalent(SUICIDE_SQUAD)));
+
+    const starRatio = starVehicle.profit! / starVehicle.totalCost;
+    const strippedRatio = stripped.profit! / stripped.totalCost;
+    expect(starVehicle.totalBoxOffice!).toBeGreaterThan(stripped.totalBoxOffice! * 2);
+    expect(starRatio).toBeGreaterThan(strippedRatio);
   });
 });
