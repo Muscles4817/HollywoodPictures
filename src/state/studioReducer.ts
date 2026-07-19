@@ -1550,6 +1550,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'VIEW_AWARDS':
       return { ...state, screen: 'awards', ...clearTransientView() };
 
+    // Dashboard -> the searchable talent database. Pure detour, same as VIEW_STATS.
+    case 'VIEW_TALENT_DATABASE':
+      return { ...state, screen: 'talent-database', ...clearTransientView() };
+
     // Restores an exact prior "page" - see GameAction's own comment on why
     // this one, unlike every other navigation action, can't just trust its
     // payload: the project or rival a browser history entry points at may

@@ -344,6 +344,8 @@ export type GameAction =
   | { type: 'VIEW_PROJECTS' }
   // Dashboard -> the Academy Awards screen (campaign + history). Pure detour, same as VIEW_STATS.
   | { type: 'VIEW_AWARDS' }
+  // Dashboard -> the searchable talent database (all actors + their stats). Pure detour, same as VIEW_STATS.
+  | { type: 'VIEW_TALENT_DATABASE' }
   // Driven by the browser's own Back/Forward buttons (App.tsx), never
   // dispatched directly by the UI - restores an exact prior screen/focus/
   // detour snapshot rather than deriving it from the current one, since

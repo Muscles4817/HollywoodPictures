@@ -7,6 +7,7 @@ import { Dashboard } from './components/Dashboard';
 import { RivalStudioPage } from './components/RivalStudioPage';
 import { StatsPage } from './components/StatsPage';
 import { AwardsPage } from './components/AwardsPage';
+import { TalentDatabase } from './components/TalentDatabase';
 import { ReleaseCalendar } from './components/ReleaseCalendar';
 import { RecommendationInspector } from './components/dev/RecommendationInspector';
 import { OutcomeInspector } from './components/dev/OutcomeInspector';
@@ -37,7 +38,7 @@ const PLANNING_SCREENS = new Set<Screen>(['workspace', 'production', 'post-produ
 // studioReducer.ts), so a pause the player set intentionally shouldn't
 // silently lift just because they ducked in to check a rival's page, the
 // stats table, or the release calendar.
-const PAUSE_PERSISTING_SCREENS = new Set<Screen>(['rival-studio', 'stats', 'release-calendar', 'opportunity-market', 'asset-library', 'projects', 'awards']);
+const PAUSE_PERSISTING_SCREENS = new Set<Screen>(['rival-studio', 'stats', 'release-calendar', 'opportunity-market', 'asset-library', 'projects', 'awards', 'talent-database']);
 
 /**
  * Whether the background ADVANCE_DAY tick should be running right now - a
@@ -281,6 +282,8 @@ function AppShell() {
         return <ProjectsPage />;
       case 'awards':
         return <AwardsPage />;
+      case 'talent-database':
+        return <TalentDatabase />;
       default:
         return <Dashboard />;
     }
