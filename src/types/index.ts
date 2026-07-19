@@ -820,6 +820,41 @@ export type OutcomeLabel =
   | 'Cult Hit'
   | 'Masterpiece';
 
+// --- Awards Season (docs/DESIGN_REVIEW_awards_season.md) --------------------
+// The flagship Academy Awards. Categories map onto the roles the sim tracks;
+// acting is gender-split. Scoring/eligibility live in engine/awards.ts.
+
+export type AwardCategory =
+  | 'best-picture'
+  | 'best-director'
+  | 'best-screenplay'
+  | 'best-actor'
+  | 'best-actress'
+  | 'best-supporting-actor'
+  | 'best-supporting-actress'
+  | 'best-cinematography'
+  | 'best-film-editing'
+  | 'best-original-score'
+  | 'best-visual-effects';
+
+export interface AwardNomination {
+  filmId: string;
+  /** The nominated person, for person categories (director, acting, the crafts); absent for Best Picture. */
+  personId?: PersonId;
+  /** The resolved award score, kept for display/ordering. */
+  awardScore: number;
+  won: boolean;
+}
+
+/** A resolved ceremony - one year's Academy Awards, stored permanently in studio history. */
+export interface AwardsCeremony {
+  /** The 1-indexed calendar year honoured (films released in this year). */
+  year: number;
+  /** GameState.totalDays the ceremony resolved on. */
+  ceremonyDay: number;
+  categories: Record<AwardCategory, AwardNomination[]>;
+}
+
 export interface FilmResults {
   productionCost: number;
   marketingCost: number;
