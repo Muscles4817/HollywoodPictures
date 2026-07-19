@@ -1397,4 +1397,5 @@ export type Screen =
   | 'opportunity-market'
   | 'asset-library'
   | 'projects'
-  | 'awards';
+  | 'awards'
+  | 'talent-database';
