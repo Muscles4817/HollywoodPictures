@@ -1386,6 +1386,18 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       ) {
         return state;
       }
+      // Post-production must actually wrap before a film can be scheduled.
+      // The test screening is a mandatory decision point that only resolves
+      // while the film is still a player-in-progress draft - releasing before
+      // it's resolved used to silently drop the screening's quality/buzz
+      // effect and leave the pending choice orphaned (unresolvable once the
+      // project became 'scheduled'/'released'). Blocking here is the
+      // authoritative guard; the Marketing & Release screen also disables its
+      // own button and surfaces the pending decision, but this makes the rule
+      // true regardless of how the action was dispatched. testScreeningResolved
+      // implies postProductionFinalReadyDay is set (RESOLVE_TEST_SCREENING_CHOICE
+      // sets both), so the clamp below is always well-defined.
+      if (!d.testScreeningResolved) return state;
       const totalDaysAfter = state.totalDays + (STAGE_DURATIONS.marketing ?? 0);
       // releaseDay is a discrete calendar day everywhere else in this
       // codebase (GameState.totalDays, RivalProductionInProgress.releaseDay)
@@ -1393,7 +1405,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // continuous drag value (components/wizard/MarketingRelease.tsx
       // rounds too, but a fractional day stored here would silently throw
       // off every `releaseDay <= totalDays` comparison downstream).
-      const releaseDay = Math.max(Math.round(action.releaseDay), totalDaysAfter);
+      // Never earlier than the day post-production actually wraps
+      // (postProductionFinalReadyDay) - a Re-edit/Pickups/Major Reshoots
+      // resolution can push that past today, and the film can't be in
+      // theatres before it's finished.
+      const earliestReleaseDay = Math.max(totalDaysAfter, d.postProductionFinalReadyDay ?? totalDaysAfter);
+      const releaseDay = Math.max(Math.round(action.releaseDay), earliestReleaseDay);
       const resolvedNow = releaseDay <= totalDaysAfter;
       const backgrounded = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
       const otherScheduled = scheduledPlayerReleases(state.projects);

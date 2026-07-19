@@ -31,6 +31,12 @@ function stateOnPostProductionScreen(overrides: Partial<FilmDraft>): { state: Ga
   const { result: talentPool, nextSeed } = withRng(1, (rng) => generateTalentPool(rng));
   const draft: FilmDraft = {
     ...withRng(2, (rng) => buildReadyDraft(rng)).result,
+    // buildReadyDraft is release-ready (screening already resolved); these
+    // forecast tests are specifically about the *pending* pre-screening
+    // state, so reset those two fields to the unresolved baseline unless a
+    // test overrides them.
+    testScreeningResolved: false,
+    postProductionFinalReadyDay: null,
     ...overrides,
   };
   const state: GameState = {

@@ -801,6 +801,51 @@ describe('Test Screening (Post-Production Redesign, Phase B)', () => {
   });
 });
 
+// A film must not reach theatres before post-production wraps: the mandatory
+// test screening has to have fired AND been resolved before SCHEDULE_RELEASE
+// will let it out, and the release day can never precede postProductionFinalReadyDay.
+describe('SCHEDULE_RELEASE - gated on the test screening', () => {
+  function stateWithScreeningPending(seed: number): GameState {
+    let s = studioReducer(stateReadyToGreenlight(seed), { type: 'GREENLIGHT_PROJECT' });
+    s = studioReducer(s, { type: 'FINISH_PHOTOGRAPHY', productionId: s.focusedProjectId! });
+    s = studioReducer(s, { type: 'SET_POST_PRODUCTION_CHOICES', choices: { editStyle: 'Balanced', musicFocus: 'Standard', finalCutFocus: 'Trailer-focused' } });
+    s = studioReducer(s, { type: 'SET_MARKETING_CHOICES', choices: { marketingSpend: 5_000_000, releaseType: 'Wide', releaseWindow: 'Quiet Month' } });
+    const readyDay = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!.postProductionScreeningReadyDay!;
+    return advanceDays(s, readyDay - s.totalDays); // fire the screening
+  }
+
+  it('a film with an unresolved test screening cannot be scheduled - SCHEDULE_RELEASE is a no-op', () => {
+    const s = stateWithScreeningPending(940);
+    const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
+    expect(draft.testScreeningPendingChoice).not.toBeNull();
+    expect(draft.testScreeningResolved).toBe(false);
+
+    const after = studioReducer(s, { type: 'SCHEDULE_RELEASE', releaseDay: s.totalDays });
+    expect(playerReleasedFilms(after.projects)).toHaveLength(0);
+    expect(findProject(after.projects, s.focusedProjectId!)?.kind).toBe('player-in-progress');
+    expect(after.screen).not.toBe('results');
+  });
+
+  it('once the screening is resolved (Release As-Is), the film can be scheduled and releases', () => {
+    let s = stateWithScreeningPending(941);
+    s = studioReducer(s, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'release-as-is', productionId: s.focusedProjectId! });
+    const after = studioReducer(s, { type: 'SCHEDULE_RELEASE', releaseDay: s.totalDays });
+    expect(playerReleasedFilms(after.projects)).toHaveLength(1);
+  });
+
+  it('the release day is never earlier than postProductionFinalReadyDay (a Major Reshoots delay is respected)', () => {
+    let s = stateWithScreeningPending(942);
+    s = studioReducer(s, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'major-reshoots', productionId: s.focusedProjectId! });
+    const finalReady = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!.postProductionFinalReadyDay!;
+    // Ask to release "today", well before post-production may have wrapped.
+    const after = studioReducer(s, { type: 'SCHEDULE_RELEASE', releaseDay: s.totalDays });
+    const scheduled = asScheduled(findProject(after.projects, s.focusedProjectId!));
+    const effectiveReleaseDay = scheduled ? scheduled.releaseDay : playerReleasedFilms(after.projects)[0]?.releasedOnDay;
+    expect(effectiveReleaseDay).toBeDefined();
+    expect(effectiveReleaseDay!).toBeGreaterThanOrEqual(finalReady);
+  });
+});
+
 // Casting Redesign, Phase B (docs/DESIGN_REVIEW_casting_redesign.md
 // sections 1-2) - no dedicated reducer coverage existed for OPEN_CASTING_CALL
 // or the ADVANCE_DAY weekly tick before this.

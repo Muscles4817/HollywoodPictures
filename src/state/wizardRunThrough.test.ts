@@ -146,6 +146,21 @@ function walkFilmThroughWizard(state: GameState): GameState {
     choices: { editStyle: 'Balanced', musicFocus: 'Standard', finalCutFocus: 'Trailer-focused' },
   });
 
+  // Post-production runs until the mandatory test screening comes in; it must
+  // be resolved before the film can be scheduled (SCHEDULE_RELEASE now blocks
+  // otherwise - state/studioReducer.ts). Advance the real-time tick until the
+  // screening fires, then respond to it (Release As-Is), exactly as a player
+  // would via the Post-Production screen / Inbox.
+  const screeningReadyDay = deriveFocusedDraft(s)!.postProductionScreeningReadyDay!;
+  let guard = 0;
+  while (deriveFocusedDraft(s)!.testScreeningPendingChoice === null && !deriveFocusedDraft(s)!.testScreeningResolved && guard < screeningReadyDay + 400) {
+    s = studioReducer(s, { type: 'ADVANCE_DAY' });
+    guard += 1;
+  }
+  expect(deriveFocusedDraft(s)!.testScreeningPendingChoice).not.toBeNull();
+  s = studioReducer(s, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'release-as-is', productionId: s.focusedProjectId! });
+  expect(deriveFocusedDraft(s)!.testScreeningResolved).toBe(true);
+
   expect(() => {
     s = studioReducer(s, { type: 'GO_TO_STEP', step: 'marketing' });
   }).not.toThrow();

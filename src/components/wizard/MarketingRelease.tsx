@@ -5,7 +5,7 @@ import { pluckDescriptions } from '../../data/describe';
 import { computeMarketingCost } from '../../engine/cost';
 import { marketingDescription } from '../../engine/productionDials';
 import { logAmount } from '../../engine/interpolate';
-import { formatGameMonthYear, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from '../../engine/calendar';
+import { formatGameMonthYear, formatGameDate, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from '../../engine/calendar';
 import { computeCompetitiveCrowding, type UpcomingRelease } from '../../engine/releaseCrowding';
 import { asUpcomingRelease } from '../../engine/scheduledReleases';
 import { rivalAsUpcomingRelease } from '../../engine/rivalStudios';
@@ -17,6 +17,7 @@ import { Button } from '../common/Button';
 import { Money, formatMoney } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
+import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { deriveFocusedDraft, deriveUpcomingReleaseEntries } from '../../state/selectors';
 import type { MarketingChoices, ReleaseType } from '../../types';
 import './MarketingRelease.css';
@@ -61,7 +62,19 @@ export function MarketingRelease() {
   // capability (roadmap Phase 7.2); the underlying day counter never
   // changes shape, only how it's presented and picked (a month grid, not an
   // exact day - see engine/calendar.ts).
-  const minReleaseDay = state.totalDays + (STAGE_DURATIONS.marketing ?? 0);
+  // A film can't be scheduled until its (mandatory) test screening is
+  // resolved - see state/studioReducer.ts:SCHEDULE_RELEASE. Until then the
+  // release button is disabled and the pending decision (or the date it's
+  // expected) is surfaced below. postProductionFinalReadyDay is only set once
+  // the screening resolves, and a Re-edit/Pickups/Major Reshoots outcome can
+  // push it past the plain marketing lead time - the earliest selectable
+  // month must respect it so the film is never in theatres before it wraps.
+  const screeningResolved = draft.testScreeningResolved;
+  const pendingScreening = draft.testScreeningPendingChoice;
+  const minReleaseDay = Math.max(
+    state.totalDays + (STAGE_DURATIONS.marketing ?? 0),
+    draft.postProductionFinalReadyDay ?? 0,
+  );
   const { year: minYear, monthIndex: minMonthIndex } = monthYearOf(minReleaseDay);
   const [year, setYear] = useState(minYear);
   const [monthIndex, setMonthIndex] = useState(minMonthIndex);
@@ -137,6 +150,39 @@ export function MarketingRelease() {
       <WizardHeader current="marketing" />
       <h1>Marketing &amp; Release</h1>
       {draft.script && <ScriptSummaryCard script={draft.script} />}
+
+      {!screeningResolved && pendingScreening && (
+        <div className="stack">
+          <p className="choice-description" style={{ margin: 0, fontWeight: 600, color: 'var(--primary)' }}>
+            Your test screening results are in. Respond to them before you can lock a release date.
+          </p>
+          <OnSetDecisionCard
+            pendingChoice={pendingScreening}
+            talent={draft.talent.map((a) => a.person)}
+            talentPool={state.talentPool}
+            script={draft.script}
+            totalDays={state.totalDays}
+            pausedMessage="You can't schedule a release until you respond to the test screening."
+            onChoose={(choiceId) => dispatch({ type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId, productionId: draft.id })}
+          />
+        </div>
+      )}
+
+      {!screeningResolved && !pendingScreening && (
+        <div className="card" style={{ borderColor: 'var(--primary)' }}>
+          <div className="stat-label">Post-Production still underway</div>
+          <div className="stat-value">
+            {draft.postProductionScreeningReadyDay !== null
+              ? `Test screening results expected around ${formatGameDate(draft.postProductionScreeningReadyDay)}`
+              : 'Test screening results still pending'}
+          </div>
+          <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
+            A film can't be scheduled for release until its test screening is in and you've responded to it.
+            Return to the Dashboard to let post-production finish - you'll be notified in the Inbox the moment the
+            screening is ready, and you can pick the release date straight after.
+          </p>
+        </div>
+      )}
 
       <RangeSlider
         label="Marketing Spend"
@@ -221,7 +267,12 @@ export function MarketingRelease() {
 
       <div className="row-between">
         <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'post-production' })}>Back</Button>
-        <Button variant="primary" onClick={() => dispatch({ type: 'SCHEDULE_RELEASE', releaseDay })}>
+        <Button
+          variant="primary"
+          disabled={!screeningResolved}
+          title={!screeningResolved ? 'Respond to the test screening before scheduling a release.' : undefined}
+          onClick={() => dispatch({ type: 'SCHEDULE_RELEASE', releaseDay })}
+        >
           {holdMonths === 0 ? 'Release Film' : `Schedule for ${formatGameMonthYear(releaseDay)}`}
         </Button>
       </div>
