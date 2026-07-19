@@ -176,3 +176,127 @@ Two things worth keeping an eye on now that the field is larger:
 
 No rule changes are recommended from this investigation; it characterises
 behaviour the doubled roster inherits unchanged.
+
+---
+
+## Reality check: model vs. real Hollywood
+
+How well do the game's tier assumptions match the real industry they're
+modelling? Short answer: **the directions are strongly right, the top-end
+scale is compressed.** Every qualitative claim the tiers make — majors do
+spectacle, mid-tiers do horror, indies do prestige drama, fame tracks spend,
+and craft runs *opposite* to budget — is visible in real-world data. The
+gaps are all calibration (absolute budget ceiling, exact frequencies), not
+direction.
+
+> A scale note first: the game runs in compressed nominal figures. Its total
+> production commitment averages ~£1.5M / ~£8M / ~£70M for Small / Medium /
+> Big (see `rivalStudios.ts:STARTING_CASH_BY_TIER` comment). Real modern
+> budgets run higher, especially at the top, so comparisons below focus on
+> **orderings, ratios, and genre/craft direction** rather than pound-for-dollar.
+
+### Production frequency
+
+| Tier | Game (films/studio/yr) | Real-world wide-release output | Read |
+|---|---|---|---|
+| Indie | 2.4 | Boutique producer ~1–5/yr; a *distributor* like A24 puts out ~18–20/yr | Game models a boutique **producer**, not a mega-indie distributor — reasonable for one small shingle |
+| Mid-Size | 6.4 | Blumhouse ~4–8 wide/yr; Lionsgate ~10–15 wide/yr | In range, slightly low vs. a busy mini-major |
+| Major | 8.7 | Disney ~10–15/yr, Warner Bros. targeting 12–14, Universal ~20 (incl. Focus) | Right order of magnitude, a touch low |
+
+**Real insight the model gets right:** modern majors deliberately release
+*few* films at high budget (10–20/yr), not dozens. The one inversion worth
+noting: a large indie *distributor* (A24 ~18–20) actually out-releases a
+game "Major" — because the game's tiers describe *production scale*, not
+*distribution volume*. A boutique that finances a couple of its own films a
+year is the right mental model for the game's Indie.
+
+### Genre mix
+
+| Tier | Game leans | Real-world | Match |
+|---|---|---|---|
+| Major | Fantasy 36% / Sci-Fi 30% / Action 23% | 50–70% of the six majors' 2025 slates are existing IP; franchise/IP drove **73%** of 2025 domestic box office — overwhelmingly superhero/action/sci-fi/fantasy | ✅ Strong |
+| Mid-Size | Horror 32% / Thriller 29% | Blumhouse's whole identity is sub-$5M horror; horror/thriller is the mid-tier's signature profit engine | ✅ Strong |
+| Indie | Drama 47% + Romance/Thriller | A24 built its brand on character drama (*Moonlight*, *Lady Bird*) **and elevated horror** (*Hereditary*, *Midsommar*) | ✅ Direction right, ⚠️ see below |
+
+**One real calibration gap:** in reality, horror is *the* low-budget
+breakout genre, so genuine indies lean on it heavily — it's how boutiques
+turn a profit. The game routes most horror to Mid-Size and gives Indie only
+~14%. Nudging the Indie `GENRE_TIER_BIAS` toward Horror would track reality
+more closely (`Horror` is already indie-friendly per `GENRE_PROFILES`
+`lowBudgetFriendly: 0.9`, so the game's *own* economics already agree — it's
+only the AI's genre preference that under-uses it).
+
+### Scale / budget
+
+| Tier | Game total commitment | Real production budget | Read |
+|---|---|---|---|
+| Small/Indie | ~£1.5M | Indie $0.25–2M; Blumhouse caps ~$5M | ✅ Spot on |
+| Medium | ~£8M | Mid-budget up to ~$40M | ⚠️ Game "Medium" sits at the *low* end of real mid-budget |
+| Big | ~£70M | Tentpole $65M–$300M+ (before marketing) | ⚠️ Compressed ~2–4× — the game's ceiling is a lower-end studio film, not a $250M tentpole |
+
+The **bottom** of the ladder is realistic; the **top** is compressed. That's
+a deliberate-feeling design choice (keeps player and rival cash legible), not
+a mistake — but it does mean the game's "blockbuster" is priced like a real
+mid-major release.
+
+### Talent
+
+| Signal | Game | Real-world | Read |
+|---|---|---|---|
+| Star pay ceiling | Actor salary max £15M | A-list upfront ~$20–30M single film (Denzel/Diesel/Hardy ~$20M); top earners $50M+ with backend | ⚠️ Ceiling just below the real A-list peak |
+| Talent as share of budget | Major ~£22M talent of ~£70M total ≈ **31%** | Above-the-line ~25–35%; principal cast 10–25% | ✅ In range |
+| Fame tracks spend | fame 31 → 57 → 74 as spend £1.1M → £5.7M → £22M | Indies cast emerging talent at SAG minimums; majors pay for bankable stars | ✅ Strong |
+
+The fame-follows-money ladder is exactly the real dynamic: an indie casts
+unknowns near scale minimum, a major pays up for a name that opens a film.
+The only stretch is the individual star ceiling (£15M) landing a little under
+what a real A-lister commands up front.
+
+### The craft-vs-spend inversion — validated
+
+The diagnostic's most counter-intuitive result — **indie scripts average
+higher craft (72) than major scripts (66)**, the inverse of the money ladder
+— is one of the *best*-supported assumptions against reality:
+
+- A24 (indie) has won **Best Picture and Best Original/Adapted Screenplay**
+  with *Moonlight* and *Everything Everywhere All at Once* (the latter took 7
+  Oscars), on budgets a fraction of a tentpole's.
+- Franchise/tentpole films — the majors' bread and butter — very rarely win
+  screenplay awards and score lower critically on average, despite the
+  biggest budgets in the business.
+
+Real prestige flows to the small, writing-driven film; real spectacle and box
+office flow to the tentpole. The game reproduces exactly that split, and for
+the same structural reason: at bid time indies compete on script craft
+because they can't compete on money, while majors take the blockbuster-genre
+script and win on spend.
+
+### Verdict
+
+| Assumption | Directional realism |
+|---|---|
+| Frequency ordering (Major > Mid > Indie by studio) | ✅ Matches |
+| Majors = spectacle genres | ✅ Strong |
+| Mid-tier = horror/thriller | ✅ Strong |
+| Indie = prestige drama | ✅ Strong (⚠️ under-weights indie horror) |
+| Budget ladder shape | ✅ Realistic at bottom, ⚠️ compressed at top |
+| Fame tracks spend | ✅ Strong |
+| Craft inverse to budget | ✅ Strongly validated |
+
+**Optional tuning ideas** (none required, and none in this PR): raise the Big
+target-price band / star ceiling to widen the top of the budget ladder toward
+real tentpole scale; shift a slice of the Indie genre bias from Drama toward
+Horror to match how real boutiques actually make their money.
+
+### Sources
+
+- [Warner Bros. targeting 12–14 theatrical releases annually — Deadline](https://deadline.com/2025/08/warner-bros-discovery-theatrical-releases-key-labels-1236481064/)
+- [Disney tops 2025 studio rankings (release/box-office context) — Screen Daily](https://www.screendaily.com/news/disney-tops-2025-studio-rankings-with-658bn-global-box-office-take-warner-and-universal-follow/5212392.article)
+- [A24 — Wikipedia](https://en.wikipedia.org/wiki/A24) and [List of A24 films](https://en.wikipedia.org/wiki/List_of_A24_films)
+- [Lionsgate Films — Wikipedia](https://en.wikipedia.org/wiki/Lionsgate_Films)
+- [Hollywood's franchise frenzy: >50% of 2025 studio movies are existing IP — CNBC](https://www.cnbc.com/2024/10/06/box-office-2025-movies-existing-intellectual-property.html)
+- [Blumhouse Productions (sub-$5M horror model) — Wikipedia](https://en.wikipedia.org/wiki/Blumhouse_Productions)
+- [Average movie budget by tier — Celtx](https://blog.celtx.com/average-movie-budget/)
+- [Above-the-line & cast cost share of budget — Filmustage](https://filmustage.com/blog/budgeting-for-talent-how-to-plan-for-cast-and-crew-costs/)
+- [Highest-paid actors 2023/2024 (per-film salaries) — Forbes](https://www.forbes.com/sites/mattcraig/2025/02/28/the-highest-paid-actors-of-2024/)
+- [A24 Oscar wins (Moonlight, Everything Everywhere All at Once) — Variety](https://variety.com/lists/best-a24-movies-ranked/)
