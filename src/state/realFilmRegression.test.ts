@@ -235,8 +235,46 @@ describe('real-film regression: Inception', () => {
     expect(results.totalBoxOffice!).toBeGreaterThan(results.totalCost);
     expect(results.profit).not.toBeNull();
     expect(results.profit!).toBeGreaterThan(0);
+    // A clear commercial success of *some* stripe - never a Flop or a Weak
+    // return. The exact headline label is pinned separately below.
     expect(results.outcome).not.toBeNull();
-    expect(['Modest Success', 'Hit', 'Blockbuster', 'Phenomenon', 'Cult Hit', 'Masterpiece']).toContain(results.outcome);
+    expect(results.outcome).not.toBe('Flop');
+    expect(results.outcome).not.toBe('Weak');
+  });
+
+  it('compares sanely to the real film - and documents the current (ROI-driven) "Cult Hit" label quirk', () => {
+    // How the recreation lines up against Inception (2010, Warner Bros.):
+    //
+    //   metric            real                    recreation      read
+    //   ----------------  ----------------------  --------------  -------------------
+    //   critic score      Metacritic 74 / RT 87   ~74             ~exact vs Metacritic
+    //   audience score    RT 91% / CinemaScore A- ~79             a touch conservative
+    //   worldwide gross   $836.8M                 ~$761M          within ~9%
+    //   total cost        ~$160M + ~$100M mktg    ~$240M          close
+    //   studio profit     ~$90M theatrical        ~$80M           close (42% share)
+    //   headline outcome  blockbuster/phenomenon  "Cult Hit"      <-- diverges
+    //
+    // The scores and box office land remarkably close to reality. The LABEL is
+    // the one deliberate-for-now divergence: engine/outcome.ts keys the
+    // headline off profit *ratio*, not gross scale. At a 42% studio share a
+    // ~$761M gross on a ~$240M film returns only ~0.33x its cost, which caps
+    // the commercial tier at 'Modest Success'; strong audience love (>=78)
+    // then upgrades it to 'Cult Hit'. So a film that out-grosses the entire
+    // market can still read as a "Cult Hit" purely on margin. That's a
+    // defensible ROI-first stance, but it collides with real-world language.
+    //
+    // This test pins that behaviour intentionally: if the label rules ever
+    // grow a gross-scale route (so tentpole grosses read as Blockbuster/
+    // Phenomenon regardless of margin), this assertion is meant to fail and be
+    // updated - it's the tripwire for that follow-up, not a claim it's ideal.
+    const results = releaseAndSettle(buildRecreationState(101, INCEPTION, 400_000_000, realTalent(INCEPTION)));
+
+    expect(results.criticScore).toBeGreaterThanOrEqual(68);
+    expect(results.criticScore).toBeLessThanOrEqual(82); // real Metacritic 74, in-band
+    expect(results.audienceScore).toBeGreaterThanOrEqual(72);
+    expect(results.totalBoxOffice!).toBeGreaterThan(500_000_000); // real worldwide $836.8M
+    expect(results.totalBoxOffice!).toBeLessThan(1_100_000_000);
+    expect(results.outcome).toBe('Cult Hit'); // known-quirk tripwire (see comment above)
   });
 
   it('the faithful A-list recreation out-scores AND out-earns a weak recreation of the same script', () => {
