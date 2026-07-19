@@ -423,9 +423,14 @@ const GENRE_TIER_BIAS: Record<
   StudioTier,
   Partial<Record<Script['genre'], number>>
 > = {
+  // Horror leads, just ahead of Drama: real boutiques (Blumhouse, and A24's
+  // own Hereditary/Midsommar line) lean on sub-budget horror as their profit
+  // engine as much as on prestige drama, and the game's own economics already
+  // favour it (Horror.lowBudgetFriendly = 0.9). See
+  // docs/DESIGN_REVIEW_ai_studio_behavior.md "Reality check".
   Indie: {
-    Drama: 18,
-    Horror: 14,
+    Horror: 20,
+    Drama: 15,
     Thriller: 14,
     Romance: 10,
     Comedy: 4,
