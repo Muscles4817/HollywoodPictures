@@ -266,6 +266,7 @@ export function Dashboard() {
         <button type="button" onClick={() => dispatch({ type: 'VIEW_ASSET_LIBRARY' })}>Asset Library</button>
         <button type="button" onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}>Release Calendar</button>
         <button type="button" onClick={() => dispatch({ type: 'VIEW_STATS' })}>Studio Stats</button>
+        <button type="button" onClick={() => dispatch({ type: 'VIEW_AWARDS' })}>Awards</button>
         <button type="button" onClick={() => setShowGuide(true)}>How It Works</button>
         <button type="button" className="dashboard-danger-link" onClick={() => setShowResetPicker(true)}>Reset Studio</button>
       </nav>
@@ -297,6 +298,17 @@ export function Dashboard() {
 
       <div className="dashboard-main-grid">
         <main className="dashboard-main-column">
+          {state.awards?.season && (
+            <section className="dashboard-card dashboard-awards-banner">
+              <div>
+                <span className="dashboard-section-kicker">Awards season</span>
+                <h2>The Academy Awards are campaigning</h2>
+                <p>Your Year {state.awards.season.year} films are eligible. Back your contenders before the ceremony.</p>
+              </div>
+              <Button variant="primary" onClick={() => dispatch({ type: 'VIEW_AWARDS' })}>Campaign your films</Button>
+            </section>
+          )}
+
           <section className="dashboard-card dashboard-attention-card">
             <div className="dashboard-card-heading">
               <div>
