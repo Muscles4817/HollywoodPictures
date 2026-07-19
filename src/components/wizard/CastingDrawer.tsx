@@ -5,6 +5,7 @@ import { findAssignedPerson, professionForProductionRole } from '../../data/help
 import { ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
+import { actorMeetsCharacterGender } from '../../engine/casting';
 import { computeActorAppeal, resolveOfferResponse, type OfferResponse } from '../../engine/castingAppeal';
 import { describeApplicantInterest, describeOfferRejection } from '../../engine/castingPresentation';
 import { formatMoney } from '../common/Money';
@@ -179,8 +180,15 @@ export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDr
     : [];
 
   const hiredElsewhereIds = new Set(draft.talent.filter((a) => a.role !== role).map((a) => a.person.id));
+  // Only surface actors who can actually play this character - matching the
+  // gender it's written for (engine/casting.ts), exactly as Open Casting's
+  // own applicant generation already does (engine/castingCalls.ts) and as the
+  // reducer's hire guard enforces. Without this, Direct Approach for a
+  // gendered role listed every actor regardless of gender, and offering one
+  // who didn't match would read as "accepted" and then silently fail to cast
+  // (the reducer no-ops the mismatch). 'Any' roles are unfiltered.
   const directCandidates = findCandidatesNearPrice(
-    state.talentPool.Actor.filter((t) => !hiredElsewhereIds.has(t.id)),
+    state.talentPool.Actor.filter((t) => !hiredElsewhereIds.has(t.id) && actorMeetsCharacterGender(t.identity.gender, character.castingGender)),
     role,
     offeredSalary,
     9,
