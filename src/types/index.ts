@@ -855,6 +855,26 @@ export interface AwardsCeremony {
   categories: Record<AwardCategory, AwardNomination[]>;
 }
 
+/** An open awards season between the year boundary (when it opens) and its ceremony - the campaign phase. */
+export interface AwardsSeasonInProgress {
+  /** The 1-indexed year being honoured (the year just completed). */
+  year: number;
+  /** Every eligible film's id (player and rival) - the field the ceremony resolves over. */
+  eligibleFilmIds: string[];
+  /** GameState.totalDays the ceremony resolves on. */
+  ceremonyDay: number;
+  /** Player film id -> campaign cash committed so far. Extensible to per-category/talent later. */
+  campaignByFilm: Record<string, number>;
+}
+
+/** All awards state on the studio's world - resolved history, the open season (if any), and when the next opens. */
+export interface AwardsState {
+  history: AwardsCeremony[];
+  season: AwardsSeasonInProgress | null;
+  /** GameState.totalDays the next season opens on (a year boundary). */
+  nextSeasonDay: number;
+}
+
 export interface FilmResults {
   productionCost: number;
   marketingCost: number;
