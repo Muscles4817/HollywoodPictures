@@ -1,10 +1,11 @@
-import type { Asset, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentProfession, WizardStep } from '../types';
+import type { Asset, AwardsState, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, clamp, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
 import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
-import { effectiveRoleCapacity } from '../engine/castRequirements';
+import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequirements';
+import { personMeetsCharacterGender } from '../engine/casting';
 import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent, resolveEventChoice } from '../engine/production';
 import { generateTestScreeningPendingChoice } from '../engine/testScreening';
 import { computeDailyContingencyBurn, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
@@ -16,10 +17,21 @@ import { settleTheatricalMarket } from '../engine/marketSettlement';
 import { settleRivalMarket, generateRivalStudios } from '../engine/rivalStudios';
 import { settleProductionsInProgress } from '../engine/productionsInProgress';
 import { asUpcomingRelease, type ScheduledRelease } from '../engine/scheduledReleases';
-import { deriveReleaseWindowFromDay } from '../engine/calendar';
+import { deriveReleaseWindowFromDay, DAYS_PER_YEAR, firstDayOfYear, yearOf } from '../engine/calendar';
+import { computeBoxOfficeBump, computeCeremony, computeStudioAwardDeltas, filmsForAwardsYear } from '../engine/awards';
+import { CEREMONY_DELAY_DAYS } from '../data/awards';
 import { settleOpportunities, reopenForfeitedOpportunity, highestBid, placeBid, type ResolvedBid } from '../engine/opportunities';
 import { openCastingCall, tickCastingCalls } from '../engine/castingCalls';
-import { generateTalentPool } from '../engine/talentGenerator';
+import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
+import {
+  benchCapacity,
+  benchProducerIds,
+  canUnlockOffice,
+  isOfficeUnlocked,
+  isProducer,
+  officeUpgradeCost,
+  producerHiringFee,
+} from '../engine/producers';
 import { applyStatChange } from '../engine/reputation';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 import { currentScreenFor } from './selectors';
@@ -127,6 +139,93 @@ function applyOpportunityWins(
   return { studio: nextStudio, opportunities: nextOpportunities };
 }
 
+/** Awards state for a state that predates the feature: no history, no open season, next season at the coming year boundary. */
+function awardsStateOrDefault(state: GameState): AwardsState {
+  return state.awards ?? { history: [], season: null, nextSeasonDay: firstDayOfYear(yearOf(state.totalDays) + 1) };
+}
+
+/**
+ * Awards Season settlement (docs/DESIGN_REVIEW_awards_season.md, increment 2).
+ * Runs once a day inside ADVANCE_DAY, AFTER every other rng draw in that tick,
+ * so its (rare, ceremony-day-only) jitter never perturbs any other system's
+ * seeded outcomes. Opens a season at the year boundary and resolves the
+ * ceremony ~45 days later, folding payoffs into the player's and rivals'
+ * cash/Brand/Prestige.
+ */
+function settleAwards(
+  awardsIn: AwardsState,
+  studioIn: Studio,
+  rivalsIn: RivalStudio[],
+  allFilms: Film[],
+  totalDaysAfter: number,
+  rng: RandomFn,
+): { studio: Studio; rivalStudios: RivalStudio[]; awards: AwardsState } {
+  let awards = awardsIn;
+  let studio = studioIn;
+  let rivals = rivalsIn;
+
+  // Open a season once the year boundary is reached, honouring the year just
+  // completed. If no film was released that year, skip straight to next year.
+  if (!awards.season && totalDaysAfter >= awards.nextSeasonDay) {
+    const year = yearOf(totalDaysAfter) - 1;
+    const eligible = filmsForAwardsYear(allFilms, year);
+    awards =
+      eligible.length > 0
+        ? {
+            ...awards,
+            nextSeasonDay: awards.nextSeasonDay + DAYS_PER_YEAR,
+            season: { year, eligibleFilmIds: eligible.map((f) => f.id), ceremonyDay: totalDaysAfter + CEREMONY_DELAY_DAYS, campaignByFilm: {} },
+          }
+        : { ...awards, nextSeasonDay: awards.nextSeasonDay + DAYS_PER_YEAR };
+  }
+
+  // Resolve the ceremony once its day arrives.
+  if (awards.season && totalDaysAfter >= awards.season.ceremonyDay) {
+    const season = awards.season;
+    const eligibleFilms = allFilms.filter((f) => season.eligibleFilmIds.includes(f.id));
+    const prestigeForFilm = (film: Film): number =>
+      film.releasedBy === undefined ? studio.prestige : (rivals.find((r) => r.name === film.releasedBy)?.prestige ?? 20);
+    const ceremony = computeCeremony({
+      year: season.year,
+      ceremonyDay: totalDaysAfter,
+      eligibleFilms,
+      campaignByFilm: season.campaignByFilm,
+      studioPrestigeForFilm: prestigeForFilm,
+      rng,
+    });
+
+    // Player payoff: Prestige + Brand from the tally, cash from the box-office bump.
+    const playerFilms = eligibleFilms.filter((f) => f.releasedBy === undefined);
+    const playerDeltas = computeStudioAwardDeltas(ceremony, new Set(playerFilms.map((f) => f.id)));
+    const playerBump = playerFilms.reduce((sum, f) => sum + computeBoxOfficeBump(f, ceremony), 0);
+    studio = {
+      ...studio,
+      prestige: applyStatChange(studio.prestige, playerDeltas.prestige),
+      brand: applyStatChange(studio.brand, playerDeltas.brand),
+      cash: studio.cash + playerBump,
+    };
+
+    // Rivals get the same treatment for their own films.
+    rivals = rivals.map((rival) => {
+      const films = eligibleFilms.filter((f) => f.releasedBy === rival.name);
+      if (films.length === 0) return rival;
+      const deltas = computeStudioAwardDeltas(ceremony, new Set(films.map((f) => f.id)));
+      const bump = films.reduce((sum, f) => sum + computeBoxOfficeBump(f, ceremony), 0);
+      return {
+        ...rival,
+        prestige: applyStatChange(rival.prestige, deltas.prestige),
+        brand: applyStatChange(rival.brand, deltas.brand),
+        cash: rival.cash + bump,
+        lifetimeRevenue: rival.lifetimeRevenue + bump,
+      };
+    });
+
+    awards = { ...awards, season: null, history: [...awards.history, ceremony] };
+  }
+
+  return { studio, rivalStudios: rivals, awards };
+}
+
 export interface CalendarSettlementResult {
   studio: Studio;
   rivalStudios: RivalStudio[];
@@ -184,6 +283,7 @@ function runCalendarSettlement(
     totalDaysAfter,
     state.studio.brand,
     rng,
+    state.producerPool ?? [],
   );
 
   const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng);
@@ -396,17 +496,28 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             rng,
           ),
         );
-        return { settlement, productionsInProgress: tickedProductionsInProgress, focusedDraft: tickedFocusedDraft };
+        // Awards runs LAST in the tick, so its ceremony-day-only jitter draws
+        // never shift the rng any other system above consumed.
+        const awardsResult = settleAwards(
+          awardsStateOrDefault(state),
+          settlement.studio,
+          settlement.rivalStudios,
+          [...settlement.playerFilms, ...settlement.rivalFilms],
+          totalDaysAfter,
+          rng,
+        );
+        return { settlement, awardsResult, productionsInProgress: tickedProductionsInProgress, focusedDraft: tickedFocusedDraft };
       });
       return {
         ...state,
         rngSeed: nextSeed,
         totalDays: totalDaysAfter,
-        rivalStudios: result.settlement.rivalStudios,
+        rivalStudios: result.awardsResult.rivalStudios,
         talentPool: result.settlement.talentPool,
         opportunities: result.settlement.opportunities,
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
-        studio: result.settlement.studio,
+        studio: result.awardsResult.studio,
+        awards: result.awardsResult.awards,
         projects: assembleProjects({
           playerDrafts: [...(result.focusedDraft ? [result.focusedDraft] : []), ...result.productionsInProgress],
           scheduled: result.settlement.stillScheduled,
@@ -414,6 +525,28 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           playerFilms: result.settlement.playerFilms,
           rivalFilms: result.settlement.rivalFilms,
         }),
+      };
+    }
+
+    // Awards Season (docs/DESIGN_REVIEW_awards_season.md) - set/replace a
+    // player film's campaign budget during an open season. Delta-based, so
+    // lowering it refunds; charged immediately (a studio-level spend). No-op
+    // when there's no open season, the film isn't eligible or isn't the
+    // player's, or an increase is unaffordable.
+    case 'SET_AWARDS_CAMPAIGN': {
+      const awards = state.awards;
+      if (!awards?.season || !awards.season.eligibleFilmIds.includes(action.filmId)) return state;
+      if (!playerReleasedFilms(state.projects).some((f) => f.id === action.filmId)) return state;
+      const amount = Math.max(0, Math.round(action.amount));
+      const delta = amount - (awards.season.campaignByFilm[action.filmId] ?? 0);
+      if (delta > 0 && state.studio.cash < delta) return state;
+      return {
+        ...state,
+        studio: { ...state.studio, cash: state.studio.cash - delta },
+        awards: {
+          ...awards,
+          season: { ...awards.season, campaignByFilm: { ...awards.season.campaignByFilm, [action.filmId]: amount } },
+        },
       };
     }
 
@@ -495,6 +628,88 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         focusedProjectId: draft.id,
         ...clearTransientView(),
       };
+    }
+
+    // --- Production Office & Producers (docs/DESIGN_REVIEW_production_office.md) ---
+
+    case 'UNLOCK_PRODUCTION_OFFICE': {
+      if (isOfficeUnlocked(state.studio)) return state;
+      if (!canUnlockOffice(state.studio.brand, playerReleasedFilms(state.projects).length)) return state;
+      return { ...state, studio: { ...state.studio, productionOffice: { tier: 1, benchProducerIds: [] } } };
+    }
+
+    case 'UPGRADE_PRODUCTION_OFFICE': {
+      // officeUpgradeCost is null when locked or already at the max tier, so
+      // a non-null cost implies an unlocked, upgradeable office.
+      const cost = officeUpgradeCost(state.studio);
+      if (cost == null || state.studio.cash < cost) return state;
+      const office = state.studio.productionOffice!;
+      return {
+        ...state,
+        studio: { ...state.studio, cash: state.studio.cash - cost, productionOffice: { ...office, tier: office.tier + 1 } },
+      };
+    }
+
+    case 'HIRE_PRODUCER': {
+      if (!isOfficeUnlocked(state.studio)) return state;
+      const office = state.studio.productionOffice!;
+      const person = (state.producerPool ?? []).find((p) => p.id === action.producerId);
+      if (!person || !isProducer(person)) return state;
+      if (office.benchProducerIds.includes(person.id)) return state; // already hired
+      if (office.benchProducerIds.length >= benchCapacity(state.studio)) return state; // bench full for this tier
+      const fee = producerHiringFee(person);
+      if (state.studio.cash < fee) return state;
+      return {
+        ...state,
+        studio: {
+          ...state.studio,
+          cash: state.studio.cash - fee,
+          productionOffice: { ...office, benchProducerIds: [...office.benchProducerIds, person.id] },
+        },
+      };
+    }
+
+    case 'FIRE_PRODUCER': {
+      if (!isOfficeUnlocked(state.studio)) return state;
+      const office = state.studio.productionOffice!;
+      if (!office.benchProducerIds.includes(action.producerId)) return state;
+      // Detach from every in-progress player draft too, so "attached is a
+      // subset of the bench" always holds. No refund - firing is final.
+      let nextProjects = state.projects;
+      for (const project of state.projects) {
+        const draft = asPlayerDraft(project);
+        if (draft && (draft.attachedProducerIds ?? []).includes(action.producerId)) {
+          nextProjects = replaceDraft(nextProjects, {
+            ...draft,
+            attachedProducerIds: (draft.attachedProducerIds ?? []).filter((pid) => pid !== action.producerId),
+          });
+        }
+      }
+      return {
+        ...state,
+        projects: nextProjects,
+        studio: {
+          ...state.studio,
+          productionOffice: { ...office, benchProducerIds: office.benchProducerIds.filter((pid) => pid !== action.producerId) },
+        },
+      };
+    }
+
+    case 'ATTACH_PRODUCER': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      if (!benchProducerIds(state.studio).includes(action.producerId)) return state; // only bench producers attach
+      const attached = focusedDraft.attachedProducerIds ?? [];
+      if (attached.includes(action.producerId)) return state;
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, attachedProducerIds: [...attached, action.producerId] }) };
+    }
+
+    case 'DETACH_PRODUCER': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const attached = focusedDraft.attachedProducerIds ?? [];
+      if (!attached.includes(action.producerId)) return state;
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, attachedProducerIds: attached.filter((pid) => pid !== action.producerId) }) };
     }
 
     // Producer Workspace free navigation (PRODUCER_WORKSPACE_DESIGN.md) -
@@ -605,6 +820,18 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       if (action.person && focusedDraft.talent.some((a) => a.role !== action.role && a.person.id === action.person!.id)) {
         return state;
       }
+      // Gender enforcement (engine/casting.ts): a single-capacity actor role
+      // fills character slot 0; reject an actor whose gender doesn't match it.
+      // No-ops for every non-actor role (characterForRoleSlot returns null,
+      // which reads as unconstrained). Defensive - the drawer already hides
+      // ineligible candidates - but keeps the rule true even for direct dispatch.
+      if (
+        action.person &&
+        focusedDraft.script &&
+        !personMeetsCharacterGender(action.person, characterForRoleSlot(focusedDraft.script, action.role, 0))
+      ) {
+        return state;
+      }
       const withoutRole = focusedDraft.talent.filter((a) => a.role !== action.role);
       const nextTalent = action.person ? [...withoutRole, { role: action.role, person: action.person }] : withoutRole;
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, talent: nextTalent }) };
@@ -626,6 +853,18 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         return state;
       }
       const capacity = effectiveRoleCapacity(action.role, focusedDraft.script);
+
+      // Gender enforcement (engine/casting.ts): a new hire fills the next
+      // open slot (current.length); reject an actor whose gender doesn't
+      // match that character. Removing an already-hired actor is always
+      // allowed. Defensive mirror of the drawer's own candidate filtering.
+      if (
+        !alreadyHired &&
+        focusedDraft.script &&
+        !personMeetsCharacterGender(action.person, characterForRoleSlot(focusedDraft.script, action.role, current.length))
+      ) {
+        return state;
+      }
 
       let nextTalent: TalentAssignment[];
       if (alreadyHired) {
@@ -1133,19 +1372,20 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // it.
     //
     // Post-Production Redesign, Phase C (docs/DESIGN_REVIEW_post_production_redesign.md
-    // section 4) - the player's own releaseDay pick is clamped to no
-    // earlier than the film's own current post-production completion
-    // estimate (postProductionFinalReadyDay once the test screening has
-    // resolved, postProductionScreeningReadyDay before that), not a flat
-    // marketing-campaign lead time any more (STAGE_DURATIONS.marketing,
-    // retired alongside post-production's own flat charge - see
-    // data/schedule.ts). This is what makes "is improving this film worth
-    // delaying its release" a real, felt tension - a Test Screening choice
-    // that pushes the estimate later now visibly moves the earliest this
-    // film can actually go out. Also refuses to schedule at all while a
-    // test screening is still pending an unresolved choice - defensive
-    // symmetry with PostProduction.tsx's own "Continue to Marketing" block
-    // and WizardSteps.tsx's nav, in case either is ever bypassed.
+    // section 4) - a film can't be scheduled at all until its (mandatory)
+    // test screening is resolved (testScreeningResolved guard below), and
+    // the release day is clamped to no earlier than
+    // postProductionFinalReadyDay - not a flat marketing-campaign lead time
+    // any more (STAGE_DURATIONS.marketing, retired alongside post-
+    // production's own flat charge, see data/schedule.ts). This is what
+    // makes "is improving this film worth delaying its release" a real,
+    // felt tension: a Test Screening choice that pushes the estimate later
+    // shows up directly here as a later earliest-possible release day, and
+    // the film can never reach theatres having skipped its screening
+    // entirely (the bug the resolved-guard exists to close - the screening
+    // only ever fires/resolves for a still-player-in-progress draft, so
+    // releasing before it resolved would silently orphan the pending
+    // choice).
     case 'SCHEDULE_RELEASE': {
       const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (
@@ -1156,13 +1396,18 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         !d.productionChoices ||
         !d.photography ||
         !d.postProductionChoices ||
-        !d.marketingChoices ||
-        d.testScreeningPendingChoice
+        !d.marketingChoices
       ) {
         return state;
       }
-      const postProductionEstimate = d.postProductionFinalReadyDay ?? d.postProductionScreeningReadyDay ?? state.totalDays;
-      const totalDaysAfter = Math.max(state.totalDays, postProductionEstimate);
+      // The authoritative guard - the Marketing & Release screen also
+      // disables its own button and surfaces the pending/upcoming screening
+      // inline, but this makes the rule true regardless of how the action
+      // was dispatched. testScreeningResolved implies postProductionFinalReadyDay
+      // is set (RESOLVE_TEST_SCREENING_CHOICE sets both at once), so the
+      // `!` below is safe.
+      if (!d.testScreeningResolved) return state;
+      const totalDaysAfter = Math.max(state.totalDays, d.postProductionFinalReadyDay!);
       const daysAdvanced = totalDaysAfter - state.totalDays;
       // releaseDay is a discrete calendar day everywhere else in this
       // codebase (GameState.totalDays, RivalProductionInProgress.releaseDay)
@@ -1247,6 +1492,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const { result, nextSeed } = withRng(randomSeed(), (rng) => ({
         talentPool: generateTalentPool(rng),
         rivalStudios: generateRivalStudios(rng),
+        producerPool: generateProducerPool(rng),
       }));
       return {
         studio: { ...createInitialStudio(action.startingCash), assets: TEST_SCRIPT_ASSETS },
@@ -1258,8 +1504,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         totalDays: 1,
         talentPool: result.talentPool,
         rivalStudios: result.rivalStudios,
+        producerPool: result.producerPool,
         opportunities: [],
         nextOpportunityCheckDay: 1,
+        awards: { history: [], season: null, nextSeasonDay: firstDayOfYear(2) },
         ...clearTransientView(),
       };
     }
@@ -1302,6 +1550,14 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // Dashboard -> every current project, one card each. Pure detour, same as VIEW_STATS.
     case 'VIEW_PROJECTS':
       return { ...state, screen: 'projects', ...clearTransientView() };
+
+    // Dashboard -> the Academy Awards screen. Pure detour, same as VIEW_STATS.
+    case 'VIEW_AWARDS':
+      return { ...state, screen: 'awards', ...clearTransientView() };
+
+    // Dashboard -> the searchable talent database. Pure detour, same as VIEW_STATS.
+    case 'VIEW_TALENT_DATABASE':
+      return { ...state, screen: 'talent-database', ...clearTransientView() };
 
     // Restores an exact prior "page" - see GameAction's own comment on why
     // this one, unlike every other navigation action, can't just trust its

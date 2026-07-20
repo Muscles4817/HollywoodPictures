@@ -11,6 +11,7 @@ import { BoxOfficeFinishedPopup } from './common/BoxOfficeFinishedPopup';
 import { FilmDetailModal } from './common/FilmDetailModal';
 import { TopGrossingPanel } from './common/TopGrossingPanel';
 import { DifficultyPicker } from './common/DifficultyPicker';
+import { ProductionOfficeCard } from './ProductionOfficeCard';
 import { computeTopGrossingFilms, hasDraftProgress } from '../state/selectors';
 import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
@@ -56,10 +57,6 @@ export function Dashboard() {
       else next.add(filmId);
       return next;
     });
-  }
-
-  if (showGuide) {
-    return <GameGuide onBack={() => setShowGuide(false)} />;
   }
 
   const { projects } = state;
@@ -202,6 +199,12 @@ export function Dashboard() {
       ? 'Established studio'
       : 'Independent studio';
 
+  // Rendered after every hook has run - keeping this above the useMemo above
+  // made it a conditional hook call (react-hooks/rules-of-hooks).
+  if (showGuide) {
+    return <GameGuide onBack={() => setShowGuide(false)} />;
+  }
+
   return (
     <div className="dashboard-page">
       {unacknowledgedFinished && <BoxOfficeFinishedPopup film={unacknowledgedFinished} />}
@@ -263,6 +266,8 @@ export function Dashboard() {
         <button type="button" onClick={() => dispatch({ type: 'VIEW_ASSET_LIBRARY' })}>Asset Library</button>
         <button type="button" onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}>Release Calendar</button>
         <button type="button" onClick={() => dispatch({ type: 'VIEW_STATS' })}>Studio Stats</button>
+        <button type="button" onClick={() => dispatch({ type: 'VIEW_TALENT_DATABASE' })}>Talent Database</button>
+        <button type="button" onClick={() => dispatch({ type: 'VIEW_AWARDS' })}>Awards</button>
         <button type="button" onClick={() => setShowGuide(true)}>How It Works</button>
         <button type="button" className="dashboard-danger-link" onClick={() => setShowResetPicker(true)}>Reset Studio</button>
       </nav>
@@ -294,6 +299,17 @@ export function Dashboard() {
 
       <div className="dashboard-main-grid">
         <main className="dashboard-main-column">
+          {state.awards?.season && (
+            <section className="dashboard-card dashboard-awards-banner">
+              <div>
+                <span className="dashboard-section-kicker">Awards season</span>
+                <h2>The Academy Awards are campaigning</h2>
+                <p>Your Year {state.awards.season.year} films are eligible. Back your contenders before the ceremony.</p>
+              </div>
+              <Button variant="primary" onClick={() => dispatch({ type: 'VIEW_AWARDS' })}>Campaign your films</Button>
+            </section>
+          )}
+
           <section className="dashboard-card dashboard-attention-card">
             <div className="dashboard-card-heading">
               <div>
@@ -530,6 +546,8 @@ export function Dashboard() {
               onSelectStudio={(studioName) => dispatch({ type: 'VIEW_RIVAL_STUDIO', studioName })}
             />
           </section>
+
+          <ProductionOfficeCard />
 
           <section className="dashboard-card dashboard-sidebar-card">
             <div className="dashboard-card-heading dashboard-sidebar-heading">

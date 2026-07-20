@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { studioReducer } from './studioReducer';
 import { createInitialStudio, type GameState } from './gameState';
-import { buildReadyAsset } from './testFixtures';
+import { buildReadyAsset, conformActorGenderToSlot } from './testFixtures';
 import { generateTalentPool } from '../engine/talentGenerator';
 import { settleOpportunities } from '../engine/opportunities';
 import { withRng } from '../engine/random';
@@ -80,7 +80,7 @@ function hireMandatoryRoles(s: GameState): GameState {
       drawIndexByProfession.set(profession, index + 1);
       const cheapest = [...s.talentPool[profession]].sort((a, b) => getTypicalSalaryForRole(a, role) - getTypicalSalaryForRole(b, role));
       const candidate = cheapest[index];
-      s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, person: candidate! });
+      s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role, person: conformActorGenderToSlot(candidate!, script, role, i) });
     }
   }
   return s;
@@ -376,6 +376,17 @@ describe('no double-charging: the script cost is charged exactly once, at acquis
       type: 'SET_POST_PRODUCTION_CHOICES',
       choices: { editStyle: 'Balanced', musicFocus: 'Standard', finalCutFocus: 'Trailer-focused' },
     });
+    // Post-production runs until the mandatory test screening comes in and is
+    // resolved - SCHEDULE_RELEASE now blocks release until then.
+    {
+      const readyDay = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!.postProductionScreeningReadyDay!;
+      let guard = 0;
+      while (asPlayerDraft(findProject(s.projects, s.focusedProjectId))!.testScreeningPendingChoice === null && guard < readyDay + 400) {
+        s = studioReducer(s, { type: 'ADVANCE_DAY' });
+        guard += 1;
+      }
+      s = studioReducer(s, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'release-as-is', productionId: s.focusedProjectId! });
+    }
     s = studioReducer(s, { type: 'GO_TO_STEP', step: 'marketing' });
     s = studioReducer(s, {
       type: 'SET_MARKETING_CHOICES',

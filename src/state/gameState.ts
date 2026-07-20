@@ -1,5 +1,6 @@
 import type {
   Asset,
+  AwardsState,
   Distribution,
   EffectsMethodKey,
   EnvironmentMethodKey,
@@ -53,6 +54,14 @@ export interface GameState {
   rivalStudios: RivalStudio[];
   /** The whole hireable roster, generated once at game start - world-level (shared by the player and every rival's own casting, see engine/rivalStudios.ts) rather than nested inside the player's own Studio. */
   talentPool: Record<TalentProfession, Person[]>;
+  /**
+   * The hireable Producer roster (docs/DESIGN_REVIEW_production_office.md) -
+   * kept separate from `talentPool` (which is profession-keyed and feeds
+   * casting) so producers can never leak into the Hire Talent wizard.
+   * Optional/absent on saves predating the Production Office; read as `[]`
+   * (there is no migration pass - see state/persistence.ts).
+   */
+  producerPool?: Person[];
   // Development pipeline (docs/DESIGN_REVIEW_development_pipeline.md) -
   // world-level and shared, same reasoning as talentPool: an Opportunity
   // isn't anyone's property yet, so it can't live inside one Studio. Not
@@ -73,6 +82,13 @@ export interface GameState {
   // every other navigation action so it can't outlive the view that set it
   // (see state/studioReducer.ts).
   viewingProductionId: string | null;
+  /**
+   * Awards Season (docs/DESIGN_REVIEW_awards_season.md) - resolved history, the
+   * open season (campaign phase), and when the next opens. Optional/absent on
+   * saves predating awards; read defensively via awardsStateOrDefault (there is
+   * no migration pass - see state/persistence.ts).
+   */
+  awards?: AwardsState;
 }
 
 /**
@@ -89,6 +105,7 @@ export function createInitialStudio(startingCash: number): Studio {
     brand: 20,
     prestige: 20,
     assets: [],
+    productionOffice: null, // locked until the unlock milestone (docs/DESIGN_REVIEW_production_office.md)
   };
 }
 
@@ -122,6 +139,7 @@ export function createDraftFromAsset(asset: Asset, talentTargetPriceByRole: Part
     targetAudience: asset.script.intendedAudience,
     script: asset.script,
     talent: [],
+    attachedProducerIds: [],
     talentTargetPriceByRole,
     castingCalls: [],
     environmentStrategy: null,
@@ -165,6 +183,27 @@ export type GameAction =
   // winner (state/studioReducer.ts's shared applyOpportunityWin).
   | { type: 'PLACE_BID'; opportunityId: string; amount: number }
   | { type: 'CREATE_PROJECT_FROM_ASSET'; assetId: string }
+  // Production Office & Producers (docs/DESIGN_REVIEW_production_office.md).
+  // UNLOCK is milestone-gated (films shipped OR Brand), not bought - no-op
+  // until the milestone is met. UPGRADE/HIRE deduct cash immediately at the
+  // studio level (the same immediate path ACQUIRE_OPPORTUNITY uses), gated on
+  // affordability. ATTACH/DETACH only mutate the focused draft's
+  // attachedProducerIds - no cash moves until RELEASE_FILM, like every other
+  // production cost. All six fail safely (no-op) when their preconditions
+  // aren't met. Invariant: a draft's attached producers are always a subset
+  // of the bench (ATTACH requires bench membership; FIRE detaches).
+  // Awards Season (docs/DESIGN_REVIEW_awards_season.md) - set (replace) the
+  // campaign budget for one of the player's eligible films during an open
+  // season. Delta cash moves immediately (refunds on a decrease); a no-op if
+  // no season is open, the film isn't the player's, isn't eligible, or the
+  // increase is unaffordable.
+  | { type: 'SET_AWARDS_CAMPAIGN'; filmId: string; amount: number }
+  | { type: 'UNLOCK_PRODUCTION_OFFICE' }
+  | { type: 'UPGRADE_PRODUCTION_OFFICE' }
+  | { type: 'HIRE_PRODUCER'; producerId: string }
+  | { type: 'FIRE_PRODUCER'; producerId: string }
+  | { type: 'ATTACH_PRODUCER'; producerId: string }
+  | { type: 'DETACH_PRODUCER'; producerId: string }
   // Producer Workspace free navigation (PRODUCER_WORKSPACE_DESIGN.md) - the
   // only way GameState.projectWorkspaceSection changes. Unlike GO_TO_STEP,
   // charges no calendar time and never touches STAGE_DURATIONS: moving
@@ -303,6 +342,10 @@ export type GameAction =
   // each, grouped by stage (components/ProjectsPage.tsx). Pure detour, same
   // as VIEW_STATS - doesn't touch the calendar or focusedProjectId.
   | { type: 'VIEW_PROJECTS' }
+  // Dashboard -> the Academy Awards screen (campaign + history). Pure detour, same as VIEW_STATS.
+  | { type: 'VIEW_AWARDS' }
+  // Dashboard -> the searchable talent database (all actors + their stats). Pure detour, same as VIEW_STATS.
+  | { type: 'VIEW_TALENT_DATABASE' }
   // Driven by the browser's own Back/Forward buttons (App.tsx), never
   // dispatched directly by the UI - restores an exact prior screen/focus/
   // detour snapshot rather than deriving it from the current one, since

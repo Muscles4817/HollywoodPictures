@@ -1,0 +1,217 @@
+/* Talent Database - searchable actor list + detail page with a dev "hidden
+   stats" section. Reuses the app's CSS variables for theme consistency. */
+
+.td-database__summary,
+.td-detail__subtitle {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+}
+
+/* --- Controls --------------------------------------------------------- */
+.td-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+.td-search {
+  flex: 1 1 220px;
+  display: flex;
+}
+.td-search input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+}
+.td-select {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+.td-select select {
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+}
+
+/* --- List ------------------------------------------------------------- */
+.td-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.td-list__head,
+.td-actor-row {
+  display: grid;
+  grid-template-columns: 2.2fr 1.1fr 1.4fr 1fr 0.8fr 0.9fr;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  text-align: left;
+}
+.td-list__head {
+  font-size: 0.72em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.td-actor-row {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+.td-actor-row:last-child { border-bottom: none; }
+.td-actor-row:hover { background: var(--panel); }
+.td-actor-row__name { font-weight: 600; }
+.td-actor-row__meta,
+.td-actor-row__credits { color: var(--text-muted); font-size: 0.9em; }
+.td-actor-row__status.is-busy { color: var(--red); }
+.td-actor-row__status.is-free { color: var(--green); }
+
+@media (max-width: 640px) {
+  .td-list__head { display: none; }
+  .td-actor-row { grid-template-columns: 1fr auto; grid-auto-rows: min-content; }
+}
+
+/* --- Detail ----------------------------------------------------------- */
+.td-back {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--primary);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+.td-detail__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.td-detail__fee { text-align: right; }
+.td-detail__avail { font-size: 0.85em; margin-top: 4px; }
+.td-detail__avail.is-busy { color: var(--red); }
+.td-detail__avail.is-free { color: var(--green); }
+
+.td-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: 14px 16px;
+}
+.td-panel h2 { margin: 0 0 10px; font-size: 1.05em; }
+.td-count { color: var(--text-muted); font-weight: 400; }
+
+.td-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 4px 24px;
+}
+.td-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.td-stat-label { display: inline-flex; align-items: center; gap: 4px; }
+.td-stat-value { display: inline-flex; align-items: center; gap: 8px; }
+.td-stat-raw { color: var(--text-muted); font-variant-numeric: tabular-nums; font-size: 0.85em; min-width: 2ch; text-align: right; }
+.td-stat-raw--solo { font-size: 1em; color: var(--text); font-weight: 600; }
+
+.td-filmography { display: flex; flex-direction: column; gap: 8px; }
+.td-credit { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.td-credit__title { font-weight: 600; }
+.td-credit__meta { color: var(--text-muted); font-size: 0.9em; }
+
+/* --- Dev section ------------------------------------------------------ */
+.td-dev {
+  border: 1px dashed var(--dev, var(--border));
+  border-radius: var(--radius);
+  padding: 4px 12px;
+  background: color-mix(in srgb, var(--dev, var(--primary)) 6%, transparent);
+}
+.td-dev__toggle {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 10px 2px;
+}
+.td-dev__note { color: var(--text-muted); font-size: 0.85em; margin: 0 0 10px; }
+.td-dev__group { margin-bottom: 12px; }
+.td-dev__group h4 { margin: 0 0 4px; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+
+/* --- Info sign + tooltip --------------------------------------------- */
+.info-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+  outline: none;
+}
+.info-tip--inline { vertical-align: middle; }
+.info-tip__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--text-muted);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-style: italic;
+  font-family: Georgia, 'Times New Roman', serif;
+  line-height: 1;
+}
+.info-tip:hover .info-tip__icon,
+.info-tip:focus .info-tip__icon { border-color: var(--primary); color: var(--primary); }
+.info-tip__bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 280px;
+  padding: 8px 10px;
+  background: var(--info-bg, var(--bg));
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  font-size: 0.8em;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease;
+  z-index: 40;
+  pointer-events: none;
+}
+.info-tip:hover .info-tip__bubble,
+.info-tip:focus .info-tip__bubble { opacity: 1; visibility: visible; }

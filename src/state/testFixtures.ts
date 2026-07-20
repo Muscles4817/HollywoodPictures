@@ -7,13 +7,29 @@
 // already exercised elsewhere; this milestone's tests are about box office
 // settlement, not wizard-flow correctness, so a draft assembled directly is
 // both faster and more focused than driving 20+ reducer actions per test.
-import type { Asset, FilmDraft, MarketingChoices, PhotographyState, ProductionChoices } from '../types';
+import type { Asset, FilmDraft, MarketingChoices, PhotographyState, Person, ProductionChoices, ProductionRole, Script } from '../types';
 import { createDraftFromAsset, createInitialStudio, type GameState } from './gameState';
 import { generateScriptOptions } from '../engine/scriptGenerator';
 import { generateTalentCandidates, generateTalentPool } from '../engine/talentGenerator';
 import { withRng, type RandomFn } from '../engine/random';
 import { playerDraftToProject } from '../engine/project';
+import { characterForRoleSlot } from '../engine/castRequirements';
 import { DEFAULT_POST_PRODUCTION_CHOICES } from '../data/postProduction';
+
+/**
+ * Test-only: make a synthetic actor satisfy the gender written for the
+ * Character at (role, slotIndex), so a helper that casts fabricated or
+ * cheapest-in-pool actors doesn't trip the real gender guard now enforced at
+ * hire time (engine/casting.ts). A no-op for non-actor roles and 'Any'/absent
+ * casting genders. Overwrites only identity.gender - deterministic, and adds
+ * no RNG draws, so seeded generation sequences elsewhere are unchanged.
+ */
+export function conformActorGenderToSlot(person: Person, script: Script | null, role: ProductionRole, slotIndex: number): Person {
+  const character = script ? characterForRoleSlot(script, role, slotIndex) : null;
+  const required = character?.castingGender;
+  if (!required || required === 'Any' || person.identity.gender === required) return person;
+  return { ...person, identity: { ...person.identity, gender: required } };
+}
 
 const PRODUCTION_CHOICES: ProductionChoices = {
   contingencyAmount: 500_000,
@@ -67,6 +83,14 @@ export function buildReadyDraft(rng: RandomFn, marketingOverrides: Partial<Marke
     productionChoices: PRODUCTION_CHOICES,
     greenlitOnDay: 1,
     photography: finishedPhotography(40),
+    // A release-ready draft is one whose post-production has fully wrapped -
+    // the mandatory test screening has fired and been resolved (Release
+    // As-Is: no delay), which SCHEDULE_RELEASE now requires before a film can
+    // go out (state/studioReducer.ts). Both ready-day fields sit in the past
+    // so the release-day clamp is a no-op for these box-office fixtures.
+    postProductionScreeningReadyDay: 1,
+    postProductionFinalReadyDay: 1,
+    testScreeningResolved: true,
     postProductionChoices: DEFAULT_POST_PRODUCTION_CHOICES,
     marketingChoices: defaultMarketingChoices(marketingOverrides),
   };

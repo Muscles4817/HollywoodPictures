@@ -1,8 +1,9 @@
 import type { GameState } from './gameState';
 import { createInitialStudio } from './gameState';
 import { generateRivalStudios } from '../engine/rivalStudios';
-import { generateTalentPool } from '../engine/talentGenerator';
+import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
 import { randomSeed, withRng } from '../engine/random';
+import { firstDayOfYear } from '../engine/calendar';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 
 // Bump this whenever a persisted shape changes incompatibly (e.g. v2 -> v3
@@ -274,6 +275,7 @@ export function loadState(): GameState {
     const { result, nextSeed } = withRng(randomSeed(), (rng) => ({
       talentPool: generateTalentPool(rng),
       rivalStudios: generateRivalStudios(rng),
+      producerPool: generateProducerPool(rng),
     }));
     return {
       studio: { ...createInitialStudio(DEFAULT_STARTING_CASH), assets: TEST_SCRIPT_ASSETS },
@@ -285,8 +287,10 @@ export function loadState(): GameState {
       totalDays: 1,
       talentPool: result.talentPool,
       rivalStudios: result.rivalStudios,
+      producerPool: result.producerPool,
       opportunities: [],
       nextOpportunityCheckDay: 1,
+      awards: { history: [], season: null, nextSeasonDay: firstDayOfYear(2) },
       viewingRivalStudioName: null,
       viewingProductionId: null,
     };

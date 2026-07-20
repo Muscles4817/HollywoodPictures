@@ -1,4 +1,5 @@
 import type {
+  CastingGender,
   CharacterArchetype,
   CharacterProminence,
   CharacterTraitProfile,
@@ -16,7 +17,7 @@ import type {
   ToneProfile,
 } from '../types';
 import { GENRE_PROFILES, GENRE_SETTING_AFFINITY, GENRE_TYPICAL_AUDIENCES } from '../data/genres';
-import { SCRIPT_TITLE_WORDS } from '../data/scriptWords';
+import { uniqueTitle } from './titleGenerator';
 import { TONES } from '../data/tones';
 import { TARGET_AUDIENCES } from '../data/audiences';
 import { SCRIPT_ARCHETYPES, SCRIPT_ARCHETYPE_PROFILES, type QualityRange } from '../data/scriptArchetypes';
@@ -29,29 +30,6 @@ import { generatePremise } from './premiseGenerator';
 import { type RandomFn, clamp, combineWeights, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick } from './random';
 
 let nextScriptId = 1;
-
-function randomTitle(genre: Genre, rng: RandomFn): string {
-  const bank = SCRIPT_TITLE_WORDS[genre];
-  return `${pick(rng, bank.adjectives)} ${pick(rng, bank.nouns)}`;
-}
-
-const TITLE_RETRY_LIMIT = 15;
-
-/** Re-rolls on a collision so one slate never shows the same title twice - see data/scriptWords.ts. */
-function uniqueTitle(genre: Genre, rng: RandomFn, usedTitles: Set<string>): string {
-  for (let attempt = 0; attempt < TITLE_RETRY_LIMIT; attempt++) {
-    const title = randomTitle(genre, rng);
-    if (!usedTitles.has(title)) {
-      usedTitles.add(title);
-      return title;
-    }
-  }
-  // Word bank exhausted for this slate (shouldn't happen at 144 combinations
-  // for a 12-script slate, but don't loop forever if it ever does).
-  const title = randomTitle(genre, rng);
-  usedTitles.add(title);
-  return title;
-}
 
 const TONE_JITTER = 15;
 
@@ -256,6 +234,47 @@ function characterArchetypeWeightsForProminence(prominence: CharacterProminence)
   return weights;
 }
 
+// How often a generated Character is written as gender-open ('Any') rather
+// than a specific Male/Female role, keyed by archetype - creatures, ensemble
+// bodies and pure "figure" roles are the ones most naturally cast either
+// way, while a LoveInterest is almost always written for a specific gender.
+// Everything not listed uses DEFAULT_ANY_CHANCE. Non-'Any' roles then split
+// Male/Female evenly. Tunable like every other generation constant here.
+const CASTING_GENDER_ANY_CHANCE: Partial<Record<CharacterArchetype, number>> = {
+  MonsterOrCreature: 0.8,
+  Other: 0.65,
+  EnsembleMember: 0.6,
+  AuthorityFigure: 0.4,
+  Villain: 0.35,
+  Rival: 0.35,
+  Mentor: 0.35,
+  Detective: 0.3,
+  LoveInterest: 0.05,
+};
+const DEFAULT_ANY_CHANCE = 0.18;
+
+/** A stable 0-1 hash of a string (FNV-1a) - used to derive castingGender below without drawing from the shared RandomFn stream. */
+function hashUnit(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 4294967296;
+}
+
+// Deliberately derived from the character's own (already-generated) name
+// rather than a fresh rng() draw: assigning gender must NOT advance the
+// shared generation stream, or every seeded sequence downstream (rival
+// scripts, talent, box-office scenarios) would shift. Hashing the name gives
+// stable, well-distributed, archetype-weighted genders for free - two
+// distinct names almost never collide, and the same seed still reproduces
+// the same slate exactly.
+function castingGenderForCharacter(archetype: CharacterArchetype, name: string): CastingGender {
+  if (hashUnit(`${name}|any`) < (CASTING_GENDER_ANY_CHANCE[archetype] ?? DEFAULT_ANY_CHANCE)) return 'Any';
+  return hashUnit(`${name}|mf`) < 0.5 ? 'Male' : 'Female';
+}
+
 function generateCharacter(prominence: CharacterProminence, genre: Genre, storyType: StoryType, rng: RandomFn): ScriptCharacter {
   const weights = combineWeights(CHARACTER_ARCHETYPES, [
     characterArchetypeWeightsForGenre(genre),
@@ -263,11 +282,13 @@ function generateCharacter(prominence: CharacterProminence, genre: Genre, storyT
     characterArchetypeWeightsForProminence(prominence),
   ]);
   const archetype = weightedPick(rng, CHARACTER_ARCHETYPES, weights);
+  const name = `${pick(rng, TALENT_FIRST_NAMES)} ${pick(rng, TALENT_LAST_NAMES)}`;
   return {
     id: `character-${nextCharacterId++}`,
-    name: `${pick(rng, TALENT_FIRST_NAMES)} ${pick(rng, TALENT_LAST_NAMES)}`,
+    name,
     archetype,
     prominence,
+    castingGender: castingGenderForCharacter(archetype, name),
     traits: generateCharacterTraits(CHARACTER_ARCHETYPE_PROFILES[archetype].baseTraits, rng),
   };
 }
@@ -350,7 +371,7 @@ function randIntRange(rng: RandomFn, range: QualityRange[keyof QualityRange]): n
  * different archetype/story-type/scale/setting tags, not because their
  * stat rolls happened to differ.
  */
-function generateScript(genre: Genre, rng: RandomFn, title: string): Script {
+function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses: Set<string>): Script {
   const archetype = weightedPick(rng, SCRIPT_ARCHETYPES, archetypeWeightsForGenre(genre));
   const archetypeProfile = SCRIPT_ARCHETYPE_PROFILES[archetype];
 
@@ -411,7 +432,7 @@ function generateScript(genre: Genre, rng: RandomFn, title: string): Script {
     effectsStrategy,
     effectsAmbition,
     productionRequirements,
-    synopsis: generatePremise(genre, flavorTones[0] ?? null, rng),
+    synopsis: generatePremise(genre, storyType, primarySetting, flavorTones[0] ?? null, usedSynopses, rng),
     requiredLeads,
     requiredSupporting,
     intendedAudience,
@@ -422,5 +443,6 @@ function generateScript(genre: Genre, rng: RandomFn, title: string): Script {
 /** Generates a slate of script options for the player to choose from. */
 export function generateScriptOptions(genre: Genre, rng: RandomFn, count = 12): Script[] {
   const usedTitles = new Set<string>();
-  return Array.from({ length: count }, () => generateScript(genre, rng, uniqueTitle(genre, rng, usedTitles)));
+  const usedSynopses = new Set<string>();
+  return Array.from({ length: count }, () => generateScript(genre, rng, uniqueTitle(genre, rng, usedTitles), usedSynopses));
 }

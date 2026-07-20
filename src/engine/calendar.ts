@@ -9,6 +9,18 @@ import type { GameDate, ReleaseWindow } from '../types';
  */
 const DAYS_PER_YEAR = 365;
 
+export { DAYS_PER_YEAR };
+
+/** The 1-indexed calendar year `totalDays` falls in (day 1 = Year 1) - the single source Awards Season buckets films by (engine/awards.ts). */
+export function yearOf(totalDays: number): number {
+  return Math.floor((totalDays - 1) / DAYS_PER_YEAR) + 1;
+}
+
+/** The first `totalDays` of a given 1-indexed year - the day that year's Awards Season opens on. */
+export function firstDayOfYear(year: number): number {
+  return (year - 1) * DAYS_PER_YEAR + 1;
+}
+
 export function formatGameDate(totalDays: number): string {
   const year = Math.floor((totalDays - 1) / DAYS_PER_YEAR) + 1;
   const dayOfYear = ((totalDays - 1) % DAYS_PER_YEAR) + 1;

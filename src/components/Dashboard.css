@@ -225,6 +225,20 @@
     var(--dashboard-panel);
 }
 
+.dashboard-awards-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  border-color: color-mix(in srgb, #d4af37 45%, var(--dashboard-border));
+}
+
+.dashboard-awards-banner p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+}
+
 .dashboard-attention-count {
   padding: 5px 8px;
   border: 1px solid color-mix(in srgb, #ffb256 35%, transparent);

@@ -1,0 +1,42 @@
+name: CI
+
+# Gate every pull request (and pushes to master) on the check suite so
+# nothing merges without a clean type-check, production build, and full test
+# run. To make this actually *block* merging, enable branch protection on
+# master requiring the "check" job below (repo Settings -> Branches).
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+# Cancel superseded runs on the same ref so a fast follow-up push doesn't
+# queue behind a stale one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Hard gates - a failure here fails the job and should block merge.
+      - name: Type-check + production build
+        run: npm run build   # tsc -b + vite build
+      - name: Tests
+        run: npm test        # vitest run
+
+      # Now a hard gate: the pre-existing rules-of-hooks error (Dashboard.tsx)
+      # that kept this non-blocking has been fixed, and oxlint is clean, so a
+      # new lint error should block merge like the build and tests do.
+      - name: Lint
+        run: npm run lint     # oxlint
