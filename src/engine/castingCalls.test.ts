@@ -31,6 +31,28 @@ function leadCharacter(script: Script): ScriptCharacter {
   return lead;
 }
 
+function actorPerson(
+  id: string,
+  overrides: { reputation?: Partial<Person['reputation']>; personality?: Partial<Person['personality']>; minimumSalary?: number; typicalSalary?: number; bookedUntil?: number } = {},
+): Person {
+  return {
+    id,
+    identity: { name: id, appearanceTags: [] },
+    personality: { professionalism: 50, ambition: 50, loyalty: 50, ego: 50, temperament: 50, pressureHandling: 50, controversy: 50, adaptability: 50, ...overrides.personality },
+    reputation: { fame: 50, prestige: 50, industryRespect: 50, reliability: 50, currentHeat: 50, ...overrides.reputation },
+    availability: { commitments: overrides.bookedUntil ? [{ projectId: 'p', role: 'Lead Actor', startDay: 1, endDay: overrides.bookedUntil }] : [] },
+    traits: [],
+    primaryRole: 'Actor',
+    careers: {
+      actor: {
+        role: 'Actor', active: true, experience: 50, roleReputation: 50,
+        minimumSalary: overrides.minimumSalary ?? 100_000, typicalSalary: overrides.typicalSalary ?? 1_000_000,
+        actingStyle: { characterTransformation: 50, emotionalPerformance: 50, charisma: 50, comedy: 50, physicalPerformance: 50 },
+      },
+    },
+  };
+}
+
 describe('openCastingCall', () => {
   it('builds a fresh, empty OpenCasting call with nextApplicantCheckDay one week out', () => {
     const call = openCastingCall('char-1', 'Lead Actor', 10);
@@ -202,6 +224,52 @@ describe('generateCastingApplicants - no-softlock widening', () => {
   });
 });
 
+// Casting Appeal Rework - closing the actual bug (a mid-prestige studio's
+// $500k casting call surfacing a $10M-minimum star): before this, neither
+// generateCastingApplicants nor generateInterestedTalent filtered by price
+// at all, and even a candidate the weighting *meant* to exclude still fell
+// through to MIN_APPLICANT_WEIGHT via `?? weightFloor`. Both now exclude a
+// below-floor or genuinely-unavailable candidate from the pool entirely.
+describe('generateCastingApplicants / generateInterestedTalent - pool eligibility', () => {
+  it('never samples a candidate whose offer is below their effective salary floor, even across many seeds', () => {
+    const draft = draftFor(30);
+    const character = leadCharacter(draft.script!);
+    const affordable = actorPerson('affordable', { minimumSalary: 50_000, typicalSalary: 200_000 });
+    const wildlyUnaffordable = actorPerson('unaffordable', { minimumSalary: 10_000_000, typicalSalary: 10_000_000, reputation: { fame: 95, prestige: 95 } });
+    const pool = [affordable, wildlyUnaffordable];
+    for (let seed = 1; seed <= 100; seed++) {
+      const rng = createRng(seed);
+      const applicants = generateCastingApplicants(character, draft.script!, studio({ prestige: 50 }), undefined, [], 500_000, 1, pool, new Set(), 0, undefined, rng);
+      expect(applicants.some((p) => p.id === 'unaffordable')).toBe(false);
+    }
+  });
+
+  it('never samples a candidate who is genuinely schedule-unavailable, even across many seeds', () => {
+    const draft = draftFor(31);
+    const character = leadCharacter(draft.script!);
+    const available = actorPerson('available', { minimumSalary: 50_000, typicalSalary: 200_000 });
+    const unavailable = actorPerson('booked-out', { minimumSalary: 50_000, typicalSalary: 200_000, bookedUntil: 10_000 });
+    const pool = [available, unavailable];
+    for (let seed = 1; seed <= 100; seed++) {
+      const rng = createRng(seed);
+      const applicants = generateCastingApplicants(character, draft.script!, studio(), undefined, [], 200_000, 1, pool, new Set(), 0, undefined, rng);
+      expect(applicants.some((p) => p.id === 'booked-out')).toBe(false);
+    }
+  });
+
+  it('generateInterestedTalent never surfaces a below-floor candidate either, since resolveOfferResponse gates it', () => {
+    const draft = draftFor(32);
+    const character = leadCharacter(draft.script!);
+    const wildlyUnaffordable = actorPerson('unaffordable2', { minimumSalary: 10_000_000, typicalSalary: 10_000_000, reputation: { fame: 95, prestige: 95 } });
+    const pool = [wildlyUnaffordable];
+    for (let seed = 1; seed <= 100; seed++) {
+      const rng = createRng(seed);
+      const hits = generateInterestedTalent(character, draft.script!, studio({ prestige: 50 }), undefined, [], 500_000, 1, pool, new Set(), rng);
+      expect(hits).toEqual([]);
+    }
+  });
+});
+
 // Casting Redesign, Phase D, section 11 - a Casting Director's two effects
 // (volume and curation) are deliberately independent, per the design
 // review's own framing. Kept as three separate tests rather than one, so a
@@ -232,7 +300,13 @@ describe('generateCastingApplicants - Casting Director (Phase D)', () => {
     function averageOverall(skill: number | undefined): number {
       let total = 0;
       let count = 0;
-      for (let seed = 1; seed <= 60; seed++) {
+      // Casting Appeal Rework - the pool-eligibility gate (generateCastingApplicants
+      // now excludes below-floor/unavailable candidates outright, rather than
+      // merely floor-weighting them) raises the baseline average for an
+      // unskilled draw too, shrinking the gap curation skews on top of. A
+      // larger sample keeps this a reliable statistical comparison rather
+      // than a coin flip at the margin.
+      for (let seed = 1; seed <= 300; seed++) {
         const rng = createRng(seed);
         const batch = generateCastingApplicants(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 0, skill, rng);
         for (const person of batch) {
@@ -291,7 +365,7 @@ describe('generateInterestedTalent', () => {
     const pool = actorPool(16, 6);
     const rng = createRng(16);
     const hits = generateInterestedTalent(
-      character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(pool.map((p) => p.id)), 0, 0, rng,
+      character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(pool.map((p) => p.id)), rng,
     );
     expect(hits).toEqual([]);
   });
@@ -302,7 +376,7 @@ describe('generateInterestedTalent', () => {
     const pool = actorPool(17, 15);
     for (let seed = 1; seed <= 60; seed++) {
       const rng = createRng(seed);
-      const hits = generateInterestedTalent(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 0, 0, rng);
+      const hits = generateInterestedTalent(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), rng);
       expect(hits.length).toBeLessThanOrEqual(1);
     }
   });
@@ -314,7 +388,7 @@ describe('generateInterestedTalent', () => {
     const excluded = new Set([pool[0].id, pool[1].id, pool[2].id]);
     for (let seed = 1; seed <= 60; seed++) {
       const rng = createRng(seed);
-      const hits = generateInterestedTalent(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, excluded, 0, 0, rng);
+      const hits = generateInterestedTalent(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, excluded, rng);
       expect(hits.some((p) => excluded.has(p.id))).toBe(false);
     }
   });
@@ -325,11 +399,11 @@ describe('generateInterestedTalent', () => {
     const pool = actorPool(19, 15);
     for (let seed = 1; seed <= 60; seed++) {
       const rng = createRng(seed);
-      const hits = generateInterestedTalent(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), 0, 0, rng);
+      const hits = generateInterestedTalent(character, draft.script!, studio(), undefined, [], 1_000_000, 1, pool, new Set(), rng);
       for (const person of hits) {
         const appeal = computeActorAppeal(person, character, draft.script!, studio(), undefined, [], 1_000_000, 1);
         expect(appeal).not.toBeNull();
-        expect(resolveOfferResponse(appeal!, person, 0, 0).status).toBe('accepted');
+        expect(resolveOfferResponse(appeal!, person).status).toBe('accepted');
       }
     }
   });

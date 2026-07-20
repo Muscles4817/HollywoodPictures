@@ -7,6 +7,8 @@ import { actorMeetsCharacterGender, castingGenderLabel } from '../../engine/cast
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { deriveBookedUntil, getTypicalSalaryForRole } from '../../engine/person';
+import { computeDirectorAppeal, resolveDirectorOfferResponse, type DirectorOfferResponse } from '../../engine/directorAppeal';
+import { describeDirectorRejection } from '../../engine/castingPresentation';
 import { deriveFocusedDraft } from '../../state/selectors';
 import { professionForProductionRole } from '../../data/helpers';
 import { Card } from '../common/Card';
@@ -36,11 +38,13 @@ interface CandidateCardProps {
   booked: boolean;
   pinned: boolean;
   pinCapped: boolean;
+  /** Casting Appeal Rework - a director who fails the prestige-vs-fame gate reads that up front, so clicking them and getting turned down doesn't read as a broken interaction. null for every other role/category. */
+  note: string | null;
   onSelect: () => void;
   onTogglePin: () => void;
 }
 
-function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, onSelect, onTogglePin }: CandidateCardProps) {
+function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, note, onSelect, onTogglePin }: CandidateCardProps) {
   const isActor = category === 'actor';
   return (
     <Card selectable selected={selected} disabled={disabled} onClick={onSelect}>
@@ -65,6 +69,7 @@ function CandidateCard({ person, role, category, script, character, totalDays, s
       </Button>
       {selected && <p style={{ color: 'var(--green)', marginTop: 6 }}>{isActor ? 'Cast' : 'Hired'}</p>}
       {!selected && !booked && disabled && <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>{isActor ? 'Fully cast' : 'Cast full'}</p>}
+      {!selected && note && <p style={{ color: 'var(--text-muted)', marginTop: 6, fontSize: '0.85em' }}>{note}</p>}
     </Card>
   );
 }
@@ -121,6 +126,12 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   );
   const showVfxHint = role === 'VFX Supervisor' && draft.genre && VFX_RECOMMENDED_GENRES.has(draft.genre);
   const isActor = profile.category === 'actor';
+  // Casting Appeal Rework - Director is the only role with a real interest
+  // step (engine/directorAppeal.ts); every other role keeps today's
+  // instant-hire behavior. Needs a script to evaluate scriptFit against -
+  // without one there's nothing to gate on, so hiring stays instant.
+  const isDirectorRole = profile.category === 'director';
+  const [lastDirectorResponse, setLastDirectorResponse] = useState<{ personName: string; response: DirectorOfferResponse } | null>(null);
   // Which specific Character the *next* hire would fill - same slot-index
   // contract as characterForCandidate below, surfaced once in the drawer's
   // own header rather than only per-candidate-card, so opening "Cast
@@ -135,6 +146,15 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
 
   const allTalent = Object.values(state.talentPool).flat();
   const pinnedTalent = pinnedTalentIds.map((id) => allTalent.find((t) => t.id === id)).filter((t): t is Person => t !== undefined);
+
+  // Casting Appeal Rework - computed once per candidate shown, not
+  // re-derived per render pass, so the prestige-gate hint below and
+  // selectPerson's own resolution never disagree on the same person.
+  const directorAppealByPersonId = new Map(
+    isDirectorRole && draft.script
+      ? displayList.map((person) => [person.id, computeDirectorAppeal(person, draft.script!, state.studio, targetPrice, state.totalDays)] as const)
+      : [],
+  );
 
   // Which specific script.cast Character a candidate is being sized up
   // against - an already-hired person keeps the slot they actually filled,
@@ -161,6 +181,18 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
     if (capacity.max === 1) {
       const current = hired[0];
       const wasEmpty = !current;
+
+      // Casting Appeal Rework - only a genuinely new director hire goes
+      // through the interest check; deselecting the current one shouldn't
+      // (there's no offer being made). Without a script there's nothing to
+      // gate on, so hiring stays instant, same as every other role.
+      if (wasEmpty && isDirectorRole && draft.script) {
+        const outcome = computeDirectorAppeal(person, draft.script, state.studio, targetPrice, state.totalDays);
+        const response = resolveDirectorOfferResponse(outcome, person);
+        if (response) setLastDirectorResponse({ personName: person.identity.name, response });
+        if (response && response.status !== 'accepted') return;
+      }
+
       dispatch({ type: 'SET_TALENT_FOR_ROLE', role, person: current?.id === person.id ? null : person });
       // Only auto-close on a genuinely new hire, not on deselecting one -
       // a player who just cleared this role almost certainly wants to pick
@@ -219,6 +251,14 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
         </span>
         {showVfxHint && <p style={{ margin: 0 }}>This genre benefits strongly from VFX - consider hiring a supervisor.</p>}
 
+        {lastDirectorResponse && (
+          <div className={lastDirectorResponse.response.status === 'accepted' ? 'card' : 'card production-tension'} style={{ margin: 0 }}>
+            {lastDirectorResponse.response.status === 'accepted'
+              ? `${lastDirectorResponse.personName} accepted.`
+              : `${lastDirectorResponse.personName}: ${describeDirectorRejection(lastDirectorResponse.response.reason)}`}
+          </div>
+        )}
+
         <div className="grid grid-wide">
           {displayList.map((person) => {
             const selected = hired.some((h) => h.id === person.id);
@@ -227,6 +267,8 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
             const disabled = !selected && (atCap || booked);
             const pinned = pinnedTalentIds.includes(person.id);
             const pinCapped = pinnedTalentIds.length >= MAX_PINNED;
+            const directorOutcome = directorAppealByPersonId.get(person.id);
+            const note = directorOutcome === 'prestige-gate' ? "Won't consider a studio without more prestige right now." : null;
             return (
               <CandidateCard
                 key={person.id}
@@ -241,6 +283,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
                 booked={booked}
                 pinned={pinned}
                 pinCapped={pinCapped}
+                note={note}
                 onSelect={() => selectPerson(person)}
                 onTogglePin={() => togglePin(person)}
               />
