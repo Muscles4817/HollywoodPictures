@@ -456,6 +456,31 @@ export function currentScreenFor(draft: FilmDraft): 'workspace' | WizardStep {
 }
 
 /**
+ * Which WizardStep screens can be jumped to directly right now, via the
+ * clickable step nav (components/common/WizardSteps.tsx) - Post-Production
+ * Redesign, Phase C (docs/DESIGN_REVIEW_post_production_redesign.md section
+ * 3): once photography wraps, Marketing becomes reachable independently of
+ * post-production completion, not gated behind postProductionChoices being
+ * locked in or the test screening having resolved - that's the entire
+ * point of decoupling them. 'production' is always reachable (checking
+ * wrap-up stats, or it's simply where a still-shooting draft already is).
+ * 'marketing' additionally requires no currently-pending, unresolved test
+ * screening - mirrors the existing block on PostProduction.tsx's own
+ * "Continue to Marketing" button, so this nav can never let the player
+ * route around a decision they still owe. 'results' is deliberately never
+ * included - it's only ever reached by SCHEDULE_RELEASE actually resolving
+ * a release, never by jumping there ahead of that.
+ */
+export function deriveReachableWizardSteps(draft: FilmDraft): WizardStep[] {
+  const steps: WizardStep[] = ['production'];
+  if (draft.photography?.status === 'finished') {
+    steps.push('post-production');
+    if (!draft.testScreeningPendingChoice) steps.push('marketing');
+  }
+  return steps;
+}
+
+/**
  * The full Greenlight cost breakdown - talent salary, the non-contingency
  * production budget, and the contingency reserve, summed into one
  * commitment against current studio cash. Extracted from the old

@@ -18,13 +18,12 @@ import { MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talent
 import { professionForProductionRole } from '../data/helpers';
 import { isPersonAvailableOnDay, withCommitment } from './person';
 import { effectiveRoleCapacity } from './castRequirements';
-import { computeRecommendedShootDays } from './production';
+import { computeRecommendedShootDays, computeRecommendedPostProductionDays } from './production';
 import { computeReleaseResults } from './releaseFilm';
 import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
 import { highestBid, placeBid, reopenForfeitedOpportunity, type ResolvedBid } from './opportunities';
 import { findCandidatesNearPrice } from './talentFilter';
 import { logAmount } from './interpolate';
-import { STAGE_DURATIONS } from '../data/schedule';
 import { GENRE_PROFILES } from '../data/genres';
 import { SHOOTING_BUDGET_RANGE, ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../data/production';
 import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../data/postProduction';
@@ -38,12 +37,20 @@ const MUSIC_FOCI = Object.keys(MUSIC_FOCUS_PROFILES) as PostProductionChoices['m
 const FINAL_CUT_FOCI = Object.keys(FINAL_CUT_FOCUS_PROFILES) as PostProductionChoices['finalCutFocus'][];
 const RELEASE_TYPES = Object.keys(RELEASE_TYPE_PROFILES) as MarketingChoices['releaseType'][];
 
-// Every stage's fixed calendar cost except Photography itself (charged
-// separately via the shoot's own recommended length below) - the same sum
-// STAGE_DURATIONS already charges the player for develop/talent/planning/
-// post/marketing, reused so a rival's total dev-to-release window is
-// grounded in the same numbers instead of an invented constant.
-const NON_SHOOT_STAGE_DAYS = Object.values(STAGE_DURATIONS).reduce((sum, days) => sum + (days ?? 0), 0);
+// A rival never actually runs a post-production/marketing pipeline of its
+// own - resolveRivalProduction below settles it instantly the moment
+// releaseDay arrives - so this is only ever used to keep a rival's naive
+// pacing (naiveReleaseDay below) realistic relative to how long the
+// player's own equivalent film would take. Post-Production Redesign, Phase
+// C retired the flat STAGE_DURATIONS.post-production/.marketing charges
+// this used to sum (data/schedule.ts) - a rival's own post-production
+// stretch is now estimated the same real way the player's is
+// (computeRecommendedPostProductionDays, engine/production.ts), so a
+// skilled-Editor rival isn't stuck with the same flat number as everyone
+// else. Marketing's own pacing stays a flat constant here, same "simplest
+// thing that fits" call the design review makes for the player's own
+// marketing pacing (docs/DESIGN_REVIEW_post_production_redesign.md section 3).
+const RIVAL_MARKETING_LEAD_DAYS = 30;
 
 // Where a production's target price (0-1, log-scale) lands based on its
 // scale - governs both casting price and production spend, same way the
@@ -659,7 +666,8 @@ function startRivalProductionFromWonScript(
   // real releaseDay it ends up on, instead of the two being picked
   // independently - see engine/calendar.ts:deriveReleaseWindowFromDay.
   const recommendedDays = computeRecommendedShootDays(talent, script, productionChoices);
-  const naiveReleaseDay = totalDays + NON_SHOOT_STAGE_DAYS + recommendedDays;
+  const postProductionDays = computeRecommendedPostProductionDays(talent, productionChoices);
+  const naiveReleaseDay = totalDays + recommendedDays + postProductionDays + RIVAL_MARKETING_LEAD_DAYS;
   // Roadmap Phase 7.4, upgraded for Phase 1 of release scheduling
   // competition: nudges forward while the day is genuinely crowded (genre/
   // audience-weighted, not just date-proximity) instead of just avoiding

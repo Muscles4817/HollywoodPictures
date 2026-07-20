@@ -5,12 +5,11 @@ import { pluckDescriptions } from '../../data/describe';
 import { computeMarketingCost } from '../../engine/cost';
 import { marketingDescription } from '../../engine/productionDials';
 import { logAmount } from '../../engine/interpolate';
-import { formatGameMonthYear, formatGameDate, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from '../../engine/calendar';
+import { formatGameDate, formatGameMonthYear, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from '../../engine/calendar';
 import { computeCompetitiveCrowding, type UpcomingRelease } from '../../engine/releaseCrowding';
 import { asUpcomingRelease } from '../../engine/scheduledReleases';
 import { rivalAsUpcomingRelease } from '../../engine/rivalStudios';
 import { scheduledPlayerReleases, rivalProductionsInProgress } from '../../engine/project';
-import { STAGE_DURATIONS } from '../../data/schedule';
 import { ChoiceGroup } from '../common/ChoiceGroup';
 import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
@@ -53,28 +52,28 @@ export function MarketingRelease() {
   const { state, dispatch } = useStudio();
   const draft = deriveFocusedDraft(state)!;
   const choices = draft.marketingChoices ?? DEFAULT_CHOICES;
-  // The earliest day this film can actually go out - the same fixed
-  // marketing-campaign lead time (data/schedule.ts) the old, always-
-  // immediate RELEASE_FILM action already charged; picking exactly the
-  // month that day falls in reproduces that same-day behavior exactly
-  // (SCHEDULE_RELEASE's own clamp handles a month whose 1st lands before
-  // this - see state/studioReducer.ts). Holding for later is the new
-  // capability (roadmap Phase 7.2); the underlying day counter never
-  // changes shape, only how it's presented and picked (a month grid, not an
-  // exact day - see engine/calendar.ts).
+  // The earliest day this film can actually go out. Post-Production
+  // Redesign, Phase C (docs/DESIGN_REVIEW_post_production_redesign.md
+  // section 4) - no longer a flat marketing-campaign lead time
+  // (STAGE_DURATIONS.marketing, retired), but the film's own current
+  // post-production completion estimate: postProductionFinalReadyDay once
+  // the test screening has resolved, postProductionScreeningReadyDay
+  // before that. Picking exactly the month that day falls in reproduces
+  // "release the moment post-production is ready" (SCHEDULE_RELEASE's own
+  // clamp handles a month whose 1st lands before this - see
+  // state/studioReducer.ts). Holding for later is the existing capability
+  // (roadmap Phase 7.2); the underlying day counter never changes shape,
+  // only how it's presented and picked (a month grid, not an exact day -
+  // see engine/calendar.ts).
+  //
   // A film can't be scheduled until its (mandatory) test screening is
-  // resolved - see state/studioReducer.ts:SCHEDULE_RELEASE. Until then the
-  // release button is disabled and the pending decision (or the date it's
-  // expected) is surfaced below. postProductionFinalReadyDay is only set once
-  // the screening resolves, and a Re-edit/Pickups/Major Reshoots outcome can
-  // push it past the plain marketing lead time - the earliest selectable
-  // month must respect it so the film is never in theatres before it wraps.
+  // resolved - see state/studioReducer.ts:SCHEDULE_RELEASE, the
+  // authoritative guard. Until then the release button is disabled and the
+  // pending decision (or the date it's expected) is surfaced below.
+  const postProductionEstimate = draft.postProductionFinalReadyDay ?? draft.postProductionScreeningReadyDay ?? state.totalDays;
+  const minReleaseDay = Math.max(state.totalDays, postProductionEstimate);
   const screeningResolved = draft.testScreeningResolved;
   const pendingScreening = draft.testScreeningPendingChoice;
-  const minReleaseDay = Math.max(
-    state.totalDays + (STAGE_DURATIONS.marketing ?? 0),
-    draft.postProductionFinalReadyDay ?? 0,
-  );
   const { year: minYear, monthIndex: minMonthIndex } = monthYearOf(minReleaseDay);
   const [year, setYear] = useState(minYear);
   const [monthIndex, setMonthIndex] = useState(minMonthIndex);
@@ -172,14 +171,12 @@ export function MarketingRelease() {
         <div className="card" style={{ borderColor: 'var(--primary)' }}>
           <div className="stat-label">Post-Production still underway</div>
           <div className="stat-value">
-            {draft.postProductionScreeningReadyDay !== null
-              ? `Test screening results expected around ${formatGameDate(draft.postProductionScreeningReadyDay)}`
-              : 'Test screening results still pending'}
+            Test screening expected around {formatGameDate(postProductionEstimate)}
           </div>
           <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
-            A film can't be scheduled for release until its test screening is in and you've responded to it.
-            Return to the Dashboard to let post-production finish - you'll be notified in the Inbox the moment the
-            screening is ready, and you can pick the release date straight after.
+            A film can't be scheduled for release until its test screening is in and you've responded to it - the
+            earliest month below moves with this date. Head to Post-Production to check on it, or just wait here;
+            you'll be notified in the Inbox the moment it's ready either way.
           </p>
         </div>
       )}
@@ -259,7 +256,7 @@ export function MarketingRelease() {
 
         <p className="choice-description" style={{ margin: 0 }}>
           {holdMonths === 0
-            ? 'As soon as the marketing campaign is ready - the earliest possible month.'
+            ? 'As soon as post-production is ready - the earliest possible month.'
             : `Held ${holdMonths} month${holdMonths === 1 ? '' : 's'} past the earliest possible date.`}{' '}
           <span className={selectedCrowdingReading.className}>{selectedCrowdingReading.label}</span> for this exact date.
         </p>
