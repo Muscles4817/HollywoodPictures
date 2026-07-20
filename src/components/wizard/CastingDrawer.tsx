@@ -145,7 +145,6 @@ export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDr
   const range = ROLE_GENERATION_PROFILES[professionForProductionRole(role)].salaryRange;
   const offeredSalary = draft.talentTargetPriceByRole[role] ?? logAmount(0.5, range);
   const rejectionCount = call?.rejectionCount ?? 0;
-  const daysOpen = call ? state.totalDays - call.openedOnDay : 0;
 
   function appealFor(person: Person) {
     return draft.script
@@ -158,7 +157,7 @@ export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDr
     if (!canActFromHere) return;
     const appeal = appealFor(person);
     if (!appeal) return;
-    const response = resolveOfferResponse(appeal, person, rejectionCount, daysOpen);
+    const response = resolveOfferResponse(appeal, person);
     setLastResponse({ personName: person.identity.name, response });
     if (response.status === 'accepted') {
       dispatch({ type: 'TOGGLE_TALENT_FOR_ROLE', role, person });
@@ -235,7 +234,7 @@ export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDr
         {rejectionCount > 0 && (
           <p style={{ margin: 0, fontSize: '0.85em', color: 'var(--text-muted)' }}>
             Turned down {rejectionCount} time{rejectionCount === 1 ? '' : 's'} so far - the search has widened: more
-            applicants, and a lower bar to clear.
+            applicants, including some who wouldn't otherwise have floated to the top.
           </p>
         )}
 

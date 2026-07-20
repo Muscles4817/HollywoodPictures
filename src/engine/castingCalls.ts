@@ -149,8 +149,21 @@ export function generateCastingApplicants(
     ]),
   );
 
-  const weighted = eligible.map((person) => {
-    const rawWeight = Math.max(weightFloor, appealByPersonId.get(person.id)?.overall ?? weightFloor);
+  // Casting Appeal Rework - a candidate this offer/schedule can't actually
+  // reach (below their effective salary floor, genuinely unavailable, or no
+  // matching career at all) is excluded from the pool entirely, not merely
+  // floored to MIN_APPLICANT_WEIGHT. `weightFloor` still applies to
+  // everyone who *does* clear these gates - it's what keeps a
+  // low-suitability-but-affordable candidate from being drowned out, the
+  // no-softlock widening this constant was always meant for.
+  const eligibleWithAppeal = eligible.filter((person) => {
+    const appeal = appealByPersonId.get(person.id);
+    return appeal !== undefined && appeal !== null && !appeal.belowSalaryFloor && appeal.schedule.status !== 'unavailable';
+  });
+  if (eligibleWithAppeal.length === 0) return [];
+
+  const weighted = eligibleWithAppeal.map((person) => {
+    const rawWeight = Math.max(weightFloor, appealByPersonId.get(person.id)!.overall);
     return { person, weight: Math.pow(rawWeight, curationExponent) };
   });
 
@@ -160,7 +173,7 @@ export function generateCastingApplicants(
 
   if (castingDirectorSkill && rng() < skillT * DISCOVERY_MAX_CHANCE) {
     const batchIds = new Set(batch.map((p) => p.id));
-    const discoveryPool = eligible.filter((p) => {
+    const discoveryPool = eligibleWithAppeal.filter((p) => {
       if (batchIds.has(p.id) || p.reputation.fame > DISCOVERY_FAME_CEILING) return false;
       return (appealByPersonId.get(p.id)?.suitability ?? 0) >= DISCOVERY_SUITABILITY_FLOOR;
     });
@@ -189,8 +202,6 @@ export function generateInterestedTalent(
   plannedStartDay: GameDay,
   talentPool: Person[],
   excludeIds: Set<string>,
-  rejectionCount: number,
-  daysOpen: number,
   rng: RandomFn,
 ): Person[] {
   const eligible = talentPool.filter((p) => !excludeIds.has(p.id) && actorMeetsCharacterGender(p.identity.gender, character.castingGender));
@@ -209,8 +220,11 @@ export function generateInterestedTalent(
   for (const person of sample) {
     if (hits.length >= INTERESTED_TALENT_MAX_HITS) break;
     const appeal = computeActorAppeal(person, character, script, studio, director, currentTalent, offeredSalary, plannedStartDay);
+    // resolveOfferResponse's own schedule/salary-floor gates already exclude
+    // anyone this offer genuinely can't reach - no separate eligibility
+    // filter needed here (Casting Appeal Rework).
     if (!appeal) continue;
-    if (resolveOfferResponse(appeal, person, rejectionCount, daysOpen).status === 'accepted') hits.push(person);
+    if (resolveOfferResponse(appeal, person).status === 'accepted') hits.push(person);
   }
   return hits;
 }
@@ -292,8 +306,6 @@ export function tickCastingCalls(draft: FilmDraft, totalDays: number, studio: St
       totalDays,
       talentPool,
       excludingThisWeeksApplicants,
-      call.rejectionCount,
-      totalDays - call.openedOnDay,
       rng,
     );
 
