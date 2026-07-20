@@ -812,9 +812,29 @@ export interface MarketingChoices {
   // itself was (see data/release.ts:MARKETING_SPEND_RANGE). Flat, absolute
   // cost is what makes the top of the range naturally unreachable for a
   // small studio, rather than needing an artificial rule to lock it out.
+  //
+  // The *total* marketing budget. Still the canonical figure the cost, rival
+  // generation, and release-crowding systems read. For the player, once a
+  // campaign is built (channelSpend below), the UI keeps this equal to the sum
+  // of the channels; rivals set it directly and leave channelSpend/campaignAngle
+  // unset (they campaign on a single spend - engine/rivalStudios.ts).
   marketingSpend: number;
   releaseType: ReleaseType;
   releaseWindow: ReleaseWindow;
+  /**
+   * How the budget is split across channels (docs/DESIGN_REVIEW_marketing_campaign.md).
+   * Optional: absent on rival films and on saves predating the campaign
+   * overhaul, in which case the awareness/Buzz pipeline falls back to the flat
+   * `marketingSpend`. When present, an audience-weighted effective reach
+   * (engine/marketing.ts) drives awareness instead.
+   */
+  channelSpend?: Record<MarketingChannel, number>;
+  /**
+   * What the campaign sells (docs/DESIGN_REVIEW_marketing_campaign.md). Optional
+   * for the same reason as channelSpend; absent (or `faithful`) means no
+   * opening boost and no legs risk.
+   */
+  campaignAngle?: CampaignAngle;
 }
 
 export type OutcomeLabel =

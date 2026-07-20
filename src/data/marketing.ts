@@ -71,3 +71,9 @@ export const CAMPAIGN_ANGLE_LABEL: Record<CampaignAngle, string> = {
 // and "sell your actual strength" is the mastery play (§3.1).
 export const OPENING_HYPE_SCALE = 0.3; // hype 1 -> up to +30% opening
 export const LEGS_PENALTY_SCALE = 0.6; // hype 1 with a full unmet promise -> a heavy legs dampener
+
+// How the legs penalty (0..LEGS_PENALTY_SCALE) is applied at release: it
+// subtracts up to this many points from the *simulation's* audience score (the
+// word-of-mouth input that drives weekly retention), never the reported score.
+// So a badly oversold film opens big and then falls off a cliff.
+export const LEGS_AUDIENCE_POINTS = 30;
