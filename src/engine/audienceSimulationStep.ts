@@ -1027,3 +1027,37 @@ export function advanceToWeekWithDiagnostics(
   }
   return { weeks: resultWeeks, diagnostics };
 }
+
+/**
+ * Replays an *already-settled* run exactly as it really happened, using the
+ * real per-week competitivePressure history a live release actually
+ * settled with (engine/boxOfficeRun.ts:advanceEarliestDueFilmByOneWeek
+ * computes this fresh every week, and now records it on BoxOfficeWeek -
+ * types/index.ts) rather than the flat 0 advanceToWeek/advanceToWeekWithDiagnostics
+ * default to. The simulation has no randomness, so feeding back the exact
+ * same fixed state and pressure sequence a run was actually settled with
+ * reproduces its diagnostics exactly - components/dev/OutcomeInspector.tsx's
+ * "As Released" view, as opposed to that same tool's "Projected" view
+ * (a fresh, hypothetical, single-film advanceToWeekWithDiagnostics
+ * projection with no real competitive data, still and deliberately
+ * separate). Distinct from advanceToWeekWithDiagnostics in one more way:
+ * this stops exactly at competitivePressureByWeek.length (a run that
+ * genuinely already happened has a known length) rather than deciding when
+ * to stop via hasSimulationEnded.
+ */
+export function replaySettledWeeksWithDiagnostics(
+  fixed: AudienceSimulationFixedState,
+  competitivePressureByWeek: number[],
+): { weeks: AudienceSimulationWeekState[]; diagnostics: WeekDiagnostics[] } {
+  let resultWeeks: AudienceSimulationWeekState[] = [];
+  const diagnostics: WeekDiagnostics[] = [];
+  for (const competitivePressure of competitivePressureByWeek) {
+    const { next, diagnostics: weekDiagnostics } = advanceOneWeekWithDiagnostics(fixed, resultWeeks, undefined, competitivePressure);
+    resultWeeks = [...resultWeeks, next];
+    diagnostics.push(weekDiagnostics);
+  }
+  for (let i = 0; i < diagnostics.length - 1; i++) {
+    diagnostics[i].womReproductionRatio = computeWomReproductionRatio(fixed, resultWeeks, i);
+  }
+  return { weeks: resultWeeks, diagnostics };
+}

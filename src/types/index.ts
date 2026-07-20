@@ -921,6 +921,19 @@ export interface FilmResults {
 export interface BoxOfficeWeek {
   week: number; // 1-indexed; week 1 is always exactly FilmResults.openingWeekend
   gross: number;
+  /**
+   * The `competitivePressure` this week's transition was actually settled
+   * with (engine/boxOfficeRun.ts:advanceEarliestDueFilmByOneWeek,
+   * engine/audienceSimulationStep.ts:WeekDiagnostics) - historical fact
+   * about what every *other* concurrently-running film was doing that week,
+   * not something derivable later from this film's own stored data alone
+   * (unlike word-of-mouth activity, which genuinely can be re-derived from
+   * a film's own history - see engine/audienceSimulation.ts's own "derived,
+   * not stored" reasoning). Optional/absent on weeks settled before this
+   * field existed - no migration pass (see state/persistence.ts) -
+   * components/dev/OutcomeInspector.tsx reads it defensively.
+   */
+  competitivePressure?: number;
 }
 
 /**
