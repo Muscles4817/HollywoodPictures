@@ -78,4 +78,16 @@ describe('computeReleaseResults - press tour', () => {
   it('the same-fame safe star out-opens the loose cannon for a comparable spend', () => {
     expect(release([safeStar.id]).openingWeekend).toBeGreaterThan(release([looseCannon.id]).openingWeekend);
   });
+
+  it('a resolved press-tour moment saps Buzz and appends its beat to the story report', () => {
+    const withTour = { ...base, marketingChoices: { ...base.marketingChoices, pressTourCast: [safeStar.id] } };
+    const quiet = computeReleaseResults(withTour, createRng(1)).results;
+    const gaffe = computeReleaseResults(
+      { ...withTour, pressTourMoment: { buzzDelta: -9, storyBeat: 'The junket went sideways.' } },
+      createRng(1),
+    ).results;
+    expect(gaffe.buzzScore).toBeLessThan(quiet.buzzScore);
+    expect(gaffe.storyReport).toContain('The junket went sideways.');
+    expect(quiet.storyReport).not.toContain('The junket went sideways.');
+  });
 });

@@ -1,6 +1,7 @@
 import type { Film, FilmDraft, Person, RivalProductionInProgress, RivalStudio } from '../types';
 import type { RandomFn } from './random';
 import { computeReleaseResults } from './releaseFilm';
+import { rollPressTourMoments } from './pressTourMoments';
 import { computeProducerEffects, producersByIds, totalAttachedPerFilmFees } from './producers';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta } from './cost';
 import { computeCompetitiveCrowding, runningFilmAsUpcomingRelease, type UpcomingRelease } from './releaseCrowding';
@@ -74,6 +75,14 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
   const producerEffects = computeProducerEffects(producersByIds(producerPool, attachedIds), draft.genre!);
   const producerFees = totalAttachedPerFilmFees(producerPool, attachedIds);
 
+  // Roll the rare, personality-driven press-tour moment here at settlement -
+  // never in computeReleaseResults, which the Marketing-screen projection calls
+  // (the surprise must not leak into the forecast). Drawn before the release
+  // computation so its Buzz swing + story beat feed in; a film with no tour
+  // roster draws nothing, leaving the rng stream untouched for non-touring
+  // films (behaviour-preserving).
+  const tourMoments = rollPressTourMoments(draft.talent, draft.marketingChoices!.pressTourCast, rng);
+
   const { results, fixed } = computeReleaseResults(
     {
       title: draft.title || 'Untitled Film',
@@ -92,6 +101,7 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
       competitiveCrowding,
       producerEffects,
       producerFees,
+      pressTourMoment: { buzzDelta: tourMoments.buzzDelta, storyBeat: tourMoments.storyBeat },
     },
     rng,
   );
