@@ -12,6 +12,9 @@ import type {
 import { computeAudienceScore, computeBuzzScore, computeCriticScore, computeQualityBreakdown, combineProductionEvents } from './scoring';
 import { computeEventsCostDelta, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
 import { deriveAudienceSimulationFixedState, type SupportedReleaseType } from './audienceSimulationInputs';
+import { campaignAngleEffect, effectiveMarketingReach, NEUTRAL_ANGLE_EFFECT } from './marketing';
+import { CAMPAIGN_ANGLE_PROFILES, LEGS_AUDIENCE_POINTS } from '../data/marketing';
+import type { CampaignAngle } from '../types';
 import { deriveCommercialProfile } from './commercialProfile';
 import { advanceOneWeek } from './audienceSimulationStep';
 import { AVERAGE_TICKET_PRICE } from './boxOfficeRun';
@@ -25,6 +28,17 @@ function averageFame(talent: TalentAssignment[], role: TalentAssignment['role'])
   const matching = talent.filter((t) => t.role === role);
   if (matching.length === 0) return 0;
   return matching.reduce((sum, t) => sum + t.person.reputation.fame, 0) / matching.length;
+}
+
+/** The 0-100 film metric a campaign angle is judged against - how well the film actually delivers on what it's selling. */
+function deliveredScoreForAngle(angle: CampaignAngle, production: number, script: number, suspense: number, leadFame: number): number {
+  switch (CAMPAIGN_ANGLE_PROFILES[angle].dimension) {
+    case 'production': return production;
+    case 'script': return script;
+    case 'suspense': return suspense;
+    case 'leadFame': return leadFame;
+    default: return 100; // 'none' (faithful) - no shortfall is possible
+  }
 }
 
 export interface ReleaseComputationInput {
@@ -127,6 +141,26 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     input.productionChoices,
     input.postProductionChoices,
   );
+  // Marketing campaign (docs/DESIGN_REVIEW_marketing_campaign.md): the channel
+  // mix rolls up into an audience-weighted effective reach; the angle boosts
+  // the opening and, if the film doesn't back up what it sold, dents the legs.
+  // Both fall back to neutral (the flat marketingSpend, no angle) when no
+  // campaign is built - rivals and pre-overhaul saves - so behaviour is
+  // unchanged there.
+  const marketingReach = input.marketingChoices.channelSpend
+    ? effectiveMarketingReach(input.marketingChoices.channelSpend, input.targetAudience)
+    : input.marketingChoices.marketingSpend;
+  const angle = input.marketingChoices.campaignAngle;
+  const angleEffect = angle
+    ? campaignAngleEffect(
+        angle,
+        deliveredScoreForAngle(angle, quality.productionScore, quality.scriptScore, input.script.toneProfile.suspense, averageFame(input.talent, 'Lead Actor')),
+      )
+    : NEUTRAL_ANGLE_EFFECT;
+  // The legs penalty saps the sim's word-of-mouth (audience) score only; the
+  // reported audienceScore below is untouched.
+  const simAudienceScore = clamp(audienceScore - angleEffect.legsPenalty * LEGS_AUDIENCE_POINTS, 0, 100);
+
   // Executive adds flat Buzz (the marketing-efficiency half is applied to the
   // sim's marketing spend below).
   const rawBuzz = computeBuzzScore(
@@ -134,7 +168,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     input.talent,
     allEvents,
     input.postProductionChoices,
-    input.marketingChoices,
+    marketingReach,
     input.studioBrand,
   );
   const buzzScore = clamp(rawBuzz + producerEffects.flatBuzzDelta, 0, 100);
@@ -188,10 +222,11 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   const commercialProfile = deriveCommercialProfile(input.script);
   const fixed = deriveAudienceSimulationFixedState({
     buzzScore,
-    // Executive's marketing-efficiency half: each pound of the real spend
-    // behaves like more when it comes to converting Buzz into an opening,
-    // without changing the actual cash marketingCost.
-    marketingSpend: input.marketingChoices.marketingSpend * producerEffects.marketingEfficiencyMultiplier,
+    // Effective reach (audience-weighted channel mix), lifted by the campaign
+    // angle's opening hype and the Executive producer's marketing-efficiency
+    // half - each makes a pound of the real spend behave like more when
+    // converting into an opening, without changing the cash marketingCost.
+    marketingSpend: marketingReach * angleEffect.openingMultiplier * producerEffects.marketingEfficiencyMultiplier,
     directorFame: averageFame(input.talent, 'Director'),
     leadFame: averageFame(input.talent, 'Lead Actor'),
     studioBrand: input.studioBrand,
@@ -206,7 +241,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     releaseType: input.marketingChoices.releaseType as SupportedReleaseType,
     competitiveCrowding: input.competitiveCrowding,
     criticScore,
-    audienceScore,
+    audienceScore: simAudienceScore,
   });
   // Week 1 is deterministic (the new model has no randomness at all) and
   // release-day-knowable, so it's safe to compute here for

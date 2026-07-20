@@ -1,6 +1,5 @@
 import type {
   Genre,
-  MarketingChoices,
   Person,
   PostProductionChoices,
   ProductionChoices,
@@ -453,7 +452,10 @@ export function computeBuzzScore(
   talent: TalentAssignment[],
   events: ProductionEvent[],
   postProductionChoices: PostProductionChoices,
-  marketingChoices: MarketingChoices,
+  // The audience-weighted effective marketing reach (engine/marketing.ts), or a
+  // flat marketingSpend fallback - a £-equivalent number either way. The caller
+  // (engine/releaseFilm.ts) resolves it from the campaign channels.
+  marketingReach: number,
   studioBrand: number,
 ): number {
   const director = getDirector(talent);
@@ -463,7 +465,7 @@ export function computeBuzzScore(
 
   const fameBuzz = (fameAvg - 50) * 0.5;
   const brandBuzz = (studioBrand - 50) * 0.4;
-  const marketingBuzz = marketingBuzzContribution(marketingChoices.marketingSpend);
+  const marketingBuzz = marketingBuzzContribution(marketingReach);
 
   const eventsBuzz = events.reduce((sum, e) => sum + e.buzzDelta, 0);
   const musicBuzz = MUSIC_FOCUS_PROFILES[postProductionChoices.musicFocus].buzzDelta;

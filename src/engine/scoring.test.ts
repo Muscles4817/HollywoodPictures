@@ -68,8 +68,8 @@ describe('computeMarketabilityScore / computeBuzzScore - read the derived commer
   it('computeBuzzScore increases when the underlying concept has stronger hook strength, holding everything else fixed', () => {
     const nicheScript = scriptFor('Drama', 6);
     const hookyScript: Script = { ...nicheScript, archetype: 'CrowdPleaser', structure: 90, characters: 90 };
-    const buzzNiche = computeBuzzScore(nicheScript, [], [], postProductionChoices, marketingChoices, 50);
-    const buzzHooky = computeBuzzScore(hookyScript, [], [], postProductionChoices, marketingChoices, 50);
+    const buzzNiche = computeBuzzScore(nicheScript, [], [], postProductionChoices, marketingChoices.marketingSpend, 50);
+    const buzzHooky = computeBuzzScore(hookyScript, [], [], postProductionChoices, marketingChoices.marketingSpend, 50);
     expect(buzzHooky).toBeGreaterThanOrEqual(buzzNiche);
   });
 
@@ -78,7 +78,7 @@ describe('computeMarketabilityScore / computeBuzzScore - read the derived commer
     for (const script of scripts) {
       expect(computeMarketabilityScore(script, [], choices)).toBeGreaterThanOrEqual(0);
       expect(computeMarketabilityScore(script, [], choices)).toBeLessThanOrEqual(100);
-      const buzz = computeBuzzScore(script, [], [], postProductionChoices, marketingChoices, 50);
+      const buzz = computeBuzzScore(script, [], [], postProductionChoices, marketingChoices.marketingSpend, 50);
       expect(buzz).toBeGreaterThanOrEqual(0);
       expect(buzz).toBeLessThanOrEqual(100);
     }
