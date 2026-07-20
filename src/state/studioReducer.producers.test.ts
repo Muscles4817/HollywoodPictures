@@ -6,6 +6,7 @@ import type { Person, ProducerSpecialty } from '../types';
 import { asPlayerDraft, findProject, playerReleasedFilms } from '../engine/project';
 import { producerHiringFee, producerPerFilmFee } from '../engine/producers';
 import { OFFICE_BENCH_CAPACITY_BY_TIER, OFFICE_UNLOCK_BRAND, OFFICE_UPGRADE_COST_BY_TIER } from '../data/producers';
+import { MARKET_RESEARCH_MAX_TIER, MARKET_RESEARCH_UPGRADE_COST_BY_TIER } from '../data/marketResearch';
 
 let idCounter = 0;
 function makeProducer(specialty: ProducerSpecialty, typicalSalary = 300_000): Person {
@@ -22,7 +23,7 @@ function makeProducer(specialty: ProducerSpecialty, typicalSalary = 300_000): Pe
 }
 
 /** A ready-draft state with a producer pool injected and (optionally) an unlocked office. */
-function stateWith(opts: { pool?: Person[]; tier?: number; bench?: string[]; brand?: number; cash?: number } = {}): GameState {
+function stateWith(opts: { pool?: Person[]; tier?: number; bench?: string[]; brand?: number; cash?: number; research?: number } = {}): GameState {
   const base = buildStateWithReadyDraft(1);
   return {
     ...base,
@@ -31,7 +32,9 @@ function stateWith(opts: { pool?: Person[]; tier?: number; bench?: string[]; bra
       ...base.studio,
       brand: opts.brand ?? base.studio.brand,
       cash: opts.cash ?? base.studio.cash,
-      productionOffice: opts.tier ? { tier: opts.tier, benchProducerIds: opts.bench ?? [] } : null,
+      productionOffice: opts.tier
+        ? { tier: opts.tier, benchProducerIds: opts.bench ?? [], ...(opts.research != null ? { marketResearchTier: opts.research } : {}) }
+        : null,
     },
   };
 }
@@ -80,6 +83,39 @@ describe('UPGRADE_PRODUCTION_OFFICE', () => {
     expect(studioReducer(maxed, { type: 'UPGRADE_PRODUCTION_OFFICE' }).studio.productionOffice?.tier).toBe(3);
     const locked = stateWith({ cash: 99_000_000 });
     expect(studioReducer(locked, { type: 'UPGRADE_PRODUCTION_OFFICE' }).studio.productionOffice).toBeNull();
+  });
+});
+
+describe('UPGRADE_MARKET_RESEARCH', () => {
+  it('buys level 1 from an unlocked office with no research yet, deducting the cost', () => {
+    const s = stateWith({ tier: 1, cash: 10_000_000 }); // office open, no research bought
+    const after = studioReducer(s, { type: 'UPGRADE_MARKET_RESEARCH' });
+    expect(after.studio.productionOffice?.marketResearchTier).toBe(1);
+    expect(after.studio.cash).toBe(10_000_000 - MARKET_RESEARCH_UPGRADE_COST_BY_TIER[1]);
+    // The producer-bench tier is a separate track and is left untouched.
+    expect(after.studio.productionOffice?.tier).toBe(1);
+  });
+
+  it('upgrades to the next level and deducts that level’s cost', () => {
+    const s = stateWith({ tier: 1, cash: 10_000_000, research: 1 });
+    const after = studioReducer(s, { type: 'UPGRADE_MARKET_RESEARCH' });
+    expect(after.studio.productionOffice?.marketResearchTier).toBe(2);
+    expect(after.studio.cash).toBe(10_000_000 - MARKET_RESEARCH_UPGRADE_COST_BY_TIER[2]);
+  });
+
+  it('no-ops when the studio cannot afford it', () => {
+    const s = stateWith({ tier: 1, cash: MARKET_RESEARCH_UPGRADE_COST_BY_TIER[1] - 1 });
+    const after = studioReducer(s, { type: 'UPGRADE_MARKET_RESEARCH' });
+    expect(after.studio.productionOffice?.marketResearchTier ?? 0).toBe(0);
+    expect(after.studio.cash).toBe(s.studio.cash);
+  });
+
+  it('no-ops at the max research level and when the office is locked', () => {
+    const maxed = stateWith({ tier: 1, cash: 99_000_000, research: MARKET_RESEARCH_MAX_TIER });
+    expect(studioReducer(maxed, { type: 'UPGRADE_MARKET_RESEARCH' }).studio.productionOffice?.marketResearchTier).toBe(MARKET_RESEARCH_MAX_TIER);
+    // Research is a department of the office - with no office there's nothing to buy into.
+    const locked = stateWith({ cash: 99_000_000 });
+    expect(studioReducer(locked, { type: 'UPGRADE_MARKET_RESEARCH' }).studio.productionOffice).toBeNull();
   });
 });
 
