@@ -21,6 +21,7 @@ import { AVERAGE_TICKET_PRICE } from './boxOfficeRun';
 import { pickReviewBlurbs, pickDepartmentBlurb } from './reviews';
 import { generateStoryReport } from './storyReport';
 import { mitigateEventQualityImpact, NEUTRAL_PRODUCER_EFFECTS, type ProducerEffects } from './producers';
+import { pressTourBuzzDelta, pressTourCost } from './pressTour';
 import { clamp, type RandomFn } from './random';
 import type { AudienceSimulationFixedState } from './audienceSimulation';
 
@@ -171,7 +172,13 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     marketingReach,
     input.studioBrand,
   );
-  const buzzScore = clamp(rawBuzz + producerEffects.flatBuzzDelta, 0, 100);
+  // Press tour (docs/DESIGN_REVIEW_marketing_campaign.md): the cast sent on tour
+  // add a deterministic Buzz delta, fame lifted and media-risk discounted - a
+  // volatile roster delivers little, a famous loose cannon can even net
+  // negative. Zero when nobody tours, so behaviour is unchanged for rivals and
+  // pre-tour saves.
+  const pressTourBuzz = pressTourBuzzDelta(input.talent, input.marketingChoices.pressTourCast);
+  const buzzScore = clamp(rawBuzz + producerEffects.flatBuzzDelta + pressTourBuzz, 0, 100);
 
   const talentCost = computeTalentCost(input.talent);
   // Line trims the production budget (sets/practical/VFX). Charged in full at
@@ -210,7 +217,11 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     0,
     talentCost + productionBudgetCost + input.photographyCost + eventsCostDelta + postProductionInterventionCost + producerFees,
   );
-  const marketingCost = computeMarketingCost(input.marketingChoices);
+  // The press tour is a promotional expense - folded into the reported
+  // marketingCost (and therefore totalCost) so it reads as part of the campaign.
+  // Never in resolvePlayerRelease's alreadyCharged (which excludes marketing),
+  // so like the rest of marketing it's charged once, at release.
+  const marketingCost = computeMarketingCost(input.marketingChoices) + pressTourCost(input.talent, input.marketingChoices.pressTourCast);
   const totalCost = productionCost + marketingCost;
 
   // Release-day-fixed audience-simulation state (docs/DESIGN.md 5.34,
