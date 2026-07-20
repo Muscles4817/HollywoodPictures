@@ -835,6 +835,16 @@ export interface MarketingChoices {
    * opening boost and no legs risk.
    */
   campaignAngle?: CampaignAngle;
+  /**
+   * Cast (and/or director) sent on a press tour (docs/DESIGN_REVIEW_marketing_campaign.md,
+   * "press tours"), by PersonId - a subset of the film's assigned talent. Each
+   * tourer trades fame (pre-release Buzz upside) against their own media risk
+   * (a discount that can flip a famous loose cannon net-negative) and a
+   * fame-scaled cash cost. Optional/absent - rivals and pre-tour saves simply
+   * don't tour, so Buzz and cost are unchanged (engine/pressTour.ts reads it
+   * defensively as none).
+   */
+  pressTourCast?: PersonId[];
 }
 
 export type OutcomeLabel =
