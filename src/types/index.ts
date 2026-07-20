@@ -799,6 +799,13 @@ export interface PostProductionChoices {
 export type ReleaseType = 'Limited' | 'Wide' | 'Festival First';
 export type ReleaseWindow = 'Quiet Month' | 'Summer' | 'Awards Season' | 'Halloween' | 'Christmas';
 
+// --- Marketing campaign channels & angle (docs/DESIGN_REVIEW_marketing_campaign.md) ---
+// Introduced ahead of the MarketingChoices reshape (increment 2) so the pure
+// engine (engine/marketing.ts) and its tunables can land additively first,
+// without yet touching the live marketingSpend field or its consumers.
+export type MarketingChannel = 'trailers' | 'tv' | 'digital' | 'press';
+export type CampaignAngle = 'spectacle' | 'story' | 'mystery' | 'starPower' | 'faithful';
+
 export interface MarketingChoices {
   // A continuous currency amount, not a fixed tier - what a given level of
   // exposure costs doesn't change based on how cheap or expensive the film
