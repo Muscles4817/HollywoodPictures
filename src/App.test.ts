@@ -8,7 +8,7 @@
 // so this can be verified directly, without mounting the whole app and
 // juggling fake timers.
 import { describe, it, expect } from 'vitest';
-import { computeTicking, isViewingBackgroundProduction } from './App';
+import { computeTicking, isViewingBackgroundProduction, shouldConfirmResume } from './App';
 
 describe('isViewingBackgroundProduction', () => {
   it('is true only on the production screen with a viewingProductionId set', () => {
@@ -54,5 +54,20 @@ describe('computeTicking - the background ADVANCE_DAY tick', () => {
   it('the Inbox being open always wins, including while viewing a backgrounded production', () => {
     expect(computeTicking('production', 'prod-1', false, true)).toBe(false);
     expect(computeTicking('dashboard', null, false, true)).toBe(false);
+  });
+});
+
+describe('shouldConfirmResume - the bid-inbox resume-guard', () => {
+  it('asks to confirm only when un-pausing with unread bid mail', () => {
+    expect(shouldConfirmResume(true, 2)).toBe(true);
+  });
+
+  it('does not ask when resuming with nothing unread', () => {
+    expect(shouldConfirmResume(true, 0)).toBe(false);
+  });
+
+  it('does not ask when pausing (not currently paused), regardless of unread mail', () => {
+    expect(shouldConfirmResume(false, 3)).toBe(false);
+    expect(shouldConfirmResume(false, 0)).toBe(false);
   });
 });

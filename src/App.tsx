@@ -22,6 +22,8 @@ import { AssetLibrary } from './components/AssetLibrary';
 import { ProjectsPage } from './components/ProjectsPage';
 import type { ProjectWorkspaceSection, Screen } from './types';
 import { DAY_TICK_MS, type TickSpeedMultiplier } from './constants';
+import { unreadBidCount } from './engine/bidNotifications';
+import { Button } from './components/common/Button';
 
 // Every wizard screen where the player is setting choices with no clock
 // pressure of its own - paused here so a slow decision never costs real
@@ -76,6 +78,18 @@ export function computeTicking(
   return (!PLANNING_SCREENS.has(screen) || backgroundProductionViewed) && !paused && !inboxOpen;
 }
 
+/**
+ * The resume-guard predicate (bid-inbox feature): resuming the real-time clock
+ * should ask the player to confirm first only when they are un-pausing (the
+ * clock is currently paused) while they still have unread bid "emails"
+ * (engine/bidNotifications.ts). Pausing, or resuming with nothing unread,
+ * passes straight through. Pure so it can be unit-tested without mounting the
+ * app, same as computeTicking above.
+ */
+export function shouldConfirmResume(paused: boolean, unreadBidNotifications: number): boolean {
+  return paused && unreadBidNotifications > 0;
+}
+
 // The full "which page is the player on" reading - every field the browser
 // history wiring below (and state/gameState.ts:RESTORE_NAVIGATION) treats as
 // one navigable "page." Mirrors exactly the five GameState fields TOGGLE/
@@ -115,6 +129,10 @@ function AppShell() {
   // resolving a background shoot's paused decision doesn't cost real time
   // either, the same reasoning as the manual pause button.
   const [inboxOpen, setInboxOpen] = useState(false);
+  // Shown when the player tries to resume the clock while bid "emails" are
+  // still unread (engine/bidNotifications.ts) - the resume-guard the player
+  // asked for. Not game state; a pure UI gate on un-pausing.
+  const [resumeConfirmOpen, setResumeConfirmOpen] = useState(false);
   // A fast-forward multiplier for the background tick, same session-only
   // lifetime as `paused` - it's a "how fast am I watching this right now"
   // preference, not game state, so it never persists to a save.
@@ -131,6 +149,39 @@ function AppShell() {
   // Recommendation/Outcome Inspector don't touch it at all), never
   // persisted, reachable from any screen via the header.
   const [devTool, setDevTool] = useState<DevTool>('none');
+
+  // How many bid "emails" are still unread - drives the auto-pause, the
+  // resume-guard, and (via the Header) the badge (engine/bidNotifications.ts).
+  const unreadBid = unreadBidCount(state.bidNotifications ?? []);
+
+  // Resuming the clock (pause -> running) while bid mail is unread opens the
+  // confirm dialog instead; every other toggle passes straight through.
+  // Held in a ref so the global spacebar listener below can call the latest
+  // version without re-subscribing on every render.
+  const requestTogglePauseRef = useRef<() => void>(() => {});
+  requestTogglePauseRef.current = () => {
+    if (shouldConfirmResume(paused, unreadBid)) setResumeConfirmOpen(true);
+    else setPaused((p) => !p);
+  };
+
+  // Opening the Inbox marks bid mail read (clearing the badge and the
+  // resume-guard) and pauses the tick via inboxOpen, same as any other
+  // Inbox open.
+  function openInbox() {
+    setInboxOpen(true);
+    dispatch({ type: 'MARK_BID_NOTIFICATIONS_READ' });
+  }
+
+  // A brand-new bid update auto-pauses the clock so it can't tick past the
+  // moment the player might want to respond (raise a bid before the weekly
+  // close). Fires only on an increase in unread count - reading the Inbox
+  // (which drops it to 0) never re-pauses, and resolving one email doesn't
+  // re-pause for the others.
+  const prevUnreadBidRef = useRef(unreadBid);
+  useEffect(() => {
+    if (unreadBid > prevUnreadBidRef.current) setPaused(true);
+    prevUnreadBidRef.current = unreadBid;
+  }, [unreadBid]);
 
   // Spacebar toggles the same manual pause the header's own Pause/Resume
   // button does - a common enough game convention that it's worth wiring up
@@ -153,7 +204,7 @@ function AppShell() {
           active.isContentEditable);
       if (isInteractive) return;
       e.preventDefault(); // stop the page from scrolling on space
-      setPaused((p) => !p);
+      requestTogglePauseRef.current();
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -293,16 +344,46 @@ function AppShell() {
     <>
       <Header
         paused={paused}
-        onTogglePause={() => setPaused((p) => !p)}
+        onTogglePause={() => requestTogglePauseRef.current()}
         tickNonce={tickNonce}
         speedMultiplier={speedMultiplier}
         onSetSpeedMultiplier={setSpeedMultiplier}
         inboxOpen={inboxOpen}
-        onToggleInbox={() => setInboxOpen((o) => !o)}
+        onToggleInbox={() => (inboxOpen ? setInboxOpen(false) : openInbox())}
         devTool={devTool}
         onSetDevTool={setDevTool}
       />
       <Inbox open={inboxOpen} onClose={() => setInboxOpen(false)} />
+      {resumeConfirmOpen && (
+        <div className="modal-overlay" onClick={() => setResumeConfirmOpen(false)}>
+          <div className="modal-content stack" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <h2 style={{ margin: 0 }}>Unread bid updates</h2>
+            <p style={{ margin: 0 }}>
+              You have {unreadBid} unread bid update{unreadBid === 1 ? '' : 's'}. Resume time anyway? A rival could
+              win a script before you get another chance to respond.
+            </p>
+            <div className="row" style={{ gap: '0.5rem' }}>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setResumeConfirmOpen(false);
+                  openInbox();
+                }}
+              >
+                Open Inbox
+              </Button>
+              <Button
+                onClick={() => {
+                  setResumeConfirmOpen(false);
+                  setPaused(false);
+                }}
+              >
+                Resume anyway
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       {devTool === 'recommendation' && <RecommendationInspector />}
       {devTool === 'outcome' && <OutcomeInspector />}
       {devTool === 'rival-finances' && <RivalFinancesInspector />}
