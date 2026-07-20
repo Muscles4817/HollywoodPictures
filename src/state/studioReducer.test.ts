@@ -637,13 +637,15 @@ describe('FINISH_PHOTOGRAPHY - post-production estimate (Post-Production Redesig
     expect(estimateAfterAdvancing).toBe(estimateRightAfterFinish);
   });
 
-  it('does not change the existing 45-day flat Post-Production charge - GO_TO_STEP still charges STAGE_DURATIONS.post-production unmodified', () => {
+  it('Post-Production Redesign, Phase C - GO_TO_STEP no longer charges a flat day cost leaving post-production or marketing (STAGE_DURATIONS retired, data/schedule.ts)', () => {
     const greenlit = studioReducer(stateReadyToGreenlight(233), { type: 'GREENLIGHT_PROJECT' });
     const finished = studioReducer(greenlit, { type: 'FINISH_PHOTOGRAPHY', productionId: greenlit.focusedProjectId! });
     const onPostProductionScreen = studioReducer(finished, { type: 'GO_TO_STEP', step: 'post-production' });
     const totalDaysBeforeLeaving = onPostProductionScreen.totalDays;
-    const afterLeaving = studioReducer(onPostProductionScreen, { type: 'GO_TO_STEP', step: 'marketing' });
-    expect(afterLeaving.totalDays).toBe(totalDaysBeforeLeaving + 45);
+    const onMarketingScreen = studioReducer(onPostProductionScreen, { type: 'GO_TO_STEP', step: 'marketing' });
+    expect(onMarketingScreen.totalDays).toBe(totalDaysBeforeLeaving);
+    const afterLeavingMarketing = studioReducer(onMarketingScreen, { type: 'GO_TO_STEP', step: 'post-production' });
+    expect(afterLeavingMarketing.totalDays).toBe(totalDaysBeforeLeaving);
   });
 });
 

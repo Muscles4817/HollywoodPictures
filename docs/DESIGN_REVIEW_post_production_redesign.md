@@ -1,6 +1,6 @@
 # Design Review: Post-Production Redesign — Estimates, Trade-offs, Not a Second Live Process
 
-Status: **Phases A-B shipped, plus a post-B architecture cleanup pass**
+Status: **Phases A-C shipped**, plus a post-B architecture cleanup pass
 (§Phasing's own table) - the post-production duration estimate exists, is
 computed once at `FINISH_PHOTOGRAPHY`, and the test screening it triggers is
 a real pending decision (§2), reusing the on-set pending-choice machinery
@@ -13,8 +13,15 @@ is now its own explicit field - and the resolved screening's own outcome
 moved off `photography.events` onto `FilmDraft.postProductionEvents`, its
 own honestly-named home, with its already-charged cost now genuinely
 visible in the project finance breakdown instead of a zeroed-out event
-hiding it. Phases C-D (decoupled Marketing, the Post-Wrap Workspace) remain
-design only - see each phase's own row below. Round 2 of a two-pass review
+hiding it. Phase C (§3/§4) landed as two independent efforts that turned
+out to overlap and were reconciled together: this session's own decoupling
+work (Marketing reachable independently of post-production completion, the
+flat `STAGE_DURATIONS` charges retired) merged with a parallel session's
+correctness fix closing a real bug the decoupling work would otherwise have
+reopened - a film could previously be scheduled/released before its test
+screening ever fired, silently orphaning the decision. See §4's own update
+for exactly how the two combined. Phase D (the Post-Wrap Workspace) remains
+design only - see its own row below. Round 2 of a two-pass review
 (`Post_Production_Redesign_Review.md` was the original proposal; this
 supersedes it with the direction agreed after Round 1's pushback against a
 second live-simulation system). Builds directly on systems already shipped:
@@ -360,57 +367,97 @@ instant way every other event choice already resolves.
 
 ---
 
-## 3. Decoupling Marketing
+## 3. Decoupling Marketing — **Shipped (Phase C)**
 
 `MarketingChoices` was never actually coupled to `postProductionChoices`
-in the type system - `FilmDraft.marketingChoices: MarketingChoices | null`
-is independent of `FilmDraft.postProductionChoices: PostProductionChoices
-| null` today. The coupling is entirely in wizard sequencing
+in the type system - the coupling was entirely in wizard sequencing
 (`currentScreenFor`, `WIZARD_STEP_ORDER`) and the linear `GO_TO_STEP` flow.
-Once photography wraps, Marketing becomes reachable immediately -
-`SET_MARKETING_CHOICES` already has no dependency on
-`postProductionChoices` existing, so no reducer change is needed there at
-all, only navigation.
+Shipped as designed, via a genuinely new navigation layer rather than
+restructuring the wizard's own step order:
 
-The one real formula dependency worth naming: `computeBuzzScore` currently
-reads `postProductionChoices.musicFocus`/`finalCutFocus` as inputs. If
-marketing genuinely starts before those are locked in, buzz building
-during that window needs the same provisional-defaults treatment §2's test
-screening blurb already needs - not a new problem, the same one, solved
-once and reused twice.
-
-Marketing's own flat 30-day charge (`STAGE_DURATIONS.marketing`) should
-retire alongside post-production's 45, for the same reason: once it's
-reachable independently rather than as a wizard-transition boundary,
-there's no `GO_TO_STEP` transition left to hang a lump-sum charge off of.
-Whether marketing needs its own estimated-completion-day treatment (a
-campaign that "finishes" ramping up) or can stay a simple "set it whenever,
-it's active from then on" choice is a real open question - I'd default to
-the latter (simplest thing that fits the stated goal) unless playtesting
-says a campaign needs its own pacing.
+- **`components/common/WizardSteps.tsx`** - used to be a purely visual step
+  indicator (`<span>`s, no click behavior). Now self-contained (fetches its
+  own state via `useStudio()`, the same pattern `BudgetTracker.tsx` already
+  established inside the same `WizardHeader` composition) and renders a
+  reachable step as a real `<button>` dispatching `GO_TO_STEP` directly.
+  `state/selectors.ts:deriveReachableWizardSteps` is the one new derivation
+  behind it: `'production'` is always reachable; `'post-production'` and
+  `'marketing'` both become reachable the moment photography finishes,
+  independent of whether `postProductionChoices` is locked in - exactly
+  the decoupling this section asked for. `'results'` is never included -
+  it's only ever reached by `SCHEDULE_RELEASE` actually resolving a
+  release, never by jumping there ahead of that.
+- **`STAGE_DURATIONS.post-production`/`.marketing`** - retired
+  (`data/schedule.ts`, now an empty, still-typed constant) for the reason
+  this section originally gave: once both stages are freely reachable
+  rather than sequential wizard-transition boundaries, there's no
+  `GO_TO_STEP` "leaving this stage" transition left to hang a flat lump-sum
+  charge off of. `GO_TO_STEP`'s own `STAGE_DURATIONS[leavingStage]` lookup
+  needed no rewrite - every step now costs nothing to leave, which is
+  exactly what an empty lookup table already produces.
+- **`engine/rivalStudios.ts`'s own naive release-day pacing** - previously
+  summed `STAGE_DURATIONS` directly (a real, if incidental, dependency this
+  section didn't originally call out) - now reuses
+  `computeRecommendedPostProductionDays` directly, the same formula the
+  player's own estimate uses, plus a flat marketing-lead constant kept
+  local to that file. Otherwise a rival's own naive pacing would have
+  silently collapsed to zero the moment `STAGE_DURATIONS` was retired.
+- The provisional-buzz-during-marketing wrinkle this section flagged
+  (`computeBuzzScore` reading `postProductionChoices.musicFocus`/
+  `finalCutFocus` before they're genuinely locked in) turned out to have no
+  live manifestation to fix - `PostProduction.tsx`'s own mount-time
+  `useEffect` already defaults `postProductionChoices` the moment the
+  player first visits it, and Marketing shows no buzz preview today for a
+  provisional default to feed in the first place. Left alone; revisit if a
+  marketing-buzz preview panel is ever added.
 
 ---
 
-## 4. The release-window tension
+## 4. The release-window tension — **Shipped (Phase C), reconciled with a parallel correctness fix**
 
-This is where "is improving this film worth delaying its release"
-actually bites, and it's the one piece that needs the least new code of
-anything here. `engine/releaseCrowding.ts:computeCompetitiveCrowding` and
+This is where "is improving this film worth delaying its release" actually
+bites. `engine/releaseCrowding.ts:computeCompetitiveCrowding` and
 `MarketingRelease.tsx`'s month/year picker with hold-vs-bring-forward
-already exist, fully built, from the release-scheduling-competition work.
-Today they run once, against whatever the release day happens to be at the
-point the player reaches the Marketing screen.
+already existed, fully built, from the release-scheduling-competition
+work - the tension itself needed no new modeling code, only feeding it the
+*current* completion estimate instead of a flat lead time.
 
-Under this redesign, a target release window becomes something the player
-can set *early* (as soon as Marketing is reachable, per §3) against the
-*current* completion estimate. If a Test Screening decision (§2) pushes
-the completion estimate past that target window, the existing crowding
-calculation simply gets fed the new date - the player sees, through the
-same UI they'd already be using, that their choice now collides with
-whatever else is scheduled nearby, or that they've drifted into a weaker
-window. No new tension-modeling code; the tension already exists, it's
-just currently computed too late to be a real decision (by the time the
-old flow reaches Marketing, post-production is already fully resolved).
+**What actually shipped is the union of two independent efforts that
+turned out to overlap**: this session's own decoupling work (§3 above) made
+Marketing reachable *before* post-production was fully resolved, which
+reopened a real bug a parallel session had, separately, just closed -
+`SCHEDULE_RELEASE` used to clamp the release day only to `today + a flat
+marketing lead time`, never to when post-production actually finishes, so
+a film could be scheduled (and release) before its test screening ever
+fired. Since the screening only ever fires/resolves for a still-
+player-in-progress draft (§2), releasing early silently orphaned the
+pending choice - its quality/buzz effect never applied. The two fixes were
+reconciled together rather than picking one:
+
+- **`SCHEDULE_RELEASE`'s guard is now the stricter of the two**: `if
+  (!d.testScreeningResolved) return state;` - a film cannot be scheduled at
+  all until its test screening has actually happened and been answered,
+  regardless of how the action was dispatched. This is deliberately
+  stronger than this section's own original framing ("push the estimate
+  later, see the collision") - closing the orphaned-screening bug takes
+  priority over allowing an early commit the game can't actually honor.
+- **The release day itself is clamped to `postProductionFinalReadyDay`**
+  (guaranteed set once `testScreeningResolved` is true - both fields are
+  set together by `RESOLVE_TEST_SCREENING_CHOICE`) rather than a flat
+  lead time - a Re-edit/Pickups/Major Reshoots delay is respected exactly
+  as this section originally asked.
+- **`MarketingRelease.tsx` surfaces the tension inline**, per §3's
+  reachability change: visiting Marketing before the screening has
+  resolved shows a "Post-Production still underway" card (or, once the
+  screening has actually fired, the pending decision itself, rendered via
+  the same `OnSetDecisionCard` used everywhere else - resolvable right
+  there without navigating away) instead of a bare disabled button. The
+  earliest selectable month, and the "Release Film"/"Schedule" button
+  itself, both respect the same guard the reducer enforces.
+
+No new tension-modeling code beyond the guard itself; the crowding
+calculation is unchanged, just reachable earlier and fed a real,
+continuously-current floor instead of a flat constant.
 
 ---
 
@@ -500,7 +547,7 @@ is, not as a dashboard metric changing.
 |---|---|---|---|
 | **A - Estimated completion, still the old linear flow** ✅ shipped | `computeRecommendedPostProductionDays`; `postProductionEstimatedCompletionDay` set at `FINISH_PHOTOGRAPHY`; Editor/VFX Supervisor skill get their first real read. Old `PostProduction.tsx` form still exists and still works unmodified (same instant `SET_POST_PRODUCTION_CHOICES`, same flat 45/30-day `STAGE_DURATIONS` charges), now showing a clearly-labeled "(preview)" forecast card alongside it rather than being instant. | The estimate is visible and reads real crew skill, but nothing yet forces the player to wait for it - a soft preview of the mechanic before the flow around it changes. | Low - one new formula mirroring two that already exist, one new field, no reducer/UI restructuring. Confirmed: `SAVE_KEY` bumped to v39 with a matching invisibility test, 17 new tests (9 formula, 4 reducer timing/snapshot, 1 persistence, 3 component render), full suite/tsc/oxlint clean. |
 | **B - Test Screening as a real pending decision** ✅ shipped, plus a post-B cleanup pass | Field renamed `postProductionScreeningReadyDay` (§1). The four-option choice (§2) replaces `testScreeningResponse`'s single dropdown, fires once the ready day arrives (checked at every calendar-advancing reducer case), uses `pickDepartmentBlurb` for real qualitative feedback against the new shared `DEFAULT_POST_PRODUCTION_CHOICES`, reuses `resolveEventChoice` via a new `RESOLVE_TEST_SCREENING_CHOICE` reducer case (cost charged immediately, not deferred). Inbox/Dashboard/ProductionRun/PostProduction surfacing for a pending test screening; "Continue to Marketing" is blocked while one is pending. **Cleanup pass (§1/§2a)**: split the dual-meaning ready-day field into `postProductionScreeningReadyDay` (fixed) + `postProductionFinalReadyDay` (set on resolution); moved the resolved outcome off `photography.events` onto its own `FilmDraft.postProductionEvents`/`Film.postProductionEvents`, combined back in for scoring via the new `combineProductionEvents`; made the already-charged intervention cost show up in `computeProjectSpendSoFar` and a released film's `results.totalCost` without ever charging it twice. | The moment post-production stops being a form and starts being something that *happens to* the film, with a real decision attached. The cleanup pass is invisible to the player - same numbers, just no more implicit-state field or hidden cost. | Medium, landed as scoped. `resolveChoiceOnDraft` was confirmed non-reusable as predicted. Original: 26 new tests. Cleanup pass added/rewrote 9 more (2 rewritten for the new field/collection, 4 new reducer-level, 3 `marketSettlement`/`selectors` double-charge and scoring-combination coverage) - 718 total in the suite. `SAVE_KEY` bumped to v40 then v41; full suite/tsc/oxlint clean throughout. |
-| **C - Marketing decoupled, release-window tension live** | Marketing reachable independently of post-production completion (§3); `STAGE_DURATIONS.marketing`/`.post-production` retired; release-window picking reuses the existing crowding UI fed a moving target date (§4). | The core "is this delay worth it" tension actually bites - a Test Screening choice can now visibly threaten a release window the player already committed to. | Medium - mostly sequencing/reachability changes plus the buzz-provisional-defaults wrinkle; the crowding math itself is unchanged. |
+| **C - Marketing decoupled, release-window tension live** ✅ shipped | Marketing reachable independently of post-production completion via a new clickable `WizardSteps` nav (§3); `STAGE_DURATIONS.marketing`/`.post-production` retired; release-window picking reuses the existing crowding UI fed a moving target date, clamped to `postProductionFinalReadyDay` (§4). **Reconciled with a parallel session's fix** closing a real bug the decoupling alone would have reopened - `SCHEDULE_RELEASE` now hard-refuses until `testScreeningResolved`, not just "not currently pending," and `MarketingRelease.tsx` resolves a pending screening inline via `OnSetDecisionCard`. | The core "is this delay worth it" tension actually bites - a Test Screening choice visibly moves the earliest a film can go out, and a film can never skip its screening by scheduling too early. | Medium, landed as scoped. The buzz-provisional-defaults wrinkle turned out to have no live manifestation (no marketing-buzz preview exists yet to feed). 11 new tests (`deriveReachableWizardSteps` x4, `WizardSteps` click-nav x6, rival pacing x1) on top of the merged branch's own 862; one pre-existing test rewritten (the retired 45-day charge assertion); full suite (873) /tsc/oxlint clean. |
 | **D - Post-Wrap Workspace** | Post-production/marketing/release get the same free-navigation shell Cast & Crew/Production/Finance already have (§5); `currentScreenFor` routes a finished-photography draft there instead of the old linear wizard steps. | The post-wrap phase finally *feels* like the same kind of screen the pre-Greenlight side already does - a workspace, not a sequence of forms. | Low-Medium - shell pattern is proven; main work is deciding what Overview shows and wiring existing sections into it, not inventing new mechanics. |
 
 Recommended order as listed - each phase is independently shippable and

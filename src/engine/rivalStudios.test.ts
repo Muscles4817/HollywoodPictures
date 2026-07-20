@@ -5,6 +5,7 @@ import { generateTalentPool } from './talentGenerator';
 import { settleOpportunities, type ResolvedBid } from './opportunities';
 import { withRng, type RandomFn } from './random';
 import { MAX_SIMULATION_WEEKS } from './audienceSimulationStep';
+import { computeRecommendedShootDays, computeRecommendedPostProductionDays } from './production';
 import type { UpcomingRelease } from './releaseCrowding';
 
 /**
@@ -166,6 +167,27 @@ describe('settleRivalMarket - shared-calendar awareness (roadmap Phase 7.4)', ()
     expect(nudgedDay).toBeDefined();
     expect(nudgedDay).not.toBe(naive!.releaseDay);
     expect(nudgedDay!).toBeGreaterThan(naive!.releaseDay);
+  });
+
+  // Post-Production Redesign, Phase C (docs/DESIGN_REVIEW_post_production_redesign.md
+  // section 3) - a rival's own naive pacing used to sum the player-facing
+  // STAGE_DURATIONS constant (now retired, data/schedule.ts), which would
+  // have silently collapsed to zero once that happened. Reuses
+  // computeRecommendedPostProductionDays directly instead, the same real
+  // formula the player's own post-production estimate uses.
+  it("a rival's release day always leaves room for real shoot days plus a real post-production estimate for its own cast/crew, not an invented flat constant", () => {
+    const { market, totalDays } = freshMarket(6);
+    const { afterResolve } = withRng(7, (rng) => bidThenResolve(market, totalDays, 8, 8, [], rng)).result;
+    const production = afterResolve.rivalProductionsInProgress[0];
+    expect(production).toBeDefined();
+
+    const shootDays = computeRecommendedShootDays(production!.talent, production!.script, production!.productionChoices);
+    const postProductionDays = computeRecommendedPostProductionDays(production!.talent, production!.productionChoices);
+    expect(postProductionDays).toBeGreaterThan(0); // sanity - a real, non-zero estimate
+
+    // avoidCrowdedReleaseDay only ever nudges the naive day later (never
+    // earlier, see the test above), so this is a floor, not an equality.
+    expect(production!.releaseDay).toBeGreaterThanOrEqual(totalDays + shootDays + postProductionDays);
   });
 });
 

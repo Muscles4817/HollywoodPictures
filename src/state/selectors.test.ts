@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { computeReportedLegs, computeProjectSpendSoFar, currentScreenFor, deriveProjectStage, deriveUpcomingReleaseEntries, hasDraftProgress, PLAYER_STUDIO_ID } from './selectors';
+import { computeReportedLegs, computeProjectSpendSoFar, currentScreenFor, deriveProjectStage, deriveReachableWizardSteps, deriveUpcomingReleaseEntries, hasDraftProgress, PLAYER_STUDIO_ID } from './selectors';
 import { openCastingCall } from '../engine/castingCalls';
+import { generateTestScreeningPendingChoice } from '../engine/testScreening';
 import { studioReducer } from './studioReducer';
 import { buildReadyDraft, buildStateWithReadyDraft } from './testFixtures';
 import { withRng } from '../engine/random';
@@ -185,6 +186,36 @@ describe('currentScreenFor', () => {
     const state = buildStateWithReadyDraft(113);
     const draft = asPlayerDraft(state.projects[0])!;
     expect(currentScreenFor(draft)).toBe('marketing');
+  });
+});
+
+// Post-Production Redesign, Phase C (docs/DESIGN_REVIEW_post_production_redesign.md
+// section 3) - which WizardStep screens the clickable step nav
+// (components/common/WizardSteps.tsx) can jump straight to.
+describe('deriveReachableWizardSteps', () => {
+  it('only "production" is reachable while still shooting', () => {
+    const { result: draft } = withRng(114, (rng) => buildReadyDraft(rng));
+    const shooting = { ...draft, photography: inProgressPhotography() };
+    expect(deriveReachableWizardSteps(shooting)).toEqual(['production']);
+  });
+
+  it('post-production and marketing both become reachable once photography finishes, with nothing pending', () => {
+    const { result: draft } = withRng(115, (rng) => buildReadyDraft(rng));
+    const wrapped = { ...draft, photography: inProgressPhotography({ status: 'finished' }) };
+    expect(deriveReachableWizardSteps(wrapped)).toEqual(['production', 'post-production', 'marketing']);
+  });
+
+  it('marketing drops out while a test screening is pending an unresolved choice - post-production stays reachable', () => {
+    const { result: draft } = withRng(116, (rng) => buildReadyDraft(rng));
+    const pendingChoice = withRng(117, (rng) => generateTestScreeningPendingChoice(draft, rng)).result;
+    const wrapped = { ...draft, photography: inProgressPhotography({ status: 'finished' }), testScreeningPendingChoice: pendingChoice };
+    expect(deriveReachableWizardSteps(wrapped)).toEqual(['production', 'post-production']);
+  });
+
+  it('"results" is never included - only ever reached by actually resolving a release, never by jumping there', () => {
+    const { result: draft } = withRng(118, (rng) => buildReadyDraft(rng));
+    const wrapped = { ...draft, photography: inProgressPhotography({ status: 'finished' }) };
+    expect(deriveReachableWizardSteps(wrapped)).not.toContain('results');
   });
 });
 
