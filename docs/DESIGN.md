@@ -1586,13 +1586,30 @@ five call sites `settleBoxOfficeForAllFilms` already runs from
 `settleRivalMarket`, which also resolves any production whose `releaseDay`
 has arrived and settles every rival film's box office in the same pass.
 
-**Studio names** come from a small new word bank
-(`data/rivalStudioNames.ts`, 18 prefixes x 5 suffixes), same pattern as
-script titles - "Northbridge Pictures," "Cobalt Media." A 500-day
+**Studio names** are drawn from real Hollywood studios
+(`data/rivalStudioNames.ts`), one tier-matched pool each: a Major reads like
+a real major ("Warner Bros. Pictures," "Universal Pictures"), a Mid-Size
+like a real mini-major ("Lionsgate," "New Line Cinema"), an Indie like a
+real independent ("A24," "Neon"). Names are drawn without replacement within
+a tier, so no two rivals ever share one, and each pool holds more names than
+the roster needs so games still vary. The initial roster is twelve studios
+(4 Indie / 4 Mid-Size / 4 Major - doubled from the original six). A 500-day
 diagnostic never dropped any mandatory role's available-candidate count
 below 80/100 (crew roles) or 146/200 (Lead/Supporting Actor), so the
-shared pool has comfortable headroom even with 5-6 rivals casting from it
-concurrently.
+shared pool has comfortable headroom even with the full field casting from
+it concurrently.
+
+**Emergent tier behaviour** (production frequency, genre/scale mix, and the
+talent each tier hires) is characterised empirically in
+`docs/DESIGN_REVIEW_ai_studio_behavior.md`, backed by a reproducible
+diagnostic harness (`engine/rivalStudios.diagnostic.test.ts`) that drives
+the real settlement loop over several in-game years. In short: a Major
+starts films ~3.6x as often as an Indie, each tier makes a recognisable and
+barely-overlapping slate (Indie Drama, Mid-Size Horror/Thriller, Major
+Fantasy/Sci-Fi/Action), scale is effectively tier-locked, and cast fame
+tracks spend (Indie ~£1.1M / fame ~31, Major ~£22M / fame ~74) - while a
+Major's *scripts* are on average lower-craft than an Indie's, since the
+tiers weight craft vs. genre-fit differently at bid time.
 
 **The Top 10 chart** (`state/selectors.ts:computeTopGrossingFilms`,
 `components/common/TopGrossingPanel.tsx`) combines the player's own

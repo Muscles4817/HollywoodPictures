@@ -15,7 +15,13 @@ export interface RoleGenerationProfile {
 
 export const ROLE_GENERATION_PROFILES: Record<TalentProfession, RoleGenerationProfile> = {
   Director: { salaryRange: { min: 50_000, max: 12_000_000 }, fameCeiling: 98 },
-  'Actor': { salaryRange: { min: 20_000, max: 15_000_000 }, fameCeiling: 98 },
+  // Top of the actor market lifted to £25M to reach real A-list upfront pay
+  // ($20-30M/film for a bankable star) - the handcrafted marquee names already
+  // sit at ~£20M, but the old £15M ceiling meant a rival's target price could
+  // never climb high enough to actually reach for them. See
+  // docs/DESIGN_REVIEW_ai_studio_behavior.md "Reality check". (Generated
+  // budget actors are still capped far below this at BUDGET_ACTOR_SALARY_CEILING.)
+  'Actor': { salaryRange: { min: 20_000, max: 25_000_000 }, fameCeiling: 98 },
   Writer: { salaryRange: { min: 15_000, max: 2_000_000 }, fameCeiling: 55 },
   Cinematographer: { salaryRange: { min: 25_000, max: 6_000_000 }, fameCeiling: 62 },
   Composer: { salaryRange: { min: 15_000, max: 2_500_000 }, fameCeiling: 60 },
