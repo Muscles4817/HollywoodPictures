@@ -234,7 +234,7 @@ export type GameAction =
   | { type: 'SET_TITLE'; title: string }
   | { type: 'SET_TARGET_AUDIENCE'; targetAudience: TargetAudience }
   | { type: 'SET_TALENT_FOR_ROLE'; role: ProductionRole; person: Person | null }
-  | { type: 'TOGGLE_TALENT_FOR_ROLE'; role: ProductionRole; person: Person }
+  | { type: 'TOGGLE_TALENT_FOR_ROLE'; role: ProductionRole; person: Person; characterId?: string }
   | { type: 'SET_TALENT_TARGET_PRICE'; role: ProductionRole; price: number }
   | { type: 'SET_TALENT_BUDGET_SPLIT'; totalBudget: number }
   // Casting Redesign, Phase B (docs/DESIGN_REVIEW_casting_redesign.md

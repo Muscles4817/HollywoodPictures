@@ -257,7 +257,14 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // event is still sitting inside photography.events/events with its real
 // quality/buzz but a lying costDelta: 0 - no migration code, same as every
 // past shape change here.
-const SAVE_KEY = 'hollywood-pictures-save-v41';
+// v41 -> v42 (docs/DESIGN_REVIEW_casting_slot_binding.md): TalentAssignment
+// gained an optional characterId (ScriptCharacter.id) binding each actor to
+// the specific Character they play, instead of inferring it from array
+// position. A v41 save's assignments have no characterId; readers fall back to
+// the positional mapping for those, so an un-bumped save would technically
+// still work - the bump is the honest signal that the stored shape changed,
+// same convention as every entry above. No migration code.
+const SAVE_KEY = 'hollywood-pictures-save-v42';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

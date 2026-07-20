@@ -17,7 +17,7 @@ import { RIVAL_STUDIO_NAMES_BY_TIER } from '../data/rivalStudioNames';
 import { MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
 import { isPersonAvailableOnDay, withCommitment } from './person';
-import { effectiveRoleCapacity } from './castRequirements';
+import { effectiveRoleCapacity, characterForRoleSlot } from './castRequirements';
 import { computeRecommendedShootDays, computeRecommendedPostProductionDays } from './production';
 import { computeReleaseResults } from './releaseFilm';
 import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
@@ -658,7 +658,13 @@ function startRivalProductionFromWonScript(
     const picked = pickMany(rng, candidates, Math.min(capacity.max, candidates.length));
     if (picked.length < capacity.min) return null;
     for (const p of picked) bookedIds.add(p.id);
-    talent.push(...picked.map((person) => ({ role, person })));
+    // Bind each actor to the Character at its slot (characterForRoleSlot is
+    // null for crew), so rival films carry the same explicit actor<->character
+    // link the player's do and score identically (slot-bound casting).
+    talent.push(...picked.map((person, i) => {
+      const character = characterForRoleSlot(script, role, i);
+      return character ? { role, person, characterId: character.id } : { role, person };
+    }));
   }
 
   const productionChoices: ProductionChoices = {

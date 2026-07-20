@@ -1227,6 +1227,14 @@ export interface ProductionOffice {
 export interface TalentAssignment {
   role: ProductionRole;
   person: Person;
+  // Which specific ScriptCharacter this actor plays (ScriptCharacter.id).
+  // Present for Lead/Supporting Actor hires; absent for crew (no character)
+  // and for legacy/rival assignments that predate slot binding - readers fall
+  // back to the positional characterForRoleSlot mapping when it's absent (see
+  // docs/DESIGN_REVIEW_casting_slot_binding.md). Making the actor<->character
+  // link explicit is what lets a player cast characters in any order and
+  // recast one without disturbing the others.
+  characterId?: string;
 }
 
 // --- Casting Redesign, Phase B (docs/DESIGN_REVIEW_casting_redesign.md

@@ -160,7 +160,7 @@ export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDr
     const response = resolveOfferResponse(appeal, person);
     setLastResponse({ personName: person.identity.name, response });
     if (response.status === 'accepted') {
-      dispatch({ type: 'TOGGLE_TALENT_FOR_ROLE', role, person });
+      dispatch({ type: 'TOGGLE_TALENT_FOR_ROLE', role, person, characterId: character.id });
       // Same beat RoleHiringDrawer's own AUTO_CLOSE_DELAY_MS uses - long
       // enough for the "accepted" message above to actually register
       // before the drawer closes out from under it.
