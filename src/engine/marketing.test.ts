@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import type { MarketingChannel } from '../types';
 import {
   campaignAngleEffect,
   effectiveMarketingReach,
