@@ -26,7 +26,6 @@ const AUTO_CLOSE_DELAY_MS = 500;
 interface CastingDrawerProps {
   character: ScriptCharacter;
   role: 'Lead Actor' | 'Supporting Actor';
-  slotIndex: number;
   onClose: () => void;
 }
 
@@ -57,7 +56,6 @@ function CandidateCard({
   overall,
   channel,
   actionLabel,
-  canAct,
   onAct,
 }: {
   person: Person;
@@ -68,7 +66,6 @@ function CandidateCard({
   overall: ReturnType<typeof computeActorAppeal>;
   channel?: CastingChannel;
   actionLabel: string;
-  canAct: boolean;
   onAct: () => void;
 }) {
   return (
@@ -85,7 +82,7 @@ function CandidateCard({
       <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
         {overall ? describeApplicantInterest(overall) : ''}
       </p>
-      <Button variant="primary" className="btn-sm" style={{ marginTop: 8 }} disabled={!canAct} onClick={onAct}>
+      <Button variant="primary" className="btn-sm" style={{ marginTop: 8 }} onClick={onAct}>
         {actionLabel}
       </Button>
     </Card>
@@ -101,7 +98,7 @@ function CandidateCard({
  * drawer's live snapshot of the whole static talent pool near a price
  * target, not a variant of the same thing.
  */
-export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDrawerProps) {
+export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) {
   const { state, dispatch } = useStudio();
   const draft = deriveFocusedDraft(state)!;
   const [tab, setTab] = useState<CastingTab>('open-casting');
@@ -127,20 +124,11 @@ export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDr
   // then; the hint is only useful before that, to explain why hiring one
   // would help (docs/DESIGN_REVIEW_casting_redesign.md section 11).
   const showCastingDirectorHint = !findAssignedPerson(draft.talent, 'Casting Director');
-  const hired = draft.talent.filter((a) => a.role === role).map((a) => a.person);
-  const alreadyCast = slotIndex < hired.length;
-  // Casting stays append-order for now (see docs/DESIGN_REVIEW_casting_redesign.md's
-  // own note on why slot-targeted recasting is out of scope this phase) -
-  // an applicant can only actually be *cast* once every earlier same-
-  // prominence character already is, even though a call can be opened (and
-  // Direct Approach attempted) for any of them in any order. Named
-  // explicitly (blockingCharacter), not just "cast earlier roles first" -
-  // a player shouldn't have to guess which one.
-  const canActFromHere = !alreadyCast && slotIndex === hired.length;
-  const blockingCharacter =
-    !alreadyCast && !canActFromHere
-      ? (draft.script?.cast.filter((c) => c.prominence === character.prominence)[hired.length] ?? null)
-      : null;
+  // Slot-bound casting (docs/DESIGN_REVIEW_casting_slot_binding.md): this
+  // Character can be cast in any order, and casting it again recasts it. Who
+  // (if anyone) currently plays it comes straight from the binding, not from
+  // this row's position in the cast list.
+  const castHere = draft.talent.find((a) => a.role === role && a.characterId === character.id)?.person ?? null;
 
   const range = ROLE_GENERATION_PROFILES[professionForProductionRole(role)].salaryRange;
   const offeredSalary = draft.talentTargetPriceByRole[role] ?? logAmount(0.5, range);
@@ -154,13 +142,12 @@ export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDr
 
   /** Shared by both tabs - resolves the offer, then either finalizes the assignment or records the rejection, per engine/castingAppeal.ts:resolveOfferResponse. */
   function attemptToAttach(person: Person) {
-    if (!canActFromHere) return;
     const appeal = appealFor(person);
     if (!appeal) return;
     const response = resolveOfferResponse(appeal, person);
     setLastResponse({ personName: person.identity.name, response });
     if (response.status === 'accepted') {
-      dispatch({ type: 'TOGGLE_TALENT_FOR_ROLE', role, person });
+      dispatch({ type: 'TOGGLE_TALENT_FOR_ROLE', role, person, characterId: character.id });
       // Same beat RoleHiringDrawer's own AUTO_CLOSE_DELAY_MS uses - long
       // enough for the "accepted" message above to actually register
       // before the drawer closes out from under it.
@@ -207,15 +194,10 @@ export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDr
           <Button onClick={onClose}>Close</Button>
         </div>
 
-        {alreadyCast && (
-          <p style={{ margin: 0 }}>Already cast: {hired[slotIndex].identity.name}. Recasting isn't supported yet.</p>
-        )}
-        {!alreadyCast && !canActFromHere && (
-          <div className="card production-tension" style={{ margin: 0 }}>
-            Cast {blockingCharacter?.name ?? 'an earlier role'} first - {character.prominence.toLowerCase()} roles cast
-            in order. Applicants can still apply here, and offers can still be made, in the meantime; nobody can
-            actually be confirmed until it's {character.name}'s turn.
-          </div>
+        {castHere && (
+          <p style={{ margin: 0 }}>
+            Currently cast: {castHere.identity.name}. Casting someone below recasts the role.
+          </p>
         )}
 
         <RangeSlider
@@ -292,7 +274,6 @@ export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDr
                         overall={appealByPersonId.get(applicant.person.id) ?? null}
                         channel={applicant.channel}
                         actionLabel="Cast"
-                        canAct={canActFromHere}
                         onAct={() => attemptToAttach(applicant.person)}
                       />
                     ))}
@@ -320,7 +301,6 @@ export function CastingDrawer({ character, role, slotIndex, onClose }: CastingDr
                   totalDays={state.totalDays}
                   overall={appealFor(person)}
                   actionLabel="Make Offer"
-                  canAct={canActFromHere}
                   onAct={() => attemptToAttach(person)}
                 />
               ))}

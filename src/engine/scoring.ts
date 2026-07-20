@@ -5,6 +5,7 @@ import type {
   ProductionChoices,
   ProductionEvent,
   Script,
+  ScriptCharacter,
   TalentAssignment,
 } from '../types';
 import { GENRE_PROFILES } from '../data/genres';
@@ -106,13 +107,26 @@ const CHARACTER_COMPATIBILITY_WEIGHT = 0.4;
  * keeps requiredLeads/requiredSupporting and Script.cast in lockstep, but
  * stays honest rather than assuming it always will).
  */
-function actorFitScore(person: Person, role: 'Lead Actor' | 'Supporting Actor', slotIndex: number, script: Script): number {
+function actorFitScore(person: Person, role: 'Lead Actor' | 'Supporting Actor', character: ScriptCharacter | null, script: Script): number {
   const scriptFit = compatibility(person, role, script);
-  const character = characterForRoleSlot(script, role, slotIndex);
   const actorCareer = getActorCareer(person);
   if (!character || !actorCareer) return scriptFit;
   const characterFit = computeCharacterCompatibility(actorCareer.actingStyle, character.traits);
   return scriptFit * (1 - CHARACTER_COMPATIBILITY_WEIGHT) + characterFit * CHARACTER_COMPATIBILITY_WEIGHT;
+}
+
+/**
+ * Which Character an actor assignment is cast as: its explicit binding
+ * (characterId) when present, else the positional slot it occupies within its
+ * role group - the legacy mapping, kept as a fallback so pre-binding casts
+ * (and any assignment built without a characterId) score exactly as before.
+ * See docs/DESIGN_REVIEW_casting_slot_binding.md.
+ */
+function characterForAssignment(assignment: TalentAssignment, indexWithinRole: number, role: 'Lead Actor' | 'Supporting Actor', script: Script): ScriptCharacter | null {
+  if (assignment.characterId) {
+    return script.cast.find((c) => c.id === assignment.characterId) ?? characterForRoleSlot(script, role, indexWithinRole);
+  }
+  return characterForRoleSlot(script, role, indexWithinRole);
 }
 
 /**
@@ -128,11 +142,11 @@ function actorFitScore(person: Person, role: 'Lead Actor' | 'Supporting Actor', 
  * film, it's the average fit of whoever's cast in those roles.
  */
 export function computeActingScore(talent: TalentAssignment[], script: Script): number {
-  const leads = getLeadActors(talent);
-  const supports = getSupportingActors(talent);
+  const leads = talent.filter((a) => a.role === 'Lead Actor');
+  const supports = talent.filter((a) => a.role === 'Supporting Actor');
 
-  const leadScoreAvg = average(leads.map((l, i) => actorFitScore(l, 'Lead Actor', i, script)));
-  const supportScoreAvg = average(supports.map((s, i) => actorFitScore(s, 'Supporting Actor', i, script)));
+  const leadScoreAvg = average(leads.map((a, i) => actorFitScore(a.person, 'Lead Actor', characterForAssignment(a, i, 'Lead Actor', script), script)));
+  const supportScoreAvg = average(supports.map((a, i) => actorFitScore(a.person, 'Supporting Actor', characterForAssignment(a, i, 'Supporting Actor', script), script)));
 
   return (leadScoreAvg ?? 30) * 0.7 + (supportScoreAvg ?? 30) * 0.3;
 }

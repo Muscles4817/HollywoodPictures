@@ -232,10 +232,17 @@ export function generateInterestedTalent(
 /** Whether the Character at this call already has someone cast - the same slot-index positional read HireTalent.tsx's CharacterCastingRow already does, reused here so a filled role stops generating pointless further applicants, and by components/common/Inbox.tsx to know which calls are actually still worth surfacing. */
 export function isCharacterCast(draft: FilmDraft, character: ScriptCharacter, role: 'Lead Actor' | 'Supporting Actor'): boolean {
   if (!draft.script) return false;
+  const roleAssignments = draft.talent.filter((a) => a.role === role);
+  // Explicit binding is authoritative when present (slot-bound casting) - this
+  // Character is cast iff someone is bound to it, regardless of hire order.
+  if (roleAssignments.some((a) => a.characterId === character.id)) return true;
+  // Legacy positional fallback: only unbound assignments (no characterId) map
+  // by ordinal, exactly as before, so pre-binding drafts read identically.
+  const unbound = roleAssignments.filter((a) => a.characterId === undefined);
+  if (unbound.length === 0) return false;
   const sameProminence = draft.script.cast.filter((c) => c.prominence === character.prominence);
   const slotIndex = sameProminence.findIndex((c) => c.id === character.id);
-  const hiredCount = draft.talent.filter((a) => a.role === role).length;
-  return slotIndex >= 0 && slotIndex < hiredCount;
+  return slotIndex >= 0 && slotIndex < unbound.length;
 }
 
 /** Every open call on this draft that has at least one applicant waiting and whose Character isn't cast yet - what components/common/Inbox.tsx surfaces as "new casting options" for a backgrounded production the player isn't currently looking at. */

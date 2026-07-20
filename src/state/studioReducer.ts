@@ -422,7 +422,13 @@ function resolveChoiceOnDraft(
     if (candidate && outgoing) {
       const role = pendingChoice.replacementRole;
       cashDelta = -(getTypicalSalaryForRole(candidate, role) - getTypicalSalaryForRole(outgoing.person, role));
-      talent = [...d.talent.filter((a) => a.person.id !== pendingChoice.involvedTalentId), { role: outgoing.role, person: candidate }];
+      // A mid-shoot replacement steps into the same Character the outgoing
+      // actor played - carry their characterId so the binding survives the
+      // recast (slot-bound casting), not just their role.
+      const replacement: TalentAssignment = outgoing.characterId
+        ? { role: outgoing.role, person: candidate, characterId: outgoing.characterId }
+        : { role: outgoing.role, person: candidate };
+      talent = [...d.talent.filter((a) => a.person.id !== pendingChoice.involvedTalentId), replacement];
     }
   }
 
@@ -872,30 +878,55 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'TOGGLE_TALENT_FOR_ROLE': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;
+      const script = focusedDraft.script;
       const current = focusedDraft.talent.filter((a) => a.role === action.role);
       const alreadyHired = current.some((a) => a.person.id === action.person.id);
       if (!alreadyHired && focusedDraft.talent.some((a) => a.role !== action.role && a.person.id === action.person.id)) {
         return state;
       }
-      const capacity = effectiveRoleCapacity(action.role, focusedDraft.script);
 
-      // Gender enforcement (engine/casting.ts): a new hire fills the next
-      // open slot (current.length); reject an actor whose gender doesn't
-      // match that character. Removing an already-hired actor is always
-      // allowed. Defensive mirror of the drawer's own candidate filtering.
-      if (
-        !alreadyHired &&
-        focusedDraft.script &&
-        !personMeetsCharacterGender(action.person, characterForRoleSlot(focusedDraft.script, action.role, current.length))
-      ) {
+      // Toggle-off: clicking an already-hired person removes them. Order- and
+      // binding-independent, so it stays exactly as it was.
+      if (alreadyHired) {
+        const nextTalent = focusedDraft.talent.filter((a) => a.person.id !== action.person.id);
+        return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, talent: nextTalent }) };
+      }
+
+      const capacity = effectiveRoleCapacity(action.role, script);
+
+      // Which Character this hire is for: the explicit binding the action
+      // carries (slot-bound casting), or - for a legacy/unbound dispatch - the
+      // next open positional slot, exactly as before (current.length). See
+      // docs/DESIGN_REVIEW_casting_slot_binding.md.
+      const targetCharacter = !script
+        ? null
+        : action.characterId
+          ? (script.cast.find((c) => c.id === action.characterId) ?? null)
+          : characterForRoleSlot(script, action.role, current.length);
+
+      // Gender enforcement (engine/casting.ts): reject an actor whose gender
+      // doesn't match the target Character. No-ops for crew (null character
+      // reads as unconstrained). Defensive mirror of the drawer's own filtering.
+      if (script && !personMeetsCharacterGender(action.person, targetCharacter)) {
         return state;
       }
 
+      // If the action binds a Character that's already filled by someone else,
+      // swap them out (recast) rather than appending - capacity is unchanged
+      // and every other Character's binding is left untouched. Falls through to
+      // append (respecting capacity.max) for a fresh slot or an unbound hire.
+      const existingForCharacter = action.characterId
+        ? focusedDraft.talent.find((a) => a.role === action.role && a.characterId === action.characterId)
+        : undefined;
+      const newAssignment: TalentAssignment = action.characterId
+        ? { role: action.role, person: action.person, characterId: action.characterId }
+        : { role: action.role, person: action.person };
+
       let nextTalent: TalentAssignment[];
-      if (alreadyHired) {
-        nextTalent = focusedDraft.talent.filter((a) => a.person.id !== action.person.id);
+      if (existingForCharacter) {
+        nextTalent = focusedDraft.talent.map((a) => (a === existingForCharacter ? newAssignment : a));
       } else if (current.length < capacity.max) {
-        nextTalent = [...focusedDraft.talent, { role: action.role, person: action.person }];
+        nextTalent = [...focusedDraft.talent, newAssignment];
       } else {
         return state;
       }

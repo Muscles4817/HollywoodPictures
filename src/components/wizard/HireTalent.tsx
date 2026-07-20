@@ -88,45 +88,29 @@ function RoleTile({ role, optional, onOpen }: { role: ProductionRole; optional: 
  * section 8) - one row per Lead/Supporting `ScriptCharacter` instead of an
  * aggregate "Lead Actor 0/4" tile, so the player reads this section as "who
  * plays our villain" rather than "how many of role slot #2 are filled."
- * `slotIndex` is this character's position among every character of the
- * same prominence (`script.cast.filter(c => c.prominence === character.prominence)`)
- * - the same positional contract `characterForRoleSlot` already establishes
- * for scoring, reused here purely for display. Whoever currently occupies
- * that position in `draft.talent` (append-order, unchanged in this phase -
- * see the design doc's own note that slot-stable recasting is deliberately
- * out of scope here) is read live off state, never stored on the row
- * itself, so removing an earlier cast member correctly reflows who this
- * row shows without any extra bookkeeping.
+ * Whoever plays this Character is read live off `draft.talent` by its
+ * explicit binding (`characterId`, docs/DESIGN_REVIEW_casting_slot_binding.md),
+ * so every Character is independently castable in any order and recasting one
+ * never disturbs the rest - no positional bookkeeping on the row itself.
  */
 function CharacterCastingRow({
   character,
   role,
-  slotIndex,
   onOpen,
 }: {
   character: ScriptCharacter;
   role: 'Lead Actor' | 'Supporting Actor';
-  slotIndex: number;
   onOpen: () => void;
 }) {
   const { state } = useStudio();
   const draft = deriveFocusedDraft(state)!;
-  const hired = draft.talent.filter((a) => a.role === role).map((a) => a.person);
-  const cast = hired[slotIndex] ?? null;
-  // Casting stays append-order (see CastingDrawer.tsx's own note on why
-  // slot-targeted recasting is out of scope) - this row can only actually
-  // be cast once it's the *next* same-prominence Character in line. Naming
-  // exactly who that is directly on the card, rather than only inside the
-  // drawer, is what stops "why can't I cast my Supporting Actor" from ever
-  // requiring a click to answer.
-  const isNextUp = slotIndex === hired.length;
-  const blockingCharacter =
-    !cast && !isNextUp
-      ? (draft.script?.cast.filter((c) => c.prominence === character.prominence)[hired.length] ?? null)
-      : null;
+  // Slot-bound casting (docs/DESIGN_REVIEW_casting_slot_binding.md): every
+  // Character is independently castable in any order, so this row just reflects
+  // whoever's bound to it (if anyone) - no "wait your turn" state any more.
+  const cast = draft.talent.find((a) => a.role === role && a.characterId === character.id)?.person ?? null;
 
   return (
-    <Card selectable onClick={onOpen} className={!cast && !isNextUp ? 'casting-row-blocked' : undefined}>
+    <Card selectable onClick={onOpen}>
       <div className="row-between">
         <div className="card-title">{character.name}</div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -146,24 +130,20 @@ function CharacterCastingRow({
             Fame {cast.reputation.fame} &middot; <Money amount={getTypicalSalaryForRole(cast, role)} />
           </div>
         </div>
-      ) : isNextUp ? (
-        <p style={{ margin: 0, color: 'var(--red)' }}>Not yet cast</p>
       ) : (
-        <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-          Waiting - cast {blockingCharacter?.name ?? 'an earlier role'} first
-        </p>
+        <p style={{ margin: 0, color: 'var(--red)' }}>Not yet cast</p>
       )}
     </Card>
   );
 }
 
 /** Every Lead/Supporting Character in cast order - Minor characters aren't cast at all (see types/index.ts:Script.cast), so they're excluded here entirely rather than shown as permanently uncastable rows. */
-function castableCharacters(script: Script): Array<{ character: ScriptCharacter; role: 'Lead Actor' | 'Supporting Actor'; slotIndex: number }> {
+function castableCharacters(script: Script): Array<{ character: ScriptCharacter; role: 'Lead Actor' | 'Supporting Actor' }> {
   const leads = script.cast.filter((c) => c.prominence === 'Lead');
   const supporting = script.cast.filter((c) => c.prominence === 'Supporting');
   return [
-    ...leads.map((character, slotIndex) => ({ character, role: 'Lead Actor' as const, slotIndex })),
-    ...supporting.map((character, slotIndex) => ({ character, role: 'Supporting Actor' as const, slotIndex })),
+    ...leads.map((character) => ({ character, role: 'Lead Actor' as const })),
+    ...supporting.map((character) => ({ character, role: 'Supporting Actor' as const })),
   ];
 }
 
@@ -180,7 +160,7 @@ function CharacterCastingSection({
   onOpenCharacter,
 }: {
   script: Script;
-  onOpenCharacter: (character: ScriptCharacter, role: 'Lead Actor' | 'Supporting Actor', slotIndex: number) => void;
+  onOpenCharacter: (character: ScriptCharacter, role: 'Lead Actor' | 'Supporting Actor') => void;
 }) {
   const entries = castableCharacters(script);
   if (entries.length === 0) return null;
@@ -188,13 +168,12 @@ function CharacterCastingSection({
     <div className="stack">
       <h3 style={{ margin: 0 }}>Cast</h3>
       <div className="grid">
-        {entries.map(({ character, role, slotIndex }) => (
+        {entries.map(({ character, role }) => (
           <CharacterCastingRow
             key={character.id}
             character={character}
             role={role}
-            slotIndex={slotIndex}
-            onOpen={() => onOpenCharacter(character, role, slotIndex)}
+            onOpen={() => onOpenCharacter(character, role)}
           />
         ))}
       </div>
@@ -210,7 +189,7 @@ export function HireTalent() {
   // Casting Redesign, Phase B - separate from `openRole` above (which still
   // drives Director/crew's unchanged RoleHiringDrawer flow) since Open
   // Casting is scoped to one specific Character, not a whole role.
-  const [openCharacter, setOpenCharacter] = useState<{ character: ScriptCharacter; role: 'Lead Actor' | 'Supporting Actor'; slotIndex: number } | null>(null);
+  const [openCharacter, setOpenCharacter] = useState<{ character: ScriptCharacter; role: 'Lead Actor' | 'Supporting Actor' } | null>(null);
 
   function talentsForRole(role: ProductionRole): Person[] {
     return draft.talent.filter((a) => a.role === role).map((a) => a.person);
@@ -359,7 +338,7 @@ export function HireTalent() {
       {draft.script && (
         <CharacterCastingSection
           script={draft.script}
-          onOpenCharacter={(character, role, slotIndex) => setOpenCharacter({ character, role, slotIndex })}
+          onOpenCharacter={(character, role) => setOpenCharacter({ character, role })}
         />
       )}
 
@@ -377,7 +356,6 @@ export function HireTalent() {
         <CastingDrawer
           character={openCharacter.character}
           role={openCharacter.role}
-          slotIndex={openCharacter.slotIndex}
           onClose={() => setOpenCharacter(null)}
         />
       )}
