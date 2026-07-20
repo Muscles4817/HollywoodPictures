@@ -150,6 +150,19 @@
 .dashboard-metric-prestige { --metric-accent: #b47cff; }
 .dashboard-metric-revenue { --metric-accent: #e3b23c; }
 
+.dashboard-metric-clickable {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.dashboard-metric-clickable:hover,
+.dashboard-metric-clickable:focus-visible {
+  border-color: var(--metric-accent, #6d8cff);
+}
+
 .dashboard-metric strong {
   align-self: end;
   font-size: clamp(1.25rem, 2vw, 1.65rem);

@@ -9,10 +9,11 @@ import { GameGuide } from './common/GameGuide';
 import { BoxOfficeChart } from './common/BoxOfficeChart';
 import { BoxOfficeFinishedPopup } from './common/BoxOfficeFinishedPopup';
 import { FilmDetailModal } from './common/FilmDetailModal';
+import { ReputationHistoryModal } from './common/ReputationHistoryModal';
 import { TopGrossingPanel } from './common/TopGrossingPanel';
 import { DifficultyPicker } from './common/DifficultyPicker';
 import { ProductionOfficeCard } from './ProductionOfficeCard';
-import { computeTopGrossingFilms, hasDraftProgress } from '../state/selectors';
+import { computeTopGrossingFilms, deriveReputationHistory, hasDraftProgress } from '../state/selectors';
 import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
@@ -34,6 +35,7 @@ export function Dashboard() {
   const { studio } = state;
   const [showGuide, setShowGuide] = useState(false);
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
+  const [showReputationHistory, setShowReputationHistory] = useState(false);
   const [showResetPicker, setShowResetPicker] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(studio.name);
@@ -209,6 +211,9 @@ export function Dashboard() {
     <div className="dashboard-page">
       {unacknowledgedFinished && <BoxOfficeFinishedPopup film={unacknowledgedFinished} />}
       {selectedFilm && <FilmDetailModal film={selectedFilm} onClose={() => setSelectedFilm(null)} />}
+      {showReputationHistory && (
+        <ReputationHistoryModal events={deriveReputationHistory(state)} onClose={() => setShowReputationHistory(false)} />
+      )}
       {showResetPicker && (
         <DifficultyPicker
           studioName={studio.name}
@@ -278,16 +283,26 @@ export function Dashboard() {
           <strong><Money amount={studio.cash} signColor /></strong>
           <span className="dashboard-metric-note">Available to invest</span>
         </div>
-        <div className="dashboard-metric dashboard-metric-brand">
+        <button
+          type="button"
+          className="dashboard-metric dashboard-metric-brand dashboard-metric-clickable"
+          onClick={() => setShowReputationHistory(true)}
+          title="See what's moved Brand and Prestige"
+        >
           <span className="dashboard-metric-label">Brand recognition</span>
           <strong>{studio.brand}<small>/100</small></strong>
           <div className="dashboard-meter"><span style={{ width: `${studio.brand}%` }} /></div>
-        </div>
-        <div className="dashboard-metric dashboard-metric-prestige">
+        </button>
+        <button
+          type="button"
+          className="dashboard-metric dashboard-metric-prestige dashboard-metric-clickable"
+          onClick={() => setShowReputationHistory(true)}
+          title="See what's moved Brand and Prestige"
+        >
           <span className="dashboard-metric-label">Prestige</span>
           <strong>{studio.prestige}<small>/100</small></strong>
           <div className="dashboard-meter"><span style={{ width: `${studio.prestige}%` }} /></div>
-        </div>
+        </button>
         <div className="dashboard-metric dashboard-metric-revenue">
           <span className="dashboard-metric-label">Weekly box office</span>
           <strong><Money amount={weeklyGross} /></strong>

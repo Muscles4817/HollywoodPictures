@@ -1,5 +1,6 @@
 import { useStudio } from '../../state/StudioContext';
 import { deriveFocusedFilm } from '../../state/selectors';
+import { explainBrandChange, explainPrestigeChange } from '../../engine/reputation';
 import { Money } from '../common/Money';
 import { ScoreBar } from '../common/ScoreBar';
 import { StarRating } from '../common/StarRating';
@@ -111,6 +112,16 @@ export function ReleaseResults() {
               <span style={{ color: 'var(--text-muted)', fontSize: '0.7em' }}>Pending run's end</span>
             )}
           </div>
+          {finished && results.brandChange !== 0 && (
+            <div style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>
+              {explainBrandChange({
+                profit: results.profit ?? 0,
+                totalCost: results.totalCost,
+                totalBoxOffice: results.totalBoxOffice ?? 0,
+                audienceScore: results.audienceScore,
+              })}
+            </div>
+          )}
         </div>
         <div>
           <div className="stat-label">Prestige Change</div>
@@ -121,6 +132,11 @@ export function ReleaseResults() {
               <span style={{ color: 'var(--text-muted)', fontSize: '0.7em' }}>Pending run's end</span>
             )}
           </div>
+          {finished && results.prestigeChange !== 0 && (
+            <div style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>
+              {explainPrestigeChange({ criticScore: results.criticScore, qualityScore: results.qualityScore })}
+            </div>
+          )}
         </div>
         <div>
           <div className="stat-label">Studio Brand Now</div>
@@ -135,6 +151,13 @@ export function ReleaseResults() {
           <div className="stat-value"><Money amount={state.studio.cash} signColor /></div>
         </div>
       </div>
+      {finished && (
+        <p className="choice-description" style={{ margin: 0 }}>
+          Brand/Prestige Change above is this film's own contribution only - the "Now" totals reflect everything
+          that's happened across your whole studio, including other films settling or an awards ceremony resolving
+          around the same time.
+        </p>
+      )}
     </div>
   );
 }

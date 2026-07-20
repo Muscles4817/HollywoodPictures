@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeReportedLegs, computeProjectSpendSoFar, currentScreenFor, deriveProjectStage, deriveReachableWizardSteps, deriveUpcomingReleaseEntries, hasDraftProgress, PLAYER_STUDIO_ID } from './selectors';
+import { computeReportedLegs, computeProjectSpendSoFar, currentScreenFor, deriveProjectStage, deriveReachableWizardSteps, deriveReputationHistory, deriveUpcomingReleaseEntries, hasDraftProgress, PLAYER_STUDIO_ID } from './selectors';
 import { openCastingCall } from '../engine/castingCalls';
 import { generateTestScreeningPendingChoice } from '../engine/testScreening';
 import { studioReducer } from './studioReducer';
@@ -7,7 +7,8 @@ import { buildReadyDraft, buildStateWithReadyDraft } from './testFixtures';
 import { withRng } from '../engine/random';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
 import { asPlayerDraft, filmToProject, playerDraftToProject, playerReleasedFilms, scheduledDraftToProject } from '../engine/project';
-import type { PhotographyState, Project, RivalProductionInProgress, RivalStudio } from '../types';
+import { AWARD_CATEGORIES } from '../data/awards';
+import type { AwardCategory, AwardNomination, AwardsCeremony, PhotographyState, Project, RivalProductionInProgress, RivalStudio } from '../types';
 
 describe('computeReportedLegs - a derived reported statistic, never a stored driver', () => {
   it('is null while the run is still in theaters - not knowable before the run has a real total', () => {
@@ -44,6 +45,81 @@ describe('computeReportedLegs - a derived reported statistic, never a stored dri
     // Once knowable (the run has finished), legs is a single settled figure - this just confirms it was actually computed from a real, non-trivial run rather than defaulting to some placeholder.
     expect(legsByWeek.length).toBeGreaterThan(0);
     expect(legsByWeek[legsByWeek.length - 1]).toBeGreaterThanOrEqual(1);
+  });
+});
+
+function emptyAwardCategories(): Record<AwardCategory, AwardNomination[]> {
+  return Object.fromEntries(AWARD_CATEGORIES.map((cat) => [cat, []])) as unknown as Record<AwardCategory, AwardNomination[]>;
+}
+
+describe('deriveReputationHistory - the Reputation History panel\'s own trail behind Brand/Prestige', () => {
+  it('produces one film event per finished film that actually moved Brand or Prestige, matching its own results exactly', () => {
+    const released = studioReducer(buildStateWithReadyDraft(10), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    let state = released;
+    for (let i = 0; i < MAX_SIMULATION_WEEKS * 7 + 7; i++) state = studioReducer(state, { type: 'ADVANCE_DAY' });
+    const film = playerReleasedFilms(state.projects)[0];
+    expect(film.boxOfficeRun.status).toBe('finished');
+
+    const history = deriveReputationHistory(state);
+    const filmEvent = history.find((e) => e.kind === 'film');
+
+    if (film.results.prestigeChange || film.results.brandChange) {
+      expect(filmEvent).toBeDefined();
+      expect(filmEvent!.title).toBe(film.title);
+      expect(filmEvent!.prestigeDelta).toBe(film.results.prestigeChange);
+      expect(filmEvent!.brandDelta).toBe(film.results.brandChange);
+    } else {
+      expect(filmEvent).toBeUndefined();
+    }
+  });
+
+  it('omits a finished film whose run left both Brand and Prestige exactly unchanged', () => {
+    const released = studioReducer(buildStateWithReadyDraft(10), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    let state = released;
+    for (let i = 0; i < MAX_SIMULATION_WEEKS * 7 + 7; i++) state = studioReducer(state, { type: 'ADVANCE_DAY' });
+    const film = playerReleasedFilms(state.projects)[0];
+    const neutralFilm = { ...film, results: { ...film.results, prestigeChange: 0, brandChange: 0 } };
+    const neutralState = { ...state, projects: [filmToProject(neutralFilm)] };
+
+    const history = deriveReputationHistory(neutralState);
+    expect(history.find((e) => e.kind === 'film')).toBeUndefined();
+  });
+
+  it('includes an awards ceremony event using the exact same haul computeStudioAwardDeltas would return, and sorts every event most-recent-first', () => {
+    const released = studioReducer(buildStateWithReadyDraft(10), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    let state = released;
+    for (let i = 0; i < MAX_SIMULATION_WEEKS * 7 + 7; i++) state = studioReducer(state, { type: 'ADVANCE_DAY' });
+    const film = playerReleasedFilms(state.projects)[0];
+
+    const categories = emptyAwardCategories();
+    categories['best-picture'] = [{ filmId: film.id, awardScore: 90, won: true }];
+    const ceremony: AwardsCeremony = { year: 1, ceremonyDay: film.releasedOnDay + 400, categories };
+    const awardsState = { ...state, awards: { history: [ceremony], season: null, nextSeasonDay: 99_999 } };
+
+    const history = deriveReputationHistory(awardsState);
+    const awardsEvent = history.find((e) => e.kind === 'awards');
+    expect(awardsEvent).toBeDefined();
+    // best-picture weight 1.0, WIN_PRESTIGE 4, WIN_BRAND 2 (data/awards.ts) - a single Best Picture win nets exactly this.
+    expect(awardsEvent!.prestigeDelta).toBe(4);
+    expect(awardsEvent!.brandDelta).toBe(2);
+    expect(awardsEvent!.prestigeDetail).toContain('1 win');
+
+    // The awards ceremony was placed 400 days after release, well after the film's own run finished - should sort first.
+    expect(history[0].kind).toBe('awards');
+  });
+
+  it('never attributes a rival\'s award win to the player\'s own history', () => {
+    const released = studioReducer(buildStateWithReadyDraft(10), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    let state = released;
+    for (let i = 0; i < MAX_SIMULATION_WEEKS * 7 + 7; i++) state = studioReducer(state, { type: 'ADVANCE_DAY' });
+
+    const categories = emptyAwardCategories();
+    categories['best-picture'] = [{ filmId: 'some-rival-film-id', awardScore: 90, won: true }];
+    const ceremony: AwardsCeremony = { year: 1, ceremonyDay: 500, categories };
+    const awardsState = { ...state, awards: { history: [ceremony], season: null, nextSeasonDay: 99_999 } };
+
+    const history = deriveReputationHistory(awardsState);
+    expect(history.find((e) => e.kind === 'awards')).toBeUndefined();
   });
 });
 

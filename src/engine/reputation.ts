@@ -98,6 +98,42 @@ function clampInteger(
   );
 }
 
+/**
+ * Plain-language reason behind computeBrandChange's own number - same
+ * profitRatio/totalBoxOffice bands, phrased for the player rather than
+ * computed for the studio. Kept next to computeBrandChange on purpose: if
+ * those bands ever move, this is the other place that has to move with them.
+ */
+export function explainBrandChange({ profit, totalCost, totalBoxOffice, audienceScore }: BrandChangeInputs): string {
+  const profitRatio = computeProfitRatio(profit, totalCost);
+
+  const money =
+    profitRatio <= -0.5
+      ? 'a heavy loss'
+      : profitRatio < 0.1
+        ? 'a loss'
+        : profitRatio < 0.5
+          ? 'a modest profit'
+          : profitRatio < 1.25
+            ? 'a strong profit'
+            : 'a massive profit';
+
+  const reach =
+    totalBoxOffice >= 750_000_000
+      ? ', a true blockbuster'
+      : totalBoxOffice >= 250_000_000
+        ? ', a major hit'
+        : totalBoxOffice >= 100_000_000
+          ? ', a solid theatrical run'
+          : totalBoxOffice >= 30_000_000
+            ? ''
+            : ', a limited run';
+
+  const audience = audienceScore >= 65 ? ' that audiences loved' : audienceScore < 40 ? ' that audiences disliked' : '';
+
+  return `${money}${reach}${audience}`;
+}
+
 interface PrestigeChangeInputs {
   criticScore: number;
   qualityScore: number;
@@ -156,6 +192,25 @@ export function computePrestigeChange({
   }
 
   return 4;
+}
+
+/**
+ * Plain-language reason behind computePrestigeChange's own number - same
+ * prestigeSignal bands, phrased for the player. Kept next to
+ * computePrestigeChange for the same reason explainBrandChange stays next to
+ * computeBrandChange: the two have to move together.
+ */
+export function explainPrestigeChange({ criticScore, qualityScore }: PrestigeChangeInputs): string {
+  const prestigeSignal = criticScore * 0.75 + qualityScore * 0.25;
+
+  if (prestigeSignal < 25) return 'Reviews were savaged';
+  if (prestigeSignal < 40) return 'Reviews were poor';
+  if (prestigeSignal < 50) return 'Reviews were lukewarm';
+  if (prestigeSignal < 65) return 'Reviews were solid, if unremarkable';
+  if (prestigeSignal < 75) return 'Reviews were strong';
+  if (prestigeSignal < 85) return 'Reviews were excellent';
+  if (prestigeSignal < 92) return 'Critics loved it';
+  return 'A career-defining critical triumph';
 }
 
 export function applyStatChange(current: number, change: number): number {

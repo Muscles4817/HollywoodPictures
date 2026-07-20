@@ -1,6 +1,9 @@
-import type { Asset, Film, FilmDraft, Genre, Person, ProductionRole, Project, RivalStudio, WizardStep } from '../types';
+import type { AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, ProductionRole, Project, RivalStudio, WizardStep } from '../types';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { totalAttachedPerFilmFees } from '../engine/producers';
+import { computeStudioAwardDeltas } from '../engine/awards';
+import { explainBrandChange, explainPrestigeChange } from '../engine/reputation';
+import { WEEK_LENGTH_DAYS } from '../engine/boxOfficeRun';
 import { GENRE_PROFILES } from '../data/genres';
 import { productionRequirementTags } from '../engine/scriptPresentation';
 import { asFilm, asPlayerDraft, asScheduled, asRivalProduction, findProject, projectId } from '../engine/project';
@@ -153,6 +156,97 @@ export function collectFilmStats(projects: Project[], studioName: string): FilmS
     const isPlayer = film.releasedBy === undefined;
     return [{ film, studioName: isPlayer ? studioName : (film.releasedBy ?? 'A Rival Studio'), isPlayer }];
   });
+}
+
+export interface ReputationEvent {
+  id: string;
+  /** GameState.totalDays this event landed on - a film's own last-settled week, or an awards ceremony's own ceremonyDay. */
+  day: number;
+  kind: 'film' | 'awards';
+  title: string;
+  prestigeDelta: number;
+  brandDelta: number;
+  /** Plain-language reason for prestigeDelta - absent when prestigeDelta is 0. */
+  prestigeDetail?: string;
+  /** Plain-language reason for brandDelta - absent when brandDelta is 0. */
+  brandDetail?: string;
+}
+
+/** How many of `ceremony`'s nominations/wins belong to a studio holding `filmIds`. */
+function playerAwardHaul(ceremony: AwardsCeremony, filmIds: Set<string>): { wins: number; nominations: number } {
+  let wins = 0;
+  let nominations = 0;
+  for (const noms of Object.values(ceremony.categories)) {
+    for (const nom of noms) {
+      if (!filmIds.has(nom.filmId)) continue;
+      nominations += 1;
+      if (nom.won) wins += 1;
+    }
+  }
+  return { wins, nominations };
+}
+
+/**
+ * The player's whole Brand/Prestige history, most recent first - every
+ * finished film's own reception-driven change (engine/reputation.ts) plus
+ * every awards ceremony's own haul (engine/awards.ts:computeStudioAwardDeltas),
+ * each with a plain-language reason attached. Deliberately not its own piece
+ * of persisted state: everything it needs (FilmResults.prestigeChange/
+ * brandChange, GameState.awards.history) is already saved as part of the
+ * films and awards state that produced it, so this is free to derive fresh
+ * every time rather than something a save-format migration could ever
+ * desync from its source. The Dashboard's Brand/Prestige tiles (and,
+ * per-event, the moment a film's run finishes or a ceremony resolves) are
+ * what actually explain a given change to the player; this is the
+ * standing record of everything that's happened so far.
+ */
+export function deriveReputationHistory(state: GameState): ReputationEvent[] {
+  const playerFilms = state.projects.flatMap((project) => {
+    const film = asFilm(project);
+    return film && film.releasedBy === undefined ? [film] : [];
+  });
+  const playerFilmIds = new Set(playerFilms.map((film) => film.id));
+
+  const filmEvents: ReputationEvent[] = playerFilms
+    .filter((film) => film.boxOfficeRun.status === 'finished' && (film.results.prestigeChange || film.results.brandChange))
+    .map((film) => ({
+      id: `film-${film.id}`,
+      day: film.releasedOnDay + film.boxOfficeRun.weeks.length * WEEK_LENGTH_DAYS,
+      kind: 'film',
+      title: film.title,
+      prestigeDelta: film.results.prestigeChange ?? 0,
+      brandDelta: film.results.brandChange ?? 0,
+      prestigeDetail: film.results.prestigeChange ? explainPrestigeChange({ criticScore: film.results.criticScore, qualityScore: film.results.qualityScore }) : undefined,
+      brandDetail: film.results.brandChange
+        ? explainBrandChange({
+            profit: film.results.profit ?? 0,
+            totalCost: film.results.totalCost,
+            totalBoxOffice: film.results.totalBoxOffice ?? 0,
+            audienceScore: film.results.audienceScore,
+          })
+        : undefined,
+    }));
+
+  const awardsEvents: ReputationEvent[] = (state.awards?.history ?? []).flatMap((ceremony) => {
+    const { prestige, brand } = computeStudioAwardDeltas(ceremony, playerFilmIds);
+    if (prestige === 0 && brand === 0) return [];
+    const { wins, nominations } = playerAwardHaul(ceremony, playerFilmIds);
+    const haul = wins > 0
+      ? `${wins} win${wins === 1 ? '' : 's'}, ${nominations} nomination${nominations === 1 ? '' : 's'}`
+      : `${nominations} nomination${nominations === 1 ? '' : 's'}, no wins`;
+    return [{
+      id: `awards-${ceremony.year}`,
+      day: ceremony.ceremonyDay,
+      kind: 'awards' as const,
+      title: `Year ${ceremony.year} Academy Awards`,
+      prestigeDelta: prestige,
+      brandDelta: brand,
+      prestigeDetail: prestige !== 0 ? haul : undefined,
+      brandDetail: brand !== 0 ? haul : undefined,
+    }];
+  });
+
+  return [...filmEvents, ...awardsEvents].sort((a, b) => b.day - a.day);
 }
 
 export type FilmStatSortKey =

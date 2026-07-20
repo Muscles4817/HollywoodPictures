@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeBrandChange, computePrestigeChange, applyStatChange } from './reputation';
+import { computeBrandChange, computePrestigeChange, applyStatChange, explainBrandChange, explainPrestigeChange } from './reputation';
 
 describe('computeBrandChange', () => {
   it('never reads criticScore - a profitable-but-panned film still grows Brand', () => {
@@ -68,6 +68,32 @@ describe('Brand/Prestige independence', () => {
     const prestigeChange = computePrestigeChange({ criticScore: 15, qualityScore: 20 });
     expect(brandChange).toBeGreaterThan(0);
     expect(prestigeChange).toBeLessThan(0);
+  });
+});
+
+describe('explainPrestigeChange - the player-facing reason behind computePrestigeChange\'s own bands', () => {
+  it('reads more positively as prestigeSignal climbs through computePrestigeChange\'s own bands', () => {
+    const savaged = explainPrestigeChange({ criticScore: 10, qualityScore: 10 });
+    const lukewarm = explainPrestigeChange({ criticScore: 45, qualityScore: 45 });
+    const triumph = explainPrestigeChange({ criticScore: 98, qualityScore: 98 });
+    expect(savaged).not.toBe(lukewarm);
+    expect(lukewarm).not.toBe(triumph);
+  });
+});
+
+describe('explainBrandChange - the player-facing reason behind computeBrandChange\'s own bands', () => {
+  it('describes a heavy loss differently from a massive profit', () => {
+    const flop = explainBrandChange({ profit: -9_000_000, totalCost: 10_000_000, totalBoxOffice: 5_000_000, audienceScore: 50 });
+    const blockbuster = explainBrandChange({ profit: 400_000_000, totalCost: 100_000_000, totalBoxOffice: 900_000_000, audienceScore: 50 });
+    expect(flop).not.toBe(blockbuster);
+    expect(blockbuster).toContain('blockbuster');
+  });
+
+  it('notes when audiences loved or disliked it', () => {
+    const loved = explainBrandChange({ profit: 5_000_000, totalCost: 10_000_000, totalBoxOffice: 20_000_000, audienceScore: 90 });
+    const disliked = explainBrandChange({ profit: 5_000_000, totalCost: 10_000_000, totalBoxOffice: 20_000_000, audienceScore: 20 });
+    expect(loved).toContain('loved');
+    expect(disliked).toContain('disliked');
   });
 });
 
