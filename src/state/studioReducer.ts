@@ -1,4 +1,4 @@
-import type { Asset, AwardsState, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentProfession, WizardStep } from '../types';
+import type { Asset, AwardsState, BidNotification, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, clamp, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
@@ -21,6 +21,7 @@ import { deriveReleaseWindowFromDay, DAYS_PER_YEAR, firstDayOfYear, yearOf } fro
 import { computeBoxOfficeBump, computeCeremony, computeStudioAwardDeltas, filmsForAwardsYear } from '../engine/awards';
 import { CEREMONY_DELAY_DAYS } from '../data/awards';
 import { settleOpportunities, reopenForfeitedOpportunity, highestBid, placeBid, type ResolvedBid } from '../engine/opportunities';
+import { collectBidNotifications, markAllBidNotificationsRead } from '../engine/bidNotifications';
 import { openCastingCall, tickCastingCalls } from '../engine/castingCalls';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
 import {
@@ -238,6 +239,8 @@ export interface CalendarSettlementResult {
   playerFilms: Film[];
   /** Every rival film settled this call, any studio - feed straight into assembleProjects' rivalFilms. */
   rivalFilms: Film[];
+  /** GameState.bidNotifications after folding in any won/lost/outbid events this pass produced (engine/bidNotifications.ts). */
+  bidNotifications: BidNotification[];
 }
 
 /**
@@ -322,6 +325,25 @@ function runCalendarSettlement(
     rng,
   );
 
+  // Bid-activity "emails" (engine/bidNotifications.ts). A player win became an
+  // Asset only if applyOpportunityWins could afford it - detected by which new
+  // Asset ids appeared - so a forfeited win isn't mis-reported as 'won'. Outbid
+  // detection compares the pool before this whole pass to what's still live
+  // after the rival market's own new bids, so a rival raising above the player
+  // this week surfaces immediately, not only when it eventually resolves.
+  const assetIdsBefore = new Set(state.studio.assets.map((a) => a.id));
+  const wonOpportunityIds = new Set(
+    opportunityWins.studio.assets.filter((a) => !assetIdsBefore.has(a.id)).map((a) => a.id),
+  );
+  const bidNotifications = collectBidNotifications({
+    existing: state.bidNotifications ?? [],
+    opportunitiesBefore: state.opportunities,
+    opportunitiesAfter: rivalMarket.opportunities,
+    resolvedBids: opportunitySettlement.resolvedBids,
+    wonOpportunityIds,
+    day: totalDaysAfter,
+  });
+
   return {
     studio: studioAfterBoxOffice,
     rivalStudios: rivalMarket.rivalStudios,
@@ -332,6 +354,7 @@ function runCalendarSettlement(
     rivalProductionsInProgress: rivalMarket.rivalProductionsInProgress,
     playerFilms: marketSettlement.settledFilms.filter((f) => f.releasedBy === undefined),
     rivalFilms: rivalMarket.rivalFilmsReleased,
+    bidNotifications,
   };
 }
 
@@ -516,6 +539,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         talentPool: result.settlement.talentPool,
         opportunities: result.settlement.opportunities,
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
+        bidNotifications: result.settlement.bidNotifications,
         studio: result.awardsResult.studio,
         awards: result.awardsResult.awards,
         projects: assembleProjects({
@@ -781,6 +805,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         talentPool: result.settlement.talentPool,
         opportunities: result.settlement.opportunities,
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
+        bidNotifications: result.settlement.bidNotifications,
         ...clearTransientView(),
         studio: result.settlement.studio,
         projects: assembleProjects({
@@ -1047,6 +1072,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         talentPool,
         opportunities: result.settlement.opportunities,
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
+        bidNotifications: result.settlement.bidNotifications,
         ...clearTransientView(),
         studio: { ...result.settlement.studio, cash: result.settlement.studio.cash - upfrontCharge },
         projects: assembleProjects({
@@ -1138,6 +1164,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           talentPool: result.settlement.talentPool,
           opportunities: result.settlement.opportunities,
           nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
+          bidNotifications: result.settlement.bidNotifications,
           studio: result.settlement.studio,
           projects: assembleProjects({
             playerDrafts: [updatedFocused, ...result.productionsInProgress],
@@ -1167,6 +1194,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         talentPool: settlement.talentPool,
         opportunities: settlement.opportunities,
         nextOpportunityCheckDay: settlement.nextOpportunityCheckDay,
+        bidNotifications: settlement.bidNotifications,
         studio: settlement.studio,
         projects: assembleProjects({
           playerDrafts: [updatedFocused, ...productionsInProgress],
@@ -1229,6 +1257,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         talentPool: settlement.talentPool,
         opportunities: settlement.opportunities,
         nextOpportunityCheckDay: settlement.nextOpportunityCheckDay,
+        bidNotifications: settlement.bidNotifications,
         studio: studioAfter,
         projects: assembleProjects({
           playerDrafts: playerDraftsAfter,
@@ -1447,6 +1476,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         talentPool: result.settlement.talentPool,
         opportunities: result.settlement.opportunities,
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
+        bidNotifications: result.settlement.bidNotifications,
         ...clearTransientView(),
         studio: result.settlement.studio,
         projects: assembleProjects({
@@ -1542,6 +1572,15 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // Pure detour, same as VIEW_STATS.
     case 'VIEW_OPPORTUNITY_MARKET':
       return { ...state, screen: 'opportunity-market', ...clearTransientView() };
+
+    // Opening the Inbox clears the unread flag on every bid notification -
+    // the header badge's bid contribution and the real-time clock's
+    // resume-guard both key off unread count (engine/bidNotifications.ts).
+    case 'MARK_BID_NOTIFICATIONS_READ': {
+      const current = state.bidNotifications ?? [];
+      const marked = markAllBidNotificationsRead(current);
+      return marked === current ? state : { ...state, bidNotifications: marked };
+    }
 
     // Dashboard -> the studio's owned Assets. Pure detour, same as VIEW_STATS.
     case 'VIEW_ASSET_LIBRARY':

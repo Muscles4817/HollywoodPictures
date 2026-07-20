@@ -1047,6 +1047,33 @@ export interface OpportunityBid {
 }
 
 /**
+ * A persistent notification about the player's own bidding activity on the
+ * Opportunity Market (engine/bidNotifications.ts) - a small, stored "inbox
+ * email" store on GameState. Unlike the project-derived Inbox categories
+ * (engine/project.ts:deriveInboxItems), these can't be recomputed from
+ * current state: the moment a bid resolves the opportunity leaves the pool,
+ * so the outcome ("you won", "you were outbid") has to be recorded when it
+ * happens. Drives the Inbox's "Bid updates" section, the header badge, and
+ * the auto-pause / resume-guard on the real-time clock (App.tsx).
+ */
+export type BidNotificationKind = 'outbid' | 'won' | 'lost';
+
+export interface BidNotification {
+  id: string;
+  kind: BidNotificationKind;
+  /** The Opportunity this is about - lets the Inbox check whether it's still live (and so whether "Raise your bid" is still possible) for an 'outbid'. */
+  opportunityId: string;
+  scriptTitle: string;
+  /** The relevant figure in £: the player's own winning bid ('won'), or the rival bid that beat/overtook them ('lost'/'outbid'). */
+  amount: number;
+  /** Who overtook or beat the player - present on 'outbid'/'lost', absent on 'won'. */
+  rivalName?: string;
+  /** GameState.totalDays this event happened on. */
+  day: number;
+  read: boolean;
+}
+
+/**
  * An acquired Opportunity, now permanently owned by the studio
  * (Studio.assets below) - may sit in the library indefinitely, may never
  * become a film at all. A Project references an Asset by id; it does not
