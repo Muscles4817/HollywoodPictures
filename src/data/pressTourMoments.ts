@@ -36,6 +36,13 @@ export const PRESS_TOUR_MOMENT_NEGATIVE_SCALE = 0.35;
 // zero risk. Small - breakouts are the exception, not a reward you can plan on.
 export const PRESS_TOUR_MOMENT_POSITIVE_SCALE = 0.12;
 
+// Baseline currentHeat a tourer gains just from the exposure of touring - the
+// deterministic post-tour reward, applied even to a completely quiet tour.
+// Scales from the floor (an unknown) to the fame-100 ceiling (a marquee name
+// runs hotter for having been everywhere).
+export const PRESS_TOUR_BASELINE_HEAT_FLOOR = 2;
+export const PRESS_TOUR_BASELINE_HEAT_AT_100 = 8;
+
 // The pool. Several cases per negative driver so a loose cannon doesn't produce
 // the same headline twice, plus a couple of positive breakouts.
 export const PRESS_TOUR_MOMENTS: PressTourMomentTemplate[] = [

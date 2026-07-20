@@ -12,6 +12,8 @@ import type { RandomFn } from './random';
 import { clamp } from './random';
 import { personMediaRisk, tourers } from './pressTour';
 import {
+  PRESS_TOUR_BASELINE_HEAT_AT_100,
+  PRESS_TOUR_BASELINE_HEAT_FLOOR,
   PRESS_TOUR_MOMENT_NEGATIVE_SCALE,
   PRESS_TOUR_MOMENT_POSITIVE_SCALE,
   PRESS_TOUR_MOMENTS,
@@ -116,4 +118,41 @@ export function rollPressTourMoments(
     storyBeat: moments.map((m) => m.story).join(' '),
     moments,
   };
+}
+
+/** A resolved change to one Person's standing, applied to the talent pool at settlement. */
+export interface TalentReputationDelta {
+  personId: PersonId;
+  fameDelta: number;
+  heatDelta: number;
+  controversyDelta: number;
+}
+
+/** The deterministic baseline heat a tourer picks up just from the exposure - bigger names run hotter. */
+function baselineHeat(person: Person): number {
+  return PRESS_TOUR_BASELINE_HEAT_FLOOR + (person.reputation.fame / 100) * (PRESS_TOUR_BASELINE_HEAT_AT_100 - PRESS_TOUR_BASELINE_HEAT_FLOOR);
+}
+
+/**
+ * The post-tour standing changes for every tourer: a deterministic baseline heat
+ * bump from the exposure (applies even to a quiet tour), plus any fired moment's
+ * fame/heat/controversy effect on that person. One entry per tourer, keyed by
+ * id, for the pool write-back at settlement (state/studioReducer.ts). Empty when
+ * nobody toured.
+ */
+export function pressTourReputationDeltas(
+  talent: TalentAssignment[],
+  ids: readonly PersonId[] | undefined,
+  moments: FiredPressTourMoment[],
+): TalentReputationDelta[] {
+  const byPerson = new Map(moments.map((m) => [m.personId, m]));
+  return tourers(talent, ids).map((person) => {
+    const moment = byPerson.get(person.id);
+    return {
+      personId: person.id,
+      fameDelta: moment?.fameDelta ?? 0,
+      heatDelta: baselineHeat(person) + (moment?.heatDelta ?? 0),
+      controversyDelta: moment?.controversyDelta ?? 0,
+    };
+  });
 }

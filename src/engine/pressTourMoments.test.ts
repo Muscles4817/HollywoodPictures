@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { rollPressTourMoments } from './pressTourMoments';
+import { rollPressTourMoments, pressTourReputationDeltas } from './pressTourMoments';
 import type { Person, PersonPersonality, TalentAssignment } from '../types';
 
 function person(id: string, name: string, fame: number, personality: Partial<PersonPersonality> = {}): Person {
@@ -76,5 +76,38 @@ describe('rollPressTourMoments', () => {
     const a = rollPressTourMoments([lead(looseCannon)], ['kip'], seq([0.01, 0.6]));
     const b = rollPressTourMoments([lead(looseCannon)], ['kip'], seq([0.01, 0.6]));
     expect(a).toEqual(b);
+  });
+});
+
+describe('pressTourReputationDeltas', () => {
+  const talent = [lead(proStar), lead(looseCannon)];
+
+  it('is empty when nobody toured', () => {
+    expect(pressTourReputationDeltas(talent, undefined, [])).toEqual([]);
+  });
+
+  it('gives every tourer a positive baseline heat bump even with no moment', () => {
+    const deltas = pressTourReputationDeltas(talent, ['ava'], []);
+    expect(deltas).toHaveLength(1);
+    expect(deltas[0]).toMatchObject({ personId: 'ava', fameDelta: 0, controversyDelta: 0 });
+    expect(deltas[0].heatDelta).toBeGreaterThan(0);
+  });
+
+  it('a more famous tourer earns more baseline heat from the exposure', () => {
+    const nobody = person('zed', 'Zed Nobody', 0);
+    const t = [lead(proStar), lead(nobody)];
+    const star = pressTourReputationDeltas(t, ['ava'], [])[0].heatDelta;
+    const unknown = pressTourReputationDeltas(t, ['zed'], [])[0].heatDelta;
+    expect(star).toBeGreaterThan(unknown);
+  });
+
+  it("folds a fired moment's fame/heat/controversy on top of the baseline for that person", () => {
+    const moment = rollPressTourMoments(talent, ['kip'], seq([0.01, 0])).moments[0];
+    const deltas = pressTourReputationDeltas(talent, ['kip'], [moment]);
+    expect(deltas).toHaveLength(1);
+    expect(deltas[0].controversyDelta).toBe(moment.controversyDelta);
+    expect(deltas[0].fameDelta).toBe(moment.fameDelta);
+    // heat is the baseline plus the moment's own heat swing.
+    expect(deltas[0].heatDelta).toBeGreaterThan(moment.heatDelta);
   });
 });
