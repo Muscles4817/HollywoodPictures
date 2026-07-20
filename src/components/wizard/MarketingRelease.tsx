@@ -262,6 +262,21 @@ export function MarketingRelease() {
         </p>
       </div>
 
+      {/* A disabled <button>'s `title` tooltip doesn't surface in most
+          browsers (disabled elements swallow pointer events), so the reason the
+          Release button is locked has to be said in visible copy right next to
+          it - not only in the card higher up the page. The blocker is always
+          the test screening, never the release month (which always has a
+          valid default selected). */}
+      {!screeningResolved && (
+        <p className="choice-description" style={{ margin: 0, color: 'var(--text-muted)' }}>
+          Your release month is set below. You can schedule the release once the mandatory test screening is in and
+          you've responded to it{pendingScreening
+            ? ' - respond to the results above to unlock it.'
+            : ` - expected around ${formatGameDate(postProductionEstimate)}. You'll be notified in the Inbox the moment it's ready.`}
+        </p>
+      )}
+
       <div className="row-between">
         <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'post-production' })}>Back</Button>
         <Button

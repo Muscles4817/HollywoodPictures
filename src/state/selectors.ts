@@ -509,6 +509,19 @@ export function hasDraftProgress(draft: FilmDraft): boolean {
   return draft.talent.length > 0 || draft.castingCalls.length > 0 || draft.productionChoices !== null;
 }
 
+/**
+ * How many projects on the *player's own* active slate right now - films still
+ * in development/production plus ones already scheduled and awaiting their
+ * release day. Deliberately excludes released films (they're done) and every
+ * rival's in-progress production: state.projects is world-level and mixes all
+ * of those together, so the Dashboard's "N active projects" line read wildly
+ * high before this (it was `projects.length`, counting rivals and released
+ * films too).
+ */
+export function countActivePlayerProjects(projects: Project[]): number {
+  return projects.filter((p) => p.kind === 'player-in-progress' || p.kind === 'scheduled').length;
+}
+
 export function deriveProjectStage(project: Project, focusedProjectId: string | null): ProjectStage | null {
   if (project.kind === 'rival-in-progress') return null;
   // A 'released' Project can be a rival's own film too (Film.releasedBy set

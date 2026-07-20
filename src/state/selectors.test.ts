@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeReportedLegs, computeProjectSpendSoFar, currentScreenFor, deriveProjectStage, deriveReachableWizardSteps, deriveReputationHistory, deriveUpcomingReleaseEntries, hasDraftProgress, PLAYER_STUDIO_ID } from './selectors';
+import { computeReportedLegs, computeProjectSpendSoFar, countActivePlayerProjects, currentScreenFor, deriveProjectStage, deriveReachableWizardSteps, deriveReputationHistory, deriveUpcomingReleaseEntries, hasDraftProgress, PLAYER_STUDIO_ID } from './selectors';
 import { openCastingCall } from '../engine/castingCalls';
 import { generateTestScreeningPendingChoice } from '../engine/testScreening';
 import { studioReducer } from './studioReducer';
@@ -424,5 +424,26 @@ describe('deriveUpcomingReleaseEntries - the shared source for the Release Calen
     ];
     const entries = deriveUpcomingReleaseEntries(projects, [rivalStudioFixture], 'My Studio');
     expect(entries.map((e) => e.releaseDay)).toEqual([50, 150, 300]);
+  });
+});
+
+// Dashboard "N active projects" counted state.projects.length - which mixes in
+// every rival's in-progress production and every released film (player and
+// rival) - so it badly overcounted the player's own slate.
+describe('countActivePlayerProjects', () => {
+  it('counts only the player\'s in-progress and scheduled projects', () => {
+    const projects = [
+      { kind: 'player-in-progress' },
+      { kind: 'player-in-progress' },
+      { kind: 'scheduled' },
+      { kind: 'released' }, // a finished film - not "active"
+      { kind: 'rival-in-progress' }, // a rival's production - not the player's
+      { kind: 'released' }, // could be a rival's film too - still excluded
+    ] as unknown as Project[];
+    expect(countActivePlayerProjects(projects)).toBe(3);
+  });
+
+  it('is 0 for an empty slate', () => {
+    expect(countActivePlayerProjects([])).toBe(0);
   });
 });

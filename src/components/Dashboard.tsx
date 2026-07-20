@@ -13,7 +13,7 @@ import { ReputationHistoryModal } from './common/ReputationHistoryModal';
 import { TopGrossingPanel } from './common/TopGrossingPanel';
 import { DifficultyPicker } from './common/DifficultyPicker';
 import { ProductionOfficeCard } from './ProductionOfficeCard';
-import { computeTopGrossingFilms, deriveReputationHistory, hasDraftProgress } from '../state/selectors';
+import { computeTopGrossingFilms, deriveReputationHistory, hasDraftProgress, countActivePlayerProjects } from '../state/selectors';
 import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
@@ -29,6 +29,20 @@ type ActivityItem = {
   actionLabel?: string;
   onAction?: () => void;
 };
+
+// Which "nothing in the command centre right now" message to show. Pure and
+// exported so it can be unit-tested without mounting the Dashboard (same
+// pattern as App.tsx:computeTicking). 'caught-up' - the player has active
+// projects, they just don't need a decision this moment; 'between-projects' -
+// a studio that has shipped films before but has nothing on its slate now (so
+// NOT "your first project"); 'first-project' - a genuinely brand-new studio.
+export type CommandCentreEmptyState = 'caught-up' | 'between-projects' | 'first-project';
+
+export function commandCentreEmptyState(hasActiveWork: boolean, hasReleasedFilms: boolean): CommandCentreEmptyState {
+  if (hasActiveWork) return 'caught-up';
+  if (hasReleasedFilms) return 'between-projects';
+  return 'first-project';
+}
 
 export function Dashboard() {
   const { state, dispatch } = useStudio();
@@ -103,6 +117,19 @@ export function Dashboard() {
   const staffingDrafts = backgroundedDrafts.filter(
     (production) => !production.photography && hasDraftProgress(production),
   );
+
+  // The player's own active slate - films in development/production plus ones
+  // already scheduled and awaiting their release day. Deliberately NOT
+  // state.projects.length, which also counts every rival's in-progress
+  // production and every released film (player and rival alike) - see the
+  // identity meta below, where this used to badly overcount.
+  const activeProjectCount = countActivePlayerProjects(projects);
+  // Whether the player has anything on their slate at all right now, and
+  // whether they've ever shipped a film - drives the "What's happening"
+  // empty state so it never tells a returning studio to "find your first
+  // project."
+  const hasActiveWork = backgroundedDrafts.length > 0 || scheduledReleases.length > 0;
+  const hasReleasedFilms = playerReleasedFilms.length > 0;
 
   const weeklyGross = runningFilms.reduce((total, film) => {
     const latestWeek = film.boxOfficeRun.weeks.at(-1);
@@ -181,19 +208,46 @@ export function Dashboard() {
     }
 
     if (items.length === 0) {
-      items.push({
-        id: 'start-first-film',
-        tone: 'neutral',
-        eyebrow: 'Your studio is ready',
-        title: 'Find your first project',
-        detail: 'Browse the Opportunity Market, acquire a script and begin building your slate.',
-        actionLabel: 'Browse opportunities',
-        onAction: () => dispatch({ type: 'VIEW_OPPORTUNITY_MARKET' }),
-      });
+      const emptyKind = commandCentreEmptyState(hasActiveWork, hasReleasedFilms);
+      if (emptyKind === 'caught-up') {
+        // Films are on the slate (staffing or filming) - they just don't need
+        // a decision this moment. The pipeline section below has the detail.
+        items.push({
+          id: 'all-caught-up',
+          tone: 'positive',
+          eyebrow: "You're all caught up",
+          title: 'Nothing needs a decision right now',
+          detail: 'Your active projects are moving through the pipeline below - nothing is waiting on you.',
+          actionLabel: 'View projects',
+          onAction: () => dispatch({ type: 'VIEW_PROJECTS' }),
+        });
+      } else if (emptyKind === 'between-projects') {
+        // A returning studio between projects - not their first rodeo.
+        items.push({
+          id: 'ready-for-next',
+          tone: 'neutral',
+          eyebrow: 'Between projects',
+          title: 'Ready for your next project',
+          detail: 'No active projects right now. Browse the Opportunity Market to line up your next film.',
+          actionLabel: 'Browse opportunities',
+          onAction: () => dispatch({ type: 'VIEW_OPPORTUNITY_MARKET' }),
+        });
+      } else {
+        // Genuinely a brand-new studio that has never started anything.
+        items.push({
+          id: 'start-first-film',
+          tone: 'neutral',
+          eyebrow: 'Your studio is ready',
+          title: 'Find your first project',
+          detail: 'Browse the Opportunity Market, acquire a script and begin building your slate.',
+          actionLabel: 'Browse opportunities',
+          onAction: () => dispatch({ type: 'VIEW_OPPORTUNITY_MARKET' }),
+        });
+      }
     }
 
     return items.slice(0, 5);
-  }, [attentionDrafts, dispatch, nextRelease, runningFilms]);
+  }, [attentionDrafts, dispatch, nextRelease, runningFilms, hasActiveWork, hasReleasedFilms]);
 
   const studioTier = playerReleasedFilms.length >= 10
     ? 'Major studio'
@@ -254,7 +308,7 @@ export function Dashboard() {
 
           <div className="dashboard-identity-meta">
             <span>Year {Math.floor(state.totalDays / 365) + 1}</span>
-            <span>{projects.length} active project{projects.length === 1 ? '' : 's'}</span>
+            <span>{activeProjectCount} active project{activeProjectCount === 1 ? '' : 's'}</span>
             <span>{playerReleasedFilms.length} released film{playerReleasedFilms.length === 1 ? '' : 's'}</span>
           </div>
         </div>
