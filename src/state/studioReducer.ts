@@ -33,6 +33,7 @@ import {
   officeUpgradeCost,
   producerHiringFee,
 } from '../engine/producers';
+import { marketResearchUpgradeCost } from '../engine/marketResearch';
 import { applyStatChange } from '../engine/reputation';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 import { currentScreenFor } from './selectors';
@@ -677,6 +678,24 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         studio: { ...state.studio, cash: state.studio.cash - cost, productionOffice: { ...office, tier: office.tier + 1 } },
+      };
+    }
+
+    case 'UPGRADE_MARKET_RESEARCH': {
+      // marketResearchUpgradeCost is null when the office is locked or the
+      // department is already maxed, so a non-null cost implies an unlocked,
+      // upgradeable office - the ! below is safe for the same reason
+      // UPGRADE_PRODUCTION_OFFICE's is.
+      const cost = marketResearchUpgradeCost(state.studio);
+      if (cost == null || state.studio.cash < cost) return state;
+      const office = state.studio.productionOffice!;
+      return {
+        ...state,
+        studio: {
+          ...state.studio,
+          cash: state.studio.cash - cost,
+          productionOffice: { ...office, marketResearchTier: (office.marketResearchTier ?? 0) + 1 },
+        },
       };
     }
 

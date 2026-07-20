@@ -24,6 +24,32 @@ function stateWithScreening(resolved: boolean): GameState {
   return { ...base, projects: [{ kind: 'player-in-progress', draft: patched }] } as GameState;
 }
 
+/** A release-ready state (screening resolved) with an office at the given research level, or no office when null. */
+function stateWithResearch(researchTier: number | null): GameState {
+  const base = stateWithScreening(true);
+  if (researchTier == null) return base;
+  return {
+    ...base,
+    studio: { ...base.studio, productionOffice: { tier: 1, benchProducerIds: [], marketResearchTier: researchTier } },
+  } as GameState;
+}
+
+describe('MarketingRelease - projected opening tracking band', () => {
+  it('shows the projection as a range with a baseline note nudging Market Research when the studio has none', () => {
+    mockState = stateWithResearch(null); // no office, no research
+    render(<MarketingRelease />);
+    expect(screen.getByText('Projected Opening Weekend')).toBeInTheDocument();
+    expect(screen.getByText(/buy Market Research in the Production Office/i)).toBeInTheDocument();
+  });
+
+  it('reflects a purchased research level and drops the buy nudge', () => {
+    mockState = stateWithResearch(2); // 'Full tracking'
+    render(<MarketingRelease />);
+    expect(screen.getByText(/Full tracking/)).toBeInTheDocument();
+    expect(screen.queryByText(/buy Market Research/i)).not.toBeInTheDocument();
+  });
+});
+
 describe('MarketingRelease - test-screening gate messaging', () => {
   it('states in visible copy why the Release button is locked while the screening is out, and disables it', () => {
     mockState = stateWithScreening(false);

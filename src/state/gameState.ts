@@ -209,6 +209,7 @@ export type GameAction =
   | { type: 'SET_AWARDS_CAMPAIGN'; filmId: string; amount: number }
   | { type: 'UNLOCK_PRODUCTION_OFFICE' }
   | { type: 'UPGRADE_PRODUCTION_OFFICE' }
+  | { type: 'UPGRADE_MARKET_RESEARCH' }
   | { type: 'HIRE_PRODUCER'; producerId: string }
   | { type: 'FIRE_PRODUCER'; producerId: string }
   | { type: 'ATTACH_PRODUCER'; producerId: string }

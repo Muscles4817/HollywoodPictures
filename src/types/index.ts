@@ -1222,6 +1222,16 @@ export interface ProductionOffice {
   tier: number; // 1..OFFICE_MAX_TIER
   /** Hired producers, by PersonId - the Persons themselves live in GameState.producerPool. */
   benchProducerIds: PersonId[];
+  /**
+   * Market Research department level, 0..MARKET_RESEARCH_MAX_TIER
+   * (docs/DESIGN_REVIEW_marketing_campaign.md, tracking-as-a-service). A
+   * separate upgrade track from `tier` (which governs the producer bench) -
+   * bought and upgraded independently. Absent/0 means no research purchased:
+   * the film's Projected Opening readout still shows, but as the widest
+   * (baseline) band; each level tightens it toward the true number. Optional,
+   * read defensively as 0 (older offices/saves predate it, no migration pass).
+   */
+  marketResearchTier?: number;
 }
 
 export interface TalentAssignment {
