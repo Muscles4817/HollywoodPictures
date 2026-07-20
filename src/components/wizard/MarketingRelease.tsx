@@ -27,10 +27,18 @@ import {
 import { totalMarketingSpend, type ChannelSpend } from '../../engine/marketing';
 import { marketResearchTier, trackingBand } from '../../engine/marketResearch';
 import { MARKET_RESEARCH_TIER_LABEL } from '../../data/marketResearch';
+import {
+  personMediaRisk,
+  pressTourBuzzDelta,
+  pressTourCost,
+  pressTourCostForPerson,
+  pressTourVolatility,
+} from '../../engine/pressTour';
+import { PRESS_TOUR_BAND_VOLATILITY_WIDEN } from '../../data/pressTour';
 import { computeReleaseResults } from '../../engine/releaseFilm';
 import { computeProducerEffects, producersByIds, totalAttachedPerFilmFees } from '../../engine/producers';
 import { createRng } from '../../engine/random';
-import type { CampaignAngle, MarketingChannel, MarketingChoices, ReleaseType } from '../../types';
+import type { CampaignAngle, MarketingChannel, MarketingChoices, PersonId, ReleaseType } from '../../types';
 import './MarketingRelease.css';
 
 // How many calendar years out the month grid below offers - a bound on the
@@ -77,6 +85,13 @@ function channelFitFor(efficiency: number): { label: string; className: string }
   if (efficiency >= 0.9) return { label: 'Great fit', className: 'channel-fit--great' };
   if (efficiency >= 0.6) return { label: 'Decent fit', className: 'channel-fit--ok' };
   return { label: 'Weak fit', className: 'channel-fit--weak' };
+}
+
+/** A plain-language read on how much of a media liability a tourer (or the whole roster) is. */
+function mediaRiskReading(risk: number): { label: string; className: string } {
+  if (risk < 0.33) return { label: 'Safe', className: 'media-risk--safe' };
+  if (risk < 0.66) return { label: 'Some risk', className: 'media-risk--some' };
+  return { label: 'Volatile', className: 'media-risk--volatile' };
 }
 
 function crowdingReading(score: number): { label: string; className: string } {
@@ -185,7 +200,24 @@ export function MarketingRelease() {
     });
   }
 
-  const marketingCost = computeMarketingCost(choices);
+  // Press tour (docs/DESIGN_REVIEW_marketing_campaign.md): a subset of the cast
+  // sent out to build Buzz. Its cash cost joins the marketing total shown here,
+  // matching what releaseFilm folds into marketingCost at settlement.
+  const pressTourCastIds = choices.pressTourCast ?? [];
+  const tourCost = pressTourCost(draft.talent, pressTourCastIds);
+  const tourBuzzDelta = pressTourBuzzDelta(draft.talent, pressTourCastIds);
+  const tourVolatility = pressTourVolatility(draft.talent, pressTourCastIds);
+  function toggleTourer(id: PersonId) {
+    const next = pressTourCastIds.includes(id) ? pressTourCastIds.filter((x) => x !== id) : [...pressTourCastIds, id];
+    update('pressTourCast', next);
+  }
+  // One row per assigned person, de-duped (a person holds at most one tour seat
+  // even if cast in two roles - the first role is shown).
+  const eligibleTourers = draft.talent.filter(
+    (assignment, index) => draft.talent.findIndex((other) => other.person.id === assignment.person.id) === index,
+  );
+
+  const marketingCost = computeMarketingCost(choices) + tourCost;
   const releaseTypeProfile = RELEASE_TYPE_PROFILES[choices.releaseType];
   const weakMarketingWarning = releaseTypeProfile.needsMarketing && choices.marketingSpend <= MARKETING_SPEND_RANGE.min * 3;
   const genreBonus = draft.genre ? RELEASE_WINDOW_GENRE_BONUS[releaseWindow][draft.genre] : undefined;
@@ -243,7 +275,12 @@ export function MarketingRelease() {
   // Research level (engine/marketResearch.ts). Everyone gets the wide baseline;
   // buying research in the Production Office tightens it toward the real figure.
   const researchTier = marketResearchTier(state.studio);
-  const openingBand = projectedOpening != null ? trackingBand(researchTier, projectedOpening) : null;
+  // A volatile press-tour roster makes the opening genuinely harder to call, so
+  // it widens the projection band on top of the research level (D1b).
+  const openingBand =
+    projectedOpening != null
+      ? trackingBand(researchTier, projectedOpening, tourVolatility * PRESS_TOUR_BAND_VOLATILITY_WIDEN)
+      : null;
 
   return (
     <div className="stack">
@@ -336,6 +373,62 @@ export function MarketingRelease() {
         </p>
       </div>
 
+      <div className="card stack">
+        <div className="row-between">
+          <h3 style={{ margin: 0 }}>Press Tour</h3>
+          {pressTourCastIds.length > 0 && (
+            <span style={{ fontSize: '0.95em', fontWeight: 700, color: 'var(--primary)' }}>{formatMoney(tourCost)}</span>
+          )}
+        </div>
+        <p className="choice-description" style={{ margin: 0 }}>
+          Send cast out to build pre-release buzz. A famous name lifts buzz - but the more of a media risk they are
+          (controversial, unprofessional, cracks under pressure), the less it lands, and a real loose cannon can do
+          more harm than good.
+        </p>
+        {eligibleTourers.length === 0 ? (
+          <p className="choice-description" style={{ margin: 0, color: 'var(--text-muted)' }}>Cast your film first to send anyone on tour.</p>
+        ) : (
+          <>
+            <div className="press-tour-list">
+              {eligibleTourers.map(({ person, role }) => {
+                const on = pressTourCastIds.includes(person.id);
+                const risk = mediaRiskReading(personMediaRisk(person));
+                return (
+                  <button
+                    key={person.id}
+                    type="button"
+                    className={`press-tour-row${on ? ' press-tour-row--on' : ''}`}
+                    onClick={() => toggleTourer(person.id)}
+                    aria-pressed={on}
+                  >
+                    <span className="press-tour-check">{on ? '✓' : '+'}</span>
+                    <span className="press-tour-name">
+                      <strong>{person.identity.name}</strong>
+                      <small>{role} · Fame {Math.round(person.reputation.fame)}</small>
+                    </span>
+                    <span className={`media-risk ${risk.className}`}>{risk.label}</span>
+                    <span className="press-tour-cost"><Money amount={pressTourCostForPerson(person)} /></span>
+                  </button>
+                );
+              })}
+            </div>
+            {pressTourCastIds.length > 0 && (
+              <div className="press-tour-totals">
+                <span>
+                  Projected buzz{' '}
+                  <strong className={tourBuzzDelta < 0 ? 'press-tour-buzz--bad' : 'press-tour-buzz--good'}>
+                    {tourBuzzDelta >= 0 ? '+' : ''}{Math.round(tourBuzzDelta)}
+                  </strong>
+                </span>
+                <span>
+                  Roster risk <span className={`media-risk ${mediaRiskReading(tourVolatility).className}`}>{mediaRiskReading(tourVolatility).label}</span>
+                </span>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
       <ChoiceGroup
         label="Release Type"
         options={RELEASE_TYPES}
@@ -363,6 +456,7 @@ export function MarketingRelease() {
               {researchTier === 0
                 ? `${MARKET_RESEARCH_TIER_LABEL[0]} (±${Math.round(openingBand.fraction * 100)}%) — buy Market Research in the Production Office to tighten this.`
                 : `${MARKET_RESEARCH_TIER_LABEL[researchTier]} (±${Math.round(openingBand.fraction * 100)}%)`}
+              {tourVolatility > 0.05 && ' · widened by press-tour risk'}
             </div>
           </div>
         )}

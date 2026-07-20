@@ -51,9 +51,14 @@ export interface TrackingBand {
  * as the level rises; the low end is clamped at 0. Always a band, never a
  * single guaranteed number - even at the top level tracking buys confidence,
  * not certainty.
+ *
+ * `extraFraction` adds further uncertainty on top of the research level - other
+ * systems that make the outcome harder to call (e.g. a volatile press-tour
+ * roster, engine/pressTour.ts) widen the band by passing it here, so the one
+ * band model stays the single home for projection uncertainty. Defaults to 0.
  */
-export function trackingBand(tier: number, trueOpening: number): TrackingBand {
-  const fraction = bandFractionForTier(tier);
+export function trackingBand(tier: number, trueOpening: number, extraFraction = 0): TrackingBand {
+  const fraction = bandFractionForTier(tier) + Math.max(0, extraFraction);
   const halfWidth = Math.max(0, trueOpening) * fraction;
   return {
     low: Math.max(0, trueOpening - halfWidth),

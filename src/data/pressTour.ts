@@ -29,3 +29,8 @@ export const PRESS_TOUR_MAX_BUZZ_SWING = 30;
 // junket circuit costs far more than a supporting player's).
 export const PRESS_TOUR_BASE_COST_PER_PERSON = 300_000;
 export const PRESS_TOUR_FAME_COST_AT_100 = 2_000_000; // premium added at fame 100, linear from 0
+
+// How much a fully-volatile (risk 1) roster widens the projected-opening band
+// (engine/marketResearch.ts:trackingBand) - a loose-cannon tour makes the
+// opening genuinely harder to call. Scaled by pressTourVolatility (0..1).
+export const PRESS_TOUR_BAND_VOLATILITY_WIDEN = 0.25;

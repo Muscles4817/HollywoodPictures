@@ -4,10 +4,11 @@
 // reason was effectively invisible next to the button. It's now stated in
 // visible copy.
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { buildStateWithReadyDraft } from '../../state/testFixtures';
 import { asPlayerDraft, findProject } from '../../engine/project';
 import type { GameState } from '../../state/gameState';
+import type { Person, PersonPersonality, TalentAssignment } from '../../types';
 
 const dispatch = vi.fn();
 let mockState: GameState;
@@ -33,6 +34,69 @@ function stateWithResearch(researchTier: number | null): GameState {
     studio: { ...base.studio, productionOffice: { tier: 1, benchProducerIds: [], marketResearchTier: researchTier } },
   } as GameState;
 }
+
+function person(id: string, name: string, fame: number, personality: Partial<PersonPersonality> = {}): Person {
+  return {
+    id,
+    identity: { name, appearanceTags: [] },
+    personality: {
+      professionalism: 60, ambition: 50, loyalty: 50, ego: 40, temperament: 55, pressureHandling: 60, controversy: 20, adaptability: 55,
+      ...personality,
+    },
+    reputation: { fame, prestige: 40, industryRespect: 50, reliability: 60, currentHeat: 40 },
+    availability: { commitments: [] },
+    traits: [],
+    primaryRole: 'Actor',
+    careers: { actor: { role: 'Actor', active: true, experience: 50, roleReputation: 50, minimumSalary: 100_000, typicalSalary: 100_000, actingStyle: { characterTransformation: 50, emotionalPerformance: 50, charisma: 50, comedy: 50, physicalPerformance: 50 } } },
+  };
+}
+
+const proStar = person('ava', 'Ava Reyes', 80, { controversy: 5, professionalism: 90, pressureHandling: 90 });
+const wildcard = person('kip', 'Kip Danger', 70, { controversy: 95, professionalism: 20, pressureHandling: 15 });
+
+/** A release-ready state whose focused draft has a known two-person cast and the given tour roster. */
+function stateWithTour(tourCast?: string[]): GameState {
+  const base = buildStateWithReadyDraft(1);
+  const draft = asPlayerDraft(findProject(base.projects, base.focusedProjectId))!;
+  const talent: TalentAssignment[] = [
+    { role: 'Lead Actor', person: proStar },
+    { role: 'Supporting Actor', person: wildcard },
+  ];
+  const patched = {
+    ...draft,
+    testScreeningResolved: true,
+    testScreeningPendingChoice: null,
+    talent,
+    marketingChoices: { ...draft.marketingChoices!, pressTourCast: tourCast },
+  };
+  return { ...base, projects: [{ kind: 'player-in-progress', draft: patched }] } as GameState;
+}
+
+describe('MarketingRelease - press tour', () => {
+  it('lists each cast member with a media-risk read and adds one to the tour on click', () => {
+    dispatch.mockClear();
+    mockState = stateWithTour();
+    render(<MarketingRelease />);
+    // A steady star reads Safe, a loose cannon reads Volatile.
+    expect(screen.getByText('Safe')).toBeInTheDocument();
+    expect(screen.getByText('Volatile')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Ava Reyes/ }));
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'SET_MARKETING_CHOICES', choices: expect.objectContaining({ pressTourCast: ['ava'] }) }),
+    );
+  });
+
+  it('drops a tourer already on the roster when their row is clicked again', () => {
+    dispatch.mockClear();
+    mockState = stateWithTour(['ava']);
+    render(<MarketingRelease />);
+    fireEvent.click(screen.getByRole('button', { name: /Ava Reyes/ }));
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'SET_MARKETING_CHOICES', choices: expect.objectContaining({ pressTourCast: [] }) }),
+    );
+  });
+});
 
 describe('MarketingRelease - projected opening tracking band', () => {
   it('shows the projection as a range with a baseline note nudging Market Research when the studio has none', () => {
