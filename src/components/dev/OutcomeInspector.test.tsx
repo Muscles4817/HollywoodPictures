@@ -13,7 +13,7 @@
 // the defect lived entirely in React's own render/state-initialization
 // order.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { StudioProvider } from '../../state/StudioContext';
 import { OutcomeInspector } from './OutcomeInspector';
 import { studioReducer } from '../../state/studioReducer';
@@ -77,5 +77,38 @@ describe('OutcomeInspector loads real data on first mount, without any user inte
       </StudioProvider>,
     );
     expect(screen.getByText(/No released films yet/)).toBeInTheDocument();
+  });
+});
+
+// The Outcome Inspector's weekly-trace panel has two views now (Comp
+// Pressure fix) - "As Released" (a real replay of this film's actual
+// settled weeks, including real competitivePressure - components/dev/AudienceSimulationDiagnostics.tsx:AsReleasedDiagnostics)
+// by default, and the pre-existing "Projected (Editable)" hypothetical
+// slider-driven projection, switchable via a tab pair.
+describe('OutcomeInspector - As Released / Projected diagnostics tabs', () => {
+  it('shows the As Released trace by default, with real data (no released-films-only-in-isolation caveat, since this film had no siblings to omit)', () => {
+    saveState(releaseOneFilm(10));
+    render(
+      <StudioProvider>
+        <OutcomeInspector />
+      </StudioProvider>,
+    );
+    expect(screen.getByText('Audience Simulation - Weekly Diagnostics')).toBeInTheDocument();
+    expect(screen.getByText(/Exactly what really happened/)).toBeInTheDocument();
+    expect(screen.queryByText(/wasn't recorded/)).not.toBeInTheDocument();
+  });
+
+  it('switches to the Projected (Editable) trace on click, and back', () => {
+    saveState(releaseOneFilm(11));
+    render(
+      <StudioProvider>
+        <OutcomeInspector />
+      </StudioProvider>,
+    );
+    fireEvent.click(screen.getByText('Projected (Editable)'));
+    expect(screen.getByText(/hypothetical, editable-slider projection/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('As Released'));
+    expect(screen.getByText(/Exactly what really happened/)).toBeInTheDocument();
   });
 });

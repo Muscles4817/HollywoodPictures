@@ -21,7 +21,7 @@ import { playerReleasedFilms, rivalReleasedFilms } from '../../engine/project';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { SeverityBadge } from '../common/SeverityBadge';
-import { AudienceSimulationDiagnostics } from './AudienceSimulationDiagnostics';
+import { AudienceSimulationDiagnostics, AsReleasedDiagnostics } from './AudienceSimulationDiagnostics';
 import type {
   EditStyle,
   Film,
@@ -183,6 +183,14 @@ export function OutcomeInspector() {
   const studioNames = [...new Set(allFilms.map(studioNameFor))].sort((a, b) =>
     a === state.studio.name ? -1 : b === state.studio.name ? 1 : a.localeCompare(b),
   );
+
+  // Which of the two weekly-trace views is showing - "As Released" (a real
+  // replay of this film's actual settled weeks, including real per-week
+  // competitive pressure) vs. "Projected" (the pre-existing hypothetical,
+  // editable-slider projection, still isolated/single-film). Defaults to
+  // the real one - a player opening this tool almost certainly wants to
+  // understand what actually happened first, before experimenting with it.
+  const [diagnosticsView, setDiagnosticsView] = useState<'as-released' | 'projected'>('as-released');
 
   const [studioFilter, setStudioFilter] = useState<string>('all');
   const filmsReleased = studioFilter === 'all' ? allFilms : allFilms.filter((f) => studioNameFor(f) === studioFilter);
@@ -534,25 +542,38 @@ export function OutcomeInspector() {
         </div>
       </div>
 
-      <AudienceSimulationDiagnostics
-        releaseType={marketingChoices.releaseType}
-        buzzScore={results.buzzScore}
-        marketingSpend={marketingChoices.marketingSpend}
-        directorFame={averageFame(talent, 'Director')}
-        leadFame={averageFame(talent, 'Lead Actor')}
-        studioBrand={studioBrand}
-        scriptAccessibility={deriveCommercialProfile(script).accessibility}
-        scriptHookStrength={deriveCommercialProfile(script).hookStrength}
-        scriptCrossoverPotential={deriveCommercialProfile(script).crossoverPotential}
-        scriptSpectacle={script.toneProfile.spectacle}
-        scriptIntendedAudience={script.intendedAudience}
-        targetAudience={targetAudience}
-        genre={genre}
-        releaseWindow={marketingChoices.releaseWindow}
-        competitiveCrowding={competitiveCrowding}
-        criticScore={results.criticScore}
-        audienceScore={results.audienceScore}
-      />
+      <div className="row">
+        <Button variant={diagnosticsView === 'as-released' ? 'primary' : 'secondary'} onClick={() => setDiagnosticsView('as-released')}>
+          As Released
+        </Button>
+        <Button variant={diagnosticsView === 'projected' ? 'primary' : 'secondary'} onClick={() => setDiagnosticsView('projected')}>
+          Projected (Editable)
+        </Button>
+      </div>
+
+      {diagnosticsView === 'as-released' ? (
+        <AsReleasedDiagnostics fixed={selectedFilm.boxOfficeRun.fixed} weeks={selectedFilm.boxOfficeRun.weeks} />
+      ) : (
+        <AudienceSimulationDiagnostics
+          releaseType={marketingChoices.releaseType}
+          buzzScore={results.buzzScore}
+          marketingSpend={marketingChoices.marketingSpend}
+          directorFame={averageFame(talent, 'Director')}
+          leadFame={averageFame(talent, 'Lead Actor')}
+          studioBrand={studioBrand}
+          scriptAccessibility={deriveCommercialProfile(script).accessibility}
+          scriptHookStrength={deriveCommercialProfile(script).hookStrength}
+          scriptCrossoverPotential={deriveCommercialProfile(script).crossoverPotential}
+          scriptSpectacle={script.toneProfile.spectacle}
+          scriptIntendedAudience={script.intendedAudience}
+          targetAudience={targetAudience}
+          genre={genre}
+          releaseWindow={marketingChoices.releaseWindow}
+          competitiveCrowding={competitiveCrowding}
+          criticScore={results.criticScore}
+          audienceScore={results.audienceScore}
+        />
+      )}
 
       <div className="card stack">
         <h2 style={{ margin: 0 }}>Script</h2>

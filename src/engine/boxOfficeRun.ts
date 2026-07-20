@@ -164,7 +164,11 @@ export function advanceEarliestDueFilmByOneWeek(filmsById: ReadonlyMap<string, F
   const { next: nextSimWeek, diagnostics } = advanceOneWeekWithDiagnostics(run.fixed, run.simWeeks, undefined, competitivePressure);
   const gross = Math.round(diagnostics.weeklyAdmissions * AVERAGE_TICKET_PRICE);
   const simWeeks = [...run.simWeeks, nextSimWeek];
-  const weeks = [...run.weeks, { week: nextSimWeek.week, gross }];
+  // Recorded, not just consumed - components/dev/OutcomeInspector.tsx's
+  // "As Released" replay needs the real per-week pressure history to
+  // reconstruct this run's actual diagnostics later (see BoxOfficeWeek's
+  // own doc comment on why this is historical fact, not re-derivable).
+  const weeks = [...run.weeks, { week: nextSimWeek.week, gross, competitivePressure }];
   const cumulativeGross = run.cumulativeGross + gross;
   const cashCredit = Math.round(gross * STUDIO_BOX_OFFICE_SHARE);
 

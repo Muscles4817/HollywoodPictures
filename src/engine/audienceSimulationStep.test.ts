@@ -16,6 +16,7 @@ import {
   pullForwardCeilingMultiplier,
   sellTicketsThisWeek,
   applyReleaseDayAwarenessSeed,
+  replaySettledWeeksWithDiagnostics,
   MAX_SIMULATION_WEEKS,
 } from './audienceSimulationStep';
 import {
@@ -312,6 +313,51 @@ describe('advanceOneWeek/advanceOneWeekWithDiagnostics - competitivePressure thr
     let manual: AudienceSimulationWeekState[] = [];
     for (let i = 0; i < 5; i++) manual = [...manual, advanceOneWeek(f, manual, 0)];
     expect(weeks).toEqual(manual);
+  });
+});
+
+// Outcome Inspector's "As Released" replay (components/dev/OutcomeInspector.tsx) -
+// a real per-week competitivePressure history (now recorded on BoxOfficeWeek,
+// types/index.ts) fed back through the exact same pure transition, so a
+// finished run's diagnostics can be reconstructed exactly rather than
+// re-projected from scratch with no real competitive data.
+describe('replaySettledWeeksWithDiagnostics', () => {
+  it('matches advanceOneWeekWithDiagnostics called manually week by week with the same pressure sequence', () => {
+    const f = fixed();
+    const pressures = [0.3, 0.5, 0.1, 0, 0.2];
+    const { weeks, diagnostics } = replaySettledWeeksWithDiagnostics(f, pressures);
+
+    let manualWeeks: AudienceSimulationWeekState[] = [];
+    for (const p of pressures) {
+      const { next } = advanceOneWeekWithDiagnostics(f, manualWeeks, undefined, p);
+      manualWeeks = [...manualWeeks, next];
+    }
+    expect(weeks).toEqual(manualWeeks);
+    expect(diagnostics.map((d) => d.competitivePressure)).toEqual(pressures);
+  });
+
+  it('stops exactly at the length of the pressure array, even where hasSimulationEnded would say the run should still be going', () => {
+    const f = fixed();
+    const pressures = [0.1, 0.1, 0.1];
+    const { weeks } = replaySettledWeeksWithDiagnostics(f, pressures);
+    expect(weeks).toHaveLength(3);
+    // A real run this short (3 weeks of ordinary early-run admissions) is
+    // nowhere near hasSimulationEnded's own stopping condition - proving
+    // this function trusts the array length, not that rule.
+    expect(hasSimulationEnded(weeks)).toBe(false);
+  });
+
+  it('an empty pressure history (nothing settled yet) returns an empty run', () => {
+    const { weeks, diagnostics } = replaySettledWeeksWithDiagnostics(fixed(), []);
+    expect(weeks).toEqual([]);
+    expect(diagnostics).toEqual([]);
+  });
+
+  it('fills in womReproductionRatio via the same post-pass advanceToWeekWithDiagnostics uses, except for the final (most recent) week', () => {
+    const f = fixed();
+    const { diagnostics } = replaySettledWeeksWithDiagnostics(f, [0.2, 0.2, 0.2, 0.2]);
+    for (let i = 0; i < diagnostics.length - 1; i++) expect(Number.isNaN(diagnostics[i].womReproductionRatio)).toBe(false);
+    expect(Number.isNaN(diagnostics[diagnostics.length - 1].womReproductionRatio)).toBe(true);
   });
 });
 

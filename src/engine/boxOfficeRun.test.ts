@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { settleBoxOfficeForAllFilms, STUDIO_BOX_OFFICE_SHARE, AVERAGE_TICKET_PRICE } from './boxOfficeRun';
 import { deriveAudienceSimulationFixedState, type ReleaseSimulationInputs } from './audienceSimulationInputs';
-import { advanceOneWeek, MAX_SIMULATION_WEEKS } from './audienceSimulationStep';
+import { advanceOneWeek, replaySettledWeeksWithDiagnostics, MAX_SIMULATION_WEEKS } from './audienceSimulationStep';
 import { createAudienceSimulationFixedState, type AudienceSimulationFixedState } from './audienceSimulation';
 import type { Film, FilmResults } from '../types';
 
@@ -236,7 +236,17 @@ describe('rival films settle through the exact same function', () => {
     const [settledPlayer, settledRival] = settlement.filmsReleased;
     expect(settledRival.releasedBy).toBe('A Rival Studio');
     // Same fixed state, same release day, same calendar jump -> identical box office shape regardless of releasedBy.
-    expect(settledRival.boxOfficeRun.weeks).toEqual(settledPlayer.boxOfficeRun.weeks);
+    // Compared by gross/week only, not the whole BoxOfficeWeek record: two
+    // same-day siblings take turns through the shared settlement queue, so
+    // whichever is processed first each week reads the other's *prior*
+    // week's state while the second-processed one reads its already-just-
+    // settled current week - a one-week-offset asymmetry in which
+    // competitivePressure value each happens to record, even though it
+    // nets out to the identical admissions/availability outcome for both
+    // (simWeeks below). Not something this test is about.
+    expect(settledRival.boxOfficeRun.weeks.map((w) => ({ week: w.week, gross: w.gross }))).toEqual(
+      settledPlayer.boxOfficeRun.weeks.map((w) => ({ week: w.week, gross: w.gross })),
+    );
     expect(settledRival.boxOfficeRun.simWeeks).toEqual(settledPlayer.boxOfficeRun.simWeeks);
   });
 });
@@ -311,6 +321,29 @@ describe('settleBoxOfficeForAllFilms - live screen competition (competitivePress
     let weeks: ReturnType<typeof advanceOneWeek>[] = [];
     for (let i = 0; i < solo.boxOfficeRun.simWeeks.length; i++) weeks = [...weeks, advanceOneWeek(fixed, weeks, 0)];
     expect(solo.boxOfficeRun.simWeeks).toEqual(weeks);
+  });
+
+  // Outcome Inspector's "As Released" replay (components/dev/OutcomeInspector.tsx,
+  // engine/audienceSimulationStep.ts:replaySettledWeeksWithDiagnostics) needs
+  // the real competitivePressure a run actually settled with, so it's now
+  // recorded on BoxOfficeWeek itself (types/index.ts) - not just consumed
+  // and discarded the way it always was before.
+  it('records the real competitivePressure used each week on BoxOfficeWeek - nonzero for genuinely competing films, 0 throughout for a lone one, and replayable back into the exact same run', () => {
+    const fixed = neutralDemandFixed();
+    const together = settleBoxOfficeForAllFilms([freshFilm('rec-a', 1, fixed), freshFilm('rec-b', 1, fixed)], 1 + 4 * 7);
+    const settledFilm = together.filmsReleased[0];
+    const recordedPressure = settledFilm.boxOfficeRun.weeks.map((w) => w.competitivePressure);
+    expect(recordedPressure.some((p) => (p ?? 0) > 0)).toBe(true);
+
+    // The whole point of recording it: replaying the real fixed state
+    // against these exact recorded values reproduces the real run exactly -
+    // components/dev/OutcomeInspector.tsx's "As Released" tab depends on
+    // this holding.
+    const replayed = replaySettledWeeksWithDiagnostics(fixed, recordedPressure.map((p) => p ?? 0));
+    expect(replayed.weeks).toEqual(settledFilm.boxOfficeRun.simWeeks);
+
+    const solo = settleBoxOfficeForAllFilms([freshFilm('rec-solo', 1, fixed)], 1 + 4 * 7).filmsReleased[0];
+    expect(solo.boxOfficeRun.weeks.every((w) => w.competitivePressure === 0)).toBe(true);
   });
 
   it('a big multi-week jump across two mutually-competing films settles identically to the same span done as several smaller calls', () => {
