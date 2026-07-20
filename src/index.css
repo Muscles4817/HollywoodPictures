@@ -148,17 +148,6 @@ button {
   cursor: not-allowed;
 }
 
-/* Casting Redesign - a Character row waiting on an earlier same-prominence
-   role to be cast first. Deliberately lighter than .card-disabled: this
-   row stays fully clickable (a call can still be opened, applicants can
-   still arrive, ahead of its own turn), it's just not this one's turn to
-   finalize yet - the muted look and dashed border read as "not yet," not
-   "can't." */
-.casting-row-blocked {
-  opacity: 0.75;
-  border-style: dashed;
-}
-
 .card-title {
   font-weight: 600;
   margin-bottom: 4px;

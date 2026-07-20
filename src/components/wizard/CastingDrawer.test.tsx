@@ -49,8 +49,9 @@ function stateWithFemaleLead(): GameState {
     ];
 
     const readyDraft = buildReadyDraft(rng);
-    // A Female Lead at slot 0, and no actors hired yet, so slot 0 is next up
-    // and Direct Approach is actionable for exactly this character.
+    // A Female Lead character; no actors hired yet. Every Character is
+    // independently castable (slot-bound casting), so Direct Approach is
+    // actionable for this one regardless of order.
     const leadCharacter: ScriptCharacter = { ...readyDraft.script!.cast.find((c) => c.prominence === 'Lead')!, castingGender: 'Female' };
     const script = { ...readyDraft.script!, cast: [leadCharacter, ...readyDraft.script!.cast.filter((c) => c.id !== leadCharacter.id)] };
     const draft = {
@@ -86,7 +87,7 @@ describe('CastingDrawer - Direct Approach gender filter', () => {
 
     render(
       <StudioProvider>
-        <CastingDrawer character={character!} role="Lead Actor" slotIndex={0} onClose={() => {}} />
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
       </StudioProvider>,
     );
 
