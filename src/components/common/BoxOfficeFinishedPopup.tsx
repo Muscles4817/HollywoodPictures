@@ -65,6 +65,13 @@ export function BoxOfficeFinishedPopup({ film }: { film: Film }) {
             )}
           </div>
         </div>
+        {results.storyReport && (
+          // The release-day story - trajectory, and any press-tour moment. A
+          // background-settled film never lands on the results screen, so this
+          // is where its narrative (and a tour blow-up/breakout) reaches the
+          // player: at acknowledgement, when they always see this popup.
+          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9em', lineHeight: 1.5 }}>{results.storyReport}</p>
+        )}
         <div className="row-between">
           <span />
           <Button variant="primary" onClick={() => dispatch({ type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS', filmId: film.id })}>
