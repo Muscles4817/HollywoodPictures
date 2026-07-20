@@ -23,6 +23,13 @@ import {
   PRODUCER_SPECIALTY_BLURB,
   PRODUCER_SPECIALTY_LABEL,
 } from '../data/producers';
+import {
+  bandFractionForTier,
+  marketResearchTier,
+  marketResearchUpgradeCost,
+  nextMarketResearchTier,
+} from '../engine/marketResearch';
+import { MARKET_RESEARCH_TIER_LABEL } from '../data/marketResearch';
 import type { Person } from '../types';
 import './ProductionOfficeCard.css';
 
@@ -100,8 +107,51 @@ export function ProductionOfficeCard() {
         )}
       </div>
 
+      <MarketResearchSection />
+
       {managing && <ProducerHireModal onClose={() => setManaging(false)} />}
     </section>
+  );
+}
+
+/**
+ * The Market Research department - a second, independently-bought upgrade track
+ * housed in the office (docs/DESIGN_REVIEW_marketing_campaign.md,
+ * tracking-as-a-service). Every studio gets the free baseline projection band;
+ * each level here narrows a film's Projected Opening readout toward the true
+ * figure (surfaced on the Marketing screen in F3).
+ */
+function MarketResearchSection() {
+  const { state, dispatch } = useStudio();
+  const { studio } = state;
+  const tier = marketResearchTier(studio);
+  const next = nextMarketResearchTier(studio);
+  const upgradeCost = marketResearchUpgradeCost(studio);
+  const currentBand = Math.round(bandFractionForTier(tier) * 100);
+
+  return (
+    <div className="office-research">
+      <div className="office-research-head">
+        <span className="dashboard-section-kicker">Market Research</span>
+        <span className="office-tier-pill">{MARKET_RESEARCH_TIER_LABEL[tier]}</span>
+      </div>
+      <p className="office-research-blurb">
+        {tier === 0
+          ? `Opening projections come in as a wide ±${currentBand}% gut-feel range. Buy in to tighten them.`
+          : `Opening projections tracked to within ±${currentBand}% of the real figure.`}
+      </p>
+      {next != null && upgradeCost != null ? (
+        <Button
+          className="btn-sm"
+          disabled={studio.cash < upgradeCost}
+          onClick={() => dispatch({ type: 'UPGRADE_MARKET_RESEARCH' })}
+        >
+          {tier === 0 ? 'Buy' : 'Upgrade to'} {MARKET_RESEARCH_TIER_LABEL[next]} (±{Math.round(bandFractionForTier(next) * 100)}%) — <Money amount={upgradeCost} />
+        </Button>
+      ) : (
+        <p className="office-research-maxed">Fully upgraded — projections as sharp as they get.</p>
+      )}
+    </div>
   );
 }
 

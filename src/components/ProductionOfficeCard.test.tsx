@@ -91,4 +91,20 @@ describe('ProductionOfficeCard - unlocked', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Fire' }));
     expect(dispatch).toHaveBeenCalledWith({ type: 'FIRE_PRODUCER', producerId: p.id });
   });
+
+  it('offers to buy the first Market Research level and dispatches on click', () => {
+    mockState = makeState({ studio: { cash: 50_000_000, productionOffice: { tier: 1, benchProducerIds: [] } } });
+    render(<ProductionOfficeCard />);
+    const buy = screen.getByRole('button', { name: /Buy Basic tracking/ });
+    expect(buy).toBeEnabled();
+    fireEvent.click(buy);
+    expect(dispatch).toHaveBeenCalledWith({ type: 'UPGRADE_MARKET_RESEARCH' });
+  });
+
+  it('shows the fully-upgraded note at the top research level instead of a button', () => {
+    mockState = makeState({ studio: { cash: 50_000_000, productionOffice: { tier: 1, benchProducerIds: [], marketResearchTier: 3 } } });
+    render(<ProductionOfficeCard />);
+    expect(screen.getByText(/Fully upgraded/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /tracking/ })).not.toBeInTheDocument();
+  });
 });
