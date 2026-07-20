@@ -3,6 +3,8 @@ import { Button } from './Button';
 import { Money } from './Money';
 import { OnSetDecisionCard } from './OnSetDecisionCard';
 import { backgroundedPlayerDrafts, deriveInboxItems } from '../../engine/project';
+import { highestBid } from '../../engine/opportunities';
+import type { BidNotification } from '../../types';
 
 interface InboxProps {
   open: boolean;
@@ -67,6 +69,35 @@ export function Inbox({ open, onClose }: InboxProps) {
   const productions = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
   const badgeCount = awaitingChoice.length + wrapped.length + parked.length + casting.length;
 
+  // Bid "emails" (engine/bidNotifications.ts) - stored newest-first. An
+  // 'outbid' is still actionable only while its opportunity is genuinely live
+  // and the player still isn't leading it; once the weekly tick resolves it,
+  // the opportunity is gone and raising is no longer possible.
+  const bidNotifications = state.bidNotifications ?? [];
+  const isOutbidActionable = (n: BidNotification): boolean => {
+    if (n.kind !== 'outbid') return false;
+    const opp = state.opportunities.find((o) => o.id === n.opportunityId && o.expiresOnDay > state.totalDays);
+    return !!opp && highestBid(opp)?.bidderId !== 'player';
+  };
+  const bidMessage = (n: BidNotification): string => {
+    const title = n.scriptTitle || 'an untitled script';
+    switch (n.kind) {
+      case 'won':
+        return `You won the rights to “${title}”. It's in your Asset Library, ready to develop.`;
+      case 'lost':
+        return `You were outbid on “${title}” — ${n.rivalName ?? 'a rival'} took it.`;
+      case 'outbid':
+        return `${n.rivalName ?? 'A rival'} has outbid you on “${title}”.`;
+    }
+  };
+
+  const openMarket = () => {
+    dispatch({ type: 'VIEW_OPPORTUNITY_MARKET' });
+    onClose();
+  };
+
+  const nothingAtAll = badgeCount === 0 && bidNotifications.length === 0;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content stack" onClick={(e) => e.stopPropagation()}>
@@ -75,10 +106,41 @@ export function Inbox({ open, onClose }: InboxProps) {
           <Button onClick={onClose}>Close</Button>
         </div>
 
-        {badgeCount === 0 && (
+        {nothingAtAll && (
           <p style={{ margin: 0, color: 'var(--text-muted)' }}>
             Nothing needs your attention right now - background shoots keep going on their own.
           </p>
+        )}
+
+        {bidNotifications.length > 0 && (
+          <div className="stack">
+            <h3 style={{ margin: 0 }}>Bid updates</h3>
+            {bidNotifications.map((n) => {
+              const actionable = isOutbidActionable(n);
+              return (
+                <div className="card stack" key={n.id}>
+                  <p style={{ margin: 0 }}>{bidMessage(n)}</p>
+                  {(n.kind === 'lost' || n.kind === 'outbid') && (
+                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
+                      {n.rivalName ?? 'A rival'} bid <Money amount={n.amount} />.
+                    </p>
+                  )}
+                  {actionable && (
+                    <div>
+                      <Button variant="primary" onClick={openMarket}>
+                        Raise your bid
+                      </Button>
+                    </div>
+                  )}
+                  {n.kind === 'outbid' && !actionable && (
+                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
+                      The auction has since closed.
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
 
         {awaitingChoice.map((production) => {

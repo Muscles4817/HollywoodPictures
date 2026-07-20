@@ -1,6 +1,7 @@
 import { useStudio } from '../../state/StudioContext';
 import { formatGameDateWithMonth } from '../../engine/calendar';
 import { inboxBadgeCount } from '../../engine/project';
+import { unreadBidCount } from '../../engine/bidNotifications';
 import { useTheme } from '../../hooks/useTheme';
 import { Button } from './Button';
 import { TimeTickIndicator } from './TimeTickIndicator';
@@ -44,7 +45,10 @@ export function Header({
 }: HeaderProps) {
   const { state, dispatch } = useStudio();
   const { theme, toggleTheme } = useTheme();
-  const badgeCount = inboxBadgeCount(state.projects, state.focusedProjectId);
+  // The badge sums the project-derived Inbox items (shoots needing attention)
+  // and the unread bid "emails" (engine/bidNotifications.ts) - both live in the
+  // same Inbox overlay, so they share one count here.
+  const badgeCount = inboxBadgeCount(state.projects, state.focusedProjectId) + unreadBidCount(state.bidNotifications ?? []);
 
   return (
     <header className="app-header">

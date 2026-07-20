@@ -291,6 +291,7 @@ export function loadState(): GameState {
       opportunities: [],
       nextOpportunityCheckDay: 1,
       awards: { history: [], season: null, nextSeasonDay: firstDayOfYear(2) },
+      bidNotifications: [],
       viewingRivalStudioName: null,
       viewingProductionId: null,
     };

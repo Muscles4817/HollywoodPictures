@@ -1,6 +1,7 @@
 import type {
   Asset,
   AwardsState,
+  BidNotification,
   Distribution,
   EffectsMethodKey,
   EnvironmentMethodKey,
@@ -89,6 +90,14 @@ export interface GameState {
    * no migration pass - see state/persistence.ts).
    */
   awards?: AwardsState;
+  /**
+   * Persistent "inbox emails" about the player's own Opportunity-Market
+   * bidding (engine/bidNotifications.ts) - won/lost/outbid events, recorded
+   * as they happen since a resolved bid leaves the pool and can't be
+   * recomputed. Optional/absent on saves predating the feature; read as `[]`
+   * (there is no migration pass - see state/persistence.ts).
+   */
+  bidNotifications?: BidNotification[];
 }
 
 /**
@@ -336,6 +345,10 @@ export type GameAction =
   // Dashboard -> the shared, time-limited Opportunity pool
   // (development-pipeline doc). Pure detour, same as VIEW_STATS.
   | { type: 'VIEW_OPPORTUNITY_MARKET' }
+  // Marks every bid notification (GameState.bidNotifications) read - dispatched
+  // when the player opens the Inbox (engine/bidNotifications.ts). Clears the
+  // header badge's bid contribution and the real-time clock's resume-guard.
+  | { type: 'MARK_BID_NOTIFICATIONS_READ' }
   // Dashboard -> the studio's owned Assets. Pure detour, same as VIEW_STATS.
   | { type: 'VIEW_ASSET_LIBRARY' }
   // Dashboard -> every one of the player's own current projects, one card

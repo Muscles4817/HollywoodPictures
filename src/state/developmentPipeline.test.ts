@@ -206,6 +206,30 @@ describe('weekly bid resolution', () => {
     expect(s.studio.assets[0].acquisitionCost).toBe(bidAmount);
     expect(s.opportunities.find((o) => o.id === opportunity.id)).toBeUndefined();
   });
+
+  // Bid-inbox notifications (engine/bidNotifications.ts) - a win used to be
+  // silent; now it drops a 'won' email, and MARK_BID_NOTIFICATIONS_READ (fired
+  // when the player opens the Inbox) clears the unread flag.
+  it('a player win records an unread won bid notification that MARK_BID_NOTIFICATIONS_READ then clears', () => {
+    const opportunity = oneOpportunity(12);
+    const bidState = { ...freshState(12), opportunities: [opportunity], nextOpportunityCheckDay: 8 };
+    const bidAmount = opportunity.acquisitionCost + 20_000;
+    let s = studioReducer(bidState, { type: 'PLACE_BID', opportunityId: opportunity.id, amount: bidAmount });
+    for (let i = 0; i < 8; i++) s = studioReducer(s, { type: 'ADVANCE_DAY' });
+
+    const notes = s.bidNotifications ?? [];
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({ kind: 'won', opportunityId: opportunity.id, amount: bidAmount, read: false });
+
+    const afterRead = studioReducer(s, { type: 'MARK_BID_NOTIFICATIONS_READ' });
+    expect((afterRead.bidNotifications ?? []).every((n) => n.read)).toBe(true);
+  });
+
+  it('a quiet week with no bidding activity records no notifications', () => {
+    let s = freshState(30);
+    for (let i = 0; i < 10; i++) s = studioReducer(s, { type: 'ADVANCE_DAY' });
+    expect(s.bidNotifications ?? []).toEqual([]);
+  });
 });
 
 describe('Asset ownership - engine/project.ts:deriveAssetStatus', () => {
