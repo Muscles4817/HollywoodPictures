@@ -9,7 +9,7 @@ import { computeBrandChange, computePrestigeChange } from './reputation';
 // dedicated ticking screen for this the way Principal Photography has one;
 // it just catches up whenever totalDays advances for any reason (see
 // state/studioReducer.ts, everywhere it calls settleBoxOfficeForAllFilms).
-const WEEK_LENGTH_DAYS = 7;
+export const WEEK_LENGTH_DAYS = 7;
 
 // The studio's actual cut of box office gross once theatrical rental fees
 // and the international split are accounted for - real-world studio

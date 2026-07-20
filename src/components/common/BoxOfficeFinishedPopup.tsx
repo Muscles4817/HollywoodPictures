@@ -1,4 +1,5 @@
 import { useStudio } from '../../state/StudioContext';
+import { explainBrandChange, explainPrestigeChange } from '../../engine/reputation';
 import { Button } from './Button';
 import { Money } from './Money';
 import { StatTile } from './StatTile';
@@ -40,6 +41,16 @@ export function BoxOfficeFinishedPopup({ film }: { film: Film }) {
               {results.brandChange !== null && results.brandChange >= 0 ? '+' : ''}
               {results.brandChange}
             </div>
+            {results.brandChange !== null && results.brandChange !== 0 && (
+              <div style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>
+                {explainBrandChange({
+                  profit: results.profit ?? 0,
+                  totalCost: results.totalCost,
+                  totalBoxOffice: results.totalBoxOffice ?? 0,
+                  audienceScore: results.audienceScore,
+                })}
+              </div>
+            )}
           </div>
           <div>
             <div className="stat-label">Prestige Change</div>
@@ -47,6 +58,11 @@ export function BoxOfficeFinishedPopup({ film }: { film: Film }) {
               {results.prestigeChange !== null && results.prestigeChange >= 0 ? '+' : ''}
               {results.prestigeChange}
             </div>
+            {results.prestigeChange !== null && results.prestigeChange !== 0 && (
+              <div style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>
+                {explainPrestigeChange({ criticScore: results.criticScore, qualityScore: results.qualityScore })}
+              </div>
+            )}
           </div>
         </div>
         <div className="row-between">

@@ -1,5 +1,6 @@
 import { useStudio } from '../state/StudioContext';
 import { collectFilmStats } from '../state/selectors';
+import { computeStudioAwardDeltas } from '../engine/awards';
 import { Button } from './common/Button';
 import { Money } from './common/Money';
 import { AWARD_CATEGORIES, AWARD_CATEGORY_LABEL } from '../data/awards';
@@ -30,6 +31,7 @@ export function AwardsPage() {
   const filmById = new Map<string, FilmRef>(
     collectFilmStats(state.projects, state.studio.name).map((row) => [row.film.id, row]),
   );
+  const playerFilmIds = new Set([...filmById.values()].filter((row) => row.isPlayer).map((row) => row.film.id));
 
   return (
     <div className="stack awards-page">
@@ -54,7 +56,7 @@ export function AwardsPage() {
           <p className="awards-muted">No ceremonies yet. The first Academy Awards are held at the start of your studio's second year.</p>
         ) : (
           [...awards.history].reverse().map((ceremony) => (
-            <CeremonyDetail key={ceremony.year} ceremony={ceremony} filmById={filmById} />
+            <CeremonyDetail key={ceremony.year} ceremony={ceremony} filmById={filmById} playerFilmIds={playerFilmIds} />
           ))
         )}
       </section>
@@ -137,14 +139,22 @@ function CampaignSection({
 function CeremonyDetail({
   ceremony,
   filmById,
+  playerFilmIds,
 }: {
   ceremony: AwardsCeremony;
   filmById: Map<string, FilmRef>;
+  playerFilmIds: Set<string>;
 }) {
   const playerWins = AWARD_CATEGORIES.reduce((count, cat) => {
     const winner = ceremony.categories[cat].find((n) => n.won);
     return count + (winner && filmById.get(winner.filmId)?.isPlayer ? 1 : 0);
   }, 0);
+  // What this ceremony actually did to the studio's own Brand/Prestige - the
+  // "why" the Dashboard's own Reputation History pulls this exact same
+  // number from (state/selectors.ts:deriveReputationHistory), surfaced right
+  // here too since this is where a player naturally comes to check a
+  // ceremony's results in the first place.
+  const { prestige: prestigeDelta, brand: brandDelta } = computeStudioAwardDeltas(ceremony, playerFilmIds);
 
   const nomineeLabel = (nom: AwardNomination): string => {
     const ref = filmById.get(nom.filmId);
@@ -159,6 +169,13 @@ function CeremonyDetail({
       <summary>
         <strong>Year {ceremony.year}</strong>
         <span className="awards-ceremony-haul">{playerWins > 0 ? `${playerWins} win${playerWins === 1 ? '' : 's'} for you` : 'No wins for you'}</span>
+        {(prestigeDelta !== 0 || brandDelta !== 0) && (
+          <span className="awards-ceremony-haul">
+            {prestigeDelta !== 0 && <>{prestigeDelta > 0 ? '+' : ''}{prestigeDelta} Prestige</>}
+            {prestigeDelta !== 0 && brandDelta !== 0 && ' · '}
+            {brandDelta !== 0 && <>{brandDelta > 0 ? '+' : ''}{brandDelta} Brand</>}
+          </span>
+        )}
       </summary>
       <div className="awards-categories">
         {AWARD_CATEGORIES.map((cat) => {
