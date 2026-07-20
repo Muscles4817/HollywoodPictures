@@ -18,7 +18,7 @@ import type { CampaignAngle } from '../types';
 import { deriveCommercialProfile } from './commercialProfile';
 import { advanceOneWeek } from './audienceSimulationStep';
 import { AVERAGE_TICKET_PRICE } from './boxOfficeRun';
-import { pickReviewBlurbs, pickDepartmentBlurb } from './reviews';
+import { pickReviewBlurbs, pickDepartmentBlurb, pickScoredReviews } from './reviews';
 import { generateStoryReport } from './storyReport';
 import { mitigateEventQualityImpact, NEUTRAL_PRODUCER_EFFECTS, type ProducerEffects } from './producers';
 import { pressTourBuzzDelta, pressTourCost } from './pressTour';
@@ -268,6 +268,11 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   const departmentBlurb = pickDepartmentBlurb(quality, input.genre, rng);
   const reviewBlurbs = [...pickReviewBlurbs(criticScore, audienceScore, rng), ...(departmentBlurb ? [departmentBlurb] : [])];
   const storyReport = generateStoryReport({ title: input.title, buzzScore, criticScore, audienceScore }, rng);
+  // Individually-rated critic/audience quotes for the Premiere Reveal
+  // (components/wizard/PremiereReveal.tsx) - separate from reviewBlurbs
+  // above, which stays the historical dossier's own shared-pool quotes.
+  const criticReviews = pickScoredReviews(criticScore, 'critic', rng, 3);
+  const audienceReviews = pickScoredReviews(audienceScore, 'audience', rng, 3);
 
   const results: FilmResults = {
     productionCost,
@@ -292,6 +297,8 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     eventsScore: Math.round(quality.eventsScore),
     reviewBlurbs,
     storyReport,
+    criticReviews,
+    audienceReviews,
   };
 
   return { results, fixed };

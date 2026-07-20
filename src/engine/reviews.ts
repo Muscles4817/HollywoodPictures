@@ -1,4 +1,4 @@
-import type { Genre } from '../types';
+import type { Genre, ReviewQuote } from '../types';
 import {
   pickReviewBucket,
   REVIEW_BLURBS,
@@ -6,15 +6,43 @@ import {
   DEPARTMENT_PRAISE,
   GENRE_SIGNATURE_CRITICISM,
   GENRE_SIGNATURE_PRAISE,
+  CRITIC_REVIEW_LINES,
+  AUDIENCE_REVIEW_LINES,
+  reviewBand,
   type Department,
 } from '../data/reviewBlurbs';
 import { genreSignatureDepartment } from './genreWeights';
-import { pick, pickMany, type RandomFn } from './random';
+import { clamp, pick, pickMany, randInt, type RandomFn } from './random';
 
 /** Picks a couple of flavor-text review blurbs matching the critic/audience reception. */
 export function pickReviewBlurbs(criticScore: number, audienceScore: number, rng: RandomFn, count = 2): string[] {
   const bucket = pickReviewBucket(criticScore, audienceScore);
   return pickMany(rng, REVIEW_BLURBS[bucket], count);
+}
+
+// How far an individual quote's own displayed score can jitter from the real
+// score it's drawn from - enough that three "reviewers" don't all print the
+// identical number, not so much it can wander into a genuinely different
+// band's territory except right at a boundary (accepted as a realistic
+// quirk, not a bug - real reviewers disagree with the consensus sometimes).
+const QUOTE_SCORE_JITTER = 8;
+
+/**
+ * `count` individually-rated quotes for the Premiere Reveal
+ * (components/wizard/PremiereReveal.tsx) - distinct from pickReviewBlurbs
+ * above, which stays a single shared-pool bucket for the historical dossier.
+ * `voice` picks which of the two banks (data/reviewBlurbs.ts) to draw from;
+ * every quote's own line is picked from the band `score` falls into
+ * (reviewBand), and each gets its own jittered display score so three
+ * reviewers agree with the real reception without printing the same number.
+ */
+export function pickScoredReviews(score: number, voice: 'critic' | 'audience', rng: RandomFn, count = 3): ReviewQuote[] {
+  const bank = voice === 'critic' ? CRITIC_REVIEW_LINES : AUDIENCE_REVIEW_LINES;
+  const lines = pickMany(rng, bank[reviewBand(score)], count);
+  return lines.map((text) => ({
+    text,
+    score: clamp(score + randInt(rng, -QUOTE_SCORE_JITTER, QUOTE_SCORE_JITTER), 0, 100),
+  }));
 }
 
 export interface DepartmentScores {
