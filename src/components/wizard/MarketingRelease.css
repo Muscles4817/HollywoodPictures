@@ -93,3 +93,10 @@
   flex-wrap: wrap;
   gap: 1.5rem;
 }
+
+/* The research-level caption under the projected-opening band. */
+.tracking-note {
+  margin-top: 0.2rem;
+  font-size: 0.78em;
+  color: var(--text-muted);
+}

@@ -25,6 +25,8 @@ import {
   MARKETING_CHANNEL_LABEL,
 } from '../../data/marketing';
 import { totalMarketingSpend, type ChannelSpend } from '../../engine/marketing';
+import { marketResearchTier, trackingBand } from '../../engine/marketResearch';
+import { MARKET_RESEARCH_TIER_LABEL } from '../../data/marketResearch';
 import { computeReleaseResults } from '../../engine/releaseFilm';
 import { computeProducerEffects, producersByIds, totalAttachedPerFilmFees } from '../../engine/producers';
 import { createRng } from '../../engine/random';
@@ -236,6 +238,13 @@ export function MarketingRelease() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, choices, selectedCrowding, state.studio.brand, state.producerPool]);
 
+  // Tracking-as-a-service (F3): the true projection is never shown as a single
+  // number - it's bracketed by a band whose width is set by the studio's Market
+  // Research level (engine/marketResearch.ts). Everyone gets the wide baseline;
+  // buying research in the Production Office tightens it toward the real figure.
+  const researchTier = marketResearchTier(state.studio);
+  const openingBand = projectedOpening != null ? trackingBand(researchTier, projectedOpening) : null;
+
   return (
     <div className="stack">
       <WizardHeader current="marketing" />
@@ -344,10 +353,17 @@ export function MarketingRelease() {
           <div className="stat-label">Marketing Cost</div>
           <div className="stat-value"><Money amount={marketingCost} /></div>
         </div>
-        {projectedOpening != null && (
+        {openingBand != null && (
           <div>
             <div className="stat-label">Projected Opening Weekend</div>
-            <div className="stat-value"><Money amount={projectedOpening} /></div>
+            <div className="stat-value">
+              <Money amount={openingBand.low} /> – <Money amount={openingBand.high} />
+            </div>
+            <div className="tracking-note">
+              {researchTier === 0
+                ? `${MARKET_RESEARCH_TIER_LABEL[0]} (±${Math.round(openingBand.fraction * 100)}%) — buy Market Research in the Production Office to tighten this.`
+                : `${MARKET_RESEARCH_TIER_LABEL[researchTier]} (±${Math.round(openingBand.fraction * 100)}%)`}
+            </div>
           </div>
         )}
       </div>
