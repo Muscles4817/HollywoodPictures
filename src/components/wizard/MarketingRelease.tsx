@@ -3,8 +3,6 @@ import { useStudio } from '../../state/StudioContext';
 import { MARKETING_SPEND_RANGE, RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS } from '../../data/release';
 import { pluckDescriptions } from '../../data/describe';
 import { computeMarketingCost } from '../../engine/cost';
-import { marketingDescription } from '../../engine/productionDials';
-import { logAmount } from '../../engine/interpolate';
 import { formatGameDate, formatGameMonthYear, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from '../../engine/calendar';
 import { computeCompetitiveCrowding, type UpcomingRelease } from '../../engine/releaseCrowding';
 import { asUpcomingRelease } from '../../engine/scheduledReleases';
@@ -18,7 +16,19 @@ import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { deriveFocusedDraft, deriveUpcomingReleaseEntries } from '../../state/selectors';
-import type { MarketingChoices, ReleaseType } from '../../types';
+import {
+  CAMPAIGN_ANGLE_LABEL,
+  CAMPAIGN_ANGLE_PROFILES,
+  CHANNEL_AUDIENCE_EFFICIENCY,
+  MARKETING_CHANNELS,
+  MARKETING_CHANNEL_BLURB,
+  MARKETING_CHANNEL_LABEL,
+} from '../../data/marketing';
+import { totalMarketingSpend, type ChannelSpend } from '../../engine/marketing';
+import { computeReleaseResults } from '../../engine/releaseFilm';
+import { computeProducerEffects, producersByIds, totalAttachedPerFilmFees } from '../../engine/producers';
+import { createRng } from '../../engine/random';
+import type { CampaignAngle, MarketingChannel, MarketingChoices, ReleaseType } from '../../types';
 import './MarketingRelease.css';
 
 // How many calendar years out the month grid below offers - a bound on the
@@ -36,11 +46,36 @@ const RELEASE_TYPE_DESCRIPTIONS = pluckDescriptions(RELEASE_TYPE_PROFILES);
 // derives it from the chosen day, see engine/calendar.ts:deriveReleaseWindowFromDay)
 // so a stale default here can never contradict the real calendar date the
 // way an independently-picked one used to.
+// A modest starter split (mostly trailers) - the player reallocates from here.
+const DEFAULT_CHANNEL_SPEND: ChannelSpend = { trailers: 2_000_000, tv: 0, digital: 1_000_000, press: 0 };
+
 const DEFAULT_CHOICES: MarketingChoices = {
-  marketingSpend: logAmount(0.4, MARKETING_SPEND_RANGE),
+  channelSpend: DEFAULT_CHANNEL_SPEND,
+  marketingSpend: totalMarketingSpend(DEFAULT_CHANNEL_SPEND),
+  campaignAngle: 'faithful',
   releaseType: 'Wide',
   releaseWindow: 'Quiet Month',
 };
+
+// Each channel slider runs 0 (skip it) up to this.
+const CHANNEL_MAX = 60_000_000;
+
+const CAMPAIGN_ANGLES = Object.keys(CAMPAIGN_ANGLE_PROFILES) as CampaignAngle[];
+
+const ANGLE_DESCRIPTIONS: Record<CampaignAngle, string> = {
+  spectacle: 'Sell scale and effects. The biggest opening - but weak legs if the film isn’t actually a spectacle.',
+  starPower: 'Sell the cast. Loud, unless your leads aren’t famous enough to carry it.',
+  mystery: 'Sell intrigue. Moderate hype; punished if there’s no real suspense to back it up.',
+  story: 'Sell emotion and craft. Gentle hype and the safest of the loud angles.',
+  faithful: 'An honest, genre-faithful cut. No opening boost, and no risk to your legs.',
+};
+
+/** A plain-language read on how well a channel reaches this film's target audience. */
+function channelFitFor(efficiency: number): { label: string; className: string } {
+  if (efficiency >= 0.9) return { label: 'Great fit', className: 'channel-fit--great' };
+  if (efficiency >= 0.6) return { label: 'Decent fit', className: 'channel-fit--ok' };
+  return { label: 'Weak fit', className: 'channel-fit--weak' };
+}
 
 function crowdingReading(score: number): { label: string; className: string } {
   if (score < 0.15) return { label: 'Clear window', className: 'month-cell__crowding--clear' };
@@ -137,12 +172,69 @@ export function MarketingRelease() {
     dispatch({ type: 'SET_MARKETING_CHOICES', choices: { ...choices, [key]: value } });
   }
 
+  const channelSpend: ChannelSpend = choices.channelSpend ?? DEFAULT_CHANNEL_SPEND;
+  // Adjusting a channel keeps marketingSpend (the canonical total the cost and
+  // crowding systems read) in sync with the channel breakdown.
+  function updateChannel(channel: MarketingChannel, value: number) {
+    const nextChannels = { ...channelSpend, [channel]: value };
+    dispatch({
+      type: 'SET_MARKETING_CHOICES',
+      choices: { ...choices, channelSpend: nextChannels, marketingSpend: totalMarketingSpend(nextChannels) },
+    });
+  }
+
   const marketingCost = computeMarketingCost(choices);
   const releaseTypeProfile = RELEASE_TYPE_PROFILES[choices.releaseType];
   const weakMarketingWarning = releaseTypeProfile.needsMarketing && choices.marketingSpend <= MARKETING_SPEND_RANGE.min * 3;
   const genreBonus = draft.genre ? RELEASE_WINDOW_GENRE_BONUS[releaseWindow][draft.genre] : undefined;
   const selectedCrowding = crowdingFor(releaseDay);
   const selectedCrowdingReading = crowdingReading(selectedCrowding);
+
+  // A live tracking readout: what the current channel mix + campaign angle
+  // project for opening weekend, computed the exact same way settlement will
+  // (engine/marketSettlement.ts:resolvePlayerRelease) so the preview can never
+  // promise a number release day won't deliver. Deterministic seed - this is a
+  // projection the player can compare across choices, not the real jittered
+  // draw. Guarded: a draft still missing a piece (or any transient bad input)
+  // just hides the readout rather than throwing.
+  const projectedOpening = useMemo(() => {
+    if (
+      !draft.script || !draft.genre || !draft.targetAudience || !draft.productionChoices ||
+      !draft.photography || !draft.postProductionChoices
+    ) {
+      return null;
+    }
+    try {
+      const producerPool = state.producerPool ?? [];
+      const attachedIds = draft.attachedProducerIds ?? [];
+      const photography = draft.photography;
+      const { results } = computeReleaseResults(
+        {
+          title: draft.title || 'Untitled',
+          genre: draft.genre,
+          targetAudience: draft.targetAudience,
+          script: draft.script,
+          talent: draft.talent,
+          productionChoices: draft.productionChoices,
+          postProductionChoices: draft.postProductionChoices,
+          marketingChoices: choices,
+          events: photography.events,
+          postProductionEvents: draft.postProductionEvents,
+          photographyCost: photography.runningCost,
+          shootingRatio: photography.recommendedDays > 0 ? photography.daysElapsed / photography.recommendedDays : 1,
+          studioBrand: state.studio.brand,
+          competitiveCrowding: selectedCrowding,
+          producerEffects: computeProducerEffects(producersByIds(producerPool, attachedIds), draft.genre),
+          producerFees: totalAttachedPerFilmFees(producerPool, attachedIds),
+        },
+        createRng(1),
+      );
+      return results.openingWeekend;
+    } catch {
+      return null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, choices, selectedCrowding, state.studio.brand, state.producerPool]);
 
   return (
     <div className="stack">
@@ -181,18 +273,60 @@ export function MarketingRelease() {
         </div>
       )}
 
-      <RangeSlider
-        label="Marketing Spend"
-        min={MARKETING_SPEND_RANGE.min}
-        max={MARKETING_SPEND_RANGE.max}
-        logScale
-        value={choices.marketingSpend}
-        onChange={(v) => update('marketingSpend', v)}
-        formatValue={formatMoney}
-        description={marketingDescription(choices.marketingSpend)}
-        lowLabel="Word of Mouth"
-        highLabel="Global Blitz"
-      />
+      <div className="card stack">
+        <div className="row-between">
+          <h3 style={{ margin: 0 }}>Marketing Channels</h3>
+          <span style={{ fontSize: '0.95em', fontWeight: 700, color: 'var(--primary)' }}>{formatMoney(choices.marketingSpend)} total</span>
+        </div>
+        <p className="choice-description" style={{ margin: 0 }}>
+          Split your spend across channels. Each one reaches your target audience differently -
+          {draft.targetAudience ? ` for a ${draft.targetAudience} film, put money where the fit is strong.` : ' pick your audience first to see how well each fits.'}
+        </p>
+        {MARKETING_CHANNELS.map((channel) => {
+          const efficiency = draft.targetAudience ? CHANNEL_AUDIENCE_EFFICIENCY[channel][draft.targetAudience] : 1;
+          const fit = channelFitFor(efficiency);
+          return (
+            <RangeSlider
+              key={channel}
+              label={MARKETING_CHANNEL_LABEL[channel]}
+              min={0}
+              max={CHANNEL_MAX}
+              value={channelSpend[channel]}
+              onChange={(v) => updateChannel(channel, v)}
+              formatValue={(v) => (v <= 0 ? 'Skip' : formatMoney(v))}
+              description={MARKETING_CHANNEL_BLURB[channel]}
+              extra={
+                draft.targetAudience ? (
+                  <span className={`channel-fit ${fit.className}`}>{fit.label} for {draft.targetAudience}</span>
+                ) : null
+              }
+            />
+          );
+        })}
+      </div>
+
+      <div className="card stack">
+        <h3 style={{ margin: 0 }}>Campaign Angle</h3>
+        <p className="choice-description" style={{ margin: 0 }}>
+          How you sell the film. A louder angle opens bigger - but overselling a film that can't deliver
+          burns your legs once word gets out.
+        </p>
+        <div className="angle-picker">
+          {CAMPAIGN_ANGLES.map((angle) => (
+            <Button
+              key={angle}
+              variant={choices.campaignAngle === angle ? 'primary' : undefined}
+              onClick={() => update('campaignAngle', angle)}
+            >
+              {CAMPAIGN_ANGLE_LABEL[angle]}
+            </Button>
+          ))}
+        </div>
+        <p className="choice-description" style={{ margin: 0 }}>
+          {ANGLE_DESCRIPTIONS[choices.campaignAngle ?? 'faithful']}
+        </p>
+      </div>
+
       <ChoiceGroup
         label="Release Type"
         options={RELEASE_TYPES}
@@ -205,9 +339,17 @@ export function MarketingRelease() {
         <p style={{ color: 'var(--red)' }}>A wide release with little marketing behind it will badly underperform.</p>
       )}
 
-      <div className="card">
-        <div className="stat-label">Marketing Cost</div>
-        <div className="stat-value"><Money amount={marketingCost} /></div>
+      <div className="card cost-projection">
+        <div>
+          <div className="stat-label">Marketing Cost</div>
+          <div className="stat-value"><Money amount={marketingCost} /></div>
+        </div>
+        {projectedOpening != null && (
+          <div>
+            <div className="stat-label">Projected Opening Weekend</div>
+            <div className="stat-value"><Money amount={projectedOpening} /></div>
+          </div>
+        )}
       </div>
 
       <div className="card stack">

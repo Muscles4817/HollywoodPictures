@@ -61,3 +61,35 @@
   font-size: 0.72em;
   color: var(--text-muted);
 }
+
+/* Per-channel audience-fit hint shown under each channel slider. */
+.channel-fit {
+  font-size: 0.78em;
+  font-weight: 600;
+}
+
+.channel-fit--great {
+  color: var(--green);
+}
+
+.channel-fit--ok {
+  color: var(--text-muted);
+}
+
+.channel-fit--weak {
+  color: var(--red);
+}
+
+/* Campaign angle buttons wrap onto as many rows as needed. */
+.angle-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Marketing cost + projected opening, side by side when both are present. */
+.cost-projection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
