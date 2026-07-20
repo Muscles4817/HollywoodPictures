@@ -200,25 +200,36 @@ export function Inbox({ open, onClose }: InboxProps) {
           </div>
         ))}
 
-        {parked.map((production) => (
-          <div className="card stack" key={production.id}>
-            <div className="card-title">{production.title || 'Untitled Film'}</div>
-            <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-              Post-production is done - this film just needs a release day.
-            </p>
-            {state.focusedProjectId ? (
-              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
-                Finish or leave what you're currently working on before picking this back up.
+        {parked.map((production) => {
+          // A parked film has its post-production choices locked in, but its
+          // mandatory test screening may not have come back yet - in which case
+          // it genuinely can't be scheduled, no matter what the player does, so
+          // don't imply it "just needs a release day" (it doesn't; it needs the
+          // screening first). See components/wizard/MarketingRelease.tsx, where
+          // the Release button stays disabled for exactly this reason.
+          const awaitingScreening = !production.testScreeningResolved;
+          return (
+            <div className="card stack" key={production.id}>
+              <div className="card-title">{production.title || 'Untitled Film'}</div>
+              <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+                {awaitingScreening
+                  ? "Post-production is still wrapping up - its test screening isn't in yet. You can't lock a release date until you've seen it and responded; you'll be notified here the moment it's ready."
+                  : 'Post-production is done - this film just needs a release day.'}
               </p>
-            ) : (
-              <div>
-                <Button variant="primary" onClick={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })}>
-                  Continue to Marketing &amp; Release
-                </Button>
-              </div>
-            )}
-          </div>
-        ))}
+              {state.focusedProjectId ? (
+                <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
+                  Finish or leave what you're currently working on before picking this back up.
+                </p>
+              ) : (
+                <div>
+                  <Button variant="primary" onClick={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })}>
+                    {awaitingScreening ? 'Check on it' : 'Continue to Marketing & Release'}
+                  </Button>
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {casting.map(({ production, calls }) => {
           // Phase D (docs/DESIGN_REVIEW_casting_redesign.md section 6) -
