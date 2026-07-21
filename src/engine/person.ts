@@ -115,6 +115,33 @@ export function withCommitment(person: Person, commitment: PersonCommitment): Pe
   return { ...person, availability: { commitments: [...person.availability.commitments, commitment] } };
 }
 
+const clamp01to100 = (value: number): NormalizedStat => Math.max(0, Math.min(100, value));
+
+/**
+ * Immutably nudge a Person's standing - fame/currentHeat (reputation) and/or
+ * controversy (personality), each clamped to 0-100. The generic write-back a
+ * post-release effect uses (press tours, engine/pressTourMoments.ts) to move a
+ * pool Person, mirroring withCommitment's copy-and-replace discipline. Only the
+ * touched fields change; omitted deltas leave their field exactly as-is.
+ */
+export function withReputationChange(
+  person: Person,
+  deltas: { fameDelta?: number; heatDelta?: number; controversyDelta?: number },
+): Person {
+  return {
+    ...person,
+    reputation: {
+      ...person.reputation,
+      fame: clamp01to100(person.reputation.fame + (deltas.fameDelta ?? 0)),
+      currentHeat: clamp01to100(person.reputation.currentHeat + (deltas.heatDelta ?? 0)),
+    },
+    personality: {
+      ...person.personality,
+      controversy: clamp01to100(person.personality.controversy + (deltas.controversyDelta ?? 0)),
+    },
+  };
+}
+
 /** Narrows to only the people from `pool` who have a career under `role` and are free on `day` - the two checks the talent pool has always needed before offering someone as a candidate. */
 export function availableCandidatesForRole(pool: Person[], role: ProductionRole, day: GameDay): Person[] {
   return pool.filter((p) => personCanPerformRole(p, role) && isPersonAvailableOnDay(p, day));

@@ -87,6 +87,15 @@ export interface ReleaseComputationInput {
    * resolvePlayerRelease's alreadyCharged either. Optional; defaults to 0.
    */
   producerFees?: number;
+  /**
+   * A resolved press-tour moment (engine/pressTourMoments.ts), rolled at
+   * settlement (resolvePlayerRelease) and passed in as plain data so this
+   * function stays pure and deterministic. Its buzzDelta lifts/saps Buzz and its
+   * storyBeat is appended to the story report. Optional/absent - a quiet tour,
+   * no tour, or the Marketing-screen projection (which must never see the
+   * surprise) - so the forecast path is unchanged.
+   */
+  pressTourMoment?: { buzzDelta: number; storyBeat: string | null };
 }
 
 export interface ReleaseComputationResult {
@@ -178,7 +187,11 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // negative. Zero when nobody tours, so behaviour is unchanged for rivals and
   // pre-tour saves.
   const pressTourBuzz = pressTourBuzzDelta(input.talent, input.marketingChoices.pressTourCast);
-  const buzzScore = clamp(rawBuzz + producerEffects.flatBuzzDelta + pressTourBuzz, 0, 100);
+  // A rolled press-tour moment (rare, personality-driven - resolvePlayerRelease)
+  // swings Buzz on top of the deterministic tour delta. 0 for a quiet tour or
+  // the projection path.
+  const pressTourMomentBuzz = input.pressTourMoment?.buzzDelta ?? 0;
+  const buzzScore = clamp(rawBuzz + producerEffects.flatBuzzDelta + pressTourBuzz + pressTourMomentBuzz, 0, 100);
 
   const talentCost = computeTalentCost(input.talent);
   // Line trims the production budget (sets/practical/VFX). Charged in full at
@@ -267,7 +280,15 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
 
   const departmentBlurb = pickDepartmentBlurb(quality, input.genre, rng);
   const reviewBlurbs = [...pickReviewBlurbs(criticScore, audienceScore, rng), ...(departmentBlurb ? [departmentBlurb] : [])];
-  const storyReport = generateStoryReport({ title: input.title, buzzScore, criticScore, audienceScore }, rng);
+  // The story report accretes independently-resolved beats (see
+  // engine/storyReport.ts). A press-tour moment, when one fired, is one such
+  // beat - appended after the trajectory narrative.
+  const storyReport = [
+    generateStoryReport({ title: input.title, buzzScore, criticScore, audienceScore }, rng),
+    input.pressTourMoment?.storyBeat,
+  ]
+    .filter(Boolean)
+    .join(' ');
   // Individually-rated critic/audience quotes for the Premiere Reveal
   // (components/wizard/PremiereReveal.tsx) - separate from reviewBlurbs
   // above, which stays the historical dossier's own shared-pool quotes.
