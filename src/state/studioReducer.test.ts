@@ -330,6 +330,28 @@ describe('SCHEDULE_RELEASE - real release scheduling (roadmap Phase 7.1/7.2)', (
     expect(after.screen).toBe('results'); // 1 is always <= minPossible, so this always resolves same-day
   });
 
+  it('refuses to schedule a release whose marketing campaign costs more than the studio can pay, leaving state and cash untouched', () => {
+    // 50M starting cash (testFixtures.ts), Wide's 1.2x cost multiplier: a
+    // 50M marketing spend costs 60M - more than the studio has on hand.
+    const state = buildStateWithReadyDraft(1, { marketingSpend: 50_000_000 });
+    const draftId = state.focusedProjectId!;
+    const after = studioReducer(state, { type: 'SCHEDULE_RELEASE', releaseDay: state.totalDays });
+    // A rejected action is a no-op - the draft stays a focused, unreleased
+    // draft and, crucially, cash never went negative.
+    expect(after).toBe(state);
+    expect(findProject(after.projects, draftId)?.kind).toBe('player-in-progress');
+    expect(after.studio.cash).toBe(state.studio.cash);
+  });
+
+  it('allows a release the studio can just afford (marketing cost equal to cash on hand)', () => {
+    // Wide's 1.2x multiplier on a ~41.67M spend lands the cost right at the
+    // 50M cash on hand - affordable, so it must go through.
+    const state = buildStateWithReadyDraft(1, { marketingSpend: Math.floor(50_000_000 / 1.2) });
+    const after = studioReducer(state, { type: 'SCHEDULE_RELEASE', releaseDay: state.totalDays });
+    expect(after).not.toBe(state);
+    expect(after.studio.cash).toBeGreaterThanOrEqual(0);
+  });
+
   it('advancing the calendar up to a scheduled releaseDay resolves it into a released Film with week 1 already settled, exactly once', () => {
     const state = buildStateWithReadyDraft(4);
     const draftId = state.focusedProjectId!;

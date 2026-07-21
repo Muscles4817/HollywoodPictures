@@ -131,3 +131,27 @@ describe('MarketingRelease - test-screening gate messaging', () => {
     expect(release).toBeEnabled();
   });
 });
+
+describe('MarketingRelease - affordability gate', () => {
+  /** A release-ready state (screening resolved) whose studio has less cash than the marketing campaign costs. */
+  function stateWithCash(cash: number): GameState {
+    const base = stateWithScreening(true);
+    return { ...base, studio: { ...base.studio, cash } } as GameState;
+  }
+
+  it('disables the Release button and flags the campaign as over budget when it costs more than the studio has', () => {
+    mockState = stateWithCash(1_000); // far below any real marketing spend
+    render(<MarketingRelease />);
+    const release = screen.getByRole('button', { name: /Release Film|Schedule for/ });
+    expect(release).toBeDisabled();
+    expect(screen.getByText(/Over budget/i)).toBeInTheDocument();
+  });
+
+  it('enables the Release button when the studio can cover the campaign', () => {
+    mockState = stateWithCash(500_000_000); // ample cash
+    render(<MarketingRelease />);
+    const release = screen.getByRole('button', { name: /Release Film|Schedule for/ });
+    expect(release).toBeEnabled();
+    expect(screen.queryByText(/Over budget/i)).not.toBeInTheDocument();
+  });
+});
