@@ -952,6 +952,22 @@ export interface FilmResults {
   // A narrated trade-press-style summary of the release, distinct from the
   // in-world critic-quote blurbs above - see engine/storyReport.ts.
   storyReport: string;
+  // Individually-rated critic/audience quotes (engine/reviews.ts:pickScoredReviews)
+  // for the Premiere Reveal (components/wizard/PremiereReveal.tsx) - distinct
+  // from reviewBlurbs above (that shared-pool, ungraded flavor text keeps
+  // serving the historical dossier, FilmDetailModal.tsx, unchanged). Optional
+  // rather than always-populated, same "new field on an existing persisted
+  // type, no migration pass" convention as producerPool/bidNotifications/
+  // awards elsewhere on this type - every newly-computed result has them,
+  // but a save from before this field existed won't.
+  criticReviews?: ReviewQuote[];
+  audienceReviews?: ReviewQuote[];
+}
+
+/** One individually-rated review quote - engine/reviews.ts:pickScoredReviews. */
+export interface ReviewQuote {
+  text: string;
+  score: number; // 0-100
 }
 
 /** One settled week of a film's theatrical run - see BoxOfficeRun. */
