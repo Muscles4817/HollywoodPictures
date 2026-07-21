@@ -471,16 +471,22 @@ export function Dashboard() {
                   );
                 })}
 
-                {scheduledReleases.map(({ draft, releaseDay }) => (
-                  <article className="dashboard-project-row" key={draft.id}>
-                    <div className="dashboard-project-main">
-                      <span className="dashboard-status-pill dashboard-status-scheduled">Scheduled release</span>
-                      <strong>{draft.title || 'Untitled Film'}</strong>
-                      <span className="dashboard-project-meta">Releasing {formatGameMonthYear(releaseDay)}</span>
-                    </div>
-                    <Button className="btn-sm" onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}>Calendar</Button>
-                  </article>
-                ))}
+                {scheduledReleases.map(({ draft, releaseDay }) => {
+                  const onTour = draft.marketingChoices?.pressTourCast?.length ?? 0;
+                  return (
+                    <article className="dashboard-project-row" key={draft.id}>
+                      <div className="dashboard-project-main">
+                        <span className="dashboard-status-pill dashboard-status-scheduled">Scheduled release</span>
+                        <strong>{draft.title || 'Untitled Film'}</strong>
+                        <span className="dashboard-project-meta">Releasing {formatGameMonthYear(releaseDay)}</span>
+                        {onTour > 0 && (
+                          <span className="dashboard-project-meta">Press tour booked · {onTour} on tour</span>
+                        )}
+                      </div>
+                      <Button className="btn-sm" onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}>Calendar</Button>
+                    </article>
+                  );
+                })}
               </div>
             </section>
           )}

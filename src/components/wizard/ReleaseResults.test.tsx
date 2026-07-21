@@ -72,3 +72,28 @@ describe('ReleaseResults - reflects live settlement, not a frozen release-day sn
     expect(screen.getByText('Still playing')).toBeInTheDocument();
   });
 });
+
+describe('ReleaseResults - Premiere Reveal replaces the old flat Reception/Reviews cards', () => {
+  it('renders the film\'s own critic/audience quotes, and the old standalone Reviews card is gone', () => {
+    const released = studioReducer(buildStateWithReadyDraft(5), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    const film = playerReleasedFilms(released.projects)[0];
+    saveState(released);
+    render(
+      <StudioProvider>
+        <ReleaseResults />
+      </StudioProvider>,
+    );
+
+    // Quote text is always in the DOM (the reveal only toggles a CSS class
+    // for the staggered fade-in, never conditionally mounts/unmounts it -
+    // real content is available immediately to anyone not watching the
+    // animation, screen readers included).
+    for (const quote of film.results.criticReviews!) {
+      expect(screen.getByText(`“${quote.text}”`)).toBeInTheDocument();
+    }
+    for (const quote of film.results.audienceReviews!) {
+      expect(screen.getByText(`“${quote.text}”`)).toBeInTheDocument();
+    }
+    expect(screen.queryByRole('heading', { name: 'Reviews' })).not.toBeInTheDocument();
+  });
+});

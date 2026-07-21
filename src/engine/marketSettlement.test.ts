@@ -139,6 +139,22 @@ describe('settleTheatricalMarket - player and rival settle together, correctly a
   });
 });
 
+describe('settleTheatricalMarket - press tour reputation write-back (D2b)', () => {
+  it('returns a baseline heat delta for each tourer of a settled player film, and none when no tour ran', () => {
+    const draft = readyDraft(70);
+    const tourer = draft.talent[0].person;
+    const touring = { ...draft, marketingChoices: { ...draft.marketingChoices!, pressTourCast: [tourer.id] } };
+
+    const withTour = withRng(71, (rng) => settleTheatricalMarket([], [{ draft: touring, releaseDay: 40 }], [], [], 40, 50, rng)).result;
+    const delta = withTour.playerTalentReputationDeltas.find((d) => d.personId === tourer.id);
+    expect(delta).toBeDefined();
+    expect(delta!.heatDelta).toBeGreaterThan(0);
+
+    const noTour = withRng(71, (rng) => settleTheatricalMarket([], [{ draft, releaseDay: 40 }], [], [], 40, 50, rng)).result;
+    expect(noTour.playerTalentReputationDeltas).toEqual([]);
+  });
+});
+
 describe('settleTheatricalMarket - cross-owner competitive crowding at release', () => {
   it("a rival's own crowded release day is dented by a same-genre/audience player release already on the calendar, and vice versa - crowding sees across owners now, not just within one", () => {
     const playerDraft = readyDraft(40);

@@ -9,7 +9,9 @@ import { personMeetsCharacterGender } from '../engine/casting';
 import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent, resolveEventChoice } from '../engine/production';
 import { generateTestScreeningPendingChoice } from '../engine/testScreening';
 import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
-import { getTypicalSalaryForRole, withCommitment } from '../engine/person';
+import { getTypicalSalaryForRole, withCommitment, withReputationChange } from '../engine/person';
+import type { TalentReputationDelta } from '../engine/pressTourMoments';
+import { pressTourCost } from '../engine/pressTour';
 import { adaptRecommendationsToProductionChoices } from '../engine/productionChoicesAdapter';
 import { deriveProjectReadiness } from '../engine/projectReadiness';
 import { STAGE_DURATIONS } from '../data/schedule';
@@ -270,6 +272,25 @@ export interface CalendarSettlementResult {
  * Every other call site passes nothing and gets the real
  * scheduledPlayerReleases(state.projects).
  */
+/**
+ * Write post-tour press-tour standing changes back onto the world talent pool,
+ * matched by id across every profession bucket - the same copy-and-replace
+ * discipline GREENLIGHT_PROJECT's commitment write-back uses. A no-op when
+ * nothing toured, so it never churns the pool needlessly.
+ */
+function applyTalentReputationDeltas(pool: Record<TalentProfession, Person[]>, deltas: TalentReputationDelta[]): Record<TalentProfession, Person[]> {
+  if (deltas.length === 0) return pool;
+  const byId = new Map(deltas.map((d) => [d.personId, d]));
+  const next = { ...pool };
+  for (const profession of Object.keys(next) as TalentProfession[]) {
+    next[profession] = next[profession].map((person) => {
+      const delta = byId.get(person.id);
+      return delta ? withReputationChange(person, delta) : person;
+    });
+  }
+  return next;
+}
+
 function runCalendarSettlement(
   state: GameState,
   totalDaysAfter: number,
@@ -348,7 +369,9 @@ function runCalendarSettlement(
   return {
     studio: studioAfterBoxOffice,
     rivalStudios: rivalMarket.rivalStudios,
-    talentPool: rivalMarket.talentPool,
+    // Press-tour standing changes land on the pool last, after the rival market
+    // has done its own commitment write-backs, so both survive.
+    talentPool: applyTalentReputationDeltas(rivalMarket.talentPool, marketSettlement.playerTalentReputationDeltas),
     opportunities: rivalMarket.opportunities,
     nextOpportunityCheckDay: opportunitySettlement.nextGenerationCheckDay,
     stillScheduled: marketSettlement.stillScheduled,
@@ -1487,16 +1510,18 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // `!` below is safe.
       if (!d.testScreeningResolved) return state;
       // A film can't be released on a marketing campaign the studio can't
-      // pay for. The marketing cost is charged at settlement
-      // (engine/marketSettlement.ts:resolvePlayerRelease, via
-      // runCalendarSettlement's playerCostCharged) with no floor of its own,
-      // so without this guard a big enough channel spend would drive
-      // studio.cash negative. This is the authoritative choke point - the
-      // Marketing & Release screen disables its own button on the same
-      // condition, but this makes the rule true regardless of how the action
-      // was dispatched, the same affordability discipline GREENLIGHT_PROJECT
-      // enforces via deriveProjectReadiness.
-      if (computeMarketingCost(d.marketingChoices) > state.studio.cash) return state;
+      // pay for. The full marketing charge - channel spend plus the press
+      // tour - is deducted at settlement (engine/releaseFilm.ts folds both
+      // into marketingCost; charged via runCalendarSettlement's
+      // playerCostCharged) with no floor of its own, so without this guard a
+      // big enough campaign would drive studio.cash negative. Mirror that
+      // exact sum here so the check can't undercount. This is the
+      // authoritative choke point - the Marketing & Release screen disables
+      // its own button on the same condition, but this makes the rule true
+      // regardless of how the action was dispatched, the same affordability
+      // discipline GREENLIGHT_PROJECT enforces via deriveProjectReadiness.
+      const marketingCharge = computeMarketingCost(d.marketingChoices) + pressTourCost(d.talent, d.marketingChoices.pressTourCast);
+      if (marketingCharge > state.studio.cash) return state;
       const totalDaysAfter = Math.max(state.totalDays, d.postProductionFinalReadyDay!);
       const daysAdvanced = totalDaysAfter - state.totalDays;
       // releaseDay is a discrete calendar day everywhere else in this

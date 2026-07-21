@@ -1,6 +1,7 @@
 import type { Film, FilmDraft, Person, RivalProductionInProgress, RivalStudio } from '../types';
 import type { RandomFn } from './random';
 import { computeReleaseResults } from './releaseFilm';
+import { rollPressTourMoments, pressTourReputationDeltas, type TalentReputationDelta } from './pressTourMoments';
 import { computeProducerEffects, producersByIds, totalAttachedPerFilmFees } from './producers';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta } from './cost';
 import { computeCompetitiveCrowding, runningFilmAsUpcomingRelease, type UpcomingRelease } from './releaseCrowding';
@@ -34,6 +35,8 @@ export interface TheatricalMarketSettlement {
   playerCostCharged: number;
   /** Keyed by rival studio name (the same Film.releasedBy discriminator) - apply cashCredit to that studio's cash and brandDelta/prestigeDelta via applyStatChange, the same crediting engine/rivalStudios.ts's retired settleRivalBoxOffice used to do per studio. */
   rivalDeltas: Map<string, RivalBoxOfficeDelta>;
+  /** Post-tour standing changes for player tourers (engine/pressTourMoments.ts), one per tourer across every player film settled this pass - applied to GameState.talentPool by id (state/studioReducer.ts). Empty when no settled player film ran a press tour. */
+  playerTalentReputationDeltas: TalentReputationDelta[];
 }
 
 function creditRival(deltas: Map<string, RivalBoxOfficeDelta>, name: string, delta: RivalBoxOfficeDelta): void {
@@ -62,7 +65,7 @@ function knownCompetitorsExcluding(
 }
 
 /** Resolves a due player draft into a real Film - mirrors engine/scheduledReleases.ts's retired settleScheduledReleases body exactly (same computeReleaseResults call, same cost-charged accounting), just fed a richer `known` list that now includes currently-running films alongside other pending releases. */
-function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand: number, known: UpcomingRelease[], producerPool: Person[], rng: RandomFn): { film: Film; costCharged: number } {
+function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand: number, known: UpcomingRelease[], producerPool: Person[], rng: RandomFn): { film: Film; costCharged: number; reputationDeltas: TalentReputationDelta[] } {
   const photographyEvents = draft.photography!.events;
   const postProductionEvents = draft.postProductionEvents;
   const shootingRatio = draft.photography!.recommendedDays > 0 ? draft.photography!.daysElapsed / draft.photography!.recommendedDays : 1;
@@ -73,6 +76,14 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
   const attachedIds = draft.attachedProducerIds ?? [];
   const producerEffects = computeProducerEffects(producersByIds(producerPool, attachedIds), draft.genre!);
   const producerFees = totalAttachedPerFilmFees(producerPool, attachedIds);
+
+  // Roll the rare, personality-driven press-tour moment here at settlement -
+  // never in computeReleaseResults, which the Marketing-screen projection calls
+  // (the surprise must not leak into the forecast). Drawn before the release
+  // computation so its Buzz swing + story beat feed in; a film with no tour
+  // roster draws nothing, leaving the rng stream untouched for non-touring
+  // films (behaviour-preserving).
+  const tourMoments = rollPressTourMoments(draft.talent, draft.marketingChoices!.pressTourCast, rng);
 
   const { results, fixed } = computeReleaseResults(
     {
@@ -92,6 +103,7 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
       competitiveCrowding,
       producerEffects,
       producerFees,
+      pressTourMoment: { buzzDelta: tourMoments.buzzDelta, storyBeat: tourMoments.storyBeat },
     },
     rng,
   );
@@ -130,7 +142,10 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
     releasedOnDay: releaseDay,
     assetId: draft.assetId,
   };
-  return { film, costCharged };
+  // Post-tour standing changes for the tourers (baseline exposure heat + any
+  // fired moment's effect) - applied to the talent pool by the reducer.
+  const reputationDeltas = pressTourReputationDeltas(draft.talent, draft.marketingChoices!.pressTourCast, tourMoments.moments);
+  return { film, costCharged, reputationDeltas };
 }
 
 /**
@@ -175,6 +190,7 @@ export function settleTheatricalMarket(
   let playerPrestigeDelta = 0;
   let playerCostCharged = 0;
   const rivalDeltas = new Map<string, RivalBoxOfficeDelta>();
+  const playerTalentReputationDeltas: TalentReputationDelta[] = [];
 
   for (;;) {
     const nextScheduled = scheduled
@@ -194,10 +210,11 @@ export function settleTheatricalMarket(
     if (scheduledDay <= rivalDay && scheduledDay <= filmDay) {
       const draft = nextScheduled!.draft;
       const known = knownCompetitorsExcluding(draft.id, scheduled, inProgress, filmsById);
-      const { film, costCharged } = resolvePlayerRelease(draft, nextScheduled!.releaseDay, playerStudioBrand, known, producerPool, rng);
+      const { film, costCharged, reputationDeltas } = resolvePlayerRelease(draft, nextScheduled!.releaseDay, playerStudioBrand, known, producerPool, rng);
       filmsById.set(film.id, film);
       scheduled = scheduled.filter((s) => s.draft.id !== draft.id);
       playerCostCharged += costCharged;
+      playerTalentReputationDeltas.push(...reputationDeltas);
       continue;
     }
 
@@ -233,5 +250,6 @@ export function settleTheatricalMarket(
     playerPrestigeDelta,
     playerCostCharged,
     rivalDeltas,
+    playerTalentReputationDeltas,
   };
 }

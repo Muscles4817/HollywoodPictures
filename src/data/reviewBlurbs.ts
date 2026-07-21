@@ -169,6 +169,106 @@ export const GENRE_SIGNATURE_PRAISE: Partial<Record<Genre, string[]>> = {
   ],
 };
 
+// --- Individually-rated Premiere Reveal quotes (engine/reviews.ts:pickScoredReviews) ---
+//
+// Distinct from REVIEW_BLURBS above (that bank is bucketed by the *combined*
+// critic+audience quadrant and stays ungraded flavor text for the historical
+// dossier, FilmDetailModal.tsx). These two banks are each keyed by a single
+// voice's own score alone, six bands per voice, so a "critic" quote and a
+// "fan" quote can land in different bands on the same film - exactly the
+// point, since the two audiences don't always agree.
+export type ReviewBand = 'savaged' | 'poor' | 'mixed' | 'solid' | 'excellent' | 'triumph';
+
+/** Which band a single 0-100 score falls into - shared by both voice banks below. */
+export function reviewBand(score: number): ReviewBand {
+  if (score < 25) return 'savaged';
+  if (score < 45) return 'poor';
+  if (score < 60) return 'mixed';
+  if (score < 75) return 'solid';
+  if (score < 90) return 'excellent';
+  return 'triumph';
+}
+
+// Analytical, trade-press voice - the same register REVIEW_BLURBS/DEPARTMENT_CRITICISM already write in.
+export const CRITIC_REVIEW_LINES: Record<ReviewBand, string[]> = {
+  savaged: [
+    'A staggering miscalculation from frame one.',
+    'Fails on nearly every level a film can fail on.',
+    'There is no version of this that works.',
+    'A career low for everyone involved.',
+  ],
+  poor: [
+    'Undercooked and overlong.',
+    "The ambition is visible; the execution isn't.",
+    'A frustrating watch that never finds its footing.',
+    'More miss than hit, and not for lack of trying.',
+  ],
+  mixed: [
+    'Competent, occasionally clever, ultimately forgettable.',
+    'Has a handful of good ideas buried in a middling film.',
+    'Neither a disaster nor a success - just there.',
+    'Worth a matinee, not much more.',
+  ],
+  solid: [
+    'A well-made, confident piece of studio filmmaking.',
+    'Delivers exactly what it promises, and does it well.',
+    "Sturdy craft carries this one further than its premise alone would.",
+    'Not groundbreaking, but genuinely well done.',
+  ],
+  excellent: [
+    'Sharp, assured, and frequently exhilarating.',
+    'A genuine achievement in nearly every department.',
+    'This is the kind of filmmaking studios should be proud of.',
+    'Confident from the first frame to the last.',
+  ],
+  triumph: [
+    'An instant classic.',
+    'Filmmaking at the absolute top of its craft.',
+    'This is the film of the year, full stop.',
+    'Rarely does a film this ambitious land this cleanly.',
+  ],
+};
+
+// Casual, first-person, word-of-mouth voice - the same register REVIEW_BLURBS's "audiencesLovedCriticsShrugged" lines already reach for.
+export const AUDIENCE_REVIEW_LINES: Record<ReviewBand, string[]> = {
+  savaged: [
+    'Walked out halfway through. Never again.',
+    "Worst theater experience I've had in years.",
+    'Save your money, seriously.',
+    'I want those two hours back.',
+  ],
+  poor: [
+    'Kind of a slog, not gonna lie.',
+    'Expected way more than this.',
+    'Fell asleep twice. That says it all.',
+    "Wouldn't recommend it to a friend.",
+  ],
+  mixed: [
+    "It's fine. Wouldn't watch it again though.",
+    'Some good parts, mostly just okay.',
+    'Decent popcorn flick, nothing special.',
+    'Fun enough for a Friday night, forget it by Monday.',
+  ],
+  solid: [
+    'Really enjoyed this one, honestly!',
+    'Solid watch, would recommend to friends.',
+    'Better than I expected going in.',
+    'Had a great time, no complaints.',
+  ],
+  excellent: [
+    'Loved every minute of this!',
+    "One of the best theater experiences I've had all year.",
+    'Already planning to see it again.',
+    'Everyone in the theater was buzzing after.',
+  ],
+  triumph: [
+    "Best movie I've seen in years, hands down.",
+    'Standing ovation. Need I say more.',
+    'Perfect. Absolutely perfect.',
+    'This is why I go to the movies.',
+  ],
+};
+
 export function pickReviewBucket(criticScore: number, audienceScore: number): ReviewBucket {
   const criticGood = criticScore >= 65;
   const audienceGood = audienceScore >= 65;

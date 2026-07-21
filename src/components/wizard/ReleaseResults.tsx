@@ -3,8 +3,8 @@ import { deriveFocusedFilm } from '../../state/selectors';
 import { explainBrandChange, explainPrestigeChange } from '../../engine/reputation';
 import { Money } from '../common/Money';
 import { ScoreBar } from '../common/ScoreBar';
-import { StarRating } from '../common/StarRating';
 import { StatTile } from '../common/StatTile';
+import { PremiereReveal } from './PremiereReveal';
 
 export function ReleaseResults() {
   const { state } = useStudio();
@@ -26,14 +26,18 @@ export function ReleaseResults() {
 
   return (
     <div className="stack">
-      <h1>{film.title} - Opening Weekend</h1>
-      {finished ? (
-        <div>
-          <span className={`badge badge-outcome-${results.outcome!.replace(/\s+/g, '-')}`} style={{ fontSize: '1.1em' }}>
-            {results.outcome}
-          </span>
-        </div>
-      ) : (
+      <PremiereReveal
+        title={film.title}
+        genre={film.genre}
+        outcome={results.outcome}
+        criticScore={results.criticScore}
+        audienceScore={results.audienceScore}
+        criticReviews={results.criticReviews ?? []}
+        audienceReviews={results.audienceReviews ?? []}
+        openingWeekend={results.openingWeekend}
+      />
+
+      {!finished && (
         <p className="choice-description" style={{ margin: 0 }}>
           This is just the opening - the film is still playing. Its total gross, profit, outcome, and Brand/Prestige
           effect will all firm up week by week as it plays out; keep an eye on the Dashboard to watch it happen.
@@ -68,14 +72,6 @@ export function ReleaseResults() {
       <div className="card stack">
         <h2>Reception</h2>
         <ScoreBar label="Quality Score" value={results.qualityScore} />
-        <div className="row-between">
-          <span className="score-bar-label">Critic Score</span>
-          <StarRating value={results.criticScore} />
-        </div>
-        <div className="row-between">
-          <span className="score-bar-label">Audience Score</span>
-          <StarRating value={results.audienceScore} />
-        </div>
         <ScoreBar label="Buzz Score" value={results.buzzScore} />
       </div>
 
@@ -93,13 +89,6 @@ export function ReleaseResults() {
       <div className="card stack">
         <h2>Studio Report</h2>
         <p>{results.storyReport}</p>
-      </div>
-
-      <div className="card stack">
-        <h2>Reviews</h2>
-        {results.reviewBlurbs.map((blurb, i) => (
-          <p key={i}>{blurb}</p>
-        ))}
       </div>
 
       <div className="card row-between">
