@@ -8,7 +8,7 @@ import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequi
 import { personMeetsCharacterGender } from '../engine/casting';
 import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent, resolveEventChoice } from '../engine/production';
 import { generateTestScreeningPendingChoice } from '../engine/testScreening';
-import { computeDailyContingencyBurn, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
+import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
 import { getTypicalSalaryForRole, withCommitment } from '../engine/person';
 import { adaptRecommendationsToProductionChoices } from '../engine/productionChoicesAdapter';
 import { deriveProjectReadiness } from '../engine/projectReadiness';
@@ -1486,6 +1486,17 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // is set (RESOLVE_TEST_SCREENING_CHOICE sets both at once), so the
       // `!` below is safe.
       if (!d.testScreeningResolved) return state;
+      // A film can't be released on a marketing campaign the studio can't
+      // pay for. The marketing cost is charged at settlement
+      // (engine/marketSettlement.ts:resolvePlayerRelease, via
+      // runCalendarSettlement's playerCostCharged) with no floor of its own,
+      // so without this guard a big enough channel spend would drive
+      // studio.cash negative. This is the authoritative choke point - the
+      // Marketing & Release screen disables its own button on the same
+      // condition, but this makes the rule true regardless of how the action
+      // was dispatched, the same affordability discipline GREENLIGHT_PROJECT
+      // enforces via deriveProjectReadiness.
+      if (computeMarketingCost(d.marketingChoices) > state.studio.cash) return state;
       const totalDaysAfter = Math.max(state.totalDays, d.postProductionFinalReadyDay!);
       const daysAdvanced = totalDaysAfter - state.totalDays;
       // releaseDay is a discrete calendar day everywhere else in this

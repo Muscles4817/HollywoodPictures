@@ -186,6 +186,12 @@ export function MarketingRelease() {
   }
 
   const marketingCost = computeMarketingCost(choices);
+  // The marketing cost is charged when the release settles, so a campaign
+  // costing more than the studio has on hand would push cash negative
+  // (state/studioReducer.ts:SCHEDULE_RELEASE is the authoritative guard that
+  // rejects it). Gate the Release button on it too, and say why, rather than
+  // letting the player build a plan the action will silently refuse.
+  const canAffordMarketing = marketingCost <= state.studio.cash;
   const releaseTypeProfile = RELEASE_TYPE_PROFILES[choices.releaseType];
   const weakMarketingWarning = releaseTypeProfile.needsMarketing && choices.marketingSpend <= MARKETING_SPEND_RANGE.min * 3;
   const genreBonus = draft.genre ? RELEASE_WINDOW_GENRE_BONUS[releaseWindow][draft.genre] : undefined;
@@ -352,6 +358,11 @@ export function MarketingRelease() {
         <div>
           <div className="stat-label">Marketing Cost</div>
           <div className="stat-value"><Money amount={marketingCost} /></div>
+          {!canAffordMarketing && (
+            <div className="tracking-note" style={{ color: 'var(--red)' }}>
+              Over budget - you have <Money amount={state.studio.cash} />. Lower your channel spend to release.
+            </div>
+          )}
         </div>
         {openingBand != null && (
           <div>
@@ -439,8 +450,14 @@ export function MarketingRelease() {
         <Button onClick={() => dispatch({ type: 'GO_TO_STEP', step: 'post-production' })}>Back</Button>
         <Button
           variant="primary"
-          disabled={!screeningResolved}
-          title={!screeningResolved ? 'Respond to the test screening before scheduling a release.' : undefined}
+          disabled={!screeningResolved || !canAffordMarketing}
+          title={
+            !screeningResolved
+              ? 'Respond to the test screening before scheduling a release.'
+              : !canAffordMarketing
+                ? "Your marketing campaign costs more than the studio's cash on hand."
+                : undefined
+          }
           onClick={() => dispatch({ type: 'SCHEDULE_RELEASE', releaseDay })}
         >
           {holdMonths === 0 ? 'Release Film' : `Schedule for ${formatGameMonthYear(releaseDay)}`}
