@@ -3,7 +3,7 @@ import { deriveFocusedFilm } from '../../state/selectors';
 import { explainBrandChange, explainPrestigeChange } from '../../engine/reputation';
 import { Money } from '../common/Money';
 import { ScoreBar } from '../common/ScoreBar';
-import { StatTile } from '../common/StatTile';
+import { FilmMoneyBreakdown } from '../common/FilmMoneyBreakdown';
 import { PremiereReveal } from './PremiereReveal';
 
 export function ReleaseResults() {
@@ -46,27 +46,7 @@ export function ReleaseResults() {
 
       <div className="card stack">
         <h2>Box Office</h2>
-        <div className="row">
-          <StatTile label="Final Production Cost" value={<Money amount={results.productionCost} />} />
-          <StatTile label="Marketing Cost" value={<Money amount={results.marketingCost} />} />
-          <StatTile label="Total Cost" value={<Money amount={results.totalCost} />} />
-        </div>
-        <div className="row">
-          <StatTile label="Opening Weekend" value={<Money amount={results.openingWeekend} />} />
-          {finished ? (
-            <>
-              <StatTile label="Total Box Office" value={<Money amount={results.totalBoxOffice!} />} />
-              <StatTile label="Studio's Share" value={<Money amount={results.studioRevenue!} />} />
-              <StatTile label="Profit / Loss" value={<Money amount={results.profit!} signColor showSign />} />
-            </>
-          ) : (
-            <StatTile label="Total Box Office" value="Still playing" />
-          )}
-        </div>
-        <p className="choice-description" style={{ margin: 0 }}>
-          Theaters and international distribution keep the rest - the studio's actual cut of box office is well below
-          the headline gross.
-        </p>
+        <FilmMoneyBreakdown film={film} />
       </div>
 
       <div className="card stack">
