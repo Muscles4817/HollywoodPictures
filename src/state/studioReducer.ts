@@ -6,7 +6,7 @@ import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } fr
 import { professionForProductionRole } from '../data/helpers';
 import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequirements';
 import { personMeetsCharacterGender } from '../engine/casting';
-import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent, resolveEventChoice } from '../engine/production';
+import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, resolveEventChoice } from '../engine/production';
 import { generateTestScreeningPendingChoice } from '../engine/testScreening';
 import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
 import { getTypicalSalaryForRole, withCommitment, withReputationChange } from '../engine/person';
@@ -141,6 +141,25 @@ function applyOpportunityWins(
     nextStudio = { ...nextStudio, cash: nextStudio.cash - resolved.amount, assets: [...nextStudio.assets, asset] };
   }
   return { studio: nextStudio, opportunities: nextOpportunities };
+}
+
+/**
+ * Wrap principal photography: flip the shoot to 'finished' and lock in the
+ * post-production screening estimate, returning the contingency settlement to
+ * fold into studio cash (the full reserve was deducted up front, so leftover
+ * comes back and an overrun is charged the rest of the way). Shared by the
+ * player's explicit FINISH_PHOTOGRAPHY and the automatic upper-footage-bound
+ * wrap inside ADVANCE_SHOOTING_DAY, so both settle identically.
+ */
+function wrapPhotography(draft: FilmDraft, wrapDay: number): { draft: FilmDraft; contingencySettlement: number } {
+  const photography = draft.photography!;
+  const productionChoices = draft.productionChoices!;
+  const contingencySettlement = productionChoices.contingencyAmount - photography.runningCost;
+  const postProductionScreeningReadyDay = wrapDay + computeRecommendedPostProductionDays(draft.talent, productionChoices);
+  return {
+    draft: { ...draft, photography: { ...photography, status: 'finished' }, postProductionScreeningReadyDay },
+    contingencySettlement,
+  };
 }
 
 /** Awards state for a state that predates the feature: no history, no open season, next season at the coming year boundary. */
@@ -1289,7 +1308,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       }
 
       const { event, daysAdvanced, totalDaysAfter, settlement, productionsInProgress } = result;
-      const updatedFocused: FilmDraft = {
+      const shotFocused: FilmDraft = {
         ...d,
         photography: {
           ...d.photography,
@@ -1298,6 +1317,13 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           runningCost: d.photography.runningCost + dailyBurn * daysAdvanced,
         },
       };
+      // Auto-wrap once the footage covers every usable angle - past the upper
+      // bound there's nothing left to gain, so the shoot ends itself and the
+      // contingency reserve settles exactly as an explicit wrap would.
+      const hitUpperBound = shotFocused.photography!.daysElapsed >= footageUpperBound(d.photography.recommendedDays);
+      const { draft: updatedFocused, contingencySettlement } = hitUpperBound
+        ? wrapPhotography(shotFocused, totalDaysAfter)
+        : { draft: shotFocused, contingencySettlement: 0 };
       return {
         ...state,
         rngSeed: nextSeed,
@@ -1307,7 +1333,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         opportunities: settlement.opportunities,
         nextOpportunityCheckDay: settlement.nextOpportunityCheckDay,
         bidNotifications: settlement.bidNotifications,
-        studio: settlement.studio,
+        studio: { ...settlement.studio, cash: settlement.studio.cash + contingencySettlement },
         projects: assembleProjects({
           playerDrafts: [updatedFocused, ...productionsInProgress],
           scheduled: settlement.stillScheduled,
@@ -1392,24 +1418,17 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'FINISH_PHOTOGRAPHY': {
       const target = asPlayerDraft(findProject(state.projects, action.productionId));
       if (!target?.photography || target.photography.status !== 'in-progress' || !target.productionChoices) return state;
-      const contingencySettlement = target.productionChoices.contingencyAmount - target.photography.runningCost;
-      // Post-Production Redesign, Phase A/B (docs/DESIGN_REVIEW_post_production_redesign.md
-      // sections 1-2) - computed exactly once, here, same "at the moment
-      // this stage's clock actually starts" timing PhotographyState.recommendedDays
-      // itself uses at BEGIN_PHOTOGRAPHY. A fixed historical snapshot, never
-      // recomputed or advanced anywhere else (architecture cleanup,
-      // post-Phase-B) - postProductionFinalReadyDay is the separate field
-      // RESOLVE_TEST_SCREENING_CHOICE sets once the screening resolves.
-      const postProductionScreeningReadyDay =
-        state.totalDays + computeRecommendedPostProductionDays(target.talent, target.productionChoices);
+      // A film can't be wrapped before there's enough footage for a functional
+      // cut - the authoritative guard behind the ProductionRun screen's own
+      // disabled wrap button. postProductionScreeningReadyDay is set once here,
+      // same "the moment this stage's clock starts" timing recommendedDays uses
+      // (docs/DESIGN_REVIEW_post_production_redesign.md sections 1-2).
+      if (target.photography.daysElapsed < footageLowerBound(target.photography.recommendedDays)) return state;
+      const { draft: wrapped, contingencySettlement } = wrapPhotography(target, state.totalDays);
       return {
         ...state,
         studio: { ...state.studio, cash: state.studio.cash + contingencySettlement },
-        projects: replaceDraft(state.projects, {
-          ...target,
-          photography: { ...target.photography, status: 'finished' },
-          postProductionScreeningReadyDay,
-        }),
+        projects: replaceDraft(state.projects, wrapped),
       };
     }
 

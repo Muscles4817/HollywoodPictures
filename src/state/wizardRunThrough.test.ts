@@ -18,7 +18,7 @@
 import { describe, it, expect } from 'vitest';
 import { studioReducer } from './studioReducer';
 import { createInitialStudio, type GameState } from './gameState';
-import { buildReadyAsset, conformActorGenderToSlot } from './testFixtures';
+import { buildReadyAsset, conformActorGenderToSlot, shootThroughToFinish } from './testFixtures';
 import { generateTalentPool } from '../engine/talentGenerator';
 import { withRng } from '../engine/random';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
@@ -133,7 +133,7 @@ function walkFilmThroughWizard(state: GameState): GameState {
   expect(s.screen).toBe('production');
   expect(deriveFocusedDraft(s)!.greenlitOnDay).not.toBeNull();
   expect(deriveFocusedDraft(s)!.photography?.status).toBe('in-progress');
-  s = studioReducer(s, { type: 'FINISH_PHOTOGRAPHY', productionId: s.focusedProjectId! });
+  s = shootThroughToFinish(s);
   expect(deriveFocusedDraft(s)!.photography?.status).toBe('finished');
 
   expect(() => {

@@ -17,6 +17,7 @@ import { getActorCareer, getDirectorCareer } from './person';
 import { characterForRoleSlot } from './castRequirements';
 import {
   contingencyQuality,
+  editCoverageCeiling,
   overallSpendT,
   shootingQualityFromRatio,
   setQualityScore,
@@ -349,7 +350,14 @@ export function computeQualityBreakdown(
   const directionScore = computeDirectionScore(talent, script);
   const actingScore = computeActingScore(talent, script);
   const productionScore = computeProductionScore(productionChoices, genre, shootingRatio);
-  const postProductionScore = clamp(computePostProductionScore(postProductionChoices) + postProductionScoreBonus, 0, 100);
+  // Footage coverage caps the edit: an under-shot film (below the recommended
+  // schedule) can't be cut into a great one no matter how good the Editor is.
+  // The ceiling only binds below ratio 1, so normally- and over-shot films are
+  // judged on the edit's own merits (engine/productionDials.ts:editCoverageCeiling).
+  // Post-production interventions (the bonus, e.g. reshoots/re-edits) are added
+  // after the cap - they represent extra work that can lift a thin shoot back up.
+  const cappedEdit = Math.min(computePostProductionScore(postProductionChoices), editCoverageCeiling(shootingRatio));
+  const postProductionScore = clamp(cappedEdit + postProductionScoreBonus, 0, 100);
   const eventsScore = computeEventsScore(events);
 
   const scriptRatio = scriptScore / 100;

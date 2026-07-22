@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { computeRecommendedShootDays, computeSchedulePressure } from '../../engine/production';
+import { computeRecommendedShootDays, computeSchedulePressure, footageLowerBound, footageUpperBound } from '../../engine/production';
 import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { StatTile } from '../common/StatTile';
@@ -101,6 +101,19 @@ export function ProductionRun() {
     for (let i = 0; i < remaining; i++) dispatch({ type: 'ADVANCE_SHOOTING_DAY' });
   }
 
+  // The footage band around the recommended schedule: a film can't be wrapped
+  // until there's enough footage for a functional cut (lowerBound), and it
+  // wraps itself once the footage covers everything (upperBound). Uses the
+  // shoot's own stored recommendedDays, the authoritative figure the reducer
+  // enforces against.
+  const lowerBound = footageLowerBound(photography.recommendedDays);
+  const upperBound = footageUpperBound(photography.recommendedDays);
+  const hasUsableCoverage = photography.daysElapsed >= lowerBound;
+  const daysToUsable = Math.max(0, lowerBound - photography.daysElapsed);
+  const wrapBlockedReason = hasUsableCoverage
+    ? undefined
+    : `Not enough footage for a usable cut yet - keep filming for ${daysToUsable} more day${daysToUsable === 1 ? '' : 's'}.`;
+
   const pendingChoice = photography.pendingChoice;
 
   const totalCostDelta = photography.events.reduce((sum, e) => sum + e.costDelta, 0);
@@ -137,7 +150,21 @@ export function ProductionRun() {
             </p>
           )}
           <div className="row">
-            <StatTile label="Day" value={`${photography.daysElapsed} of ~${photography.recommendedDays} recommended`} />
+            <StatTile label="Day" value={`${photography.daysElapsed} of ~${photography.recommendedDays} for a solid film`} />
+            {photography.status !== 'finished' && (
+              <StatTile
+                label="Footage"
+                value={
+                  !hasUsableCoverage
+                    ? `Below usable (need ~${lowerBound})`
+                    : photography.daysElapsed < photography.recommendedDays
+                      ? 'Usable cut'
+                      : photography.daysElapsed < upperBound
+                        ? 'Solid — every extra day adds polish'
+                        : 'Full coverage'
+                }
+              />
+            )}
             <StatTile label="Spent So Far" value={<Money amount={photography.runningCost} />} />
             <StatTile label="Contingency Remaining" value={<Money amount={Math.max(0, contingencyRemaining)} />} />
             {photography.status === 'in-progress' && (
@@ -162,8 +189,9 @@ export function ProductionRun() {
             <div className="card stack" style={{ borderColor: 'var(--primary)' }}>
               <h2 style={{ margin: 0 }}>Recommended Schedule Reached</h2>
               <p style={{ margin: 0 }}>
-                You've hit the recommended ~{photography.recommendedDays} days for this shoot. Keep filming for a
-                chance at more polish - at the same daily cost, with no cap - or wrap it here?
+                You've hit the recommended ~{photography.recommendedDays} days - enough footage for a solid film. Keep
+                filming for a chance at more polish, at the same daily cost, or wrap it here. Past day {upperBound} the
+                footage covers everything and the shoot wraps itself.
               </p>
               <div className="row">
                 <Button onClick={() => setAwaitingContinueDecision(false)}>Keep Filming</Button>
@@ -210,21 +238,31 @@ export function ProductionRun() {
               </div>
             ))}
             {photography.status === 'in-progress' && !awaitingContinueDecision && (
-              <div className="row-between">
-                <span className="filming-status">
-                  Filming<span className="filming-dot">.</span><span className="filming-dot">.</span><span className="filming-dot">.</span>
-                </span>
-                <div className="row">
-                  {!viewingProductionId && (
-                    <Button onClick={handleFastForward}>Fast Forward to Day {photography.recommendedDays}</Button>
-                  )}
-                  <Button
-                    variant="primary"
-                    onClick={() => dispatch({ type: 'FINISH_PHOTOGRAPHY', productionId: shownId! })}
-                  >
-                    Finish Principal Photography
-                  </Button>
+              <div className="stack" style={{ gap: 6 }}>
+                <div className="row-between">
+                  <span className="filming-status">
+                    Filming<span className="filming-dot">.</span><span className="filming-dot">.</span><span className="filming-dot">.</span>
+                  </span>
+                  <div className="row">
+                    {!viewingProductionId && (
+                      <Button onClick={handleFastForward}>Fast Forward to Day {photography.recommendedDays}</Button>
+                    )}
+                    <Button
+                      variant="primary"
+                      disabled={!hasUsableCoverage}
+                      title={wrapBlockedReason}
+                      onClick={() => dispatch({ type: 'FINISH_PHOTOGRAPHY', productionId: shownId! })}
+                    >
+                      Finish Principal Photography
+                    </Button>
+                  </div>
                 </div>
+                {/* A disabled button's title tooltip doesn't surface in most
+                    browsers, so the reason the wrap is locked is said in visible
+                    copy too. */}
+                {wrapBlockedReason && (
+                  <p style={{ margin: 0, color: 'var(--red)', fontSize: '0.85em' }}>{wrapBlockedReason}</p>
+                )}
               </div>
             )}
             {photography.status === 'in-progress' && awaitingContinueDecision && (
