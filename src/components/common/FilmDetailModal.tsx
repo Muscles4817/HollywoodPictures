@@ -13,8 +13,7 @@ import { StatGroup } from './StatGroup';
 import { CompatibilityBadge } from './CompatibilityBadge';
 import { BoxOfficeChart } from './BoxOfficeChart';
 import { SeverityBadge } from './SeverityBadge';
-import { computeReportedLegs } from '../../state/selectors';
-import { filmMarketBreakdown } from '../../engine/boxOfficeRun';
+import { FilmMoneyBreakdown } from './FilmMoneyBreakdown';
 import { getCareerForRole } from '../../engine/person';
 import { useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
@@ -129,42 +128,10 @@ function CastCrewSection({ film }: { film: Film }) {
 }
 
 function FinancialsSection({ film }: { film: Film }) {
-  const running = film.boxOfficeRun.status === 'running';
-  // Derived, not stored - see state/selectors.ts:computeReportedLegs. Only
-  // shown once the run has actually finished; a still-running film's
-  // eventual legs aren't knowable any earlier than its real total is.
-  const legs = computeReportedLegs(film);
-  const markets = filmMarketBreakdown(film);
   return (
     <div className="card stack">
       <h3 style={{ margin: 0 }}>Financials</h3>
-      <div className="row">
-        <StatTile label="Production Cost" value={<Money amount={film.results.productionCost} />} />
-        <StatTile label="Marketing Cost" value={<Money amount={film.results.marketingCost} />} />
-        <StatTile label="Total Cost" value={<Money amount={film.results.totalCost} />} />
-      </div>
-      <div className="row">
-        <StatTile label="Opening Weekend" value={<Money amount={film.results.openingWeekend} />} />
-        {running ? (
-          <StatTile label="Gross So Far" value={<Money amount={film.boxOfficeRun.cumulativeGross} />} />
-        ) : (
-          <>
-            <StatTile label="Total Box Office" value={<Money amount={film.results.totalBoxOffice ?? 0} />} />
-            <StatTile label="Studio's Share" value={<Money amount={film.results.studioRevenue ?? 0} />} />
-            <StatTile label="Profit / Loss" value={<Money amount={film.results.profit ?? 0} signColor showSign />} />
-            {legs !== null && <StatTile label="Legs" value={`${legs.toFixed(2)}x`} />}
-          </>
-        )}
-      </div>
-      {markets.total > 0 && (
-        <div className="row">
-          <StatTile label="Domestic" value={<Money amount={markets.domestic} />} />
-          <StatTile
-            label="International"
-            value={markets.hasInternational ? <Money amount={markets.international} /> : 'None'}
-          />
-        </div>
-      )}
+      <FilmMoneyBreakdown film={film} />
       {film.boxOfficeRun.weeks.length > 0 && <BoxOfficeChart weeks={film.boxOfficeRun.weeks} />}
     </div>
   );
