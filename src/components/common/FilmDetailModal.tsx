@@ -15,9 +15,10 @@ import { BoxOfficeChart } from './BoxOfficeChart';
 import { SeverityBadge } from './SeverityBadge';
 import { computeReportedLegs } from '../../state/selectors';
 import { getCareerForRole } from '../../engine/person';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { ipForSourceFilm } from '../../engine/intellectualProperty';
+import { evaluateIpViability } from '../../engine/ipViability';
 import type { Film, Person, ProductionRole } from '../../types';
 
 /**
@@ -248,6 +249,55 @@ function ReviewsSection({ film }: { film: Film }) {
 }
 
 /**
+ * The franchise-viability read for a released film (engine/ipViability.ts) -
+ * shown for the player's own films whether or not an IP exists yet, so the
+ * player understands *why* a film is or isn't a good franchise candidate before
+ * deciding to establish one. Purely a read: it never creates or touches an IP.
+ * Deliberately sits above the Promote panel below it.
+ */
+function IpAssessmentPanel({ film }: { film: Film }) {
+  const { state } = useStudio();
+  const assessment = useMemo(
+    () => evaluateIpViability(film, state.studio, { talentPool: state.talentPool }, state.totalDays),
+    [film, state.studio, state.talentPool, state.totalDays],
+  );
+
+  return (
+    <div className="card stack">
+      <h3 style={{ margin: 0 }}>IP Assessment</h3>
+      <div className="row" style={{ gap: 12, alignItems: 'center' }}>
+        <StarRating value={assessment.overallScore} />
+        <strong>{assessment.verdict}</strong>
+      </div>
+      <div className="row" style={{ gap: 16, flexWrap: 'wrap' }}>
+        <StatTile label="Inherent Potential" value={`${Math.round(assessment.inherentPotential)} / 100`} />
+        <StatTile label="Current Opportunity" value={`${Math.round(assessment.currentOpportunity)} / 100`} />
+      </div>
+      {assessment.strengths.length > 0 && (
+        <div>
+          <div className="stat-label">Strengths</div>
+          <ul style={{ margin: '2px 0 0', paddingLeft: 18 }}>
+            {assessment.strengths.map((s) => (
+              <li key={s} style={{ fontSize: '0.9em' }}>{s}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {assessment.concerns.length > 0 && (
+        <div>
+          <div className="stat-label">Concerns</div>
+          <ul style={{ margin: '2px 0 0', paddingLeft: 18 }}>
+            {assessment.concerns.map((c) => (
+              <li key={c} style={{ fontSize: '0.9em' }}>{c}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Promote-to-IP panel, shown only for the player's own released films (never a
  * rival's - see the modal's own gate on releasedBy). Before promotion it lets
  * the player pick which characters to lift into a new persistent IP alongside
@@ -382,9 +432,16 @@ export function FilmDetailModal({ film, onClose }: { film: Film; onClose: () => 
         <ReceptionSection film={film} />
         <FinancialsSection film={film} />
         <ReviewsSection film={film} />
-        {/* Only the player's own films can be promoted to IP - a rival's film
-            (releasedBy set) is never the player's to exploit. */}
-        {film.releasedBy === undefined && <FilmIpPanel film={film} />}
+        {/* Only the player's own films get an IP assessment / promotion - a
+            rival's film (releasedBy set) is never the player's to exploit. The
+            assessment shows whether or not an IP exists yet, so the player can
+            weigh the decision before establishing one. */}
+        {film.releasedBy === undefined && (
+          <>
+            <IpAssessmentPanel film={film} />
+            <FilmIpPanel film={film} />
+          </>
+        )}
 
         <div className="row-between">
           <span />
