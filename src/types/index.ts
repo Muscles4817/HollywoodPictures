@@ -1079,6 +1079,61 @@ export interface Film {
   assetId?: string;
 }
 
+// --- Intellectual Property (first IP-layer milestone) --------------------
+//
+// A persistent creative asset the studio *deliberately* promotes a released
+// Film into (never automatically - most Films stay ordinary catalogue Films
+// indefinitely). An IP is built around recognisable Characters and a Setting
+// lifted out of the source Film as persistent, globally-identified components,
+// and it *references* the Films it's drawn from by id - it never contains,
+// copies, replaces, or wraps the Film itself. The Film is unchanged and lives
+// on in the catalogue exactly as before; the IP just points at it. A Film
+// already preserves everything needed to evaluate it as source material (its
+// whole Script - cast + primarySetting - plus results/box office), so nothing
+// has to be added to Film for this.
+//
+// Future work (sequels, spin-offs, reboots, merchandise, licensing, actor
+// continuity, IP-driven box-office bonuses) will reference an IntellectualProperty
+// - none of it exists yet, and this milestone deliberately doesn't build for it
+// beyond the reference-not-contain shape below.
+
+/** A Character lifted out of a source Film into a persistent, globally-identified IP component. Snapshots the script-local ScriptCharacter's creative/commercial profile at promotion time; `sourceCharacterId`/`sourceFilmId` are provenance references back to where it came from. */
+export interface IpCharacter {
+  /** Globally unique and persistent - distinct from the script-local ScriptCharacter.id it was promoted from (which is only unique within its own Script). */
+  id: string;
+  sourceFilmId: string;
+  sourceCharacterId: string;
+  name: string;
+  archetype: CharacterArchetype;
+  prominence: CharacterProminence;
+  castingGender?: CastingGender;
+  traits: CharacterTraitProfile;
+}
+
+/** The Setting lifted from a source Film's primarySetting into a persistent, globally-identified IP component. */
+export interface IpSetting {
+  id: string;
+  sourceFilmId: string;
+  archetype: SettingArchetype;
+}
+
+export interface IntellectualProperty {
+  /** Globally unique and persistent. */
+  id: string;
+  /** Player-facing name - defaults to the source Film's title at promotion, editable there. */
+  name: string;
+  /** GameState.totalDays the IP was promoted on. */
+  createdOnDay: GameDay;
+  /** The Film this IP was first promoted from - a reference, never a copy. */
+  sourceFilmId: string;
+  /** Every Film that is part of this IP. Just [sourceFilmId] for now; a future sequel/spin-off would append its own Film id here. References only - the Films live in GameState.projects, never duplicated here. */
+  filmIds: string[];
+  /** The Characters the player chose to lift into this IP as persistent components. */
+  characters: IpCharacter[];
+  /** The Setting lifted from the source Film's primarySetting. */
+  setting: IpSetting;
+}
+
 // --- Development Pipeline: Opportunity -> Asset -> Project ---------------
 //
 // docs/DESIGN_REVIEW_development_pipeline.md. A studio doesn't create films
@@ -1251,6 +1306,8 @@ export interface Studio {
   /** How respected the studio is within the industry and by critics - grows from critical reception alone, independent of a film's commercial outcome. Not yet consumed by any formula (no critic-facing mechanic exists yet) - tracked now so a future system (e.g. awards) has real history to read, the same "compute and track now, wire in later" precedent commercialProfile.crossoverPotential set. */
   prestige: number; // 0-100
   assets: Asset[];
+  /** Persistent creative assets the studio has deliberately promoted a released Film into (see IntellectualProperty). Empty until the player promotes their first Film; never populated automatically. References Films by id - it doesn't contain them. */
+  intellectualProperties: IntellectualProperty[];
   /**
    * The Production Office facility (docs/DESIGN_REVIEW_production_office.md).
    * `null`/absent means not yet unlocked (the initial state, and every save
@@ -1551,4 +1608,5 @@ export type Screen =
   | 'asset-library'
   | 'projects'
   | 'awards'
-  | 'talent-database';
+  | 'talent-database'
+  | 'ip-library';

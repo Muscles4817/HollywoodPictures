@@ -278,7 +278,12 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // dismissed from an Open Casting list, kept out of future weekly batches
 // (engine/castingCalls.ts). A v43 save's casting calls have no such field - no
 // migration code, same as every past shape change here.
-const SAVE_KEY = 'hollywood-pictures-save-v44';
+// v44 -> v45 (first IP-layer milestone): Studio gained a required
+// intellectualProperties: IntellectualProperty[] - the persistent IP the
+// player has promoted released Films into (empty until they do). A v44 save's
+// studio has no such field - no migration code, same as every past shape
+// change here.
+const SAVE_KEY = 'hollywood-pictures-save-v45';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

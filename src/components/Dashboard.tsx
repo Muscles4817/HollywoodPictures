@@ -326,6 +326,7 @@ export function Dashboard() {
         <button type="button" onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}>Release Calendar</button>
         <button type="button" onClick={() => dispatch({ type: 'VIEW_STATS' })}>Studio Stats</button>
         <button type="button" onClick={() => dispatch({ type: 'VIEW_TALENT_DATABASE' })}>Talent Database</button>
+        <button type="button" onClick={() => dispatch({ type: 'VIEW_IP_LIBRARY' })}>Intellectual Property</button>
         <button type="button" onClick={() => dispatch({ type: 'VIEW_AWARDS' })}>Awards</button>
         <button type="button" onClick={() => setShowGuide(true)}>How It Works</button>
         <button type="button" className="dashboard-danger-link" onClick={() => setShowResetPicker(true)}>Reset Studio</button>

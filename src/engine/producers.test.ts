@@ -53,7 +53,7 @@ function makeProducer(opts: {
 }
 
 function studioWithOffice(office: Studio['productionOffice']): Studio {
-  return { name: 'S', cash: 5_000_000, brand: 20, prestige: 20, assets: [], productionOffice: office };
+  return { name: 'S', cash: 5_000_000, brand: 20, prestige: 20, assets: [], intellectualProperties: [], productionOffice: office };
 }
 
 describe('computeProducerEffects', () => {

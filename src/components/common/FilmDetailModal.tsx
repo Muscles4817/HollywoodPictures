@@ -15,6 +15,9 @@ import { BoxOfficeChart } from './BoxOfficeChart';
 import { SeverityBadge } from './SeverityBadge';
 import { computeReportedLegs } from '../../state/selectors';
 import { getCareerForRole } from '../../engine/person';
+import { useState } from 'react';
+import { useStudio } from '../../state/StudioContext';
+import { ipForSourceFilm } from '../../engine/intellectualProperty';
 import type { Film, Person, ProductionRole } from '../../types';
 
 /**
@@ -245,6 +248,103 @@ function ReviewsSection({ film }: { film: Film }) {
 }
 
 /**
+ * Promote-to-IP panel, shown only for the player's own released films (never a
+ * rival's - see the modal's own gate on releasedBy). Before promotion it lets
+ * the player pick which characters to lift into a new persistent IP alongside
+ * the film's setting; once promoted it becomes a read-only readout of that IP.
+ * Self-contained (reads/writes the store directly) so the modal itself stays a
+ * plain presentational component and nothing has to be threaded through its
+ * three call sites.
+ */
+function FilmIpPanel({ film }: { film: Film }) {
+  const { state, dispatch } = useStudio();
+  const existing = ipForSourceFilm(state.studio, film.id);
+  // Minor roles aren't recognisable IP - only Lead/Supporting characters are
+  // offered for promotion (the setting always comes along regardless).
+  const promotable = film.script.cast.filter((c) => c.prominence !== 'Minor');
+  const [name, setName] = useState(film.title);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(promotable.map((c) => c.id)));
+
+  if (existing) {
+    return (
+      <div className="card stack">
+        <h3 style={{ margin: 0 }}>Intellectual Property</h3>
+        <p style={{ margin: 0 }}>
+          This film has been promoted to the IP <strong>{existing.name}</strong>.
+        </p>
+        <div>
+          <div className="stat-label">Characters</div>
+          {existing.characters.length === 0 ? (
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>Setting only — no characters were included.</p>
+          ) : (
+            <div className="stack" style={{ gap: 2 }}>
+              {existing.characters.map((c) => (
+                <div key={c.id} style={{ fontSize: '0.85em' }}>
+                  <strong>{c.name}</strong> — {c.prominence} {CHARACTER_ARCHETYPE_LABELS[c.archetype]}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="stat-label">Setting: {SETTING_LABELS[existing.setting.archetype]}</div>
+      </div>
+    );
+  }
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  return (
+    <div className="card stack">
+      <h3 style={{ margin: 0 }}>Promote to Intellectual Property</h3>
+      <p className="choice-description" style={{ margin: 0 }}>
+        Turn this film's characters and setting into a persistent creative asset you can build future projects around later.
+        Nothing about the film itself changes.
+      </p>
+      <label className="stack" style={{ gap: 4 }}>
+        <span className="stat-label">IP name</span>
+        <input value={name} onChange={(e) => setName(e.target.value)} aria-label="IP name" />
+      </label>
+      <div>
+        <div className="stat-label">Characters to include</div>
+        {promotable.length === 0 ? (
+          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
+            This film has no notable characters — the IP will carry just its setting.
+          </p>
+        ) : (
+          <div className="stack" style={{ gap: 2 }}>
+            {promotable.map((c) => (
+              <label key={c.id} className="row" style={{ gap: 8, alignItems: 'center' }}>
+                <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} />
+                <span style={{ fontSize: '0.85em' }}>
+                  <strong>{c.name}</strong> — {c.prominence} {CHARACTER_ARCHETYPE_LABELS[c.archetype]}
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="stat-label">Setting: {SETTING_LABELS[film.script.primarySetting]} (always included)</div>
+      <div>
+        <Button
+          variant="primary"
+          disabled={promotable.length > 0 && selected.size === 0}
+          onClick={() => dispatch({ type: 'PROMOTE_FILM_TO_IP', filmId: film.id, characterIds: [...selected], name })}
+        >
+          Promote to IP
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * The full dossier for one released film - the screenplay's own concept and
  * craft, cast/crew with their stats, the on-set event log, reception,
  * financials, and reviews - opened by clicking a row in Dashboard's Studio
@@ -282,6 +382,9 @@ export function FilmDetailModal({ film, onClose }: { film: Film; onClose: () => 
         <ReceptionSection film={film} />
         <FinancialsSection film={film} />
         <ReviewsSection film={film} />
+        {/* Only the player's own films can be promoted to IP - a rival's film
+            (releasedBy set) is never the player's to exploit. */}
+        {film.releasedBy === undefined && <FilmIpPanel film={film} />}
 
         <div className="row-between">
           <span />

@@ -8,6 +8,7 @@ import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequi
 import { personMeetsCharacterGender } from '../engine/casting';
 import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, resolveEventChoice } from '../engine/production';
 import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
+import { promoteFilmToIp, ipForSourceFilm } from '../engine/intellectualProperty';
 import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
 import { getTypicalSalaryForRole, withCommitment, withReputationChange } from '../engine/person';
 import type { TalentReputationDelta } from '../engine/pressTourMoments';
@@ -42,6 +43,7 @@ import { currentScreenFor } from './selectors';
 import {
   projectId,
   findProject,
+  asFilm,
   asPlayerDraft,
   playerDraftToProject,
   scheduledDraftToProject,
@@ -1830,6 +1832,28 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // Dashboard -> the searchable talent database. Pure detour, same as VIEW_STATS.
     case 'VIEW_TALENT_DATABASE':
       return { ...state, screen: 'talent-database', ...clearTransientView() };
+
+    // Dashboard -> the studio's Intellectual Property library. Pure detour, same as VIEW_STATS.
+    case 'VIEW_IP_LIBRARY':
+      return { ...state, screen: 'ip-library', ...clearTransientView() };
+
+    // First IP-layer milestone - promote one of the player's own released
+    // Films into a persistent IntellectualProperty (engine/intellectualProperty.ts),
+    // referencing the Film by id and lifting the chosen Characters + Setting
+    // into persistent components. Deliberately never automatic. Guards: the
+    // Film must exist and be the player's own (a rival's film - releasedBy set
+    // - is never promotable), and a Film that's already an IP source can't be
+    // promoted a second time.
+    case 'PROMOTE_FILM_TO_IP': {
+      const film = asFilm(findProject(state.projects, action.filmId));
+      if (!film || film.releasedBy !== undefined) return state;
+      if (ipForSourceFilm(state.studio, film.id)) return state;
+      const ip = promoteFilmToIp(film, action.characterIds, action.name, state.totalDays);
+      return {
+        ...state,
+        studio: { ...state.studio, intellectualProperties: [...state.studio.intellectualProperties, ip] },
+      };
+    }
 
     // Restores an exact prior "page" - see GameAction's own comment on why
     // this one, unlike every other navigation action, can't just trust its

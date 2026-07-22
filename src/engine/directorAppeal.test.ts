@@ -14,7 +14,7 @@ function scriptFor(seed: number): Script {
 }
 
 function studio(overrides: Partial<Studio> = {}): Studio {
-  return { name: 'Test Studio', cash: 10_000_000, brand: 50, prestige: 50, assets: [], ...overrides };
+  return { name: 'Test Studio', cash: 10_000_000, brand: 50, prestige: 50, assets: [], intellectualProperties: [], ...overrides };
 }
 
 function directorPerson(
