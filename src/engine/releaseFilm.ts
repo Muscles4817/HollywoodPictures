@@ -97,6 +97,17 @@ export interface ReleaseComputationInput {
    * surprise) - so the forecast path is unchanged.
    */
   pressTourMoment?: { buzzDelta: number; storyBeat: string | null };
+  /**
+   * The campaign's rollout-momentum multiplier (>= 1) from its runway
+   * (engine/marketing.ts:marketingRolloutMultiplier, resolved by the caller from
+   * the frozen campaignStartDay + releaseDay). Scales the realised marketing
+   * reach that feeds both Buzz and the opening, so a release given time to build
+   * a campaign lands harder than one rushed straight out. Optional/absent
+   * defaults to 1 (neutral) - a same-day release, a rival, a pre-rollout save,
+   * or the projection path when no runway is assumed - so behaviour is unchanged
+   * there. See docs/DESIGN_REVIEW_marketing_rollout.md.
+   */
+  marketingRolloutMultiplier?: number;
 }
 
 export interface ReleaseComputationResult {
@@ -158,9 +169,16 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // Both fall back to neutral (the flat marketingSpend, no angle) when no
   // campaign is built - rivals and pre-overhaul saves - so behaviour is
   // unchanged there.
-  const marketingReach = input.marketingChoices.channelSpend
+  const baseMarketingReach = input.marketingChoices.channelSpend
     ? effectiveMarketingReach(input.marketingChoices.channelSpend, input.targetAudience)
     : input.marketingChoices.marketingSpend;
+  // Marketing rollout (docs/DESIGN_REVIEW_marketing_rollout.md): a campaign
+  // given runway to build lands harder. The multiplier (>= 1, resolved by the
+  // caller from the frozen campaignStartDay -> releaseDay runway) lifts the
+  // realised reach that both Buzz and the opening read below; 1 (neutral) for a
+  // same-day release, a rival, or the projection's default, leaving those
+  // unchanged.
+  const marketingReach = baseMarketingReach * (input.marketingRolloutMultiplier ?? 1);
   const angle = input.marketingChoices.campaignAngle;
   const angleEffect = angle
     ? campaignAngleEffect(

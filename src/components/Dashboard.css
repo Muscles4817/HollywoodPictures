@@ -365,6 +365,17 @@
   min-width: 0;
 }
 
+/* Marketing-rollout progress under a scheduled film's row - a campaign in
+   flight, not an inert wait (docs/DESIGN_REVIEW_marketing_rollout.md). */
+.dashboard-campaign-meter {
+  max-width: 220px;
+  margin: 4px 0 2px;
+}
+
+.dashboard-campaign-meter span {
+  background: var(--dashboard-accent, var(--primary, #4f7cff));
+}
+
 .dashboard-project-main strong {
   margin: 5px 0 3px;
 }

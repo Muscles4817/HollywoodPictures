@@ -1751,6 +1751,13 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         marketingChoices: {
           ...d.marketingChoices,
           releaseWindow: deriveReleaseWindowFromDay(releaseDay),
+          // The campaign commits now - freeze its rollout start so settlement can
+          // read the runway it got (releaseDay - this), the momentum a held
+          // release builds (docs/DESIGN_REVIEW_marketing_rollout.md). This is the
+          // day the film is actually ready to promote (totalDaysAfter, clamped up
+          // to post-production completion), so a same-day release gets zero
+          // runway - the neutral baseline - and holding past it earns momentum.
+          campaignStartDay: totalDaysAfter,
           distributionMethod: distributionDeal.method,
           distributionBreadth: distributionDeal.breadth,
           distributionKeepShare: distributionDeal.keepShare,

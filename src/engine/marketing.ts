@@ -6,6 +6,8 @@
 import type { CampaignAngle, MarketingChannel, Money, TargetAudience } from '../types';
 import {
   CAMPAIGN_ANGLE_PROFILES,
+  CAMPAIGN_FULL_ROLLOUT_WEEKS,
+  CAMPAIGN_MOMENTUM_BONUS,
   CHANNEL_AUDIENCE_EFFICIENCY,
   LEGS_PENALTY_SCALE,
   MARKETING_CHANNELS,
@@ -68,4 +70,63 @@ export function campaignAngleEffect(angle: CampaignAngle, deliveredScore: number
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+// --- Marketing rollout / campaign runway (docs/DESIGN_REVIEW_marketing_rollout.md) ---
+
+/** Whole weeks of campaign runway between committing a campaign and its release day (never negative - a same-day release has zero runway). */
+export function campaignRolloutWeeks(campaignStartDay: number, releaseDay: number): number {
+  return Math.max(0, (releaseDay - campaignStartDay) / 7);
+}
+
+/**
+ * The realised-reach multiplier a campaign earns from its runway: how much
+ * momentum a rollout of `weeks` builds. Ramps concavely (early weeks buy the
+ * most) from 1.0 at zero runway - a rushed, same-day release, the neutral
+ * baseline - up to `1 + CAMPAIGN_MOMENTUM_BONUS` once the campaign has had a
+ * full `CAMPAIGN_FULL_ROLLOUT_WEEKS` to build, then flat (extra runway past a
+ * full campaign neither helps nor hurts). Always >= 1: runway is a bonus for
+ * holding, never a penalty for rushing, so the existing box-office calibration
+ * is untouched for the same-day case.
+ */
+export function rolloutMomentum(weeks: number): number {
+  const progress = clamp(weeks / CAMPAIGN_FULL_ROLLOUT_WEEKS, 0, 1);
+  const eased = 1 - (1 - progress) ** 2; // concave: the first weeks of runway matter most
+  return 1 + CAMPAIGN_MOMENTUM_BONUS * eased;
+}
+
+/**
+ * The rollout-momentum multiplier for a scheduled release, or the neutral 1
+ * when its campaign start day isn't known (rivals, saves predating the rollout,
+ * and the pre-schedule projection's default) - the same fall-back-to-neutral
+ * discipline the channel/angle additions use, so callers that don't know a
+ * start day get exactly today's behaviour.
+ */
+export function marketingRolloutMultiplier(campaignStartDay: number | undefined, releaseDay: number): number {
+  if (campaignStartDay === undefined) return 1;
+  return rolloutMomentum(campaignRolloutWeeks(campaignStartDay, releaseDay));
+}
+
+export interface CampaignRolloutProgress {
+  /** Whole weeks of runway the campaign has (start -> release). */
+  totalWeeks: number;
+  /** Weeks of the rollout already elapsed as of `today`, capped at the total. */
+  weeksElapsed: number;
+  /** 0..1 - how far through its rollout the campaign is right now (1 once release day has arrived; 0 for a zero-runway campaign). */
+  fraction: number;
+}
+
+/**
+ * Where a scheduled film's campaign is in its rollout as of `today` - the data
+ * the Dashboard/calendar need to show a campaign as an in-progress rollout
+ * ("week 3 of 10") rather than an inert wait. Pure display arithmetic; the
+ * settled box office reads `marketingRolloutMultiplier` off the frozen runway,
+ * not this.
+ */
+export function campaignRolloutProgress(campaignStartDay: number, releaseDay: number, today: number): CampaignRolloutProgress {
+  const totalWeeks = campaignRolloutWeeks(campaignStartDay, releaseDay);
+  const elapsedRaw = campaignRolloutWeeks(campaignStartDay, Math.min(today, releaseDay));
+  const weeksElapsed = Math.min(elapsedRaw, totalWeeks);
+  const fraction = totalWeeks > 0 ? clamp(weeksElapsed / totalWeeks, 0, 1) : 1;
+  return { totalWeeks, weeksElapsed, fraction };
 }

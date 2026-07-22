@@ -24,7 +24,13 @@ import {
   MARKETING_CHANNEL_BLURB,
   MARKETING_CHANNEL_LABEL,
 } from '../../data/marketing';
-import { totalMarketingSpend, type ChannelSpend } from '../../engine/marketing';
+import {
+  campaignRolloutWeeks,
+  marketingRolloutMultiplier,
+  totalMarketingSpend,
+  type ChannelSpend,
+} from '../../engine/marketing';
+import { CAMPAIGN_FULL_ROLLOUT_WEEKS, CAMPAIGN_MOMENTUM_BONUS } from '../../data/marketing';
 import { marketResearchTier, trackingBand } from '../../engine/marketResearch';
 import { MARKET_RESEARCH_TIER_LABEL } from '../../data/marketResearch';
 import {
@@ -110,6 +116,32 @@ function mediaRiskReading(risk: number): { label: string; className: string } {
   return { label: 'Volatile', className: 'media-risk--volatile' };
 }
 
+/** A plain-language read on how much rollout momentum a release date's campaign runway earns. */
+function rolloutReading(weeks: number, multiplier: number): { label: string; detail: string; className: string } {
+  const bonusPct = Math.round((multiplier - 1) * 100);
+  const fullPct = Math.round(CAMPAIGN_MOMENTUM_BONUS * 100);
+  const roundedWeeks = Math.round(weeks);
+  if (weeks < 0.5) {
+    return {
+      label: 'Rushed release',
+      detail: `No campaign runway - the marketing lands at its baseline reach. Hold the release to let the campaign build (up to +${fullPct}% reach over a ${CAMPAIGN_FULL_ROLLOUT_WEEKS}-week rollout).`,
+      className: 'rollout--rushed',
+    };
+  }
+  if (multiplier < 1 + CAMPAIGN_MOMENTUM_BONUS - 0.005) {
+    return {
+      label: `Building · +${bonusPct}% reach`,
+      detail: `${roundedWeeks} week${roundedWeeks === 1 ? '' : 's'} of runway - the campaign is gathering momentum. A full ${CAMPAIGN_FULL_ROLLOUT_WEEKS}-week rollout tops out at +${fullPct}%.`,
+      className: 'rollout--building',
+    };
+  }
+  return {
+    label: `Full rollout · +${bonusPct}% reach`,
+    detail: `${roundedWeeks} weeks of runway - the campaign is in full swing, realising its maximum reach.`,
+    className: 'rollout--full',
+  };
+}
+
 function crowdingReading(score: number): { label: string; className: string } {
   if (score < 0.15) return { label: 'Clear window', className: 'month-cell__crowding--clear' };
   if (score < 0.4) return { label: 'Some competition', className: 'month-cell__crowding--moderate' };
@@ -154,6 +186,13 @@ export function MarketingRelease() {
   // engine/calendar.ts:deriveReleaseWindowFromDay's own doc comment for why
   // this can no longer be picked independently of the date.
   const releaseWindow = deriveReleaseWindowFromDay(releaseDay);
+  // Marketing rollout (docs/DESIGN_REVIEW_marketing_rollout.md): holding a
+  // release past the earliest possible date gives the campaign runway to build
+  // momentum. The campaign commits (and this runway starts) at minReleaseDay -
+  // exactly the campaignStartDay SCHEDULE_RELEASE will freeze - so the preview's
+  // multiplier matches what settlement will read for the same date.
+  const rolloutWeeks = campaignRolloutWeeks(minReleaseDay, releaseDay);
+  const rolloutMultiplier = marketingRolloutMultiplier(minReleaseDay, releaseDay);
 
   const candidateMonths = useMemo(() => {
     const months: Array<{ year: number; monthIndex: number; releaseDay: number }> = [];
@@ -307,6 +346,10 @@ export function MarketingRelease() {
           competitiveCrowding: selectedCrowding,
           producerEffects: computeProducerEffects(producersByIds(producerPool, attachedIds), draft.genre),
           producerFees: totalAttachedPerFilmFees(producerPool, attachedIds),
+          // The rollout momentum this release date earns - so the projected
+          // opening climbs as the player holds the release for a longer campaign,
+          // exactly as settlement will read it.
+          marketingRolloutMultiplier: rolloutMultiplier,
         },
         createRng(1),
       );
@@ -315,7 +358,7 @@ export function MarketingRelease() {
       return null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, choices, selectedCrowding, state.studio.brand, state.producerPool, distributionMethod, distributionDeal.breadth, distributionDeal.keepShare]);
+  }, [draft, choices, selectedCrowding, state.studio.brand, state.producerPool, distributionMethod, distributionDeal.breadth, distributionDeal.keepShare, rolloutMultiplier]);
 
   // Tracking-as-a-service (F3): the true projection is never shown as a single
   // number - it's bracketed by a band whose width is set by the studio's Market
@@ -616,6 +659,23 @@ export function MarketingRelease() {
             : `Held ${holdMonths} month${holdMonths === 1 ? '' : 's'} past the earliest possible date.`}{' '}
           <span className={selectedCrowdingReading.className}>{selectedCrowdingReading.label}</span> for this exact date.
         </p>
+
+        {(() => {
+          const reading = rolloutReading(rolloutWeeks, rolloutMultiplier);
+          const fill = Math.round(((rolloutMultiplier - 1) / CAMPAIGN_MOMENTUM_BONUS) * 100);
+          return (
+            <div className={`campaign-runway ${reading.className}`}>
+              <div className="campaign-runway__head">
+                <span className="stat-label">Marketing rollout</span>
+                <strong>{reading.label}</strong>
+              </div>
+              <div className="campaign-runway__meter" aria-hidden="true">
+                <span style={{ width: `${fill}%` }} />
+              </div>
+              <p className="choice-description" style={{ margin: 0 }}>{reading.detail}</p>
+            </div>
+          );
+        })()}
       </div>
 
       {/* A disabled <button>'s `title` tooltip doesn't surface in most

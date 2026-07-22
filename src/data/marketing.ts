@@ -77,3 +77,24 @@ export const LEGS_PENALTY_SCALE = 0.6; // hype 1 with a full unmet promise -> a 
 // word-of-mouth input that drives weekly retention), never the reported score.
 // So a badly oversold film opens big and then falls off a cliff.
 export const LEGS_AUDIENCE_POINTS = 30;
+
+// --- Marketing rollout / campaign runway (docs/DESIGN_REVIEW_marketing_rollout.md) ---
+// A marketing campaign isn't an instant switch flipped on release day - it's a
+// rollout that takes place over the weeks leading up to a film's release.
+// Trailers have to air (and re-air), word has to spread, anticipation has to
+// compound. The *runway* a campaign gets - the gap between committing it
+// (SCHEDULE_RELEASE) and the release day - is how much of that momentum it
+// gets to build. A film rushed straight out the door realises its campaign's
+// baseline reach and nothing more; one given room to breathe builds momentum,
+// lifting its realised marketing reach up to CAMPAIGN_MOMENTUM_BONUS.
+//
+// Deliberately a *bonus for runway*, never a penalty for rushing: a same-day
+// release (zero runway) is the neutral 1.0 baseline, so the entire existing
+// box-office calibration is unchanged and only the new act of *holding* a
+// release for its campaign moves the number. The countervailing cost of
+// holding is already in the game - a longer wait lets rivals crowd your window
+// (engine/releaseCrowding.ts) and keeps the film off screens earning nothing -
+// so runway is a real trade-off, not a free lever, and it caps out (no reason
+// to hold a film for years).
+export const CAMPAIGN_FULL_ROLLOUT_WEEKS = 8; // runway at which the campaign is in full swing
+export const CAMPAIGN_MOMENTUM_BONUS = 0.18; // +18% realised reach at a full rollout, vs a rushed release

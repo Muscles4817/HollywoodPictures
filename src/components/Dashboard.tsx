@@ -16,6 +16,7 @@ import { ProductionOfficeCard } from './ProductionOfficeCard';
 import { DistributionArmCard } from './DistributionArmCard';
 import { computeTopGrossingFilms, deriveReputationHistory, hasDraftProgress, countActivePlayerProjects } from '../state/selectors';
 import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
+import { campaignRolloutProgress } from '../engine/marketing';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
 import type { Film, FilmDraft } from '../types';
@@ -475,12 +476,32 @@ export function Dashboard() {
 
                 {scheduledReleases.map(({ draft, releaseDay }) => {
                   const onTour = draft.marketingChoices?.pressTourCast?.length ?? 0;
+                  // The marketing campaign is a rollout, not an instant switch:
+                  // while a film waits for its release day, show how far its
+                  // campaign has run (docs/DESIGN_REVIEW_marketing_rollout.md), so
+                  // a scheduled film reads as an active campaign rather than an
+                  // inert wait. campaignStartDay is absent on pre-rollout saves -
+                  // those just show the release date, as before.
+                  const startDay = draft.marketingChoices?.campaignStartDay;
+                  const rollout = startDay !== undefined ? campaignRolloutProgress(startDay, releaseDay, state.totalDays) : null;
+                  const totalWeeks = rollout ? Math.max(1, Math.round(rollout.totalWeeks)) : 0;
+                  const elapsedWeeks = rollout ? Math.min(totalWeeks, Math.round(rollout.weeksElapsed)) : 0;
                   return (
                     <article className="dashboard-project-row" key={draft.id}>
                       <div className="dashboard-project-main">
                         <span className="dashboard-status-pill dashboard-status-scheduled">Scheduled release</span>
                         <strong>{draft.title || 'Untitled Film'}</strong>
                         <span className="dashboard-project-meta">Releasing {formatGameMonthYear(releaseDay)}</span>
+                        {rollout && rollout.totalWeeks >= 1 && (
+                          <span className="dashboard-project-meta">
+                            Marketing campaign · week {elapsedWeeks} of {totalWeeks}
+                          </span>
+                        )}
+                        {rollout && rollout.totalWeeks >= 1 && (
+                          <div className="dashboard-meter dashboard-campaign-meter" aria-hidden="true">
+                            <span style={{ width: `${Math.round(rollout.fraction * 100)}%` }} />
+                          </div>
+                        )}
                         {onTour > 0 && (
                           <span className="dashboard-project-meta">Press tour booked · {onTour} on tour</span>
                         )}
