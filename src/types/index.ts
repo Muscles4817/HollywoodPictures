@@ -1118,17 +1118,40 @@ export interface Film {
 // - none of it exists yet, and this milestone deliberately doesn't build for it
 // beyond the reference-not-contain shape below.
 
-/** A Character lifted out of a source Film into a persistent, globally-identified IP component. Snapshots the script-local ScriptCharacter's creative/commercial profile at promotion time; `sourceCharacterId`/`sourceFilmId` are provenance references back to where it came from. */
+/**
+ * A character's evolving standing as IP - the part that changes over a
+ * franchise's life, kept separate from the immutable creative identity below.
+ * Only *initialised* at promotion (from the source film's historical reach);
+ * nothing evolves it yet (returning-character selection, franchise history,
+ * merchandise and decay are all deliberately future work).
+ */
+export interface IpCharacterStanding {
+  /** How known this character is to audiences, 0-100 - seeded from the source film's reach at promotion. */
+  recognition: number;
+  /** How much audiences actively like/want more of this character, 0-100 - seeded from the character's own appeal and the film's reach. */
+  popularity: number;
+}
+
+/**
+ * A Character lifted out of a source Film into a persistent, globally-identified
+ * IP component. Its *creative identity* (archetype + trait profile, plus the
+ * name/prominence it was written with) is an immutable snapshot from the source
+ * script and never changes; its `standing` is the separate, evolving part.
+ * `sourceCharacterId`/`sourceFilmId` are provenance references.
+ */
 export interface IpCharacter {
   /** Globally unique and persistent - distinct from the script-local ScriptCharacter.id it was promoted from (which is only unique within its own Script). */
   id: string;
   sourceFilmId: string;
   sourceCharacterId: string;
+  // --- Immutable creative identity (snapshot of the source ScriptCharacter) ---
   name: string;
-  archetype: CharacterArchetype;
   prominence: CharacterProminence;
   castingGender?: CastingGender;
+  archetype: CharacterArchetype;
   traits: CharacterTraitProfile;
+  // --- Evolving standing (initialised at promotion; no evolution mechanic yet) ---
+  standing: IpCharacterStanding;
 }
 
 /** The Setting lifted from a source Film's primarySetting into a persistent, globally-identified IP component. */
@@ -1153,6 +1176,76 @@ export interface IntellectualProperty {
   characters: IpCharacter[];
   /** The Setting lifted from the source Film's primarySetting. */
   setting: IpSetting;
+  /**
+   * Audience awareness the IP starts with, 0-100 - inherited at promotion from
+   * the source Film's own historical reach (audience response, buzz, box
+   * office). Recognition doesn't exist independently before an IP does: the
+   * Film owns its historical success, and the IP inherits it once established.
+   * Not evolved yet (no sequels/decay this milestone).
+   */
+  recognition: number;
+  /** Critical standing the IP starts with, 0-100 - inherited at promotion from the source Film's critical/quality reception. */
+  prestige: number;
+}
+
+// --- IP Viability Assessment (the "is this worth a franchise?" decision layer) --
+//
+// A read-only producer's-eye analysis of a released Film as long-term franchise
+// material (engine/ipViability.ts:evaluateIpViability). It never creates or
+// mutates an IP - it just inspects the Film (which never changes) and the
+// current world, and explains how viable another entry would be. Runs against
+// any released player Film whether or not an IP exists, so the player can decide
+// *whether* to promote before they do. Deliberately reusable: a future Franchise
+// Development Office, AI studio decisions, and a "Develop Follow-Up" flow will
+// all read the same assessment.
+
+/** One important character's standalone franchise potential, judged individually (never just averaged into the whole) so genuine breakouts are visible. */
+export interface IpCharacterViability {
+  /** The script-local ScriptCharacter.id this judges. */
+  characterId: string;
+  name: string;
+  prominence: CharacterProminence;
+  /** Standalone franchise potential, 0-100. */
+  potential: number;
+  /** Whether this character could plausibly carry or recur across future entries (a Lead who anchors sequels, a memorable antagonist), rather than being scenery. */
+  breakout: boolean;
+  /** A one-line, input-derived read on this character specifically. */
+  note: string;
+}
+
+export interface IpViabilityAssessment {
+  /** Headline 0-100 summary. */
+  overallScore: number;
+  /** A short verdict label derived from overallScore (e.g. "Strong Franchise Candidate"). */
+  verdict: string;
+
+  // The two deliberately-separate halves - a film can be high on one and low on
+  // the other (great material, bad timing; thin material, hot commercial moment).
+  /** Mostly-static: is this fundamentally franchise material (characters, setting, story room)? 0-100. */
+  inherentPotential: number;
+  /** Dynamic: is *now* a good moment to exploit it (awareness, genre heat, affordability, talent availability)? 0-100. */
+  currentOpportunity: number;
+
+  /** Aggregate character strength, weighted toward the best/breakouts rather than a flat mean. 0-100. */
+  characterPotential: number;
+  /** Whether the setting supports further stories, 0-100. */
+  settingPotential: number;
+
+  /** How much commercial goodwill (audience response, box office) carries into another entry. 0-100. */
+  commercialCarryover: number;
+  /** How much critical standing carries over. 0-100. */
+  prestigeCarryover: number;
+
+  /** How expensive/risky another production would be, 0-100 (higher = riskier). */
+  costRisk: number;
+
+  /** Per-character breakdown, most promising first. */
+  characters: IpCharacterViability[];
+
+  /** Plain-language, input-derived positives (already ordered, capped). */
+  strengths: string[];
+  /** Plain-language, input-derived reservations (already ordered, capped). */
+  concerns: string[];
 }
 
 // --- Development Pipeline: Opportunity -> Asset -> Project ---------------

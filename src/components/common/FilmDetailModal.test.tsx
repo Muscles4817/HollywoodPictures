@@ -112,3 +112,19 @@ describe('FilmDetailModal - Promote to IP', () => {
     expect(screen.queryByRole('heading', { name: 'Intellectual Property' })).not.toBeInTheDocument();
   });
 });
+
+describe('FilmDetailModal - IP Assessment', () => {
+  it("shows a franchise-viability assessment for the player's own film, whether or not an IP exists", () => {
+    render(<StudioProvider><FilmDetailModal film={buildFilm()} onClose={() => {}} /></StudioProvider>);
+    expect(screen.getByRole('heading', { name: 'IP Assessment' })).toBeInTheDocument();
+    // The inherent-vs-opportunity split is surfaced.
+    expect(screen.getByText('Inherent Potential')).toBeInTheDocument();
+    expect(screen.getByText('Current Opportunity')).toBeInTheDocument();
+  });
+
+  it("shows no assessment for a rival's film", () => {
+    const rivalFilm: Film = { ...buildFilm(), releasedBy: 'Rival Pictures' };
+    render(<StudioProvider><FilmDetailModal film={rivalFilm} onClose={() => {}} /></StudioProvider>);
+    expect(screen.queryByRole('heading', { name: 'IP Assessment' })).not.toBeInTheDocument();
+  });
+});

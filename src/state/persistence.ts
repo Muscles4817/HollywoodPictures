@@ -283,7 +283,12 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // player has promoted released Films into (empty until they do). A v44 save's
 // studio has no such field - no migration code, same as every past shape
 // change here.
-const SAVE_KEY = 'hollywood-pictures-save-v45';
+// v45 -> v46 (IP viability milestone): IpCharacter split its evolving standing
+// (recognition/popularity) out of its immutable creative identity into a nested
+// `standing`, and IntellectualProperty gained recognition/prestige inherited
+// from the source Film's results at promotion. A v45 save's IPs (if any) lack
+// all three - no migration code, same as every past shape change here.
+const SAVE_KEY = 'hollywood-pictures-save-v46';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

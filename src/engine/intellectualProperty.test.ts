@@ -5,10 +5,18 @@ import { createRng } from './random';
 import { createInitialStudio } from '../state/gameState';
 import type { Film, Script } from '../types';
 
-// promoteFilmToIp only reads id/title/script.cast/script.primarySetting, so a
-// minimal Film built around a real generated Script is enough here.
+// promoteFilmToIp reads the script (cast + setting) plus the film's historical
+// results/box office (recognition/prestige are inherited from them), so the
+// fixture carries a modest set of results.
 function filmFrom(id: string, script: Script): Film {
-  return { id, title: `The ${id}`, script } as unknown as Film;
+  return {
+    id,
+    title: `The ${id}`,
+    script,
+    releasedOnDay: 100,
+    results: { audienceScore: 70, criticScore: 65, buzzScore: 55, qualityScore: 60, profit: 20_000_000, totalCost: 40_000_000, totalBoxOffice: 120_000_000, openingWeekend: 20_000_000 },
+    boxOfficeRun: { cumulativeGross: 120_000_000 },
+  } as unknown as Film;
 }
 
 function actionScript(): Script {
@@ -68,6 +76,26 @@ describe('promoteFilmToIp', () => {
 
   it('gives every source film its own IP id', () => {
     expect(ipIdForFilm('a')).not.toBe(ipIdForFilm('b'));
+  });
+});
+
+describe('promoteFilmToIp - inherited standing', () => {
+  it('seeds the IP recognition/prestige from the film results, not from thin air', () => {
+    const ip = promoteFilmToIp(filmFrom('film-9', actionScript()), [], 'IP', 1);
+    expect(ip.recognition).toBeGreaterThan(0);
+    expect(ip.prestige).toBeGreaterThan(0);
+  });
+
+  it('gives each promoted character an initial standing, scaled by prominence', () => {
+    const script = actionScript();
+    const lead = script.cast.find((c) => c.prominence === 'Lead')!;
+    const lesser = script.cast.find((c) => c.prominence !== 'Lead')!;
+    const ip = promoteFilmToIp(filmFrom('film-10', script), [lead.id, lesser.id], 'IP', 1);
+    const promotedLead = ip.characters.find((c) => c.sourceCharacterId === lead.id)!;
+    const promotedLesser = ip.characters.find((c) => c.sourceCharacterId === lesser.id)!;
+    expect(promotedLead.standing.recognition).toBeGreaterThan(0);
+    // A more prominent role starts more recognisable off the same film.
+    expect(promotedLead.standing.recognition).toBeGreaterThan(promotedLesser.standing.recognition);
   });
 });
 
