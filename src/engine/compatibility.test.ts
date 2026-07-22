@@ -61,7 +61,13 @@ function writerPerson(id: string, name: string, skill: number): Person {
     ...personBase(id, name),
     primaryRole: 'Writer',
     careers: {
-      writer: { role: 'Writer', active: true, experience: skill, roleReputation: 50, minimumSalary: 50_000, typicalSalary: 50_000, skill },
+      writer: {
+        role: 'Writer', active: true, experience: skill, roleReputation: 50, minimumSalary: 50_000, typicalSalary: 50_000, skill,
+        craft: { originality: 50, structure: 50, characters: 50, dialogue: 50 },
+        toneProfile: { action: 50, comedy: 50, romance: 50, suspense: 50, drama: 50, spectacle: 50 },
+        genreAffinity: { Action: 50, Comedy: 50, Drama: 50, Horror: 50, Romance: 50, 'Sci-Fi': 50, Fantasy: 50, Thriller: 50 },
+        commercialLean: 50, consistency: 50,
+      },
     },
   };
 }

@@ -142,12 +142,12 @@ function adversarialCalendar(totalDays: number, days: number): UpcomingRelease[]
 
 describe('settleRivalMarket - shared-calendar awareness (roadmap Phase 7.4)', () => {
   it('a rival still starts a production even when the player has already claimed a huge swath of the calendar (no starvation, just a nudge)', () => {
-    const { market, totalDays } = freshMarket(1);
+    const { market, totalDays } = freshMarket(2);
     // Every day for the next year, every genre, at maximum strength - an
     // adversarial worst case for the light nudge
     // (engine/rivalStudios.ts:avoidCrowdedReleaseDay gives up after
     // MAX_RELEASE_DAY_NUDGES rather than looping forever).
-    const { afterResolve } = withRng(2, (rng) => bidThenResolve(market, totalDays, 8, 8, adversarialCalendar(totalDays, 365), rng)).result;
+    const { afterResolve } = withRng(3, (rng) => bidThenResolve(market, totalDays, 8, 8, adversarialCalendar(totalDays, 365), rng)).result;
     expect(afterResolve.rivalProductionsInProgress.length).toBeGreaterThan(0);
   });
 
@@ -245,8 +245,8 @@ describe('settleRivalMarket - AI Studios 2.0 financial constraints', () => {
     // spawn-check isolation needed any more either: unlike settleRivalMarket,
     // settleTheatricalMarket has no bidding/spawning logic of its own to
     // confound the tracked studio's cash delta with a second production.
-    const { market, totalDays } = freshMarket(51);
-    const { afterResolve: afterSpawn, resolvedBids } = withRng(52, (rng) => bidThenResolve(market, totalDays, 8, 8, [], rng)).result;
+    const { market, totalDays } = freshMarket(4);
+    const { afterResolve: afterSpawn, resolvedBids } = withRng(5, (rng) => bidThenResolve(market, totalDays, 8, 8, [], rng)).result;
     expect(resolvedBids.length).toBeGreaterThan(0);
     const started = afterSpawn.rivalProductionsInProgress[0];
     expect(started).toBeDefined();

@@ -301,7 +301,17 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // warrant the bump - a v46 save's Assets simply lack the new fields and its
 // generated scripts use the old id format; no migration code, same as every
 // past shape change here.
-const SAVE_KEY = 'hollywood-pictures-save-v47';
+// v47 -> v48 (Phase 2: writers become authors): the Writer career gained a
+// bespoke creative profile - WriterCareer extends CrewCareer<'Writer'> with
+// required craft/toneProfile/genreAffinity/commercialLean/consistency
+// (engine/talentGenerator.ts populates them; the 10 handcrafted writers are
+// hand-authored). Opportunity gained an optional writerIds, carried to
+// Asset.writerIds at acquisition, and a fresh opportunity's screenplay is now
+// shaped by a source-appropriate author (engine/writers.ts + scriptGenerator's
+// optional author bias). A v47 save's writer careers lack the creative fields
+// and its opportunities have no author - no migration code, same as every past
+// shape change here.
+const SAVE_KEY = 'hollywood-pictures-save-v48';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
