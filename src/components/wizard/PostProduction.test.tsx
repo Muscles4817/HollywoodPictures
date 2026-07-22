@@ -138,4 +138,41 @@ describe('PostProduction - the test-screening decision', () => {
     expect(screen.queryByText('A Decision Is Needed')).not.toBeInTheDocument();
     expect(screen.getByText('Continue to Marketing')).not.toBeDisabled();
   });
+
+  it('shows the cost and time of each screening option so the player can weigh it', () => {
+    const { state, draft } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: 45 });
+    const pendingChoice = withRng(3, (rng) => generateTestScreeningPendingChoice(draft, rng)).result;
+    const stateWithPending: GameState = {
+      ...state,
+      projects: [playerDraftToProject({ ...draft, testScreeningPendingChoice: pendingChoice })],
+    };
+    saveState(stateWithPending);
+    render(
+      <StudioProvider>
+        <PostProduction />
+      </StudioProvider>,
+    );
+    // Release As-Is is free and instant...
+    expect(screen.getByText('No added cost')).toBeInTheDocument();
+    expect(screen.getByText('No delay')).toBeInTheDocument();
+    // ...each editing round shows a real time cost the player can see up front.
+    expect(screen.getAllByText(/^Time:/).length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('PostProduction - a recut in progress', () => {
+  it('shows the recut-in-progress card (with the next-screening estimate) and no decision card', () => {
+    const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: 45, postProductionEditingUntilDay: 60 });
+    saveState(state);
+    render(
+      <StudioProvider>
+        <PostProduction />
+      </StudioProvider>,
+    );
+    expect(screen.getByText('Re-cut in progress')).toBeInTheDocument();
+    expect(screen.getByText(`Next screening around ${formatGameDateWithMonth(60)}`)).toBeInTheDocument();
+    expect(screen.queryByText('A Decision Is Needed')).not.toBeInTheDocument();
+    // The pre-first-screening forecast card is gone once a recut is underway.
+    expect(screen.queryByText('Test Screening (preview)')).not.toBeInTheDocument();
+  });
 });

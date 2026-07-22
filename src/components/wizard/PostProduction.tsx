@@ -43,7 +43,7 @@ export function PostProduction() {
       <h1>Post-Production</h1>
       {draft.script && <ScriptSummaryCard script={draft.script} />}
 
-      {draft.postProductionScreeningReadyDay !== null && !draft.testScreeningResolved && !pendingScreeningChoice && (
+      {draft.postProductionScreeningReadyDay !== null && !draft.testScreeningResolved && !pendingScreeningChoice && draft.postProductionEditingUntilDay === null && (
         <div className="card" style={{ borderColor: 'var(--primary)' }}>
           <div className="stat-label">Test Screening (preview)</div>
           <div className="stat-value">Ready around {formatGameDateWithMonth(draft.postProductionScreeningReadyDay)}</div>
@@ -57,6 +57,22 @@ export function PostProduction() {
             reached, a test screening will surface here (and in the Inbox/Dashboard if you've moved on) with real
             audience feedback and a decision on how to respond. You'll need to respond to it before the film can be
             scheduled for release.
+          </p>
+        </div>
+      )}
+
+      {draft.postProductionEditingUntilDay !== null && !pendingScreeningChoice && (
+        <div className="card" style={{ borderColor: 'var(--primary)' }}>
+          <div className="stat-label">Re-cut in progress</div>
+          <div className="stat-value">Next screening around {formatGameDateWithMonth(draft.postProductionEditingUntilDay)}</div>
+          {draft.postProductionEditingUntilDay > state.totalDays && (
+            <div style={{ fontSize: '0.8em', fontWeight: 600, color: 'var(--text-muted)' }}>
+              about {draft.postProductionEditingUntilDay - state.totalDays} days out
+            </div>
+          )}
+          <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
+            The editing bay is working on your notes. When the re-cut is done, a fresh test screening will surface
+            here (and in the Inbox/Dashboard if you've moved on) with the new reactions and another decision.
           </p>
         </div>
       )}
@@ -76,6 +92,7 @@ export function PostProduction() {
           script={draft.script}
           totalDays={state.totalDays}
           pausedMessage="Marketing can't begin until you respond to the test screening."
+          showChoiceCosts
           onChoose={(choiceId) => dispatch({ type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId, productionId: draft.id })}
         />
       )}

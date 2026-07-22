@@ -87,4 +87,40 @@ describe('generateTestScreeningPendingChoice', () => {
     expect(pending.involvedTalentId).toBe(editor.id);
     expect(pending.involvedRole).toBe('Editor');
   });
+
+  // Phase C - iterative screenings. A follow-up screening (round >= 1, once at
+  // least one recut has happened) adds the "use the original cut" escape hatch
+  // and reports how the last recut tested.
+  function withPriorRound(draft: FilmDraft, qualityDelta: number): FilmDraft {
+    return {
+      ...draft,
+      postProductionEvents: [
+        { id: 'test-screening', description: 'a prior recut', severity: 'medium', costDelta: 250_000, qualityDelta, buzzDelta: 1, delayDaysDelta: 6 },
+      ],
+    };
+  }
+
+  it('the first screening (round 0) never offers reverting to the original', () => {
+    const draft = draftWithEditor(20);
+    const pending = withRng(21, (rng) => generateTestScreeningPendingChoice(draft, rng, 0)).result;
+    expect(pending.choices.some((c) => c.id === 'revert-to-original')).toBe(false);
+  });
+
+  it('a follow-up screening (round >= 1) also offers reverting to the original cut, at zero cost and delay', () => {
+    const draft = withPriorRound(draftWithEditor(22), 6);
+    const pending = withRng(23, (rng) => generateTestScreeningPendingChoice(draft, rng, 1)).result;
+    expect(pending.choices.map((c) => c.id)).toEqual(['release-as-is', 're-edit', 'pickups', 'major-reshoots', 'revert-to-original']);
+    const revert = pending.choices.find((c) => c.id === 'revert-to-original')!;
+    expect(revert.costRange).toEqual([0, 0]);
+    expect(revert.delayDaysRange).toEqual([0, 0]);
+  });
+
+  it('the follow-up intro reflects whether the last recut tested better or worse', () => {
+    const better = withPriorRound(draftWithEditor(24), 12);
+    const worse = withPriorRound(draftWithEditor(24), -12);
+    const betterPending = withRng(25, (rng) => generateTestScreeningPendingChoice(better, rng, 1)).result;
+    const worsePending = withRng(25, (rng) => generateTestScreeningPendingChoice(worse, rng, 1)).result;
+    expect(betterPending.situation).toContain('better than before');
+    expect(worsePending.situation).toContain('worse than before');
+  });
 });

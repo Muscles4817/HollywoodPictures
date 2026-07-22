@@ -721,7 +721,7 @@ describe('Footage bounds - the shoot has a hard floor and an auto-wrap ceiling',
 // (docs/DESIGN_REVIEW_post_production_redesign.md section 2) - the test
 // screening firing (checkTestScreeningReadiness, hooked into every
 // calendar-advancing reducer case) and its resolution (RESOLVE_TEST_SCREENING_CHOICE).
-describe('Test Screening (Post-Production Redesign, Phase B)', () => {
+describe('Test Screening (Post-Production Redesign, Phase C - iterative screenings)', () => {
   /** A finished-photography focused draft, right at the moment postProductionScreeningReadyDay was just set. */
   function stateJustFinishedPhotography(seed: number) {
     const greenlit = studioReducer(stateReadyToGreenlight(seed), { type: 'GREENLIGHT_PROJECT' });
@@ -760,7 +760,7 @@ describe('Test Screening (Post-Production Redesign, Phase B)', () => {
     void pending;
   });
 
-  it('Release As-Is: no cost, no delay, resolved event carries zero quality/buzz, postProductionFinalReadyDay set with no extra delay', () => {
+  it('Release As-Is: no cost, no delay, no editing event recorded, locks the cut immediately', () => {
     const { state, readyDay } = stateJustFinishedPhotography(303);
     const atReadyDay = advanceDays(state, readyDay - state.totalDays);
     const cashBefore = atReadyDay.studio.cash;
@@ -768,24 +768,19 @@ describe('Test Screening (Post-Production Redesign, Phase B)', () => {
     const resolved = studioReducer(atReadyDay, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'release-as-is', productionId: atReadyDay.focusedProjectId! });
     const draft = asPlayerDraft(findProject(resolved.projects, resolved.focusedProjectId))!;
     expect(resolved.studio.cash).toBe(cashBefore);
-    // postProductionScreeningReadyDay is now a fixed historical milestone -
-    // resolving the screening never touches it (architecture cleanup).
+    // postProductionScreeningReadyDay is a fixed historical milestone.
     expect(draft.postProductionScreeningReadyDay).toBe(readyDay);
-    expect(draft.postProductionFinalReadyDay).toBe(readyDay);
+    expect(draft.postProductionFinalReadyDay).toBe(readyDay); // locked the day it was accepted
+    expect(draft.postProductionEditingUntilDay).toBeNull();
     expect(draft.testScreeningResolved).toBe(true);
     expect(draft.photography!.status).toBe('finished'); // never reopens photography
-    // The resolved outcome lives on its own collection now, not folded into
-    // photography.events (architecture cleanup) - that array is untouched.
+    // The screening never touches on-set footage - that array is untouched.
     expect(draft.photography!.events).toEqual(eventsBefore);
-    const lastEvent = draft.postProductionEvents.at(-1)!;
-    expect(draft.postProductionEvents).toHaveLength(1);
-    expect(lastEvent.costDelta).toBe(0);
-    expect(lastEvent.qualityDelta).toBe(0);
-    expect(lastEvent.buzzDelta).toBe(0);
-    expect(lastEvent.delayDaysDelta).toBe(0);
+    // Accepting the cut adds no editing event - the film goes out as it screened.
+    expect(draft.postProductionEvents).toEqual([]);
   });
 
-  it('Major Reshoots: charges cost immediately from studio.cash, records the real (non-zeroed) event on postProductionEvents, and sets postProductionFinalReadyDay from the resolved delay without touching postProductionScreeningReadyDay', () => {
+  it('An editing round (Major Reshoots): charges cost immediately, records the real event, and starts a recut that takes real time (no lock yet)', () => {
     const { state, readyDay } = stateJustFinishedPhotography(304);
     const atReadyDay = advanceDays(state, readyDay - state.totalDays);
     const cashBefore = atReadyDay.studio.cash;
@@ -794,14 +789,81 @@ describe('Test Screening (Post-Production Redesign, Phase B)', () => {
     const draft = asPlayerDraft(findProject(resolved.projects, resolved.focusedProjectId))!;
     expect(draft.photography!.events).toEqual(eventsBefore); // untouched - the screening never appends to on-set events
     expect(draft.postProductionEvents).toHaveLength(1);
-    const lastEvent = draft.postProductionEvents[0];
-    expect(lastEvent.costDelta).toBeGreaterThan(0); // the real, non-zeroed cost - no longer smuggled/zeroed
-    expect(lastEvent.delayDaysDelta).toBeGreaterThan(0);
-    expect(resolved.studio.cash).toBe(cashBefore - lastEvent.costDelta); // charged immediately, exactly once
-    expect(draft.postProductionScreeningReadyDay).toBe(readyDay); // fixed - never advances
-    expect(draft.postProductionFinalReadyDay).toBe(readyDay + lastEvent.delayDaysDelta);
+    const ev = draft.postProductionEvents[0];
+    expect(ev.costDelta).toBeGreaterThan(0); // the real, non-zeroed cost
+    expect(ev.delayDaysDelta).toBeGreaterThan(0);
+    expect(resolved.studio.cash).toBe(cashBefore - ev.costDelta); // charged immediately, exactly once
+    // The recut takes real time: editingUntilDay is set, the film is NOT locked.
+    expect(draft.postProductionEditingUntilDay).toBe(readyDay + ev.delayDaysDelta);
+    expect(draft.postProductionFinalReadyDay).toBeNull();
+    expect(draft.testScreeningResolved).toBe(false);
     expect(draft.testScreeningPendingChoice).toBeNull();
+    expect(draft.postProductionScreeningReadyDay).toBe(readyDay); // fixed - never advances
+  });
+
+  it('a follow-up screening surfaces once the recut finishes, adding a revert-to-original option the first screening never had', () => {
+    const { state, readyDay } = stateJustFinishedPhotography(320);
+    const atReadyDay = advanceDays(state, readyDay - state.totalDays);
+    const editing = studioReducer(atReadyDay, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'pickups', productionId: atReadyDay.focusedProjectId! });
+    const editingUntil = asPlayerDraft(findProject(editing.projects, editing.focusedProjectId))!.postProductionEditingUntilDay!;
+    // One day short: still recutting, nothing pending yet.
+    const justBefore = advanceDays(editing, editingUntil - editing.totalDays - 1);
+    expect(asPlayerDraft(findProject(justBefore.projects, justBefore.focusedProjectId))!.testScreeningPendingChoice).toBeNull();
+    // The day it wraps, the follow-up screening lands.
+    const atFollowUp = advanceDays(justBefore, 1);
+    const draft = asPlayerDraft(findProject(atFollowUp.projects, atFollowUp.focusedProjectId))!;
+    expect(atFollowUp.totalDays).toBe(editingUntil);
+    expect(draft.postProductionEditingUntilDay).toBeNull();
+    expect(draft.testScreeningPendingChoice).not.toBeNull();
+    expect(draft.testScreeningPendingChoice!.choices.map((c) => c.id)).toEqual(['release-as-is', 're-edit', 'pickups', 'major-reshoots', 'revert-to-original']);
+    expect(draft.testScreeningResolved).toBe(false);
+  });
+
+  it('Keep This Cut at a follow-up screening locks the recut, keeping its editing events', () => {
+    const { state, readyDay } = stateJustFinishedPhotography(321);
+    const atReadyDay = advanceDays(state, readyDay - state.totalDays);
+    const editing = studioReducer(atReadyDay, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'pickups', productionId: atReadyDay.focusedProjectId! });
+    const editingUntil = asPlayerDraft(findProject(editing.projects, editing.focusedProjectId))!.postProductionEditingUntilDay!;
+    const atFollowUp = advanceDays(editing, editingUntil - editing.totalDays);
+    const kept = studioReducer(atFollowUp, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'release-as-is', productionId: atFollowUp.focusedProjectId! });
+    const draft = asPlayerDraft(findProject(kept.projects, kept.focusedProjectId))!;
     expect(draft.testScreeningResolved).toBe(true);
+    expect(draft.postProductionEditingUntilDay).toBeNull();
+    expect(draft.postProductionFinalReadyDay).toBe(atFollowUp.totalDays); // locked now; recut delay already elapsed
+    expect(draft.postProductionEvents).toHaveLength(1); // the pickups round is kept
+    expect(draft.postProductionFinalReadyDay!).toBeGreaterThan(readyDay); // later than the first-screening day
+  });
+
+  it('Use the Original Cut discards every editing round (no refund) and locks the original', () => {
+    const { state, readyDay } = stateJustFinishedPhotography(322);
+    const atReadyDay = advanceDays(state, readyDay - state.totalDays);
+    const cashBeforeEdit = atReadyDay.studio.cash;
+    const editing = studioReducer(atReadyDay, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'major-reshoots', productionId: atReadyDay.focusedProjectId! });
+    const cashAfterEdit = editing.studio.cash;
+    expect(cashAfterEdit).toBeLessThan(cashBeforeEdit); // the recut was paid for
+    const editingUntil = asPlayerDraft(findProject(editing.projects, editing.focusedProjectId))!.postProductionEditingUntilDay!;
+    const atFollowUp = advanceDays(editing, editingUntil - editing.totalDays);
+    const reverted = studioReducer(atFollowUp, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'revert-to-original', productionId: atFollowUp.focusedProjectId! });
+    const draft = asPlayerDraft(findProject(reverted.projects, reverted.focusedProjectId))!;
+    expect(draft.testScreeningResolved).toBe(true);
+    expect(draft.postProductionEvents).toEqual([]); // edits thrown out - back to the original cut
+    expect(draft.postProductionEditingUntilDay).toBeNull();
+    expect(draft.postProductionFinalReadyDay).toBe(atFollowUp.totalDays);
+    expect(reverted.studio.cash).toBe(cashAfterEdit); // no refund - the money spent editing is gone
+  });
+
+  it('can go through several editing rounds, accumulating one event per round', () => {
+    const { state, readyDay } = stateJustFinishedPhotography(323);
+    let s = advanceDays(state, readyDay - state.totalDays);
+    for (let round = 0; round < 3; round++) {
+      expect(asPlayerDraft(findProject(s.projects, s.focusedProjectId))!.testScreeningPendingChoice).not.toBeNull();
+      s = studioReducer(s, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 're-edit', productionId: s.focusedProjectId! });
+      const until = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!.postProductionEditingUntilDay!;
+      s = advanceDays(s, Math.max(1, until - s.totalDays)); // surface the next screening
+    }
+    const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
+    expect(draft.postProductionEvents).toHaveLength(3); // one per round
+    expect(draft.testScreeningResolved).toBe(false); // still deciding
   });
 
   it('postProductionFinalReadyDay is null before the screening resolves, even once the screening itself is pending', () => {
@@ -905,11 +967,23 @@ describe('SCHEDULE_RELEASE - gated on the test screening', () => {
     expect(playerReleasedFilms(after.projects)).toHaveLength(1);
   });
 
-  it('the release day is never earlier than postProductionFinalReadyDay (a Major Reshoots delay is respected)', () => {
+  it('a recut in progress keeps the film unschedulable until the new cut is locked, and the recut time is really spent', () => {
     let s = stateWithScreeningPending(943);
+    // Pick a real editing round - the film is now recutting, not yet locked.
     s = studioReducer(s, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'major-reshoots', productionId: s.focusedProjectId! });
+    const editing = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
+    expect(editing.testScreeningResolved).toBe(false);
+    const until = editing.postProductionEditingUntilDay!;
+    // Can't schedule mid-recut.
+    const blocked = studioReducer(s, { type: 'SCHEDULE_RELEASE', releaseDay: s.totalDays });
+    expect(playerReleasedFilms(blocked.projects)).toHaveLength(0);
+    expect(findProject(blocked.projects, s.focusedProjectId!)?.kind).toBe('player-in-progress');
+    // Let the recut finish and lock the follow-up cut.
+    s = advanceDays(s, until - s.totalDays);
+    s = studioReducer(s, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'release-as-is', productionId: s.focusedProjectId! });
     const finalReady = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!.postProductionFinalReadyDay!;
-    // Ask to release "today", well before post-production may have wrapped.
+    expect(finalReady).toBeGreaterThanOrEqual(until); // the recut days really elapsed
+    // Ask to release "today"; the clamp still can't precede the locked-cut day.
     const after = studioReducer(s, { type: 'SCHEDULE_RELEASE', releaseDay: s.totalDays });
     const scheduled = asScheduled(findProject(after.projects, s.focusedProjectId!));
     const effectiveReleaseDay = scheduled ? scheduled.releaseDay : playerReleasedFilms(after.projects)[0]?.releasedOnDay;

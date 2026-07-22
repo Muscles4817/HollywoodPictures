@@ -688,6 +688,24 @@ button {
   color: var(--text-muted);
 }
 
+.event-choice-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 2px;
+}
+
+.event-choice-meta__item {
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+
 @keyframes filming-dot-pulse {
   0%, 20% { opacity: 0.2; }
   50% { opacity: 1; }

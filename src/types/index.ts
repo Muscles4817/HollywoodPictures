@@ -1404,7 +1404,20 @@ export interface FilmDraft {
   // postProductionScreeningReadyDay plus their resolved delayDaysDelta.
   // Future release-readiness checks (Phase C) should read this field, not
   // postProductionScreeningReadyDay, for "is post-production actually done."
+  // Set the moment the player locks a cut (RESOLVE_TEST_SCREENING_CHOICE's
+  // accept/revert branches) to the day they locked it - by then every editing
+  // round's delay has already ticked away in real time (see
+  // postProductionEditingUntilDay), so there's no further wait to add.
   postProductionFinalReadyDay: GameDay | null;
+  // Post-Production Redesign, Phase C (iterative test screenings) - when the
+  // player picks an editing option (Re-edit/Pickups/Major Reshoots) at a
+  // screening, the recut takes real time: this is the day it finishes and the
+  // next test screening surfaces (RESOLVE_TEST_SCREENING_CHOICE sets it to
+  // totalDays + the rolled delay; the ADVANCE_DAY tick generates the follow-up
+  // screening once totalDays reaches it, then clears it back to null). Null
+  // whenever no recut is underway - before the first screening, while a
+  // screening decision is pending, and once a cut is finally locked.
+  postProductionEditingUntilDay: GameDay | null;
   // Post-Production Redesign, Phase B (docs/DESIGN_REVIEW_post_production_redesign.md
   // section 2) - set once totalDays reaches postProductionScreeningReadyDay
   // (runCalendarSettlement, state/studioReducer.ts), the same
@@ -1417,11 +1430,15 @@ export interface FilmDraft {
   // this fires after photography is already 'finished' and never restarts
   // it - see engine/testScreening.ts).
   testScreeningPendingChoice: PendingEventChoice | null;
-  // True once the one test screening this film ever gets has been resolved
-  // - the explicit state that stops runCalendarSettlement from generating a
-  // second one. Phase B is deliberately one screening per film (design
-  // review's own "Repeat screenings" scoping) - this flag is what makes that
-  // a real guarantee rather than an incidental default.
+  // True once the player has locked a final cut - either accepting the cut a
+  // screening presented (Release As-Is / Keep This Cut) or reverting to the
+  // original (see RESOLVE_TEST_SCREENING_CHOICE). This is the explicit state
+  // that ends the screening loop and lets the film be scheduled; while it's
+  // false the film either has a screening decision pending, or a recut in
+  // progress (postProductionEditingUntilDay set), or is still waiting for its
+  // first screening. Phase C (iterative screenings) replaced Phase B's single
+  // mandatory screening: a film can now go through as many editing rounds as
+  // the studio can afford before this flips true.
   testScreeningResolved: boolean;
   // Architecture cleanup (post-Phase-B) - the resolved test-screening
   // outcome's own ProductionEvent (real costDelta/qualityDelta/buzzDelta/
@@ -1436,8 +1453,12 @@ export interface FilmDraft {
   // engine/scoring.ts:combineProductionEvents for how quality/buzz reads
   // still combine this with photography.events without a second scoring
   // system, and engine/releaseFilm.ts/state/selectors.ts for how its cost
-  // (already charged) is reported without being charged again. Empty until
-  // resolved (at most one entry - one screening per film).
+  // (already charged) is reported without being charged again. Empty until the
+  // first editing round resolves; one entry per round (Phase C, iterative
+  // screenings - a film can be recut several times), each charged immediately
+  // when its round is chosen. Reverting to the original cut empties this back
+  // out (the edits are discarded; the cash already spent on them is not
+  // refunded - see RESOLVE_TEST_SCREENING_CHOICE's revert branch).
   postProductionEvents: ProductionEvent[];
   postProductionChoices: PostProductionChoices | null;
   marketingChoices: MarketingChoices | null;
