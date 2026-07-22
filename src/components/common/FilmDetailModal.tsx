@@ -14,6 +14,7 @@ import { CompatibilityBadge } from './CompatibilityBadge';
 import { BoxOfficeChart } from './BoxOfficeChart';
 import { SeverityBadge } from './SeverityBadge';
 import { computeReportedLegs } from '../../state/selectors';
+import { filmMarketBreakdown } from '../../engine/boxOfficeRun';
 import { getCareerForRole } from '../../engine/person';
 import { useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
@@ -133,6 +134,7 @@ function FinancialsSection({ film }: { film: Film }) {
   // shown once the run has actually finished; a still-running film's
   // eventual legs aren't knowable any earlier than its real total is.
   const legs = computeReportedLegs(film);
+  const markets = filmMarketBreakdown(film);
   return (
     <div className="card stack">
       <h3 style={{ margin: 0 }}>Financials</h3>
@@ -154,6 +156,15 @@ function FinancialsSection({ film }: { film: Film }) {
           </>
         )}
       </div>
+      {markets.total > 0 && (
+        <div className="row">
+          <StatTile label="Domestic" value={<Money amount={markets.domestic} />} />
+          <StatTile
+            label="International"
+            value={markets.hasInternational ? <Money amount={markets.international} /> : 'None'}
+          />
+        </div>
+      )}
       {film.boxOfficeRun.weeks.length > 0 && <BoxOfficeChart weeks={film.boxOfficeRun.weeks} />}
     </div>
   );

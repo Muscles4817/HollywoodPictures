@@ -1,5 +1,6 @@
 import { useStudio } from '../../state/StudioContext';
 import { explainBrandChange, explainPrestigeChange } from '../../engine/reputation';
+import { filmMarketBreakdown } from '../../engine/boxOfficeRun';
 import { Button } from './Button';
 import { Money } from './Money';
 import { StatTile } from './StatTile';
@@ -15,6 +16,7 @@ import type { Film } from '../../types';
 export function BoxOfficeFinishedPopup({ film }: { film: Film }) {
   const { dispatch } = useStudio();
   const { results, boxOfficeRun } = film;
+  const markets = filmMarketBreakdown(film);
 
   return (
     <div className="modal-overlay">
@@ -33,6 +35,13 @@ export function BoxOfficeFinishedPopup({ film }: { film: Film }) {
           <StatTile label="Total Box Office" value={<Money amount={results.totalBoxOffice ?? 0} />} />
           <StatTile label="Studio's Share" value={<Money amount={results.studioRevenue ?? 0} />} />
           <StatTile label="Profit / Loss" value={<Money amount={results.profit ?? 0} signColor showSign />} />
+        </div>
+        <div className="row">
+          <StatTile label="Domestic" value={<Money amount={markets.domestic} />} />
+          <StatTile
+            label="International"
+            value={markets.hasInternational ? <Money amount={markets.international} /> : 'Domestic only'}
+          />
         </div>
         <div className="row-between">
           <div>

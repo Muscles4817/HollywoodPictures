@@ -833,8 +833,16 @@ export interface MarketingChoices {
   distributionMethod?: 'self' | 'rented';
   /** Frozen Wide availability ceiling for this release's deal (before releaseStrength scaling); absent for non-Wide. */
   distributionBreadth?: number;
-  /** Frozen studio box-office keep share for this deal; absent = the default STUDIO_BOX_OFFICE_SHARE. */
+  /** Frozen *domestic* studio keep share for this deal; absent = the default DOMESTIC_KEEP_SHARE. A rented Wide takes a cut of this half only. */
   distributionKeepShare?: number;
+  /**
+   * Frozen international distribution reach for this release (engine/distribution.ts),
+   * 0..1 - how much of the film's overseas box office the studio realises. Frozen
+   * at SCHEDULE_RELEASE from the studio's International Distribution tier so a later
+   * upgrade never retroactively lifts a film already in cinemas. Absent = 0 (the
+   * hard gate: domestic only).
+   */
+  internationalReachFraction?: number;
   /**
    * How the budget is split across channels (docs/DESIGN_REVIEW_marketing_campaign.md).
    * Optional: absent on rival films and on saves predating the campaign
@@ -959,12 +967,14 @@ export interface FilmResults {
   totalBoxOffice: number | null; // the big headline gross - not what the studio actually keeps, see studioRevenue
   studioRevenue: number | null; // totalBoxOffice after the theatrical revenue split - what profit is actually computed from
   /**
-   * The studio's box-office keep share for this film (engine/boxOfficeRun.ts).
-   * Absent means the default STUDIO_BOX_OFFICE_SHARE; a Wide release distributed
-   * by a rented major keeps less - the distributor's fee off the top
-   * (engine/distribution.ts). Frozen at release from the distribution deal.
+   * The studio's *domestic* box-office keep share for this film
+   * (engine/boxOfficeRun.ts). Absent means the default DOMESTIC_KEEP_SHARE; a Wide
+   * release distributed by a rented major keeps less - the distributor's fee off
+   * the top (engine/distribution.ts). Frozen at release from the distribution deal.
    */
   distributionKeepShare?: number;
+  /** Frozen international distribution reach for this film (0..1), copied from marketingChoices at release. Absent = 0 (domestic only). Box-office settlement reads this, never the studio's live tier. */
+  internationalReachFraction?: number;
   profit: number | null;
   outcome: OutcomeLabel | null;
   // Milestone: Brand Recognition and Prestige (engine/reputation.ts) replaced
@@ -1013,7 +1023,11 @@ export interface ReviewQuote {
 /** One settled week of a film's theatrical run - see BoxOfficeRun. */
 export interface BoxOfficeWeek {
   week: number; // 1-indexed; week 1 is always exactly FilmResults.openingWeekend
-  gross: number;
+  gross: number; // headline (reported) gross this week = domesticGross + internationalGross
+  /** This week's domestic (home-market) gross. Optional only for weeks settled before the split existed; new weeks always set it. */
+  domesticGross?: number;
+  /** This week's realised international gross (0 when the studio has no international distribution). See domesticGross. */
+  internationalGross?: number;
   /**
    * The `competitivePressure` this week's transition was actually settled
    * with (engine/boxOfficeRun.ts:advanceEarliestDueFilmByOneWeek,
@@ -1444,6 +1458,14 @@ export interface Studio {
 
 export interface DistributionArm {
   tier: number; // 1..DISTRIBUTION_ARM_MAX_TIER - governs the Wide-release screen ceiling self-distribution can command
+  /**
+   * International Distribution track, 0..INTERNATIONAL_DISTRIBUTION_MAX_TIER
+   * (engine/distribution.ts) - an independent upgrade track on the arm, like the
+   * Production Office's marketResearchTier. Governs how much of a film's overseas
+   * box office the studio can realise. Absent/0 = no international distribution =
+   * the hard gate (domestic box office only).
+   */
+  internationalTier?: number;
 }
 
 export interface ProductionOffice {

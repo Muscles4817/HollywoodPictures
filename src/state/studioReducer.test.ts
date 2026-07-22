@@ -3,7 +3,8 @@ import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft, buildReadyDraft, buildReadyAsset, defaultMarketingChoices, conformActorGenderToSlot, shootThroughToFinish } from './testFixtures';
 import { createInitialStudio } from './gameState';
 import { withRng } from '../engine/random';
-import { STUDIO_BOX_OFFICE_SHARE, AVERAGE_TICKET_PRICE } from '../engine/boxOfficeRun';
+import { AVERAGE_TICKET_PRICE } from '../engine/boxOfficeRun';
+import { studioCreditFromMarkets, domesticKeepShareForFilm } from '../engine/distribution';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
 import { computeTalentCost, computeProductionBudgetCost } from '../engine/cost';
 import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, footageLowerBound, footageUpperBound } from '../engine/production';
@@ -80,7 +81,11 @@ describe('RELEASE_FILM', () => {
     // out of totalCost before applying it here.
     const alreadyCharged = computeTalentCost(film.talent) + computeProductionBudgetCost(film.productionChoices);
     const costChargedThisAction = film.results.totalCost - alreadyCharged;
-    const expectedRevenueCredit = Math.round(film.results.openingWeekend * STUDIO_BOX_OFFICE_SHARE);
+    // Week 1's credit comes from its domestic/international breakdown at each
+    // market's keep - reconstructed via the shared split helper.
+    const keep = domesticKeepShareForFilm(film.results.distributionKeepShare);
+    const w1 = film.boxOfficeRun.weeks[0];
+    const expectedRevenueCredit = Math.round(studioCreditFromMarkets(w1.domesticGross ?? 0, w1.internationalGross ?? 0, keep));
     expect(after.studio.cash).toBe(cashBefore - costChargedThisAction + expectedRevenueCredit);
   });
 });
@@ -127,13 +132,16 @@ describe('advancing a calendar jump via repeated ADVANCE_DAY', () => {
     }
   });
 
-  it('cash credited across a run matches the sum of settled weekly grosses times the studio share', () => {
+  it('cash credited across a run matches the sum of settled weekly per-market credits', () => {
     const released = studioReducer(buildStateWithReadyDraft(6), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     const cashAfterRelease = released.studio.cash; // already includes week 1's credit, settled as part of RELEASE_FILM itself
     const finished = advanceDays(released, MAX_SIMULATION_WEEKS * 7 + 7);
     const film = theFilm(finished);
+    const keep = domesticKeepShareForFilm(film.results.distributionKeepShare);
     // Only weeks 2+ are newly settled by the ADVANCE_DAY calls this test itself drives.
-    const expectedCredit = film.boxOfficeRun.weeks.slice(1).reduce((sum, w) => sum + Math.round(w.gross * STUDIO_BOX_OFFICE_SHARE), 0);
+    const expectedCredit = film.boxOfficeRun.weeks
+      .slice(1)
+      .reduce((sum, w) => sum + Math.round(studioCreditFromMarkets(w.domesticGross ?? 0, w.internationalGross ?? 0, keep)), 0);
     expect(finished.studio.cash - cashAfterRelease).toBe(expectedCredit);
   });
 

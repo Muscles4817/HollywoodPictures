@@ -1,8 +1,14 @@
-import type { Film } from '../types';
+import type { BoxOfficeWeek, Film } from '../types';
 import { advanceOneWeekWithDiagnostics, hasSimulationEnded } from './audienceSimulationStep';
 import { computeCompetitiveCrowding, runningFilmAsUpcomingRelease, type UpcomingRelease } from './releaseCrowding';
 import { determineOutcome } from './outcome';
 import { computeBrandChange, computePrestigeChange } from './reputation';
+import {
+  computeInternationalAppeal,
+  domesticKeepShareForFilm,
+  splitBoxOfficeGross,
+  studioCreditFromMarkets,
+} from './distribution';
 
 // A week's gross is settled once real in-game days accumulate to it, off
 // the same calendar everything else uses (GameState.totalDays) - there's no
@@ -11,25 +17,99 @@ import { computeBrandChange, computePrestigeChange } from './reputation';
 // state/studioReducer.ts, everywhere it calls settleBoxOfficeForAllFilms).
 export const WEEK_LENGTH_DAYS = 7;
 
-// The studio's actual cut of box office gross once theatrical rental fees
-// and the international split are accounted for - real-world studio
-// rentals average roughly 40% of worldwide gross. totalBoxOffice stays the
-// big headline number (matching how box office is always reported); the
-// smaller studioRevenue figure is what profit is actually computed from.
-// Unchanged from the retired fixed-legs model (docs/DESIGN.md 5.34,
-// Milestone 5) - this is a fact about theatrical economics, not something
-// either box-office model itself decides.
+// A rough blended worldwide keep, retained only for the dev-only Outcome
+// Inspector's quick projection (components/dev/OutcomeInspector.tsx). The live
+// money path no longer uses it - real revenue is the domestic/international
+// split below (engine/distribution.ts:splitBoxOfficeGross), which blends to
+// about this figure at full international reach.
 export const STUDIO_BOX_OFFICE_SHARE = 0.42;
 
 /**
- * The share of gross this film's studio actually keeps. Normally the flat
- * STUDIO_BOX_OFFICE_SHARE, but a Wide release handed to a rented distributor
- * keeps less - the distributor's fee, frozen onto the film at release
- * (engine/distribution.ts). Read here so both the weekly credit and the final
- * tally apply the same, correct keep.
+ * Settle one week's simulated *worldwide* gross into its reported (headline)
+ * gross, its domestic/international breakdown, and the studio's cash from it -
+ * the single money boundary, run through engine/distribution.ts's split. A
+ * studio with no international distribution (frozen reach 0) earns domestic only.
+ * Per-market grosses are rounded and the headline is their exact sum, so a
+ * stored week always satisfies domesticGross + internationalGross === gross.
  */
-export function studioKeepShare(film: Film): number {
-  return film.results.distributionKeepShare ?? STUDIO_BOX_OFFICE_SHARE;
+function settleWeekMoney(film: Film, simulatedWorldwideGross: number): {
+  gross: number;
+  domesticGross: number;
+  internationalGross: number;
+  cashCredit: number;
+} {
+  const split = splitBoxOfficeGross(
+    simulatedWorldwideGross,
+    computeInternationalAppeal({ genre: film.genre }),
+    film.results.internationalReachFraction ?? 0,
+    domesticKeepShareForFilm(film.results.distributionKeepShare),
+  );
+  const domesticGross = Math.round(split.domesticGross);
+  const internationalGross = Math.round(split.internationalGross);
+  // Cash from the *rounded* per-market grosses (not split.studioCredit's
+  // unrounded figure) so a stored week's cash is exactly reconstructable from
+  // its displayed domestic/international breakdown - one consistent set of numbers.
+  const cashCredit = Math.round(
+    studioCreditFromMarkets(domesticGross, internationalGross, domesticKeepShareForFilm(film.results.distributionKeepShare)),
+  );
+  return {
+    gross: domesticGross + internationalGross,
+    domesticGross,
+    internationalGross,
+    cashCredit,
+  };
+}
+
+/** Cumulative domestic/international grosses across a run's settled weeks - the final breakdown the results/displays read (sums the per-week fields). */
+export function cumulativeMarketGross(weeks: BoxOfficeWeek[]): { domestic: number; international: number } {
+  let domestic = 0;
+  let international = 0;
+  for (const w of weeks) {
+    domestic += w.domesticGross ?? 0;
+    international += w.internationalGross ?? 0;
+  }
+  return { domestic, international };
+}
+
+export interface FilmMarketBreakdown {
+  /** Domestic gross settled so far. */
+  domestic: number;
+  /** International gross actually realised so far (0 when hard-gated). */
+  international: number;
+  /** headline = domestic + realised international; equals the run's cumulativeGross. */
+  total: number;
+  /**
+   * A rough estimate of the overseas gross left on the table for want of
+   * distribution reach - reconstructed from the domestic gross and the genre's
+   * appeal, NOT settled money. Never part of total or the studio's cash; shown
+   * only to convey the size of the untapped international opportunity.
+   */
+  unreachedInternationalEstimate: number;
+  /** Whether any international gross was realised (i.e. the studio had reach). */
+  hasInternational: boolean;
+}
+
+/**
+ * The domestic/international breakdown a results display reads for one film -
+ * the single shared selector so ReleaseResults, the film detail modal and the
+ * box-office popup all report the split identically. Pure over the film's
+ * settled weeks plus its genre appeal.
+ */
+export function filmMarketBreakdown(film: Film): FilmMarketBreakdown {
+  const { domestic, international } = cumulativeMarketGross(film.boxOfficeRun.weeks);
+  const appeal = computeInternationalAppeal({ genre: film.genre });
+  // international potential = worldwide * appeal, and domestic = worldwide *
+  // (1 - appeal), so potential = domestic * appeal / (1 - appeal) - lets us size
+  // the unreached overseas market from the domestic gross alone, even when
+  // reach was 0 (nothing realised to divide by).
+  const internationalPotential = appeal < 1 ? (domestic * appeal) / (1 - appeal) : international;
+  return {
+    domestic,
+    international,
+    total: domestic + international,
+    unreachedInternationalEstimate: Math.max(0, Math.round(internationalPotential - international)),
+    hasInternational: international > 0,
+  };
 }
 
 // The people-to-money boundary for the whole audience-simulation-driven box
@@ -65,7 +145,12 @@ export interface BoxOfficeSettlement {
 /** A run that just crossed into 'finished' - computes totalBoxOffice/studioRevenue/profit/outcome/brandChange/prestigeChange from whatever its weeks actually added up to, the same job RELEASE_FILM used to do in one shot at release time. */
 function finishFilm(film: Film): { film: Film; brandChange: number; prestigeChange: number } {
   const totalBoxOffice = film.boxOfficeRun.cumulativeGross;
-  const studioRevenue = Math.round(totalBoxOffice * studioKeepShare(film));
+  // studioRevenue from the run's actual per-market cumulative, each market's
+  // keep applied - the exact total of the weekly credits already banked.
+  const markets = cumulativeMarketGross(film.boxOfficeRun.weeks);
+  const studioRevenue = Math.round(
+    studioCreditFromMarkets(markets.domestic, markets.international, domesticKeepShareForFilm(film.results.distributionKeepShare)),
+  );
   const profit = studioRevenue - film.results.totalCost;
 
   const outcome = determineOutcome({
@@ -173,15 +258,18 @@ export function advanceEarliestDueFilmByOneWeek(filmsById: ReadonlyMap<string, F
   const run = film.boxOfficeRun;
   const competitivePressure = competitivePressureOn(film, [...filmsById.values()]);
   const { next: nextSimWeek, diagnostics } = advanceOneWeekWithDiagnostics(run.fixed, run.simWeeks, undefined, competitivePressure);
-  const gross = Math.round(diagnostics.weeklyAdmissions * AVERAGE_TICKET_PRICE);
+  // The sim's admissions are the *worldwide* potential; the split gates the
+  // international half and reports only what actually played (headline gross).
+  const worldwidePotentialGross = Math.round(diagnostics.weeklyAdmissions * AVERAGE_TICKET_PRICE);
+  const money = settleWeekMoney(film, worldwidePotentialGross);
   const simWeeks = [...run.simWeeks, nextSimWeek];
   // Recorded, not just consumed - components/dev/OutcomeInspector.tsx's
   // "As Released" replay needs the real per-week pressure history to
   // reconstruct this run's actual diagnostics later (see BoxOfficeWeek's
   // own doc comment on why this is historical fact, not re-derivable).
-  const weeks = [...run.weeks, { week: nextSimWeek.week, gross, competitivePressure }];
-  const cumulativeGross = run.cumulativeGross + gross;
-  const cashCredit = Math.round(gross * studioKeepShare(film));
+  const weeks = [...run.weeks, { week: nextSimWeek.week, gross: money.gross, domesticGross: money.domesticGross, internationalGross: money.internationalGross, competitivePressure }];
+  const cumulativeGross = run.cumulativeGross + money.gross;
+  const cashCredit = money.cashCredit;
 
   const finished = hasSimulationEnded(simWeeks);
   const updatedRun = { ...run, simWeeks, weeks, cumulativeGross, status: finished ? ('finished' as const) : ('running' as const) };
