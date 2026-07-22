@@ -194,6 +194,14 @@ export type GameAction =
   // winner (state/studioReducer.ts's shared applyOpportunityWin).
   | { type: 'PLACE_BID'; opportunityId: string; amount: number }
   | { type: 'CREATE_PROJECT_FROM_ASSET'; assetId: string }
+  // Development Department MVP (docs/DESIGN_REVIEW_writer_authors.md, Phase 3):
+  // commission a freelance writer to Rewrite or Polish an owned Asset's
+  // screenplay. Charges the fee immediately (studio-level, like HIRE_PRODUCER),
+  // books the writer busy, rolls the craft outcome once, and stores it on
+  // Asset.pendingRewrite to land on a future day (engine/rewrite.ts). A no-op
+  // if the asset is missing/in-development/already being rewritten, the writer
+  // is unknown or unavailable, or the studio can't afford the fee.
+  | { type: 'REWRITE_ASSET'; assetId: string; kind: 'rewrite' | 'polish'; writerId: string }
   // Production Office & Producers (docs/DESIGN_REVIEW_production_office.md).
   // UNLOCK is milestone-gated (films shipped OR Brand), not bought - no-op
   // until the milestone is met. UPGRADE/HIRE deduct cash immediately at the

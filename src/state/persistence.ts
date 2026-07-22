@@ -311,7 +311,14 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // optional author bias). A v47 save's writer careers lack the creative fields
 // and its opportunities have no author - no migration code, same as every past
 // shape change here.
-const SAVE_KEY = 'hollywood-pictures-save-v48';
+// v48 -> v49 (Phase 3: Development Department MVP): Asset gained an optional
+// pendingRewrite (a freelance Rewrite/Polish pass in flight - writerId, kind,
+// startedOnDay, readyOnDay, the rolled craftChanges, and the fee), and a new
+// REWRITE_ASSET action. A v48 save's Assets simply have no pass in flight - the
+// field is absent and read defensively - so this is additive; the bump is the
+// honest "the stored shape changed" signal, same convention as every entry
+// above. No migration code.
+const SAVE_KEY = 'hollywood-pictures-save-v49';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

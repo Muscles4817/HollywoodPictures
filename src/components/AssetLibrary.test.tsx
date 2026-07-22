@@ -25,12 +25,18 @@ const superbad = byId('test-script-superbad'); // Comedy
 // non-`test-script-` id, so AssetLibrary files it under the acquired grid.
 const acquiredHeat: Asset = { ...byId('test-script-heat'), id: 'acquired-heat' }; // Action
 
-/** A minimal state exposing the given owned assets - AssetLibrary only reads assets/projects/focus. */
+const EMPTY_TALENT_POOL = {
+  Director: [], Actor: [], Writer: [], Cinematographer: [], Composer: [], Editor: [], 'VFX Supervisor': [], 'Casting Director': [],
+};
+
+/** A minimal state exposing the given owned assets - AssetLibrary reads assets/projects/focus plus talentPool/totalDays/cash (for the Rewrite/Polish panel). */
 function stateWithAssets(assets: Asset[]): GameState {
   return {
     studio: { ...createInitialStudio(10_000_000), assets },
     projects: [],
     focusedProjectId: null,
+    totalDays: 1,
+    talentPool: EMPTY_TALENT_POOL,
   } as unknown as GameState;
 }
 
