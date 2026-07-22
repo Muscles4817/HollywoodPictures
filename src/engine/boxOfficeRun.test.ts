@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { settleBoxOfficeForAllFilms, STUDIO_BOX_OFFICE_SHARE, AVERAGE_TICKET_PRICE } from './boxOfficeRun';
+import { settleBoxOfficeForAllFilms, AVERAGE_TICKET_PRICE, cumulativeMarketGross } from './boxOfficeRun';
+import { studioCreditFromMarkets, domesticKeepShareForFilm } from './distribution';
+import { DOMESTIC_KEEP_SHARE } from '../data/distribution';
 import { deriveAudienceSimulationFixedState, type ReleaseSimulationInputs } from './audienceSimulationInputs';
 import { advanceOneWeek, replaySettledWeeksWithDiagnostics, MAX_SIMULATION_WEEKS } from './audienceSimulationStep';
 import { createAudienceSimulationFixedState, type AudienceSimulationFixedState } from './audienceSimulation';
@@ -138,12 +140,32 @@ describe('settleBoxOfficeForAllFilms - calendar jumps and catch-up', () => {
 });
 
 describe('settleBoxOfficeForAllFilms - revenue and cash', () => {
-  it("cashCredit equals the sum of each newly-settled week's gross times the studio share", () => {
+  it("cashCredit equals the sum of each newly-settled week's per-market credit", () => {
     const film = freshFilm('rev', 1, fixedFor());
     const settlement = settleBoxOfficeForAllFilms([film], 1 + 3 * 7);
     const settled = settlement.filmsReleased[0];
-    const expectedCredit = settled.boxOfficeRun.weeks.reduce((sum, w) => sum + Math.round(w.gross * STUDIO_BOX_OFFICE_SHARE), 0);
+    // A fresh film is hard-gated (no international reach), so every week's gross
+    // is domestic and credited at the domestic keep - reconstructable exactly
+    // from the stored per-market breakdown via the shared split helper.
+    const keep = domesticKeepShareForFilm(settled.results.distributionKeepShare);
+    const expectedCredit = settled.boxOfficeRun.weeks.reduce(
+      (sum, w) => sum + Math.round(studioCreditFromMarkets(w.domesticGross ?? 0, w.internationalGross ?? 0, keep)),
+      0,
+    );
     expect(settlement.cashCredit).toBe(expectedCredit);
+  });
+
+  it('a hard-gated film earns domestic gross only - no international week', () => {
+    const film = freshFilm('gated', 1, fixedFor());
+    const settlement = settleBoxOfficeForAllFilms([film], 1 + 3 * 7);
+    const settled = settlement.filmsReleased[0];
+    const markets = cumulativeMarketGross(settled.boxOfficeRun.weeks);
+    expect(markets.international).toBe(0);
+    expect(markets.domestic).toBe(settled.boxOfficeRun.cumulativeGross);
+    for (const w of settled.boxOfficeRun.weeks) {
+      expect(w.internationalGross).toBe(0);
+      expect((w.domesticGross ?? 0) + (w.internationalGross ?? 0)).toBe(w.gross);
+    }
   });
 
   it('cashCredit is never negative, across a range of reception levels including terrible ones', () => {
@@ -218,7 +240,12 @@ describe('settleBoxOfficeForAllFilms - termination', () => {
     const settled = settlement.filmsReleased[0];
     expect(settled.boxOfficeRun.status).toBe('finished');
     expect(settled.results.totalBoxOffice).toBe(settled.boxOfficeRun.cumulativeGross);
-    expect(settled.results.studioRevenue).toBe(Math.round(settled.results.totalBoxOffice! * STUDIO_BOX_OFFICE_SHARE));
+    // studioRevenue is the per-market cumulative credit. A hard-gated film is
+    // domestic-only, so this is the domestic gross at the domestic keep.
+    const markets = cumulativeMarketGross(settled.boxOfficeRun.weeks);
+    expect(settled.results.studioRevenue).toBe(
+      Math.round(studioCreditFromMarkets(markets.domestic, markets.international, DOMESTIC_KEEP_SHARE)),
+    );
     expect(settled.results.profit).toBe(settled.results.studioRevenue! - settled.results.totalCost);
     expect(settled.results.outcome).not.toBeNull();
     expect(settled.results.brandChange).not.toBeNull();

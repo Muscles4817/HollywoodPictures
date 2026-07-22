@@ -214,6 +214,7 @@ export type GameAction =
   | { type: 'UPGRADE_MARKET_RESEARCH' }
   | { type: 'UNLOCK_DISTRIBUTION_ARM' }
   | { type: 'UPGRADE_DISTRIBUTION_ARM' }
+  | { type: 'UPGRADE_INTERNATIONAL_DISTRIBUTION' }
   | { type: 'HIRE_PRODUCER'; producerId: string }
   | { type: 'FIRE_PRODUCER'; producerId: string }
   | { type: 'ATTACH_PRODUCER'; producerId: string }

@@ -18,6 +18,7 @@ import type { CampaignAngle } from '../types';
 import { deriveCommercialProfile } from './commercialProfile';
 import { advanceOneWeek } from './audienceSimulationStep';
 import { AVERAGE_TICKET_PRICE } from './boxOfficeRun';
+import { computeInternationalAppeal, domesticKeepShareForFilm, splitBoxOfficeGross } from './distribution';
 import { pickReviewBlurbs, pickDepartmentBlurb, pickScoredReviews } from './reviews';
 import { generateStoryReport } from './storyReport';
 import { mitigateEventQualityImpact, NEUTRAL_PRODUCER_EFFECTS, type ProducerEffects } from './producers';
@@ -280,7 +281,17 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // and an empty history. Not a second algorithm, just the one pure step
   // function called twice - see advanceOneWeek's own determinism guarantee.
   const week1 = advanceOneWeek(fixed, []);
-  const openingWeekend = Math.round(week1.cumulativeTicketsSold * AVERAGE_TICKET_PRICE);
+  // The sim's opening admissions are worldwide potential; report only what
+  // actually plays (domestic + realised international), rounded the exact same
+  // way engine/boxOfficeRun.ts settles week 1 so the two always agree.
+  const worldwideOpeningGross = Math.round(week1.cumulativeTicketsSold * AVERAGE_TICKET_PRICE);
+  const openingSplit = splitBoxOfficeGross(
+    worldwideOpeningGross,
+    computeInternationalAppeal({ genre: input.genre }),
+    input.marketingChoices.internationalReachFraction ?? 0,
+    domesticKeepShareForFilm(input.marketingChoices.distributionKeepShare),
+  );
+  const openingWeekend = Math.round(openingSplit.domesticGross) + Math.round(openingSplit.internationalGross);
 
   const departmentBlurb = pickDepartmentBlurb(quality, input.genre, rng);
   const reviewBlurbs = [...pickReviewBlurbs(criticScore, audienceScore, rng), ...(departmentBlurb ? [departmentBlurb] : [])];
@@ -308,8 +319,11 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     studioRevenue: null,
     // The studio's box-office keep for this film - reduced for a rented Wide
     // release (the distributor's fee), frozen from the deal at SCHEDULE_RELEASE.
-    // Absent keeps the default STUDIO_BOX_OFFICE_SHARE (engine/boxOfficeRun.ts).
+    // Absent keeps the default DOMESTIC_KEEP_SHARE (engine/distribution.ts).
     distributionKeepShare: input.marketingChoices.distributionKeepShare,
+    // Frozen international reach - box-office settlement reads this, never the
+    // studio's live tier, so a post-release upgrade never lifts this film.
+    internationalReachFraction: input.marketingChoices.internationalReachFraction,
     profit: null,
     outcome: null,
     brandChange: null,

@@ -1,6 +1,6 @@
 import type { Film } from '../../types';
 import { computeReportedLegs } from '../../state/selectors';
-import { STUDIO_BOX_OFFICE_SHARE } from '../../engine/boxOfficeRun';
+import { STUDIO_BOX_OFFICE_SHARE, filmMarketBreakdown } from '../../engine/boxOfficeRun';
 import { Money } from './Money';
 import { StatTile } from './StatTile';
 
@@ -46,15 +46,35 @@ function DistributionLine({ film }: { film: Film }) {
   );
 }
 
+/** Domestic vs international geography of the gross (engine/boxOfficeRun.ts:filmMarketBreakdown), plus a nudge about overseas potential left on the table when the film never went international. */
+function MarketBreakdown({ film }: { film: Film }) {
+  const markets = filmMarketBreakdown(film);
+  return (
+    <>
+      <div className="row">
+        <StatTile label="Domestic" value={<Money amount={markets.domestic} />} />
+        <StatTile label="International" value={markets.hasInternational ? <Money amount={markets.international} /> : 'None'} />
+      </div>
+      {!markets.hasInternational && (
+        <p className="choice-description" style={{ margin: 0 }}>
+          Domestic release only — with no international distribution, roughly <Money amount={markets.unreachedInternationalEstimate} /> of
+          overseas potential went unreached. Build the International Distribution track to capture it.
+        </p>
+      )}
+    </>
+  );
+}
+
 /**
  * The money story of one released film in one place: how it was released and
- * distributed, and an exact gross -> your-profit waterfall that makes every
- * deduction legible - the theatrical/international split, a rented
- * distributor's fee (engine/distribution.ts), then production and marketing -
- * rather than leaving the player to reverse-engineer why "Studio's Share"
- * isn't "Profit". Shared by the post-release screen (wizard/ReleaseResults)
- * and the Studio History dossier (common/FilmDetailModal) so both tell the
- * same story the same way.
+ * distributed, where the gross came from (domestic vs international), and an
+ * exact gross -> your-profit waterfall that makes every deduction legible -
+ * the theatrical/international split, a rented distributor's fee
+ * (engine/distribution.ts), then production and marketing - rather than
+ * leaving the player to reverse-engineer why "Studio's Share" isn't "Profit".
+ * Shared by the post-release screen (wizard/ReleaseResults) and the Studio
+ * History dossier (common/FilmDetailModal) so both tell the same story the
+ * same way.
  *
  * The waterfall is exact against stored FilmResults fields: gross - theatrical
  * split - distributor fee - production - marketing == profit. The theatrical
@@ -71,6 +91,7 @@ export function FilmMoneyBreakdown({ film }: { film: Film }) {
   return (
     <div className="stack" style={{ gap: 10 }}>
       <DistributionLine film={film} />
+      <MarketBreakdown film={film} />
 
       {finished ? (
         <>

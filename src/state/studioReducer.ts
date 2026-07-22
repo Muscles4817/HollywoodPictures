@@ -43,6 +43,9 @@ import {
   defaultDistributionMethod,
   distributionArmTier,
   distributionArmUpgradeCost,
+  internationalReachForTier,
+  internationalTier,
+  internationalUpgradeCost,
   isDistributionArmUnlocked,
   resolveDistribution,
 } from '../engine/distribution';
@@ -831,6 +834,22 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         studio: { ...state.studio, cash: state.studio.cash - cost, distributionArm: { ...arm, tier: arm.tier + 1 } },
+      };
+    }
+
+    case 'UPGRADE_INTERNATIONAL_DISTRIBUTION': {
+      // internationalUpgradeCost is null when the base arm is locked or the
+      // track is maxed, so a non-null cost implies an unlocked, upgradeable arm.
+      const cost = internationalUpgradeCost(state.studio);
+      if (cost == null || state.studio.cash < cost) return state;
+      const arm = state.studio.distributionArm!;
+      return {
+        ...state,
+        studio: {
+          ...state.studio,
+          cash: state.studio.cash - cost,
+          distributionArm: { ...arm, internationalTier: (arm.internationalTier ?? 0) + 1 },
+        },
       };
     }
 
@@ -1735,6 +1754,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           distributionMethod: distributionDeal.method,
           distributionBreadth: distributionDeal.breadth,
           distributionKeepShare: distributionDeal.keepShare,
+          // Freeze the international reach from the studio's current
+          // International Distribution tier - immune to later upgrades, exactly
+          // like the domestic deal terms above. Absent tier => 0 => hard gate.
+          internationalReachFraction: internationalReachForTier(internationalTier(state.studio)),
         },
       };
 
