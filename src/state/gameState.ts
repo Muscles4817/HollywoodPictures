@@ -114,6 +114,7 @@ export function createInitialStudio(startingCash: number): Studio {
     brand: 20,
     prestige: 20,
     assets: [],
+    intellectualProperties: [], // never populated automatically - the player promotes a Film into IP on demand
     productionOffice: null, // locked until the unlock milestone (docs/DESIGN_REVIEW_production_office.md)
   };
 }
@@ -370,6 +371,14 @@ export type GameAction =
   | { type: 'VIEW_AWARDS' }
   // Dashboard -> the searchable talent database (all actors + their stats). Pure detour, same as VIEW_STATS.
   | { type: 'VIEW_TALENT_DATABASE' }
+  // Dashboard -> the studio's owned Intellectual Property library. Pure detour, same as VIEW_STATS.
+  | { type: 'VIEW_IP_LIBRARY' }
+  // First IP-layer milestone - promote one of the player's own released Films
+  // into a persistent IntellectualProperty on demand, lifting the chosen
+  // Characters (by their script-local ids) and the Film's Setting into
+  // persistent components. Never happens automatically; guarded against rival
+  // films, unknown ids, and re-promoting a Film that's already an IP source.
+  | { type: 'PROMOTE_FILM_TO_IP'; filmId: string; characterIds: string[]; name: string }
   // Driven by the browser's own Back/Forward buttons (App.tsx), never
   // dispatched directly by the UI - restores an exact prior screen/focus/
   // detour snapshot rather than deriving it from the current one, since

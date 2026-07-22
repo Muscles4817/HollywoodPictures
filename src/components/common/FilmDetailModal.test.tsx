@@ -4,14 +4,25 @@
 // screenplay at all - added as its own section, leading the modal ahead of
 // Cast & Crew/Events/Reception/Financials/Reviews. First test coverage for
 // this component.
-import { describe, it, expect } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { render, screen, within, fireEvent } from '@testing-library/react';
+import { StudioProvider } from '../../state/StudioContext';
 import { FilmDetailModal } from './FilmDetailModal';
 import { generateScriptOptions } from '../../engine/scriptGenerator';
 import { generateTalentCandidates } from '../../engine/talentGenerator';
 import { createRng } from '../../engine/random';
+import { studioReducer } from '../../state/studioReducer';
+import { buildStateWithReadyDraft } from '../../state/testFixtures';
+import { saveState } from '../../state/persistence';
+import { playerReleasedFilms } from '../../engine/project';
 import { ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
 import type { Film } from '../../types';
+
+// The modal now hosts a self-contained IP panel that reads the store, so these
+// renders mount inside a StudioProvider (fresh studio - no promoted IP).
+beforeEach(() => {
+  localStorage.clear();
+});
 
 function buildFilm(): Film {
   const script = generateScriptOptions('Action', createRng(1), 1)[0];
@@ -43,7 +54,7 @@ function buildFilm(): Film {
 describe('FilmDetailModal - Screenplay section', () => {
   it("shows the film's script - title, concept badges, quality stats, production tags and tone profile", () => {
     const film = buildFilm();
-    render(<FilmDetailModal film={film} onClose={() => {}} />);
+    render(<StudioProvider><FilmDetailModal film={film} onClose={() => {}} /></StudioProvider>);
     const heading = screen.getByRole('heading', { name: 'Screenplay' });
     expect(heading).toBeInTheDocument();
     const section = heading.closest('.card') as HTMLElement;
@@ -59,7 +70,7 @@ describe('FilmDetailModal - Screenplay section', () => {
 
   it('renders the Screenplay section before Cast & Crew, Reception and Financials - a deliberate narrative order', () => {
     const film = buildFilm();
-    render(<FilmDetailModal film={film} onClose={() => {}} />);
+    render(<StudioProvider><FilmDetailModal film={film} onClose={() => {}} /></StudioProvider>);
     const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
     const screenplayIndex = headings.indexOf('Screenplay');
     const castCrewIndex = headings.indexOf('Cast & Crew');
@@ -69,5 +80,35 @@ describe('FilmDetailModal - Screenplay section', () => {
     expect(screenplayIndex).toBeLessThan(castCrewIndex);
     expect(castCrewIndex).toBeLessThan(receptionIndex);
     expect(receptionIndex).toBeLessThan(financialsIndex);
+  });
+});
+
+describe('FilmDetailModal - Promote to IP', () => {
+  /** A state whose projects actually contain the released film, so PROMOTE_FILM_TO_IP can find it. */
+  function releasedFilmState() {
+    const released = studioReducer(buildStateWithReadyDraft(1), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    return { state: released, film: playerReleasedFilms(released.projects)[0] };
+  }
+
+  it("promotes the player's film from its dossier, then shows the resulting IP", () => {
+    const { state, film } = releasedFilmState();
+    saveState(state);
+    render(<StudioProvider><FilmDetailModal film={film} onClose={() => {}} /></StudioProvider>);
+
+    // Before: a promote panel with an action.
+    expect(screen.getByRole('heading', { name: 'Promote to Intellectual Property' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Promote to IP' }));
+
+    // After: the panel becomes a read-only IP readout.
+    expect(screen.getByRole('heading', { name: 'Intellectual Property' })).toBeInTheDocument();
+    expect(screen.getByText(/has been promoted to the IP/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Promote to IP' })).not.toBeInTheDocument();
+  });
+
+  it("does not offer promotion for a rival's film", () => {
+    const rivalFilm: Film = { ...buildFilm(), releasedBy: 'Rival Pictures' };
+    render(<StudioProvider><FilmDetailModal film={rivalFilm} onClose={() => {}} /></StudioProvider>);
+    expect(screen.queryByRole('heading', { name: 'Promote to Intellectual Property' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Intellectual Property' })).not.toBeInTheDocument();
   });
 });

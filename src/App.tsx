@@ -20,6 +20,7 @@ import { ReleaseResults } from './components/wizard/ReleaseResults';
 import { OpportunityMarket } from './components/OpportunityMarket';
 import { AssetLibrary } from './components/AssetLibrary';
 import { ProjectsPage } from './components/ProjectsPage';
+import { IpLibrary } from './components/IpLibrary';
 import type { ProjectWorkspaceSection, Screen } from './types';
 import { DAY_TICK_MS, type TickSpeedMultiplier } from './constants';
 import { unreadBidCount } from './engine/bidNotifications';
@@ -40,7 +41,7 @@ const PLANNING_SCREENS = new Set<Screen>(['workspace', 'production', 'post-produ
 // studioReducer.ts), so a pause the player set intentionally shouldn't
 // silently lift just because they ducked in to check a rival's page, the
 // stats table, or the release calendar.
-const PAUSE_PERSISTING_SCREENS = new Set<Screen>(['rival-studio', 'stats', 'release-calendar', 'opportunity-market', 'asset-library', 'projects', 'awards', 'talent-database']);
+const PAUSE_PERSISTING_SCREENS = new Set<Screen>(['rival-studio', 'stats', 'release-calendar', 'opportunity-market', 'asset-library', 'projects', 'awards', 'talent-database', 'ip-library']);
 
 /**
  * Whether the background ADVANCE_DAY tick should be running right now - a
@@ -335,6 +336,8 @@ function AppShell() {
         return <AwardsPage />;
       case 'talent-database':
         return <TalentDatabase />;
+      case 'ip-library':
+        return <IpLibrary />;
       default:
         return <Dashboard />;
     }

@@ -9,7 +9,8 @@ import { computeTalentCost, computeProductionBudgetCost } from '../engine/cost';
 import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, footageLowerBound, footageUpperBound } from '../engine/production';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
 import { generateTalentPool, generateTalentCandidates } from '../engine/talentGenerator';
-import { playerDraftToProject, playerReleasedFilms, findProject, asScheduled, asPlayerDraft } from '../engine/project';
+import { playerDraftToProject, playerReleasedFilms, findProject, filmToProject, asFilm, asScheduled, asPlayerDraft } from '../engine/project';
+import { ipForSourceFilm } from '../engine/intellectualProperty';
 import { computeProjectSpendSoFar } from './selectors';
 import { STAGE_DURATIONS } from '../data/schedule';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
@@ -1130,5 +1131,65 @@ describe('DISMISS_CASTING_APPLICANT', () => {
     const s = freshWorkspaceState(323);
     const after = studioReducer(s, { type: 'DISMISS_CASTING_APPLICANT', characterId: 'anything', personId: 'nobody' });
     expect(after).toBe(s);
+  });
+});
+
+// First IP-layer milestone - promoting a released Film into a persistent IP is
+// always a deliberate player action, never automatic, and only ever for the
+// studio's own films.
+describe('PROMOTE_FILM_TO_IP', () => {
+  function releasedFilmState(seed: number) {
+    const released = studioReducer(buildStateWithReadyDraft(seed), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    const film = playerReleasedFilms(released.projects)[0];
+    return { state: released, film };
+  }
+
+  it('promotes a player film into an IP that references the film and its chosen characters + setting', () => {
+    const { state, film } = releasedFilmState(1);
+    expect(state.studio.intellectualProperties).toEqual([]);
+    const chosen = film.script.cast.slice(0, 2).map((c) => c.id);
+    const after = studioReducer(state, { type: 'PROMOTE_FILM_TO_IP', filmId: film.id, characterIds: chosen, name: 'Saga' });
+
+    expect(after.studio.intellectualProperties).toHaveLength(1);
+    const ip = after.studio.intellectualProperties[0];
+    expect(ip.name).toBe('Saga');
+    expect(ip.sourceFilmId).toBe(film.id);
+    expect(ip.filmIds).toEqual([film.id]);
+    expect(ip.characters.map((c) => c.sourceCharacterId)).toEqual(chosen);
+    expect(ip.setting.archetype).toBe(film.script.primarySetting);
+    // The Film itself is untouched - the IP references it, never wraps it.
+    expect(asFilm(findProject(after.projects, film.id))).toEqual(film);
+  });
+
+  it('is a no-op when the film is already the source of an IP (never promoted twice)', () => {
+    const { state, film } = releasedFilmState(2);
+    const once = studioReducer(state, { type: 'PROMOTE_FILM_TO_IP', filmId: film.id, characterIds: [], name: 'A' });
+    const twice = studioReducer(once, { type: 'PROMOTE_FILM_TO_IP', filmId: film.id, characterIds: [], name: 'B' });
+    expect(twice).toBe(once);
+    expect(twice.studio.intellectualProperties).toHaveLength(1);
+    expect(ipForSourceFilm(twice.studio, film.id)!.name).toBe('A');
+  });
+
+  it("is a no-op for a rival's film - a rival's film is never the player's to exploit", () => {
+    const { state, film } = releasedFilmState(3);
+    const rivalFilm = { ...film, releasedBy: 'Rival Pictures' };
+    const rivalState = { ...state, projects: [filmToProject(rivalFilm)] };
+    const after = studioReducer(rivalState, { type: 'PROMOTE_FILM_TO_IP', filmId: film.id, characterIds: [], name: 'X' });
+    expect(after).toBe(rivalState);
+    expect(after.studio.intellectualProperties).toEqual([]);
+  });
+
+  it('is a no-op for an unknown film id', () => {
+    const { state } = releasedFilmState(4);
+    const after = studioReducer(state, { type: 'PROMOTE_FILM_TO_IP', filmId: 'no-such-film', characterIds: [], name: 'X' });
+    expect(after).toBe(state);
+  });
+});
+
+describe('VIEW_IP_LIBRARY', () => {
+  it('is a pure detour to the IP library screen', () => {
+    const state = buildStateWithReadyDraft(1);
+    const after = studioReducer(state, { type: 'VIEW_IP_LIBRARY' });
+    expect(after.screen).toBe('ip-library');
   });
 });
