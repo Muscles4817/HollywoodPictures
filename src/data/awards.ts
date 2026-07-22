@@ -3,6 +3,8 @@
 // without touching the engine.
 import type { AwardCategory } from '../types';
 
+// The Academy's own 11 categories - the flagship set, and the canonical
+// "unsplit" categories every other show's results map back onto.
 export const AWARD_CATEGORIES: readonly AwardCategory[] = [
   'best-picture',
   'best-director',
@@ -15,6 +17,19 @@ export const AWARD_CATEGORIES: readonly AwardCategory[] = [
   'best-film-editing',
   'best-original-score',
   'best-visual-effects',
+];
+
+// Every category any show can award, in a stable display order (the Academy
+// set, then the Globes' Drama/Comedy splits). The UI renders whichever of
+// these a given ceremony actually contains.
+export const ALL_AWARD_CATEGORIES: readonly AwardCategory[] = [
+  ...AWARD_CATEGORIES,
+  'best-picture-drama',
+  'best-picture-comedy',
+  'best-actor-drama',
+  'best-actor-comedy',
+  'best-actress-drama',
+  'best-actress-comedy',
 ];
 
 // Player-facing names, so the UI never hardcodes copy.
@@ -30,10 +45,17 @@ export const AWARD_CATEGORY_LABEL: Record<AwardCategory, string> = {
   'best-film-editing': 'Best Film Editing',
   'best-original-score': 'Best Original Score',
   'best-visual-effects': 'Best Visual Effects',
+  'best-picture-drama': 'Best Picture — Drama',
+  'best-picture-comedy': 'Best Picture — Musical/Comedy',
+  'best-actor-drama': 'Best Actor — Drama',
+  'best-actor-comedy': 'Best Actor — Musical/Comedy',
+  'best-actress-drama': 'Best Actress — Drama',
+  'best-actress-comedy': 'Best Actress — Musical/Comedy',
 };
 
 // How much each category counts toward payoffs (Best Picture is the big one;
-// the majors weigh more than the crafts). Also scales the box-office bump.
+// the majors weigh more than the crafts). Also scales the box-office bump. A
+// split category weighs the same as its unsplit equivalent.
 export const AWARD_CATEGORY_WEIGHT: Record<AwardCategory, number> = {
   'best-picture': 1.0,
   'best-director': 0.7,
@@ -46,7 +68,27 @@ export const AWARD_CATEGORY_WEIGHT: Record<AwardCategory, number> = {
   'best-film-editing': 0.4,
   'best-original-score': 0.4,
   'best-visual-effects': 0.4,
+  'best-picture-drama': 1.0,
+  'best-picture-comedy': 1.0,
+  'best-actor-drama': 0.7,
+  'best-actor-comedy': 0.7,
+  'best-actress-drama': 0.7,
+  'best-actress-comedy': 0.7,
 };
+
+// --- Precursor momentum (engine/awards.ts) --------------------------------
+// A film/performer that lands at the earlier shows carries that momentum into
+// every later ceremony, culminating at the Academy Awards. Real awards-season
+// bandwagoning - a Globes + BAFTA sweep makes an Oscar far likelier - without
+// ever letting momentum alone beat a genuinely stronger contender (the 0-100
+// merit term dwarfs the cap).
+
+/** Award-score points a nomination / win at one precursor adds toward its Academy-equivalent category, before the show's own momentumWeight and the category weight. */
+export const MOMENTUM_NOMINATION = 1.5;
+export const MOMENTUM_WIN = 4;
+
+/** The most accumulated precursor momentum any single contender can carry into a later ceremony. */
+export const MOMENTUM_CAP = 12;
 
 /** Nominees per category (fewer if the field is smaller). */
 export const NOMINEES_PER_CATEGORY = 5;

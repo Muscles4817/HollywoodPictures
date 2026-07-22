@@ -2,15 +2,19 @@ import { describe, it, expect } from 'vitest';
 import type { AwardsCeremony, CrewRole, Film, FilmResults, Gender, Person, ProductionRole } from '../types';
 import { createRng } from './random';
 import {
+  accrueMomentum,
   campaignBoost,
   computeBoxOfficeBump,
   computeCeremony,
   computeStudioAwardDeltas,
   filmsForAwardsYear,
+  momentumKey,
   nominatedFilmIds,
+  toOscarCategory,
   type CeremonyInput,
 } from './awards';
-import { AWARD_CATEGORY_WEIGHT, CAMPAIGN_MAX, WIN_PRESTIGE } from '../data/awards';
+import { AWARD_CATEGORIES, AWARD_CATEGORY_WEIGHT, CAMPAIGN_MAX, WIN_PRESTIGE } from '../data/awards';
+import { awardShow } from '../data/awardsShows';
 
 let pid = 0;
 function person(opts: { gender?: Gender; crewRole?: CrewRole; skill?: number } = {}): Person {
@@ -45,10 +49,12 @@ function film(opts: {
   results?: Partial<FilmResults>;
   talent?: Array<{ role: ProductionRole; person: Person }>;
   originality?: number;
+  genre?: string;
 }): Film {
   return {
     id: `f${fid++}`,
     releasedOnDay: opts.releasedOnDay ?? 100,
+    genre: opts.genre ?? 'Drama',
     script: { originality: opts.originality ?? 60 },
     talent: opts.talent ?? [],
     results: results(opts.results),
@@ -57,11 +63,14 @@ function film(opts: {
 
 function input(films: Film[], overrides: Partial<CeremonyInput> = {}): CeremonyInput {
   return {
+    show: 'academy',
+    categories: AWARD_CATEGORIES,
     year: 1,
     ceremonyDay: 410,
     eligibleFilms: films,
     campaignByFilm: {},
     studioPrestigeForFilm: () => 20,
+    momentum: {},
     rng: createRng(1),
     ...overrides,
   };
@@ -92,7 +101,7 @@ describe('computeCeremony - Best Picture', () => {
     const strong = film({ results: { qualityScore: 95, criticScore: 95 } });
     const weak = film({ results: { qualityScore: 40, criticScore: 40 } });
     const ceremony = computeCeremony(input([weak, strong]));
-    const picture = ceremony.categories['best-picture'];
+    const picture = ceremony.categories['best-picture']!;
     expect(picture[0].filmId).toBe(strong.id);
     expect(picture[0].won).toBe(true);
     expect(picture.filter((n) => n.won)).toHaveLength(1);
@@ -113,15 +122,15 @@ describe('computeCeremony - crafts separate on crew skill', () => {
     const filmA = film({ results: { productionScore: 70 }, talent: [{ role: 'Cinematographer', person: ace }] });
     const filmB = film({ results: { productionScore: 70 }, talent: [{ role: 'Cinematographer', person: dud }] });
     const ceremony = computeCeremony(input([filmB, filmA]));
-    expect(ceremony.categories['best-cinematography'][0].filmId).toBe(filmA.id);
-    expect(ceremony.categories['best-cinematography'][0].personId).toBe(ace.id);
+    expect(ceremony.categories['best-cinematography']![0].filmId).toBe(filmA.id);
+    expect(ceremony.categories['best-cinematography']![0].personId).toBe(ace.id);
   });
 
   it('a film with no VFX Supervisor is not in the VFX race', () => {
     const withVfx = film({ talent: [{ role: 'VFX Supervisor', person: person({ crewRole: 'VFX Supervisor', skill: 80 }) }] });
     const without = film({ talent: [] });
     const ceremony = computeCeremony(input([withVfx, without]));
-    const vfx = ceremony.categories['best-visual-effects'];
+    const vfx = ceremony.categories['best-visual-effects']!;
     expect(vfx).toHaveLength(1);
     expect(vfx[0].filmId).toBe(withVfx.id);
   });
@@ -139,8 +148,8 @@ describe('computeCeremony - gender-split acting', () => {
     ] });
     const ceremony = computeCeremony(input([f]));
 
-    const actorIds = ceremony.categories['best-actor'].map((n) => n.personId);
-    const actressIds = ceremony.categories['best-actress'].map((n) => n.personId);
+    const actorIds = ceremony.categories['best-actor']!.map((n) => n.personId);
+    const actressIds = ceremony.categories['best-actress']!.map((n) => n.personId);
     expect(actorIds).toContain(male.id);
     expect(actressIds).toContain(female.id);
     // Non-binary appears exactly once across the two fields.
@@ -151,14 +160,12 @@ describe('computeCeremony - gender-split acting', () => {
 
 describe('payoff', () => {
   const ceremony: AwardsCeremony = {
+    show: 'academy',
     year: 1,
     ceremonyDay: 410,
     categories: {
       'best-picture': [{ filmId: 'f1', awardScore: 90, won: true }, { filmId: 'f2', awardScore: 80, won: false }],
-      'best-director': [], 'best-screenplay': [], 'best-actor': [], 'best-actress': [],
-      'best-supporting-actor': [], 'best-supporting-actress': [],
       'best-cinematography': [{ filmId: 'f2', awardScore: 70, won: false }],
-      'best-film-editing': [], 'best-original-score': [], 'best-visual-effects': [],
     },
   };
 
@@ -189,5 +196,67 @@ describe('payoff', () => {
 
   it('nominatedFilmIds collects every nominated film', () => {
     expect(nominatedFilmIds(ceremony)).toEqual(new Set(['f1', 'f2']));
+  });
+});
+
+describe('toOscarCategory', () => {
+  it('folds the Globes Drama/Comedy splits back onto their unsplit Academy categories', () => {
+    expect(toOscarCategory('best-picture-drama')).toBe('best-picture');
+    expect(toOscarCategory('best-picture-comedy')).toBe('best-picture');
+    expect(toOscarCategory('best-actor-comedy')).toBe('best-actor');
+    expect(toOscarCategory('best-actress-drama')).toBe('best-actress');
+    // An unsplit category is unchanged.
+    expect(toOscarCategory('best-director')).toBe('best-director');
+  });
+});
+
+describe('computeCeremony - Golden Globes Drama/Comedy split', () => {
+  const globes = awardShow('golden-globes');
+
+  it('routes a Comedy film to the Musical/Comedy picture race and everything else to Drama', () => {
+    const comedy = film({ genre: 'Comedy', results: { qualityScore: 80, criticScore: 80 } });
+    const drama = film({ genre: 'Drama', results: { qualityScore: 80, criticScore: 80 } });
+    const ceremony = computeCeremony(input([comedy, drama], { show: 'golden-globes', categories: globes.categories }));
+
+    expect(ceremony.categories['best-picture-comedy']!.map((n) => n.filmId)).toEqual([comedy.id]);
+    expect(ceremony.categories['best-picture-drama']!.map((n) => n.filmId)).toEqual([drama.id]);
+    // The Globes award no unsplit Best Picture and no crafts beyond score.
+    expect(ceremony.categories['best-picture']).toBeUndefined();
+    expect(ceremony.categories['best-visual-effects']).toBeUndefined();
+  });
+});
+
+describe('computeCeremony - precursor momentum', () => {
+  it('lifts a contender carrying momentum past an otherwise-equal rival', () => {
+    const front = film({ results: { qualityScore: 70, criticScore: 70 } });
+    const equal = film({ results: { qualityScore: 70, criticScore: 70 } });
+    // Without momentum the race is a jitter coin-flip; a capped momentum lead
+    // for `front` must decide Best Picture regardless of seed.
+    const momentum = { [momentumKey('best-picture', front.id)]: 12 };
+    const ceremony = computeCeremony(input([equal, front], { momentum }));
+    expect(ceremony.categories['best-picture']![0].filmId).toBe(front.id);
+  });
+});
+
+describe('accrueMomentum', () => {
+  const ceremony: AwardsCeremony = {
+    show: 'golden-globes',
+    year: 1,
+    ceremonyDay: 380,
+    categories: {
+      'best-picture-drama': [{ filmId: 'f1', awardScore: 90, won: true }, { filmId: 'f2', awardScore: 80, won: false }],
+    },
+  };
+
+  it('credits a win more than a nomination, keyed by the unsplit Academy category', () => {
+    const delta = accrueMomentum(ceremony, 1);
+    const winKey = momentumKey('best-picture', 'f1');
+    const nomKey = momentumKey('best-picture', 'f2');
+    expect(delta[winKey]).toBeGreaterThan(delta[nomKey]);
+    expect(delta[nomKey]).toBeGreaterThan(0);
+  });
+
+  it('contributes nothing for a zero-weight (flagship) show', () => {
+    expect(accrueMomentum(ceremony, 0)).toEqual({});
   });
 });

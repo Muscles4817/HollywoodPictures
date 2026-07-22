@@ -3,7 +3,8 @@ import { collectFilmStats } from '../state/selectors';
 import { computeStudioAwardDeltas } from '../engine/awards';
 import { Button } from './common/Button';
 import { Money } from './common/Money';
-import { AWARD_CATEGORIES, AWARD_CATEGORY_LABEL } from '../data/awards';
+import { ALL_AWARD_CATEGORIES, AWARD_CATEGORY_LABEL } from '../data/awards';
+import { awardShow } from '../data/awardsShows';
 import type { AwardNomination, AwardsCeremony, AwardsSeasonInProgress, Film } from '../types';
 import './AwardsPage.css';
 
@@ -36,7 +37,7 @@ export function AwardsPage() {
   return (
     <div className="stack awards-page">
       <div className="row-between">
-        <h1 style={{ margin: 0 }}>The Academy Awards</h1>
+        <h1 style={{ margin: 0 }}>Awards Season</h1>
         <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Back to Dashboard</Button>
       </div>
 
@@ -53,7 +54,7 @@ export function AwardsPage() {
       <section className="card stack">
         <h2 style={{ margin: 0 }}>Ceremony history</h2>
         {(!awards || awards.history.length === 0) ? (
-          <p className="awards-muted">No ceremonies yet. The first Academy Awards are held at the start of your studio's second year.</p>
+          <p className="awards-muted">No ceremonies yet. The first shows are held at the start of your studio's second year, running from the Golden Globes through to the Academy Awards.</p>
         ) : (
           [...awards.history].reverse().map((ceremony) => (
             <CeremonyDetail key={ceremony.year} ceremony={ceremony} filmById={filmById} playerFilmIds={playerFilmIds} />
@@ -80,18 +81,39 @@ function CampaignSection({
   const eligiblePlayerFilms = season.eligibleFilmIds
     .map((id) => filmById.get(id))
     .filter((r): r is FilmRef => r != null && r.isPlayer);
-  const daysToCeremony = Math.max(0, season.ceremonyDay - totalDays);
+  const nextShowId = season.pendingShows[0];
+  const daysToNext = nextShowId ? Math.max(0, season.ceremonyDayByShow[nextShowId] - totalDays) : 0;
   const totalCampaign = Object.values(season.campaignByFilm).reduce((sum, n) => sum + n, 0);
 
   return (
     <section className="card stack awards-campaign">
       <div className="row-between">
         <h2 style={{ margin: 0 }}>Campaign · Year {season.year} films</h2>
-        <span className="awards-countdown">Ceremony in {daysToCeremony} day{daysToCeremony === 1 ? '' : 's'}</span>
+        {nextShowId && (
+          <span className="awards-countdown">
+            {awardShow(nextShowId).name} in {daysToNext} day{daysToNext === 1 ? '' : 's'}
+          </span>
+        )}
       </div>
+
+      {/* The season's run of shows - earlier wins build momentum into the Oscars. */}
+      <div className="awards-show-schedule">
+        {(['golden-globes', 'sag', 'bafta', 'academy'] as const).map((id) => {
+          const resolved = !season.pendingShows.includes(id);
+          const days = Math.max(0, season.ceremonyDayByShow[id] - totalDays);
+          return (
+            <span key={id} className={`awards-show-pill${resolved ? ' awards-show-pill--done' : ''}`}>
+              {awardShow(id).shortName}
+              <small>{resolved ? 'done' : `${days}d`}</small>
+            </span>
+          );
+        })}
+      </div>
+
       <p className="awards-muted">
-        Spend to raise a contender's odds - diminishing returns, and it can't buy a weak film a statuette. Charged now;
-        lower a budget to refund it.
+        Spend to raise a contender's odds - diminishing returns, and it can't buy a weak film a statuette. It carries
+        across the whole season, and momentum from the earlier shows lifts your Oscar chances. Charged now; lower a
+        budget to refund it.
       </p>
 
       {eligiblePlayerFilms.length === 0 ? (
@@ -145,8 +167,8 @@ function CeremonyDetail({
   filmById: Map<string, FilmRef>;
   playerFilmIds: Set<string>;
 }) {
-  const playerWins = AWARD_CATEGORIES.reduce((count, cat) => {
-    const winner = ceremony.categories[cat].find((n) => n.won);
+  const playerWins = ALL_AWARD_CATEGORIES.reduce((count, cat) => {
+    const winner = ceremony.categories[cat]?.find((n) => n.won);
     return count + (winner && filmById.get(winner.filmId)?.isPlayer ? 1 : 0);
   }, 0);
   // What this ceremony actually did to the studio's own Brand/Prestige - the
@@ -167,7 +189,7 @@ function CeremonyDetail({
   return (
     <details className="awards-ceremony">
       <summary>
-        <strong>Year {ceremony.year}</strong>
+        <strong>{awardShow(ceremony.show).name} · Year {ceremony.year}</strong>
         <span className="awards-ceremony-haul">{playerWins > 0 ? `${playerWins} win${playerWins === 1 ? '' : 's'} for you` : 'No wins for you'}</span>
         {(prestigeDelta !== 0 || brandDelta !== 0) && (
           <span className="awards-ceremony-haul">
@@ -178,9 +200,9 @@ function CeremonyDetail({
         )}
       </summary>
       <div className="awards-categories">
-        {AWARD_CATEGORIES.map((cat) => {
+        {ALL_AWARD_CATEGORIES.map((cat) => {
           const noms = ceremony.categories[cat];
-          if (noms.length === 0) return null;
+          if (!noms || noms.length === 0) return null;
           return (
             <div className="awards-category" key={cat}>
               <h4>{AWARD_CATEGORY_LABEL[cat]}</h4>

@@ -861,6 +861,9 @@ export type OutcomeLabel =
 // The flagship Academy Awards. Categories map onto the roles the sim tracks;
 // acting is gender-split. Scoring/eligibility live in engine/awards.ts.
 
+/** The tentpole shows resolved each awards season, earliest ceremony first. The Academy Awards is the flagship the precursors build momentum toward. */
+export type AwardShowId = 'golden-globes' | 'sag' | 'bafta' | 'academy';
+
 export type AwardCategory =
   | 'best-picture'
   | 'best-director'
@@ -872,7 +875,16 @@ export type AwardCategory =
   | 'best-cinematography'
   | 'best-film-editing'
   | 'best-original-score'
-  | 'best-visual-effects';
+  | 'best-visual-effects'
+  // Golden Globes split Best Picture and lead acting into Drama vs
+  // Musical/Comedy. These only ever appear on a Globes ceremony; momentum and
+  // payoffs fold them back onto their unsplit Academy equivalents.
+  | 'best-picture-drama'
+  | 'best-picture-comedy'
+  | 'best-actor-drama'
+  | 'best-actor-comedy'
+  | 'best-actress-drama'
+  | 'best-actress-comedy';
 
 export interface AwardNomination {
   filmId: string;
@@ -883,25 +895,32 @@ export interface AwardNomination {
   won: boolean;
 }
 
-/** A resolved ceremony - one year's Academy Awards, stored permanently in studio history. */
+/** A resolved ceremony - one show's results for one year, stored permanently in studio history. */
 export interface AwardsCeremony {
+  /** Which show this was (Globes, SAG, BAFTA, Academy). */
+  show: AwardShowId;
   /** The 1-indexed calendar year honoured (films released in this year). */
   year: number;
   /** GameState.totalDays the ceremony resolved on. */
   ceremonyDay: number;
-  categories: Record<AwardCategory, AwardNomination[]>;
+  /** Only the categories this show actually awards are present. */
+  categories: Partial<Record<AwardCategory, AwardNomination[]>>;
 }
 
-/** An open awards season between the year boundary (when it opens) and its ceremony - the campaign phase. */
+/** An open awards season between the year boundary (when it opens) and its final ceremony - the campaign phase, spanning every show. */
 export interface AwardsSeasonInProgress {
   /** The 1-indexed year being honoured (the year just completed). */
   year: number;
-  /** Every eligible film's id (player and rival) - the field the ceremony resolves over. */
+  /** Every eligible film's id (player and rival) - the field every ceremony resolves over. */
   eligibleFilmIds: string[];
-  /** GameState.totalDays the ceremony resolves on. */
-  ceremonyDay: number;
   /** Player film id -> campaign cash committed so far. Extensible to per-category/talent later. */
   campaignByFilm: Record<string, number>;
+  /** Shows not yet resolved this season, in chronological order. Shrinks as each ceremony lands; the season closes when empty. */
+  pendingShows: AwardShowId[];
+  /** GameState.totalDays each show resolves on. */
+  ceremonyDayByShow: Record<AwardShowId, number>;
+  /** Accumulated precursor momentum, keyed `${oscarCategory}|${filmId}|${personId}` - raises a contender's odds at every later ceremony (engine/awards.ts). */
+  momentum: Record<string, number>;
 }
 
 /** All awards state on the studio's world - resolved history, the open season (if any), and when the next opens. */
