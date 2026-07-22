@@ -1,0 +1,410 @@
+/* Release Calendar - a producer's planning board (not a spreadsheet). The two
+   scale/competition palettes below are built from the existing theme tokens via
+   color-mix, so they track light/dark automatically. */
+
+.release-calendar__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 20px;
+  align-items: start;
+}
+
+.release-calendar__main,
+.release-calendar__sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* The sidebar rides along as the page scrolls on tall viewports. */
+.release-calendar__sidebar {
+  position: sticky;
+  top: var(--header-clearance);
+}
+
+@media (max-width: 900px) {
+  .release-calendar__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .release-calendar__sidebar {
+    position: static;
+  }
+}
+
+/* --- Filter toolbar --------------------------------------------------- */
+
+.release-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.release-toolbar__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+
+.release-toolbar__spacer {
+  flex: 1 1 auto;
+}
+
+.release-toolbar__reset {
+  padding: 7px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.release-toolbar__reset:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.release-toolbar__reset:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* --- Month sections --------------------------------------------------- */
+
+.release-month {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.release-month__header {
+  border-top: 2px solid var(--border);
+  padding-top: 12px;
+}
+
+.release-month__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.release-month__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.release-month__count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* --- Competition indicator (shared by month header + player cards) ----- */
+
+.competition {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.competition::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.competition--clear {
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+  border-color: color-mix(in srgb, var(--green) 30%, transparent);
+}
+
+.competition--some {
+  color: var(--star);
+  background: color-mix(in srgb, var(--star) 16%, transparent);
+  border-color: color-mix(in srgb, var(--star) 32%, transparent);
+}
+
+.competition--crowded {
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+  border-color: color-mix(in srgb, var(--red) 30%, transparent);
+}
+
+/* --- Release cards ---------------------------------------------------- */
+
+.release-month__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.release-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.release-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+}
+
+.release-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* The player's own films read instantly - accent rail + tinted wash. */
+.release-card--player {
+  border-left-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 7%, var(--panel));
+}
+
+.release-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.release-card__title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.25;
+}
+
+.release-card__title--rival {
+  font-style: italic;
+  font-weight: 600;
+}
+
+.release-card__timing {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.release-card__studio {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.release-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+/* --- Chips / badges --------------------------------------------------- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--info-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.chip--genre {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 26%, transparent);
+  color: var(--text);
+}
+
+.chip--audience {
+  background: transparent;
+}
+
+/* Scale chip - warmer/heavier as the film gets bigger. */
+.chip--scale {
+  font-weight: 700;
+  gap: 5px;
+}
+
+.chip--scale::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.chip--scale-small {
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  border-color: color-mix(in srgb, var(--text-muted) 26%, transparent);
+}
+
+.chip--scale-medium {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 28%, transparent);
+}
+
+.chip--scale-large {
+  color: var(--star);
+  background: color-mix(in srgb, var(--star) 16%, transparent);
+  border-color: color-mix(in srgb, var(--star) 34%, transparent);
+}
+
+.badge-player {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--primary);
+  color: #fff;
+}
+
+/* --- Expanded detail (click-to-open) ---------------------------------- */
+
+.release-card__details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 0.82rem;
+}
+
+.release-card__details dt {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.release-card__details dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.release-card__hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* --- Sidebar ---------------------------------------------------------- */
+
+.sidebar-card {
+  padding: 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.sidebar-card + .sidebar-card {
+  margin-top: 0;
+}
+
+.sidebar-card__title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+}
+
+.sidebar-card--accent {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, var(--panel));
+}
+
+.next-release__time {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--primary);
+  line-height: 1.1;
+}
+
+.next-release__label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.stat-row,
+.event-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 0.85rem;
+}
+
+.stat-row + .stat-row,
+.event-row + .event-row {
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.stat-row__label,
+.event-row__label {
+  color: var(--text-muted);
+}
+
+.stat-row__value {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.event-row__when {
+  font-weight: 600;
+  color: var(--primary);
+  font-size: 0.8rem;
+}
+
+.sidebar-empty {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-style: italic;
+}

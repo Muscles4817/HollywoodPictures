@@ -391,6 +391,8 @@ describe('deriveUpcomingReleaseEntries - the shared source for the Release Calen
     expect(entries[0].studioName).toBe('My Studio');
     expect(entries[0].releaseDay).toBe(50);
     expect(entries[0].genre).toBe(draft.genre);
+    // Scale is normalized onto the shared Small/Medium/Large vocabulary.
+    expect(['Small', 'Medium', 'Large']).toContain(entries[0].scale);
   });
 
   it('includes a rival production in progress, tagged not-isPlayer with the rival studio name resolved from its id', () => {
@@ -400,6 +402,8 @@ describe('deriveUpcomingReleaseEntries - the shared source for the Release Calen
     expect(entries[0].isPlayer).toBe(false);
     expect(entries[0].studioId).toBe('rival-studio-0');
     expect(entries[0].studioName).toBe('Test Rival Pictures');
+    // The fixture is a 'Medium' ProductionScale, which maps to 'Medium'.
+    expect(entries[0].scale).toBe('Medium');
   });
 
   it('falls back to "A Rival Studio" if the rival studio id has no matching entry in rivalStudios', () => {
