@@ -93,7 +93,7 @@ describe('deriveReputationHistory - the Reputation History panel\'s own trail be
 
     const categories = emptyAwardCategories();
     categories['best-picture'] = [{ filmId: film.id, awardScore: 90, won: true }];
-    const ceremony: AwardsCeremony = { year: 1, ceremonyDay: film.releasedOnDay + 400, categories };
+    const ceremony: AwardsCeremony = { show: 'academy', year: 1, ceremonyDay: film.releasedOnDay + 400, categories };
     const awardsState = { ...state, awards: { history: [ceremony], season: null, nextSeasonDay: 99_999 } };
 
     const history = deriveReputationHistory(awardsState);
@@ -115,7 +115,7 @@ describe('deriveReputationHistory - the Reputation History panel\'s own trail be
 
     const categories = emptyAwardCategories();
     categories['best-picture'] = [{ filmId: 'some-rival-film-id', awardScore: 90, won: true }];
-    const ceremony: AwardsCeremony = { year: 1, ceremonyDay: 500, categories };
+    const ceremony: AwardsCeremony = { show: 'academy', year: 1, ceremonyDay: 500, categories };
     const awardsState = { ...state, awards: { history: [ceremony], season: null, nextSeasonDay: 99_999 } };
 
     const history = deriveReputationHistory(awardsState);

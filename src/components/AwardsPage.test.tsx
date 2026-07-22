@@ -33,11 +33,29 @@ describe('AwardsPage', () => {
     const { state, film } = releasedState();
     mockState = {
       ...state,
-      awards: { history: [], season: { year: 1, eligibleFilmIds: [film.id], ceremonyDay: state.totalDays + 45, campaignByFilm: {} }, nextSeasonDay: 731 },
+      awards: {
+        history: [],
+        season: {
+          year: 1,
+          eligibleFilmIds: [film.id],
+          campaignByFilm: {},
+          pendingShows: ['golden-globes', 'sag', 'bafta', 'academy'],
+          ceremonyDayByShow: {
+            'golden-globes': state.totalDays + 10,
+            sag: state.totalDays + 20,
+            bafta: state.totalDays + 32,
+            academy: state.totalDays + 45,
+          },
+          momentum: {},
+        },
+        nextSeasonDay: 731,
+      },
     };
     render(<AwardsPage />);
 
     expect(screen.getByText(film.title)).toBeInTheDocument();
+    // The next show is counted down (Globes open the season).
+    expect(screen.getByText(/Golden Globes in \d+ day/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Modest/ }));
     expect(dispatch).toHaveBeenCalledWith({ type: 'SET_AWARDS_CAMPAIGN', filmId: film.id, amount: 1_000_000 });
   });
@@ -45,6 +63,7 @@ describe('AwardsPage', () => {
   it('renders a resolved ceremony with the winning film', () => {
     const { state, film } = releasedState();
     const ceremony: AwardsCeremony = {
+      show: 'academy',
       year: 1,
       ceremonyDay: 410,
       categories: categories({ 'best-picture': [{ filmId: film.id, awardScore: 90, won: true }] }),
@@ -52,7 +71,7 @@ describe('AwardsPage', () => {
     mockState = { ...state, awards: { history: [ceremony], season: null, nextSeasonDay: 731 } };
     render(<AwardsPage />);
 
-    expect(screen.getByText('Year 1')).toBeInTheDocument();
+    expect(screen.getByText(/The Academy Awards · Year 1/)).toBeInTheDocument();
     expect(screen.getByText(/1 win for you/)).toBeInTheDocument();
     expect(screen.getByText('Best Picture')).toBeInTheDocument();
     expect(screen.getByText(film.title)).toBeInTheDocument();

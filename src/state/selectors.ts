@@ -2,6 +2,7 @@ import type { AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, ProductionR
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { totalAttachedPerFilmFees } from '../engine/producers';
 import { computeStudioAwardDeltas } from '../engine/awards';
+import { awardShow } from '../data/awardsShows';
 import { explainBrandChange, explainPrestigeChange } from '../engine/reputation';
 import { WEEK_LENGTH_DAYS } from '../engine/boxOfficeRun';
 import { GENRE_PROFILES } from '../data/genres';
@@ -177,7 +178,7 @@ function playerAwardHaul(ceremony: AwardsCeremony, filmIds: Set<string>): { wins
   let wins = 0;
   let nominations = 0;
   for (const noms of Object.values(ceremony.categories)) {
-    for (const nom of noms) {
+    for (const nom of noms ?? []) {
       if (!filmIds.has(nom.filmId)) continue;
       nominations += 1;
       if (nom.won) wins += 1;
@@ -228,17 +229,23 @@ export function deriveReputationHistory(state: GameState): ReputationEvent[] {
     }));
 
   const awardsEvents: ReputationEvent[] = (state.awards?.history ?? []).flatMap((ceremony) => {
-    const { prestige, brand } = computeStudioAwardDeltas(ceremony, playerFilmIds);
+    // Each show's payoff is scaled by its stakes (a precursor pays less than the
+    // Oscars) - the reputation history must apply the same scale so its "why"
+    // numbers match what the reducer actually credited.
+    const show = awardShow(ceremony.show);
+    const raw = computeStudioAwardDeltas(ceremony, playerFilmIds);
+    const prestige = raw.prestige * show.payoffScale;
+    const brand = raw.brand * show.payoffScale;
     if (prestige === 0 && brand === 0) return [];
     const { wins, nominations } = playerAwardHaul(ceremony, playerFilmIds);
     const haul = wins > 0
       ? `${wins} win${wins === 1 ? '' : 's'}, ${nominations} nomination${nominations === 1 ? '' : 's'}`
       : `${nominations} nomination${nominations === 1 ? '' : 's'}, no wins`;
     return [{
-      id: `awards-${ceremony.year}`,
+      id: `awards-${ceremony.year}-${ceremony.show}`,
       day: ceremony.ceremonyDay,
       kind: 'awards' as const,
-      title: `Year ${ceremony.year} Academy Awards`,
+      title: `Year ${ceremony.year} ${show.name}`,
       prestigeDelta: prestige,
       brandDelta: brand,
       prestigeDetail: prestige !== 0 ? haul : undefined,

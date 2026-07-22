@@ -7,6 +7,7 @@ import type {
   AwardCategory,
   AwardNomination,
   AwardsCeremony,
+  AwardShowId,
   CrewRole,
   Film,
   FilmResults,
@@ -24,6 +25,9 @@ import {
   BUMP_CAP_FRACTION,
   CAMPAIGN_MAX,
   CAMPAIGN_SCALE,
+  MOMENTUM_CAP,
+  MOMENTUM_NOMINATION,
+  MOMENTUM_WIN,
   NOMINATION_BUMP_FRACTION,
   NOMINATION_PRESTIGE,
   NOMINEES_PER_CATEGORY,
@@ -35,6 +39,10 @@ import {
 } from '../data/awards';
 
 export interface CeremonyInput {
+  /** Which show is resolving - stamped onto the ceremony. */
+  show: AwardShowId;
+  /** The categories this show awards (from its profile). */
+  categories: readonly AwardCategory[];
   /** The 1-indexed calendar year being honoured. */
   year: number;
   ceremonyDay: number;
@@ -44,7 +52,39 @@ export interface CeremonyInput {
   campaignByFilm: Record<string, number>;
   /** Prestige of whichever studio made a given film (player or rival) - drives the small nudge. */
   studioPrestigeForFilm: (film: Film) => number;
+  /** Accumulated precursor momentum, keyed by momentumKey - folded into each contender's score. Empty for the season's first ceremony. */
+  momentum: Record<string, number>;
   rng: RandomFn;
+}
+
+/** The unsplit Academy category a (possibly Globes-split) category maps onto - the key momentum and payoffs aggregate under. */
+export function toOscarCategory(category: AwardCategory): AwardCategory {
+  switch (category) {
+    case 'best-picture-drama':
+    case 'best-picture-comedy':
+      return 'best-picture';
+    case 'best-actor-drama':
+    case 'best-actor-comedy':
+      return 'best-actor';
+    case 'best-actress-drama':
+    case 'best-actress-comedy':
+      return 'best-actress';
+    default:
+      return category;
+  }
+}
+
+/** The Globes bucket a film competes in - only Comedy films go Musical/Comedy; everything else is Drama. */
+function isComedyFilm(film: Film): boolean {
+  return film.genre === 'Comedy';
+}
+
+export function momentumKey(oscarCategory: AwardCategory, filmId: string, personId?: string): string {
+  return `${oscarCategory}|${filmId}|${personId ?? ''}`;
+}
+
+function momentumFor(ledger: Record<string, number>, category: AwardCategory, filmId: string, personId?: string): number {
+  return Math.min(MOMENTUM_CAP, ledger[momentumKey(toOscarCategory(category), filmId, personId)] ?? 0);
 }
 
 /** Films released in `year` (by releasedOnDay). Player + rival - the caller passes the combined list. */
@@ -93,8 +133,10 @@ function toNominations(contenders: ScoredContender[]): AwardNomination[] {
     .map((c, i) => ({ filmId: c.filmId, personId: c.personId, awardScore: c.score, won: i === 0 }));
 }
 
-function pictureContenders(input: CeremonyInput): ScoredContender[] {
-  return input.eligibleFilms.map((f) => scored(input, f, f.results.qualityScore * 0.6 + f.results.criticScore * 0.4));
+function pictureContenders(input: CeremonyInput, filter: (f: Film) => boolean = () => true): ScoredContender[] {
+  return input.eligibleFilms
+    .filter(filter)
+    .map((f) => scored(input, f, f.results.qualityScore * 0.6 + f.results.criticScore * 0.4));
 }
 
 function directorContenders(input: CeremonyInput): ScoredContender[] {
@@ -130,8 +172,12 @@ interface GenderedContender {
   gender?: Gender;
 }
 
-function actingContenders(input: CeremonyInput, role: 'Lead Actor' | 'Supporting Actor'): GenderedContender[] {
-  return input.eligibleFilms.flatMap((f) =>
+function actingContenders(
+  input: CeremonyInput,
+  role: 'Lead Actor' | 'Supporting Actor',
+  filter: (f: Film) => boolean = () => true,
+): GenderedContender[] {
+  return input.eligibleFilms.filter(filter).flatMap((f) =>
     peopleForRole(f, role).map((person) => {
       const compat = computeTalentCompatibility(person, role, f.script) ?? 50;
       const merit = compat * 0.7 + f.results.qualityScore * 0.3;
@@ -160,35 +206,97 @@ function splitByGender(entries: GenderedContender[]): { masc: ScoredContender[];
   return { masc, fem };
 }
 
-/** Resolve one year's Academy Awards - nominees (top N) and a winner (top 1) per category. Deterministic given the rng. */
+// The contender pool for a single category, before momentum. Split categories
+// filter the field by Globes bucket; gendered categories pick their half.
+function contendersForCategory(input: CeremonyInput, category: AwardCategory): ScoredContender[] {
+  switch (category) {
+    case 'best-picture':
+      return pictureContenders(input);
+    case 'best-picture-drama':
+      return pictureContenders(input, (f) => !isComedyFilm(f));
+    case 'best-picture-comedy':
+      return pictureContenders(input, isComedyFilm);
+    case 'best-director':
+      return directorContenders(input);
+    case 'best-screenplay':
+      return screenplayContenders(input);
+    case 'best-actor':
+      return splitByGender(actingContenders(input, 'Lead Actor')).masc;
+    case 'best-actress':
+      return splitByGender(actingContenders(input, 'Lead Actor')).fem;
+    case 'best-actor-drama':
+      return splitByGender(actingContenders(input, 'Lead Actor', (f) => !isComedyFilm(f))).masc;
+    case 'best-actress-drama':
+      return splitByGender(actingContenders(input, 'Lead Actor', (f) => !isComedyFilm(f))).fem;
+    case 'best-actor-comedy':
+      return splitByGender(actingContenders(input, 'Lead Actor', isComedyFilm)).masc;
+    case 'best-actress-comedy':
+      return splitByGender(actingContenders(input, 'Lead Actor', isComedyFilm)).fem;
+    case 'best-supporting-actor':
+      return splitByGender(actingContenders(input, 'Supporting Actor')).masc;
+    case 'best-supporting-actress':
+      return splitByGender(actingContenders(input, 'Supporting Actor')).fem;
+    case 'best-cinematography':
+      return craftContenders(input, 'Cinematographer', (r) => r.productionScore);
+    case 'best-film-editing':
+      return craftContenders(input, 'Editor', (r) => r.postProductionScore);
+    case 'best-original-score':
+      return craftContenders(input, 'Composer', (r) => r.postProductionScore);
+    case 'best-visual-effects':
+      return craftContenders(input, 'VFX Supervisor', (r) => r.productionScore);
+  }
+}
+
+// Fold accumulated precursor momentum into each contender's score, keyed by the
+// category's unsplit Academy equivalent, before nominees are picked.
+function applyMomentum(input: CeremonyInput, category: AwardCategory, contenders: ScoredContender[]): ScoredContender[] {
+  if (Object.keys(input.momentum).length === 0) return contenders;
+  return contenders.map((c) => ({
+    ...c,
+    score: c.score + momentumFor(input.momentum, category, c.filmId, c.personId),
+  }));
+}
+
+/**
+ * Resolve one show's ceremony - nominees (top N) and a winner (top 1) for each
+ * category the show awards. Deterministic given the rng. Precursor momentum
+ * (from earlier shows this season) lifts contenders toward the odds a real
+ * awards-season frontrunner carries.
+ */
 export function computeCeremony(input: CeremonyInput): AwardsCeremony {
-  const leads = splitByGender(actingContenders(input, 'Lead Actor'));
-  const supporting = splitByGender(actingContenders(input, 'Supporting Actor'));
-
-  const categories: Record<AwardCategory, AwardNomination[]> = {
-    'best-picture': toNominations(pictureContenders(input)),
-    'best-director': toNominations(directorContenders(input)),
-    'best-screenplay': toNominations(screenplayContenders(input)),
-    'best-actor': toNominations(leads.masc),
-    'best-actress': toNominations(leads.fem),
-    'best-supporting-actor': toNominations(supporting.masc),
-    'best-supporting-actress': toNominations(supporting.fem),
-    'best-cinematography': toNominations(craftContenders(input, 'Cinematographer', (r) => r.productionScore)),
-    'best-film-editing': toNominations(craftContenders(input, 'Editor', (r) => r.postProductionScore)),
-    'best-original-score': toNominations(craftContenders(input, 'Composer', (r) => r.postProductionScore)),
-    'best-visual-effects': toNominations(craftContenders(input, 'VFX Supervisor', (r) => r.productionScore)),
-  };
-
-  return { year: input.year, ceremonyDay: input.ceremonyDay, categories };
+  const categories: Partial<Record<AwardCategory, AwardNomination[]>> = {};
+  for (const category of input.categories) {
+    categories[category] = toNominations(applyMomentum(input, category, contendersForCategory(input, category)));
+  }
+  return { show: input.show, year: input.year, ceremonyDay: input.ceremonyDay, categories };
 }
 
 // --- Payoff (pure; the reducer applies these in increment 2) ---------------
 
-function forEachNomination(ceremony: AwardsCeremony, fn: (nom: AwardNomination, weight: number) => void): void {
+function forEachNomination(
+  ceremony: AwardsCeremony,
+  fn: (nom: AwardNomination, weight: number, category: AwardCategory) => void,
+): void {
   for (const category of Object.keys(ceremony.categories) as AwardCategory[]) {
     const weight = AWARD_CATEGORY_WEIGHT[category];
-    for (const nom of ceremony.categories[category]) fn(nom, weight);
+    for (const nom of ceremony.categories[category] ?? []) fn(nom, weight, category);
   }
+}
+
+/**
+ * The momentum a resolved ceremony contributes toward every later show this
+ * season - keyed by the unsplit Academy category, so a Globes Drama win and a
+ * SAG win both stack onto the same Oscar contender. Scaled by the show's own
+ * momentumWeight (the flagship's is 0 - nothing resolves after it).
+ */
+export function accrueMomentum(ceremony: AwardsCeremony, momentumWeight: number): Record<string, number> {
+  const delta: Record<string, number> = {};
+  if (momentumWeight <= 0) return delta;
+  forEachNomination(ceremony, (nom, weight, category) => {
+    const key = momentumKey(toOscarCategory(category), nom.filmId, nom.personId);
+    delta[key] = (delta[key] ?? 0) + (nom.won ? MOMENTUM_WIN : MOMENTUM_NOMINATION) * momentumWeight * weight;
+  });
+  return delta;
 }
 
 /** Prestige & Brand a studio earns from a ceremony, given the set of its film ids. Nominations add Prestige; wins add Prestige + Brand. */
