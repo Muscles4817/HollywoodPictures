@@ -7,7 +7,7 @@ import {
 import { dominantLean } from '../../engine/recommendation';
 import { getCareerForRole, deriveBookedUntil } from '../../engine/person';
 import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../../engine/personTraits';
-import { gameDateFromTotalDays, formatGameDate } from '../../engine/calendar';
+import { gameDateFromTotalDays, formatGameDateWithMonth } from '../../engine/calendar';
 import { TONE_LABELS } from '../../data/tones';
 import { ENV_LEAN_SHORT, EFFECTS_LEAN_SHORT } from '../../data/productionStyleLabels';
 import { ACTING_STYLE_LABELS } from '../../data/actingStyle';
@@ -171,7 +171,7 @@ export function TalentStats({ person, role, category, script, character = null, 
       <div className="talent-availability">
         {isBusy ? (
           <>
-            <div className="talent-availability-status">Busy until {formatGameDate(bookedUntil!)}.</div>
+            <div className="talent-availability-status">Busy until {formatGameDateWithMonth(bookedUntil!)}.</div>
             <div className="talent-availability-detail">Hiring them would delay production by {delayDays} day{delayDays === 1 ? '' : 's'}.</div>
           </>
         ) : (

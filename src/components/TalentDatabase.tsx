@@ -6,7 +6,7 @@ import { InfoTip } from './common/InfoTip';
 import { ACTING_STYLE_LABELS } from '../data/actingStyle';
 import { STAT_INFO, type StatKey } from '../data/talentStatInfo';
 import { getPersonAge, computeActorAbility } from '../types';
-import { gameDateFromTotalDays, formatGameDate } from '../engine/calendar';
+import { gameDateFromTotalDays, formatGameDateWithMonth } from '../engine/calendar';
 import { deriveBookedUntil } from '../engine/person';
 import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../engine/personTraits';
 import { playerReleasedFilms, rivalReleasedFilms } from '../engine/project';
@@ -178,7 +178,7 @@ function ActorDetail({ person, totalDays, credits, award, performance, onBack }:
           <div className="stat-label">Typical fee</div>
           <div className="stat-value"><Money amount={actor.typicalSalary} /></div>
           <div className={`td-detail__avail ${busy ? 'is-busy' : 'is-free'}`}>
-            {busy ? `Busy until ${formatGameDate(bookedUntil!)}` : '✓ Available now'}
+            {busy ? `Busy until ${formatGameDateWithMonth(bookedUntil!)}` : '✓ Available now'}
           </div>
         </div>
       </header>
@@ -213,7 +213,7 @@ function ActorDetail({ person, totalDays, credits, award, performance, onBack }:
               <div className="td-credit" key={film.id}>
                 <div className="td-credit__title">{film.title}</div>
                 <div className="td-credit__meta">
-                  {film.genre} · {roleLabel} · {formatGameDate(film.releasedOnDay)}
+                  {film.genre} · {roleLabel} · {formatGameDateWithMonth(film.releasedOnDay)}
                   {film.results.totalBoxOffice !== null && <> · <Money amount={film.results.totalBoxOffice} /></>}
                 </div>
               </div>

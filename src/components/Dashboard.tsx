@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { exportFilmHistory } from '../state/exportFilmHistory';
-import { formatGameDate, formatGameMonthYear } from '../engine/calendar';
+import { formatGameDateWithMonth, formatGameMonthYear } from '../engine/calendar';
 import { Button } from './common/Button';
 import { StatTile } from './common/StatTile';
 import { Money } from './common/Money';
@@ -574,7 +574,7 @@ export function Dashboard() {
                         <tr key={film.id} className="film-history-row" onClick={() => setSelectedFilm(film)}>
                           <td><strong>{film.title}</strong></td>
                           <td>{film.genre}</td>
-                          <td>{formatGameDate(film.releasedOnDay)}</td>
+                          <td>{formatGameDateWithMonth(film.releasedOnDay)}</td>
                           <td><Money amount={film.results.totalCost} /></td>
                           <td>
                             {running

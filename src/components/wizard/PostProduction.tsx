@@ -8,7 +8,7 @@ import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { deriveFocusedDraft } from '../../state/selectors';
-import { formatGameDate } from '../../engine/calendar';
+import { formatGameDateWithMonth } from '../../engine/calendar';
 import type { EditStyle, FinalCutFocus, MusicFocus, PostProductionChoices } from '../../types';
 
 const EDIT_STYLES = Object.keys(EDIT_STYLE_PROFILES) as EditStyle[];
@@ -46,7 +46,7 @@ export function PostProduction() {
       {draft.postProductionScreeningReadyDay !== null && !draft.testScreeningResolved && !pendingScreeningChoice && (
         <div className="card" style={{ borderColor: 'var(--primary)' }}>
           <div className="stat-label">Test Screening (preview)</div>
-          <div className="stat-value">Ready around {formatGameDate(draft.postProductionScreeningReadyDay)}</div>
+          <div className="stat-value">Ready around {formatGameDateWithMonth(draft.postProductionScreeningReadyDay)}</div>
           {draft.postProductionScreeningReadyDay > state.totalDays && (
             <div style={{ fontSize: '0.8em', fontWeight: 600, color: 'var(--text-muted)' }}>
               about {draft.postProductionScreeningReadyDay - state.totalDays} days out
@@ -64,7 +64,7 @@ export function PostProduction() {
       {draft.testScreeningResolved && draft.postProductionFinalReadyDay !== null && (
         <div className="card" style={{ borderColor: 'var(--primary)' }}>
           <div className="stat-label">Post-Production</div>
-          <div className="stat-value">Wraps around {formatGameDate(draft.postProductionFinalReadyDay)}</div>
+          <div className="stat-value">Wraps around {formatGameDateWithMonth(draft.postProductionFinalReadyDay)}</div>
         </div>
       )}
 

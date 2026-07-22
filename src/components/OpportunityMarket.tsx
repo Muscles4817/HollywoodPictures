@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStudio } from '../state/StudioContext';
-import { formatGameDate } from '../engine/calendar';
+import { formatGameDateWithMonth } from '../engine/calendar';
 import { WEEK_LENGTH_DAYS, highestBid } from '../engine/opportunities';
 import { Card } from './common/Card';
 import { Button } from './common/Button';
@@ -496,7 +496,7 @@ export function OpportunityMarket() {
                       }}
                     >
                       Expires{' '}
-                      {formatGameDate(
+                      {formatGameDateWithMonth(
                         opportunity.expiresOnDay,
                       )}
                     </span>
