@@ -88,3 +88,32 @@ describe('AssetLibrary - filter controls with no acquired assets', () => {
     expect(screen.queryByRole('heading', { name: 'Superbad' })).not.toBeInTheDocument();
   });
 });
+
+describe('AssetLibrary - hide test scripts toggle', () => {
+  it('collapses the whole Test Scripts section, leaves acquired assets alone, and restores on toggle back', () => {
+    mockState = stateWithAssets([acquiredHeat, dieHard, superbad]);
+    render(<AssetLibrary />);
+
+    // Test scripts visible by default; toggle offers to hide them.
+    expect(screen.getByRole('heading', { name: 'Die Hard' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Superbad' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide test scripts' }));
+
+    // Every test script is gone; the acquired asset (Heat) is untouched.
+    expect(screen.queryByRole('heading', { name: 'Die Hard' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Superbad' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Heat' })).toBeInTheDocument();
+    expect(screen.getByText(/Test scripts are hidden/i)).toBeInTheDocument();
+
+    const showBtn = screen.getByRole('button', { name: 'Show test scripts' });
+    expect(showBtn).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(showBtn);
+
+    // Restored.
+    expect(screen.getByRole('heading', { name: 'Die Hard' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Superbad' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hide test scripts' })).toBeInTheDocument();
+  });
+});
