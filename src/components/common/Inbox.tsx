@@ -170,6 +170,7 @@ export function Inbox({ open, onClose }: InboxProps) {
                   script={production.script}
                   totalDays={state.totalDays}
                   pausedMessage="Post-production can't wrap until you respond to the test screening."
+                  showChoiceCosts
                   onChoose={(choiceId) => dispatch({ type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId, productionId: production.id })}
                 />
               </div>
@@ -207,14 +208,17 @@ export function Inbox({ open, onClose }: InboxProps) {
           // don't imply it "just needs a release day" (it doesn't; it needs the
           // screening first). See components/wizard/MarketingRelease.tsx, where
           // the Release button stays disabled for exactly this reason.
+          const recutInProgress = production.postProductionEditingUntilDay !== null;
           const awaitingScreening = !production.testScreeningResolved;
           return (
             <div className="card stack" key={production.id}>
               <div className="card-title">{production.title || 'Untitled Film'}</div>
               <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-                {awaitingScreening
-                  ? "Post-production is still wrapping up - its test screening isn't in yet. You can't lock a release date until you've seen it and responded; you'll be notified here the moment it's ready."
-                  : 'Post-production is done - this film just needs a release day.'}
+                {recutInProgress
+                  ? "A re-cut is underway in the editing bay. You can't lock a release date until it's done and you've seen the next test screening - you'll be notified here the moment it's in."
+                  : awaitingScreening
+                    ? "Post-production is still wrapping up - its test screening isn't in yet. You can't lock a release date until you've seen it and responded; you'll be notified here the moment it's ready."
+                    : 'Post-production is done - this film just needs a release day.'}
               </p>
               {state.focusedProjectId ? (
                 <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>

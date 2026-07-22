@@ -161,6 +161,7 @@ export function createDraftFromAsset(asset: Asset, talentTargetPriceByRole: Part
     furthestStepIndexCharged: -1,
     postProductionScreeningReadyDay: null,
     postProductionFinalReadyDay: null,
+    postProductionEditingUntilDay: null,
     testScreeningPendingChoice: null,
     testScreeningResolved: false,
     postProductionEvents: [],

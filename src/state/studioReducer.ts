@@ -7,7 +7,7 @@ import { professionForProductionRole } from '../data/helpers';
 import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequirements';
 import { personMeetsCharacterGender } from '../engine/casting';
 import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk, rollDayEvent, resolveEventChoice } from '../engine/production';
-import { generateTestScreeningPendingChoice } from '../engine/testScreening';
+import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
 import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
 import { getTypicalSalaryForRole, withCommitment, withReputationChange } from '../engine/person';
 import type { TalentReputationDelta } from '../engine/pressTourMoments';
@@ -513,33 +513,58 @@ function resolveChoiceOnDraft(
 }
 
 /**
- * Fires the one test screening a film ever gets, the moment totalDaysAfter
- * reaches its postProductionScreeningReadyDay - the same "PendingEventChoice
- * surfaces through the calendar tick" shape PhotographyState.pendingChoice
- * already uses for on-set events (see engine/testScreening.ts), just
- * checked here instead of rolled from data/productionEvents.ts, since this
- * fires after photography is already 'finished' rather than during a shoot
- * day. Applied to the focused draft and every backgrounded one at every
- * calendar-advancing reducer case below (docs/DESIGN_REVIEW_post_production_redesign.md
- * section 2) - a no-op for anything not finished shooting, not yet at its
- * ready day, or already resolved/pending. postProductionScreeningReadyDay is
- * a fixed historical milestone (architecture cleanup, post-Phase-B) - once
- * totalDaysAfter crosses it, it stays crossed forever, so testScreeningResolved
- * (not the date itself) is what actually stops this from re-firing on every
- * later calendar tick.
+ * Surfaces a test screening through the calendar tick - the same
+ * "PendingEventChoice appears the moment its ready day is reached" shape
+ * PhotographyState.pendingChoice uses for on-set events (see
+ * engine/testScreening.ts), checked here rather than rolled from
+ * data/productionEvents.ts since this fires after photography is already
+ * 'finished'. Applied to the focused draft and every backgrounded one at
+ * every calendar-advancing reducer case below.
+ *
+ * Two triggers (Phase C, iterative screenings - docs/DESIGN_REVIEW_post_production_redesign.md):
+ *  - The FIRST screening, once totalDaysAfter reaches postProductionScreeningReadyDay
+ *    (post-production's base clock) and nothing has been recut yet.
+ *  - A FOLLOW-UP screening, once an in-progress recut finishes - the moment
+ *    totalDaysAfter reaches postProductionEditingUntilDay, which
+ *    RESOLVE_TEST_SCREENING_CHOICE set when the player chose an editing round.
+ *    The round number handed to the generator is how many rounds have already
+ *    resolved (postProductionEvents.length), so a follow-up reads the current
+ *    recut and offers reverting to the original.
+ *
+ * A no-op for anything not finished shooting, already locked
+ * (testScreeningResolved), already showing a decision (testScreeningPendingChoice),
+ * or whose next ready day hasn't arrived. Both ready days are fixed historical
+ * milestones - it's testScreeningResolved and the pending/editing flags, not
+ * the dates, that stop this re-firing on every later tick.
  */
 function checkTestScreeningReadiness(draft: FilmDraft, totalDaysAfter: number, rng: RandomFn): FilmDraft {
   if (
     !draft.photography ||
     draft.photography.status !== 'finished' ||
-    draft.postProductionScreeningReadyDay === null ||
-    totalDaysAfter < draft.postProductionScreeningReadyDay ||
     draft.testScreeningResolved ||
     draft.testScreeningPendingChoice
   ) {
     return draft;
   }
-  return { ...draft, testScreeningPendingChoice: generateTestScreeningPendingChoice(draft, rng) };
+  // A recut is underway - the follow-up screening lands the day it wraps.
+  if (draft.postProductionEditingUntilDay !== null) {
+    if (totalDaysAfter < draft.postProductionEditingUntilDay) return draft;
+    return {
+      ...draft,
+      testScreeningPendingChoice: generateTestScreeningPendingChoice(draft, rng, draft.postProductionEvents.length),
+      postProductionEditingUntilDay: null,
+    };
+  }
+  // The first screening, once post-production's base clock is up and nothing
+  // has been recut yet.
+  if (
+    draft.postProductionScreeningReadyDay === null ||
+    totalDaysAfter < draft.postProductionScreeningReadyDay ||
+    draft.postProductionEvents.length > 0
+  ) {
+    return draft;
+  }
+  return { ...draft, testScreeningPendingChoice: generateTestScreeningPendingChoice(draft, rng, 0) };
 }
 
 // Talent salary, the non-contingency production budget, and the contingency
@@ -1413,35 +1438,75 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
-    // Resolves FilmDraft.testScreeningPendingChoice - the one test screening
-    // a film ever gets (docs/DESIGN_REVIEW_post_production_redesign.md
-    // section 2). Unlike RESOLVE_EVENT_CHOICE, the resolved cost is charged
-    // immediately, right here, against studio.cash (gated by affordability,
-    // same "cannot-afford" shape GREENLIGHT_PROJECT already uses) rather than
-    // deferred to RELEASE_FILM the way on-set event costs and the old
-    // testScreeningResponse fee both were - see engine/releaseFilm.ts's own
-    // note on how that's kept from being charged a second time at release.
-    // Architecture cleanup (post-Phase-B): the resolved ProductionEvent now
-    // goes to its own postProductionEvents (real costDelta - already charged
-    // above, not zeroed any more; the double-charge risk that used to
-    // justify zeroing it is handled by keeping this collection separate from
-    // photography.events entirely, not by lying about the event's own cost),
-    // not appended to photography.events - a test screening happens after
-    // photography has already finished, so folding it in there was a
-    // misleading reuse. Quality/buzz still reach the final film through the
-    // same pipeline either way (engine/scoring.ts:combineProductionEvents).
-    // postProductionScreeningReadyDay is left untouched (a fixed historical
-    // milestone now, never advanced) - postProductionFinalReadyDay is the
-    // new field this sets, to postProductionScreeningReadyDay plus the
-    // resolved delayDaysDelta (zero for Release As-Is). Never reopens
-    // `photography` (stays 'finished') - Pickups/Major Reshoots are
-    // deliberately abstract outcomes this phase, not a live second shoot.
+    // Resolves the screening decision in FilmDraft.testScreeningPendingChoice.
+    // Phase C (iterative screenings, docs/DESIGN_REVIEW_post_production_redesign.md
+    // section 2) turns the old one-shot resolve into a loop with three kinds of
+    // outcome, handled in the branches below:
+    //  - Accept (Release As-Is / Keep This Cut): lock the current cut, done.
+    //  - Revert (Use the Original Cut): discard every editing round, restore
+    //    and lock the original cut. Only offered from the second screening on.
+    //  - An editing round (Re-edit / Pickups / Major Reshoots): charged
+    //    immediately here against studio.cash (gated by affordability, same
+    //    "cannot-afford" shape GREENLIGHT_PROJECT uses) rather than deferred to
+    //    RELEASE_FILM - see engine/releaseFilm.ts's note on not charging it a
+    //    second time at release. Its outcome ProductionEvent is appended to
+    //    postProductionEvents (real costDelta, its own honest home - never
+    //    folded into photography.events, which is "what happened during the
+    //    shoot"; quality/buzz still reach the final film via
+    //    engine/scoring.ts:combineProductionEvents). The recut then takes real
+    //    time: postProductionEditingUntilDay is set to totalDays + the rolled
+    //    delay, the film stays unlocked, and checkTestScreeningReadiness
+    //    surfaces the next screening once that day arrives.
+    // Only accept/revert set postProductionFinalReadyDay (to the day the cut is
+    // locked - every round's delay has already elapsed in real time by then).
+    // Never reopens `photography` (stays 'finished') - Pickups/Major Reshoots
+    // are deliberately abstract outcomes this phase, not a live second shoot.
     case 'RESOLVE_TEST_SCREENING_CHOICE': {
       const target = asPlayerDraft(findProject(state.projects, action.productionId));
       if (!target?.photography || !target.testScreeningPendingChoice || target.postProductionScreeningReadyDay === null) {
         return state;
       }
       const pendingChoice = target.testScreeningPendingChoice;
+
+      // "Use the Original Cut" - throw out every editing round and lock the cut
+      // as it first screened. No roll and no charge: the cash spent editing is
+      // already gone (charged per round below), not refunded. Only ever offered
+      // once there's a recut to abandon (engine/testScreening.ts).
+      if (action.choiceId === REVERT_TO_ORIGINAL_CHOICE_ID) {
+        return {
+          ...state,
+          projects: replaceDraft(state.projects, {
+            ...target,
+            postProductionEvents: [],
+            postProductionFinalReadyDay: state.totalDays,
+            postProductionEditingUntilDay: null,
+            testScreeningPendingChoice: null,
+            testScreeningResolved: true,
+          }),
+        };
+      }
+
+      // "Release As-Is" / "Keep This Cut" - lock the current cut and stop
+      // editing. No cost or delay (the choice is zero-ranged), so skip the
+      // no-op roll and just finalize on the current postProductionEvents.
+      if (action.choiceId === ACCEPT_CUT_CHOICE_ID) {
+        return {
+          ...state,
+          projects: replaceDraft(state.projects, {
+            ...target,
+            postProductionFinalReadyDay: state.totalDays,
+            postProductionEditingUntilDay: null,
+            testScreeningPendingChoice: null,
+            testScreeningResolved: true,
+          }),
+        };
+      }
+
+      // An editing round (Re-edit / Pickups / Major Reshoots): charge it now,
+      // append its outcome, and let the recut take real time - the film stays
+      // unlocked (testScreeningResolved false) and a follow-up screening
+      // surfaces once postProductionEditingUntilDay is reached
+      // (checkTestScreeningReadiness), giving the player another decision.
       const { result: rolled, nextSeed } = withRng(state.rngSeed, (rng) => resolveEventChoice(pendingChoice, action.choiceId, rng));
 
       if (state.studio.cash < rolled.costDelta) return state;
@@ -1453,9 +1518,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         projects: replaceDraft(state.projects, {
           ...target,
           postProductionEvents: [...target.postProductionEvents, rolled],
-          postProductionFinalReadyDay: target.postProductionScreeningReadyDay + rolled.delayDaysDelta,
+          postProductionEditingUntilDay: state.totalDays + rolled.delayDaysDelta,
           testScreeningPendingChoice: null,
-          testScreeningResolved: true,
         }),
       };
     }

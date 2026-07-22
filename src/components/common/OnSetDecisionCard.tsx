@@ -4,7 +4,35 @@ import { Button } from './Button';
 import { Money } from './Money';
 import { SeverityBadge } from './SeverityBadge';
 import { professionForProductionRole } from '../../data/helpers';
-import type { PendingEventChoice, Person, Script, TalentProfession } from '../../types';
+import type { EventChoiceTemplate, PendingEventChoice, Person, Script, TalentProfession } from '../../types';
+
+/**
+ * The cost and time an option will take, shown up front so the player can weigh
+ * each one before committing (used by the test-screening decision - see
+ * components/wizard/PostProduction.tsx). Both are ranges, since the outcome is
+ * rolled; a zero-ranged option (accept the cut, revert) reads as free/instant.
+ */
+function ChoiceCostMeta({ choice }: { choice: EventChoiceTemplate }) {
+  const [costMin, costMax] = choice.costRange;
+  const dMin = Math.max(0, Math.round(choice.delayDaysRange[0]));
+  const dMax = Math.max(0, Math.round(choice.delayDaysRange[1]));
+  return (
+    <span className="event-choice-meta">
+      <span className="event-choice-meta__item">
+        {costMax <= 0 ? (
+          'No added cost'
+        ) : costMin === costMax ? (
+          <>Cost: <Money amount={costMax} /></>
+        ) : (
+          <>Cost: <Money amount={costMin} />–<Money amount={costMax} /></>
+        )}
+      </span>
+      <span className="event-choice-meta__item">
+        {dMax <= 0 ? 'No delay' : `Time: ${dMin === dMax ? dMax : `${dMin}–${dMax}`} day${dMax === 1 ? '' : 's'}`}
+      </span>
+    </span>
+  );
+}
 
 interface OnSetDecisionCardProps {
   pendingChoice: PendingEventChoice;
@@ -23,6 +51,9 @@ interface OnSetDecisionCardProps {
   // active shoot (e.g. a test-screening decision, where photography has
   // already finished) - see components/wizard/PostProduction.tsx.
   pausedMessage?: string;
+  // When set, each regular choice shows its cost and time up front (the
+  // test-screening decision, where those trade-offs are the whole point).
+  showChoiceCosts?: boolean;
 }
 
 /**
@@ -44,7 +75,7 @@ interface OnSetDecisionCardProps {
  * three full profiles on a small screen is still one full card at a time
  * rather than illegibly shrunk text.
  */
-export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, totalDays, onChoose, pausedMessage }: OnSetDecisionCardProps) {
+export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, totalDays, onChoose, pausedMessage, showChoiceCosts }: OnSetDecisionCardProps) {
   const involvedTalent = pendingChoice.involvedTalentId ? talent.find((t) => t.id === pendingChoice.involvedTalentId) : undefined;
   const involvedCategory = pendingChoice.involvedRole ? TALENT_PRESENTATION[pendingChoice.involvedRole].category : null;
 
@@ -80,6 +111,7 @@ export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, t
               <span className="event-choice-label">{choice.label}</span>
             </span>
             <span className="event-choice-description">{choice.description}</span>
+            {showChoiceCosts && <ChoiceCostMeta choice={choice} />}
           </button>
         ))}
       </div>

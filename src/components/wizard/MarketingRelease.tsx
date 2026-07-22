@@ -122,7 +122,10 @@ export function MarketingRelease() {
   // resolved - see state/studioReducer.ts:SCHEDULE_RELEASE, the
   // authoritative guard. Until then the release button is disabled and the
   // pending decision (or the date it's expected) is surfaced below.
-  const postProductionEstimate = draft.postProductionFinalReadyDay ?? draft.postProductionScreeningReadyDay ?? state.totalDays;
+  // A recut in progress (postProductionEditingUntilDay) pushes the earliest
+  // possible release out to when it wraps - a film can't be scheduled before
+  // its final cut is locked, and locking waits on the next screening.
+  const postProductionEstimate = draft.postProductionEditingUntilDay ?? draft.postProductionFinalReadyDay ?? draft.postProductionScreeningReadyDay ?? state.totalDays;
   const minReleaseDay = Math.max(state.totalDays, postProductionEstimate);
   const screeningResolved = draft.testScreeningResolved;
   const pendingScreening = draft.testScreeningPendingChoice;
@@ -307,6 +310,7 @@ export function MarketingRelease() {
             script={draft.script}
             totalDays={state.totalDays}
             pausedMessage="You can't schedule a release until you respond to the test screening."
+            showChoiceCosts
             onChoose={(choiceId) => dispatch({ type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId, productionId: draft.id })}
           />
         </div>
@@ -314,14 +318,17 @@ export function MarketingRelease() {
 
       {!screeningResolved && !pendingScreening && (
         <div className="card" style={{ borderColor: 'var(--primary)' }}>
-          <div className="stat-label">Post-Production still underway</div>
+          <div className="stat-label">
+            {draft.postProductionEditingUntilDay !== null ? 'Re-cut in progress' : 'Post-Production still underway'}
+          </div>
           <div className="stat-value">
-            Test screening expected around {formatGameDate(postProductionEstimate)}
+            {draft.postProductionEditingUntilDay !== null ? 'Next screening around ' : 'Test screening expected around '}
+            {formatGameDate(postProductionEstimate)}
           </div>
           <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
-            A film can't be scheduled for release until its test screening is in and you've responded to it - the
-            earliest month below moves with this date. Head to Post-Production to check on it, or just wait here;
-            you'll be notified in the Inbox the moment it's ready either way.
+            A film can't be scheduled for release until you've locked its final cut - the earliest month below moves
+            with this date. Head to Post-Production to check on it, or just wait here; you'll be notified in the Inbox
+            the moment the next screening is in.
           </p>
         </div>
       )}

@@ -264,7 +264,16 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // the positional mapping for those, so an un-bumped save would technically
 // still work - the bump is the honest signal that the stored shape changed,
 // same convention as every entry above. No migration code.
-const SAVE_KEY = 'hollywood-pictures-save-v42';
+// v42 -> v43 (docs/DESIGN_REVIEW_post_production_redesign.md, Phase C -
+// iterative test screenings): FilmDraft gained postProductionEditingUntilDay:
+// GameDay | null (the day an in-progress recut finishes and the next screening
+// surfaces), and testScreeningResolved/postProductionEvents changed meaning -
+// a film can now go through several editing rounds (postProductionEvents holds
+// one entry per round instead of at most one), and testScreeningResolved now
+// means "a final cut is locked" rather than "the one screening was answered." A
+// v42 save's FilmDraft entries have no postProductionEditingUntilDay field - no
+// migration code, same as every past shape change here.
+const SAVE_KEY = 'hollywood-pictures-save-v43';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
