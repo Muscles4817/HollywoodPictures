@@ -1,4 +1,4 @@
-import type { AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, ProductionRole, ProductionScale, Project, RivalStudio, ScriptScale, WizardStep } from '../types';
+import type { AwardCategory, AwardShowId, AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, PersonId, ProductionRole, ProductionScale, Project, RivalStudio, ScriptScale, WizardStep } from '../types';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { totalAttachedPerFilmFees } from '../engine/producers';
 import { computeStudioAwardDeltas } from '../engine/awards';
@@ -6,6 +6,7 @@ import { awardShow } from '../data/awardsShows';
 import { explainBrandChange, explainPrestigeChange } from '../engine/reputation';
 import { WEEK_LENGTH_DAYS } from '../engine/boxOfficeRun';
 import { GENRE_PROFILES } from '../data/genres';
+import { AWARD_CATEGORY_LABEL } from '../data/awards';
 import { productionRequirementTags } from '../engine/scriptPresentation';
 import { asFilm, asPlayerDraft, asScheduled, asRivalProduction, findProject, projectId } from '../engine/project';
 import type { GameState } from './gameState';
@@ -455,6 +456,88 @@ export function collectPersonStats(rows: FilmStatRow[], roles: ProductionRole[])
     hitCount: acc.hitCount,
     flopCount: acc.flopCount,
   }));
+}
+
+export interface AwardTally {
+  wins: number;
+  nominations: number;
+}
+
+export interface PersonAwardSummary {
+  /** Total wins across every show (Globes, SAG, BAFTA, Academy). */
+  wins: number;
+  /** Total nominations (wins included) across every show. */
+  nominations: number;
+  /** Per-show totals, for the full record - keyed by AwardShowId. */
+  byShow: Partial<Record<AwardShowId, AwardTally>>;
+  /**
+   * Academy Awards only, per canonical (unsplit) category. Drives the flagship
+   * "N-time Best Actor winner" marquee - the Oscar is the headline honour, and
+   * keying the marquee off it alone avoids conflating a precursor sweep (a Globes
+   * + SAG + BAFTA + Oscar year would otherwise read as "Four-time" for one role).
+   */
+  academyByCategory: Partial<Record<AwardCategory, AwardTally>>;
+}
+
+function bumpTally<K extends string>(map: Partial<Record<K, AwardTally>>, key: K, won: boolean): void {
+  const cell = map[key] ?? { wins: 0, nominations: 0 };
+  cell.nominations += 1;
+  if (won) cell.wins += 1;
+  map[key] = cell;
+}
+
+/**
+ * Aggregate every person's whole awards record out of the permanent ceremony
+ * history (state.awards.history), across every show. Keyed by PersonId the same
+ * way collectPersonStats and creditsByPerson are, so a Talent Database row can
+ * look its subject up directly. Best Picture nominations carry no personId and
+ * are simply skipped here - this is a per-person tally, and the studio's own
+ * Best Picture haul lives in playerAwardHaul.
+ */
+export function collectPersonAwards(history: AwardsCeremony[]): Map<PersonId, PersonAwardSummary> {
+  const map = new Map<PersonId, PersonAwardSummary>();
+  for (const ceremony of history) {
+    for (const category of Object.keys(ceremony.categories) as AwardCategory[]) {
+      const nominations = ceremony.categories[category];
+      if (!nominations) continue;
+      for (const nomination of nominations) {
+        if (!nomination.personId) continue;
+        let summary = map.get(nomination.personId);
+        if (!summary) {
+          summary = { wins: 0, nominations: 0, byShow: {}, academyByCategory: {} };
+          map.set(nomination.personId, summary);
+        }
+        summary.nominations += 1;
+        if (nomination.won) summary.wins += 1;
+        bumpTally(summary.byShow, ceremony.show, nomination.won);
+        if (ceremony.show === 'academy') bumpTally(summary.academyByCategory, category, nomination.won);
+      }
+    }
+  }
+  return map;
+}
+
+const AWARD_COUNT_WORDS = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
+
+/** "Two-time " for 2+, "" for a single win (so "Best Actor winner" reads plainly). */
+function timesPrefix(n: number): string {
+  if (n <= 1) return '';
+  return `${AWARD_COUNT_WORDS[n] ?? String(n)}-time `;
+}
+
+/**
+ * The Talent Database header banner for an actor who has actually won an Academy
+ * Award - "Two-time Best Actor winner", or several categories joined
+ * ("Best Actor winner · Best Supporting Actor winner"). Keyed off the flagship
+ * Oscar only (see academyByCategory); returns null for anyone without an Academy
+ * win, so precursor-only winners still show in the panel but carry no headline.
+ */
+export function formatWinnerMarquee(summary: PersonAwardSummary): string | null {
+  const won = (Object.entries(summary.academyByCategory) as Array<[AwardCategory, AwardTally]>)
+    .filter(([, cell]) => cell.wins > 0)
+    .sort((a, b) => b[1].wins - a[1].wins);
+  if (won.length === 0) return null;
+  return won.map(([category, cell]) => `${timesPrefix(cell.wins)}${AWARD_CATEGORY_LABEL[category]} winner`).join(' · ');
 }
 
 export interface PersonStatsFilters {

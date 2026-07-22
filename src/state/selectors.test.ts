@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeReportedLegs, computeProjectSpendSoFar, countActivePlayerProjects, currentScreenFor, deriveProjectStage, deriveReachableWizardSteps, deriveReputationHistory, deriveUpcomingReleaseEntries, hasDraftProgress, PLAYER_STUDIO_ID } from './selectors';
+import { collectPersonAwards, computeReportedLegs, computeProjectSpendSoFar, countActivePlayerProjects, currentScreenFor, deriveProjectStage, deriveReachableWizardSteps, deriveReputationHistory, deriveUpcomingReleaseEntries, hasDraftProgress, PLAYER_STUDIO_ID } from './selectors';
 import { openCastingCall } from '../engine/castingCalls';
 import { generateTestScreeningPendingChoice } from '../engine/testScreening';
 import { studioReducer } from './studioReducer';
@@ -8,7 +8,7 @@ import { withRng } from '../engine/random';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
 import { asPlayerDraft, filmToProject, playerDraftToProject, playerReleasedFilms, scheduledDraftToProject } from '../engine/project';
 import { AWARD_CATEGORIES } from '../data/awards';
-import type { AwardCategory, AwardNomination, AwardsCeremony, PhotographyState, Project, RivalProductionInProgress, RivalStudio } from '../types';
+import type { AwardCategory, AwardNomination, AwardShowId, AwardsCeremony, PhotographyState, Project, RivalProductionInProgress, RivalStudio } from '../types';
 
 describe('computeReportedLegs - a derived reported statistic, never a stored driver', () => {
   it('is null while the run is still in theaters - not knowable before the run has a real total', () => {
@@ -449,5 +449,68 @@ describe('countActivePlayerProjects', () => {
 
   it('is 0 for an empty slate', () => {
     expect(countActivePlayerProjects([])).toBe(0);
+  });
+});
+
+// Per-person award tally out of the permanent ceremony history - what the
+// Talent Database's header marquee and Awards panel read from.
+describe('collectPersonAwards', () => {
+  const ceremony = (show: AwardShowId, year: number, noms: Partial<Record<AwardCategory, AwardNomination[]>>): AwardsCeremony => ({
+    show,
+    year,
+    ceremonyDay: year * 365,
+    categories: { ...emptyAwardCategories(), ...noms },
+  });
+
+  it('is empty for no history', () => {
+    expect(collectPersonAwards([]).size).toBe(0);
+  });
+
+  it('tallies wins and nominations per person across every show, with a per-show breakdown', () => {
+    const history: AwardsCeremony[] = [
+      ceremony('academy', 1, {
+        'best-actor': [
+          { filmId: 'f1', personId: 'p-actor', awardScore: 90, won: true },
+          { filmId: 'f2', personId: 'p-rival', awardScore: 80, won: false },
+        ],
+      }),
+      ceremony('bafta', 1, {
+        'best-actor': [{ filmId: 'f1', personId: 'p-actor', awardScore: 88, won: true }],
+      }),
+      ceremony('academy', 2, {
+        'best-actor': [{ filmId: 'f3', personId: 'p-actor', awardScore: 88, won: true }],
+        'best-supporting-actor': [{ filmId: 'f4', personId: 'p-actor', awardScore: 70, won: false }],
+      }),
+    ];
+    const map = collectPersonAwards(history);
+    const actor = map.get('p-actor')!;
+    expect(actor.wins).toBe(3);
+    expect(actor.nominations).toBe(4);
+    expect(actor.byShow.academy).toEqual({ wins: 2, nominations: 3 });
+    expect(actor.byShow.bafta).toEqual({ wins: 1, nominations: 1 });
+    // Only the two Academy wins land in the flagship marquee source, never the BAFTA one.
+    expect(actor.academyByCategory['best-actor']).toEqual({ wins: 2, nominations: 2 });
+    expect(actor.academyByCategory['best-supporting-actor']).toEqual({ wins: 0, nominations: 1 });
+    expect(map.get('p-rival')?.byShow).toEqual({ academy: { wins: 0, nominations: 1 } });
+  });
+
+  it('keeps Globes split-acting wins out of the Academy marquee source but in the overall totals', () => {
+    const history: AwardsCeremony[] = [
+      ceremony('golden-globes', 1, {
+        'best-actor-drama': [{ filmId: 'f1', personId: 'p-actor', awardScore: 91, won: true }],
+      }),
+    ];
+    const actor = collectPersonAwards(history).get('p-actor')!;
+    expect(actor.wins).toBe(1);
+    expect(actor.byShow['golden-globes']).toEqual({ wins: 1, nominations: 1 });
+    // No Academy win, so nothing feeds the flagship marquee.
+    expect(actor.academyByCategory).toEqual({});
+  });
+
+  it('skips Best Picture nominations (no personId) - those belong to the studio, not a person', () => {
+    const history: AwardsCeremony[] = [
+      ceremony('academy', 1, { 'best-picture': [{ filmId: 'f1', awardScore: 95, won: true }] }),
+    ];
+    expect(collectPersonAwards(history).size).toBe(0);
   });
 });

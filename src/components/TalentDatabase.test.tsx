@@ -11,7 +11,9 @@ import { createInitialStudio, type GameState } from '../state/gameState';
 import { saveState } from '../state/persistence';
 import { generateTalentPool, generateTalentCandidates } from '../engine/talentGenerator';
 import { withRng } from '../engine/random';
-import type { Person } from '../types';
+import { AWARD_CATEGORIES } from '../data/awards';
+import type { AwardCategory, AwardNomination, AwardShowId, AwardsCeremony, Person } from '../types';
+import { formatWinnerMarquee, type AwardTally, type PersonAwardSummary } from '../state/selectors';
 
 beforeEach(() => {
   localStorage.clear();
@@ -21,7 +23,12 @@ function named(base: Person, name: string, gender: 'Male' | 'Female'): Person {
   return { ...base, id: `actor-${name}`, identity: { ...base.identity, name, gender } };
 }
 
-function stateWithActors(): GameState {
+function ceremonyWith(show: AwardShowId, noms: Partial<Record<AwardCategory, AwardNomination[]>>): AwardsCeremony {
+  const categories = Object.fromEntries(AWARD_CATEGORIES.map((c) => [c, [] as AwardNomination[]])) as Record<AwardCategory, AwardNomination[]>;
+  return { show, year: 1, ceremonyDay: 365, categories: { ...categories, ...noms } };
+}
+
+function stateWithActors(awardsHistory: AwardsCeremony[] = []): GameState {
   return withRng(1, (rng) => {
     const talentPool = generateTalentPool(rng);
     const [a, b, c] = generateTalentCandidates('Actor', rng, 3);
@@ -40,12 +47,13 @@ function stateWithActors(): GameState {
       nextOpportunityCheckDay: 1,
       viewingRivalStudioName: null,
       viewingProductionId: null,
+      awards: { season: null, history: awardsHistory, nextSeasonDay: 99_999 },
     };
   }).result;
 }
 
-function renderPage() {
-  saveState(stateWithActors());
+function renderPage(awardsHistory: AwardsCeremony[] = []) {
+  saveState(stateWithActors(awardsHistory));
   render(
     <StudioProvider>
       <TalentDatabase />
@@ -89,5 +97,75 @@ describe('TalentDatabase', () => {
     // The Ego info sign carries an explanation of what it affects in-game.
     const egoRow = screen.getByText('Ego').closest('.td-stat-row');
     expect(egoRow?.querySelector('.info-tip')?.getAttribute('aria-label')).toMatch(/appeal bar|morale/i);
+  });
+
+  it('shows a winner marquee (Academy wins) and a per-show Awards panel for a winner', () => {
+    renderPage([
+      ceremonyWith('academy', {
+        'best-actor': [
+          { filmId: 'f1', personId: 'actor-Zara Quinn', awardScore: 92, won: true },
+          { filmId: 'f2', personId: 'actor-Zara Quinn', awardScore: 88, won: true },
+        ],
+        'best-supporting-actress': [
+          { filmId: 'f3', personId: 'actor-Zara Quinn', awardScore: 70, won: false },
+        ],
+      }),
+      ceremonyWith('bafta', {
+        'best-actor': [{ filmId: 'f1', personId: 'actor-Zara Quinn', awardScore: 90, won: true }],
+      }),
+    ]);
+    fireEvent.click(screen.getByText('Zara Quinn'));
+
+    // Header marquee announces the two Academy wins - the BAFTA win doesn't inflate it.
+    expect(screen.getByText(/Two-time Best Actor winner/)).toBeInTheDocument();
+    // Awards panel with the per-show breakdown (3 Academy + 1 BAFTA = 3 wins, 4 nominations).
+    expect(screen.getByRole('heading', { name: 'Awards' })).toBeInTheDocument();
+    expect(screen.getByText(/3 wins · 4 nominations/)).toBeInTheDocument();
+    expect(screen.getByText('The Academy Awards')).toBeInTheDocument();
+    expect(screen.getByText('BAFTA Film Awards')).toBeInTheDocument();
+  });
+
+  it('shows no marquee or Awards panel for an actor with no nominations', () => {
+    renderPage();
+    fireEvent.click(screen.getByText('Marcus Vale'));
+    expect(screen.queryByText(/winner/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Awards' })).not.toBeInTheDocument();
+  });
+});
+
+describe('formatWinnerMarquee', () => {
+  // The marquee reads off Academy wins only (academyByCategory) - byShow is
+  // irrelevant to it, so a minimal fixture just fills the category breakdown.
+  const summary = (academyByCategory: PersonAwardSummary['academyByCategory']): PersonAwardSummary => {
+    const cells = Object.values(academyByCategory) as AwardTally[];
+    return {
+      wins: cells.reduce((n, c) => n + c.wins, 0),
+      nominations: cells.reduce((n, c) => n + c.nominations, 0),
+      byShow: {},
+      academyByCategory,
+    };
+  };
+
+  it('returns null for an actor with Academy nominations but no wins', () => {
+    expect(formatWinnerMarquee(summary({ 'best-actor': { wins: 0, nominations: 3 } }))).toBeNull();
+  });
+
+  it('drops the count prefix for a single win', () => {
+    expect(formatWinnerMarquee(summary({ 'best-actor': { wins: 1, nominations: 2 } }))).toBe('Best Actor winner');
+  });
+
+  it('spells out repeat wins in one category', () => {
+    expect(formatWinnerMarquee(summary({ 'best-actress': { wins: 3, nominations: 4 } }))).toBe('Three-time Best Actress winner');
+  });
+
+  it('joins multiple winning categories, most wins first', () => {
+    expect(
+      formatWinnerMarquee(
+        summary({
+          'best-supporting-actor': { wins: 1, nominations: 1 },
+          'best-actor': { wins: 2, nominations: 3 },
+        }),
+      ),
+    ).toBe('Two-time Best Actor winner · Best Supporting Actor winner');
   });
 });
