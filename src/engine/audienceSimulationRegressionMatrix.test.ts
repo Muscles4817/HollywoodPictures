@@ -7,26 +7,24 @@
 // outcomes, and upper/lower bounds, deliberately not brittle exact
 // grosses, since the underlying model is expected to keep evolving.
 //
-// Two known, pre-existing gaps this matrix documents rather than silently
-// asserts away (see the two `describe.skip`-free but loosely-bounded
-// checks below for where each shows up):
-//   1. "Ordinary positive" Wide releases now peak materially earlier than
-//      before Milestone 9 (week ~9 instead of week ~11, with a far
-//      smaller peak/opening ratio), but not literally at week 1 - the
-//      remaining climb is driven by steps 0-2's awareness-unfolding pace,
-//      which is largely reception-independent and would need a deeper
-//      Milestone-3 pacing recalibration to fully flatten (see the
-//      conversation this milestone came out of - explicitly deferred,
-//      not fixed here, because two earlier attempts at fixing it directly
-//      broke several already-validated "Limited/Niche stays small"
-//      guarantees).
+// Both gaps this matrix used to document as "pre-existing, deferred" were
+// resolved by the run-length recalibration (DESIGN.md Milestone 13, Wide
+// `conversionPacingBaseline` 0.14 -> 0.35 - the "deeper Milestone-3 pacing
+// recalibration" note 1 below explicitly anticipated), so the assertions
+// below now reflect the post-recalibration behaviour:
+//   1. "Ordinary positive" Wide releases now peak early (week ~4, a small
+//      peak/opening ratio) rather than climbing to a deep-tail peak. The
+//      recalibration is deliberately Wide-only, exactly to avoid the
+//      "Limited/Niche stays small" regressions two earlier in-Milestone-9
+//      attempts hit - so every Limited/Festival First scenario here
+//      (SLEEPER_BREAKOUT, WELL_LIKED_NICHE, EXCELLENT_WEAK_MARKETING) is
+//      unchanged and still behaves exactly as before.
 //   2. `MIN_WEEKLY_ADMISSIONS_RATIO`'s natural-termination stopping rule
-//      already essentially never fires before the 20-week hard cap at
-//      realistic release-scale inputs - documented as far back as
-//      Milestone 5. This matrix's hard-cap property check reflects that
-//      honestly (most runs, not just exceptional ones, still reach the
-//      cap) rather than asserting a bar the stopping rule was never built
-//      to clear.
+//      now DOES fire before the 20-week cap for Wide releases (they front-
+//      load and trickle out in ~8-16 weeks) - reversing the old Milestone 5
+//      characteristic that it essentially never fired. The three Limited
+//      platform scenarios, whose slow availability-expansion build is
+//      unchanged, still reach the cap.
 import { describe, it, expect } from 'vitest';
 import { deriveAudienceSimulationFixedState, type ReleaseSimulationInputs } from './audienceSimulationInputs';
 import { advanceToWeekWithDiagnostics, MAX_SIMULATION_WEEKS } from './audienceSimulationStep';
@@ -221,8 +219,15 @@ describe('regression matrix: 2. strong WOM film', () => {
     expect(summary.longestGrowthStreak).toBeGreaterThan(0);
   });
 
-  it('has materially better legs than an ordinary-positive film', () => {
-    expect(summary.legs).toBeGreaterThan(ordinary.legs * 1.3);
+  it('materially outperforms an ordinary-positive film on total scale', () => {
+    // Post the run-length recalibration (DESIGN.md Milestone 13) both a
+    // strong-WOM and an ordinary-positive Wide film front-load and settle to
+    // very similar *legs* (~8.7x each - a stronger film scales its opening and
+    // its total up together), so the stronger reception now shows in total
+    // gross and reproduction ratio rather than in the legs multiple - the same
+    // "total gross is the metric that captures outperforms" point the cross-
+    // scenario phenomenon-vs-ordinary assertion already makes below.
+    expect(summary.totalGross).toBeGreaterThan(ordinary.totalGross * 1.3);
   });
 
   it('growth eventually slows - the run is not still climbing at the very end', () => {
@@ -267,8 +272,15 @@ describe('regression matrix: 4. rare phenomenon', () => {
   const summary = summarize(RARE_PHENOMENON);
   const ordinary = summarize(ORDINARY_POSITIVE);
 
-  it('sustained or growing attendance is possible for several weeks', () => {
-    expect(summary.longestGrowthStreak).toBeGreaterThanOrEqual(2);
+  it('holds or grows past its opening week rather than declining from week 1', () => {
+    // Post the run-length recalibration (DESIGN.md Milestone 13) even a
+    // once-in-a-generation Wide phenomenon front-loads: it peaks around week 2
+    // and then declines as it saturates its market in ~8 weeks, rather than
+    // sustaining a multi-week climb (the realistic modern-blockbuster shape).
+    // The leggy, weeks-of-growth phenomenon shape is now carried by the
+    // Limited/Festival sleeper scenarios (unchanged), not by a Wide release.
+    expect(summary.peakIndex).toBeGreaterThanOrEqual(1);
+    expect(summary.longestGrowthStreak).toBeGreaterThanOrEqual(1);
   });
 
   it('major crossover is realized', () => {
@@ -280,25 +292,26 @@ describe('regression matrix: 4. rare phenomenon', () => {
   });
 
   it('is rare - dramatically bigger than an ordinary-positive film with far fewer exceptional inputs aligned', () => {
-    expect(summary.totalGross).toBeGreaterThan(ordinary.totalGross * 5);
+    // ~4.9x at the recalibrated pacing (DESIGN.md Milestone 13): an
+    // ordinary-positive Wide film's own total rose slightly relative to the
+    // phenomenon's now that both front-load, narrowing the gap from the old
+    // 5x+ - still an order-of-magnitude "rare" separation.
+    expect(summary.totalGross).toBeGreaterThan(ordinary.totalGross * 4);
   });
 
   it('is dramatically higher than every other scenario\'s peak reproduction ratio, not literally self-sustaining', () => {
-    // Recalibrated for the pull-forward redesign (docs/DESIGN.md 5.34,
-    // "crossover/pull-forward separation"): the old thresholdResponse pull-
-    // forward reached and held its exact maximum multiplier for several
-    // consecutive weeks, which fed an unusually explosive, near-1.0
-    // reproduction ratio here. The new smooth-saturating urgency signal
-    // never fully plateaus and its ceiling now decays with both run-age and
-    // backlog freshness, so even this scenario's own peak ratio comes down
-    // to ~0.68 - genuinely lower, but still by far the highest in the
-    // matrix (next highest, ordinary-positive, peaks at ~0.17 - a 4x gap).
-    // "Approaches replacement" (ratio near 1.0) no longer literally holds;
-    // "uniquely close to self-sustaining relative to everything else in
-    // this matrix" still does.
+    // The run-length recalibration (DESIGN.md Milestone 13) front-loads Wide
+    // runs, which concentrates admissions and raises week-over-week
+    // reproduction ratios across the board: this phenomenon's own peak ratio
+    // rises to ~1.07 (a brief, transient >1 that the finite reachable audience
+    // still caps - the run saturates and ends in ~8 weeks, it does not run
+    // away), and the next-highest, ordinary-positive, rises to ~0.49 - so the
+    // gap narrows from the old ~4x to ~2.2x. Still by far the highest in the
+    // matrix; "uniquely closest to self-sustaining relative to everything else
+    // here" still holds.
     const ordinaryPeak = summarize(ORDINARY_POSITIVE).peakReproductionRatio;
     expect(summary.peakReproductionRatio).toBeGreaterThan(0.5);
-    expect(summary.peakReproductionRatio).toBeGreaterThan(ordinaryPeak * 3);
+    expect(summary.peakReproductionRatio).toBeGreaterThan(ordinaryPeak * 1.8);
   });
 });
 
@@ -430,7 +443,7 @@ describe('regression matrix: cross-scenario assertions', () => {
     // word-of-mouth film's (real box-office behavior: event films
     // front-load hard, sleeper hits have high legs off a tiny opening).
     // Total gross is the metric that actually captures "outperforms."
-    expect(phenomenon.totalGross).toBeGreaterThan(ordinary.totalGross * 5);
+    expect(phenomenon.totalGross).toBeGreaterThan(ordinary.totalGross * 4);
   });
 
   it('a niche acclaimed film may have higher legs than a broad crowd-pleaser but lower total admissions', () => {
@@ -453,10 +466,18 @@ describe('regression matrix: cross-scenario assertions', () => {
     expect(originalDisliked.crossoverRealizedFraction).toBeLessThan(strongWom.crossoverRealizedFraction);
   });
 
-  it('a strong sleeper may peak well after opening, but an ordinary-positive film peaks nowhere near the deep tail', () => {
+  it('a strong sleeper peaks after opening, and an ordinary-positive film peaks nowhere near the deep tail', () => {
     const sleeper = summarize(SLEEPER_BREAKOUT);
     const ordinary = summarize(ORDINARY_POSITIVE);
-    expect(sleeper.peakIndex).toBeGreaterThan(ordinary.peakIndex);
+    // Both peak after their opening week (a delayed, WOM-driven peak, not an
+    // immediate decline). The old assertion that the sleeper peaks *later*
+    // than the ordinary film no longer holds: the run-length recalibration
+    // (DESIGN.md Milestone 13) front-loads the Wide ordinary-positive film so
+    // its own peak moved early (week ~4), close to the (unchanged) Limited
+    // sleeper's (week ~3) - so we assert each peaks after opening and neither
+    // peaks in the deep tail, rather than an ordering between the two.
+    expect(sleeper.peakIndex).toBeGreaterThan(0);
+    expect(ordinary.peakIndex).toBeGreaterThan(0);
     expect(ordinary.peakIndex).toBeLessThan(13);
   });
 
@@ -480,29 +501,30 @@ describe('regression matrix: cross-scenario assertions', () => {
     }
   });
 
-  it('every scenario in this matrix now terminates via the hard cap, not the natural-trickle stopping rule - a known, pre-existing characteristic (Milestone 5), not a regression', () => {
-    // See file header note 2 - MIN_WEEKLY_ADMISSIONS_RATIO essentially
-    // never fires before the 20-week cap at realistic release-scale
-    // inputs. Before the pull-forward redesign (docs/DESIGN.md 5.34,
-    // "crossover/pull-forward separation"), the rare-phenomenon scenario
-    // was the one exception - its old hard-clip-then-plateau pull-forward
-    // burned through its own huge reachable audience fast enough to
-    // genuinely trickle out before week 20. The smooth-saturating
-    // redesign decays more gradually by construction (no more
-    // plateau-then-cliff), so even this scenario's admissions never fall
-    // below the 2%-of-opening trickle threshold within the 20-week cap
-    // any more - it now shares this matrix's general pre-existing
-    // characteristic rather than being the one exception to it.
-    const phenomenon = summarize(RARE_PHENOMENON);
-    expect(phenomenon.hitHardCap).toBe(true);
+  it('Wide scenarios now terminate via the natural-trickle stopping rule before the hard cap, while Limited platform builds still reach the cap', () => {
+    // The run-length recalibration (DESIGN.md Milestone 13, Wide
+    // conversionPacingBaseline 0.14 -> 0.35) reversed the old Milestone 5
+    // characteristic (file header note 2): a Wide release's ~35%/week pool
+    // drain now brings weekly admissions below the 2%-of-opening trickle
+    // threshold before week 20. The rare phenomenon front-loads and finishes
+    // in ~8 weeks; the ordinary-positive and strong-WOM Wide films trickle out
+    // in ~14-16. The three Limited platform scenarios (unchanged) still build
+    // slowly enough to ride the cap.
+    expect(summarize(RARE_PHENOMENON).hitHardCap).toBe(false);
+    expect(summarize(ORDINARY_POSITIVE).hitHardCap).toBe(false);
+    expect(summarize(STRONG_WOM).hitHardCap).toBe(false);
+    expect(summarize(SLEEPER_BREAKOUT).hitHardCap).toBe(true);
+    expect(summarize(EXCELLENT_WEAK_MARKETING).hitHardCap).toBe(true);
   });
 
-  it('the rare-phenomenon scenario still uniquely saturates almost its entire reachable ceiling by the 20-week cap, unlike anything else in the matrix', () => {
-    // The distinguishing signal that replaces "terminates early" above -
-    // phenomenon reaches ~91% of its own maxInterestedAudience ceiling by
-    // week 20, dramatically higher than every other named scenario (checked
-    // via a scratch diagnostic sweep), even though none of them finish
-    // early any more either.
+  it('the rare-phenomenon scenario saturates more of its reachable ceiling than an ordinary-positive film', () => {
+    // Phenomenon reaches ~88% of its own maxInterestedAudience ceiling (in
+    // ~8 front-loaded weeks now, DESIGN.md Milestone 13), still the highest in
+    // the matrix. The gap over ordinary-positive narrowed (ordinary now
+    // saturates ~0.67 of its own smaller ceiling, up from before, because its
+    // steeper decline still lets WOM work through most of a modest reachable
+    // pool over its ~16-week run) - so this asserts a clear but no longer
+    // extreme lead rather than the old 1.5x.
     const phenomenonCeiling = maxInterestedAudience(deriveAudienceSimulationFixedState(RARE_PHENOMENON));
     const ordinaryCeiling = maxInterestedAudience(deriveAudienceSimulationFixedState(ORDINARY_POSITIVE));
     const phenomenon = summarize(RARE_PHENOMENON);
@@ -510,7 +532,7 @@ describe('regression matrix: cross-scenario assertions', () => {
     const phenomenonSaturation = phenomenon.totalAdmissions / phenomenonCeiling;
     const ordinarySaturation = ordinaryPositive.totalAdmissions / ordinaryCeiling;
     expect(phenomenonSaturation).toBeGreaterThan(0.8);
-    expect(phenomenonSaturation).toBeGreaterThan(ordinarySaturation * 1.5);
+    expect(phenomenonSaturation).toBeGreaterThan(ordinarySaturation * 1.25);
   });
 });
 

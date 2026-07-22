@@ -189,11 +189,17 @@ describe('named archetype regression scenarios', () => {
   it('huge opening with exceptional reception: enormous opening, no early decline, very large total, reaches the simulation\'s extreme upper range', () => {
     const r = run(HUGE_OPENING_EXCEPTIONAL);
     expect(r.openingGross).toBeGreaterThan(100_000_000);
-    // "Strong retention" here means the run does not immediately start shedding admissions the way a poorly-received film does - it holds or grows before the market is exhausted.
-    expect(r.admissions[1]).toBeGreaterThanOrEqual(r.admissions[0]);
+    // "Strong retention" here means the run does not immediately *collapse* the
+    // way a poorly-received film does - it holds most of its opening into week
+    // two. Post the run-length recalibration (DESIGN.md Milestone 13, Wide
+    // conversionPacingBaseline 0.14 -> 0.35) even an exceptional Wide film
+    // front-loads and peaks week 1 rather than growing into week 2 - the
+    // realistic modern-blockbuster shape - so this is "no sharp early decline,"
+    // not "week 2 outsells week 1." (A poorly-received film sheds far more.)
+    expect(r.admissions[1]).toBeGreaterThanOrEqual(r.admissions[0] * 0.8);
     expect(r.totalGross).toBeGreaterThan(1_000_000_000); // the total itself, not just a fraction of the ceiling, genuinely reaches billion-scale
-    // Access to the extreme upper range: this run realizes almost the film's entire realistic ceiling, not an artificially tidy fraction of it.
-    expect(r.totalAdmissions).toBeGreaterThan(r.ceiling * 0.9);
+    // Access to the extreme upper range: this run still realizes most of the film's entire realistic ceiling (~0.78), just faster (front-loaded) than before the recalibration.
+    expect(r.totalAdmissions).toBeGreaterThan(r.ceiling * 0.75);
   });
 
   it('critically acclaimed niche film: small/restricted start, durable run, acclaim never buys mass-market scale', () => {
@@ -222,10 +228,21 @@ describe('named archetype regression scenarios', () => {
     expect(r.fixed.crossoverCapacityFraction).toBeLessThan(0.15);
     // Solid opening - a real fraction of the film's own ceiling, not token numbers.
     expect(r.openingGross).toBeGreaterThan(10_000_000);
-    // Sustained, not an explosive sellout - uses most/all of the available runway rather than selling out in a handful of weeks the way the exceptional-reception archetype does.
-    expect(r.runWeeks).toBeGreaterThanOrEqual(MAX_SIMULATION_WEEKS - 2);
-    // Sustained, not collapsing either - no single week-over-week cliff (some tail-end decline over a full 20-week run is normal and expected; a sudden collapse is not).
+    // Sustained, not an explosive sellout - runs a real multi-week course
+    // rather than selling out in two or three weeks. Post the run-length
+    // recalibration (DESIGN.md Milestone 13) a crowd-pleaser Wide run is ~9-10
+    // weeks (was ~18-20 against the hard cap); still clearly a durable run, no
+    // longer riding the cap.
+    expect(r.runWeeks).toBeGreaterThanOrEqual(8);
+    // Sustained, not collapsing - no early week-over-week cliff. The steeper
+    // post-recalibration decline means a genuine tail (once admissions are
+    // already a small fraction of the opening) can shed more than half in a
+    // week without that being a mid-run "collapse", so this only guards the
+    // weeks while the film is still a real draw (>15% of opening); across those
+    // the crowd-pleaser holds >50% week-over-week (~0.56-0.74), unlike a
+    // front-loaded bad film's sharper cliff.
     for (let i = 1; i < r.admissions.length; i++) {
+      if (r.admissions[i - 1] < r.admissions[0] * 0.15) break;
       expect(r.admissions[i]).toBeGreaterThan(r.admissions[i - 1] * 0.5);
     }
     // Never spikes wildly past the opening either - a genuinely "sustained" shape, not a delayed version of the exceptional-reception archetype's explosion.
@@ -289,8 +306,13 @@ describe('named archetype regression scenarios', () => {
     // Neither catastrophic (the front-loaded archetype's collapse) nor explosive (the sleeper's multiple) - legs sits clearly between the two extremes.
     expect(r.legs).toBeGreaterThan(frontLoaded.legs);
     expect(r.legs).toBeLessThan(sleeper.legs);
-    // Runs its full natural course rather than selling out early like a phenomenon does - Milestone 5's own documented finding that the natural stopping rule rarely fires before the hard cap at realistic inputs.
-    expect(r.runWeeks).toBe(MAX_SIMULATION_WEEKS);
+    // Ends via the natural trickle stopping rule *before* the 20-week cap - the
+    // run-length recalibration (DESIGN.md Milestone 13, Wide
+    // conversionPacingBaseline 0.14 -> 0.35) reversed Milestone 5's old finding
+    // that the stopping rule rarely fired before the cap at realistic inputs.
+    // An ordinary mid-performer now runs a conventional ~12 weeks.
+    expect(r.runWeeks).toBeGreaterThan(6);
+    expect(r.runWeeks).toBeLessThan(MAX_SIMULATION_WEEKS);
   });
 });
 

@@ -3,7 +3,6 @@ import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft, buildReadyDraft, buildReadyAsset, defaultMarketingChoices, conformActorGenderToSlot, shootThroughToFinish } from './testFixtures';
 import { createInitialStudio } from './gameState';
 import { withRng } from '../engine/random';
-import { AVERAGE_TICKET_PRICE } from '../engine/boxOfficeRun';
 import { studioCreditFromMarkets, domesticKeepShareForFilm } from '../engine/distribution';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
 import { computeTalentCost, computeProductionBudgetCost } from '../engine/cost';
@@ -192,12 +191,19 @@ describe('deterministic release-day gross', () => {
     expect(theFilm(afterA).boxOfficeRun.fixed).toEqual(theFilm(afterB).boxOfficeRun.fixed);
   });
 
-  it('week 1 gross matches admissions * AVERAGE_TICKET_PRICE, rounded', () => {
+  it('week 1 openingWeekend matches the settlement pass\'s week 1 gross', () => {
     const state = buildStateWithReadyDraft(10);
     const after = studioReducer(state, { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     const film = theFilm(after);
-    const expected = Math.round(film.boxOfficeRun.simWeeks[0].cumulativeTicketsSold * AVERAGE_TICKET_PRICE);
-    expect(film.results.openingWeekend).toBe(expected);
+    // openingWeekend (computed at release in releaseFilm.ts) is the domestic +
+    // international split of round(week-1 admissions * price), each market
+    // rounded separately then summed - the exact same value the settlement pass
+    // independently records as week 1's headline gross, so the two code paths
+    // must agree. Compared against the settled week rather than a single
+    // round(admissions * price): double-rounding the market split can differ
+    // from the un-split headline by a unit (surfaced by the run-length
+    // recalibration landing week-1 admissions on a rounding boundary).
+    expect(film.results.openingWeekend).toBe(film.boxOfficeRun.weeks[0].gross);
   });
 });
 

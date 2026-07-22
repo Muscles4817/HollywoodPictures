@@ -259,18 +259,18 @@ describe('rival films settle through the exact same function', () => {
     const player = freshFilm('player-film', 1, fixed);
     const rival = freshFilm('rival-film', 1, fixed, 'A Rival Studio');
 
-    const settlement = settleBoxOfficeForAllFilms([player, rival], 1 + 5 * 7);
-    const [settledPlayer, settledRival] = settlement.filmsReleased;
+    // Settled in *separate* calls so neither competes with the other - the only
+    // difference between the two runs is the releasedBy tag, which this test is
+    // about. (Settling them together instead would make each feel the other's
+    // live competitivePressure with a one-week processing offset between the
+    // two siblings - a real, sub-percent order effect that is genuine live-
+    // competition behaviour, not releasedBy leaking into settlement, and so
+    // not what this test should be asserting on.)
+    const settledPlayer = settleBoxOfficeForAllFilms([player], 1 + 5 * 7).filmsReleased[0];
+    const settledRival = settleBoxOfficeForAllFilms([rival], 1 + 5 * 7).filmsReleased[0];
     expect(settledRival.releasedBy).toBe('A Rival Studio');
-    // Same fixed state, same release day, same calendar jump -> identical box office shape regardless of releasedBy.
-    // Compared by gross/week only, not the whole BoxOfficeWeek record: two
-    // same-day siblings take turns through the shared settlement queue, so
-    // whichever is processed first each week reads the other's *prior*
-    // week's state while the second-processed one reads its already-just-
-    // settled current week - a one-week-offset asymmetry in which
-    // competitivePressure value each happens to record, even though it
-    // nets out to the identical admissions/availability outcome for both
-    // (simWeeks below). Not something this test is about.
+    // Same fixed state, same release day, same calendar jump, no competitor for
+    // either -> identical box office shape regardless of releasedBy.
     expect(settledRival.boxOfficeRun.weeks.map((w) => ({ week: w.week, gross: w.gross }))).toEqual(
       settledPlayer.boxOfficeRun.weeks.map((w) => ({ week: w.week, gross: w.gross })),
     );
