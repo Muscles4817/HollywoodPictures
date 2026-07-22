@@ -1,4 +1,4 @@
-import type { AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, ProductionRole, Project, RivalStudio, WizardStep } from '../types';
+import type { AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, ProductionRole, ProductionScale, Project, RivalStudio, ScriptScale, WizardStep } from '../types';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { totalAttachedPerFilmFees } from '../engine/producers';
 import { computeStudioAwardDeltas } from '../engine/awards';
@@ -756,11 +756,48 @@ export function collectProjectCards(state: GameState): ProjectCardData[] {
   });
 }
 
+/**
+ * One player-facing size tier for a calendar release. The sim models film
+ * size on two separate axes - a rival production's ProductionScale
+ * (Small/Medium/Big) and a script's own ScriptScale (Intimate/Medium/Epic) -
+ * and the calendar collapses both onto this shared vocabulary so a release's
+ * size reads the same whoever is making it. There is deliberately no
+ * 'Blockbuster' tier: nothing pre-release in the sim plans one (OutcomeLabel's
+ * 'Blockbuster' is a box-office *result*, not a planned size), so inventing one
+ * here would be fiction. The two mappers below are the single place to widen
+ * if a fourth tier ever lands.
+ */
+export type ReleaseScale = 'Small' | 'Medium' | 'Large';
+
+function releaseScaleFromProduction(scale: ProductionScale): ReleaseScale {
+  switch (scale) {
+    case 'Small':
+      return 'Small';
+    case 'Medium':
+      return 'Medium';
+    case 'Big':
+      return 'Large';
+  }
+}
+
+function releaseScaleFromScript(scale: ScriptScale): ReleaseScale {
+  switch (scale) {
+    case 'Intimate':
+      return 'Small';
+    case 'Medium':
+      return 'Medium';
+    case 'Epic':
+      return 'Large';
+  }
+}
+
 export interface CalendarEntry {
   id: string;
   title: string;
   genre: string;
   targetAudience: string;
+  /** Normalized display size - see ReleaseScale. */
+  scale: ReleaseScale;
   releaseDay: number;
   studioId: string;
   studioName: string;
@@ -798,6 +835,9 @@ export function deriveUpcomingReleaseEntries(projects: Project[], rivalStudios: 
           title: scheduled.draft.title || 'Untitled Film',
           genre: scheduled.draft.genre ?? '-',
           targetAudience: scheduled.draft.targetAudience ?? '-',
+          // A 'scheduled' draft always has a script (SCHEDULE_RELEASE's guard),
+          // but the field is Script | null on the draft type - fall back neutrally.
+          scale: scheduled.draft.script ? releaseScaleFromScript(scheduled.draft.script.scale) : 'Medium',
           releaseDay: scheduled.releaseDay,
           studioId: PLAYER_STUDIO_ID,
           studioName,
@@ -814,6 +854,7 @@ export function deriveUpcomingReleaseEntries(projects: Project[], rivalStudios: 
           title: `${production.scale} ${production.genre} film`,
           genre: production.genre,
           targetAudience: production.targetAudience,
+          scale: releaseScaleFromProduction(production.scale),
           releaseDay: production.releaseDay,
           studioId: production.rivalStudioId,
           studioName: rivalNameById.get(production.rivalStudioId) ?? 'A Rival Studio',
