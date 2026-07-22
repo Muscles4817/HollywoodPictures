@@ -512,7 +512,15 @@ describe('named archetype diagnostics', () => {
     const weeks = runFullSimulation(inputs({ releaseType: 'Wide', buzzScore: 85, marketingSpend: 150_000_000, criticScore: 20, audienceScore: 18 }));
     const admissions = weeklyAdmissions(weeks);
     expect(admissions[0]).toBeGreaterThan(500_000);
-    expect(admissions[9]).toBeLessThan(admissions[0] * 0.35); // by week 10, marketing's one-time push has clearly worn off
+    // "Cannot sustain itself": a poorly-received film's weak word of mouth
+    // can't hold the crowd its one-time marketing push bought, so the run
+    // collapses and ends well before the 20-week cap, its final week a small
+    // fraction of the enormous opening. Post the run-length recalibration
+    // (DESIGN.md Milestone 13, Wide conversionPacingBaseline 0.14 -> 0.35) this
+    // collapse now completes in under 10 weeks rather than merely being under
+    // way by week 10 - so we assert on the (earlier) final week, not week 10.
+    expect(weeks.length).toBeLessThan(MAX_SIMULATION_WEEKS);
+    expect(admissions[admissions.length - 1]).toBeLessThan(admissions[0] * 0.35);
   });
 
   it('9. ordinary mid-performing film: unremarkable, but genuinely sustained - later weeks decline gently, they do not collapse the way a poor-reception film does', () => {

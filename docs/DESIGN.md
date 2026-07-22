@@ -4204,6 +4204,64 @@ sweeps that drove every decision above, not assumptions):
   never exceeds its own capacity ceiling at any reception level, checked
   directly rather than inferred.
 
+**Implementation Milestone 13: theatrical run length - Wide releases were
+lasting 16-20 weeks (versus the real-world 4-8) with total-to-opening
+"legs" of 5-13x (versus a realistic 2-3x), riding the 20-week hard cap
+instead of ending naturally.** This is the same gap Milestone 9's own
+limitation #1 flagged and left for a "deeper Milestone 3 pacing
+recalibration," explicitly naming `conversionPacingBaseline` as the lever
+while warning that raising it risks a "Limited/Niche stays small"
+regression - and limitation #2 (the `MIN_WEEKLY_ADMISSIONS_RATIO` stopping
+rule "essentially never fires before the 20-week hard cap," a
+characteristic documented as far back as Milestone 5). A fresh diagnostic
+sweep across Wide archetypes confirmed the root cause directly: at
+`conversionPacingBaseline` 0.14 a Wide film's interested pool drained only
+~14% per week, so weekly admissions declined too gently to reach the 2%
+trickle threshold before the cap. The sweep also killed two tempting
+alternatives before they were coded - raising availability contraction
+(`availabilityBaseWeeklyDecay`) does nothing, because a Wide film's
+sub-1.0 demand utilisation already saturates the `netRate` clamp on its
+own; and *tightening* capacity to revive the sell-out/hold loop makes runs
+*longer* and legs *fatter*, not shorter, because a sold-out film holds its
+screens and a capacity-constrained pool drains slower.
+
+- **The change: `DISTRIBUTION_PROFILES.Wide.conversionPacingBaseline`
+  0.14 -> 0.35** (`engine/audienceSimulationInputs.ts`). Steepening the
+  per-week drain to ~35% front-loads the same audience into a shorter run:
+  Wide runs fall to ~4-12 weeks and legs to ~2.4-5.5x, while each film's
+  *total* gross is essentially unchanged (money moves out of the long thin
+  tail into a larger opening, it is neither created nor destroyed). Wide
+  films now terminate via the natural trickle stopping rule before the
+  cap, resolving both of Milestone 9's documented limitations for Wide.
+- **Deliberately Wide-only** - the exact mitigation Milestone 9 asked for.
+  The same sweep confirmed its warning: bumping Limited/Festival First
+  pacing amplifies their *total gross* 2-3x through the availability
+  expansion feedback loop (a strong per-screen showing earning more
+  screens earning a bigger anchor) rather than merely compressing the run,
+  so their (appropriately long, months-scale, platform-driven) runs are
+  left untouched.
+- **Accepted trade-off: Wide phenomena now front-load.** A maxed-out
+  phenomenon still reaches billion-scale total and ~0.81 of its reachable
+  ceiling, but peaks week 1 rather than holding/growing into week 2 - the
+  leggy-megahit shape (a rare, largely historical Wide pattern) is no
+  longer reproducible for Wide, though the sleeper/platform shape still is
+  via Limited/Festival First (unchanged). Realistic for the modern
+  front-loaded blockbuster era, and the price of a single flat pacing knob.
+- **Deferred to a follow-up (the "deeper issue"):** genuinely weak films
+  still limp ~8-12 weeks rather than being dumped in ~4, because the
+  availability feedback loop keeps them "half-full on a shrinking screen
+  count" rather than ever playing to empty houses - so neither an
+  own-opening-% trickle nor an occupancy floor cleanly pulls them (an
+  occupancy exit was prototyped and *inverts* the gradient, dumping
+  blockbusters first). Fixing this needs release-type-aware availability
+  work (weak per-screen draw causing a film to be *pulled*, not just
+  shrunk), which the same Limited/Festival scale-sensitivity makes unsafe
+  to ship as global constants. Also noted: at the new pacing a Wide film's
+  demand runs close enough to capacity that live `competitivePressure` is
+  no longer swallowed by the rate clamp, so two same-day sibling films now
+  settle with a real (sub-percent) one-week-offset asymmetry - previously
+  masked, worth making order-independent in that same follow-up.
+
 **Final reference: formulas, constants, invariants, scenarios, limitations,
 hooks.** Milestones 1-12 are now complete and live - this is the
 consolidated specification for the system as it actually ships, not a

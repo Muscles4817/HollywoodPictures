@@ -441,9 +441,25 @@ interface DistributionProfile {
   criticLedExpansionWeight: number;
 }
 
+// Wide's conversionPacingBaseline was recalibrated from 0.14 to 0.35 (docs/
+// DESIGN.md 5.34, "theatrical run length"). A diagnostic sweep found that at
+// 0.14 a Wide film's interested pool drained only ~14% per week, so weekly
+// admissions declined too gently to ever reach the run's stopping rule before
+// the 20-week hard cap - Wide releases routinely ran 16-20 weeks (versus the
+// real-world 4-8), with total-to-opening "legs" of 5-13x (versus a realistic
+// 2-3x for a frontloaded release). Steepening the per-week drain to ~35%
+// front-loads the same audience into a shorter run: across the archetype sweep
+// this pulled Wide runs to ~5-12 weeks and legs to ~2.4-5.5x while leaving
+// each film's *total* gross essentially unchanged (it moves money out of the
+// long thin tail into a larger opening, it doesn't create or destroy it).
+// Deliberately Wide-only: Limited/Festival First are platform releases that
+// build slowly through availability expansion (Milestone 9), and the same
+// sweep showed raising their pacing amplifies their total gross 2-3x through
+// that expansion feedback loop rather than merely compressing their run - so
+// their (already appropriately long, months-scale) runs are left untouched.
 const DISTRIBUTION_PROFILES: Record<SupportedReleaseType, DistributionProfile> = {
   Wide: {
-    conversionPacingBaseline: 0.14,
+    conversionPacingBaseline: 0.35,
     initialAvailabilityFraction: 0.95, availabilityBaseWeeklyDecay: 0.18, criticLedExpansionWeight: 0,
   },
   Limited: {
