@@ -13,6 +13,7 @@ import { ReputationHistoryModal } from './common/ReputationHistoryModal';
 import { TopGrossingPanel } from './common/TopGrossingPanel';
 import { DifficultyPicker } from './common/DifficultyPicker';
 import { ProductionOfficeCard } from './ProductionOfficeCard';
+import { DistributionArmCard } from './DistributionArmCard';
 import { computeTopGrossingFilms, deriveReputationHistory, hasDraftProgress, countActivePlayerProjects } from '../state/selectors';
 import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
@@ -623,6 +624,8 @@ export function Dashboard() {
           </section>
 
           <ProductionOfficeCard />
+
+          <DistributionArmCard />
 
           <section className="dashboard-card dashboard-sidebar-card">
             <div className="dashboard-card-heading dashboard-sidebar-heading">

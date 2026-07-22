@@ -21,6 +21,17 @@ export const WEEK_LENGTH_DAYS = 7;
 // either box-office model itself decides.
 export const STUDIO_BOX_OFFICE_SHARE = 0.42;
 
+/**
+ * The share of gross this film's studio actually keeps. Normally the flat
+ * STUDIO_BOX_OFFICE_SHARE, but a Wide release handed to a rented distributor
+ * keeps less - the distributor's fee, frozen onto the film at release
+ * (engine/distribution.ts). Read here so both the weekly credit and the final
+ * tally apply the same, correct keep.
+ */
+export function studioKeepShare(film: Film): number {
+  return film.results.distributionKeepShare ?? STUDIO_BOX_OFFICE_SHARE;
+}
+
 // The people-to-money boundary for the whole audience-simulation-driven box
 // office system (docs/DESIGN.md 5.34) - engine/audienceSimulationStep.ts
 // itself never multiplies anything by a price ("model people, not money...
@@ -54,7 +65,7 @@ export interface BoxOfficeSettlement {
 /** A run that just crossed into 'finished' - computes totalBoxOffice/studioRevenue/profit/outcome/brandChange/prestigeChange from whatever its weeks actually added up to, the same job RELEASE_FILM used to do in one shot at release time. */
 function finishFilm(film: Film): { film: Film; brandChange: number; prestigeChange: number } {
   const totalBoxOffice = film.boxOfficeRun.cumulativeGross;
-  const studioRevenue = Math.round(totalBoxOffice * STUDIO_BOX_OFFICE_SHARE);
+  const studioRevenue = Math.round(totalBoxOffice * studioKeepShare(film));
   const profit = studioRevenue - film.results.totalCost;
 
   const outcome = determineOutcome({
@@ -170,7 +181,7 @@ export function advanceEarliestDueFilmByOneWeek(filmsById: ReadonlyMap<string, F
   // own doc comment on why this is historical fact, not re-derivable).
   const weeks = [...run.weeks, { week: nextSimWeek.week, gross, competitivePressure }];
   const cumulativeGross = run.cumulativeGross + gross;
-  const cashCredit = Math.round(gross * STUDIO_BOX_OFFICE_SHARE);
+  const cashCredit = Math.round(gross * studioKeepShare(film));
 
   const finished = hasSimulationEnded(simWeeks);
   const updatedRun = { ...run, simWeeks, weeks, cumulativeGross, status: finished ? ('finished' as const) : ('running' as const) };

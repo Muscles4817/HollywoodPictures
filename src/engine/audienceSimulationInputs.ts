@@ -115,6 +115,15 @@ export interface ReleaseSimulationInputs {
    * screens at launch, not a smaller natural audience or slower conversion.
    */
   competitiveCrowding: number;
+  /**
+   * The Wide-release availability *ceiling* this film's distribution deal can
+   * command, before releaseStrength scaling (engine/distribution.ts). Overrides
+   * DISTRIBUTION_PROFILES.Wide's own ceiling when present - a self-distributed
+   * Wide's ceiling scales with the studio's Distribution Arm tier, a rented one
+   * is capped lower. Absent (rivals, non-Wide, pre-facility saves) keeps the
+   * release type's own value. Only ever consulted for Wide.
+   */
+  wideAvailabilityCeiling?: number;
 }
 
 // --- Total addressable audience -------------------------------------------
@@ -497,9 +506,16 @@ function computeReleaseStrength(marketingSpend: number, marketingEfficiency: num
 const CROWDING_PENALTY_WEIGHT = 0.5;
 
 /** DISTRIBUTION_PROFILES[releaseType].initialAvailabilityFraction is Wide's *ceiling*, only reached by a genuinely strong release package - see the module note above. Limited/Festival First are untouched, always at their own flat (already-modest) value regardless of release strength. */
-function computeInitialAvailabilityFraction(releaseType: SupportedReleaseType, releaseStrength: number): number {
-  const ceiling = distributionProfile(releaseType).initialAvailabilityFraction;
-  if (releaseType !== 'Wide') return ceiling;
+function computeInitialAvailabilityFraction(
+  releaseType: SupportedReleaseType,
+  releaseStrength: number,
+  wideCeilingOverride?: number,
+): number {
+  if (releaseType !== 'Wide') return distributionProfile(releaseType).initialAvailabilityFraction;
+  // The distribution deal (engine/distribution.ts) sets how wide the release
+  // *could* go; releaseStrength (marketing + Brand) still decides how much of
+  // that ceiling actually lands, floored the same way for every Wide release.
+  const ceiling = wideCeilingOverride ?? distributionProfile('Wide').initialAvailabilityFraction;
   return WIDE_AVAILABILITY_FLOOR + (ceiling - WIDE_AVAILABILITY_FLOOR) * releaseStrength;
 }
 
@@ -727,7 +743,7 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
 
   const distribution = distributionProfile(inputs.releaseType);
   const releaseStrength = computeReleaseStrength(inputs.marketingSpend, marketingEfficiency);
-  const uncrowdedAvailabilityFraction = computeInitialAvailabilityFraction(inputs.releaseType, releaseStrength);
+  const uncrowdedAvailabilityFraction = computeInitialAvailabilityFraction(inputs.releaseType, releaseStrength, inputs.wideAvailabilityCeiling);
   const initialAvailabilityFraction = uncrowdedAvailabilityFraction * (1 - CROWDING_PENALTY_WEIGHT * inputs.competitiveCrowding);
 
   return createAudienceSimulationFixedState({

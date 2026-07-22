@@ -107,7 +107,11 @@ export function buildStateWithReadyDraft(seed: number, marketingOverrides: Parti
     return { studio, talentPool, draft };
   });
   return {
-    studio: { ...result.studio, assets: [{ id: result.draft.assetId, script: result.draft.script!, source: 'Studio Original', acquisitionCost: result.draft.script!.cost, acquiredOnDay: 1 }] },
+    // A full Distribution Arm so the fixture's default Wide release self-
+    // distributes (keeping the standard box-office share these box-office
+    // fixtures are calibrated against), rather than taking the rented cut a
+    // studio with no arm would - see engine/distribution.ts.
+    studio: { ...result.studio, distributionArm: { tier: 3 }, assets: [{ id: result.draft.assetId, script: result.draft.script!, source: 'Studio Original', acquisitionCost: result.draft.script!.cost, acquiredOnDay: 1 }] },
     screen: 'marketing',
     projects: [playerDraftToProject(result.draft)],
     focusedProjectId: result.draft.id,

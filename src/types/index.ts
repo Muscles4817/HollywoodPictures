@@ -822,6 +822,20 @@ export interface MarketingChoices {
   releaseType: ReleaseType;
   releaseWindow: ReleaseWindow;
   /**
+   * How a Wide release reaches theaters (engine/distribution.ts): 'self'
+   * (self-distributed, requires an owned Distribution Arm) or 'rented' (a
+   * major's distribution, always available but takes a cut). Only meaningful
+   * for Wide; absent means the default for the studio's capability. The
+   * `distributionBreadth`/`distributionKeepShare` below are the resolved deal
+   * terms, frozen onto the film at SCHEDULE_RELEASE so the later settlement
+   * (engine/marketSettlement.ts) reads exactly what was agreed at scheduling.
+   */
+  distributionMethod?: 'self' | 'rented';
+  /** Frozen Wide availability ceiling for this release's deal (before releaseStrength scaling); absent for non-Wide. */
+  distributionBreadth?: number;
+  /** Frozen studio box-office keep share for this deal; absent = the default STUDIO_BOX_OFFICE_SHARE. */
+  distributionKeepShare?: number;
+  /**
    * How the budget is split across channels (docs/DESIGN_REVIEW_marketing_campaign.md).
    * Optional: absent on rival films and on saves predating the campaign
    * overhaul, in which case the awareness/Buzz pipeline falls back to the flat
@@ -944,6 +958,13 @@ export interface FilmResults {
   // night. null while BoxOfficeRun.status === 'running'.
   totalBoxOffice: number | null; // the big headline gross - not what the studio actually keeps, see studioRevenue
   studioRevenue: number | null; // totalBoxOffice after the theatrical revenue split - what profit is actually computed from
+  /**
+   * The studio's box-office keep share for this film (engine/boxOfficeRun.ts).
+   * Absent means the default STUDIO_BOX_OFFICE_SHARE; a Wide release distributed
+   * by a rented major keeps less - the distributor's fee off the top
+   * (engine/distribution.ts). Frozen at release from the distribution deal.
+   */
+  distributionKeepShare?: number;
   profit: number | null;
   outcome: OutcomeLabel | null;
   // Milestone: Brand Recognition and Prestige (engine/reputation.ts) replaced
@@ -1261,6 +1282,18 @@ export interface Studio {
    * GameState.producerPool, never duplicated here.
    */
   productionOffice?: ProductionOffice | null;
+  /**
+   * The Distribution Arm facility (the studio's own theatrical distribution
+   * operation). `null`/absent means not yet unlocked - a studio without one
+   * can't self-distribute a Wide release (it must rent a major's distribution
+   * at a cut) - see engine/distribution.ts. Same unlock-milestone + tiered
+   * shape as productionOffice above; read defensively (no migration pass).
+   */
+  distributionArm?: DistributionArm | null;
+}
+
+export interface DistributionArm {
+  tier: number; // 1..DISTRIBUTION_ARM_MAX_TIER - governs the Wide-release screen ceiling self-distribution can command
 }
 
 export interface ProductionOffice {
