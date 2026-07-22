@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk } from './production';
+import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk, footageLowerBound, footageUpperBound } from './production';
+import { editCoverageCeiling } from './productionDials';
 import { generateScriptOptions } from './scriptGenerator';
 import { generateTalentCandidates } from './talentGenerator';
 import { withRng } from './random';
@@ -213,3 +214,32 @@ describe('computeStaticProductionRisk - Setting Archetype influence', () => {
     expect(ambitiousRisk.budgetRisk).toBeGreaterThan(modestRisk.budgetRisk);
   });
 });
+
+describe('footage band (footageLowerBound / footageUpperBound)', () => {
+  it('brackets the recommended schedule below and above', () => {
+    const recommended = 40;
+    const lower = footageLowerBound(recommended);
+    const upper = footageUpperBound(recommended);
+    expect(lower).toBeLessThan(recommended);
+    expect(upper).toBeGreaterThan(recommended);
+    // 0.6x / 2.5x of the recommended schedule.
+    expect(lower).toBe(24);
+    expect(upper).toBe(100);
+  });
+});
+
+describe('editCoverageCeiling', () => {
+  it('never caps the edit once the recommended footage is shot (ratio >= 1)', () => {
+    expect(editCoverageCeiling(1)).toBe(100);
+    expect(editCoverageCeiling(1.8)).toBe(100);
+  });
+
+  it('caps the edit progressively harder the thinner the shoot is', () => {
+    const atLowerBound = editCoverageCeiling(0.6);
+    const midway = editCoverageCeiling(0.8);
+    expect(atLowerBound).toBeLessThan(midway);
+    expect(midway).toBeLessThan(100);
+    // At the lower bound the ceiling sits at the base edit floor.
+    expect(atLowerBound).toBeCloseTo(55, 5);
+  });
+})

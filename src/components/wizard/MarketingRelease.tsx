@@ -3,7 +3,7 @@ import { useStudio } from '../../state/StudioContext';
 import { MARKETING_SPEND_RANGE, RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS } from '../../data/release';
 import { pluckDescriptions } from '../../data/describe';
 import { computeMarketingCost } from '../../engine/cost';
-import { formatGameDate, formatGameMonthYear, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from '../../engine/calendar';
+import { formatGameDateWithMonth, formatGameMonthYear, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from '../../engine/calendar';
 import { computeCompetitiveCrowding, type UpcomingRelease } from '../../engine/releaseCrowding';
 import { asUpcomingRelease } from '../../engine/scheduledReleases';
 import { rivalAsUpcomingRelease } from '../../engine/rivalStudios';
@@ -323,7 +323,7 @@ export function MarketingRelease() {
           </div>
           <div className="stat-value">
             {draft.postProductionEditingUntilDay !== null ? 'Next screening around ' : 'Test screening expected around '}
-            {formatGameDate(postProductionEstimate)}
+            {formatGameDateWithMonth(postProductionEstimate)}
           </div>
           <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
             A film can't be scheduled for release until you've locked its final cut - the earliest month below moves
@@ -544,7 +544,7 @@ export function MarketingRelease() {
           Your release month is set below. You can schedule the release once the mandatory test screening is in and
           you've responded to it{pendingScreening
             ? ' - respond to the results above to unlock it.'
-            : ` - expected around ${formatGameDate(postProductionEstimate)}. You'll be notified in the Inbox the moment it's ready.`}
+            : ` - expected around ${formatGameDateWithMonth(postProductionEstimate)}. You'll be notified in the Inbox the moment it's ready.`}
         </p>
       )}
 

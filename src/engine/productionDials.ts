@@ -41,6 +41,27 @@ export function shootingQualityFromRatio(ratio: number): number {
   return clamp(60 + over * (25 / 1.5), 60, 85);
 }
 
+// The footage band around a film's recommendedDays (engine/production.ts).
+// recommendedDays is "enough coverage for a solid film"; below the lower bound
+// there isn't enough footage for a functional cut (the shoot can't be wrapped),
+// and past the upper bound there's nothing left to capture (it auto-wraps).
+export const FOOTAGE_LOWER_RATIO = 0.6;
+export const FOOTAGE_UPPER_RATIO = 2.5;
+
+/**
+ * The ceiling footage coverage puts on the edit (postProductionScore). An
+ * editor can only cut what was actually shot: below the recommended schedule
+ * the coverage caps how good the final edit can be, rising from the base edit
+ * floor at the lower footage bound to no cap at all once the recommended
+ * footage (ratio 1) is in the can. At or above recommended it never binds, so
+ * a normally- or over-shot film's edit is judged purely on its own merits.
+ */
+export function editCoverageCeiling(shootingRatio: number): number {
+  if (shootingRatio >= 1) return 100;
+  const t = clamp((shootingRatio - FOOTAGE_LOWER_RATIO) / (1 - FOOTAGE_LOWER_RATIO), 0, 1);
+  return 55 + t * 45;
+}
+
 export const setQualityT = (amount: number) => logT(amount, ENVIRONMENT_BUDGET_RANGE);
 export const setQualityScore = (amount: number) => interpolateScale(setQualityT(amount), ENVIRONMENT_BUDGET_ANCHORS, 'quality');
 export const setQualityDescription = (amount: number) => describeScale(setQualityT(amount), ENVIRONMENT_BUDGET_ANCHORS);

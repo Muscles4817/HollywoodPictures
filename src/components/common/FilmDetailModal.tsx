@@ -1,4 +1,4 @@
-import { formatGameDate } from '../../engine/calendar';
+import { formatGameDateWithMonth } from '../../engine/calendar';
 import { computeTalentCompatibility } from '../../engine/compatibility';
 import { ALL_TALENT_ROLES } from '../../data/talentGeneration';
 import { toneProfileBreakdown } from '../../data/tones';
@@ -265,7 +265,7 @@ export function FilmDetailModal({ film, onClose }: { film: Film; onClose: () => 
           <div>
             <h2 style={{ margin: 0 }}>{film.title}</h2>
             <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-              {film.genre} &middot; Released {formatGameDate(film.releasedOnDay)}
+              {film.genre} &middot; Released {formatGameDateWithMonth(film.releasedOnDay)}
             </p>
           </div>
           {film.results.outcome && (

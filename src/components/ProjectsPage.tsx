@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { collectProjectCards, currentScreenFor, type ProjectCardData, type ProjectStage } from '../state/selectors';
 import { asPlayerDraft, findProject, asFilm } from '../engine/project';
-import { formatGameDate } from '../engine/calendar';
+import { formatGameMonthYear } from '../engine/calendar';
 import { Card } from './common/Card';
 import { Button } from './common/Button';
 import { Money } from './common/Money';
@@ -178,7 +178,7 @@ function ProjectCardBody({ card }: { card: ProjectCardData }) {
       )}
 
       {card.scheduledReleaseDay !== null && (
-        <p style={{ margin: '8px 0 0' }}>Releasing {formatGameDate(card.scheduledReleaseDay)}</p>
+        <p style={{ margin: '8px 0 0' }}>Releasing {formatGameMonthYear(card.scheduledReleaseDay)}</p>
       )}
 
       {card.boxOffice && (

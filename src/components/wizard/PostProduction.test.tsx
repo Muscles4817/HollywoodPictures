@@ -18,7 +18,7 @@ import { saveState } from '../../state/persistence';
 import { generateTalentPool } from '../../engine/talentGenerator';
 import { withRng } from '../../engine/random';
 import { playerDraftToProject } from '../../engine/project';
-import { formatGameDate } from '../../engine/calendar';
+import { formatGameDateWithMonth } from '../../engine/calendar';
 import { generateTestScreeningPendingChoice } from '../../engine/testScreening';
 import type { FilmDraft } from '../../types';
 
@@ -67,7 +67,7 @@ describe('PostProduction - the provisional post-production forecast', () => {
       </StudioProvider>,
     );
     expect(screen.getByText('Test Screening (preview)')).toBeInTheDocument();
-    expect(screen.getByText(`Ready around ${formatGameDate(45)}`)).toBeInTheDocument();
+    expect(screen.getByText(`Ready around ${formatGameDateWithMonth(45)}`)).toBeInTheDocument();
   });
 
   it('never describes the estimate as the film being ready for release - it is explicitly the test screening', () => {
@@ -170,7 +170,7 @@ describe('PostProduction - a recut in progress', () => {
       </StudioProvider>,
     );
     expect(screen.getByText('Re-cut in progress')).toBeInTheDocument();
-    expect(screen.getByText(`Next screening around ${formatGameDate(60)}`)).toBeInTheDocument();
+    expect(screen.getByText(`Next screening around ${formatGameDateWithMonth(60)}`)).toBeInTheDocument();
     expect(screen.queryByText('A Decision Is Needed')).not.toBeInTheDocument();
     // The pre-first-screening forecast card is gone once a recut is underway.
     expect(screen.queryByText('Test Screening (preview)')).not.toBeInTheDocument();

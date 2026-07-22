@@ -5,7 +5,7 @@ import {
   collectStudioStats, sortStudioStats, type StudioStatRow,
   collectPersonStats, filterAndSortPersonStats, type PersonStatRow, type StatSortKey,
 } from '../state/selectors';
-import { formatGameDate } from '../engine/calendar';
+import { formatGameDateWithMonth } from '../engine/calendar';
 import { GENRES } from '../data/genres';
 import { ALL_TALENT_ROLES } from '../data/talentGeneration';
 import { Button } from './common/Button';
@@ -360,7 +360,7 @@ function FilmStatsTable({ rows, onSelect }: { rows: ReturnType<typeof filterAndS
                     <td>{film.genre}</td>
                     <td>{creditLine(film, 'Director')}</td>
                     <td>{creditLine(film, 'Lead Actor')}</td>
-                    <td>{formatGameDate(film.releasedOnDay)}</td>
+                    <td>{formatGameDateWithMonth(film.releasedOnDay)}</td>
                     <td>{film.results.criticScore}</td>
                     <td>{film.results.audienceScore}</td>
                     <td>{Math.round(film.results.qualityScore)}</td>

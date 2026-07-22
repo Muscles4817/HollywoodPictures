@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStudio } from '../state/StudioContext';
-import { formatGameDate, formatGameMonthYear } from '../engine/calendar';
+import { formatGameDateWithMonth, formatGameMonthYear } from '../engine/calendar';
 import { StatTile } from './common/StatTile';
 import { Money } from './common/Money';
 import { FilmDetailModal } from './common/FilmDetailModal';
@@ -101,7 +101,7 @@ export function RivalStudioPage() {
                     <tr key={film.id} className="film-history-row" onClick={() => setSelectedFilm(film)}>
                       <td>{film.title}</td>
                       <td>{film.genre}</td>
-                      <td>{formatGameDate(film.releasedOnDay)}</td>
+                      <td>{formatGameDateWithMonth(film.releasedOnDay)}</td>
                       <td>
                         {running ? (
                           <span style={{ color: 'var(--text-muted)' }}><Money amount={film.boxOfficeRun.cumulativeGross} /> so far</span>

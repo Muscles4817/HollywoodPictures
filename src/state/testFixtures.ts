@@ -12,7 +12,9 @@ import { createDraftFromAsset, createInitialStudio, type GameState } from './gam
 import { generateScriptOptions } from '../engine/scriptGenerator';
 import { generateTalentCandidates, generateTalentPool } from '../engine/talentGenerator';
 import { withRng, type RandomFn } from '../engine/random';
-import { playerDraftToProject } from '../engine/project';
+import { asPlayerDraft, findProject, playerDraftToProject } from '../engine/project';
+import { footageLowerBound } from '../engine/production';
+import { studioReducer } from './studioReducer';
 import { characterForRoleSlot } from '../engine/castRequirements';
 import { DEFAULT_POST_PRODUCTION_CHOICES } from '../data/postProduction';
 
@@ -119,4 +121,30 @@ export function buildStateWithReadyDraft(seed: number, marketingOverrides: Parti
     viewingRivalStudioName: null,
     viewingProductionId: null,
   };
+}
+
+/**
+ * Shoot a greenlit, focused project through to a wrapped shoot: advance
+ * principal photography (resolving any on-set choice with its first option)
+ * until there's enough footage to wrap (engine/production.ts:footageLowerBound),
+ * then finish. Replaces the old "greenlight then FINISH_PHOTOGRAPHY on day 0"
+ * shortcut, which the footage lower bound now (correctly) blocks.
+ */
+export function shootThroughToFinish(state: GameState, productionId?: string): GameState {
+  let s = state;
+  const id = productionId ?? s.focusedProjectId!;
+  for (let guard = 0; guard < 1000; guard++) {
+    const photo = asPlayerDraft(findProject(s.projects, id))?.photography;
+    if (!photo || photo.status === 'finished') break;
+    if (photo.status === 'awaiting-choice' && photo.pendingChoice) {
+      s = studioReducer(s, { type: 'RESOLVE_EVENT_CHOICE', choiceId: photo.pendingChoice.choices[0].id, productionId: id });
+      continue;
+    }
+    if (photo.daysElapsed >= footageLowerBound(photo.recommendedDays)) {
+      s = studioReducer(s, { type: 'FINISH_PHOTOGRAPHY', productionId: id });
+      break;
+    }
+    s = studioReducer(s, { type: 'ADVANCE_SHOOTING_DAY' });
+  }
+  return s;
 }

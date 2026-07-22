@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { studioReducer } from './studioReducer';
-import { buildStateWithReadyDraft, buildReadyDraft, buildReadyAsset, defaultMarketingChoices, conformActorGenderToSlot } from './testFixtures';
+import { buildStateWithReadyDraft, buildReadyDraft, buildReadyAsset, defaultMarketingChoices, conformActorGenderToSlot, shootThroughToFinish } from './testFixtures';
 import { createInitialStudio } from './gameState';
 import { withRng } from '../engine/random';
 import { STUDIO_BOX_OFFICE_SHARE, AVERAGE_TICKET_PRICE } from '../engine/boxOfficeRun';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
 import { computeTalentCost, computeProductionBudgetCost } from '../engine/cost';
-import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays } from '../engine/production';
+import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, footageLowerBound, footageUpperBound } from '../engine/production';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
 import { generateTalentPool, generateTalentCandidates } from '../engine/talentGenerator';
 import { playerDraftToProject, playerReleasedFilms, findProject, asScheduled, asPlayerDraft } from '../engine/project';
@@ -642,7 +642,7 @@ describe('FINISH_PHOTOGRAPHY - post-production estimate (Post-Production Redesig
     const expectedDays = computeRecommendedPostProductionDays(draftBefore.talent, draftBefore.productionChoices!);
     expect(expectedDays).toBeGreaterThan(0);
 
-    const finished = studioReducer(greenlit, { type: 'FINISH_PHOTOGRAPHY', productionId: greenlit.focusedProjectId! });
+    const finished = shootThroughToFinish(greenlit);
     const draftAfter = asPlayerDraft(findProject(finished.projects, finished.focusedProjectId))!;
     expect(draftAfter.photography?.status).toBe('finished'); // sanity
     expect(draftAfter.postProductionScreeningReadyDay).toBe(finished.totalDays + expectedDays);
@@ -650,7 +650,7 @@ describe('FINISH_PHOTOGRAPHY - post-production estimate (Post-Production Redesig
 
   it('stays exactly the same value afterward - a snapshot, not something later actions recompute', () => {
     const greenlit = studioReducer(stateReadyToGreenlight(232), { type: 'GREENLIGHT_PROJECT' });
-    const finished = studioReducer(greenlit, { type: 'FINISH_PHOTOGRAPHY', productionId: greenlit.focusedProjectId! });
+    const finished = shootThroughToFinish(greenlit);
     const estimateRightAfterFinish = asPlayerDraft(findProject(finished.projects, finished.focusedProjectId))!.postProductionScreeningReadyDay;
 
     const afterMoreDays = studioReducer(finished, { type: 'ADVANCE_DAY' });
@@ -661,13 +661,59 @@ describe('FINISH_PHOTOGRAPHY - post-production estimate (Post-Production Redesig
 
   it('Post-Production Redesign, Phase C - GO_TO_STEP no longer charges a flat day cost leaving post-production or marketing (STAGE_DURATIONS retired, data/schedule.ts)', () => {
     const greenlit = studioReducer(stateReadyToGreenlight(233), { type: 'GREENLIGHT_PROJECT' });
-    const finished = studioReducer(greenlit, { type: 'FINISH_PHOTOGRAPHY', productionId: greenlit.focusedProjectId! });
+    const finished = shootThroughToFinish(greenlit);
     const onPostProductionScreen = studioReducer(finished, { type: 'GO_TO_STEP', step: 'post-production' });
     const totalDaysBeforeLeaving = onPostProductionScreen.totalDays;
     const onMarketingScreen = studioReducer(onPostProductionScreen, { type: 'GO_TO_STEP', step: 'marketing' });
     expect(onMarketingScreen.totalDays).toBe(totalDaysBeforeLeaving);
     const afterLeavingMarketing = studioReducer(onMarketingScreen, { type: 'GO_TO_STEP', step: 'post-production' });
     expect(afterLeavingMarketing.totalDays).toBe(totalDaysBeforeLeaving);
+  });
+});
+
+// The footage band: recommendedDays is "enough footage for a solid film", with
+// a hard lower bound (can't wrap an under-shot film) and an auto-wrap upper
+// bound (nothing left to gain past full coverage).
+describe('Footage bounds - the shoot has a hard floor and an auto-wrap ceiling', () => {
+  function greenlitShoot(seed: number): { state: GameState; recommendedDays: number } {
+    const greenlit = studioReducer(stateReadyToGreenlight(seed), { type: 'GREENLIGHT_PROJECT' });
+    const draft = asPlayerDraft(findProject(greenlit.projects, greenlit.focusedProjectId))!;
+    return { state: greenlit, recommendedDays: draft.photography!.recommendedDays };
+  }
+
+  it('FINISH_PHOTOGRAPHY is a no-op below the lower footage bound - an under-shot film cannot be wrapped', () => {
+    const { state } = greenlitShoot(700); // day 0, well below the lower bound
+    const blocked = studioReducer(state, { type: 'FINISH_PHOTOGRAPHY', productionId: state.focusedProjectId! });
+    expect(blocked).toBe(state);
+    expect(asPlayerDraft(findProject(blocked.projects, blocked.focusedProjectId))!.photography!.status).toBe('in-progress');
+  });
+
+  it('once enough footage is shot (past the lower bound), the wrap goes through', () => {
+    const { state } = greenlitShoot(701);
+    const finished = shootThroughToFinish(state); // shoots to the lower bound, then wraps
+    const draft = asPlayerDraft(findProject(finished.projects, finished.focusedProjectId))!;
+    expect(draft.photography!.status).toBe('finished');
+    expect(draft.photography!.daysElapsed).toBeGreaterThanOrEqual(footageLowerBound(draft.photography!.recommendedDays));
+  });
+
+  it('the shoot wraps itself automatically once it reaches the upper footage bound', () => {
+    const { state, recommendedDays } = greenlitShoot(702);
+    const upper = footageUpperBound(recommendedDays);
+    let s = state;
+    for (let i = 0; i < 2000; i++) {
+      const photo = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!.photography!;
+      if (photo.status === 'finished') break;
+      if (photo.status === 'awaiting-choice' && photo.pendingChoice) {
+        s = studioReducer(s, { type: 'RESOLVE_EVENT_CHOICE', choiceId: photo.pendingChoice.choices[0].id, productionId: s.focusedProjectId! });
+      } else {
+        s = studioReducer(s, { type: 'ADVANCE_SHOOTING_DAY' });
+      }
+    }
+    const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
+    // It finished on its own - no FINISH_PHOTOGRAPHY was ever dispatched.
+    expect(draft.photography!.status).toBe('finished');
+    expect(draft.photography!.daysElapsed).toBeGreaterThanOrEqual(upper);
+    expect(draft.postProductionScreeningReadyDay).not.toBeNull(); // the wrap locked in the post-production estimate
   });
 });
 
@@ -679,7 +725,7 @@ describe('Test Screening (Post-Production Redesign, Phase C - iterative screenin
   /** A finished-photography focused draft, right at the moment postProductionScreeningReadyDay was just set. */
   function stateJustFinishedPhotography(seed: number) {
     const greenlit = studioReducer(stateReadyToGreenlight(seed), { type: 'GREENLIGHT_PROJECT' });
-    const finished = studioReducer(greenlit, { type: 'FINISH_PHOTOGRAPHY', productionId: greenlit.focusedProjectId! });
+    const finished = shootThroughToFinish(greenlit);
     const readyDay = asPlayerDraft(findProject(finished.projects, finished.focusedProjectId))!.postProductionScreeningReadyDay!;
     return { state: finished, readyDay };
   }
@@ -718,6 +764,7 @@ describe('Test Screening (Post-Production Redesign, Phase C - iterative screenin
     const { state, readyDay } = stateJustFinishedPhotography(303);
     const atReadyDay = advanceDays(state, readyDay - state.totalDays);
     const cashBefore = atReadyDay.studio.cash;
+    const eventsBefore = asPlayerDraft(findProject(atReadyDay.projects, atReadyDay.focusedProjectId))!.photography!.events;
     const resolved = studioReducer(atReadyDay, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'release-as-is', productionId: atReadyDay.focusedProjectId! });
     const draft = asPlayerDraft(findProject(resolved.projects, resolved.focusedProjectId))!;
     expect(resolved.studio.cash).toBe(cashBefore);
@@ -727,7 +774,8 @@ describe('Test Screening (Post-Production Redesign, Phase C - iterative screenin
     expect(draft.postProductionEditingUntilDay).toBeNull();
     expect(draft.testScreeningResolved).toBe(true);
     expect(draft.photography!.status).toBe('finished'); // never reopens photography
-    expect(draft.photography!.events).toEqual([]);
+    // The screening never touches on-set footage - that array is untouched.
+    expect(draft.photography!.events).toEqual(eventsBefore);
     // Accepting the cut adds no editing event - the film goes out as it screened.
     expect(draft.postProductionEvents).toEqual([]);
   });
@@ -736,9 +784,10 @@ describe('Test Screening (Post-Production Redesign, Phase C - iterative screenin
     const { state, readyDay } = stateJustFinishedPhotography(304);
     const atReadyDay = advanceDays(state, readyDay - state.totalDays);
     const cashBefore = atReadyDay.studio.cash;
+    const eventsBefore = asPlayerDraft(findProject(atReadyDay.projects, atReadyDay.focusedProjectId))!.photography!.events;
     const resolved = studioReducer(atReadyDay, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'major-reshoots', productionId: atReadyDay.focusedProjectId! });
     const draft = asPlayerDraft(findProject(resolved.projects, resolved.focusedProjectId))!;
-    expect(draft.photography!.events).toEqual([]); // never appended to any more
+    expect(draft.photography!.events).toEqual(eventsBefore); // untouched - the screening never appends to on-set events
     expect(draft.postProductionEvents).toHaveLength(1);
     const ev = draft.postProductionEvents[0];
     expect(ev.costDelta).toBeGreaterThan(0); // the real, non-zeroed cost
@@ -892,7 +941,7 @@ describe('Test Screening (Post-Production Redesign, Phase C - iterative screenin
 describe('SCHEDULE_RELEASE - gated on the test screening', () => {
   function stateWithScreeningPending(seed: number): GameState {
     let s = studioReducer(stateReadyToGreenlight(seed), { type: 'GREENLIGHT_PROJECT' });
-    s = studioReducer(s, { type: 'FINISH_PHOTOGRAPHY', productionId: s.focusedProjectId! });
+    s = shootThroughToFinish(s);
     s = studioReducer(s, { type: 'SET_POST_PRODUCTION_CHOICES', choices: { editStyle: 'Balanced', musicFocus: 'Standard', finalCutFocus: 'Trailer-focused' } });
     s = studioReducer(s, { type: 'SET_MARKETING_CHOICES', choices: { marketingSpend: 5_000_000, releaseType: 'Wide', releaseWindow: 'Quiet Month' } });
     const readyDay = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!.postProductionScreeningReadyDay!;

@@ -1,5 +1,5 @@
 import type { Film, Studio } from '../types';
-import { formatGameDate } from '../engine/calendar';
+import { formatGameDateWithMonth } from '../engine/calendar';
 
 /**
  * Downloads the studio's full film history as a JSON file - every
@@ -16,7 +16,7 @@ export function exportFilmHistory(studio: Studio, filmsReleased: Film[], totalDa
     brand: studio.brand,
     prestige: studio.prestige,
     totalDays,
-    currentDate: formatGameDate(totalDays),
+    currentDate: formatGameDateWithMonth(totalDays),
     exportedAt: new Date().toISOString(),
     filmsReleased,
   };

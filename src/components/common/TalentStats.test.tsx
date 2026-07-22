@@ -10,7 +10,7 @@ import { TalentStats } from './TalentStats';
 import { generateTalentCandidates } from '../../engine/talentGenerator';
 import { generateScriptOptions } from '../../engine/scriptGenerator';
 import { createRng } from '../../engine/random';
-import { gameDateFromTotalDays, formatGameDate } from '../../engine/calendar';
+import { gameDateFromTotalDays, formatGameDateWithMonth } from '../../engine/calendar';
 import { getPersonAge, type Person, type Script } from '../../types';
 
 describe('TalentStats - age/gender identity line', () => {
@@ -98,7 +98,7 @@ describe('TalentStats - Availability', () => {
     const [person] = generateTalentCandidates('Actor', createRng(15), 1);
     const busy: Person = { ...person, availability: { commitments: [{ projectId: 'p1', role: 'Lead Actor', startDay: 90, endDay: 150 }] } };
     render(<TalentStats person={busy} role="Lead Actor" category="actor" script={null} totalDays={100} />);
-    expect(screen.getByText(`Busy until ${formatGameDate(150)}.`)).toBeInTheDocument();
+    expect(screen.getByText(`Busy until ${formatGameDateWithMonth(150)}.`)).toBeInTheDocument();
     expect(screen.getByText('Hiring them would delay production by 50 days.')).toBeInTheDocument();
   });
 

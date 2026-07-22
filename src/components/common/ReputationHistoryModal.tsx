@@ -1,4 +1,4 @@
-import { formatGameDate } from '../../engine/calendar';
+import { formatGameDateWithMonth } from '../../engine/calendar';
 import { Button } from './Button';
 import type { ReputationEvent } from '../../state/selectors';
 
@@ -44,7 +44,7 @@ export function ReputationHistoryModal({ events, onClose }: { events: Reputation
               <div key={event.id} className="card stack" style={{ gap: 6, padding: 12 }}>
                 <div className="row-between">
                   <strong>{event.title}</strong>
-                  <span style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>{formatGameDate(event.day)}</span>
+                  <span style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>{formatGameDateWithMonth(event.day)}</span>
                 </div>
                 <DeltaLine label="Prestige" delta={event.prestigeDelta} detail={event.prestigeDetail} />
                 <DeltaLine label="Brand" delta={event.brandDelta} detail={event.brandDetail} />
