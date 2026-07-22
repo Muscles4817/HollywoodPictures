@@ -116,7 +116,11 @@ function buildRecreationState(seed: number, spec: FilmRecreation, foundingCash: 
     return { studio, talentPool };
   });
   return {
-    studio: { ...result.studio, assets: [{ id: draft.assetId, script: draft.script!, source: 'Studio Original', acquisitionCost: 0, acquiredOnDay: 1 }] },
+    // These recreations are major-studio Wide releases, so the studio self-
+    // distributes (a full Distribution Arm) - keeping the box-office share the
+    // ranges below were calibrated against, rather than the rented cut a studio
+    // with no arm would take (engine/distribution.ts).
+    studio: { ...result.studio, distributionArm: { tier: 3 }, assets: [{ id: draft.assetId, script: draft.script!, source: 'Studio Original', acquisitionCost: 0, acquiredOnDay: 1 }] },
     screen: 'marketing',
     projects: [playerDraftToProject(draft)],
     focusedProjectId: draft.id,

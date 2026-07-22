@@ -36,6 +36,15 @@ import {
   producerHiringFee,
 } from '../engine/producers';
 import { marketResearchUpgradeCost } from '../engine/marketResearch';
+import {
+  canSelfDistributeWide,
+  canUnlockDistributionArm,
+  defaultDistributionMethod,
+  distributionArmTier,
+  distributionArmUpgradeCost,
+  isDistributionArmUnlocked,
+  resolveDistribution,
+} from '../engine/distribution';
 import { applyStatChange } from '../engine/reputation';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 import { currentScreenFor } from './selectors';
@@ -802,6 +811,24 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           cash: state.studio.cash - cost,
           productionOffice: { ...office, marketResearchTier: (office.marketResearchTier ?? 0) + 1 },
         },
+      };
+    }
+
+    case 'UNLOCK_DISTRIBUTION_ARM': {
+      if (isDistributionArmUnlocked(state.studio)) return state;
+      if (!canUnlockDistributionArm(state.studio.brand, playerReleasedFilms(state.projects).length)) return state;
+      return { ...state, studio: { ...state.studio, distributionArm: { tier: 1 } } };
+    }
+
+    case 'UPGRADE_DISTRIBUTION_ARM': {
+      // distributionArmUpgradeCost is null when locked or already maxed, so a
+      // non-null cost implies an unlocked, upgradeable arm.
+      const cost = distributionArmUpgradeCost(state.studio);
+      if (cost == null || state.studio.cash < cost) return state;
+      const arm = state.studio.distributionArm!;
+      return {
+        ...state,
+        studio: { ...state.studio, cash: state.studio.cash - cost, distributionArm: { ...arm, tier: arm.tier + 1 } },
       };
     }
 
@@ -1669,6 +1696,17 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // discipline GREENLIGHT_PROJECT enforces via deriveProjectReadiness.
       const marketingCharge = computeMarketingCost(d.marketingChoices) + pressTourCost(d.talent, d.marketingChoices.pressTourCast);
       if (marketingCharge > state.studio.cash) return state;
+      // Distribution: only Wide is gated. Self-distributing a Wide release
+      // needs an owned Distribution Arm; without one the player rents a major's
+      // distribution (a cut off the box-office keep). This resolves the deal
+      // terms and freezes them onto the scheduled film so the later settlement
+      // reads exactly what was agreed here (engine/distribution.ts). The
+      // authoritative gate: a self-distributed Wide with no arm is rejected -
+      // the Marketing screen never offers it, but this makes the rule true
+      // regardless of how the action was dispatched.
+      const distributionMethod = d.marketingChoices.distributionMethod ?? defaultDistributionMethod(d.marketingChoices.releaseType, state.studio);
+      if (d.marketingChoices.releaseType === 'Wide' && distributionMethod === 'self' && !canSelfDistributeWide(state.studio)) return state;
+      const distributionDeal = resolveDistribution(d.marketingChoices.releaseType, distributionMethod, distributionArmTier(state.studio));
       const totalDaysAfter = Math.max(state.totalDays, d.postProductionFinalReadyDay!);
       const daysAdvanced = totalDaysAfter - state.totalDays;
       // releaseDay is a discrete calendar day everywhere else in this
@@ -1687,7 +1725,16 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // impossible regardless of what got the draft here) - the one place
       // a draft's marketingChoices becomes immutable, since asPlayerDraft
       // returns null for a 'scheduled' project from this point on.
-      const scheduledDraft: FilmDraft = { ...d, marketingChoices: { ...d.marketingChoices, releaseWindow: deriveReleaseWindowFromDay(releaseDay) } };
+      const scheduledDraft: FilmDraft = {
+        ...d,
+        marketingChoices: {
+          ...d.marketingChoices,
+          releaseWindow: deriveReleaseWindowFromDay(releaseDay),
+          distributionMethod: distributionDeal.method,
+          distributionBreadth: distributionDeal.breadth,
+          distributionKeepShare: distributionDeal.keepShare,
+        },
+      };
 
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
         // scheduledOverride includes the release being created right here -

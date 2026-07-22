@@ -38,6 +38,15 @@ import { PRESS_TOUR_BAND_VOLATILITY_WIDEN } from '../../data/pressTour';
 import { computeReleaseResults } from '../../engine/releaseFilm';
 import { computeProducerEffects, producersByIds, totalAttachedPerFilmFees } from '../../engine/producers';
 import { createRng } from '../../engine/random';
+import {
+  canSelfDistributeWide,
+  defaultDistributionMethod,
+  distributionArmTier,
+  resolveDistribution,
+  type DistributionMethod,
+} from '../../engine/distribution';
+import { RENTED_DISTRIBUTION_KEEP_MULTIPLIER, RENTED_WIDE_CEILING, SELF_DISTRIBUTION_WIDE_CEILING_BY_TIER } from '../../data/distribution';
+import { STUDIO_BOX_OFFICE_SHARE } from '../../engine/boxOfficeRun';
 import type { CampaignAngle, MarketingChannel, MarketingChoices, PersonId, ReleaseType } from '../../types';
 import './MarketingRelease.css';
 
@@ -230,6 +239,19 @@ export function MarketingRelease() {
   const canAffordMarketing = marketingCost <= state.studio.cash;
   const releaseTypeProfile = RELEASE_TYPE_PROFILES[choices.releaseType];
   const weakMarketingWarning = releaseTypeProfile.needsMarketing && choices.marketingSpend <= MARKETING_SPEND_RANGE.min * 3;
+
+  // Distribution (engine/distribution.ts): only Wide is gated. Self-distributing
+  // a Wide release needs an owned Distribution Arm; without one the player rents
+  // a major's distribution at a cut. The resolved deal is folded into the live
+  // opening projection below and frozen for real at SCHEDULE_RELEASE.
+  const armTier = distributionArmTier(state.studio);
+  const canSelfWide = canSelfDistributeWide(state.studio);
+  const requestedMethod = choices.distributionMethod ?? defaultDistributionMethod(choices.releaseType, state.studio);
+  // Guard against a stale 'self' choice the studio can no longer back.
+  const distributionMethod: DistributionMethod =
+    choices.releaseType === 'Wide' && requestedMethod === 'self' && !canSelfWide ? 'rented' : requestedMethod;
+  const distributionDeal = resolveDistribution(choices.releaseType, distributionMethod, armTier);
+  const rentedCutPct = Math.round((1 - RENTED_DISTRIBUTION_KEEP_MULTIPLIER) * 100);
   const genreBonus = draft.genre ? RELEASE_WINDOW_GENRE_BONUS[releaseWindow][draft.genre] : undefined;
   const selectedCrowding = crowdingFor(releaseDay);
   const selectedCrowdingReading = crowdingReading(selectedCrowding);
@@ -261,7 +283,10 @@ export function MarketingRelease() {
           talent: draft.talent,
           productionChoices: draft.productionChoices,
           postProductionChoices: draft.postProductionChoices,
-          marketingChoices: choices,
+          // Fold the resolved distribution deal into the projection so the
+          // opening reflects the chosen method (rented Wide reaches fewer
+          // screens; the keep-share cut affects revenue, not the opening).
+          marketingChoices: { ...choices, distributionMethod, distributionBreadth: distributionDeal.breadth, distributionKeepShare: distributionDeal.keepShare },
           events: photography.events,
           postProductionEvents: draft.postProductionEvents,
           photographyCost: photography.runningCost,
@@ -278,7 +303,7 @@ export function MarketingRelease() {
       return null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, choices, selectedCrowding, state.studio.brand, state.producerPool]);
+  }, [draft, choices, selectedCrowding, state.studio.brand, state.producerPool, distributionMethod, distributionDeal.breadth, distributionDeal.keepShare]);
 
   // Tracking-as-a-service (F3): the true projection is never shown as a single
   // number - it's bracketed by a band whose width is set by the studio's Market
@@ -450,6 +475,38 @@ export function MarketingRelease() {
         onChange={(v) => update('releaseType', v)}
         descriptions={RELEASE_TYPE_DESCRIPTIONS}
       />
+
+      {choices.releaseType === 'Wide' && (
+        <div className="card stack">
+          <h3 style={{ margin: 0 }}>Distribution</h3>
+          <p className="choice-description" style={{ margin: 0 }}>
+            A Wide release has to actually get onto screens. Self-distribute it (needs your own Distribution Arm) or
+            rent a major's distribution — they take a cut of your box office.
+          </p>
+          <div className="angle-picker">
+            <Button
+              variant={distributionMethod === 'self' ? 'primary' : undefined}
+              disabled={!canSelfWide}
+              title={!canSelfWide ? 'Build a Distribution Arm (on the Dashboard) to self-distribute Wide releases.' : undefined}
+              onClick={() => update('distributionMethod', 'self')}
+            >
+              Self-Distribute
+            </Button>
+            <Button
+              variant={distributionMethod === 'rented' ? 'primary' : undefined}
+              onClick={() => update('distributionMethod', 'rented')}
+            >
+              Rent a Distributor
+            </Button>
+          </div>
+          <p className="choice-description" style={{ margin: 0 }}>
+            {distributionMethod === 'self'
+              ? `Self-distributed: your arm can command up to ${Math.round((SELF_DISTRIBUTION_WIDE_CEILING_BY_TIER[armTier] ?? 0) * 100)}% of screens, and you keep your full box-office share.`
+              : `Rented: reaches up to ${Math.round(RENTED_WIDE_CEILING * 100)}% of screens, but the distributor takes ${rentedCutPct}% of your box-office keep (${Math.round(STUDIO_BOX_OFFICE_SHARE * 100)}% → ${Math.round(STUDIO_BOX_OFFICE_SHARE * RENTED_DISTRIBUTION_KEEP_MULTIPLIER * 100)}% of gross).`}
+            {!canSelfWide && ' You have no Distribution Arm yet — build one on the Dashboard to self-distribute.'}
+          </p>
+        </div>
+      )}
 
       {weakMarketingWarning && (
         <p style={{ color: 'var(--red)' }}>A wide release with little marketing behind it will badly underperform.</p>

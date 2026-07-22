@@ -686,3 +686,19 @@ describe('Milestone 12 - commercial believability calibration (docs/DESIGN.md)',
     }
   });
 });
+
+describe('deriveAudienceSimulationFixedState - Wide availability ceiling (Distribution Arm)', () => {
+  it('a lower distribution ceiling lowers a Wide release\'s initial availability, all else equal', () => {
+    // The Distribution Arm / rental deal caps how wide a release can go
+    // (engine/distribution.ts), threaded in via wideAvailabilityCeiling.
+    const narrow = deriveAudienceSimulationFixedState(inputs({ wideAvailabilityCeiling: 0.6 }));
+    const wide = deriveAudienceSimulationFixedState(inputs({ wideAvailabilityCeiling: 0.95 }));
+    expect(narrow.initialAvailabilityFraction).toBeLessThan(wide.initialAvailabilityFraction);
+  });
+
+  it('leaves non-Wide release types untouched (the ceiling only gates Wide)', () => {
+    const a = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Limited', wideAvailabilityCeiling: 0.6 }));
+    const b = deriveAudienceSimulationFixedState(inputs({ releaseType: 'Limited', wideAvailabilityCeiling: 0.95 }));
+    expect(a.initialAvailabilityFraction).toBe(b.initialAvailabilityFraction);
+  });
+});

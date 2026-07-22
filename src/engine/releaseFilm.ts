@@ -264,6 +264,10 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     releaseWindow: input.marketingChoices.releaseWindow,
     releaseType: input.marketingChoices.releaseType as SupportedReleaseType,
     competitiveCrowding: input.competitiveCrowding,
+    // The distribution deal's Wide screen ceiling (engine/distribution.ts),
+    // frozen onto marketingChoices at SCHEDULE_RELEASE. Absent for non-Wide,
+    // rivals, and the live pre-schedule projection's default path.
+    wideAvailabilityCeiling: input.marketingChoices.distributionBreadth,
     criticScore,
     audienceScore: simAudienceScore,
   });
@@ -302,6 +306,10 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     openingWeekend,
     totalBoxOffice: null,
     studioRevenue: null,
+    // The studio's box-office keep for this film - reduced for a rented Wide
+    // release (the distributor's fee), frozen from the deal at SCHEDULE_RELEASE.
+    // Absent keeps the default STUDIO_BOX_OFFICE_SHARE (engine/boxOfficeRun.ts).
+    distributionKeepShare: input.marketingChoices.distributionKeepShare,
     profit: null,
     outcome: null,
     brandChange: null,
