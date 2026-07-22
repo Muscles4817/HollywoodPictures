@@ -1,6 +1,6 @@
 import { useMemo, useState, type Dispatch } from 'react';
 import { useStudio } from '../state/StudioContext';
-import { formatGameDate } from '../engine/calendar';
+import { formatGameDateWithMonth } from '../engine/calendar';
 import { Card } from './common/Card';
 import { Button } from './common/Button';
 import { ScriptDetails } from './common/ScriptDetails';
@@ -191,7 +191,7 @@ function AssetCard({
             </div>
 
             <span className="asset-library-card__owned-date">
-              {formatGameDate(asset.acquiredOnDay)}
+              {formatGameDateWithMonth(asset.acquiredOnDay)}
             </span>
           </header>
 

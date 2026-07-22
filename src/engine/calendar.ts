@@ -21,6 +21,12 @@ export function firstDayOfYear(year: number): number {
   return (year - 1) * DAYS_PER_YEAR + 1;
 }
 
+/**
+ * "Year X, Day N" - the raw day-of-year reading. Superseded for every player-
+ * facing date by formatGameDateWithMonth (which shows a real calendar month
+ * instead of a bare day number); kept as the underlying exact-day primitive and
+ * for its own unit test. Reach for formatGameDateWithMonth in new UI, not this.
+ */
 export function formatGameDate(totalDays: number): string {
   const year = Math.floor((totalDays - 1) / DAYS_PER_YEAR) + 1;
   const dayOfYear = ((totalDays - 1) % DAYS_PER_YEAR) + 1;
@@ -62,10 +68,12 @@ export function monthYearOf(totalDays: number): { year: number; monthIndex: numb
 /**
  * "Month Year" - a coarser, real-calendar-feeling display for
  * planning-oriented dates: an upcoming/expected release (the Release
- * Calendar, a scheduled project, a rival's in-progress production), never a
- * historical "this already happened on day N" record - those keep
- * formatGameDate's exact day (Studio History, FilmDetailModal, RivalStudioPage's
- * release history), since precision matters more for a record than a plan.
+ * Calendar, a scheduled project, a rival's in-progress production), where the
+ * exact day isn't fixed yet or doesn't matter. Historical records and firm
+ * deadlines instead use formatGameDateWithMonth - the same real-calendar month,
+ * but with the exact day kept too (Studio History, FilmDetailModal,
+ * RivalStudioPage's release history), since precision matters more for a record
+ * than a plan.
  */
 export function formatGameMonthYear(totalDays: number): string {
   const { year, monthIndex } = monthYearOf(totalDays);
@@ -79,13 +87,15 @@ export function totalDaysForMonth(year: number, monthIndex: number): number {
 }
 
 /**
- * "Year Y, Month D" - a friendlier precise reading than formatGameDate's raw
- * day-of-year, for the header's always-visible date ticker (components/common/
- * Header.tsx), where a human calendar date reads more naturally on every
- * tick than "Day 176" does. Still exact (unlike formatGameMonthYear's
- * deliberately coarser month-only reading) - built from the same
- * yearAndDayOfYear/monthIndexOfDayOfYear derivation as everything else here,
- * just with the day-of-month worked out too.
+ * "Year Y, Month D" - the standard exact-date display across the app: the
+ * header's always-visible date ticker (components/common/Header.tsx), every
+ * historical record (release dates, reputation events, acquired-on dates), and
+ * firm deadlines (an actor's booked-until, an opportunity's expiry). A human
+ * calendar date reads more naturally than formatGameDate's raw "Day 176"
+ * day-of-year. Still exact (unlike formatGameMonthYear's deliberately coarser
+ * month-only reading) - built from the same yearAndDayOfYear/
+ * monthIndexOfDayOfYear derivation as everything else here, just with the
+ * day-of-month worked out too.
  */
 export function formatGameDateWithMonth(totalDays: number): string {
   const { year, month, day } = gameDateFromTotalDays(totalDays);
