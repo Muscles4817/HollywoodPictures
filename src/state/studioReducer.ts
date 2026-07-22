@@ -1,4 +1,4 @@
-import type { Asset, AwardsState, BidNotification, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentProfession, WizardStep } from '../types';
+import type { Asset, AwardShowId, AwardsState, BidNotification, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, clamp, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
@@ -20,8 +20,8 @@ import { settleRivalMarket, generateRivalStudios } from '../engine/rivalStudios'
 import { settleProductionsInProgress } from '../engine/productionsInProgress';
 import { asUpcomingRelease, type ScheduledRelease } from '../engine/scheduledReleases';
 import { deriveReleaseWindowFromDay, DAYS_PER_YEAR, firstDayOfYear, yearOf } from '../engine/calendar';
-import { computeBoxOfficeBump, computeCeremony, computeStudioAwardDeltas, filmsForAwardsYear } from '../engine/awards';
-import { CEREMONY_DELAY_DAYS } from '../data/awards';
+import { accrueMomentum, computeBoxOfficeBump, computeCeremony, computeStudioAwardDeltas, filmsForAwardsYear } from '../engine/awards';
+import { AWARD_SHOWS, awardShow } from '../data/awardsShows';
 import { settleOpportunities, reopenForfeitedOpportunity, highestBid, placeBid, type ResolvedBid } from '../engine/opportunities';
 import { collectBidNotifications, markAllBidNotificationsRead } from '../engine/bidNotifications';
 import { openCastingCall, tickCastingCalls } from '../engine/castingCalls';
@@ -169,44 +169,67 @@ function settleAwards(
   let rivals = rivalsIn;
 
   // Open a season once the year boundary is reached, honouring the year just
-  // completed. If no film was released that year, skip straight to next year.
+  // completed. Every tentpole show is scheduled at once, at its own offset from
+  // the boundary. If no film was released that year, skip straight to next year.
   if (!awards.season && totalDaysAfter >= awards.nextSeasonDay) {
+    const boundary = awards.nextSeasonDay;
     const year = yearOf(totalDaysAfter) - 1;
     const eligible = filmsForAwardsYear(allFilms, year);
-    awards =
-      eligible.length > 0
-        ? {
-            ...awards,
-            nextSeasonDay: awards.nextSeasonDay + DAYS_PER_YEAR,
-            season: { year, eligibleFilmIds: eligible.map((f) => f.id), ceremonyDay: totalDaysAfter + CEREMONY_DELAY_DAYS, campaignByFilm: {} },
-          }
-        : { ...awards, nextSeasonDay: awards.nextSeasonDay + DAYS_PER_YEAR };
+    if (eligible.length > 0) {
+      const ceremonyDayByShow = Object.fromEntries(
+        AWARD_SHOWS.map((show) => [show.id, boundary + show.ceremonyOffsetDays]),
+      ) as Record<AwardShowId, number>;
+      awards = {
+        ...awards,
+        nextSeasonDay: boundary + DAYS_PER_YEAR,
+        season: {
+          year,
+          eligibleFilmIds: eligible.map((f) => f.id),
+          campaignByFilm: {},
+          pendingShows: AWARD_SHOWS.map((s) => s.id),
+          ceremonyDayByShow,
+          momentum: {},
+        },
+      };
+    } else {
+      awards = { ...awards, nextSeasonDay: boundary + DAYS_PER_YEAR };
+    }
   }
 
-  // Resolve the ceremony once its day arrives.
-  if (awards.season && totalDaysAfter >= awards.season.ceremonyDay) {
+  // Resolve every show whose day has arrived, oldest first, so a multi-day jump
+  // settles the Globes before the Oscars and momentum flows in the right order.
+  while (awards.season && awards.season.pendingShows.length > 0) {
     const season = awards.season;
+    const showId = season.pendingShows[0];
+    if (totalDaysAfter < season.ceremonyDayByShow[showId]) break;
+
+    const profile = awardShow(showId);
     const eligibleFilms = allFilms.filter((f) => season.eligibleFilmIds.includes(f.id));
     const prestigeForFilm = (film: Film): number =>
       film.releasedBy === undefined ? studio.prestige : (rivals.find((r) => r.name === film.releasedBy)?.prestige ?? 20);
     const ceremony = computeCeremony({
+      show: showId,
+      categories: profile.categories,
       year: season.year,
-      ceremonyDay: totalDaysAfter,
+      ceremonyDay: season.ceremonyDayByShow[showId],
       eligibleFilms,
       campaignByFilm: season.campaignByFilm,
       studioPrestigeForFilm: prestigeForFilm,
+      momentum: season.momentum,
       rng,
     });
 
-    // Player payoff: Prestige + Brand from the tally, cash from the box-office bump.
+    // Payoff: Prestige + Brand from the tally, cash from the box-office bump -
+    // each scaled by the show's stakes (a precursor pays less than the Oscars).
+    const scale = profile.payoffScale;
     const playerFilms = eligibleFilms.filter((f) => f.releasedBy === undefined);
     const playerDeltas = computeStudioAwardDeltas(ceremony, new Set(playerFilms.map((f) => f.id)));
     const playerBump = playerFilms.reduce((sum, f) => sum + computeBoxOfficeBump(f, ceremony), 0);
     studio = {
       ...studio,
-      prestige: applyStatChange(studio.prestige, playerDeltas.prestige),
-      brand: applyStatChange(studio.brand, playerDeltas.brand),
-      cash: studio.cash + playerBump,
+      prestige: applyStatChange(studio.prestige, playerDeltas.prestige * scale),
+      brand: applyStatChange(studio.brand, playerDeltas.brand * scale),
+      cash: studio.cash + Math.round(playerBump * scale),
     };
 
     // Rivals get the same treatment for their own films.
@@ -214,17 +237,33 @@ function settleAwards(
       const films = eligibleFilms.filter((f) => f.releasedBy === rival.name);
       if (films.length === 0) return rival;
       const deltas = computeStudioAwardDeltas(ceremony, new Set(films.map((f) => f.id)));
-      const bump = films.reduce((sum, f) => sum + computeBoxOfficeBump(f, ceremony), 0);
+      const bump = Math.round(films.reduce((sum, f) => sum + computeBoxOfficeBump(f, ceremony), 0) * scale);
       return {
         ...rival,
-        prestige: applyStatChange(rival.prestige, deltas.prestige),
-        brand: applyStatChange(rival.brand, deltas.brand),
+        prestige: applyStatChange(rival.prestige, deltas.prestige * scale),
+        brand: applyStatChange(rival.brand, deltas.brand * scale),
         cash: rival.cash + bump,
         lifetimeRevenue: rival.lifetimeRevenue + bump,
       };
     });
 
-    awards = { ...awards, season: null, history: [...awards.history, ceremony] };
+    // Carry this show's momentum forward to the shows still to come.
+    const momentumDelta = accrueMomentum(ceremony, profile.momentumWeight);
+    const momentum = { ...season.momentum };
+    for (const [key, value] of Object.entries(momentumDelta)) {
+      momentum[key] = (momentum[key] ?? 0) + value;
+    }
+
+    awards = {
+      ...awards,
+      history: [...awards.history, ceremony],
+      season: { ...season, pendingShows: season.pendingShows.slice(1), momentum },
+    };
+  }
+
+  // Close the season once every show has resolved.
+  if (awards.season && awards.season.pendingShows.length === 0) {
+    awards = { ...awards, season: null };
   }
 
   return { studio, rivalStudios: rivals, awards };

@@ -1,7 +1,8 @@
-import type { AwardCategory, AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, PersonId, ProductionRole, Project, RivalStudio, WizardStep } from '../types';
+import type { AwardCategory, AwardShowId, AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, PersonId, ProductionRole, ProductionScale, Project, RivalStudio, ScriptScale, WizardStep } from '../types';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { totalAttachedPerFilmFees } from '../engine/producers';
 import { computeStudioAwardDeltas } from '../engine/awards';
+import { awardShow } from '../data/awardsShows';
 import { explainBrandChange, explainPrestigeChange } from '../engine/reputation';
 import { WEEK_LENGTH_DAYS } from '../engine/boxOfficeRun';
 import { GENRE_PROFILES } from '../data/genres';
@@ -178,7 +179,7 @@ function playerAwardHaul(ceremony: AwardsCeremony, filmIds: Set<string>): { wins
   let wins = 0;
   let nominations = 0;
   for (const noms of Object.values(ceremony.categories)) {
-    for (const nom of noms) {
+    for (const nom of noms ?? []) {
       if (!filmIds.has(nom.filmId)) continue;
       nominations += 1;
       if (nom.won) wins += 1;
@@ -229,17 +230,23 @@ export function deriveReputationHistory(state: GameState): ReputationEvent[] {
     }));
 
   const awardsEvents: ReputationEvent[] = (state.awards?.history ?? []).flatMap((ceremony) => {
-    const { prestige, brand } = computeStudioAwardDeltas(ceremony, playerFilmIds);
+    // Each show's payoff is scaled by its stakes (a precursor pays less than the
+    // Oscars) - the reputation history must apply the same scale so its "why"
+    // numbers match what the reducer actually credited.
+    const show = awardShow(ceremony.show);
+    const raw = computeStudioAwardDeltas(ceremony, playerFilmIds);
+    const prestige = raw.prestige * show.payoffScale;
+    const brand = raw.brand * show.payoffScale;
     if (prestige === 0 && brand === 0) return [];
     const { wins, nominations } = playerAwardHaul(ceremony, playerFilmIds);
     const haul = wins > 0
       ? `${wins} win${wins === 1 ? '' : 's'}, ${nominations} nomination${nominations === 1 ? '' : 's'}`
       : `${nominations} nomination${nominations === 1 ? '' : 's'}, no wins`;
     return [{
-      id: `awards-${ceremony.year}`,
+      id: `awards-${ceremony.year}-${ceremony.show}`,
       day: ceremony.ceremonyDay,
       kind: 'awards' as const,
-      title: `Year ${ceremony.year} Academy Awards`,
+      title: `Year ${ceremony.year} ${show.name}`,
       prestigeDelta: prestige,
       brandDelta: brand,
       prestigeDetail: prestige !== 0 ? haul : undefined,
@@ -451,39 +458,59 @@ export function collectPersonStats(rows: FilmStatRow[], roles: ProductionRole[])
   }));
 }
 
-export interface PersonAwardSummary {
-  /** Total Academy Award wins across every ceremony in history. */
+export interface AwardTally {
   wins: number;
-  /** Total nominations (wins included) across every ceremony in history. */
   nominations: number;
-  /** Per-category breakdown, present only for categories the person appeared in. */
-  byCategory: Partial<Record<AwardCategory, { wins: number; nominations: number }>>;
+}
+
+export interface PersonAwardSummary {
+  /** Total wins across every show (Globes, SAG, BAFTA, Academy). */
+  wins: number;
+  /** Total nominations (wins included) across every show. */
+  nominations: number;
+  /** Per-show totals, for the full record - keyed by AwardShowId. */
+  byShow: Partial<Record<AwardShowId, AwardTally>>;
+  /**
+   * Academy Awards only, per canonical (unsplit) category. Drives the flagship
+   * "N-time Best Actor winner" marquee - the Oscar is the headline honour, and
+   * keying the marquee off it alone avoids conflating a precursor sweep (a Globes
+   * + SAG + BAFTA + Oscar year would otherwise read as "Four-time" for one role).
+   */
+  academyByCategory: Partial<Record<AwardCategory, AwardTally>>;
+}
+
+function bumpTally<K extends string>(map: Partial<Record<K, AwardTally>>, key: K, won: boolean): void {
+  const cell = map[key] ?? { wins: 0, nominations: 0 };
+  cell.nominations += 1;
+  if (won) cell.wins += 1;
+  map[key] = cell;
 }
 
 /**
- * Aggregate every person's Academy Award record out of the permanent ceremony
- * history (state.awards.history). Keyed by PersonId the same way collectPersonStats
- * and creditsByPerson are, so a Talent Database row can look its subject up directly.
- * Best Picture nominations carry no personId and are simply skipped here - this is a
- * per-person tally, and the studio's own Best Picture haul lives in playerAwardHaul.
+ * Aggregate every person's whole awards record out of the permanent ceremony
+ * history (state.awards.history), across every show. Keyed by PersonId the same
+ * way collectPersonStats and creditsByPerson are, so a Talent Database row can
+ * look its subject up directly. Best Picture nominations carry no personId and
+ * are simply skipped here - this is a per-person tally, and the studio's own
+ * Best Picture haul lives in playerAwardHaul.
  */
 export function collectPersonAwards(history: AwardsCeremony[]): Map<PersonId, PersonAwardSummary> {
   const map = new Map<PersonId, PersonAwardSummary>();
   for (const ceremony of history) {
     for (const category of Object.keys(ceremony.categories) as AwardCategory[]) {
-      for (const nomination of ceremony.categories[category]) {
+      const nominations = ceremony.categories[category];
+      if (!nominations) continue;
+      for (const nomination of nominations) {
         if (!nomination.personId) continue;
         let summary = map.get(nomination.personId);
         if (!summary) {
-          summary = { wins: 0, nominations: 0, byCategory: {} };
+          summary = { wins: 0, nominations: 0, byShow: {}, academyByCategory: {} };
           map.set(nomination.personId, summary);
         }
         summary.nominations += 1;
         if (nomination.won) summary.wins += 1;
-        const cell = summary.byCategory[category] ?? { wins: 0, nominations: 0 };
-        cell.nominations += 1;
-        if (nomination.won) cell.wins += 1;
-        summary.byCategory[category] = cell;
+        bumpTally(summary.byShow, ceremony.show, nomination.won);
+        if (ceremony.show === 'academy') bumpTally(summary.academyByCategory, category, nomination.won);
       }
     }
   }
@@ -499,16 +526,17 @@ function timesPrefix(n: number): string {
 }
 
 /**
- * The Talent Database header banner for an actor who has actually won -
- * "Two-time Best Actor winner", or several categories joined
- * ("Best Actor winner · Best Supporting Actor winner"). Returns null for anyone
- * with zero wins, so the caller renders nothing.
+ * The Talent Database header banner for an actor who has actually won an Academy
+ * Award - "Two-time Best Actor winner", or several categories joined
+ * ("Best Actor winner · Best Supporting Actor winner"). Keyed off the flagship
+ * Oscar only (see academyByCategory); returns null for anyone without an Academy
+ * win, so precursor-only winners still show in the panel but carry no headline.
  */
 export function formatWinnerMarquee(summary: PersonAwardSummary): string | null {
-  if (summary.wins <= 0) return null;
-  const won = (Object.entries(summary.byCategory) as Array<[AwardCategory, { wins: number; nominations: number }]>)
+  const won = (Object.entries(summary.academyByCategory) as Array<[AwardCategory, AwardTally]>)
     .filter(([, cell]) => cell.wins > 0)
     .sort((a, b) => b[1].wins - a[1].wins);
+  if (won.length === 0) return null;
   return won.map(([category, cell]) => `${timesPrefix(cell.wins)}${AWARD_CATEGORY_LABEL[category]} winner`).join(' · ');
 }
 
@@ -818,11 +846,48 @@ export function collectProjectCards(state: GameState): ProjectCardData[] {
   });
 }
 
+/**
+ * One player-facing size tier for a calendar release. The sim models film
+ * size on two separate axes - a rival production's ProductionScale
+ * (Small/Medium/Big) and a script's own ScriptScale (Intimate/Medium/Epic) -
+ * and the calendar collapses both onto this shared vocabulary so a release's
+ * size reads the same whoever is making it. There is deliberately no
+ * 'Blockbuster' tier: nothing pre-release in the sim plans one (OutcomeLabel's
+ * 'Blockbuster' is a box-office *result*, not a planned size), so inventing one
+ * here would be fiction. The two mappers below are the single place to widen
+ * if a fourth tier ever lands.
+ */
+export type ReleaseScale = 'Small' | 'Medium' | 'Large';
+
+function releaseScaleFromProduction(scale: ProductionScale): ReleaseScale {
+  switch (scale) {
+    case 'Small':
+      return 'Small';
+    case 'Medium':
+      return 'Medium';
+    case 'Big':
+      return 'Large';
+  }
+}
+
+function releaseScaleFromScript(scale: ScriptScale): ReleaseScale {
+  switch (scale) {
+    case 'Intimate':
+      return 'Small';
+    case 'Medium':
+      return 'Medium';
+    case 'Epic':
+      return 'Large';
+  }
+}
+
 export interface CalendarEntry {
   id: string;
   title: string;
   genre: string;
   targetAudience: string;
+  /** Normalized display size - see ReleaseScale. */
+  scale: ReleaseScale;
   releaseDay: number;
   studioId: string;
   studioName: string;
@@ -860,6 +925,9 @@ export function deriveUpcomingReleaseEntries(projects: Project[], rivalStudios: 
           title: scheduled.draft.title || 'Untitled Film',
           genre: scheduled.draft.genre ?? '-',
           targetAudience: scheduled.draft.targetAudience ?? '-',
+          // A 'scheduled' draft always has a script (SCHEDULE_RELEASE's guard),
+          // but the field is Script | null on the draft type - fall back neutrally.
+          scale: scheduled.draft.script ? releaseScaleFromScript(scheduled.draft.script.scale) : 'Medium',
           releaseDay: scheduled.releaseDay,
           studioId: PLAYER_STUDIO_ID,
           studioName,
@@ -876,6 +944,7 @@ export function deriveUpcomingReleaseEntries(projects: Project[], rivalStudios: 
           title: `${production.scale} ${production.genre} film`,
           genre: production.genre,
           targetAudience: production.targetAudience,
+          scale: releaseScaleFromProduction(production.scale),
           releaseDay: production.releaseDay,
           studioId: production.rivalStudioId,
           studioName: rivalNameById.get(production.rivalStudioId) ?? 'A Rival Studio',

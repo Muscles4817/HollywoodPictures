@@ -10,9 +10,9 @@ import { gameDateFromTotalDays, formatGameDate } from '../engine/calendar';
 import { deriveBookedUntil } from '../engine/person';
 import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../engine/personTraits';
 import { playerReleasedFilms, rivalReleasedFilms } from '../engine/project';
-import { collectPersonAwards, collectPersonStats, collectFilmStats, formatWinnerMarquee, type PersonAwardSummary, type PersonStatRow } from '../state/selectors';
-import { AWARD_CATEGORY_LABEL } from '../data/awards';
-import type { AwardCategory, Film, Person } from '../types';
+import { collectPersonAwards, collectPersonStats, collectFilmStats, formatWinnerMarquee, type AwardTally, type PersonAwardSummary, type PersonStatRow } from '../state/selectors';
+import { awardShow } from '../data/awardsShows';
+import type { AwardShowId, Film, Person } from '../types';
 import './TalentDatabase.css';
 
 type GenderFilter = 'all' | 'Male' | 'Female' | 'NonBinary';
@@ -262,14 +262,14 @@ function ActorDetail({ person, totalDays, credits, award, performance, onBack }:
           <h2>Awards</h2>
           <p className="choice-description" style={{ marginTop: 0 }}>
             {award.wins > 0 ? `${award.wins} win${award.wins === 1 ? '' : 's'} · ` : ''}
-            {award.nominations} nomination{award.nominations === 1 ? '' : 's'} across every Academy Awards to date.
+            {award.nominations} nomination{award.nominations === 1 ? '' : 's'} across every awards show to date.
           </p>
           <div className="td-awards">
-            {(Object.entries(award.byCategory) as Array<[AwardCategory, { wins: number; nominations: number }]>)
+            {(Object.entries(award.byShow) as Array<[AwardShowId, AwardTally]>)
               .sort((a, b) => b[1].wins - a[1].wins || b[1].nominations - a[1].nominations)
-              .map(([category, cell]) => (
-                <div className="td-credit" key={category}>
-                  <div className="td-credit__title">{AWARD_CATEGORY_LABEL[category]}</div>
+              .map(([show, cell]) => (
+                <div className="td-credit" key={show}>
+                  <div className="td-credit__title">{awardShow(show).name}</div>
                   <div className="td-credit__meta">
                     {cell.wins > 0 ? `${cell.wins} win${cell.wins === 1 ? '' : 's'} · ` : ''}
                     {cell.nominations} nomination{cell.nominations === 1 ? '' : 's'}

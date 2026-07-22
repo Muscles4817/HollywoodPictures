@@ -12,8 +12,8 @@ import { saveState } from '../state/persistence';
 import { generateTalentPool, generateTalentCandidates } from '../engine/talentGenerator';
 import { withRng } from '../engine/random';
 import { AWARD_CATEGORIES } from '../data/awards';
-import type { AwardCategory, AwardNomination, AwardsCeremony, Person } from '../types';
-import { formatWinnerMarquee, type PersonAwardSummary } from '../state/selectors';
+import type { AwardCategory, AwardNomination, AwardShowId, AwardsCeremony, Person } from '../types';
+import { formatWinnerMarquee, type AwardTally, type PersonAwardSummary } from '../state/selectors';
 
 beforeEach(() => {
   localStorage.clear();
@@ -23,9 +23,9 @@ function named(base: Person, name: string, gender: 'Male' | 'Female'): Person {
   return { ...base, id: `actor-${name}`, identity: { ...base.identity, name, gender } };
 }
 
-function ceremonyWith(noms: Partial<Record<AwardCategory, AwardNomination[]>>): AwardsCeremony {
+function ceremonyWith(show: AwardShowId, noms: Partial<Record<AwardCategory, AwardNomination[]>>): AwardsCeremony {
   const categories = Object.fromEntries(AWARD_CATEGORIES.map((c) => [c, [] as AwardNomination[]])) as Record<AwardCategory, AwardNomination[]>;
-  return { year: 1, ceremonyDay: 365, categories: { ...categories, ...noms } };
+  return { show, year: 1, ceremonyDay: 365, categories: { ...categories, ...noms } };
 }
 
 function stateWithActors(awardsHistory: AwardsCeremony[] = []): GameState {
@@ -99,9 +99,9 @@ describe('TalentDatabase', () => {
     expect(egoRow?.querySelector('.info-tip')?.getAttribute('aria-label')).toMatch(/appeal bar|morale/i);
   });
 
-  it('shows a winner marquee and an Awards panel breakdown for an actor with wins', () => {
+  it('shows a winner marquee (Academy wins) and a per-show Awards panel for a winner', () => {
     renderPage([
-      ceremonyWith({
+      ceremonyWith('academy', {
         'best-actor': [
           { filmId: 'f1', personId: 'actor-Zara Quinn', awardScore: 92, won: true },
           { filmId: 'f2', personId: 'actor-Zara Quinn', awardScore: 88, won: true },
@@ -110,14 +110,19 @@ describe('TalentDatabase', () => {
           { filmId: 'f3', personId: 'actor-Zara Quinn', awardScore: 70, won: false },
         ],
       }),
+      ceremonyWith('bafta', {
+        'best-actor': [{ filmId: 'f1', personId: 'actor-Zara Quinn', awardScore: 90, won: true }],
+      }),
     ]);
     fireEvent.click(screen.getByText('Zara Quinn'));
 
-    // Header marquee announces the wins.
+    // Header marquee announces the two Academy wins - the BAFTA win doesn't inflate it.
     expect(screen.getByText(/Two-time Best Actor winner/)).toBeInTheDocument();
-    // Awards panel with the per-category breakdown.
+    // Awards panel with the per-show breakdown (3 Academy + 1 BAFTA = 3 wins, 4 nominations).
     expect(screen.getByRole('heading', { name: 'Awards' })).toBeInTheDocument();
-    expect(screen.getByText(/2 wins · 3 nominations/)).toBeInTheDocument();
+    expect(screen.getByText(/3 wins · 4 nominations/)).toBeInTheDocument();
+    expect(screen.getByText('The Academy Awards')).toBeInTheDocument();
+    expect(screen.getByText('BAFTA Film Awards')).toBeInTheDocument();
   });
 
   it('shows no marquee or Awards panel for an actor with no nominations', () => {
@@ -129,13 +134,19 @@ describe('TalentDatabase', () => {
 });
 
 describe('formatWinnerMarquee', () => {
-  const summary = (byCategory: PersonAwardSummary['byCategory']): PersonAwardSummary => ({
-    wins: Object.values(byCategory).reduce((n, c) => n + (c?.wins ?? 0), 0),
-    nominations: Object.values(byCategory).reduce((n, c) => n + (c?.nominations ?? 0), 0),
-    byCategory,
-  });
+  // The marquee reads off Academy wins only (academyByCategory) - byShow is
+  // irrelevant to it, so a minimal fixture just fills the category breakdown.
+  const summary = (academyByCategory: PersonAwardSummary['academyByCategory']): PersonAwardSummary => {
+    const cells = Object.values(academyByCategory) as AwardTally[];
+    return {
+      wins: cells.reduce((n, c) => n + c.wins, 0),
+      nominations: cells.reduce((n, c) => n + c.nominations, 0),
+      byShow: {},
+      academyByCategory,
+    };
+  };
 
-  it('returns null for an actor with nominations but no wins', () => {
+  it('returns null for an actor with Academy nominations but no wins', () => {
     expect(formatWinnerMarquee(summary({ 'best-actor': { wins: 0, nominations: 3 } }))).toBeNull();
   });
 

@@ -4,7 +4,7 @@ import { buildStateWithReadyDraft } from './testFixtures';
 import { playerReleasedFilms } from '../engine/project';
 import { firstDayOfYear } from '../engine/calendar';
 import type { GameState } from './gameState';
-import type { Film } from '../types';
+import type { AwardsSeasonInProgress, Film } from '../types';
 
 /** A state with one released player film (released on day 1, i.e. year 1). */
 function releasedState(): { state: GameState; film: Film } {
@@ -13,8 +13,20 @@ function releasedState(): { state: GameState; film: Film } {
   return { state: after, film: playerReleasedFilms(after.projects)[0] };
 }
 
+/** An open season with every show scheduled for the same `day` (so one tick can resolve them all). */
+function openSeason(filmId: string, day: number): AwardsSeasonInProgress {
+  return {
+    year: 1,
+    eligibleFilmIds: [filmId],
+    campaignByFilm: {},
+    pendingShows: ['golden-globes', 'sag', 'bafta', 'academy'],
+    ceremonyDayByShow: { 'golden-globes': day, sag: day, bafta: day, academy: day },
+    momentum: {},
+  };
+}
+
 describe('Awards season opens at the year boundary', () => {
-  it('an ADVANCE_DAY across the boundary opens a season for the completed year', () => {
+  it('an ADVANCE_DAY across the boundary opens a season scheduling every show', () => {
     const { state, film } = releasedState();
     const primed: GameState = { ...state, totalDays: 365, awards: { history: [], season: null, nextSeasonDay: 366 } };
 
@@ -23,35 +35,54 @@ describe('Awards season opens at the year boundary', () => {
     expect(opened.awards?.season).not.toBeNull();
     expect(opened.awards?.season?.year).toBe(1);
     expect(opened.awards?.season?.eligibleFilmIds).toContain(film.id);
-    // The next season is scheduled a year out; the ceremony is dated later this year.
+    // All four tentpole shows are pending, dated later this year in order.
+    expect(opened.awards?.season?.pendingShows).toEqual(['golden-globes', 'sag', 'bafta', 'academy']);
+    expect(opened.awards?.season?.ceremonyDayByShow['golden-globes']).toBeGreaterThan(366);
+    expect(opened.awards?.season?.ceremonyDayByShow['academy']).toBeGreaterThan(
+      opened.awards!.season!.ceremonyDayByShow['golden-globes'],
+    );
+    // The next season is scheduled a year out.
     expect(opened.awards?.nextSeasonDay).toBe(366 + 365);
-    expect(opened.awards?.season?.ceremonyDay).toBeGreaterThan(366);
   });
 });
 
-describe('Awards ceremony resolves and pays out', () => {
-  it('resolves on its ceremony day, records history, and lifts Prestige', () => {
+describe('Awards ceremonies resolve and pay out', () => {
+  it('resolves every show whose day has arrived, records each in history, and lifts Prestige', () => {
     const { state, film } = releasedState();
     const primed: GameState = {
       ...state,
       totalDays: 400,
-      awards: {
-        history: [],
-        season: { year: 1, eligibleFilmIds: [film.id], ceremonyDay: 401, campaignByFilm: {} },
-        nextSeasonDay: firstDayOfYear(3),
-      },
+      awards: { history: [], season: openSeason(film.id, 401), nextSeasonDay: firstDayOfYear(3) },
     };
     const prestigeBefore = primed.studio.prestige;
 
     const resolved = studioReducer(primed, { type: 'ADVANCE_DAY' });
 
+    // All four shows land the same tick, so the season closes and history holds one ceremony per show.
     expect(resolved.awards?.season).toBeNull();
-    expect(resolved.awards?.history).toHaveLength(1);
-    expect(resolved.awards?.history[0].year).toBe(1);
-    // The sole eligible film sweeps its categories, so Prestige jumps.
+    expect(resolved.awards?.history).toHaveLength(4);
+    expect(resolved.awards?.history.map((c) => c.show)).toEqual(['golden-globes', 'sag', 'bafta', 'academy']);
+    // The sole eligible film sweeps, so Prestige jumps.
     expect(resolved.studio.prestige).toBeGreaterThan(prestigeBefore);
-    // Best Picture has a winner.
-    expect(resolved.awards?.history[0].categories['best-picture'].some((n) => n.won && n.filmId === film.id)).toBe(true);
+    // The Academy's Best Picture has the film as its winner.
+    const oscars = resolved.awards?.history.find((c) => c.show === 'academy');
+    expect(oscars?.categories['best-picture']?.some((n) => n.won && n.filmId === film.id)).toBe(true);
+  });
+
+  it('resolves only the shows whose day has passed, leaving the rest pending', () => {
+    const { state, film } = releasedState();
+    const season = openSeason(film.id, 401);
+    // Push the Oscars out past this tick; the first three land now.
+    season.ceremonyDayByShow = { 'golden-globes': 401, sag: 401, bafta: 401, academy: 500 };
+    const primed: GameState = { ...state, totalDays: 400, awards: { history: [], season, nextSeasonDay: firstDayOfYear(3) } };
+
+    const resolved = studioReducer(primed, { type: 'ADVANCE_DAY' });
+
+    expect(resolved.awards?.season).not.toBeNull();
+    expect(resolved.awards?.season?.pendingShows).toEqual(['academy']);
+    expect(resolved.awards?.history.map((c) => c.show)).toEqual(['golden-globes', 'sag', 'bafta']);
+    // The resolved precursors have banked momentum for the Oscars still to come.
+    expect(Object.keys(resolved.awards!.season!.momentum).length).toBeGreaterThan(0);
   });
 });
 
@@ -61,11 +92,7 @@ describe('SET_AWARDS_CAMPAIGN', () => {
     return {
       state: {
         ...state,
-        awards: {
-          history: [],
-          season: { year: 1, eligibleFilmIds: [film.id], ceremonyDay: state.totalDays + 45, campaignByFilm: {} },
-          nextSeasonDay: firstDayOfYear(3),
-        },
+        awards: { history: [], season: openSeason(film.id, state.totalDays + 45), nextSeasonDay: firstDayOfYear(3) },
       },
       film,
     };
