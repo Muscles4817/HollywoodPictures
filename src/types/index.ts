@@ -320,6 +320,58 @@ export interface CrewCareer<TRole extends CrewRole> extends RoleCareerCommon<TRo
   skill: number; // 1-100
 }
 
+// --- Writer creative identity (Phase 2: writers become authors) -----------
+//
+// The Writer graduates from the flat, skill-only CrewCareer bucket to a
+// bespoke creative career, exactly as Director (toneProfile + productionStyle)
+// and Actor (actingStyle) already have. `WriterCareer extends CrewCareer<'Writer'>`
+// on purpose: it IS-A crew career plus a creative profile, so every generic
+// crew consumer (engine/person.ts:getCrewCareer, on-set skillSensitive events,
+// craft-award scoring) keeps reading `.skill` unchanged, while only
+// creative-aware code (screenplay generation, the authored Opportunity Market)
+// reads the richer fields. The creative half is factored out as its own
+// standalone WriterCreativeProfile value type so it can be passed to
+// engine/scriptGenerator.ts without dragging the whole Person/talent model in
+// (keeping generation decoupled), and so a future collaboration system can
+// blend two writers' profiles into one.
+
+/** A writer's relative craft *shape* - what they're better/worse at, on the same four axes a Script's own craft uses. Generated around (not instead of) their overall skill: a spiky elite has a high dialogue/structure and merely-average originality yet a high overall skill. */
+export interface WriterCraft {
+  originality: number; // 1-100
+  structure: number; // 1-100
+  characters: number; // 1-100
+  dialogue: number; // 1-100
+}
+
+/** A weighted genre profile, 1-100 per genre - "mostly thrillers, sometimes drama, rarely comedy" rather than a discrete favourite-genre list. Signature-shaped at generation (1-2 highs, the rest low), same philosophy as a Director's ToneProfile. Used as selection weights when an authored opportunity picks its genre (engine/writers.ts). */
+export type WriterGenreAffinity = Record<Genre, number>;
+
+/**
+ * Everything screenplay generation reads from a writer - deliberately a plain
+ * value object, not a Person, so engine/scriptGenerator.ts never imports the
+ * talent model. `skill` is included because generation uses it as the overall
+ * level anchor; the four `craft` axes tilt which stats come out relatively
+ * strongest; `toneProfile` pulls the script's tone toward the writer's
+ * signature; `commercialLean` biases archetype selection (prestige<->crowd-
+ * pleaser); `consistency` controls variance (low = an inconsistent auteur
+ * whose scripts range from dud to masterpiece, high = a dependable craftsman).
+ */
+export interface WriterCreativeProfile {
+  skill: number; // 1-100 overall execution level - independent of craft shape, NOT their average
+  craft: WriterCraft;
+  toneProfile: ToneProfile;
+  genreAffinity: WriterGenreAffinity;
+  commercialLean: number; // 1-100: prestige/original <-> commercial/crowd-pleasing
+  consistency: number; // 1-100: how tightly output clusters around the writer's own mean
+}
+
+// The full career record. Extends the crew shape (so `skill` and all the
+// RoleCareerCommon fields stay exactly where every existing consumer expects
+// them) and mixes in the creative profile. `skill` is declared once, by
+// CrewCareer; WriterCreativeProfile re-declares it identically, which TS
+// merges without conflict.
+export interface WriterCareer extends CrewCareer<'Writer'>, WriterCreativeProfile {}
+
 // A producer's specialty - which single engine system their boost pulls.
 // Chosen so all four are non-overlapping (each hits a different system), so
 // a producing team's boosts add up honestly (docs/DESIGN_REVIEW_production_office.md §4/§7):
@@ -347,7 +399,7 @@ export interface ProducerCareer {
 export interface PersonCareers {
   actor?: ActorCareer;
   director?: DirectorCareer;
-  writer?: CrewCareer<'Writer'>;
+  writer?: WriterCareer;
   cinematographer?: CrewCareer<'Cinematographer'>;
   composer?: CrewCareer<'Composer'>;
   editor?: CrewCareer<'Editor'>;
@@ -1355,6 +1407,16 @@ export interface Opportunity {
    * always the full, visible list, never sealed.
    */
   bids: OpportunityBid[];
+  /**
+   * The credited author(s) of this opportunity's screenplay, by PersonId (Phase
+   * 2: authored Opportunity Market). A reference into the world talent pool
+   * (GameState.talentPool.Writer), never a copy. Absent on an un-authored
+   * opportunity (an empty writer pool, or a save predating this) - readers fall
+   * back to no author line. Carried through to Asset.writerIds at acquisition
+   * (the Phase 1 authorship seam). An array (not a single id) so a future
+   * collaboration system is additive rather than a reshape; length 1 today.
+   */
+  writerIds?: PersonId[];
 }
 
 /** One studio's current offer on a contested Opportunity - `bidderId` is the literal `'player'` sentinel or a `RivalStudio.id`, `bidderName` is duplicated for display so the UI never has to cross-reference `state.rivalStudios` just to render a bid. */

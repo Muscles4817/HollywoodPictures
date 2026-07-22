@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { formatGameDateWithMonth } from '../engine/calendar';
 import { WEEK_LENGTH_DAYS, highestBid } from '../engine/opportunities';
+import { describeWriter } from '../engine/writerPresentation';
 import { Card } from './common/Card';
 import { Button } from './common/Button';
 import { Money } from './common/Money';
@@ -219,6 +220,15 @@ export function OpportunityMarket() {
       );
     },
     [state.opportunities, sortKey, sortDirection],
+  );
+
+  // Author lookup by id (Phase 2: authored Opportunity Market) - the world
+  // writer pool is world-level, so this resolves an opportunity's writerIds
+  // reference to the Person for the "Written by ..." line, without the
+  // opportunity ever carrying a copy of them.
+  const writersById = useMemo(
+    () => new Map(state.talentPool.Writer.map((writer) => [writer.id, writer])),
+    [state.talentPool.Writer],
   );
 
   // A plain, referentially-stable string array (not the {id,label}[] the
@@ -467,6 +477,9 @@ export function OpportunityMarket() {
                 WEEK_LENGTH_DAYS;
               const leader = highestBid(opportunity);
               const playerIsLeading = leader?.bidderId === 'player';
+              const authorId = opportunity.writerIds?.[0];
+              const author = authorId ? writersById.get(authorId) : undefined;
+              const authorDescription = author ? describeWriter(author) : null;
               const bidAmount = bidAmountFor(opportunity);
               const bidValid =
                 bidAmount > bidFloorFor(opportunity) &&
@@ -505,6 +518,20 @@ export function OpportunityMarket() {
                   <div className="card-title">
                     {opportunity.script.title}
                   </div>
+
+                  {author && authorDescription && (
+                    <div style={{ margin: '2px 0 6px' }}>
+                      <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+                        Written by{' '}
+                      </span>
+                      <span style={{ fontSize: '0.85em', fontWeight: 600 }}>
+                        {author.identity.name}
+                      </span>
+                      <div style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>
+                        {authorDescription.tier} · {authorDescription.knownFor}
+                      </div>
+                    </div>
+                  )}
 
                   <ScriptDetails
                     script={opportunity.script}

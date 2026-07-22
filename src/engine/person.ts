@@ -14,6 +14,7 @@ import type {
   PersonCommitment,
   ProductionRole,
   TalentProfession,
+  WriterCareer,
 } from '../types';
 import { professionForProductionRole } from '../data/helpers';
 
@@ -23,6 +24,11 @@ export function getActorCareer(person: Person): ActorCareer | null {
 
 export function getDirectorCareer(person: Person): DirectorCareer | null {
   return person.careers.director ?? null;
+}
+
+/** The Writer creative career specifically (Phase 2), preserving its richer WriterCareer type - getCrewCareer widens to CrewCareer<CrewRole> and loses the creative fields, so creative-aware callers use this instead. */
+export function getWriterCareer(person: Person): WriterCareer | null {
+  return person.careers.writer ?? null;
 }
 
 export const CREW_CAREER_KEY: Record<CrewRole, 'writer' | 'cinematographer' | 'composer' | 'editor' | 'vfxSupervisor' | 'castingDirector'> = {

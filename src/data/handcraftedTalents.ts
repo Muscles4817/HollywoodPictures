@@ -34348,6 +34348,13 @@ export const HANDCRAFTED_WRITERS: Person[] = [
                 minimumSalary: 3_500_000,
                 typicalSalary: 3_500_000,
                 skill: 97,
+                // Aaron Sorkin - the walk-and-talk dialogue master: peerless dialogue,
+                // rigorous structure, sharp characters, workmanlike originality.
+                craft: { originality: 78, structure: 92, characters: 88, dialogue: 100 },
+                toneProfile: { action: 30, comedy: 62, romance: 30, suspense: 70, drama: 95, spectacle: 20 },
+                genreAffinity: { Action: 25, Comedy: 55, Drama: 92, Horror: 8, Romance: 30, 'Sci-Fi': 20, Fantasy: 10, Thriller: 60 },
+                commercialLean: 58,
+                consistency: 90,
             },
         },
         availability: { commitments: [] },
@@ -34388,6 +34395,13 @@ export const HANDCRAFTED_WRITERS: Person[] = [
                 minimumSalary: 2_500_000,
                 typicalSalary: 2_500_000,
                 skill: 95,
+                // Tony Kushner - the literary playwright: elite characters and
+                // dialogue, ambitious originality, uncommercial prestige, rock-steady.
+                craft: { originality: 88, structure: 90, characters: 96, dialogue: 96 },
+                toneProfile: { action: 20, comedy: 40, romance: 45, suspense: 45, drama: 98, spectacle: 30 },
+                genreAffinity: { Action: 12, Comedy: 30, Drama: 95, Horror: 8, Romance: 45, 'Sci-Fi': 12, Fantasy: 25, Thriller: 30 },
+                commercialLean: 22,
+                consistency: 90,
             },
         },
         availability: { commitments: [] },
@@ -34428,6 +34442,13 @@ export const HANDCRAFTED_WRITERS: Person[] = [
                 minimumSalary: 2_500_000,
                 typicalSalary: 2_500_000,
                 skill: 96,
+                // Eric Roth - sweeping, structurally immaculate epics and biopics;
+                // master adapter, strong characters, broadly commercial, dependable.
+                craft: { originality: 74, structure: 94, characters: 92, dialogue: 82 },
+                toneProfile: { action: 45, comedy: 30, romance: 55, suspense: 50, drama: 95, spectacle: 55 },
+                genreAffinity: { Action: 35, Comedy: 25, Drama: 95, Horror: 10, Romance: 55, 'Sci-Fi': 45, Fantasy: 30, Thriller: 45 },
+                commercialLean: 52,
+                consistency: 88,
             },
         },
         availability: { commitments: [] },
@@ -34468,6 +34489,13 @@ export const HANDCRAFTED_WRITERS: Person[] = [
                 minimumSalary: 3_000_000,
                 typicalSalary: 3_000_000,
                 skill: 92,
+                // Jonathan Nolan - high-concept structural machinery: intricate plots,
+                // strong originality, suspense-and-spectacle sci-fi, reliably ambitious.
+                craft: { originality: 88, structure: 96, characters: 74, dialogue: 78 },
+                toneProfile: { action: 70, comedy: 20, romance: 25, suspense: 92, drama: 70, spectacle: 85 },
+                genreAffinity: { Action: 70, Comedy: 12, Drama: 55, Horror: 25, Romance: 15, 'Sci-Fi': 92, Fantasy: 40, Thriller: 82 },
+                commercialLean: 62,
+                consistency: 85,
             },
         },
         availability: { commitments: [] },
@@ -34508,6 +34536,14 @@ export const HANDCRAFTED_WRITERS: Person[] = [
                 minimumSalary: 2_500_000,
                 typicalSalary: 2_500_000,
                 skill: 89,
+                // Damon Lindelof - big swings and mysteries with elite ideas but
+                // famously divisive execution: high originality, shakier structure,
+                // the archetypal inconsistent auteur (low consistency).
+                craft: { originality: 92, structure: 68, characters: 86, dialogue: 80 },
+                toneProfile: { action: 45, comedy: 30, romance: 30, suspense: 82, drama: 78, spectacle: 60 },
+                genreAffinity: { Action: 40, Comedy: 20, Drama: 70, Horror: 45, Romance: 20, 'Sci-Fi': 88, Fantasy: 55, Thriller: 65 },
+                commercialLean: 48,
+                consistency: 42,
             },
         },
         availability: { commitments: [] },
@@ -34548,6 +34584,13 @@ export const HANDCRAFTED_WRITERS: Person[] = [
                 minimumSalary: 2_500_000,
                 typicalSalary: 2_500_000,
                 skill: 91,
+                // Phoebe Waller-Bridge - razor dialogue and characters, high
+                // originality, comedy-drama with a thriller streak, dependable.
+                craft: { originality: 86, structure: 82, characters: 96, dialogue: 96 },
+                toneProfile: { action: 25, comedy: 85, romance: 45, suspense: 60, drama: 78, spectacle: 20 },
+                genreAffinity: { Action: 25, Comedy: 90, Drama: 80, Horror: 20, Romance: 45, 'Sci-Fi': 15, Fantasy: 15, Thriller: 70 },
+                commercialLean: 55,
+                consistency: 85,
             },
         },
         availability: { commitments: [] },
@@ -34588,6 +34631,13 @@ export const HANDCRAFTED_WRITERS: Person[] = [
                 minimumSalary: 3_000_000,
                 typicalSalary: 3_000_000,
                 skill: 88,
+                // Taika Waititi - irreverent comedy elite, warm characters, high
+                // originality, crowd-pleasing genre mash-ups, variable from film to film.
+                craft: { originality: 88, structure: 74, characters: 84, dialogue: 86 },
+                toneProfile: { action: 55, comedy: 95, romance: 40, suspense: 25, drama: 60, spectacle: 65 },
+                genreAffinity: { Action: 55, Comedy: 92, Drama: 50, Horror: 30, Romance: 30, 'Sci-Fi': 35, Fantasy: 60, Thriller: 20 },
+                commercialLean: 70,
+                consistency: 62,
             },
         },
         availability: { commitments: [] },
@@ -34628,6 +34678,14 @@ export const HANDCRAFTED_WRITERS: Person[] = [
                 minimumSalary: 2_500_000,
                 typicalSalary: 2_500_000,
                 skill: 98,
+                // Charlie Kaufman - the purest originality in Hollywood and elite
+                // characters, but wilfully uncommercial and wildly variable: the
+                // masterpiece-or-misfire auteur (very low commercial lean & consistency).
+                craft: { originality: 100, structure: 82, characters: 94, dialogue: 90 },
+                toneProfile: { action: 10, comedy: 62, romance: 55, suspense: 45, drama: 92, spectacle: 25 },
+                genreAffinity: { Action: 8, Comedy: 60, Drama: 88, Horror: 25, Romance: 45, 'Sci-Fi': 55, Fantasy: 45, Thriller: 35 },
+                commercialLean: 18,
+                consistency: 38,
             },
         },
         availability: { commitments: [] },
@@ -34668,6 +34726,13 @@ export const HANDCRAFTED_WRITERS: Person[] = [
                 minimumSalary: 4_000_000,
                 typicalSalary: 4_000_000,
                 skill: 92,
+                // Jordan Peele - social horror-thriller with high originality and
+                // suspense, sturdy characters, commercially sharp, fairly consistent.
+                craft: { originality: 90, structure: 82, characters: 84, dialogue: 82 },
+                toneProfile: { action: 30, comedy: 35, romance: 20, suspense: 92, drama: 65, spectacle: 45 },
+                genreAffinity: { Action: 25, Comedy: 40, Drama: 55, Horror: 92, Romance: 12, 'Sci-Fi': 60, Fantasy: 30, Thriller: 85 },
+                commercialLean: 62,
+                consistency: 78,
             },
         },
         availability: { commitments: [] },
@@ -34708,6 +34773,13 @@ export const HANDCRAFTED_WRITERS: Person[] = [
                 minimumSalary: 4_000_000,
                 typicalSalary: 4_000_000,
                 skill: 92,
+                // Taylor Sheridan - grounded, tense modern-frontier crime drama;
+                // elite characters, strong structure, prolific and rock-steady.
+                craft: { originality: 78, structure: 88, characters: 92, dialogue: 84 },
+                toneProfile: { action: 65, comedy: 15, romance: 25, suspense: 85, drama: 88, spectacle: 45 },
+                genreAffinity: { Action: 60, Comedy: 12, Drama: 88, Horror: 20, Romance: 20, 'Sci-Fi': 15, Fantasy: 12, Thriller: 85 },
+                commercialLean: 52,
+                consistency: 88,
             },
         },
         availability: { commitments: [] },

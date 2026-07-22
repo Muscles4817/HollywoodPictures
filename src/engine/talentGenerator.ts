@@ -10,6 +10,8 @@ import type {
   ProducerCareer,
   TalentProfession,
   ToneProfile,
+  WriterCraft,
+  WriterGenreAffinity,
 } from '../types';
 import { ALL_TALENT_PROFESSIONS, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { GENRES } from '../data/genres';
@@ -122,6 +124,40 @@ function generateProductionStyle(rng: RandomFn): DirectorProductionStyle {
 function generateSkill(rng: RandomFn, t: number): number {
   const skillMean = 25 + 65 * t;
   return clamp(Math.round(skillMean + randFloat(rng, -20, 20)), 1, 100);
+}
+
+// --- Writer creative profile (Phase 2: writers become authors) ------------
+
+const WRITER_CRAFT_AXES = ['originality', 'structure', 'characters', 'dialogue'] as const;
+
+/**
+ * A writer's craft *shape*, generated AROUND their overall skill rather than
+ * averaged into it - so `skill` stays an independent "how good overall" number
+ * (a spiky elite can out-rank a well-rounded journeyman). 1-2 "signature" axes
+ * sit clearly above the writer's own level; the rest scatter modestly below.
+ * A skill-90 writer is strong everywhere with a standout; a skill-40 writer is
+ * weak everywhere with a relative strength. Same "roll a signature high, the
+ * rest lower" idea as generateSignatureProfile, but anchored on skill.
+ */
+function generateWriterCraft(rng: RandomFn, skill: number): WriterCraft {
+  const signatureCount = randInt(rng, 1, 2);
+  const signatures = new Set(pickMany(rng, WRITER_CRAFT_AXES, signatureCount));
+  const craft = {} as WriterCraft;
+  for (const axis of WRITER_CRAFT_AXES) {
+    const delta = signatures.has(axis) ? randFloat(rng, 8, 22) : randFloat(rng, -22, 4);
+    craft[axis] = clamp(Math.round(skill + delta), 1, 100);
+  }
+  return craft;
+}
+
+/** A weighted genre profile - 1-2 signature genres high, the rest low: "mostly thrillers, sometimes drama, rarely comedy." */
+function generateWriterGenreAffinity(rng: RandomFn): WriterGenreAffinity {
+  return generateSignatureProfile(rng, GENRES);
+}
+
+/** A 1-100 scalar around a centre with symmetric spread - for commercialLean/consistency. */
+function rollWriterScalar(rng: RandomFn, centre: number, spread: number): number {
+  return clamp(Math.round(centre + randFloat(rng, -spread, spread)), 1, 100);
 }
 
 function generateFame(role: TalentProfession, rng: RandomFn, t: number): number {
@@ -283,6 +319,24 @@ function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Perso
         ...roleCareerCommon,
         experience: Math.round((actingStyle.characterTransformation + actingStyle.emotionalPerformance + actingStyle.charisma + actingStyle.comedy + actingStyle.physicalPerformance) / 5),
         actingStyle,
+      },
+    };
+  } else if (role === 'Writer') {
+    // Writer graduates from the flat crew branch to its own creative career
+    // (Phase 2), mirroring Director/Actor above. skill stays the independent
+    // level; craft/tone/genre/lean/consistency are the creative identity.
+    const skill = generateSkill(rng, t);
+    careers = {
+      writer: {
+        role,
+        ...roleCareerCommon,
+        experience: skill,
+        skill,
+        craft: generateWriterCraft(rng, skill),
+        toneProfile: generateToneProfile(rng),
+        genreAffinity: generateWriterGenreAffinity(rng),
+        commercialLean: rollWriterScalar(rng, 50, 38),
+        consistency: rollWriterScalar(rng, 58, 34),
       },
     };
   } else {

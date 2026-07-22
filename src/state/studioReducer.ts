@@ -152,6 +152,7 @@ function applyOpportunityWins(
       source: resolved.opportunity.source,
       acquisitionCost: resolved.amount,
       acquiredOnDay: totalDays,
+      writerIds: resolved.opportunity.writerIds,
       developmentHistory: [acquisitionEvent(totalDays, resolved.opportunity.source, resolved.amount)],
     };
     nextStudio = { ...nextStudio, cash: nextStudio.cash - resolved.amount, assets: [...nextStudio.assets, asset] };
@@ -385,7 +386,7 @@ function runCalendarSettlement(
     state.producerPool ?? [],
   );
 
-  const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng);
+  const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng, state.talentPool.Writer);
   const opportunityWins = applyOpportunityWins(state.studio, opportunitySettlement.resolvedBids, opportunitySettlement.opportunities, totalDaysAfter);
 
   const studioAfterBoxOffice: Studio = {
@@ -730,6 +731,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         source: opportunity.source,
         acquisitionCost: opportunity.acquisitionCost,
         acquiredOnDay: state.totalDays,
+        writerIds: opportunity.writerIds,
         developmentHistory: [acquisitionEvent(state.totalDays, opportunity.source, opportunity.acquisitionCost)],
       };
       return {

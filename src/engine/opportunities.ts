@@ -1,6 +1,7 @@
-import type { Opportunity, OpportunityBid, OpportunitySource, ProductionScale } from '../types';
+import type { Opportunity, OpportunityBid, OpportunitySource, Person, ProductionScale, Script } from '../types';
 import { GENRES } from '../data/genres';
 import { generateScriptOptions } from './scriptGenerator';
+import { pickGenreForAffinity, selectWriterForSource, writerProfileFromPerson } from './writers';
 import { pick, randInt, type RandomFn } from './random';
 
 // docs/DESIGN_REVIEW_development_pipeline.md - source is mostly flavor
@@ -40,10 +41,8 @@ export const WEEK_LENGTH_DAYS = 7;
 /** How many opportunities appear in one weekly batch - widened from the old [2, 4] since the pool now also serves AI demand (engine/rivalStudios.ts), not just the player's. */
 const BATCH_SIZE: [number, number] = [3, 6];
 
-function generateOpportunity(totalDays: number, rng: RandomFn): Opportunity {
-  const genre = pick(rng, GENRES);
-  const script = generateScriptOptions(genre, rng, 1)[0];
-  const source = pick(rng, OPPORTUNITY_SOURCES);
+/** Assembles the final Opportunity from an already-generated source/script/author - shared by both the legacy and authored paths so the id/cost/expiry rng draws happen in exactly one place, in the same order. */
+function finishOpportunity(totalDays: number, rng: RandomFn, source: OpportunitySource, script: Script, writerId: string | undefined): Opportunity {
   return {
     id: `opportunity-${totalDays}-${randInt(rng, 0, 999_999)}`,
     source,
@@ -52,7 +51,33 @@ function generateOpportunity(totalDays: number, rng: RandomFn): Opportunity {
     expiresOnDay: totalDays + randInt(rng, ...SOURCE_EXPIRY_DAYS[source]),
     postedOnDay: totalDays,
     bids: [],
+    writerIds: writerId ? [writerId] : undefined,
   };
+}
+
+/**
+ * One opportunity. With no writer pool, the legacy path is preserved exactly -
+ * genre, script, source, in that rng draw order - so un-authored generation is
+ * byte-identical (opportunities.test.ts). With a pool (Phase 2), the pipeline
+ * follows Hollywood: pick the source first, then a source-appropriate writer
+ * (a spec skews toward unknowns, a studio commission toward elites - see
+ * engine/writers.ts), then a genre from that writer's own affinity, then a
+ * screenplay shaped by them.
+ */
+function generateOpportunity(totalDays: number, rng: RandomFn, writers: Person[]): Opportunity {
+  if (writers.length === 0) {
+    const genre = pick(rng, GENRES);
+    const script = generateScriptOptions(genre, rng, 1)[0];
+    const source = pick(rng, OPPORTUNITY_SOURCES);
+    return finishOpportunity(totalDays, rng, source, script, undefined);
+  }
+
+  const source = pick(rng, OPPORTUNITY_SOURCES);
+  const writer = selectWriterForSource(writers, source, rng);
+  const profile = writer ? writerProfileFromPerson(writer) : null;
+  const genre = profile ? pickGenreForAffinity(rng, profile.genreAffinity) : pick(rng, GENRES);
+  const script = generateScriptOptions(genre, rng, 1, profile ?? undefined)[0];
+  return finishOpportunity(totalDays, rng, source, script, writer?.id);
 }
 
 /**
@@ -115,6 +140,11 @@ export function settleOpportunities(
   nextGenerationCheckDay: number,
   totalDays: number,
   rng: RandomFn,
+  // The world's writer pool (GameState.talentPool.Writer), so a fresh batch can
+  // be authored (Phase 2). Defaults to empty: callers that omit it (every unit
+  // test that exercises settlement logic in isolation) get the byte-identical
+  // legacy un-authored generation, preserving determinism.
+  writers: Person[] = [],
 ): OpportunitySettlement {
   const active = opportunities.filter((o) => o.expiresOnDay > totalDays);
   if (nextGenerationCheckDay > totalDays) {
@@ -133,7 +163,7 @@ export function settleOpportunities(
   }
 
   const batchSize = randInt(rng, ...BATCH_SIZE);
-  const newOnes = Array.from({ length: batchSize }, () => generateOpportunity(totalDays, rng));
+  const newOnes = Array.from({ length: batchSize }, () => generateOpportunity(totalDays, rng, writers));
   return {
     opportunities: [...stillOpen, ...newOnes],
     nextGenerationCheckDay: totalDays + WEEK_LENGTH_DAYS,

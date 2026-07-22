@@ -15,6 +15,7 @@ import type {
   TargetAudience,
   Tone,
   ToneProfile,
+  WriterCreativeProfile,
 } from '../types';
 import { GENRE_PROFILES, GENRE_SETTING_AFFINITY, GENRE_TYPICAL_AUDIENCES } from '../data/genres';
 import { uniqueTitle } from './titleGenerator';
@@ -360,6 +361,65 @@ export function estimateScriptCost(script: Pick<Script, 'originality' | 'structu
   return Math.round(((baseCost + scaledCost) * scaleMultiplier * complexityMultiplier) / 1000) * 1000;
 }
 
+// --- Writer influence (Phase 2: writer-driven screenplay generation) ------
+//
+// A writer biases a screenplay without dictating it: archetype-first
+// generation still sets the territory (the archetype's own quality bands, story
+// type, scale, setting), and the author only shifts probabilities *within* it.
+// Every influence below is gated on an author actually being supplied - the
+// un-authored path stays byte-identical to before, preserving the determinism
+// scriptGenerator.test.ts and opportunities.test.ts both lock.
+
+// The author's share of a craft roll's centre - deliberately a minority, so the
+// archetype's own band still dominates "what kind of film is this."
+const WRITER_CRAFT_INFLUENCE = 0.4;
+// How hard the author's tone signature pulls the script's generated tone.
+const WRITER_TONE_INFLUENCE = 0.3;
+// Consistency maps to how wide a craft roll spreads around its (author-shifted)
+// centre: a dependable craftsman clusters tightly, an inconsistent auteur ranges
+// from dud to masterpiece.
+const CRAFT_SPREAD_AT_LOW_CONSISTENCY = 26;
+const CRAFT_SPREAD_AT_HIGH_CONSISTENCY = 8;
+// A little overshoot beyond the archetype band, so a great author can rarely
+// exceed the usual ceiling and a volatile one can dip below the floor.
+const CRAFT_BAND_OVERSHOOT = 8;
+
+/** Multiplicative archetype nudges from a writer's commercial lean (0 = prestige/original, 100 = crowd-pleaser) - never a hard filter, so a prestige writer can still land a CrowdPleaser now and then. */
+function commercialArchetypeWeights(commercialLean: number): Partial<Record<(typeof SCRIPT_ARCHETYPES)[number], number>> {
+  const c = commercialLean / 100;
+  return {
+    CrowdPleaser: 0.6 + 0.9 * c,
+    GenreFormula: 0.6 + 0.8 * c,
+    Spectacle: 0.7 + 0.5 * c,
+    Prestige: 1.5 - 0.9 * c,
+    OriginalVision: 1.4 - 0.8 * c,
+  };
+}
+
+/** One craft stat, biased toward the author's own level on that axis and spread by their consistency, but anchored on the archetype's band (with a little overshoot). Draws exactly one rng value, same as the randIntRange it replaces. */
+function rollAuthoredCraftStat(rng: RandomFn, band: [number, number], authorAxis: number, consistency: number): number {
+  const [lo, hi] = band;
+  const bandMid = (lo + hi) / 2;
+  const centre = clamp(bandMid + (authorAxis - bandMid) * WRITER_CRAFT_INFLUENCE, lo, hi);
+  const spread = CRAFT_SPREAD_AT_HIGH_CONSISTENCY + (CRAFT_SPREAD_AT_LOW_CONSISTENCY - CRAFT_SPREAD_AT_HIGH_CONSISTENCY) * (1 - consistency / 100);
+  const value = centre + randFloat(rng, -spread, spread);
+  return clamp(Math.round(value), Math.max(1, lo - CRAFT_BAND_OVERSHOOT), Math.min(100, hi + CRAFT_BAND_OVERSHOOT));
+}
+
+/** One craft stat: the authored roll when a writer is supplied, else the original uniform band roll (identical rng draw as before). */
+function rollCraftStat(rng: RandomFn, band: [number, number], authorAxis: number | undefined, consistency: number | undefined): number {
+  return authorAxis !== undefined && consistency !== undefined ? rollAuthoredCraftStat(rng, band, authorAxis, consistency) : randIntRange(rng, band);
+}
+
+/** Pulls a generated tone profile a fixed fraction toward the author's tonal signature - no rng, so it never shifts the stream. */
+function applyWriterTone(profile: ToneProfile, authorTone: ToneProfile): ToneProfile {
+  const pulled = {} as ToneProfile;
+  for (const tone of TONES) {
+    pulled[tone] = clamp(Math.round(profile[tone] + (authorTone[tone] - profile[tone]) * WRITER_TONE_INFLUENCE), 1, 100);
+  }
+  return pulled;
+}
+
 /** Each archetype's own genre likelihood (default 1 for a genre it doesn't list) - see data/scriptArchetypes.ts:genreAffinity. */
 function archetypeWeightsForGenre(genre: Genre): Partial<Record<(typeof SCRIPT_ARCHETYPES)[number], number>> {
   const weights: Partial<Record<(typeof SCRIPT_ARCHETYPES)[number], number>> = {};
@@ -390,17 +450,27 @@ function randIntRange(rng: RandomFn, range: QualityRange[keyof QualityRange]): n
  * different archetype/story-type/scale/setting tags, not because their
  * stat rolls happened to differ.
  */
-function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses: Set<string>): Script {
+function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses: Set<string>, author?: WriterCreativeProfile): Script {
   // Minted up front (outside the rng stream) so the cast can derive stable,
   // globally-unique ids from it - see newScriptId/generateCast.
   const id = newScriptId();
-  const archetype = weightedPick(rng, SCRIPT_ARCHETYPES, archetypeWeightsForGenre(genre));
+  // A writer's commercial lean nudges archetype selection (prestige writers
+  // toward Prestige/OriginalVision, commercial ones toward CrowdPleaser/
+  // GenreFormula) - still a weighted pick inside the same archetype system, so
+  // archetype-first generation is unchanged when no author is supplied.
+  const archetypeWeights = author
+    ? combineWeights(SCRIPT_ARCHETYPES, [archetypeWeightsForGenre(genre), commercialArchetypeWeights(author.commercialLean)])
+    : archetypeWeightsForGenre(genre);
+  const archetype = weightedPick(rng, SCRIPT_ARCHETYPES, archetypeWeights);
   const archetypeProfile = SCRIPT_ARCHETYPE_PROFILES[archetype];
 
-  const originality = randIntRange(rng, archetypeProfile.qualityRange.originality);
-  const structure = randIntRange(rng, archetypeProfile.qualityRange.structure);
-  const characters = randIntRange(rng, archetypeProfile.qualityRange.characters);
-  const dialogue = randIntRange(rng, archetypeProfile.qualityRange.dialogue);
+  // Craft rolls are biased toward the author's own craft shape (and spread by
+  // their consistency), but anchored on the archetype's band. Complexity has no
+  // writer axis, so it stays a plain band roll.
+  const originality = rollCraftStat(rng, archetypeProfile.qualityRange.originality, author?.craft.originality, author?.consistency);
+  const structure = rollCraftStat(rng, archetypeProfile.qualityRange.structure, author?.craft.structure, author?.consistency);
+  const characters = rollCraftStat(rng, archetypeProfile.qualityRange.characters, author?.craft.characters, author?.consistency);
+  const dialogue = rollCraftStat(rng, archetypeProfile.qualityRange.dialogue, author?.craft.dialogue, author?.consistency);
   const complexity = randIntRange(rng, archetypeProfile.qualityRange.complexity);
 
   const storyType = weightedPick(rng, STORY_TYPES, archetypeProfile.storyTypeAffinity);
@@ -414,7 +484,10 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   const primarySetting = weightedPick(rng, SETTING_ARCHETYPES, settingWeights);
   const settingProfile = SETTING_ARCHETYPE_PROFILES[primarySetting];
 
-  const { profile: toneProfile, flavorTones } = generateToneProfile(genre, rng);
+  const { profile: baseTone, flavorTones } = generateToneProfile(genre, rng);
+  // The author's tonal signature pulls the generated tone toward it (a modest
+  // fraction, no rng) - flavorTones (which drive the synopsis) stay as rolled.
+  const toneProfile = author ? applyWriterTone(baseTone, author.toneProfile) : baseTone;
 
   const productionRequirements = generateProductionRequirements(storyProfile, scaleProfile, settingProfile, complexity, rng);
   const environmentStrategy = generateEnvironmentStrategy(productionRequirements, settingProfile, rng);
@@ -462,9 +535,9 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   };
 }
 
-/** Generates a slate of script options for the player to choose from. */
-export function generateScriptOptions(genre: Genre, rng: RandomFn, count = 12): Script[] {
+/** Generates a slate of script options for the player to choose from. When `author` is supplied every script in the slate is shaped by that writer (Phase 2); omitted, generation is exactly as before. */
+export function generateScriptOptions(genre: Genre, rng: RandomFn, count = 12, author?: WriterCreativeProfile): Script[] {
   const usedTitles = new Set<string>();
   const usedSynopses = new Set<string>();
-  return Array.from({ length: count }, () => generateScript(genre, rng, uniqueTitle(genre, rng, usedTitles), usedSynopses));
+  return Array.from({ length: count }, () => generateScript(genre, rng, uniqueTitle(genre, rng, usedTitles), usedSynopses, author));
 }
