@@ -288,7 +288,20 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // `standing`, and IntellectualProperty gained recognition/prestige inherited
 // from the source Film's results at promotion. A v45 save's IPs (if any) lack
 // all three - no migration code, same as every past shape change here.
-const SAVE_KEY = 'hollywood-pictures-save-v46';
+// v46 -> v47 (screenplay/development foundation): the Asset↔Script boundary was
+// formalised and Asset gained three optional development seams - writerIds,
+// revisions (prior head Script snapshots) and developmentHistory (an append-only
+// DevelopmentEvent[], now populated with an 'acquired' event at every
+// Asset's birth). Separately, generated Script ids (and their cast character
+// ids) moved off reload-resettable module counters onto save-stable ids
+// (engine/scriptGenerator.ts:newScriptId), so a long-lived save can no longer
+// mint a fresh script id that collides with a stored one. The Asset fields are
+// additive/optional (an un-bumped v46 save would technically still load), but
+// the id-scheme change plus the honest "the stored shape changed" convention
+// warrant the bump - a v46 save's Assets simply lack the new fields and its
+// generated scripts use the old id format; no migration code, same as every
+// past shape change here.
+const SAVE_KEY = 'hollywood-pictures-save-v47';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

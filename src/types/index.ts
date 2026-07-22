@@ -641,6 +641,48 @@ export interface Script {
   cast: ScriptCharacter[];
 }
 
+// --- Screenplay architectural contract (screenplay/development foundation) ---
+//
+// A deliberate four-layer separation, formalised so later Development work
+// (rewrites, authorship, revision history, selling/optioning) has a stable
+// boundary to build on rather than reshaping Script:
+//
+//   Asset   = the persistent, studio-owned *screenplay* entity. Owns
+//             authorship, revision history, ownership and development history.
+//             Mutable across its life - a rewrite swaps its head Script, a
+//             development event is appended - but only ever by producing new
+//             immutable values, never by mutating a Script in place. See Asset.
+//   Script  = an *immutable creative snapshot* of one completed draft. Never
+//             mutated after generation (grep confirms zero writes to any Script
+//             field anywhere); a rewrite produces a NEW Script instead (see
+//             engine/screenplay.ts:reviseScript). It is shared by reference
+//             through the pipeline precisely because it never changes.
+//   Project = a production attempt against an Asset. Freezes/retains the exact
+//             Script snapshot it was greenlit with (FilmDraft.script), so which
+//             draft a production used is answered by the snapshot it kept.
+//   Film    = a completed production, retaining the exact Script snapshot it
+//             actually produced (Film.script), untouched by any later revision
+//             of the Asset it came from.
+//
+// The two type aliases below turn "which parts of a Script survive a rewrite"
+// from a convention into a type. Concept fields identify what the film
+// fundamentally *is* and must survive any rewrite untouched; craft fields are
+// the mutable execution a rewrite is allowed to improve. A rewrite seam that
+// only accepts Partial<ScriptCraft> therefore *cannot* silently alter the
+// concept - the compiler rejects it. Neither alias restructures Script (its
+// fields stay flat, so every existing consumer is unaffected) - they only name
+// the partition already latent in it.
+
+/** The stable creative concept - what the film fundamentally is. A rewrite must never change these. */
+export type ScriptConcept = Pick<Script, 'genre' | 'archetype' | 'storyType' | 'primarySetting' | 'scale'>;
+
+/** The mutable execution - the craft a rewrite is allowed to improve. */
+export type ScriptCraft = Pick<Script, 'originality' | 'structure' | 'characters' | 'dialogue' | 'complexity' | 'toneProfile'>;
+
+/** Runtime companions to the two aliases above, for iteration/validation/tests. Kept in lockstep with them by construction. */
+export const SCRIPT_CONCEPT_KEYS = ['genre', 'archetype', 'storyType', 'primarySetting', 'scale'] as const;
+export const SCRIPT_CRAFT_KEYS = ['originality', 'structure', 'characters', 'dialogue', 'complexity', 'toneProfile'] as const;
+
 // Every production dial is continuous rather than a fixed tier: the four
 // spend dials are plain currency amounts (interpreted on a log scale - see
 // engine/productionDials.ts), and runtimeIntensity is a 0-1 intensity from
@@ -1341,6 +1383,36 @@ export interface BidNotification {
   read: boolean;
 }
 
+// --- Screenplay authorship & development history (development foundation) ---
+//
+// The three optional Asset fields below are additive seams the Development
+// Department will consume - authorship, revision lineage, and an append-only
+// history of what has happened to a screenplay. All are optional and read
+// defensively (older saves and directly-constructed test Assets simply omit
+// them - there is no migration pass, see state/persistence.ts). They live on
+// Asset, never on Script, because Script is the immutable snapshot shared by
+// reference through the pipeline; anything mutable or relational belongs on
+// the persistent owner. See engine/screenplay.ts for the helper API that keeps
+// these consistent (reviseScript, appendDevelopmentEvent, scriptRevisionHistory).
+
+export type DevelopmentEventKind =
+  | 'acquired' // entered the library (bought as an Opportunity, or a founding test script)
+  | 'rewrite' // a full rewrite pass produced a new head draft
+  | 'polish' // a lighter dialogue/polish pass produced a new head draft
+  | 'greenlit' // a Project was greenlit from this Asset
+  | 'note'; // a free-form development note
+
+/** One dated entry in an Asset's development history - append-only, never edited or removed. */
+export interface DevelopmentEvent {
+  /** GameState.totalDays this happened on. */
+  day: GameDay;
+  kind: DevelopmentEventKind;
+  /** Human-readable one-liner for the Asset Library / development log. */
+  summary: string;
+  /** Cash this step moved, if any (negative = spent). Absent when it moved none - display reads it defensively. */
+  costDelta?: Money;
+}
+
 /**
  * An acquired Opportunity, now permanently owned by the studio
  * (Studio.assets below) - may sit in the library indefinitely, may never
@@ -1352,11 +1424,36 @@ export interface BidNotification {
  */
 export interface Asset {
   id: string;
+  /**
+   * The screenplay's current *head* snapshot - the draft any new Project is
+   * greenlit from. Unchanged in meaning from before the development seams
+   * existed (every existing consumer still reads `asset.script`); a rewrite
+   * replaces it with a new immutable Script and pushes the previous head into
+   * `revisions` below (engine/screenplay.ts:reviseScript).
+   */
   script: Script;
   source: OpportunitySource;
   acquisitionCost: number;
   /** GameState.totalDays this was acquired on - display only (Asset Library "owned since"). */
   acquiredOnDay: number;
+  /**
+   * The Persons credited as authors of the current head draft, by id (a future
+   * Development Department attaches these). Absent/empty today - no writer is
+   * modelled as a persistent author yet, so this is provenance seam only,
+   * carrying no gameplay effect until that feature exists.
+   */
+  writerIds?: PersonId[];
+  /**
+   * Prior head snapshots, oldest first - the draft lineage a rewrite builds up.
+   * Absent (the common case) means the Asset has never been revised; the full
+   * lineage is therefore [...(revisions ?? []), script] (see
+   * engine/screenplay.ts:scriptRevisionHistory). Each entry is a complete,
+   * immutable Script, so comparing revisions is a read over snapshots already
+   * kept, not a separate diffing subsystem.
+   */
+  revisions?: Script[];
+  /** Append-only development history (acquisition, rewrites, greenlights, notes). Absent on older/directly-built Assets; read as []. */
+  developmentHistory?: DevelopmentEvent[];
 }
 
 // A rival studio's overall scale - governs both how big the films it makes

@@ -1,5 +1,6 @@
 import type { Asset, CastingGender, CharacterArchetype, CharacterProminence, Script, ScriptCharacter } from '../types';
 import { estimateScriptCost } from '../engine/scriptGenerator';
+import { acquisitionEvent } from '../engine/screenplay';
 import { CHARACTER_ARCHETYPE_PROFILES } from './characterArchetypes';
 
 // Eighty-eight real films, hand-authored rather than procedurally generated -
@@ -35,7 +36,17 @@ function script(fields: Omit<Script, 'id' | 'cost'> & { id: string }): Script {
 }
 
 function testAsset(s: Script): Asset {
-  return { id: s.id, script: s, source: 'Studio Original', acquisitionCost: 0, acquiredOnDay: 1 };
+  // Founding library scripts: free (acquisitionCost 0), present since day 1, and
+  // born with a single 'acquired' development event so their history is real
+  // rather than empty - the same shape a bought Opportunity's Asset gets.
+  return {
+    id: s.id,
+    script: s,
+    source: 'Studio Original',
+    acquisitionCost: 0,
+    acquiredOnDay: 1,
+    developmentHistory: [acquisitionEvent(1, 'Studio Original', 0)],
+  };
 }
 
 // Hand-picked, not procedurally generated - same judgment-call philosophy as

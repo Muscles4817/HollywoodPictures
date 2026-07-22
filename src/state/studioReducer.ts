@@ -24,6 +24,7 @@ import { deriveReleaseWindowFromDay, DAYS_PER_YEAR, firstDayOfYear, yearOf } fro
 import { accrueMomentum, computeBoxOfficeBump, computeCeremony, computeStudioAwardDeltas, filmsForAwardsYear } from '../engine/awards';
 import { AWARD_SHOWS, awardShow } from '../data/awardsShows';
 import { settleOpportunities, reopenForfeitedOpportunity, highestBid, placeBid, type ResolvedBid } from '../engine/opportunities';
+import { acquisitionEvent } from '../engine/screenplay';
 import { collectBidNotifications, markAllBidNotificationsRead } from '../engine/bidNotifications';
 import { openCastingCall, tickCastingCalls } from '../engine/castingCalls';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
@@ -151,6 +152,7 @@ function applyOpportunityWins(
       source: resolved.opportunity.source,
       acquisitionCost: resolved.amount,
       acquiredOnDay: totalDays,
+      developmentHistory: [acquisitionEvent(totalDays, resolved.opportunity.source, resolved.amount)],
     };
     nextStudio = { ...nextStudio, cash: nextStudio.cash - resolved.amount, assets: [...nextStudio.assets, asset] };
   }
@@ -728,6 +730,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         source: opportunity.source,
         acquisitionCost: opportunity.acquisitionCost,
         acquiredOnDay: state.totalDays,
+        developmentHistory: [acquisitionEvent(state.totalDays, opportunity.source, opportunity.acquisitionCost)],
       };
       return {
         ...state,
