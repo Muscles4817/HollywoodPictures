@@ -77,3 +77,26 @@ describe('computeReleaseResults - campaign angle', () => {
     expect(oversell.results.audienceScore).toBe(honest.results.audienceScore);
   });
 });
+
+describe('computeReleaseResults - marketing rollout momentum', () => {
+  const withChannels = { channelSpend: channels({ trailers: 20_000_000 }) };
+
+  it('a full-runway campaign opens bigger and buzzes harder than a rushed one', () => {
+    const rushed = computeReleaseResults({ ...base, marketingChoices: { ...base.marketingChoices, ...withChannels }, marketingRolloutMultiplier: 1 }, createRng(1)).results;
+    const held = computeReleaseResults({ ...base, marketingChoices: { ...base.marketingChoices, ...withChannels }, marketingRolloutMultiplier: 1.18 }, createRng(1)).results;
+    expect(held.openingWeekend).toBeGreaterThan(rushed.openingWeekend);
+    expect(held.buzzScore).toBeGreaterThanOrEqual(rushed.buzzScore);
+  });
+
+  it('an absent multiplier is identical to an explicit neutral 1 (the rushed baseline)', () => {
+    const absent = computeReleaseResults({ ...base, marketingChoices: { ...base.marketingChoices, ...withChannels } }, createRng(1)).results;
+    const neutral = computeReleaseResults({ ...base, marketingChoices: { ...base.marketingChoices, ...withChannels }, marketingRolloutMultiplier: 1 }, createRng(1)).results;
+    expect(absent).toEqual(neutral);
+  });
+
+  it('does not change the reported marketing cash cost - momentum is free reach, not more spend', () => {
+    const rushed = computeReleaseResults({ ...base, marketingChoices: { ...base.marketingChoices, ...withChannels }, marketingRolloutMultiplier: 1 }, createRng(1)).results;
+    const held = computeReleaseResults({ ...base, marketingChoices: { ...base.marketingChoices, ...withChannels }, marketingRolloutMultiplier: 1.18 }, createRng(1)).results;
+    expect(held.marketingCost).toBe(rushed.marketingCost);
+  });
+});

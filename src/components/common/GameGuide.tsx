@@ -160,6 +160,13 @@ const FAQ: FaqCategory[] = [
           'A Wide release front-loads most of its money into the opening weekend; a Limited or Festival release earns less upfront but can expand for months if people love it. The release window you pick - and how crowded that slot is with rival films - affects your turnout.',
         ],
       },
+      {
+        q: 'Does when I release change how well my marketing works?',
+        a: [
+          "Yes. A marketing campaign is a rollout that takes place over the weeks before release - trailers air and re-air, word spreads, anticipation compounds. The gap between scheduling a film and its release day is the campaign's runway, and a longer runway builds more momentum: the same spend reaches further, so your projected opening climbs as you hold the release out.",
+          "Rushing a film straight out the door isn't punished - it just lands at the campaign's baseline reach. Holding it is the lever, and it maxes out after about a two-month rollout. The catch is the usual one: the longer you wait, the more rivals can crowd your window, and the film earns nothing until it opens.",
+        ],
+      },
     ],
   },
   {

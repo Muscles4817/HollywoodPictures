@@ -5,6 +5,7 @@ import { rollPressTourMoments, pressTourReputationDeltas, type TalentReputationD
 import { computeProducerEffects, producersByIds, totalAttachedPerFilmFees } from './producers';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta } from './cost';
 import { computeCompetitiveCrowding, runningFilmAsUpcomingRelease, type UpcomingRelease } from './releaseCrowding';
+import { marketingRolloutMultiplier } from './marketing';
 import { resolveRivalProduction, rivalAsUpcomingRelease } from './rivalStudios';
 import { nextDueFilm, advanceEarliestDueFilmByOneWeek } from './boxOfficeRun';
 import { asUpcomingRelease, type ScheduledRelease } from './scheduledReleases';
@@ -85,6 +86,12 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
   // films (behaviour-preserving).
   const tourMoments = rollPressTourMoments(draft.talent, draft.marketingChoices!.pressTourCast, rng);
 
+  // Marketing rollout (docs/DESIGN_REVIEW_marketing_rollout.md): how much
+  // momentum the campaign built over its runway - the frozen campaignStartDay
+  // (SCHEDULE_RELEASE) to this releaseDay. Absent start day (pre-rollout saves)
+  // resolves to the neutral 1.
+  const rolloutMultiplier = marketingRolloutMultiplier(draft.marketingChoices!.campaignStartDay, releaseDay);
+
   const { results, fixed } = computeReleaseResults(
     {
       title: draft.title || 'Untitled Film',
@@ -104,6 +111,7 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
       producerEffects,
       producerFees,
       pressTourMoment: { buzzDelta: tourMoments.buzzDelta, storyBeat: tourMoments.storyBeat },
+      marketingRolloutMultiplier: rolloutMultiplier,
     },
     rng,
   );

@@ -101,6 +101,55 @@
   color: var(--text-muted);
 }
 
+/* --- Marketing rollout / campaign runway readout --- */
+.campaign-runway {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.campaign-runway__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.campaign-runway__meter {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.campaign-runway__meter span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+  transition: width 0.2s ease;
+}
+
+.campaign-runway.rollout--rushed .campaign-runway__head strong {
+  color: var(--text-muted);
+}
+
+.campaign-runway.rollout--building .campaign-runway__head strong {
+  color: var(--primary);
+}
+
+.campaign-runway.rollout--full {
+  border-color: var(--primary);
+}
+
+.campaign-runway.rollout--full .campaign-runway__head strong {
+  color: var(--green);
+}
+
 /* --- Press Tour roster --- */
 .press-tour-list {
   display: flex;

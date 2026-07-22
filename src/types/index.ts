@@ -867,6 +867,16 @@ export interface MarketingChoices {
    * defensively as none).
    */
   pressTourCast?: PersonId[];
+  /**
+   * The day the marketing campaign was committed - the start of its rollout
+   * (docs/DESIGN_REVIEW_marketing_rollout.md). Frozen at SCHEDULE_RELEASE like
+   * the distribution terms above; the runway between this and the release day
+   * sets how much rollout momentum the campaign builds
+   * (engine/marketing.ts:marketingRolloutMultiplier). Absent on rivals, saves
+   * predating the rollout, and the pre-schedule projection - all treated as a
+   * neutral (zero-bonus) rollout, so behaviour there is unchanged.
+   */
+  campaignStartDay?: number;
 }
 
 export type OutcomeLabel =
