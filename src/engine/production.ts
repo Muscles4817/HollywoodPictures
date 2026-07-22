@@ -21,7 +21,7 @@ import {
 } from '../data/productionEvents';
 import { GENRE_PROFILES } from '../data/genres';
 import { SETTING_ARCHETYPE_PROFILES } from '../data/settings';
-import { contingencyT, practicalEffectsT, vfxT, overallSpendT } from './productionDials';
+import { contingencyT, practicalEffectsT, vfxT, overallSpendT, FOOTAGE_LOWER_RATIO, FOOTAGE_UPPER_RATIO } from './productionDials';
 import { computeTalentCompatibility } from './compatibility';
 import { findCandidatesNearPrice } from './talentFilter';
 import { professionForProductionRole, filterAssignedPeople, findAssignedPerson } from '../data/helpers';
@@ -57,6 +57,27 @@ export function computeRecommendedShootDays(talent: TalentAssignment[], script: 
   const settingProfile = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
   const settingDays = (settingProfile.travelDemand * 0.6 + settingProfile.locationComplexity * 0.4) * MAX_SETTING_DAYS;
   return Math.round(BASE_SHOOT_DAYS + complexityDays + castDays + runtimeDays + effectsDays + settingDays);
+}
+
+/**
+ * The fewest shoot days that produce a functional film - below this there
+ * isn't enough footage for a usable cut, so the shoot can't be wrapped
+ * (state/studioReducer.ts:FINISH_PHOTOGRAPHY blocks it, and the ProductionRun
+ * screen disables the wrap button to match). A fraction of recommendedDays.
+ */
+export function footageLowerBound(recommendedDays: number): number {
+  return Math.round(recommendedDays * FOOTAGE_LOWER_RATIO);
+}
+
+/**
+ * The most shoot days worth filming - past this the footage covers every
+ * usable angle and there's nothing left to gain, so the shoot wraps itself
+ * automatically (state/studioReducer.ts:ADVANCE_SHOOTING_DAY). A multiple of
+ * recommendedDays, chosen to coincide with where the shoot-quality curve
+ * flatlines (engine/productionDials.ts:shootingQualityFromRatio).
+ */
+export function footageUpperBound(recommendedDays: number): number {
+  return Math.round(recommendedDays * FOOTAGE_UPPER_RATIO);
 }
 
 const BASE_PREPRODUCTION_DAYS = 14;

@@ -9,11 +9,11 @@
 import { describe, it, expect } from 'vitest';
 import { studioReducer } from './studioReducer';
 import { createInitialStudio, type GameState } from './gameState';
-import { buildReadyAsset, conformActorGenderToSlot } from './testFixtures';
+import { buildReadyAsset, conformActorGenderToSlot, shootThroughToFinish } from './testFixtures';
 import { generateTalentPool } from '../engine/talentGenerator';
 import { settleOpportunities } from '../engine/opportunities';
 import { withRng } from '../engine/random';
-import { computeTalentCost, computeProductionBudgetCost } from '../engine/cost';
+import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta } from '../engine/cost';
 import { getTypicalSalaryForRole, deriveBookedUntil } from '../engine/person';
 import { deriveAssetStatus, findProject, asPlayerDraft, playerReleasedFilms } from '../engine/project';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
@@ -394,7 +394,7 @@ describe('no double-charging: the script cost is charged exactly once, at acquis
     s = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });
     expect(s.studio.cash).toBe(cashBeforeGreenlight - greenlightCharge);
 
-    s = studioReducer(s, { type: 'FINISH_PHOTOGRAPHY', productionId: s.focusedProjectId! });
+    s = shootThroughToFinish(s);
     s = studioReducer(s, { type: 'GO_TO_STEP', step: 'post-production' });
     s = studioReducer(s, {
       type: 'SET_POST_PRODUCTION_CHOICES',
@@ -416,21 +416,29 @@ describe('no double-charging: the script cost is charged exactly once, at acquis
       type: 'SET_MARKETING_CHOICES',
       choices: { marketingSpend: 5_000_000, releaseType: 'Wide', releaseWindow: 'Quiet Month' },
     });
+    // Capture the real shoot cost and on-set events before release - the film
+    // actually shot to its footage lower bound now, so photographyCost (the
+    // contingency burned) and any rolled events are genuine, non-zero inputs to
+    // productionCost (engine/releaseFilm.ts).
+    const draftBeforeRelease = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
+    const photographyCost = draftBeforeRelease.photography!.runningCost;
+    const eventsCostDelta = computeEventsCostDelta([
+      ...draftBeforeRelease.photography!.events,
+      ...(draftBeforeRelease.postProductionEvents ?? []),
+    ]);
     s = studioReducer(s, { type: 'SCHEDULE_RELEASE', releaseDay: s.totalDays });
 
     const film = playerReleasedFilms(s.projects)[0];
     expect(film).toBeDefined();
     // The double-charge fix under test: productionCost must NOT include the
-    // script's own cost a second time (engine/releaseFilm.ts) - it was
-    // already fully accounted for at ACQUIRE_OPPORTUNITY, long before this
-    // Project (or any Project) existed. photographyCost/eventsCostDelta/
-    // testScreeningCost are all 0 here (no shoot days ticked, no events, and
-    // 'Ignore' is a free test-screening response), so productionCost is
-    // exactly talent + production budget - the full contingency reserve
-    // isn't part of this figure either (only what's actually burned would
-    // be, via photographyCost - see engine/releaseFilm.ts).
-    const expectedProductionCost = computeTalentCost(film.talent) + computeProductionBudgetCost(film.productionChoices);
-    expect(film.results.productionCost).toBeCloseTo(expectedProductionCost, 0);
+    // script's own cost a second time (engine/releaseFilm.ts) - it was already
+    // fully accounted for at ACQUIRE_OPPORTUNITY, long before this Project (or
+    // any Project) existed. 'Ignore' is a free test-screening response, so
+    // productionCost is exactly talent + production budget + the real shoot
+    // cost + event swings - and crucially NOT the script cost on top.
+    const expectedProductionCost =
+      computeTalentCost(film.talent) + computeProductionBudgetCost(film.productionChoices) + photographyCost + eventsCostDelta;
+    expect(film.results.productionCost).toBeCloseTo(expectedProductionCost, -1);
     expect(film.results.productionCost).not.toBeCloseTo(expectedProductionCost + asset.script.cost, 0);
   });
 });
