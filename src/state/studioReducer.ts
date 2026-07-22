@@ -1,4 +1,4 @@
-import type { Asset, AwardShowId, AwardsState, BidNotification, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentProfession, WizardStep } from '../types';
+import type { Asset, AwardShowId, AwardsState, BidNotification, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, clamp, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
@@ -10,7 +10,9 @@ import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDa
 import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
 import { promoteFilmToIp, ipForSourceFilm } from '../engine/intellectualProperty';
 import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
-import { getTypicalSalaryForRole, withCommitment, withReputationChange } from '../engine/person';
+import { getTypicalSalaryForRole, getWriterCareer, isPersonAvailableForCommitment, withCommitment, withReputationChange } from '../engine/person';
+import { writerProfileFromPerson } from '../engine/writers';
+import { computeRewriteOutcome, makePendingRewrite, rewriteDurationDays, rewriteFee, settleAssetRewrites } from '../engine/rewrite';
 import type { TalentReputationDelta } from '../engine/pressTourMoments';
 import { pressTourCost } from '../engine/pressTour';
 import { adaptRecommendationsToProductionChoices } from '../engine/productionChoicesAdapter';
@@ -394,6 +396,10 @@ function runCalendarSettlement(
     cash: opportunityWins.studio.cash + marketSettlement.playerCashCredit - marketSettlement.playerCostCharged,
     brand: applyStatChange(opportunityWins.studio.brand, marketSettlement.playerBrandDelta),
     prestige: applyStatChange(opportunityWins.studio.prestige, marketSettlement.playerPrestigeDelta),
+    // Development Department (Phase 3): any freelance Rewrite/Polish pass that
+    // has completed by today lands its new head Script now, same lazy off-the-
+    // calendar settlement as opportunity wins just above.
+    assets: settleAssetRewrites(opportunityWins.studio.assets, totalDaysAfter),
   };
 
   const rivalStudiosAfterBoxOffice = state.rivalStudios.map((rival) => {
@@ -775,6 +781,9 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'CREATE_PROJECT_FROM_ASSET': {
       const asset = state.studio.assets.find((a) => a.id === action.assetId);
       if (!asset || deriveAssetStatus(asset, state.projects).status === 'in-development') return state;
+      // Can't start a Project while a Rewrite/Polish is mid-flight - the head
+      // Script would shift under the draft when the pass lands (Phase 3).
+      if (asset.pendingRewrite) return state;
       const draft = createDraftFromAsset(asset, defaultTalentTargetPrices());
       return {
         ...state,
@@ -783,6 +792,56 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         projects: [...state.projects, playerDraftToProject(draft)],
         focusedProjectId: draft.id,
         ...clearTransientView(),
+      };
+    }
+
+    // Development Department MVP (docs/DESIGN_REVIEW_writer_authors.md, Phase 3).
+    // Commission a freelance writer to Rewrite/Polish an owned Asset. Same
+    // guard-then-charge shape as HIRE_PRODUCER, plus the CREATE_PROJECT_FROM_ASSET
+    // in-development guard (a script in an active Project can't shift underneath
+    // it). The craft outcome is rolled once, here, and stored on the Asset to
+    // land on a future day (settleAssetRewrites, above). Fails safely (no-op) on
+    // any unmet precondition.
+    case 'REWRITE_ASSET': {
+      const asset = state.studio.assets.find((a) => a.id === action.assetId);
+      if (!asset) return state;
+      if (deriveAssetStatus(asset, state.projects).status === 'in-development') return state;
+      if (asset.pendingRewrite) return state; // one pass at a time
+      const writer = state.talentPool.Writer.find((w) => w.id === action.writerId);
+      const profile = writer ? writerProfileFromPerson(writer) : null;
+      const career = writer ? getWriterCareer(writer) : null;
+      if (!writer || !profile || !career) return state;
+
+      const readyOnDay = state.totalDays + rewriteDurationDays(action.kind, asset.script);
+      const commitment = { projectId: asset.id, role: 'Writer' as const, startDay: state.totalDays, endDay: readyOnDay };
+      if (!isPersonAvailableForCommitment(writer, commitment)) return state;
+      const fee = rewriteFee(career.typicalSalary, action.kind);
+      if (state.studio.cash < fee) return state;
+
+      const { result: craftChanges, nextSeed } = withRng(state.rngSeed, (rng) => computeRewriteOutcome(profile, asset.script, action.kind, rng));
+      const commissionedEvent: DevelopmentEvent = {
+        day: state.totalDays,
+        kind: action.kind,
+        summary: `${action.kind === 'polish' ? 'Polish' : 'Rewrite'} commissioned — ${writer.identity.name}`,
+        costDelta: -fee,
+      };
+      const updatedAsset: Asset = {
+        ...asset,
+        pendingRewrite: makePendingRewrite(writer.id, action.kind, state.totalDays, readyOnDay, craftChanges, fee),
+        developmentHistory: [...(asset.developmentHistory ?? []), commissionedEvent],
+      };
+      return {
+        ...state,
+        rngSeed: nextSeed,
+        studio: {
+          ...state.studio,
+          cash: state.studio.cash - fee,
+          assets: state.studio.assets.map((a) => (a.id === asset.id ? updatedAsset : a)),
+        },
+        talentPool: {
+          ...state.talentPool,
+          Writer: state.talentPool.Writer.map((w) => (w.id === writer.id ? withCommitment(w, commitment) : w)),
+        },
       };
     }
 

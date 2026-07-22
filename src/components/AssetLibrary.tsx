@@ -10,9 +10,13 @@ import {
 } from './common/CheckboxFilterDropdown';
 import { deriveAssetStatus, type AssetStatus } from '../engine/project';
 import type { GameAction } from '../state/gameState';
-import type { Asset } from '../types';
+import type { Asset, Person } from '../types';
 import './AssetLibrary.css';
 import { StarRating } from './common/StarRating';
+import { getWriterCareer, isPersonAvailableOnDay } from '../engine/person';
+import { writerProfileFromPerson } from '../engine/writers';
+import { describeWriter, describeRewriteProjection } from '../engine/writerPresentation';
+import { rewriteDurationDays, rewriteFee, type RewriteKind } from '../engine/rewrite';
 
 const TEST_SCRIPT_ID_PREFIX = 'test-script-';
 
@@ -149,12 +153,127 @@ function CompactStarRating({ value }: { value: number }) {
   );
 }
 
+function formatMoney(amount: number): string {
+  return `£${Math.round(amount).toLocaleString('en-GB')}`;
+}
+
+interface RewritePanelProps {
+  asset: Asset;
+  writers: Person[];
+  totalDays: number;
+  cash: number;
+  dispatch: Dispatch<GameAction>;
+  onClose: () => void;
+}
+
+/**
+ * The commission form for a freelance Rewrite/Polish pass (Phase 3). Numbers
+ * stay hidden behind qualitative copy - the player sees the writer's tier, what
+ * they're known for, and a projected effect, not raw craft stats - with only
+ * the concrete fee and duration exposed (the two things a business decision
+ * genuinely needs).
+ */
+function RewritePanel({ asset, writers, totalDays, cash, dispatch, onClose }: RewritePanelProps) {
+  const [kind, setKind] = useState<RewriteKind>('polish');
+  const [writerId, setWriterId] = useState<string>('');
+
+  const available = useMemo(
+    () =>
+      writers
+        .filter((writer) => isPersonAvailableOnDay(writer, totalDays))
+        .sort((left, right) => (getWriterCareer(right)?.skill ?? 0) - (getWriterCareer(left)?.skill ?? 0)),
+    [writers, totalDays],
+  );
+
+  const writer = available.find((candidate) => candidate.id === writerId) ?? null;
+  const career = writer ? getWriterCareer(writer) : null;
+  const profile = writer ? writerProfileFromPerson(writer) : null;
+  const fee = career ? rewriteFee(career.typicalSalary, kind) : 0;
+  const days = rewriteDurationDays(kind, asset.script);
+  const description = writer ? describeWriter(writer) : null;
+  const projection = profile ? describeRewriteProjection(profile, asset.script, kind) : null;
+  const canCommission = writer !== null && cash >= fee;
+
+  return (
+    <div className="asset-library-card__rewrite-panel stack" style={{ gap: 8, marginTop: 8 }}>
+      <div className="row" style={{ gap: 6 }}>
+        {(['polish', 'rewrite'] as RewriteKind[]).map((option) => (
+          <Button
+            key={option}
+            className="btn-sm"
+            variant={kind === option ? 'primary' : undefined}
+            aria-pressed={kind === option}
+            onClick={() => setKind(option)}
+          >
+            {option === 'polish' ? 'Polish' : 'Rewrite'}
+          </Button>
+        ))}
+      </div>
+
+      <label className="stack" style={{ gap: 4 }}>
+        <span className="stat-label">Freelance writer</span>
+        <select value={writerId} onChange={(event) => setWriterId(event.target.value)}>
+          <option value="">Choose a writer…</option>
+          {available.map((candidate) => (
+            <option key={candidate.id} value={candidate.id}>
+              {candidate.identity.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {writer && description && (
+        <div style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+          <div>
+            {description.tier} · {description.knownFor}
+          </div>
+          {projection && <div style={{ marginTop: 2 }}>{projection}.</div>}
+        </div>
+      )}
+
+      <div className="row-between" style={{ fontSize: '0.85em' }}>
+        <span className="stat-label">Fee</span>
+        <strong>{formatMoney(fee)}</strong>
+      </div>
+      <div className="row-between" style={{ fontSize: '0.85em' }}>
+        <span className="stat-label">Time</span>
+        <strong>~{days} days</strong>
+      </div>
+
+      <div className="row" style={{ gap: 8 }}>
+        <Button
+          variant="primary"
+          disabled={!canCommission}
+          onClick={() => {
+            dispatch({ type: 'REWRITE_ASSET', assetId: asset.id, kind, writerId: writer!.id });
+            onClose();
+          }}
+        >
+          Commission {kind === 'polish' ? 'Polish' : 'Rewrite'}
+        </Button>
+        <Button className="btn-sm" onClick={onClose}>
+          Cancel
+        </Button>
+      </div>
+
+      {writer && cash < fee && (
+        <p style={{ color: 'var(--red)', margin: 0, fontSize: '0.85em' }}>
+          Can&apos;t afford this fee right now.
+        </p>
+      )}
+    </div>
+  );
+}
+
 interface AssetCardProps {
   asset: Asset;
   status: AssetStatus;
   isExpanded: boolean;
   onToggleExpanded: () => void;
   somethingElseFocused: boolean;
+  writers: Person[];
+  totalDays: number;
+  cash: number;
   dispatch: Dispatch<GameAction>;
 }
 
@@ -164,10 +283,17 @@ function AssetCard({
   isExpanded,
   onToggleExpanded,
   somethingElseFocused,
+  writers,
+  totalDays,
+  cash,
   dispatch,
 }: AssetCardProps) {
   const writingScore = getWritingScore(asset.script);
   const creativeScore = getCreativeScore(asset.script);
+  const [showRewrite, setShowRewrite] = useState(false);
+  const pending = asset.pendingRewrite;
+  const pendingWriter = pending ? writers.find((writer) => writer.id === pending.writerId) : undefined;
+  const canDevelopScript = status.status === 'available' && !pending;
 
   return (
     <div className="asset-library-card-shell">
@@ -253,6 +379,14 @@ function AssetCard({
               </p>
             )}
 
+            {pending && (
+              <p className="asset-library-card__status-copy asset-library-card__status-copy--active">
+                In {pending.kind === 'polish' ? 'polish' : 'rewrite'}
+                {pendingWriter ? ` with ${pendingWriter.identity.name}` : ''} — ready{' '}
+                {formatGameDateWithMonth(pending.readyOnDay)}.
+              </p>
+            )}
+
             {isExpanded && (
               <div className="asset-library-card__details">
                 <ScriptDetails script={asset.script} />
@@ -273,6 +407,8 @@ function AssetCard({
             {status.status === 'available' && (
               <Button
                 variant="primary"
+                disabled={Boolean(pending)}
+                title={pending ? 'A rewrite is in progress on this script.' : undefined}
                 onClick={() =>
                   dispatch({
                     type: 'CREATE_PROJECT_FROM_ASSET',
@@ -281,6 +417,15 @@ function AssetCard({
                 }
               >
                 Start Development
+              </Button>
+            )}
+
+            {canDevelopScript && (
+              <Button
+                aria-expanded={showRewrite}
+                onClick={() => setShowRewrite((open) => !open)}
+              >
+                {showRewrite ? 'Close' : 'Rewrite / Polish'}
               </Button>
             )}
 
@@ -310,6 +455,17 @@ function AssetCard({
               </span>
             )}
           </footer>
+
+          {showRewrite && canDevelopScript && (
+            <RewritePanel
+              asset={asset}
+              writers={writers}
+              totalDays={totalDays}
+              cash={cash}
+              dispatch={dispatch}
+              onClose={() => setShowRewrite(false)}
+            />
+          )}
 
           {status.status === 'in-development' && somethingElseFocused && (
             <p className="asset-library-card__blocked-note">
@@ -674,6 +830,9 @@ export function AssetLibrary() {
                       isExpanded={expandedAssetId === asset.id}
                       onToggleExpanded={() => toggleExpandedAsset(asset.id)}
                       somethingElseFocused={somethingElseFocused}
+                      writers={state.talentPool.Writer}
+                      totalDays={state.totalDays}
+                      cash={state.studio.cash}
                       dispatch={dispatch}
                     />
                   ))}
@@ -746,6 +905,9 @@ export function AssetLibrary() {
                           isExpanded={expandedAssetId === asset.id}
                           onToggleExpanded={() => toggleExpandedAsset(asset.id)}
                           somethingElseFocused={somethingElseFocused}
+                          writers={state.talentPool.Writer}
+                          totalDays={state.totalDays}
+                          cash={state.studio.cash}
                           dispatch={dispatch}
                         />
                       ))}

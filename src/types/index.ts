@@ -1526,6 +1526,35 @@ export interface Asset {
   revisions?: Script[];
   /** Append-only development history (acquisition, rewrites, greenlights, notes). Absent on older/directly-built Assets; read as []. */
   developmentHistory?: DevelopmentEvent[];
+  /**
+   * A freelance Rewrite/Polish pass currently running on this Asset (Phase 3:
+   * Development Department MVP). Absent when nothing is in progress. The fee is
+   * charged immediately at commission; the craft outcome is rolled once, then,
+   * and stored here so completion is deterministic - the pass lands on
+   * `readyOnDay`, settled lazily off the calendar (engine/rewrite.ts:settleAssetRewrites),
+   * the same "finishes on day N" shape FilmDraft.postProductionEditingUntilDay
+   * already uses. While set, the Asset can't start a Project or a second pass.
+   */
+  pendingRewrite?: PendingRewrite;
+}
+
+/**
+ * An in-flight Rewrite/Polish pass on an Asset (Phase 3). The `craftChanges`
+ * are the already-rolled result (deterministic at commission time), applied via
+ * engine/screenplay.ts:reviseScript when `readyOnDay` arrives.
+ */
+export interface PendingRewrite {
+  /** The freelance writer engaged for the pass (a GameState.talentPool.Writer id), booked busy for its duration. */
+  writerId: PersonId;
+  kind: 'rewrite' | 'polish';
+  /** GameState.totalDays the pass was commissioned on. */
+  startedOnDay: GameDay;
+  /** GameState.totalDays the pass completes and the new head Script lands. */
+  readyOnDay: GameDay;
+  /** The rolled craft outcome (a subset of the four craft axes), applied on completion. */
+  craftChanges: Partial<ScriptCraft>;
+  /** The fee already charged at commission - recorded for the completion development-log entry, not re-charged. */
+  fee: Money;
 }
 
 // A rival studio's overall scale - governs both how big the films it makes
