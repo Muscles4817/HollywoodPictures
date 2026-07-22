@@ -252,6 +252,13 @@ export type GameAction =
   // widening formula - opens a call first if Direct Approach reached this
   // Character before Open Casting ever did.
   | { type: 'RECORD_CASTING_REJECTION'; characterId: string; role: 'Lead Actor' | 'Supporting Actor' }
+  // Casting Redesign (docs/DESIGN_REVIEW_casting_redesign.md) - the player
+  // dismisses one Open Casting applicant they're not interested in: removes
+  // them from this Character's applicant list and keeps them out of future
+  // weekly batches (CastingCall.dismissedApplicantIds). Pure housekeeping to
+  // keep the list uncluttered - not a rejection (rejectionCount is untouched),
+  // and Direct Approach can still target them deliberately.
+  | { type: 'DISMISS_CASTING_APPLICANT'; characterId: string; personId: string }
   // Replaces the old SET_PRODUCTION_CHOICES - the player now edits Strategy/
   // Ambition values directly (Plan Production, docs/DESIGN.md), and the
   // reducer derives ProductionChoices from them via

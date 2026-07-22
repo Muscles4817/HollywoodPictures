@@ -1321,6 +1321,8 @@ export interface CastingCall {
   applicants: CastingApplicant[];
   /** Casting Redesign, Phase C - how many offers (Direct Approach or an Open Casting "Cast" click) this Character has had turned down. Drives engine/castingAppeal.ts's no-softlock widening (a lower acceptance bar, a wider/less selective applicant pool) so a run of bad luck can never make a role permanently uncastable. */
   rejectionCount: number;
+  /** Person ids the player has dismissed from this call's Open Casting list - removed from `applicants` and kept out of every future weekly batch (engine/castingCalls.ts:tickCastingCalls), so the list stays uncluttered. Dismissal is Open-Casting-only housekeeping, not a rejection: it never touches rejectionCount, and Direct Approach can still target a dismissed actor deliberately. */
+  dismissedApplicantIds: string[];
 }
 
 // The film currently being built in the wizard; fields fill in progressively.

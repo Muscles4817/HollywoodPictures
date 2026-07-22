@@ -1087,6 +1087,31 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, castingCalls: nextCalls }) };
     }
 
+    // Casting Redesign - the player dismisses one Open Casting applicant. Drops
+    // them from this Character's applicant list and remembers the dismissal
+    // (dismissedApplicantIds) so tickCastingCalls never surfaces them again for
+    // this role. No-op if the call or applicant is already gone. Not a
+    // rejection - rejectionCount is deliberately untouched (see the action's
+    // own doc comment in gameState.ts).
+    case 'DISMISS_CASTING_APPLICANT': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const call = focusedDraft.castingCalls.find((c) => c.characterId === action.characterId);
+      if (!call || !call.applicants.some((a) => a.person.id === action.personId)) return state;
+      const nextCalls = focusedDraft.castingCalls.map((c) =>
+        c.characterId === action.characterId
+          ? {
+              ...c,
+              applicants: c.applicants.filter((a) => a.person.id !== action.personId),
+              dismissedApplicantIds: c.dismissedApplicantIds.includes(action.personId)
+                ? c.dismissedApplicantIds
+                : [...c.dismissedApplicantIds, action.personId],
+            }
+          : c,
+      );
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, castingCalls: nextCalls }) };
+    }
+
     case 'SET_TALENT_TARGET_PRICE': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;

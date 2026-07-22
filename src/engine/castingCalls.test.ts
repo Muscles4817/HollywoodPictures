@@ -174,6 +174,22 @@ describe('tickCastingCalls', () => {
     expect(newInSecondTick).toBeGreaterThanOrEqual(0);
   });
 
+  it('never surfaces a dismissed applicant in a new batch', () => {
+    const draft = draftFor(9);
+    const character = leadCharacter(draft.script!);
+    const pool = actorPool(9, 12);
+    // Dismiss most of the pool; none of them may ever be drawn into a batch.
+    const dismissedIds = pool.slice(1).map((p) => p.id);
+    const call = { ...openCastingCall(character.id, 'Lead Actor', 1), dismissedApplicantIds: dismissedIds };
+    const withCall = { ...draft, castingCalls: [call] };
+    const dismissed = new Set(dismissedIds);
+    let s = withCall;
+    for (let i = 0; i < 5; i++) {
+      s = tickCastingCalls(s, s.castingCalls[0].nextApplicantCheckDay, studio(), pool, createRng(90 + i));
+      expect(s.castingCalls[0].applicants.some((a) => dismissed.has(a.person.id))).toBe(false);
+    }
+  });
+
   it('stops generating further applicants once the Character is already cast', () => {
     const draft = draftFor(8);
     const character = leadCharacter(draft.script!);

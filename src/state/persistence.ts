@@ -273,7 +273,12 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // means "a final cut is locked" rather than "the one screening was answered." A
 // v42 save's FilmDraft entries have no postProductionEditingUntilDay field - no
 // migration code, same as every past shape change here.
-const SAVE_KEY = 'hollywood-pictures-save-v43';
+// v43 -> v44 (docs/DESIGN_REVIEW_casting_redesign.md): CastingCall gained a
+// required dismissedApplicantIds: string[] - the person ids the player has
+// dismissed from an Open Casting list, kept out of future weekly batches
+// (engine/castingCalls.ts). A v43 save's casting calls have no such field - no
+// migration code, same as every past shape change here.
+const SAVE_KEY = 'hollywood-pictures-save-v44';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

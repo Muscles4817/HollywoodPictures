@@ -14,6 +14,7 @@ import { createInitialStudio, type GameState } from '../../state/gameState';
 import { buildReadyDraft } from '../../state/testFixtures';
 import { saveState } from '../../state/persistence';
 import { generateTalentPool, generateTalentCandidates } from '../../engine/talentGenerator';
+import { openCastingCall } from '../../engine/castingCalls';
 import { withRng } from '../../engine/random';
 import { playerDraftToProject } from '../../engine/project';
 import type { Person, ScriptCharacter } from '../../types';
@@ -78,6 +79,68 @@ function stateWithFemaleLead(): GameState {
     };
   }).result;
 }
+
+function stateWithOpenCastingApplicant(): GameState {
+  return withRng(11, (rng) => {
+    const studio = createInitialStudio(50_000_000);
+    const talentPool = generateTalentPool(rng);
+    const base = generateTalentCandidates('Actor', rng, 1)[0];
+    const applicant = actorNamed(base, 'Fiona Female', 'Female');
+
+    const readyDraft = buildReadyDraft(rng);
+    const leadCharacter: ScriptCharacter = { ...readyDraft.script!.cast.find((c) => c.prominence === 'Lead')!, castingGender: 'Female' };
+    const script = { ...readyDraft.script!, cast: [leadCharacter, ...readyDraft.script!.cast.filter((c) => c.id !== leadCharacter.id)] };
+    const call = {
+      ...openCastingCall(leadCharacter.id, 'Lead Actor', 1),
+      applicants: [{ person: applicant, appliedOnDay: 1, channel: 'OpenCasting' as const }],
+    };
+    const draft = {
+      ...readyDraft,
+      script,
+      talent: [],
+      talentTargetPriceByRole: { 'Lead Actor': SALARY },
+      castingCalls: [call],
+    };
+
+    return {
+      studio,
+      screen: 'workspace' as const,
+      projects: [playerDraftToProject(draft)],
+      focusedProjectId: draft.id,
+      projectWorkspaceSection: 'cast-and-crew' as const,
+      rngSeed: 2,
+      totalDays: 1,
+      talentPool,
+      rivalStudios: [],
+      opportunities: [],
+      nextOpportunityCheckDay: 1,
+      viewingRivalStudioName: null,
+      viewingProductionId: null,
+    };
+  }).result;
+}
+
+describe('CastingDrawer - dismissing an Open Casting applicant', () => {
+  it('offers a Dismiss button that clears the applicant off the list', () => {
+    const state = stateWithOpenCastingApplicant();
+    const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;
+    saveState(state);
+
+    render(
+      <StudioProvider>
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+
+    // The applicant is listed (Open Casting is the default tab)...
+    expect(screen.getByText('Fiona Female')).toBeInTheDocument();
+    // ...with a Dismiss action alongside Cast.
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    // Dispatch removes them, so the card is gone and the empty-state shows.
+    expect(screen.queryByText('Fiona Female')).not.toBeInTheDocument();
+    expect(screen.getByText(/no applicants yet/i)).toBeInTheDocument();
+  });
+});
 
 describe('CastingDrawer - Direct Approach gender filter', () => {
   it('lists only actors whose gender matches a gendered role, not every actor', () => {

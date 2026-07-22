@@ -57,6 +57,7 @@ function CandidateCard({
   channel,
   actionLabel,
   onAct,
+  onDismiss,
 }: {
   person: Person;
   role: 'Lead Actor' | 'Supporting Actor';
@@ -67,6 +68,11 @@ function CandidateCard({
   channel?: CastingChannel;
   actionLabel: string;
   onAct: () => void;
+  // Open Casting only - lets the player clear an applicant they're not
+  // interested in off the list (and keep them from re-applying). Absent for
+  // Direct Approach, whose candidate list is derived from the talent pool, not
+  // a stored set of applicants there'd be anything to dismiss from.
+  onDismiss?: () => void;
 }) {
   return (
     <Card>
@@ -82,9 +88,16 @@ function CandidateCard({
       <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
         {overall ? describeApplicantInterest(overall) : ''}
       </p>
-      <Button variant="primary" className="btn-sm" style={{ marginTop: 8 }} onClick={onAct}>
-        {actionLabel}
-      </Button>
+      <div className="row" style={{ marginTop: 8, gap: 8 }}>
+        <Button variant="primary" className="btn-sm" onClick={onAct}>
+          {actionLabel}
+        </Button>
+        {onDismiss && (
+          <Button variant="secondary" className="btn-sm" onClick={onDismiss}>
+            Dismiss
+          </Button>
+        )}
+      </div>
     </Card>
   );
 }
@@ -275,6 +288,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                         channel={applicant.channel}
                         actionLabel="Cast"
                         onAct={() => attemptToAttach(applicant.person)}
+                        onDismiss={() => dispatch({ type: 'DISMISS_CASTING_APPLICANT', characterId: character.id, personId: applicant.person.id })}
                       />
                     ))}
                   </div>
