@@ -114,13 +114,13 @@ describe('generateScriptOptions - structural validity', () => {
     expect(perfectSlates / slates).toBeGreaterThan(0.8); // most slates fully unique
   });
 
-  it('is deterministic - the same seed produces an identical slate, aside from the process-global id counters', () => {
-    // Both `id` (nextScriptId) and each cast member's `id` (nextCharacterId)
-    // are module-level monotonic counters, not derived from the rng - two
-    // calls in the same test process never get the same ids even with an
-    // identical seed, by design (ids just need to be unique within a
-    // process, not reproducible). Every other field, including every other
-    // ScriptCharacter field, is fully rng-derived and must match exactly.
+  it('is deterministic - the same seed produces an identical slate, aside from the non-deterministic ids', () => {
+    // A script's `id` is minted from Date.now()+Math.random() (newScriptId),
+    // and each cast member's `id` is derived from it - both deliberately
+    // outside the rng stream, so two calls with an identical seed never get
+    // the same ids (ids need save-stable uniqueness, not seed reproducibility).
+    // Every other field, including every other ScriptCharacter field, is fully
+    // rng-derived and must match exactly.
     const stripId = (scripts: ReturnType<typeof generateScriptOptions>) =>
       scripts.map(({ id: _id, cast, ...rest }) => ({
         ...rest,

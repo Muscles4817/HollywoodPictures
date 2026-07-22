@@ -29,7 +29,19 @@ import { TALENT_FIRST_NAMES, TALENT_LAST_NAMES } from '../data/talentNames';
 import { generatePremise } from './premiseGenerator';
 import { type RandomFn, clamp, combineWeights, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick } from './random';
 
-let nextScriptId = 1;
+// Script ids must be unique across the whole save's lifetime - an Asset, its
+// revisions, every Project and Film that froze a snapshot, and the IP layer
+// all key off them - yet must NOT be drawn from the seeded generation stream
+// (drawing from `rng` here would shift every downstream seeded roll: rival
+// scripts, talent, box-office scenarios). A module-level counter satisfied the
+// second requirement but reset to 1 on every page reload, so a long-lived save
+// could mint a fresh `script-1` that collides with an already-stored one.
+// Date.now() plus a little Math.random() satisfies both - it is pure identity,
+// not a replay-deterministic gameplay outcome - the same reasoning
+// state/gameState.ts:generateDraftId already uses for draft ids.
+export function newScriptId(): string {
+  return `script-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 const TONE_JITTER = 15;
 
@@ -192,8 +204,6 @@ function generateEnvironmentAmbition(req: ProductionRequirements, setting: Setti
 // the rest of generation already uses - see data/characterArchetypes.ts's
 // own doc comment.
 
-let nextCharacterId = 1;
-
 const TRAIT_JITTER = 12;
 
 function jitterTrait(base: number, rng: RandomFn): number {
@@ -275,7 +285,12 @@ function castingGenderForCharacter(archetype: CharacterArchetype, name: string):
   return hashUnit(`${name}|mf`) < 0.5 ? 'Male' : 'Female';
 }
 
-function generateCharacter(prominence: CharacterProminence, genre: Genre, storyType: StoryType, rng: RandomFn): ScriptCharacter {
+// `id` is derived by the caller (generateCast) from the owning script's id plus
+// this character's position in the cast - so it's globally unique and stable
+// across reloads (no mutable counter), while still only needing to be unique
+// *within* its own Script for every consumer that reads it (see
+// engine/castRequirements.ts:characterForRoleSlot, TalentAssignment.characterId).
+function generateCharacter(id: string, prominence: CharacterProminence, genre: Genre, storyType: StoryType, rng: RandomFn): ScriptCharacter {
   const weights = combineWeights(CHARACTER_ARCHETYPES, [
     characterArchetypeWeightsForGenre(genre),
     characterArchetypeWeightsForStoryType(storyType),
@@ -284,7 +299,7 @@ function generateCharacter(prominence: CharacterProminence, genre: Genre, storyT
   const archetype = weightedPick(rng, CHARACTER_ARCHETYPES, weights);
   const name = `${pick(rng, TALENT_FIRST_NAMES)} ${pick(rng, TALENT_LAST_NAMES)}`;
   return {
-    id: `character-${nextCharacterId++}`,
+    id,
     name,
     archetype,
     prominence,
@@ -304,12 +319,16 @@ const MINOR_CHARACTER_COUNT_WEIGHTS = [0, 0, 0, 1, 1, 2];
  * contract - engine/castRequirements.ts:characterForRoleSlot depends on this
  * ordering to map a specific hired actor to a specific character.
  */
-function generateCast(genre: Genre, storyType: StoryType, requiredLeads: number, requiredSupporting: number, rng: RandomFn): ScriptCharacter[] {
+function generateCast(scriptId: string, genre: Genre, storyType: StoryType, requiredLeads: number, requiredSupporting: number, rng: RandomFn): ScriptCharacter[] {
   const cast: ScriptCharacter[] = [];
-  for (let i = 0; i < requiredLeads; i++) cast.push(generateCharacter('Lead', genre, storyType, rng));
-  for (let i = 0; i < requiredSupporting; i++) cast.push(generateCharacter('Supporting', genre, storyType, rng));
+  // `cast.length` is this character's stable within-script index at push time -
+  // `${scriptId}-c<index>` is unique within the script and (since scriptId is
+  // globally unique) globally, with no reload-resettable counter.
+  const add = (prominence: CharacterProminence) => cast.push(generateCharacter(`${scriptId}-c${cast.length}`, prominence, genre, storyType, rng));
+  for (let i = 0; i < requiredLeads; i++) add('Lead');
+  for (let i = 0; i < requiredSupporting; i++) add('Supporting');
   const minorCount = pick(rng, MINOR_CHARACTER_COUNT_WEIGHTS);
-  for (let i = 0; i < minorCount; i++) cast.push(generateCharacter('Minor', genre, storyType, rng));
+  for (let i = 0; i < minorCount; i++) add('Minor');
   return cast;
 }
 
@@ -372,6 +391,9 @@ function randIntRange(rng: RandomFn, range: QualityRange[keyof QualityRange]): n
  * stat rolls happened to differ.
  */
 function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses: Set<string>): Script {
+  // Minted up front (outside the rng stream) so the cast can derive stable,
+  // globally-unique ids from it - see newScriptId/generateCast.
+  const id = newScriptId();
   const archetype = weightedPick(rng, SCRIPT_ARCHETYPES, archetypeWeightsForGenre(genre));
   const archetypeProfile = SCRIPT_ARCHETYPE_PROFILES[archetype];
 
@@ -403,7 +425,7 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   const castMultiplier = storyProfile.castSizeMultiplier * scaleProfile.castMultiplier;
   const requiredLeads = Math.max(1, Math.round(pick(rng, LEAD_COUNT_WEIGHTS) * castMultiplier));
   const requiredSupporting = Math.max(0, Math.round(pick(rng, SUPPORTING_COUNT_WEIGHTS) * castMultiplier));
-  const cast = generateCast(genre, storyType, requiredLeads, requiredSupporting, rng);
+  const cast = generateCast(id, genre, storyType, requiredLeads, requiredSupporting, rng);
 
   const audienceWeights = combineWeights(TARGET_AUDIENCES, [
     storyProfile.targetAudienceWeights,
@@ -413,7 +435,7 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   const intendedAudience = weightedPick(rng, TARGET_AUDIENCES, audienceWeights);
 
   return {
-    id: `script-${nextScriptId++}`,
+    id,
     title,
     genre,
     archetype,
