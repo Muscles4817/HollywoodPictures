@@ -81,6 +81,7 @@ export function openCastingCall(characterId: string, role: 'Lead Actor' | 'Suppo
     nextApplicantCheckDay: openedOnDay + WEEK_LENGTH_DAYS,
     applicants: [],
     rejectionCount: 0,
+    dismissedApplicantIds: [],
   };
 }
 
@@ -279,7 +280,14 @@ export function tickCastingCalls(draft: FilmDraft, totalDays: number, studio: St
     if (!character || isCharacterCast(draft, character, call.role)) return call;
 
     changed = true;
-    const alreadyInvolvedIds = new Set([...draft.talent.map((a) => a.person.id), ...call.applicants.map((a) => a.person.id)]);
+    // Dismissed applicants stay out of every future batch - a dismissal is the
+    // player saying "not this person for this role," so they shouldn't keep
+    // re-applying and re-cluttering the list week after week.
+    const alreadyInvolvedIds = new Set([
+      ...draft.talent.map((a) => a.person.id),
+      ...call.applicants.map((a) => a.person.id),
+      ...call.dismissedApplicantIds,
+    ]);
     const range = ROLE_GENERATION_PROFILES[professionForProductionRole(call.role)].salaryRange;
     const offeredSalary = draft.talentTargetPriceByRole[call.role] ?? logAmount(0.5, range);
     // No real "planned shoot start day" exists pre-Greenlight (development-pipeline

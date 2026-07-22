@@ -1083,3 +1083,52 @@ describe('RECORD_CASTING_REJECTION', () => {
     expect(after).toBe(s);
   });
 });
+
+// Casting Redesign - dismissing an Open Casting applicant is list housekeeping:
+// it drops them and keeps them out of future batches, without counting as a
+// rejection.
+describe('DISMISS_CASTING_APPLICANT', () => {
+  function stateWithApplicants(seed: number) {
+    const s0 = stateWithFreshProject(seed);
+    const character = focusedDraftScript(s0).cast.find((c) => c.prominence === 'Lead')!;
+    const withCall = studioReducer(s0, { type: 'OPEN_CASTING_CALL', characterId: character.id, role: 'Lead Actor' });
+    const ticked = advanceDays(withCall, 8); // one weekly batch of applicants
+    return { state: ticked, characterId: character.id };
+  }
+
+  it('removes the applicant and remembers the dismissal, without bumping rejectionCount', () => {
+    const { state, characterId } = stateWithApplicants(320);
+    const before = asPlayerDraft(findProject(state.projects, state.focusedProjectId))!.castingCalls[0];
+    expect(before.applicants.length).toBeGreaterThan(0);
+    const victim = before.applicants[0].person.id;
+    const after = studioReducer(state, { type: 'DISMISS_CASTING_APPLICANT', characterId, personId: victim });
+    const call = asPlayerDraft(findProject(after.projects, after.focusedProjectId))!.castingCalls[0];
+    expect(call.applicants.some((a) => a.person.id === victim)).toBe(false);
+    expect(call.applicants).toHaveLength(before.applicants.length - 1);
+    expect(call.dismissedApplicantIds).toContain(victim);
+    expect(call.rejectionCount).toBe(before.rejectionCount); // a dismissal is not a rejection
+  });
+
+  it('keeps a dismissed applicant from ever re-applying to that call', () => {
+    const { state, characterId } = stateWithApplicants(321);
+    const victim = asPlayerDraft(findProject(state.projects, state.focusedProjectId))!.castingCalls[0].applicants[0].person.id;
+    let s = studioReducer(state, { type: 'DISMISS_CASTING_APPLICANT', characterId, personId: victim });
+    for (let i = 0; i < 8; i++) {
+      s = advanceDays(s, 8); // eight more weekly batches
+      const call = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!.castingCalls[0];
+      expect(call.applicants.some((a) => a.person.id === victim)).toBe(false);
+    }
+  });
+
+  it('is a no-op if the applicant is not on the call', () => {
+    const { state, characterId } = stateWithApplicants(322);
+    const after = studioReducer(state, { type: 'DISMISS_CASTING_APPLICANT', characterId, personId: 'nobody-here' });
+    expect(after).toBe(state);
+  });
+
+  it('is a no-op when nothing is focused', () => {
+    const s = freshWorkspaceState(323);
+    const after = studioReducer(s, { type: 'DISMISS_CASTING_APPLICANT', characterId: 'anything', personId: 'nobody' });
+    expect(after).toBe(s);
+  });
+});
