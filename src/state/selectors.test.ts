@@ -7,6 +7,7 @@ import { buildReadyDraft, buildStateWithReadyDraft } from './testFixtures';
 import { withRng } from '../engine/random';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
 import { asPlayerDraft, filmToProject, playerDraftToProject, playerReleasedFilms, scheduledDraftToProject } from '../engine/project';
+import { rivalReleaseIsAnnounced } from '../engine/rivalStudios';
 import { AWARD_CATEGORIES } from '../data/awards';
 import type { AwardCategory, AwardNomination, AwardShowId, AwardsCeremony, PhotographyState, Project, RivalProductionInProgress, RivalStudio } from '../types';
 
@@ -378,13 +379,13 @@ const rivalStudioFixture: RivalStudio = {
 
 describe('deriveUpcomingReleaseEntries - the shared source for the Release Calendar and the Marketing & Release date picker', () => {
   it('is empty with no scheduled projects and no rival productions', () => {
-    expect(deriveUpcomingReleaseEntries([], [], 'My Studio')).toEqual([]);
+    expect(deriveUpcomingReleaseEntries([], [], 'My Studio', 1)).toEqual([]);
   });
 
   it('includes a player-scheduled project, tagged isPlayer with the player studio id/name', () => {
     const { result: draft } = withRng(201, (rng) => buildReadyDraft(rng));
     const projects: Project[] = [{ kind: 'scheduled', draft, releaseDay: 50 }];
-    const entries = deriveUpcomingReleaseEntries(projects, [], 'My Studio');
+    const entries = deriveUpcomingReleaseEntries(projects, [], 'My Studio', 1);
     expect(entries).toHaveLength(1);
     expect(entries[0].isPlayer).toBe(true);
     expect(entries[0].studioId).toBe(PLAYER_STUDIO_ID);
@@ -393,11 +394,17 @@ describe('deriveUpcomingReleaseEntries - the shared source for the Release Calen
     expect(entries[0].genre).toBe(draft.genre);
     // Scale is normalized onto the shared Small/Medium/Large vocabulary.
     expect(['Small', 'Medium', 'Large']).toContain(entries[0].scale);
+    // The player always knows their own film's real title and cast.
+    expect(entries[0].announced).toBe(true);
+    expect(entries[0].title).toBe(draft.title || 'Untitled Film');
+    expect(entries[0].stars.length).toBeGreaterThan(0);
   });
 
   it('includes a rival production in progress, tagged not-isPlayer with the rival studio name resolved from its id', () => {
     const projects: Project[] = [{ kind: 'rival-in-progress', production: rivalProductionFixture() }];
-    const entries = deriveUpcomingReleaseEntries(projects, [rivalStudioFixture], 'My Studio');
+    // Fixture releaseDay is 200 and it carries no campaignStartDay, so before
+    // day ~170 (release minus the marketing lead) the film is still under wraps.
+    const entries = deriveUpcomingReleaseEntries(projects, [rivalStudioFixture], 'My Studio', 1);
     expect(entries).toHaveLength(1);
     expect(entries[0].isPlayer).toBe(false);
     expect(entries[0].studioId).toBe('rival-studio-0');
@@ -406,16 +413,35 @@ describe('deriveUpcomingReleaseEntries - the shared source for the Release Calen
     expect(entries[0].scale).toBe('Medium');
   });
 
+  it("keeps a rival's title and cast under wraps until its marketing rollout begins, then announces them", () => {
+    const production = rivalProductionFixture({ marketingChoices: { ...rivalProductionFixture().marketingChoices, campaignStartDay: 120 } });
+    const projects: Project[] = [{ kind: 'rival-in-progress', production }];
+
+    // Before the campaign starts: masked title, no cast.
+    const hidden = deriveUpcomingReleaseEntries(projects, [rivalStudioFixture], 'My Studio', 119)[0];
+    expect(hidden.announced).toBe(false);
+    expect(hidden.title).toBe(`${production.scale} ${production.genre} film`);
+    expect(hidden.title).not.toBe(production.script.title);
+    expect(hidden.stars).toEqual([]);
+    expect(hidden.director).toBeUndefined();
+
+    // Once the campaign is rolling out: the real title and cast are public.
+    const shown = deriveUpcomingReleaseEntries(projects, [rivalStudioFixture], 'My Studio', 120)[0];
+    expect(shown.announced).toBe(true);
+    expect(shown.title).toBe(production.script.title);
+    expect(shown.stars.length).toBeGreaterThan(0);
+  });
+
   it('falls back to "A Rival Studio" if the rival studio id has no matching entry in rivalStudios', () => {
     const projects: Project[] = [{ kind: 'rival-in-progress', production: rivalProductionFixture({ rivalStudioId: 'unknown' }) }];
-    const entries = deriveUpcomingReleaseEntries(projects, [], 'My Studio');
+    const entries = deriveUpcomingReleaseEntries(projects, [], 'My Studio', 1);
     expect(entries[0].studioName).toBe('A Rival Studio');
   });
 
   it('excludes every other project kind (in-progress drafts, released films)', () => {
     const { result: draft } = withRng(202, (rng) => buildReadyDraft(rng));
     const projects: Project[] = [{ kind: 'player-in-progress', draft }];
-    expect(deriveUpcomingReleaseEntries(projects, [], 'My Studio')).toEqual([]);
+    expect(deriveUpcomingReleaseEntries(projects, [], 'My Studio', 1)).toEqual([]);
   });
 
   it('sorts every entry by releaseDay, player and rival mixed together', () => {
@@ -426,8 +452,25 @@ describe('deriveUpcomingReleaseEntries - the shared source for the Release Calen
       { kind: 'rival-in-progress', production: rivalProductionFixture({ releaseDay: 50 }) },
       { kind: 'scheduled', draft: draftB, releaseDay: 150 },
     ];
-    const entries = deriveUpcomingReleaseEntries(projects, [rivalStudioFixture], 'My Studio');
+    const entries = deriveUpcomingReleaseEntries(projects, [rivalStudioFixture], 'My Studio', 1);
     expect(entries.map((e) => e.releaseDay)).toEqual([50, 150, 300]);
+  });
+});
+
+describe('rivalReleaseIsAnnounced - when a rival film stops being under wraps', () => {
+  it('uses the frozen campaignStartDay when present', () => {
+    const base = rivalProductionFixture();
+    const p = rivalProductionFixture({ marketingChoices: { ...base.marketingChoices, campaignStartDay: 120 } });
+    expect(rivalReleaseIsAnnounced(p, 119)).toBe(false);
+    expect(rivalReleaseIsAnnounced(p, 120)).toBe(true);
+  });
+
+  it('falls back to a marketing-lead window before release when campaignStartDay is absent (old saves)', () => {
+    // The fixture's marketingChoices carry no campaignStartDay; release is day 200.
+    const p = rivalProductionFixture({ releaseDay: 200 });
+    expect(p.marketingChoices.campaignStartDay).toBeUndefined();
+    expect(rivalReleaseIsAnnounced(p, 169)).toBe(false); // 200 - 30-day marketing lead
+    expect(rivalReleaseIsAnnounced(p, 170)).toBe(true);
   });
 });
 

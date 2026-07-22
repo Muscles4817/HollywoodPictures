@@ -63,8 +63,8 @@ export function ReleaseCalendar() {
   const closeFilters = () => setOpenFilterId(null);
 
   const entries = useMemo(
-    () => deriveUpcomingReleaseEntries(state.projects, state.rivalStudios, state.studio.name),
-    [state.projects, state.rivalStudios, state.studio.name],
+    () => deriveUpcomingReleaseEntries(state.projects, state.rivalStudios, state.studio.name, today),
+    [state.projects, state.rivalStudios, state.studio.name, today],
   );
 
   // --- Filter option lists -------------------------------------------------
@@ -235,8 +235,9 @@ export function ReleaseCalendar() {
 
       <p className="choice-description" style={{ margin: 0 }}>
         Every release still to come — your own scheduled films and what every rival studio currently has in the
-        works, grouped by expected release month. A rival&apos;s title is a working guess, announced only once it
-        actually releases; its scale, genre, studio and timing are known ahead of time.
+        works, grouped by expected release month. A rival keeps a film under wraps while it&apos;s shooting; once its
+        marketing campaign begins (about a month out), the real title and cast are announced. Until then only its
+        scale, genre, studio and timing are known.
       </p>
 
       {/* --- Filter toolbar --- */}
@@ -466,6 +467,16 @@ function ReleaseCard({ entry, daysUntil, competingCount, expanded, onToggle }: R
 
       <div className="release-card__studio">{entry.studioName}{entry.isPlayer ? ' (you)' : ''}</div>
 
+      {(entry.stars.length > 0 || entry.director) && (
+        <div className="release-card__cast">
+          {entry.stars.length > 0 && <span>Starring {entry.stars.join(', ')}</span>}
+          {entry.director && <span className="release-card__cast-dir">Dir. {entry.director}</span>}
+        </div>
+      )}
+      {!entry.isPlayer && !entry.announced && (
+        <div className="release-card__wraps">In production · title &amp; cast under wraps</div>
+      )}
+
       <div className="release-card__badges">
         <span className="release-card__timing">{timing}</span>
         {competingCount > 0 && (
@@ -477,10 +488,22 @@ function ReleaseCard({ entry, daysUntil, competingCount, expanded, onToggle }: R
 
       {expanded && (
         <dl className="release-card__details">
-          <dt>{entry.isPlayer ? 'Title' : 'Working title'}</dt>
+          <dt>{entry.isPlayer || entry.announced ? 'Title' : 'Working title'}</dt>
           <dd>{entry.title}</dd>
           <dt>Studio</dt>
           <dd>{entry.studioName}{entry.isPlayer ? ' (you)' : ''}</dd>
+          {entry.stars.length > 0 && (
+            <>
+              <dt>Starring</dt>
+              <dd>{entry.stars.join(', ')}</dd>
+            </>
+          )}
+          {entry.director && (
+            <>
+              <dt>Director</dt>
+              <dd>{entry.director}</dd>
+            </>
+          )}
           <dt>Genre</dt>
           <dd>{entry.genre}</dd>
           <dt>Scale</dt>
@@ -489,6 +512,12 @@ function ReleaseCard({ entry, daysUntil, competingCount, expanded, onToggle }: R
           <dd>{entry.targetAudience}</dd>
           <dt>Expected</dt>
           <dd>{formatGameMonthYear(entry.releaseDay)}</dd>
+          {!entry.isPlayer && !entry.announced && (
+            <>
+              <dt>Status</dt>
+              <dd>In production — the studio hasn&apos;t announced its title or cast yet.</dd>
+            </>
+          )}
         </dl>
       )}
 

@@ -53,13 +53,18 @@ function playerScheduled(releaseDay: number): Project {
   return { kind: 'scheduled', draft: withKnownScript, releaseDay };
 }
 
-/** Player film and rival film sharing the same release month (day 40). */
-function stateSameMonth(): GameState {
+/**
+ * Player film and rival film sharing the same release month (day 40). `today`
+ * defaults to day 5 - before the rival's marketing rollout begins (release day
+ * 40 minus the ~30-day lead ≈ day 10), so the rival is still under wraps and
+ * its title/cast are masked. Pass a later `today` to see it announced.
+ */
+function stateSameMonth(today = 5): GameState {
   return {
     studio: { ...createInitialStudio(10_000_000), name: 'My Studio' },
     projects: [playerScheduled(40), { kind: 'rival-in-progress', production: rivalProduction(40) }],
     rivalStudios: [rivalStudio],
-    totalDays: 10,
+    totalDays: today,
   } as unknown as GameState;
 }
 
@@ -77,11 +82,34 @@ describe('ReleaseCalendar - player vs rival differentiation', () => {
   it('shows the rival studio name and does not badge the rival as the player', () => {
     mockState = stateSameMonth();
     render(<ReleaseCalendar />);
-    // Rival title is derived as "<scale> <genre> film".
+    // Before its campaign begins, the rival title is masked as "<scale> <genre> film".
     expect(screen.getByText(/Medium .* film/)).toBeInTheDocument();
     expect(screen.getAllByText(/Test Rival Pictures/).length).toBeGreaterThan(0);
     // Only one "Your Film" badge (the player's), not one per card.
     expect(screen.getAllByText('Your Film')).toHaveLength(1);
+  });
+
+  it('keeps a rival under wraps before its campaign, then reveals its real title and cast once it begins', () => {
+    // The rival's real title/cast, reproduced from the same deterministic draft.
+    const { result: rivalDraft } = withRng(200, (rng) => buildReadyDraft(rng));
+    const rivalTitle = rivalDraft.script!.title;
+    const rivalLead = rivalDraft.talent.find((a) => a.role === 'Lead Actor')!.person.identity.name;
+
+    // Day 5: still shooting - masked, no real title, an "under wraps" note.
+    mockState = stateSameMonth(5);
+    const { unmount } = render(<ReleaseCalendar />);
+    expect(screen.getByText(/Medium .* film/)).toBeInTheDocument();
+    expect(screen.queryByText(rivalTitle)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/under wraps/).length).toBeGreaterThan(0);
+    unmount();
+
+    // Day 15: the marketing rollout has begun (campaign starts ~day 10) - the
+    // real title and cast are now public, and the mask is gone.
+    mockState = stateSameMonth(15);
+    render(<ReleaseCalendar />);
+    expect(screen.queryByText(/Medium .* film/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(rivalTitle).length).toBeGreaterThan(0);
+    expect(screen.getByText(new RegExp(rivalLead))).toBeInTheDocument();
   });
 });
 
