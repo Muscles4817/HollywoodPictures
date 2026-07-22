@@ -136,7 +136,21 @@
 .td-stat-raw { color: var(--text-muted); font-variant-numeric: tabular-nums; font-size: 0.85em; min-width: 2ch; text-align: right; }
 .td-stat-raw--solo { font-size: 1em; color: var(--text); font-weight: 600; }
 
-.td-filmography { display: flex; flex-direction: column; gap: 8px; }
+.td-detail__marquee {
+  margin: 8px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.95em;
+  color: var(--text);
+  background: color-mix(in srgb, gold 22%, transparent);
+  border: 1px solid color-mix(in srgb, gold 45%, transparent);
+}
+
+.td-filmography, .td-awards { display: flex; flex-direction: column; gap: 8px; }
 .td-credit { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .td-credit__title { font-weight: 600; }
 .td-credit__meta { color: var(--text-muted); font-size: 0.9em; }

@@ -10,7 +10,9 @@ import { gameDateFromTotalDays, formatGameDate } from '../engine/calendar';
 import { deriveBookedUntil } from '../engine/person';
 import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../engine/personTraits';
 import { playerReleasedFilms, rivalReleasedFilms } from '../engine/project';
-import type { Film, Person } from '../types';
+import { collectPersonAwards, collectPersonStats, collectFilmStats, formatWinnerMarquee, type PersonAwardSummary, type PersonStatRow } from '../state/selectors';
+import { AWARD_CATEGORY_LABEL } from '../data/awards';
+import type { AwardCategory, Film, Person } from '../types';
 import './TalentDatabase.css';
 
 type GenderFilter = 'all' | 'Male' | 'Female' | 'NonBinary';
@@ -151,7 +153,7 @@ function DevSection({ person }: { person: Person }) {
   );
 }
 
-function ActorDetail({ person, totalDays, credits, onBack }: { person: Person; totalDays: number; credits: Credit[]; onBack: () => void }) {
+function ActorDetail({ person, totalDays, credits, award, performance, onBack }: { person: Person; totalDays: number; credits: Credit[]; award?: PersonAwardSummary; performance?: PersonStatRow; onBack: () => void }) {
   const actor = person.careers.actor!;
   const age = getPersonAge(person.identity.dateOfBirth, gameDateFromTotalDays(totalDays));
   const bookedUntil = deriveBookedUntil(person.availability.commitments);
@@ -160,6 +162,7 @@ function ActorDetail({ person, totalDays, credits, onBack }: { person: Person; t
   const identityLine = [age !== undefined ? `${age} years old` : null, person.identity.gender, person.identity.nationality]
     .filter(Boolean)
     .join(' · ');
+  const marquee = award ? formatWinnerMarquee(award) : null;
 
   return (
     <div className="stack td-detail">
@@ -169,6 +172,7 @@ function ActorDetail({ person, totalDays, credits, onBack }: { person: Person; t
         <div>
           <h1 style={{ margin: 0 }}>{person.identity.name}</h1>
           <p className="td-detail__subtitle">Actor{identityLine ? ` · ${identityLine}` : ''}</p>
+          {marquee && <p className="td-detail__marquee">🏆 {marquee}</p>}
         </div>
         <div className="td-detail__fee">
           <div className="stat-label">Typical fee</div>
@@ -218,6 +222,64 @@ function ActorDetail({ person, totalDays, credits, onBack }: { person: Person; t
         )}
       </section>
 
+      {performance && performance.filmCount > 0 && (
+        <section className="td-panel">
+          <h2>Performance</h2>
+          <p className="choice-description" style={{ marginTop: 0 }}>
+            Averaged across {performance.filmCount} released film{performance.filmCount === 1 ? '' : 's'} in your world.
+          </p>
+          <div className="td-stat-grid">
+            <div className="td-stat-row">
+              <span className="td-stat-label">Critics</span>
+              <span className="td-stat-value"><span className="td-stat-raw td-stat-raw--solo">{Math.round(performance.avgCriticScore)}</span></span>
+            </div>
+            <div className="td-stat-row">
+              <span className="td-stat-label">Audience</span>
+              <span className="td-stat-value"><span className="td-stat-raw td-stat-raw--solo">{Math.round(performance.avgAudienceScore)}</span></span>
+            </div>
+            <div className="td-stat-row">
+              <span className="td-stat-label">Quality</span>
+              <span className="td-stat-value"><span className="td-stat-raw td-stat-raw--solo">{Math.round(performance.avgQualityScore)}</span></span>
+            </div>
+            <div className="td-stat-row">
+              <span className="td-stat-label">Hits</span>
+              <span className="td-stat-value"><span className="td-stat-raw td-stat-raw--solo">{performance.hitCount}</span></span>
+            </div>
+            <div className="td-stat-row">
+              <span className="td-stat-label">Flops</span>
+              <span className="td-stat-value"><span className="td-stat-raw td-stat-raw--solo">{performance.flopCount}</span></span>
+            </div>
+            <div className="td-stat-row">
+              <span className="td-stat-label">Total box office</span>
+              <span className="td-stat-value"><Money amount={performance.totalBoxOffice} /></span>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {award && award.nominations > 0 && (
+        <section className="td-panel">
+          <h2>Awards</h2>
+          <p className="choice-description" style={{ marginTop: 0 }}>
+            {award.wins > 0 ? `${award.wins} win${award.wins === 1 ? '' : 's'} · ` : ''}
+            {award.nominations} nomination{award.nominations === 1 ? '' : 's'} across every Academy Awards to date.
+          </p>
+          <div className="td-awards">
+            {(Object.entries(award.byCategory) as Array<[AwardCategory, { wins: number; nominations: number }]>)
+              .sort((a, b) => b[1].wins - a[1].wins || b[1].nominations - a[1].nominations)
+              .map(([category, cell]) => (
+                <div className="td-credit" key={category}>
+                  <div className="td-credit__title">{AWARD_CATEGORY_LABEL[category]}</div>
+                  <div className="td-credit__meta">
+                    {cell.wins > 0 ? `${cell.wins} win${cell.wins === 1 ? '' : 's'} · ` : ''}
+                    {cell.nominations} nomination{cell.nominations === 1 ? '' : 's'}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </section>
+      )}
+
       {traits.length > 0 && (
         <section className="td-panel">
           <h2>Reputation for</h2>
@@ -262,6 +324,16 @@ export function TalentDatabase() {
     return map;
   }, [state.projects]);
 
+  // Per-person Academy Award tally across every resolved ceremony in history.
+  const awardsByPerson = useMemo(() => collectPersonAwards(state.awards?.history ?? []), [state.awards?.history]);
+
+  // Per-person released-film performance (same aggregate the Stats leaderboard
+  // uses), keyed by person id so the detail view can look its subject up.
+  const performanceByPerson = useMemo(() => {
+    const rows = collectPersonStats(collectFilmStats(state.projects, state.studio.name), ['Lead Actor', 'Supporting Actor']);
+    return new Map(rows.map((row) => [row.id, row]));
+  }, [state.projects, state.studio.name]);
+
   const selected = selectedId ? actors.find((p) => p.id === selectedId) ?? null : null;
 
   const visible = useMemo(() => {
@@ -295,7 +367,16 @@ export function TalentDatabase() {
   }, [actors, gender, availability, search, sort, totalDays]);
 
   if (selected) {
-    return <ActorDetail person={selected} totalDays={totalDays} credits={creditsByPerson.get(selected.id) ?? []} onBack={() => setSelectedId(null)} />;
+    return (
+      <ActorDetail
+        person={selected}
+        totalDays={totalDays}
+        credits={creditsByPerson.get(selected.id) ?? []}
+        award={awardsByPerson.get(selected.id)}
+        performance={performanceByPerson.get(selected.id)}
+        onBack={() => setSelectedId(null)}
+      />
+    );
   }
 
   return (

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeReportedLegs, computeProjectSpendSoFar, countActivePlayerProjects, currentScreenFor, deriveProjectStage, deriveReachableWizardSteps, deriveReputationHistory, deriveUpcomingReleaseEntries, hasDraftProgress, PLAYER_STUDIO_ID } from './selectors';
+import { collectPersonAwards, computeReportedLegs, computeProjectSpendSoFar, countActivePlayerProjects, currentScreenFor, deriveProjectStage, deriveReachableWizardSteps, deriveReputationHistory, deriveUpcomingReleaseEntries, hasDraftProgress, PLAYER_STUDIO_ID } from './selectors';
 import { openCastingCall } from '../engine/castingCalls';
 import { generateTestScreeningPendingChoice } from '../engine/testScreening';
 import { studioReducer } from './studioReducer';
@@ -445,5 +445,51 @@ describe('countActivePlayerProjects', () => {
 
   it('is 0 for an empty slate', () => {
     expect(countActivePlayerProjects([])).toBe(0);
+  });
+});
+
+// Per-person award tally out of the permanent ceremony history - what the
+// Talent Database's header marquee and Awards panel read from.
+describe('collectPersonAwards', () => {
+  const emptyCategories = (): Record<AwardCategory, AwardNomination[]> =>
+    Object.fromEntries(AWARD_CATEGORIES.map((c) => [c, [] as AwardNomination[]])) as Record<AwardCategory, AwardNomination[]>;
+
+  const ceremony = (year: number, noms: Partial<Record<AwardCategory, AwardNomination[]>>): AwardsCeremony => ({
+    year,
+    ceremonyDay: year * 365,
+    categories: { ...emptyCategories(), ...noms },
+  });
+
+  it('is empty for no history', () => {
+    expect(collectPersonAwards([]).size).toBe(0);
+  });
+
+  it('tallies wins and nominations per person across every ceremony', () => {
+    const history: AwardsCeremony[] = [
+      ceremony(1, {
+        'best-actor': [
+          { filmId: 'f1', personId: 'p-actor', awardScore: 90, won: true },
+          { filmId: 'f2', personId: 'p-rival', awardScore: 80, won: false },
+        ],
+      }),
+      ceremony(2, {
+        'best-actor': [{ filmId: 'f3', personId: 'p-actor', awardScore: 88, won: true }],
+        'best-supporting-actor': [{ filmId: 'f4', personId: 'p-actor', awardScore: 70, won: false }],
+      }),
+    ];
+    const map = collectPersonAwards(history);
+    const actor = map.get('p-actor')!;
+    expect(actor.wins).toBe(2);
+    expect(actor.nominations).toBe(3);
+    expect(actor.byCategory['best-actor']).toEqual({ wins: 2, nominations: 2 });
+    expect(actor.byCategory['best-supporting-actor']).toEqual({ wins: 0, nominations: 1 });
+    expect(map.get('p-rival')).toEqual({ wins: 0, nominations: 1, byCategory: { 'best-actor': { wins: 0, nominations: 1 } } });
+  });
+
+  it('skips Best Picture nominations (no personId) - those belong to the studio, not a person', () => {
+    const history: AwardsCeremony[] = [
+      ceremony(1, { 'best-picture': [{ filmId: 'f1', awardScore: 95, won: true }] }),
+    ];
+    expect(collectPersonAwards(history).size).toBe(0);
   });
 });

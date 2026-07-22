@@ -1,10 +1,11 @@
-import type { AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, ProductionRole, Project, RivalStudio, WizardStep } from '../types';
+import type { AwardCategory, AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, PersonId, ProductionRole, Project, RivalStudio, WizardStep } from '../types';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { totalAttachedPerFilmFees } from '../engine/producers';
 import { computeStudioAwardDeltas } from '../engine/awards';
 import { explainBrandChange, explainPrestigeChange } from '../engine/reputation';
 import { WEEK_LENGTH_DAYS } from '../engine/boxOfficeRun';
 import { GENRE_PROFILES } from '../data/genres';
+import { AWARD_CATEGORY_LABEL } from '../data/awards';
 import { productionRequirementTags } from '../engine/scriptPresentation';
 import { asFilm, asPlayerDraft, asScheduled, asRivalProduction, findProject, projectId } from '../engine/project';
 import type { GameState } from './gameState';
@@ -448,6 +449,67 @@ export function collectPersonStats(rows: FilmStatRow[], roles: ProductionRole[])
     hitCount: acc.hitCount,
     flopCount: acc.flopCount,
   }));
+}
+
+export interface PersonAwardSummary {
+  /** Total Academy Award wins across every ceremony in history. */
+  wins: number;
+  /** Total nominations (wins included) across every ceremony in history. */
+  nominations: number;
+  /** Per-category breakdown, present only for categories the person appeared in. */
+  byCategory: Partial<Record<AwardCategory, { wins: number; nominations: number }>>;
+}
+
+/**
+ * Aggregate every person's Academy Award record out of the permanent ceremony
+ * history (state.awards.history). Keyed by PersonId the same way collectPersonStats
+ * and creditsByPerson are, so a Talent Database row can look its subject up directly.
+ * Best Picture nominations carry no personId and are simply skipped here - this is a
+ * per-person tally, and the studio's own Best Picture haul lives in playerAwardHaul.
+ */
+export function collectPersonAwards(history: AwardsCeremony[]): Map<PersonId, PersonAwardSummary> {
+  const map = new Map<PersonId, PersonAwardSummary>();
+  for (const ceremony of history) {
+    for (const category of Object.keys(ceremony.categories) as AwardCategory[]) {
+      for (const nomination of ceremony.categories[category]) {
+        if (!nomination.personId) continue;
+        let summary = map.get(nomination.personId);
+        if (!summary) {
+          summary = { wins: 0, nominations: 0, byCategory: {} };
+          map.set(nomination.personId, summary);
+        }
+        summary.nominations += 1;
+        if (nomination.won) summary.wins += 1;
+        const cell = summary.byCategory[category] ?? { wins: 0, nominations: 0 };
+        cell.nominations += 1;
+        if (nomination.won) cell.wins += 1;
+        summary.byCategory[category] = cell;
+      }
+    }
+  }
+  return map;
+}
+
+const AWARD_COUNT_WORDS = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
+
+/** "Two-time " for 2+, "" for a single win (so "Best Actor winner" reads plainly). */
+function timesPrefix(n: number): string {
+  if (n <= 1) return '';
+  return `${AWARD_COUNT_WORDS[n] ?? String(n)}-time `;
+}
+
+/**
+ * The Talent Database header banner for an actor who has actually won -
+ * "Two-time Best Actor winner", or several categories joined
+ * ("Best Actor winner · Best Supporting Actor winner"). Returns null for anyone
+ * with zero wins, so the caller renders nothing.
+ */
+export function formatWinnerMarquee(summary: PersonAwardSummary): string | null {
+  if (summary.wins <= 0) return null;
+  const won = (Object.entries(summary.byCategory) as Array<[AwardCategory, { wins: number; nominations: number }]>)
+    .filter(([, cell]) => cell.wins > 0)
+    .sort((a, b) => b[1].wins - a[1].wins);
+  return won.map(([category, cell]) => `${timesPrefix(cell.wins)}${AWARD_CATEGORY_LABEL[category]} winner`).join(' · ');
 }
 
 export interface PersonStatsFilters {
