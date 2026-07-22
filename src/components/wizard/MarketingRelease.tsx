@@ -42,11 +42,18 @@ import {
   canSelfDistributeWide,
   defaultDistributionMethod,
   distributionArmTier,
+  internationalReachForTier,
+  internationalTier,
   resolveDistribution,
   type DistributionMethod,
 } from '../../engine/distribution';
-import { RENTED_DISTRIBUTION_KEEP_MULTIPLIER, RENTED_WIDE_CEILING, SELF_DISTRIBUTION_WIDE_CEILING_BY_TIER } from '../../data/distribution';
-import { STUDIO_BOX_OFFICE_SHARE } from '../../engine/boxOfficeRun';
+import {
+  DOMESTIC_KEEP_SHARE,
+  INTERNATIONAL_KEEP_SHARE,
+  RENTED_DISTRIBUTION_KEEP_MULTIPLIER,
+  RENTED_WIDE_CEILING,
+  SELF_DISTRIBUTION_WIDE_CEILING_BY_TIER,
+} from '../../data/distribution';
 import type { CampaignAngle, MarketingChannel, MarketingChoices, PersonId, ReleaseType } from '../../types';
 import './MarketingRelease.css';
 
@@ -246,6 +253,11 @@ export function MarketingRelease() {
   // opening projection below and frozen for real at SCHEDULE_RELEASE.
   const armTier = distributionArmTier(state.studio);
   const canSelfWide = canSelfDistributeWide(state.studio);
+  // International reach is frozen at SCHEDULE_RELEASE from the studio's current
+  // International Distribution tier - shown here so the player knows, before
+  // committing, whether this release will earn overseas box office at all.
+  const intlTier = internationalTier(state.studio);
+  const intlReach = internationalReachForTier(intlTier);
   const requestedMethod = choices.distributionMethod ?? defaultDistributionMethod(choices.releaseType, state.studio);
   // Guard against a stale 'self' choice the studio can no longer back.
   const distributionMethod: DistributionMethod =
@@ -502,11 +514,27 @@ export function MarketingRelease() {
           <p className="choice-description" style={{ margin: 0 }}>
             {distributionMethod === 'self'
               ? `Self-distributed: your arm can command up to ${Math.round((SELF_DISTRIBUTION_WIDE_CEILING_BY_TIER[armTier] ?? 0) * 100)}% of screens, and you keep your full box-office share.`
-              : `Rented: reaches up to ${Math.round(RENTED_WIDE_CEILING * 100)}% of screens, but the distributor takes ${rentedCutPct}% of your box-office keep (${Math.round(STUDIO_BOX_OFFICE_SHARE * 100)}% → ${Math.round(STUDIO_BOX_OFFICE_SHARE * RENTED_DISTRIBUTION_KEEP_MULTIPLIER * 100)}% of gross).`}
+              : `Rented: reaches up to ${Math.round(RENTED_WIDE_CEILING * 100)}% of screens, but the distributor takes ${rentedCutPct}% of your domestic box-office keep (${Math.round(DOMESTIC_KEEP_SHARE * 100)}% → ${Math.round(DOMESTIC_KEEP_SHARE * RENTED_DISTRIBUTION_KEEP_MULTIPLIER * 100)}% of gross).`}
             {!canSelfWide && ' You have no Distribution Arm yet — build one on the Dashboard to self-distribute.'}
           </p>
         </div>
       )}
+
+      <div className="card stack">
+        <h3 style={{ margin: 0 }}>International</h3>
+        {intlReach <= 0 ? (
+          <p className="choice-description" style={{ margin: 0, color: 'var(--red)' }}>
+            Domestic release only — you have no international distribution. Build the International Distribution track on
+            your Distribution Arm to earn overseas box office.
+          </p>
+        ) : (
+          <p className="choice-description" style={{ margin: 0 }}>
+            International Distribution Tier {intlTier}: reaching {Math.round(intlReach * 100)}% of the overseas audience,
+            keeping {Math.round(INTERNATIONAL_KEEP_SHARE * 100)}% of overseas gross. How much of a film travels depends on
+            its genre.
+          </p>
+        )}
+      </div>
 
       {weakMarketingWarning && (
         <p style={{ color: 'var(--red)' }}>A wide release with little marketing behind it will badly underperform.</p>

@@ -3,8 +3,14 @@ import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft } from './testFixtures';
 import { playerReleasedFilms } from '../engine/project';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
-import { STUDIO_BOX_OFFICE_SHARE } from '../engine/boxOfficeRun';
-import { RENTED_DISTRIBUTION_KEEP_MULTIPLIER, RENTED_WIDE_CEILING } from '../data/distribution';
+import {
+  DOMESTIC_KEEP_SHARE,
+  INTERNATIONAL_DISTRIBUTION_MAX_TIER,
+  INTERNATIONAL_UPGRADE_COST_BY_TIER,
+  RENTED_DISTRIBUTION_KEEP_MULTIPLIER,
+  RENTED_WIDE_CEILING,
+} from '../data/distribution';
+import { internationalReachForTier } from '../engine/distribution';
 import type { GameState } from './gameState';
 
 /** A release-ready state whose studio has no Distribution Arm (default fixture ships one). */
@@ -43,6 +49,64 @@ describe('UPGRADE_DISTRIBUTION_ARM', () => {
   });
 });
 
+describe('UPGRADE_INTERNATIONAL_DISTRIBUTION', () => {
+  it('is a no-op without a Distribution Arm - the base arm must exist first', () => {
+    const base = noArmState(2);
+    expect(studioReducer(base, { type: 'UPGRADE_INTERNATIONAL_DISTRIBUTION' })).toBe(base);
+  });
+
+  it('charges cash and raises the international tier, from the hard gate up', () => {
+    const base = noArmState(2);
+    const t0: GameState = { ...base, studio: { ...base.studio, distributionArm: { tier: 1, internationalTier: 0 }, cash: 50_000_000 } };
+    const upgraded = studioReducer(t0, { type: 'UPGRADE_INTERNATIONAL_DISTRIBUTION' });
+    expect(upgraded.studio.distributionArm?.internationalTier).toBe(1);
+    expect(t0.studio.cash - upgraded.studio.cash).toBe(INTERNATIONAL_UPGRADE_COST_BY_TIER[1]);
+  });
+
+  it('caps at the max tier', () => {
+    const base = noArmState(2);
+    const maxed: GameState = {
+      ...base,
+      studio: { ...base.studio, distributionArm: { tier: 1, internationalTier: INTERNATIONAL_DISTRIBUTION_MAX_TIER }, cash: 50_000_000 },
+    };
+    expect(studioReducer(maxed, { type: 'UPGRADE_INTERNATIONAL_DISTRIBUTION' })).toBe(maxed);
+  });
+
+  it('no-ops when the upgrade cannot be afforded', () => {
+    const base = noArmState(2);
+    const poor: GameState = { ...base, studio: { ...base.studio, distributionArm: { tier: 1, internationalTier: 0 }, cash: 100 } };
+    expect(studioReducer(poor, { type: 'UPGRADE_INTERNATIONAL_DISTRIBUTION' })).toBe(poor);
+  });
+});
+
+describe('SCHEDULE_RELEASE - international reach freeze', () => {
+  it('freezes the studio\'s current international reach onto the release', () => {
+    // Default fixture ships a full international tier.
+    const released = studioReducer(buildStateWithReadyDraft(4), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    const film = playerReleasedFilms(released.projects)[0];
+    expect(film.marketingChoices.internationalReachFraction).toBe(internationalReachForTier(INTERNATIONAL_DISTRIBUTION_MAX_TIER));
+    expect(film.results.internationalReachFraction).toBe(internationalReachForTier(INTERNATIONAL_DISTRIBUTION_MAX_TIER));
+  });
+
+  it('a studio with no international distribution ships a hard-gated (reach 0) release - domestic only end to end', () => {
+    const base = buildStateWithReadyDraft(4);
+    const gated: GameState = {
+      ...base,
+      studio: { ...base.studio, distributionArm: { tier: 3, internationalTier: 0 } },
+    };
+    const released = studioReducer(gated, { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    const film = playerReleasedFilms(released.projects)[0];
+    expect(film.results.internationalReachFraction).toBe(0);
+
+    const finished = runToFinish(released);
+    const settled = playerReleasedFilms(finished.projects)[0];
+    // Every settled week is domestic-only.
+    for (const w of settled.boxOfficeRun.weeks) {
+      expect(w.internationalGross ?? 0).toBe(0);
+    }
+  });
+});
+
 describe('SCHEDULE_RELEASE - distribution gate and frozen deal', () => {
   it('hard-blocks a self-distributed Wide release when the studio has no Distribution Arm', () => {
     const base = noArmState(3);
@@ -62,7 +126,7 @@ describe('SCHEDULE_RELEASE - distribution gate and frozen deal', () => {
     // The rented deal is frozen onto the film.
     expect(film.marketingChoices.distributionMethod).toBe('rented');
     expect(film.marketingChoices.distributionBreadth).toBe(RENTED_WIDE_CEILING);
-    expect(film.results.distributionKeepShare).toBeCloseTo(STUDIO_BOX_OFFICE_SHARE * RENTED_DISTRIBUTION_KEEP_MULTIPLIER, 6);
+    expect(film.results.distributionKeepShare).toBeCloseTo(DOMESTIC_KEEP_SHARE * RENTED_DISTRIBUTION_KEEP_MULTIPLIER, 6);
 
     // End to end: the reduced keep actually flows into studioRevenue.
     const finished = runToFinish(released);
@@ -78,6 +142,6 @@ describe('SCHEDULE_RELEASE - distribution gate and frozen deal', () => {
     const released = studioReducer(buildStateWithReadyDraft(4), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     const film = playerReleasedFilms(released.projects)[0];
     expect(film.marketingChoices.distributionMethod).toBe('self');
-    expect(film.results.distributionKeepShare).toBeUndefined(); // full STUDIO_BOX_OFFICE_SHARE
+    expect(film.results.distributionKeepShare).toBeUndefined(); // full domestic keep
   });
 });

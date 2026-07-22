@@ -1,6 +1,7 @@
 import { useStudio } from '../../state/StudioContext';
 import { deriveFocusedFilm } from '../../state/selectors';
 import { explainBrandChange, explainPrestigeChange } from '../../engine/reputation';
+import { filmMarketBreakdown } from '../../engine/boxOfficeRun';
 import { Money } from '../common/Money';
 import { ScoreBar } from '../common/ScoreBar';
 import { StatTile } from '../common/StatTile';
@@ -23,6 +24,7 @@ export function ReleaseResults() {
   // enough reception that legs bottom out after a single week) - rare, but
   // when it happens the final numbers below are already real, not pending.
   const finished = results.outcome !== null;
+  const markets = filmMarketBreakdown(film);
 
   return (
     <div className="stack">
@@ -63,9 +65,23 @@ export function ReleaseResults() {
             <StatTile label="Total Box Office" value="Still playing" />
           )}
         </div>
+        <div className="row">
+          <StatTile label="Domestic" value={<Money amount={markets.domestic} />} />
+          <StatTile
+            label="International"
+            value={markets.hasInternational ? <Money amount={markets.international} /> : 'None'}
+          />
+          <StatTile label="Total Gross" value={<Money amount={markets.total} />} />
+        </div>
+        {!markets.hasInternational && (
+          <p className="choice-description" style={{ margin: 0 }}>
+            Domestic release only — with no international distribution, roughly <Money amount={markets.unreachedInternationalEstimate} /> of
+            overseas potential went unreached. Build the International Distribution track to capture it.
+          </p>
+        )}
         <p className="choice-description" style={{ margin: 0 }}>
-          Theaters and international distribution keep the rest - the studio's actual cut of box office is well below
-          the headline gross.
+          Theaters and overseas distributors keep the rest - the studio's actual cut of box office is well below the
+          headline gross.
         </p>
       </div>
 

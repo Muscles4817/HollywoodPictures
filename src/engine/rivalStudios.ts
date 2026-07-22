@@ -20,6 +20,7 @@ import { isPersonAvailableOnDay, withCommitment } from './person';
 import { effectiveRoleCapacity, characterForRoleSlot } from './castRequirements';
 import { computeRecommendedShootDays, computeRecommendedPostProductionDays } from './production';
 import { computeReleaseResults } from './releaseFilm';
+import { internationalReachForRivalStudio } from './distribution';
 import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
 import { highestBid, placeBid, reopenForfeitedOpportunity, type ResolvedBid } from './opportunities';
 import { findCandidatesNearPrice } from './talentFilter';
@@ -715,6 +716,9 @@ function startRivalProductionFromWonScript(
     marketingSpend: logAmount(spendPlan.marketingSpendT, MARKETING_SPEND_RANGE),
     releaseType: pick(rng, RELEASE_TYPES),
     releaseWindow: deriveReleaseWindowFromDay(releaseDay),
+    // Rivals are established majors with full overseas distribution - freeze
+    // full international reach so their grosses aren't nerfed by the gate.
+    internationalReachFraction: internationalReachForRivalStudio(rival),
   };
 
   const cost =
