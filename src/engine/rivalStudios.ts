@@ -53,6 +53,25 @@ const RELEASE_TYPES = Object.keys(RELEASE_TYPE_PROFILES) as MarketingChoices['re
 // marketing pacing (docs/DESIGN_REVIEW_post_production_redesign.md section 3).
 const RIVAL_MARKETING_LEAD_DAYS = 30;
 
+/**
+ * The day a rival production's marketing rollout goes public - production and
+ * post-production have wrapped and the campaign begins, the rival's analogue of
+ * the player committing a campaign at SCHEDULE_RELEASE. Until this day the
+ * film's title and cast are under wraps (a "secret" project the player only
+ * knows the scale/genre/studio/timing of); from here on they're announced,
+ * exactly as a real studio reveals a title and cast once it starts marketing.
+ * Reads the frozen campaignStartDay when present, falling back to a lead-time
+ * window before release for productions that predate it (no save migration).
+ */
+export function rivalCampaignStartDay(production: RivalProductionInProgress): number {
+  return production.marketingChoices.campaignStartDay ?? production.releaseDay - RIVAL_MARKETING_LEAD_DAYS;
+}
+
+/** Whether a rival's marketing rollout has begun as of `today` - i.e. whether its real title and cast are now public (see rivalCampaignStartDay). */
+export function rivalReleaseIsAnnounced(production: RivalProductionInProgress, today: number): boolean {
+  return today >= rivalCampaignStartDay(production);
+}
+
 // Where a production's target price (0-1, log-scale) lands based on its
 // scale - governs both casting price and production spend, same way the
 // player's own sliders do.
@@ -719,6 +738,13 @@ function startRivalProductionFromWonScript(
     // Rivals are established majors with full overseas distribution - freeze
     // full international reach so their grosses aren't nerfed by the gate.
     internationalReachFraction: internationalReachForRivalStudio(rival),
+    // When this production's marketing rollout goes public: the day the shoot
+    // and post wrap (naiveReleaseDay is exactly this plus the marketing lead).
+    // The title and cast are announced from here on (rivalReleaseIsAnnounced);
+    // before it, the project is under wraps. Purely a reveal anchor - a rival's
+    // box office never reads the rollout multiplier (resolveRivalProduction),
+    // so its commercial calibration is unchanged.
+    campaignStartDay: totalDays + recommendedDays + postProductionDays,
   };
 
   const cost =

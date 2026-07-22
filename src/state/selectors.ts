@@ -1,4 +1,4 @@
-import type { AwardCategory, AwardShowId, AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, PersonId, ProductionRole, ProductionScale, Project, RivalStudio, ScriptScale, WizardStep } from '../types';
+import type { AwardCategory, AwardShowId, AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, PersonId, ProductionRole, ProductionScale, Project, RivalStudio, ScriptScale, TalentAssignment, WizardStep } from '../types';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { totalAttachedPerFilmFees } from '../engine/producers';
 import { computeStudioAwardDeltas } from '../engine/awards';
@@ -9,6 +9,7 @@ import { GENRE_PROFILES } from '../data/genres';
 import { AWARD_CATEGORY_LABEL } from '../data/awards';
 import { productionRequirementTags } from '../engine/scriptPresentation';
 import { asFilm, asPlayerDraft, asScheduled, asRivalProduction, findProject, projectId } from '../engine/project';
+import { rivalReleaseIsAnnounced } from '../engine/rivalStudios';
 import type { GameState } from './gameState';
 
 /**
@@ -892,9 +893,31 @@ export interface CalendarEntry {
   studioId: string;
   studioName: string;
   isPlayer: boolean;
+  /**
+   * Whether this film's real identity (title + cast) is public yet. Always true
+   * for the player's own films; for a rival it flips true once its marketing
+   * rollout has begun (engine/rivalStudios.ts:rivalReleaseIsAnnounced). While
+   * false the `title` is a generic "{scale} {genre} film" and `stars`/`director`
+   * are empty - the project is still under wraps.
+   */
+  announced: boolean;
+  /** Lead actor names, shown once the film is announced (empty while under wraps). */
+  stars: string[];
+  /** Director name, shown once the film is announced. */
+  director?: string;
 }
 
 export const PLAYER_STUDIO_ID = 'player-studio';
+
+/** Lead actor names on a film (the marquee cast), in assignment order. */
+function leadActorNames(talent: TalentAssignment[]): string[] {
+  return talent.filter((a) => a.role === 'Lead Actor').map((a) => a.person.identity.name);
+}
+
+/** The director's name, if one is assigned. */
+function directorName(talent: TalentAssignment[]): string | undefined {
+  return talent.find((a) => a.role === 'Director')?.person.identity.name;
+}
 
 /**
  * Every upcoming release, the player's own scheduled projects and every
@@ -913,7 +936,7 @@ export const PLAYER_STUDIO_ID = 'player-studio';
  * has genre/targetAudience set - see state/studioReducer.ts:SCHEDULE_RELEASE's
  * own guard).
  */
-export function deriveUpcomingReleaseEntries(projects: Project[], rivalStudios: RivalStudio[], studioName: string): CalendarEntry[] {
+export function deriveUpcomingReleaseEntries(projects: Project[], rivalStudios: RivalStudio[], studioName: string, today: number): CalendarEntry[] {
   const rivalNameById = new Map(rivalStudios.map((rival) => [rival.id, rival.name]));
 
   const entries = projects.flatMap((project): CalendarEntry[] => {
@@ -932,16 +955,24 @@ export function deriveUpcomingReleaseEntries(projects: Project[], rivalStudios: 
           studioId: PLAYER_STUDIO_ID,
           studioName,
           isPlayer: true,
+          // The player always knows their own film's title and cast.
+          announced: true,
+          stars: leadActorNames(scheduled.draft.talent),
+          director: directorName(scheduled.draft.talent),
         },
       ];
     }
 
     const production = asRivalProduction(project);
     if (production) {
+      // A rival's title and cast are announced once its marketing rollout has
+      // begun (engine/rivalStudios.ts) - before that the project is under wraps
+      // and only its scale/genre/studio/timing are known.
+      const announced = rivalReleaseIsAnnounced(production, today);
       return [
         {
           id: production.id,
-          title: `${production.scale} ${production.genre} film`,
+          title: announced ? production.script.title : `${production.scale} ${production.genre} film`,
           genre: production.genre,
           targetAudience: production.targetAudience,
           scale: releaseScaleFromProduction(production.scale),
@@ -949,6 +980,9 @@ export function deriveUpcomingReleaseEntries(projects: Project[], rivalStudios: 
           studioId: production.rivalStudioId,
           studioName: rivalNameById.get(production.rivalStudioId) ?? 'A Rival Studio',
           isPlayer: false,
+          announced,
+          stars: announced ? leadActorNames(production.talent) : [],
+          director: announced ? directorName(production.talent) : undefined,
         },
       ];
     }

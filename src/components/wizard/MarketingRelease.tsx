@@ -211,8 +211,8 @@ export function MarketingRelease() {
   // (state/selectors.ts:deriveUpcomingReleaseEntries), surfaced inline here
   // instead of requiring a separate page visit.
   const upcomingEntries = useMemo(
-    () => deriveUpcomingReleaseEntries(state.projects, state.rivalStudios, state.studio.name),
-    [state.projects, state.rivalStudios, state.studio.name],
+    () => deriveUpcomingReleaseEntries(state.projects, state.rivalStudios, state.studio.name, state.totalDays),
+    [state.projects, state.rivalStudios, state.studio.name, state.totalDays],
   );
   // The same data, reduced to what computeCompetitiveCrowding needs (real
   // strength, not just a display label) - the exact converters

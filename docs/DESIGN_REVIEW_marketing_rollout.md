@@ -87,12 +87,40 @@ The mechanic is legible, not a hidden multiplier:
 - **How It Works** — a guide entry explaining that when you release changes how
   far your marketing reaches.
 
+## 4a. Rival campaigns reveal a film's title and cast
+
+A rival studio's in-progress film used to be masked as a generic "{scale}
+{genre} film" with no cast, for its entire production — the real title and cast
+only surfaced the day it released. That contradicted the rollout framing: a real
+studio's film is under wraps while it shoots, but once **marketing begins** the
+title and cast are announced (a teaser drops, the cast is public) well before
+release.
+
+So a rival's identity now **reveals when its marketing rollout begins**:
+
+- Rival productions freeze a `campaignStartDay` at creation
+  (`engine/rivalStudios.ts`) — the day the shoot and post wrap, which is exactly
+  `releaseDay − RIVAL_MARKETING_LEAD_DAYS` before the crowding nudge. This is the
+  rival analogue of the player committing a campaign at `SCHEDULE_RELEASE`.
+- `rivalReleaseIsAnnounced(production, today)` gates the reveal (with a
+  lead-time fallback for saves predating the field, so no migration).
+- **Release Calendar** (`selectors.ts:deriveUpcomingReleaseEntries`, now taking
+  `today`): a masked rival shows only scale/genre/studio/timing and an "under
+  wraps" note; once announced it shows the real title, its lead cast, and
+  director. `CalendarEntry` gained `announced` / `stars` / `director` (the
+  player's own films are always announced).
+- **Rival studio page** (`RivalStudioPage.tsx`): the "In Production" list shows
+  the real title + "Starring …/Dir. …" once announced, the masked placeholder
+  before.
+
 ## 5. Scope & non-goals
 
-- **Rivals are unchanged.** They resolve through `resolveRivalProduction`, which
-  passes no multiplier (neutral 1) — rollout momentum is a player-facing
-  campaign-management lever, and keeping it off rivals leaves their calibration
-  alone.
+- **Rivals' box office is unchanged.** They resolve through
+  `resolveRivalProduction`, which passes no rollout multiplier (neutral 1) —
+  rollout *momentum* is a player-facing campaign-management lever, and keeping it
+  off rivals leaves their commercial calibration alone. The `campaignStartDay`
+  now stored on rival productions is used only as the title/cast reveal anchor
+  (§4a), never read by the box-office path.
 - **The box-office simulation is not rewritten.** Same discipline as the original
   marketing brief: a smarter input, not new box-office math.
 - **No per-week spend draw-down or buzz accrual into state.** The rollout's

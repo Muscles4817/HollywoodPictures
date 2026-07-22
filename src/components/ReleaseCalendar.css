@@ -227,6 +227,24 @@
   color: var(--text-muted);
 }
 
+.release-card__cast {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.release-card__cast-dir {
+  color: var(--text-muted);
+}
+
+.release-card__wraps {
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
 .release-card__badges {
   display: flex;
   flex-wrap: wrap;

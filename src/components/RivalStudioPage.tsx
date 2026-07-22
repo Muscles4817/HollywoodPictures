@@ -5,6 +5,7 @@ import { StatTile } from './common/StatTile';
 import { Money } from './common/Money';
 import { FilmDetailModal } from './common/FilmDetailModal';
 import { asFilm, asRivalProduction } from '../engine/project';
+import { rivalReleaseIsAnnounced } from '../engine/rivalStudios';
 import type { Film } from '../types';
 
 /**
@@ -68,12 +69,31 @@ export function RivalStudioPage() {
       {inProgress.length > 0 && (
         <div className="card stack">
           <h2 style={{ margin: 0 }}>In Production</h2>
-          {inProgress.map((p) => (
-            <div className="row-between" key={p.id}>
-              <span>{p.scale} {p.genre} film</span>
-              <span style={{ color: 'var(--text-muted)' }}>Expected {formatGameMonthYear(p.releaseDay)}</span>
-            </div>
-          ))}
+          {inProgress.map((p) => {
+            // Once the marketing rollout begins (engine/rivalStudios.ts) the real
+            // title and cast are public; before that it's an under-wraps project
+            // the player only knows the scale/genre of.
+            const announced = rivalReleaseIsAnnounced(p, state.totalDays);
+            const stars = p.talent.filter((a) => a.role === 'Lead Actor').map((a) => a.person.identity.name);
+            const director = p.talent.find((a) => a.role === 'Director')?.person.identity.name;
+            return (
+              <div className="row-between" key={p.id}>
+                <span className="stack" style={{ gap: 2 }}>
+                  <strong>{announced ? p.script.title : `${p.scale} ${p.genre} film`}</strong>
+                  {announced ? (
+                    <small style={{ color: 'var(--text-muted)' }}>
+                      {stars.length > 0 ? `Starring ${stars.join(', ')}` : ''}
+                      {stars.length > 0 && director ? ' · ' : ''}
+                      {director ? `Dir. ${director}` : ''}
+                    </small>
+                  ) : (
+                    <small style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Title &amp; cast under wraps</small>
+                  )}
+                </span>
+                <span style={{ color: 'var(--text-muted)' }}>Expected {formatGameMonthYear(p.releaseDay)}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 
