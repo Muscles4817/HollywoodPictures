@@ -69,6 +69,76 @@ function scoreToStars(value: number, max = 100): number {
   return Math.max(0, Math.min(5, Math.round((value / max) * 10) / 2));
 }
 
+type AssetWithStatus = { asset: Asset; status: AssetStatus };
+
+interface AssetControls {
+  statusFilter: AssetStatusFilter;
+  filters: AssetLibraryFilters;
+  /** The search box text, already trimmed and lower-cased. */
+  normalizedSearch: string;
+}
+
+/**
+ * Whether one asset passes the current search/status/facet controls - the
+ * single predicate both the acquired-asset grid and the Test Scripts grid run,
+ * so the two sections filter identically instead of the test scripts being
+ * shown raw.
+ */
+function assetMatchesControls(
+  { asset, status }: AssetWithStatus,
+  { statusFilter, filters, normalizedSearch }: AssetControls,
+): boolean {
+  if (statusFilter !== 'all' && status.status !== statusFilter) return false;
+
+  if (!filters.genres.has(String(asset.script.genre))) return false;
+  if (!filters.sources.has(String(asset.source))) return false;
+  if (!filters.audiences.has(String(asset.script.intendedAudience))) return false;
+  if (!filters.scales.has(String(asset.script.scale))) return false;
+
+  if (!normalizedSearch) return true;
+
+  const searchableText = [
+    asset.script.title,
+    asset.script.synopsis,
+    asset.script.genre,
+    asset.script.storyType,
+    asset.script.primarySetting,
+    asset.script.scale,
+    asset.script.intendedAudience,
+    asset.source,
+  ]
+    .join(' ')
+    .toLocaleLowerCase();
+
+  return searchableText.includes(normalizedSearch);
+}
+
+/** A stable-per-`sortBy` ordering, shared by both grids so the sort control drives them together. */
+function sortAssets(list: AssetWithStatus[], sortBy: AssetSort): AssetWithStatus[] {
+  return [...list].sort((left, right) => {
+    switch (sortBy) {
+      case 'title':
+        return left.asset.script.title.localeCompare(right.asset.script.title);
+
+      case 'cost-desc':
+        return right.asset.script.cost - left.asset.script.cost;
+
+      case 'writing-desc':
+        return getWritingScore(right.asset.script) - getWritingScore(left.asset.script);
+
+      case 'creative-desc':
+        return getCreativeScore(right.asset.script) - getCreativeScore(left.asset.script);
+
+      case 'complexity-desc':
+        return right.asset.script.complexity - left.asset.script.complexity;
+
+      case 'recent':
+      default:
+        return right.asset.acquiredOnDay - left.asset.acquiredOnDay;
+    }
+  });
+}
+
 function CompactStarRating({ value }: { value: number }) {
   const stars = scoreToStars(value);
 
@@ -294,38 +364,48 @@ export function AssetLibrary() {
     [state.projects, state.studio.assets],
   );
 
+  // Facet options are drawn from both the acquired library and the Test
+  // Scripts, so a value that only a test script carries (e.g. a genre the
+  // player has never acquired) is still a selectable filter - otherwise the
+  // default "all options selected" set would silently exclude every test
+  // script of that value.
+  const filterableAssets = useMemo(
+    () => [...assetsWithStatus, ...testScriptsWithStatus],
+    [assetsWithStatus, testScriptsWithStatus],
+  );
+
   const genreOptions = useMemo(
     () =>
       toFilterOptions(
-        assetsWithStatus.map(({ asset }) => String(asset.script.genre)),
+        filterableAssets.map(({ asset }) => String(asset.script.genre)),
       ),
-    [assetsWithStatus],
+    [filterableAssets],
   );
 
   const sourceOptions = useMemo(
     () =>
       toFilterOptions(
-        assetsWithStatus.map(({ asset }) => String(asset.source)),
+        filterableAssets.map(({ asset }) => String(asset.source)),
       ),
-    [assetsWithStatus],
+    [filterableAssets],
   );
 
   const audienceOptions = useMemo(
     () =>
       toFilterOptions(
-        assetsWithStatus.map(({ asset }) =>
+        filterableAssets.map(({ asset }) =>
           String(asset.script.intendedAudience),
         ),
       ),
-    [assetsWithStatus],
+    [filterableAssets],
   );
 
   const scaleOptions = useMemo(
     () =>
       toFilterOptions(
-        assetsWithStatus.map(({ asset }) => String(asset.script.scale)),
+        filterableAssets.map(({ asset }) => String(asset.script.scale)),
       ),
-    [assetsWithStatus],
+    [filterableAssets],
   );
 
   const [filters, setFilters] = useState<AssetLibraryFilters>(() => ({
@@ -350,70 +430,30 @@ export function AssetLibrary() {
     return counts;
   }, [assetsWithStatus]);
 
-  const visibleAssets = useMemo(() => {
-    const normalizedSearch = searchText.trim().toLocaleLowerCase();
+  const normalizedSearch = searchText.trim().toLocaleLowerCase();
 
-    const filtered = assetsWithStatus.filter(({ asset, status }) => {
-      if (statusFilter !== 'all' && status.status !== statusFilter) {
-        return false;
-      }
+  const visibleAssets = useMemo(
+    () =>
+      sortAssets(
+        assetsWithStatus.filter((entry) =>
+          assetMatchesControls(entry, { statusFilter, filters, normalizedSearch }),
+        ),
+        sortBy,
+      ),
+    [assetsWithStatus, filters, normalizedSearch, sortBy, statusFilter],
+  );
 
-      if (!filters.genres.has(String(asset.script.genre))) return false;
-      if (!filters.sources.has(String(asset.source))) return false;
-      if (!filters.audiences.has(String(asset.script.intendedAudience))) {
-        return false;
-      }
-      if (!filters.scales.has(String(asset.script.scale))) return false;
-
-      if (!normalizedSearch) return true;
-
-      const searchableText = [
-        asset.script.title,
-        asset.script.synopsis,
-        asset.script.genre,
-        asset.script.storyType,
-        asset.script.primarySetting,
-        asset.script.scale,
-        asset.script.intendedAudience,
-        asset.source,
-      ]
-        .join(' ')
-        .toLocaleLowerCase();
-
-      return searchableText.includes(normalizedSearch);
-    });
-
-    return [...filtered].sort((left, right) => {
-      switch (sortBy) {
-        case 'title':
-          return left.asset.script.title.localeCompare(
-            right.asset.script.title,
-          );
-
-        case 'cost-desc':
-          return right.asset.script.cost - left.asset.script.cost;
-
-        case 'writing-desc':
-          return (
-            getWritingScore(right.asset.script) -
-            getWritingScore(left.asset.script)
-          );
-
-        case 'creative-desc':
-          return (
-            getCreativeScore(right.asset.script) -
-            getCreativeScore(left.asset.script)
-          );
-
-        case 'complexity-desc':
-          return right.asset.script.complexity - left.asset.script.complexity;
-
-        case 'recent':
-        default:
-          return right.asset.acquiredOnDay - left.asset.acquiredOnDay;
-      }
-    });
-  }, [assetsWithStatus, filters, searchText, sortBy, statusFilter]);
+  // The Test Scripts grid runs the exact same controls as the acquired grid.
+  const visibleTestScripts = useMemo(
+    () =>
+      sortAssets(
+        testScriptsWithStatus.filter((entry) =>
+          assetMatchesControls(entry, { statusFilter, filters, normalizedSearch }),
+        ),
+        sortBy,
+      ),
+    [testScriptsWithStatus, filters, normalizedSearch, sortBy, statusFilter],
+  );
 
   const toggleFilter = (filterId: string) => {
     setOpenFilterId((current) =>
@@ -458,7 +498,7 @@ export function AssetLibrary() {
         yours permanently, even when a pre-greenlight project is abandoned.
       </p>
 
-      {assetsWithStatus.length === 0 ? (
+      {filterableAssets.length === 0 ? (
         <div className="card">
           <p style={{ margin: 0 }}>
             Nothing owned yet — acquire something from the Opportunity Market
@@ -595,64 +635,93 @@ export function AssetLibrary() {
             </div>
           </section>
 
-          <div className="asset-library-results-heading">
-            <span>
-              Showing {visibleAssets.length} of {assetsWithStatus.length}
-            </span>
-          </div>
-
-          {visibleAssets.length === 0 ? (
-            <div className="card asset-library-empty-filtered">
-              <h2>No matching assets</h2>
-              <p>
-                Try another status tab, remove a filter, or broaden your search.
+          {assetsWithStatus.length === 0 ? (
+            <div className="card">
+              <p style={{ margin: 0 }}>
+                You haven't acquired any screenplays yet — pick one up from the
+                Opportunity Market. The free Test Scripts below are always
+                available to develop, and respond to the filters above.
               </p>
-              <Button onClick={clearAllFilters}>Reset filters</Button>
             </div>
           ) : (
-            <div className="asset-library-grid">
-              {visibleAssets.map(({ asset, status }) => (
-                <AssetCard
-                  key={asset.id}
-                  asset={asset}
-                  status={status}
-                  isExpanded={expandedAssetId === asset.id}
-                  onToggleExpanded={() => toggleExpandedAsset(asset.id)}
-                  somethingElseFocused={somethingElseFocused}
-                  dispatch={dispatch}
-                />
-              ))}
-            </div>
+            <>
+              <div className="asset-library-results-heading">
+                <span>
+                  Showing {visibleAssets.length} of {assetsWithStatus.length}
+                </span>
+              </div>
+
+              {visibleAssets.length === 0 ? (
+                <div className="card asset-library-empty-filtered">
+                  <h2>No matching assets</h2>
+                  <p>
+                    Try another status tab, remove a filter, or broaden your search.
+                  </p>
+                  <Button onClick={clearAllFilters}>Reset filters</Button>
+                </div>
+              ) : (
+                <div className="asset-library-grid">
+                  {visibleAssets.map(({ asset, status }) => (
+                    <AssetCard
+                      key={asset.id}
+                      asset={asset}
+                      status={status}
+                      isExpanded={expandedAssetId === asset.id}
+                      onToggleExpanded={() => toggleExpandedAsset(asset.id)}
+                      somethingElseFocused={somethingElseFocused}
+                      dispatch={dispatch}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {testScriptsWithStatus.length > 0 && (
+            <section
+              className="asset-library-test-scripts"
+              aria-label="Test scripts"
+            >
+              <h2 style={{ margin: 0 }}>Test Scripts</h2>
+              <p className="choice-description" style={{ margin: 0 }}>
+                Eighty-eight real, iconic screenplays — eleven per genre — free to
+                develop any time, for trying out productions without waiting on the
+                Opportunity Market.
+              </p>
+
+              <div className="asset-library-results-heading">
+                <span>
+                  Showing {visibleTestScripts.length} of{' '}
+                  {testScriptsWithStatus.length}
+                </span>
+              </div>
+
+              {visibleTestScripts.length === 0 ? (
+                <div className="card asset-library-empty-filtered">
+                  <h2>No matching test scripts</h2>
+                  <p>
+                    Try another status tab, remove a filter, or broaden your search.
+                  </p>
+                  <Button onClick={clearAllFilters}>Reset filters</Button>
+                </div>
+              ) : (
+                <div className="asset-library-grid">
+                  {visibleTestScripts.map(({ asset, status }) => (
+                    <AssetCard
+                      key={asset.id}
+                      asset={asset}
+                      status={status}
+                      isExpanded={expandedAssetId === asset.id}
+                      onToggleExpanded={() => toggleExpandedAsset(asset.id)}
+                      somethingElseFocused={somethingElseFocused}
+                      dispatch={dispatch}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
           )}
         </>
-      )}
-
-      {testScriptsWithStatus.length > 0 && (
-        <section
-          className="asset-library-test-scripts"
-          aria-label="Test scripts"
-        >
-          <h2 style={{ margin: 0 }}>Test Scripts</h2>
-          <p className="choice-description" style={{ margin: 0 }}>
-            Eighty-eight real, iconic screenplays — eleven per genre — free to
-            develop any time, for trying out productions without waiting on the
-            Opportunity Market.
-          </p>
-
-          <div className="asset-library-grid">
-            {testScriptsWithStatus.map(({ asset, status }) => (
-              <AssetCard
-                key={asset.id}
-                asset={asset}
-                status={status}
-                isExpanded={expandedAssetId === asset.id}
-                onToggleExpanded={() => toggleExpandedAsset(asset.id)}
-                somethingElseFocused={somethingElseFocused}
-                dispatch={dispatch}
-              />
-            ))}
-          </div>
-        </section>
       )}
     </div>
   );
