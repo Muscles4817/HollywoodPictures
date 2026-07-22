@@ -338,6 +338,11 @@ export function AssetLibrary() {
   const [sortBy, setSortBy] = useState<AssetSort>('recent');
   const [openFilterId, setOpenFilterId] = useState<string | null>(null);
   const [expandedAssetId, setExpandedAssetId] = useState<string | null>(null);
+  // View preference (not persisted, same as the filters/search above): collapse
+  // the whole Test Scripts section so the library shows only assets the player
+  // actually acquired. Reversible via the header toggle so the free scripts are
+  // never lost, just tucked away.
+  const [hideTestScripts, setHideTestScripts] = useState(false);
 
   const assetsWithStatus = useMemo(
     () =>
@@ -682,42 +687,71 @@ export function AssetLibrary() {
               className="asset-library-test-scripts"
               aria-label="Test scripts"
             >
-              <h2 style={{ margin: 0 }}>Test Scripts</h2>
-              <p className="choice-description" style={{ margin: 0 }}>
-                Eighty-eight real, iconic screenplays — eleven per genre — free to
-                develop any time, for trying out productions without waiting on the
-                Opportunity Market.
-              </p>
-
-              <div className="asset-library-results-heading">
-                <span>
-                  Showing {visibleTestScripts.length} of{' '}
-                  {testScriptsWithStatus.length}
-                </span>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <h2 style={{ margin: 0 }}>Test Scripts</h2>
+                <Button
+                  className="btn-sm"
+                  aria-pressed={hideTestScripts}
+                  onClick={() => setHideTestScripts((hidden) => !hidden)}
+                >
+                  {hideTestScripts ? 'Show test scripts' : 'Hide test scripts'}
+                </Button>
               </div>
 
-              {visibleTestScripts.length === 0 ? (
-                <div className="card asset-library-empty-filtered">
-                  <h2>No matching test scripts</h2>
-                  <p>
-                    Try another status tab, remove a filter, or broaden your search.
-                  </p>
-                  <Button onClick={clearAllFilters}>Reset filters</Button>
-                </div>
+              {hideTestScripts ? (
+                <p className="choice-description" style={{ margin: 0 }}>
+                  Test scripts are hidden. {testScriptsWithStatus.length} free
+                  screenplay{testScriptsWithStatus.length === 1 ? '' : 's'} still
+                  available whenever you want them.
+                </p>
               ) : (
-                <div className="asset-library-grid">
-                  {visibleTestScripts.map(({ asset, status }) => (
-                    <AssetCard
-                      key={asset.id}
-                      asset={asset}
-                      status={status}
-                      isExpanded={expandedAssetId === asset.id}
-                      onToggleExpanded={() => toggleExpandedAsset(asset.id)}
-                      somethingElseFocused={somethingElseFocused}
-                      dispatch={dispatch}
-                    />
-                  ))}
-                </div>
+                <>
+                  <p className="choice-description" style={{ margin: 0 }}>
+                    Eighty-eight real, iconic screenplays — eleven per genre — free
+                    to develop any time, for trying out productions without waiting
+                    on the Opportunity Market.
+                  </p>
+
+                  <div className="asset-library-results-heading">
+                    <span>
+                      Showing {visibleTestScripts.length} of{' '}
+                      {testScriptsWithStatus.length}
+                    </span>
+                  </div>
+
+                  {visibleTestScripts.length === 0 ? (
+                    <div className="card asset-library-empty-filtered">
+                      <h2>No matching test scripts</h2>
+                      <p>
+                        Try another status tab, remove a filter, or broaden your
+                        search.
+                      </p>
+                      <Button onClick={clearAllFilters}>Reset filters</Button>
+                    </div>
+                  ) : (
+                    <div className="asset-library-grid">
+                      {visibleTestScripts.map(({ asset, status }) => (
+                        <AssetCard
+                          key={asset.id}
+                          asset={asset}
+                          status={status}
+                          isExpanded={expandedAssetId === asset.id}
+                          onToggleExpanded={() => toggleExpandedAsset(asset.id)}
+                          somethingElseFocused={somethingElseFocused}
+                          dispatch={dispatch}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </section>
           )}
