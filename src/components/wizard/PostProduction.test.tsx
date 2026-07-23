@@ -82,6 +82,33 @@ describe('PostProduction - the provisional post-production forecast', () => {
     expect(screen.getByText(/a test screening will surface here/)).toBeInTheDocument();
   });
 
+  it('reassures the player that post-production runs in the background and they can leave, with a Dashboard shortcut', () => {
+    const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: 45 });
+    saveState(state);
+    render(
+      <StudioProvider>
+        <PostProduction />
+      </StudioProvider>,
+    );
+    // Tells the player this is normal and they don't need to sit and wait...
+    expect(screen.getByText(/post-production runs in the background/i)).toBeInTheDocument();
+    expect(screen.getByText(/in your Inbox, and on the\s+Dashboard/i)).toBeInTheDocument();
+    // ...and gives them an explicit way to leave right here.
+    expect(screen.getByRole('button', { name: 'Back to the Dashboard' })).toBeInTheDocument();
+  });
+
+  it('surfaces the same background-process reassurance and Dashboard shortcut while a recut is underway', () => {
+    const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: 45, postProductionEditingUntilDay: 60 });
+    saveState(state);
+    render(
+      <StudioProvider>
+        <PostProduction />
+      </StudioProvider>,
+    );
+    expect(screen.getByText(/working through your notes in the background/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to the Dashboard' })).toBeInTheDocument();
+  });
+
   it('renders no forecast card at all if the estimate is somehow still null (defensive - should never happen once photography has finished)', () => {
     const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: null });
     saveState(state);
@@ -173,6 +200,31 @@ describe('PostProduction - a recut in progress', () => {
     expect(screen.getByText(`Next screening around ${formatGameDateWithMonth(60)}`)).toBeInTheDocument();
     expect(screen.queryByText('A Decision Is Needed')).not.toBeInTheDocument();
     // The pre-first-screening forecast card is gone once a recut is underway.
+    expect(screen.queryByText('Test Screening (preview)')).not.toBeInTheDocument();
+  });
+});
+
+describe('PostProduction - post-production complete', () => {
+  it('shows a completion card (not a wait) once the screening is resolved, with the wrap date and a Dashboard shortcut', () => {
+    const { state } = stateOnPostProductionScreen({
+      testScreeningResolved: true,
+      postProductionFinalReadyDay: 50,
+    });
+    saveState(state);
+    render(
+      <StudioProvider>
+        <PostProduction />
+      </StudioProvider>,
+    );
+    expect(screen.getByText('Post-Production complete')).toBeInTheDocument();
+    expect(screen.getByText('Final cut locked')).toBeInTheDocument();
+    expect(screen.getByText(`wrapped ${formatGameDateWithMonth(50)}`)).toBeInTheDocument();
+    // It frames the film as ready for market, not something still being waited on...
+    expect(screen.getByText(/ready to take to market/i)).toBeInTheDocument();
+    expect(screen.getByText(/nothing left to\s+wait on here/i)).toBeInTheDocument();
+    // ...and still offers the in-context way out.
+    expect(screen.getByRole('button', { name: 'Back to the Dashboard' })).toBeInTheDocument();
+    // The pre-screening forecast card is not shown in this state.
     expect(screen.queryByText('Test Screening (preview)')).not.toBeInTheDocument();
   });
 });
