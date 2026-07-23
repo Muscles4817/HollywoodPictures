@@ -4,6 +4,7 @@ import { explainBrandChange, explainPrestigeChange } from '../../engine/reputati
 import { Money } from '../common/Money';
 import { ScoreBar } from '../common/ScoreBar';
 import { FilmMoneyBreakdown } from '../common/FilmMoneyBreakdown';
+import { ProductionExecutionSummary } from '../common/ProductionExecutionSummary';
 import { PremiereReveal } from './PremiereReveal';
 
 export function ReleaseResults() {
@@ -57,14 +58,18 @@ export function ReleaseResults() {
 
       <div className="card stack">
         <h2>Department Breakdown</h2>
-        <p className="choice-description">What actually drove the Quality Score above.</p>
+        <p className="choice-description">
+          The baseline each department brought to the film - the potential from your script, talent and budget.
+          How the shoot itself realised (or squandered) that potential is the Production Execution below.
+        </p>
         <ScoreBar label="Screenplay" value={results.scriptScore} />
         <ScoreBar label="Direction" value={results.directionScore} />
         <ScoreBar label="Acting" value={results.actingScore} />
         <ScoreBar label="Production" value={results.productionScore} />
         <ScoreBar label="Post-Production" value={results.postProductionScore} />
-        <ScoreBar label="On-Set Events" value={results.eventsScore} />
       </div>
+
+      {results.productionExecution && <ProductionExecutionSummary outcome={results.productionExecution} />}
 
       <div className="card stack">
         <h2>Studio Report</h2>

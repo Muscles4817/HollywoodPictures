@@ -764,6 +764,19 @@ export interface ProductionChoices {
 // case, `high` deliberately rare. See docs/DESIGN.md 5.21.
 export type EventSeverity = 'low' | 'medium' | 'high';
 
+// Which part of the finished film an on-set/post event logically affects -
+// the seam that lets Production Execution (engine/productionExecution.ts) route
+// a recorded event to the department it actually shaped, instead of folding
+// every event into one generic quality number. See
+// docs/DESIGN_REVIEW_production_execution.md.
+export type ProductionExecutionImpact =
+  | 'performances' // morale, chemistry, improv, on-set conflict -> captured performances
+  | 'coverage'     // lost/gained shoot days and scenes -> how much the edit has to work with
+  | 'visual'       // technical/VFX/practical/safety execution -> what's on screen
+  | 'pacing'       // editing/structure/music coherence -> the cut
+  | 'script'       // mid-shoot rewrites -> the material itself
+  | 'general';     // budget/logistics/uncategorised -> overall execution
+
 export interface ProductionEvent {
   id: string;
   description: string;
@@ -772,6 +785,14 @@ export interface ProductionEvent {
   qualityDelta: number; // -100..100 scale applied to production score
   buzzDelta: number; // -100..100
   delayDaysDelta: number; // extra shoot days this event actually cost, on top of the day it happened on - always >= 0
+  // Which finished-film department this event shaped (engine/productionExecution.ts).
+  // Set at roll time from the template's explicit `impact`; falls back to id
+  // inference only for a stray untagged template.
+  impact?: ProductionExecutionImpact;
+  // 0..1: how much this (negative) event pressures the rest of the shoot - the
+  // seed of a bounded failure chain (engine/production.ts:computeShootEscalation).
+  // Set at roll time from the template's `escalates` (default from severity).
+  escalates?: number;
 }
 
 // One option the player can pick when an interactive event pauses
@@ -825,6 +846,12 @@ export interface PendingEventChoice {
   // Set alongside involvedRole when this event offers a real recast
   // decision - which role any replacementCandidateId choices are hiring for.
   replacementRole?: ProductionRole;
+  // The finished-film department this situation is about, carried from the
+  // template so the resolved outcome (engine/production.ts:rollChoiceOutcome)
+  // routes correctly regardless of which choice the player picks.
+  impact?: ProductionExecutionImpact;
+  // The situation's downstream-pressure seed (see ProductionEvent.escalates).
+  escalates?: number;
 }
 
 // The four risk dimensions knowable *before* a day of filming has happened -
@@ -1116,6 +1143,43 @@ export interface FilmResults {
   // but a save from before this field existed won't.
   criticReviews?: ReviewQuote[];
   audienceReviews?: ReviewQuote[];
+  // How the shoot itself shaped the finished film (engine/productionExecution.ts).
+  // Optional/additive - same "new field, no migration" convention as the fields
+  // above; rivals (Phase 1) and pre-execution saves won't carry it.
+  productionExecution?: ProductionExecutionOutcome;
+}
+
+/** One named cause behind a production's execution outcome - a single event and the department it moved. Player-facing (no raw stats). */
+export interface ProductionExecutionCause {
+  department: ProductionExecutionImpact;
+  direction: 'positive' | 'negative';
+  text: string; // the event description, as shown to the player
+}
+
+/**
+ * How a production's shoot shaped its finished film - a player-facing summary
+ * (stars + qualitative prose + named causes) plus the numeric modifiers behind
+ * it. Normal player UI renders ONLY stars/rating/headline/detail/causes; the
+ * `modifiers` block is for dev inspectors and tests. See
+ * engine/productionExecution.ts:summarizeExecution.
+ */
+export interface ProductionExecutionOutcome {
+  stars: number; // 1..5
+  rating: 'catastrophic' | 'troubled' | 'solid' | 'strong' | 'exceptional';
+  headline: string;
+  detail: string;
+  /** Every significant cause (strongest first) - the expandable breakdown; the compact card shows only the top couple. */
+  causes: ProductionExecutionCause[];
+  /** What reliable leadership / contingency contained, when it meaningfully did - shown under a "Mitigation" heading. Empty for smooth or unmitigated shoots. */
+  mitigation: string[];
+  /** Numeric internals - dev inspectors/tests only, never rendered in normal player UI. */
+  modifiers: {
+    performanceCapture: number;
+    postExecution: number;
+    scriptExecution: number;
+    coverageRatio: number;
+    overall: number;
+  };
 }
 
 /** One individually-rated review quote - engine/reviews.ts:pickScoredReviews. */

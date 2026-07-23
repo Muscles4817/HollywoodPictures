@@ -28,6 +28,7 @@ import {
 } from './productionDials';
 import { EDIT_STYLE_PROFILES, FINAL_CUT_FOCUS_PROFILES, MUSIC_FOCUS_PROFILES } from '../data/postProduction';
 import { computeQualityWeights } from './genreWeights';
+import { computeExecutionProfile, type ExecutionProfile } from './productionExecution';
 import { clamp } from './random';
 
 function getDirector(talent: TalentAssignment[]): Person | undefined {
@@ -345,50 +346,78 @@ export function computeQualityBreakdown(
   // (docs/DESIGN_REVIEW_production_office.md). Defaults to 0, so every existing
   // caller (and every rival) is unaffected.
   postProductionScoreBonus = 0,
+  // How the shoot actually went (engine/productionExecution.ts) - typed,
+  // per-department modifiers derived from the recorded event history. Optional:
+  // when omitted it's computed from `events`/`shootingRatio`/talent/plan right
+  // here, so every caller gets execution behaviour from the events it already
+  // passes. A film with no events resolves to a neutral profile (all
+  // multipliers 1), scoring exactly as before - so rivals (no recorded shoot)
+  // are unaffected in Phase 1.
+  executionProfile?: ExecutionProfile,
 ): QualityBreakdown {
+  const execution = executionProfile ?? computeExecutionProfile({ events, shootingRatio, talent, productionChoices });
+
   const scriptScore = computeScriptScore(script);
   const directionScore = computeDirectionScore(talent, script);
   const actingScore = computeActingScore(talent, script);
   const productionScore = computeProductionScore(productionChoices, genre, shootingRatio);
   // Footage coverage caps the edit: an under-shot film (below the recommended
   // schedule) can't be cut into a great one no matter how good the Editor is.
-  // The ceiling only binds below ratio 1, so normally- and over-shot films are
-  // judged on the edit's own merits (engine/productionDials.ts:editCoverageCeiling).
-  // Post-production interventions (the bonus, e.g. reshoots/re-edits) are added
-  // after the cap - they represent extra work that can lift a thin shoot back up.
-  const cappedEdit = Math.min(computePostProductionScore(postProductionChoices), editCoverageCeiling(shootingRatio));
+  // Coverage is read from execution.coverageRatio, not raw shootingRatio, so
+  // scenes/days lost to on-set events (coverage-impact) tighten the ceiling on
+  // top of a short schedule (engine/productionExecution.ts). The ceiling only
+  // binds below ratio 1, so a fully-covered shoot is judged on the edit's own
+  // merits. Post-production interventions (the bonus, e.g. reshoots/re-edits)
+  // are added after the cap - extra work that can lift a thin shoot back up.
+  const cappedEdit = Math.min(computePostProductionScore(postProductionChoices), editCoverageCeiling(execution.coverageRatio));
   const postProductionScore = clamp(cappedEdit + postProductionScoreBonus, 0, 100);
   const eventsScore = computeEventsScore(events);
 
-  const scriptRatio = scriptScore / 100;
+  // Execution modifiers describe how well each department actually came out on
+  // set - the performances captured, the footage cut together, the material as
+  // rewritten. They scale the department's own OUTPUT at the root of the
+  // dependency chain (not the post-chain effective value), so the effect
+  // propagates the same way a genuinely better/worse department would: a
+  // gutted performance drags down everything downstream that leans on it. Each
+  // multiplier is an orthogonal "how it came out" reading, NOT a re-use of a
+  // department's raw score, so nothing is double-counted against
+  // Direction/Acting/Script/Post-Production (docs/DESIGN_REVIEW_production_execution.md).
+  // Direction is left unmodified: it's the upstream driver execution flows from.
+  const executedScript = clamp(scriptScore * execution.scriptExecution, 0, 100);
+  const executedActing = clamp(actingScore * execution.performanceCapture, 0, 100);
+  const executedPostProduction = clamp(postProductionScore * execution.postExecution, 0, 100);
+
+  const scriptRatio = executedScript / 100;
   const directionRatio = (directionScore / 100) * (K_SCRIPT_TO_DIRECTION + (1 - K_SCRIPT_TO_DIRECTION) * scriptRatio);
 
   const actingUpstream = ACTING_UPSTREAM_SCRIPT_WEIGHT * scriptRatio + ACTING_UPSTREAM_DIRECTION_WEIGHT * directionRatio;
-  const actingRatio = (actingScore / 100) * (K_DIRECTION_TO_ACTING + (1 - K_DIRECTION_TO_ACTING) * actingUpstream);
+  const actingRatio = (executedActing / 100) * (K_DIRECTION_TO_ACTING + (1 - K_DIRECTION_TO_ACTING) * actingUpstream);
 
-  // Events fold into Production directly (no amplification, unlike the
-  // display-only computeEventsScore above) - a shoot's worth of incidents
-  // nudges how well the physical production actually came together.
-  const eventsQualityDelta = events.reduce((sum, e) => sum + e.qualityDelta, 0);
-  const productionScoreWithEvents = clamp(productionScore + eventsQualityDelta, 0, 100);
+  // Production enters via the footage chain on its own dials-driven score.
+  // Events no longer fold in here as one flat, near-cosmetic number (that was
+  // the leverage bug - docs/DESIGN_REVIEW_production_execution.md); a shoot's
+  // incidents now reach the film through the typed execution modifiers above.
   const productionRatio =
-    (productionScoreWithEvents / 100) * (K_DIRECTION_TO_PRODUCTION + (1 - K_DIRECTION_TO_PRODUCTION) * directionRatio);
+    (productionScore / 100) * (K_DIRECTION_TO_PRODUCTION + (1 - K_DIRECTION_TO_PRODUCTION) * directionRatio);
 
   const footageRatio =
     FOOTAGE_DIRECTION_WEIGHT * directionRatio + FOOTAGE_ACTING_WEIGHT * actingRatio + FOOTAGE_PRODUCTION_WEIGHT * productionRatio;
   const postProductionRatio =
-    (postProductionScore / 100) * (K_FOOTAGE_TO_EDITING + (1 - K_FOOTAGE_TO_EDITING) * footageRatio);
+    (executedPostProduction / 100) * (K_FOOTAGE_TO_EDITING + (1 - K_FOOTAGE_TO_EDITING) * footageRatio);
 
   const effDirection = 100 * directionRatio;
   const effActing = 100 * actingRatio;
   const effPostProduction = 100 * postProductionRatio;
 
   const weights = computeQualityWeights(genre);
-  const qualityScore =
-    scriptScore * weights.script +
-    effDirection * weights.direction +
-    effActing * weights.acting +
-    effPostProduction * weights.postProduction;
+  const qualityScore = clamp(
+    executedScript * weights.script +
+      effDirection * weights.direction +
+      effActing * weights.acting +
+      effPostProduction * weights.postProduction,
+    0,
+    100,
+  );
 
   return { scriptScore, directionScore, actingScore, productionScore, postProductionScore, eventsScore, qualityScore };
 }
