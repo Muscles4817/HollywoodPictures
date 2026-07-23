@@ -1469,6 +1469,7 @@ export interface BidNotification {
 
 export type DevelopmentEventKind =
   | 'acquired' // entered the library (bought as an Opportunity, or a founding test script)
+  | 'commissioned' // an original screenplay delivered by a writer the studio commissioned (Phase 4) - the founding event of a commissioned Asset
   | 'rewrite' // a full rewrite pass produced a new head draft
   | 'polish' // a lighter dialogue/polish pass produced a new head draft
   | 'greenlit' // a Project was greenlit from this Asset
@@ -1617,6 +1618,32 @@ export interface RivalProductionInProgress {
 // that's genuinely private, exclusive studio property: its owned Asset
 // library (development-pipeline doc) - unlike Talent/Opportunity, which are
 // shared/world-level, nobody else's Studio can reach into this list.
+/**
+ * An original screenplay the studio has commissioned from a specific writer and
+ * is waiting on (Phase 4). Unlike an Asset (which the studio already owns), this
+ * is property-in-the-making - the fee is charged at commission, the screenplay
+ * is generated once, then (hidden until delivery), and it becomes a real owned
+ * Asset on `readyOnDay`, settled lazily off the calendar
+ * (engine/commission.ts:settlePendingCommissions), the same shape
+ * Asset.pendingRewrite already uses for a rewrite in flight.
+ */
+export interface PendingCommission {
+  /** Stable id, also used as the delivered Asset's id. */
+  id: string;
+  /** The commissioned writer (a GameState.talentPool.Writer id), booked busy for the duration. */
+  writerId: PersonId;
+  /** Denormalised for the delivery development-log entry, so settlement needs no pool lookup (same pattern as BidNotification.rivalName). */
+  writerName: string;
+  /** The genre the player briefed. */
+  genre: Genre;
+  startedOnDay: GameDay;
+  readyOnDay: GameDay;
+  /** The screenplay, generated once at commission (deterministic thereafter) and hidden until delivery. */
+  script: Script;
+  /** The fee already charged at commission - recorded for the delivery log entry, not re-charged; also the delivered Asset's acquisitionCost. */
+  fee: Money;
+}
+
 export interface Studio {
   name: string;
   cash: number;
@@ -1632,6 +1659,13 @@ export interface Studio {
   /** How respected the studio is within the industry and by critics - grows from critical reception alone, independent of a film's commercial outcome. Not yet consumed by any formula (no critic-facing mechanic exists yet) - tracked now so a future system (e.g. awards) has real history to read, the same "compute and track now, wire in later" precedent commercialProfile.crossoverPotential set. */
   prestige: number; // 0-100
   assets: Asset[];
+  /**
+   * Original screenplays commissioned from specific writers and not yet
+   * delivered (Phase 4). Studio-private property-in-the-making, like `assets` -
+   * each becomes an owned Asset on its readyOnDay (engine/commission.ts).
+   * Optional/absent on saves predating the feature; read as `[]`.
+   */
+  pendingCommissions?: PendingCommission[];
   /** Persistent creative assets the studio has deliberately promoted a released Film into (see IntellectualProperty). Empty until the player promotes their first Film; never populated automatically. References Films by id - it doesn't contain them. */
   intellectualProperties: IntellectualProperty[];
   /**

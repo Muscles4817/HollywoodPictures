@@ -90,3 +90,59 @@ and rights expiry deferred, spending development time costs little competitively
 (a rival could take a contested Asset, but owned Assets sit safely). The natural
 Phase-C follow-up is Asset heat decay + rights expiry, which give the time cost
 real teeth without touching this mechanic.
+
+---
+
+# Phase 4 — Original screenplay commissions
+
+Status: **implemented** (save v50). The inverse of the authored Opportunity
+Market: instead of the market picking a writer and posting a script, the player
+picks a specific writer and pays them to write a brand-new original in a chosen
+genre. A premium, directed alternative to gambling cheaply on whatever the
+market happens to post.
+
+## What it is
+
+From the Asset Library (the Development hub), a library-level **Commission an
+original screenplay** action: pick a writer + a genre (pre-filled to their
+strongest affinity), pay a fee, wait a development window, and a new owned Asset
+authored by that writer lands in the library. Almost entirely a recombination of
+existing parts — Phase 3's timed/charged/writer-booked machinery, Phase 2's
+author-biased generator, Phase 1's Asset shape.
+
+## The engine (`engine/commission.ts`)
+
+- **Generation:** `writerProfileFromPerson(writer)` → `generateScriptOptions(genre, rng, 1, profile)[0]` — the exact Phase 2 call, minus the market's writer/genre selection (the player made both). The script's identity reflects the writer; archetype-first variance keeps even an elite's commission from being a guaranteed masterpiece.
+- **Roll at commit:** the whole `Script` is generated once, under `withRng`, and stored on `PendingCommission.script` (hidden until delivery) — same deterministic-at-commit convention as a rewrite's `craftChanges`.
+- `commissionFee(salary)` ≈ the writer's whole typical fee (premium vs. a rewrite's 0.15–0.35× and a Studio-Original opportunity's 0.1×) — you pay for **control**. `commissionDurationDays(script)` = base + complexity (writing from scratch takes longer than a rewrite). `settlePendingCommissions(pending, totalDays)` wraps delivered scripts as Assets.
+
+## Data & flow
+
+- `Studio.pendingCommissions?: PendingCommission[]` — studio-private property-in-the-making (like `assets`), not world-level (unlike `opportunities`, which are "nobody's property yet").
+- `PendingCommission = { id, writerId, writerName, genre, startedOnDay, readyOnDay, script, fee }`; `DevelopmentEventKind += 'commissioned'`; action `COMMISSION_SCREENPLAY`.
+- `COMMISSION_SCREENPLAY` mirrors `REWRITE_ASSET`: guard (writer exists / affordable / available) → charge → generate under RNG → book the writer (`withCommitment`) → store pending. Completion in `runCalendarSettlement` (beside `settleAssetRewrites`): the delivered Asset reuses the exact `ACQUIRE_OPPORTUNITY` shape — `source: 'Studio Original'` (the existing source, framed in the docs as "commissioned elites"), `acquisitionCost: fee`, `writerIds: [writerId]`, a `'commissioned'` founding event — so downstream it's indistinguishable from an acquired Asset and the "script cost charged once, at acquisition" invariant holds.
+
+## Presentation
+
+Numbers stay hidden: the commission panel shows the writer's tier + "known for"
+(`describeWriter`) and a from-scratch `describeCommissionProjection(writer, genre)`
+("Expect a tense, dialogue-driven thriller in their voice"), with only the fee
+and a duration range exposed. In-flight commissions list "Original {genre} with
+{writer} — ready {date}."
+
+## Decisions (as approved)
+
+Brief = **writer + genre only** (genre pre-filled to the writer's strongest
+affinity, overridable); fee ≈ **full typical salary**; **no cancellation** in the
+MVP; the rolled script is **stored** (deterministic; a negligible single-player
+save-spoiler). MVP engages **existing pool writers only**, which sidesteps the
+`nextTalentId` reload-collision gotcha (that only bites if commissions mint *new*
+writers).
+
+## Deferred
+
+Richer briefs (scale/archetype), minting new writers for commissions,
+collaboration (P5), permanent contracts / first-look (P6), sales/options (P7), AI
+rivals commissioning, and cancellation/kill-fees. The soft time-pressure caveat
+(heat/rights deferred) applies here too — a commission ties up cash + a writer
+for weeks, but owned work sits safely until heat decay lands.

@@ -107,3 +107,14 @@ export function describeRewriteProjection(writer: WriterCreativeProfile, script:
   if (writer.consistency > 75) return `${base}; a dependable pair of hands`;
   return base;
 }
+
+/**
+ * A number-free "what this writer tends to produce" line for the commission
+ * panel (Phase 4). Unlike a rewrite projection there's no script yet, so it
+ * reads the writer's own craft and tone signatures against the briefed genre.
+ */
+export function describeCommissionProjection(writer: WriterCreativeProfile, genre: Genre): string {
+  const toneAdj = TONE_ADJECTIVE[argMax<Tone>(writer.toneProfile)];
+  const craftAdj = CRAFT_ADJECTIVE[argMax(writer.craft) as keyof WriterCraft];
+  return `Expect a ${toneAdj}, ${craftAdj} ${GENRE_NOUN[genre]} in their voice`;
+}

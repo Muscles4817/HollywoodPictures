@@ -6,6 +6,7 @@ import type {
   EffectsMethodKey,
   EnvironmentMethodKey,
   FilmDraft,
+  Genre,
   MarketingChoices,
   NormalizedScalar,
   Opportunity,
@@ -114,6 +115,7 @@ export function createInitialStudio(startingCash: number, brand = 20, prestige =
     brand,
     prestige,
     assets: [],
+    pendingCommissions: [], // no original screenplays in commission yet (Phase 4)
     intellectualProperties: [], // never populated automatically - the player promotes a Film into IP on demand
     productionOffice: null, // locked until the unlock milestone (docs/DESIGN_REVIEW_production_office.md)
   };
@@ -202,6 +204,14 @@ export type GameAction =
   // if the asset is missing/in-development/already being rewritten, the writer
   // is unknown or unavailable, or the studio can't afford the fee.
   | { type: 'REWRITE_ASSET'; assetId: string; kind: 'rewrite' | 'polish'; writerId: string }
+  // Original screenplay commissions (docs/DESIGN_REVIEW_development_department.md,
+  // Phase 4): pay a specific writer to write a brand-new original screenplay in a
+  // chosen genre. Charges the fee immediately (studio-level), books the writer,
+  // generates the screenplay once (hidden until delivery), and stores it on
+  // Studio.pendingCommissions to land as a new owned Asset on a future day
+  // (engine/commission.ts). A no-op if the writer is unknown, unavailable, or the
+  // studio can't afford the fee.
+  | { type: 'COMMISSION_SCREENPLAY'; writerId: string; genre: Genre }
   // Production Office & Producers (docs/DESIGN_REVIEW_production_office.md).
   // UNLOCK is milestone-gated (films shipped OR Brand), not bought - no-op
   // until the milestone is met. UPGRADE/HIRE deduct cash immediately at the

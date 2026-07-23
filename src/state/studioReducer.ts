@@ -13,6 +13,7 @@ import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBud
 import { getTypicalSalaryForRole, getWriterCareer, isPersonAvailableForCommitment, withCommitment, withReputationChange } from '../engine/person';
 import { writerProfileFromPerson } from '../engine/writers';
 import { computeRewriteOutcome, makePendingRewrite, rewriteDurationDays, rewriteFee, settleAssetRewrites } from '../engine/rewrite';
+import { commissionDurationDays, commissionFee, generateCommissionedScript, makePendingCommission, settlePendingCommissions } from '../engine/commission';
 import type { TalentReputationDelta } from '../engine/pressTourMoments';
 import { pressTourCost } from '../engine/pressTour';
 import { adaptRecommendationsToProductionChoices } from '../engine/productionChoicesAdapter';
@@ -391,15 +392,19 @@ function runCalendarSettlement(
   const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng, state.talentPool.Writer);
   const opportunityWins = applyOpportunityWins(state.studio, opportunitySettlement.resolvedBids, opportunitySettlement.opportunities, totalDaysAfter);
 
+  // Development Department settlement, both lazy off the calendar like
+  // opportunity wins above: a freelance Rewrite/Polish pass lands its new head
+  // Script (Phase 3), and a commissioned original screenplay is delivered as a
+  // brand-new owned Asset (Phase 4).
+  const rewrittenAssets = settleAssetRewrites(opportunityWins.studio.assets, totalDaysAfter);
+  const commissionSettlement = settlePendingCommissions(opportunityWins.studio.pendingCommissions ?? [], totalDaysAfter);
   const studioAfterBoxOffice: Studio = {
     ...opportunityWins.studio,
     cash: opportunityWins.studio.cash + marketSettlement.playerCashCredit - marketSettlement.playerCostCharged,
     brand: applyStatChange(opportunityWins.studio.brand, marketSettlement.playerBrandDelta),
     prestige: applyStatChange(opportunityWins.studio.prestige, marketSettlement.playerPrestigeDelta),
-    // Development Department (Phase 3): any freelance Rewrite/Polish pass that
-    // has completed by today lands its new head Script now, same lazy off-the-
-    // calendar settlement as opportunity wins just above.
-    assets: settleAssetRewrites(opportunityWins.studio.assets, totalDaysAfter),
+    assets: [...rewrittenAssets, ...commissionSettlement.delivered],
+    pendingCommissions: commissionSettlement.pendingCommissions,
   };
 
   const rivalStudiosAfterBoxOffice = state.rivalStudios.map((rival) => {
@@ -837,6 +842,42 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           ...state.studio,
           cash: state.studio.cash - fee,
           assets: state.studio.assets.map((a) => (a.id === asset.id ? updatedAsset : a)),
+        },
+        talentPool: {
+          ...state.talentPool,
+          Writer: state.talentPool.Writer.map((w) => (w.id === writer.id ? withCommitment(w, commitment) : w)),
+        },
+      };
+    }
+
+    // Original screenplay commissions (Phase 4, docs/DESIGN_REVIEW_development_department.md).
+    // Pay a specific writer to write a brand-new original in a chosen genre -
+    // same guard-then-charge-and-book shape as REWRITE_ASSET, but it generates a
+    // fresh screenplay (hidden until delivery) and stores it on
+    // Studio.pendingCommissions to land as a new owned Asset on a future day
+    // (settlePendingCommissions, in runCalendarSettlement).
+    case 'COMMISSION_SCREENPLAY': {
+      const writer = state.talentPool.Writer.find((w) => w.id === action.writerId);
+      const career = writer ? getWriterCareer(writer) : null;
+      if (!writer || !career) return state;
+      const fee = commissionFee(career.typicalSalary);
+      if (state.studio.cash < fee) return state;
+
+      // Generate the screenplay now, under the game RNG (deterministic
+      // thereafter), so its own complexity can set the delivery date.
+      const { result: script, nextSeed } = withRng(state.rngSeed, (rng) => generateCommissionedScript(writer, action.genre, rng));
+      if (!script) return state;
+      const readyOnDay = state.totalDays + commissionDurationDays(script);
+      const commitment = { projectId: `commission-${script.id}`, role: 'Writer' as const, startDay: state.totalDays, endDay: readyOnDay };
+      if (!isPersonAvailableForCommitment(writer, commitment)) return state;
+
+      return {
+        ...state,
+        rngSeed: nextSeed,
+        studio: {
+          ...state.studio,
+          cash: state.studio.cash - fee,
+          pendingCommissions: [...(state.studio.pendingCommissions ?? []), makePendingCommission(writer, action.genre, state.totalDays, readyOnDay, script, fee)],
         },
         talentPool: {
           ...state.talentPool,
