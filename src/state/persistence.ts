@@ -328,10 +328,12 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // No migration code.
 // Pre-launch: save compatibility is out of scope (see CLAUDE.md). Bump the key
 // as the honest "stored shape changed" signal; no migration code.
-// v50 -> v51: Production Execution Phase 1 - ProductionEvent.impact,
-//   FilmResults.productionExecution (docs/DESIGN_REVIEW_production_execution.md).
-// v51 -> v52: recalibration - ProductionEvent.escalates (failure chains) and
-//   ProductionExecutionOutcome.mitigation.
+// v50 -> v51 (Recent budget activity): Studio gained an optional cashLedger
+//   (engine/cashLedger.ts), shown on the Dashboard cash tile.
+// v51 -> v52 (Production Execution, docs/DESIGN_REVIEW_production_execution.md):
+//   ProductionEvent gained impact + escalates (typed consequences + failure
+//   chains) and FilmResults gained productionExecution (stars + causal summary
+//   + mitigation + numeric modifiers).
 const SAVE_KEY = 'hollywood-pictures-save-v52';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */

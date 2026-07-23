@@ -25,13 +25,138 @@ beforeEach(() => {
 
 const SALARY = 5_000_000;
 
+// Unique id per name - the shared talent pool keys people by id, and the drawer
+// now caches appeal by id, so distinct people must have distinct ids (real
+// generated talent always does; these hand-built fixtures have to opt in).
+function actorId(name: string): string {
+  return `actor-${name.replace(/\s+/g, '-').toLowerCase()}`;
+}
+
 function actorNamed(base: Person, name: string, gender: 'Male' | 'Female'): Person {
   return {
     ...base,
+    id: actorId(name),
     identity: { ...base.identity, name, gender },
     careers: { ...base.careers, actor: { ...base.careers.actor!, minimumSalary: SALARY, typicalSalary: SALARY } },
   };
 }
+
+/** A Female actor with a custom typical/minimum salary and a unique id. */
+function femaleActor(base: Person, name: string, salary: number): Person {
+  return {
+    ...base,
+    id: actorId(name),
+    identity: { ...base.identity, name, gender: 'Female' },
+    careers: { ...base.careers, actor: { ...base.careers.actor!, minimumSalary: salary, typicalSalary: salary } },
+  };
+}
+
+/** A Female-lead, no-talent draft at the given offered salary (the pool is set on talentPool.Actor by the caller). */
+function draftWithActors(rng: Parameters<typeof buildReadyDraft>[0], offered: number, extras: Partial<Parameters<typeof playerDraftToProject>[0]> = {}) {
+  const readyDraft = buildReadyDraft(rng);
+  const leadCharacter: ScriptCharacter = { ...readyDraft.script!.cast.find((c) => c.prominence === 'Lead')!, castingGender: 'Female' };
+  const script = { ...readyDraft.script!, cast: [leadCharacter, ...readyDraft.script!.cast.filter((c) => c.id !== leadCharacter.id)] };
+  return { ...readyDraft, script, talent: [], talentTargetPriceByRole: { 'Lead Actor': offered }, ...extras };
+}
+
+function wrapState(studio: ReturnType<typeof createInitialStudio>, talentPool: ReturnType<typeof generateTalentPool>, draft: ReturnType<typeof buildReadyDraft>): GameState {
+  return {
+    studio,
+    screen: 'workspace' as const,
+    projects: [playerDraftToProject(draft)],
+    focusedProjectId: draft.id,
+    projectWorkspaceSection: 'cast-and-crew' as const,
+    rngSeed: 2,
+    totalDays: 1,
+    talentPool,
+    rivalStudios: [],
+    opportunities: [],
+    nextOpportunityCheckDay: 1,
+    viewingRivalStudioName: null,
+    viewingProductionId: null,
+  };
+}
+
+function characterOf(state: GameState): ScriptCharacter {
+  return (state.projects[0] as { draft: { script: { cast: ScriptCharacter[] } } }).draft.script.cast[0];
+}
+
+function renderDrawer(state: GameState) {
+  saveState(state);
+  render(
+    <StudioProvider>
+      <CastingDrawer character={characterOf(state)} role="Lead Actor" onClose={() => {}} />
+    </StudioProvider>,
+  );
+}
+
+describe('CastingDrawer - discovery controls', () => {
+  it('a name search reaches past the price window to find a specific actor', () => {
+    const state = withRng(3, (rng) => {
+      const studio = createInitialStudio(50_000_000);
+      const talentPool = generateTalentPool(rng);
+      const base = generateTalentCandidates('Actor', rng, 1)[0];
+      talentPool.Actor = [femaleActor(base, 'Near Nancy', 5_000_000), femaleActor(base, 'Far Fiona', 40_000_000)];
+      return wrapState(studio, talentPool, draftWithActors(rng, 5_000_000));
+    }).result;
+    renderDrawer(state);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+    // The far-priced actor is outside the ±100% price window by default.
+    expect(screen.getByText('Near Nancy')).toBeInTheDocument();
+    expect(screen.queryByText('Far Fiona')).not.toBeInTheDocument();
+
+    // Searching her name surfaces her, past the window, and narrows to the match.
+    fireEvent.change(screen.getByLabelText('Search candidates by name'), { target: { value: 'Far' } });
+    expect(screen.getByText('Far Fiona')).toBeInTheDocument();
+    expect(screen.queryByText('Near Nancy')).not.toBeInTheDocument();
+  });
+
+  it('flags an over-budget candidate and hides it under the "Affordable only" filter', () => {
+    const state = withRng(5, (rng) => {
+      const studio = createInitialStudio(5_500_000);
+      const talentPool = generateTalentPool(rng);
+      const base = generateTalentCandidates('Actor', rng, 1)[0];
+      talentPool.Actor = [femaleActor(base, 'Cheap Cathy', 3_000_000), femaleActor(base, 'Costly Cora', 9_000_000)];
+      // Zero out production + marketing so committed spend is ~0 and only the
+      // candidate's own salary decides affordability against the £5.5M cash.
+      const draft = draftWithActors(rng, 5_000_000, {
+        productionChoices: { contingencyAmount: 0, setQualityAmount: 0, practicalEffectsAmount: 0, vfxAmount: 0, runtimeIntensity: 0 },
+      });
+      draft.marketingChoices = { ...draft.marketingChoices!, marketingSpend: 0 };
+      return wrapState(studio, talentPool, draft);
+    }).result;
+    renderDrawer(state);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+    const costlyCard = screen.getByText('Costly Cora').closest('.card') as HTMLElement;
+    const cheapCard = screen.getByText('Cheap Cathy').closest('.card') as HTMLElement;
+    expect(within(costlyCard).getByText('Over your budget')).toBeInTheDocument();
+    expect(within(cheapCard).queryByText('Over your budget')).not.toBeInTheDocument();
+
+    // The filter hides the over-budget pick, keeps the affordable one.
+    fireEvent.click(screen.getByLabelText('Affordable only'));
+    expect(screen.getByText('Cheap Cathy')).toBeInTheDocument();
+    expect(screen.queryByText('Costly Cora')).not.toBeInTheDocument();
+  });
+
+  it('sorts by price, cheapest first, when the player picks the Price sort', () => {
+    const state = withRng(6, (rng) => {
+      const studio = createInitialStudio(50_000_000);
+      const talentPool = generateTalentPool(rng);
+      const base = generateTalentCandidates('Actor', rng, 1)[0];
+      talentPool.Actor = [femaleActor(base, 'Dearer Dana', 8_000_000), femaleActor(base, 'Budget Beth', 3_000_000)];
+      return wrapState(studio, talentPool, draftWithActors(rng, 5_000_000));
+    }).result;
+    renderDrawer(state);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+    fireEvent.change(screen.getByLabelText('Sort candidates'), { target: { value: 'price' } });
+    const order = screen.getAllByText(/(Dearer Dana|Budget Beth)/).map((el) => el.textContent);
+    expect(order[0]).toBe('Budget Beth'); // cheapest first
+    expect(order[1]).toBe('Dearer Dana');
+  });
+});
 
 function stateWithFemaleLead(): GameState {
   return withRng(1, (rng) => {
@@ -80,7 +205,7 @@ function stateWithFemaleLead(): GameState {
   }).result;
 }
 
-function stateWithOpenCastingApplicant(): GameState {
+function stateWithOpenCastingApplicant(channel: 'OpenCasting' | 'InterestedTalent' = 'OpenCasting'): GameState {
   return withRng(11, (rng) => {
     const studio = createInitialStudio(50_000_000);
     const talentPool = generateTalentPool(rng);
@@ -92,7 +217,7 @@ function stateWithOpenCastingApplicant(): GameState {
     const script = { ...readyDraft.script!, cast: [leadCharacter, ...readyDraft.script!.cast.filter((c) => c.id !== leadCharacter.id)] };
     const call = {
       ...openCastingCall(leadCharacter.id, 'Lead Actor', 1),
-      applicants: [{ person: applicant, appliedOnDay: 1, channel: 'OpenCasting' as const }],
+      applicants: [{ person: applicant, appliedOnDay: 1, channel }],
     };
     const draft = {
       ...readyDraft,
@@ -222,6 +347,83 @@ describe('CastingDrawer - "Available now only" filter', () => {
     expect(within(bookedCard).getByRole('button', { name: 'Make Offer' })).toBeDisabled();
     // And the card explains why, without promising a delayed hire.
     expect(within(bookedCard).getByText(/You can't cast them until then/)).toBeInTheDocument();
+  });
+});
+
+/** A Female-lead draft whose pool holds one at-offer actor and one who wants nearly double (still inside the price window, but below their floor at this offer). */
+function stateWithBelowFloorCandidate(): GameState {
+  return withRng(1, (rng) => {
+    const studio = createInitialStudio(50_000_000);
+    const talentPool = generateTalentPool(rng);
+    const base = generateTalentCandidates('Actor', rng, 1)[0];
+    const priced = (name: string, salary: number): Person => ({
+      ...base,
+      id: actorId(name),
+      identity: { ...base.identity, name, gender: 'Female' },
+      careers: { ...base.careers, actor: { ...base.careers.actor!, minimumSalary: salary, typicalSalary: salary } },
+    });
+    talentPool.Actor = [priced('Ava Affordable', SALARY), priced('Priya Pricey', 9_000_000)];
+
+    const readyDraft = buildReadyDraft(rng);
+    const leadCharacter: ScriptCharacter = { ...readyDraft.script!.cast.find((c) => c.prominence === 'Lead')!, castingGender: 'Female' };
+    const script = { ...readyDraft.script!, cast: [leadCharacter, ...readyDraft.script!.cast.filter((c) => c.id !== leadCharacter.id)] };
+    const draft = { ...readyDraft, script, talent: [], talentTargetPriceByRole: { 'Lead Actor': SALARY } };
+
+    return {
+      studio,
+      screen: 'workspace' as const,
+      projects: [playerDraftToProject(draft)],
+      focusedProjectId: draft.id,
+      projectWorkspaceSection: 'cast-and-crew' as const,
+      rngSeed: 2,
+      totalDays: 1,
+      talentPool,
+      rivalStudios: [],
+      opportunities: [],
+      nextOpportunityCheckDay: 1,
+      viewingRivalStudioName: null,
+      viewingProductionId: null,
+    };
+  }).result;
+}
+
+describe('CastingDrawer - candidate reasoning chips', () => {
+  it('flags a below-salary-floor candidate with a "Wants more pay" blocker and a disabled offer, while an at-offer actor stays actionable', () => {
+    const state = stateWithBelowFloorCandidate();
+    const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;
+    saveState(state);
+
+    render(
+      <StudioProvider>
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+
+    const affordableCard = screen.getByText('Ava Affordable').closest('.card') as HTMLElement;
+    const priceyCard = screen.getByText('Priya Pricey').closest('.card') as HTMLElement;
+    // The below-floor actor: a blocker chip and a disabled offer (it would be hard-rejected).
+    expect(within(priceyCard).getByText('Wants more pay')).toBeInTheDocument();
+    expect(within(priceyCard).getByRole('button', { name: 'Make Offer' })).toBeDisabled();
+    // The at-offer actor carries no such blocker and can be offered.
+    expect(within(affordableCard).queryByText('Wants more pay')).not.toBeInTheDocument();
+    expect(within(affordableCard).getByRole('button', { name: 'Make Offer' })).toBeEnabled();
+  });
+
+  it('shows a "Sought you out" chip for an applicant who reached out directly (InterestedTalent)', () => {
+    const state = stateWithOpenCastingApplicant('InterestedTalent');
+    const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;
+    saveState(state);
+
+    render(
+      <StudioProvider>
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+
+    // Open Casting is the default tab; the direct-interest draw reads as a chip.
+    expect(screen.getByText('Sought you out')).toBeInTheDocument();
   });
 });
 

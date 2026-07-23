@@ -204,6 +204,14 @@ Applied when the ceremony resolves:
   award haul and their original gross — the real "Oscar bump." MVP credits it
   once at the ceremony rather than re-opening a theatrical run; extending it to
   a genuine re-release/legs lift is a later refinement.
+  - **Surfacing it (follow-up):** the bump used to land silently — a player's
+    budget would spike with no explanation. Two things now make it legible:
+    a Dashboard "Awards night" activity card announcing the wins/nominations
+    **and the prize money** (derived the same way the bump is computed, so the
+    announced figure matches what hit cash — `selectors.ts:deriveRecentAwardHighlights`),
+    and a **cash-ledger** entry (`engine/cashLedger.ts`) so the same prize money
+    also appears when the player opens the cash tile's "Recent budget activity"
+    history.
 - **Rivals** get the Prestige/Brand side of this too (they track both stats),
   so a rival sweeping the Oscars visibly strengthens them — consistent with how
   `settleTheatricalMarket` already credits rival outcomes.

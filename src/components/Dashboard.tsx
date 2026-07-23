@@ -10,11 +10,12 @@ import { BoxOfficeChart } from './common/BoxOfficeChart';
 import { BoxOfficeFinishedPopup } from './common/BoxOfficeFinishedPopup';
 import { FilmDetailModal } from './common/FilmDetailModal';
 import { ReputationHistoryModal } from './common/ReputationHistoryModal';
+import { CashHistoryModal } from './common/CashHistoryModal';
 import { TopGrossingPanel } from './common/TopGrossingPanel';
 import { DifficultyPicker } from './common/DifficultyPicker';
 import { ProductionOfficeCard } from './ProductionOfficeCard';
 import { DistributionArmCard } from './DistributionArmCard';
-import { computeTopGrossingFilms, deriveReputationHistory, hasDraftProgress, countActivePlayerProjects } from '../state/selectors';
+import { computeTopGrossingFilms, deriveRecentAwardHighlights, deriveReputationHistory, hasDraftProgress, countActivePlayerProjects } from '../state/selectors';
 import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
 import { isRecentlyCommissioned } from '../engine/commission';
 import { campaignRolloutProgress } from '../engine/marketing';
@@ -53,6 +54,7 @@ export function Dashboard() {
   const [showGuide, setShowGuide] = useState(false);
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
   const [showReputationHistory, setShowReputationHistory] = useState(false);
+  const [showCashHistory, setShowCashHistory] = useState(false);
   const [showResetPicker, setShowResetPicker] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(studio.name);
@@ -151,6 +153,13 @@ export function Dashboard() {
     [studio.assets, state.totalDays],
   );
 
+  // Recently-resolved award ceremonies the player was in - awards otherwise
+  // settle silently in the background tick and their cash prize lands unexplained.
+  const recentAwardHighlights = useMemo(
+    () => deriveRecentAwardHighlights(state),
+    [state.projects, state.awards, state.totalDays],
+  );
+
   const activityItems = useMemo<ActivityItem[]>(() => {
     const items: ActivityItem[] = [];
 
@@ -191,6 +200,18 @@ export function Dashboard() {
           onAction: () => dispatch({ type: 'VIEW_PRODUCTION', productionId: production.id }),
         });
       }
+    });
+
+    recentAwardHighlights.forEach((highlight) => {
+      items.push({
+        id: `${highlight.id}-activity`,
+        tone: 'positive',
+        eyebrow: 'Awards night',
+        title: `${highlight.showName} · Year ${highlight.year}`,
+        detail: `${highlight.wins > 0 ? `${highlight.wins} win${highlight.wins === 1 ? '' : 's'} from ` : ''}${highlight.nominations} nomination${highlight.nominations === 1 ? '' : 's'} — ${formatMoney(highlight.payout)} in award prize money, plus brand and prestige.`,
+        actionLabel: 'View awards',
+        onAction: () => dispatch({ type: 'VIEW_AWARDS' }),
+      });
     });
 
     runningFilms.forEach((film) => {
@@ -287,7 +308,7 @@ export function Dashboard() {
     }
 
     return items.slice(0, 5);
-  }, [attentionDrafts, dispatch, nextRelease, runningFilms, hasActiveWork, hasReleasedFilms, pendingCommissions, justDeliveredCommissions, state.talentPool.Writer]);
+  }, [attentionDrafts, dispatch, nextRelease, runningFilms, hasActiveWork, hasReleasedFilms, pendingCommissions, justDeliveredCommissions, recentAwardHighlights, state.talentPool.Writer]);
 
   const studioTier = playerReleasedFilms.length >= 10
     ? 'Major studio'
@@ -307,6 +328,9 @@ export function Dashboard() {
       {selectedFilm && <FilmDetailModal film={selectedFilm} onClose={() => setSelectedFilm(null)} />}
       {showReputationHistory && (
         <ReputationHistoryModal events={deriveReputationHistory(state)} onClose={() => setShowReputationHistory(false)} />
+      )}
+      {showCashHistory && (
+        <CashHistoryModal entries={studio.cashLedger ?? []} onClose={() => setShowCashHistory(false)} />
       )}
       {showResetPicker && (
         <DifficultyPicker
@@ -373,11 +397,16 @@ export function Dashboard() {
       </nav>
 
       <section className="dashboard-metrics" aria-label="Studio overview">
-        <div className="dashboard-metric dashboard-metric-money">
+        <button
+          type="button"
+          className="dashboard-metric dashboard-metric-money dashboard-metric-clickable"
+          onClick={() => setShowCashHistory(true)}
+          title="See what's recently moved your budget"
+        >
           <span className="dashboard-metric-label">Studio cash</span>
           <strong><Money amount={studio.cash} signColor /></strong>
-          <span className="dashboard-metric-note">Available to invest</span>
-        </div>
+          <span className="dashboard-metric-note">Available to invest &middot; tap for history</span>
+        </button>
         <button
           type="button"
           className="dashboard-metric dashboard-metric-brand dashboard-metric-clickable"

@@ -752,7 +752,14 @@ describe('Footage bounds - the shoot has a hard floor and an auto-wrap ceiling',
 describe('Test Screening (Post-Production Redesign, Phase C - iterative screenings)', () => {
   /** A finished-photography focused draft, right at the moment postProductionScreeningReadyDay was just set. */
   function stateJustFinishedPhotography(seed: number) {
-    const greenlit = studioReducer(stateReadyToGreenlight(seed), { type: 'GREENLIGHT_PROJECT' });
+    // Directors are now hand-authored/marquee-priced (up to ~$20M - see
+    // ROLE_GENERATION_PROFILES.Director), so a seed can roll a director whose
+    // salary alone would blow past the default $50M test budget and silently
+    // block GREENLIGHT_PROJECT. Give the fixture headroom so it always
+    // greenlights regardless of which director the seed draws; every cash
+    // assertion in this block is relative (deltas), so the larger starting
+    // balance changes nothing they check.
+    const greenlit = studioReducer(stateReadyToGreenlight(seed, 150_000_000), { type: 'GREENLIGHT_PROJECT' });
     const finished = shootThroughToFinish(greenlit);
     const readyDay = asPlayerDraft(findProject(finished.projects, finished.focusedProjectId))!.postProductionScreeningReadyDay!;
     return { state: finished, readyDay };
