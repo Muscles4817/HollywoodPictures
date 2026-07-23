@@ -1,0 +1,22 @@
+.checkbox-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.85em;
+  user-select: none;
+}
+
+.checkbox-toggle input {
+  cursor: pointer;
+  margin: 0;
+}
+
+.checkbox-toggle__label {
+  font-weight: 600;
+}
+
+.checkbox-toggle__hint {
+  color: var(--text-muted);
+  font-weight: 400;
+}

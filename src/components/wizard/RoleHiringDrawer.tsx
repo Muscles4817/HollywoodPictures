@@ -6,7 +6,7 @@ import { effectiveRoleCapacity, characterForRoleSlot } from '../../engine/castRe
 import { actorMeetsCharacterGender, castingGenderLabel } from '../../engine/casting';
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
-import { deriveBookedUntil, getTypicalSalaryForRole } from '../../engine/person';
+import { deriveBookedUntil, getTypicalSalaryForRole, isAvailableImmediately } from '../../engine/person';
 import { computeDirectorAppeal, resolveDirectorOfferResponse, type DirectorOfferResponse } from '../../engine/directorAppeal';
 import { describeDirectorRejection } from '../../engine/castingPresentation';
 import { deriveFocusedDraft } from '../../state/selectors';
@@ -16,6 +16,7 @@ import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
 import { formatMoney } from '../common/Money';
 import { TalentStats } from '../common/TalentStats';
+import { CheckboxToggle } from '../common/CheckboxToggle';
 import type { Person, ProductionRole, Script, ScriptCharacter } from '../../types';
 
 const VFX_RECOMMENDED_GENRES = new Set(['Action', 'Sci-Fi', 'Fantasy']);
@@ -53,7 +54,7 @@ function CandidateCard({ person, role, category, script, character, totalDays, s
           the drawer only needs to add its own casting-flow state on top
           (Cast/Hired, or Fully cast once the role's at capacity), not repeat
           the calendar read a second time. */}
-      <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} />
+      <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} availabilityMode="blocked" />
       <Button
         className="btn-sm"
         variant={pinned ? 'primary' : 'secondary'}
@@ -91,6 +92,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   const { state, dispatch } = useStudio();
   const draft = deriveFocusedDraft(state)!;
   const [pinnedTalentIds, setPinnedTalentIds] = useState<string[]>([]);
+  const [availableOnly, setAvailableOnly] = useState(false);
 
   // Body scroll lock + Escape-to-close, same conventions any overlay needs.
   useEffect(() => {
@@ -143,6 +145,16 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   const hiredNotVisible = hired.filter((h) => !visible.some((v) => v.id === h.id));
   const displayList = [...hiredNotVisible, ...visible].sort((person) => getTypicalSalaryForRole(person, role));
   const tolerancePercent = Math.round(toleranceUsed * 100);
+  // "Available now only" filter: a booked hire is already disabled below (you
+  // can't clear their commitments in time), so hiding them declutters the list
+  // to people you can actually hire today. Anyone already on this production is
+  // never hidden. Defaults off. isAvailableImmediately matches the exact reading
+  // TalentStats shows ("Available immediately" vs "Busy until X").
+  const onThisDraftIds = new Set(draft.talent.map((a) => a.person.id));
+  const shownList = availableOnly
+    ? displayList.filter((person) => onThisDraftIds.has(person.id) || isAvailableImmediately(person, state.totalDays))
+    : displayList;
+  const availabilityHiddenCount = displayList.length - shownList.length;
 
   const allTalent = Object.values(state.talentPool).flat();
   const pinnedTalent = pinnedTalentIds.map((id) => allTalent.find((t) => t.id === id)).filter((t): t is Person => t !== undefined);
@@ -249,6 +261,14 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
           {capacity.max > 1 && ` Hire up to ${capacity.max} for this role.`}
           {displayList.length === 0 && ' Nobody in the studio roster is available at this price - try adjusting the slider.'}
         </span>
+        {displayList.length > 0 && (
+          <CheckboxToggle
+            checked={availableOnly}
+            onChange={setAvailableOnly}
+            label="Available now only"
+            hint={availableOnly && availabilityHiddenCount > 0 ? `${availabilityHiddenCount} booked hidden` : ''}
+          />
+        )}
         {showVfxHint && <p style={{ margin: 0 }}>This genre benefits strongly from VFX - consider hiring a supervisor.</p>}
 
         {lastDirectorResponse && (
@@ -259,8 +279,14 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
           </div>
         )}
 
+        {availableOnly && shownList.length === 0 && displayList.length > 0 && (
+          <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+            Every candidate at this price is booked elsewhere. Turn off &ldquo;Available now only&rdquo; to see them.
+          </p>
+        )}
+
         <div className="grid grid-wide">
-          {displayList.map((person) => {
+          {shownList.map((person) => {
             const selected = hired.some((h) => h.id === person.id);
             const bookedUntil = deriveBookedUntil(person.availability.commitments);
             const booked = !selected && !!bookedUntil && bookedUntil > state.totalDays;
@@ -297,20 +323,24 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
             <div className={pinnedTalentIds.length >= MAX_PINNED ? 'compare-slots compare-slots-double' : 'compare-slots'}>
               {pinnedTalent.map((person) => {
                 const talentHired = hired.some((h) => h.id === person.id);
+                // A booked candidate can't be taken on today - disable the
+                // compare-slot action too, so this path can't sidestep the main
+                // list's booked block (P0, docs/DESIGN_REVIEW_casting_ux.md).
+                const talentAvailable = talentHired || isAvailableImmediately(person, state.totalDays);
                 return (
                   <div className="card compare-slot" key={person.id}>
                     <div className="row-between">
                       <div className="card-title" style={{ marginBottom: 0 }}>{person.identity.name}</div>
                       <Button variant="text" onClick={() => togglePin(person)}>Unpin</Button>
                     </div>
-                    <TalentStats person={person} role={role} category={profile.category} script={draft.script} character={characterForCandidate(person)} totalDays={state.totalDays} />
+                    <TalentStats person={person} role={role} category={profile.category} script={draft.script} character={characterForCandidate(person)} totalDays={state.totalDays} availabilityMode="blocked" />
                     <Button
                       variant="primary"
                       style={{ marginTop: 8 }}
-                      disabled={!talentHired && atCap}
+                      disabled={!talentHired && (atCap || !talentAvailable)}
                       onClick={() => selectPerson(person)}
                     >
-                      {talentHired ? (isActor ? 'Cast' : 'Hired') : atCap ? (isActor ? 'Fully Cast' : 'Full') : isActor ? 'Cast' : 'Hire'}
+                      {talentHired ? (isActor ? 'Cast' : 'Hired') : !talentAvailable ? 'Unavailable' : atCap ? (isActor ? 'Fully Cast' : 'Full') : isActor ? 'Cast' : 'Hire'}
                     </Button>
                   </div>
                 );

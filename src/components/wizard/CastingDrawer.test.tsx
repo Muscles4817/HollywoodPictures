@@ -7,7 +7,7 @@
 // regression test for the reported "click a female role, see a sea of male
 // actors" bug. Same jsdom + StudioProvider pattern as PostProduction.test.tsx.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { StudioProvider } from '../../state/StudioContext';
 import { CastingDrawer } from './CastingDrawer';
 import { createInitialStudio, type GameState } from '../../state/gameState';
@@ -139,6 +139,89 @@ describe('CastingDrawer - dismissing an Open Casting applicant', () => {
     // Dispatch removes them, so the card is gone and the empty-state shows.
     expect(screen.queryByText('Fiona Female')).not.toBeInTheDocument();
     expect(screen.getByText(/no applicants yet/i)).toBeInTheDocument();
+  });
+});
+
+/** A Female-lead draft whose pool has one free and one booked (until day 400) female actor, both in the price window. */
+function stateWithMixedAvailability(): GameState {
+  return withRng(1, (rng) => {
+    const studio = createInitialStudio(50_000_000);
+    const talentPool = generateTalentPool(rng);
+    const base = generateTalentCandidates('Actor', rng, 1)[0];
+    const free = actorNamed(base, 'Fiona Free', 'Female');
+    const booked: Person = {
+      ...actorNamed(base, 'Bella Booked', 'Female'),
+      availability: { commitments: [{ projectId: 'other-film', role: 'Lead Actor', startDay: 1, endDay: 400 }] },
+    };
+    talentPool.Actor = [free, booked];
+
+    const readyDraft = buildReadyDraft(rng);
+    const leadCharacter: ScriptCharacter = { ...readyDraft.script!.cast.find((c) => c.prominence === 'Lead')!, castingGender: 'Female' };
+    const script = { ...readyDraft.script!, cast: [leadCharacter, ...readyDraft.script!.cast.filter((c) => c.id !== leadCharacter.id)] };
+    const draft = { ...readyDraft, script, talent: [], talentTargetPriceByRole: { 'Lead Actor': SALARY } };
+
+    return {
+      studio,
+      screen: 'workspace' as const,
+      projects: [playerDraftToProject(draft)],
+      focusedProjectId: draft.id,
+      projectWorkspaceSection: 'cast-and-crew' as const,
+      rngSeed: 2,
+      totalDays: 10,
+      talentPool,
+      rivalStudios: [],
+      opportunities: [],
+      nextOpportunityCheckDay: 1,
+      viewingRivalStudioName: null,
+      viewingProductionId: null,
+    };
+  }).result;
+}
+
+describe('CastingDrawer - "Available now only" filter', () => {
+  it('hides actors booked elsewhere from Direct Approach when the filter is on, and shows them when off', () => {
+    const state = stateWithMixedAvailability();
+    const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;
+    saveState(state);
+
+    render(
+      <StudioProvider>
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+
+    // By default (filter off) both the free and the booked actor are listed.
+    expect(screen.getByText('Fiona Free')).toBeInTheDocument();
+    expect(screen.getByText('Bella Booked')).toBeInTheDocument();
+
+    // Turning the filter on drops the booked actor, keeps the free one.
+    fireEvent.click(screen.getByLabelText('Available now only'));
+    expect(screen.getByText('Fiona Free')).toBeInTheDocument();
+    expect(screen.queryByText('Bella Booked')).not.toBeInTheDocument();
+  });
+
+  it('disables the offer for a booked actor (the schedule gate would hard-reject it), while a free actor stays actionable', () => {
+    const state = stateWithMixedAvailability();
+    const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;
+    saveState(state);
+
+    render(
+      <StudioProvider>
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+
+    const freeCard = screen.getByText('Fiona Free').closest('.card') as HTMLElement;
+    const bookedCard = screen.getByText('Bella Booked').closest('.card') as HTMLElement;
+    // The free actor can be offered; the booked one's Make Offer is disabled.
+    expect(within(freeCard).getByRole('button', { name: 'Make Offer' })).toBeEnabled();
+    expect(within(bookedCard).getByRole('button', { name: 'Make Offer' })).toBeDisabled();
+    // And the card explains why, without promising a delayed hire.
+    expect(within(bookedCard).getByText(/You can't cast them until then/)).toBeInTheDocument();
   });
 });
 

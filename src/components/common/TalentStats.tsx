@@ -135,7 +135,7 @@ function StatRow({ label, value }: { label: string; value: number }) {
  * as a whole. null for every non-actor role and for a script with no
  * matching character at that slot (e.g. hiring past requiredLeads).
  */
-export function TalentStats({ person, role, category, script, character = null, totalDays }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number }) {
+export function TalentStats({ person, role, category, script, character = null, totalDays, availabilityMode = 'delay' }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number; availabilityMode?: 'delay' | 'blocked' }) {
   const career = getCareerForRole(person, role);
   const overallScore = deriveOverallScore(person, role, category, script, character);
   const roleFit = deriveRoleFitBreakdown(person, role, category, script, character);
@@ -172,7 +172,18 @@ export function TalentStats({ person, role, category, script, character = null, 
         {isBusy ? (
           <>
             <div className="talent-availability-status">Busy until {formatGameDateWithMonth(bookedUntil!)}.</div>
-            <div className="talent-availability-detail">Hiring them would delay production by {delayDays} day{delayDays === 1 ? '' : 's'}.</div>
+            <div className="talent-availability-detail">
+              {/* 'blocked' - a hiring/casting context, where a booked person
+                  simply can't be taken on today (the schedule gate hard-rejects
+                  the offer, engine/castingAppeal.ts). The old "would delay
+                  production by N days" copy promised a delayed-hire flow that
+                  doesn't exist and read as castable when it isn't. 'delay' stays
+                  the default for other contexts (e.g. on-set replacements, whose
+                  own delay is the event's, not this booking's). */}
+              {availabilityMode === 'blocked'
+                ? `You can't ${category === 'actor' ? 'cast' : 'hire'} them until then - their existing commitments won't clear in time.`
+                : `Hiring them would delay production by ${delayDays} day${delayDays === 1 ? '' : 's'}.`}
+            </div>
           </>
         ) : (
           <>

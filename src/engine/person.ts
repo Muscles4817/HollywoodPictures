@@ -117,6 +117,21 @@ export function isPersonAvailableOnDay(person: Person, day: GameDay): boolean {
   return person.availability.commitments.every((c) => day < c.startDay || day > c.endDay);
 }
 
+/**
+ * Whether a person could start immediately - no commitment runs past `day`.
+ * This is the exact reading TalentStats surfaces as "Available immediately" vs
+ * "Busy until X" (any commitment ending after today reads as booked), and what
+ * the casting/hiring drawers' "available now" filter hides against, so the
+ * filter and the card can never disagree. Deliberately distinct from
+ * isPersonAvailableOnDay, which only asks whether `day` itself falls inside a
+ * commitment window and so would call someone "available" the very day before a
+ * booking that hasn't started yet - the wrong question for "can they start now."
+ */
+export function isAvailableImmediately(person: Person, day: GameDay): boolean {
+  const bookedUntil = deriveBookedUntil(person.availability.commitments);
+  return bookedUntil === undefined || bookedUntil <= day;
+}
+
 export function withCommitment(person: Person, commitment: PersonCommitment): Person {
   return { ...person, availability: { commitments: [...person.availability.commitments, commitment] } };
 }
