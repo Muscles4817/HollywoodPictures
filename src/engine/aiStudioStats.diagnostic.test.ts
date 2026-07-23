@@ -285,7 +285,11 @@ describe.skipIf(!diagnosticEnabled)('AI studio outcome & awards diagnostic', () 
     const withVfx = allFilms.filter((f) => f.hadVfxSupervisor).length;
     lines.push('\nVFX SUPERVISOR HIRING (bug 1)');
     lines.push(`  Rival films that hired a VFX Supervisor: ${withVfx}/${N} = ${pct(withVfx, N)}`);
-    lines.push('  => Best Visual Effects has no rival contenders; only the player can be nominated.');
+    lines.push(
+      withVfx === 0
+        ? '  => Best Visual Effects has no rival contenders; only the player can be nominated.'
+        : '  => Best Visual Effects is contested; see the awards table for the player win rate.',
+    );
 
     // --- 4. Awards concentration (bug 2) ------------------------------------
     // The AI ceiling is ~67 (see the score distribution above - essentially no

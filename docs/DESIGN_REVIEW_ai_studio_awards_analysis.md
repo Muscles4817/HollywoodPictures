@@ -25,9 +25,9 @@ Sample size for the run reported below: **11,849 finished rival films**.
 
 ---
 
-## Finding 1 — AI studios literally cannot hire a VFX Supervisor (confirmed bug)
+## Finding 1 — AI studios literally cannot hire a VFX Supervisor (confirmed bug — now fixed)
 
-**Rival films that hired a VFX Supervisor: 0 / 11,849 = 0.0%.**
+**Rival films that hired a VFX Supervisor: 0 / 11,849 = 0.0%** (before the fix).
 
 This is a hard structural fact, not a probability. In
 `engine/rivalStudios.ts:startRivalProductionFromWonScript`, a rival only casts
@@ -58,17 +58,27 @@ Best-VFX contender pool contains **only** player films. The player is nominated
 100% and wins 100%, every year, at every quality tier tested — confirmed in the
 awards table below (Best Visual Effects reads `100.0%` across the board).
 
-### Recommended fix
+### Fix (implemented)
 
-Let rivals hire a VFX Supervisor *probabilistically*, driven by the genre's own
-`vfxImportance` (and scale), rather than forcing one on every film (a talky
-Drama shouldn't get a mandatory VFX lead any more than the player's should).
-Concretely, in `startRivalProductionFromWonScript`, iterate a per-production
-role list that appends `'VFX Supervisor'` when e.g.
-`rng() < GENRE_PROFILES[script.genre].vfxImportance` (optionally gated up for
-`Big` scale). Casting Director has the identical gap and can be handled the same
-way if desired. This is a small, contained change but it's a **balance
-decision** (how often, weighted how), so it's flagged rather than applied.
+Rivals now hire a VFX Supervisor *probabilistically*, driven by the genre's own
+`vfxImportance` nudged by scale, rather than forcing one on every film (a talky
+Drama shouldn't get a mandatory VFX lead any more than the player's should). In
+`engine/rivalStudios.ts:startRivalProductionFromWonScript`, a new
+`rivalHiresVfxSupervisor(script, scale, rng)` rolls against
+`clamp(vfxImportance + scaleAdjustment, 0, 0.95)` (scale adjustment: Big +0.15,
+Small −0.05); when it hits, `'VFX Supervisor'` is appended to the cast list and
+the existing loop hires one (gracefully none if the talent pool is dry, since
+the role's min is 0).
+
+Post-fix measurement (fresh 12×15 run): **47.2% of rival films now hire a VFX
+Supervisor**, weighted by genre — Sci-Fi/Action/Fantasy nearly always, Drama/
+Romance rarely. Best Visual Effects is now a genuine contest: a player film at
+quality 70 wins it **~2%** of the time (down from 100%), and even a quality-85
+film wins it only ~14% — it has to be earned.
+
+Casting Director has the identical structural gap (also optional, never cast by
+rivals). It doesn't feed an award, so it's lower-impact; the same pattern would
+fix it if desired — **not** applied here.
 
 ---
 
@@ -116,6 +126,11 @@ rate for a player film, by its own quality score:
 | Best Original Score     | 22% | 37% | 49% | 62% | 88% |
 | Best Visual Effects     | **100%** | 100% | 100% | 100% | 100% |
 
+> The Best Visual Effects row here is the **pre-fix** measurement (Finding 1).
+> After that fix it drops to a real contest — ~12% nom / ~2% win at quality 70,
+> ~38% nom / ~14% win at quality 85. The rest of the table (the quality-cliff)
+> is unaffected by the VFX fix and still stands.
+
 Win rate for Best Picture, same tiers: **1% → 45% → 97% → 100% → 100%.**
 
 Total Oscar haul per year, by tier: 60 → 2.7 noms/1.6 wins; **70 → 5.0 noms/3.5
@@ -127,7 +142,8 @@ well above its p90 of 63 — is a lock for Best Picture (100% nom, 97% win) and
 takes home 3–4 Oscars a year *on its own merit alone*, before the two structural
 thumbs on the scale:
 
-- **Best VFX is a guaranteed player win** (Finding 1) — free every year.
+- **Best VFX was a guaranteed player win** (Finding 1) — free every year; now
+  fixed, so this thumb is gone, but the quality-cliff below remains.
 - **Only the player gets a campaign boost** — `campaignByFilm` is player-only
   ("Rival films campaign nothing in MVP"), worth up to +8 award-score points on
   a field where the whole AI spread is ~13 points p10–p90. In a race that
@@ -207,10 +223,11 @@ widening AI quality variance would bring the critical side in line.
 
 | # | Finding | Status | Fix type |
 |---|---------|--------|----------|
-| 1 | Rivals never hire a VFX Supervisor → player owns Best VFX | Confirmed bug | Small code change (probabilistic hire by genre `vfxImportance`) — balance-flagged |
-| 2 | AI never exceeds ~65–74 quality → player sweeps awards above ~70 | Confirmed bug | Balance: give AI creative intent + widen quality variance; reconsider player-only campaign |
-| 3 | 83% of AI films profitable, 36% blockbusters | Realism gap | Balance: tighten outcome thresholds / box-office generosity |
+| 1 | Rivals never hire a VFX Supervisor → player owns Best VFX | **Fixed** | Probabilistic hire by genre `vfxImportance` + scale (`rivalHiresVfxSupervisor`) |
+| 2 | AI never exceeds ~65–74 quality → player sweeps awards above ~70 | Confirmed bug, not yet fixed | Balance: give AI creative intent + widen quality variance; reconsider player-only campaign |
+| 3 | 83% of AI films profitable, 36% blockbusters | Realism gap, not yet fixed | Balance: tighten outcome thresholds / box-office generosity |
 
-All three are **balance/design decisions** beyond the airtight VFX structural
-gap, so this review stops at diagnosis + recommendation. The harness is
-committed so any rebalance can be re-measured against the same numbers.
+Finding 1 (the airtight structural gap) is fixed in this change. Findings 2 and
+3 are **balance/design decisions**, so this review stops at diagnosis +
+recommendation for those. The harness is committed so any rebalance can be
+re-measured against the same numbers.

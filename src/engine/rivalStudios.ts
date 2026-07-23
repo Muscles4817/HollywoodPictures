@@ -5,6 +5,7 @@ import type {
   Person,
   PostProductionChoices,
   ProductionChoices,
+  ProductionRole,
   ProductionScale,
   RivalProductionInProgress,
   RivalStudio,
@@ -86,6 +87,27 @@ const SCALE_SPEND_RANGE: Record<ProductionScale, [number, number]> = {
   Medium: [0.32, 0.65],
   Big: [0.75, 1.0],
 };
+
+// How the production scale nudges a rival's VFX-Supervisor hire probability on
+// top of the genre's own vfxImportance: a Big-scale tentpole staffs a VFX lead
+// as a matter of course, a Small-scale film slightly less often than its genre
+// baseline. See rivalHiresVfxSupervisor.
+const VFX_HIRE_SCALE_ADJUSTMENT: Record<ProductionScale, number> = { Small: -0.05, Medium: 0, Big: 0.15 };
+
+/**
+ * Whether a rival attaches a VFX Supervisor to this production. The role is
+ * optional for the player too (min 0, hired per film); a rival mirrors that by
+ * rolling against the genre's own vfxImportance - a Sci-Fi/Action/Fantasy
+ * tentpole almost always has a VFX lead, a Drama or Romance almost never -
+ * nudged by scale (VFX_HIRE_SCALE_ADJUSTMENT) and capped below 1 so it's never
+ * a certainty. Before this, rivals only ever cast MANDATORY_TALENT_ROLES, so no
+ * rival film ever had a VFX Supervisor and Best Visual Effects had no rival
+ * contenders at all (docs/DESIGN_REVIEW_ai_studio_awards_analysis.md).
+ */
+function rivalHiresVfxSupervisor(script: Script, scale: ProductionScale, rng: RandomFn): boolean {
+  const probability = clamp(GENRE_PROFILES[script.genre].vfxImportance + VFX_HIRE_SCALE_ADJUSTMENT[scale], 0, 0.95);
+  return randFloat(rng, 0, 1) < probability;
+}
 
 interface RivalSpendPlan {
   talentSpendT: number;
@@ -668,7 +690,17 @@ function startRivalProductionFromWonScript(
   // same real person as both its own lead and a supporting actor.
   const talent: TalentAssignment[] = [];
   const bookedIds = new Set<string>();
-  for (const role of MANDATORY_TALENT_ROLES) {
+  // VFX Supervisor is optional (min 0), so it lives outside MANDATORY_TALENT_ROLES
+  // and rivals used to never cast it at all - no rival film ever had one, which
+  // left Best Visual Effects with zero rival contenders (the player won it
+  // unopposed every year, see docs/DESIGN_REVIEW_ai_studio_awards_analysis.md).
+  // A rival now attaches one when rivalHiresVfxSupervisor rolls true (genre-
+  // driven), appended to the cast list so the same loop hires it - one when the
+  // pool has a candidate, gracefully none when it's dry (min 0 never blocks).
+  const rolesToCast: ProductionRole[] = rivalHiresVfxSupervisor(script, scale, rng)
+    ? [...MANDATORY_TALENT_ROLES, 'VFX Supervisor']
+    : MANDATORY_TALENT_ROLES;
+  for (const role of rolesToCast) {
     const capacity = effectiveRoleCapacity(role, script);
     const profession = professionForProductionRole(role);
     const targetPrice = logAmount(spendPlan.talentSpendT, ROLE_GENERATION_PROFILES[profession].salaryRange);
