@@ -76,12 +76,18 @@ function CandidateCard({
   // a stored set of applicants there'd be anything to dismiss from.
   onDismiss?: () => void;
 }) {
+  // A booked actor can't be cast today - the offer is hard-rejected on the
+  // schedule gate (engine/castingAppeal.ts), so an enabled action button would
+  // only lead to a guaranteed "they passed" (P0, docs/DESIGN_REVIEW_casting_ux.md).
+  // Disable it and let TalentStats' 'blocked' availability line say why, matching
+  // how the crew/director drawer already treats a booked candidate.
+  const available = isAvailableImmediately(person, totalDays);
   return (
     <Card>
       <div className="card-title">{person.identity.name}</div>
       {/* TalentStats' own Availability section already covers "available
           now" vs "busy until X" - no need to repeat it here. */}
-      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} />
+      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" />
       {channel === 'InterestedTalent' && (
         <p style={{ margin: '6px 0 0', fontSize: '0.8em', color: 'var(--primary)', fontWeight: 600 }}>
           Reached out to you directly
@@ -91,7 +97,13 @@ function CandidateCard({
         {overall ? describeApplicantInterest(overall) : ''}
       </p>
       <div className="row" style={{ marginTop: 8, gap: 8 }}>
-        <Button variant="primary" className="btn-sm" onClick={onAct}>
+        <Button
+          variant="primary"
+          className="btn-sm"
+          onClick={onAct}
+          disabled={!available}
+          title={!available ? 'Booked elsewhere - unavailable until their commitments clear.' : undefined}
+        >
           {actionLabel}
         </Button>
         {onDismiss && (

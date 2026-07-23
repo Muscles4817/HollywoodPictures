@@ -64,25 +64,27 @@ generalize that idea.
 
 ## 2. Issues found, prioritized
 
-### P0 — Availability messaging contradicts behavior
+### P0 — Availability messaging contradicts behavior — **fixed in this change**
 
-`TalentStats` tells the player, for a booked person, **"Hiring them would delay
-production by N days"** — which reads as "possible, at a cost." But the sim
+`TalentStats` used to tell the player, for a booked person, **"Hiring them would
+delay production by N days"** — which read as "possible, at a cost." But the sim
 treats schedule as a **hard gate** (`resolveOfferResponse` rejects any
-non-`available` schedule), and the two drawers don't even agree on the surface:
-CastingDrawer leaves the button enabled and lets the offer fail; RoleHiringDrawer
-**disables** the booked candidate outright. The `requires-delay` status exists in
-the engine as a hook for a "shift the production date" flow that doesn't exist
-yet.
+non-`available` schedule), and the two drawers didn't even agree on the surface:
+CastingDrawer left the button enabled and let the offer fail; RoleHiringDrawer
+**disabled** the booked candidate outright.
 
-**Recommendation.** Make the copy tell the truth and pick one model:
-- *Cheapest:* change the booked-person card copy to "Unavailable — booked until
-  {date}" (drop the delay promise) and disable the Cast/Make Offer button so
-  CastingDrawer matches RoleHiringDrawer.
-- *Richer (the feature the copy implies):* build the "delay the release to fit
-  them" flow `requires-delay` was designed for.
+**Fixed (cheapest option taken):** `TalentStats` gains an opt-in
+`availabilityMode`; the hiring/casting drawers pass `"blocked"`, so a booked
+person now reads "Busy until {date}. You can't cast/hire them until then —
+their existing commitments won't clear in time" instead of the false delay
+promise. CastingDrawer now **disables** the Cast/Make Offer button for a booked
+actor (and the crew drawer's compare-slot action too), matching how
+RoleHiringDrawer's main list already treats them. On-set replacement keeps the
+default copy — its delay is the event's own, not this booking's.
 
-This remains the right **first follow-up** after the availability filter.
+*The richer option remains open:* actually building the "delay the release to fit
+them" flow that the engine's `requires-delay` status was designed for, so a
+delayed hire becomes genuinely possible rather than just honestly refused.
 
 ### P1 — Explain why a candidate is *recommended*, not just why they're blocked
 
@@ -191,8 +193,8 @@ strongly signals "you can't start production without this one."
 ## 3. Suggested order of work
 
 1. **(done)** Available-now filter — immediate decluttering.
-2. **P0** Fix the booked-person copy + disable the doomed Cast button (small,
-   high-trust; removes the worst contradiction).
+2. **(done)** Fix the booked-person copy + disable the doomed Cast button —
+   removes the worst contradiction; CastingDrawer now matches the crew drawer.
 3. **P1** Candidate reasoning on the card — *both* directions: positive signals
    (Great fit / Good value / Wants in / Drawn to {director}) and pre-click
    blockers (availability / salary floor / affordability). One card treatment

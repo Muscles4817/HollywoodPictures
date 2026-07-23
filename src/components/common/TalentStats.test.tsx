@@ -115,6 +115,22 @@ describe('TalentStats - Availability', () => {
     render(<TalentStats person={busy} role="Lead Actor" category="actor" script={null} totalDays={100} />);
     expect(screen.getByText('Hiring them would delay production by 1 day.')).toBeInTheDocument();
   });
+
+  it('in a hiring context (availabilityMode="blocked"), a busy actor reads as uncastable - never a delayed-hire promise', () => {
+    const [person] = generateTalentCandidates('Actor', createRng(15), 1);
+    const busy: Person = { ...person, availability: { commitments: [{ projectId: 'p1', role: 'Lead Actor', startDay: 90, endDay: 150 }] } };
+    render(<TalentStats person={busy} role="Lead Actor" category="actor" script={null} totalDays={100} availabilityMode="blocked" />);
+    expect(screen.getByText(`Busy until ${formatGameDateWithMonth(150)}.`)).toBeInTheDocument();
+    expect(screen.getByText(/You can't cast them until then/)).toBeInTheDocument();
+    expect(screen.queryByText(/would delay production/)).not.toBeInTheDocument();
+  });
+
+  it('uses "hire" (not "cast") for a busy crew candidate in the blocked context', () => {
+    const [editor] = generateTalentCandidates('Editor', createRng(15), 1);
+    const busy: Person = { ...editor, availability: { commitments: [{ projectId: 'p1', role: 'Editor', startDay: 90, endDay: 150 }] } };
+    render(<TalentStats person={busy} role="Editor" category="crew" script={null} totalDays={100} availabilityMode="blocked" />);
+    expect(screen.getByText(/You can't hire them until then/)).toBeInTheDocument();
+  });
 });
 
 describe('TalentStats - Role Fit / Tone Fit breakdown', () => {

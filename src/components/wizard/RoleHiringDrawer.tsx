@@ -54,7 +54,7 @@ function CandidateCard({ person, role, category, script, character, totalDays, s
           the drawer only needs to add its own casting-flow state on top
           (Cast/Hired, or Fully cast once the role's at capacity), not repeat
           the calendar read a second time. */}
-      <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} />
+      <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} availabilityMode="blocked" />
       <Button
         className="btn-sm"
         variant={pinned ? 'primary' : 'secondary'}
@@ -323,20 +323,24 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
             <div className={pinnedTalentIds.length >= MAX_PINNED ? 'compare-slots compare-slots-double' : 'compare-slots'}>
               {pinnedTalent.map((person) => {
                 const talentHired = hired.some((h) => h.id === person.id);
+                // A booked candidate can't be taken on today - disable the
+                // compare-slot action too, so this path can't sidestep the main
+                // list's booked block (P0, docs/DESIGN_REVIEW_casting_ux.md).
+                const talentAvailable = talentHired || isAvailableImmediately(person, state.totalDays);
                 return (
                   <div className="card compare-slot" key={person.id}>
                     <div className="row-between">
                       <div className="card-title" style={{ marginBottom: 0 }}>{person.identity.name}</div>
                       <Button variant="text" onClick={() => togglePin(person)}>Unpin</Button>
                     </div>
-                    <TalentStats person={person} role={role} category={profile.category} script={draft.script} character={characterForCandidate(person)} totalDays={state.totalDays} />
+                    <TalentStats person={person} role={role} category={profile.category} script={draft.script} character={characterForCandidate(person)} totalDays={state.totalDays} availabilityMode="blocked" />
                     <Button
                       variant="primary"
                       style={{ marginTop: 8 }}
-                      disabled={!talentHired && atCap}
+                      disabled={!talentHired && (atCap || !talentAvailable)}
                       onClick={() => selectPerson(person)}
                     >
-                      {talentHired ? (isActor ? 'Cast' : 'Hired') : atCap ? (isActor ? 'Fully Cast' : 'Full') : isActor ? 'Cast' : 'Hire'}
+                      {talentHired ? (isActor ? 'Cast' : 'Hired') : !talentAvailable ? 'Unavailable' : atCap ? (isActor ? 'Fully Cast' : 'Full') : isActor ? 'Cast' : 'Hire'}
                     </Button>
                   </div>
                 );

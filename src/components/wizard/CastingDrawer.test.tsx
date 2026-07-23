@@ -7,7 +7,7 @@
 // regression test for the reported "click a female role, see a sea of male
 // actors" bug. Same jsdom + StudioProvider pattern as PostProduction.test.tsx.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { StudioProvider } from '../../state/StudioContext';
 import { CastingDrawer } from './CastingDrawer';
 import { createInitialStudio, type GameState } from '../../state/gameState';
@@ -200,6 +200,28 @@ describe('CastingDrawer - "Available now only" filter', () => {
     fireEvent.click(screen.getByLabelText('Available now only'));
     expect(screen.getByText('Fiona Free')).toBeInTheDocument();
     expect(screen.queryByText('Bella Booked')).not.toBeInTheDocument();
+  });
+
+  it('disables the offer for a booked actor (the schedule gate would hard-reject it), while a free actor stays actionable', () => {
+    const state = stateWithMixedAvailability();
+    const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;
+    saveState(state);
+
+    render(
+      <StudioProvider>
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+
+    const freeCard = screen.getByText('Fiona Free').closest('.card') as HTMLElement;
+    const bookedCard = screen.getByText('Bella Booked').closest('.card') as HTMLElement;
+    // The free actor can be offered; the booked one's Make Offer is disabled.
+    expect(within(freeCard).getByRole('button', { name: 'Make Offer' })).toBeEnabled();
+    expect(within(bookedCard).getByRole('button', { name: 'Make Offer' })).toBeDisabled();
+    // And the card explains why, without promising a delayed hire.
+    expect(within(bookedCard).getByText(/You can't cast them until then/)).toBeInTheDocument();
   });
 });
 
