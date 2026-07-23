@@ -117,15 +117,24 @@ function leadCharacter(overrides: Partial<ScriptCharacter> = {}): ScriptCharacte
 // should reflect the specific Character a Lead/Supporting actor plays, not
 // just their fit for the script's tone as a whole.
 describe('computeActingScore - character-specific casting', () => {
-  it("a Lead Actor whose ActingStyle matches their specific Character's trait demands scores higher than one who doesn't, holding script tone fixed", () => {
+  it("a Lead Actor whose ActingStyle matches their specific Character's trait demands scores higher than one who doesn't, holding script tone AND craft fixed", () => {
     const script = scriptFor('Drama', 8);
     const demandingCharacter = leadCharacter({
       traits: traits({ charismaDemand: 90, comedyDemand: 10, emotionalDemand: 20, physicalDemand: 20, transformationDemand: 20 }),
     });
     const scriptWithCharacter: Script = { ...script, requiredLeads: 1, cast: [demandingCharacter] };
 
-    const matchingStyle: ActingStyle = { characterTransformation: 20, emotionalPerformance: 20, charisma: 90, comedy: 10, physicalPerformance: 20 };
-    const mismatchedStyle: ActingStyle = { characterTransformation: 90, emotionalPerformance: 90, charisma: 10, comedy: 90, physicalPerformance: 90 };
+    // Both actors are the SAME craft - one 90 spike over a flat 20 base, so
+    // identical overall ability and spikiness, hence identical floor+headroom
+    // (engine/actingModel.deriveCraftFromStyle). Under the floor+headroom model
+    // role-fit is one input to the realized performance, not the whole story
+    // (a vastly-more-skilled actor can out-deliver a better-fit but weaker one),
+    // so this isolates the fit lever: only WHICH axis the strength points at
+    // differs - the matching actor's charisma spike answers the character's
+    // charisma demand; the mismatched actor's spike lands on comedy, which the
+    // character explicitly does not want. Same craft, better fit must win.
+    const matchingStyle: ActingStyle = { characterTransformation: 20, emotionalPerformance: 20, charisma: 90, comedy: 20, physicalPerformance: 20 };
+    const mismatchedStyle: ActingStyle = { characterTransformation: 20, emotionalPerformance: 20, charisma: 20, comedy: 90, physicalPerformance: 20 };
 
     const matchingTalent: TalentAssignment[] = [{ role: 'Lead Actor', person: actorPerson('matching', matchingStyle) }];
     const mismatchedTalent: TalentAssignment[] = [{ role: 'Lead Actor', person: actorPerson('mismatched', mismatchedStyle) }];

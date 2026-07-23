@@ -29,6 +29,7 @@ import {
 import { EDIT_STYLE_PROFILES, FINAL_CUT_FOCUS_PROFILES, MUSIC_FOCUS_PROFILES } from '../data/postProduction';
 import { computeQualityWeights } from './genreWeights';
 import { computeExecutionProfile, type ExecutionProfile } from './productionExecution';
+import { computeRealizedPerformance } from './actingModel';
 import { clamp } from './random';
 
 function getDirector(talent: TalentAssignment[]): Person | undefined {
@@ -132,23 +133,29 @@ function characterForAssignment(assignment: TalentAssignment, indexWithinRole: n
 }
 
 /**
- * Combined lead + supporting acting quality, weighted toward the leads.
- * Unlike Direction, this is compatibility alone - an actor's ActingStyle
- * has no separate "skill" number sitting next to it (see types/index.ts),
- * so how well their specific strengths suit this script and this specific
- * Character IS their contribution (see actorFitScore above). Both Lead
- * Actor and Supporting Actor can now hold more than one person - a script's
- * requiredLeads/requiredSupporting sets exactly how many (see
- * engine/castRequirements.ts) - and either ensemble is *averaged*, not
- * summed: a two-lead buddy film doesn't automatically outscore a one-lead
- * film, it's the average fit of whoever's cast in those roles.
+ * Combined lead + supporting acting quality, weighted toward the leads. Each
+ * performer's contribution is the performance they actually DELIVER on this film
+ * (engine/actingModel.ts:computeRealizedPerformance) - their craft floor plus
+ * whatever the director unlocks on top, gated by how well they fit the role.
+ * Role-fit (the old style<->script<->character reading) is now one input to that
+ * rather than the whole story: a great actor in the wrong role, or a
+ * high-headroom actor paired with a hands-off or mismatched director, delivers
+ * far less than their ceiling. Both Lead and Supporting can hold more than one
+ * person (requiredLeads/requiredSupporting) and either ensemble is *averaged*,
+ * not summed.
  */
 export function computeActingScore(talent: TalentAssignment[], script: Script): number {
+  const director = getDirector(talent);
   const leads = talent.filter((a) => a.role === 'Lead Actor');
   const supports = talent.filter((a) => a.role === 'Supporting Actor');
 
-  const leadScoreAvg = average(leads.map((a, i) => actorFitScore(a.person, 'Lead Actor', characterForAssignment(a, i, 'Lead Actor', script), script)));
-  const supportScoreAvg = average(supports.map((a, i) => actorFitScore(a.person, 'Supporting Actor', characterForAssignment(a, i, 'Supporting Actor', script), script)));
+  const performance = (a: TalentAssignment, i: number, role: 'Lead Actor' | 'Supporting Actor'): number => {
+    const roleFit = actorFitScore(a.person, role, characterForAssignment(a, i, role, script), script);
+    return computeRealizedPerformance(a.person, director, roleFit);
+  };
+
+  const leadScoreAvg = average(leads.map((a, i) => performance(a, i, 'Lead Actor')));
+  const supportScoreAvg = average(supports.map((a, i) => performance(a, i, 'Supporting Actor')));
 
   return (leadScoreAvg ?? 30) * 0.7 + (supportScoreAvg ?? 30) * 0.3;
 }
@@ -299,8 +306,15 @@ const K_FOOTAGE_TO_EDITING = 0.25;
 // direction (the director's ability to get performances out of it) - director
 // weighted higher since "the director's ability to get performances" is the
 // more direct lever than the raw material alone.
-const ACTING_UPSTREAM_SCRIPT_WEIGHT = 0.35;
-const ACTING_UPSTREAM_DIRECTION_WEIGHT = 0.65;
+// Acting's upstream ceiling now leans on the material (script) far more than on
+// direction. Direction's effect on the performances is modelled EXPLICITLY and
+// per-actor in engine/actingModel.ts (the director unlocks or misfires on each
+// actor's headroom), which already folds into the actingScore this chain
+// receives - so keeping the old heavy direction weight here would double-count
+// direction against acting. A small residual direction term remains (a director
+// still sets the broad coverage/context the performances live in).
+const ACTING_UPSTREAM_SCRIPT_WEIGHT = 0.8;
+const ACTING_UPSTREAM_DIRECTION_WEIGHT = 0.2;
 
 // "Captured footage" - what Post-Production actually has to work with -
 // blends direction (coverage/blocking), acting (the performances on camera)

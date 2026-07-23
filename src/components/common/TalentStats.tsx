@@ -5,6 +5,7 @@ import {
   computeCharacterCompatibilityBreakdown,
 } from '../../engine/compatibility';
 import { dominantLean } from '../../engine/recommendation';
+import { describeActorCraft, describeDirectorTouch, describeDirectorActorPairing } from '../../engine/castingPresentation';
 import { getCareerForRole, deriveBookedUntil } from '../../engine/person';
 import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../../engine/personTraits';
 import { gameDateFromTotalDays, formatGameDateWithMonth } from '../../engine/calendar';
@@ -135,7 +136,7 @@ function StatRow({ label, value }: { label: string; value: number }) {
  * as a whole. null for every non-actor role and for a script with no
  * matching character at that slot (e.g. hiring past requiredLeads).
  */
-export function TalentStats({ person, role, category, script, character = null, totalDays, availabilityMode = 'delay' }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number; availabilityMode?: 'delay' | 'blocked' }) {
+export function TalentStats({ person, role, category, script, character = null, totalDays, availabilityMode = 'delay', pairedDirector = null }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number; availabilityMode?: 'delay' | 'blocked'; pairedDirector?: Person | null }) {
   const career = getCareerForRole(person, role);
   const overallScore = deriveOverallScore(person, role, category, script, character);
   const roleFit = deriveRoleFitBreakdown(person, role, category, script, character);
@@ -158,7 +159,10 @@ export function TalentStats({ person, role, category, script, character = null, 
       <div className="card-subtitle"><Money amount={career?.typicalSalary ?? 0} /></div>
 
       {category === 'director' && career && 'productionStyle' in career && (
-        <p className="talent-flavor-line">{describeProductionStyle(career)}</p>
+        <>
+          <p className="talent-flavor-line">{describeProductionStyle(career)}</p>
+          <p className="talent-flavor-line">{describeDirectorTouch(person)}</p>
+        </>
       )}
 
       {overallScore !== null && (
@@ -197,6 +201,13 @@ export function TalentStats({ person, role, category, script, character = null, 
         <p className="talent-flavor-line">
           Up for: {character.name} ({character.prominence} {CHARACTER_ARCHETYPE_LABELS[character.archetype]})
         </p>
+      )}
+
+      {category === 'actor' && (
+        <>
+          <p className="talent-flavor-line">{describeActorCraft(person)}</p>
+          {pairedDirector && <p className="talent-flavor-line">{describeDirectorActorPairing(pairedDirector, person)}</p>}
+        </>
       )}
 
       {roleFit && <MatchBreakdown title={roleFit.title} rows={roleFit.rows} />}

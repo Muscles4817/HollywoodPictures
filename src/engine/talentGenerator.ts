@@ -27,6 +27,7 @@ import { TALENT_FIRST_NAMES, TALENT_LAST_NAMES } from '../data/talentNames';
 import { TONES } from '../data/tones';
 import { ACTING_STYLE_AXES } from '../data/actingStyle';
 import { CREW_CAREER_KEY } from './person';
+import { deriveHandsOnSeeded, deriveCraftSeeded } from './actingModel';
 import { logAmount, logT } from './interpolate';
 import { clamp, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn } from './random';
 
@@ -301,24 +302,45 @@ function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Perso
   let careers: PersonCareers;
   if (role === 'Director') {
     const skill = generateSkill(rng, t);
+    const toneProfile = generateToneProfile(rng);
+    const productionStyle = generateProductionStyle(rng);
+    // Hands-on-ness is authored here by HASH from a stable seed (the director's
+    // tone profile plus skill), decoupled from fame and NOT consuming rng - so
+    // it's a stable, seed-derived part of the director rather than a hash of the
+    // mutable talent-id counter, and authoring it never shifts the downstream
+    // stream. See actingModel.deriveHandsOnSeeded.
+    const handsOnSeed = `${TONES.map((tn) => Math.round(toneProfile[tn])).join(',')}|${skill}`;
     careers = {
       director: {
         role,
         ...roleCareerCommon,
         experience: skill,
         skill,
-        toneProfile: generateToneProfile(rng),
-        productionStyle: generateProductionStyle(rng),
+        toneProfile,
+        productionStyle,
+        handsOn: deriveHandsOnSeeded(handsOnSeed),
       },
     };
   } else if (role === 'Actor') {
     const actingStyle = generateActingStyle(rng);
+    // Craft (floor + headroom) is authored here, decoupled from fame and giving
+    // the pro/magnet archetype spread (§9). Derived by HASH from a stable seed
+    // (the fame-independent acting style plus reliability/ego for entropy) rather
+    // than by consuming rng - so authoring craft never shifts the downstream rng
+    // stream (which would silently reshuffle the pool), yet stays deterministic
+    // per person and independent of the talent-id counter. Not derived from
+    // style spikiness, which the style generator makes uniformly high (that would
+    // saturate headroom and erase the dependable-pro archetype).
+    const craftSeed = `${actingStyle.characterTransformation},${actingStyle.emotionalPerformance},${actingStyle.charisma},${actingStyle.comedy},${actingStyle.physicalPerformance}|${reliability}|${ego}`;
+    const craft = deriveCraftSeeded(craftSeed);
     careers = {
       actor: {
         role,
         ...roleCareerCommon,
         experience: Math.round((actingStyle.characterTransformation + actingStyle.emotionalPerformance + actingStyle.charisma + actingStyle.comedy + actingStyle.physicalPerformance) / 5),
         actingStyle,
+        craftFloor: craft.floor,
+        craftHeadroom: craft.headroom,
       },
     };
   } else if (role === 'Writer') {

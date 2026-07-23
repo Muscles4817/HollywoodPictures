@@ -6,11 +6,73 @@ role-fit alone" model. It follows the principles in
 production, legible causes, real trade-offs) and is intended to land **before
 Studio Identity**, which depends on it.
 
-> Status: **design only.** Trait semantics and the unlock function are proposed
-> here to be reacted to before any code. Two decisions are called out as
-> "confirm before implementation."
+> Status: **implemented.** The model below is live in `engine/actingModel.ts`,
+> wired into `engine/scoring.ts:computeActingScore`, generated in
+> `engine/talentGenerator.ts`, and surfaced qualitatively on the casting card
+> (`components/common/TalentStats.tsx`). See §15 for how the implementation
+> resolved the open decisions and where it departed from the first sketch.
 
 ---
+
+## 15. Implementation notes (as built)
+
+The shipped model matches the design's core: a fame-independent **floor** +
+director-unlockable **headroom**, a director's **hands-on-ness** as leverage on
+the director↔actor tonal **aim**, role-fit gating headroom in full and the floor
+in part. Key specifics and departures:
+
+- **The unlock** (`computeRealizedPerformance`): `effFloor = floor × (0.7 + 0.3 ×
+  roleFit)`, `push = (BASE_INFLUENCE + handsOn × (1 − BASE_INFLUENCE)) ×
+  skill/100`, `realized = effFloor + (headroom × roleFit) × push × signedAim`,
+  where `signedAim` scales the negative side down (`MISMATCH_PENALTY_SCALE`) so
+  the below-floor tail is real but softer than the upside. `BASE_INFLUENCE`
+  landed at **0.12** (not a larger value) so a hands-off director genuinely
+  leaves a performance near its floor — the point of the hands-on axis.
+
+- **Craft source — decided during implementation.** Craft is authored *per
+  actor*, decoupled from fame, but is **not** derived from acting-style
+  spikiness. The style generator makes every actor spiky (1–2 signature axes),
+  which saturates a spikiness-based headroom and erases the dependable-pro
+  archetype. Instead craft is drawn on **two independent axes** — a triangular
+  floor (~44–80, centred ~62) and a right-skewed headroom (most actors low, a
+  minority high) — giving the pro/magnet/all-rounder spread §9 wants. Verified
+  empirically (`actingModel.diagnostic.test.ts`): fame↔craft correlation ≈ 0,
+  and the archetype curves **cross** (pro wins self-directed, magnet wins with
+  its ideal hands-on director).
+
+- **Generation without stream perturbation.** Procedural craft (and director
+  `handsOn`) are derived by **hash** from stable, fame-independent per-person
+  entropy (the acting style; the director's tone profile) rather than by
+  consuming the rng stream. Authoring a new per-person trait must not shift
+  every downstream draw — that would silently reshuffle the whole talent pool
+  and break unrelated seed-specific tests. Hashing keeps craft deterministic and
+  stable per person while leaving the generation stream byte-identical.
+  Handcrafted talent instead derives craft from its authored style
+  (`deriveCraftFromStyle`) — §9's "sensible default from existing stats" — so the
+  marquee roster reads true without per-name authoring yet (still a tuning seam).
+
+- **Open decisions (§12) resolved:** role-fit gating is as proposed (headroom
+  full, floor partial at `FIT_FLOOR_GATE = 0.7`); the director-attention trade
+  (§11) is **deferred to v2** as the doc assumed.
+
+- **The double-count fix (§8) shipped:** `computeActingScore`'s upstream
+  reweighting (`ACTING_UPSTREAM_SCRIPT_WEIGHT` 0.8 / `…DIRECTION_WEIGHT` 0.2)
+  keeps direction from being counted twice now that direction drives the
+  performance through the unlock.
+
+- **Presentation** (§10): the casting card reads an actor as a dependable
+  presence / a director-dependent talent / a capable all-rounder, a director as
+  hands-on / measured / gives-room, and — when a director is attached — a
+  director↔lead pairing hint (strong / workable / risky). Never raw numbers
+  (`engine/castingPresentation.ts`).
+
+- **Test note.** Because acting now carries real per-actor craft variance, the
+  Phase-1 execution-calibration fixture pins its cast to a fixed, competent craft
+  (the same way it already pins production/post choices) so those tests measure
+  execution leverage on a controlled film rather than a random draw. The
+  character-fit unit test was tightened to hold *craft* constant and vary only
+  role fit, since role-fit is now one input to the performance, not the whole
+  score.
 
 ## 1. The problem
 

@@ -71,6 +71,7 @@ function CandidateCard({
   overall,
   channel,
   directorName,
+  director,
   affordable,
   actionLabel,
   onAct,
@@ -85,6 +86,8 @@ function CandidateCard({
   channel?: CastingChannel;
   /** The attached director's name, so an "attachment" draw can say who (engine/castingPresentation.ts). */
   directorName?: string;
+  /** The attached director (if any), so the card can surface the director<->lead pairing read (engine/actingModel.ts). */
+  director?: Person | null;
   /** Whether hiring this person keeps the film within the studio's cash (a soft warning - salary is charged at greenlight, not now). */
   affordable: boolean;
   actionLabel: string;
@@ -125,7 +128,7 @@ function CandidateCard({
       <div className="card-title">{person.identity.name}</div>
       {/* TalentStats' own Availability section already covers "available
           now" vs "busy until X" - no need to repeat it here. */}
-      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" />
+      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} />
       {signals.length > 0 && (
         <div className="candidate-signals">
           {signals.map((signal) => (
@@ -424,6 +427,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                         overall={appealById.get(applicant.person.id) ?? null}
                         channel={applicant.channel}
                         directorName={directorName}
+                        director={director}
                         affordable={isAffordable(applicant.person)}
                         actionLabel="Cast"
                         onAct={() => attemptToAttach(applicant.person)}
