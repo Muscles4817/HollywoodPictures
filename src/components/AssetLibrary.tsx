@@ -10,13 +10,15 @@ import {
 } from './common/CheckboxFilterDropdown';
 import { deriveAssetStatus, type AssetStatus } from '../engine/project';
 import type { GameAction } from '../state/gameState';
-import type { Asset, Person } from '../types';
+import type { Asset, Genre, Person } from '../types';
 import './AssetLibrary.css';
 import { StarRating } from './common/StarRating';
 import { getWriterCareer, isPersonAvailableOnDay } from '../engine/person';
 import { writerProfileFromPerson } from '../engine/writers';
-import { describeWriter, describeRewriteProjection } from '../engine/writerPresentation';
+import { describeWriter, describeRewriteProjection, describeCommissionProjection } from '../engine/writerPresentation';
 import { rewriteDurationDays, rewriteFee, type RewriteKind } from '../engine/rewrite';
+import { commissionDurationBounds, commissionFee } from '../engine/commission';
+import { GENRES } from '../data/genres';
 
 const TEST_SCRIPT_ID_PREFIX = 'test-script-';
 
@@ -265,6 +267,128 @@ function RewritePanel({ asset, writers, totalDays, cash, dispatch, onClose }: Re
   );
 }
 
+function topAffinityGenre(affinity: Record<Genre, number>): Genre {
+  return GENRES.reduce((best, genre) => (affinity[genre] > affinity[best] ? genre : best), GENRES[0]);
+}
+
+interface CommissionPanelProps {
+  writers: Person[];
+  totalDays: number;
+  cash: number;
+  dispatch: Dispatch<GameAction>;
+  onClose: () => void;
+}
+
+/**
+ * The library-level form for commissioning a brand-new original screenplay
+ * (Phase 4) - the inverse of the Opportunity Market. The player picks a writer
+ * and a genre (pre-filled to the writer's strongest affinity); everything else
+ * about the eventual script is the writer's own creative identity. Numbers stay
+ * hidden behind the writer's tier/"known for"/projection - only fee and time show.
+ */
+function CommissionPanel({ writers, totalDays, cash, dispatch, onClose }: CommissionPanelProps) {
+  const [writerId, setWriterId] = useState('');
+  const [genre, setGenre] = useState<Genre | ''>('');
+
+  const available = useMemo(
+    () =>
+      writers
+        .filter((writer) => isPersonAvailableOnDay(writer, totalDays))
+        .sort((left, right) => (getWriterCareer(right)?.skill ?? 0) - (getWriterCareer(left)?.skill ?? 0)),
+    [writers, totalDays],
+  );
+
+  const writer = available.find((candidate) => candidate.id === writerId) ?? null;
+  const career = writer ? getWriterCareer(writer) : null;
+  const profile = writer ? writerProfileFromPerson(writer) : null;
+  const fee = career ? commissionFee(career.typicalSalary) : 0;
+  const bounds = commissionDurationBounds();
+  const description = writer ? describeWriter(writer) : null;
+  const projection = profile && genre ? describeCommissionProjection(profile, genre) : null;
+  const canCommission = writer !== null && genre !== '' && cash >= fee;
+
+  // Picking a writer pre-fills the brief to their strongest genre (overridable).
+  const selectWriter = (id: string) => {
+    setWriterId(id);
+    const chosen = available.find((candidate) => candidate.id === id);
+    const chosenCareer = chosen ? getWriterCareer(chosen) : null;
+    if (chosenCareer && genre === '') setGenre(topAffinityGenre(chosenCareer.genreAffinity));
+  };
+
+  return (
+    <div className="card stack" style={{ gap: 8 }}>
+      <h2 style={{ margin: 0, fontSize: '1.05em' }}>Commission an original screenplay</h2>
+      <p className="choice-description" style={{ margin: 0 }}>
+        Pay a writer to develop a brand-new original in a genre you choose — it arrives as an owned asset once they've written it.
+      </p>
+
+      <label className="stack" style={{ gap: 4 }}>
+        <span className="stat-label">Writer</span>
+        <select value={writerId} onChange={(event) => selectWriter(event.target.value)}>
+          <option value="">Choose a writer…</option>
+          {available.map((candidate) => (
+            <option key={candidate.id} value={candidate.id}>
+              {candidate.identity.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="stack" style={{ gap: 4 }}>
+        <span className="stat-label">Genre</span>
+        <select value={genre} onChange={(event) => setGenre(event.target.value as Genre)}>
+          <option value="">Choose a genre…</option>
+          {GENRES.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {writer && description && (
+        <div style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+          <div>
+            {description.tier} · {description.knownFor}
+          </div>
+          {projection && <div style={{ marginTop: 2 }}>{projection}.</div>}
+        </div>
+      )}
+
+      <div className="row-between" style={{ fontSize: '0.85em' }}>
+        <span className="stat-label">Fee</span>
+        <strong>{formatMoney(fee)}</strong>
+      </div>
+      <div className="row-between" style={{ fontSize: '0.85em' }}>
+        <span className="stat-label">Time</span>
+        <strong>~{bounds.min}–{bounds.max} days</strong>
+      </div>
+
+      <div className="row" style={{ gap: 8 }}>
+        <Button
+          variant="primary"
+          disabled={!canCommission}
+          onClick={() => {
+            dispatch({ type: 'COMMISSION_SCREENPLAY', writerId: writer!.id, genre: genre as Genre });
+            onClose();
+          }}
+        >
+          Commission
+        </Button>
+        <Button className="btn-sm" onClick={onClose}>
+          Cancel
+        </Button>
+      </div>
+
+      {writer && genre !== '' && cash < fee && (
+        <p style={{ color: 'var(--red)', margin: 0, fontSize: '0.85em' }}>
+          Can&apos;t afford this fee right now.
+        </p>
+      )}
+    </div>
+  );
+}
+
 interface AssetCardProps {
   asset: Asset;
   status: AssetStatus;
@@ -494,6 +618,8 @@ export function AssetLibrary() {
   const [sortBy, setSortBy] = useState<AssetSort>('recent');
   const [openFilterId, setOpenFilterId] = useState<string | null>(null);
   const [expandedAssetId, setExpandedAssetId] = useState<string | null>(null);
+  const [showCommission, setShowCommission] = useState(false);
+  const pendingCommissions = state.studio.pendingCommissions ?? [];
   // View preference (not persisted, same as the filters/search above): collapse
   // the whole Test Scripts section so the library shows only assets the player
   // actually acquired. Reversible via the header toggle so the free scripts are
@@ -658,6 +784,42 @@ export function AssetLibrary() {
         profiles, and choose what your studio should develop next. Assets remain
         yours permanently, even when a pre-greenlight project is abandoned.
       </p>
+
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <Button
+          variant="primary"
+          aria-expanded={showCommission}
+          onClick={() => setShowCommission((open) => !open)}
+        >
+          {showCommission ? 'Close' : 'Commission an original screenplay'}
+        </Button>
+      </div>
+
+      {showCommission && (
+        <CommissionPanel
+          writers={state.talentPool.Writer}
+          totalDays={state.totalDays}
+          cash={state.studio.cash}
+          dispatch={dispatch}
+          onClose={() => setShowCommission(false)}
+        />
+      )}
+
+      {pendingCommissions.length > 0 && (
+        <section className="card stack" style={{ gap: 6 }} aria-label="Commissions in progress">
+          <h2 style={{ margin: 0, fontSize: '1.05em' }}>In commission</h2>
+          {pendingCommissions.map((commission) => (
+            <div key={commission.id} className="row-between" style={{ fontSize: '0.9em' }}>
+              <span>
+                Original {commission.genre} with <strong>{commission.writerName}</strong>
+              </span>
+              <span style={{ color: 'var(--text-muted)' }}>
+                ready {formatGameDateWithMonth(commission.readyOnDay)}
+              </span>
+            </div>
+          ))}
+        </section>
+      )}
 
       {filterableAssets.length === 0 ? (
         <div className="card">

@@ -318,7 +318,15 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // field is absent and read defensively - so this is additive; the bump is the
 // honest "the stored shape changed" signal, same convention as every entry
 // above. No migration code.
-const SAVE_KEY = 'hollywood-pictures-save-v49';
+// v49 -> v50 (Phase 4: original screenplay commissions): Studio gained an
+// optional pendingCommissions (a PendingCommission[] of screenplays a specific
+// writer is writing but hasn't delivered - id/writerId/writerName/genre/
+// startedOnDay/readyOnDay/the generated script/fee), a new COMMISSION_SCREENPLAY
+// action, and a 'commissioned' DevelopmentEventKind. A v49 save's studio has no
+// commissions in flight - the field is absent and read defensively as [] - so
+// this is additive; the bump is the honest "the stored shape changed" signal.
+// No migration code.
+const SAVE_KEY = 'hollywood-pictures-save-v50';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
