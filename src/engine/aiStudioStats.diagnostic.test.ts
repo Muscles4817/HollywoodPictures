@@ -65,6 +65,8 @@ interface FilmRecord {
   critic: number;
   audience: number;
   hadVfxSupervisor: boolean;
+  executionRating: string; // Phase 2 - rivals now carry a production-execution outcome
+  eventCount: number;
   year: number;
 }
 
@@ -79,6 +81,8 @@ function recordFinished(film: Film): FilmRecord {
     critic: r.criticScore,
     audience: r.audienceScore,
     hadVfxSupervisor: film.talent.some((t) => t.role === 'VFX Supervisor'),
+    executionRating: r.productionExecution?.rating ?? 'none',
+    eventCount: film.events.length,
     year: yearOf(film.releasedOnDay),
   };
 }
@@ -313,6 +317,26 @@ describe.skipIf(!diagnosticEnabled)('AI studio outcome & awards diagnostic', () 
     const cGe80 = critic.filter((c) => c >= 80).length;
     lines.push(`  Quality >= 70: ${pct(qGe70, N)}   >= 80: ${pct(qGe80, N)}`);
     lines.push(`  Critic  >= 70: ${pct(cGe70, N)}   >= 80: ${pct(cGe80, N)}`);
+
+    // --- 2b. Rival production execution (Phase 2) ---------------------------
+    lines.push('\nRIVAL PRODUCTION EXECUTION (Phase 2 - rivals now run the shared execution pipeline)');
+    const RATINGS = ['catastrophic', 'troubled', 'solid', 'strong', 'exceptional'];
+    const ratingCounts = new Map<string, number>();
+    for (const f of allFilms) ratingCounts.set(f.executionRating, (ratingCounts.get(f.executionRating) ?? 0) + 1);
+    lines.push(`  avg on-set events per rival film: ${mean(allFilms.map((f) => f.eventCount)).toFixed(1)}`);
+    lines.push('  execution rating distribution:');
+    for (const r of RATINGS) lines.push(`    ${r.padEnd(13)} ${pct(ratingCounts.get(r) ?? 0, N)}`);
+    const catastrophic = ratingCounts.get('catastrophic') ?? 0;
+    const exceptional = ratingCounts.get('exceptional') ?? 0;
+    lines.push(`  => catastrophic ${pct(catastrophic, N)} | exceptional ${pct(exceptional, N)}`);
+    // Quality band of the finished rival film (data/reviewBlurbs.ts:reviewBand).
+    const BANDS = ['savaged', 'poor', 'mixed', 'solid', 'excellent', 'triumph'] as const;
+    const bandOf = (q: number) => (q < 25 ? 'savaged' : q < 45 ? 'poor' : q < 60 ? 'mixed' : q < 75 ? 'solid' : q < 90 ? 'excellent' : 'triumph');
+    const bandCounts = new Map<string, number>();
+    for (const q of quality) bandCounts.set(bandOf(q), (bandCounts.get(bandOf(q)) ?? 0) + 1);
+    lines.push('  finished quality band: ' + BANDS.map((b) => `${b} ${pct(bandCounts.get(b) ?? 0, N)}`).join('  '));
+    lines.push('  (Compare vs the pre-Phase-2 neutral rival model: quality mean ~56, p90 ~63, max ~74,');
+    lines.push('   with 0 on-set events and no execution variance at all.)');
 
     // --- 3. VFX Supervisor hiring (bug 1) -----------------------------------
     const withVfx = allFilms.filter((f) => f.hadVfxSupervisor).length;

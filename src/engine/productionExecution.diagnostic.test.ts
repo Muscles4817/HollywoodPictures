@@ -18,6 +18,7 @@
 import { describe, it } from 'vitest';
 import { buildReadyDraft } from '../state/testFixtures';
 import { computeStaticProductionRisk, computeRecommendedShootDays, computeShootEscalation, rollDayEvent, resolveEventChoice } from './production';
+import { resolveRivalExecution } from './rivalExecution';
 import { computeQualityBreakdown } from './scoring';
 import { computeExecutionProfile, computeExecutionResilience, neutralExecutionProfile, summarizeExecution } from './productionExecution';
 import { generateTalentPool } from './talentGenerator';
@@ -93,6 +94,26 @@ function runOneShoot(seed: number, cohort: Cohort): Sample | null {
   }).result;
 }
 
+// The SAME plan, but the history synthesized by the rival resolver instead of a
+// lived day-by-day shoot. Parity target: this should land on ~the same
+// execution-rating distribution as runOneShoot for the same cohort.
+function runRivalSynth(seed: number, cohort: Cohort): Sample | null {
+  return withRng(seed, (rng: RandomFn): Sample | null => {
+    const draft = applyCohort(excellentDraft(rng), cohort);
+    if (!draft.script || !draft.genre || !draft.productionChoices) return null;
+    const { events, shootingRatio } = resolveRivalExecution(
+      { talent: draft.talent, script: draft.script, productionChoices: draft.productionChoices, genre: draft.genre },
+      rng,
+    );
+    const withProfile = computeExecutionProfile({ events, shootingRatio, talent: draft.talent, productionChoices: draft.productionChoices });
+    const q = (profile: ReturnType<typeof computeExecutionProfile>) =>
+      computeQualityBreakdown(draft.script!, draft.talent, draft.genre!, draft.productionChoices!, draft.postProductionChoices!, events, shootingRatio, 0, profile).qualityScore;
+    const qualityWith = q(withProfile);
+    const qualityNeutral = q(neutralExecutionProfile(shootingRatio));
+    return { qualityWith, qualityNeutral, delta: qualityWith - qualityNeutral, rating: summarizeExecution(withProfile).rating, eventCount: events.length };
+  }).result;
+}
+
 function mean(xs: number[]): number { return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0; }
 function stdev(xs: number[]): number { const m = mean(xs); return Math.sqrt(mean(xs.map((x) => (x - m) ** 2))); }
 function pctile(xs: number[], p: number): number {
@@ -151,6 +172,27 @@ describe.skipIf(!enabled)('Production Execution diagnostic (excellent project x 
     lines.push('\nHEADLINE');
     lines.push(`  Careful vs reckless mean quality gap: ${(mean(byCohort.careful.map((s) => s.qualityWith)) - mean(byCohort.reckless.map((s) => s.qualityWith))).toFixed(1)} pts`);
     lines.push(`  Reckless downside stdev ${stdev(byCohort.reckless.map((s) => s.qualityWith)).toFixed(1)} vs careful ${stdev(byCohort.careful.map((s) => s.qualityWith)).toFixed(1)}`);
+
+    // --- PLAYER vs RIVAL parity (Phase 2) -----------------------------------
+    // The rival resolver synthesizes a history for the SAME plans; its
+    // execution-rating distribution should match the player's lived shoot.
+    const rivalByCohort: Record<Cohort, Sample[]> = { careful: [], typical: [], reckless: [] };
+    for (let s = 0; s < SEEDS; s++) {
+      for (const cohort of COHORTS) {
+        const sample = runRivalSynth(9000 + s, cohort);
+        if (sample) rivalByCohort[cohort].push(sample);
+      }
+    }
+    lines.push('\nPLAYER (lived shoot) vs RIVAL (synthesized history) - same plans, same pipeline');
+    lines.push(`  ${'cohort'.padEnd(9)} ${'who'.padEnd(7)} ${'meanQ'.padStart(6)} ${'meanDelta'.padStart(9)} ${'troubled'.padStart(9)} ${'catas'.padStart(6)} ${'strong+'.padStart(8)} ${'events'.padStart(7)}`);
+    for (const c of COHORTS) {
+      for (const [who, arr] of [['player', byCohort[c]], ['rival', rivalByCohort[c]]] as const) {
+        const troubled = arr.filter((s) => s.rating === 'troubled' || s.rating === 'catastrophic').length;
+        const catas = arr.filter((s) => s.rating === 'catastrophic').length;
+        const strongPlus = arr.filter((s) => s.rating === 'strong' || s.rating === 'exceptional').length;
+        lines.push(`  ${c.padEnd(9)} ${who.padEnd(7)} ${mean(arr.map((s) => s.qualityWith)).toFixed(1).padStart(6)} ${mean(arr.map((s) => s.delta)).toFixed(2).padStart(9)} ${share(troubled, arr.length).padStart(9)} ${share(catas, arr.length).padStart(6)} ${share(strongPlus, arr.length).padStart(8)} ${mean(arr.map((s) => s.eventCount)).toFixed(1).padStart(7)}`);
+      }
+    }
 
     // eslint-disable-next-line no-console
     console.log(lines.join('\n'));

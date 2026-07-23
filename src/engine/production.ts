@@ -551,49 +551,49 @@ function buildEventPools(
   return { positivePool, negativePool };
 }
 
+// On-set event generation, shared by the player's day-by-day shoot and the
+// rival execution synthesizer. `usedIds` (every template already fired this
+// shoot) prevents repeats within one production; an interactive template comes
+// back as a `pendingChoice` (the player picks; the rival resolver auto-picks)
+// rather than a resolved `event`.
+
+/** The full risk picture on a given day: the four static dimensions plus live schedule pressure. */
+export type FullProductionRisk = StaticProductionRisk & { schedulePressure: number };
+
+/** The odds a notable event fires on one day of shooting, given the day's average risk. Shared by the player's per-day roll and the rival synthesizer's event-count estimate. */
+export function dailyEventChance(avgRisk: number): number {
+  return clamp(MIN_DAILY_EVENT_CHANCE + (avgRisk / 100) * (MAX_DAILY_EVENT_CHANCE - MIN_DAILY_EVENT_CHANCE), MIN_DAILY_EVENT_CHANCE, MAX_DAILY_EVENT_CHANCE);
+}
+
+/** Mean of the five risk dimensions plus any accumulated escalation, clamped 0-100 - the single "how risky is this moment" figure event selection reads. */
+export function averageProductionRisk(fullRisk: FullProductionRisk, escalationRisk = 0): number {
+  const base = (fullRisk.schedulePressure + fullRisk.moraleRisk + fullRisk.safetyRisk + fullRisk.technicalComplexity + fullRisk.budgetRisk) / 5;
+  return clamp(base + escalationRisk, 0, 100);
+}
+
 /**
- * Rolls whatever happens on a single day of principal photography - most
- * days, nothing notable does. Called once per ADVANCE_SHOOTING_DAY dispatch
- * (state/studioReducer.ts). Schedule Pressure is recomputed fresh each call
- * from how many days have elapsed so far (engine/production.ts:computeSchedulePressure)
- * and folded in alongside the four static dimensions - a shoot that's
- * clearly running long or clearly on track becomes eligible for its own
- * schedule-flavored events, on top of whatever safety/technical/morale/
- * budget risk already made reachable, and both the frequency and the
- * positive/negative bias of the roll shift with it too, not just which
- * templates are available. `usedIds` (every template that's already fired
- * this shoot) is derived from the events accumulated so far, so nothing
- * repeats within one production. An interactive template (`.interactive ===
- * true`) doesn't resolve here - it comes back as a `pendingChoice` instead
- * of an `event`, which the reducer uses to pause the shoot on
- * PhotographyState.pendingChoice until the player picks one of its choices
- * (see resolveEventChoice above and state/studioReducer.ts:RESOLVE_EVENT_CHOICE).
+ * Selects and rolls one production event from the risk-weighted pools - the
+ * shared core of on-set event generation. The player's shoot calls this once
+ * per day (after a daily-chance gate, rollDayEvent below); the rival execution
+ * resolver (engine/rivalExecution.ts) calls it directly, a synthesized number
+ * of times, to compress a whole shoot into a plausible history. Both feed the
+ * result through the identical execution pipeline (engine/productionExecution.ts) -
+ * the player and AI differ only in HOW the history is generated, never in how
+ * the finished film is evaluated. Returns null when every reachable template
+ * has already fired this shoot (usedIds). An empty `talentPool` simply yields
+ * no mid-shoot replacement options (fine for a rival, who resolves the base
+ * choices itself).
  */
-export function rollDayEvent(
-  staticRisk: StaticProductionRisk,
-  daysElapsed: number,
-  recommendedDays: number,
+export function pickShootEvent(
+  fullRisk: FullProductionRisk,
+  avgRisk: number,
   genre: Genre,
   usedIds: ReadonlySet<string>,
   talent: TalentAssignment[],
   script: Script | null,
   talentPool: Record<TalentProfession, Person[]>,
   rng: RandomFn,
-  // Bounded failure-chain pressure accumulated from the shoot's major setbacks
-  // so far (engine/production.ts:computeShootEscalation) - raises both the odds
-  // an event fires and the odds it's negative, so a shoot that has already gone
-  // badly is more likely to keep going badly. 0 by default (no history / first
-  // day), so callers that don't pass it are unchanged.
-  escalationRisk = 0,
 ): { event: ProductionEvent } | { pendingChoice: PendingEventChoice } | null {
-  const schedulePressure = computeSchedulePressure(daysElapsed, recommendedDays);
-  const fullRisk = { schedulePressure, ...staticRisk };
-  const baseAvgRisk = (fullRisk.schedulePressure + fullRisk.moraleRisk + fullRisk.safetyRisk + fullRisk.technicalComplexity + fullRisk.budgetRisk) / 5;
-  const avgRisk = clamp(baseAvgRisk + escalationRisk, 0, 100);
-
-  const dailyChance = clamp(MIN_DAILY_EVENT_CHANCE + (avgRisk / 100) * (MAX_DAILY_EVENT_CHANCE - MIN_DAILY_EVENT_CHANCE), MIN_DAILY_EVENT_CHANCE, MAX_DAILY_EVENT_CHANCE);
-  if (rng() >= dailyChance) return null;
-
   const { positivePool, negativePool } = buildEventPools(fullRisk, genre);
   const rollNegative = rng() * 100 < avgRisk;
   const pool = (rollNegative ? negativePool : positivePool).filter((t) => !usedIds.has(t.id));
@@ -645,4 +645,36 @@ export function rollDayEvent(
       escalates: template.escalates ?? defaultEscalates(template.severity, template.polarity),
     },
   };
+}
+
+/**
+ * Rolls whatever happens on a single day of principal photography - most days,
+ * nothing notable does (the daily-chance gate). Called once per
+ * ADVANCE_SHOOTING_DAY dispatch (state/studioReducer.ts). Schedule Pressure is
+ * recomputed fresh each call from how many days have elapsed so far, folded in
+ * alongside the four static dimensions and any accumulated `escalationRisk`
+ * (computeShootEscalation) - a shoot running long or already in trouble becomes
+ * both more event-prone and more negative. On a day that does produce
+ * something, the selection is delegated to the shared pickShootEvent above, so
+ * the player and the rival synthesizer draw from the exact same pools.
+ */
+export function rollDayEvent(
+  staticRisk: StaticProductionRisk,
+  daysElapsed: number,
+  recommendedDays: number,
+  genre: Genre,
+  usedIds: ReadonlySet<string>,
+  talent: TalentAssignment[],
+  script: Script | null,
+  talentPool: Record<TalentProfession, Person[]>,
+  rng: RandomFn,
+  escalationRisk = 0,
+): { event: ProductionEvent } | { pendingChoice: PendingEventChoice } | null {
+  const schedulePressure = computeSchedulePressure(daysElapsed, recommendedDays);
+  const fullRisk: FullProductionRisk = { schedulePressure, ...staticRisk };
+  const avgRisk = averageProductionRisk(fullRisk, escalationRisk);
+
+  if (rng() >= dailyEventChance(avgRisk)) return null;
+
+  return pickShootEvent(fullRisk, avgRisk, genre, usedIds, talent, script, talentPool, rng);
 }

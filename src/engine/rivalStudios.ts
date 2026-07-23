@@ -20,6 +20,7 @@ import { professionForProductionRole } from '../data/helpers';
 import { isPersonAvailableOnDay, withCommitment } from './person';
 import { effectiveRoleCapacity, characterForRoleSlot } from './castRequirements';
 import { computeRecommendedShootDays, computeRecommendedPostProductionDays } from './production';
+import { resolveRivalExecution } from './rivalExecution';
 import { computeReleaseResults } from './releaseFilm';
 import { internationalReachForRivalStudio } from './distribution';
 import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
@@ -839,7 +840,11 @@ export function resolveRivalProduction(
   knownUpcoming: UpcomingRelease[],
   rng: RandomFn,
 ): Film {
-  const shootingRatio = clamp(randFloat(rng, 0.85, 1.25), 0.5, 2);
+  // Synthesize this rival's production history and shooting ratio from its risk
+  // profile and plan (engine/rivalExecution.ts), then feed both through the
+  // exact same release pipeline the player uses - a rival's film is now shaped
+  // by how its shoot went, not a flat neutral profile.
+  const { events, shootingRatio } = resolveRivalExecution(production, rng);
   const recommendedDays = computeRecommendedShootDays(production.talent, production.script, production.productionChoices);
   const dailyBurn = computeDailyContingencyBurn(production.productionChoices.contingencyAmount, recommendedDays);
   const photographyCost = Math.round(dailyBurn * recommendedDays * shootingRatio);
@@ -858,7 +863,7 @@ export function resolveRivalProduction(
       productionChoices: production.productionChoices,
       postProductionChoices: production.postProductionChoices,
       marketingChoices: production.marketingChoices,
-      events: [],
+      events,
       postProductionEvents: [],
       photographyCost,
       shootingRatio,
@@ -878,7 +883,7 @@ export function resolveRivalProduction(
     productionChoices: production.productionChoices,
     postProductionChoices: production.postProductionChoices,
     marketingChoices: production.marketingChoices,
-    events: [],
+    events,
     postProductionEvents: [],
     results,
     boxOfficeRun: {

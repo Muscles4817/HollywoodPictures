@@ -267,7 +267,8 @@ This philosophy is bigger than any one change. The intended order of arrival:
    consequences and legible causes. _(Done — see
    `docs/DESIGN_REVIEW_production_execution.md`.)_
 2. **Give rivals an equivalent execution resolver**, so their films inherit the
-   same variance from a synthesized shoot.
+   same variance from a synthesized shoot. _(Done — rivals now run the shared
+   pipeline; see `docs/DESIGN_REVIEW_production_execution.md` "Phase 2".)_
 3. **Acting model: craft, direction, and the unlocked performance.** Give actors
    a reliable floor + a director-unlockable headroom (decoupled from fame), and
    directors a hands-on-ness that unlocks or misfires on it — so direction

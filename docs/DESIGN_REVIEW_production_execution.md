@@ -367,9 +367,142 @@ on results) were made freely without migration work.
 
 ## Recommended next phase
 
-**Phase 2 — rival execution resolver.** Give rivals a synthesized shoot (events
-from their risk profile) feeding the same `computeExecutionProfile`, so rival
-films inherit the same variance and can go sideways or transcend expectations.
-This is also the prerequisite for the AI awards field to stop being uniformly
-mediocre. A risk-driven event-magnitude rebalance can ride along, since it
-widens the realistic spread for players and rivals alike.
+**Phase 2 — rival execution resolver** (now implemented — see below).
+
+---
+
+# Phase 2 — Rival Production Execution
+
+**Objective:** player and AI films are now created by the *same* conceptual
+production model. A rival's shoot isn't lived day by day, so instead of
+simulating each day we **synthesize a plausible production history** and feed it
+through the exact same pipeline the player uses. The player and AI differ only
+in *how the history is generated*, never in *how the finished film is evaluated*.
+
+## The shared pipeline
+
+```text
+Rival project → plan → existing production risk → synthesized history → computeExecutionProfile() → finished film
+```
+
+Nothing after "synthesized history" is rival-specific. `resolveRivalProduction`
+(engine/rivalStudios.ts) now calls `resolveRivalExecution`
+(engine/rivalExecution.ts) to get `{ events, shootingRatio }`, then hands them
+to `computeReleaseResults` — the identical call the player's release makes. The
+rival film stores its `events` (causal history) and gets its
+`productionExecution` summary from the same `summarizeExecution`.
+
+## How histories are synthesized (engine/rivalExecution.ts)
+
+- **Shared event core.** `rollDayEvent` was refactored to expose `pickShootEvent`
+  — the pool-build + risk-weighted polarity/severity + template roll, minus the
+  per-day chance gate. The player's shoot calls it once per day; the resolver
+  calls it directly, a synthesized number of times. **No new rival-only event
+  types** — rivals draw from the same catalogue (`data/productionEvents.ts`),
+  with the same typed impacts and escalation.
+- **Event count.** `≈ recommendedDays × dailyEventChance(avgRisk)`, jittered — the
+  player's per-day odds integrated over the shoot instead of rolled day by day.
+- **Reused risk inputs.** `computeStaticProductionRisk` (morale/safety/technical/
+  budget, from reliability/ego/spend-vs-ambition) drives polarity and severity;
+  `computeExecutionResilience` (reliability + contingency) dampens damage and
+  chains; `computeShootEscalation` makes a troubled synthesized shoot spawn a few
+  more negatively-skewed incidents (bounded). Nothing is recalculated that the
+  player's model already computes.
+- **Schedule pressure.** The player's live schedule pressure has no rival
+  analogue, so one representative value (`RIVAL_SCHEDULE_PRESSURE = 72`) stands in
+  for it — calibrated (below) so counts and outcomes match the player's.
+- **Interactive events.** With no player to decide, the resolver picks one of the
+  base choices and resolves it (`resolveEventChoice`), so an interactive setback
+  still lands typed and causal.
+- **Deterministic.** Pure function of the plan + rng; identical inputs → identical
+  history → identical film.
+
+## Player-vs-rival parity (calibration)
+
+From `productionExecution.diagnostic.test.ts` (same excellent plans; player lives
+the shoot, rival synthesizes it):
+
+| cohort | who | mean Δ | troubled+ | catastrophic | events |
+|--------|-----|------:|----------:|-------------:|-------:|
+| careful | player / rival | +1.12 / +1.12 | 2.6% / 4.4% | 0% / 0% | 8.6 / 9.8 |
+| typical | player / rival | +0.15 / +0.09 | 15% / 22% | 0.2% / 1.4% | 8.6 / 10.9 |
+| reckless | player / rival | −2.32 / −2.98 | 47% / 56% | 14% / 21% | 9.8 / 12.4 |
+
+Central tendency matches closely; the rival tails run marginally fatter (a
+believable, accepted difference — we only ever see a rival's outcome, not its
+day-to-day).
+
+## Realistic rival distribution (before vs after)
+
+From `aiStudioStats.diagnostic.test.ts` over the real rival market (~11.8k films):
+
+Measured apples-to-apples on the **same** current master (rivals scored with
+execution vs. a neutral profile), so the merge changes that predate this phase
+(hand-authored directors, the expanded event bank) aren't counted:
+
+| metric | execution off (neutral) | execution on |
+|--------|------------------------:|-------------:|
+| quality mean / p90 / max | 60 / 66 / 75 | 61 / 67 / 76 |
+| on-set events per film | 0 | ~10 |
+| execution rating | n/a (no variance) | solid 89% · troubled 8.8% · **catastrophic 0.2%** · strong 1.9% · exceptional 0% |
+| finished quality band | — | mixed 38% · solid 62% · **excellent 0.2%** · poor 0.1% |
+
+AI studios are now capable of **routine competent productions, troubled ones,
+recoveries (resilience-dampened chains), rare infamous disasters, and the
+occasional film lifted above expectation** — emerging from production risk, not
+jitter. Execution's *own* effect on the mean is small and correct (**+1**):
+consistent with the per-plan deltas (+1.12 careful / +0.15 typical / −2.98
+reckless) weighted over a rival field that's mostly competent. The real change
+is the **widening** — a disappointment/disaster tail that didn't exist before
+(neutral had zero variance) and a slightly higher ceiling — not the mean. (An
+earlier draft cited "56 → 61"; the ~+4 there was the pre-phase master merge
+measured against a stale baseline, not execution.)
+
+## Positive-tail review (requested)
+
+**Finding: the positive side of execution is under-represented relative to the
+negative side** — as intended for Phase 1, and it carries into rivals. Rivals
+land troubled+ ~9% of the time but reach `strong` only ~1.9% and `exceptional`
+~0%. Causes, in order:
+
+1. **Calibration (deliberate).** `productionExecution.ts` uses much smaller
+   positive than negative sensitivity, and a high `exceptional` threshold — upside
+   must be *earned* and stays rare.
+2. **Event-bank asymmetry.** The catalogue's negatives include genuine
+   catastrophes (−12…−16: hospitalisation, unusable footage, walk-off, set
+   collapse), but its positives top out around +8…+12 (a nailed take, real
+   chemistry, an inspired cut). There is no positive analogue to a "career-best
+   that redefines the film" or a "practical effect that steals the movie" at
+   disaster magnitude.
+
+**Proposal (later, not now — no rebalance this phase):** if we want a real
+positive tail, add a small number of **rare, high-magnitude positive execution
+events** (the upside equivalents of the catastrophes) — extraordinary chemistry,
+an improvisation that elevates the whole third act, a breakthrough practical gag —
+and modestly lift the positive sensitivity/`exceptional` threshold so a
+genuinely blessed shoot can reach it. Keep it rarer than the downside (tails
+stay asymmetric) and always event-driven. This should be a *joint* player+rival
+change (they share the model) and validated against both diagnostics. Deferred
+so we don't destabilise the freshly-calibrated player model.
+
+## Tests
+
+`rivalExecution.test.ts`: same pipeline (rival summary = `summarizeExecution` of
+its stored events); deterministic; typed impacts on every synthesized event;
+both positive and negative histories occur; reckless plans yield harsher
+histories than careful ones; summary causes trace to real stored events; JSON
+round-trip under the current schema. Player behaviour is unchanged (the whole
+suite, incl. the Phase 1 diagnostic, is green after the `pickShootEvent`
+extraction).
+
+## Remaining future work
+
+- **Studio Identity & AI objectives** — the next major layer: rivals choosing
+  *what* to make and *how* to resource it by identity (prestige vs commercial,
+  risk appetite), so their execution distributions diverge *by studio*.
+- **Creative disagreement** — competing creative visions as an explicit risk
+  amplifier upstream of the shoot.
+- **Positive-tail pass** — the proposal above.
+- **Scoring-compression rebalance** — separate from execution; what would let a
+  genuinely perfect film reach true masterpiece range (90+). Execution widens the
+  distribution modestly; the absolute ceiling is still set by the quality math.
