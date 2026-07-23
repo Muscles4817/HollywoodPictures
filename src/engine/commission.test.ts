@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRng } from './random';
-import { commissionDurationBounds, commissionDurationDays, commissionFee, commissionedEvent, generateCommissionedScript, makePendingCommission, settlePendingCommissions } from './commission';
+import { RECENTLY_COMMISSIONED_DAYS, commissionDurationBounds, commissionDurationDays, commissionFee, commissionProgress, commissionedEvent, commissionedOnDay, generateCommissionedScript, isRecentlyCommissioned, makePendingCommission, settlePendingCommissions } from './commission';
+import type { Asset } from '../types';
 import type { Genre, Person, Script } from '../types';
 
 const FLAT_GENRE: Record<Genre, number> = { Action: 50, Comedy: 50, Drama: 50, Horror: 50, Romance: 50, 'Sci-Fi': 50, Fantasy: 50, Thriller: 50 };
@@ -92,5 +93,32 @@ describe('settlePendingCommissions', () => {
 describe('commissionedEvent', () => {
   it('records the writer and the fee as a spend', () => {
     expect(commissionedEvent(12, 'Aaron Sorkin', 400_000)).toMatchObject({ day: 12, kind: 'commissioned', costDelta: -400_000 });
+  });
+});
+
+describe('commission UX helpers', () => {
+  const writer = writerPerson('ux', { originality: 70, structure: 70, characters: 70, dialogue: 70 });
+  const script = generateCommissionedScript(writer, 'Drama', createRng(9))!;
+  const commission = makePendingCommission(writer, 'Drama', 10, 20, script, 1_000_000);
+
+  it('commissionProgress runs 0..1 across the term and clamps past the end', () => {
+    expect(commissionProgress(commission, 10)).toBe(0);
+    expect(commissionProgress(commission, 15)).toBeCloseTo(0.5);
+    expect(commissionProgress(commission, 20)).toBe(1);
+    expect(commissionProgress(commission, 25)).toBe(1);
+  });
+
+  it('commissionedOnDay reads the delivery event, and is null for a non-commissioned asset', () => {
+    const delivered = settlePendingCommissions([commission], 20).delivered[0];
+    expect(commissionedOnDay(delivered)).toBe(20);
+    const acquired: Asset = { id: 'x', script, source: 'Spec Screenplay', acquisitionCost: 0, acquiredOnDay: 1, developmentHistory: [] };
+    expect(commissionedOnDay(acquired)).toBeNull();
+  });
+
+  it('isRecentlyCommissioned is true only within the delivery window', () => {
+    const delivered = settlePendingCommissions([commission], 20).delivered[0];
+    expect(isRecentlyCommissioned(delivered, 20)).toBe(true);
+    expect(isRecentlyCommissioned(delivered, 20 + RECENTLY_COMMISSIONED_DAYS)).toBe(true);
+    expect(isRecentlyCommissioned(delivered, 20 + RECENTLY_COMMISSIONED_DAYS + 1)).toBe(false);
   });
 });
