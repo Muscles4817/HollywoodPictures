@@ -15,12 +15,13 @@ export interface RoleGenerationProfile {
 
 export const ROLE_GENERATION_PROFILES: Record<TalentProfession, RoleGenerationProfile> = {
   // Directors are fully hand-authored - there is no procedural director pool
-  // (see engine/talentGenerator.ts:generateTalentPool). The range is pinned to
-  // the handcrafted roster's actual span (~$4M-$20M in HANDCRAFTED_DIRECTORS)
-  // so the price slider, rival target pricing, and casting-call bands only ever
-  // point where a real director exists - the old $50K-$12M range left the
-  // bottom two-thirds of the slider empty and couldn't reach the $20M A-list.
-  Director: { salaryRange: { min: 4_000_000, max: 20_000_000 }, fameCeiling: 98 },
+  // (see engine/talentGenerator.ts:generateTalentPool). The range spans the
+  // ~300-strong handcrafted roster's actual salaries (~$1.5M-$20M in
+  // HANDCRAFTED_DIRECTORS) so the price slider, rival target pricing, and
+  // casting-call bands only ever point where a real director exists. The old
+  // $50K-$12M range couldn't reach the $20M A-list and left the sub-$4M end
+  // empty until the roster was filled out across the mid-budget tiers.
+  Director: { salaryRange: { min: 1_500_000, max: 20_000_000 }, fameCeiling: 98 },
   // Top of the actor market lifted to £25M to reach real A-list upfront pay
   // ($20-30M/film for a bankable star) - the handcrafted marquee names already
   // sit at ~£20M, but the old £15M ceiling meant a rival's target price could

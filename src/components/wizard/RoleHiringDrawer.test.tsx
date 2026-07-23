@@ -34,7 +34,7 @@ function highFameDirector(): Person {
     careers: {
       director: {
         role: 'Director', active: true, experience: 90, roleReputation: 90,
-        minimumSalary: 5_000_000, typicalSalary: 5_000_000, skill: 90,
+        minimumSalary: 19_000_000, typicalSalary: 19_000_000, skill: 90,
         toneProfile: { action: 50, comedy: 50, romance: 50, suspense: 50, drama: 50, spectacle: 50 },
         productionStyle: { environmentStrategy: { studio: 0.34, location: 0.33, digital: 0.33 }, effectsStrategy: { practical: 0.5, digital: 0.5 } },
       },
@@ -42,14 +42,22 @@ function highFameDirector(): Person {
   };
 }
 
-/** A GameState with no Director hired yet, and a single fame-95 director candidate priced exactly at the Target Price slider so findCandidatesNearPrice always includes them. */
+/**
+ * A GameState with no Director hired yet, and a single fame-95 director
+ * candidate priced at the Target Price slider. The price ($19M) sits in a
+ * sparse slice of the ~300-strong handcrafted roster (the nearest real
+ * directors are ~$18M/$20M, ~5% away), so with target price set to match, the
+ * injected candidate is the strictly-closest one and always survives
+ * findCandidatesNearPrice's visible-count cap - a mid-range price like $5M now
+ * ties with dozens of real directors and gets crowded out of the top 9.
+ */
 function stateWithNoDirector(seed: number, studioPrestige: number): GameState {
   const { result: talentPool, nextSeed } = withRng(seed, (rng) => generateTalentPool(rng));
   const base = withRng(seed + 1, (rng) => buildReadyDraft(rng)).result;
   const draft: FilmDraft = {
     ...base,
     talent: base.talent.filter((a) => a.role !== 'Director'),
-    talentTargetPriceByRole: { ...base.talentTargetPriceByRole, Director: 5_000_000 },
+    talentTargetPriceByRole: { ...base.talentTargetPriceByRole, Director: 19_000_000 },
   };
   return {
     studio: { ...createInitialStudio(10_000_000), prestige: studioPrestige },
