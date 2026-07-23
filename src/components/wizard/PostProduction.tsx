@@ -95,8 +95,21 @@ export function PostProduction() {
 
       {draft.testScreeningResolved && draft.postProductionFinalReadyDay !== null && (
         <div className="card" style={{ borderColor: 'var(--primary)' }}>
-          <div className="stat-label">Post-Production</div>
-          <div className="stat-value">Wraps around {formatGameDateWithMonth(draft.postProductionFinalReadyDay)}</div>
+          <div className="stat-label">Post-Production complete</div>
+          <div className="stat-value">Final cut locked</div>
+          <div style={{ fontSize: '0.8em', fontWeight: 600, color: 'var(--text-muted)' }}>
+            wrapped {formatGameDateWithMonth(draft.postProductionFinalReadyDay)}
+          </div>
+          <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
+            The screening's been answered and every editing round has already played out - there's nothing left to
+            wait on here. The film is ready to take to market whenever you are: continue to Marketing below, or head
+            back to the Dashboard and pick it up later - it'll be waiting in your projects.
+          </p>
+          <div className="row" style={{ marginTop: '10px' }}>
+            <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>
+              Back to the Dashboard
+            </Button>
+          </div>
         </div>
       )}
 
