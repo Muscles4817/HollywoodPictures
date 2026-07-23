@@ -326,7 +326,13 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // commissions in flight - the field is absent and read defensively as [] - so
 // this is additive; the bump is the honest "the stored shape changed" signal.
 // No migration code.
-const SAVE_KEY = 'hollywood-pictures-save-v50';
+// v50 -> v51 (Recent budget activity): Studio gained an optional cashLedger (a
+// CashLedgerEntry[] of notable cash movements - day/amount/category/reason -
+// written by engine/cashLedger.ts:recordCashChange and shown when the player
+// opens the Dashboard cash tile). A v50 save's studio simply has no ledger yet
+// - the field is absent and read defensively as [] - so this is additive; the
+// bump is the honest "the stored shape changed" signal. No migration code.
+const SAVE_KEY = 'hollywood-pictures-save-v51';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

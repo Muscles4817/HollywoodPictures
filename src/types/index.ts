@@ -1644,6 +1644,35 @@ export interface PendingCommission {
   fee: Money;
 }
 
+/**
+ * One notable studio-level cash movement, for the "Recent budget activity" view
+ * a player opens from the cash tile. Deliberately NOT a full reconciliation
+ * ledger: high-frequency per-film box-office income and marketing spend are
+ * shown on each film instead (they'd drown out the discrete moves that actually
+ * surprise a player - an award prize, an acquisition, a facility upgrade).
+ * Append-only, capped to the most recent entries (engine/cashLedger.ts).
+ */
+export type CashLedgerCategory =
+  | 'acquisition'
+  | 'commission'
+  | 'rewrite'
+  | 'production'
+  | 'facility'
+  | 'producer'
+  | 'awards'
+  | 'awardsCampaign'
+  | 'other';
+
+export interface CashLedgerEntry {
+  /** GameState.totalDays this movement happened on. */
+  day: GameDay;
+  /** Signed: positive is money in, negative is money out. */
+  amount: Money;
+  category: CashLedgerCategory;
+  /** Short player-facing description, e.g. "Commissioned from Aaron Sorkin". */
+  reason: string;
+}
+
 export interface Studio {
   name: string;
   cash: number;
@@ -1666,6 +1695,8 @@ export interface Studio {
    * Optional/absent on saves predating the feature; read as `[]`.
    */
   pendingCommissions?: PendingCommission[];
+  /** Recent notable cash movements for the "Recent budget activity" view (see CashLedgerEntry). Append-only, capped; optional/absent on older saves, read as `[]`. */
+  cashLedger?: CashLedgerEntry[];
   /** Persistent creative assets the studio has deliberately promoted a released Film into (see IntellectualProperty). Empty until the player promotes their first Film; never populated automatically. References Films by id - it doesn't contain them. */
   intellectualProperties: IntellectualProperty[];
   /**
