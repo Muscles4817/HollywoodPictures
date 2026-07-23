@@ -107,12 +107,12 @@ export interface GameState {
  * shared by the player and every rival's own casting, not this one studio's
  * business).
  */
-export function createInitialStudio(startingCash: number): Studio {
+export function createInitialStudio(startingCash: number, brand = 20, prestige = 20): Studio {
   return {
     name: 'Silver Reel Pictures',
     cash: startingCash,
-    brand: 20,
-    prestige: 20,
+    brand,
+    prestige,
     assets: [],
     intellectualProperties: [], // never populated automatically - the player promotes a Film into IP on demand
     productionOffice: null, // locked until the unlock milestone (docs/DESIGN_REVIEW_production_office.md)
@@ -332,7 +332,7 @@ export type GameAction =
   | { type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS'; filmId: string }
   | { type: 'RETURN_TO_DASHBOARD' }
   | { type: 'RENAME_STUDIO'; name: string }
-  | { type: 'RESET_SAVE'; startingCash: number }
+  | { type: 'RESET_SAVE'; startingCash: number; brand?: number; prestige?: number }
   | { type: 'VIEW_RIVAL_STUDIO'; studioName: string }
   // Dashboard's Shooting card -> "view" a specific backgrounded production
   // on the 'production' screen without disturbing the focused one (which is

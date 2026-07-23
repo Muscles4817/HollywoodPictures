@@ -241,6 +241,19 @@ describe('transient view state (viewingRivalStudioName/viewingProductionId) - ro
     }
   });
 
+  it('RESET_SAVE seeds the new studio with the chosen cash, Brand and Prestige (matching the difficulty tier)', () => {
+    const after = studioReducer(stateWithBothViewsSet(), { type: 'RESET_SAVE', startingCash: 200_000_000, brand: 72, prestige: 60 });
+    expect(after.studio.cash).toBe(200_000_000);
+    expect(after.studio.brand).toBe(72);
+    expect(after.studio.prestige).toBe(60);
+  });
+
+  it('RESET_SAVE without an explicit Brand/Prestige falls back to the baseline 20/20 (older callers, unchanged)', () => {
+    const after = studioReducer(stateWithBothViewsSet(), { type: 'RESET_SAVE', startingCash: 10_000_000 });
+    expect(after.studio.brand).toBe(20);
+    expect(after.studio.prestige).toBe(20);
+  });
+
   it('ordinary wizard navigation (CREATE_PROJECT_FROM_ASSET, GO_TO_STEP) clears both, not just viewingProductionId', () => {
     const { result: asset } = withRng(99, (rng) => buildReadyAsset(rng));
     const base = stateWithBothViewsSet();
