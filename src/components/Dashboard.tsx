@@ -274,8 +274,8 @@ export function Dashboard() {
         <DifficultyPicker
           studioName={studio.name}
           onCancel={() => setShowResetPicker(false)}
-          onConfirm={(startingCash) => {
-            dispatch({ type: 'RESET_SAVE', startingCash });
+          onConfirm={({ startingCash, brand, prestige }) => {
+            dispatch({ type: 'RESET_SAVE', startingCash, brand, prestige });
             setShowResetPicker(false);
           }}
         />

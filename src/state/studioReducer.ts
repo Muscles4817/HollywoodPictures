@@ -1901,7 +1901,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         producerPool: generateProducerPool(rng),
       }));
       return {
-        studio: { ...createInitialStudio(action.startingCash), assets: TEST_SCRIPT_ASSETS },
+        studio: { ...createInitialStudio(action.startingCash, action.brand, action.prestige), assets: TEST_SCRIPT_ASSETS },
         screen: 'dashboard',
         projects: [],
         focusedProjectId: null,
