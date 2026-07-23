@@ -146,3 +146,27 @@ collaboration (P5), permanent contracts / first-look (P6), sales/options (P7), A
 rivals commissioning, and cancellation/kill-fees. The soft time-pressure caveat
 (heat/rights deferred) applies here too — a commission ties up cash + a writer
 for weeks, but owned work sits safely until heat decay lands.
+
+## UX polish (follow-up)
+
+A pass over the commission experience after the MVP shipped:
+
+- **Browsable writer picker** — the name-only dropdown became a searchable,
+  budget-filterable roster of rows showing each writer's tier, "known for", and
+  fee, with affordability up front (default "Within budget" on). Busy writers are
+  shown disabled with "Booked until {date}" rather than hidden.
+- **A delivery moment** — a commissioned script no longer appears silently. The
+  Dashboard activity feed surfaces "In commission" (with the writer + ready
+  month) while it's being written and a positive "Screenplay delivered" beat when
+  it lands; the delivered Asset carries a "Just delivered" badge for a week
+  (`isRecentlyCommissioned`), and a permanent "Commissioned" badge after.
+- **Richer in-commission cards** — writer tier, fee, a progress bar
+  (`commissionProgress`) and the ready date.
+- **Risk in the projection** — `describeCommissionProjection` now surfaces the
+  writer's reliability (a low-consistency auteur reads as "a wildcard whose
+  results swing wide"), so the size of the bet is legible.
+- **Framing** — one line clarifying commission vs. acquire vs. rewrite.
+
+Still deferred: a full Inbox integration (the delivery beat lives on the
+Dashboard activity feed, not the Inbox), and a richer brief. No persisted-shape
+change, so no save-key bump.

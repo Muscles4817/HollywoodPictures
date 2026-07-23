@@ -116,5 +116,11 @@ export function describeRewriteProjection(writer: WriterCreativeProfile, script:
 export function describeCommissionProjection(writer: WriterCreativeProfile, genre: Genre): string {
   const toneAdj = TONE_ADJECTIVE[argMax<Tone>(writer.toneProfile)];
   const craftAdj = CRAFT_ADJECTIVE[argMax(writer.craft) as keyof WriterCraft];
-  return `Expect a ${toneAdj}, ${craftAdj} ${GENRE_NOUN[genre]} in their voice`;
+  const base = `Expect a ${toneAdj}, ${craftAdj} ${GENRE_NOUN[genre]} in their voice`;
+  // Commissioning is a big up-front bet, so surface the writer's reliability the
+  // same way the rewrite projection does - a low-consistency auteur can deliver
+  // anything from a dud to a gem.
+  if (writer.consistency < 40) return `${base} — a wildcard whose results swing wide`;
+  if (writer.consistency > 75) return `${base}; a dependable pair of hands`;
+  return base;
 }

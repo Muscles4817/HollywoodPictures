@@ -16,6 +16,7 @@ import { ProductionOfficeCard } from './ProductionOfficeCard';
 import { DistributionArmCard } from './DistributionArmCard';
 import { computeTopGrossingFilms, deriveReputationHistory, hasDraftProgress, countActivePlayerProjects } from '../state/selectors';
 import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
+import { isRecentlyCommissioned } from '../engine/commission';
 import { campaignRolloutProgress } from '../engine/marketing';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
@@ -140,6 +141,16 @@ export function Dashboard() {
 
   const nextRelease = scheduledReleases[0];
 
+  // Development Department: original screenplays being written, and ones just
+  // delivered - the commission "delivery moment" so a finished script doesn't
+  // just silently appear in the library weeks later. Memoized so they stay
+  // referentially stable for the activity-feed useMemo below.
+  const pendingCommissions = useMemo(() => studio.pendingCommissions ?? [], [studio.pendingCommissions]);
+  const justDeliveredCommissions = useMemo(
+    () => studio.assets.filter((asset) => isRecentlyCommissioned(asset, state.totalDays)),
+    [studio.assets, state.totalDays],
+  );
+
   const activityItems = useMemo<ActivityItem[]>(() => {
     const items: ActivityItem[] = [];
 
@@ -209,6 +220,33 @@ export function Dashboard() {
       });
     }
 
+    justDeliveredCommissions.forEach((asset) => {
+      const writerName = state.talentPool.Writer.find((writer) => writer.id === asset.writerIds?.[0])?.identity.name;
+      items.push({
+        id: `${asset.id}-commission-delivered`,
+        tone: 'positive',
+        eyebrow: 'Screenplay delivered',
+        title: asset.script.title,
+        detail: writerName
+          ? `${writerName} delivered your commissioned screenplay — it's in the Asset Library.`
+          : `Your commissioned screenplay is in the Asset Library.`,
+        actionLabel: 'Open library',
+        onAction: () => dispatch({ type: 'VIEW_ASSET_LIBRARY' }),
+      });
+    });
+
+    pendingCommissions.forEach((commission) => {
+      items.push({
+        id: `${commission.id}-commission-pending`,
+        tone: 'neutral',
+        eyebrow: 'In commission',
+        title: `Original ${commission.genre}`,
+        detail: `${commission.writerName} is writing — ready ${formatGameMonthYear(commission.readyOnDay)}.`,
+        actionLabel: 'Open library',
+        onAction: () => dispatch({ type: 'VIEW_ASSET_LIBRARY' }),
+      });
+    });
+
     if (items.length === 0) {
       const emptyKind = commandCentreEmptyState(hasActiveWork, hasReleasedFilms);
       if (emptyKind === 'caught-up') {
@@ -249,7 +287,7 @@ export function Dashboard() {
     }
 
     return items.slice(0, 5);
-  }, [attentionDrafts, dispatch, nextRelease, runningFilms, hasActiveWork, hasReleasedFilms]);
+  }, [attentionDrafts, dispatch, nextRelease, runningFilms, hasActiveWork, hasReleasedFilms, pendingCommissions, justDeliveredCommissions, state.talentPool.Writer]);
 
   const studioTier = playerReleasedFilms.length >= 10
     ? 'Major studio'

@@ -1,8 +1,29 @@
 import { describe, it, expect } from 'vitest';
-import { describeWriter, writerTierLabel } from './writerPresentation';
+import { describeCommissionProjection, describeWriter, writerTierLabel } from './writerPresentation';
 import { HANDCRAFTED_WRITERS } from '../data/handcraftedTalents';
 import { withRng } from './random';
 import { generateTalentPool } from './talentGenerator';
+import type { Genre, WriterCreativeProfile } from '../types';
+
+const FLAT_GENRE: Record<Genre, number> = { Action: 50, Comedy: 50, Drama: 50, Horror: 50, Romance: 50, 'Sci-Fi': 50, Fantasy: 50, Thriller: 50 };
+function commissionProfile(consistency: number): WriterCreativeProfile {
+  return {
+    skill: 80,
+    craft: { originality: 60, structure: 60, characters: 60, dialogue: 90 },
+    toneProfile: { action: 20, comedy: 20, romance: 20, suspense: 90, drama: 40, spectacle: 20 },
+    genreAffinity: { ...FLAT_GENRE },
+    commercialLean: 50,
+    consistency,
+  };
+}
+
+describe('describeCommissionProjection', () => {
+  it('names the writer voice and surfaces reliability from consistency', () => {
+    expect(describeCommissionProjection(commissionProfile(50), 'Thriller')).toContain('dialogue-driven thrillers');
+    expect(describeCommissionProjection(commissionProfile(20), 'Thriller')).toMatch(/wildcard/);
+    expect(describeCommissionProjection(commissionProfile(90), 'Thriller')).toMatch(/dependable/);
+  });
+});
 
 describe('describeWriter', () => {
   it('gives a handcrafted writer a tier and a genre/craft-aware "known for"', () => {

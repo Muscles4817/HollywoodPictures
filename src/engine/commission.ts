@@ -54,6 +54,28 @@ export function makePendingCommission(writer: Person, genre: Genre, startedOnDay
   return { id: `commission-${script.id}`, writerId: writer.id, writerName: writer.identity.name, genre, startedOnDay, readyOnDay, script, fee };
 }
 
+/** How far along a commission is, 0..1, for a progress readout. */
+export function commissionProgress(commission: PendingCommission, totalDays: GameDay): number {
+  const span = commission.readyOnDay - commission.startedOnDay;
+  if (span <= 0) return 1;
+  return Math.max(0, Math.min(1, (totalDays - commission.startedOnDay) / span));
+}
+
+/** The day a commissioned Asset was delivered (its 'commissioned' development event), or null if this Asset wasn't commissioned (acquired/founding instead). */
+export function commissionedOnDay(asset: Asset): GameDay | null {
+  const event = (asset.developmentHistory ?? []).find((entry) => entry.kind === 'commissioned');
+  return event ? event.day : null;
+}
+
+/** Days a freshly-delivered commission stays highlighted as "just delivered" (the delivery moment - Dashboard activity + Asset Library badge). */
+export const RECENTLY_COMMISSIONED_DAYS = 7;
+
+/** Whether a commissioned Asset was delivered within the last RECENTLY_COMMISSIONED_DAYS - drives the delivery highlight. */
+export function isRecentlyCommissioned(asset: Asset, totalDays: GameDay): boolean {
+  const day = commissionedOnDay(asset);
+  return day !== null && totalDays - day >= 0 && totalDays - day <= RECENTLY_COMMISSIONED_DAYS;
+}
+
 export interface CommissionSettlementResult {
   /** New owned Assets to append - commissions that have been delivered by `totalDays`. */
   delivered: Asset[];

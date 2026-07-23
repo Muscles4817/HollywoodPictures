@@ -13,11 +13,11 @@ import type { GameAction } from '../state/gameState';
 import type { Asset, Genre, Person } from '../types';
 import './AssetLibrary.css';
 import { StarRating } from './common/StarRating';
-import { getWriterCareer, isPersonAvailableOnDay } from '../engine/person';
+import { deriveBookedUntil, getWriterCareer, isPersonAvailableOnDay } from '../engine/person';
 import { writerProfileFromPerson } from '../engine/writers';
 import { describeWriter, describeRewriteProjection, describeCommissionProjection } from '../engine/writerPresentation';
 import { rewriteDurationDays, rewriteFee, type RewriteKind } from '../engine/rewrite';
-import { commissionDurationBounds, commissionFee } from '../engine/commission';
+import { commissionDurationBounds, commissionFee, commissionProgress, commissionedOnDay, isRecentlyCommissioned } from '../engine/commission';
 import { GENRES } from '../data/genres';
 
 const TEST_SCRIPT_ID_PREFIX = 'test-script-';
@@ -289,16 +289,36 @@ interface CommissionPanelProps {
 function CommissionPanel({ writers, totalDays, cash, dispatch, onClose }: CommissionPanelProps) {
   const [writerId, setWriterId] = useState('');
   const [genre, setGenre] = useState<Genre | ''>('');
+  const [search, setSearch] = useState('');
+  const [budgetOnly, setBudgetOnly] = useState(true);
 
-  const available = useMemo(
-    () =>
-      writers
-        .filter((writer) => isPersonAvailableOnDay(writer, totalDays))
-        .sort((left, right) => (getWriterCareer(right)?.skill ?? 0) - (getWriterCareer(left)?.skill ?? 0)),
-    [writers, totalDays],
-  );
+  // The full roster, annotated so the core decision has real scent - each
+  // writer shows their tier, what they're known for, the fee, and whether
+  // they're affordable/available up front, rather than only after selecting.
+  const roster = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return writers
+      .flatMap((person) => {
+        const career = getWriterCareer(person);
+        if (!career) return [];
+        const fee = commissionFee(career.typicalSalary);
+        const available = isPersonAvailableOnDay(person, totalDays);
+        return [{
+          person,
+          skill: career.skill,
+          fee,
+          available,
+          affordable: cash >= fee,
+          bookedUntil: available ? null : deriveBookedUntil(person.availability.commitments) ?? null,
+        }];
+      })
+      .filter((entry) => (query ? entry.person.identity.name.toLowerCase().includes(query) : true))
+      .filter((entry) => (budgetOnly ? entry.affordable : true))
+      // Selectable (available + affordable) writers first, then by skill.
+      .sort((a, b) => (a.available && a.affordable ? 0 : 1) - (b.available && b.affordable ? 0 : 1) || b.skill - a.skill);
+  }, [writers, totalDays, cash, search, budgetOnly]);
 
-  const writer = available.find((candidate) => candidate.id === writerId) ?? null;
+  const writer = writers.find((candidate) => candidate.id === writerId) ?? null;
   const career = writer ? getWriterCareer(writer) : null;
   const profile = writer ? writerProfileFromPerson(writer) : null;
   const fee = career ? commissionFee(career.typicalSalary) : 0;
@@ -308,10 +328,9 @@ function CommissionPanel({ writers, totalDays, cash, dispatch, onClose }: Commis
   const canCommission = writer !== null && genre !== '' && cash >= fee;
 
   // Picking a writer pre-fills the brief to their strongest genre (overridable).
-  const selectWriter = (id: string) => {
-    setWriterId(id);
-    const chosen = available.find((candidate) => candidate.id === id);
-    const chosenCareer = chosen ? getWriterCareer(chosen) : null;
+  const selectWriter = (person: Person) => {
+    setWriterId(person.id);
+    const chosenCareer = getWriterCareer(person);
     if (chosenCareer && genre === '') setGenre(topAffinityGenre(chosenCareer.genreAffinity));
   };
 
@@ -319,20 +338,61 @@ function CommissionPanel({ writers, totalDays, cash, dispatch, onClose }: Commis
     <div className="card stack" style={{ gap: 8 }}>
       <h2 style={{ margin: 0, fontSize: '1.05em' }}>Commission an original screenplay</h2>
       <p className="choice-description" style={{ margin: 0 }}>
-        Pay a writer to develop a brand-new original in a genre you choose — it arrives as an owned asset once they've written it.
+        Pay a writer to develop a brand-new original in a genre you choose — it arrives as an owned asset once they've written it. Pricier than buying from the market or rewriting what you own, but you pick the writer and the genre.
       </p>
 
-      <label className="stack" style={{ gap: 4 }}>
-        <span className="stat-label">Writer</span>
-        <select value={writerId} onChange={(event) => selectWriter(event.target.value)}>
-          <option value="">Choose a writer…</option>
-          {available.map((candidate) => (
-            <option key={candidate.id} value={candidate.id}>
-              {candidate.identity.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="row-between" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <input
+          type="search"
+          value={search}
+          placeholder="Search writers…"
+          onChange={(event) => setSearch(event.target.value)}
+          style={{ flex: 1, minWidth: 160 }}
+          aria-label="Search writers"
+        />
+        <label className="row" style={{ gap: 6, fontSize: '0.85em' }}>
+          <input type="checkbox" checked={budgetOnly} onChange={(event) => setBudgetOnly(event.target.checked)} />
+          Within budget
+        </label>
+      </div>
+
+      <div className="commission-roster" role="listbox" aria-label="Writers">
+        {roster.length === 0 ? (
+          <p className="choice-description" style={{ margin: 8 }}>
+            No writers match — clear the search or turn off &ldquo;Within budget&rdquo;.
+          </p>
+        ) : (
+          roster.map((entry) => {
+            const selectable = entry.available && entry.affordable;
+            const desc = describeWriter(entry.person)!;
+            return (
+              <button
+                key={entry.person.id}
+                type="button"
+                role="option"
+                aria-selected={entry.person.id === writerId}
+                disabled={!selectable}
+                className={['commission-writer-row', entry.person.id === writerId ? 'is-selected' : ''].filter(Boolean).join(' ')}
+                onClick={() => selectWriter(entry.person)}
+              >
+                <div className="row-between">
+                  <strong>{entry.person.identity.name}</strong>
+                  <span>{formatMoney(entry.fee)}</span>
+                </div>
+                <div className="commission-writer-row__meta">{desc.tier} · {desc.knownFor}</div>
+                {!entry.available && (
+                  <div className="commission-writer-row__note">
+                    Booked{entry.bookedUntil != null ? ` until ${formatGameDateWithMonth(entry.bookedUntil)}` : ''}
+                  </div>
+                )}
+                {entry.available && !entry.affordable && (
+                  <div className="commission-writer-row__note commission-writer-row__note--over">Over budget</div>
+                )}
+              </button>
+            );
+          })
+        )}
+      </div>
 
       <label className="stack" style={{ gap: 4 }}>
         <span className="stat-label">Genre</span>
@@ -357,7 +417,7 @@ function CommissionPanel({ writers, totalDays, cash, dispatch, onClose }: Commis
 
       <div className="row-between" style={{ fontSize: '0.85em' }}>
         <span className="stat-label">Fee</span>
-        <strong>{formatMoney(fee)}</strong>
+        <strong>{writer ? formatMoney(fee) : '—'}</strong>
       </div>
       <div className="row-between" style={{ fontSize: '0.85em' }}>
         <span className="stat-label">Time</span>
@@ -380,10 +440,8 @@ function CommissionPanel({ writers, totalDays, cash, dispatch, onClose }: Commis
         </Button>
       </div>
 
-      {writer && genre !== '' && cash < fee && (
-        <p style={{ color: 'var(--red)', margin: 0, fontSize: '0.85em' }}>
-          Can&apos;t afford this fee right now.
-        </p>
+      {writer && genre === '' && (
+        <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.85em' }}>Choose a genre to commission.</p>
       )}
     </div>
   );
@@ -438,6 +496,11 @@ function AssetCard({
                 {status.status === 'used' && 'Previously Used'}
               </span>
               <span className="badge">{asset.source}</span>
+              {isRecentlyCommissioned(asset, totalDays) ? (
+                <span className="badge" style={{ background: 'var(--accent, #4a90d9)', color: '#fff' }}>Just delivered</span>
+              ) : commissionedOnDay(asset) !== null ? (
+                <span className="badge">Commissioned</span>
+              ) : null}
             </div>
 
             <span className="asset-library-card__owned-date">
@@ -806,18 +869,30 @@ export function AssetLibrary() {
       )}
 
       {pendingCommissions.length > 0 && (
-        <section className="card stack" style={{ gap: 6 }} aria-label="Commissions in progress">
+        <section className="card stack" style={{ gap: 10 }} aria-label="Commissions in progress">
           <h2 style={{ margin: 0, fontSize: '1.05em' }}>In commission</h2>
-          {pendingCommissions.map((commission) => (
-            <div key={commission.id} className="row-between" style={{ fontSize: '0.9em' }}>
-              <span>
-                Original {commission.genre} with <strong>{commission.writerName}</strong>
-              </span>
-              <span style={{ color: 'var(--text-muted)' }}>
-                ready {formatGameDateWithMonth(commission.readyOnDay)}
-              </span>
-            </div>
-          ))}
+          {pendingCommissions.map((commission) => {
+            const commissionWriter = state.talentPool.Writer.find((writer) => writer.id === commission.writerId);
+            const tier = commissionWriter ? describeWriter(commissionWriter)?.tier : null;
+            const progress = commissionProgress(commission, state.totalDays);
+            return (
+              <div key={commission.id} className="stack" style={{ gap: 4 }}>
+                <div className="row-between" style={{ fontSize: '0.9em' }}>
+                  <span>
+                    Original {commission.genre} with <strong>{commission.writerName}</strong>
+                    {tier ? <span style={{ color: 'var(--text-muted)' }}> · {tier}</span> : null}
+                  </span>
+                  <strong>{formatMoney(commission.fee)}</strong>
+                </div>
+                <div className="commission-progress" aria-hidden="true">
+                  <div className="commission-progress__fill" style={{ width: `${Math.round(progress * 100)}%` }} />
+                </div>
+                <div style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>
+                  Ready {formatGameDateWithMonth(commission.readyOnDay)}
+                </div>
+              </div>
+            );
+          })}
         </section>
       )}
 
