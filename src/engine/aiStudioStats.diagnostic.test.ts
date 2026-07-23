@@ -274,6 +274,39 @@ describe.skipIf(!diagnosticEnabled)('AI studio outcome & awards diagnostic', () 
         `  ${name.padEnd(10)} ${mean(xs).toFixed(1).padStart(6)} ${percentile(xs, 10).toFixed(0).padStart(5)} ${percentile(xs, 25).toFixed(0).padStart(5)} ${percentile(xs, 50).toFixed(0).padStart(7)} ${percentile(xs, 75).toFixed(0).padStart(5)} ${percentile(xs, 90).toFixed(0).padStart(5)}`,
       );
     }
+    // Per-department sub-score spread - which departments actually vary, and
+    // which are pinned (the "consistency" question). Also reports each
+    // department's analytic leverage on the final qualityScore.
+    const stdev = (xs: number[]): number => {
+      const m = mean(xs);
+      return Math.sqrt(mean(xs.map((x) => (x - m) ** 2)));
+    };
+    const subScores: [string, number[]][] = [
+      ['script', allFilms.map((f) => f.film.results.scriptScore)],
+      ['direction', allFilms.map((f) => f.film.results.directionScore)],
+      ['acting', allFilms.map((f) => f.film.results.actingScore)],
+      ['production', allFilms.map((f) => f.film.results.productionScore)],
+      ['postProd', allFilms.map((f) => f.film.results.postProductionScore)],
+      ['events', allFilms.map((f) => f.film.results.eventsScore)],
+    ];
+    lines.push('\nPER-DEPARTMENT SUB-SCORES (raw, pre-dependency-chain)');
+    lines.push(`  ${'dept'.padEnd(11)} ${'mean'.padStart(6)} ${'stdev'.padStart(6)} ${'p10'.padStart(5)} ${'p90'.padStart(5)}   note`);
+    const notes: Record<string, string> = {
+      script: 'top-level weight ~0.25',
+      direction: 'top-level ~0.25 + drives the whole chain',
+      acting: 'top-level weight ~0.25',
+      production: 'NO top-level weight; ~0.02 quality/pt (cosmetic)',
+      postProd: 'top-level ~0.25 but base 55 (compressed)',
+      events: 'display-only; real path folds into Production (cosmetic)',
+    };
+    for (const [name, xs] of subScores) {
+      lines.push(
+        `  ${name.padEnd(11)} ${mean(xs).toFixed(1).padStart(6)} ${stdev(xs).toFixed(1).padStart(6)} ${percentile(xs, 10).toFixed(0).padStart(5)} ${percentile(xs, 90).toFixed(0).padStart(5)}   ${notes[name]}`,
+      );
+    }
+    lines.push('  (A full-range swing in Production moves qualityScore ~2 pts; on-set');
+    lines.push('   event deltas fold into Production 1:1, so a disastrous shoot ~= cosmetic.)');
+
     const qGe70 = quality.filter((q) => q >= 70).length;
     const qGe80 = quality.filter((q) => q >= 80).length;
     const cGe70 = critic.filter((c) => c >= 70).length;

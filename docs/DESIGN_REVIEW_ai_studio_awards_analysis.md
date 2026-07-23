@@ -170,6 +170,84 @@ These are all balance changes, so they're recommended, not applied.
 
 ---
 
+## Finding 2 (root cause) — the scoring engine can't produce great *or* awful films, no matter who's choosing
+
+The compression in Finding 2 is often assumed to be "the AI makes random
+choices." The engine says otherwise. Two facts, both from the code and the
+harness:
+
+**(a) Quality is fully deterministic.** `engine/releaseFilm.ts` uses `rng` only
+for review *flavor text*; `qualityScore` / `criticScore` / `audienceScore` are
+pure functions of the inputs (`engine/scoring.ts`). The same script + director +
+cast + budget yields the *identical* film every time — **there is no
+execution/luck variance at all.** This is exactly the "if you pick a good
+script, director and matching actors there's no real reason your film will fail"
+feeling: the front-loaded creative picks fully determine the result.
+
+**(b) The department that varies most has no say; the ones that count are
+pinned.** Per-department raw sub-scores across 11.8k rival films:
+
+| department | mean | stdev | p10–p90 | role in `qualityScore` |
+|------------|-----:|------:|:-------:|------------------------|
+| script     | 69.1 | 9.7  | 55–81 | top-level weight ~0.25 |
+| direction  | 66.7 | 11.4 | 52–83 | top-level ~0.25 **+ drives the whole dependency chain** |
+| acting     | 74.3 | 6.5  | 65–82 | top-level ~0.25, but pinned high |
+| **production** | 58.0 | **13.7** | 37–77 | **no top-level weight — ~0.02 quality/pt** |
+| postProd   | 61.0 | 4.0  | 55–68 | top-level ~0.25, but base 55 → nearly constant |
+| events     | 50.0 | 0.0  | flat  | display-only; real path folds into Production |
+
+The killer detail: **Production has the widest spread of any department (stdev
+13.7) and almost zero influence on the final score.** `computeQualityWeights`
+gives Production no top-level weight; it only leaks in through the "captured
+footage" ceiling. Working the dependency chain analytically, a *full-range*
+swing in Production (≈90 pts) moves `qualityScore` by **~2 points**. On-set
+events fold into Production 1:1 and un-amplified, so a catastrophic shoot is
+**cosmetic** to quality — despite the game already computing a detailed
+production-risk model (`moraleRisk`/`safetyRisk`/`technicalComplexity`/
+`budgetRisk`, driven by talent **reliability** and ego, in
+`engine/production.ts`). The risk is modelled and then thrown away. (Rivals make
+it worse — they skip the day-by-day shoot entirely, so `events` is a flat 50.)
+
+Meanwhile two of the four terms that *do* count are low-variance: `acting` sits
+at 74±6 and `postProduction` is `base 55` + a tiny music/edit delta (61±4). So
+the final score is a blend of two genuinely-variable terms (script, direction),
+one pinned-high term (acting), and one near-constant term (postProduction), with
+the one high-variance lever (production/execution) routed around. The result is
+mathematically forced to cluster in a narrow mid-band — for the AI *and* the
+player.
+
+**Implication for "make the AI considered."** The AI's raw inputs already span a
+lot (script 55–81, direction 52–83, production 37–77) — it isn't uniformly
+incompetent; it wins good scripts and casts fine actors. Making it choose
+deliberately would nudge its *mean* up a few points but cannot widen the
+*spread*, because the ceiling and floor are set by the scoring math, not by the
+chooser. **To get great and awful films, widen the outcome space first, then the
+AI's (and the player's) choices start to matter.** In rough priority:
+
+1. **Reconnect Production and on-set events to `qualityScore` with real weight.**
+   It's the highest-variance department and the natural home of execution risk —
+   and the risk model already exists. This alone lets a troubled/under-resourced
+   shoot sink an otherwise-strong film (downside), which is the missing half of
+   realism.
+2. **Add a release-time execution-variance term** — a stochastic roll scaled by
+   the already-computed production risks and by director **reliability** (today
+   generated but never read by scoring). This is what makes "same inputs,
+   different film," and lets luck cut both ways.
+3. **Un-pin `postProduction` (drop the base-55 floor) and stiffen misalignment
+   penalties** (wrong director for the script, under-shooting, cheap production
+   in a spectacle genre) so weak choices genuinely score low.
+4. **Then give the AI intent** — and give rivals a real (or simulated) shoot so
+   their films can go sideways too. With leverage restored, a considered AI
+   clusters high while risky/unlucky productions bomb → a realistic spread.
+
+Directors, notably, are *not* the culprit: `direction` is the second-most
+variable department and the single highest-leverage one (it drives the whole
+chain). The consistency the player feels comes from **(a)** zero execution
+variance and **(b)** the front-loaded creative terms being the only things that
+reach the score.
+
+---
+
 ## Finding 3 — AI films are far too profitable vs. real life
 
 The user asked specifically: how often are AI films profitable, and how do the
