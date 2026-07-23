@@ -436,9 +436,13 @@ day-to-day).
 
 From `aiStudioStats.diagnostic.test.ts` over the real rival market (~11.8k films):
 
-| metric | pre-Phase-2 (neutral) | Phase 2 |
-|--------|----------------------:|--------:|
-| quality mean / max | 56 / 74 | 61 / 76 |
+Measured apples-to-apples on the **same** current master (rivals scored with
+execution vs. a neutral profile), so the merge changes that predate this phase
+(hand-authored directors, the expanded event bank) aren't counted:
+
+| metric | execution off (neutral) | execution on |
+|--------|------------------------:|-------------:|
+| quality mean / p90 / max | 60 / 66 / 75 | 61 / 67 / 76 |
 | on-set events per film | 0 | ~10 |
 | execution rating | n/a (no variance) | solid 89% · troubled 8.8% · **catastrophic 0.2%** · strong 1.9% · exceptional 0% |
 | finished quality band | — | mixed 38% · solid 62% · **excellent 0.2%** · poor 0.1% |
@@ -446,10 +450,13 @@ From `aiStudioStats.diagnostic.test.ts` over the real rival market (~11.8k films
 AI studios are now capable of **routine competent productions, troubled ones,
 recoveries (resilience-dampened chains), rare infamous disasters, and the
 occasional film lifted above expectation** — emerging from production risk, not
-jitter. The previous clustering is materially reduced *at the low end* (a real
-disappointment/disaster tail now exists where there was none); the mean also
-rose ~5 as competent productions realise slightly above the old
-"execution-doesn't-exist" baseline, and the top extended slightly (max 74→76).
+jitter. Execution's *own* effect on the mean is small and correct (**+1**):
+consistent with the per-plan deltas (+1.12 careful / +0.15 typical / −2.98
+reckless) weighted over a rival field that's mostly competent. The real change
+is the **widening** — a disappointment/disaster tail that didn't exist before
+(neutral had zero variance) and a slightly higher ceiling — not the mean. (An
+earlier draft cited "56 → 61"; the ~+4 there was the pre-phase master merge
+measured against a stale baseline, not execution.)
 
 ## Positive-tail review (requested)
 
