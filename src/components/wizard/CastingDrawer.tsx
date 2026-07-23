@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { deriveFocusedDraft } from '../../state/selectors';
+import { deriveFocusedDraft, computeCommittedSpend } from '../../state/selectors';
 import { findAssignedPerson, professionForProductionRole } from '../../data/helpers';
 import { ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { actorMeetsCharacterGender } from '../../engine/casting';
 import { computeActorAppeal, resolveOfferResponse, type OfferResponse } from '../../engine/castingAppeal';
-import { describeApplicantInterest, describeOfferRejection } from '../../engine/castingPresentation';
+import { candidateStrengthSignals, describeOfferRejection, type CandidateSignal } from '../../engine/castingPresentation';
 import { formatMoney } from '../common/Money';
 import { CHARACTER_ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
 import { Card } from '../common/Card';
@@ -15,7 +15,7 @@ import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
 import { TalentStats } from '../common/TalentStats';
 import { CheckboxToggle } from '../common/CheckboxToggle';
-import { isAvailableImmediately } from '../../engine/person';
+import { isAvailableImmediately, getTypicalSalaryForRole } from '../../engine/person';
 import type { CastingChannel, Person, Script, ScriptCharacter } from '../../types';
 
 type CastingTab = 'open-casting' | 'direct-approach';
@@ -57,6 +57,8 @@ function CandidateCard({
   totalDays,
   overall,
   channel,
+  directorName,
+  affordable,
   actionLabel,
   onAct,
   onDismiss,
@@ -68,6 +70,10 @@ function CandidateCard({
   totalDays: number;
   overall: ReturnType<typeof computeActorAppeal>;
   channel?: CastingChannel;
+  /** The attached director's name, so an "attachment" draw can say who (engine/castingPresentation.ts). */
+  directorName?: string;
+  /** Whether hiring this person keeps the film within the studio's cash (a soft warning - salary is charged at greenlight, not now). */
+  affordable: boolean;
   actionLabel: string;
   onAct: () => void;
   // Open Casting only - lets the player clear an applicant they're not
@@ -76,33 +82,53 @@ function CandidateCard({
   // a stored set of applicants there'd be anything to dismiss from.
   onDismiss?: () => void;
 }) {
-  // A booked actor can't be cast today - the offer is hard-rejected on the
-  // schedule gate (engine/castingAppeal.ts), so an enabled action button would
-  // only lead to a guaranteed "they passed" (P0, docs/DESIGN_REVIEW_casting_ux.md).
-  // Disable it and let TalentStats' 'blocked' availability line say why, matching
-  // how the crew/director drawer already treats a booked candidate.
+  // A booked actor OR a below-floor offer can't actually be cast - both are hard
+  // gates the sim rejects (engine/castingAppeal.ts:resolveOfferResponse), so an
+  // enabled button would only lead to a guaranteed "they passed". Disable it and
+  // say why up front (docs/DESIGN_REVIEW_casting_ux.md - surface the reasoning
+  // before the click), matching how the crew drawer already treats a booked hire.
   const available = isAvailableImmediately(person, totalDays);
+  const belowFloor = overall?.belowSalaryFloor ?? false;
+  const offerBlocked = !available || belowFloor;
+
+  // The candidate's reasoning, both directions, as scannable chips: the
+  // strengths the appeal math already found, plus a direct-interest draw and the
+  // decision-critical blockers/warnings - the same reads that otherwise only
+  // surface as a rejection after the click.
+  const signals: CandidateSignal[] = [];
+  if (channel === 'InterestedTalent') signals.push({ label: 'Sought you out', tone: 'positive' });
+  if (overall) signals.push(...candidateStrengthSignals(overall, directorName));
+  if (belowFloor) signals.push({ label: 'Wants more pay', tone: 'blocked' });
+  if (!affordable) signals.push({ label: 'Over your budget', tone: 'warning' });
+
+  const blockedTitle = !available
+    ? 'Booked elsewhere - unavailable until their commitments clear.'
+    : belowFloor
+      ? "Below their salary floor - they won't take this offer. Raise what you're offering."
+      : undefined;
+
   return (
     <Card>
       <div className="card-title">{person.identity.name}</div>
       {/* TalentStats' own Availability section already covers "available
           now" vs "busy until X" - no need to repeat it here. */}
       <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" />
-      {channel === 'InterestedTalent' && (
-        <p style={{ margin: '6px 0 0', fontSize: '0.8em', color: 'var(--primary)', fontWeight: 600 }}>
-          Reached out to you directly
-        </p>
+      {signals.length > 0 && (
+        <div className="candidate-signals">
+          {signals.map((signal) => (
+            <span key={signal.label} className={`candidate-signal candidate-signal--${signal.tone}`}>
+              {signal.label}
+            </span>
+          ))}
+        </div>
       )}
-      <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
-        {overall ? describeApplicantInterest(overall) : ''}
-      </p>
       <div className="row" style={{ marginTop: 8, gap: 8 }}>
         <Button
           variant="primary"
           className="btn-sm"
           onClick={onAct}
-          disabled={!available}
-          title={!available ? 'Booked elsewhere - unavailable until their commitments clear.' : undefined}
+          disabled={offerBlocked}
+          title={blockedTitle}
         >
           {actionLabel}
         </Button>
@@ -157,6 +183,16 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   // (if anyone) currently plays it comes straight from the binding, not from
   // this row's position in the cast list.
   const castHere = draft.talent.find((a) => a.role === role && a.characterId === character.id)?.person ?? null;
+
+  // Affordability (a soft warning - talent salary is charged at greenlight, not
+  // at casting): a candidate reads "over budget" if hiring them would put the
+  // draft's committed spend past the studio's cash. Recasting frees the current
+  // occupant's salary, so add that back into what's available before comparing.
+  const directorName = director?.identity.name;
+  const committedSpend = computeCommittedSpend(draft, state.producerPool ?? []);
+  const slotFreedSalary = castHere ? getTypicalSalaryForRole(castHere, role) : 0;
+  const remainingBudget = state.studio.cash - committedSpend + slotFreedSalary;
+  const isAffordable = (person: Person) => getTypicalSalaryForRole(person, role) <= remainingBudget;
 
   const range = ROLE_GENERATION_PROFILES[professionForProductionRole(role)].salaryRange;
   const offeredSalary = draft.talentTargetPriceByRole[role] ?? logAmount(0.5, range);
@@ -331,6 +367,8 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                         totalDays={state.totalDays}
                         overall={appealByPersonId.get(applicant.person.id) ?? null}
                         channel={applicant.channel}
+                        directorName={directorName}
+                        affordable={isAffordable(applicant.person)}
                         actionLabel="Cast"
                         onAct={() => attemptToAttach(applicant.person)}
                         onDismiss={() => dispatch({ type: 'DISMISS_CASTING_APPLICANT', characterId: character.id, personId: applicant.person.id })}
@@ -364,6 +402,8 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                   character={character}
                   totalDays={state.totalDays}
                   overall={appealFor(person)}
+                  directorName={directorName}
+                  affordable={isAffordable(person)}
                   actionLabel="Make Offer"
                   onAct={() => attemptToAttach(person)}
                 />

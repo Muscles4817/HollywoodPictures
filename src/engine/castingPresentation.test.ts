@@ -1,7 +1,7 @@
 // Casting Redesign (docs/DESIGN_REVIEW_casting_redesign.md section 7) - no
 // dedicated test coverage existed for this file before it was added.
 import { describe, it, expect } from 'vitest';
-import { describeApplicantInterest, describeDirectorInterest, describeDirectorRejection, describeOfferRejection, describeScheduleRejection } from './castingPresentation';
+import { candidateStrengthSignals, describeApplicantInterest, describeDirectorInterest, describeDirectorRejection, describeOfferRejection, describeScheduleRejection } from './castingPresentation';
 import type { ActorAppealFactors, ActorScheduleAssessment, OfferRejectionReason } from './castingAppeal';
 import type { DirectorAppealFactors, DirectorOfferRejectionReason } from './directorAppeal';
 
@@ -15,6 +15,38 @@ function factors(overrides: Partial<ActorAppealFactors> = {}): ActorAppealFactor
 function directorFactors(overrides: Partial<DirectorAppealFactors> = {}): DirectorAppealFactors {
   return { scriptFit: 50, brandFit: 50, prestigeFit: 50, salaryFit: 50, ...overrides };
 }
+
+describe('candidateStrengthSignals', () => {
+  const labels = (f: Partial<ActorAppealFactors>, director?: string) => candidateStrengthSignals(factors(f), director).map((s) => s.label);
+
+  it('returns no chips when nothing is notably strong', () => {
+    expect(candidateStrengthSignals(factors({ suitability: 40, brandFit: 20, prestigeFit: 20, salaryFit: 40, attachmentMomentum: 40 }))).toEqual([]);
+  });
+
+  it('surfaces a notable role fit as "Great fit"', () => {
+    expect(labels({ suitability: 90, brandFit: 10, prestigeFit: 10, salaryFit: 40, attachmentMomentum: 40 })).toEqual(['Great fit']);
+  });
+
+  it('names the attached director on an attachment draw', () => {
+    expect(labels({ attachmentMomentum: 92, suitability: 40, salaryFit: 40, brandFit: 10, prestigeFit: 10 }, 'Nolan')).toEqual(['Keen to work with Nolan']);
+  });
+
+  it('falls back to "Likes the lineup" for an attachment draw with no director attached', () => {
+    expect(labels({ attachmentMomentum: 92, suitability: 40, salaryFit: 40, brandFit: 10, prestigeFit: 10 })).toEqual(['Likes the lineup']);
+  });
+
+  it('collapses brandFit + prestigeFit into a single "Likes your studio" chip', () => {
+    const result = labels({ brandFit: 45, prestigeFit: 45, suitability: 40, salaryFit: 40, attachmentMomentum: 40 });
+    expect(result).toEqual(['Likes your studio']);
+  });
+
+  it('caps at three chips and keeps the strongest, all positive-toned', () => {
+    const signals = candidateStrengthSignals(factors({ suitability: 95, salaryFit: 92, attachmentMomentum: 90, brandFit: 45, prestigeFit: 45 }));
+    expect(signals).toHaveLength(3);
+    expect(signals.every((s) => s.tone === 'positive')).toBe(true);
+    expect(signals[0].label).toBe('Great fit'); // strongest first
+  });
+});
 
 describe('describeApplicantInterest', () => {
   it('falls back to a neutral line when nothing is notably high', () => {

@@ -86,7 +86,7 @@ default copy — its delay is the event's own, not this booking's.
 them" flow that the engine's `requires-delay` status was designed for, so a
 delayed hire becomes genuinely possible rather than just honestly refused.
 
-### P1 — Explain why a candidate is *recommended*, not just why they're blocked
+### P1 — Explain why a candidate is *recommended*, not just why they're blocked — **shipped**
 
 The review's negative gates (below) are only half the story. The sim already
 scores *why a candidate is strong* — `suitability`, `salaryFit` (good value),
@@ -107,11 +107,13 @@ reasoning is under-surfaced:
   from any sort/label, so a genuinely great-fit, great-value candidate looks
   identical to a mediocre one until you read the fine print.
 
-**Recommendation.** Surface the positives as compact, scannable signals on the
-card — e.g. "Great fit," "Good value," "Wants in" (the `InterestedTalent`
-channel already flags direct interest), "Drawn to {director}" (pass the director
-into `describeApplicantInterest`). These are reads the engine already produces;
-this is presentation only.
+**Shipped.** The actor casting card now renders compact reasoning chips
+(`engine/castingPresentation.ts:candidateStrengthSignals` +
+`components/wizard/CastingDrawer.tsx`): the strongest few positive draws — "Great
+fit," "Happy with the pay," "Keen to work with {director}" (the attachment factor
+now *does* name the director), "Likes your studio" — plus a "Sought you out" chip
+for the `InterestedTalent` channel. Same `ActorAppealFactors` the acceptance math
+reads, strongest-first, capped to stay scannable; presentation only.
 
 *Genuinely new sim, not just surfacing:* **chemistry / prior collaboration**
 ("has worked with this director before," "good on-screen pairing") does **not**
@@ -141,26 +143,28 @@ The sim already computes every key those intents would sort/filter on
    fixes that blind spot, but it's a targeted tool, not the headline — most
    casting is browse-and-compare, not lookup.
 
-### P1 — Surface the blockers the sim already computed (doomed offers look live)
+### P1 — Surface the blockers the sim already computed (doomed offers look live) — **shipped**
 
 Beyond availability, Direct Approach also lists **below-salary-floor** actors
 (Open Casting filters these out; Direct Approach doesn't), all hard-rejected on
-click. Nothing on the card signals "this offer can't succeed as configured" —
-the reason only appears *after* clicking, via `describeOfferRejection`, which
-already has the sentence ready.
+click. Nothing on the card signalled "this offer can't succeed as configured" —
+the reason only appeared *after* clicking.
 
-**Recommendation.** Show the blocker pre-click — an inline "Wants more than
-you're offering" / "Booked until {date}" note and a disabled action — reusing the
-reasons the engine already produces post-hoc.
+**Shipped.** A below-floor candidate now carries a "Wants more pay" blocker chip
+and a **disabled** offer (with a "raise what you're offering" tooltip), alongside
+the booked-actor block from P0 — so both hard gates the engine enforces are shown
+pre-click rather than discovered by a failed offer.
 
-### P1 — No affordability signal per candidate
+### P1 — No affordability signal per candidate — **shipped**
 
-A candidate's salary shows, but it's never compared to `studio.cash` on the
-card; the only affordability signal is the hub footer. You can make an offer to
-someone you can't pay.
+A candidate's salary showed, but was never compared to `studio.cash` on the card;
+the only affordability signal was the hub footer.
 
-**Recommendation.** Flag/disable candidates whose salary would push committed
-spend past cash, on the card itself — and let "affordable only" be one of the
+**Shipped.** A candidate whose salary would push the draft's committed spend past
+the studio's cash now shows an "Over your budget" **warning** chip (not a hard
+block — talent salary is charged at greenlight, not at casting; recasting
+correctly credits back the current occupant's salary). A dedicated "affordable
+only" filter is still worth adding as one of the
 discovery filters above.
 
 ### P2 — Two drawers, two vocabularies, two behaviors
@@ -195,17 +199,20 @@ strongly signals "you can't start production without this one."
 1. **(done)** Available-now filter — immediate decluttering.
 2. **(done)** Fix the booked-person copy + disable the doomed Cast button —
    removes the worst contradiction; CastingDrawer now matches the crew drawer.
-3. **P1** Candidate reasoning on the card — *both* directions: positive signals
-   (Great fit / Good value / Wants in / Drawn to {director}) and pre-click
-   blockers (availability / salary floor / affordability). One card treatment
-   delivers most of the principle.
+3. **(done)** Candidate reasoning on the actor card — *both* directions:
+   positive signals (Great fit / Happy with the pay / Keen to work with
+   {director} / Likes your studio / Sought you out) and pre-click blockers
+   (booked / below salary floor) plus an over-budget warning. One card treatment
+   delivering most of the principle.
 4. **P1** Discovery controls — sort (Appeal / Value / Price / Fame) and an
    "affordable only" filter; then name search as the secondary override.
-5. **P2** Unify the two drawers; revisit post-cast ergonomics and required-role
+5. **P1 (small)** Extend the same reasoning chips to the director drawer via
+   `DirectorAppealFactors` (this pass covered the actor card only).
+6. **P2** Unify the two drawers; revisit post-cast ergonomics and required-role
    emphasis.
-6. **Later / new sim** A collaboration/chemistry model (prior director–actor and
+7. **Later / new sim** A collaboration/chemistry model (prior director–actor and
    actor–actor history) — the one wishlist signal that isn't already computed.
 
-Everything except item 6 is presentation of reasoning the `castingAppeal` engine
+Everything except item 7 is presentation of reasoning the `castingAppeal` engine
 already produces — which is exactly why it's worth doing: the intelligence is
 built, it's just not on screen yet.
