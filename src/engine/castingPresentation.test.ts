@@ -1,7 +1,7 @@
 // Casting Redesign (docs/DESIGN_REVIEW_casting_redesign.md section 7) - no
 // dedicated test coverage existed for this file before it was added.
 import { describe, it, expect } from 'vitest';
-import { candidateStrengthSignals, describeApplicantInterest, describeDirectorInterest, describeDirectorRejection, describeOfferRejection, describeScheduleRejection } from './castingPresentation';
+import { candidateStrengthSignals, directorStrengthSignals, describeApplicantInterest, describeDirectorInterest, describeDirectorRejection, describeOfferRejection, describeScheduleRejection } from './castingPresentation';
 import type { ActorAppealFactors, ActorScheduleAssessment, OfferRejectionReason } from './castingAppeal';
 import type { DirectorAppealFactors, DirectorOfferRejectionReason } from './directorAppeal';
 
@@ -45,6 +45,22 @@ describe('candidateStrengthSignals', () => {
     expect(signals).toHaveLength(3);
     expect(signals.every((s) => s.tone === 'positive')).toBe(true);
     expect(signals[0].label).toBe('Great fit'); // strongest first
+  });
+});
+
+describe('directorStrengthSignals', () => {
+  it('surfaces a notable script fit and collapses reputation into one chip, capped and positive', () => {
+    const signals = directorStrengthSignals(directorFactors({ scriptFit: 95, salaryFit: 90, brandFit: 45, prestigeFit: 45 }));
+    const strs = signals.map((s) => s.label);
+    expect(strs).toContain('Loves the script');
+    expect(strs).toContain('Happy with the pay');
+    expect(strs.filter((l) => l === 'Likes your studio')).toHaveLength(1); // reputation collapsed, not doubled
+    expect(signals.every((s) => s.tone === 'positive')).toBe(true);
+    expect(signals.length).toBeLessThanOrEqual(3);
+  });
+
+  it('returns nothing when no factor is notable', () => {
+    expect(directorStrengthSignals(directorFactors({ scriptFit: 40, salaryFit: 40, brandFit: 20, prestigeFit: 20 }))).toEqual([]);
   });
 });
 

@@ -8,8 +8,8 @@ import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { deriveBookedUntil, getTypicalSalaryForRole, isAvailableImmediately } from '../../engine/person';
 import { computeDirectorAppeal, resolveDirectorOfferResponse, type DirectorOfferResponse } from '../../engine/directorAppeal';
-import { describeDirectorRejection } from '../../engine/castingPresentation';
-import { deriveFocusedDraft } from '../../state/selectors';
+import { describeDirectorRejection, directorStrengthSignals, type CandidateSignal } from '../../engine/castingPresentation';
+import { deriveFocusedDraft, computeCommittedSpend } from '../../state/selectors';
 import { professionForProductionRole } from '../../data/helpers';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
@@ -39,13 +39,13 @@ interface CandidateCardProps {
   booked: boolean;
   pinned: boolean;
   pinCapped: boolean;
-  /** Casting Appeal Rework - a director who fails the prestige-vs-fame gate reads that up front, so clicking them and getting turned down doesn't read as a broken interaction. null for every other role/category. */
-  note: string | null;
+  /** Candidate reasoning chips (docs/DESIGN_REVIEW_casting_ux.md) - a director's standout draws and any blocker/warning (prestige gate, below salary floor, over budget). Empty for roles with no appeal model (most crew). */
+  signals: CandidateSignal[];
   onSelect: () => void;
   onTogglePin: () => void;
 }
 
-function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, note, onSelect, onTogglePin }: CandidateCardProps) {
+function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, signals, onSelect, onTogglePin }: CandidateCardProps) {
   const isActor = category === 'actor';
   return (
     <Card selectable selected={selected} disabled={disabled} onClick={onSelect}>
@@ -55,6 +55,13 @@ function CandidateCard({ person, role, category, script, character, totalDays, s
           (Cast/Hired, or Fully cast once the role's at capacity), not repeat
           the calendar read a second time. */}
       <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} availabilityMode="blocked" />
+      {signals.length > 0 && (
+        <div className="candidate-signals">
+          {signals.map((signal) => (
+            <span key={signal.label} className={`candidate-signal candidate-signal--${signal.tone}`}>{signal.label}</span>
+          ))}
+        </div>
+      )}
       <Button
         className="btn-sm"
         variant={pinned ? 'primary' : 'secondary'}
@@ -70,7 +77,6 @@ function CandidateCard({ person, role, category, script, character, totalDays, s
       </Button>
       {selected && <p style={{ color: 'var(--green)', marginTop: 6 }}>{isActor ? 'Cast' : 'Hired'}</p>}
       {!selected && !booked && disabled && <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>{isActor ? 'Fully cast' : 'Cast full'}</p>}
-      {!selected && note && <p style={{ color: 'var(--text-muted)', marginTop: 6, fontSize: '0.85em' }}>{note}</p>}
     </Card>
   );
 }
@@ -155,6 +161,39 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
     ? displayList.filter((person) => onThisDraftIds.has(person.id) || isAvailableImmediately(person, state.totalDays))
     : displayList;
   const availabilityHiddenCount = displayList.length - shownList.length;
+
+  // Affordability (a soft warning - talent salary is charged at greenlight, not
+  // here): a candidate reads "over budget" if hiring them would put committed
+  // spend past cash. A single-slot role currently filled frees that salary on
+  // replacement; already-hired people are always affordable.
+  const committedSpend = computeCommittedSpend(draft, state.producerPool ?? []);
+  const slotFreedSalary = capacity.max === 1 && hired[0] ? getTypicalSalaryForRole(hired[0], role) : 0;
+  const remainingBudget = state.studio.cash - committedSpend + slotFreedSalary;
+  const isAffordable = (person: Person) =>
+    hired.some((h) => h.id === person.id) || getTypicalSalaryForRole(person, role) <= remainingBudget;
+
+  // Candidate reasoning chips. The Director is the one role with a real appeal
+  // model (engine/directorAppeal.ts) - its strengths and hard gates (prestige,
+  // salary floor) surface as chips, the director-drawer counterpart of the actor
+  // card. Every role gets the over-budget warning. Returns the chips plus whether
+  // a hard gate should also disable the hire (a doomed offer, like a booked one).
+  function candidateReasoning(person: Person): { signals: CandidateSignal[]; hardBlocked: boolean } {
+    const signals: CandidateSignal[] = [];
+    const appeal = directorAppealByPersonId.get(person.id);
+    let hardBlocked = false;
+    if (appeal === 'prestige-gate') {
+      signals.push({ label: 'Wants more prestige', tone: 'blocked' });
+      hardBlocked = true;
+    } else if (appeal) {
+      signals.push(...directorStrengthSignals(appeal));
+      if (appeal.belowSalaryFloor) {
+        signals.push({ label: 'Wants more pay', tone: 'blocked' });
+        hardBlocked = true;
+      }
+    }
+    if (!isAffordable(person)) signals.push({ label: 'Over your budget', tone: 'warning' });
+    return { signals, hardBlocked };
+  }
 
   const allTalent = Object.values(state.talentPool).flat();
   const pinnedTalent = pinnedTalentIds.map((id) => allTalent.find((t) => t.id === id)).filter((t): t is Person => t !== undefined);
@@ -290,11 +329,10 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
             const selected = hired.some((h) => h.id === person.id);
             const bookedUntil = deriveBookedUntil(person.availability.commitments);
             const booked = !selected && !!bookedUntil && bookedUntil > state.totalDays;
-            const disabled = !selected && (atCap || booked);
+            const { signals, hardBlocked } = candidateReasoning(person);
+            const disabled = !selected && (atCap || booked || hardBlocked);
             const pinned = pinnedTalentIds.includes(person.id);
             const pinCapped = pinnedTalentIds.length >= MAX_PINNED;
-            const directorOutcome = directorAppealByPersonId.get(person.id);
-            const note = directorOutcome === 'prestige-gate' ? "Won't consider a studio without more prestige right now." : null;
             return (
               <CandidateCard
                 key={person.id}
@@ -309,7 +347,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
                 booked={booked}
                 pinned={pinned}
                 pinCapped={pinCapped}
-                note={note}
+                signals={signals}
                 onSelect={() => selectPerson(person)}
                 onTogglePin={() => togglePin(person)}
               />

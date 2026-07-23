@@ -90,6 +90,31 @@ export function candidateStrengthSignals(factors: ActorAppealFactors, directorNa
     .map((e) => ({ label: e.label, tone: 'positive' as const }));
 }
 
+// Director-side strength chips - the same idea as candidateStrengthSignals over
+// DirectorAppealFactors. scriptFit is "how good the material reads to them," the
+// director's own version of an actor's role fit.
+const DIRECTOR_STRENGTH_LABELS: Record<keyof DirectorAppealFactors, string> = {
+  scriptFit: 'Loves the script',
+  salaryFit: 'Happy with the pay',
+  brandFit: 'Likes your studio',
+  prestigeFit: 'Likes your studio',
+};
+
+/** A director candidate's standout strengths as chips (docs/DESIGN_REVIEW_casting_ux.md) - the DirectorAppealFactors counterpart of candidateStrengthSignals. */
+export function directorStrengthSignals(factors: DirectorAppealFactors, max = 3): CandidateSignal[] {
+  const reputationFit = factors.brandFit + factors.prestigeFit;
+  const entries = [
+    { value: factors.scriptFit, label: DIRECTOR_STRENGTH_LABELS.scriptFit },
+    { value: factors.salaryFit, label: DIRECTOR_STRENGTH_LABELS.salaryFit },
+    { value: reputationFit, label: DIRECTOR_STRENGTH_LABELS.brandFit },
+  ];
+  return entries
+    .filter((e) => e.value >= APPEAL_NOTABLE)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, max)
+    .map((e) => ({ label: e.label, tone: 'positive' as const }));
+}
+
 const REJECTION_LABELS: Record<OfferRejectionReason, string> = {
   suitability: "doesn't feel right for the role",
   'brand-prestige-mismatch': "isn't where they want their name attached right now",
