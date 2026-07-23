@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
+import { saveState } from '../../state/persistence';
 import { formatGameDateWithMonth } from '../../engine/calendar';
 import { inboxBadgeCount } from '../../engine/project';
 import { unreadBidCount } from '../../engine/bidNotifications';
@@ -50,6 +52,21 @@ export function Header({
   // same Inbox overlay, so they share one count here.
   const badgeCount = inboxBadgeCount(state.projects, state.focusedProjectId) + unreadBidCount(state.bidNotifications ?? []);
 
+  // The game already autosaves on every state change (StudioContext), so this
+  // is a "save now, and tell me it happened" affordance - an explicit persist
+  // plus brief confirmation, for players who want the reassurance. The label
+  // flips to a confirmation for a moment, then resets.
+  const [justSaved, setJustSaved] = useState(false);
+  const handleSave = () => {
+    saveState(state);
+    setJustSaved(true);
+  };
+  useEffect(() => {
+    if (!justSaved) return;
+    const timer = setTimeout(() => setJustSaved(false), 2000);
+    return () => clearTimeout(timer);
+  }, [justSaved]);
+
   return (
     <header className="app-header">
       <div className="app-header__group">
@@ -96,6 +113,14 @@ export function Header({
       </div>
 
       <div className="app-header__group">
+        <Button
+          className="btn-sm"
+          variant={justSaved ? 'primary' : 'secondary'}
+          onClick={handleSave}
+          aria-label="Save game now"
+        >
+          {justSaved ? '✓ Saved' : '💾 Save'}
+        </Button>
         <Button className="btn-sm" onClick={toggleTheme} aria-label="Toggle dark mode">
           {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
         </Button>
