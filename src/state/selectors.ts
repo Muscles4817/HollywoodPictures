@@ -1,7 +1,7 @@
 import type { AwardCategory, AwardShowId, AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, PersonId, ProductionRole, ProductionScale, Project, RivalStudio, ScriptScale, TalentAssignment, WizardStep } from '../types';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { totalAttachedPerFilmFees } from '../engine/producers';
-import { computeStudioAwardDeltas } from '../engine/awards';
+import { computeBoxOfficeBump, computeStudioAwardDeltas } from '../engine/awards';
 import { awardShow } from '../data/awardsShows';
 import { explainBrandChange, explainPrestigeChange } from '../engine/reputation';
 import { WEEK_LENGTH_DAYS } from '../engine/boxOfficeRun';
@@ -256,6 +256,63 @@ export function deriveReputationHistory(state: GameState): ReputationEvent[] {
   });
 
   return [...filmEvents, ...awardsEvents].sort((a, b) => b.day - a.day);
+}
+
+/** How long after a ceremony the Dashboard keeps announcing it, so a passive real-time player still sees the win (and the money it brought) even if they weren't watching that day. */
+export const RECENT_AWARD_HIGHLIGHT_DAYS = 14;
+
+export interface RecentAwardHighlight {
+  id: string;
+  /** GameState.totalDays the ceremony resolved on. */
+  day: number;
+  showName: string;
+  year: number;
+  wins: number;
+  nominations: number;
+  /** Cash prize credited to the studio at the ceremony (engine/awards.ts:computeBoxOfficeBump x payoffScale) - the number that mysteriously moved the budget. */
+  payout: number;
+  prestigeDelta: number;
+  brandDelta: number;
+}
+
+/**
+ * Recently-resolved ceremonies the player was actually in - the data behind the
+ * Dashboard "Awards night" announcement, since awards otherwise resolve silently
+ * inside the background day tick and their cash prize lands with no explanation.
+ * Purely derived (like deriveReputationHistory): the ceremony is stored in
+ * awards.history and the money is recomputed from it plus each film's stored
+ * studioRevenue, applying the same payoffScale and Math.round the reducer used
+ * so the announced figure matches what actually hit the budget.
+ */
+export function deriveRecentAwardHighlights(state: GameState, withinDays: number = RECENT_AWARD_HIGHLIGHT_DAYS): RecentAwardHighlight[] {
+  const playerFilms = state.projects.flatMap((project) => {
+    const film = asFilm(project);
+    return film && film.releasedBy === undefined ? [film] : [];
+  });
+  const playerFilmIds = new Set(playerFilms.map((film) => film.id));
+
+  return (state.awards?.history ?? [])
+    .flatMap((ceremony) => {
+      const age = state.totalDays - ceremony.ceremonyDay;
+      if (age < 0 || age > withinDays) return [];
+      const { wins, nominations } = playerAwardHaul(ceremony, playerFilmIds);
+      if (nominations === 0) return []; // the player wasn't in this one
+      const show = awardShow(ceremony.show);
+      const raw = computeStudioAwardDeltas(ceremony, playerFilmIds);
+      const payout = Math.round(playerFilms.reduce((sum, film) => sum + computeBoxOfficeBump(film, ceremony), 0) * show.payoffScale);
+      return [{
+        id: `award-highlight-${ceremony.year}-${ceremony.show}`,
+        day: ceremony.ceremonyDay,
+        showName: show.name,
+        year: ceremony.year,
+        wins,
+        nominations,
+        payout,
+        prestigeDelta: Math.round(raw.prestige * show.payoffScale),
+        brandDelta: Math.round(raw.brand * show.payoffScale),
+      }];
+    })
+    .sort((a, b) => b.day - a.day);
 }
 
 export type FilmStatSortKey =
