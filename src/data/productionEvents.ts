@@ -1,4 +1,4 @@
-import type { Genre, EventChoiceTemplate, EventSeverity, ProductionRole } from '../types';
+import type { Genre, EventChoiceTemplate, EventSeverity, ProductionExecutionImpact, ProductionRole } from '../types';
 
 // Templates for randomized production events. The engine picks a handful of
 // these per shoot, biased by an overall risk score, then rolls a concrete
@@ -27,6 +27,19 @@ import type { Genre, EventChoiceTemplate, EventSeverity, ProductionRole } from '
 // `low` - most days that produce anything at all should produce something
 // small, with `medium` and especially `high` genuinely rarer. See
 // docs/DESIGN.md 5.21.
+// Every template OWNS its finished-film consequence:
+//  - `impact`: which department the event shapes (engine/productionExecution.ts).
+//    The event definitions are the primary type system for this; the id-based
+//    fallback in engine/productionExecution.ts:classifyEventImpact is only for
+//    an event that somehow reaches scoring without one. For the risk-dimension
+//    bank below, impact is assigned per dimension by tagImpact() (a morale
+//    event shapes performances, a technical event shapes visual, ...), which a
+//    template may still override inline.
+//  - `escalates`: 0..1, how much a *negative* event pressures the rest of the
+//    shoot - the seed of a bounded failure chain (engine/production.ts:
+//    computeShootEscalation). Omitted => a sensible default from severity
+//    (high 0.6, medium 0.25, low 0); set it explicitly to deviate (e.g. a
+//    contained mishap that shouldn't cascade, or a positive event, gets 0).
 interface SimpleProductionEventTemplate {
   id: string;
   description: string;
@@ -37,6 +50,8 @@ interface SimpleProductionEventTemplate {
   qualityRange: [number, number];
   buzzRange: [number, number];
   delayDaysRange: [number, number];
+  impact?: ProductionExecutionImpact;
+  escalates?: number;
 }
 
 // An event that pauses photography and hands the player a real decision,
@@ -73,9 +88,16 @@ interface InteractiveProductionEventTemplate {
   // quality driven by which specific person the player picks. Always
   // `high` severity - recasting mid-shoot is a genuinely big deal.
   offersReplacementFor?: ProductionRole;
+  impact?: ProductionExecutionImpact;
+  escalates?: number;
 }
 
 export type ProductionEventTemplate = SimpleProductionEventTemplate | InteractiveProductionEventTemplate;
+
+/** Assigns a default `impact` (department) to every template in a bank; an inline `impact` on a template still wins. */
+function tagImpact(impact: ProductionExecutionImpact, templates: ProductionEventTemplate[]): ProductionEventTemplate[] {
+  return templates.map((t) => ({ impact, ...t }));
+}
 
 export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
   {
@@ -234,9 +256,11 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     polarity: 'negative',
     severity: 'high',
     costRange: [300_000, 1_200_000],
-    qualityRange: [-6, -1],
+    qualityRange: [-13, -4],
     buzzRange: [0, 0],
     delayDaysRange: [1, 3],
+    impact: 'visual',
+    escalates: 0.5,
   },
   {
     id: 'neg-onset-tension',
@@ -423,7 +447,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
 // THIS kind of shoot (a stunt gag, a VFX shot, a punchline that isn't
 // landing) rather than generic set drama. Each genre gets one of each
 // polarity so a genre-flavored event isn't guaranteed to be good or bad news.
-export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplate[]>> = {
+const RAW_GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplate[]>> = {
   Action: [
     {
       id: 'genre-action-pos-stunt-gag',
@@ -551,9 +575,10 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       polarity: 'negative',
       severity: 'high',
       costRange: [400_000, 1_200_000],
-      qualityRange: [-6, -1],
+      qualityRange: [-13, -4],
       buzzRange: [0, 0],
       delayDaysRange: [2, 4],
+      escalates: 0.5,
     },
   ],
   Fantasy: [
@@ -571,11 +596,12 @@ export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplat
       id: 'genre-fantasy-neg-set-collapse',
       description: 'An elaborate set piece collapsed overnight and needs to be rebuilt.',
       polarity: 'negative',
-      severity: 'medium',
+      severity: 'high',
       costRange: [300_000, 900_000],
-      qualityRange: [-4, -1],
+      qualityRange: [-12, -4],
       buzzRange: [-3, 0], // visible mishap, local coverage plausible
       delayDaysRange: [2, 4],
+      escalates: 0.6,
     },
   ],
   Thriller: [
@@ -619,7 +645,7 @@ export type RiskDimension = 'schedulePressure' | 'moraleRisk' | 'safetyRisk' | '
 // Every dimension also carries two or three interactive templates, mixed in
 // alongside the simple ones - a real decision on top of the routine events,
 // not a replacement for them.
-export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
+const RAW_RISK_DIMENSION_EVENT_TEMPLATES: Record<
   RiskDimension,
   { positive: ProductionEventTemplate[]; negative: ProductionEventTemplate[] }
 > = {
@@ -649,11 +675,12 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         id: 'risk-schedule-neg-scene-cut-for-time',
         description: 'A scene had to be cut for time, leaving a gap the editor will have to paper over.',
         polarity: 'negative',
-        severity: 'low',
+        severity: 'medium',
         costRange: [0, 0],
-        qualityRange: [-7, -2],
+        qualityRange: [-11, -3],
         buzzRange: [0, 0],
         delayDaysRange: [0, 0],
+        escalates: 0.4,
       },
       {
         id: 'risk-schedule-neg-ad-quit',
@@ -891,9 +918,10 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'negative',
         severity: 'high',
         costRange: [100_000, 400_000],
-        qualityRange: [-7, -3],
+        qualityRange: [-14, -5],
         buzzRange: [-4, -1],
         delayDaysRange: [1, 3],
+        escalates: 0.7,
       },
       {
         id: 'int-morale-blowup',
@@ -1091,9 +1119,10 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'negative',
         severity: 'high',
         costRange: [300_000, 900_000],
-        qualityRange: [-8, -2],
+        qualityRange: [-16, -5],
         buzzRange: [-5, 0],
-        delayDaysRange: [2, 2],
+        delayDaysRange: [2, 4],
+        escalates: 0.8,
       },
       {
         id: 'risk-safety-neg-explosion-too-big',
@@ -1285,9 +1314,10 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'negative',
         severity: 'high',
         costRange: [300_000, 1_000_000],
-        qualityRange: [-5, -1],
+        qualityRange: [-12, -4],
         buzzRange: [0, 0],
         delayDaysRange: [2, 4],
+        escalates: 0.6,
       },
       {
         id: 'risk-technical-neg-expensive-workaround',
@@ -1305,9 +1335,11 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
         polarity: 'negative',
         severity: 'high',
         costRange: [150_000, 600_000],
-        qualityRange: [-6, -2],
+        qualityRange: [-16, -6],
         buzzRange: [0, 0],
         delayDaysRange: [4, 6],
+        impact: 'coverage', // lost footage is a coverage problem, not a look problem
+        escalates: 0.8,
       },
       {
         id: 'risk-technical-neg-sequence-simplified',
@@ -1702,3 +1734,47 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
     ],
   },
 };
+
+// --- Explicit typed impact per bank ----------------------------------------
+// The event definitions own their finished-film consequence. Genre and
+// risk-dimension banks are tagged here by their dominant department; a template
+// may still carry an inline `impact` that overrides the bank default (tagImpact
+// spreads the template last). engine/production.ts:rollDayEvent reads
+// template.impact and only falls back to id inference for an untagged stray.
+
+const GENRE_IMPACT: Record<Genre, ProductionExecutionImpact> = {
+  Action: 'visual',
+  Comedy: 'performances',
+  Drama: 'performances',
+  Horror: 'visual',
+  Romance: 'performances',
+  'Sci-Fi': 'visual',
+  Fantasy: 'visual',
+  Thriller: 'pacing',
+};
+
+const DIMENSION_IMPACT: Record<RiskDimension, ProductionExecutionImpact> = {
+  schedulePressure: 'coverage',
+  moraleRisk: 'performances',
+  safetyRisk: 'visual',
+  technicalComplexity: 'visual',
+  budgetRisk: 'general',
+};
+
+export const GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplate[]>> = Object.fromEntries(
+  (Object.entries(RAW_GENRE_EVENT_TEMPLATES) as [Genre, ProductionEventTemplate[]][]).map(
+    ([genre, templates]) => [genre, tagImpact(GENRE_IMPACT[genre], templates)],
+  ),
+) as Partial<Record<Genre, ProductionEventTemplate[]>>;
+
+export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
+  RiskDimension,
+  { positive: ProductionEventTemplate[]; negative: ProductionEventTemplate[] }
+> = Object.fromEntries(
+  (Object.entries(RAW_RISK_DIMENSION_EVENT_TEMPLATES) as [RiskDimension, { positive: ProductionEventTemplate[]; negative: ProductionEventTemplate[] }][]).map(
+    ([dim, banks]) => [dim, {
+      positive: tagImpact(DIMENSION_IMPACT[dim], banks.positive),
+      negative: tagImpact(DIMENSION_IMPACT[dim], banks.negative),
+    }],
+  ),
+) as Record<RiskDimension, { positive: ProductionEventTemplate[]; negative: ProductionEventTemplate[] }>;

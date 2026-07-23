@@ -786,9 +786,13 @@ export interface ProductionEvent {
   buzzDelta: number; // -100..100
   delayDaysDelta: number; // extra shoot days this event actually cost, on top of the day it happened on - always >= 0
   // Which finished-film department this event shaped (engine/productionExecution.ts).
-  // Optional: set at roll time going forward; inferred from `id` for legacy/saved
-  // events, so old saves need no migration.
+  // Set at roll time from the template's explicit `impact`; falls back to id
+  // inference only for a stray untagged template.
   impact?: ProductionExecutionImpact;
+  // 0..1: how much this (negative) event pressures the rest of the shoot - the
+  // seed of a bounded failure chain (engine/production.ts:computeShootEscalation).
+  // Set at roll time from the template's `escalates` (default from severity).
+  escalates?: number;
 }
 
 // One option the player can pick when an interactive event pauses
@@ -842,6 +846,12 @@ export interface PendingEventChoice {
   // Set alongside involvedRole when this event offers a real recast
   // decision - which role any replacementCandidateId choices are hiring for.
   replacementRole?: ProductionRole;
+  // The finished-film department this situation is about, carried from the
+  // template so the resolved outcome (engine/production.ts:rollChoiceOutcome)
+  // routes correctly regardless of which choice the player picks.
+  impact?: ProductionExecutionImpact;
+  // The situation's downstream-pressure seed (see ProductionEvent.escalates).
+  escalates?: number;
 }
 
 // The four risk dimensions knowable *before* a day of filming has happened -
@@ -1158,7 +1168,10 @@ export interface ProductionExecutionOutcome {
   rating: 'catastrophic' | 'troubled' | 'solid' | 'strong' | 'exceptional';
   headline: string;
   detail: string;
+  /** Every significant cause (strongest first) - the expandable breakdown; the compact card shows only the top couple. */
   causes: ProductionExecutionCause[];
+  /** What reliable leadership / contingency contained, when it meaningfully did - shown under a "Mitigation" heading. Empty for smooth or unmitigated shoots. */
+  mitigation: string[];
   /** Numeric internals - dev inspectors/tests only, never rendered in normal player UI. */
   modifiers: {
     performanceCapture: number;

@@ -286,6 +286,41 @@ export function computeSchedulePressure(daysElapsed: number, recommendedDays: nu
   return clamp(Math.round(30 + (1 - ratio) * 90), 0, 100);
 }
 
+// The most escalation the shoot's history can add to daily risk - a bad shoot
+// gets meaningfully worse, but the chain is bounded (no uncontrollable spiral).
+const MAX_ESCALATION_RISK = 22;
+// How much reliability + contingency contain a chain, and how sharply each
+// point of accumulated `escalates` raises risk.
+const ESCALATION_RESILIENCE_DAMPEN = 0.6;
+const ESCALATION_RISK_PER_POINT = 10;
+
+/**
+ * Bounded failure chains: a shoot that has already suffered major setbacks is
+ * more likely to suffer more. Sums the `escalates` seeds of the negative events
+ * so far, dampened by the production's resilience (reliable, well-resourced
+ * productions contain trouble), and returns extra daily risk to feed
+ * rollDayEvent - capped at MAX_ESCALATION_RISK so a single mishap can never
+ * doom a film on its own. Pure: escalation is a deterministic read of the
+ * recorded event history, never a new roll.
+ */
+export function computeShootEscalation(events: ProductionEvent[], resilience: number): number {
+  let seeds = 0;
+  for (const e of events) {
+    if (e.qualityDelta >= 0) continue;
+    seeds += e.escalates ?? defaultEscalates(e.severity, 'negative');
+  }
+  const dampened = seeds * (1 - clamp(resilience, 0, 1) * ESCALATION_RESILIENCE_DAMPEN);
+  return clamp(dampened * ESCALATION_RISK_PER_POINT, 0, MAX_ESCALATION_RISK);
+}
+
+// Default downstream-pressure for a negative event that doesn't set `escalates`
+// explicitly: high-severity setbacks ripple, low-severity ones are contained.
+// Positive events never escalate.
+function defaultEscalates(severity: EventSeverity, polarity: 'positive' | 'negative'): number {
+  if (polarity === 'positive') return 0;
+  return severity === 'high' ? 0.6 : severity === 'medium' ? 0.25 : 0;
+}
+
 function rollSimpleEvent(template: Extract<ProductionEventTemplate, { interactive?: false }>, rng: RandomFn): ProductionEvent {
   const [costMin, costMax] = template.costRange;
   const [qMin, qMax] = template.qualityRange;
@@ -299,8 +334,10 @@ function rollSimpleEvent(template: Extract<ProductionEventTemplate, { interactiv
     qualityDelta: randFloat(rng, qMin, qMax),
     buzzDelta: randFloat(rng, bMin, bMax),
     delayDaysDelta: Math.max(0, Math.round(randFloat(rng, dMin, dMax))),
-    // Which finished-film department this event shaped (engine/productionExecution.ts).
-    impact: classifyEventImpact({ id: template.id }),
+    // The event definition owns which finished-film department it shaped and how
+    // much it pressures the rest of the shoot; id inference is only a fallback.
+    impact: template.impact ?? classifyEventImpact({ id: template.id }),
+    escalates: template.escalates ?? defaultEscalates(template.severity, template.polarity),
   };
 }
 
@@ -316,15 +353,19 @@ function rollChoiceOutcome(pending: PendingEventChoice, choice: EventChoiceTempl
   const [qMin, qMax] = choice.qualityRange;
   const [bMin, bMax] = choice.buzzRange;
   const [dMin, dMax] = choice.delayDaysRange;
+  const qualityDelta = randFloat(rng, qMin, qMax);
   return {
     id: pending.templateId,
     description: `${pending.situation} You chose: ${choice.label.toLowerCase()}.`,
     severity: pending.severity,
     costDelta: Math.round(randFloat(rng, costMin, costMax)),
-    qualityDelta: randFloat(rng, qMin, qMax),
+    qualityDelta,
     buzzDelta: randFloat(rng, bMin, bMax),
     delayDaysDelta: Math.max(0, Math.round(randFloat(rng, dMin, dMax))),
-    impact: classifyEventImpact({ id: pending.templateId }),
+    impact: pending.impact ?? classifyEventImpact({ id: pending.templateId }),
+    // A choice that lands negative can still ripple (the situation's seed);
+    // a choice resolved positively contains it.
+    escalates: qualityDelta < 0 ? (pending.escalates ?? defaultEscalates(pending.severity, 'negative')) : 0,
   };
 }
 
@@ -538,10 +579,17 @@ export function rollDayEvent(
   script: Script | null,
   talentPool: Record<TalentProfession, Person[]>,
   rng: RandomFn,
+  // Bounded failure-chain pressure accumulated from the shoot's major setbacks
+  // so far (engine/production.ts:computeShootEscalation) - raises both the odds
+  // an event fires and the odds it's negative, so a shoot that has already gone
+  // badly is more likely to keep going badly. 0 by default (no history / first
+  // day), so callers that don't pass it are unchanged.
+  escalationRisk = 0,
 ): { event: ProductionEvent } | { pendingChoice: PendingEventChoice } | null {
   const schedulePressure = computeSchedulePressure(daysElapsed, recommendedDays);
   const fullRisk = { schedulePressure, ...staticRisk };
-  const avgRisk = (fullRisk.schedulePressure + fullRisk.moraleRisk + fullRisk.safetyRisk + fullRisk.technicalComplexity + fullRisk.budgetRisk) / 5;
+  const baseAvgRisk = (fullRisk.schedulePressure + fullRisk.moraleRisk + fullRisk.safetyRisk + fullRisk.technicalComplexity + fullRisk.budgetRisk) / 5;
+  const avgRisk = clamp(baseAvgRisk + escalationRisk, 0, 100);
 
   const dailyChance = clamp(MIN_DAILY_EVENT_CHANCE + (avgRisk / 100) * (MAX_DAILY_EVENT_CHANCE - MIN_DAILY_EVENT_CHANCE), MIN_DAILY_EVENT_CHANCE, MAX_DAILY_EVENT_CHANCE);
   if (rng() >= dailyChance) return null;
@@ -593,6 +641,8 @@ export function rollDayEvent(
       involvedTalentName: involved?.identity.name,
       involvedRole: template.involvesRole,
       replacementRole: template.offersReplacementFor,
+      impact: template.impact ?? classifyEventImpact({ id: template.id }),
+      escalates: template.escalates ?? defaultEscalates(template.severity, template.polarity),
     },
   };
 }

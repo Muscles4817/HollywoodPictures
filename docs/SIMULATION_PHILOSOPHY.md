@@ -212,11 +212,17 @@ invention.
 
 A few worked implications, to make the principles concrete:
 
-- **Reliability is a mitigation lever, not flavour.** A reliable, well-resourced
-  production absorbs the same on-set problems with less damage to the finished
-  film. Ambition raises the ceiling _and_ widens risk; preparation and
-  reliability buy that risk back down. Catastrophes remain possible, but they
-  are rare and always causally justified — never the price of ambition alone.
+- **Reliability and preparation protect the downside; they do not manufacture
+  upside.** A reliable, well-resourced production absorbs the same on-set
+  problems with less damage to the finished film, contains failure chains, and
+  makes catastrophes rare. What it must _not_ do is hand out a passive quality
+  bonus for being safe: a careful shoot's job is to _preserve_ the project's
+  potential, not to elevate it. Upside is earned only by genuinely positive
+  execution events (a career-best performance, real chemistry, an inspired
+  solve) — which can occur on any shoot, and which reliability neither creates
+  nor guarantees. Ambition raises the ceiling _and_ widens risk; preparation
+  buys that risk back down. Catastrophes remain possible, but rare and always
+  causally justified — never the price of ambition alone.
 
 - **Consequences are typed, not scalar.** A morale collapse hurts _performances_.
   A technical failure hurts _visual execution_. Lost shoot days reduce _coverage_,

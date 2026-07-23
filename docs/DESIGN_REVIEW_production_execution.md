@@ -230,6 +230,141 @@ scoring change can't retroactively alter an old film's numbers.
   `MAX_MITIGATION`, star thresholds) live at the top of
   `engine/productionExecution.ts`; re-measure any change with the diagnostic.
 
+---
+
+# Recalibration pass (player-side validation)
+
+A focused calibration pass after the initial wiring, before any rival work. The
+goal: make careful production _preserve_ a project (not passively elevate it),
+make reckless production genuinely dangerous, and drive the tails from causal
+event histories rather than a bigger score roll.
+
+## Event severity tiers & consequence routing
+
+The event bank was audited. Existing severe events were **strengthened** (rather
+than adding many new events) so a shoot that rolls a genuine disaster feels it:
+
+| tier | example events | quality hit (per event) | escalates |
+|------|----------------|------------------------:|----------:|
+| mild | a nice take, a minor wrinkle | ~±2…6 | 0 |
+| meaningful setback | scene cut for time, no-chemistry leads | ~−7…−11 | 0.25–0.4 |
+| major failure | week of unusable footage, stunt hospitalisation, walk-off, VFX rebuild, set collapse | ~−12…−16 | 0.5–0.8 |
+| catastrophic chain | any major failure that seeds further trouble (below) | compounding | — |
+
+Every template now **owns** its consequence: an explicit `impact` (which
+finished-film department it shapes) and an `escalates` seed (downstream
+pressure). Genre and risk-dimension banks are tagged by their dominant
+department via `tagImpact()`, with per-template inline overrides (e.g. "a week
+of unusable footage" sits in the technical bank but declares `impact: 'coverage'`
+because lost footage is a coverage problem, not a look problem). The id-based
+`classifyEventImpact` is now only an internal fallback for a stray untagged
+template — the definitions are the primary type system.
+
+## Bounded failure chains
+
+`computeShootEscalation(events, resilience)` (engine/production.ts) reads the
+recorded history and returns extra daily risk fed to `rollDayEvent`: a shoot
+that has already suffered major setbacks is more likely to suffer more. It is:
+
+- **causal** — pure read of recorded events, never a new roll;
+- **bounded** — capped at `MAX_ESCALATION_RISK` (22), so one mishap can't doom a
+  film and there is no uncontrollable spiral;
+- **mitigable** — dampened by resilience (reliable, well-resourced productions
+  contain trouble), so poor preparation makes containment harder.
+
+The chain is realised as _more negative events in the history_, which the
+execution model already reads — so the tail is legible (every event is shown),
+never a hidden multiplier.
+
+## Careful vs reckless calibration
+
+Positive execution sensitivity was cut well below negative, and the `strong`/
+`exceptional` thresholds raised, so **upside must be earned by genuine positive
+events** — reliability/contingency no longer buy a passive bonus. From the
+recalibrated diagnostic (500 excellent projects × 3 resourcing cohorts; the
+_same_ excellent script/director/cast, only resourcing varied):
+
+| cohort | mean Δ | worst | P(lose≥3) | P(≥5) | P(≥8) | P(≥10) | P(gain≥3) | catastrophic | strong+ |
+|--------|-------:|------:|----------:|------:|------:|-------:|----------:|-------------:|--------:|
+| careful  | +1.2 | −6.7 | 1.0% | 0.2% | 0.0% | 0.0% | 10.8% | 0.0% | 2.2% |
+| typical  | +0.2 | −7.6 | 6.4% | 1.4% | 0.0% | 0.0% | 3.4% | 0.6% | 0.4% |
+| reckless | −1.9 | −14.2 | 32.0% | 17.6% | 6.4% | 2.2% | 1.2% | 12.8% | 0.0% |
+
+Quality band of the finished film (data/reviewBlurbs.ts:`reviewBand`), showing
+the same excellent project pushed down the scale by a bad shoot:
+
+| cohort | poor | mixed | solid | excellent |
+|--------|-----:|------:|------:|----------:|
+| careful  | 0.2% | 40.8% | 57.4% | 1.6% |
+| reckless | 3.4% | 56.0% | 40.4% | 0.2% |
+
+Behavioural read (the acceptance criteria, not a target stdev):
+
+- **Careful protects an important project** — near-zero catastrophe, 1% chance
+  of even a 3-point loss, and no broad passive bonus (its small mean lift comes
+  only from genuine positive events it happens to roll, P(gain≥5) ≈ 0).
+- **Reckless is genuinely dangerous** — a third of reckless shoots shed ≥3
+  points, ~18% shed ≥5, ~6% shed ≥8, and 12.8% are outright catastrophic; the
+  worst case (−14) drags an excellent project down two quality bands. Dangerous
+  enough to change how you'd resource a film you care about.
+- **Upside is earned, not passive** — reaching `strong`/`exceptional` requires
+  concentrated positive execution (career-best performances, an inspired cut),
+  which no amount of safety guarantees.
+- The tempting _upside_ of ambition comes from ambitious **scope** (the spend
+  dials raise the baseline production score / ceiling), while reckless
+  **resourcing** (thin contingency, unreliable talent) is pure downside — so
+  ambition is a real bet, not a free win.
+
+## Production score vs execution (no double-count)
+
+After events were removed from the production score's old flat path, the four
+concepts are cleanly distinct:
+
+- **Production (baseline capability)** — `computeProductionScore`, the dials-
+  driven potential your _budget_ bought (contingency, set, effects, shooting
+  pace). Retained and displayed in the Department Breakdown, relabelled in the
+  UI copy as the baseline the department _brought_ to the film. Feeds the
+  footage chain and the audience score, as before.
+- **Coverage** — how much usable footage the shoot captured (shootingRatio +
+  coverage-impact events), which caps the edit.
+- **Production execution** — how well the shoot _realised_ that baseline
+  (the typed modifiers), shown in the separate Production Execution card.
+- **Post-production (final department outcome)** — the edit, capped by coverage
+  and scaled by execution.
+
+The blunt, display-only "On-Set Events" score bar (superseded by the richer
+execution card) was removed from the player UI; it remains on `FilmResults` for
+the dev Outcome Inspector.
+
+## Player inspection
+
+The Production Execution card stays compact by default (stars + headline +
+causal sentence + the top couple of causes). A large deviation exposes an
+expandable **"What happened on set"** breakdown: every major effect (named
+event, tinted by direction) under _Major effects_, and, when reliable leadership
+/ contingency demonstrably absorbed damage, a _Mitigation_ note. No raw numeric
+modifiers appear in any of it. Small, normal shoots never expand into a wall of
+text.
+
+## Recalibration test coverage
+
+`productionExecutionCalibration.test.ts` adds behavioural tests: careful
+mitigates but never boosts above neutral; a no-event shoot is reliability-
+invariant; positive execution requires positive causes; major events damage the
+right department and materially the film; escalation is bounded and resilience-
+dampened; an excellent project can be ruined by a catastrophic shoot; a poor
+screenplay can't be executed into a masterpiece; Script/Direction/Production
+retain distinct leverage (script's own range exceeds the shoot's swing, so
+execution hasn't swallowed the model); and event definitions own their impact.
+
+## Save policy note
+
+Per `CLAUDE.md`, the game is pre-launch and save compatibility is out of scope;
+these schema additions (`impact`/`escalates` on events, `productionExecution`
+on results) were made freely without migration work.
+
+---
+
 ## Recommended next phase
 
 **Phase 2 — rival execution resolver.** Give rivals a synthesized shoot (events

@@ -1,68 +1,75 @@
 /**
- * Empirical diagnostic for Production Execution (Phase 1). Simulates many
- * player-style shoots headlessly - the real risk model + real per-day event
- * rolls (engine/production.ts) - then scores each film twice: once with the
- * recorded execution history, once with a neutral profile (the counterfactual
- * "execution doesn't matter" world). Reports whether execution actually widened
- * the distribution, made downside real, kept upside possible, and whether
- * reliability mitigates.
+ * Empirical diagnostic for Production Execution (Phase 1, recalibrated).
+ * Simulates many player shoots headlessly - the real risk model, real per-day
+ * event rolls, and bounded failure chains (engine/production.ts) - then scores
+ * each film with the recorded execution history. Uses a fixed EXCELLENT
+ * pre-production project so the question under test is isolated:
  *
- * Opt-in (analysis, not assertion):
+ *   Take an excellent script + director + cast; vary only production planning
+ *   and execution risk. How much can the shoot preserve, elevate, or damage it?
+ *
+ * Reports full distributions (not just means), band crossings on the game's own
+ * quality scale (data/reviewBlurbs.ts:reviewBand), and downside/upside
+ * probabilities, per resourcing cohort.
+ *
+ * Opt-in:
  *   PROD_EXEC_DIAGNOSTIC=1 npx vitest run src/engine/productionExecution.diagnostic.test.ts --disable-console-intercept
  */
 import { describe, it } from 'vitest';
 import { buildReadyDraft } from '../state/testFixtures';
-import { computeStaticProductionRisk, computeRecommendedShootDays, rollDayEvent, resolveEventChoice } from './production';
+import { computeStaticProductionRisk, computeRecommendedShootDays, computeShootEscalation, rollDayEvent, resolveEventChoice } from './production';
 import { computeQualityBreakdown } from './scoring';
-import { computeExecutionProfile, neutralExecutionProfile, summarizeExecution } from './productionExecution';
+import { computeExecutionProfile, computeExecutionResilience, neutralExecutionProfile, summarizeExecution } from './productionExecution';
 import { generateTalentPool } from './talentGenerator';
+import { reviewBand, type ReviewBand } from '../data/reviewBlurbs';
 import { withRng, type RandomFn } from './random';
-import type { ProductionEvent, TalentAssignment } from '../types';
+import type { FilmDraft, Person, ProductionEvent } from '../types';
 
-const SEEDS = 400;
-type Cohort = 'typical' | 'careful' | 'reckless';
-const COHORTS: Cohort[] = ['typical', 'careful', 'reckless'];
+const SEEDS = 500;
+type Cohort = 'careful' | 'typical' | 'reckless';
+const COHORTS: Cohort[] = ['careful', 'typical', 'reckless'];
 
 interface Sample {
-  cohort: Cohort;
   qualityWith: number;
   qualityNeutral: number;
   delta: number;
   rating: string;
-  avgReliability: number;
+  eventCount: number;
 }
 
-function avgReliability(talent: TalentAssignment[]): number {
-  return talent.reduce((s, a) => s + a.person.reputation.reliability, 0) / Math.max(talent.length, 1);
+// Force an excellent, well-matched pre-production package so the shoot is the
+// only variable. Boost the key creative craft scores and cast fit inputs to the
+// top of their ranges; the neutral (no-execution) quality lands high.
+function excellentDraft(rng: RandomFn): FilmDraft {
+  const draft = buildReadyDraft(rng);
+  const script = draft.script!;
+  const boostedScript = { ...script, originality: 92, structure: 92, characters: 92, dialogue: 92 };
+  return { ...draft, script: boostedScript };
 }
 
-// Careful vs reckless are the SAME creative project resourced differently -
-// the decisions that create (or contain) execution risk. Careful: reliable
-// leadership + deep contingency. Reckless: unreliable cast + a thin reserve on
-// an over-ambitious spend. This is variance emerging from decisions (Principle
-// 1/6), not an injected randomness knob.
-function applyCohort(draft: ReturnType<typeof buildReadyDraft>, cohort: Cohort): ReturnType<typeof buildReadyDraft> {
-  if (cohort === 'typical') return draft;
-  const reliability = cohort === 'careful' ? 92 : 22;
+// Careful vs reckless = the same excellent project resourced differently.
+function applyCohort(draft: FilmDraft, cohort: Cohort): FilmDraft {
+  const reliability = cohort === 'careful' ? 92 : cohort === 'typical' ? 60 : 22;
   const talent = draft.talent.map((a) => ({ ...a, person: { ...a.person, reputation: { ...a.person.reputation, reliability } } }));
-  const contingencyAmount = cohort === 'careful' ? 4_000_000 : 150_000;
+  const contingencyAmount = cohort === 'careful' ? 4_000_000 : cohort === 'typical' ? 1_000_000 : 150_000;
   return { ...draft, talent, productionChoices: { ...draft.productionChoices!, contingencyAmount } };
 }
 
-/** Drive one realistic shoot day-by-day, auto-resolving interactive events with a random choice. */
 function runOneShoot(seed: number, cohort: Cohort): Sample | null {
   return withRng(seed, (rng: RandomFn): Sample | null => {
-    const draft = applyCohort(buildReadyDraft(rng), cohort);
+    const draft = applyCohort(excellentDraft(rng), cohort);
     if (!draft.script || !draft.genre || !draft.productionChoices) return null;
-    const talentPool = generateTalentPool(rng);
+    const talentPool: Record<string, Person[]> = generateTalentPool(rng);
     const staticRisk = computeStaticProductionRisk(draft.talent, draft.script, draft.productionChoices, draft.genre);
     const recommendedDays = computeRecommendedShootDays(draft.talent, draft.script, draft.productionChoices);
+    const resilience = computeExecutionResilience(draft.talent, draft.productionChoices);
 
     const events: ProductionEvent[] = [];
     const usedIds = new Set<string>();
     let extraDays = 0;
     for (let day = 1; day <= recommendedDays; day++) {
-      const rolled = rollDayEvent(staticRisk, day, recommendedDays, draft.genre, usedIds, draft.talent, draft.script, talentPool, rng);
+      const escalation = computeShootEscalation(events, resilience);
+      const rolled = rollDayEvent(staticRisk, day, recommendedDays, draft.genre, usedIds, draft.talent, draft.script, talentPool as never, rng, escalation);
       if (!rolled) continue;
       if ('event' in rolled) {
         events.push(rolled.event);
@@ -77,21 +84,12 @@ function runOneShoot(seed: number, cohort: Cohort): Sample | null {
       }
     }
     const shootingRatio = (recommendedDays + extraDays) / recommendedDays;
-
     const withProfile = computeExecutionProfile({ events, shootingRatio, talent: draft.talent, productionChoices: draft.productionChoices });
     const q = (profile: ReturnType<typeof computeExecutionProfile>) =>
       computeQualityBreakdown(draft.script!, draft.talent, draft.genre!, draft.productionChoices!, draft.postProductionChoices!, events, shootingRatio, 0, profile).qualityScore;
-
     const qualityWith = q(withProfile);
     const qualityNeutral = q(neutralExecutionProfile(shootingRatio));
-    return {
-      cohort,
-      qualityWith,
-      qualityNeutral,
-      delta: qualityWith - qualityNeutral,
-      rating: summarizeExecution(withProfile).rating,
-      avgReliability: avgReliability(draft.talent),
-    };
+    return { qualityWith, qualityNeutral, delta: qualityWith - qualityNeutral, rating: summarizeExecution(withProfile).rating, eventCount: events.length };
   }).result;
 }
 
@@ -106,49 +104,55 @@ function share(n: number, total: number): string { return total ? `${((n / total
 
 const enabled = Boolean((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.PROD_EXEC_DIAGNOSTIC);
 
-describe.skipIf(!enabled)('Production Execution diagnostic', () => {
-  it('reports the distribution-widening effect of production execution', () => {
-    const byCohort: Record<Cohort, Sample[]> = { typical: [], careful: [], reckless: [] };
+describe.skipIf(!enabled)('Production Execution diagnostic (excellent project x resourcing)', () => {
+  it('reports full distributions, band crossings, and downside/upside probabilities', () => {
+    const byCohort: Record<Cohort, Sample[]> = { careful: [], typical: [], reckless: [] };
     for (let s = 0; s < SEEDS; s++) {
       for (const cohort of COHORTS) {
-        const sample = runOneShoot(5000 + s, cohort);
+        const sample = runOneShoot(7000 + s, cohort);
         if (sample) byCohort[cohort].push(sample);
       }
     }
-    const all = COHORTS.flatMap((c) => byCohort[c]);
 
     const lines: string[] = [];
-    lines.push(`\n=== PRODUCTION EXECUTION DIAGNOSTIC (${SEEDS} projects x ${COHORTS.length} resourcing cohorts) ===\n`);
+    lines.push(`\n=== PRODUCTION EXECUTION DIAGNOSTIC - EXCELLENT PROJECT (${SEEDS} projects x ${COHORTS.length} cohorts) ===`);
+    lines.push('Same excellent script/director/cast; only production resourcing + execution risk vary.\n');
 
-    lines.push('FINISHED QUALITY BY RESOURCING DECISION (same creative projects, resourced differently)');
-    lines.push(`  ${'cohort'.padEnd(10)} ${'mean'.padStart(6)} ${'stdev'.padStart(6)} ${'p10'.padStart(5)} ${'p50'.padStart(5)} ${'p90'.padStart(5)} ${'min'.padStart(5)} ${'max'.padStart(5)}`);
+    lines.push('FINISHED QUALITY DISTRIBUTION');
+    lines.push(`  ${'cohort'.padEnd(9)} ${'mean'.padStart(5)} ${'sd'.padStart(4)} ${'min'.padStart(4)} ${'p5'.padStart(4)} ${'p10'.padStart(4)} ${'p25'.padStart(4)} ${'med'.padStart(4)} ${'p75'.padStart(4)} ${'p90'.padStart(4)} ${'p95'.padStart(4)} ${'max'.padStart(4)}`);
     for (const c of COHORTS) {
-      const xs = byCohort[c].map((s) => s.qualityWith);
-      lines.push(`  ${c.padEnd(10)} ${mean(xs).toFixed(1).padStart(6)} ${stdev(xs).toFixed(1).padStart(6)} ${pctile(xs, 10).toFixed(0).padStart(5)} ${pctile(xs, 50).toFixed(0).padStart(5)} ${pctile(xs, 90).toFixed(0).padStart(5)} ${Math.min(...xs).toFixed(0).padStart(5)} ${Math.max(...xs).toFixed(0).padStart(5)}`);
+      const x = byCohort[c].map((s) => s.qualityWith);
+      lines.push(`  ${c.padEnd(9)} ${mean(x).toFixed(1).padStart(5)} ${stdev(x).toFixed(1).padStart(4)} ${Math.min(...x).toFixed(0).padStart(4)} ${pctile(x, 5).toFixed(0).padStart(4)} ${pctile(x, 10).toFixed(0).padStart(4)} ${pctile(x, 25).toFixed(0).padStart(4)} ${pctile(x, 50).toFixed(0).padStart(4)} ${pctile(x, 75).toFixed(0).padStart(4)} ${pctile(x, 90).toFixed(0).padStart(4)} ${pctile(x, 95).toFixed(0).padStart(4)} ${Math.max(...x).toFixed(0).padStart(4)}`);
     }
 
-    lines.push('\nEXECUTION EFFECT vs THE NEUTRAL COUNTERFACTUAL (quality with execution - quality if execution were cosmetic)');
-    lines.push(`  ${'cohort'.padEnd(10)} ${'mean'.padStart(6)} ${'stdev'.padStart(6)} ${'drop'.padStart(6)} ${'lift'.padStart(6)}  disappoint(<-3)  overperform(>+3)`);
+    lines.push('\nEXECUTION EFFECT vs NEUTRAL (finished quality minus quality-if-execution-were-cosmetic)');
+    lines.push(`  ${'cohort'.padEnd(9)} ${'mean'.padStart(6)} ${'worst'.padStart(6)} ${'best'.padStart(6)}   P(lose>=3) P(>=5) P(>=8) P(>=10)   P(gain>=3) P(>=5)`);
     for (const c of COHORTS) {
       const d = byCohort[c].map((s) => s.delta);
-      lines.push(`  ${c.padEnd(10)} ${mean(d).toFixed(2).padStart(6)} ${stdev(d).toFixed(2).padStart(6)} ${Math.min(...d).toFixed(1).padStart(6)} ${Math.max(...d).toFixed(1).padStart(6)}  ${share(d.filter((x) => x < -3).length, d.length).padStart(14)}  ${share(d.filter((x) => x > 3).length, d.length).padStart(15)}`);
+      const n = d.length;
+      lines.push(`  ${c.padEnd(9)} ${mean(d).toFixed(2).padStart(6)} ${Math.min(...d).toFixed(1).padStart(6)} ${Math.max(...d).toFixed(1).padStart(6)}   ${share(d.filter((x) => x <= -3).length, n).padStart(9)} ${share(d.filter((x) => x <= -5).length, n).padStart(6)} ${share(d.filter((x) => x <= -8).length, n).padStart(6)} ${share(d.filter((x) => x <= -10).length, n).padStart(7)}   ${share(d.filter((x) => x >= 3).length, n).padStart(9)} ${share(d.filter((x) => x >= 5).length, n).padStart(6)}`);
     }
 
-    lines.push('\nEXECUTION RATING FREQUENCY BY COHORT');
-    const ratings = ['catastrophic', 'troubled', 'solid', 'strong', 'exceptional'];
-    lines.push(`  ${'cohort'.padEnd(10)} ${ratings.map((r) => r.slice(0, 5).padStart(7)).join('')}`);
+    const BANDS: ReviewBand[] = ['savaged', 'poor', 'mixed', 'solid', 'excellent', 'triumph'];
+    lines.push('\nQUALITY BAND OF THE FINISHED FILM (data/reviewBlurbs.ts:reviewBand)');
+    lines.push(`  ${'cohort'.padEnd(9)} ${BANDS.map((b) => b.slice(0, 5).padStart(7)).join('')}`);
     for (const c of COHORTS) {
-      lines.push(`  ${c.padEnd(10)} ${ratings.map((r) => share(byCohort[c].filter((s) => s.rating === r).length, byCohort[c].length).padStart(7)).join('')}`);
+      const bands = byCohort[c].map((s) => reviewBand(s.qualityWith));
+      lines.push(`  ${c.padEnd(9)} ${BANDS.map((b) => share(bands.filter((x) => x === b).length, bands.length).padStart(7)).join('')}`);
     }
 
-    const neutralStdev = stdev(all.map((s) => s.qualityNeutral));
-    const execStdev = stdev(all.map((s) => s.qualityWith));
+    lines.push('\nEXECUTION RATING FREQUENCY');
+    const ratings = ['catastrophic', 'troubled', 'solid', 'strong', 'exceptional'];
+    lines.push(`  ${'cohort'.padEnd(9)} ${ratings.map((r) => r.slice(0, 5).padStart(8)).join('')}   avgEvents`);
+    for (const c of COHORTS) {
+      lines.push(`  ${c.padEnd(9)} ${ratings.map((r) => share(byCohort[c].filter((s) => s.rating === r).length, byCohort[c].length).padStart(8)).join('')}   ${mean(byCohort[c].map((s) => s.eventCount)).toFixed(1)}`);
+    }
+
     lines.push('\nHEADLINE');
-    lines.push(`  Overall finished-quality stdev: neutral ${neutralStdev.toFixed(1)} -> with execution ${execStdev.toFixed(1)}`);
     lines.push(`  Careful vs reckless mean quality gap: ${(mean(byCohort.careful.map((s) => s.qualityWith)) - mean(byCohort.reckless.map((s) => s.qualityWith))).toFixed(1)} pts`);
-    lines.push(`  Reliability mitigation: reckless mean execution delta ${mean(byCohort.reckless.map((s) => s.delta)).toFixed(2)} vs careful ${mean(byCohort.careful.map((s) => s.delta)).toFixed(2)}`);
+    lines.push(`  Reckless downside stdev ${stdev(byCohort.reckless.map((s) => s.qualityWith)).toFixed(1)} vs careful ${stdev(byCohort.careful.map((s) => s.qualityWith)).toFixed(1)}`);
 
     // eslint-disable-next-line no-console
     console.log(lines.join('\n'));
-  }, 120_000);
+  }, 180_000);
 });

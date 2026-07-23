@@ -160,7 +160,6 @@ function ReceptionSection({ film }: { film: Film }) {
         <ScoreBar label="Acting" value={results.actingScore} />
         <ScoreBar label="Production" value={results.productionScore} />
         <ScoreBar label="Post-Production" value={results.postProductionScore} />
-        <ScoreBar label="On-Set Events" value={results.eventsScore} />
       </div>
       {results.productionExecution && <ProductionExecutionSummary outcome={results.productionExecution} />}
     </div>

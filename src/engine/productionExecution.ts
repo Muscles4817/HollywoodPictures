@@ -114,10 +114,16 @@ const MAX_MITIGATION = 0.5;
 // more than an equally-eventful smooth one helps), and floors sit further from
 // 1 than ceilings, so downside is real but upside stays meaningful. Tuned
 // against the Phase 1 tests + diagnostic; rebalance here.
+// Positive sensitivity is deliberately much smaller than negative. Upside must
+// be *earned* by genuinely strong positive events (a career-best take, real
+// chemistry) - a calm, careful shoot's scattering of small positives should
+// net close to neutral (preserve the film, don't passively elevate it). The
+// asymmetry is the point: reliability/contingency protect the downside; they do
+// not manufacture excellence (docs/SIMULATION_PHILOSOPHY.md).
 interface DeptConversion { pos: number; neg: number; floor: number; ceil: number; }
-const PERFORMANCE_CONV: DeptConversion = { pos: 0.0090, neg: 0.0260, floor: 0.50, ceil: 1.20 };
-const POST_CONV: DeptConversion = { pos: 0.0080, neg: 0.0225, floor: 0.48, ceil: 1.18 };
-const SCRIPT_CONV: DeptConversion = { pos: 0.0060, neg: 0.0140, floor: 0.78, ceil: 1.13 };
+const PERFORMANCE_CONV: DeptConversion = { pos: 0.0072, neg: 0.0270, floor: 0.50, ceil: 1.16 };
+const POST_CONV: DeptConversion = { pos: 0.0062, neg: 0.0235, floor: 0.48, ceil: 1.14 };
+const SCRIPT_CONV: DeptConversion = { pos: 0.0042, neg: 0.0150, floor: 0.78, ceil: 1.10 };
 // Quality points of lost/gained coverage -> shooting-ratio adjustment fed to the
 // edit ceiling. Negative coverage events (a scene cut for time, a week of
 // unusable footage) leave the editor less to work with.
@@ -237,11 +243,15 @@ const IMPACT_LABEL: Record<ProductionExecutionImpact, string> = {
 
 type Rating = ProductionExecutionOutcome['rating'];
 
+// Thresholds are asymmetric: 'strong'/'exceptional' sit further from zero than
+// 'troubled'/'catastrophic', so a preserved (near-neutral) shoot reads as
+// 'solid' rather than being handed 'strong' for a few minor positives. Upside
+// ratings require genuinely strong positive execution.
 function ratingForOverall(overall: number): { rating: Rating; stars: number } {
-  if (overall <= -0.16) return { rating: 'catastrophic', stars: 1 };
-  if (overall <= -0.05) return { rating: 'troubled', stars: 2 };
-  if (overall < 0.05) return { rating: 'solid', stars: 3 };
-  if (overall < 0.14) return { rating: 'strong', stars: 4 };
+  if (overall <= -0.18) return { rating: 'catastrophic', stars: 1 };
+  if (overall <= -0.06) return { rating: 'troubled', stars: 2 };
+  if (overall < 0.10) return { rating: 'solid', stars: 3 };
+  if (overall < 0.20) return { rating: 'strong', stars: 4 };
   return { rating: 'exceptional', stars: 5 };
 }
 
@@ -264,12 +274,14 @@ const HEADLINE: Record<Rating, string> = {
 export function summarizeExecution(profile: ExecutionProfile): ProductionExecutionOutcome {
   const { rating, stars } = ratingForOverall(profile.overall);
 
-  // Rank the events that actually moved the needle, strongest first.
+  // Rank the events that actually moved the needle, strongest first. All of
+  // them are kept (the expandable breakdown); the compact card renders only the
+  // top couple, so a smooth shoot never becomes a wall of text.
   const ranked = [...profile.contributions]
     .filter((c) => Math.abs(c.mitigatedDelta) >= 2)
     .sort((a, b) => Math.abs(b.mitigatedDelta) - Math.abs(a.mitigatedDelta));
 
-  const causes = ranked.slice(0, 3).map((c) => ({
+  const causes = ranked.map((c) => ({
     department: c.impact,
     direction: (c.mitigatedDelta >= 0 ? 'positive' : 'negative') as 'positive' | 'negative',
     text: c.event.description,
@@ -283,6 +295,7 @@ export function summarizeExecution(profile: ExecutionProfile): ProductionExecuti
     headline: HEADLINE[rating],
     detail,
     causes,
+    mitigation: buildMitigation(profile),
     modifiers: {
       performanceCapture: round2(profile.performanceCapture),
       postExecution: round2(profile.postExecution),
@@ -295,6 +308,28 @@ export function summarizeExecution(profile: ExecutionProfile): ProductionExecuti
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+// The most negative points a resilient production is credited with having
+// absorbed before the mitigation note appears (below this, the shoot wasn't
+// troubled enough for containment to be worth calling out).
+const MITIGATION_MIN_ABSORBED = 6;
+
+/**
+ * What reliable leadership / contingency demonstrably contained. Only surfaced
+ * when the production was both genuinely resilient AND actually took negative
+ * hits - so it reads as "your preparation paid off here", never as unearned
+ * credit on a smooth shoot. Estimates the damage absorbed from the gap between
+ * the raw and mitigated negative deltas.
+ */
+function buildMitigation(profile: ExecutionProfile): string[] {
+  if (profile.resilience < 0.5) return [];
+  let absorbed = 0;
+  for (const c of profile.contributions) {
+    if (c.event.qualityDelta < 0) absorbed += c.mitigatedDelta - c.event.qualityDelta; // >= 0
+  }
+  if (absorbed < MITIGATION_MIN_ABSORBED) return [];
+  return ['Reliable leadership and contingency reserves contained the damage from the shoot’s setbacks.'];
 }
 
 /** A one-line causal read: the strongest positive and strongest negative thread of the shoot, in plain language. */

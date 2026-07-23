@@ -92,12 +92,16 @@ const CATASTROPHIC: ProductionEvent[] = [
   ev(-9, { impact: 'visual', description: 'A key effects sequence never came together.' }),
   ev(-7, { impact: 'general' }),
 ];
+// A genuinely exceptional shoot - concentrated, strong positive execution
+// (career-best performances, an inspired cut). Upside must be earned like this;
+// a scattering of minor positives should not reach these tiers.
 const EXCEPTIONAL: ProductionEvent[] = [
-  ev(9, { impact: 'performances', description: 'The lead delivered a career-best performance.' }),
-  ev(7, { impact: 'performances' }),
-  ev(8, { impact: 'pacing' }),
-  ev(8, { impact: 'visual' }),
-  ev(6, { impact: 'general' }),
+  ev(12, { impact: 'performances', description: 'The lead delivered a career-best performance.' }),
+  ev(11, { impact: 'performances' }),
+  ev(9, { impact: 'performances' }),
+  ev(12, { impact: 'pacing' }),
+  ev(11, { impact: 'visual' }),
+  ev(9, { impact: 'general' }),
 ];
 
 // ---------------------------------------------------------------------------
@@ -174,6 +178,7 @@ describe('summarizeExecution - legible, player-facing, no raw stats', () => {
     const good = summarizeExecution(computeExecutionProfile(profileInput(EXCEPTIONAL)));
     expect(bad.rating).toBe('catastrophic');
     expect(bad.stars).toBe(1);
+    // Earned upside reaches the strong/exceptional tiers (4-5 stars).
     expect(good.stars).toBeGreaterThanOrEqual(4);
   });
 

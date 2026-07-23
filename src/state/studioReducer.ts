@@ -6,7 +6,8 @@ import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } fr
 import { professionForProductionRole } from '../data/helpers';
 import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequirements';
 import { personMeetsCharacterGender } from '../engine/casting';
-import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, resolveEventChoice } from '../engine/production';
+import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeShootEscalation, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, resolveEventChoice } from '../engine/production';
+import { computeExecutionResilience } from '../engine/productionExecution';
 import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
 import { promoteFilmToIp, ipForSourceFilm } from '../engine/intellectualProperty';
 import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
@@ -1485,6 +1486,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const staticRisk = computeStaticProductionRisk(d.talent, d.script, d.productionChoices, d.genre);
       const usedIds = new Set(d.photography.events.map((e) => e.id));
       const backgrounded = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
+      // Bounded failure chains: prior major setbacks raise today's risk,
+      // contained by the production's resilience (reliability + contingency).
+      const escalationRisk = computeShootEscalation(
+        d.photography.events,
+        computeExecutionResilience(d.talent, d.productionChoices),
+      );
 
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
         const rolled = rollDayEvent(
@@ -1497,6 +1504,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           d.script,
           state.talentPool,
           rng,
+          escalationRisk,
         );
         if (rolled && 'pendingChoice' in rolled) {
           const totalDaysAfter = state.totalDays + 1;
