@@ -1106,6 +1106,40 @@ textarea, input, select {
   cursor: default;
 }
 
+/* Candidate reasoning chips (docs/DESIGN_REVIEW_casting_ux.md) - why the sim
+   rates a candidate (positive draws) and the decision-critical
+   warnings/blockers, surfaced before the offer rather than after it. */
+.candidate-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 6px 0 0;
+}
+
+.candidate-signal {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72em;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.candidate-signal--positive {
+  background: var(--success-bg, color-mix(in srgb, var(--green) 15%, transparent));
+  color: var(--green);
+}
+
+.candidate-signal--warning {
+  background: color-mix(in srgb, var(--amber, #b8860b) 15%, transparent);
+  color: var(--amber, #b8860b);
+}
+
+.candidate-signal--blocked {
+  background: color-mix(in srgb, var(--red) 15%, transparent);
+  color: var(--red);
+}
+
 /* --- Talent Card UX Redesign ---
    "Should I hire this person" answered in about three seconds: a single
    elevated verdict block as the card's focal point, a conversational

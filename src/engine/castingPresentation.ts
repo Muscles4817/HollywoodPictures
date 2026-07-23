@@ -47,6 +47,49 @@ export function describeApplicantInterest(factors: ActorAppealFactors, directorN
   return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}.`;
 }
 
+/** A compact, scannable reason chip for a candidate card - a positive draw, a soft warning, or a hard blocker. */
+export interface CandidateSignal {
+  label: string;
+  tone: 'positive' | 'warning' | 'blocked';
+}
+
+// Short chip labels for the positive appeal factors - the badge form of
+// describeApplicantInterest's sentence. attachmentMomentum names the actual
+// attached director when there is one (the same personalization the sentence
+// does), so "who they're drawn to" is concrete, not "someone."
+const STRENGTH_LABELS: Record<keyof ActorAppealFactors, string> = {
+  suitability: 'Great fit',
+  salaryFit: 'Happy with the pay',
+  attachmentMomentum: 'Likes the lineup',
+  brandFit: 'Likes your studio',
+  prestigeFit: 'Likes your studio',
+};
+
+/**
+ * The candidate's standout *strengths*, as compact chips - "why this is a good
+ * pick," surfaced before the player commits rather than buried in a blended
+ * score (docs/DESIGN_REVIEW_casting_ux.md: the sim already knows why someone is
+ * a strong candidate; expose it). Reads the exact same ActorAppealFactors the
+ * acceptance math uses, keeps only notable ones (the APPEAL_NOTABLE bar
+ * describeApplicantInterest already uses), strongest first, capped so the card
+ * stays scannable. brandFit/prestigeFit are complementary halves of one
+ * reputation read, so they collapse into a single "Likes your studio" chip.
+ */
+export function candidateStrengthSignals(factors: ActorAppealFactors, directorName?: string, max = 3): CandidateSignal[] {
+  const reputationFit = factors.brandFit + factors.prestigeFit;
+  const entries = [
+    { value: factors.suitability, label: STRENGTH_LABELS.suitability },
+    { value: factors.salaryFit, label: STRENGTH_LABELS.salaryFit },
+    { value: factors.attachmentMomentum, label: directorName ? `Keen to work with ${directorName}` : STRENGTH_LABELS.attachmentMomentum },
+    { value: reputationFit, label: STRENGTH_LABELS.brandFit },
+  ];
+  return entries
+    .filter((e) => e.value >= APPEAL_NOTABLE)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, max)
+    .map((e) => ({ label: e.label, tone: 'positive' as const }));
+}
+
 const REJECTION_LABELS: Record<OfferRejectionReason, string> = {
   suitability: "doesn't feel right for the role",
   'brand-prestige-mismatch': "isn't where they want their name attached right now",
