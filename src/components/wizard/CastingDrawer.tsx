@@ -14,6 +14,8 @@ import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
 import { TalentStats } from '../common/TalentStats';
+import { CheckboxToggle } from '../common/CheckboxToggle';
+import { isAvailableImmediately } from '../../engine/person';
 import type { CastingChannel, Person, Script, ScriptCharacter } from '../../types';
 
 type CastingTab = 'open-casting' | 'direct-approach';
@@ -115,6 +117,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   const { state, dispatch } = useStudio();
   const draft = deriveFocusedDraft(state)!;
   const [tab, setTab] = useState<CastingTab>('open-casting');
+  const [availableOnly, setAvailableOnly] = useState(false);
   const [lastResponse, setLastResponse] = useState<{ personName: string; response: OfferResponse } | null>(null);
 
   useEffect(() => {
@@ -193,6 +196,23 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
     9,
   ).candidates;
 
+  // "Available now only" filter: a booked actor can't actually be cast today -
+  // the offer is hard-rejected on the schedule gate (engine/castingAppeal.ts) -
+  // yet they list identically to castable ones, so hiding them cuts the list to
+  // people an offer could actually land. Someone already on this production
+  // (the current pick, or a co-lead) is never hidden. Defaults off, so the full
+  // roster is the baseline. isAvailableImmediately matches the exact reading the
+  // card shows ("Available immediately" vs "Busy until X").
+  const onThisDraftIds = new Set(draft.talent.map((a) => a.person.id));
+  const isCandidateShown = (person: Person) =>
+    !availableOnly || onThisDraftIds.has(person.id) || isAvailableImmediately(person, state.totalDays);
+  const shownApplicants = sortedApplicants.filter((a) => isCandidateShown(a.person));
+  const shownDirectCandidates = directCandidates.filter(isCandidateShown);
+  const hiddenCount =
+    tab === 'open-casting'
+      ? sortedApplicants.length - shownApplicants.length
+      : directCandidates.length - shownDirectCandidates.length;
+
   return (
     <>
       <div className="role-drawer-backdrop" onClick={onClose} />
@@ -250,6 +270,15 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
           </Button>
         </div>
 
+        {(tab === 'direct-approach' ? directCandidates.length > 0 : !!call && call.applicants.length > 0) && (
+          <CheckboxToggle
+            checked={availableOnly}
+            onChange={setAvailableOnly}
+            label="Available now only"
+            hint={availableOnly && hiddenCount > 0 ? `${hiddenCount} booked hidden` : ''}
+          />
+        )}
+
         {tab === 'open-casting' && (
           <>
             {!call ? (
@@ -274,9 +303,13 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                   <p style={{ margin: 0, color: 'var(--text-muted)' }}>
                     Casting is open - no applicants yet. Check back as time passes.
                   </p>
+                ) : shownApplicants.length === 0 ? (
+                  <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+                    Every current applicant is booked elsewhere. Turn off &ldquo;Available now only&rdquo; to see them.
+                  </p>
                 ) : (
                   <div className="grid grid-wide">
-                    {sortedApplicants.map((applicant) => (
+                    {shownApplicants.map((applicant) => (
                       <CandidateCard
                         key={applicant.person.id}
                         person={applicant.person}
@@ -304,8 +337,13 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
               Target a specific actor directly, rather than waiting for Open Casting to surface them - the same
               acceptance math applies either way.
             </p>
+            {shownDirectCandidates.length === 0 && directCandidates.length > 0 ? (
+              <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+                Every actor near this price is booked elsewhere. Turn off &ldquo;Available now only&rdquo; to see them.
+              </p>
+            ) : (
             <div className="grid grid-wide">
-              {directCandidates.map((person) => (
+              {shownDirectCandidates.map((person) => (
                 <CandidateCard
                   key={person.id}
                   person={person}
@@ -319,6 +357,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                 />
               ))}
             </div>
+            )}
           </>
         )}
       </div>

@@ -142,6 +142,67 @@ describe('CastingDrawer - dismissing an Open Casting applicant', () => {
   });
 });
 
+/** A Female-lead draft whose pool has one free and one booked (until day 400) female actor, both in the price window. */
+function stateWithMixedAvailability(): GameState {
+  return withRng(1, (rng) => {
+    const studio = createInitialStudio(50_000_000);
+    const talentPool = generateTalentPool(rng);
+    const base = generateTalentCandidates('Actor', rng, 1)[0];
+    const free = actorNamed(base, 'Fiona Free', 'Female');
+    const booked: Person = {
+      ...actorNamed(base, 'Bella Booked', 'Female'),
+      availability: { commitments: [{ projectId: 'other-film', role: 'Lead Actor', startDay: 1, endDay: 400 }] },
+    };
+    talentPool.Actor = [free, booked];
+
+    const readyDraft = buildReadyDraft(rng);
+    const leadCharacter: ScriptCharacter = { ...readyDraft.script!.cast.find((c) => c.prominence === 'Lead')!, castingGender: 'Female' };
+    const script = { ...readyDraft.script!, cast: [leadCharacter, ...readyDraft.script!.cast.filter((c) => c.id !== leadCharacter.id)] };
+    const draft = { ...readyDraft, script, talent: [], talentTargetPriceByRole: { 'Lead Actor': SALARY } };
+
+    return {
+      studio,
+      screen: 'workspace' as const,
+      projects: [playerDraftToProject(draft)],
+      focusedProjectId: draft.id,
+      projectWorkspaceSection: 'cast-and-crew' as const,
+      rngSeed: 2,
+      totalDays: 10,
+      talentPool,
+      rivalStudios: [],
+      opportunities: [],
+      nextOpportunityCheckDay: 1,
+      viewingRivalStudioName: null,
+      viewingProductionId: null,
+    };
+  }).result;
+}
+
+describe('CastingDrawer - "Available now only" filter', () => {
+  it('hides actors booked elsewhere from Direct Approach when the filter is on, and shows them when off', () => {
+    const state = stateWithMixedAvailability();
+    const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;
+    saveState(state);
+
+    render(
+      <StudioProvider>
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+
+    // By default (filter off) both the free and the booked actor are listed.
+    expect(screen.getByText('Fiona Free')).toBeInTheDocument();
+    expect(screen.getByText('Bella Booked')).toBeInTheDocument();
+
+    // Turning the filter on drops the booked actor, keeps the free one.
+    fireEvent.click(screen.getByLabelText('Available now only'));
+    expect(screen.getByText('Fiona Free')).toBeInTheDocument();
+    expect(screen.queryByText('Bella Booked')).not.toBeInTheDocument();
+  });
+});
+
 describe('CastingDrawer - Direct Approach gender filter', () => {
   it('lists only actors whose gender matches a gendered role, not every actor', () => {
     const state = stateWithFemaleLead();
