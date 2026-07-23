@@ -264,15 +264,24 @@ This philosophy is bigger than any one change. The intended order of arrival:
 
 1. **Reconnect player production execution to the finished film.** Make the
    already-recorded shoot history genuinely shape the film, with typed
-   consequences and legible causes. _(First shippable phase — see
+   consequences and legible causes. _(Done — see
    `docs/DESIGN_REVIEW_production_execution.md`.)_
 2. **Give rivals an equivalent execution resolver**, so their films inherit the
    same variance from a synthesized shoot.
-3. **Studio identity and objectives** driving rival acquisition, hiring,
+3. **Acting model: craft, direction, and the unlocked performance.** Give actors
+   a reliable floor + a director-unlockable headroom (decoupled from fame), and
+   directors a hands-on-ness that unlocks or misfires on it — so direction
+   genuinely matters, performances vary endogenously, and fame ≠ craft. Comes
+   **before** Studio Identity, which depends on a craft axis to differ on. _(See
+   `docs/DESIGN_REVIEW_acting_model.md`.)_
+4. **Studio identity and objectives** driving rival acquisition, hiring,
    resourcing, and release — so variance becomes directional per studio.
-4. **Creative disagreement as an explicit risk amplifier**, so competing
+5. **Creative disagreement as an explicit risk amplifier**, so competing
    creative visions widen the outcome distribution instead of merely subtracting
    a few points.
+
+(Phases 2 and 3 are independent and can land in either order; Studio Identity
+follows both.)
 
 Each phase should leave the simulation shippable, measurable against the
 diagnostic harness, and truer to the principles above than it was before.
