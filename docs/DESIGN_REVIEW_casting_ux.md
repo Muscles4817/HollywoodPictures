@@ -7,36 +7,58 @@ are recommendations, ordered by impact-to-effort, for follow-up.
 
 ---
 
+## The principle underneath all of this
+
+> **The simulation already knows why someone is — or isn't — a good candidate.
+> The UI should expose that reasoning *before* asking the player to decide.**
+
+Almost every issue below is an instance of the same gap: the appeal engine
+(`engine/castingAppeal.ts`) computes a rich, named breakdown for every
+candidate — how well they fit the role, whether the studio suits them, whether
+the money works, who they're drawn to, whether they can even start on time — and
+the UI mostly collapses all of it into one blended score and a single action
+button. The player is asked to commit (make an offer, spend the slot) while the
+"why" stays in the engine.
+
+The fixes aren't about adding intelligence to the game. It's already there. The
+work is **surfacing the reasoning the sim already produces** — both the negative
+gates (why an offer will fail) and, just as importantly, the positive signals
+(why this is a strong pick). That reframes the whole screen from *"prevent bad
+clicks"* to *"support good decisions."*
+
+---
+
 ## 0. The screens involved
 
 Casting lives in the **Cast & Crew** hub (`components/wizard/HireTalent.tsx`),
-which is also the project-workspace "Cast & Crew" section. It opens two
-different drawers:
+also used as the project-workspace "Cast & Crew" section. It opens two drawers:
 
 - **`RoleHiringDrawer.tsx`** — Director and crew ("Hire").
 - **`CastingDrawer.tsx`** — actors, per named character, with **Open Casting**
   and **Direct Approach** tabs ("Cast" / "Make Offer").
 
-Availability is a `Person.availability.commitments` list; the derived
-"booked until" is `deriveBookedUntil` (`engine/person.ts`). Whether an offer can
-land *today* is the schedule gate in `engine/castingAppeal.ts`
-(`resolveOfferResponse` rejects any non-`available` schedule).
+What the sim already computes per actor (`engine/castingAppeal.ts:
+ActorAppealFactors` + `ActorAppealResult`): `suitability` (role/character fit),
+`brandFit`/`prestigeFit` (does the studio suit them), `salaryFit` (is the money
+right), `attachmentMomentum` (drawn to who's already attached), a blended
+`overall`, plus two hard gates — `schedule` and `belowSalaryFloor`. It even has a
+plain-English renderer for the positives (`castingPresentation.ts:
+describeApplicantInterest`) and the negatives (`describeOfferRejection`).
 
 ---
 
 ## 1. Shipped in this change — "Available now only" filter
 
-**Problem it solves.** A booked person can't actually be cast/hired today, yet
-they list identically to castable ones. Both drawers now carry a **checkbox that
-hides anyone not available immediately** (`components/common/CheckboxToggle.tsx`),
-defaulting off. It uses `isAvailableImmediately(person, today)`
-(`engine/person.ts`) — the exact reading the card already shows as "Available
-immediately" vs "Busy until X", so the filter and the card can never disagree.
-Anyone already on the production is never hidden, and a filter-specific empty
-state explains when everything's been filtered out.
+Both drawers now carry a checkbox that **hides anyone not available immediately**
+(`components/common/CheckboxToggle.tsx`), defaulting off. It uses
+`isAvailableImmediately(person, today)` (`engine/person.ts`) — the exact reading
+the card already shows as "Available immediately" vs "Busy until X". Anyone
+already on the production is never hidden, and a filter-specific empty state
+explains when everything's been filtered out.
 
-This is a mitigation, not a cure, for issues **#2/#3** below — the deeper fix is
-to stop presenting doomed offers as if they were live.
+This is the first, narrow instance of the principle: it stops surfacing
+candidates the sim already knows are uncastable today. The sections below
+generalize that idea.
 
 ---
 
@@ -45,69 +67,109 @@ to stop presenting doomed offers as if they were live.
 ### P0 — Availability messaging contradicts behavior
 
 `TalentStats` tells the player, for a booked person, **"Hiring them would delay
-production by N days"** (`components/common/TalentStats.tsx`) — which reads as
-"this hire is possible, at a cost." But:
+production by N days"** — which reads as "possible, at a cost." But the sim
+treats schedule as a **hard gate** (`resolveOfferResponse` rejects any
+non-`available` schedule), and the two drawers don't even agree on the surface:
+CastingDrawer leaves the button enabled and lets the offer fail; RoleHiringDrawer
+**disables** the booked candidate outright. The `requires-delay` status exists in
+the engine as a hook for a "shift the production date" flow that doesn't exist
+yet.
 
-- In **CastingDrawer**, the Cast/Make Offer button is fully enabled, and the
-  offer is then **hard-rejected** on the schedule gate (`castingAppeal.ts:
-  resolveOfferResponse`) with "can't clear their existing commitments in time."
-- In **RoleHiringDrawer**, the same booked person is instead **disabled**
-  (`booked` → `disabled`), so you can't click at all.
+**Recommendation.** Make the copy tell the truth and pick one model:
+- *Cheapest:* change the booked-person card copy to "Unavailable — booked until
+  {date}" (drop the delay promise) and disable the Cast/Make Offer button so
+  CastingDrawer matches RoleHiringDrawer.
+- *Richer (the feature the copy implies):* build the "delay the release to fit
+  them" flow `requires-delay` was designed for.
 
-So the same shared card promises a delayed hire, while one drawer silently
-refuses the click and the other refuses the result. The `requires-delay`
-schedule status exists in the engine but has no flow behind it yet.
+This remains the right **first follow-up** after the availability filter.
 
-**Recommendation.** Pick one model and make the copy tell the truth:
-- *Cheapest:* change the card copy for a booked person to "Unavailable — booked
-  until {date}" (drop the "would delay production" promise), and disable the
-  Cast/Make Offer button for booked actors so CastingDrawer matches
-  RoleHiringDrawer.
-- *Richer (the feature the copy implies):* build the "shift the production /
-  release later to fit them" flow the `requires-delay` status was designed for,
-  so a delayed hire actually becomes possible.
+### P1 — Explain why a candidate is *recommended*, not just why they're blocked
 
-### P1 — Doomed offers look identical to live ones
+The review's negative gates (below) are only half the story. The sim already
+scores *why a candidate is strong* — `suitability`, `salaryFit` (good value),
+`attachmentMomentum` (drawn to the attached director/cast), reputation fit — and
+`describeApplicantInterest` already turns the top factors into a sentence like
+*"Drawn to the role itself and happy with the money on offer."* Today that
+reasoning is under-surfaced:
 
-Beyond availability, **Direct Approach** also lists **below-salary-floor**
-actors (Open Casting filters these out; Direct Approach doesn't), and they're
-hard-rejected too. Nothing on the card or button signals "this offer can't
-succeed as configured." The player only learns why *after* clicking.
+- On the casting card it's a single muted line derived from the **blended top
+  two factors only**; there's no at-a-glance read of *which* strengths a
+  candidate has (great fit? good value? wants in?).
+- `describeApplicantInterest` even personalizes the attachment factor to *"drawn
+  to working with {director}"* when a director is passed — but **CastingDrawer
+  calls it without the director** (`CastingDrawer.tsx`), so that line never
+  fires even though the drawer has the director in hand. A concrete case of the
+  sim knowing more than the UI shows.
+- The "positive why" is absent entirely from the framing of Direct Approach and
+  from any sort/label, so a genuinely great-fit, great-value candidate looks
+  identical to a mediocre one until you read the fine print.
 
-**Recommendation.** Surface the blocker pre-click: an inline "Wants more than
-you're offering" / "Booked until {date}" note and a disabled action, reusing the
-same reasons `describeOfferRejection` already produces post-hoc.
+**Recommendation.** Surface the positives as compact, scannable signals on the
+card — e.g. "Great fit," "Good value," "Wants in" (the `InterestedTalent`
+channel already flags direct interest), "Drawn to {director}" (pass the director
+into `describeApplicantInterest`). These are reads the engine already produces;
+this is presentation only.
+
+*Genuinely new sim, not just surfacing:* **chemistry / prior collaboration**
+("has worked with this director before," "good on-screen pairing") does **not**
+exist yet — `attachmentMomentum` is about *who's attached now*, not shared
+history. The codebase already anticipates a future "collaboration system"
+(`types/index.ts`), so this is the one positive signal on the wishlist that
+would need real simulation work; worth calling out as a separate, later track.
+
+### P1 — Discovery: expose browsing, sorting & filtering (search is secondary)
+
+Casting has **no discovery controls at all** beyond the price slider and the
+tab. That's the bigger gap than "no search" — most players aren't hunting a
+specific name; they're expressing an *intent*: "the best available actor I can
+afford," "someone available now," "highest appeal," "best value for the money."
+The sim already computes every key those intents would sort/filter on
+(`overall`, `salaryFit`, availability, price, fame) — they're just not exposed.
+
+**Recommendation, in order:**
+1. **Filters for the common intents** — availability (shipped), and an
+   "affordable only" filter (see below). Cheap, high-use.
+2. **A visible, switchable sort** — Appeal / Value / Price / Fame — replacing
+   today's fixed, invisible appeal-sort so the player can *browse by what they
+   care about* rather than accept one hidden ordering.
+3. **Name search as a secondary override** — genuinely useful for one job:
+   Direct Approach only shows a price-band window (`engine/talentFilter.ts`), so
+   a specific actor you want can be invisible with no way to reach them. Search
+   fixes that blind spot, but it's a targeted tool, not the headline — most
+   casting is browse-and-compare, not lookup.
+
+### P1 — Surface the blockers the sim already computed (doomed offers look live)
+
+Beyond availability, Direct Approach also lists **below-salary-floor** actors
+(Open Casting filters these out; Direct Approach doesn't), all hard-rejected on
+click. Nothing on the card signals "this offer can't succeed as configured" —
+the reason only appears *after* clicking, via `describeOfferRejection`, which
+already has the sentence ready.
+
+**Recommendation.** Show the blocker pre-click — an inline "Wants more than
+you're offering" / "Booked until {date}" note and a disabled action — reusing the
+reasons the engine already produces post-hoc.
 
 ### P1 — No affordability signal per candidate
 
 A candidate's salary shows, but it's never compared to `studio.cash` on the
-card. The only affordability signal is the hub footer ("You can't afford this so
-far", `HireTalent.tsx`). You can make an offer to someone you can't pay.
+card; the only affordability signal is the hub footer. You can make an offer to
+someone you can't pay.
 
 **Recommendation.** Flag/disable candidates whose salary would push committed
-spend past cash, on the card itself.
-
-### P1 — No search; the actor you want can be invisible
-
-Direct Approach shows up to 9 candidates inside a **price band** around your
-offered salary (`engine/talentFilter.ts`). A specific actor you're hunting won't
-appear unless the salary slider happens to sit near their price — and there's no
-search to override it. There is no search/sort control anywhere in casting.
-
-**Recommendation.** Add a name search (at least for Direct Approach) that
-bypasses the price window, and expose the existing implicit sort (appeal / price)
-as a visible, switchable control.
+spend past cash, on the card itself — and let "affordable only" be one of the
+discovery filters above.
 
 ### P2 — Two drawers, two vocabularies, two behaviors
 
-Actors and crew are "staff the film" to the player, but use different drawers,
+Actors and crew are "staff the film" to the player but use different drawers,
 verbs ("Cast"/"Make Offer" vs "Hire"), booked-state behavior (enabled-but-fails
 vs disabled), and affordances (crew has **Pin to Compare**; actor casting does
-not). 
+not).
 
-**Recommendation.** Converge the two on one interaction contract (same
-booked-state treatment, same compare affordance), even if the browsing models
-stay distinct.
+**Recommendation.** Converge on one interaction contract (same booked-state
+treatment, same compare affordance), even if the browsing models stay distinct.
 
 ### P2 — Post-cast ergonomics
 
@@ -115,16 +177,14 @@ The drawer auto-closes ~500ms after a successful cast, with no undo and no
 moment to review who was just cast.
 
 **Recommendation.** Replace the timed auto-close with an explicit confirm/undo,
-or keep the drawer open on a "Cast ✓ — cast someone else / done" state.
+or hold on a "Cast ✓ — cast someone else / done" state.
 
 ### P2 — Mandatory vs optional roles read weakly
 
-Optionality is a small "(optional)" text label and grouping only
-(`HireTalent.tsx`); nothing strongly signals "you can't start production without
-this one."
+Optionality is a small "(optional)" text label and grouping only; nothing
+strongly signals "you can't start production without this one."
 
-**Recommendation.** Give required-but-unfilled roles a clear visual state
-distinct from optional ones.
+**Recommendation.** Give required-but-unfilled roles a distinct visual state.
 
 ---
 
@@ -132,13 +192,18 @@ distinct from optional ones.
 
 1. **(done)** Available-now filter — immediate decluttering.
 2. **P0** Fix the booked-person copy + disable the doomed Cast button (small,
-   high-trust win; removes the worst contradiction).
-3. **P1** Pre-click blocker notes (availability / salary floor / affordability)
-   on candidate cards.
-4. **P1** Name search for Direct Approach.
-5. **P2** Unify the two drawers' booked-state + compare affordances; revisit
-   post-cast ergonomics and required-role emphasis.
+   high-trust; removes the worst contradiction).
+3. **P1** Candidate reasoning on the card — *both* directions: positive signals
+   (Great fit / Good value / Wants in / Drawn to {director}) and pre-click
+   blockers (availability / salary floor / affordability). One card treatment
+   delivers most of the principle.
+4. **P1** Discovery controls — sort (Appeal / Value / Price / Fame) and an
+   "affordable only" filter; then name search as the secondary override.
+5. **P2** Unify the two drawers; revisit post-cast ergonomics and required-role
+   emphasis.
+6. **Later / new sim** A collaboration/chemistry model (prior director–actor and
+   actor–actor history) — the one wishlist signal that isn't already computed.
 
-Everything above is presentation/UX; none of it requires touching the
-box-office or appeal simulation — the underlying `castingAppeal` math already
-computes the reasons these fixes would surface earlier.
+Everything except item 6 is presentation of reasoning the `castingAppeal` engine
+already produces — which is exactly why it's worth doing: the intelligence is
+built, it's just not on screen yet.
