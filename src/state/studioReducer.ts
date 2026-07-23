@@ -21,6 +21,7 @@ import {
   type TalentReputationDelta,
 } from '../engine/pressTourMoments';
 import type { PressTourResponseId } from '../data/pressTourMoments';
+import { recordCashChange } from '../engine/cashLedger';
 import { pressTourCost } from '../engine/pressTour';
 import { adaptRecommendationsToProductionChoices } from '../engine/productionChoicesAdapter';
 import { deriveProjectReadiness } from '../engine/projectReadiness';
@@ -165,7 +166,7 @@ function applyOpportunityWins(
       writerIds: resolved.opportunity.writerIds,
       developmentHistory: [acquisitionEvent(totalDays, resolved.opportunity.source, resolved.amount)],
     };
-    nextStudio = { ...nextStudio, cash: nextStudio.cash - resolved.amount, assets: [...nextStudio.assets, asset] };
+    nextStudio = { ...recordCashChange(nextStudio, totalDays, -resolved.amount, 'acquisition', `Won "${resolved.opportunity.script.title}" at auction`), assets: [...nextStudio.assets, asset] };
   }
   return { studio: nextStudio, opportunities: nextOpportunities };
 }
@@ -272,10 +273,9 @@ function settleAwards(
     const playerDeltas = computeStudioAwardDeltas(ceremony, new Set(playerFilms.map((f) => f.id)));
     const playerBump = playerFilms.reduce((sum, f) => sum + computeBoxOfficeBump(f, ceremony), 0);
     studio = {
-      ...studio,
+      ...recordCashChange(studio, ceremony.ceremonyDay, Math.round(playerBump * scale), 'awards', `${profile.name} prize money`),
       prestige: applyStatChange(studio.prestige, playerDeltas.prestige * scale),
       brand: applyStatChange(studio.brand, playerDeltas.brand * scale),
-      cash: studio.cash + Math.round(playerBump * scale),
     };
 
     // Rivals get the same treatment for their own films.
@@ -744,7 +744,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       if (delta > 0 && state.studio.cash < delta) return state;
       return {
         ...state,
-        studio: { ...state.studio, cash: state.studio.cash - delta },
+        studio: recordCashChange(state.studio, state.totalDays, -delta, 'awardsCampaign', 'Awards campaign spend'),
         awards: {
           ...awards,
           season: { ...awards.season, campaignByFilm: { ...awards.season.campaignByFilm, [action.filmId]: amount } },
@@ -786,8 +786,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         ...state,
         opportunities: state.opportunities.filter((o) => o.id !== opportunity.id),
         studio: {
-          ...state.studio,
-          cash: state.studio.cash - opportunity.acquisitionCost,
+          ...recordCashChange(state.studio, state.totalDays, -opportunity.acquisitionCost, 'acquisition', `Acquired "${opportunity.script.title}"`),
           assets: [...state.studio.assets, asset],
         },
       };
@@ -876,8 +875,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         ...state,
         rngSeed: nextSeed,
         studio: {
-          ...state.studio,
-          cash: state.studio.cash - fee,
+          ...recordCashChange(state.studio, state.totalDays, -fee, 'rewrite', `${action.kind === 'polish' ? 'Polish' : 'Rewrite'} of "${asset.script.title}" — ${writer.identity.name}`),
           assets: state.studio.assets.map((a) => (a.id === asset.id ? updatedAsset : a)),
         },
         talentPool: {
@@ -912,8 +910,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         ...state,
         rngSeed: nextSeed,
         studio: {
-          ...state.studio,
-          cash: state.studio.cash - fee,
+          ...recordCashChange(state.studio, state.totalDays, -fee, 'commission', `Commissioned ${action.genre} screenplay — ${writer.identity.name}`),
           pendingCommissions: [...(state.studio.pendingCommissions ?? []), makePendingCommission(writer, action.genre, state.totalDays, readyOnDay, script, fee)],
         },
         talentPool: {
@@ -939,7 +936,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const office = state.studio.productionOffice!;
       return {
         ...state,
-        studio: { ...state.studio, cash: state.studio.cash - cost, productionOffice: { ...office, tier: office.tier + 1 } },
+        studio: { ...recordCashChange(state.studio, state.totalDays, -cost, 'facility', `Production office upgraded to tier ${office.tier + 1}`), productionOffice: { ...office, tier: office.tier + 1 } },
       };
     }
 
@@ -954,8 +951,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         studio: {
-          ...state.studio,
-          cash: state.studio.cash - cost,
+          ...recordCashChange(state.studio, state.totalDays, -cost, 'facility', `Market research upgraded to tier ${(office.marketResearchTier ?? 0) + 1}`),
           productionOffice: { ...office, marketResearchTier: (office.marketResearchTier ?? 0) + 1 },
         },
       };
@@ -975,7 +971,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const arm = state.studio.distributionArm!;
       return {
         ...state,
-        studio: { ...state.studio, cash: state.studio.cash - cost, distributionArm: { ...arm, tier: arm.tier + 1 } },
+        studio: { ...recordCashChange(state.studio, state.totalDays, -cost, 'facility', `Distribution arm upgraded to tier ${arm.tier + 1}`), distributionArm: { ...arm, tier: arm.tier + 1 } },
       };
     }
 
@@ -988,8 +984,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         studio: {
-          ...state.studio,
-          cash: state.studio.cash - cost,
+          ...recordCashChange(state.studio, state.totalDays, -cost, 'facility', `International distribution upgraded to tier ${(arm.internationalTier ?? 0) + 1}`),
           distributionArm: { ...arm, internationalTier: (arm.internationalTier ?? 0) + 1 },
         },
       };
@@ -1007,8 +1002,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         studio: {
-          ...state.studio,
-          cash: state.studio.cash - fee,
+          ...recordCashChange(state.studio, state.totalDays, -fee, 'producer', `Hired producer ${person.identity.name}`),
           productionOffice: { ...office, benchProducerIds: [...office.benchProducerIds, person.id] },
         },
       };
@@ -1445,7 +1439,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
         bidNotifications: result.settlement.bidNotifications,
         ...clearTransientView(),
-        studio: { ...result.settlement.studio, cash: result.settlement.studio.cash - upfrontCharge },
+        studio: recordCashChange(result.settlement.studio, totalDaysAfter, -upfrontCharge, 'production', `Greenlit "${focusedDraft.title}"`),
         projects: assembleProjects({
           playerDrafts: [
             {
@@ -1748,7 +1742,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         rngSeed: nextSeed,
-        studio: { ...state.studio, cash: state.studio.cash - rolled.costDelta },
+        studio: recordCashChange(state.studio, state.totalDays, -rolled.costDelta, 'production', `Post-production editing — "${target.title}"`),
         projects: replaceDraft(state.projects, {
           ...target,
           postProductionEvents: [...target.postProductionEvents, rolled],

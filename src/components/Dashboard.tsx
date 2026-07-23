@@ -10,6 +10,7 @@ import { BoxOfficeChart } from './common/BoxOfficeChart';
 import { BoxOfficeFinishedPopup } from './common/BoxOfficeFinishedPopup';
 import { FilmDetailModal } from './common/FilmDetailModal';
 import { ReputationHistoryModal } from './common/ReputationHistoryModal';
+import { CashHistoryModal } from './common/CashHistoryModal';
 import { TopGrossingPanel } from './common/TopGrossingPanel';
 import { DifficultyPicker } from './common/DifficultyPicker';
 import { ProductionOfficeCard } from './ProductionOfficeCard';
@@ -53,6 +54,7 @@ export function Dashboard() {
   const [showGuide, setShowGuide] = useState(false);
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
   const [showReputationHistory, setShowReputationHistory] = useState(false);
+  const [showCashHistory, setShowCashHistory] = useState(false);
   const [showResetPicker, setShowResetPicker] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(studio.name);
@@ -327,6 +329,9 @@ export function Dashboard() {
       {showReputationHistory && (
         <ReputationHistoryModal events={deriveReputationHistory(state)} onClose={() => setShowReputationHistory(false)} />
       )}
+      {showCashHistory && (
+        <CashHistoryModal entries={studio.cashLedger ?? []} onClose={() => setShowCashHistory(false)} />
+      )}
       {showResetPicker && (
         <DifficultyPicker
           studioName={studio.name}
@@ -392,11 +397,16 @@ export function Dashboard() {
       </nav>
 
       <section className="dashboard-metrics" aria-label="Studio overview">
-        <div className="dashboard-metric dashboard-metric-money">
+        <button
+          type="button"
+          className="dashboard-metric dashboard-metric-money dashboard-metric-clickable"
+          onClick={() => setShowCashHistory(true)}
+          title="See what's recently moved your budget"
+        >
           <span className="dashboard-metric-label">Studio cash</span>
           <strong><Money amount={studio.cash} signColor /></strong>
-          <span className="dashboard-metric-note">Available to invest</span>
-        </div>
+          <span className="dashboard-metric-note">Available to invest &middot; tap for history</span>
+        </button>
         <button
           type="button"
           className="dashboard-metric dashboard-metric-brand dashboard-metric-clickable"

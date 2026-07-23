@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { deriveRecentAwardHighlights } from './selectors';
-import type { AwardsCeremony, Film, GameState, Project } from '../types';
+import type { AwardsCeremony, Film, Project } from '../types';
+import type { GameState } from './gameState';
 
 // Minimal cast fixtures - deriveRecentAwardHighlights only reads a film's id /
 // releasedBy / results.studioRevenue and a ceremony's show/year/ceremonyDay/
