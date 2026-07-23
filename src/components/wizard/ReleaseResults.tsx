@@ -4,6 +4,7 @@ import { explainBrandChange, explainPrestigeChange } from '../../engine/reputati
 import { Money } from '../common/Money';
 import { ScoreBar } from '../common/ScoreBar';
 import { FilmMoneyBreakdown } from '../common/FilmMoneyBreakdown';
+import { ProductionExecutionSummary } from '../common/ProductionExecutionSummary';
 import { PremiereReveal } from './PremiereReveal';
 
 export function ReleaseResults() {
@@ -65,6 +66,8 @@ export function ReleaseResults() {
         <ScoreBar label="Post-Production" value={results.postProductionScore} />
         <ScoreBar label="On-Set Events" value={results.eventsScore} />
       </div>
+
+      {results.productionExecution && <ProductionExecutionSummary outcome={results.productionExecution} />}
 
       <div className="card stack">
         <h2>Studio Report</h2>

@@ -10,6 +10,7 @@ import type {
   TargetAudience,
 } from '../types';
 import { computeAudienceScore, computeBuzzScore, computeCriticScore, computeQualityBreakdown, combineProductionEvents } from './scoring';
+import { computeExecutionProfile, summarizeExecution } from './productionExecution';
 import { computeEventsCostDelta, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
 import { deriveAudienceSimulationFixedState, type SupportedReleaseType } from './audienceSimulationInputs';
 import { campaignAngleEffect, effectiveMarketingReach, NEUTRAL_ANGLE_EFFECT } from './marketing';
@@ -144,6 +145,17 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // elsewhere - see mitigateEventQualityImpact). Buzz keeps reading the raw
   // events; a Fixer isn't a hype mechanic.
   const qualityEvents = mitigateEventQualityImpact(allEvents, producerEffects.eventNegativeImpactMultiplier);
+  // Production Execution: turn the recorded (producer-mitigated) shoot history
+  // into typed, per-department modifiers - computed once here so the exact same
+  // profile drives the quality calculation and the player-facing summary below.
+  // Pure and deterministic: same history -> same profile, no release-time roll
+  // (docs/DESIGN_REVIEW_production_execution.md, docs/SIMULATION_PHILOSOPHY.md).
+  const executionProfile = computeExecutionProfile({
+    events: qualityEvents,
+    shootingRatio: input.shootingRatio,
+    talent: input.talent,
+    productionChoices: input.productionChoices,
+  });
   const quality = computeQualityBreakdown(
     input.script,
     input.talent,
@@ -153,6 +165,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     qualityEvents,
     input.shootingRatio,
     producerEffects.postProductionDelta, // Creative
+    executionProfile,
   );
   const criticScore = computeCriticScore(quality, input.script, input.postProductionChoices);
   const audienceScore = computeAudienceScore(
@@ -360,6 +373,9 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     storyReport,
     criticReviews,
     audienceReviews,
+    // How the shoot shaped the finished film - stars + qualitative causes, built
+    // from the same execution profile that drove qualityScore above.
+    productionExecution: summarizeExecution(executionProfile),
   };
 
   return { results, fixed };

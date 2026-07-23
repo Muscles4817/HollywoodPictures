@@ -14,6 +14,7 @@ import { CompatibilityBadge } from './CompatibilityBadge';
 import { BoxOfficeChart } from './BoxOfficeChart';
 import { SeverityBadge } from './SeverityBadge';
 import { FilmMoneyBreakdown } from './FilmMoneyBreakdown';
+import { ProductionExecutionSummary } from './ProductionExecutionSummary';
 import { getCareerForRole } from '../../engine/person';
 import { useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
@@ -161,6 +162,7 @@ function ReceptionSection({ film }: { film: Film }) {
         <ScoreBar label="Post-Production" value={results.postProductionScore} />
         <ScoreBar label="On-Set Events" value={results.eventsScore} />
       </div>
+      {results.productionExecution && <ProductionExecutionSummary outcome={results.productionExecution} />}
     </div>
   );
 }

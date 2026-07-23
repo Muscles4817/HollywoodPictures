@@ -26,6 +26,7 @@ import { computeTalentCompatibility } from './compatibility';
 import { findCandidatesNearPrice } from './talentFilter';
 import { professionForProductionRole, filterAssignedPeople, findAssignedPerson } from '../data/helpers';
 import { getCareerForRole, getCrewCareer, getTypicalSalaryForRole } from './person';
+import { classifyEventImpact } from './productionExecution';
 import { clamp, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
 
 const BASE_SHOOT_DAYS = 18;
@@ -298,6 +299,8 @@ function rollSimpleEvent(template: Extract<ProductionEventTemplate, { interactiv
     qualityDelta: randFloat(rng, qMin, qMax),
     buzzDelta: randFloat(rng, bMin, bMax),
     delayDaysDelta: Math.max(0, Math.round(randFloat(rng, dMin, dMax))),
+    // Which finished-film department this event shaped (engine/productionExecution.ts).
+    impact: classifyEventImpact({ id: template.id }),
   };
 }
 
@@ -321,6 +324,7 @@ function rollChoiceOutcome(pending: PendingEventChoice, choice: EventChoiceTempl
     qualityDelta: randFloat(rng, qMin, qMax),
     buzzDelta: randFloat(rng, bMin, bMax),
     delayDaysDelta: Math.max(0, Math.round(randFloat(rng, dMin, dMax))),
+    impact: classifyEventImpact({ id: pending.templateId }),
   };
 }
 

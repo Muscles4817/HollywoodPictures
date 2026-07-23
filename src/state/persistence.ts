@@ -326,7 +326,20 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // commissions in flight - the field is absent and read defensively as [] - so
 // this is additive; the bump is the honest "the stored shape changed" signal.
 // No migration code.
-const SAVE_KEY = 'hollywood-pictures-save-v50';
+// v50 -> v51 (docs/DESIGN_REVIEW_production_execution.md, Phase 1 of
+// docs/SIMULATION_PHILOSOPHY.md): every ProductionEvent gained an optional
+// `impact` (which finished-film department it shaped), and FilmResults gained
+// an optional `productionExecution` outcome (stars + causal summary + numeric
+// modifiers). Both are additive and read defensively: a v50 save's events have
+// no `impact` (engine/productionExecution.ts:classifyEventImpact infers it from
+// the event id, so no migration is needed to route legacy events), and its
+// finished films have no productionExecution block (the UI simply omits the
+// Production Execution card). The scoring formula also changed - a shoot's
+// recorded events now materially shape final quality - so a v50 film's stored
+// qualityScore may differ from what today's engine would compute for it; stored
+// results are historical fact and are never recomputed, so this is harmless.
+// The bump is the honest "the stored shape changed" signal. No migration code.
+const SAVE_KEY = 'hollywood-pictures-save-v51';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
