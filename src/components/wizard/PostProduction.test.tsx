@@ -82,6 +82,33 @@ describe('PostProduction - the provisional post-production forecast', () => {
     expect(screen.getByText(/a test screening will surface here/)).toBeInTheDocument();
   });
 
+  it('reassures the player that post-production runs in the background and they can leave, with a Dashboard shortcut', () => {
+    const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: 45 });
+    saveState(state);
+    render(
+      <StudioProvider>
+        <PostProduction />
+      </StudioProvider>,
+    );
+    // Tells the player this is normal and they don't need to sit and wait...
+    expect(screen.getByText(/post-production runs in the background/i)).toBeInTheDocument();
+    expect(screen.getByText(/in your Inbox, and on the\s+Dashboard/i)).toBeInTheDocument();
+    // ...and gives them an explicit way to leave right here.
+    expect(screen.getByRole('button', { name: 'Back to the Dashboard' })).toBeInTheDocument();
+  });
+
+  it('surfaces the same background-process reassurance and Dashboard shortcut while a recut is underway', () => {
+    const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: 45, postProductionEditingUntilDay: 60 });
+    saveState(state);
+    render(
+      <StudioProvider>
+        <PostProduction />
+      </StudioProvider>,
+    );
+    expect(screen.getByText(/working through your notes in the background/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to the Dashboard' })).toBeInTheDocument();
+  });
+
   it('renders no forecast card at all if the estimate is somehow still null (defensive - should never happen once photography has finished)', () => {
     const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: null });
     saveState(state);

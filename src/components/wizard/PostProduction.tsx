@@ -53,11 +53,20 @@ export function PostProduction() {
             </div>
           )}
           <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
-            A forecast based on this film's runtime, VFX ambition, and your Editor/VFX Supervisor's skill - once
-            reached, a test screening will surface here (and in the Inbox/Dashboard if you've moved on) with real
-            audience feedback and a decision on how to respond. You'll need to respond to it before the film can be
-            scheduled for release.
+            This is the normal flow - post-production runs in the background, and you don't need to wait on this
+            screen (the calendar only moves once you're back out running the studio). Head to the Dashboard and
+            carry on; when the cut is ready, a test screening will surface here, in your Inbox, and on the
+            Dashboard, with real audience feedback and a decision on how to respond. No rush to come back - just
+            answer it before the film can be scheduled for release.
           </p>
+          <p style={{ margin: '4px 0 0', fontSize: '0.78em', color: 'var(--text-muted)' }}>
+            Timing is a forecast based on this film's runtime, VFX ambition, and your Editor/VFX Supervisor's skill.
+          </p>
+          <div className="row" style={{ marginTop: '10px' }}>
+            <Button variant="primary" onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>
+              Back to the Dashboard
+            </Button>
+          </div>
         </div>
       )}
 
@@ -71,9 +80,16 @@ export function PostProduction() {
             </div>
           )}
           <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
-            The editing bay is working on your notes. When the re-cut is done, a fresh test screening will surface
-            here (and in the Inbox/Dashboard if you've moved on) with the new reactions and another decision.
+            The editing bay is working through your notes in the background - no need to wait here, and the
+            calendar only moves once you're back out running the studio. When the re-cut is done, a fresh test
+            screening will surface here, in your Inbox, and on the Dashboard, with the new reactions and another
+            decision.
           </p>
+          <div className="row" style={{ marginTop: '10px' }}>
+            <Button variant="primary" onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>
+              Back to the Dashboard
+            </Button>
+          </div>
         </div>
       )}
 
