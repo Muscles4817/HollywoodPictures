@@ -422,6 +422,17 @@ export function generateTalentPool(
       continue;
     }
 
+    // Every director is a recognizable, named filmmaker - unlike actors,
+    // there's no "background/extras" tier of anonymous directors a film would
+    // hire, so the roster is fully hand-authored with no procedural fill (see
+    // HANDCRAFTED_DIRECTORS in data/handcraftedTalents.ts). The Director
+    // salaryRange (data/talentGeneration.ts) is pinned to that roster's actual
+    // span so the price slider only ever points where a real director exists.
+    if (role === 'Director') {
+      pool[role] = [...handcrafted];
+      continue;
+    }
+
     pool[role] = [...handcrafted, ...generateTalentCandidates(role, rng)];
   }
 
