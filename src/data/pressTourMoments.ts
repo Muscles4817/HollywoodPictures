@@ -43,6 +43,64 @@ export const PRESS_TOUR_MOMENT_POSITIVE_SCALE = 0.12;
 export const PRESS_TOUR_BASELINE_HEAT_FLOOR = 2;
 export const PRESS_TOUR_BASELINE_HEAT_AT_100 = 8;
 
+// --- Interactive layer: how the player can respond when a moment fires DURING
+// the release window (docs/DESIGN_REVIEW_marketing_campaign.md, "press tours" /
+// D interactive). A response applies deterministic multipliers to the base
+// moment's effects and adds a narrative clause - the variance was already spent
+// on the window roll, so responding is a pure, known trade.
+export type PressTourResponseId = 'ignore' | 'apologize' | 'double-down' | 'stay-humble' | 'capitalize';
+
+export interface PressTourResponse {
+  id: PressTourResponseId;
+  /** Which incidents offer this response. */
+  polarity: MomentPolarity;
+  label: string;
+  description: string;
+  // Multipliers on the base moment's effects. For a negative moment buzzDelta is
+  // negative, so buzzMult < 1 softens the hit and > 1 deepens it.
+  buzzMult: number;
+  heatMult: number;
+  controversyMult: number;
+  fameMult: number;
+  /** Appended to the story to reflect the choice - `{name}` replaced with the tourer's name. */
+  clause: string;
+}
+
+export const PRESS_TOUR_RESPONSES: PressTourResponse[] = [
+  // Negative incidents - a PR crisis to manage.
+  {
+    id: 'apologize', polarity: 'negative', label: 'Issue an apology',
+    description: 'Get ahead of it. Recovers much of the buzz hit and cools the heat - but no upside for {name}.',
+    buzzMult: 0.4, heatMult: 0.5, controversyMult: 0.3, fameMult: 0.5,
+    clause: 'A swift, public apology contained the fallout.',
+  },
+  {
+    id: 'ignore', polarity: 'negative', label: 'Let it blow over',
+    description: 'Say nothing and hope the cycle moves on. The moment lands exactly as it happened.',
+    buzzMult: 1, heatMult: 1, controversyMult: 1, fameMult: 1,
+    clause: 'The studio said nothing and let the cycle move on.',
+  },
+  {
+    id: 'double-down', polarity: 'negative', label: 'Double down',
+    description: 'Refuse to back down. A bigger buzz hit to the film - but the notoriety runs {name} hotter and more famous.',
+    buzzMult: 1.5, heatMult: 1.4, controversyMult: 1.4, fameMult: 1.6,
+    clause: '{name} refused to back down, and the row - and the notoriety - only grew.',
+  },
+  // Positive breakouts - a good moment to ride or play cool.
+  {
+    id: 'capitalize', polarity: 'positive', label: 'Lean into it',
+    description: 'Ride the wave. A bigger buzz lift and more shine for {name}.',
+    buzzMult: 1.4, heatMult: 1.3, controversyMult: 1, fameMult: 1.4,
+    clause: 'The studio leaned all the way into the moment.',
+  },
+  {
+    id: 'stay-humble', polarity: 'positive', label: 'Stay gracious',
+    description: 'Play it cool and let the work speak. A gentler lift, no risk of overexposure.',
+    buzzMult: 0.7, heatMult: 0.7, controversyMult: 1, fameMult: 0.8,
+    clause: '{name} kept it gracious and let the work speak for itself.',
+  },
+];
+
 // The pool. Several cases per negative driver so a loose cannon doesn't produce
 // the same headline twice, plus a couple of positive breakouts.
 export const PRESS_TOUR_MOMENTS: PressTourMomentTemplate[] = [

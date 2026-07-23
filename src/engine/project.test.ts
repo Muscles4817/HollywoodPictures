@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   projectId,
   playerDraftToProject,
+  scheduledDraftToProject,
   rivalProductionToProject,
   filmToProject,
   asPlayerDraft,
@@ -123,8 +124,22 @@ describe('deriveInboxItems / inboxBadgeCount', () => {
   it('inboxBadgeCount always equals the sum of every deriveInboxItems category', () => {
     const projects = [playerDraftToProject(draftWithPendingCastingApplicant(3, 'draft-a')), playerDraftToProject(sampleDraft())];
     const items = deriveInboxItems(projects, null);
-    const total = items.awaitingChoice.length + items.wrapped.length + items.parked.length + items.casting.length;
+    const total = items.awaitingChoice.length + items.wrapped.length + items.parked.length + items.casting.length + items.pressTourIncidents.length;
     expect(inboxBadgeCount(projects, null)).toBe(total);
+  });
+
+  it('surfaces a scheduled film with a fired press-tour incident under pressTourIncidents', () => {
+    const base = sampleDraft();
+    const incident = {
+      base: { personId: 'p1', personName: 'Kip Danger', templateId: 'controversy-viral-remark', headline: 'h', story: 's', buzzDelta: -9, fameDelta: 2, heatDelta: 16, controversyDelta: 8 },
+      situation: 's',
+      polarity: 'negative' as const,
+    };
+    const draft = { ...base, id: 'draft-tour', pressTourWindowRolled: true, pressTourIncident: incident };
+    const projects = [scheduledDraftToProject(draft, 999)];
+    const items = deriveInboxItems(projects, null);
+    expect(items.pressTourIncidents.map((p) => p.id)).toContain('draft-tour');
+    expect(inboxBadgeCount(projects, null)).toBe(1);
   });
 
   // Post-Production Redesign, Phase B - a pending test screening surfaces

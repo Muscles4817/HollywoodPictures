@@ -1,7 +1,7 @@
 import type { Film, FilmDraft, Person, RivalProductionInProgress, RivalStudio } from '../types';
 import type { RandomFn } from './random';
 import { computeReleaseResults } from './releaseFilm';
-import { rollPressTourMoments, pressTourReputationDeltas, type TalentReputationDelta } from './pressTourMoments';
+import { rollPressTourMoments, pressTourReputationDeltas, windowOutcomeToMoments, type PressTourMomentsOutcome, type TalentReputationDelta } from './pressTourMoments';
 import { computeProducerEffects, producersByIds, totalAttachedPerFilmFees } from './producers';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta } from './cost';
 import { computeCompetitiveCrowding, runningFilmAsUpcomingRelease, type UpcomingRelease } from './releaseCrowding';
@@ -66,6 +66,23 @@ function knownCompetitorsExcluding(
 }
 
 /** Resolves a due player draft into a real Film - mirrors engine/scheduledReleases.ts's retired settleScheduledReleases body exactly (same computeReleaseResults call, same cost-charged accounting), just fed a richer `known` list that now includes currently-running films alongside other pending releases. */
+const NO_MOMENTS: PressTourMomentsOutcome = { buzzDelta: 0, storyBeat: null, moments: [] };
+
+/**
+ * The press-tour outcome the interactive window already decided for this film,
+ * or null when the window never rolled (so settlement should roll instead). If
+ * the window rolled: the player's resolved moment wins; failing that, an
+ * unanswered incident applies its base outcome (it still happened); failing
+ * that, the window stayed quiet and nothing applies. Pure - no rng, so it can't
+ * perturb any stream.
+ */
+function windowPressTourOutcome(draft: FilmDraft): PressTourMomentsOutcome | null {
+  if (draft.pressTourResolvedMoment) return windowOutcomeToMoments(draft.pressTourResolvedMoment);
+  if (draft.pressTourIncident) return windowOutcomeToMoments(draft.pressTourIncident.base);
+  if (draft.pressTourWindowRolled) return NO_MOMENTS;
+  return null;
+}
+
 function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand: number, known: UpcomingRelease[], producerPool: Person[], rng: RandomFn): { film: Film; costCharged: number; reputationDeltas: TalentReputationDelta[] } {
   const photographyEvents = draft.photography!.events;
   const postProductionEvents = draft.postProductionEvents;
@@ -78,13 +95,18 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
   const producerEffects = computeProducerEffects(producersByIds(producerPool, attachedIds), draft.genre!);
   const producerFees = totalAttachedPerFilmFees(producerPool, attachedIds);
 
-  // Roll the rare, personality-driven press-tour moment here at settlement -
-  // never in computeReleaseResults, which the Marketing-screen projection calls
-  // (the surprise must not leak into the forecast). Drawn before the release
-  // computation so its Buzz swing + story beat feed in; a film with no tour
-  // roster draws nothing, leaving the rng stream untouched for non-touring
-  // films (behaviour-preserving).
-  const tourMoments = rollPressTourMoments(draft.talent, draft.marketingChoices!.pressTourCast, rng);
+  // Press-tour moment. Two paths, mutually exclusive per tour:
+  //  - Interactive: if the moment already fired during the release window
+  //    (pressTourWindowRolled), the window owns the outcome - use the player's
+  //    resolved moment, or the base moment if they never answered, or nothing
+  //    if the window stayed quiet. No settlement roll (and no rng draw), so it
+  //    can't double-dip.
+  //  - Lean: otherwise (same-day release, or a save predating the interactive
+  //    layer), roll here at settlement exactly as before. A film with no tour
+  //    roster draws nothing, leaving the rng stream untouched (behaviour-
+  //    preserving). Never rolled in computeReleaseResults, which the Marketing
+  //    projection calls - the surprise must not leak into the forecast.
+  const tourMoments = windowPressTourOutcome(draft) ?? rollPressTourMoments(draft.talent, draft.marketingChoices!.pressTourCast, rng);
 
   // Marketing rollout (docs/DESIGN_REVIEW_marketing_rollout.md): how much
   // momentum the campaign built over its runway - the frozen campaignStartDay

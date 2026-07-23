@@ -4,12 +4,12 @@
 // mandatory test screening hadn't come back yet (so it genuinely could NOT be
 // scheduled). The message now distinguishes the two states.
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { withRng } from '../../engine/random';
 import { buildReadyDraft } from '../../state/testFixtures';
-import { playerDraftToProject } from '../../engine/project';
+import { playerDraftToProject, scheduledDraftToProject } from '../../engine/project';
 import type { GameState } from '../../state/gameState';
-import type { FilmDraft } from '../../types';
+import type { FilmDraft, PressTourIncident } from '../../types';
 
 const dispatch = vi.fn();
 let mockState: GameState;
@@ -50,5 +50,45 @@ describe('Inbox - parked film messaging', () => {
     expect(screen.getByText(/just needs a release day/i)).toBeInTheDocument();
     expect(screen.queryByText(/still wrapping up/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Continue to Marketing & Release' })).toBeInTheDocument();
+  });
+});
+
+const INCIDENT: PressTourIncident = {
+  base: { personId: 'kip', personName: 'Kip Danger', templateId: 'controversy-viral-remark', headline: 'Kip Danger’s off-the-cuff remark goes viral', story: 'It went viral for the wrong reasons.', buzzDelta: -9, fameDelta: 2, heatDelta: 16, controversyDelta: 8 },
+  situation: 'It went viral for the wrong reasons.',
+  polarity: 'negative',
+};
+
+function scheduledStateWithIncident(incident: PressTourIncident | null): GameState {
+  const draft = { id: 'tour-film', title: 'The Big One', pressTourWindowRolled: true, pressTourIncident: incident, talent: [] } as unknown as FilmDraft;
+  return {
+    projects: [scheduledDraftToProject(draft, 999)],
+    focusedProjectId: null,
+    totalDays: 10,
+    talentPool: {},
+    opportunities: [],
+    bidNotifications: [],
+  } as unknown as GameState;
+}
+
+describe('Inbox - press tour incident (interactive)', () => {
+  it('renders a fired incident with its response options and dispatches the chosen one', () => {
+    dispatch.mockClear();
+    mockState = scheduledStateWithIncident(INCIDENT);
+    render(<Inbox open onClose={() => {}} />);
+
+    expect(screen.getByText('Kip Danger’s off-the-cuff remark goes viral')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Issue an apology' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Double down' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Double down' }));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'RESOLVE_PRESS_TOUR_INCIDENT', choiceId: 'double-down', productionId: 'tour-film' });
+  });
+
+  it('shows nothing to answer when no incident is pending', () => {
+    mockState = scheduledStateWithIncident(null);
+    render(<Inbox open onClose={() => {}} />);
+    expect(screen.queryByText(/off-the-cuff remark/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Nothing needs your attention/)).toBeInTheDocument();
   });
 });

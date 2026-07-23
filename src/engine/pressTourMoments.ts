@@ -7,7 +7,7 @@
 // projection path (engine/releaseFilm.ts stays pure), so the tour moment can
 // never leak into the Marketing screen's opening forecast. Tunables + the pool
 // live in data/pressTourMoments.ts.
-import type { Person, PersonId, TalentAssignment } from '../types';
+import type { Person, PersonId, PressTourMoment, TalentAssignment } from '../types';
 import type { RandomFn } from './random';
 import { clamp } from './random';
 import { personMediaRisk, tourers } from './pressTour';
@@ -17,22 +17,21 @@ import {
   PRESS_TOUR_MOMENT_NEGATIVE_SCALE,
   PRESS_TOUR_MOMENT_POSITIVE_SCALE,
   PRESS_TOUR_MOMENTS,
+  PRESS_TOUR_RESPONSES,
   type MomentDriver,
+  type MomentPolarity,
   type PressTourMomentTemplate,
+  type PressTourResponse,
+  type PressTourResponseId,
 } from '../data/pressTourMoments';
 
-/** A moment that actually fired for one tourer, resolved to concrete text + effects. */
-export interface FiredPressTourMoment {
-  personId: PersonId;
-  personName: string;
-  templateId: string;
-  headline: string;
-  story: string;
-  buzzDelta: number;
-  fameDelta: number;
-  heatDelta: number;
-  controversyDelta: number;
-}
+/**
+ * A moment that actually fired for one tourer, resolved to concrete text +
+ * effects. Structurally the persisted PressTourMoment (types/index.ts) - aliased
+ * here so this module's long-standing name keeps working and the persisted shape
+ * has a single home in types (which engine imports from, never the reverse).
+ */
+export type FiredPressTourMoment = PressTourMoment;
 
 export interface PressTourMomentsOutcome {
   /** Sum of the fired moments' Buzz effects - folded into the film's Buzz at settlement. */
@@ -118,6 +117,67 @@ export function rollPressTourMoments(
     storyBeat: moments.map((m) => m.story).join(' '),
     moments,
   };
+}
+
+// --- Interactive layer (D interactive) -------------------------------------
+// A moment can fire EARLIER - during the release window - as a pending incident
+// the player answers, instead of only being reported at settlement. It reuses
+// the exact same pool + per-person gating as the settlement roll (rollForPerson
+// above), just fired once for the whole tour and shaped by the player's
+// response.
+
+/** The polarity of the template a fired moment came from (defaults to negative if somehow unknown). */
+export function momentPolarity(templateId: string): MomentPolarity {
+  return PRESS_TOUR_MOMENTS.find((m) => m.id === templateId)?.polarity ?? 'negative';
+}
+
+/** The responses offered for an incident of the given polarity (data/pressTourMoments.ts). */
+export function responsesForPolarity(polarity: MomentPolarity): PressTourResponse[] {
+  return PRESS_TOUR_RESPONSES.filter((r) => r.polarity === polarity);
+}
+
+/**
+ * Roll the single incident a tour throws off DURING the release window - at most
+ * one for the whole tour (the first tourer to fire wins), or null when the tour
+ * stays quiet. Same pool and per-person gating as the settlement roll; drawn
+ * once per tour (this is called on exactly one calendar tick per scheduled
+ * film - see state/studioReducer.ts), so it carries the same one-shot odds the
+ * settlement roll always had. A film with no tour roster draws nothing.
+ */
+export function rollPressTourWindowIncident(
+  talent: TalentAssignment[],
+  ids: readonly PersonId[] | undefined,
+  rng: RandomFn,
+): FiredPressTourMoment | null {
+  for (const person of tourers(talent, ids)) {
+    const fired = rollForPerson(person, rng);
+    if (fired) return fired;
+  }
+  return null;
+}
+
+/**
+ * Apply the player's chosen response to a fired incident - a pure, deterministic
+ * reshaping of its effects (the variance was already spent on the window roll),
+ * with a narrative clause appended. An unknown/mismatched response id leaves the
+ * base moment unchanged (the neutral outcome).
+ */
+export function resolvePressTourIncident(base: FiredPressTourMoment, responseId: PressTourResponseId): FiredPressTourMoment {
+  const response = PRESS_TOUR_RESPONSES.find((r) => r.id === responseId);
+  if (!response) return base;
+  return {
+    ...base,
+    buzzDelta: Math.round(base.buzzDelta * response.buzzMult),
+    heatDelta: Math.round(base.heatDelta * response.heatMult),
+    controversyDelta: Math.round(base.controversyDelta * response.controversyMult),
+    fameDelta: Math.round(base.fameDelta * response.fameMult),
+    story: `${base.story} ${response.clause.replaceAll('{name}', base.personName)}`,
+  };
+}
+
+/** Wrap a single window-resolved moment into the settlement outcome shape rollPressTourMoments produces. */
+export function windowOutcomeToMoments(moment: FiredPressTourMoment): PressTourMomentsOutcome {
+  return { buzzDelta: moment.buzzDelta, storyBeat: moment.story, moments: [moment] };
 }
 
 /** A resolved change to one Person's standing, applied to the talent pool at settlement. */

@@ -1,5 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { rollPressTourMoments, pressTourReputationDeltas } from './pressTourMoments';
+import {
+  rollPressTourMoments,
+  pressTourReputationDeltas,
+  rollPressTourWindowIncident,
+  resolvePressTourIncident,
+  windowOutcomeToMoments,
+  responsesForPolarity,
+} from './pressTourMoments';
 import type { Person, PersonPersonality, TalentAssignment } from '../types';
 
 function person(id: string, name: string, fame: number, personality: Partial<PersonPersonality> = {}): Person {
@@ -109,5 +116,68 @@ describe('pressTourReputationDeltas', () => {
     expect(deltas[0].fameDelta).toBe(moment.fameDelta);
     // heat is the baseline plus the moment's own heat swing.
     expect(deltas[0].heatDelta).toBeGreaterThan(moment.heatDelta);
+  });
+});
+
+describe('rollPressTourWindowIncident (interactive)', () => {
+  it('fires at most one incident for the whole tour - the first tourer to fire wins', () => {
+    // Both would fire negative on a low roll; only the first (Kip) is returned.
+    const fired = rollPressTourWindowIncident([lead(looseCannon), lead(proStar)], ['kip', 'ava'], seq([0.01, 0]));
+    expect(fired).not.toBeNull();
+    expect(fired!.personId).toBe('kip');
+  });
+
+  it('returns null when the tour stays quiet', () => {
+    expect(rollPressTourWindowIncident([lead(looseCannon)], ['kip'], seq([0.99]))).toBeNull();
+  });
+
+  it('draws nothing when nobody tours', () => {
+    const rng = vi.fn(() => 0);
+    expect(rollPressTourWindowIncident([lead(proStar)], undefined, rng)).toBeNull();
+    expect(rng).not.toHaveBeenCalled();
+  });
+
+  it('is deterministic given the same rng sequence', () => {
+    const a = rollPressTourWindowIncident([lead(looseCannon)], ['kip'], seq([0.01, 0.4]));
+    const b = rollPressTourWindowIncident([lead(looseCannon)], ['kip'], seq([0.01, 0.4]));
+    expect(a).toEqual(b);
+  });
+});
+
+describe('resolvePressTourIncident (interactive)', () => {
+  const base = rollPressTourWindowIncident([lead(looseCannon)], ['kip'], seq([0.01, 0]))!; // a negative controversy moment
+
+  it('apologize softens the buzz hit and cools heat/controversy', () => {
+    const resolved = resolvePressTourIncident(base, 'apologize');
+    // base.buzzDelta is negative; apologize makes it less negative (closer to 0).
+    expect(resolved.buzzDelta).toBeGreaterThan(base.buzzDelta);
+    expect(resolved.heatDelta).toBeLessThan(base.heatDelta);
+    expect(resolved.controversyDelta).toBeLessThan(base.controversyDelta);
+    expect(resolved.story).not.toBe(base.story); // a response clause was appended
+  });
+
+  it('double down deepens the buzz hit but runs the star hotter and more famous', () => {
+    const resolved = resolvePressTourIncident(base, 'double-down');
+    expect(resolved.buzzDelta).toBeLessThan(base.buzzDelta); // even more negative
+    expect(resolved.heatDelta).toBeGreaterThan(base.heatDelta);
+    expect(resolved.fameDelta).toBeGreaterThanOrEqual(base.fameDelta);
+  });
+
+  it('an unknown response id leaves the base moment unchanged', () => {
+    // @ts-expect-error - exercising the defensive path
+    expect(resolvePressTourIncident(base, 'nope')).toEqual(base);
+  });
+});
+
+describe('windowOutcomeToMoments / responsesForPolarity', () => {
+  it('wraps a resolved moment into the settlement outcome shape', () => {
+    const base = rollPressTourWindowIncident([lead(looseCannon)], ['kip'], seq([0.01, 0]))!;
+    const out = windowOutcomeToMoments(base);
+    expect(out).toEqual({ buzzDelta: base.buzzDelta, storyBeat: base.story, moments: [base] });
+  });
+
+  it('offers the right response set per polarity', () => {
+    expect(responsesForPolarity('negative').map((r) => r.id).sort()).toEqual(['apologize', 'double-down', 'ignore']);
+    expect(responsesForPolarity('positive').map((r) => r.id).sort()).toEqual(['capitalize', 'stay-humble']);
   });
 });
