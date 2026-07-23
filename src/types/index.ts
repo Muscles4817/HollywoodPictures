@@ -287,13 +287,29 @@ export interface DirectorCareer extends RoleCareerCommon<'Director'> {
   skill: number; // 1-100
   toneProfile: ToneProfile;
   productionStyle: DirectorProductionStyle;
+  // How forcefully this director shapes actor performances - "lets you cook"
+  // (low) vs "drags a specific performance out of you" (high). LEVERAGE on the
+  // director<->actor match, not a quality dial: a hands-on director unlocks a
+  // high-headroom actor on a good match but can push a performance BELOW its
+  // floor on a bad one (engine/actingModel.ts). Optional/additive: absent means
+  // it's derived from the person (actingModel.ts:directorHandsOn) until authored.
+  handsOn?: number; // 0..1
 }
 
-// Retains the existing acting model verbatim - actors still have no
-// separate stored skill value, these five numbers are both their skill and
-// their fit together (see ActingStyle above).
+// ActingStyle stays the five-dimensional shape of what an actor is good at
+// (their skill-and-fit together, see above); craftFloor/craftHeadroom add the
+// separate craft axes the acting model reads (engine/actingModel.ts).
 export interface ActorCareer extends RoleCareerCommon<'Actor'> {
   actingStyle: ActingStyle;
+  // Craft, DECOUPLED from fame/salary (engine/actingModel.ts): the reliable
+  // self-directed baseline this actor delivers (craftFloor), plus the extra a
+  // director can UNLOCK on top (craftHeadroom). A dependable pro has a high
+  // floor and little headroom; an auteur-magnet a lower floor and large
+  // headroom (transcendent under the right director, mediocre without). Both
+  // are optional/additive: absent means they're derived from the actor's
+  // ActingStyle (actingModel.ts:actorCraft) until authored.
+  craftFloor?: number; // 0..100 - performance delivered under neutral direction
+  craftHeadroom?: number; // 0..~45 - additional performance a director can unlock
 }
 
 /** Derived aggregate actor ability, for anywhere a single number is genuinely needed - ActingStyle itself stays the stored, five-dimensional source of truth (see ActorCareer). */

@@ -41,8 +41,22 @@ const choices: ProductionChoices = {
   runtimeIntensity: 0.5,
 };
 
+// The fixture cast is pinned to a solid, fixed craft (floor + headroom) the same
+// way buildReadyDraft pins its production/post choices - so these execution
+// calibration tests measure execution's leverage on a controlled, competent film
+// rather than inheriting whatever craft a given actor happens to roll (the acting
+// model, engine/actingModel.ts, gives real per-actor craft variance now, which
+// would otherwise make a fixed-seed fixture's base quality wander).
+function withSolidCraft(talent: TalentAssignment[]): TalentAssignment[] {
+  return talent.map((a) => {
+    const actor = a.person.careers.actor;
+    if (!actor) return a;
+    return { ...a, person: { ...a.person, careers: { ...a.person.careers, actor: { ...actor, craftFloor: 70, craftHeadroom: 18 } } } };
+  });
+}
+
 function draftTalent(seed = 2024): TalentAssignment[] {
-  return withRng(seed, (rng) => buildReadyDraft(rng)).result.talent;
+  return withSolidCraft(withRng(seed, (rng) => buildReadyDraft(rng)).result.talent);
 }
 
 function withReliability(talent: TalentAssignment[], reliability: number): TalentAssignment[] {
@@ -66,7 +80,7 @@ function releaseInput(events: ProductionEvent[], over: { talent?: TalentAssignme
     genre: draft.genre!,
     targetAudience: draft.targetAudience!,
     script: draft.script!,
-    talent: over.talent ?? draft.talent,
+    talent: over.talent ?? withSolidCraft(draft.talent),
     productionChoices: draft.productionChoices!,
     postProductionChoices: draft.postProductionChoices!,
     marketingChoices: draft.marketingChoices!,

@@ -7,6 +7,53 @@
 // CharacterTraitProfile).
 import type { ActorAppealFactors, ActorScheduleAssessment, OfferRejectionReason } from './castingAppeal';
 import type { DirectorAppealFactors, DirectorOfferRejectionReason } from './directorAppeal';
+import { actorArchetype, directorTouch, directorActorPairing } from './actingModel';
+import type { Person } from '../types';
+
+// --- Acting model reads (docs/DESIGN_REVIEW_acting_model.md §10) -----------
+// Qualitative casting reads for the floor+headroom craft model - never raw
+// floor/headroom/handsOn numbers, per the house style (CLAUDE.md).
+
+/**
+ * How an actor's craft reads on a casting card - a dependable pro who holds up
+ * in any hands vs. a director-dependent talent who needs the right filmmaker.
+ * Derived from the archetype (engine/actingModel.ts), so it stays in step with
+ * how the performance is actually computed.
+ */
+export function describeActorCraft(person: Person): string {
+  switch (actorArchetype(person)) {
+    case 'dependable':
+      return 'A dependable presence - steady in almost any hands.';
+    case 'director-dependent':
+      return 'Raw, director-dependent talent - soars with the right filmmaker, adrift without.';
+    case 'all-rounder':
+      return 'A capable all-rounder - a good director still lifts them.';
+  }
+}
+
+/** How a director's approach to performances reads on a card - a hands-on performance-driver vs. one who gives actors room. */
+export function describeDirectorTouch(person: Person): string {
+  switch (directorTouch(person)) {
+    case 'hands-on':
+      return 'A hands-on performance-driver - shapes each turn, for better or worse.';
+    case 'hands-off':
+      return 'Gives actors room - lets a performance find its own level.';
+    case 'balanced':
+      return 'A measured hand with actors - guides without forcing.';
+  }
+}
+
+/** A compatibility hint for a specific director<->lead pairing - great match / risky match - the way casting compatibility is already surfaced. */
+export function describeDirectorActorPairing(director: Person, actor: Person): string {
+  switch (directorActorPairing(director, actor)) {
+    case 'strong':
+      return 'A strong match with the director - the kind of pairing that pulls out a career-best.';
+    case 'risky':
+      return "A risky match - the director's instincts pull against this actor's; a forced read could misfire.";
+    case 'neutral':
+      return 'A workable pairing with the director - no natural spark, no clear friction.';
+  }
+}
 
 const APPEAL_NOTABLE = 60;
 const APPEAL_MAX_NOTES = 2;
