@@ -122,26 +122,24 @@ history. The codebase already anticipates a future "collaboration system"
 (`types/index.ts`), so this is the one positive signal on the wishlist that
 would need real simulation work; worth calling out as a separate, later track.
 
-### P1 — Discovery: expose browsing, sorting & filtering (search is secondary)
+### P1 — Discovery: expose browsing, sorting & filtering (search is secondary) — **shipped**
 
-Casting has **no discovery controls at all** beyond the price slider and the
-tab. That's the bigger gap than "no search" — most players aren't hunting a
-specific name; they're expressing an *intent*: "the best available actor I can
-afford," "someone available now," "highest appeal," "best value for the money."
-The sim already computes every key those intents would sort/filter on
-(`overall`, `salaryFit`, availability, price, fame) — they're just not exposed.
+Casting had **no discovery controls** beyond the price slider and the tab. That's
+the bigger gap than "no search" — most players aren't hunting a specific name;
+they're expressing an *intent*: "the best available actor I can afford," "someone
+available now," "highest appeal," "best value for the money." The sim already
+computes every key those intents sort/filter on (`overall`, `salaryFit`,
+availability, price, fame).
 
-**Recommendation, in order:**
-1. **Filters for the common intents** — availability (shipped), and an
-   "affordable only" filter (see below). Cheap, high-use.
-2. **A visible, switchable sort** — Appeal / Value / Price / Fame — replacing
-   today's fixed, invisible appeal-sort so the player can *browse by what they
-   care about* rather than accept one hidden ordering.
-3. **Name search as a secondary override** — genuinely useful for one job:
-   Direct Approach only shows a price-band window (`engine/talentFilter.ts`), so
-   a specific actor you want can be invisible with no way to reach them. Search
-   fixes that blind spot, but it's a targeted tool, not the headline — most
-   casting is browse-and-compare, not lookup.
+**Shipped** — a controls toolbar on the casting drawer (`CastingDrawer.tsx`),
+applying to both tabs:
+1. **A visible, switchable sort** — Appeal / Value (appeal per pound) / Price /
+   Fame — replacing the fixed, invisible appeal-sort.
+2. **Filters for the common intents** — "Available now only" (from the first
+   pass) and a new "Affordable only".
+3. **Name search as the secondary override** — it reaches *past* the price
+   window (`engine/talentFilter.ts`), the one blind spot where a specific actor
+   you want would otherwise be invisible; a targeted tool, not the headline.
 
 ### P1 — Surface the blockers the sim already computed (doomed offers look live) — **shipped**
 
@@ -204,10 +202,13 @@ strongly signals "you can't start production without this one."
    {director} / Likes your studio / Sought you out) and pre-click blockers
    (booked / below salary floor) plus an over-budget warning. One card treatment
    delivering most of the principle.
-4. **P1** Discovery controls — sort (Appeal / Value / Price / Fame) and an
-   "affordable only" filter; then name search as the secondary override.
-5. **P1 (small)** Extend the same reasoning chips to the director drawer via
-   `DirectorAppealFactors` (this pass covered the actor card only).
+4. **(done)** Discovery controls — a visible sort (Appeal / Value / Price /
+   Fame), an "affordable only" filter alongside "available now", and name search
+   that reaches past the price window.
+5. **(done)** Reasoning chips extended to the director drawer via
+   `DirectorAppealFactors` — its strengths plus the prestige-gate / salary-floor
+   blockers (now a disabled card, matching the actor treatment); crew get the
+   over-budget warning too.
 6. **P2** Unify the two drawers; revisit post-cast ergonomics and required-role
    emphasis.
 7. **Later / new sim** A collaboration/chemistry model (prior director–actor and

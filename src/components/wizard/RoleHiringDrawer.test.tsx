@@ -69,7 +69,7 @@ function stateWithNoDirector(seed: number, studioPrestige: number): GameState {
 }
 
 describe('RoleHiringDrawer - director interest (Casting Appeal Rework)', () => {
-  it('rejects a high-fame director at a low-prestige studio and never attaches them', () => {
+  it('blocks a high-fame director at a low-prestige studio: a disabled card that never attaches', () => {
     const state = stateWithNoDirector(1, 20); // createInitialStudio's own starting prestige
     saveState(state);
     render(
@@ -77,14 +77,16 @@ describe('RoleHiringDrawer - director interest (Casting Appeal Rework)', () => {
         <RoleHiringDrawer role="Director" onClose={() => {}} />
       </StudioProvider>,
     );
+    // The prestige gate is a doomed offer, so the card is disabled up front
+    // (docs/DESIGN_REVIEW_casting_ux.md) rather than clickable-then-rejected.
+    const card = screen.getByText('A-Lister Director').closest('.card') as HTMLElement;
+    expect(card).toHaveClass('card-disabled');
+    // Clicking the disabled card does nothing - never attached, no "accepted".
     fireEvent.click(screen.getByText('A-Lister Director'));
-    // The rejection surfaces inline, naming the actual reason...
-    expect(screen.getByText(/A-Lister Director:/)).toBeInTheDocument();
-    // ...and the candidate is never actually attached (no "accepted" message, no auto-close).
     expect(screen.queryByText(/accepted/)).not.toBeInTheDocument();
   });
 
-  it('shows a prestige-gate hint on the candidate card before it is even clicked', () => {
+  it('shows a prestige-gate chip on the candidate card before it is even clicked', () => {
     const state = stateWithNoDirector(2, 20);
     saveState(state);
     render(
@@ -95,7 +97,7 @@ describe('RoleHiringDrawer - director interest (Casting Appeal Rework)', () => {
     // The generated pool may include more than one high-fame director who'd
     // also fail this studio's prestige gate - the point is that our
     // specific injected candidate is one of them, not that they're the only one.
-    expect(screen.getAllByText(/Won't consider a studio without more prestige/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Wants more prestige').length).toBeGreaterThan(0);
   });
 
   it('attaches the same director once studio prestige clears the gate', () => {

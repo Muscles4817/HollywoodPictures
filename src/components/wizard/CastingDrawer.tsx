@@ -20,6 +20,19 @@ import type { CastingChannel, Person, Script, ScriptCharacter } from '../../type
 
 type CastingTab = 'open-casting' | 'direct-approach';
 
+// Discovery controls (docs/DESIGN_REVIEW_casting_ux.md) - the player browses by
+// intent ("best available I can afford", "highest appeal", "best value"),
+// so the fixed, invisible sort becomes a visible, switchable one.
+type SortKey = 'appeal' | 'value' | 'price' | 'fame';
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'appeal', label: 'Appeal' },
+  { key: 'value', label: 'Value' },
+  { key: 'price', label: 'Price' },
+  { key: 'fame', label: 'Fame' },
+];
+// A name search reaches past the price window; cap how many it lists.
+const DIRECT_SEARCH_LIMIT = 12;
+
 // How long an accepted offer lingers, showing "accepted," before the
 // drawer auto-closes - same beat components/wizard/RoleHiringDrawer.tsx's
 // own AUTO_CLOSE_DELAY_MS uses.
@@ -156,6 +169,9 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   const draft = deriveFocusedDraft(state)!;
   const [tab, setTab] = useState<CastingTab>('open-casting');
   const [availableOnly, setAvailableOnly] = useState(false);
+  const [affordableOnly, setAffordableOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<SortKey>('appeal');
+  const [search, setSearch] = useState('');
   const [lastResponse, setLastResponse] = useState<{ personName: string; response: OfferResponse } | null>(null);
 
   useEffect(() => {
@@ -221,45 +237,66 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
     }
   }
 
-  // Computed once per applicant, not re-derived on every sort comparison or
-  // render - computeActorAppeal is pure, but there's no reason to call it
-  // three times over for the same person.
-  const appealByPersonId = new Map((call?.applicants ?? []).map((a) => [a.person.id, appealFor(a.person)]));
-  const sortedApplicants = call
-    ? [...call.applicants].sort((a, b) => (appealByPersonId.get(b.person.id)?.overall ?? 0) - (appealByPersonId.get(a.person.id)?.overall ?? 0))
-    : [];
-
   const hiredElsewhereIds = new Set(draft.talent.filter((a) => a.role !== role).map((a) => a.person.id));
   // Only surface actors who can actually play this character - matching the
   // gender it's written for (engine/casting.ts), exactly as Open Casting's
   // own applicant generation already does (engine/castingCalls.ts) and as the
-  // reducer's hire guard enforces. Without this, Direct Approach for a
-  // gendered role listed every actor regardless of gender, and offering one
-  // who didn't match would read as "accepted" and then silently fail to cast
-  // (the reducer no-ops the mismatch). 'Any' roles are unfiltered.
-  const directCandidates = findCandidatesNearPrice(
-    state.talentPool.Actor.filter((t) => !hiredElsewhereIds.has(t.id) && actorMeetsCharacterGender(t.identity.gender, character.castingGender)),
-    role,
-    offeredSalary,
-    9,
-  ).candidates;
+  // reducer's hire guard enforces. 'Any' roles are unfiltered.
+  const eligibleDirectActors = state.talentPool.Actor.filter(
+    (t) => !hiredElsewhereIds.has(t.id) && actorMeetsCharacterGender(t.identity.gender, character.castingGender),
+  );
+  const query = search.trim().toLowerCase();
+  // Direct Approach source: a name search reaches the whole eligible pool - the
+  // escape hatch past the price window that would otherwise hide the specific
+  // actor you're hunting. Without a query, the price-window shortlist as before.
+  const directCandidates = query
+    ? eligibleDirectActors.filter((t) => t.identity.name.toLowerCase().includes(query)).slice(0, DIRECT_SEARCH_LIMIT)
+    : findCandidatesNearPrice(eligibleDirectActors, role, offeredSalary, 9).candidates;
 
-  // "Available now only" filter: a booked actor can't actually be cast today -
-  // the offer is hard-rejected on the schedule gate (engine/castingAppeal.ts) -
-  // yet they list identically to castable ones, so hiding them cuts the list to
-  // people an offer could actually land. Someone already on this production
-  // (the current pick, or a co-lead) is never hidden. Defaults off, so the full
-  // roster is the baseline. isAvailableImmediately matches the exact reading the
-  // card shows ("Available immediately" vs "Busy until X").
+  // Appeal for everyone we might show or sort, computed once - computeActorAppeal
+  // is pure, but there's no reason to re-run it per sort comparison.
+  const scored = [...(call?.applicants ?? []).map((a) => a.person), ...directCandidates];
+  const appealById = new Map(scored.map((p) => [p.id, appealFor(p)]));
+  const appealOverall = (person: Person) => appealById.get(person.id)?.overall ?? 0;
+
+  // Filters. "Available now only": a booked actor can't be cast today (the offer
+  // is hard-rejected on the schedule gate), so hiding them cuts the list to
+  // people an offer could land. "Affordable only": hides picks that would put
+  // the film over budget. A name search narrows by name. Anyone already on this
+  // production is never hidden. All default off/empty, so the full roster is the
+  // baseline (isAvailableImmediately matches the card's own "Available now" read).
   const onThisDraftIds = new Set(draft.talent.map((a) => a.person.id));
-  const isCandidateShown = (person: Person) =>
-    !availableOnly || onThisDraftIds.has(person.id) || isAvailableImmediately(person, state.totalDays);
-  const shownApplicants = sortedApplicants.filter((a) => isCandidateShown(a.person));
-  const shownDirectCandidates = directCandidates.filter(isCandidateShown);
-  const hiddenCount =
-    tab === 'open-casting'
-      ? sortedApplicants.length - shownApplicants.length
-      : directCandidates.length - shownDirectCandidates.length;
+  const matchesQuery = (person: Person) => !query || person.identity.name.toLowerCase().includes(query);
+  const passesFilters = (person: Person) => {
+    if (!matchesQuery(person)) return false;
+    const onDraft = onThisDraftIds.has(person.id);
+    if (availableOnly && !onDraft && !isAvailableImmediately(person, state.totalDays)) return false;
+    if (affordableOnly && !onDraft && !isAffordable(person)) return false;
+    return true;
+  };
+
+  // Sort by the player's chosen intent. Appeal/Value read the same appeal the
+  // acceptance math uses; Value is appeal per pound; Price is cheapest-first.
+  const sortValue = (person: Person): number => {
+    const salary = getTypicalSalaryForRole(person, role);
+    switch (sortBy) {
+      case 'value': return salary > 0 ? appealOverall(person) / salary : appealOverall(person);
+      case 'price': return -salary;
+      case 'fame': return person.reputation.fame;
+      default: return appealOverall(person);
+    }
+  };
+  const bySort = (a: Person, b: Person) => sortValue(b) - sortValue(a);
+
+  const shownApplicants = (call?.applicants ?? []).filter((a) => passesFilters(a.person)).sort((a, b) => bySort(a.person, b.person));
+  const shownDirectCandidates = directCandidates.filter(passesFilters).sort(bySort);
+
+  // How many the availability filter hid in the current tab (for its hint) -
+  // measured over the name-searched source, so it reads against what's in view.
+  const tabPersons = tab === 'open-casting' ? (call?.applicants ?? []).map((a) => a.person) : directCandidates;
+  const availabilityHiddenCount = availableOnly
+    ? tabPersons.filter((p) => matchesQuery(p) && !onThisDraftIds.has(p.id) && !isAvailableImmediately(p, state.totalDays)).length
+    : 0;
 
   return (
     <>
@@ -318,13 +355,32 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
           </Button>
         </div>
 
-        {(tab === 'direct-approach' ? directCandidates.length > 0 : !!call && call.applicants.length > 0) && (
-          <CheckboxToggle
-            checked={availableOnly}
-            onChange={setAvailableOnly}
-            label="Available now only"
-            hint={availableOnly && hiddenCount > 0 ? `${hiddenCount} booked hidden` : ''}
-          />
+        {(tab === 'direct-approach' || (!!call && call.applicants.length > 0)) && (
+          <div className="casting-controls">
+            <input
+              type="search"
+              className="casting-search"
+              placeholder="Search by name"
+              aria-label="Search candidates by name"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <label className="casting-sort">
+              <span>Sort</span>
+              <select aria-label="Sort candidates" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortKey)}>
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.key} value={option.key}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <CheckboxToggle
+              checked={availableOnly}
+              onChange={setAvailableOnly}
+              label="Available now only"
+              hint={availableOnly && availabilityHiddenCount > 0 ? `${availabilityHiddenCount} hidden` : ''}
+            />
+            <CheckboxToggle checked={affordableOnly} onChange={setAffordableOnly} label="Affordable only" />
+          </div>
         )}
 
         {tab === 'open-casting' && (
@@ -353,7 +409,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                   </p>
                 ) : shownApplicants.length === 0 ? (
                   <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-                    Every current applicant is booked elsewhere. Turn off &ldquo;Available now only&rdquo; to see them.
+                    No applicants match your search or filters - clear them to see the rest.
                   </p>
                 ) : (
                   <div className="grid grid-wide">
@@ -365,7 +421,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                         script={draft.script}
                         character={character}
                         totalDays={state.totalDays}
-                        overall={appealByPersonId.get(applicant.person.id) ?? null}
+                        overall={appealById.get(applicant.person.id) ?? null}
                         channel={applicant.channel}
                         directorName={directorName}
                         affordable={isAffordable(applicant.person)}
@@ -387,9 +443,13 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
               Target a specific actor directly, rather than waiting for Open Casting to surface them - the same
               acceptance math applies either way.
             </p>
-            {shownDirectCandidates.length === 0 && directCandidates.length > 0 ? (
+            {shownDirectCandidates.length === 0 ? (
               <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-                Every actor near this price is booked elsewhere. Turn off &ldquo;Available now only&rdquo; to see them.
+                {query
+                  ? `No actors match "${search.trim()}" for this role.`
+                  : directCandidates.length > 0
+                    ? 'No actors match your filters - clear them to see the rest.'
+                    : 'No actors near this price. Adjust the offered salary, or search by name to reach past this window.'}
               </p>
             ) : (
             <div className="grid grid-wide">
@@ -401,7 +461,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                   script={draft.script}
                   character={character}
                   totalDays={state.totalDays}
-                  overall={appealFor(person)}
+                  overall={appealById.get(person.id) ?? null}
                   directorName={directorName}
                   affordable={isAffordable(person)}
                   actionLabel="Make Offer"
