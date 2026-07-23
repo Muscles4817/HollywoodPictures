@@ -327,6 +327,10 @@ export type GameAction =
   // in-progress/awaiting-choice semantics; this fires *after* photography is
   // already 'finished' and never reopens it.
   | { type: 'RESOLVE_TEST_SCREENING_CHOICE'; choiceId: string; productionId: string }
+  // Interactive press tour (docs/DESIGN_REVIEW_marketing_campaign.md): the
+  // player answers a fired window incident on a scheduled release. choiceId is a
+  // PressTourResponseId; productionId targets the 'scheduled' project.
+  | { type: 'RESOLVE_PRESS_TOUR_INCIDENT'; choiceId: string; productionId: string }
   | { type: 'SET_POST_PRODUCTION_CHOICES'; choices: PostProductionChoices }
   | { type: 'SET_MARKETING_CHOICES'; choices: MarketingChoices }
   // Roadmap Phase 7.2 - replaces the old always-immediate RELEASE_FILM.

@@ -119,6 +119,8 @@ export interface InboxItems {
   wrapped: FilmDraft[];
   parked: FilmDraft[];
   casting: Array<{ production: FilmDraft; calls: CastingCall[] }>;
+  /** Scheduled (not-yet-released) films with a fired-but-unanswered press-tour incident awaiting a response (the interactive layer). Sourced from 'scheduled' projects, which backgroundedPlayerDrafts deliberately excludes. */
+  pressTourIncidents: FilmDraft[];
 }
 
 export function deriveInboxItems(projects: Project[], excludeId: string | null): InboxItems {
@@ -137,13 +139,16 @@ export function deriveInboxItems(projects: Project[], excludeId: string | null):
       .filter((p) => !p.photography)
       .map((p) => ({ production: p, calls: castingCallsAwaitingReview(p) }))
       .filter((c) => c.calls.length > 0),
+    pressTourIncidents: scheduledPlayerReleases(projects)
+      .map((s) => s.draft)
+      .filter((d) => d.pressTourIncident),
   };
 }
 
 /** The Inbox badge count (components/common/Header.tsx) - the sum of every category deriveInboxItems groups. */
 export function inboxBadgeCount(projects: Project[], excludeId: string | null): number {
   const items = deriveInboxItems(projects, excludeId);
-  return items.awaitingChoice.length + items.wrapped.length + items.parked.length + items.casting.length;
+  return items.awaitingChoice.length + items.wrapped.length + items.parked.length + items.casting.length + items.pressTourIncidents.length;
 }
 
 /** Every player project waiting on its own releaseDay to arrive (roadmap Phase 7.2) - see engine/scheduledReleases.ts. */

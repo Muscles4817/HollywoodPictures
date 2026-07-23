@@ -14,7 +14,13 @@ import { getTypicalSalaryForRole, getWriterCareer, isPersonAvailableForCommitmen
 import { writerProfileFromPerson } from '../engine/writers';
 import { computeRewriteOutcome, makePendingRewrite, rewriteDurationDays, rewriteFee, settleAssetRewrites } from '../engine/rewrite';
 import { commissionDurationDays, commissionFee, generateCommissionedScript, makePendingCommission, settlePendingCommissions } from '../engine/commission';
-import type { TalentReputationDelta } from '../engine/pressTourMoments';
+import {
+  momentPolarity,
+  resolvePressTourIncident,
+  rollPressTourWindowIncident,
+  type TalentReputationDelta,
+} from '../engine/pressTourMoments';
+import type { PressTourResponseId } from '../data/pressTourMoments';
 import { pressTourCost } from '../engine/pressTour';
 import { adaptRecommendationsToProductionChoices } from '../engine/productionChoicesAdapter';
 import { deriveProjectReadiness } from '../engine/projectReadiness';
@@ -61,6 +67,7 @@ import {
   findProject,
   asFilm,
   asPlayerDraft,
+  asScheduled,
   playerDraftToProject,
   scheduledDraftToProject,
   rivalProductionToProject,
@@ -499,6 +506,11 @@ function replaceDraft(projects: Project[], draft: FilmDraft): Project[] {
   return projects.map((p) => (p.kind === 'player-in-progress' && p.draft.id === draft.id ? playerDraftToProject(draft) : p));
 }
 
+/** Replaces a 'scheduled' project's draft in place, keeping its releaseDay - the scheduled-project analogue of replaceDraft (used to answer a press-tour incident). */
+function replaceScheduledProject(projects: Project[], draft: FilmDraft): Project[] {
+  return projects.map((p) => (p.kind === 'scheduled' && p.draft.id === draft.id ? scheduledDraftToProject(draft, p.releaseDay) : p));
+}
+
 /**
  * Applies a resolved on-set event choice's outcome to whichever FilmDraft it
  * belongs to - the focused project or one of the backgrounded ones, see
@@ -614,6 +626,27 @@ function checkTestScreeningReadiness(draft: FilmDraft, totalDaysAfter: number, r
   return { ...draft, testScreeningPendingChoice: generateTestScreeningPendingChoice(draft, rng, 0) };
 }
 
+/**
+ * Interactive press tour (docs/DESIGN_REVIEW_marketing_campaign.md): roll the
+ * one-shot window incident for each not-yet-released scheduled tour film. Runs
+ * once per film (guarded by pressTourWindowRolled) on the first ADVANCE_DAY tick
+ * after it's scheduled, so it carries the same one-shot odds the settlement roll
+ * always had rather than compounding day by day. A film with no tour roster (or
+ * one already rolled) draws no rng, so the stream is untouched for everyone
+ * else - the same behaviour-preservation the settlement roll relies on. Must be
+ * called LAST in the ADVANCE_DAY tick (after settleAwards) so its draws never
+ * shift another system's seeded outcome.
+ */
+function rollScheduledPressTourIncidents(scheduled: ScheduledRelease[], rng: RandomFn): ScheduledRelease[] {
+  return scheduled.map((s) => {
+    const ids = s.draft.marketingChoices?.pressTourCast;
+    if (!ids || ids.length === 0 || s.draft.pressTourWindowRolled) return s;
+    const fired = rollPressTourWindowIncident(s.draft.talent, ids, rng);
+    const incident = fired ? { base: fired, situation: fired.story, polarity: momentPolarity(fired.templateId) } : null;
+    return { ...s, draft: { ...s.draft, pressTourWindowRolled: true, pressTourIncident: incident } };
+  });
+}
+
 // Talent salary, the non-contingency production budget, and the contingency
 // reserve are charged/settled as production actually happens (BEGIN_PHOTOGRAPHY,
 // resolveChoiceOnDraft, FINISH_PHOTOGRAPHY, below) - only script cost, event
@@ -670,7 +703,11 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           totalDaysAfter,
           rng,
         );
-        return { settlement, awardsResult, productionsInProgress: tickedProductionsInProgress, focusedDraft: tickedFocusedDraft };
+        // Press-tour window incidents roll dead last (after awards), so their
+        // per-tour draw never shifts box office, casting, screening, or awards
+        // on this tick.
+        const scheduledWithIncidents = rollScheduledPressTourIncidents(settlement.stillScheduled, rng);
+        return { settlement, awardsResult, productionsInProgress: tickedProductionsInProgress, focusedDraft: tickedFocusedDraft, scheduledWithIncidents };
       });
       return {
         ...state,
@@ -685,7 +722,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         awards: result.awardsResult.awards,
         projects: assembleProjects({
           playerDrafts: [...(result.focusedDraft ? [result.focusedDraft] : []), ...result.productionsInProgress],
-          scheduled: result.settlement.stillScheduled,
+          scheduled: result.scheduledWithIncidents,
           rivalProductions: result.settlement.rivalProductionsInProgress,
           playerFilms: result.settlement.playerFilms,
           rivalFilms: result.settlement.rivalFilms,
@@ -1717,6 +1754,25 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           postProductionEvents: [...target.postProductionEvents, rolled],
           postProductionEditingUntilDay: state.totalDays + rolled.delayDaysDelta,
           testScreeningPendingChoice: null,
+        }),
+      };
+    }
+
+    case 'RESOLVE_PRESS_TOUR_INCIDENT': {
+      // The player answers a press-tour incident on a scheduled release. Pure -
+      // the variance was already spent on the window roll, so shaping the
+      // outcome by the chosen response draws no rng and can't perturb any stream
+      // (no rngSeed change). The resolved moment is read at settlement in place
+      // of the settlement-time roll (engine/marketSettlement.ts).
+      const scheduled = asScheduled(findProject(state.projects, action.productionId));
+      if (!scheduled?.draft.pressTourIncident) return state;
+      const resolved = resolvePressTourIncident(scheduled.draft.pressTourIncident.base, action.choiceId as PressTourResponseId);
+      return {
+        ...state,
+        projects: replaceScheduledProject(state.projects, {
+          ...scheduled.draft,
+          pressTourIncident: null,
+          pressTourResolvedMoment: resolved,
         }),
       };
     }

@@ -1902,6 +1902,46 @@ export interface FilmDraft {
   postProductionChoices: PostProductionChoices | null;
   marketingChoices: MarketingChoices | null;
   results: FilmResults | null;
+  // Interactive press tour (docs/DESIGN_REVIEW_marketing_campaign.md, "press
+  // tours" / D interactive). Whether the one-shot window incident roll has
+  // already happened for this scheduled film - set true the first ADVANCE_DAY
+  // tick after it's scheduled so it never re-rolls each day. Absent/false means
+  // the window hasn't rolled (a same-day or non-touring release never enters
+  // the window; those roll at settlement as before). All three fields are
+  // optional and read defensively (`?? null`/falsy) - additive, no migration.
+  pressTourWindowRolled?: boolean;
+  /** A fired-but-unanswered press-tour incident awaiting the player's response in the Inbox. Null once answered or if the window stayed quiet. */
+  pressTourIncident?: PressTourIncident | null;
+  /** The player-shaped (or, if never answered, base) outcome of a window incident - read at settlement in place of the settlement-time roll. */
+  pressTourResolvedMoment?: PressTourMoment | null;
+}
+
+/**
+ * A press-tour moment that fired for one tourer, resolved to concrete text +
+ * effects (engine/pressTourMoments.ts aliases this as FiredPressTourMoment).
+ * Persisted on a FilmDraft when a moment fires during the release window, so the
+ * shape lives here in types rather than in engine (which imports from here).
+ */
+export interface PressTourMoment {
+  personId: PersonId;
+  personName: string;
+  templateId: string;
+  headline: string;
+  story: string;
+  buzzDelta: number;
+  fameDelta: number;
+  heatDelta: number;
+  controversyDelta: number;
+}
+
+/** An unanswered press-tour incident awaiting the player's response (the interactive layer). */
+export interface PressTourIncident {
+  /** What happened, before any response is applied. */
+  base: PressTourMoment;
+  /** The dilemma text shown to the player. */
+  situation: string;
+  /** Which response set applies (drives which options the Inbox card offers). */
+  polarity: 'positive' | 'negative';
 }
 
 // --- Project: one entity, one id, across a film's entire life ------------

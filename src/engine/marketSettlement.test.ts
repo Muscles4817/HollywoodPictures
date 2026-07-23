@@ -153,6 +153,28 @@ describe('settleTheatricalMarket - press tour reputation write-back (D2b)', () =
     const noTour = withRng(71, (rng) => settleTheatricalMarket([], [{ draft, releaseDay: 40 }], [], [], 40, 50, rng)).result;
     expect(noTour.playerTalentReputationDeltas).toEqual([]);
   });
+
+  it('a window-resolved incident (interactive) drives settlement instead of a fresh roll', () => {
+    const draft = readyDraft(72);
+    const tourer = draft.talent[0].person;
+    const resolved = {
+      personId: tourer.id, personName: tourer.identity.name, templateId: 'controversy-viral-remark',
+      headline: 'x', story: 'RESOLVED-WINDOW-STORY.', buzzDelta: -12, fameDelta: 1, heatDelta: 20, controversyDelta: 10,
+    };
+    const scheduled = {
+      ...draft,
+      marketingChoices: { ...draft.marketingChoices!, pressTourCast: [tourer.id] },
+      pressTourWindowRolled: true,
+      pressTourResolvedMoment: resolved,
+    };
+    const result = withRng(73, (rng) => settleTheatricalMarket([], [{ draft: scheduled, releaseDay: 40 }], [], [], 40, 50, rng)).result;
+    const film = result.settledFilms[0];
+    // The window outcome - not a random settlement roll - is what reached the film.
+    expect(film.results.storyReport).toContain('RESOLVED-WINDOW-STORY.');
+    const delta = result.playerTalentReputationDeltas.find((d) => d.personId === tourer.id)!;
+    expect(delta.controversyDelta).toBe(resolved.controversyDelta); // the resolved moment's own effect
+    expect(delta.heatDelta).toBeGreaterThan(resolved.heatDelta); // baseline exposure heat on top
+  });
 });
 
 describe('settleTheatricalMarket - cross-owner competitive crowding at release', () => {

@@ -4,6 +4,7 @@ import { Money } from './Money';
 import { OnSetDecisionCard } from './OnSetDecisionCard';
 import { backgroundedPlayerDrafts, deriveInboxItems } from '../../engine/project';
 import { highestBid } from '../../engine/opportunities';
+import { responsesForPolarity } from '../../engine/pressTourMoments';
 import type { BidNotification } from '../../types';
 
 interface InboxProps {
@@ -62,12 +63,12 @@ export function Inbox({ open, onClose }: InboxProps) {
   // (ProductionRun.tsx/MarketingRelease.tsx) is where it belongs, not the
   // Inbox. The exact same derivation Header.tsx's badge count reads
   // (engine/project.ts:inboxBadgeCount), so the two can never drift apart.
-  const { awaitingChoice, wrapped, parked, casting } = deriveInboxItems(state.projects, state.focusedProjectId);
+  const { awaitingChoice, wrapped, parked, casting, pressTourIncidents } = deriveInboxItems(state.projects, state.focusedProjectId);
   // Every backgrounded draft, regardless of category - the "N productions
   // in the background" reassurance line below, distinct from badgeCount
   // (only the ones actually needing attention).
   const productions = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
-  const badgeCount = awaitingChoice.length + wrapped.length + parked.length + casting.length;
+  const badgeCount = awaitingChoice.length + wrapped.length + parked.length + casting.length + pressTourIncidents.length;
 
   // Bid "emails" (engine/bidNotifications.ts) - stored newest-first. An
   // 'outbid' is still actionable only while its opportunity is genuinely live
@@ -142,6 +143,33 @@ export function Inbox({ open, onClose }: InboxProps) {
             })}
           </div>
         )}
+
+        {pressTourIncidents.map((production) => {
+          const incident = production.pressTourIncident!;
+          const releaseNote = 'This is happening now, during the release campaign - your response is baked in when the film opens.';
+          return (
+            <div className="card stack" key={production.id}>
+              <span className="dashboard-section-kicker">Press tour · {production.title || 'Untitled Film'}</span>
+              <div className="card-title">{incident.base.headline}</div>
+              <p style={{ margin: 0, color: 'var(--text-muted)' }}>{incident.situation}</p>
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>{releaseNote}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {responsesForPolarity(incident.polarity).map((response) => (
+                  <div key={response.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <Button
+                      className="btn-sm"
+                      variant={response.id === 'apologize' || response.id === 'stay-humble' ? 'primary' : undefined}
+                      onClick={() => dispatch({ type: 'RESOLVE_PRESS_TOUR_INCIDENT', choiceId: response.id, productionId: production.id })}
+                    >
+                      {response.label}
+                    </Button>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.82em' }}>{response.description.replaceAll('{name}', incident.base.personName)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
 
         {awaitingChoice.map((production) => {
           if (production.photography?.pendingChoice) {
