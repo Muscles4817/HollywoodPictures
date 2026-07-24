@@ -135,6 +135,45 @@ describe('TalentDatabase', () => {
   });
 });
 
+describe('TalentDatabase - all professions', () => {
+  it('lists non-actor talent and opens a director to a director-specific profile', () => {
+    const state = withRng(1, (rng) => {
+      const talentPool = generateTalentPool(rng);
+      const [director] = generateTalentCandidates('Director', rng, 1);
+      talentPool.Director = [{ ...director, id: 'dir-1', identity: { ...director.identity, name: 'Rhea Kapoor' } }];
+      return {
+        studio: createInitialStudio(50_000_000),
+        screen: 'talent-database' as const,
+        projects: [],
+        focusedProjectId: null,
+        projectWorkspaceSection: 'overview' as const,
+        rngSeed: 2,
+        totalDays: 1,
+        talentPool,
+        rivalStudios: [],
+        opportunities: [],
+        nextOpportunityCheckDay: 1,
+        viewingRivalStudioName: null,
+        viewingProductionId: null,
+        awards: { season: null, history: [], nextSeasonDay: 99_999 },
+      };
+    }).result;
+    saveState(state);
+    render(
+      <StudioProvider>
+        <TalentDatabase />
+      </StudioProvider>,
+    );
+
+    // A director now appears in the (all-professions) list...
+    fireEvent.click(screen.getByText('Rhea Kapoor'));
+    // ...and opens to a profession-specific career panel, not the actor one.
+    expect(screen.getByRole('heading', { name: /As a Director/ })).toBeInTheDocument();
+    expect(screen.getByText('Directing skill')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /As an Actor/ })).not.toBeInTheDocument();
+  });
+});
+
 describe('formatWinnerMarquee', () => {
   // The marquee reads off Academy wins only (academyByCategory) - byShow is
   // irrelevant to it, so a minimal fixture just fills the category breakdown.
