@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { generateRivalStudios, settleRivalMarket, type RivalMarketUpdate } from './rivalStudios';
+import { generateRivalStudios, settleRivalMarket, releaseTypeForScale, type RivalMarketUpdate } from './rivalStudios';
+import { createRng } from './random';
 import { settleTheatricalMarket } from './marketSettlement';
 import { generateTalentPool } from './talentGenerator';
 import { settleOpportunities, type ResolvedBid } from './opportunities';
@@ -280,5 +281,35 @@ describe('settleRivalMarket - AI Studios 2.0 financial constraints', () => {
       if (other.id === started.rivalStudioId) continue;
       expect(settlement.rivalDeltas.has(other.name)).toBe(false);
     }
+  });
+});
+
+describe('releaseTypeForScale (rival release strategy follows the film budget)', () => {
+  // RELEASE_TYPES iterate as [Limited, Wide, Festival First]; Big weights are
+  // Limited 8 / Wide 88 / Festival First 4 (total 100), so a fixed rng roll
+  // lands in a known band (see engine/random.ts:weightedPick).
+  it('sends a Big-budget film Wide on a mid roll - the spend finally has somewhere to go', () => {
+    expect(releaseTypeForScale('Big', () => 0.5)).toBe('Wide');
+  });
+
+  it('still, rarely, platforms a Big film - randomness is retained, not eliminated', () => {
+    expect(releaseTypeForScale('Big', () => 0.02)).toBe('Limited');
+    expect(releaseTypeForScale('Big', () => 0.995)).toBe('Festival First');
+  });
+
+  it('overwhelmingly sends Big films Wide across many draws (was ~1/3 under the old uniform pick)', () => {
+    const rng = createRng(7);
+    const counts: Record<string, number> = { Wide: 0, Limited: 0, 'Festival First': 0 };
+    for (let i = 0; i < 1000; i++) counts[releaseTypeForScale('Big', rng)]++;
+    expect(counts.Wide).toBeGreaterThan(750);
+    expect(counts['Festival First']).toBeLessThan(120);
+  });
+
+  it('leans Small films toward Limited / Festival First rather than Wide', () => {
+    const rng = createRng(11);
+    const counts: Record<string, number> = { Wide: 0, Limited: 0, 'Festival First': 0 };
+    for (let i = 0; i < 1000; i++) counts[releaseTypeForScale('Small', rng)]++;
+    expect(counts.Wide).toBeLessThan(counts.Limited + counts['Festival First']);
+    expect(counts.Wide).toBeLessThan(350);
   });
 });

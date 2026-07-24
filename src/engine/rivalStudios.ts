@@ -31,7 +31,7 @@ import { GENRE_PROFILES } from '../data/genres';
 import { SHOOTING_BUDGET_RANGE, ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../data/production';
 import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../data/postProduction';
 import { RELEASE_TYPE_PROFILES, MARKETING_SPEND_RANGE } from '../data/release';
-import { clamp, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
+import { clamp, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn } from './random';
 import { deriveReleaseWindowFromDay } from './calendar';
 import { computeCompetitiveCrowding, computeRivalReleaseStrength, type UpcomingRelease } from './releaseCrowding';
 
@@ -39,6 +39,25 @@ const EDIT_STYLES = Object.keys(EDIT_STYLE_PROFILES) as PostProductionChoices['e
 const MUSIC_FOCI = Object.keys(MUSIC_FOCUS_PROFILES) as PostProductionChoices['musicFocus'][];
 const FINAL_CUT_FOCI = Object.keys(FINAL_CUT_FOCUS_PROFILES) as PostProductionChoices['finalCutFocus'][];
 const RELEASE_TYPES = Object.keys(RELEASE_TYPE_PROFILES) as MarketingChoices['releaseType'][];
+
+// How a rival picks its release type - by the film's SCALE, the way a real
+// studio's does, rather than the uniform coin flip this used to be. A
+// Big-budget tentpole goes out Wide (that's what all the spend is for); a Small
+// film is far likelier to platform via a cheaper Limited run or a Festival First
+// prestige play. Some randomness is retained (a rival isn't perfectly
+// predictable), but a blockbuster no longer randomly opens in ten theaters.
+// Weights are relative, not probabilities - weightedPick normalises by their
+// sum (engine/random.ts).
+const RELEASE_TYPE_WEIGHTS_BY_SCALE: Record<ProductionScale, Partial<Record<MarketingChoices['releaseType'], number>>> = {
+  Big: { Wide: 88, Limited: 8, 'Festival First': 4 },
+  Medium: { Wide: 60, Limited: 25, 'Festival First': 15 },
+  Small: { Wide: 22, Limited: 46, 'Festival First': 32 },
+};
+
+/** A rival's release type, weighted toward what makes sense for the film's scale (see RELEASE_TYPE_WEIGHTS_BY_SCALE). Exported for tests. */
+export function releaseTypeForScale(scale: ProductionScale, rng: RandomFn): MarketingChoices['releaseType'] {
+  return weightedPick(rng, RELEASE_TYPES, RELEASE_TYPE_WEIGHTS_BY_SCALE[scale]);
+}
 
 // A rival never actually runs a post-production/marketing pipeline of its
 // own - resolveRivalProduction below settles it instantly the moment
@@ -766,7 +785,7 @@ function startRivalProductionFromWonScript(
   };
   const marketingChoices: MarketingChoices = {
     marketingSpend: logAmount(spendPlan.marketingSpendT, MARKETING_SPEND_RANGE),
-    releaseType: pick(rng, RELEASE_TYPES),
+    releaseType: releaseTypeForScale(scale, rng),
     releaseWindow: deriveReleaseWindowFromDay(releaseDay),
     // Rivals are established majors with full overseas distribution - freeze
     // full international reach so their grosses aren't nerfed by the gate.
