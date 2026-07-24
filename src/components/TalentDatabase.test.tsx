@@ -76,8 +76,10 @@ describe('TalentDatabase', () => {
     renderPage();
     fireEvent.click(screen.getByText('Nadia Okafor'));
     expect(screen.getByRole('heading', { name: 'Nadia Okafor' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Standing' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Acting Range' })).toBeInTheDocument();
+    // Person-level Standing, and the career-level "As an Actor" panel (headings
+    // now carry a short descriptive note, so match on the leading label).
+    expect(screen.getByRole('heading', { name: /Standing/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /As an Actor/ })).toBeInTheDocument();
     expect(screen.getByText(/Filmography/)).toBeInTheDocument();
     // Public stats include Fame and the acting axes.
     expect(screen.getByText('Fame')).toBeInTheDocument();

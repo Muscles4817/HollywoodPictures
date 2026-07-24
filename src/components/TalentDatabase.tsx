@@ -9,6 +9,9 @@ import { getPersonAge, computeActorAbility } from '../types';
 import { gameDateFromTotalDays, formatGameDateWithMonth } from '../engine/calendar';
 import { deriveBookedUntil } from '../engine/person';
 import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../engine/personTraits';
+import { qualitativeMagnitude } from '../engine/talentCardPresentation';
+import { describeActorCraft, describeSignatureGift, describeRelationship } from '../engine/castingPresentation';
+import { playerRelationshipWith } from '../engine/relationships';
 import { playerReleasedFilms, rivalReleasedFilms } from '../engine/project';
 import { collectPersonAwards, collectPersonStats, collectFilmStats, formatWinnerMarquee, type AwardTally, type PersonAwardSummary, type PersonStatRow } from '../state/selectors';
 import { awardShow } from '../data/awardsShows';
@@ -28,18 +31,35 @@ function abilityStars(person: Person): number {
   return person.careers.actor ? computeActorAbility(person.careers.actor.actingStyle) : 0;
 }
 
-/** A labelled stat row with its star rating and an explanatory info sign. */
-function InfoStat({ statKey, value }: { statKey: StatKey; value: number }) {
+/** A 0-100 value as its bar-fill tier - green for a real strength, blue for solid, amber for a soft spot - so a profile's shape (what they're strong and weak at) reads at a glance. */
+function magnitudeTier(value: number): 'hi' | 'mid' | 'lo' {
+  if (value >= 75) return 'hi';
+  if (value >= 50) return 'mid';
+  return 'lo';
+}
+
+/**
+ * A labelled stat as a tiered bar with a qualitative band AND its raw value
+ * (Talent Database redesign - the hybrid read the player asked for: a headline
+ * you can scan plus the precise number for a reference page), with an
+ * explanatory info sign. Replaces the old identical star rows - the bar's
+ * colour and length carry the strength, the label names it, the number pins it.
+ */
+function StatBar({ statKey, value }: { statKey: StatKey; value: number }) {
   const info = STAT_INFO[statKey];
+  const tier = magnitudeTier(value);
   return (
-    <div className="td-stat-row">
-      <span className="td-stat-label">
+    <div className="td-bar-row">
+      <span className="td-bar-label">
         {info.label}
         <InfoTip label={`${info.what} ${info.effect}`} />
       </span>
-      <span className="td-stat-value">
-        <StarRating value={value} />
-        <span className="td-stat-raw">{Math.round(value)}</span>
+      <span className="td-bar-track">
+        <span className={`td-bar-fill td-bar-fill--${tier}`} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+      </span>
+      <span className="td-bar-readout">
+        <span className={`td-bar-qual td-bar-qual--${tier}`}>{qualitativeMagnitude(value)}</span>
+        <span className="td-bar-raw">{Math.round(value)}</span>
       </span>
     </div>
   );
@@ -153,25 +173,32 @@ function DevSection({ person }: { person: Person }) {
   );
 }
 
-function ActorDetail({ person, totalDays, credits, award, performance, onBack }: { person: Person; totalDays: number; credits: Credit[]; award?: PersonAwardSummary; performance?: PersonStatRow; onBack: () => void }) {
+function PersonDetail({ person, totalDays, credits, award, performance, relationship, onBack }: { person: Person; totalDays: number; credits: Credit[]; award?: PersonAwardSummary; performance?: PersonStatRow; relationship: string | null; onBack: () => void }) {
+  // Person page (user request): the page is now the person, not their role.
+  // Person-level facts (identity, standing, filmography, awards, reputation)
+  // frame one career-level panel per career they hold - today only the acting
+  // one, since the browsable list is actors-only, but the split is what lets a
+  // future multi-hyphenate grow a second panel here rather than a new page.
   const actor = person.careers.actor!;
   const age = getPersonAge(person.identity.dateOfBirth, gameDateFromTotalDays(totalDays));
   const bookedUntil = deriveBookedUntil(person.availability.commitments);
   const busy = !!bookedUntil && bookedUntil > totalDays;
   const traits = deriveTraits(person);
-  const identityLine = [age !== undefined ? `${age} years old` : null, person.identity.gender, person.identity.nationality]
+  const identityLine = [person.primaryRole, age !== undefined ? `${age} years old` : null, person.identity.gender, person.identity.nationality]
     .filter(Boolean)
     .join(' · ');
   const marquee = award ? formatWinnerMarquee(award) : null;
+  const craftHeadline = describeSignatureGift(person) ?? describeActorCraft(person);
 
   return (
     <div className="stack td-detail">
       <button type="button" className="td-back" onClick={onBack}>← All talent</button>
 
       <header className="td-detail__header">
-        <div>
+        <div className="td-detail__ident">
           <h1 style={{ margin: 0 }}>{person.identity.name}</h1>
-          <p className="td-detail__subtitle">Actor{identityLine ? ` · ${identityLine}` : ''}</p>
+          <p className="td-detail__subtitle">{identityLine}</p>
+          {relationship && <p className="td-detail__relationship">{relationship}</p>}
           {marquee && <p className="td-detail__marquee">🏆 {marquee}</p>}
         </div>
         <div className="td-detail__fee">
@@ -184,21 +211,22 @@ function ActorDetail({ person, totalDays, credits, award, performance, onBack }:
       </header>
 
       <section className="td-panel">
-        <h2>Standing</h2>
-        <div className="td-stat-grid">
-          <InfoStat statKey="fame" value={person.reputation.fame} />
-          <InfoStat statKey="prestige" value={person.reputation.prestige} />
-          <InfoStat statKey="industryRespect" value={person.reputation.industryRespect} />
-          <InfoStat statKey="reliability" value={person.reputation.reliability} />
-          <InfoStat statKey="currentHeat" value={person.reputation.currentHeat} />
+        <h2>Standing <span className="td-panel__note">How the industry sees them</span></h2>
+        <div className="td-bar-grid">
+          <StatBar statKey="fame" value={person.reputation.fame} />
+          <StatBar statKey="prestige" value={person.reputation.prestige} />
+          <StatBar statKey="industryRespect" value={person.reputation.industryRespect} />
+          <StatBar statKey="reliability" value={person.reputation.reliability} />
+          <StatBar statKey="currentHeat" value={person.reputation.currentHeat} />
         </div>
       </section>
 
-      <section className="td-panel">
-        <h2>Acting Range</h2>
-        <div className="td-stat-grid">
+      <section className="td-panel td-panel--career">
+        <h2>As an Actor <span className="td-panel__note">Their range as a performer</span></h2>
+        {craftHeadline && <p className="td-craft-line">{craftHeadline}</p>}
+        <div className="td-bar-grid">
           {(Object.keys(ACTING_STYLE_LABELS) as Array<keyof typeof ACTING_STYLE_LABELS>).map((axis) => (
-            <InfoStat key={axis} statKey={axis} value={actor.actingStyle[axis]} />
+            <StatBar key={axis} statKey={axis} value={actor.actingStyle[axis]} />
           ))}
         </div>
       </section>
@@ -368,12 +396,13 @@ export function TalentDatabase() {
 
   if (selected) {
     return (
-      <ActorDetail
+      <PersonDetail
         person={selected}
         totalDays={totalDays}
         credits={creditsByPerson.get(selected.id) ?? []}
         award={awardsByPerson.get(selected.id)}
         performance={performanceByPerson.get(selected.id)}
+        relationship={describeRelationship(playerRelationshipWith(state.collaborations ?? [], selected))}
         onBack={() => setSelectedId(null)}
       />
     );
