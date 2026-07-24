@@ -20,6 +20,7 @@ import {
   CAMPAIGN_ANGLE_LABEL,
   CAMPAIGN_ANGLE_PROFILES,
   CHANNEL_AUDIENCE_EFFICIENCY,
+  CHANNEL_SPEND_MAX,
   MARKETING_CHANNELS,
   MARKETING_CHANNEL_BLURB,
   MARKETING_CHANNEL_LABEL,
@@ -97,8 +98,9 @@ const DEFAULT_CHOICES: MarketingChoices = {
   releaseWindow: 'Quiet Month',
 };
 
-// Each channel slider runs 0 (skip it) up to this.
-const CHANNEL_MAX = 60_000_000;
+// Each channel slider runs 0 (skip it) up to its own real-world ceiling
+// (data/marketing.ts:CHANNEL_SPEND_MAX) - press commands far less than TV, so
+// the dials no longer share one uniform cap.
 
 const CAMPAIGN_ANGLES = Object.keys(CAMPAIGN_ANGLE_PROFILES) as CampaignAngle[];
 
@@ -521,7 +523,7 @@ export function MarketingRelease() {
                 key={channel}
                 label={MARKETING_CHANNEL_LABEL[channel]}
                 min={0}
-                max={CHANNEL_MAX}
+                max={CHANNEL_SPEND_MAX[channel]}
                 value={channelSpend[channel]}
                 onChange={(v) => updateChannel(channel, v)}
                 formatValue={(v) => (v <= 0 ? 'Skip' : formatMoney(v))}
