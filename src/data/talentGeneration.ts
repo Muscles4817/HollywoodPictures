@@ -14,15 +14,13 @@ export interface RoleGenerationProfile {
 }
 
 export const ROLE_GENERATION_PROFILES: Record<TalentProfession, RoleGenerationProfile> = {
-  // Directors are fully hand-authored - there is no procedural director pool
-  // (see engine/talentGenerator.ts:generateTalentPool). The range spans the
-  // ~340-strong handcrafted roster's actual salaries (~$0.3M-$20M in
-  // HANDCRAFTED_DIRECTORS, from microbudget festival names up to the A-list)
-  // so the price slider, rival target pricing, and casting-call bands only
-  // ever point where a real director exists. The old $50K-$12M range couldn't
-  // reach the $20M A-list, and its bottom sat below any real director until
-  // the roster was filled out across the low- and mid-budget tiers.
-  Director: { salaryRange: { min: 300_000, max: 20_000_000 }, fameCeiling: 98 },
+  // Every recognizable director is hand-authored (~340 in HANDCRAFTED_DIRECTORS,
+  // ~$0.3M-$20M). Below that roster's $0.3M floor sits a small procedural
+  // budget tier of unknown directors (BUDGET_TIER in
+  // engine/talentGenerator.ts) so a shoestring production can still hire one -
+  // the min drops to $30K to let the price slider reach them, while the max
+  // reaches the $20M A-list.
+  Director: { salaryRange: { min: 30_000, max: 20_000_000 }, fameCeiling: 98 },
   // Top of the actor market lifted to £25M to reach real A-list upfront pay
   // ($20-30M/film for a bankable star) - the handcrafted marquee names already
   // sit at ~£20M, but the old £15M ceiling meant a rival's target price could
@@ -30,33 +28,30 @@ export const ROLE_GENERATION_PROFILES: Record<TalentProfession, RoleGenerationPr
   // docs/DESIGN_REVIEW_ai_studio_behavior.md "Reality check". (Generated
   // budget actors are still capped far below this at BUDGET_ACTOR_SALARY_CEILING.)
   'Actor': { salaryRange: { min: 20_000, max: 25_000_000 }, fameCeiling: 98 },
-  // Writers are fully hand-authored - no procedural writer pool (see
-  // engine/talentGenerator.ts:generateTalentPool). The roster is real
-  // screenwriters plus every writer-director's writer career (one Person, both
-  // careers), spanning ~$0.25M-$4M, so the price slider, rival target pricing
-  // and commission bands only ever point where a real writer exists.
-  Writer: { salaryRange: { min: 250_000, max: 4_000_000 }, fameCeiling: 55 },
-  // Cinematographers are fully hand-authored - no procedural pool (see
-  // engine/talentGenerator.ts:generateTalentPool). The range spans the ~100
-  // hand-authored DPs' actual salaries (~$0.3M-$3.5M in
-  // HANDCRAFTED_CINEMATOGRAPHERS, from indie/emerging up to Deakins/Lubezki)
-  // so the price slider, rival target pricing and casting-call bands only ever
-  // point where a real DP exists - the old $25K-$6M range never matched.
-  Cinematographer: { salaryRange: { min: 300_000, max: 3_500_000 }, fameCeiling: 62 },
-  // Composers are fully hand-authored - no procedural pool (see
-  // engine/talentGenerator.ts:generateTalentPool). The range spans the ~100
-  // hand-authored composers' actual salaries (~$0.25M-$5M in
-  // HANDCRAFTED_COMPOSERS, from indie/emerging up to Williams/Zimmer) so the
-  // price slider, rival target pricing and casting-call bands only ever point
-  // where a real composer exists - the old $15K-$2.5M range never matched.
-  Composer: { salaryRange: { min: 250_000, max: 5_000_000 }, fameCeiling: 60 },
-  // Editors are fully hand-authored - no procedural editor pool (see
-  // engine/talentGenerator.ts:generateTalentPool). The range spans the ~100
-  // hand-authored editors' actual salaries (~$180K-$1.5M in HANDCRAFTED_EDITORS,
-  // from up-and-coming cutters to legends like Schoonmaker/Murch) so the price
-  // slider, rival target pricing, and casting-call bands only ever point where
-  // a real editor exists.
-  Editor: { salaryRange: { min: 180_000, max: 1_500_000 }, fameCeiling: 45 },
+  // Recognizable writers are hand-authored (real screenwriters plus every
+  // writer-director's writer career - one Person, both careers - spanning
+  // ~$0.25M-$4M). A procedural budget tier of unknown writers fills below the
+  // $0.25M floor (BUDGET_TIER in engine/talentGenerator.ts), so the min drops
+  // to $15K to let a shoestring production reach a no-name writer.
+  Writer: { salaryRange: { min: 15_000, max: 4_000_000 }, fameCeiling: 55 },
+  // Recognizable DPs are hand-authored (~100 in HANDCRAFTED_CINEMATOGRAPHERS,
+  // ~$0.3M-$3.5M, indie/emerging up to Deakins/Lubezki). A procedural budget
+  // tier of unknown DPs fills below the $0.3M floor (BUDGET_TIER in
+  // engine/talentGenerator.ts); the min drops to $25K so a shoestring shoot can
+  // reach one.
+  Cinematographer: { salaryRange: { min: 25_000, max: 3_500_000 }, fameCeiling: 62 },
+  // Recognizable composers are hand-authored (~100 in HANDCRAFTED_COMPOSERS,
+  // ~$0.25M-$5M, indie/emerging up to Williams/Zimmer). A procedural budget
+  // tier of unknown composers fills below the $0.25M floor (BUDGET_TIER in
+  // engine/talentGenerator.ts); the min drops to $15K so a shoestring score can
+  // reach one.
+  Composer: { salaryRange: { min: 15_000, max: 5_000_000 }, fameCeiling: 60 },
+  // Recognizable editors are hand-authored (~100 in HANDCRAFTED_EDITORS,
+  // ~$180K-$1.5M, up-and-coming cutters to legends like Schoonmaker/Murch). A
+  // procedural budget tier of unknown editors fills below the $180K floor
+  // (BUDGET_TIER in engine/talentGenerator.ts); the min drops to $10K so a
+  // shoestring cut can reach one.
+  Editor: { salaryRange: { min: 10_000, max: 1_500_000 }, fameCeiling: 45 },
   'VFX Supervisor': { salaryRange: { min: 30_000, max: 5_000_000 }, fameCeiling: 65 },
   'Casting Director': { salaryRange: { min: 20_000, max: 3_000_000 }, fameCeiling: 40 },
 };

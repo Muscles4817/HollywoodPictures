@@ -414,12 +414,24 @@ export function generateTalentCandidates(role: TalentProfession, rng: RandomFn, 
   });
 }
 
-// Below this salary, an actor is background/extras-tier - nobody a player
-// would recognize by name, so a procedurally generated unknown reads as
-// authentic rather than a gap in the handcrafted roster. Above it, every
-// actor is hand-authored (see the comment in the loop below).
-const BUDGET_ACTOR_SALARY_CEILING = 300_000;
-const BUDGET_ACTOR_POOL_SIZE = 150;
+// Roles whose recognizable talent is fully hand-authored but that still keep a
+// small procedurally-generated "budget tier" of unknowns BELOW the handcrafted
+// roster's own floor. Every named, recognizable hire is real; the procedural
+// fill only ever produces no-name, background/up-and-coming crew a shoestring
+// production would actually staff up with (a $500K film can't afford Deakins,
+// but it can hire an unknown DP). Each `ceiling` is that role's handcrafted
+// floor, so the two tiers meet with no gap and the procedural tier can never
+// mint a "random A-lister" - see the matching `salaryRange.min` in
+// data/talentGeneration.ts, which drops back below the handcrafted floor so
+// the price slider can actually reach these budget hires.
+const BUDGET_TIER: Partial<Record<TalentProfession, { ceiling: number; poolSize: number }>> = {
+  'Actor': { ceiling: 300_000, poolSize: 150 }, // background/extras-tier actors
+  Director: { ceiling: 300_000, poolSize: 80 },
+  Writer: { ceiling: 250_000, poolSize: 80 },
+  Cinematographer: { ceiling: 300_000, poolSize: 80 },
+  Composer: { ceiling: 250_000, poolSize: 80 },
+  Editor: { ceiling: 180_000, poolSize: 80 },
+};
 
 /** The full studio roster: every role's candidate slate, generated once. */
 export function generateTalentPool(
@@ -429,65 +441,21 @@ export function generateTalentPool(
 
   for (const role of ALL_TALENT_PROFESSIONS) {
     const handcrafted = HANDCRAFTED_TALENTS_BY_ROLE[role] ?? [];
+    const budget = BUDGET_TIER[role];
 
-    // Every recognizable actor is hand-authored now, real name and
-    // realistic stats - but the handcrafted roster doesn't reach down into
-    // background/extras-tier pay, so procedural generation is kept around
-    // just for that bottom slice of the market, capped below
-    // BUDGET_ACTOR_SALARY_CEILING so it never produces a "random" A-lister.
-    if (role === 'Actor') {
-      const budgetTMax = logT(BUDGET_ACTOR_SALARY_CEILING, ROLE_GENERATION_PROFILES.Actor.salaryRange);
+    // Handcrafted recognizable roster + a capped procedural budget tier just
+    // below its floor (see BUDGET_TIER above).
+    if (budget) {
+      const budgetTMax = logT(budget.ceiling, ROLE_GENERATION_PROFILES[role].salaryRange);
       pool[role] = [
         ...handcrafted,
-        ...generateTalentCandidates(role, rng, BUDGET_ACTOR_POOL_SIZE, [0, budgetTMax]),
+        ...generateTalentCandidates(role, rng, budget.poolSize, [0, budgetTMax]),
       ];
       continue;
     }
 
-    // Every director is a recognizable, named filmmaker - unlike actors,
-    // there's no "background/extras" tier of anonymous directors a film would
-    // hire, so the roster is fully hand-authored with no procedural fill (see
-    // HANDCRAFTED_DIRECTORS in data/handcraftedTalents.ts). The Director
-    // salaryRange (data/talentGeneration.ts) is pinned to that roster's actual
-    // span so the price slider only ever points where a real director exists.
-    if (role === 'Director') {
-      pool[role] = [...handcrafted];
-      continue;
-    }
-
-    // Editors are fully hand-authored too (see HANDCRAFTED_EDITORS): the roster
-    // covers the whole $180K-$1.5M pay band densely, so there's no procedural
-    // fill - every hireable editor is a real, named cutter. Same shape as the
-    // Director case above; the Editor salaryRange is pinned to the roster's span.
-    if (role === 'Editor') {
-      pool[role] = [...handcrafted];
-      continue;
-    }
-
-    // Writers are fully hand-authored: real screenwriters plus every
-    // writer-director's writer career (one Person, both careers - see
-    // HANDCRAFTED_TALENTS_BY_ROLE), spanning ~$0.25M-$4M. No procedural fill.
-    if (role === 'Writer') {
-      pool[role] = [...handcrafted];
-      continue;
-    }
-
-    // Cinematographers are fully hand-authored too (see
-    // HANDCRAFTED_CINEMATOGRAPHERS): real DPs from indie/emerging up to the
-    // A-list, spanning ~$0.3M-$3.5M, so no procedural fill.
-    if (role === 'Cinematographer') {
-      pool[role] = [...handcrafted];
-      continue;
-    }
-
-    // Composers are fully hand-authored too (see HANDCRAFTED_COMPOSERS): real
-    // composers from indie/emerging up to Williams/Zimmer, spanning
-    // ~$0.25M-$5M, so no procedural fill.
-    if (role === 'Composer') {
-      pool[role] = [...handcrafted];
-      continue;
-    }
-
+    // Roles with no handcrafted roster (VFX Supervisor, Casting Director) are
+    // still fully procedural across their whole range.
     pool[role] = [...handcrafted, ...generateTalentCandidates(role, rng)];
   }
 
