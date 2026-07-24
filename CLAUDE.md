@@ -42,9 +42,10 @@ npm run lint      # oxlint
 Opt-in analysis harnesses (skipped in the normal suite):
 
 ```bash
-AI_STATS_DIAGNOSTIC=1  npx vitest run src/engine/aiStudioStats.diagnostic.test.ts --disable-console-intercept
-PROD_EXEC_DIAGNOSTIC=1 npx vitest run src/engine/productionExecution.diagnostic.test.ts --disable-console-intercept
-RIVAL_DIAGNOSTIC=1     npx vitest run src/engine/rivalStudios.diagnostic.test.ts
+AI_STATS_DIAGNOSTIC=1         npx vitest run src/engine/aiStudioStats.diagnostic.test.ts --disable-console-intercept
+PROD_EXEC_DIAGNOSTIC=1        npx vitest run src/engine/productionExecution.diagnostic.test.ts --disable-console-intercept
+RIVAL_DIAGNOSTIC=1            npx vitest run src/engine/rivalStudios.diagnostic.test.ts
+ROLE_SENSITIVITY_DIAGNOSTIC=1 npx vitest run src/engine/roleSensitivity.diagnostic.test.ts --disable-console-intercept
 ```
 
 ## Conventions worth keeping
