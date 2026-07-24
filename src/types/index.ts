@@ -168,6 +168,25 @@ export type Gender = 'Male' | 'Female' | 'NonBinary';
 // single match rule every consumer shares.
 export type CastingGender = 'Male' | 'Female' | 'Any';
 
+// What age a written Character reads as, as a named band rather than a raw
+// number - the qualitative register the rest of the sim's presentation uses.
+// Distinct from a real Person's numeric age (getPersonAge). Unlike
+// castingGender, age is NOT an exact-match hard gate: an actor a few years
+// outside the band is a castable *stretch* that costs role-fit (a soft
+// penalty, engine/casting.ts:ageFitMultiplier), and only a wildly wrong age
+// is hard-blocked (actorMeetsCharacterAge). 'Any' is a genuinely age-open
+// role; an absent castingAgeBand (older scripts, non-actor characters) is read
+// as 'Any' everywhere, so the qualifier is strictly additive. Band year
+// ranges live in engine/casting.ts:AGE_BAND_RANGES (rebalance there, not here).
+export type CharacterAgeBand =
+  | 'Child'
+  | 'Teen'
+  | 'YoungAdult'
+  | 'Adult'
+  | 'MiddleAged'
+  | 'Senior'
+  | 'Any';
+
 // Every role a person's career data can be filed under - reuses
 // TalentProfession rather than introducing a differently-named but
 // identical concept (the redesign doc calls this TalentRole; this codebase
@@ -651,6 +670,15 @@ export interface ScriptCharacter {
    * i.e. no constraint.
    */
   castingGender?: CastingGender;
+  /**
+   * Which age band this role is written for. Unlike castingGender this is a
+   * *soft* qualifier: an actor outside the band can still be cast (a stretch
+   * that dents role-fit), and only an absurd age gap is refused - see
+   * engine/casting.ts (actorMeetsCharacterAge / ageFitMultiplier). Optional,
+   * and absent is read as 'Any' (no constraint), so it never retroactively
+   * blocks an existing cast.
+   */
+  castingAgeBand?: CharacterAgeBand;
   traits: CharacterTraitProfile;
 }
 
@@ -1407,6 +1435,7 @@ export interface IpCharacter {
   name: string;
   prominence: CharacterProminence;
   castingGender?: CastingGender;
+  castingAgeBand?: CharacterAgeBand;
   archetype: CharacterArchetype;
   traits: CharacterTraitProfile;
   // --- Evolving standing (initialised at promotion; no evolution mechanic yet) ---
@@ -1899,6 +1928,16 @@ export interface TalentAssignment {
   // link explicit is what lets a player cast characters in any order and
   // recast one without disturbing the others.
   characterId?: string;
+  /**
+   * The actor's age (whole years) at the moment they were cast - snapshotted
+   * here so the film reflects who you cast *when* you cast them, and so the
+   * pure scoring functions (engine/scoring.ts:computeActingScore) can read the
+   * age-fit penalty without needing the live clock. Set for Lead/Supporting
+   * Actor hires when the person carries a birth date; absent for crew, for
+   * actors with no recorded birth date, and for legacy/rival assignments -
+   * absent is read as no age constraint (engine/casting.ts:ageFitMultiplier).
+   */
+  ageAtCasting?: number;
 }
 
 // --- Casting Redesign, Phase B (docs/DESIGN_REVIEW_casting_redesign.md

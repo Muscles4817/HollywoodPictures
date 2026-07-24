@@ -142,6 +142,22 @@ describe('computeActingScore - character-specific casting', () => {
     expect(computeActingScore(matchingTalent, scriptWithCharacter)).toBeGreaterThan(computeActingScore(mismatchedTalent, scriptWithCharacter));
   });
 
+  it('an actor cast well outside the Character\'s age band scores lower than the same actor cast in-band (the soft age penalty)', () => {
+    const script = scriptFor('Drama', 11);
+    const character = leadCharacter({ castingAgeBand: 'YoungAdult', traits: traits({ charismaDemand: 60 }) }); // YoungAdult = 20-29
+    const scriptWithCharacter: Script = { ...script, requiredLeads: 1, cast: [character] };
+    const actingStyle: ActingStyle = { characterTransformation: 60, emotionalPerformance: 60, charisma: 60, comedy: 60, physicalPerformance: 60 };
+
+    // Identical actor and role - only the snapshotted casting age differs.
+    const inBand: TalentAssignment[] = [{ role: 'Lead Actor', person: actorPerson('a', actingStyle), characterId: 'lead-1', ageAtCasting: 25 }];
+    const stretch: TalentAssignment[] = [{ role: 'Lead Actor', person: actorPerson('a', actingStyle), characterId: 'lead-1', ageAtCasting: 45 }];
+    const noAge: TalentAssignment[] = [{ role: 'Lead Actor', person: actorPerson('a', actingStyle), characterId: 'lead-1' }];
+
+    expect(computeActingScore(stretch, scriptWithCharacter)).toBeLessThan(computeActingScore(inBand, scriptWithCharacter));
+    // An in-band age and an absent age both incur no penalty, so they score identically.
+    expect(computeActingScore(noAge, scriptWithCharacter)).toBe(computeActingScore(inBand, scriptWithCharacter));
+  });
+
   it('falls back to whole-script tone compatibility alone once a role has no matching Character (more actors hired than named roles)', () => {
     const script = scriptFor('Drama', 9);
     const scriptWithCharacter: Script = { ...script, requiredLeads: 1, cast: [leadCharacter()] };

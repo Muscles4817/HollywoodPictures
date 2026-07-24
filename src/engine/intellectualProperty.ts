@@ -85,6 +85,7 @@ export function promoteFilmToIp(film: Film, characterIds: string[], name: string
       name: c.name,
       prominence: c.prominence,
       castingGender: c.castingGender,
+      castingAgeBand: c.castingAgeBand,
       archetype: c.archetype,
       traits: c.traits,
       standing: deriveCharacterStanding(c, recognition),

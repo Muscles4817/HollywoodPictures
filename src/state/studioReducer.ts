@@ -5,7 +5,7 @@ import { logAmount } from '../engine/interpolate';
 import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
 import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequirements';
-import { personMeetsCharacterGender } from '../engine/casting';
+import { personMeetsCharacterGender, personMeetsCharacterAge, personCastingAge } from '../engine/casting';
 import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeShootEscalation, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, resolveEventChoice } from '../engine/production';
 import { computeExecutionResilience } from '../engine/productionExecution';
 import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
@@ -1245,6 +1245,17 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       if (script && !personMeetsCharacterGender(action.person, targetCharacter)) {
         return state;
       }
+      // Age is a *soft* qualifier, so this rejects only an absurd age gap - a
+      // moderate stretch is allowed and merely dents role-fit at scoring time
+      // (engine/casting.ts). Mirrors the drawer's own eligibility filter.
+      if (script && !personMeetsCharacterAge(action.person, targetCharacter, state.totalDays)) {
+        return state;
+      }
+
+      // Snapshot the actor's age at the moment of casting so the film reflects
+      // who was cast, when. Only for a genuine character slot (actor hires);
+      // undefined for crew and for actors with no recorded birth date.
+      const ageAtCasting = targetCharacter ? personCastingAge(action.person, state.totalDays) : undefined;
 
       // If the action binds a Character that's already filled by someone else,
       // swap them out (recast) rather than appending - capacity is unchanged
@@ -1254,8 +1265,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         ? focusedDraft.talent.find((a) => a.role === action.role && a.characterId === action.characterId)
         : undefined;
       const newAssignment: TalentAssignment = action.characterId
-        ? { role: action.role, person: action.person, characterId: action.characterId }
-        : { role: action.role, person: action.person };
+        ? { role: action.role, person: action.person, characterId: action.characterId, ageAtCasting }
+        : { role: action.role, person: action.person, ageAtCasting };
 
       let nextTalent: TalentAssignment[];
       if (existingForCharacter) {

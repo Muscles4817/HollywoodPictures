@@ -7,7 +7,7 @@
 // already exercised elsewhere; this milestone's tests are about box office
 // settlement, not wizard-flow correctness, so a draft assembled directly is
 // both faster and more focused than driving 20+ reducer actions per test.
-import type { Asset, FilmDraft, MarketingChoices, PhotographyState, Person, ProductionChoices, ProductionRole, Script } from '../types';
+import type { Asset, CharacterAgeBand, FilmDraft, MarketingChoices, PhotographyState, Person, ProductionChoices, ProductionRole, Script } from '../types';
 import { createDraftFromAsset, createInitialStudio, type GameState } from './gameState';
 import { generateScriptOptions } from '../engine/scriptGenerator';
 import { generateTalentCandidates, generateTalentPool } from '../engine/talentGenerator';
@@ -18,19 +18,39 @@ import { studioReducer } from './studioReducer';
 import { characterForRoleSlot } from '../engine/castRequirements';
 import { DEFAULT_POST_PRODUCTION_CHOICES } from '../data/postProduction';
 
+/** A whole-year age comfortably inside each written age band, so a conformed actor clears the hire-time age gate. */
+const AGE_BAND_TARGET_AGE: Record<Exclude<CharacterAgeBand, 'Any'>, number> = {
+  Child: 8,
+  Teen: 16,
+  YoungAdult: 25,
+  Adult: 37,
+  MiddleAged: 52,
+  Senior: 67,
+};
+
 /**
- * Test-only: make a synthetic actor satisfy the gender written for the
- * Character at (role, slotIndex), so a helper that casts fabricated or
- * cheapest-in-pool actors doesn't trip the real gender guard now enforced at
- * hire time (engine/casting.ts). A no-op for non-actor roles and 'Any'/absent
- * casting genders. Overwrites only identity.gender - deterministic, and adds
- * no RNG draws, so seeded generation sequences elsewhere are unchanged.
+ * Test-only: make a synthetic actor satisfy BOTH casting qualifiers written for
+ * the Character at (role, slotIndex) - gender (an exact match) and age band (a
+ * fitting birth date) - so a helper that casts fabricated or cheapest-in-pool
+ * actors doesn't trip the real hire-time guards (engine/casting.ts). A no-op
+ * for non-actor roles and for 'Any'/absent qualifiers. Overwrites only
+ * identity.gender/dateOfBirth - deterministic, and adds no RNG draws, so seeded
+ * generation sequences elsewhere are unchanged. The birth date targets an age
+ * mid-band as of Year 1 (day 1 = Year 1), where these fixtures do their hiring.
  */
 export function conformActorGenderToSlot(person: Person, script: Script | null, role: ProductionRole, slotIndex: number): Person {
   const character = script ? characterForRoleSlot(script, role, slotIndex) : null;
-  const required = character?.castingGender;
-  if (!required || required === 'Any' || person.identity.gender === required) return person;
-  return { ...person, identity: { ...person.identity, gender: required } };
+  if (!character) return person;
+  let identity = person.identity;
+  const requiredGender = character.castingGender;
+  if (requiredGender && requiredGender !== 'Any' && identity.gender !== requiredGender) {
+    identity = { ...identity, gender: requiredGender };
+  }
+  const requiredBand = character.castingAgeBand;
+  if (requiredBand && requiredBand !== 'Any') {
+    identity = { ...identity, dateOfBirth: { year: 1 - AGE_BAND_TARGET_AGE[requiredBand], month: 1, day: 1 } };
+  }
+  return identity === person.identity ? person : { ...person, identity };
 }
 
 const PRODUCTION_CHOICES: ProductionChoices = {

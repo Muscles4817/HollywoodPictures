@@ -11,6 +11,7 @@ import type {
 import { GENRE_PROFILES } from '../data/genres';
 import { TONES } from '../data/tones';
 import { computeCharacterCompatibility, computeTalentCompatibility } from './compatibility';
+import { ageFitMultiplier } from './casting';
 import { deriveCommercialProfile } from './commercialProfile';
 import { findAssignedPerson, filterAssignedPeople } from '../data/helpers';
 import { getActorCareer, getDirectorCareer } from './person';
@@ -110,12 +111,23 @@ const CHARACTER_COMPATIBILITY_WEIGHT = 0.4;
  * keeps requiredLeads/requiredSupporting and Script.cast in lockstep, but
  * stays honest rather than assuming it always will).
  */
-function actorFitScore(person: Person, role: 'Lead Actor' | 'Supporting Actor', character: ScriptCharacter | null, script: Script): number {
+function actorFitScore(
+  person: Person,
+  role: 'Lead Actor' | 'Supporting Actor',
+  character: ScriptCharacter | null,
+  script: Script,
+  ageAtCasting: number | undefined,
+): number {
   const scriptFit = compatibility(person, role, script);
   const actorCareer = getActorCareer(person);
-  if (!character || !actorCareer) return scriptFit;
-  const characterFit = computeCharacterCompatibility(actorCareer.actingStyle, character.traits);
-  return scriptFit * (1 - CHARACTER_COMPATIBILITY_WEIGHT) + characterFit * CHARACTER_COMPATIBILITY_WEIGHT;
+  const base = !character || !actorCareer
+    ? scriptFit
+    : scriptFit * (1 - CHARACTER_COMPATIBILITY_WEIGHT) + computeCharacterCompatibility(actorCareer.actingStyle, character.traits) * CHARACTER_COMPATIBILITY_WEIGHT;
+  // Age is a soft qualifier: casting an actor outside the character's written
+  // age band is allowed but costs fit (engine/casting.ts). The multiplier is 1
+  // for an in-band actor, absent band, or an actor with no snapshotted age, so
+  // this is a no-op everywhere age isn't a factor (rivals, legacy, crew-less).
+  return base * ageFitMultiplier(ageAtCasting, character?.castingAgeBand);
 }
 
 /**
@@ -150,7 +162,7 @@ export function computeActingScore(talent: TalentAssignment[], script: Script): 
   const supports = talent.filter((a) => a.role === 'Supporting Actor');
 
   const performance = (a: TalentAssignment, i: number, role: 'Lead Actor' | 'Supporting Actor'): number => {
-    const roleFit = actorFitScore(a.person, role, characterForAssignment(a, i, role, script), script);
+    const roleFit = actorFitScore(a.person, role, characterForAssignment(a, i, role, script), script, a.ageAtCasting);
     return computeRealizedPerformance(a.person, director, roleFit);
   };
 

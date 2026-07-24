@@ -9,6 +9,7 @@ import { describeActorCraft, describeSignatureGift, describeFameCraftContrast, d
 import { deriveFitReason, deriveFitRead, deriveFitReadAssist, deriveRiskRead, qualitativeMagnitude, isStarDraw, gateKnownAxes } from '../../engine/talentCardPresentation';
 import type { RelationshipStanding } from '../../engine/relationships';
 import { getCareerForRole, deriveBookedUntil } from '../../engine/person';
+import { describeAgeFit } from '../../engine/casting';
 import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../../engine/personTraits';
 import { gameDateFromTotalDays, formatGameDateWithMonth } from '../../engine/calendar';
 import { TONE_LABELS } from '../../data/tones';
@@ -194,6 +195,9 @@ export function TalentStats({ person, role, category, script, character = null, 
         <div className="talent-meta-id">
           {identityLine && <span className="candidate-identity-line">{identityLine}</span>}
           {isActor && character && <span className="talent-upfor">Up for {character.name} · {character.prominence} {CHARACTER_ARCHETYPE_LABELS[character.archetype]}</span>}
+          {isActor && character && describeAgeFit(age, character.castingAgeBand) && (
+            <span className="talent-upfor" style={{ color: 'var(--text-muted)' }}>{describeAgeFit(age, character.castingAgeBand)}</span>
+          )}
         </div>
         <div className="talent-salary">
           <span className="talent-salary-amount"><Money amount={career?.typicalSalary ?? 0} /></span>

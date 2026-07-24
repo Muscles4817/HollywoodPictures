@@ -13,7 +13,7 @@ import {
   describeSettingImplication,
   describeCharacterDemands,
 } from '../../engine/scriptPresentation';
-import { castingGenderLabel } from '../../engine/casting';
+import { castingGenderLabel, castingAgeBandLabel } from '../../engine/casting';
 import type { Script } from '../../types';
 
 /**
@@ -89,6 +89,11 @@ export function ScriptDetails({ script }: { script: Script }) {
                   {character.castingGender && character.castingGender !== 'Any' && (
                     <span className="badge" style={{ marginLeft: 6 }} title="Only actors of this gender can be cast in this role.">
                       {castingGenderLabel(character.castingGender)}
+                    </span>
+                  )}
+                  {character.castingAgeBand && character.castingAgeBand !== 'Any' && (
+                    <span className="badge" style={{ marginLeft: 6 }} title="The age this role is written for. Casting well outside it is a stretch that costs role-fit; a wildly wrong age can't be cast.">
+                      {castingAgeBandLabel(character.castingAgeBand)}
                     </span>
                   )}
                   <div style={{ color: 'var(--text-muted)' }}>{describeCharacterDemands(character)}</div>
