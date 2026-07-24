@@ -1457,6 +1457,22 @@ textarea, input, select {
 .talent-bar-value--hi { color: var(--green); font-weight: 600; }
 .talent-bar-value--lo { color: var(--amber); }
 
+/* A veiled axis - a dimension the casting eye can't vouch for yet. Spans the
+   track + value columns where the bar would be, reading as a question mark. */
+.talent-bar-row--unknown .talent-bar-unknown {
+  grid-column: 2 / 4;
+  color: var(--text-muted);
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.talent-bar-unknown-note {
+  margin: 6px 0 0;
+  font-size: 0.86em;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
 .talent-risk-line {
   margin: 0 0 6px;
   font-size: 0.82em;

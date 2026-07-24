@@ -296,6 +296,51 @@ export function deriveFitRead(trueScore: number, person: Person): FitRead {
   };
 }
 
+// --- Which fit dimensions you'd actually know ------------------------------
+// Real casting only knows an actor cold on the dimensions they're *known for* -
+// their standout strengths. The rest you're guessing at until you see them in
+// the part. So the per-axis breakdown reveals the axes the actor is genuinely
+// strong on and, the less of a known quantity they are, veils the rest as
+// "Unknown" rather than handing over a precise per-axis fit for a performance
+// nobody has seen yet. `strength` is the actor's OWN value on the axis (how much
+// they're known for it), not the match score - a low-strength axis is a question
+// mark even when it happens to match a role that doesn't demand it.
+
+// The actor-strength above which an axis reads as "known", per confidence tier.
+// A confident read reveals everything (0); the shakier the read, the higher the
+// bar an axis must clear to be something you can vouch for. Tunable.
+const AXIS_KNOWN_THRESHOLD: Record<FitConfidence, number> = { high: 0, medium: 55, low: 68 };
+
+export interface GatedAxis {
+  label: string;
+  matchScore: number;
+  strength: number;
+  /** false when the actor isn't known enough on this axis to vouch for the fit - the breakdown veils it as "Unknown". */
+  known: boolean;
+}
+
+/**
+ * Marks each per-axis fit row known/unknown for how confidently this person can
+ * be read - fewer axes revealed the less of a known quantity they are. Never
+ * hides everything: their single strongest dimension (what they're known for)
+ * always shows, so even an unknown reads as "known for X, the rest a question
+ * mark," not a blank.
+ */
+export function gateKnownAxes(
+  rows: Array<{ label: string; matchScore: number; strength: number }>,
+  confidence: FitConfidence,
+): GatedAxis[] {
+  if (rows.length === 0) return [];
+  const threshold = AXIS_KNOWN_THRESHOLD[confidence];
+  const gated = rows.map((r) => ({ ...r, known: r.strength >= threshold }));
+  if (!gated.some((r) => r.known)) {
+    // You always know their standout dimension - reveal at least the strongest.
+    const topIdx = rows.reduce((best, r, i) => (r.strength > rows[best].strength ? i : best), 0);
+    gated[topIdx] = { ...gated[topIdx], known: true };
+  }
+  return gated;
+}
+
 // --- Head-to-head comparison verdict ---------------------------------------
 // The recommendation the two-candidate comparison view leads with. Only names a
 // pick when one candidate clearly wins the decisive axes (user choice: "diffs +

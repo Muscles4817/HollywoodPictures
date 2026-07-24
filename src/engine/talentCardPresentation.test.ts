@@ -11,6 +11,7 @@ import {
   deriveFitConfidence,
   perceivedFitBias,
   deriveFitRead,
+  gateKnownAxes,
   deriveComparisonVerdict,
   type CompareSide,
 } from './talentCardPresentation';
@@ -195,6 +196,36 @@ describe('deriveFitRead', () => {
     expect(read.perceived).toBeLessThanOrEqual(100);
     expect(read.high).toBeLessThanOrEqual(100);
     expect(read.low).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('gateKnownAxes', () => {
+  const rows = [
+    { label: 'Emotional Performance', matchScore: 90, strength: 85 }, // a real, known strength
+    { label: 'Comedy', matchScore: 88, strength: 20 }, // matches, but they're not known for it
+    { label: 'Physical Performance', matchScore: 40, strength: 30 },
+  ];
+
+  it('reveals every axis for a confident read', () => {
+    const gated = gateKnownAxes(rows, 'high');
+    expect(gated.every((r) => r.known)).toBe(true);
+  });
+
+  it('veils the axes an unknown quantity is not actually known for', () => {
+    const gated = gateKnownAxes(rows, 'low');
+    const known = gated.filter((r) => r.known).map((r) => r.label);
+    expect(known).toContain('Emotional Performance');
+    expect(known).not.toContain('Comedy'); // high match, but low strength - a question mark
+  });
+
+  it('never hides everything - the single strongest dimension always shows', () => {
+    const allWeak = [
+      { label: 'Comedy', matchScore: 50, strength: 30 },
+      { label: 'Charisma', matchScore: 60, strength: 44 },
+    ];
+    const gated = gateKnownAxes(allWeak, 'low');
+    expect(gated.filter((r) => r.known)).toHaveLength(1);
+    expect(gated.find((r) => r.known)!.label).toBe('Charisma'); // the strongest of the weak
   });
 });
 

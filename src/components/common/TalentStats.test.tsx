@@ -184,6 +184,23 @@ describe('TalentStats - Role fit / Tone fit breakdown', () => {
     expect(screen.queryByText('Role fit')).not.toBeInTheDocument();
     expect(screen.queryByText('Tone fit')).not.toBeInTheDocument();
   });
+
+  // Role fit under uncertainty: a hard-to-read newcomer's untested dimensions are
+  // veiled rather than handed over as precise per-axis fits, while a well-known,
+  // reliable name reads clean across the board.
+  it('veils the axes an unknown quantity is not known for, but reveals all of a well-known name', () => {
+    const [base] = generateTalentCandidates('Actor', createRng(29), 1);
+    const script = generateScriptOptions('Action', createRng(31), 1)[0];
+    const character = script.cast.find((c) => c.prominence === 'Lead')!;
+
+    const unknown: Person = { ...base, reputation: { ...base.reputation, fame: 12, industryRespect: 12, currentHeat: 12, reliability: 70 } };
+    const { rerender } = render(<TalentStats person={unknown} role="Lead Actor" category="actor" script={script} character={character} totalDays={1} />);
+    expect(screen.getByText('Unknown until you see them in the part.')).toBeInTheDocument();
+
+    const known: Person = { ...base, reputation: { ...base.reputation, fame: 85, industryRespect: 75, currentHeat: 65, reliability: 85 } };
+    rerender(<TalentStats person={known} role="Lead Actor" category="actor" script={script} character={character} totalDays={1} />);
+    expect(screen.queryByText('Unknown until you see them in the part.')).not.toBeInTheDocument();
+  });
 });
 
 describe('TalentStats - Industry and working style (disclosure)', () => {

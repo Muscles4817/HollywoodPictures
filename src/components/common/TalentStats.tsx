@@ -6,7 +6,7 @@ import {
 } from '../../engine/compatibility';
 import { dominantLean } from '../../engine/recommendation';
 import { describeActorCraft, describeSignatureGift, describeFameCraftContrast, describeDirectorTouch, describeDirectorActorPairing } from '../../engine/castingPresentation';
-import { deriveFitReason, deriveFitRead, deriveRiskRead, qualitativeMagnitude, isStarDraw } from '../../engine/talentCardPresentation';
+import { deriveFitReason, deriveFitRead, deriveRiskRead, qualitativeMagnitude, isStarDraw, gateKnownAxes } from '../../engine/talentCardPresentation';
 import { getCareerForRole, deriveBookedUntil } from '../../engine/person';
 import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../../engine/personTraits';
 import { gameDateFromTotalDays, formatGameDateWithMonth } from '../../engine/calendar';
@@ -85,17 +85,19 @@ export function deriveRoleFitBreakdown(
   category: RoleCategory,
   script: Script | null,
   character: ScriptCharacter | null,
-): { title: string; noun: 'fit' | 'tone'; rows: Array<{ label: string; matchScore: number }> } | null {
+): { title: string; noun: 'fit' | 'tone'; rows: Array<{ label: string; matchScore: number; strength: number }> } | null {
   if (category === 'actor' && character) {
     const actorCareer = person.careers.actor;
     if (!actorCareer) return null;
     const breakdown = computeCharacterCompatibilityBreakdown(actorCareer.actingStyle, character.traits);
-    return { title: 'Role fit', noun: 'fit', rows: breakdown.map((a) => ({ label: ACTING_STYLE_LABELS[a.axis], matchScore: a.matchScore })) };
+    // strength = the actor's OWN value on the axis (what they're known for), which
+    // drives whether the read on this dimension is a known quantity - see gateKnownAxes.
+    return { title: 'Role fit', noun: 'fit', rows: breakdown.map((a) => ({ label: ACTING_STYLE_LABELS[a.axis], matchScore: a.matchScore, strength: a.actorValue })) };
   }
   if (script && (category === 'actor' || category === 'director')) {
     const breakdown = computeTalentCompatibilityBreakdown(person, role, script);
     if (!breakdown) return null;
-    return { title: 'Tone fit', noun: 'tone', rows: breakdown.map((t) => ({ label: TONE_LABELS[t.tone], matchScore: 100 - t.gap })) };
+    return { title: 'Tone fit', noun: 'tone', rows: breakdown.map((t) => ({ label: TONE_LABELS[t.tone], matchScore: 100 - t.gap, strength: t.talentValue })) };
   }
   return null;
 }
@@ -144,11 +146,15 @@ export function TalentStats({ person, role, category, script, character = null, 
   const career = getCareerForRole(person, role);
   const overallScore = deriveOverallScore(person, role, category, script, character);
   const roleFit = deriveRoleFitBreakdown(person, role, category, script, character);
-  const fitReason = roleFit ? deriveFitReason(roleFit.rows, roleFit.noun) : null;
   // A fit (actor/director) is a judgment made under uncertainty, so it reads as a
   // hedged band, not an exact number. Crew "fit" is really their skill - a known
   // résumé figure - so it keeps a precise read (but no raw digit either).
   const fitRead = overallScore !== null && roleFit ? deriveFitRead(overallScore, person) : null;
+  // Only the axes you'd actually know are shown in full; the rest are veiled as
+  // "Unknown" the less of a known quantity they are. The "why" line reasons over
+  // the known axes only, so it never cites a dimension the breakdown hides.
+  const gatedRows = roleFit ? gateKnownAxes(roleFit.rows, fitRead?.confidence ?? 'high') : null;
+  const fitReason = gatedRows ? deriveFitReason(gatedRows.filter((r) => r.known), roleFit!.noun) : null;
 
   // Both optional (see PersonIdentity's own comment, types/index.ts) - real,
   // handcrafted people deliberately carry neither rather than a fabricated
@@ -270,7 +276,7 @@ export function TalentStats({ person, role, category, script, character = null, 
           {disclosureLabel}
         </summary>
         <div className="talent-more-body">
-          {roleFit && <MatchBreakdown title={roleFit.title} rows={roleFit.rows} />}
+          {roleFit && gatedRows && <MatchBreakdown title={roleFit.title} rows={gatedRows} />}
 
           <div className="talent-more-group">
             <div className="talent-more-heading">Industry standing</div>
