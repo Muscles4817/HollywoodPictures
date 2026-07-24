@@ -60,6 +60,24 @@ function settleWeekMoney(film: Film, simulatedWorldwideGross: number): {
   };
 }
 
+/**
+ * How much of a distributor's fronted P&A is withheld from THIS week's studio
+ * cash - the outstanding recoup (total minus what the already-settled weeks
+ * have covered), capped at this week's own credit. Each prior week's coverage
+ * is exactly its stored-gross settleWeekMoney credit, so this is a pure
+ * function of the already-stored weeks and reconstructs identically whether the
+ * run was settled in one jump or many. Off the top, first weeks first.
+ */
+function recoupWithheldThisWeek(film: Film, priorWeeks: BoxOfficeWeek[], thisWeekCredit: number, recoupTotal: number): number {
+  const keepShare = domesticKeepShareForFilm(film.results.distributionKeepShare);
+  const creditBefore = priorWeeks.reduce(
+    (sum, w) => sum + Math.round(studioCreditFromMarkets(w.domesticGross ?? 0, w.internationalGross ?? 0, keepShare)),
+    0,
+  );
+  const outstanding = Math.max(0, recoupTotal - creditBefore);
+  return Math.min(outstanding, Math.max(0, thisWeekCredit));
+}
+
 /** Cumulative domestic/international grosses across a run's settled weeks - the final breakdown the results/displays read (sums the per-week fields). */
 export function cumulativeMarketGross(weeks: BoxOfficeWeek[]): { domestic: number; international: number } {
   let domestic = 0;
@@ -148,9 +166,15 @@ function finishFilm(film: Film): { film: Film; brandChange: number; prestigeChan
   // studioRevenue from the run's actual per-market cumulative, each market's
   // keep applied - the exact total of the weekly credits already banked.
   const markets = cumulativeMarketGross(film.boxOfficeRun.weeks);
-  const studioRevenue = Math.round(
+  const grossCredit = Math.round(
     studioCreditFromMarkets(markets.domestic, markets.international, domesticKeepShareForFilm(film.results.distributionKeepShare)),
   );
+  // A distributor recoups its fronted P&A in full off the top of the studio's
+  // keep (engine/distribution.ts) - netted here the same way it was withheld
+  // week by week (advanceEarliestDueFilmByOneWeek), so studioRevenue is the cash
+  // the studio actually kept. 0 for a self-distributed release.
+  const recoupTotal = film.results.distributionMarketingRecoup ?? 0;
+  const studioRevenue = grossCredit - Math.min(recoupTotal, grossCredit);
   const profit = studioRevenue - film.results.totalCost;
 
   const outcome = determineOutcome({
@@ -262,6 +286,15 @@ export function advanceEarliestDueFilmByOneWeek(filmsById: ReadonlyMap<string, F
   // international half and reports only what actually played (headline gross).
   const worldwidePotentialGross = Math.round(diagnostics.weeklyAdmissions * AVERAGE_TICKET_PRICE);
   const money = settleWeekMoney(film, worldwidePotentialGross);
+  // A distributor recoups its fronted P&A off the top of the studio's keep,
+  // first weeks first (engine/distribution.ts). Withhold from this week's cash
+  // whatever recoup is still outstanding, capped at the week's own credit -
+  // reconstructable from the already-stored weeks (each week's pre-recoup credit
+  // is exactly settleWeekMoney's cashCredit for its stored grosses), so a big
+  // calendar jump withholds identically to the same span done week by week. 0
+  // for a self-distributed release.
+  const recoupTotal = film.results.distributionMarketingRecoup ?? 0;
+  const weekCashCredit = recoupTotal > 0 ? money.cashCredit - recoupWithheldThisWeek(film, run.weeks, money.cashCredit, recoupTotal) : money.cashCredit;
   const simWeeks = [...run.simWeeks, nextSimWeek];
   // Recorded, not just consumed - components/dev/OutcomeInspector.tsx's
   // "As Released" replay needs the real per-week pressure history to
@@ -269,7 +302,7 @@ export function advanceEarliestDueFilmByOneWeek(filmsById: ReadonlyMap<string, F
   // own doc comment on why this is historical fact, not re-derivable).
   const weeks = [...run.weeks, { week: nextSimWeek.week, gross: money.gross, domesticGross: money.domesticGross, internationalGross: money.internationalGross, competitivePressure }];
   const cumulativeGross = run.cumulativeGross + money.gross;
-  const cashCredit = money.cashCredit;
+  const cashCredit = weekCashCredit;
 
   const finished = hasSimulationEnded(simWeeks);
   const updatedRun = { ...run, simWeeks, weeks, cumulativeGross, status: finished ? ('finished' as const) : ('running' as const) };

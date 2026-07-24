@@ -11,6 +11,7 @@ import {
   playerReleasedFilms,
   deriveInboxItems,
   inboxBadgeCount,
+  isParkedActionable,
 } from './project';
 import { studioReducer } from '../state/studioReducer';
 import { buildStateWithReadyDraft, buildReadyDraft, buildReadyAsset } from '../state/testFixtures';
@@ -121,11 +122,54 @@ describe('deriveInboxItems / inboxBadgeCount', () => {
     expect(inboxBadgeCount(projects, draft.id)).toBe(0);
   });
 
-  it('inboxBadgeCount always equals the sum of every deriveInboxItems category', () => {
+  it('inboxBadgeCount sums the actionable categories - actionable parked, plus nowPlaying, never the non-actionable waiting parked', () => {
     const projects = [playerDraftToProject(draftWithPendingCastingApplicant(3, 'draft-a')), playerDraftToProject(sampleDraft())];
     const items = deriveInboxItems(projects, null);
-    const total = items.awaitingChoice.length + items.wrapped.length + items.parked.length + items.casting.length + items.pressTourIncidents.length;
+    const total =
+      items.awaitingChoice.length +
+      items.wrapped.length +
+      items.parked.filter(isParkedActionable).length +
+      items.casting.length +
+      items.pressTourIncidents.length +
+      items.nowPlaying.length;
     expect(inboxBadgeCount(projects, null)).toBe(total);
+  });
+
+  // Part 1 fix: a parked film still waiting on its test screening (or mid-recut)
+  // is not actionable - it shows an informational Inbox card but must NOT keep
+  // the badge lit, because there is nothing the player can do about it.
+  it('a parked film waiting on its test screening is listed but does NOT light the badge', () => {
+    const base = sampleDraft();
+    const waiting = { ...base, id: 'draft-waiting', testScreeningResolved: false, testScreeningPendingChoice: null, postProductionEditingUntilDay: null };
+    const projects = [playerDraftToProject(waiting)];
+    const items = deriveInboxItems(projects, null);
+    expect(items.parked.map((p) => p.id)).toContain('draft-waiting'); // still shown
+    expect(isParkedActionable(waiting)).toBe(false);
+    expect(inboxBadgeCount(projects, null)).toBe(0); // but the badge stays dark
+  });
+
+  it('a parked film whose screening has resolved IS actionable and lights the badge', () => {
+    const base = sampleDraft();
+    const ready = { ...base, id: 'draft-ready', testScreeningResolved: true, testScreeningPendingChoice: null, postProductionEditingUntilDay: null };
+    const projects = [playerDraftToProject(ready)];
+    expect(isParkedActionable(ready)).toBe(true);
+    expect(inboxBadgeCount(projects, null)).toBe(1);
+  });
+
+  // Part 2: a player film that has opened but whose Premiere Reveal is unseen
+  // surfaces under nowPlaying and lights the badge; once seen it clears.
+  it('an opened player film with an unwatched premiere surfaces under nowPlaying (and clears once seen)', () => {
+    const film = sampleFilm();
+    const unseen = { ...film, boxOfficeRun: { ...film.boxOfficeRun, premiereSeen: false } };
+    const projects = [filmToProject(unseen)];
+    const items = deriveInboxItems(projects, null);
+    expect(items.nowPlaying.map((f) => f.id)).toContain(film.id);
+    expect(inboxBadgeCount(projects, null)).toBe(1);
+
+    const seen = { ...film, boxOfficeRun: { ...film.boxOfficeRun, premiereSeen: true } };
+    const seenProjects = [filmToProject(seen)];
+    expect(deriveInboxItems(seenProjects, null).nowPlaying).toEqual([]);
+    expect(inboxBadgeCount(seenProjects, null)).toBe(0);
   });
 
   it('surfaces a scheduled film with a fired press-tour incident under pressTourIncidents', () => {

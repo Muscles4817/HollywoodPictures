@@ -2,7 +2,7 @@ import { useStudio } from '../../state/StudioContext';
 import { Button } from './Button';
 import { Money } from './Money';
 import { OnSetDecisionCard } from './OnSetDecisionCard';
-import { backgroundedPlayerDrafts, deriveInboxItems } from '../../engine/project';
+import { backgroundedPlayerDrafts, deriveInboxItems, isParkedActionable } from '../../engine/project';
 import { highestBid } from '../../engine/opportunities';
 import { responsesForPolarity } from '../../engine/pressTourMoments';
 import type { BidNotification } from '../../types';
@@ -63,12 +63,16 @@ export function Inbox({ open, onClose }: InboxProps) {
   // (ProductionRun.tsx/MarketingRelease.tsx) is where it belongs, not the
   // Inbox. The exact same derivation Header.tsx's badge count reads
   // (engine/project.ts:inboxBadgeCount), so the two can never drift apart.
-  const { awaitingChoice, wrapped, parked, casting, pressTourIncidents } = deriveInboxItems(state.projects, state.focusedProjectId);
+  const { awaitingChoice, wrapped, parked, casting, pressTourIncidents, nowPlaying } = deriveInboxItems(state.projects, state.focusedProjectId);
   // Every backgrounded draft, regardless of category - the "N productions
   // in the background" reassurance line below, distinct from badgeCount
   // (only the ones actually needing attention).
   const productions = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
-  const badgeCount = awaitingChoice.length + wrapped.length + parked.length + casting.length + pressTourIncidents.length;
+  // Kept in lockstep with engine/project.ts:inboxBadgeCount - only ACTIONABLE
+  // parked films count (a film still waiting on its test screening renders a
+  // card below but must not keep the badge lit), plus unwatched premieres.
+  const badgeCount =
+    awaitingChoice.length + wrapped.length + parked.filter(isParkedActionable).length + casting.length + pressTourIncidents.length + nowPlaying.length;
 
   // Bid "emails" (engine/bidNotifications.ts) - stored newest-first. An
   // 'outbid' is still actionable only while its opportunity is genuinely live
@@ -143,6 +147,27 @@ export function Inbox({ open, onClose }: InboxProps) {
             })}
           </div>
         )}
+
+        {nowPlaying.map((film) => (
+          <div className="card stack" key={film.id}>
+            <span className="dashboard-section-kicker">Now playing</span>
+            <div className="card-title">🎬 {film.title || 'Untitled Film'} has opened</div>
+            <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+              Your film is in theaters. Watch how opening night went.
+            </p>
+            <div>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  dispatch({ type: 'VIEW_PREMIERE', filmId: film.id });
+                  onClose();
+                }}
+              >
+                View Premiere
+              </Button>
+            </div>
+          </div>
+        ))}
 
         {pressTourIncidents.map((production) => {
           const incident = production.pressTourIncident!;

@@ -30,7 +30,7 @@ function film(
     marketingChoices: { marketingSpend: 100_000_000, releaseType: 'Wide', releaseWindow: 'Summer', ...overrides.marketing },
     events: [], postProductionEvents: [],
     results,
-    boxOfficeRun: { status: overrides.status ?? 'finished', fixed: undefined as never, simWeeks: [], weeks: [], cumulativeGross: overrides.cumulativeGross ?? 800_000_000, acknowledged: true },
+    boxOfficeRun: { status: overrides.status ?? 'finished', fixed: undefined as never, simWeeks: [], weeks: [], cumulativeGross: overrides.cumulativeGross ?? 800_000_000, acknowledged: true, premiereSeen: true },
     releasedOnDay: 100,
   };
 }
@@ -50,20 +50,41 @@ describe('FilmMoneyBreakdown', () => {
     expect(screen.queryByText(/Distributor's fee/)).not.toBeInTheDocument();
   });
 
-  it("a rented film: names the distributor and breaks its fee off the studio's rentals", () => {
-    // Rented Wide keep = 0.42 * 0.72 = 0.3024 -> studioRevenue 241.92M of 800M.
-    const rented = film({
-      marketing: { distributionMethod: 'rented' },
+  it("a distributor film: names the distributor and breaks its fee off the studio's rentals", () => {
+    // Distributor Wide keep = 0.42 * 0.72 = 0.3024 -> studioRevenue 241.92M of 800M.
+    const distributed = film({
+      marketing: { distributionMethod: 'distributor', distributorName: 'Meridian Pictures' },
       results: { studioRevenue: 241_920_000, distributionKeepShare: 0.3024, profit: -18_080_000, outcome: 'Modest Success' },
     });
-    render(<FilmMoneyBreakdown film={rented} />);
+    render(<FilmMoneyBreakdown film={distributed} />);
 
-    expect(screen.getByText('Rented')).toBeInTheDocument();
+    expect(screen.getByText('Meridian Pictures')).toBeInTheDocument();
     // The rentals subtotal (the standard 42%) and the distributor's fee below it.
     expect(screen.getByText('Box-office rentals')).toBeInTheDocument();
     expect(screen.getByText(/Distributor's fee \(28%\)/)).toBeInTheDocument();
     expect(screen.getByText("Your studio's share")).toBeInTheDocument();
     expect(screen.getByText('Your profit')).toBeInTheDocument();
+  });
+
+  it('a distributor film with fronted P&A shows the recoup as its own line', () => {
+    // 336M rentals; distributor takes a 20% fee (67.2M) and recoups 40M P&A ->
+    // studio share 228.8M. The fee and recoup are separate lines.
+    const distributed = film({
+      marketing: { distributionMethod: 'distributor', distributorName: 'Atlas Releasing' },
+      results: {
+        studioRevenue: 228_800_000,
+        distributionKeepShare: 0.336,
+        distributionMarketingRecoup: 40_000_000,
+        distributionPAndA: 40_000_000,
+        profit: 10_000_000,
+        outcome: 'Modest Success',
+      },
+    });
+    render(<FilmMoneyBreakdown film={distributed} />);
+
+    expect(screen.getByText(/Distributor's fee/)).toBeInTheDocument();
+    expect(screen.getByText('Distributor P&A recouped')).toBeInTheDocument();
+    expect(screen.getByText('Marketing (press tour)')).toBeInTheDocument();
   });
 
   it('withholds the final split/profit while the film is still playing', () => {

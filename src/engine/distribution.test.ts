@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
+  assessCommercialAppeal,
   canSelfDistributeWide,
   canUnlockDistributionArm,
   computeInternationalAppeal,
   defaultDistributionMethod,
   distributionArmTier,
   distributionArmUpgradeCost,
+  feeFractionFromKeepShare,
+  generateDistributorOffers,
   internationalReachForTier,
   internationalTier,
   internationalUpgradeCost,
@@ -13,23 +16,26 @@ import {
   nextDistributionArmTier,
   nextInternationalTier,
   resolveDistribution,
+  resolveDistributorDeal,
   splitBoxOfficeGross,
   studioCreditFromMarkets,
+  type CommercialAppealInput,
 } from './distribution';
 import { createInitialStudio } from '../state/gameState';
 import {
   DISTRIBUTION_ARM_UNLOCK_BRAND,
   DISTRIBUTION_ARM_UNLOCK_FILMS_RELEASED,
   DISTRIBUTION_ARM_UPGRADE_COST_BY_TIER,
+  DISTRIBUTOR_FEE_RANGE,
   DOMESTIC_KEEP_SHARE,
   GENRE_INTERNATIONAL_APPEAL,
   INTERNATIONAL_DISTRIBUTION_MAX_TIER,
   INTERNATIONAL_KEEP_SHARE,
   INTERNATIONAL_UPGRADE_COST_BY_TIER,
-  RENTED_DISTRIBUTION_KEEP_MULTIPLIER,
-  RENTED_WIDE_CEILING,
   SELF_DISTRIBUTION_WIDE_CEILING_BY_TIER,
 } from '../data/distribution';
+import { createRng, withRng } from './random';
+import { buildReadyDraft } from '../state/testFixtures';
 import type { Genre, Studio } from '../types';
 
 function studioWithArm(tier: number | null): Studio {
@@ -66,8 +72,8 @@ describe('Distribution Arm facility helpers', () => {
 });
 
 describe('defaultDistributionMethod', () => {
-  it('defaults a Wide release to renting without an arm, self-distribution with one', () => {
-    expect(defaultDistributionMethod('Wide', studioWithArm(null))).toBe('rented');
+  it('defaults a Wide release to a distributor without an arm, self-distribution with one', () => {
+    expect(defaultDistributionMethod('Wide', studioWithArm(null))).toBe('distributor');
     expect(defaultDistributionMethod('Wide', studioWithArm(1))).toBe('self');
   });
 
@@ -77,7 +83,7 @@ describe('defaultDistributionMethod', () => {
   });
 });
 
-describe('resolveDistribution', () => {
+describe('resolveDistribution (self / non-Wide paths)', () => {
   it('carries no overrides for a non-Wide release', () => {
     expect(resolveDistribution('Limited', 'self', 0)).toEqual({ method: 'self' });
     expect(resolveDistribution('Festival First', 'self', 3)).toEqual({ method: 'self' });
@@ -93,14 +99,82 @@ describe('resolveDistribution', () => {
     expect(t1.keepShare).toBeUndefined();
     expect(t3.keepShare).toBeUndefined();
   });
+});
 
-  it('a rented Wide reaches a fixed ceiling but surrenders a cut of the domestic keep', () => {
-    const rented = resolveDistribution('Wide', 'rented', 0);
-    expect(rented.breadth).toBe(RENTED_WIDE_CEILING);
-    // The rented cut now applies to the domestic keep - international is gated
-    // separately by the International Distribution track.
-    expect(rented.keepShare).toBeCloseTo(DOMESTIC_KEEP_SHARE * RENTED_DISTRIBUTION_KEEP_MULTIPLIER, 6);
-    expect(rented.keepShare!).toBeLessThan(DOMESTIC_KEEP_SHARE); // the distributor's fee
+function appealInputFor(overrides: { budget?: number } = {}): CommercialAppealInput {
+  const { result: draft } = withRng(2024, (rng) => buildReadyDraft(rng));
+  return {
+    script: draft.script!,
+    genre: draft.genre!,
+    talent: draft.talent,
+    productionBudget: overrides.budget ?? 30_000_000,
+  };
+}
+
+describe('assessCommercialAppeal', () => {
+  it('is a fraction in [0,1] and rises with production scale', () => {
+    const lean = assessCommercialAppeal(appealInputFor({ budget: 2_000_000 }));
+    const blockbuster = assessCommercialAppeal(appealInputFor({ budget: 200_000_000 }));
+    expect(lean).toBeGreaterThanOrEqual(0);
+    expect(blockbuster).toBeLessThanOrEqual(1);
+    expect(blockbuster).toBeGreaterThan(lean);
+  });
+});
+
+describe('generateDistributorOffers', () => {
+  it('pitches one offer per archetype, terms all inside their ranges', () => {
+    const offers = generateDistributorOffers(0.5, 50, createRng(1));
+    expect(offers.map((o) => o.archetype).sort()).toEqual(['balanced', 'boutique', 'major']);
+    for (const o of offers) {
+      expect(o.feeFraction).toBeGreaterThanOrEqual(DISTRIBUTOR_FEE_RANGE.min);
+      expect(o.feeFraction).toBeLessThanOrEqual(DISTRIBUTOR_FEE_RANGE.max);
+      expect(o.breadth).toBeGreaterThan(0);
+      expect(o.breadth).toBeLessThanOrEqual(0.95);
+      expect(o.pAndA).toBeGreaterThan(0);
+    }
+  });
+
+  it('is deterministic for a fixed seed (stable across renders)', () => {
+    const a = generateDistributorOffers(0.5, 50, createRng(42));
+    const b = generateDistributorOffers(0.5, 50, createRng(42));
+    expect(a).toEqual(b);
+  });
+
+  it('a more appealing film with a stronger studio gets better terms (lower fee, wider, bigger campaign)', () => {
+    const weak = generateDistributorOffers(0.2, 10, createRng(7));
+    const strong = generateDistributorOffers(0.9, 90, createRng(7));
+    const byArch = (offers: typeof weak, a: string) => offers.find((o) => o.archetype === a)!;
+    expect(byArch(strong, 'balanced').feeFraction).toBeLessThan(byArch(weak, 'balanced').feeFraction);
+    expect(byArch(strong, 'balanced').breadth).toBeGreaterThan(byArch(weak, 'balanced').breadth);
+    expect(byArch(strong, 'balanced').pAndA).toBeGreaterThan(byArch(weak, 'balanced').pAndA);
+  });
+
+  it('the major charges the most and reaches widest; the boutique charges the least', () => {
+    const offers = generateDistributorOffers(0.6, 60, createRng(3));
+    const major = offers.find((o) => o.archetype === 'major')!;
+    const boutique = offers.find((o) => o.archetype === 'boutique')!;
+    expect(major.breadth).toBeGreaterThan(boutique.breadth);
+    expect(major.pAndA).toBeGreaterThan(boutique.pAndA);
+    expect(major.feeFraction).toBeGreaterThan(boutique.feeFraction);
+  });
+});
+
+describe('resolveDistributorDeal / feeFractionFromKeepShare', () => {
+  it('turns an offer into frozen terms: keepShare below the default, P&A both fronted and recouped', () => {
+    const [offer] = generateDistributorOffers(0.5, 50, createRng(1));
+    const deal = resolveDistributorDeal(offer);
+    expect(deal.method).toBe('distributor');
+    expect(deal.breadth).toBe(offer.breadth);
+    expect(deal.keepShare).toBeCloseTo(DOMESTIC_KEEP_SHARE * (1 - offer.feeFraction), 6);
+    expect(deal.keepShare!).toBeLessThan(DOMESTIC_KEEP_SHARE);
+    expect(deal.pAndA).toBe(offer.pAndA);
+    expect(deal.marketingRecoup).toBe(offer.pAndA);
+    // The fee fraction round-trips out of the keepShare (display helper).
+    expect(feeFractionFromKeepShare(deal.keepShare)).toBeCloseTo(offer.feeFraction, 6);
+  });
+
+  it('feeFractionFromKeepShare is 0 for a self-distributed film (no override)', () => {
+    expect(feeFractionFromKeepShare(undefined)).toBe(0);
   });
 });
 

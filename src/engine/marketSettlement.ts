@@ -168,7 +168,7 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
     events: photographyEvents,
     postProductionEvents,
     results,
-    boxOfficeRun: { status: 'running', fixed, simWeeks: [], weeks: [], cumulativeGross: 0, acknowledged: false },
+    boxOfficeRun: { status: 'running', fixed, simWeeks: [], weeks: [], cumulativeGross: 0, acknowledged: false, premiereSeen: false },
     releasedOnDay: releaseDay,
     assetId: draft.assetId,
   };

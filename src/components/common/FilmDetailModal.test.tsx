@@ -46,7 +46,7 @@ function buildFilm(): Film {
       scriptScore: 60, directionScore: 60, actingScore: 60, productionScore: 60, postProductionScore: 60, eventsScore: 50,
       reviewBlurbs: ['A solid effort.'], storyReport: 'Filming went smoothly.',
     },
-    boxOfficeRun: { status: 'finished', fixed: undefined as never, simWeeks: [], weeks: [], cumulativeGross: 50_000_000, acknowledged: true },
+    boxOfficeRun: { status: 'finished', fixed: undefined as never, simWeeks: [], weeks: [], cumulativeGross: 50_000_000, acknowledged: true, premiereSeen: true },
     releasedOnDay: 100,
   };
 }

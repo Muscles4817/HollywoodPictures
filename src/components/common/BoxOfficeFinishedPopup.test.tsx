@@ -16,7 +16,7 @@ function filmWithStory(storyReport: string): Film {
       brandChange: 0, prestigeChange: 0, criticScore: 60, qualityScore: 60, audienceScore: 60,
       storyReport,
     },
-    boxOfficeRun: { status: 'finished', weeks: [], acknowledged: false },
+    boxOfficeRun: { status: 'finished', weeks: [], acknowledged: false, premiereSeen: true },
   } as unknown as Film;
 }
 

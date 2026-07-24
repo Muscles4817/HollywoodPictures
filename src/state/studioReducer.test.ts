@@ -181,6 +181,29 @@ describe('ACKNOWLEDGE_BOX_OFFICE_RESULTS', () => {
   });
 });
 
+describe('VIEW_PREMIERE / premiereSeen (Part 2 - the Premiere Reveal for scheduled releases)', () => {
+  it('a same-day release lands on the results screen with its premiere already marked seen', () => {
+    const released = studioReducer(buildStateWithReadyDraft(9), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    expect(released.screen).toBe('results');
+    expect(theFilm(released).boxOfficeRun.premiereSeen).toBe(true);
+  });
+
+  it('a background-settled scheduled release stays unseen until VIEW_PREMIERE plays it', () => {
+    const scheduled = studioReducer(buildStateWithReadyDraft(9), { type: 'SCHEDULE_RELEASE', releaseDay: 400 });
+    expect(scheduled.screen).toBe('dashboard'); // future release - never lands on results
+    // Advance the calendar past the release day so it settles into a released film.
+    const opened = advanceDays(scheduled, 420);
+    const film = playerReleasedFilms(opened.projects)[0];
+    expect(film).toBeDefined();
+    expect(film.boxOfficeRun.premiereSeen).toBe(false); // unwatched - the "now playing" Inbox item
+
+    const viewed = studioReducer(opened, { type: 'VIEW_PREMIERE', filmId: film.id });
+    expect(viewed.screen).toBe('results');
+    expect(viewed.focusedProjectId).toBe(film.id);
+    expect(playerReleasedFilms(viewed.projects)[0].boxOfficeRun.premiereSeen).toBe(true);
+  });
+});
+
 describe('deterministic release-day gross', () => {
   it('the same draft released twice produces the exact same opening weekend (the audience simulation has no randomness)', () => {
     const stateA = buildStateWithReadyDraft(9);
