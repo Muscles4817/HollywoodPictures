@@ -175,8 +175,14 @@ function CeremonyDetail({
   // "why" the Dashboard's own Reputation History pulls this exact same
   // number from (state/selectors.ts:deriveReputationHistory), surfaced right
   // here too since this is where a player naturally comes to check a
-  // ceremony's results in the first place.
-  const { prestige: prestigeDelta, brand: brandDelta } = computeStudioAwardDeltas(ceremony, playerFilmIds);
+  // ceremony's results in the first place. Scale the raw tally by the show's
+  // payoffScale and round to a whole number, exactly as the reputation
+  // history and the reducer do, so the figure matches what was credited (and
+  // never shows a fractional Prestige/Brand).
+  const rawDeltas = computeStudioAwardDeltas(ceremony, playerFilmIds);
+  const payoffScale = awardShow(ceremony.show).payoffScale;
+  const prestigeDelta = Math.round(rawDeltas.prestige * payoffScale);
+  const brandDelta = Math.round(rawDeltas.brand * payoffScale);
 
   const nomineeLabel = (nom: AwardNomination): string => {
     const ref = filmById.get(nom.filmId);
