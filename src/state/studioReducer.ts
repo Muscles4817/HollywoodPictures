@@ -1,4 +1,4 @@
-import type { Asset, AwardShowId, AwardsState, BidNotification, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentProfession, WizardStep } from '../types';
+import type { Asset, AwardShowId, AwardsState, BidNotification, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, clamp, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
@@ -28,6 +28,7 @@ import { adaptRecommendationsToProductionChoices } from '../engine/productionCho
 import { deriveProjectReadiness } from '../engine/projectReadiness';
 import { STAGE_DURATIONS } from '../data/schedule';
 import { settleTheatricalMarket } from '../engine/marketSettlement';
+import { computeRelationship, recordPlayerFilmCollaborations, PLAYER_STUDIO_ID } from '../engine/relationships';
 import { settleRivalMarket, generateRivalStudios } from '../engine/rivalStudios';
 import { settleProductionsInProgress } from '../engine/productionsInProgress';
 import { asUpcomingRelease, type ScheduledRelease } from '../engine/scheduledReleases';
@@ -333,6 +334,8 @@ export interface CalendarSettlementResult {
   rivalFilms: Film[];
   /** GameState.bidNotifications after folding in any won/lost/outbid events this pass produced (engine/bidNotifications.ts). */
   bidNotifications: BidNotification[];
+  /** GameState.collaborations after recording any newly-released player film's key collaborations this pass (engine/relationships.ts). Idempotent - re-seeing an already-recorded film is a no-op. */
+  collaborations: Collaboration[];
 }
 
 /**
@@ -476,6 +479,17 @@ function runCalendarSettlement(
     playerFilms: marketSettlement.settledFilms.filter((f) => f.releasedBy === undefined),
     rivalFilms: rivalMarket.rivalFilmsReleased,
     bidNotifications,
+    // Talent Relationship History - record any newly-released player film's key
+    // collaborations into the world history (engine/relationships.ts).
+    // Idempotent: playerFilms holds every player release settled this pass (newly
+    // opened and already-running alike), and recordPlayerFilmCollaborations skips
+    // any (studio, person, film, role) already on the list, so re-seeing a
+    // running film every pass never double-records it.
+    collaborations: recordPlayerFilmCollaborations(
+      state.collaborations ?? [],
+      marketSettlement.settledFilms.filter((f) => f.releasedBy === undefined),
+      totalDaysAfter,
+    ),
   };
 }
 
@@ -675,6 +689,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
         const settlement = runCalendarSettlement(state, totalDaysAfter, rng);
         const productionsInProgress = settleProductionsInProgress(backgroundedPlayerDrafts(state.projects, state.focusedProjectId), 1, state.talentPool, rng);
+        // Talent Relationship History - who shows up to an Open Casting call
+        // (and who says yes unprompted) reads the studio's persistent standing
+        // with each candidate, so a loyal collaborator genuinely seeks the
+        // studio out. Read against the collaborations the settlement above just
+        // reconciled, so a film that opened this very tick already counts.
+        const relationshipOf = (personId: string) => computeRelationship(settlement.collaborations, PLAYER_STUDIO_ID, personId);
         // Casting Redesign, Phase B - Open Casting calls tick on the same
         // real-time beat, for the focused draft and every backgrounded one.
         // This is the one calendar-advancing action casting calls are wired
@@ -685,14 +705,14 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         // GREENLIGHT_PROJECT/SCHEDULE_RELEASE/etc cause.
         const tickedFocusedDraft = focusedDraft
           ? checkTestScreeningReadiness(
-              tickCastingCalls(focusedDraft, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng),
+              tickCastingCalls(focusedDraft, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng, relationshipOf),
               totalDaysAfter,
               rng,
             )
           : null;
         const tickedProductionsInProgress = productionsInProgress.map((d) =>
           checkTestScreeningReadiness(
-            tickCastingCalls(d, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng),
+            tickCastingCalls(d, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng, relationshipOf),
             totalDaysAfter,
             rng,
           ),
@@ -722,6 +742,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         opportunities: result.settlement.opportunities,
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
         bidNotifications: result.settlement.bidNotifications,
+        collaborations: result.settlement.collaborations,
         studio: result.awardsResult.studio,
         awards: result.awardsResult.awards,
         projects: assembleProjects({
@@ -1125,6 +1146,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         opportunities: result.settlement.opportunities,
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
         bidNotifications: result.settlement.bidNotifications,
+        collaborations: result.settlement.collaborations,
         ...clearTransientView(),
         studio: result.settlement.studio,
         projects: assembleProjects({
@@ -1442,6 +1464,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         opportunities: result.settlement.opportunities,
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
         bidNotifications: result.settlement.bidNotifications,
+        collaborations: result.settlement.collaborations,
         ...clearTransientView(),
         studio: recordCashChange(result.settlement.studio, totalDaysAfter, -upfrontCharge, 'production', `Greenlit "${focusedDraft.title}"`),
         projects: assembleProjects({
@@ -1541,6 +1564,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           opportunities: result.settlement.opportunities,
           nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
           bidNotifications: result.settlement.bidNotifications,
+        collaborations: result.settlement.collaborations,
           studio: result.settlement.studio,
           projects: assembleProjects({
             playerDrafts: [updatedFocused, ...result.productionsInProgress],
@@ -1578,6 +1602,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         opportunities: settlement.opportunities,
         nextOpportunityCheckDay: settlement.nextOpportunityCheckDay,
         bidNotifications: settlement.bidNotifications,
+        collaborations: settlement.collaborations,
         studio: { ...settlement.studio, cash: settlement.studio.cash + contingencySettlement },
         projects: assembleProjects({
           playerDrafts: [updatedFocused, ...productionsInProgress],
@@ -1641,6 +1666,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         opportunities: settlement.opportunities,
         nextOpportunityCheckDay: settlement.nextOpportunityCheckDay,
         bidNotifications: settlement.bidNotifications,
+        collaborations: settlement.collaborations,
         studio: studioAfter,
         projects: assembleProjects({
           playerDrafts: playerDraftsAfter,
@@ -1983,6 +2009,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         opportunities: result.settlement.opportunities,
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
         bidNotifications: result.settlement.bidNotifications,
+        collaborations: result.settlement.collaborations,
         ...clearTransientView(),
         studio: result.settlement.studio,
         projects: assembleProjects({
@@ -2073,6 +2100,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         producerPool: result.producerPool,
         opportunities: [],
         nextOpportunityCheckDay: 1,
+        collaborations: [],
         awards: { history: [], season: null, nextSeasonDay: firstDayOfYear(2) },
         ...clearTransientView(),
       };

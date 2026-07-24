@@ -27,6 +27,14 @@ import { computeScriptScore } from './scoring';
 import { getActorCareer, deriveBookedUntil } from './person';
 import { clamp } from './random';
 import { deriveTraits } from './personTraits';
+import {
+  NO_RELATIONSHIP,
+  relationshipAppealDelta,
+  relationshipRefuses,
+  relationshipSalaryMultiplier,
+  relationshipThresholdDelta,
+  type RelationshipStanding,
+} from './relationships';
 
 export interface ActorAppealFactors {
   /** computeActorCharacterCompatibility - reused directly, unchanged. */
@@ -168,9 +176,19 @@ export function computeEffectiveMinimumSalary(
   minimumSalary: Money,
   prestigeSignal: number,
   directorDraw: number,
+  // Talent Relationship History - a persistent studio<->person standing
+  // (engine/relationships.ts). Loyalty discounts the floor further (they'll
+  // take a lower offer for a studio they trust), a grudge inflates it (pricier
+  // to lure them back). Applied as a final multiplier ORTHOGONAL to the
+  // prestige-vs-paycheque discount above - it's about *who's asking*, not the
+  // project's prestige - so it stacks on top and lands even on a PaychequeDriven
+  // person, who otherwise never discounts. Optional/neutral-by-default, so every
+  // existing call site and the whole test suite is unchanged for strangers.
+  relationship: RelationshipStanding = NO_RELATIONSHIP,
 ): Money {
   const traits = deriveTraits(person);
-  if (traits.includes('PaychequeDriven')) return minimumSalary;
+  const relationshipMultiplier = relationshipSalaryMultiplier(relationship);
+  if (traits.includes('PaychequeDriven')) return Math.round(minimumSalary * relationshipMultiplier);
 
   const lean = prestigeLean(person);
   const drawSignal = clamp(prestigeSignal * lean + directorDraw * DIRECTOR_DRAW_WEIGHT, 0, 100);
@@ -179,7 +197,7 @@ export function computeEffectiveMinimumSalary(
     ? clamp(baseDiscountFraction * PRESTIGE_FOCUSED_DISCOUNT_MULTIPLIER, 0, MAX_SALARY_DISCOUNT)
     : baseDiscountFraction;
 
-  return Math.round(minimumSalary * (1 - discountFraction));
+  return Math.round(minimumSalary * (1 - discountFraction) * relationshipMultiplier);
 }
 
 /**
@@ -256,6 +274,13 @@ export function computeActorAppeal(
   currentTalent: TalentAssignment[],
   offeredSalary: Money,
   plannedStartDay: GameDay,
+  // Talent Relationship History (engine/relationships.ts) - this actor's
+  // persistent standing with the offering studio. Neutral-by-default so a
+  // stranger, and every call site that doesn't yet pass it, behaves exactly as
+  // before. A loyal history lifts `overall` (the project reads a little more
+  // appealing) and discounts the effective salary floor; a grudge does the
+  // reverse - see relationshipAppealDelta / computeEffectiveMinimumSalary.
+  relationship: RelationshipStanding = NO_RELATIONSHIP,
 ): ActorAppealResult | null {
   const career = getActorCareer(person);
   if (!career) return null;
@@ -263,7 +288,7 @@ export function computeActorAppeal(
   const lean = prestigeLean(person);
   const prestigeSignal = computePrestigeSignal(studio, script, director);
   const directorDraw = director ? personMomentumScore(director) : 0;
-  const effectiveMinimum = computeEffectiveMinimumSalary(person, career.minimumSalary, prestigeSignal, directorDraw);
+  const effectiveMinimum = computeEffectiveMinimumSalary(person, career.minimumSalary, prestigeSignal, directorDraw, relationship);
 
   const factors: ActorAppealFactors = {
     suitability: computeActorCharacterCompatibility(person, character) ?? 50,
@@ -280,7 +305,12 @@ export function computeActorAppeal(
     factors.suitability * WEIGHTS.suitability +
     reputationFit * WEIGHTS.reputationFit +
     factors.salaryFit * WEIGHTS.salaryFit +
-    factors.attachmentMomentum * WEIGHTS.attachmentMomentum;
+    factors.attachmentMomentum * WEIGHTS.attachmentMomentum +
+    // Relationship joins `overall` as a delta from neutral (0 for strangers),
+    // not a fifth 50-neutral weighted factor - that keeps the stranger baseline
+    // every weight above was tuned against exactly where it was, while a real
+    // history still tilts the score.
+    relationshipAppealDelta(relationship);
 
   return {
     ...factors,
@@ -300,7 +330,7 @@ export function computeActorAppeal(
 // hidden probability.
 
 /** Which factor to blame - the single lowest-scoring one among suitability/reputation/salary, whichever of the three wasn't already the reason via a hard gate (schedule/below-floor salary are resolved in resolveOfferResponse before this is ever called). brandFit/prestigeFit collapse into one combined reputationFit reading, matching how `overall` itself blends them - using Math.max here instead would let a balanced actor (moderate on both, low on neither) get falsely blamed on reputation. */
-export type OfferRejectionReason = 'suitability' | 'brand-prestige-mismatch' | 'salary' | 'schedule';
+export type OfferRejectionReason = 'suitability' | 'brand-prestige-mismatch' | 'salary' | 'schedule' | 'relationship';
 
 export type OfferResponse = { status: 'accepted' } | { status: 'rejected'; reason: OfferRejectionReason };
 
@@ -329,9 +359,13 @@ export function computeSelectiveness(person: Person): number {
   return (person.reputation.fame + person.reputation.currentHeat + person.personality.ego + person.personality.ambition) / 4;
 }
 
-export function computeAcceptanceThreshold(person: Person): number {
+export function computeAcceptanceThreshold(person: Person, relationship: RelationshipStanding = NO_RELATIONSHIP): number {
   const selectiveness = computeSelectiveness(person);
-  return clamp(BASE_ACCEPTANCE_THRESHOLD + (selectiveness / 100) * MAX_SELECTIVENESS_BONUS, MIN_ACCEPTANCE_THRESHOLD, 100);
+  // Relationship lowers the bar for a loyal collaborator (an easier yes - they
+  // want to work with you again) and raises it for a grudge (a harder yes),
+  // subtracted so positive warmth lowers the threshold. Neutral for strangers.
+  const base = BASE_ACCEPTANCE_THRESHOLD + (selectiveness / 100) * MAX_SELECTIVENESS_BONUS - relationshipThresholdDelta(relationship);
+  return clamp(base, MIN_ACCEPTANCE_THRESHOLD, 100);
 }
 
 /**
@@ -341,10 +375,14 @@ export function computeAcceptanceThreshold(person: Person): number {
  * threshold, so neither can be outvoted by a strong suitability/reputation
  * score the way they used to be as small weighted terms.
  */
-export function resolveOfferResponse(appeal: ActorAppealResult, person: Person): OfferResponse {
+export function resolveOfferResponse(appeal: ActorAppealResult, person: Person, relationship: RelationshipStanding = NO_RELATIONSHIP): OfferResponse {
   if (appeal.schedule.status !== 'available') return { status: 'rejected', reason: 'schedule' };
   if (appeal.belowSalaryFloor) return { status: 'rejected', reason: 'salary' };
-  const threshold = computeAcceptanceThreshold(person);
+  // A deep-enough grudge is a hard gate, like schedule/salary above - the
+  // person simply won't come back at any offer this studio could plausibly
+  // make, no matter how strong the rest of the appeal (engine/relationships.ts).
+  if (relationshipRefuses(relationship)) return { status: 'rejected', reason: 'relationship' };
+  const threshold = computeAcceptanceThreshold(person, relationship);
   if (appeal.overall >= threshold) return { status: 'accepted' };
   const reputationFit = appeal.brandFit + appeal.prestigeFit;
   return { status: 'rejected', reason: offerRejectionReason(appeal, reputationFit) };

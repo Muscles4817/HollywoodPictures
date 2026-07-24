@@ -374,3 +374,83 @@ describe('resolveOfferResponse', () => {
     }
   });
 });
+
+// --- Talent Relationship History (engine/relationships.ts) -----------------
+// The relationship term wired into the one appeal function: a loyal history
+// makes a person easier and cheaper to land, a grudge harder and pricier, and
+// the deepest grudge a hard refusal - all neutral-by-default for strangers.
+import type { RelationshipStanding } from './relationships';
+import { deriveTraits } from './personTraits';
+
+function standing(warmth: number, collaborations = Math.max(1, Math.round(Math.abs(warmth) / 40))): RelationshipStanding {
+  const tier = warmth >= 45 ? 'loyal' : warmth >= 15 ? 'warm' : warmth <= -45 ? 'grudge' : warmth <= -15 ? 'strained' : 'neutral';
+  return { collaborations, warmth, tier, lastWorkedDay: 1 };
+}
+
+describe('relationship effect on appeal, threshold, and salary floor', () => {
+  it('the default (no relationship passed) matches an explicit neutral standing exactly', () => {
+    const person = actorPerson('rel-neutral');
+    const script = scriptFor(20);
+    const withoutArg = computeActorAppeal(person, character(), script, studio(), undefined, [], 500_000, 1)!;
+    const withNeutral = computeActorAppeal(person, character(), script, studio(), undefined, [], 500_000, 1, standing(0))!;
+    expect(withNeutral.overall).toBe(withoutArg.overall);
+    expect(computeAcceptanceThreshold(person, standing(0))).toBe(computeAcceptanceThreshold(person));
+  });
+
+  it('loyalty raises overall appeal, a grudge lowers it, same inputs', () => {
+    const person = actorPerson('rel-appeal');
+    const script = scriptFor(21);
+    const loyal = computeActorAppeal(person, character(), script, studio(), undefined, [], 500_000, 1, standing(90))!;
+    const stranger = computeActorAppeal(person, character(), script, studio(), undefined, [], 500_000, 1, standing(0))!;
+    const grudge = computeActorAppeal(person, character(), script, studio(), undefined, [], 500_000, 1, standing(-90))!;
+    expect(loyal.overall).toBeGreaterThan(stranger.overall);
+    expect(grudge.overall).toBeLessThan(stranger.overall);
+  });
+
+  it('loyalty lowers the acceptance threshold, a grudge raises it', () => {
+    const person = actorPerson('rel-threshold', { reputation: { fame: 70 }, personality: { ego: 70, ambition: 70 } });
+    const loyal = computeAcceptanceThreshold(person, standing(90));
+    const neutral = computeAcceptanceThreshold(person, standing(0));
+    const grudge = computeAcceptanceThreshold(person, standing(-90));
+    expect(loyal).toBeLessThan(neutral);
+    expect(grudge).toBeGreaterThan(neutral);
+  });
+
+  it('loyalty discounts the effective minimum salary, a grudge inflates it', () => {
+    const person = actorPerson('rel-salary', { minimumSalary: 1_000_000, typicalSalary: 5_000_000 });
+    const career = person.careers.actor!;
+    const loyal = computeEffectiveMinimumSalary(person, career.minimumSalary, 50, 0, standing(90));
+    const neutral = computeEffectiveMinimumSalary(person, career.minimumSalary, 50, 0, standing(0));
+    const grudge = computeEffectiveMinimumSalary(person, career.minimumSalary, 50, 0, standing(-90));
+    expect(loyal).toBeLessThan(neutral);
+    expect(grudge).toBeGreaterThan(neutral);
+  });
+
+  it('the relationship salary discount applies even to a PaychequeDriven actor (who otherwise never discounts)', () => {
+    // High ambition + low loyalty (and low prestige, so PrestigeFocused doesn't
+    // win the mutually-exclusive slot) reads as PaychequeDriven (engine/personTraits.ts).
+    const person = actorPerson('rel-paycheque', { minimumSalary: 1_000_000, typicalSalary: 5_000_000, reputation: { prestige: 5 }, personality: { ambition: 95, loyalty: 5, ego: 95 } });
+    expect(deriveTraits(person)).toContain('PaychequeDriven');
+    const career = person.careers.actor!;
+    const neutral = computeEffectiveMinimumSalary(person, career.minimumSalary, 90, 0, standing(0));
+    const loyal = computeEffectiveMinimumSalary(person, career.minimumSalary, 90, 0, standing(90));
+    // Neutral leaves the raw minimum untouched (no prestige discount for a
+    // paycheque-driven actor); loyalty still buys a personal mate's rate on top.
+    expect(neutral).toBe(career.minimumSalary);
+    expect(loyal).toBeLessThan(neutral);
+  });
+
+  it('a deep grudge is a hard refusal, reported as the relationship reason', () => {
+    const person = actorPerson('rel-refusal', { reputation: { fame: 20 }, personality: { ego: 20, ambition: 20 } });
+    const script = scriptFor(22);
+    const bigStudio = studio({ brand: 90, prestige: 90 });
+    // A strong offer that a stranger would happily accept.
+    const strangerAppeal = computeActorAppeal(person, character(), script, bigStudio, undefined, [], 5_000_000, 1, standing(0))!;
+    const grudgeAppeal = computeActorAppeal(person, character(), script, bigStudio, undefined, [], 5_000_000, 1, standing(-90))!;
+    const asStranger = resolveOfferResponse(strangerAppeal, person, standing(0));
+    const asGrudge = resolveOfferResponse(grudgeAppeal, person, standing(-90));
+    expect(asStranger.status).toBe('accepted');
+    expect(asGrudge.status).toBe('rejected');
+    if (asGrudge.status === 'rejected') expect(asGrudge.reason).toBe('relationship');
+  });
+});

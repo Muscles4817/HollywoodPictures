@@ -25,6 +25,7 @@ import {
   prestigeLean,
   type ActorScheduleAssessment,
 } from './castingAppeal';
+import { NO_RELATIONSHIP, relationshipAppealDelta, relationshipRefuses, type RelationshipStanding } from './relationships';
 
 export interface DirectorAppealFactors {
   /** computeScriptScore(script), reused directly - how good the material itself reads, independent of who's offering it. */
@@ -79,6 +80,14 @@ export function computeDirectorAppeal(
   studio: Studio,
   offeredSalary: Money,
   plannedStartDay: GameDay,
+  // Talent Relationship History (engine/relationships.ts) - this director's
+  // persistent standing with the offering studio. Neutral-by-default, same as
+  // the actor path, so strangers and un-updated call sites are unchanged. The
+  // prestige gate stays ahead of it: a relationship never buys past the "won't
+  // attach my name to a studio this small" floor - it colours how a director
+  // who's already willing to consider you weighs the offer, not whether they'll
+  // look at you at all.
+  relationship: RelationshipStanding = NO_RELATIONSHIP,
 ): DirectorAppealResult | 'prestige-gate' | null {
   const career = getDirectorCareer(person);
   if (!career) return null;
@@ -90,7 +99,7 @@ export function computeDirectorAppeal(
   // No directorDraw term - a director isn't drawn to working with
   // themselves the way an actor can be drawn to a director already
   // attached.
-  const effectiveMinimum = computeEffectiveMinimumSalary(person, career.minimumSalary, prestigeSignal, 0);
+  const effectiveMinimum = computeEffectiveMinimumSalary(person, career.minimumSalary, prestigeSignal, 0, relationship);
 
   const factors: DirectorAppealFactors = {
     scriptFit: computeScriptScore(script),
@@ -101,7 +110,11 @@ export function computeDirectorAppeal(
 
   const reputationFit = factors.brandFit + factors.prestigeFit;
   const overall =
-    factors.scriptFit * WEIGHTS.scriptFit + reputationFit * WEIGHTS.reputationFit + factors.salaryFit * WEIGHTS.salaryFit;
+    factors.scriptFit * WEIGHTS.scriptFit +
+    reputationFit * WEIGHTS.reputationFit +
+    factors.salaryFit * WEIGHTS.salaryFit +
+    // A delta from neutral (0 for strangers) - see the actor path's own note.
+    relationshipAppealDelta(relationship);
 
   return {
     ...factors,
@@ -111,7 +124,7 @@ export function computeDirectorAppeal(
   };
 }
 
-export type DirectorOfferRejectionReason = 'prestige-gate' | 'script-fit' | 'brand-prestige-mismatch' | 'salary' | 'schedule';
+export type DirectorOfferRejectionReason = 'prestige-gate' | 'script-fit' | 'brand-prestige-mismatch' | 'salary' | 'schedule' | 'relationship';
 
 export type DirectorOfferResponse = { status: 'accepted' } | { status: 'rejected'; reason: DirectorOfferRejectionReason };
 
@@ -133,12 +146,15 @@ function directorRejectionReason(factors: DirectorAppealFactors, reputationFit: 
 export function resolveDirectorOfferResponse(
   outcome: DirectorAppealResult | 'prestige-gate' | null,
   person: Person,
+  relationship: RelationshipStanding = NO_RELATIONSHIP,
 ): DirectorOfferResponse | null {
   if (outcome === null) return null;
   if (outcome === 'prestige-gate') return { status: 'rejected', reason: 'prestige-gate' };
   if (outcome.schedule.status !== 'available') return { status: 'rejected', reason: 'schedule' };
   if (outcome.belowSalaryFloor) return { status: 'rejected', reason: 'salary' };
-  const threshold = computeAcceptanceThreshold(person);
+  // A deep grudge is a hard refusal, same as the actor path (engine/relationships.ts).
+  if (relationshipRefuses(relationship)) return { status: 'rejected', reason: 'relationship' };
+  const threshold = computeAcceptanceThreshold(person, relationship);
   if (outcome.overall >= threshold) return { status: 'accepted' };
   const reputationFit = outcome.brandFit + outcome.prestigeFit;
   return { status: 'rejected', reason: directorRejectionReason(outcome, reputationFit) };

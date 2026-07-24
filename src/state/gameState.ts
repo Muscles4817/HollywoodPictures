@@ -2,6 +2,7 @@ import type {
   Asset,
   AwardsState,
   BidNotification,
+  Collaboration,
   Distribution,
   EffectsMethodKey,
   EnvironmentMethodKey,
@@ -73,6 +74,17 @@ export interface GameState {
   opportunities: Opportunity[];
   /** GameState.totalDays threshold - once reached, the next settlement pass generates a fresh batch of Opportunities (engine/opportunities.ts), the same per-timer pattern RivalStudio.nextSpawnCheckDay already uses. */
   nextOpportunityCheckDay: number;
+  /**
+   * Persistent studio<->person working history (types/index.ts:Collaboration) -
+   * a flat, world-level list, the same shared-pool shape talentPool/projects
+   * use, NOT nested inside Studio or Person (docs/DESIGN_REVIEW_domain_model.md).
+   * Appended to when a film releases (engine/relationships.ts:recordPlayerFilmCollaborations,
+   * from state/studioReducer.ts's settlement); read as a relationship standing
+   * by the casting/director appeal functions and the casting card. Optional/
+   * absent on saves predating the feature; read defensively as `[]` (there is no
+   * migration pass - see state/persistence.ts).
+   */
+  collaborations?: Collaboration[];
   /** Which rival studio the 'rival-studio' screen is currently showing, if any - identified by name, same as Film.releasedBy (see types/index.ts:Film). */
   viewingRivalStudioName: string | null;
   // Which `projects` entry the 'production' screen is showing, if it's not

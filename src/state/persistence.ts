@@ -334,7 +334,15 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   ProductionEvent gained impact + escalates (typed consequences + failure
 //   chains) and FilmResults gained productionExecution (stars + causal summary
 //   + mitigation + numeric modifiers).
-const SAVE_KEY = 'hollywood-pictures-save-v54';
+// v54 -> v55 (Talent Relationship History, docs/DESIGN_REVIEW_domain_model.md):
+//   GameState gained an optional collaborations (types/index.ts:Collaboration) -
+//   a flat, world-level studio<->person working history, appended to when a film
+//   releases and read as a relationship standing by the casting/director appeal
+//   functions (engine/relationships.ts). Additive/optional (read defensively as
+//   []), so an un-bumped save would technically still load; the bump is the
+//   honest "the stored shape changed" signal, same convention as every entry
+//   above. No migration code.
+const SAVE_KEY = 'hollywood-pictures-save-v55';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
@@ -367,6 +375,7 @@ export function loadState(): GameState {
       producerPool: result.producerPool,
       opportunities: [],
       nextOpportunityCheckDay: 1,
+      collaborations: [],
       awards: { history: [], season: null, nextSeasonDay: firstDayOfYear(2) },
       bidNotifications: [],
       viewingRivalStudioName: null,
