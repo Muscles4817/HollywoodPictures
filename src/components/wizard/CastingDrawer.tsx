@@ -8,7 +8,7 @@ import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { actorMeetsCharacterGender } from '../../engine/casting';
 import { computeActorAppeal, resolveOfferResponse, type OfferResponse } from '../../engine/castingAppeal';
 import { candidateStrengthSignals, describeOfferRejection, type CandidateSignal } from '../../engine/castingPresentation';
-import { playerRelationshipWith } from '../../engine/relationships';
+import { playerRelationshipWith, type RelationshipStanding } from '../../engine/relationships';
 import { formatMoney } from '../common/Money';
 import { CHARACTER_ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
 import { Card } from '../common/Card';
@@ -18,7 +18,7 @@ import { TalentStats } from '../common/TalentStats';
 import { TalentComparison, type CompareSlot } from '../common/TalentComparison';
 import { useComparePins, MAX_PINNED } from '../common/useComparePins';
 import { CheckboxToggle } from '../common/CheckboxToggle';
-import { isAvailableImmediately, getTypicalSalaryForRole } from '../../engine/person';
+import { isAvailableImmediately, getTypicalSalaryForRole, getCrewCareer } from '../../engine/person';
 import type { CastingChannel, Person, Script, ScriptCharacter } from '../../types';
 
 type CastingTab = 'open-casting' | 'direct-approach';
@@ -87,6 +87,8 @@ function CandidateCard({
   pinCapped,
   onTogglePin,
   onDismiss,
+  castingDirectorSkill,
+  relationship,
 }: {
   person: Person;
   role: 'Lead Actor' | 'Supporting Actor';
@@ -101,6 +103,10 @@ function CandidateCard({
   director?: Person | null;
   /** Whether hiring this person keeps the film within the studio's cash (a soft warning - salary is charged at greenlight, not now). */
   affordable: boolean;
+  /** The production's attached casting director skill (if any) - sharpens the fit read (engine/talentCardPresentation.ts). */
+  castingDirectorSkill: number | null;
+  /** The studio's standing with this actor - history sharpens the fit read the same way. */
+  relationship: RelationshipStanding;
   actionLabel: string;
   onAct: () => void;
   pinned: boolean;
@@ -143,7 +149,7 @@ function CandidateCard({
       <div className="card-title">{person.identity.name}</div>
       {/* TalentStats' own Availability section already covers "available
           now" vs "busy until X" - no need to repeat it here. */}
-      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} affordable={affordable} />
+      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} affordable={affordable} castingDirectorSkill={castingDirectorSkill} relationship={relationship} />
       {signals.length > 0 && (
         <div className="candidate-signals">
           {signals.map((signal) => (
@@ -224,7 +230,13 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   // curated batches) is already visible in the applicant list itself by
   // then; the hint is only useful before that, to explain why hiring one
   // would help (docs/DESIGN_REVIEW_casting_redesign.md section 11).
-  const showCastingDirectorHint = !findAssignedPerson(draft.talent, 'Casting Director');
+  const castingDirector = findAssignedPerson(draft.talent, 'Casting Director');
+  const showCastingDirectorHint = !castingDirector;
+  // The attached casting director's eye sharpens every actor read on this film -
+  // narrows the fit band and sees through the reputation over/under-read on the
+  // card (engine/talentCardPresentation.ts:deriveFitReadAssist), the same skill
+  // that already curates the Open Casting batch. undefined with none hired.
+  const castingDirectorSkill = castingDirector ? getCrewCareer(castingDirector, 'Casting Director')?.skill ?? null : null;
   // Slot-bound casting (docs/DESIGN_REVIEW_casting_slot_binding.md): this
   // Character can be cast in any order, and casting it again recasts it. Who
   // (if anyone) currently plays it comes straight from the binding, not from
@@ -353,6 +365,8 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         actionDisabled: offerBlockedFor(person),
         onAct: () => attemptToAttach(person),
         onUnpin: () => pins.toggle(person.id),
+        castingDirectorSkill,
+        relationship: relationshipFor(person),
       }))
     : [];
 
@@ -504,6 +518,8 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                         pinCapped={pins.isFull}
                         onTogglePin={() => pins.toggle(applicant.person.id)}
                         onDismiss={() => dispatch({ type: 'DISMISS_CASTING_APPLICANT', characterId: character.id, personId: applicant.person.id })}
+                        castingDirectorSkill={castingDirectorSkill}
+                        relationship={relationshipFor(applicant.person)}
                       />
                     ))}
                   </div>
@@ -545,6 +561,8 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                   pinned={pins.isPinned(person.id)}
                   pinCapped={pins.isFull}
                   onTogglePin={() => pins.toggle(person.id)}
+                  castingDirectorSkill={castingDirectorSkill}
+                  relationship={relationshipFor(person)}
                 />
               ))}
             </div>

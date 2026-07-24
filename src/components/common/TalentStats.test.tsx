@@ -185,6 +185,22 @@ describe('TalentStats - Role fit / Tone fit breakdown', () => {
     expect(screen.queryByText('Tone fit')).not.toBeInTheDocument();
   });
 
+  // A hired casting director sharpens the read: a hard-to-read newcomer becomes a
+  // confident read, credited to the casting director's eye.
+  it('turns a hard-to-read newcomer into a confident read when a skilled casting director is attached', () => {
+    const [base] = generateTalentCandidates('Actor', createRng(33), 1);
+    const script = generateScriptOptions('Action', createRng(34), 1)[0];
+    const character = script.cast.find((c) => c.prominence === 'Lead')!;
+    const newcomer: Person = { ...base, reputation: { ...base.reputation, fame: 12, industryRespect: 12, currentHeat: 12, reliability: 70 } };
+
+    const { rerender } = render(<TalentStats person={newcomer} role="Lead Actor" category="actor" script={script} character={character} totalDays={1} />);
+    expect(screen.getByText('Hard to read')).toBeInTheDocument();
+
+    rerender(<TalentStats person={newcomer} role="Lead Actor" category="actor" script={script} character={character} totalDays={1} castingDirectorSkill={90} />);
+    expect(screen.queryByText('Hard to read')).not.toBeInTheDocument();
+    expect(screen.getByText(/your casting director has a read on this one/i)).toBeInTheDocument();
+  });
+
   // Role fit under uncertainty: a hard-to-read newcomer's untested dimensions are
   // veiled rather than handed over as precise per-axis fits, while a well-known,
   // reliable name reads clean across the board.

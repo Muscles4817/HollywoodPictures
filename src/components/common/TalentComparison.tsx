@@ -5,12 +5,14 @@ import {
   deriveComparisonVerdict,
   deriveFitReason,
   deriveFitRead,
+  deriveFitReadAssist,
   deriveRiskRead,
   qualitativeMagnitude,
   type CompareSide,
   type FitRead,
 } from '../../engine/talentCardPresentation';
 import { deriveHiringVerdict } from '../../utils/StarRatingConversion';
+import type { RelationshipStanding } from '../../engine/relationships';
 import { getTypicalSalaryForRole, isAvailableImmediately, deriveBookedUntil } from '../../engine/person';
 import { formatGameDateWithMonth } from '../../engine/calendar';
 import { fitTier } from './TalentStats';
@@ -30,6 +32,10 @@ export interface CompareSlot {
   actionDisabled: boolean;
   onAct: () => void;
   onUnpin: () => void;
+  /** The production's attached casting director skill (actors only) - sharpens the fit read the same way it does on the card. */
+  castingDirectorSkill?: number | null;
+  /** The studio's standing with this person - history sharpens the read too. */
+  relationship?: RelationshipStanding;
 }
 
 interface SideData {
@@ -53,9 +59,11 @@ function deriveSide(slot: CompareSlot, totalDays: number): SideData {
   const rawFit = deriveOverallScore(person, role, category, script, character);
   const breakdown = deriveRoleFitBreakdown(person, role, category, script, character);
   const reason = breakdown ? deriveFitReason(breakdown.rows, breakdown.noun) : null;
-  // Band the fit the same way the card does - but only where it's a judgment
-  // (actor/director, i.e. there's a per-axis breakdown); crew skill stays exact.
-  const fitRead = rawFit !== null && breakdown ? deriveFitRead(rawFit, person) : null;
+  // Band the fit the same way the card does - including the casting director /
+  // history assist - but only where it's a judgment (actor/director, i.e. there's
+  // a per-axis breakdown); crew skill stays exact.
+  const assist = deriveFitReadAssist(slot.castingDirectorSkill, slot.relationship, category === 'actor');
+  const fitRead = rawFit !== null && breakdown ? deriveFitRead(rawFit, person, assist) : null;
   const bookedUntil = deriveBookedUntil(person.availability.commitments);
   const identity = person.identity.gender ?? '';
   return {

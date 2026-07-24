@@ -6,12 +6,12 @@ import { effectiveRoleCapacity, characterForRoleSlot } from '../../engine/castRe
 import { actorMeetsCharacterGender, castingGenderLabel } from '../../engine/casting';
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
-import { deriveBookedUntil, getTypicalSalaryForRole, isAvailableImmediately } from '../../engine/person';
+import { deriveBookedUntil, getTypicalSalaryForRole, isAvailableImmediately, getCrewCareer } from '../../engine/person';
 import { computeDirectorAppeal, resolveDirectorOfferResponse, type DirectorOfferResponse } from '../../engine/directorAppeal';
-import { playerRelationshipWith } from '../../engine/relationships';
+import { playerRelationshipWith, type RelationshipStanding } from '../../engine/relationships';
 import { describeDirectorRejection, directorStrengthSignals, type CandidateSignal } from '../../engine/castingPresentation';
 import { deriveFocusedDraft, computeCommittedSpend } from '../../state/selectors';
-import { professionForProductionRole } from '../../data/helpers';
+import { professionForProductionRole, findAssignedPerson } from '../../data/helpers';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
@@ -44,11 +44,15 @@ interface CandidateCardProps {
   affordable: boolean;
   /** Candidate reasoning chips (docs/DESIGN_REVIEW_casting_ux.md) - a director's standout draws and any blocker/warning (prestige gate, below salary floor). Empty for roles with no appeal model (most crew). */
   signals: CandidateSignal[];
+  /** The production's attached casting director skill (actors only) - sharpens the fit read (engine/talentCardPresentation.ts). */
+  castingDirectorSkill: number | null;
+  /** The studio's standing with this person - history sharpens the fit read too. */
+  relationship: RelationshipStanding;
   onSelect: () => void;
   onTogglePin: () => void;
 }
 
-function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, affordable, signals, onSelect, onTogglePin }: CandidateCardProps) {
+function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, affordable, signals, castingDirectorSkill, relationship, onSelect, onTogglePin }: CandidateCardProps) {
   const isActor = category === 'actor';
   return (
     <Card selectable selected={selected} disabled={disabled} onClick={onSelect}>
@@ -57,7 +61,7 @@ function CandidateCard({ person, role, category, script, character, totalDays, s
           the drawer only needs to add its own casting-flow state on top
           (Cast/Hired, or Fully cast once the role's at capacity), not repeat
           the calendar read a second time. */}
-      <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} availabilityMode="blocked" affordable={affordable} />
+      <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} availabilityMode="blocked" affordable={affordable} castingDirectorSkill={castingDirectorSkill} relationship={relationship} />
       {signals.length > 0 && (
         <div className="candidate-signals">
           {signals.map((signal) => (
@@ -210,6 +214,10 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   // persistent standing with the studio, read into their interest score and
   // accept/decline so a loyal filmmaker is easier (and cheaper) to bring back.
   const relationshipFor = (person: Person) => playerRelationshipWith(state.collaborations ?? [], person);
+  // The production's attached casting director sharpens actor fit reads (TalentStats
+  // gates it to actors; harmless to pass for a director/crew hire). undefined with none.
+  const attachedCastingDirector = findAssignedPerson(draft.talent, 'Casting Director');
+  const castingDirectorSkill = attachedCastingDirector ? getCrewCareer(attachedCastingDirector, 'Casting Director')?.skill ?? null : null;
 
   const directorAppealByPersonId = new Map(
     isDirectorRole && draft.script
@@ -280,6 +288,8 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
         actionDisabled: slotBlocked(person),
         onAct: () => selectPerson(person),
         onUnpin: () => pins.toggle(person.id),
+        castingDirectorSkill,
+        relationship: relationshipFor(person),
       }))
     : [];
 
@@ -380,6 +390,8 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
                   pinCapped={pins.isFull}
                   affordable={isAffordable(person)}
                   signals={signals}
+                  castingDirectorSkill={castingDirectorSkill}
+                  relationship={relationshipFor(person)}
                   onSelect={() => selectPerson(person)}
                   onTogglePin={() => pins.toggle(person.id)}
                 />
