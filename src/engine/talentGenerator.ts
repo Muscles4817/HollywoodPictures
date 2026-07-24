@@ -480,6 +480,14 @@ export function generateTalentPool(
       continue;
     }
 
+    // Composers are fully hand-authored too (see HANDCRAFTED_COMPOSERS): real
+    // composers from indie/emerging up to Williams/Zimmer, spanning
+    // ~$0.25M-$5M, so no procedural fill.
+    if (role === 'Composer') {
+      pool[role] = [...handcrafted];
+      continue;
+    }
+
     pool[role] = [...handcrafted, ...generateTalentCandidates(role, rng)];
   }
 
