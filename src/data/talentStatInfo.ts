@@ -115,6 +115,11 @@ export const STAT_INFO = {
   },
 
   // --- Career -------------------------------------------------------------
+  skill: {
+    label: 'Skill',
+    what: 'Raw craft skill in their profession (directors, writers, and crew - actors are read through their five acting axes instead).',
+    effect: 'Feeds the quality their department contributes to a production, and how good a hire they read as.',
+  },
   experience: {
     label: 'Experience',
     what: 'Accumulated career experience.',

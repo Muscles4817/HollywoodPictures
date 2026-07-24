@@ -52,7 +52,7 @@
 .td-list__head,
 .td-actor-row {
   display: grid;
-  grid-template-columns: 2.2fr 1.1fr 1.4fr 1fr 0.8fr 0.9fr;
+  grid-template-columns: 2fr 1.1fr 1.1fr 1.3fr 1fr 0.8fr 0.9fr;
   gap: 10px;
   align-items: center;
   padding: 10px 14px;
@@ -77,6 +77,7 @@
 .td-actor-row:last-child { border-bottom: none; }
 .td-actor-row:hover { background: var(--panel); }
 .td-actor-row__name { font-weight: 600; }
+.td-actor-row__role,
 .td-actor-row__meta,
 .td-actor-row__credits { color: var(--text-muted); font-size: 0.9em; }
 .td-actor-row__status.is-busy { color: var(--red); }
@@ -176,6 +177,7 @@
 .td-panel__note { font-size: 0.66em; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-muted); margin-left: 8px; }
 .td-panel--career { border-left: 3px solid var(--primary); }
 .td-craft-line { margin: 0 0 12px; font-size: 0.92em; color: var(--text); }
+.td-bar-subhead { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 700; margin: 14px 0 4px; }
 
 .td-detail__marquee {
   margin: 8px 0 0;
