@@ -42,8 +42,8 @@ const HEADROOM_CAP = 45;
 // The mismatch swing is larger than the match swing so rigidity's dominant cost
 // is downside risk, not a free ceiling. Both are zero at adaptability 50, so an
 // average actor's performance is unchanged. First-draft, tunable.
-const ADAPT_MATCH_SWING = 0.2;
-const ADAPT_MISMATCH_SWING = 0.35;
+const ADAPT_MATCH_SWING = 0.25;
+const ADAPT_MISMATCH_SWING = 0.45;
 
 // --- Craft (floor + headroom), decoupled from fame -------------------------
 

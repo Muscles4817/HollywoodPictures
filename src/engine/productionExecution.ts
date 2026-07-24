@@ -146,7 +146,7 @@ function avgPressureHandling(talent: TalentAssignment[]): number {
 // one a little less - so an average cast leaves resilience exactly where the
 // reliability/contingency base put it (no calibration churn), while the axis
 // still becomes a genuine input. First-draft, tunable.
-const COMPOSURE_SWING = 0.1;
+const COMPOSURE_SWING = 0.16;
 
 /** Resilience 0-1: reliable, well-resourced, level-headed productions absorb on-set problems with less damage to the finished film (and dampen failure chains harder - see engine/production.ts:computeShootEscalation). */
 export function computeExecutionResilience(talent: TalentAssignment[], productionChoices: ProductionChoices): number {
