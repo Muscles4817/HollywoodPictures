@@ -29,6 +29,21 @@ const BASE_INFLUENCE = 0.12;
 const MISMATCH_PENALTY_SCALE = 0.6;
 /** The most performance a director can unlock on top of the floor. */
 const HEADROOM_CAP = 45;
+// How an actor's ADAPTABILITY (personality.adaptability) reshapes their response
+// to direction, turning a formerly-cosmetic axis into an endogenous-variance
+// lever (SIMULATION_PHILOSOPHY.md Principles 1 & 6). A RIGID actor (low
+// adaptability) is a boom-or-bust specialist: on a strong match they let a
+// director push them further than a flexible actor would (a bigger unlock, the
+// MATCH swing), but on a mismatch they clash and crater harder (a bigger drop,
+// the larger MISMATCH swing). An ADAPTABLE actor is the dependable inverse -
+// they roll with a wrong read (smaller downside) but don't reach the same
+// transcendent ceiling on a perfect one. The trade-off is the point: rigidity
+// WIDENS the outcome distribution in both directions, adaptability narrows it.
+// The mismatch swing is larger than the match swing so rigidity's dominant cost
+// is downside risk, not a free ceiling. Both are zero at adaptability 50, so an
+// average actor's performance is unchanged. First-draft, tunable.
+const ADAPT_MATCH_SWING = 0.2;
+const ADAPT_MISMATCH_SWING = 0.35;
 
 // --- Craft (floor + headroom), decoupled from fame -------------------------
 
@@ -269,6 +284,19 @@ function directorActorAim(director: Person | undefined, actorStyle: ActingStyle)
 }
 
 /**
+ * Reshape the signed aim by the actor's ADAPTABILITY - a rigid actor's response
+ * to direction is more extreme in whichever direction the aim already points (a
+ * bigger unlock on a match, a bigger crater on a mismatch), an adaptable actor's
+ * is muted (dependable, forgiving, but capped). Zero-change at adaptability 50.
+ * See ADAPT_MATCH_SWING / ADAPT_MISMATCH_SWING.
+ */
+function adaptSignedAim(actor: Person, signedAim: number): number {
+  const rigidity = clamp((50 - actor.personality.adaptability) / 50, -1, 1); // rigid > 0, adaptable < 0
+  const swing = signedAim >= 0 ? ADAPT_MATCH_SWING : ADAPT_MISMATCH_SWING;
+  return signedAim * (1 + rigidity * swing);
+}
+
+/**
  * The performance an actor actually delivers on this film - the heart of the
  * model. Starts from the fit-gated floor, then a director's PUSH (hands-on-ness
  * x skill) moves it toward the fit-gated headroom, signed by AIM: a well-aimed
@@ -294,6 +322,7 @@ export function computeRealizedPerformance(actor: Person, director: Person | und
   const actorStyle = getActorCareer(actor)?.actingStyle;
   const aim = actorStyle ? directorActorAim(director, actorStyle) : 0;
   const signedAim = aim >= 0 ? aim : aim * MISMATCH_PENALTY_SCALE;
+  const adaptedAim = adaptSignedAim(actor, signedAim);
 
-  return clamp(effFloor + availHeadroom * push * signedAim, 0, 100);
+  return clamp(effFloor + availHeadroom * push * adaptedAim, 0, 100);
 }

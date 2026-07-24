@@ -22,6 +22,7 @@ import {
 import { GENRE_PROFILES } from '../data/genres';
 import { SETTING_ARCHETYPE_PROFILES } from '../data/settings';
 import { contingencyT, practicalEffectsT, vfxT, overallSpendT, FOOTAGE_LOWER_RATIO, FOOTAGE_UPPER_RATIO } from './productionDials';
+import { computeCreativeTension } from './creativeTension';
 import { computeTalentCompatibility } from './compatibility';
 import { findCandidatesNearPrice } from './talentFilter';
 import { professionForProductionRole, filterAssignedPeople, findAssignedPerson } from '../data/helpers';
@@ -199,6 +200,16 @@ export function computeRecommendedPostProductionDays(talent: TalentAssignment[],
   return Math.round(editorialDays + vfxDays);
 }
 
+// Morale-risk amplifiers, in risk POINTS at the extremes (first-draft, tunable
+// like every cutoff here). Both are additive on top of the reliability/ego base
+// and both are zero at neutral personalities, so an all-average cast produces
+// exactly the pre-existing moraleRisk. VOLATILITY spans +/- its swing (an
+// even-keeled cast is calmer than average, a hair-trigger one tenser);
+// CREATIVE_TENSION is one-sided (0..swing) because tension is extra friction a
+// clash creates, never a bonus a placid pairing earns.
+const MORALE_VOLATILITY_SWING = 16;
+const MORALE_TENSION_SWING = 24;
+
 /**
  * The four risk dimensions knowable before a single day of filming happens
  * - see types/index.ts:StaticProductionRisk for why Schedule Pressure isn't
@@ -215,11 +226,23 @@ export function computeStaticProductionRisk(
 ): StaticProductionRisk {
   const avgReliability = talent.length ? talent.reduce((sum, a) => sum + a.person.reputation.reliability, 0) / talent.length : 70;
   const avgEgo = talent.length ? talent.reduce((sum, a) => sum + a.person.personality.ego, 0) / talent.length : 50;
+  const avgTemperament = talent.length ? talent.reduce((sum, a) => sum + a.person.personality.temperament, 0) / talent.length : 50;
   const unreliabilityRisk = 100 - avgReliability;
 
   // Interpersonal friction - unreliable, high-ego casts are more likely to
-  // clash or flake, independent of the shoot's physical/technical demands.
-  const moraleRisk = clamp(Math.round(unreliabilityRisk * 0.6 + avgEgo * 0.4), 0, 100);
+  // clash or flake, independent of the shoot's physical/technical demands. Two
+  // additive amplifiers on top of that base, each zero at neutral personalities
+  // (so the baseline is unchanged) and each turning a formerly-cosmetic axis
+  // into a real input:
+  //   - cast VOLATILITY (low temperament): a hair-trigger cast clashes more.
+  //   - CREATIVE TENSION (engine/creativeTension.ts): a specific clashing
+  //     director<->lead pairing adds friction the cast-wide averages miss - the
+  //     philosophy's "creative disagreement as a risk amplifier".
+  // Both raise the odds/severity of morale events (which route through the
+  // execution pipeline and can still break either way), never a flat penalty.
+  const volatilityRisk = ((50 - avgTemperament) / 50) * MORALE_VOLATILITY_SWING;
+  const tensionRisk = (computeCreativeTension(talent) / 100) * MORALE_TENSION_SWING;
+  const moraleRisk = clamp(Math.round(unreliabilityRisk * 0.6 + avgEgo * 0.4 + volatilityRisk + tensionRisk), 0, 100);
 
   const settingProfile = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
 

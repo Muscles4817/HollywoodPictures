@@ -134,11 +134,26 @@ function avgReliability(talent: TalentAssignment[]): number {
   return talent.reduce((sum, a) => sum + a.person.reputation.reliability, 0) / talent.length;
 }
 
-/** Resilience 0-1: reliable, well-resourced productions absorb on-set problems with less damage to the finished film. */
+function avgPressureHandling(talent: TalentAssignment[]): number {
+  if (talent.length === 0) return 50;
+  return talent.reduce((sum, a) => sum + a.person.personality.pressureHandling, 0) / talent.length;
+}
+
+// How much a cast's collective COMPOSURE under pressure (personality.pressureHandling)
+// shifts resilience at the extremes. Applied as an adjustment CENTRED on the 50
+// midpoint - a cast that keeps its head when a shoot gets difficult absorbs a
+// little more of the damage and dampens failure chains harder, a hair-trigger
+// one a little less - so an average cast leaves resilience exactly where the
+// reliability/contingency base put it (no calibration churn), while the axis
+// still becomes a genuine input. First-draft, tunable.
+const COMPOSURE_SWING = 0.1;
+
+/** Resilience 0-1: reliable, well-resourced, level-headed productions absorb on-set problems with less damage to the finished film (and dampen failure chains harder - see engine/production.ts:computeShootEscalation). */
 export function computeExecutionResilience(talent: TalentAssignment[], productionChoices: ProductionChoices): number {
   const reliabilityT = clamp(avgReliability(talent) / 100, 0, 1);
   const contingencyStrength = clamp(contingencyT(productionChoices.contingencyAmount), 0, 1);
-  return clamp(0.55 * reliabilityT + 0.45 * contingencyStrength, 0, 1);
+  const composureAdj = ((avgPressureHandling(talent) - 50) / 50) * COMPOSURE_SWING;
+  return clamp(0.55 * reliabilityT + 0.45 * contingencyStrength + composureAdj, 0, 1);
 }
 
 /** A running per-department tally: positive and negative execution quality points, kept separate. */

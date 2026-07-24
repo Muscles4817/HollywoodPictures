@@ -96,12 +96,12 @@ export const STAT_INFO = {
   temperament: {
     label: 'Temperament',
     what: 'Even-keeled vs. volatile under stress.',
-    effect: INERT_SUFFIX,
+    effect: "A volatile cast raises a production's morale/friction risk, making costly on-set clashes more likely; an even-keeled one lowers it.",
   },
   pressureHandling: {
     label: 'Pressure Handling',
     what: 'How well they cope when a shoot gets difficult.',
-    effect: INERT_SUFFIX,
+    effect: 'A level-headed cast makes a production more resilient — it absorbs more of a rough shoot’s damage and contains failure chains better.',
   },
   controversy: {
     label: 'Controversy',
@@ -111,7 +111,7 @@ export const STAT_INFO = {
   adaptability: {
     label: 'Adaptability',
     what: 'How readily they adjust to changes on set.',
-    effect: INERT_SUFFIX,
+    effect: "Reshapes how an actor responds to direction: a rigid actor swings further both ways (a bigger lift under the right director, a worse result under the wrong one), an adaptable one is steadier but caps lower. Low adaptability also feeds creative-tension friction with a strong-willed director.",
   },
 
   // --- Career -------------------------------------------------------------
