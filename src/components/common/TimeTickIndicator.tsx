@@ -11,7 +11,7 @@ interface TimeTickIndicatorProps {
 }
 
 /**
- * Pause control for the background day-tick (App.tsx), a 1x/2x/4x
+ * Pause control for the background day-tick (App.tsx), a 1x/2x/4x/8x
  * speed-up, and a small bar that fills up over the real tick interval -
  * without the bar, a screen that only visibly changes once every few
  * seconds reads as frozen rather than "counting down to the next day."
