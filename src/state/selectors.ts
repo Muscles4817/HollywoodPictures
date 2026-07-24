@@ -315,6 +315,21 @@ export function deriveRecentAwardHighlights(state: GameState, withinDays: number
     .sort((a, b) => b.day - a.day);
 }
 
+/**
+ * Recent award highlights the player hasn't acknowledged yet - the Inbox
+ * "Awards night" catch-up items and their badge contribution. Read state is
+ * explicit and per-ceremony (GameState.acknowledgedAwardCeremonies, keyed by
+ * RecentAwardHighlight.id): opening the Inbox does not mark them read, only
+ * clicking through to the Awards page does. Still bounded by
+ * deriveRecentAwardHighlights' 14-day window, so an unacknowledged ceremony
+ * ages out on its own rather than lingering forever - the Awards page remains
+ * the permanent record either way.
+ */
+export function unacknowledgedAwardHighlights(state: GameState): RecentAwardHighlight[] {
+  const acknowledged = new Set(state.acknowledgedAwardCeremonies ?? []);
+  return deriveRecentAwardHighlights(state).filter((highlight) => !acknowledged.has(highlight.id));
+}
+
 export type FilmStatSortKey =
   | 'title' | 'studio' | 'genre' | 'releasedOnDay'
   | 'criticScore' | 'audienceScore' | 'buzzScore' | 'qualityScore'

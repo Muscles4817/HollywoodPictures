@@ -2146,6 +2146,14 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       return marked === current ? state : { ...state, bidNotifications: marked };
     }
 
+    // The player clicked through an Inbox "Awards night" beat - record that one
+    // ceremony as acknowledged so it stops counting as unread. Idempotent.
+    case 'ACKNOWLEDGE_AWARD_CEREMONY': {
+      const current = state.acknowledgedAwardCeremonies ?? [];
+      if (current.includes(action.ceremonyId)) return state;
+      return { ...state, acknowledgedAwardCeremonies: [...current, action.ceremonyId] };
+    }
+
     // Dashboard -> the studio's owned Assets. Pure detour, same as VIEW_STATS.
     case 'VIEW_ASSET_LIBRARY':
       return { ...state, screen: 'asset-library', ...clearTransientView() };

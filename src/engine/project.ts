@@ -123,6 +123,8 @@ export interface InboxItems {
   pressTourIncidents: FilmDraft[];
   /** The player's own films that have opened but whose Premiere Reveal the player hasn't watched yet (Film.boxOfficeRun.premiereSeen === false) - a background-settled scheduled release never lands on the results screen, so this is where the "now playing, watch the premiere" moment surfaces instead. */
   nowPlaying: Film[];
+  /** The player's own films whose theatrical run has ended but whose final breakdown the player hasn't reviewed yet (Film.boxOfficeRun.acknowledged === false). Informational catch-up: it replaces the old blocking BoxOfficeFinishedPopup, and the Inbox routes it to the film's own dossier (components/common/FilmDetailModal.tsx) rather than reproducing the numbers. Unread until the player opens that dossier, which sets acknowledged (ACKNOWLEDGE_BOX_OFFICE_RESULTS). */
+  boxOfficeFinished: Film[];
 }
 
 /**
@@ -165,10 +167,16 @@ export function deriveInboxItems(projects: Project[], excludeId: string | null):
     // background-settled scheduled releases the player would otherwise never see
     // celebrated.
     nowPlaying: playerReleasedFilms(projects).filter((f) => f.boxOfficeRun.premiereSeen === false),
+    // Finished theatrical runs the player hasn't reviewed yet - the informational
+    // "box office closed" catch-up beat that replaced the blocking popup. Distinct
+    // from nowPlaying (that's the opening; this is the run ending).
+    boxOfficeFinished: playerReleasedFilms(projects).filter(
+      (f) => f.boxOfficeRun.status === 'finished' && !f.boxOfficeRun.acknowledged,
+    ),
   };
 }
 
-/** The Inbox badge count (components/common/Header.tsx) - the sum of every ACTIONABLE category deriveInboxItems groups. Parked films still waiting on their test screening (or mid-recut) are deliberately excluded: they render an informational Inbox card but there is nothing the player can do about them, so they must not keep the badge lit. */
+/** The Inbox badge count (components/common/Header.tsx) - the sum of every category deriveInboxItems groups that the player still needs to see. Mostly ACTIONABLE items; parked films still waiting on their test screening (or mid-recut) are deliberately excluded (they render an informational Inbox card but there is nothing the player can do, so they must not keep the badge lit). boxOfficeFinished is the one purely-informational category counted here: an unreviewed finished run is a "you missed a result" signal that should keep the badge lit until the player opens its dossier, the same way an unwatched premiere (nowPlaying) does. Awards highlights are counted separately in Header.tsx since they need the awards/acknowledgement state deriveInboxItems doesn't take. */
 export function inboxBadgeCount(projects: Project[], excludeId: string | null): number {
   const items = deriveInboxItems(projects, excludeId);
   return (
@@ -177,7 +185,8 @@ export function inboxBadgeCount(projects: Project[], excludeId: string | null): 
     items.parked.filter(isParkedActionable).length +
     items.casting.length +
     items.pressTourIncidents.length +
-    items.nowPlaying.length
+    items.nowPlaying.length +
+    items.boxOfficeFinished.length
   );
 }
 

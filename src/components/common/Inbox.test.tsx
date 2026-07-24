@@ -9,7 +9,7 @@ import { withRng } from '../../engine/random';
 import { buildReadyDraft } from '../../state/testFixtures';
 import { playerDraftToProject, scheduledDraftToProject } from '../../engine/project';
 import type { GameState } from '../../state/gameState';
-import type { FilmDraft, PressTourIncident } from '../../types';
+import type { Film, FilmDraft, PressTourIncident, Project } from '../../types';
 
 const dispatch = vi.fn();
 let mockState: GameState;
@@ -70,6 +70,40 @@ function scheduledStateWithIncident(incident: PressTourIncident | null): GameSta
     bidNotifications: [],
   } as unknown as GameState;
 }
+
+function boxOfficeFinishedState(): GameState {
+  // A minimal 'released' project with a finished, unacknowledged run - the only
+  // fields the box-office Inbox card and its derivation actually read.
+  const film = {
+    id: 'bo-film',
+    title: 'Skyline Fever',
+    boxOfficeRun: { status: 'finished', acknowledged: false, premiereSeen: true, weeks: [], simWeeks: [], cumulativeGross: 48_000_000 },
+    results: { outcome: 'Hit', totalBoxOffice: 48_000_000 },
+  } as unknown as Film;
+  return {
+    projects: [{ kind: 'released', film } as unknown as Project],
+    focusedProjectId: null,
+    talentPool: {},
+    opportunities: [],
+    bidNotifications: [],
+    totalDays: 500,
+  } as unknown as GameState;
+}
+
+describe('Inbox - box office finished (informational catch-up)', () => {
+  it('renders a finished run and, on "View box office", acknowledges it and routes to the dossier', () => {
+    dispatch.mockClear();
+    const onViewFilmDossier = vi.fn();
+    mockState = boxOfficeFinishedState();
+    render(<Inbox open onClose={() => {}} onViewFilmDossier={onViewFilmDossier} />);
+
+    expect(screen.getByText(/has finished its run/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'View box office' }));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS', filmId: 'bo-film' });
+    expect(onViewFilmDossier).toHaveBeenCalledWith('bo-film');
+  });
+});
 
 describe('Inbox - press tour incident (interactive)', () => {
   it('renders a fired incident with its response options and dispatches the chosen one', () => {

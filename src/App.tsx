@@ -23,7 +23,9 @@ import { ProjectsPage } from './components/ProjectsPage';
 import { IpLibrary } from './components/IpLibrary';
 import type { ProjectWorkspaceSection, Screen } from './types';
 import { DAY_TICK_MS, type TickSpeedMultiplier } from './constants';
-import { unreadBidCount } from './engine/bidNotifications';
+import { timeCriticalUnreadBidCount } from './engine/bidNotifications';
+import { asFilm, findProject } from './engine/project';
+import { FilmDetailModal } from './components/common/FilmDetailModal';
 import { Button } from './components/common/Button';
 
 // Every wizard screen where the player is setting choices with no clock
@@ -82,13 +84,15 @@ export function computeTicking(
 /**
  * The resume-guard predicate (bid-inbox feature): resuming the real-time clock
  * should ask the player to confirm first only when they are un-pausing (the
- * clock is currently paused) while they still have unread bid "emails"
- * (engine/bidNotifications.ts). Pausing, or resuming with nothing unread,
- * passes straight through. Pure so it can be unit-tested without mounting the
- * app, same as computeTicking above.
+ * clock is currently paused) while a genuinely time-critical bid update is still
+ * unread - an active outbid they can still respond to
+ * (engine/bidNotifications.ts:timeCriticalUnreadBidCount). Winning/losing an
+ * auction is informational and never guards resume. Pausing, or resuming with
+ * nothing time-critical outstanding, passes straight through. Pure so it can be
+ * unit-tested without mounting the app, same as computeTicking above.
  */
-export function shouldConfirmResume(paused: boolean, unreadBidNotifications: number): boolean {
-  return paused && unreadBidNotifications > 0;
+export function shouldConfirmResume(paused: boolean, timeCriticalUnread: number): boolean {
+  return paused && timeCriticalUnread > 0;
 }
 
 // The full "which page is the player on" reading - every field the browser
@@ -130,6 +134,11 @@ function AppShell() {
   // resolving a background shoot's paused decision doesn't cost real time
   // either, the same reasoning as the manual pause button.
   const [inboxOpen, setInboxOpen] = useState(false);
+  // The released-film dossier the Inbox routed to (a finished box-office run's
+  // "View box office"). App owns this overlay because the Inbox is mounted here,
+  // above the screen switch; it's the same FilmDetailModal + local-state pattern
+  // Dashboard/StatsPage already use, just reachable from the global Inbox too.
+  const [dossierFilmId, setDossierFilmId] = useState<string | null>(null);
   // Shown when the player tries to resume the clock while bid "emails" are
   // still unread (engine/bidNotifications.ts) - the resume-guard the player
   // asked for. Not game state; a pure UI gate on un-pausing.
@@ -151,17 +160,20 @@ function AppShell() {
   // persisted, reachable from any screen via the header.
   const [devTool, setDevTool] = useState<DevTool>('none');
 
-  // How many bid "emails" are still unread - drives the auto-pause, the
-  // resume-guard, and (via the Header) the badge (engine/bidNotifications.ts).
-  const unreadBid = unreadBidCount(state.bidNotifications ?? []);
+  // How many unread bid "emails" are still time-critical - an active outbid the
+  // player can still respond to before the weekly close. This (not the raw
+  // unread count) drives the auto-pause and resume-guard: winning or losing an
+  // auction is informational and must never stop the simulation, only a live
+  // outbid should (engine/bidNotifications.ts).
+  const timeCriticalUnread = timeCriticalUnreadBidCount(state.bidNotifications ?? [], state.opportunities, state.totalDays);
 
-  // Resuming the clock (pause -> running) while bid mail is unread opens the
-  // confirm dialog instead; every other toggle passes straight through.
+  // Resuming the clock (pause -> running) while a live outbid is unread opens
+  // the confirm dialog instead; every other toggle passes straight through.
   // Held in a ref so the global spacebar listener below can call the latest
   // version without re-subscribing on every render.
   const requestTogglePauseRef = useRef<() => void>(() => {});
   requestTogglePauseRef.current = () => {
-    if (shouldConfirmResume(paused, unreadBid)) setResumeConfirmOpen(true);
+    if (shouldConfirmResume(paused, timeCriticalUnread)) setResumeConfirmOpen(true);
     else setPaused((p) => !p);
   };
 
@@ -173,16 +185,16 @@ function AppShell() {
     dispatch({ type: 'MARK_BID_NOTIFICATIONS_READ' });
   }
 
-  // A brand-new bid update auto-pauses the clock so it can't tick past the
-  // moment the player might want to respond (raise a bid before the weekly
-  // close). Fires only on an increase in unread count - reading the Inbox
-  // (which drops it to 0) never re-pauses, and resolving one email doesn't
-  // re-pause for the others.
-  const prevUnreadBidRef = useRef(unreadBid);
+  // A new *active outbid* auto-pauses the clock so it can't tick past the moment
+  // the player might want to respond (raise a bid before the weekly close).
+  // Fires only on an increase in the time-critical count - reading the Inbox
+  // (which marks bid mail read, dropping it to 0) never re-pauses, and a win/
+  // loss or an auction that has since closed doesn't pause at all.
+  const prevTimeCriticalRef = useRef(timeCriticalUnread);
   useEffect(() => {
-    if (unreadBid > prevUnreadBidRef.current) setPaused(true);
-    prevUnreadBidRef.current = unreadBid;
-  }, [unreadBid]);
+    if (timeCriticalUnread > prevTimeCriticalRef.current) setPaused(true);
+    prevTimeCriticalRef.current = timeCriticalUnread;
+  }, [timeCriticalUnread]);
 
   // Spacebar toggles the same manual pause the header's own Pause/Resume
   // button does - a common enough game convention that it's worth wiring up
@@ -282,6 +294,9 @@ function AppShell() {
   }, [state.screen]);
 
   const ticking = computeTicking(state.screen, state.viewingProductionId, paused, inboxOpen);
+  // The film whose dossier the Inbox routed to, if any (resolved defensively -
+  // a stale id just renders nothing, same tolerance as RESTORE_NAVIGATION).
+  const dossierFilm = dossierFilmId ? asFilm(findProject(state.projects, dossierFilmId)) : null;
 
   // The selected speed applies on any screen where the background tick is
   // actually running - the control lives in the header now, always visible,
@@ -356,14 +371,23 @@ function AppShell() {
         devTool={devTool}
         onSetDevTool={setDevTool}
       />
-      <Inbox open={inboxOpen} onClose={() => setInboxOpen(false)} />
+      <Inbox
+        open={inboxOpen}
+        onClose={() => setInboxOpen(false)}
+        onViewFilmDossier={(filmId) => {
+          setInboxOpen(false);
+          setDossierFilmId(filmId);
+        }}
+      />
+      {dossierFilm && <FilmDetailModal film={dossierFilm} onClose={() => setDossierFilmId(null)} />}
       {resumeConfirmOpen && (
         <div className="modal-overlay" onClick={() => setResumeConfirmOpen(false)}>
           <div className="modal-content stack" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
-            <h2 style={{ margin: 0 }}>Unread bid updates</h2>
+            <h2 style={{ margin: 0 }}>Still outbid</h2>
             <p style={{ margin: 0 }}>
-              You have {unreadBid} unread bid update{unreadBid === 1 ? '' : 's'}. Resume time anyway? A rival could
-              win a script before you get another chance to respond.
+              A rival is outbidding you on {timeCriticalUnread} open auction{timeCriticalUnread === 1 ? '' : 's'} you can
+              still win. Resume time anyway? {timeCriticalUnread === 1 ? 'It' : 'They'} could close before you get another
+              chance to raise.
             </p>
             <div className="row" style={{ gap: '0.5rem' }}>
               <Button

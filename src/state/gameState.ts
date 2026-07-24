@@ -111,6 +111,16 @@ export interface GameState {
    * (there is no migration pass - see state/persistence.ts).
    */
   bidNotifications?: BidNotification[];
+  /**
+   * Award ceremonies the player has acknowledged from the Inbox, keyed by
+   * RecentAwardHighlight.id (state/selectors.ts). Awards resolve silently in the
+   * background tick, so their Inbox "Awards night" beat stays unread until the
+   * player clicks through to the Awards page (ACKNOWLEDGE_AWARD_CEREMONY) - this
+   * is that per-ceremony read state, deliberately explicit rather than a global
+   * "opened the Inbox" marker so a result can't be silently marked seen.
+   * Optional/absent on saves predating the feature; read as `[]` (no migration).
+   */
+  acknowledgedAwardCeremonies?: string[];
 }
 
 /**
@@ -397,6 +407,11 @@ export type GameAction =
   // when the player opens the Inbox (engine/bidNotifications.ts). Clears the
   // header badge's bid contribution and the real-time clock's resume-guard.
   | { type: 'MARK_BID_NOTIFICATIONS_READ' }
+  // Marks one award ceremony acknowledged (GameState.acknowledgedAwardCeremonies)
+  // - dispatched when the player clicks through an Inbox "Awards night" beat to
+  // the Awards page. Read state is per-ceremony and explicit (state/selectors.ts:
+  // unacknowledgedAwardHighlights), keyed by RecentAwardHighlight.id.
+  | { type: 'ACKNOWLEDGE_AWARD_CEREMONY'; ceremonyId: string }
   // Dashboard -> the studio's owned Assets. Pure detour, same as VIEW_STATS.
   | { type: 'VIEW_ASSET_LIBRARY' }
   // Dashboard -> every one of the player's own current projects, one card
