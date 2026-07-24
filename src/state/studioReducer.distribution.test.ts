@@ -7,8 +7,6 @@ import {
   DOMESTIC_KEEP_SHARE,
   INTERNATIONAL_DISTRIBUTION_MAX_TIER,
   INTERNATIONAL_UPGRADE_COST_BY_TIER,
-  RENTED_DISTRIBUTION_KEEP_MULTIPLIER,
-  RENTED_WIDE_CEILING,
 } from '../data/distribution';
 import { internationalReachForTier } from '../engine/distribution';
 import type { GameState } from './gameState';
@@ -120,21 +118,29 @@ describe('SCHEDULE_RELEASE - distribution gate and frozen deal', () => {
     expect(studioReducer(forcedSelf, { type: 'SCHEDULE_RELEASE', releaseDay: 1 })).toBe(forcedSelf); // no-op
   });
 
-  it('a no-arm Wide release is rented: the deal is frozen and the distributor takes a cut of the gross', () => {
+  it('a no-arm Wide release takes a distributor: the deal (fee + fronted P&A) is frozen and flows through settlement', () => {
     const released = studioReducer(noArmState(4), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     const film = playerReleasedFilms(released.projects)[0];
-    // The rented deal is frozen onto the film.
-    expect(film.marketingChoices.distributionMethod).toBe('rented');
-    expect(film.marketingChoices.distributionBreadth).toBe(RENTED_WIDE_CEILING);
-    expect(film.results.distributionKeepShare).toBeCloseTo(DOMESTIC_KEEP_SHARE * RENTED_DISTRIBUTION_KEEP_MULTIPLIER, 6);
+    // A distributor deal is frozen onto the film (defaults to the balanced offer
+    // when the player never explicitly picked one).
+    expect(film.marketingChoices.distributionMethod).toBe('distributor');
+    expect(film.marketingChoices.distributorName).toBeTruthy();
+    expect(film.marketingChoices.distributionBreadth).toBeGreaterThan(0);
+    // The fee applies to the domestic keep - a distributor Wide keeps less.
+    expect(film.results.distributionKeepShare).toBeLessThan(DOMESTIC_KEEP_SHARE);
+    // The distributor fronted the P&A (the studio's channelSpend became the
+    // distributor's allocation) and it's recouped off the gross.
+    const pAndA = film.marketingChoices.distributionPAndA!;
+    expect(pAndA).toBeGreaterThan(0);
+    expect(film.results.distributionMarketingRecoup).toBe(pAndA);
 
-    // End to end: the reduced keep actually flows into studioRevenue.
+    // End to end: no arm => domestic only, so studioRevenue is the domestic keep
+    // minus the recouped P&A off the top (engine/boxOfficeRun.ts:finishFilm).
     const finished = runToFinish(released);
     const settled = playerReleasedFilms(finished.projects)[0];
     expect(settled.results.totalBoxOffice).not.toBeNull();
-    expect(settled.results.studioRevenue).toBe(
-      Math.round(settled.results.totalBoxOffice! * settled.results.distributionKeepShare!),
-    );
+    const grossCredit = Math.round(settled.results.totalBoxOffice! * settled.results.distributionKeepShare!);
+    expect(settled.results.studioRevenue).toBe(grossCredit - Math.min(settled.results.distributionMarketingRecoup!, grossCredit));
   });
 
   it('a studio with an arm self-distributes Wide by default: full keep, no distributor cut', () => {

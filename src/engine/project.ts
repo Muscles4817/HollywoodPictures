@@ -121,6 +121,23 @@ export interface InboxItems {
   casting: Array<{ production: FilmDraft; calls: CastingCall[] }>;
   /** Scheduled (not-yet-released) films with a fired-but-unanswered press-tour incident awaiting a response (the interactive layer). Sourced from 'scheduled' projects, which backgroundedPlayerDrafts deliberately excludes. */
   pressTourIncidents: FilmDraft[];
+  /** The player's own films that have opened but whose Premiere Reveal the player hasn't watched yet (Film.boxOfficeRun.premiereSeen === false) - a background-settled scheduled release never lands on the results screen, so this is where the "now playing, watch the premiere" moment surfaces instead. */
+  nowPlaying: Film[];
+}
+
+/**
+ * Whether a parked film (photography wrapped, post-production choices locked)
+ * is actually actionable - its mandatory test screening has come back AND no
+ * re-cut is still in the editing bay, i.e. the player can genuinely schedule a
+ * release day right now. A film merely *waiting* on its screening (or mid-recut)
+ * is parked too, but there is nothing to do, so it must not light the Inbox
+ * badge - it still renders an informational card in the Inbox. Mirrors the exact
+ * branch components/common/Inbox.tsx uses to decide between the "just needs a
+ * release day" (enabled) and the "still wrapping up / re-cut underway" (waiting)
+ * copy.
+ */
+export function isParkedActionable(p: FilmDraft): boolean {
+  return p.testScreeningResolved && p.postProductionEditingUntilDay == null;
 }
 
 export function deriveInboxItems(projects: Project[], excludeId: string | null): InboxItems {
@@ -142,13 +159,26 @@ export function deriveInboxItems(projects: Project[], excludeId: string | null):
     pressTourIncidents: scheduledPlayerReleases(projects)
       .map((s) => s.draft)
       .filter((d) => d.pressTourIncident),
+    // The player's own opened films whose Premiere Reveal hasn't been watched
+    // yet - a same-day release lands on the results screen and is marked seen
+    // immediately (state/studioReducer.ts), so in practice this only ever holds
+    // background-settled scheduled releases the player would otherwise never see
+    // celebrated.
+    nowPlaying: playerReleasedFilms(projects).filter((f) => f.boxOfficeRun.premiereSeen === false),
   };
 }
 
-/** The Inbox badge count (components/common/Header.tsx) - the sum of every category deriveInboxItems groups. */
+/** The Inbox badge count (components/common/Header.tsx) - the sum of every ACTIONABLE category deriveInboxItems groups. Parked films still waiting on their test screening (or mid-recut) are deliberately excluded: they render an informational Inbox card but there is nothing the player can do about them, so they must not keep the badge lit. */
 export function inboxBadgeCount(projects: Project[], excludeId: string | null): number {
   const items = deriveInboxItems(projects, excludeId);
-  return items.awaitingChoice.length + items.wrapped.length + items.parked.length + items.casting.length + items.pressTourIncidents.length;
+  return (
+    items.awaitingChoice.length +
+    items.wrapped.length +
+    items.parked.filter(isParkedActionable).length +
+    items.casting.length +
+    items.pressTourIncidents.length +
+    items.nowPlaying.length
+  );
 }
 
 /** Every player project waiting on its own releaseDay to arrive (roadmap Phase 7.2) - see engine/scheduledReleases.ts. */

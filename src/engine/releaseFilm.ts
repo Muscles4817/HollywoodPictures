@@ -19,7 +19,7 @@ import type { CampaignAngle } from '../types';
 import { deriveCommercialProfile } from './commercialProfile';
 import { advanceOneWeek } from './audienceSimulationStep';
 import { AVERAGE_TICKET_PRICE } from './boxOfficeRun';
-import { computeInternationalAppeal, domesticKeepShareForFilm, splitBoxOfficeGross } from './distribution';
+import { computeInternationalAppeal, domesticKeepShareForFilm, feeFractionFromKeepShare, splitBoxOfficeGross } from './distribution';
 import { pickReviewBlurbs, pickDepartmentBlurb, pickScoredReviews } from './reviews';
 import { generateStoryReport } from './storyReport';
 import { mitigateEventQualityImpact, NEUTRAL_PRODUCER_EFFECTS, type ProducerEffects } from './producers';
@@ -266,7 +266,19 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // marketingCost (and therefore totalCost) so it reads as part of the campaign.
   // Never in resolvePlayerRelease's alreadyCharged (which excludes marketing),
   // so like the rest of marketing it's charged once, at release.
-  const marketingCost = computeMarketingCost(input.marketingChoices) + pressTourCost(input.talent, input.marketingChoices.pressTourCast);
+  //
+  // Under a distributor deal the whole ad campaign (channelSpend == the
+  // distributor's committed P&A) is the DISTRIBUTOR's money: it fronts it and
+  // recoups it in full off the gross (engine/boxOfficeRun.ts), never charging
+  // the studio up front, and no Wide cost premium applies (a major distributes
+  // efficiently - the committed P&A is exactly what's spent and recouped). So
+  // the studio's own marketing outlay is just the press tour; the channel cost
+  // drops out of totalCost entirely (it would otherwise double-count against the
+  // recoup). For a self-distributed release distributionPAndA is absent, so the
+  // studio pays its full channel campaign exactly as before.
+  const onDistributorDeal = (input.marketingChoices.distributionPAndA ?? 0) > 0;
+  const studioChannelCost = onDistributorDeal ? 0 : computeMarketingCost(input.marketingChoices);
+  const marketingCost = Math.max(0, studioChannelCost + pressTourCost(input.talent, input.marketingChoices.pressTourCast));
   const totalCost = productionCost + marketingCost;
 
   // Release-day-fixed audience-simulation state (docs/DESIGN.md 5.34,
@@ -355,6 +367,14 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     // Frozen international reach - box-office settlement reads this, never the
     // studio's live tier, so a post-release upgrade never lifts this film.
     internationalReachFraction: input.marketingChoices.internationalReachFraction,
+    // Distributor terms, carried onto the film so box-office settlement recoups
+    // the fronted P&A off the top (engine/boxOfficeRun.ts) and the money
+    // breakdown can show the fee/P&A lines. All absent for a self-distributed
+    // release (the player funded their own marketing, keeps their full share).
+    distributionMarketingRecoup: input.marketingChoices.distributionPAndA,
+    distributionPAndA: input.marketingChoices.distributionPAndA,
+    distributionFeeFraction:
+      input.marketingChoices.distributionPAndA != null ? feeFractionFromKeepShare(input.marketingChoices.distributionKeepShare) : undefined,
     profit: null,
     outcome: null,
     brandChange: null,

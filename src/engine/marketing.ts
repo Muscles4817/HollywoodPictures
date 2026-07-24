@@ -42,6 +42,34 @@ export function effectiveMarketingReach(channelSpend: ChannelSpend, targetAudien
   }, 0);
 }
 
+/**
+ * How a distributor spends its committed P&A across channels for a film aimed
+ * at `targetAudience` - proportional to each channel's audience fit, so a
+ * professional distributor puts its money where it reaches this film's crowd.
+ * The result sums to the full P&A (a rounding remainder lands on the best-fit
+ * channel) and is dropped straight into the frozen marketingChoices.channelSpend
+ * at SCHEDULE_RELEASE, so the reach model reads it exactly like a player-built
+ * campaign. Falls back to an even split if no channel fits (never divides by 0).
+ */
+export function distributorChannelAllocation(pAndA: number, targetAudience: TargetAudience): ChannelSpend {
+  const total = Math.max(0, Math.round(pAndA));
+  const weights = MARKETING_CHANNELS.map((channel) => CHANNEL_AUDIENCE_EFFICIENCY[channel][targetAudience]);
+  const weightSum = weights.reduce((s, w) => s + w, 0);
+  const allocation = {} as ChannelSpend;
+  let allocated = 0;
+  MARKETING_CHANNELS.forEach((channel, i) => {
+    const share = weightSum > 0 ? weights[i] / weightSum : 1 / MARKETING_CHANNELS.length;
+    const amount = Math.round(total * share);
+    allocation[channel] = amount;
+    allocated += amount;
+  });
+  // Put any rounding remainder on the best-fit channel so the allocation sums to
+  // exactly the committed P&A.
+  const bestChannel = MARKETING_CHANNELS.reduce((best, c, i) => (weights[i] > CHANNEL_AUDIENCE_EFFICIENCY[best][targetAudience] ? c : best), MARKETING_CHANNELS[0]);
+  allocation[bestChannel] += total - allocated;
+  return allocation;
+}
+
 export interface CampaignAngleEffect {
   /** Multiplies the opening (awareness) - >= 1, biggest for the loudest angles. */
   openingMultiplier: number;

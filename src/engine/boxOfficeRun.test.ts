@@ -89,7 +89,7 @@ function freshFilm(id: string, releasedOnDay: number, fixed: AudienceSimulationF
     events: [],
     postProductionEvents: [],
     results: baseResults({ openingWeekend: Math.round(week1.cumulativeTicketsSold * AVERAGE_TICKET_PRICE) }),
-    boxOfficeRun: { status: 'running', fixed, simWeeks: [], weeks: [], cumulativeGross: 0, acknowledged: false },
+    boxOfficeRun: { status: 'running', fixed, simWeeks: [], weeks: [], cumulativeGross: 0, acknowledged: false, premiereSeen: true },
     releasedOnDay,
     ...(releasedBy ? { releasedBy } : {}),
   };
@@ -182,6 +182,57 @@ describe('settleBoxOfficeForAllFilms - revenue and cash', () => {
     const settled = settlement.filmsReleased[0];
     const summed = settled.boxOfficeRun.weeks.reduce((sum, w) => sum + w.gross, 0);
     expect(settled.boxOfficeRun.cumulativeGross).toBe(summed);
+  });
+});
+
+describe('settleBoxOfficeForAllFilms - distributor P&A recoup', () => {
+  // A film whose deal has the distributor front (and recoup) a P&A budget - the
+  // recoup comes off the top of the studio's box-office cash, first weeks first.
+  function distributedFilm(id: string, recoup: number): Film {
+    const film = freshFilm(id, 1, fixedFor({ criticScore: 80, audienceScore: 82 }));
+    return { ...film, results: { ...film.results, distributionMarketingRecoup: recoup } };
+  }
+
+  it('withholds the recoup off the top, matches a run with no recoup minus the recoup, and never goes negative', () => {
+    const noRecoup = settleBoxOfficeForAllFilms([freshFilm('no-recoup', 1, fixedFor({ criticScore: 80, audienceScore: 82 }))], 1 + MAX_SIMULATION_WEEKS * 7);
+    const recoup = 5_000_000;
+    const withRecoup = settleBoxOfficeForAllFilms([distributedFilm('recoup', recoup)], 1 + MAX_SIMULATION_WEEKS * 7);
+
+    const baseCredit = noRecoup.cashCredit;
+    // The whole recoup is covered by this run, so the studio's cash is exactly
+    // the no-recoup total minus the fronted P&A.
+    expect(baseCredit).toBeGreaterThan(recoup);
+    expect(withRecoup.cashCredit).toBe(baseCredit - recoup);
+    expect(withRecoup.cashCredit).toBeGreaterThanOrEqual(0);
+    // The gross itself is untouched - the recoup is a cash withholding, not a
+    // gross reduction.
+    expect(withRecoup.filmsReleased[0].boxOfficeRun.cumulativeGross).toBe(noRecoup.filmsReleased[0].boxOfficeRun.cumulativeGross);
+    // studioRevenue on the finished film nets the recoup too.
+    const grossCredit = baseCredit; // domestic-only, so the finished-film gross credit equals the summed weekly credit
+    expect(withRecoup.filmsReleased[0].results.studioRevenue).toBe(grossCredit - recoup);
+  });
+
+  it('recoup off the top settles identically in one big jump as week by week (reconstructable)', () => {
+    const recoup = 8_000_000;
+    const bigJump = settleBoxOfficeForAllFilms([distributedFilm('rj', recoup)], 1 + 10 * 7).filmsReleased[0];
+    let film = distributedFilm('rj', recoup);
+    let cash = 0;
+    for (let week = 1; week <= 10; week++) {
+      const settlement = settleBoxOfficeForAllFilms([film], 1 + week * 7);
+      film = settlement.filmsReleased[0];
+      cash += settlement.cashCredit;
+    }
+    expect(film.boxOfficeRun).toEqual(bigJump.boxOfficeRun);
+    // The one-jump run's total banked cash equals the week-by-week total.
+    const oneJumpCash = settleBoxOfficeForAllFilms([distributedFilm('rj', recoup)], 1 + 10 * 7).cashCredit;
+    expect(cash).toBe(oneJumpCash);
+  });
+
+  it('a recoup larger than the whole run is capped at the run - the studio banks nothing, never negative', () => {
+    const huge = 10_000_000_000;
+    const settlement = settleBoxOfficeForAllFilms([distributedFilm('huge', huge)], 1 + MAX_SIMULATION_WEEKS * 7);
+    expect(settlement.cashCredit).toBe(0);
+    expect(settlement.filmsReleased[0].results.studioRevenue).toBe(0);
   });
 });
 

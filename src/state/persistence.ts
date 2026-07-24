@@ -334,7 +334,7 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   ProductionEvent gained impact + escalates (typed consequences + failure
 //   chains) and FilmResults gained productionExecution (stars + causal summary
 //   + mitigation + numeric modifiers).
-const SAVE_KEY = 'hollywood-pictures-save-v52';
+const SAVE_KEY = 'hollywood-pictures-save-v53';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

@@ -936,6 +936,30 @@ export interface PostProductionChoices {
 export type ReleaseType = 'Limited' | 'Wide' | 'Festival First';
 export type ReleaseWindow = 'Quiet Month' | 'Summer' | 'Awards Season' | 'Halloween' | 'Christmas';
 
+// --- Distributor offers (engine/distribution.ts) ----------------------------
+// A Wide release the studio can't self-distribute goes out through a major.
+// Rather than one silent boilerplate deal, the studio is pitched a few
+// competing offers whose terms are driven by how commercially appealing the
+// film is and how strong the studio's reputation is - distributors compete
+// harder (lower fee, wider release, bigger campaign) for a film they believe in.
+export type DistributorArchetype = 'major' | 'balanced' | 'boutique';
+
+export interface DistributorOffer {
+  /** Stable id = the archetype, so a saved selection resolves even if cosmetic names reshuffle. */
+  id: DistributorArchetype;
+  archetype: DistributorArchetype;
+  /** Cosmetic distributor name shown to the player. */
+  name: string;
+  /** The distributor's fee as a fraction of the studio's domestic rentals (its box-office keep), 0.10-0.35. */
+  feeFraction: number;
+  /** The Wide screen ceiling this distributor will give the film, 0-1 (before the market's own releaseStrength scaling). */
+  breadth: number;
+  /** The P&A (marketing) budget the distributor commits and fronts - recouped in full off the studio's gross. */
+  pAndA: number;
+  /** One-line plain-language pitch for the card. */
+  blurb: string;
+}
+
 // --- Marketing campaign channels & angle (docs/DESIGN_REVIEW_marketing_campaign.md) ---
 // Introduced ahead of the MarketingChoices reshape (increment 2) so the pure
 // engine (engine/marketing.ts) and its tunables can land additively first,
@@ -960,18 +984,35 @@ export interface MarketingChoices {
   releaseWindow: ReleaseWindow;
   /**
    * How a Wide release reaches theaters (engine/distribution.ts): 'self'
-   * (self-distributed, requires an owned Distribution Arm) or 'rented' (a
-   * major's distribution, always available but takes a cut). Only meaningful
-   * for Wide; absent means the default for the studio's capability. The
-   * `distributionBreadth`/`distributionKeepShare` below are the resolved deal
-   * terms, frozen onto the film at SCHEDULE_RELEASE so the later settlement
-   * (engine/marketSettlement.ts) reads exactly what was agreed at scheduling.
+   * (self-distributed, requires an owned Distribution Arm - you fund and
+   * control your own marketing and keep your full box-office share) or
+   * 'distributor' (a major distributes it - always available; they set and
+   * front the P&A, recoup it in full off your gross, and take a fee of your
+   * rentals). Only meaningful for Wide; absent means the default for the
+   * studio's capability. The `distribution*` fields below are the resolved
+   * deal terms, frozen onto the film at SCHEDULE_RELEASE so the later
+   * settlement (engine/marketSettlement.ts) reads exactly what was agreed.
    */
-  distributionMethod?: 'self' | 'rented';
+  distributionMethod?: 'self' | 'distributor';
+  /** Which distributor offer the player accepted, by archetype id (engine/distribution.ts:DistributorOffer). Absent for self-distribution / non-Wide. */
+  selectedDistributorId?: string;
+  /** The accepted distributor's display name, frozen for the results/breakdown screens. Absent for self-distribution / non-Wide. */
+  distributorName?: string;
   /** Frozen Wide availability ceiling for this release's deal (before releaseStrength scaling); absent for non-Wide. */
   distributionBreadth?: number;
-  /** Frozen *domestic* studio keep share for this deal; absent = the default DOMESTIC_KEEP_SHARE. A rented Wide takes a cut of this half only. */
+  /** Frozen *domestic* studio keep share for this deal; absent = the default DOMESTIC_KEEP_SHARE. A distributor takes a fee off this half only. */
   distributionKeepShare?: number;
+  /**
+   * The P&A (prints & advertising) budget a distributor committed for this
+   * release - the marketing spend that drives the opening. Set into
+   * `channelSpend`/`marketingSpend` at freeze so the reach model reads it
+   * normally, but ALSO recorded here so settlement knows it was the
+   * distributor's money (fronted, not the studio's): it's excluded from the
+   * film's charged cost and recouped in full off the box-office keep
+   * (engine/boxOfficeRun.ts). Absent for self-distribution / non-Wide (the
+   * player funds their own marketing).
+   */
+  distributionPAndA?: number;
   /**
    * Frozen international distribution reach for this release (engine/distribution.ts),
    * 0..1 - how much of the film's overseas box office the studio realises. Frozen
@@ -1122,6 +1163,17 @@ export interface FilmResults {
   distributionKeepShare?: number;
   /** Frozen international distribution reach for this film (0..1), copied from marketingChoices at release. Absent = 0 (domestic only). Box-office settlement reads this, never the studio's live tier. */
   internationalReachFraction?: number;
+  /**
+   * P&A a distributor fronted for this film and recoups in full off the top of
+   * the studio's box-office keep (engine/boxOfficeRun.ts) - withheld from the
+   * studio's cash, first weeks first, and netted from studioRevenue/profit when
+   * the run finishes. Absent/0 for a self-distributed or non-distributor release.
+   */
+  distributionMarketingRecoup?: number;
+  /** For display: the distributor's fee fraction of rentals (0.10-0.35). Absent for self-distribution. */
+  distributionFeeFraction?: number;
+  /** For display: the P&A the distributor committed (== distributionMarketingRecoup). Absent for self-distribution. */
+  distributionPAndA?: number;
   profit: number | null;
   outcome: OutcomeLabel | null;
   // Milestone: Brand Recognition and Prestige (engine/reputation.ts) replaced
@@ -1259,6 +1311,15 @@ export interface BoxOfficeRun {
   // set true by ACKNOWLEDGE_BOX_OFFICE_RESULTS once status is 'finished', so
   // the popup doesn't reappear every time the player revisits the Dashboard.
   acknowledged: boolean;
+  // Whether the player has watched this film's opening Premiere Reveal - the
+  // OPENING moment, distinct from `acknowledged` (the film's FINAL numbers). A
+  // same-day release lands straight on the results screen and is marked seen
+  // immediately; a background-settled scheduled release starts false and
+  // surfaces a "now playing" Inbox item (engine/project.ts:deriveInboxItems)
+  // whose "View Premiere" button (VIEW_PREMIERE, state/studioReducer.ts) plays
+  // the animation and flips this true. Rivals' runs are created already true -
+  // their premiere is never the player's to watch.
+  premiereSeen: boolean;
 }
 
 // A film record that has been fully cast/produced/released and lives in studio history.

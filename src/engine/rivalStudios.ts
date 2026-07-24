@@ -893,6 +893,7 @@ export function resolveRivalProduction(
       weeks: [],
       cumulativeGross: 0,
       acknowledged: true, // the finished-run popup only ever looks at the player's own films
+      premiereSeen: true, // likewise the Premiere Reveal - a rival's opening is never the player's to watch
     },
     releasedOnDay: production.releaseDay,
     releasedBy: rivalStudioName,

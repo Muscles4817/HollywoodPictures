@@ -55,12 +55,15 @@ import {
   defaultDistributionMethod,
   distributionArmTier,
   distributionArmUpgradeCost,
+  distributorOffersForFilm,
   internationalReachForTier,
   internationalTier,
   internationalUpgradeCost,
   isDistributionArmUnlocked,
   resolveDistribution,
+  resolveDistributorDeal,
 } from '../engine/distribution';
+import { distributorChannelAllocation } from '../engine/marketing';
 import { applyStatChange } from '../engine/reputation';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 import { currentScreenFor } from './selectors';
@@ -1867,30 +1870,50 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // is set (RESOLVE_TEST_SCREENING_CHOICE sets both at once), so the
       // `!` below is safe.
       if (!d.testScreeningResolved) return state;
-      // A film can't be released on a marketing campaign the studio can't
-      // pay for. The full marketing charge - channel spend plus the press
-      // tour - is deducted at settlement (engine/releaseFilm.ts folds both
-      // into marketingCost; charged via runCalendarSettlement's
-      // playerCostCharged) with no floor of its own, so without this guard a
-      // big enough campaign would drive studio.cash negative. Mirror that
-      // exact sum here so the check can't undercount. This is the
-      // authoritative choke point - the Marketing & Release screen disables
-      // its own button on the same condition, but this makes the rule true
-      // regardless of how the action was dispatched, the same affordability
-      // discipline GREENLIGHT_PROJECT enforces via deriveProjectReadiness.
-      const marketingCharge = computeMarketingCost(d.marketingChoices) + pressTourCost(d.talent, d.marketingChoices.pressTourCast);
-      if (marketingCharge > state.studio.cash) return state;
       // Distribution: only Wide is gated. Self-distributing a Wide release
-      // needs an owned Distribution Arm; without one the player rents a major's
-      // distribution (a cut off the box-office keep). This resolves the deal
-      // terms and freezes them onto the scheduled film so the later settlement
-      // reads exactly what was agreed here (engine/distribution.ts). The
-      // authoritative gate: a self-distributed Wide with no arm is rejected -
-      // the Marketing screen never offers it, but this makes the rule true
-      // regardless of how the action was dispatched.
+      // needs an owned Distribution Arm; without one the player takes a
+      // distributor - a fee off the box-office keep plus the distributor
+      // fronting (and recouping) the P&A. This resolves the deal terms and
+      // freezes them onto the scheduled film so the later settlement reads
+      // exactly what was agreed here (engine/distribution.ts). The authoritative
+      // gate: a self-distributed Wide with no arm is rejected - the Marketing
+      // screen never offers it, but this makes the rule true regardless of how
+      // the action was dispatched.
       const distributionMethod = d.marketingChoices.distributionMethod ?? defaultDistributionMethod(d.marketingChoices.releaseType, state.studio);
       if (d.marketingChoices.releaseType === 'Wide' && distributionMethod === 'self' && !canSelfDistributeWide(state.studio)) return state;
-      const distributionDeal = resolveDistribution(d.marketingChoices.releaseType, distributionMethod, distributionArmTier(state.studio));
+      // A distributor Wide release resolves from the accepted offer - the
+      // player's selection, or (defensively, e.g. a same-day release that never
+      // opened the picker) the balanced middle offer. Offers are regenerated
+      // authoritatively here from the same per-film seed the Marketing screen
+      // used, so the terms can't be tampered with in transit.
+      const isDistributorDeal = d.marketingChoices.releaseType === 'Wide' && distributionMethod === 'distributor';
+      const acceptedOffer = isDistributorDeal
+        ? (() => {
+            const offers = distributorOffersForFilm({
+              id: d.id,
+              appealInput: { script: d.script, genre: d.genre, talent: d.talent, productionBudget: computeProductionBudgetCost(d.productionChoices) + computeTalentCost(d.talent) },
+              brand: state.studio.brand,
+            });
+            return offers.find((o) => o.id === d.marketingChoices!.selectedDistributorId) ?? offers.find((o) => o.archetype === 'balanced') ?? offers[0];
+          })()
+        : null;
+      const distributionDeal = acceptedOffer
+        ? resolveDistributorDeal(acceptedOffer)
+        : resolveDistribution(d.marketingChoices.releaseType, distributionMethod, distributionArmTier(state.studio));
+      // The distributor sets and fronts the P&A, so its audience-weighted
+      // channel allocation becomes the film's frozen marketing spend.
+      const distributorChannelSpend = acceptedOffer ? distributorChannelAllocation(acceptedOffer.pAndA, d.targetAudience) : null;
+      // A film can't be released on a marketing campaign the studio can't pay
+      // for. Under a distributor deal the ad spend is the distributor's money
+      // (fronted, recouped from the gross - engine/boxOfficeRun.ts), so the
+      // studio's only up-front marketing charge is the press tour; a
+      // self-distributed release pays its own full channel campaign. Mirror
+      // engine/releaseFilm.ts's marketingCost exactly so the check can't
+      // undercount. Authoritative choke point - the Marketing & Release screen
+      // disables its button on the same condition, but this makes the rule true
+      // regardless of how the action was dispatched.
+      const studioMarketingCharge = (isDistributorDeal ? 0 : computeMarketingCost(d.marketingChoices)) + pressTourCost(d.talent, d.marketingChoices.pressTourCast);
+      if (studioMarketingCharge > state.studio.cash) return state;
       const totalDaysAfter = Math.max(state.totalDays, d.postProductionFinalReadyDay!);
       const daysAdvanced = totalDaysAfter - state.totalDays;
       // releaseDay is a discrete calendar day everywhere else in this
@@ -1922,8 +1945,16 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           // runway - the neutral baseline - and holding past it earns momentum.
           campaignStartDay: totalDaysAfter,
           distributionMethod: distributionDeal.method,
+          selectedDistributorId: acceptedOffer?.id,
+          distributorName: distributionDeal.distributorName,
           distributionBreadth: distributionDeal.breadth,
           distributionKeepShare: distributionDeal.keepShare,
+          distributionPAndA: distributionDeal.pAndA,
+          // A distributor sets and fronts the P&A - its channel allocation is
+          // the film's marketing spend (drives the opening), replacing the
+          // player's sliders, and it's the distributor's money so it's charged
+          // to the distributor (recouped), not the studio (engine/releaseFilm.ts).
+          ...(distributorChannelSpend ? { channelSpend: distributorChannelSpend, marketingSpend: acceptedOffer!.pAndA } : {}),
           // Freeze the international reach from the studio's current
           // International Distribution tier - immune to later upgrades, exactly
           // like the domestic deal terms above. Absent tier => 0 => hard gate.
@@ -1958,7 +1989,16 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           playerDrafts: result.productionsInProgress,
           scheduled: result.settlement.stillScheduled,
           rivalProductions: result.settlement.rivalProductionsInProgress,
-          playerFilms: result.settlement.playerFilms,
+          // A same-day release (resolvedNow) is about to land on the results
+          // screen, so its Premiere Reveal is seen the instant it opens - mark
+          // it so it never also shows up as an unwatched "now playing" Inbox
+          // item. A future-scheduled release stays unseen until the player opens
+          // it from the Inbox (engine/project.ts, VIEW_PREMIERE below).
+          playerFilms: resolvedNow
+            ? result.settlement.playerFilms.map((f) =>
+                f.id === state.focusedProjectId ? { ...f, boxOfficeRun: { ...f.boxOfficeRun, premiereSeen: true } } : f,
+              )
+            : result.settlement.playerFilms,
           rivalFilms: result.settlement.rivalFilms,
         }),
       };
@@ -1970,6 +2010,27 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         projects: state.projects.map((p) =>
           p.kind === 'released' && p.film.id === action.filmId
             ? filmToProject({ ...p.film, boxOfficeRun: { ...p.film.boxOfficeRun, acknowledged: true } })
+            : p,
+        ),
+      };
+    }
+
+    // The player opened a "now playing" Inbox item to watch a background-settled
+    // release's Premiere Reveal (engine/project.ts:deriveInboxItems). Focus that
+    // film and route to the results screen (ReleaseResults reads
+    // deriveFocusedFilm, which resolves a 'released' project through asFilm), and
+    // flip premiereSeen so the Inbox item clears and never re-lights the badge.
+    case 'VIEW_PREMIERE': {
+      const target = asFilm(findProject(state.projects, action.filmId));
+      if (!target) return state;
+      return {
+        ...state,
+        screen: 'results',
+        focusedProjectId: action.filmId,
+        ...clearTransientView(),
+        projects: state.projects.map((p) =>
+          p.kind === 'released' && p.film.id === action.filmId
+            ? filmToProject({ ...p.film, boxOfficeRun: { ...p.film.boxOfficeRun, premiereSeen: true } })
             : p,
         ),
       };

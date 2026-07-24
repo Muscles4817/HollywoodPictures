@@ -23,12 +23,56 @@ export const DISTRIBUTION_ARM_UPGRADE_COST_BY_TIER: Record<number, number> = { 2
 // book every screen in the country on day one.
 export const SELF_DISTRIBUTION_WIDE_CEILING_BY_TIER: Record<number, number> = { 1: 0.72, 2: 0.85, 3: 0.95 };
 
-// Renting a major's distribution (the early-game escape hatch): a fixed, decent
-// screen ceiling that's always available without owning an arm - but the
-// distributor takes a cut of the studio's box-office keep as its fee.
-export const RENTED_WIDE_CEILING = 0.8;
-/** The distributor's fee, as the fraction of the studio's normal box-office keep it leaves you (0.72 => the distributor takes ~28%). */
-export const RENTED_DISTRIBUTION_KEEP_MULTIPLIER = 0.72;
+// --- Distributor offers (the early-game path onto Wide screens) -------------
+// A studio that can't self-distribute a Wide release is pitched a few competing
+// distributor offers (engine/distribution.ts:generateDistributorOffers). Terms
+// are driven by the film's commercial appeal and the studio's brand: a
+// distributor competes harder for a film it believes in (lower fee, wider
+// release, bigger committed campaign). All numbers here are the tunable knobs;
+// the engine does the interpolation.
+
+/** The distributor's fee, as a fraction of the studio's *rentals* (domestic box-office keep). Real-world distribution fees are 10-35% of rentals; a low-appeal film with a no-name studio pays the top, a can't-miss film with a strong brand the floor. */
+export const DISTRIBUTOR_FEE_RANGE = { min: 0.1, max: 0.35 };
+
+/** The Wide screen ceiling a distributor offers, by the film's commercial appeal. A weak film opens narrow even Wide; a blockbuster gets near-saturation. */
+export const DISTRIBUTOR_BREADTH_RANGE = { min: 0.55, max: 0.92 };
+
+/** The P&A (marketing) budget a distributor commits and fronts, by commercial appeal - what they judge the film's commercial power commands. Recouped in full off the studio's gross. */
+export const DISTRIBUTOR_PANDA_RANGE = { min: 3_000_000, max: 60_000_000 };
+
+/** How much a distributor's read blends the film's own appeal with the studio's brand (the rest). Fee keys on this blend (reputation matters at the negotiating table); breadth and P&A key on raw film appeal (screens and spend follow the film). */
+export const DISTRIBUTOR_BRAND_WEIGHT = 0.4;
+
+/** The all-in production budget (talent + below-the-line) that reads as a "full commercial scale" signal when assessing appeal. Films at/above this contribute the max scale term. */
+export const COMMERCIAL_SCALE_REFERENCE = 90_000_000;
+
+/**
+ * Per-archetype shaping of the base terms, so the 2-3 offers are a real
+ * tradeoff rather than three copies. A *major* buys the widest release and the
+ * biggest campaign but charges the steepest fee; a *boutique* takes a much
+ * smaller cut for a narrower, cheaper release; *balanced* sits between. Fee
+ * deltas are added to the base fee (then clamped to the range); breadth/P&A are
+ * multipliers on the base.
+ */
+export const DISTRIBUTOR_ARCHETYPES = {
+  major: { label: 'Major', feeDelta: 0.05, breadthMult: 1.0, pAndAMult: 1.3 },
+  balanced: { label: 'Balanced', feeDelta: 0.0, breadthMult: 0.9, pAndAMult: 1.0 },
+  boutique: { label: 'Boutique', feeDelta: -0.06, breadthMult: 0.72, pAndAMult: 0.55 },
+} as const;
+
+/** Cosmetic distributor names, drawn (deterministically per film) for the offer cards. */
+export const DISTRIBUTOR_NAMES: readonly string[] = [
+  'Meridian Pictures',
+  'Atlas Releasing',
+  'Silver Lake Distribution',
+  'Empire Theatrical',
+  'Northstar Films',
+  'Coastline Releasing',
+  'Vanguard Pictures',
+  'Lighthouse Distribution',
+  'Monarch Releasing',
+  'Redwood Pictures',
+];
 
 // --- Domestic / International box-office split -----------------------------
 // The audience simulation produces one *worldwide* gross (its addressable pool

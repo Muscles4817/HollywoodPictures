@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { MARKETING_SPEND_RANGE, RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS } from '../../data/release';
 import { pluckDescriptions } from '../../data/describe';
-import { computeMarketingCost } from '../../engine/cost';
+import { computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../../engine/cost';
 import { formatGameDateWithMonth, formatGameMonthYear, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from '../../engine/calendar';
 import { computeCompetitiveCrowding, type UpcomingRelease } from '../../engine/releaseCrowding';
 import { asUpcomingRelease } from '../../engine/scheduledReleases';
@@ -26,6 +26,7 @@ import {
 } from '../../data/marketing';
 import {
   campaignRolloutWeeks,
+  distributorChannelAllocation,
   marketingRolloutMultiplier,
   totalMarketingSpend,
   type ChannelSpend,
@@ -48,16 +49,16 @@ import {
   canSelfDistributeWide,
   defaultDistributionMethod,
   distributionArmTier,
+  distributorOffersForFilm,
   internationalReachForTier,
   internationalTier,
   resolveDistribution,
+  resolveDistributorDeal,
   type DistributionMethod,
 } from '../../engine/distribution';
 import {
   DOMESTIC_KEEP_SHARE,
   INTERNATIONAL_KEEP_SHARE,
-  RENTED_DISTRIBUTION_KEEP_MULTIPLIER,
-  RENTED_WIDE_CEILING,
   SELF_DISTRIBUTION_WIDE_CEILING_BY_TIER,
 } from '../../data/distribution';
 import type { CampaignAngle, MarketingChannel, MarketingChoices, PersonId, ReleaseType } from '../../types';
@@ -85,7 +86,11 @@ const DEFAULT_CHOICES: MarketingChoices = {
   channelSpend: DEFAULT_CHANNEL_SPEND,
   marketingSpend: totalMarketingSpend(DEFAULT_CHANNEL_SPEND),
   campaignAngle: 'faithful',
-  releaseType: 'Wide',
+  // Default to a modest, self-distributed Limited release, NOT Wide. A Wide
+  // release means going out through a distributor (their fee + P&A recoup) or
+  // building a Distribution Arm - a deliberate step up the player opts into, not
+  // something a first film is silently put on.
+  releaseType: 'Limited',
   releaseWindow: 'Quiet Month',
 };
 
@@ -246,6 +251,9 @@ export function MarketingRelease() {
   function update<K extends keyof MarketingChoices>(key: K, value: MarketingChoices[K]) {
     dispatch({ type: 'SET_MARKETING_CHOICES', choices: { ...choices, [key]: value } });
   }
+  function updateChoices(patch: Partial<MarketingChoices>) {
+    dispatch({ type: 'SET_MARKETING_CHOICES', choices: { ...choices, ...patch } });
+  }
 
   const channelSpend: ChannelSpend = choices.channelSpend ?? DEFAULT_CHANNEL_SPEND;
   // Adjusting a channel keeps marketingSpend (the canonical total the cost and
@@ -275,21 +283,10 @@ export function MarketingRelease() {
     (assignment, index) => draft.talent.findIndex((other) => other.person.id === assignment.person.id) === index,
   );
 
-  const marketingCost = computeMarketingCost(choices) + tourCost;
-  // The full marketing spend (channels + press tour) is charged when the
-  // release settles, so a campaign costing more than the studio has on hand
-  // would push cash negative (state/studioReducer.ts:SCHEDULE_RELEASE is the
-  // authoritative guard that rejects it). Gate the Release button on it too,
-  // and say why, rather than letting the player build a plan the action will
-  // silently refuse.
-  const canAffordMarketing = marketingCost <= state.studio.cash;
-  const releaseTypeProfile = RELEASE_TYPE_PROFILES[choices.releaseType];
-  const weakMarketingWarning = releaseTypeProfile.needsMarketing && choices.marketingSpend <= MARKETING_SPEND_RANGE.min * 3;
-
   // Distribution (engine/distribution.ts): only Wide is gated. Self-distributing
-  // a Wide release needs an owned Distribution Arm; without one the player rents
-  // a major's distribution at a cut. The resolved deal is folded into the live
-  // opening projection below and frozen for real at SCHEDULE_RELEASE.
+  // a Wide release needs an owned Distribution Arm; without one the player takes
+  // a distributor (their fee + fronted-and-recouped P&A). The resolved deal is
+  // folded into the live opening projection below and frozen at SCHEDULE_RELEASE.
   const armTier = distributionArmTier(state.studio);
   const canSelfWide = canSelfDistributeWide(state.studio);
   // International reach is frozen at SCHEDULE_RELEASE from the studio's current
@@ -297,12 +294,51 @@ export function MarketingRelease() {
   // committing, whether this release will earn overseas box office at all.
   const intlTier = internationalTier(state.studio);
   const intlReach = internationalReachForTier(intlTier);
+  // The competing distributor offers for a Wide release - the exact set
+  // SCHEDULE_RELEASE regenerates at freeze (same per-film seed), so what the
+  // player picks here is what they get. Empty for a non-Wide release.
+  const distributorOffers = useMemo(() => {
+    if (choices.releaseType !== 'Wide' || !draft.script || !draft.genre || !draft.targetAudience || !draft.productionChoices) return [];
+    return distributorOffersForFilm({
+      id: draft.id,
+      appealInput: {
+        script: draft.script,
+        genre: draft.genre,
+        talent: draft.talent,
+        productionBudget: computeProductionBudgetCost(draft.productionChoices) + computeTalentCost(draft.talent),
+      },
+      brand: state.studio.brand,
+    });
+  }, [choices.releaseType, draft.id, draft.script, draft.genre, draft.targetAudience, draft.productionChoices, draft.talent, state.studio.brand]);
+
   const requestedMethod = choices.distributionMethod ?? defaultDistributionMethod(choices.releaseType, state.studio);
   // Guard against a stale 'self' choice the studio can no longer back.
   const distributionMethod: DistributionMethod =
-    choices.releaseType === 'Wide' && requestedMethod === 'self' && !canSelfWide ? 'rented' : requestedMethod;
-  const distributionDeal = resolveDistribution(choices.releaseType, distributionMethod, armTier);
-  const rentedCutPct = Math.round((1 - RENTED_DISTRIBUTION_KEEP_MULTIPLIER) * 100);
+    choices.releaseType === 'Wide' && requestedMethod === 'self' && !canSelfWide ? 'distributor' : requestedMethod;
+  const selectedOffer =
+    choices.releaseType === 'Wide' && distributionMethod === 'distributor'
+      ? distributorOffers.find((o) => o.id === choices.selectedDistributorId) ?? distributorOffers.find((o) => o.archetype === 'balanced') ?? distributorOffers[0] ?? null
+      : null;
+  const distributionDeal = selectedOffer
+    ? resolveDistributorDeal(selectedOffer)
+    : resolveDistribution(choices.releaseType, distributionMethod, armTier);
+  const distributorChannelSpend = selectedOffer && draft.targetAudience ? distributorChannelAllocation(selectedOffer.pAndA, draft.targetAudience) : null;
+  const onDistributorDeal = selectedOffer != null;
+
+  // Under a distributor deal the ad spend is the distributor's money (fronted,
+  // recouped from the gross), so the studio's own marketing outlay is just the
+  // press tour; a self-distributed release pays its full channel campaign.
+  const marketingCost = (onDistributorDeal ? 0 : computeMarketingCost(choices)) + tourCost;
+  // The studio's own marketing spend (press tour, plus channels when
+  // self-distributing) is charged when the release settles, so a campaign
+  // costing more than cash on hand would push it negative
+  // (state/studioReducer.ts:SCHEDULE_RELEASE is the authoritative guard that
+  // rejects it). Gate the Release button on it too, and say why, rather than
+  // letting the player build a plan the action will silently refuse.
+  const canAffordMarketing = marketingCost <= state.studio.cash;
+  const releaseTypeProfile = RELEASE_TYPE_PROFILES[choices.releaseType];
+  const weakMarketingWarning =
+    releaseTypeProfile.needsMarketing && !onDistributorDeal && choices.marketingSpend <= MARKETING_SPEND_RANGE.min * 3;
   const genreBonus = draft.genre ? RELEASE_WINDOW_GENRE_BONUS[releaseWindow][draft.genre] : undefined;
   const selectedCrowding = crowdingFor(releaseDay);
   const selectedCrowdingReading = crowdingReading(selectedCrowding);
@@ -335,9 +371,20 @@ export function MarketingRelease() {
           productionChoices: draft.productionChoices,
           postProductionChoices: draft.postProductionChoices,
           // Fold the resolved distribution deal into the projection so the
-          // opening reflects the chosen method (rented Wide reaches fewer
-          // screens; the keep-share cut affects revenue, not the opening).
-          marketingChoices: { ...choices, distributionMethod, distributionBreadth: distributionDeal.breadth, distributionKeepShare: distributionDeal.keepShare },
+          // opening reflects the chosen method: a distributor's committed P&A
+          // (and its channel allocation) drives the opening; its breadth caps
+          // screens; the keep-share cut affects revenue, not the opening.
+          marketingChoices: onDistributorDeal
+            ? {
+                ...choices,
+                distributionMethod,
+                distributionBreadth: distributionDeal.breadth,
+                distributionKeepShare: distributionDeal.keepShare,
+                distributionPAndA: selectedOffer!.pAndA,
+                channelSpend: distributorChannelSpend!,
+                marketingSpend: selectedOffer!.pAndA,
+              }
+            : { ...choices, distributionMethod, distributionBreadth: distributionDeal.breadth, distributionKeepShare: distributionDeal.keepShare },
           events: photography.events,
           postProductionEvents: draft.postProductionEvents,
           photographyCost: photography.runningCost,
@@ -358,7 +405,7 @@ export function MarketingRelease() {
       return null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, choices, selectedCrowding, state.studio.brand, state.producerPool, distributionMethod, distributionDeal.breadth, distributionDeal.keepShare, rolloutMultiplier]);
+  }, [draft, choices, selectedCrowding, state.studio.brand, state.producerPool, distributionMethod, distributionDeal.breadth, distributionDeal.keepShare, onDistributorDeal, selectedOffer?.pAndA, rolloutMultiplier]);
 
   // Tracking-as-a-service (F3): the true projection is never shown as a single
   // number - it's bracketed by a band whose width is set by the studio's Market
@@ -413,37 +460,49 @@ export function MarketingRelease() {
         </div>
       )}
 
-      <div className="card stack">
-        <div className="row-between">
+      {onDistributorDeal ? (
+        <div className="card stack">
           <h3 style={{ margin: 0 }}>Marketing Channels</h3>
-          <span style={{ fontSize: '0.95em', fontWeight: 700, color: 'var(--primary)' }}>{formatMoney(choices.marketingSpend)} total</span>
+          <p className="choice-description" style={{ margin: 0 }}>
+            {selectedOffer!.name} is running the campaign — a committed <Money amount={selectedOffer!.pAndA} /> in P&amp;A,
+            placed across the channels that best reach a{draft.targetAudience ? ` ${draft.targetAudience}` : ''} film. It's
+            their money up front, recouped from your gross, so there are no channel dials to set here. You still choose the
+            campaign angle and press tour below.
+          </p>
         </div>
-        <p className="choice-description" style={{ margin: 0 }}>
-          Split your spend across channels. Each one reaches your target audience differently -
-          {draft.targetAudience ? ` for a ${draft.targetAudience} film, put money where the fit is strong.` : ' pick your audience first to see how well each fits.'}
-        </p>
-        {MARKETING_CHANNELS.map((channel) => {
-          const efficiency = draft.targetAudience ? CHANNEL_AUDIENCE_EFFICIENCY[channel][draft.targetAudience] : 1;
-          const fit = channelFitFor(efficiency);
-          return (
-            <RangeSlider
-              key={channel}
-              label={MARKETING_CHANNEL_LABEL[channel]}
-              min={0}
-              max={CHANNEL_MAX}
-              value={channelSpend[channel]}
-              onChange={(v) => updateChannel(channel, v)}
-              formatValue={(v) => (v <= 0 ? 'Skip' : formatMoney(v))}
-              description={MARKETING_CHANNEL_BLURB[channel]}
-              extra={
-                draft.targetAudience ? (
-                  <span className={`channel-fit ${fit.className}`}>{fit.label} for {draft.targetAudience}</span>
-                ) : null
-              }
-            />
-          );
-        })}
-      </div>
+      ) : (
+        <div className="card stack">
+          <div className="row-between">
+            <h3 style={{ margin: 0 }}>Marketing Channels</h3>
+            <span style={{ fontSize: '0.95em', fontWeight: 700, color: 'var(--primary)' }}>{formatMoney(choices.marketingSpend)} total</span>
+          </div>
+          <p className="choice-description" style={{ margin: 0 }}>
+            Split your spend across channels. Each one reaches your target audience differently -
+            {draft.targetAudience ? ` for a ${draft.targetAudience} film, put money where the fit is strong.` : ' pick your audience first to see how well each fits.'}
+          </p>
+          {MARKETING_CHANNELS.map((channel) => {
+            const efficiency = draft.targetAudience ? CHANNEL_AUDIENCE_EFFICIENCY[channel][draft.targetAudience] : 1;
+            const fit = channelFitFor(efficiency);
+            return (
+              <RangeSlider
+                key={channel}
+                label={MARKETING_CHANNEL_LABEL[channel]}
+                min={0}
+                max={CHANNEL_MAX}
+                value={channelSpend[channel]}
+                onChange={(v) => updateChannel(channel, v)}
+                formatValue={(v) => (v <= 0 ? 'Skip' : formatMoney(v))}
+                description={MARKETING_CHANNEL_BLURB[channel]}
+                extra={
+                  draft.targetAudience ? (
+                    <span className={`channel-fit ${fit.className}`}>{fit.label} for {draft.targetAudience}</span>
+                  ) : null
+                }
+              />
+            );
+          })}
+        </div>
+      )}
 
       <div className="card stack">
         <h3 style={{ margin: 0 }}>Campaign Angle</h3>
@@ -535,31 +594,59 @@ export function MarketingRelease() {
         <div className="card stack">
           <h3 style={{ margin: 0 }}>Distribution</h3>
           <p className="choice-description" style={{ margin: 0 }}>
-            A Wide release has to actually get onto screens. Self-distribute it (needs your own Distribution Arm) or
-            rent a major's distribution — they take a cut of your box office.
+            A Wide release has to actually get onto screens. Distributors have pitched for it — each fronts the whole
+            marketing campaign (recouped in full off your gross) and takes a fee of your rentals in return. Terms depend
+            on how commercial they think the film is and how strong your studio's reputation is. Or self-distribute, if
+            you have your own Distribution Arm — you fund your own campaign, but keep your full share.
           </p>
-          <div className="angle-picker">
-            <Button
-              variant={distributionMethod === 'self' ? 'primary' : undefined}
+
+          <div className="distributor-offers stack">
+            {distributorOffers.map((offer) => {
+              const isSelected = onDistributorDeal && selectedOffer?.id === offer.id;
+              return (
+                <button
+                  key={offer.id}
+                  type="button"
+                  className={`distributor-offer${isSelected ? ' distributor-offer--selected' : ''}`}
+                  onClick={() => updateChoices({ distributionMethod: 'distributor', selectedDistributorId: offer.id })}
+                >
+                  <div className="row-between">
+                    <strong>{offer.name}</strong>
+                    <span className="distributor-offer__tag">{Math.round(offer.feeFraction * 100)}% fee · {Math.round(offer.breadth * 100)}% screens</span>
+                  </div>
+                  <div className="distributor-offer__panda">Committed campaign (P&amp;A): <Money amount={offer.pAndA} /></div>
+                  <p className="choice-description" style={{ margin: 0 }}>{offer.blurb}</p>
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              className={`distributor-offer${!onDistributorDeal ? ' distributor-offer--selected' : ''}${!canSelfWide ? ' distributor-offer--disabled' : ''}`}
               disabled={!canSelfWide}
               title={!canSelfWide ? 'Build a Distribution Arm (on the Dashboard) to self-distribute Wide releases.' : undefined}
-              onClick={() => update('distributionMethod', 'self')}
+              onClick={() => canSelfWide && update('distributionMethod', 'self')}
             >
-              Self-Distribute
-            </Button>
-            <Button
-              variant={distributionMethod === 'rented' ? 'primary' : undefined}
-              onClick={() => update('distributionMethod', 'rented')}
-            >
-              Rent a Distributor
-            </Button>
+              <div className="row-between">
+                <strong>Self-Distribute</strong>
+                <span className="distributor-offer__tag">no fee · {Math.round((SELF_DISTRIBUTION_WIDE_CEILING_BY_TIER[armTier] ?? 0) * 100)}% screens</span>
+              </div>
+              <p className="choice-description" style={{ margin: 0 }}>
+                {canSelfWide
+                  ? 'Your own Distribution Arm handles it. You fund and control your own marketing, and keep your full box-office share.'
+                  : 'You have no Distribution Arm yet — build one on the Dashboard to self-distribute Wide releases and keep your full share.'}
+              </p>
+            </button>
           </div>
-          <p className="choice-description" style={{ margin: 0 }}>
-            {distributionMethod === 'self'
-              ? `Self-distributed: your arm can command up to ${Math.round((SELF_DISTRIBUTION_WIDE_CEILING_BY_TIER[armTier] ?? 0) * 100)}% of screens, and you keep your full box-office share.`
-              : `Rented: reaches up to ${Math.round(RENTED_WIDE_CEILING * 100)}% of screens, but the distributor takes ${rentedCutPct}% of your domestic box-office keep (${Math.round(DOMESTIC_KEEP_SHARE * 100)}% → ${Math.round(DOMESTIC_KEEP_SHARE * RENTED_DISTRIBUTION_KEEP_MULTIPLIER * 100)}% of gross).`}
-            {!canSelfWide && ' You have no Distribution Arm yet — build one on the Dashboard to self-distribute.'}
-          </p>
+
+          {onDistributorDeal && selectedOffer && (
+            <p className="choice-description" style={{ margin: 0 }}>
+              <strong>{selectedOffer.name}</strong> fronts a <Money amount={selectedOffer.pAndA} /> campaign and recoups it
+              in full off the top of your gross, then takes {Math.round(selectedOffer.feeFraction * 100)}% of your domestic
+              rentals ({Math.round(DOMESTIC_KEEP_SHARE * 100)}% → {Math.round(distributionDeal.keepShare! * 100)}% of gross).
+              You keep your marketing cash up front; it comes out of the film's earnings instead.
+            </p>
+          )}
         </div>
       )}
 

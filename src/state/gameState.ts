@@ -344,6 +344,7 @@ export type GameAction =
   // within this same dispatch (see state/studioReducer.ts).
   | { type: 'SCHEDULE_RELEASE'; releaseDay: number }
   | { type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS'; filmId: string }
+  | { type: 'VIEW_PREMIERE'; filmId: string }
   | { type: 'RETURN_TO_DASHBOARD' }
   | { type: 'RENAME_STUDIO'; name: string }
   | { type: 'RESET_SAVE'; startingCash: number; brand?: number; prestige?: number }

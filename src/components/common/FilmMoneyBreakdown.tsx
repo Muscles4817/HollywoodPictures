@@ -30,8 +30,9 @@ function Line({ label, amount, kind }: { label: string; amount: number; kind: 'g
 }
 
 function DistributionLine({ film }: { film: Film }) {
-  const { releaseType, releaseWindow, distributionMethod } = film.marketingChoices;
-  const rented = distributionMethod === 'rented';
+  const { releaseType, releaseWindow, distributionMethod, distributorName } = film.marketingChoices;
+  const viaDistributor = distributionMethod === 'distributor';
+  const pAndA = film.results.distributionPAndA ?? 0;
   return (
     <div style={{ fontSize: '0.9em', color: 'var(--text-muted)' }}>
       <div>
@@ -39,8 +40,12 @@ function DistributionLine({ film }: { film: Film }) {
       </div>
       <div>
         Distribution:{' '}
-        <strong style={{ color: 'var(--text)' }}>{rented ? 'Rented' : 'Self-distributed'}</strong>
-        {rented ? ' — a major distributor, in exchange for a fee off the top' : ' — kept in-house, no distributor fee'}
+        <strong style={{ color: 'var(--text)' }}>{viaDistributor ? (distributorName ?? 'Distributor') : 'Self-distributed'}</strong>
+        {viaDistributor
+          ? pAndA > 0
+            ? ' — they fronted the campaign and recoup it, plus a fee off your rentals'
+            : ' — a distributor, in exchange for a fee off your rentals'
+          : ' — kept in-house, no distributor fee'}
       </div>
     </div>
   );
@@ -131,25 +136,30 @@ function Waterfall({ film }: { film: Film }) {
   // same STUDIO_BOX_OFFICE_SHARE the engine keeps for a self-distributed film.
   const grossRentals = Math.round(gross * STUDIO_BOX_OFFICE_SHARE);
   const theatricalSplit = gross - grossRentals;
-  // Whatever the frozen keep took below the standard rentals is the rented
-  // distributor's fee; exactly 0 for a self-distributed film.
-  const distributorFee = grossRentals - studioShare;
+  // Everything the distributor took below the standard rentals - its percentage
+  // fee plus any fronted P&A it recouped - is the gap between rentals and the
+  // studio's final share; exactly 0 for a self-distributed film. The P&A recoup
+  // is a known dollar figure, peeled off first, so the remainder is the fee.
+  const distributorTake = Math.max(0, grossRentals - studioShare);
+  const recoup = Math.min(r.distributionMarketingRecoup ?? 0, distributorTake);
+  const distributorFee = distributorTake - recoup;
 
   return (
     <div className="stack" style={{ gap: 0 }}>
       <Line label="Total box office" amount={gross} kind="gross" />
       <Line label={`Theaters & international keep ${pct(theatricalSplit, gross)}%`} amount={-theatricalSplit} kind="deduction" />
-      {distributorFee > 0 ? (
+      {distributorTake > 0 ? (
         <>
           <Line label="Box-office rentals" amount={grossRentals} kind="subtotal" />
-          <Line label={`Distributor's fee (${pct(distributorFee, grossRentals)}%)`} amount={-distributorFee} kind="deduction" />
+          {distributorFee > 0 && <Line label={`Distributor's fee (${pct(distributorFee, grossRentals)}%)`} amount={-distributorFee} kind="deduction" />}
+          {recoup > 0 && <Line label="Distributor P&A recouped" amount={-recoup} kind="deduction" />}
           <Line label="Your studio's share" amount={studioShare} kind="subtotal" />
         </>
       ) : (
         <Line label="Your studio's share" amount={studioShare} kind="subtotal" />
       )}
       <Line label="Production" amount={-r.productionCost} kind="deduction" />
-      <Line label="Marketing" amount={-r.marketingCost} kind="deduction" />
+      <Line label={r.distributionPAndA != null ? 'Marketing (press tour)' : 'Marketing'} amount={-r.marketingCost} kind="deduction" />
       <Line label="Your profit" amount={r.profit!} kind="total" />
     </div>
   );
