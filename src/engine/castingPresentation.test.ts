@@ -164,3 +164,68 @@ describe('describeDirectorRejection', () => {
     expect(describeDirectorRejection('prestige-gate')).not.toBe(describeDirectorRejection('brand-prestige-mismatch'));
   });
 });
+
+// Actor identity reads (user request: the card should lead with WHO an actor
+// is, not a role-fit score). describeSignatureGift/describeFameCraftContrast
+// turn the engine categories (signatureGift/fameCraftContrast) into copy; the
+// categorization itself is tested in actingModel.test.ts, so these check the
+// null passthrough, stability, and that different gifts read differently.
+import type { ActingStyle, Person } from '../types';
+import { describeSignatureGift, describeFameCraftContrast } from './castingPresentation';
+
+function actor(id: string, style: Partial<ActingStyle>, over: { fame?: number; craftFloor?: number; craftHeadroom?: number } = {}): Person {
+  return {
+    id,
+    identity: { name: id, appearanceTags: [] },
+    personality: { professionalism: 50, ambition: 50, loyalty: 50, ego: 50, temperament: 50, pressureHandling: 50, controversy: 50, adaptability: 50 },
+    reputation: { fame: over.fame ?? 50, prestige: 50, industryRespect: 50, reliability: 50, currentHeat: 50 },
+    availability: { commitments: [] },
+    traits: [],
+    primaryRole: 'Actor',
+    careers: {
+      actor: {
+        role: 'Actor', active: true, experience: 50, roleReputation: 50, minimumSalary: 100_000, typicalSalary: 100_000,
+        actingStyle: { characterTransformation: 40, emotionalPerformance: 40, charisma: 40, comedy: 40, physicalPerformance: 40, ...style },
+        craftFloor: over.craftFloor, craftHeadroom: over.craftHeadroom,
+      },
+    },
+  };
+}
+
+describe('describeSignatureGift', () => {
+  it('returns a non-empty line for an actor with a standout gift', () => {
+    expect(describeSignatureGift(actor('a', { comedy: 90 }))).toBeTruthy();
+  });
+
+  it('is null for a rounded actor with no standout (the card leads with craft instead)', () => {
+    expect(describeSignatureGift(actor('a', {}))).toBeNull();
+  });
+
+  it('is stable for a given person (same id -> same line, no rng)', () => {
+    const a = actor('stable-actor', { charisma: 90 });
+    expect(describeSignatureGift(a)).toBe(describeSignatureGift(a));
+  });
+
+  it('reads differently for different gift axes', () => {
+    const comic = describeSignatureGift(actor('a', { comedy: 90 }));
+    const physical = describeSignatureGift(actor('b', { physicalPerformance: 90 }));
+    expect(comic).not.toBe(physical);
+  });
+});
+
+describe('describeFameCraftContrast', () => {
+  it('names the coaster trade for a famous, limited actor', () => {
+    expect(describeFameCraftContrast(actor('a', {}, { fame: 82, craftFloor: 40, craftHeadroom: 10 }))).toBeTruthy();
+  });
+
+  it('is null when fame and craft roughly agree', () => {
+    expect(describeFameCraftContrast(actor('a', {}, { fame: 50, craftFloor: 62, craftHeadroom: 10 }))).toBeNull();
+  });
+
+  it('reads the three contrasts as three distinct lines', () => {
+    const coaster = describeFameCraftContrast(actor('a', {}, { fame: 82, craftFloor: 40, craftHeadroom: 10 }));
+    const undiscovered = describeFameCraftContrast(actor('b', {}, { fame: 20, craftFloor: 78, craftHeadroom: 20 }));
+    const star = describeFameCraftContrast(actor('c', {}, { fame: 82, craftFloor: 78, craftHeadroom: 20 }));
+    expect(new Set([coaster, undiscovered, star]).size).toBe(3);
+  });
+});
