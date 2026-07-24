@@ -15,6 +15,10 @@
   --track-bg: #e7e9ed;
   --info-bg: #eef2fb;
   --star: #c8871e;
+  --amber: #9a6a12;
+  --ok-bg: #dcefe0;
+  --warn-bg: #f3e7cd;
+  --bad-bg: #f4dcd9;
   /* Single source of truth for how much top clearance #root and
      .wizard-header-sticky both need to sit below the fixed .app-header bar
      (components/common/Header.tsx) - one variable so a narrower mobile
@@ -39,6 +43,10 @@
   --track-bg: #2a2d36;
   --info-bg: #1b2540;
   --star: #e0ab3d;
+  --amber: #e0ab3d;
+  --ok-bg: #163020;
+  --warn-bg: #352a14;
+  --bad-bg: #3a1e1c;
 }
 
 * {
@@ -1179,133 +1187,437 @@ textarea, input, select {
   color: var(--red);
 }
 
-/* --- Talent Card UX Redesign ---
-   "Should I hire this person" answered in about three seconds: a single
-   elevated verdict block as the card's focal point, a conversational
-   availability read, per-dimension match breakdowns, and grouped
-   Industry/Risk Profile sections - all sharing .stat-group-title with every
-   other stat-group heading in the app (script/finance panels) rather than a
-   redesign-specific heading style of their own. */
+/* --- Talent Card UX Redesign (user request) ---
+   "Should I hire this person" answered in about three seconds, and no taller
+   as systems are added. A prominent salary paired with age/gender, a one-line
+   identity read, a Role-Fit HERO (verdict + fill meter + a plain "why"), and a
+   row of traffic-light status badges. Everything deeper - per-axis fit,
+   Industry standing, risk detail - sits behind a single disclosure. Different
+   facts speak different visual languages (meter, bars, badges, bold numerals,
+   prose) rather than everything being an identical star row. */
 
-/* A short narrative caption - a director's production leanings, which
-   Character an actor is up for - that doesn't fit .card-subtitle's
-   money-only role but shouldn't compete with the verdict block below it. */
-.talent-flavor-line {
+/* Meta: age/gender on the left, a prominent salary on the right. */
+.talent-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.talent-meta-id {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.talent-upfor {
+  font-size: 0.78em;
+  color: var(--text-muted);
+}
+
+.talent-salary {
+  text-align: right;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.talent-salary-amount {
+  font-size: 1.25em;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.talent-afford {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72em;
+  font-weight: 600;
+}
+
+.talent-afford--ok { color: var(--green); }
+.talent-afford--bad { color: var(--red); }
+
+.talent-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+}
+
+/* A one-line "who they are" read - prose, not a stat. */
+.talent-identity-line {
+  margin: 8px 0 0;
+  font-size: 0.85em;
+  line-height: 1.35;
+}
+
+.talent-identity-line--muted {
+  color: var(--text-muted);
+  font-size: 0.8em;
+  margin-top: 4px;
+}
+
+/* THE FIT HERO - the card's anchor. A tinted band, a coloured verdict, a fill
+   meter, and a plain-English reason. Tier colour makes the headline pop. */
+.talent-fit {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--info-bg);
+}
+
+.talent-fit-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.talent-fit-verdict {
+  font-weight: 800;
+  font-size: 1em;
+  letter-spacing: -0.01em;
+}
+
+.talent-fit--strong .talent-fit-verdict { color: var(--green); }
+.talent-fit--good .talent-fit-verdict { color: var(--primary); }
+.talent-fit--risky .talent-fit-verdict { color: var(--amber); }
+.talent-fit--poor .talent-fit-verdict { color: var(--red); }
+
+.talent-fit-caption {
+  font-size: 0.72em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.talent-fit-meter {
+  margin-top: 8px;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--track-bg);
+  overflow: hidden;
+}
+
+.talent-fit-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+}
+
+.talent-fit--strong .talent-fit-meter > span { background: var(--green); }
+.talent-fit--good .talent-fit-meter > span { background: var(--primary); }
+.talent-fit--risky .talent-fit-meter > span { background: var(--amber); }
+.talent-fit--poor .talent-fit-meter > span { background: var(--red); }
+
+.talent-fit-why {
+  margin: 9px 0 0;
+  font-size: 0.82em;
+  line-height: 1.4;
+}
+
+.talent-fit-caveat { color: var(--text-muted); }
+
+/* Status, as traffic-light badges. */
+.talent-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.talent-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.74em;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 99px;
+  border: 1px solid transparent;
+}
+
+.talent-badge--ok { background: var(--ok-bg); color: var(--green); }
+.talent-badge--warn { background: var(--warn-bg); color: var(--amber); }
+.talent-badge--bad { background: var(--bad-bg); color: var(--red); }
+.talent-badge--neutral { background: var(--track-bg); color: var(--text-muted); }
+.talent-badge--risk-dependable { background: var(--track-bg); color: var(--text-muted); }
+.talent-badge--risk-some-risk { background: var(--warn-bg); color: var(--amber); }
+.talent-badge--risk-volatile { background: var(--bad-bg); color: var(--red); }
+
+.talent-avail-detail {
+  margin: 6px 0 0;
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+
+/* Progressive disclosure - the default card stays short; depth is one click
+   away, and a new system adds a group here rather than a permanent row above. */
+.talent-more {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.talent-more-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.talent-more-toggle::-webkit-details-marker { display: none; }
+
+.talent-more-chevron {
+  transition: transform 0.18s ease;
+  display: inline-block;
+}
+
+.talent-more[open] .talent-more-chevron { transform: rotate(90deg); }
+
+.talent-more-body {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.talent-more-heading {
+  font-size: 0.68em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  font-weight: 700;
+  margin-bottom: 7px;
+}
+
+/* Labelled bars - Role/Tone fit axes and Industry standing. */
+.talent-bar-row {
+  display: grid;
+  grid-template-columns: minmax(72px, 96px) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 0.8em;
+}
+
+.talent-bar-label { color: var(--text); }
+
+.talent-bar-track {
+  height: 6px;
+  border-radius: 99px;
+  background: var(--track-bg);
+  overflow: hidden;
+}
+
+.talent-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--primary);
+}
+
+.talent-bar-fill--hi { background: var(--green); }
+.talent-bar-fill--mid { background: var(--primary); }
+.talent-bar-fill--lo { background: var(--amber); }
+
+.talent-bar-value {
+  font-size: 0.9em;
+  color: var(--text-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.talent-bar-value--hi { color: var(--green); font-weight: 600; }
+.talent-bar-value--lo { color: var(--amber); }
+
+.talent-risk-line {
   margin: 0 0 6px;
+  font-size: 0.82em;
+  font-weight: 600;
+}
+
+.talent-risk-line--dependable { color: var(--text-muted); }
+.talent-risk-line--some-risk { color: var(--amber); }
+.talent-risk-line--volatile { color: var(--red); }
+
+/* --- Two-candidate comparison view (Talent Card UX Redesign) ---
+   Not two cloned cards - one shared table that scores the head-to-head, each
+   row an attribute with the stronger side highlighted, opening with a plain
+   recommendation. Answers "which of these two do I hire?" as fast as possible. */
+.talent-cmp {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.talent-cmp-verdict {
+  padding: 12px 14px;
+  background: var(--info-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.talent-cmp-verdict-k {
+  font-size: 0.68em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.talent-cmp-verdict-v {
+  margin-top: 4px;
+  font-size: 0.95em;
+  line-height: 1.4;
+}
+
+.talent-cmp-heads {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--border);
+}
+
+.talent-cmp-head {
+  padding: 10px 14px;
+}
+
+.talent-cmp-head--right {
+  text-align: right;
+  border-left: 1px solid var(--border);
+}
+
+.talent-cmp-head--pick {
+  background: var(--ok-bg);
+}
+
+.talent-cmp-name {
+  font-weight: 700;
+  font-size: 1em;
+}
+
+.talent-cmp-mini {
+  font-size: 0.75em;
+  color: var(--text-muted);
+}
+
+.talent-cmp-unpin {
+  margin-top: 4px;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.75em;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.talent-cmp-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.talent-cmp-row:last-child { border-bottom: 0; }
+
+.talent-cmp-attr {
+  font-size: 0.64em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 0 8px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.talent-cmp-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  min-width: 0;
+  font-size: 0.85em;
+}
+
+.talent-cmp-cell--right {
+  text-align: right;
+  align-items: flex-end;
+}
+
+.talent-cmp-cell--win {
+  background: var(--ok-bg);
+}
+
+.talent-cmp-big {
+  font-weight: 700;
+  font-size: 1.05em;
+  font-variant-numeric: tabular-nums;
+}
+
+.talent-cmp-cell--win .talent-cmp-big { color: var(--green); }
+
+.talent-cmp-note {
   font-size: 0.82em;
   color: var(--text-muted);
 }
 
-/* The one deliberately elevated block on the card - everything else here
-   uses a plain top-border divider (.talent-section), this gets a filled
-   background so the eye lands here first. */
-.hiring-verdict {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 8px 0;
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  background: var(--info-bg);
-  border: 1px solid var(--border);
-}
+.talent-cmp-note--ok { color: var(--green); }
+.talent-cmp-note--bad { color: var(--red); }
 
-.hiring-verdict .star-rating {
-  font-size: 1.3em;
-}
-
-.hiring-verdict-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.hiring-verdict-label {
-  font-weight: 700;
-  font-size: 0.95em;
-}
-
-/* The verdict is role fit, one axis - this caption says so, so it reads as
-   "how they fit this part" rather than a global judgment of the person. */
-.hiring-verdict-caption {
-  font-weight: 500;
-  font-size: 0.75em;
-  color: var(--text-muted);
-}
-
-/* Actor identity - "who this performer is," led on the casting card ABOVE the
-   role-fit verdict so the choice reads as a person, not a match score. The
-   signature line is the character read; the craft/contrast lines under it are
-   muted flavor (.talent-flavor-line). */
-.talent-identity {
-  margin: 8px 0 2px;
-}
-
-.talent-signature {
-  margin: 0 0 6px;
-  font-size: 0.9em;
-  font-weight: 600;
-  line-height: 1.35;
-}
-
-.talent-availability {
-  margin: 8px 0;
-  font-size: 0.85em;
-}
-
-.talent-availability-status {
-  font-weight: 600;
-}
-
-.talent-availability-available {
+.talent-cmp-win-tag {
+  font-size: 0.68em;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--green);
 }
 
-.talent-availability-detail {
-  color: var(--text-muted);
-  margin-top: 2px;
+.talent-cmp-bar {
+  display: block;
+  width: 100%;
+  max-width: 130px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--track-bg);
+  overflow: hidden;
 }
 
-/* Every grouped section below the verdict/availability block (Role Fit/Tone
-   Fit, Industry, Risk Profile) - a plain top-border divider, not a second
-   nested .card, so a candidate grid card (as narrow as 220px) doesn't stack
-   heavy nested boxes inside an already-bordered card. */
-.talent-section {
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
+.talent-cmp-cell--right .talent-cmp-bar { margin-left: auto; }
+
+.talent-cmp-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--primary);
 }
 
-.talent-stat-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 0.85em;
-  padding: 3px 0;
-}
+.talent-cmp-cell--win .talent-cmp-bar-fill { background: var(--green); }
 
-.talent-match-row {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 4px 0;
-}
-
-.talent-match-row-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.talent-match-row-label {
-  font-size: 0.85em;
-}
-
-.talent-match-quality {
-  font-size: 0.75em;
-  color: var(--text-muted);
+.talent-cmp-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px 14px;
 }
 
 /* --- Plan Production: identity, tension, recommendation cards --- */

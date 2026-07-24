@@ -6,6 +6,7 @@ import {
 } from '../../engine/compatibility';
 import { dominantLean } from '../../engine/recommendation';
 import { describeActorCraft, describeSignatureGift, describeFameCraftContrast, describeDirectorTouch, describeDirectorActorPairing } from '../../engine/castingPresentation';
+import { deriveFitReason, deriveRiskRead, qualitativeMagnitude, isStarDraw } from '../../engine/talentCardPresentation';
 import { getCareerForRole, deriveBookedUntil } from '../../engine/person';
 import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../../engine/personTraits';
 import { gameDateFromTotalDays, formatGameDateWithMonth } from '../../engine/calendar';
@@ -15,7 +16,6 @@ import { ACTING_STYLE_LABELS } from '../../data/actingStyle';
 import { CHARACTER_ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
 import type { RoleCategory } from '../../data/talentPresentation';
 import { Money } from './Money';
-import { StarRating } from './StarRating';
 import { MatchBreakdown } from './MatchBreakdown';
 import { deriveHiringVerdict } from '../../utils/StarRatingConversion';
 import { getPersonAge } from '../../types';
@@ -35,6 +35,15 @@ export function describeProductionStyle(director: DirectorCareer): string {
   return `Leans ${ENV_LEAN_SHORT[env.key]}, ${EFFECTS_LEAN_SHORT[fx.key]}`;
 }
 
+/** A 0-100 hiring/fit score as the qualitative tier the fit hero is coloured by - green Strong+, blue Good, amber Risky, red Poor. Mirrors deriveHiringVerdict's own five-tier cutoffs. */
+export type FitTier = 'strong' | 'good' | 'risky' | 'poor';
+export function fitTier(score: number): FitTier {
+  if (score >= 75) return 'strong';
+  if (score >= 60) return 'good';
+  if (score >= 40) return 'risky';
+  return 'poor';
+}
+
 /**
  * The single "should I hire this person" reading the card leads with
  * (Talent Card UX Redesign) - reuses whichever existing compatibility
@@ -48,10 +57,10 @@ export function describeProductionStyle(director: DirectorCareer): string {
  *    engine/compatibility.ts) - skill is the only "how good a hire is this"
  *    number that exists for them, so it doubles as the fit score here.
  * null when nothing above is computable (no script and no character to
- * compare against) - the summary section simply doesn't render rather than
- * showing a meaningless number.
+ * compare against) - the fit hero simply doesn't render rather than showing
+ * a meaningless number.
  */
-function deriveOverallScore(person: Person, role: ProductionRole, category: RoleCategory, script: Script | null, character: ScriptCharacter | null): number | null {
+export function deriveOverallScore(person: Person, role: ProductionRole, category: RoleCategory, script: Script | null, character: ScriptCharacter | null): number | null {
   if (category === 'actor' && character) {
     return computeActorCharacterCompatibility(person, character);
   }
@@ -63,42 +72,43 @@ function deriveOverallScore(person: Person, role: ProductionRole, category: Role
 }
 
 /**
- * The per-dimension match breakdown backing the summary score above -
- * replaces the old pattern of two side-by-side raw-stat blocks ("Actor's
- * Acting Style" vs "Role Demands") the player had to compare by eye
- * (Talent Card UX Redesign) with one row per dimension, already scored as
- * "how well does this match." Character-fit (the more specific reading)
- * wins when a Character is known; otherwise falls back to the same
- * whole-script tone breakdown deriveOverallScore does. null for crew (no
- * per-axis dimensions exist for them) and for an actor/director with
- * nothing to compare against.
+ * The per-dimension match breakdown backing the fit hero above - one row per
+ * dimension, already scored as "how well does this match" (Talent Card UX
+ * Redesign). Character-fit (the more specific reading) wins when a Character
+ * is known; otherwise falls back to the same whole-script tone breakdown
+ * deriveOverallScore does. null for crew (no per-axis dimensions exist for
+ * them) and for an actor/director with nothing to compare against.
  */
-function deriveRoleFitBreakdown(
+export function deriveRoleFitBreakdown(
   person: Person,
   role: ProductionRole,
   category: RoleCategory,
   script: Script | null,
   character: ScriptCharacter | null,
-): { title: string; rows: Array<{ label: string; matchScore: number }> } | null {
+): { title: string; noun: 'fit' | 'tone'; rows: Array<{ label: string; matchScore: number }> } | null {
   if (category === 'actor' && character) {
     const actorCareer = person.careers.actor;
     if (!actorCareer) return null;
     const breakdown = computeCharacterCompatibilityBreakdown(actorCareer.actingStyle, character.traits);
-    return { title: 'Role Fit', rows: breakdown.map((a) => ({ label: ACTING_STYLE_LABELS[a.axis], matchScore: a.matchScore })) };
+    return { title: 'Role fit', noun: 'fit', rows: breakdown.map((a) => ({ label: ACTING_STYLE_LABELS[a.axis], matchScore: a.matchScore })) };
   }
   if (script && (category === 'actor' || category === 'director')) {
     const breakdown = computeTalentCompatibilityBreakdown(person, role, script);
     if (!breakdown) return null;
-    return { title: 'Tone Fit', rows: breakdown.map((t) => ({ label: TONE_LABELS[t.tone], matchScore: 100 - t.gap })) };
+    return { title: 'Tone fit', noun: 'tone', rows: breakdown.map((t) => ({ label: TONE_LABELS[t.tone], matchScore: 100 - t.gap })) };
   }
   return null;
 }
 
-function StatRow({ label, value }: { label: string; value: number }) {
+/** A labelled Industry bar - Fame/Prestige/Reliability as a magnitude word, not a star row (Talent Card UX Redesign: a language per job). */
+function BarRow({ label, value }: { label: string; value: number }) {
   return (
-    <div className="talent-stat-row">
-      <span>{label}</span>
-      <StarRating value={value} />
+    <div className="talent-bar-row">
+      <span className="talent-bar-label">{label}</span>
+      <span className="talent-bar-track">
+        <span className="talent-bar-fill" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+      </span>
+      <span className="talent-bar-value">{qualitativeMagnitude(value)}</span>
     </div>
   );
 }
@@ -108,38 +118,33 @@ function StatRow({ label, value }: { label: string; value: number }) {
  * every screen that needs to show "should I hire this person": Hire
  * Talent's candidate grid/comparison slots, and on-set decisions that
  * involve a specific hired or replacement person
- * (components/common/OnSetDecisionCard.tsx). Extracted from
- * components/wizard/RoleHiringDrawer.tsx once a second consumer needed the
- * identical treatment, rather than a second, thinner one-line implementation
- * drifting from it (docs/DESIGN.md). `role` (not just `category`) is what
- * determines which career's stats actually show - the same person could in
- * principle hold more than one career (see PERSON_MODEL_REDESIGN.md).
+ * (components/common/OnSetDecisionCard.tsx). The caller renders the name
+ * itself (its own .card-title) directly above this.
  *
- * Talent Card UX Redesign - reorganized end to end around "should I hire
- * this person," answerable in about three seconds, rather than a flat list
- * of every stat the simulation tracks: identity (age/gender/salary - name
- * itself is the caller's own card-title, directly above this), a single
- * "Overall Hiring Summary" verdict as the card's focal point, a
- * conversational availability read, a per-dimension role-fit breakdown
- * (replacing two raw stat blocks the player used to have to compare
- * themselves), then Industry (how the business sees them) and Risk Profile
- * (what they're like to work with) as their own grouped sections, with
- * traits closing out the story. The underlying simulation is unchanged -
- * this is purely a presentation reorganization.
+ * Talent Card UX Redesign (user request) - rebuilt around a three-second
+ * read: a prominent salary paired with age/gender, a one-line identity read,
+ * a Role-Fit hero (verdict + fill meter + a plain-English "why"), and a row
+ * of traffic-light status badges (availability, risk, star draw). Everything
+ * deeper - the per-axis fit breakdown, Industry standing, and the risk detail
+ * - lives behind a single disclosure, so the default card stays short and
+ * doesn't grow taller every time a system is added. Different facts now speak
+ * different visual languages (meter, bars, badges, bold numerals, prose)
+ * rather than everything being a star row. The simulation is unchanged; this
+ * is purely a presentation reorganization.
  *
  * `character` - which specific Lead/Supporting Character (script.cast) this
- * candidate is being evaluated to play, if the role/slot resolves to one
- * (engine/castRequirements.ts:characterForRoleSlot) - drives the
- * character-specific "Role Fit" reading above the whole-script "Tone Fit"
- * one, per docs/CHARACTER_AND_SETTING_FOUNDATIONS.md section 7: casting
- * should reflect the specific role an actor would play, not just the script
- * as a whole. null for every non-actor role and for a script with no
- * matching character at that slot (e.g. hiring past requiredLeads).
+ * candidate is being evaluated to play, when the slot resolves to one - drives
+ * the character-specific "Role fit" reading above the whole-script "Tone fit"
+ * one. null for every non-actor role and for a script with no matching
+ * character at that slot. `affordable` drives the salary block's traffic-light
+ * dot when the caller knows the studio's budget (the hiring drawers do; the
+ * on-set decision card doesn't, and passes nothing).
  */
-export function TalentStats({ person, role, category, script, character = null, totalDays, availabilityMode = 'delay', pairedDirector = null }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number; availabilityMode?: 'delay' | 'blocked'; pairedDirector?: Person | null }) {
+export function TalentStats({ person, role, category, script, character = null, totalDays, availabilityMode = 'delay', pairedDirector = null, affordable = null }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number; availabilityMode?: 'delay' | 'blocked'; pairedDirector?: Person | null; affordable?: boolean | null }) {
   const career = getCareerForRole(person, role);
   const overallScore = deriveOverallScore(person, role, category, script, character);
   const roleFit = deriveRoleFitBreakdown(person, role, category, script, character);
+  const fitReason = roleFit ? deriveFitReason(roleFit.rows, roleFit.noun) : null;
 
   // Both optional (see PersonIdentity's own comment, types/index.ts) - real,
   // handcrafted people deliberately carry neither rather than a fabricated
@@ -151,110 +156,125 @@ export function TalentStats({ person, role, category, script, character = null, 
   const isBusy = !!bookedUntil && bookedUntil > totalDays;
   const delayDays = isBusy ? bookedUntil! - totalDays : 0;
 
+  const risk = deriveRiskRead(person);
+  const starDraw = isStarDraw(person);
   const traits = deriveTraits(person).slice(0, MAX_DISPLAYED_TRAITS);
 
-  // Actor identity, led BEFORE the role-fit verdict (user request): who this
-  // performer *is* - their signature gift, their craft archetype, and the
-  // fame-vs-craft trade they represent - so the card reads as a person to
-  // choose between, not a match score to sort by. Actor-only; all derived,
-  // no stored state. Layer 3 (studio<->person history) will add its own
-  // "you have history" read into this same block via describeRelationship.
+  // Actor identity, led BEFORE the fit hero (user request): who this performer
+  // *is* - their signature gift or craft archetype and, when there's a real
+  // trade to point out, the fame-vs-craft contrast - so the card reads as a
+  // person to choose between, not just a match score to sort by.
   const isActor = category === 'actor';
-  const signatureLine = isActor ? describeSignatureGift(person) : null;
+  const isDirector = category === 'director';
+  const signatureLine = isActor ? (describeSignatureGift(person) ?? describeActorCraft(person)) : null;
   const contrastLine = isActor ? describeFameCraftContrast(person) : null;
+
+  const verb = isActor ? 'cast' : 'hire';
+  const disclosureLabel = roleFit ? `${roleFit.title}, industry & working style` : 'Industry & working style';
 
   return (
     <>
-      {identityLine && <div className="candidate-identity-line">{identityLine}</div>}
-      <div className="card-subtitle"><Money amount={career?.typicalSalary ?? 0} /></div>
-
-      {isActor && (
-        <div className="talent-identity">
-          {signatureLine && <p className="talent-signature">{signatureLine}</p>}
-          <p className="talent-flavor-line">{describeActorCraft(person)}</p>
-          {contrastLine && <p className="talent-flavor-line">{contrastLine}</p>}
-          {pairedDirector && <p className="talent-flavor-line">{describeDirectorActorPairing(pairedDirector, person)}</p>}
+      {/* Meta: age/gender paired with a prominent salary - the two facts a
+          player scans a list for, given real weight (user request). */}
+      <div className="talent-meta">
+        <div className="talent-meta-id">
+          {identityLine && <span className="candidate-identity-line">{identityLine}</span>}
+          {isActor && character && <span className="talent-upfor">Up for {character.name} · {character.prominence} {CHARACTER_ARCHETYPE_LABELS[character.archetype]}</span>}
         </div>
-      )}
+        <div className="talent-salary">
+          <span className="talent-salary-amount"><Money amount={career?.typicalSalary ?? 0} /></span>
+          {affordable !== null && (
+            <span className={`talent-afford talent-afford--${affordable ? 'ok' : 'bad'}`}>
+              <span className="talent-dot" />
+              {affordable ? 'Within budget' : 'Over budget'}
+            </span>
+          )}
+        </div>
+      </div>
 
-      {category === 'director' && career && 'productionStyle' in career && (
+      {/* One-line identity read - who they are, not a stat. */}
+      {signatureLine && <p className="talent-identity-line">{signatureLine}</p>}
+      {contrastLine && <p className="talent-identity-line talent-identity-line--muted">{contrastLine}</p>}
+      {isActor && pairedDirector && <p className="talent-identity-line talent-identity-line--muted">{describeDirectorActorPairing(pairedDirector, person)}</p>}
+      {isDirector && career && 'productionStyle' in career && (
         <>
-          <p className="talent-flavor-line">{describeProductionStyle(career)}</p>
-          <p className="talent-flavor-line">{describeDirectorTouch(person)}</p>
+          <p className="talent-identity-line">{describeProductionStyle(career)}</p>
+          <p className="talent-identity-line talent-identity-line--muted">{describeDirectorTouch(person)}</p>
         </>
       )}
 
+      {/* THE FIT HERO - the card's anchor. Verdict + fill meter + a plain
+          "why" naming the strongest and weakest axis (earned recommendation). */}
       {overallScore !== null && (
-        <div className="hiring-verdict">
-          <StarRating value={overallScore} />
-          <div className="hiring-verdict-text">
-            <span className="hiring-verdict-label">{deriveHiringVerdict(overallScore)}</span>
-            {/* The verdict is role fit - one axis, not a global judgment of the
-                person. Naming it as such (when it's an actor up for a specific
-                part) reframes "best match" as "best for THIS part," so it stops
-                reading as the only thing that matters (user request). */}
-            {isActor && character && <span className="hiring-verdict-caption">How they fit this part</span>}
+        <div className={`talent-fit talent-fit--${fitTier(overallScore)}`}>
+          <div className="talent-fit-top">
+            <span className="talent-fit-verdict">{deriveHiringVerdict(overallScore)}</span>
+            <span className="talent-fit-caption">
+              {isActor && character ? 'Fit for this part' : roleFit ? 'Overall fit' : 'Match'} · {Math.round(overallScore)}
+            </span>
           </div>
+          <div className="talent-fit-meter"><span style={{ width: `${Math.round(overallScore)}%` }} /></div>
+          {fitReason && (
+            <p className="talent-fit-why">
+              {fitReason.strengths}
+              {fitReason.caveat && <span className="talent-fit-caveat"> {fitReason.caveat}</span>}
+            </p>
+          )}
         </div>
       )}
 
-      <div className="talent-availability">
+      {/* Status, as traffic-lights rather than prose or stars. */}
+      <div className="talent-badges">
         {isBusy ? (
-          <>
-            <div className="talent-availability-status">Busy until {formatGameDateWithMonth(bookedUntil!)}.</div>
-            <div className="talent-availability-detail">
-              {/* 'blocked' - a hiring/casting context, where a booked person
-                  simply can't be taken on today (the schedule gate hard-rejects
-                  the offer, engine/castingAppeal.ts). The old "would delay
-                  production by N days" copy promised a delayed-hire flow that
-                  doesn't exist and read as castable when it isn't. 'delay' stays
-                  the default for other contexts (e.g. on-set replacements, whose
-                  own delay is the event's, not this booking's). */}
-              {availabilityMode === 'blocked'
-                ? `You can't ${category === 'actor' ? 'cast' : 'hire'} them until then - their existing commitments won't clear in time.`
-                : `Hiring them would delay production by ${delayDays} day${delayDays === 1 ? '' : 's'}.`}
-            </div>
-          </>
+          <span className={`talent-badge talent-badge--${availabilityMode === 'blocked' ? 'bad' : 'warn'}`}>
+            Booked until {formatGameDateWithMonth(bookedUntil!)}
+          </span>
         ) : (
-          <>
-            <div className="talent-availability-status talent-availability-available">✓ Available immediately</div>
-            <div className="talent-availability-detail">Ready to begin as soon as you are.</div>
-          </>
+          <span className="talent-badge talent-badge--ok">✓ Available now</span>
         )}
+        <span className={`talent-badge talent-badge--risk-${risk.tier}`}>{risk.label}</span>
+        {starDraw && <span className="talent-badge talent-badge--neutral">★ Star draw</span>}
       </div>
-
-      {category === 'actor' && character && (
-        <p className="talent-flavor-line">
-          Up for: {character.name} ({character.prominence} {CHARACTER_ARCHETYPE_LABELS[character.archetype]})
+      {isBusy && (
+        <p className="talent-avail-detail">
+          {availabilityMode === 'blocked'
+            ? `You can't ${verb} them until then - their existing commitments won't clear in time.`
+            : `Hiring them would delay production by ${delayDays} day${delayDays === 1 ? '' : 's'}.`}
         </p>
       )}
 
-      {roleFit && <MatchBreakdown title={roleFit.title} rows={roleFit.rows} />}
+      {/* Everything deeper is one click away, so the default card stays short
+          and bounded as more systems are added (user request). */}
+      <details className="talent-more">
+        <summary className="talent-more-toggle">
+          <span className="talent-more-chevron" aria-hidden="true">›</span>
+          {disclosureLabel}
+        </summary>
+        <div className="talent-more-body">
+          {roleFit && <MatchBreakdown title={roleFit.title} rows={roleFit.rows} />}
 
-      <div className="talent-section">
-        <div className="stat-group-title">Industry</div>
-        <StatRow label="Fame" value={person.reputation.fame} />
-        <StatRow label="Prestige" value={person.reputation.prestige} />
-        <StatRow label="Reliability" value={person.reputation.reliability} />
-      </div>
+          <div className="talent-more-group">
+            <div className="talent-more-heading">Industry standing</div>
+            <BarRow label="Fame" value={person.reputation.fame} />
+            <BarRow label="Prestige" value={person.reputation.prestige} />
+            <BarRow label="Reliability" value={person.reputation.reliability} />
+          </div>
 
-      <div className="talent-section">
-        <div className="stat-group-title">Risk Profile</div>
-        <StatRow label="Professionalism" value={person.personality.professionalism} />
-        <StatRow label="Temperament" value={person.personality.temperament} />
-        <StatRow label="Ego" value={person.personality.ego} />
-        <StatRow label="Controversy" value={person.personality.controversy} />
-      </div>
-
-      {traits.length > 0 && (
-        <div className="candidate-traits">
-          {traits.map((trait) => (
-            <span key={trait} className="candidate-trait-tag" title={TRAIT_DESCRIPTIONS[trait]}>
-              {TRAIT_LABELS[trait]}
-            </span>
-          ))}
+          <div className="talent-more-group">
+            <div className="talent-more-heading">Working with them</div>
+            <p className={`talent-risk-line talent-risk-line--${risk.tier}`}>{risk.label} to work with.</p>
+            {traits.length > 0 && (
+              <div className="candidate-traits">
+                {traits.map((trait) => (
+                  <span key={trait} className="candidate-trait-tag" title={TRAIT_DESCRIPTIONS[trait]}>
+                    {TRAIT_LABELS[trait]}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </details>
     </>
   );
 }

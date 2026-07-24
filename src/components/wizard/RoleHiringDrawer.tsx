@@ -17,12 +17,13 @@ import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
 import { formatMoney } from '../common/Money';
 import { TalentStats } from '../common/TalentStats';
+import { TalentComparison, type CompareSlot } from '../common/TalentComparison';
+import { useComparePins, MAX_PINNED } from '../common/useComparePins';
 import { CheckboxToggle } from '../common/CheckboxToggle';
 import type { Person, ProductionRole, Script, ScriptCharacter } from '../../types';
 
 const VFX_RECOMMENDED_GENRES = new Set(['Action', 'Sci-Fi', 'Fantasy']);
 const VISIBLE_CANDIDATE_COUNT = 9;
-const MAX_PINNED = 2;
 // How long a single-slot hire lingers, showing "Hired", before the drawer
 // auto-closes and returns the player to the hub - long enough to register
 // as confirmation, short enough that it still feels immediate.
@@ -40,13 +41,14 @@ interface CandidateCardProps {
   booked: boolean;
   pinned: boolean;
   pinCapped: boolean;
-  /** Candidate reasoning chips (docs/DESIGN_REVIEW_casting_ux.md) - a director's standout draws and any blocker/warning (prestige gate, below salary floor, over budget). Empty for roles with no appeal model (most crew). */
+  affordable: boolean;
+  /** Candidate reasoning chips (docs/DESIGN_REVIEW_casting_ux.md) - a director's standout draws and any blocker/warning (prestige gate, below salary floor). Empty for roles with no appeal model (most crew). */
   signals: CandidateSignal[];
   onSelect: () => void;
   onTogglePin: () => void;
 }
 
-function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, signals, onSelect, onTogglePin }: CandidateCardProps) {
+function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, affordable, signals, onSelect, onTogglePin }: CandidateCardProps) {
   const isActor = category === 'actor';
   return (
     <Card selectable selected={selected} disabled={disabled} onClick={onSelect}>
@@ -55,7 +57,7 @@ function CandidateCard({ person, role, category, script, character, totalDays, s
           the drawer only needs to add its own casting-flow state on top
           (Cast/Hired, or Fully cast once the role's at capacity), not repeat
           the calendar read a second time. */}
-      <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} availabilityMode="blocked" />
+      <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} availabilityMode="blocked" affordable={affordable} />
       {signals.length > 0 && (
         <div className="candidate-signals">
           {signals.map((signal) => (
@@ -74,7 +76,7 @@ function CandidateCard({ person, role, category, script, character, totalDays, s
         }}
         onKeyDown={(e) => e.stopPropagation()}
       >
-        {pinned ? 'Unpin from Compare' : 'Pin to Compare'}
+        {pinned ? 'Pinned' : 'Pin to Compare'}
       </Button>
       {selected && <p style={{ color: 'var(--green)', marginTop: 6 }}>{isActor ? 'Cast' : 'Hired'}</p>}
       {!selected && !booked && disabled && <p style={{ color: 'var(--text-muted)', marginTop: 6 }}>{isActor ? 'Fully cast' : 'Cast full'}</p>}
@@ -98,7 +100,7 @@ interface RoleHiringDrawerProps {
 export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   const { state, dispatch } = useStudio();
   const draft = deriveFocusedDraft(state)!;
-  const [pinnedTalentIds, setPinnedTalentIds] = useState<string[]>([]);
+  const pins = useComparePins();
   const [availableOnly, setAvailableOnly] = useState(false);
 
   // Body scroll lock + Escape-to-close, same conventions any overlay needs.
@@ -192,12 +194,14 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
         hardBlocked = true;
       }
     }
-    if (!isAffordable(person)) signals.push({ label: 'Over your budget', tone: 'warning' });
+    // Over-budget now reads off TalentStats' salary affordability dot (Talent
+    // Card UX Redesign), so it's no longer duplicated as a chip here.
     return { signals, hardBlocked };
   }
 
   const allTalent = Object.values(state.talentPool).flat();
-  const pinnedTalent = pinnedTalentIds.map((id) => allTalent.find((t) => t.id === id)).filter((t): t is Person => t !== undefined);
+  const pinnedTalent = pins.pinnedIds.map((id) => allTalent.find((t) => t.id === id)).filter((t): t is Person => t !== undefined);
+  const comparing = pinnedTalent.length >= MAX_PINNED;
 
   // Casting Appeal Rework - computed once per candidate shown, not
   // re-derived per render pass, so the prestige-gate hint below and
@@ -224,14 +228,6 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
     const selected = hired.some((h) => h.id === person.id);
     const slotIndex = selected ? hired.findIndex((h) => h.id === person.id) : hired.length;
     return characterForRoleSlot(draft.script, role, slotIndex);
-  }
-
-  function togglePin(person: Person) {
-    setPinnedTalentIds((prev) => {
-      if (prev.includes(person.id)) return prev.filter((id) => id !== person.id);
-      if (prev.length >= MAX_PINNED) return prev;
-      return [...prev, person.id];
-    });
   }
 
   function selectPerson(person: Person) {
@@ -263,6 +259,29 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
     // hired in one visit - see "X/Y hired" below.
     dispatch({ type: 'TOGGLE_TALENT_FOR_ROLE', role, person });
   }
+
+  // Whether a pinned candidate's Cast/Hire action should be disabled in the
+  // comparison view - the same hard gates the grid card already respects (role
+  // at capacity, booked elsewhere, or a doomed director offer).
+  const slotBlocked = (person: Person): boolean => {
+    if (hired.some((h) => h.id === person.id)) return false;
+    const booked = !!deriveBookedUntil(person.availability.commitments) && deriveBookedUntil(person.availability.commitments)! > state.totalDays;
+    return atCap || booked || candidateReasoning(person).hardBlocked;
+  };
+  const compareSlots: CompareSlot[] = comparing
+    ? pinnedTalent.map((person) => ({
+        person,
+        role,
+        category: profile.category,
+        script: draft.script,
+        character: characterForCandidate(person),
+        affordable: isAffordable(person),
+        actionLabel: isActor ? 'Cast' : 'Hire',
+        actionDisabled: slotBlocked(person),
+        onAct: () => selectPerson(person),
+        onUnpin: () => pins.toggle(person.id),
+      }))
+    : [];
 
   const roleLabel = capacity.max > 1 ? `${role} - ${hired.length}/${capacity.max} ${isActor ? 'cast' : 'hired'}` : role;
 
@@ -330,69 +349,42 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
           </p>
         )}
 
-        <div className="grid grid-wide">
-          {shownList.map((person) => {
-            const selected = hired.some((h) => h.id === person.id);
-            const bookedUntil = deriveBookedUntil(person.availability.commitments);
-            const booked = !selected && !!bookedUntil && bookedUntil > state.totalDays;
-            const { signals, hardBlocked } = candidateReasoning(person);
-            const disabled = !selected && (atCap || booked || hardBlocked);
-            const pinned = pinnedTalentIds.includes(person.id);
-            const pinCapped = pinnedTalentIds.length >= MAX_PINNED;
-            return (
-              <CandidateCard
-                key={person.id}
-                person={person}
-                role={role}
-                category={profile.category}
-                script={draft.script}
-                character={characterForCandidate(person)}
-                totalDays={state.totalDays}
-                selected={selected}
-                disabled={disabled}
-                booked={booked}
-                pinned={pinned}
-                pinCapped={pinCapped}
-                signals={signals}
-                onSelect={() => selectPerson(person)}
-                onTogglePin={() => togglePin(person)}
-              />
-            );
-          })}
-        </div>
-
-        {pinnedTalentIds.length > 0 && (
-          <div className="stack">
-            <h3 style={{ margin: 0 }}>Comparing</h3>
-            <div className={pinnedTalentIds.length >= MAX_PINNED ? 'compare-slots compare-slots-double' : 'compare-slots'}>
-              {pinnedTalent.map((person) => {
-                const talentHired = hired.some((h) => h.id === person.id);
-                // A booked candidate can't be taken on today - disable the
-                // compare-slot action too, so this path can't sidestep the main
-                // list's booked block (P0, docs/DESIGN_REVIEW_casting_ux.md).
-                const talentAvailable = talentHired || isAvailableImmediately(person, state.totalDays);
-                return (
-                  <div className="card compare-slot" key={person.id}>
-                    <div className="row-between">
-                      <div className="card-title" style={{ marginBottom: 0 }}>{person.identity.name}</div>
-                      <Button variant="text" onClick={() => togglePin(person)}>Unpin</Button>
-                    </div>
-                    <TalentStats person={person} role={role} category={profile.category} script={draft.script} character={characterForCandidate(person)} totalDays={state.totalDays} availabilityMode="blocked" />
-                    <Button
-                      variant="primary"
-                      style={{ marginTop: 8 }}
-                      disabled={!talentHired && (atCap || !talentAvailable)}
-                      onClick={() => selectPerson(person)}
-                    >
-                      {talentHired ? (isActor ? 'Cast' : 'Hired') : !talentAvailable ? 'Unavailable' : atCap ? (isActor ? 'Fully Cast' : 'Full') : isActor ? 'Cast' : 'Hire'}
-                    </Button>
-                  </div>
-                );
-              })}
-              {pinnedTalentIds.length < MAX_PINNED && (
-                <div className="card compare-slot-empty">Pin another candidate to compare it here.</div>
-              )}
+        {comparing ? (
+          compareSlots.length === MAX_PINNED && (
+            <div className="stack">
+              <h3 style={{ margin: 0 }}>Comparing two candidates</h3>
+              <TalentComparison a={compareSlots[0]} b={compareSlots[1]} totalDays={state.totalDays} />
             </div>
+          )
+        ) : (
+          <div className="grid grid-wide">
+            {[...shownList.filter((p) => pins.isPinned(p.id)), ...shownList.filter((p) => !pins.isPinned(p.id))].map((person) => {
+              const selected = hired.some((h) => h.id === person.id);
+              const bookedUntil = deriveBookedUntil(person.availability.commitments);
+              const booked = !selected && !!bookedUntil && bookedUntil > state.totalDays;
+              const { signals, hardBlocked } = candidateReasoning(person);
+              const disabled = !selected && (atCap || booked || hardBlocked);
+              return (
+                <CandidateCard
+                  key={person.id}
+                  person={person}
+                  role={role}
+                  category={profile.category}
+                  script={draft.script}
+                  character={characterForCandidate(person)}
+                  totalDays={state.totalDays}
+                  selected={selected}
+                  disabled={disabled}
+                  booked={booked}
+                  pinned={pins.isPinned(person.id)}
+                  pinCapped={pins.isFull}
+                  affordable={isAffordable(person)}
+                  signals={signals}
+                  onSelect={() => selectPerson(person)}
+                  onTogglePin={() => pins.toggle(person.id)}
+                />
+              );
+            })}
           </div>
         )}
 

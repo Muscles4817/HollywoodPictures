@@ -1,4 +1,3 @@
-import { StarRating } from './StarRating';
 import { deriveMatchQualityLabel } from '../../utils/StarRatingConversion';
 
 interface MatchBreakdownProps {
@@ -7,33 +6,38 @@ interface MatchBreakdownProps {
   rows: Array<{ label: string; matchScore: number }>;
 }
 
+/** A 0-100 match as its bar-fill tier - green for a genuine strength, blue for a fair match, amber for a soft spot. Colour does the triage the old identical star rows couldn't. */
+function matchTier(score: number): 'hi' | 'mid' | 'lo' {
+  if (score >= 75) return 'hi';
+  if (score >= 60) return 'mid';
+  return 'lo';
+}
+
 /**
- * Talent Card UX Redesign - replaces the old pattern of showing an actor's
- * own raw ActingStyle axes next to a Character's raw trait demands as two
- * side-by-side star blocks the player had to compare by eye
- * (CompatibilityBadge, still used elsewhere for a script/director's own
- * self-description with nothing to compare against). This is a distinct
- * component rather than a new CompatibilityBadge mode - CompatibilityBadge's
- * `breakdown` values are raw stats; a MatchBreakdown row is already a
- * comparison outcome, and giving it a second meaning depending on props
- * risked exactly the "is this a stat or a verdict" ambiguity this redesign
- * is trying to remove. One reusable per-axis "how well does this match"
- * reading, shared by every dimension a casting card wants to break down
- * (acting-style-vs-character, tone-vs-script).
+ * Talent Card UX Redesign (user request) - the per-axis role-fit breakdown,
+ * now behind the card's disclosure and drawn as labelled bars rather than yet
+ * another block of identical star rows. A bar reads as a magnitude at a glance
+ * and a coloured one calls out the strengths and soft spots, where five star
+ * rows all looked the same. The `title`/`rows` API is unchanged; only the
+ * visual language is. Still a distinct component from CompatibilityBadge (whose
+ * values are raw stats) - a MatchBreakdown row is already a comparison outcome.
  */
 export function MatchBreakdown({ title, rows }: MatchBreakdownProps) {
   return (
-    <div className="talent-section">
-      <div className="stat-group-title">{title}</div>
-      {rows.map(({ label, matchScore }) => (
-        <div className="talent-match-row" key={label}>
-          <div className="talent-match-row-header">
-            <span className="talent-match-row-label">{label}</span>
-            <StarRating value={matchScore} />
+    <div className="talent-more-group">
+      <div className="talent-more-heading">{title}</div>
+      {rows.map(({ label, matchScore }) => {
+        const tier = matchTier(matchScore);
+        return (
+          <div className="talent-bar-row" key={label}>
+            <span className="talent-bar-label">{label}</span>
+            <span className="talent-bar-track">
+              <span className={`talent-bar-fill talent-bar-fill--${tier}`} style={{ width: `${Math.max(0, Math.min(100, matchScore))}%` }} />
+            </span>
+            <span className={`talent-bar-value talent-bar-value--${tier}`}>{deriveMatchQualityLabel(matchScore)}</span>
           </div>
-          <span className="talent-match-quality">{deriveMatchQualityLabel(matchScore)}</span>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

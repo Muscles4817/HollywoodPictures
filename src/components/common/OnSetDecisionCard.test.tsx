@@ -32,9 +32,9 @@ describe('OnSetDecisionCard - a simple (non-replacement) decision involving one 
     );
     expect(screen.getByText(director.identity.name)).toBeInTheDocument();
     expect(screen.getByText('Currently Director')).toBeInTheDocument();
-    // TalentStats always renders an Industry section (Fame/Prestige/Reliability) regardless of role category - proof the full stat block rendered, not just a name/role line.
-    expect(screen.getByText('Industry')).toBeInTheDocument();
-    expect(screen.getByText('Risk Profile')).toBeInTheDocument();
+    // TalentStats always renders the Industry standing / working-style disclosure groups regardless of role category - proof the full profile rendered, not just a name/role line.
+    expect(screen.getByText('Industry standing')).toBeInTheDocument();
+    expect(screen.getByText('Working with them')).toBeInTheDocument();
   });
 });
 
@@ -61,8 +61,8 @@ describe('OnSetDecisionCard - a replacement (recast) decision', () => {
       const nameNode = screen.getByText(candidate.identity.name);
       const card = nameNode.closest('.talent-compare-card')! as HTMLElement;
       // Proof the full TalentStats card rendered for the candidate (resolved from talentPool), not just name + salary text.
-      expect(within(card).getByText('Industry')).toBeInTheDocument();
-      expect(within(card).getByText('Risk Profile')).toBeInTheDocument();
+      expect(within(card).getByText('Industry standing')).toBeInTheDocument();
+      expect(within(card).getByText('Working with them')).toBeInTheDocument();
     }
     expect(screen.getByText('People Involved - compare before you choose')).toBeInTheDocument();
   });

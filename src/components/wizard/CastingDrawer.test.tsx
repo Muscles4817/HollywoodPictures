@@ -131,8 +131,9 @@ describe('CastingDrawer - discovery controls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
     const costlyCard = screen.getByText('Costly Cora').closest('.card') as HTMLElement;
     const cheapCard = screen.getByText('Cheap Cathy').closest('.card') as HTMLElement;
-    expect(within(costlyCard).getByText('Over your budget')).toBeInTheDocument();
-    expect(within(cheapCard).queryByText('Over your budget')).not.toBeInTheDocument();
+    // Affordability now reads off TalentStats' salary traffic-light dot rather than a separate chip.
+    expect(within(costlyCard).getByText('Over budget')).toBeInTheDocument();
+    expect(within(cheapCard).queryByText('Over budget')).not.toBeInTheDocument();
 
     // The filter hides the over-budget pick, keeps the affordable one.
     fireEvent.click(screen.getByLabelText('Affordable only'));
@@ -424,6 +425,37 @@ describe('CastingDrawer - candidate reasoning chips', () => {
 
     // Open Casting is the default tab; the direct-interest draw reads as a chip.
     expect(screen.getByText('Sought you out')).toBeInTheDocument();
+  });
+});
+
+describe('CastingDrawer - Pin to Compare', () => {
+  it('offers Pin to Compare in Direct Approach (previously missing) and swaps the grid for a head-to-head once two are pinned', () => {
+    const state = stateWithFemaleLead();
+    const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;
+    saveState(state);
+
+    render(
+      <StudioProvider>
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+
+    // The pin action exists on the actor flow at all - the reported gap.
+    const fionaCard = screen.getByText('Fiona Female').closest('.card') as HTMLElement;
+    fireEvent.click(within(fionaCard).getByRole('button', { name: 'Pin to Compare' }));
+
+    // One pinned: still browsing, and the pinned card now reads as pinned.
+    expect(screen.queryByText('Comparing two candidates')).not.toBeInTheDocument();
+
+    const franCard = screen.getByText('Fran Female').closest('.card') as HTMLElement;
+    fireEvent.click(within(franCard).getByRole('button', { name: 'Pin to Compare' }));
+
+    // Two pinned: the browse grid gives way to the dedicated comparison view,
+    // which opens with a recommendation rather than two cloned cards.
+    expect(screen.getByText('Comparing two candidates')).toBeInTheDocument();
+    expect(screen.getByText('Recommendation')).toBeInTheDocument();
   });
 });
 
