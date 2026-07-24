@@ -464,6 +464,14 @@ export function generateTalentPool(
       continue;
     }
 
+    // Writers are fully hand-authored: real screenwriters plus every
+    // writer-director's writer career (one Person, both careers - see
+    // HANDCRAFTED_TALENTS_BY_ROLE), spanning ~$0.25M-$4M. No procedural fill.
+    if (role === 'Writer') {
+      pool[role] = [...handcrafted];
+      continue;
+    }
+
     pool[role] = [...handcrafted, ...generateTalentCandidates(role, rng)];
   }
 

@@ -50,7 +50,13 @@ describe('source-appropriate writer selection', () => {
       for (let i = 0; i < 500; i++) studio.push(writerStanding(selectWriterForSource(writers, 'Studio Original', rng)!));
       return null;
     });
-    expect(avg(studio)).toBeGreaterThan(avg(spec) + 10);
+    // Studio commissions still skew to higher-standing writers than spec
+    // scripts. The margin is smaller than it once was: the writer pool is now
+    // fully hand-authored (real working screenwriters, skill floored ~70), so
+    // there are no skill-single-digit unknowns for spec selection to bottom
+    // out on the way the old procedural pool produced - the two averages sit
+    // closer together while the ordering holds firmly.
+    expect(avg(studio)).toBeGreaterThan(avg(spec) + 3);
   });
 
   it('selectWriterForSource returns null only for an empty pool', () => {

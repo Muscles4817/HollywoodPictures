@@ -30,7 +30,12 @@ export const ROLE_GENERATION_PROFILES: Record<TalentProfession, RoleGenerationPr
   // docs/DESIGN_REVIEW_ai_studio_behavior.md "Reality check". (Generated
   // budget actors are still capped far below this at BUDGET_ACTOR_SALARY_CEILING.)
   'Actor': { salaryRange: { min: 20_000, max: 25_000_000 }, fameCeiling: 98 },
-  Writer: { salaryRange: { min: 15_000, max: 2_000_000 }, fameCeiling: 55 },
+  // Writers are fully hand-authored - no procedural writer pool (see
+  // engine/talentGenerator.ts:generateTalentPool). The roster is real
+  // screenwriters plus every writer-director's writer career (one Person, both
+  // careers), spanning ~$0.25M-$4M, so the price slider, rival target pricing
+  // and commission bands only ever point where a real writer exists.
+  Writer: { salaryRange: { min: 250_000, max: 4_000_000 }, fameCeiling: 55 },
   Cinematographer: { salaryRange: { min: 25_000, max: 6_000_000 }, fameCeiling: 62 },
   Composer: { salaryRange: { min: 15_000, max: 2_500_000 }, fameCeiling: 60 },
   // Editors are fully hand-authored - no procedural editor pool (see
