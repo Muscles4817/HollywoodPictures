@@ -748,4 +748,260 @@ export const MARQUEE_PERSONALITIES: Record<string, PersonPersonality> = {
     professionalism: 64, ego: 37,
     ambition: 58, loyalty: 92, temperament: 80, pressureHandling: 80, controversy: 4, adaptability: 46,
   },
+
+  // --- Lead actors (fourth wave) ------------------------------------------
+
+  // The ambitious producer-star - savvy, driven, building beyond the screen.
+  'real-lead-actor-margot-robbie': {
+    professionalism: 90, ego: 58,
+    ambition: 88, loyalty: 70, temperament: 74, pressureHandling: 78, controversy: 12, adaptability: 66,
+  },
+  // The commanding old-school icon - stubborn, imposing, uncompromising.
+  'real-lead-actor-sean-connery': {
+    professionalism: 93, ego: 60,
+    ambition: 62, loyalty: 60, temperament: 55, pressureHandling: 82, controversy: 35, adaptability: 34,
+  },
+  // The dignified trailblazer - principled, gracious, a quiet giant.
+  'real-lead-actor-sidney-poitier': {
+    professionalism: 96, ego: 30,
+    ambition: 68, loyalty: 80, temperament: 82, pressureHandling: 86, controversy: 10, adaptability: 50,
+  },
+  // The charismatic force - versatile, driven, at ease in any register.
+  'real-lead-actor-idris-elba': {
+    professionalism: 92, ego: 26,
+    ambition: 82, loyalty: 74, temperament: 76, pressureHandling: 80, controversy: 10, adaptability: 62,
+  },
+  // The fierce powerhouse - commanding, deeply committed, unafraid.
+  'real-lead-actor-viola-davis': {
+    professionalism: 97, ego: 20,
+    ambition: 78, loyalty: 80, temperament: 74, pressureHandling: 84, controversy: 8, adaptability: 52,
+  },
+  // The chameleon in plain sight - versatile, dedicated, disarmingly humble.
+  'real-lead-actor-amy-adams': {
+    professionalism: 93, ego: 20,
+    ambition: 72, loyalty: 78, temperament: 80, pressureHandling: 80, controversy: 6, adaptability: 55,
+  },
+  // The intense transformer - physical, ferocious, and famously hard to pin down.
+  'real-lead-actor-tom-hardy': {
+    professionalism: 85, ego: 38,
+    ambition: 74, loyalty: 62, temperament: 44, pressureHandling: 70, controversy: 30, adaptability: 44,
+  },
+  // The steady gravitas - dependable, warm, a surprise late-career action star.
+  'real-lead-actor-liam-neeson': {
+    professionalism: 93, ego: 20,
+    ambition: 66, loyalty: 78, temperament: 78, pressureHandling: 84, controversy: 16, adaptability: 55,
+  },
+  // The driven multi-hyphenate - ambitious, meticulous, always chasing the next mode.
+  'real-lead-actor-bradley-cooper': {
+    professionalism: 88, ego: 30,
+    ambition: 88, loyalty: 70, temperament: 68, pressureHandling: 78, controversy: 10, adaptability: 55,
+  },
+  // The tireless daredevil - does his own stunts, endlessly game, beloved worldwide.
+  'real-lead-actor-jackie-chan': {
+    professionalism: 92, ego: 20,
+    ambition: 82, loyalty: 78, temperament: 78, pressureHandling: 86, controversy: 16, adaptability: 68,
+  },
+  // The gifted rollercoaster - talented and uneven, lived very publicly.
+  'real-lead-actor-ben-affleck': {
+    professionalism: 88, ego: 45,
+    ambition: 78, loyalty: 66, temperament: 52, pressureHandling: 62, controversy: 36, adaptability: 55,
+  },
+  // The soulful naturalist - laid-back, dependable, quietly masterful.
+  'real-lead-actor-jeff-bridges': {
+    professionalism: 92, ego: 30,
+    ambition: 58, loyalty: 82, temperament: 84, pressureHandling: 82, controversy: 8, adaptability: 66,
+  },
+  // The dignified leading man - dedicated, gracious, quietly heroic.
+  'real-lead-actor-chadwick-boseman': {
+    professionalism: 92, ego: 40,
+    ambition: 78, loyalty: 82, temperament: 78, pressureHandling: 80, controversy: 6, adaptability: 52,
+  },
+  // The witty polymath - sharp, principled, a writer's actor.
+  'real-lead-actor-emma-thompson': {
+    professionalism: 94, ego: 35,
+    ambition: 68, loyalty: 74, temperament: 74, pressureHandling: 80, controversy: 20, adaptability: 58,
+  },
+  // The formidable intensity - fearless, committed, a force on any stage.
+  'real-lead-actor-glenn-close': {
+    professionalism: 94, ego: 40,
+    ambition: 74, loyalty: 72, temperament: 66, pressureHandling: 82, controversy: 12, adaptability: 48,
+  },
+  // The nuanced fearless one - subtle, composed, drawn to the difficult role.
+  'real-lead-actor-julianne-moore': {
+    professionalism: 93, ego: 35,
+    ambition: 70, loyalty: 74, temperament: 78, pressureHandling: 80, controversy: 12, adaptability: 55,
+  },
+  // The brilliant comic mind - inventive, wry, effortlessly multi-talented.
+  'real-lead-actor-steve-martin': {
+    professionalism: 90, ego: 40,
+    ambition: 72, loyalty: 74, temperament: 76, pressureHandling: 78, controversy: 12, adaptability: 78,
+  },
+  // The hungry producer-star - relentlessly ambitious, building his own lane.
+  'real-lead-actor-michael-b-jordan': {
+    professionalism: 89, ego: 42,
+    ambition: 88, loyalty: 72, temperament: 72, pressureHandling: 76, controversy: 10, adaptability: 58,
+  },
+  // The brilliant control freak - rewrites the script, exacting, hard to direct.
+  'real-lead-actor-edward-norton': {
+    professionalism: 90, ego: 72,
+    ambition: 80, loyalty: 55, temperament: 34, pressureHandling: 72, controversy: 25, adaptability: 22,
+  },
+  // The precise classicist - intense, disciplined, quietly commanding.
+  'real-lead-actor-ralph-fiennes': {
+    professionalism: 95, ego: 24,
+    ambition: 66, loyalty: 76, temperament: 72, pressureHandling: 82, controversy: 8, adaptability: 44,
+  },
+  // The erudite workhorse - dedicated, gracious, meticulously prepared.
+  'real-lead-actor-benedict-cumberbatch': {
+    professionalism: 94, ego: 22,
+    ambition: 76, loyalty: 76, temperament: 76, pressureHandling: 80, controversy: 8, adaptability: 55,
+  },
+  // The sharp, grounded pro - versatile, unfussy, quietly excellent.
+  'real-lead-actor-emily-blunt': {
+    professionalism: 94, ego: 24,
+    ambition: 74, loyalty: 78, temperament: 80, pressureHandling: 80, controversy: 6, adaptability: 60,
+  },
+  // The all-in immersion - intense, physical, drawn to the extreme role.
+  'real-lead-actor-jake-gyllenhaal': {
+    professionalism: 89, ego: 42,
+    ambition: 78, loyalty: 66, temperament: 60, pressureHandling: 72, controversy: 15, adaptability: 48,
+  },
+  // The warm-hearted favourite - generous, doting, an easy hang and a real pro.
+  'real-lead-actor-pedro-pascal': {
+    professionalism: 91, ego: 30,
+    ambition: 74, loyalty: 82, temperament: 80, pressureHandling: 78, controversy: 10, adaptability: 72,
+  },
+  // The loyal ringleader - sticks with his crew, laid-back, prolifically funny.
+  'real-lead-actor-adam-sandler': {
+    professionalism: 90, ego: 22,
+    ambition: 66, loyalty: 92, temperament: 80, pressureHandling: 76, controversy: 15, adaptability: 74,
+  },
+
+  // --- Supporting actors (third wave) -------------------------------------
+
+  // The warm giant - versatile, dependable, beloved on every set.
+  'real-supporting-actor-john-goodman': {
+    professionalism: 93, ego: 24,
+    ambition: 66, loyalty: 84, temperament: 82, pressureHandling: 80, controversy: 6, adaptability: 66,
+  },
+  // The precise gourmand of villainy - erudite, exact, deliciously controlled.
+  'real-supporting-actor-christoph-waltz': {
+    professionalism: 94, ego: 20,
+    ambition: 68, loyalty: 72, temperament: 72, pressureHandling: 82, controversy: 8, adaptability: 48,
+  },
+  // The loose-limbed natural - effortless, dancing, endlessly inventive.
+  'real-supporting-actor-sam-rockwell': {
+    professionalism: 93, ego: 16,
+    ambition: 66, loyalty: 76, temperament: 74, pressureHandling: 76, controversy: 10, adaptability: 82,
+  },
+  // The rumpled everyman genius - self-deprecating, deeply prepared, beloved.
+  'real-supporting-actor-paul-giamatti': {
+    professionalism: 96, ego: 18,
+    ambition: 62, loyalty: 80, temperament: 74, pressureHandling: 78, controversy: 8, adaptability: 55,
+  },
+  // The cerebral eccentric - idiosyncratic, unhurried, one of a kind.
+  'real-supporting-actor-john-malkovich': {
+    professionalism: 90, ego: 30,
+    ambition: 66, loyalty: 62, temperament: 62, pressureHandling: 76, controversy: 20, adaptability: 60,
+  },
+  // The unnerving intensity - blunt, uncompromising, quietly menacing.
+  'real-supporting-actor-michael-shannon': {
+    professionalism: 92, ego: 22,
+    ambition: 66, loyalty: 66, temperament: 52, pressureHandling: 74, controversy: 25, adaptability: 50,
+  },
+  // The fearless shapeshifter - versatile, warm, unafraid of the dark.
+  'real-supporting-actor-toni-collette': {
+    professionalism: 94, ego: 18,
+    ambition: 70, loyalty: 78, temperament: 76, pressureHandling: 80, controversy: 8, adaptability: 60,
+  },
+  // The soulful master - restrained, elegant, revered across a continent.
+  'real-supporting-actor-tony-leung': {
+    professionalism: 96, ego: 15,
+    ambition: 62, loyalty: 82, temperament: 82, pressureHandling: 84, controversy: 4, adaptability: 50,
+  },
+  // The everyman genius - a director's muse, warm, grounded, quietly great.
+  'real-supporting-actor-song-kang-ho': {
+    professionalism: 96, ego: 14,
+    ambition: 64, loyalty: 86, temperament: 82, pressureHandling: 82, controversy: 4, adaptability: 58,
+  },
+  // The gritty old-schooler - intense, streetwise, uncompromisingly himself.
+  'real-supporting-actor-harvey-keitel': {
+    professionalism: 88, ego: 55,
+    ambition: 62, loyalty: 66, temperament: 52, pressureHandling: 74, controversy: 22, adaptability: 44,
+  },
+  // The meticulous transformer - physical, exacting, wholly committed.
+  'real-supporting-actor-eddie-redmayne': {
+    professionalism: 93, ego: 22,
+    ambition: 72, loyalty: 70, temperament: 74, pressureHandling: 76, controversy: 8, adaptability: 45,
+  },
+  // The kinetic livewire - versatile, generous, endlessly energetic.
+  'real-supporting-actor-james-mcavoy': {
+    professionalism: 92, ego: 20,
+    ambition: 74, loyalty: 76, temperament: 74, pressureHandling: 78, controversy: 8, adaptability: 66,
+  },
+  // The understated precisionist - subtle, respected, quietly indispensable.
+  'real-supporting-actor-jeffrey-wright': {
+    professionalism: 95, ego: 18,
+    ambition: 66, loyalty: 80, temperament: 80, pressureHandling: 82, controversy: 8, adaptability: 52,
+  },
+  // The warm articulate pro - dependable, grounded, effortlessly commanding.
+  'real-supporting-actor-sterling-k-brown': {
+    professionalism: 96, ego: 16,
+    ambition: 72, loyalty: 82, temperament: 80, pressureHandling: 82, controversy: 6, adaptability: 56,
+  },
+  // The committed breakout - warm, dedicated, a long-overdue star.
+  'real-supporting-actor-sandra-oh': {
+    professionalism: 95, ego: 14,
+    ambition: 72, loyalty: 80, temperament: 78, pressureHandling: 80, controversy: 8, adaptability: 58,
+  },
+  // The earthy character man - warm, versatile, endlessly watchable.
+  'real-supporting-actor-brendan-gleeson': {
+    professionalism: 94, ego: 21,
+    ambition: 62, loyalty: 80, temperament: 80, pressureHandling: 80, controversy: 8, adaptability: 56,
+  },
+  // The daring young unnerver - hungry, fearless, drawn to the unsettling.
+  'real-supporting-actor-barry-keoghan': {
+    professionalism: 86, ego: 32,
+    ambition: 82, loyalty: 60, temperament: 56, pressureHandling: 66, controversy: 30, adaptability: 68,
+  },
+  // The magnetic mumbler - idiosyncratic, immersive, gloriously offbeat.
+  'real-supporting-actor-benicio-del-toro': {
+    professionalism: 89, ego: 45,
+    ambition: 60, loyalty: 66, temperament: 60, pressureHandling: 72, controversy: 18, adaptability: 62,
+  },
+  // The commanding calm - precise, measured, quietly terrifying.
+  'real-supporting-actor-giancarlo-esposito': {
+    professionalism: 94, ego: 20,
+    ambition: 70, loyalty: 80, temperament: 82, pressureHandling: 84, controversy: 6, adaptability: 52,
+  },
+  // The warm chameleon - funny, humble, game for anything.
+  'real-supporting-actor-john-c-reilly': {
+    professionalism: 93, ego: 18,
+    ambition: 64, loyalty: 82, temperament: 82, pressureHandling: 78, controversy: 6, adaptability: 76,
+  },
+  // The principled anchor - warm, dependable, quietly commanding.
+  'real-supporting-actor-octavia-spencer': {
+    professionalism: 90, ego: 30,
+    ambition: 70, loyalty: 80, temperament: 80, pressureHandling: 80, controversy: 8, adaptability: 56,
+  },
+  // The oily precisionist - the villain you love, exact and unhurried.
+  'real-supporting-actor-ben-mendelsohn': {
+    professionalism: 93, ego: 24,
+    ambition: 66, loyalty: 68, temperament: 60, pressureHandling: 76, controversy: 15, adaptability: 55,
+  },
+  // The intense multi-hyphenate - thoughtful, driven, an activist's conscience.
+  'real-supporting-actor-riz-ahmed': {
+    professionalism: 94, ego: 16,
+    ambition: 78, loyalty: 72, temperament: 72, pressureHandling: 76, controversy: 15, adaptability: 60,
+  },
+  // The raw committed force - intense, working-class, deeply prepared.
+  'real-supporting-actor-stephen-graham': {
+    professionalism: 96, ego: 14,
+    ambition: 68, loyalty: 82, temperament: 66, pressureHandling: 78, controversy: 10, adaptability: 55,
+  },
+  // The redemption-story icon - a tough-guy face, warm and generous off-screen.
+  'real-supporting-actor-danny-trejo': {
+    professionalism: 88, ego: 18,
+    ambition: 62, loyalty: 82, temperament: 80, pressureHandling: 82, controversy: 15, adaptability: 62,
+  },
 };
