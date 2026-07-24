@@ -3,7 +3,7 @@ import { useStudio } from '../../state/StudioContext';
 import { MANDATORY_TALENT_ROLES, OPTIONAL_TALENT_ROLES } from '../../data/talentGeneration';
 import { TALENT_PRESENTATION, type RoleCategory } from '../../data/talentPresentation';
 import { effectiveRoleCapacity } from '../../engine/castRequirements';
-import { castingGenderLabel } from '../../engine/casting';
+import { castingGenderLabel, castingAgeBandLabel } from '../../engine/casting';
 import { computeCommittedSpend, deriveFocusedDraft } from '../../state/selectors';
 import { computeTalentCompatibility } from '../../engine/compatibility';
 import { computeTalentCost } from '../../engine/cost';
@@ -117,6 +117,11 @@ function CharacterCastingRow({
           {character.castingGender && character.castingGender !== 'Any' && (
             <span className="badge" title="Only actors of this gender can be cast in this role.">
               {castingGenderLabel(character.castingGender)}
+            </span>
+          )}
+          {character.castingAgeBand && character.castingAgeBand !== 'Any' && (
+            <span className="badge" title="The age this role is written for. Casting well outside it is a stretch that costs role-fit; a wildly wrong age can't be cast.">
+              {castingAgeBandLabel(character.castingAgeBand)}
             </span>
           )}
           <span className="badge">{character.prominence} &middot; {CHARACTER_ARCHETYPE_LABELS[character.archetype]}</span>

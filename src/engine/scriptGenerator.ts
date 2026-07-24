@@ -1,5 +1,6 @@
 import type {
   CastingGender,
+  CharacterAgeBand,
   CharacterArchetype,
   CharacterProminence,
   CharacterTraitProfile,
@@ -286,6 +287,57 @@ function castingGenderForCharacter(archetype: CharacterArchetype, name: string):
   return hashUnit(`${name}|mf`) < 0.5 ? 'Male' : 'Female';
 }
 
+// The order the weighted age-band pick walks - stable, so the same name+
+// archetype always resolves to the same band.
+const AGE_BANDS: CharacterAgeBand[] = ['Child', 'Teen', 'YoungAdult', 'Adult', 'MiddleAged', 'Senior', 'Any'];
+
+// Default relative likelihood of each band before archetype pulls it around.
+// Leads/most roles skew young-to-middle adult; children and seniors are rarer;
+// a healthy 'Any' share keeps most roles genuinely age-open.
+const DEFAULT_AGE_WEIGHTS: Record<CharacterAgeBand, number> = {
+  Child: 0.3,
+  Teen: 0.8,
+  YoungAdult: 3,
+  Adult: 3,
+  MiddleAged: 1.4,
+  Senior: 0.6,
+  Any: 2,
+};
+
+// Per-archetype overrides, merged over DEFAULT_AGE_WEIGHTS (only the listed
+// bands change; the rest keep their default weight). The tuning surface for
+// "what age does this kind of character read as" - edit here, not in logic.
+const AGE_BAND_WEIGHTS_BY_ARCHETYPE: Partial<Record<CharacterArchetype, Partial<Record<CharacterAgeBand, number>>>> = {
+  Mentor: { YoungAdult: 0.3, Adult: 1, MiddleAged: 3, Senior: 3 },
+  AuthorityFigure: { YoungAdult: 0.4, Adult: 1.5, MiddleAged: 3, Senior: 2 },
+  ChosenOne: { Child: 0.6, Teen: 2, YoungAdult: 3, MiddleAged: 0.4, Senior: 0.1 },
+  IdealisticHero: { Teen: 1.2, YoungAdult: 3, MiddleAged: 0.7, Senior: 0.2 },
+  LoveInterest: { Child: 0, Teen: 0.4, YoungAdult: 3, Adult: 2, Senior: 0.2, Any: 0.5 },
+  ComicRelief: { YoungAdult: 2.5, Adult: 2 },
+  Villain: { YoungAdult: 1, MiddleAged: 2, Senior: 1 },
+  TragicVillain: { YoungAdult: 1, MiddleAged: 2, Senior: 1 },
+  FamilyMember: { Child: 1.2, Teen: 1.2, Adult: 2, MiddleAged: 1.5, Senior: 1.5, Any: 2 },
+  MonsterOrCreature: { Any: 6, Adult: 1, YoungAdult: 0.5, Child: 0, Teen: 0 },
+  Other: { Any: 4 },
+  EnsembleMember: { Any: 3 },
+};
+
+// A stable, well-distributed age band for a character - hash-derived from its
+// own name exactly like castingGenderForCharacter, and for the same reason: it
+// must NOT draw from the shared RandomFn stream, or every seeded sequence
+// downstream would shift.
+function castingAgeBandForCharacter(archetype: CharacterArchetype, name: string): CharacterAgeBand {
+  const overrides = AGE_BAND_WEIGHTS_BY_ARCHETYPE[archetype] ?? {};
+  const weights = AGE_BANDS.map((band) => overrides[band] ?? DEFAULT_AGE_WEIGHTS[band]);
+  const total = weights.reduce((sum, w) => sum + w, 0);
+  let cursor = hashUnit(`${name}|age`) * total;
+  for (let i = 0; i < AGE_BANDS.length; i++) {
+    cursor -= weights[i];
+    if (cursor < 0) return AGE_BANDS[i];
+  }
+  return 'Any';
+}
+
 // `id` is derived by the caller (generateCast) from the owning script's id plus
 // this character's position in the cast - so it's globally unique and stable
 // across reloads (no mutable counter), while still only needing to be unique
@@ -305,6 +357,7 @@ function generateCharacter(id: string, prominence: CharacterProminence, genre: G
     archetype,
     prominence,
     castingGender: castingGenderForCharacter(archetype, name),
+    castingAgeBand: castingAgeBandForCharacter(archetype, name),
     traits: generateCharacterTraits(CHARACTER_ARCHETYPE_PROFILES[archetype].baseTraits, rng),
   };
 }

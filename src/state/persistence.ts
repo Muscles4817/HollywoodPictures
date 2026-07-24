@@ -342,7 +342,7 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   []), so an un-bumped save would technically still load; the bump is the
 //   honest "the stored shape changed" signal, same convention as every entry
 //   above. No migration code.
-const SAVE_KEY = 'hollywood-pictures-save-v56';
+const SAVE_KEY = 'hollywood-pictures-save-v57';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

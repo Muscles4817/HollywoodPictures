@@ -12,7 +12,7 @@ import { professionForProductionRole, findAssignedPerson } from '../data/helpers
 import { getCrewCareer } from './person';
 import { logAmount } from './interpolate';
 import { computeActorAppeal, resolveOfferResponse } from './castingAppeal';
-import { actorMeetsCharacterGender } from './casting';
+import { actorMeetsCharacterGender, actorMeetsCharacterAge, personCastingAge } from './casting';
 import { WEEK_LENGTH_DAYS } from './opportunities';
 import { NO_RELATIONSHIP, type RelationshipStanding } from './relationships';
 import { clamp, pick, randInt, type RandomFn } from './random';
@@ -152,7 +152,12 @@ export function generateCastingApplicants(
   rng: RandomFn,
   relationshipOf?: RelationshipLookup,
 ): Person[] {
-  const eligible = talentPool.filter((p) => !excludeIds.has(p.id) && actorMeetsCharacterGender(p.identity.gender, character.castingGender));
+  const eligible = talentPool.filter(
+    (p) =>
+      !excludeIds.has(p.id) &&
+      actorMeetsCharacterGender(p.identity.gender, character.castingGender) &&
+      actorMeetsCharacterAge(personCastingAge(p, plannedStartDay), character.castingAgeBand),
+  );
   if (eligible.length === 0) return [];
 
   const skillT = clamp((castingDirectorSkill ?? 0) / 100, 0, 1);
@@ -222,7 +227,12 @@ export function generateInterestedTalent(
   rng: RandomFn,
   relationshipOf?: RelationshipLookup,
 ): Person[] {
-  const eligible = talentPool.filter((p) => !excludeIds.has(p.id) && actorMeetsCharacterGender(p.identity.gender, character.castingGender));
+  const eligible = talentPool.filter(
+    (p) =>
+      !excludeIds.has(p.id) &&
+      actorMeetsCharacterGender(p.identity.gender, character.castingGender) &&
+      actorMeetsCharacterAge(personCastingAge(p, plannedStartDay), character.castingAgeBand),
+  );
   if (eligible.length === 0) return [];
 
   const sampleSize = Math.min(INTERESTED_TALENT_SAMPLE_SIZE, eligible.length);

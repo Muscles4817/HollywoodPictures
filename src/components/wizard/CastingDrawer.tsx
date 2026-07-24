@@ -5,7 +5,7 @@ import { findAssignedPerson, professionForProductionRole } from '../../data/help
 import { ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
-import { actorMeetsCharacterGender } from '../../engine/casting';
+import { actorMeetsCharacterGender, personMeetsCharacterAge } from '../../engine/casting';
 import { computeActorAppeal, resolveOfferResponse, type OfferResponse } from '../../engine/castingAppeal';
 import { candidateStrengthSignals, describeOfferRejection, type CandidateSignal } from '../../engine/castingPresentation';
 import { playerRelationshipWith, type RelationshipStanding } from '../../engine/relationships';
@@ -288,11 +288,16 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
 
   const hiredElsewhereIds = new Set(draft.talent.filter((a) => a.role !== role).map((a) => a.person.id));
   // Only surface actors who can actually play this character - matching the
-  // gender it's written for (engine/casting.ts), exactly as Open Casting's
-  // own applicant generation already does (engine/castingCalls.ts) and as the
-  // reducer's hire guard enforces. 'Any' roles are unfiltered.
+  // gender it's written for and not an absurd age for its band (engine/
+  // casting.ts), exactly as Open Casting's own applicant generation already
+  // does (engine/castingCalls.ts) and as the reducer's hire guard enforces.
+  // 'Any' gender / 'Any' age roles are unfiltered; a moderate age stretch
+  // still shows (it costs role-fit, not eligibility).
   const eligibleDirectActors = state.talentPool.Actor.filter(
-    (t) => !hiredElsewhereIds.has(t.id) && actorMeetsCharacterGender(t.identity.gender, character.castingGender),
+    (t) =>
+      !hiredElsewhereIds.has(t.id) &&
+      actorMeetsCharacterGender(t.identity.gender, character.castingGender) &&
+      personMeetsCharacterAge(t, character, state.totalDays),
   );
   const query = search.trim().toLowerCase();
   // Direct Approach source: a name search reaches the whole eligible pool - the

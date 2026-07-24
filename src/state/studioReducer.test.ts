@@ -550,7 +550,9 @@ describe('gender enforcement when casting (engine/casting.ts)', () => {
 
   function anActor(seed: number, gender: 'Male' | 'Female') {
     const { result } = withRng(seed, (rng) => generateTalentCandidates('Actor', rng, 1));
-    return { ...result[0], identity: { ...result[0].identity, gender } };
+    // These tests exercise the gender gate specifically, so drop the birth date
+    // to keep age a non-factor (an unknown age is unconstrained - engine/casting.ts).
+    return { ...result[0], identity: { ...result[0].identity, gender, dateOfBirth: undefined } };
   }
 
   it('rejects an actor whose gender does not match the Lead slot, and accepts one who does', () => {

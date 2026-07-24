@@ -54,7 +54,7 @@ function femaleActor(base: Person, name: string, salary: number): Person {
 /** A Female-lead, no-talent draft at the given offered salary (the pool is set on talentPool.Actor by the caller). */
 function draftWithActors(rng: Parameters<typeof buildReadyDraft>[0], offered: number, extras: Partial<Parameters<typeof playerDraftToProject>[0]> = {}) {
   const readyDraft = buildReadyDraft(rng);
-  const leadCharacter: ScriptCharacter = { ...readyDraft.script!.cast.find((c) => c.prominence === 'Lead')!, castingGender: 'Female' };
+  const leadCharacter: ScriptCharacter = { ...readyDraft.script!.cast.find((c) => c.prominence === 'Lead')!, castingGender: 'Female', castingAgeBand: 'Any' };
   const script = { ...readyDraft.script!, cast: [leadCharacter, ...readyDraft.script!.cast.filter((c) => c.id !== leadCharacter.id)] };
   return { ...readyDraft, script, talent: [], talentTargetPriceByRole: { 'Lead Actor': offered }, ...extras };
 }
@@ -179,7 +179,7 @@ function stateWithFemaleLead(): GameState {
     // A Female Lead character; no actors hired yet. Every Character is
     // independently castable (slot-bound casting), so Direct Approach is
     // actionable for this one regardless of order.
-    const leadCharacter: ScriptCharacter = { ...readyDraft.script!.cast.find((c) => c.prominence === 'Lead')!, castingGender: 'Female' };
+    const leadCharacter: ScriptCharacter = { ...readyDraft.script!.cast.find((c) => c.prominence === 'Lead')!, castingGender: 'Female', castingAgeBand: 'Any' };
     const script = { ...readyDraft.script!, cast: [leadCharacter, ...readyDraft.script!.cast.filter((c) => c.id !== leadCharacter.id)] };
     const draft = {
       ...readyDraft,
@@ -214,7 +214,7 @@ function stateWithOpenCastingApplicant(channel: 'OpenCasting' | 'InterestedTalen
     const applicant = actorNamed(base, 'Fiona Female', 'Female');
 
     const readyDraft = buildReadyDraft(rng);
-    const leadCharacter: ScriptCharacter = { ...readyDraft.script!.cast.find((c) => c.prominence === 'Lead')!, castingGender: 'Female' };
+    const leadCharacter: ScriptCharacter = { ...readyDraft.script!.cast.find((c) => c.prominence === 'Lead')!, castingGender: 'Female', castingAgeBand: 'Any' };
     const script = { ...readyDraft.script!, cast: [leadCharacter, ...readyDraft.script!.cast.filter((c) => c.id !== leadCharacter.id)] };
     const call = {
       ...openCastingCall(leadCharacter.id, 'Lead Actor', 1),
@@ -282,7 +282,7 @@ function stateWithMixedAvailability(): GameState {
     talentPool.Actor = [free, booked];
 
     const readyDraft = buildReadyDraft(rng);
-    const leadCharacter: ScriptCharacter = { ...readyDraft.script!.cast.find((c) => c.prominence === 'Lead')!, castingGender: 'Female' };
+    const leadCharacter: ScriptCharacter = { ...readyDraft.script!.cast.find((c) => c.prominence === 'Lead')!, castingGender: 'Female', castingAgeBand: 'Any' };
     const script = { ...readyDraft.script!, cast: [leadCharacter, ...readyDraft.script!.cast.filter((c) => c.id !== leadCharacter.id)] };
     const draft = { ...readyDraft, script, talent: [], talentTargetPriceByRole: { 'Lead Actor': SALARY } };
 
@@ -366,7 +366,7 @@ function stateWithBelowFloorCandidate(): GameState {
     talentPool.Actor = [priced('Ava Affordable', SALARY), priced('Priya Pricey', 9_000_000)];
 
     const readyDraft = buildReadyDraft(rng);
-    const leadCharacter: ScriptCharacter = { ...readyDraft.script!.cast.find((c) => c.prominence === 'Lead')!, castingGender: 'Female' };
+    const leadCharacter: ScriptCharacter = { ...readyDraft.script!.cast.find((c) => c.prominence === 'Lead')!, castingGender: 'Female', castingAgeBand: 'Any' };
     const script = { ...readyDraft.script!, cast: [leadCharacter, ...readyDraft.script!.cast.filter((c) => c.id !== leadCharacter.id)] };
     const draft = { ...readyDraft, script, talent: [], talentTargetPriceByRole: { 'Lead Actor': SALARY } };
 

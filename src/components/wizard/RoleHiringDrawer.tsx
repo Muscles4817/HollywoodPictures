@@ -3,7 +3,7 @@ import { useStudio } from '../../state/StudioContext';
 import { ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
 import { TALENT_PRESENTATION, type RoleCategory } from '../../data/talentPresentation';
 import { effectiveRoleCapacity, characterForRoleSlot } from '../../engine/castRequirements';
-import { actorMeetsCharacterGender, castingGenderLabel } from '../../engine/casting';
+import { actorMeetsCharacterGender, personMeetsCharacterAge, castingGenderLabel, castingAgeBandLabel } from '../../engine/casting';
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { deriveBookedUntil, getTypicalSalaryForRole, isAvailableImmediately, getCrewCareer } from '../../engine/person';
@@ -137,7 +137,11 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   // for a role they can't play (matches the reducer's own assignment guard).
   const nextCharacter = draft.script && !atCap ? characterForRoleSlot(draft.script, role, hired.length) : null;
   const candidates = state.talentPool[professionForProductionRole(role)].filter(
-    (t) => !hiredElsewhereIds.has(t.id) && (!nextCharacter || actorMeetsCharacterGender(t.identity.gender, nextCharacter.castingGender)),
+    (t) =>
+      !hiredElsewhereIds.has(t.id) &&
+      (!nextCharacter ||
+        (actorMeetsCharacterGender(t.identity.gender, nextCharacter.castingGender) &&
+          personMeetsCharacterAge(t, nextCharacter, state.totalDays))),
   );
   const showVfxHint = role === 'VFX Supervisor' && draft.genre && VFX_RECOMMENDED_GENRES.has(draft.genre);
   const isActor = profile.category === 'actor';
@@ -308,6 +312,11 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
                 {nextCharacter.castingGender && nextCharacter.castingGender !== 'Any' && (
                   <span className="badge" style={{ marginLeft: 8 }}>
                     {castingGenderLabel(nextCharacter.castingGender)}
+                  </span>
+                )}
+                {nextCharacter.castingAgeBand && nextCharacter.castingAgeBand !== 'Any' && (
+                  <span className="badge" style={{ marginLeft: 8 }} title="The age this role is written for. Casting well outside it is a stretch that costs role-fit; a wildly wrong age can't be cast.">
+                    {castingAgeBandLabel(nextCharacter.castingAgeBand)}
                   </span>
                 )}
               </p>
