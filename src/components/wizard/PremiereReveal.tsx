@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { StarRating } from '../common/StarRating';
 import { Money } from '../common/Money';
-import type { ReviewQuote } from '../../types';
+import { deriveVerdict } from '../../engine/premiereReport';
+import type { OutcomeLabel, ReviewQuote } from '../../types';
 import './PremiereReveal.css';
 
 interface PremiereRevealProps {
@@ -21,19 +22,35 @@ function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 }
 
+/** Slug for the genre-tinted poster gradient (see PremiereReveal.css [data-genre]). */
+function genreSlug(genre: string): string {
+  return genre.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z-]/g, '');
+}
+
+/** Initials for the poster's decorative monogram - the first letter of the first two words. */
+function monogram(title: string): string {
+  const words = title.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '★';
+  const letters = (words.length === 1 ? [words[0]] : [words[0], words[1]]).map((w) => w[0]?.toUpperCase() ?? '');
+  return letters.join('');
+}
+
 /**
- * The "premiere" moment a film debuts - critic and audience reception
- * arriving as two distinct voices (3 quotes each, engine/reviews.ts:
- * pickScoredReviews), settling into the real aggregate scores, then the
- * opening weekend gross, staggered one beat at a time rather than dumped on
- * screen at once. Sits at the top of ReleaseResults.tsx; everything below it
- * (Box Office/Department Breakdown/Studio Report/Brand-Prestige) is
- * unaffected and already visible regardless of how far this has revealed.
- * Plays once per film - this screen is only ever reached once, immediately
- * after SCHEDULE_RELEASE (see WizardSteps.tsx/deriveReachableWizardSteps).
- * Skip jumps straight to the fully-revealed state for anyone who doesn't
- * want to sit through it every release; prefers-reduced-motion gets the
- * same treatment automatically, no staggering at all.
+ * The "premiere" moment a film debuts - the cinematic climax of making it.
+ * A genre-tinted poster and the film's overall verdict anchor the top; the
+ * critic and audience reception then arrive as two distinct voices (3 quotes
+ * each, engine/reviews.ts:pickScoredReviews), settling into the real aggregate
+ * scores, and finally the opening weekend gross lands as the single largest
+ * figure on the page - the payoff beat. Everything is staggered one beat at a
+ * time rather than dumped on screen at once.
+ *
+ * Sits at the top of ReleaseResults.tsx; everything below it (box office,
+ * reception, studio impact, dev panel) is unaffected and already visible
+ * regardless of how far this has revealed. Plays once per film - this screen
+ * is only ever reached once, immediately after SCHEDULE_RELEASE (see
+ * WizardSteps.tsx/deriveReachableWizardSteps). Skip jumps straight to the
+ * fully-revealed state for anyone who doesn't want to sit through it every
+ * release; prefers-reduced-motion gets the same treatment automatically.
  */
 export function PremiereReveal({
   title,
@@ -45,10 +62,12 @@ export function PremiereReveal({
   audienceReviews,
   openingWeekend,
 }: PremiereRevealProps) {
+  const verdict = deriveVerdict((outcome as OutcomeLabel | null) ?? null);
+
   // Interleaved (critic[0], audience[0], critic[1], audience[1], ...) so the
   // two columns visibly build down together rather than one column finishing
-  // before the other starts. Steps: 1 title beat, then one beat per quote,
-  // then the aggregate tally, then the opening weekend figure.
+  // before the other starts. Steps: 1 title/poster beat, then one beat per
+  // quote, then the aggregate tally, then the opening weekend figure.
   const quoteRounds = Math.max(criticReviews.length, audienceReviews.length);
   const totalSteps = 1 + quoteRounds * 2 + 1 + 1;
   const tallyStep = totalSteps - 1;
@@ -70,28 +89,33 @@ export function PremiereReveal({
   const itemClass = (atStep: number) => `premiere-reveal__item ${shown(atStep) ? 'premiere-reveal__item--in' : ''}`;
 
   return (
-    <div className="premiere-reveal card">
+    <div className={`premiere-reveal card premiere-reveal--${verdict.tone}`}>
       {revealing && (
         <button type="button" className="premiere-reveal__skip" onClick={() => setStep(totalSteps)}>
           Skip
         </button>
       )}
 
-      <div className={itemClass(1)}>
-        <h1 style={{ margin: 0 }}>{title}</h1>
-        <p className="premiere-reveal__subtitle">
-          {genre} &middot; Opening Weekend
-          {outcome && (
-            <span className={`badge badge-outcome-${outcome.replace(/\s+/g, '-')}`} style={{ marginLeft: 8 }}>
-              {outcome}
-            </span>
-          )}
-        </p>
+      <div className={`premiere-hero ${itemClass(1)}`}>
+        <div className="premiere-poster" data-genre={genreSlug(genre)} aria-hidden="true">
+          <span className="premiere-poster__mono">{monogram(title)}</span>
+          <span className="premiere-poster__genre">{genre}</span>
+        </div>
+        <div className="premiere-hero__headline">
+          <p className="premiere-hero__eyebrow">Now Playing &middot; {genre}</p>
+          <h1 className="premiere-hero__title">{title}</h1>
+          <div className="premiere-hero__verdict">
+            {outcome && (
+              <span className={`badge badge-outcome-${outcome.replace(/\s+/g, '-')}`}>{outcome}</span>
+            )}
+            <span className="premiere-hero__verdict-line">{verdict.headline}</span>
+          </div>
+        </div>
       </div>
 
       <div className="premiere-reveal__columns">
         <div className="premiere-reveal__column">
-          <h3>Critics</h3>
+          <h3>What the Critics Said</h3>
           {criticReviews.map((quote, i) => (
             <div key={i} className={`premiere-reveal__quote ${itemClass(2 + i * 2)}`}>
               <StarRating value={quote.score} />
@@ -100,7 +124,7 @@ export function PremiereReveal({
           ))}
         </div>
         <div className="premiere-reveal__column">
-          <h3>Audiences</h3>
+          <h3>What Audiences Said</h3>
           {audienceReviews.map((quote, i) => (
             <div key={i} className={`premiere-reveal__quote ${itemClass(3 + i * 2)}`}>
               <StarRating value={quote.score} />
@@ -121,9 +145,9 @@ export function PremiereReveal({
         </div>
       </div>
 
-      <div className={`premiere-reveal__boxoffice ${itemClass(boxOfficeStep)}`}>
+      <div className={`premiere-hero__boxoffice ${itemClass(boxOfficeStep)}`}>
         <div className="stat-label">Opening Weekend</div>
-        <div className="stat-value"><Money amount={openingWeekend} /></div>
+        <div className="premiere-hero__boxoffice-value"><Money amount={openingWeekend} /></div>
       </div>
     </div>
   );

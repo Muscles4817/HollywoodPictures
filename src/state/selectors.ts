@@ -4,7 +4,8 @@ import { totalAttachedPerFilmFees } from '../engine/producers';
 import { computeBoxOfficeBump, computeStudioAwardDeltas } from '../engine/awards';
 import { awardShow } from '../data/awardsShows';
 import { explainBrandChange, explainPrestigeChange } from '../engine/reputation';
-import { WEEK_LENGTH_DAYS } from '../engine/boxOfficeRun';
+import { WEEK_LENGTH_DAYS, filmMarketBreakdown } from '../engine/boxOfficeRun';
+import { deriveStudioMilestones, type MilestoneFacts, type StudioMilestone } from '../engine/premiereReport';
 import { GENRE_PROFILES } from '../data/genres';
 import { AWARD_CATEGORY_LABEL } from '../data/awards';
 import { productionRequirementTags } from '../engine/scriptPresentation';
@@ -100,6 +101,41 @@ export function computeCommittedSpend(draft: FilmDraft | null, producerPool: Per
 export function computeReportedLegs(film: Film): number | null {
   if (film.results.totalBoxOffice === null || film.results.openingWeekend <= 0) return null;
   return film.results.totalBoxOffice / film.results.openingWeekend;
+}
+
+/**
+ * The comparable facts one released Film contributes to the studio's milestone
+ * catalog (engine/premiereReport.ts). Lives here, not in the engine, because it
+ * reaches across selectors (computeReportedLegs) and the box-office split
+ * (filmMarketBreakdown) that the pure engine layer deliberately doesn't depend
+ * on - the engine consumes the plain MilestoneFacts this produces.
+ */
+export function milestoneFactsFromFilm(film: Film): MilestoneFacts {
+  const r = film.results;
+  return {
+    filmId: film.id,
+    title: film.title,
+    day: film.releasedOnDay,
+    finished: film.boxOfficeRun.status === 'finished',
+    outcome: r.outcome,
+    openingWeekend: r.openingWeekend,
+    audienceScore: r.audienceScore,
+    criticScore: r.criticScore,
+    worldwide: r.totalBoxOffice,
+    profit: r.profit,
+    legs: computeReportedLegs(film),
+    prestigeChange: r.prestigeChange,
+    hasInternational: filmMarketBreakdown(film).hasInternational,
+  };
+}
+
+/** Every milestone in the catalog resolved against the player's own released films - the Milestones page's data. */
+export function derivePlayerMilestones(state: GameState): StudioMilestone[] {
+  const facts = state.projects.flatMap((project) => {
+    const film = asFilm(project);
+    return film && film.releasedBy === undefined ? [milestoneFactsFromFilm(film)] : [];
+  });
+  return deriveStudioMilestones(facts);
 }
 
 export interface TopGrossingEntry {

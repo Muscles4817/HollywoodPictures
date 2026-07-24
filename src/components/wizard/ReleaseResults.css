@@ -1,0 +1,219 @@
+/* --- Section framing ---------------------------------------------------- */
+
+.premiere-eyebrow {
+  margin: 0 0 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+/* --- Achievements banner ------------------------------------------------ */
+
+.achievements {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.achievement-chip {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--star) 45%, var(--border));
+  background: color-mix(in srgb, var(--star) 12%, var(--panel));
+}
+
+.achievement-chip__medal {
+  font-size: 1.4rem;
+  line-height: 1.2;
+}
+
+.achievement-chip__label {
+  font-weight: 700;
+}
+
+.achievement-chip__detail {
+  margin: 2px 0 0;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+/* --- Reception read (interpreted critics vs audiences) ------------------ */
+
+.reception-read {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.reception-read__col h3 {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.reception-read__col p {
+  margin: 0;
+  font-size: 1.05em;
+  color: var(--text);
+}
+
+.reception-divergence {
+  margin: 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--primary);
+  background: var(--info-bg);
+  border-radius: 4px;
+  color: var(--text);
+  font-style: italic;
+}
+
+/* --- Strengths & weaknesses -------------------------------------------- */
+
+.insight-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.insight-group h3 {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.insight-group--strength h3 { color: var(--green); }
+.insight-group--weakness h3 { color: var(--red); }
+
+.insight-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.insight-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.insight-item__icon {
+  flex: 0 0 auto;
+  font-size: 0.8em;
+}
+
+.insight-group--strength .insight-item__icon { color: var(--green); }
+.insight-group--weakness .insight-item__icon { color: var(--red); }
+
+.insight-item__dept {
+  font-weight: 600;
+}
+
+.insight-item__note {
+  color: var(--text-muted);
+}
+
+.insight-empty {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* --- Studio impact ------------------------------------------------------ */
+
+.studio-impact__narrative {
+  font-size: 1.05em;
+  color: var(--text);
+  margin: 0;
+}
+
+.studio-standing {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+/* --- Developer / balancing panel --------------------------------------- */
+
+.dev-panel {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--text-muted) 6%, transparent);
+}
+
+.dev-panel > summary {
+  cursor: pointer;
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  list-style: none;
+}
+
+.dev-panel > summary::-webkit-details-marker { display: none; }
+
+.dev-panel > summary::before {
+  content: '▸ ';
+}
+
+.dev-panel[open] > summary::before {
+  content: '▾ ';
+}
+
+.dev-panel__body {
+  padding: 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dev-panel__note {
+  margin: 0;
+  font-size: 0.85em;
+}
+
+.dev-panel__group h4 {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.dev-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px 20px;
+}
+
+.dev-metric {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+  padding: 3px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.dev-metric__label { color: var(--text-muted); }
+.dev-metric__value { font-weight: 600; }
+
+@media (max-width: 640px) {
+  .reception-read,
+  .insight-columns {
+    grid-template-columns: 1fr;
+  }
+}

@@ -51,11 +51,35 @@ function DistributionLine({ film }: { film: Film }) {
   );
 }
 
-/** Domestic vs international geography of the gross (engine/boxOfficeRun.ts:filmMarketBreakdown), plus a nudge about overseas potential left on the table when the film never went international. */
-function MarketBreakdown({ film }: { film: Film }) {
+/**
+ * The "did it draw an audience" half of a film's box office - the headline
+ * reach figures a player reads first: opening weekend, worldwide gross, legs,
+ * and the domestic/international geography (engine/boxOfficeRun.ts:
+ * filmMarketBreakdown), plus a nudge about overseas potential left on the
+ * table when the film never went international. Deliberately free of the
+ * money-in/money-out waterfall (that is FilmFinancials) - "how big was it" and
+ * "what did we keep" are different questions in the player's head.
+ */
+export function FilmPerformance({ film }: { film: Film }) {
+  const r = film.results;
   const markets = filmMarketBreakdown(film);
+  const legs = computeReportedLegs(film);
+  const finished = film.boxOfficeRun.status !== 'running' && r.totalBoxOffice != null;
+
   return (
-    <>
+    <div className="stack" style={{ gap: 10 }}>
+      <div className="row">
+        <StatTile label="Opening Weekend" value={<Money amount={r.openingWeekend} />} />
+        {finished ? (
+          <StatTile label="Worldwide" value={<Money amount={r.totalBoxOffice!} />} />
+        ) : (
+          <>
+            <StatTile label="Gross So Far" value={<Money amount={film.boxOfficeRun.cumulativeGross} />} />
+            <StatTile label="Worldwide" value="Still playing" />
+          </>
+        )}
+        {finished && legs !== null && <StatTile label="Legs" value={`${legs.toFixed(2)}x`} />}
+      </div>
       <div className="row">
         <StatTile label="Domestic" value={<Money amount={markets.domestic} />} />
         <StatTile label="International" value={markets.hasInternational ? <Money amount={markets.international} /> : 'None'} />
@@ -66,53 +90,31 @@ function MarketBreakdown({ film }: { film: Film }) {
           overseas potential went unreached. Build the International Distribution track to capture it.
         </p>
       )}
-    </>
+    </div>
   );
 }
 
 /**
- * The money story of one released film in one place: how it was released and
- * distributed, where the gross came from (domestic vs international), and an
- * exact gross -> your-profit waterfall that makes every deduction legible -
- * the theatrical/international split, a rented distributor's fee
- * (engine/distribution.ts), then production and marketing - rather than
+ * The "what did the studio actually keep" half - how the film was released and
+ * distributed, then an exact gross -> your-profit waterfall that makes every
+ * deduction legible: the theatrical/international split, a rented distributor's
+ * fee (engine/distribution.ts), then production and marketing - rather than
  * leaving the player to reverse-engineer why "Studio's Share" isn't "Profit".
- * Shared by the post-release screen (wizard/ReleaseResults) and the Studio
- * History dossier (common/FilmDetailModal) so both tell the same story the
- * same way.
- *
- * The waterfall is exact against stored FilmResults fields: gross - theatrical
- * split - distributor fee - production - marketing == profit. The theatrical
- * split uses STUDIO_BOX_OFFICE_SHARE; the distributor's fee is whatever the
- * frozen distributionKeepShare took below that (0 for a self-distributed
- * film, where keepShare is the default share).
+ * While the run is still playing, the final split and profit are withheld
+ * (they only settle at the run's end) and only the known costs are shown.
  */
-export function FilmMoneyBreakdown({ film }: { film: Film }) {
+export function FilmFinancials({ film }: { film: Film }) {
   const r = film.results;
   const finished =
     film.boxOfficeRun.status !== 'running' && r.totalBoxOffice != null && r.studioRevenue != null && r.profit != null;
-  const legs = computeReportedLegs(film);
 
   return (
     <div className="stack" style={{ gap: 10 }}>
       <DistributionLine film={film} />
-      <MarketBreakdown film={film} />
-
       {finished ? (
-        <>
-          <div className="row">
-            <StatTile label="Opening Weekend" value={<Money amount={r.openingWeekend} />} />
-            {legs !== null && <StatTile label="Legs" value={`${legs.toFixed(2)}x`} />}
-          </div>
-          <Waterfall film={film} />
-        </>
+        <Waterfall film={film} />
       ) : (
         <>
-          <div className="row">
-            <StatTile label="Opening Weekend" value={<Money amount={r.openingWeekend} />} />
-            <StatTile label="Gross So Far" value={<Money amount={film.boxOfficeRun.cumulativeGross} />} />
-            <StatTile label="Total Box Office" value="Still playing" />
-          </div>
           <div className="row">
             <StatTile label="Production Cost" value={<Money amount={r.productionCost} />} />
             <StatTile label="Marketing Cost" value={<Money amount={r.marketingCost} />} />
@@ -123,6 +125,26 @@ export function FilmMoneyBreakdown({ film }: { film: Film }) {
           </p>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * The money story of one released film in one place - performance (reach) then
+ * financials (the gross -> profit waterfall). Shared by the Studio History
+ * dossier (common/FilmDetailModal); the post-release Premiere screen
+ * (wizard/ReleaseResults) instead places FilmPerformance and FilmFinancials in
+ * two distinct cards, since "how big was it" and "what did we keep" are
+ * different questions the player asks at different moments.
+ *
+ * The waterfall is exact against stored FilmResults fields: gross - theatrical
+ * split - distributor fee - production - marketing == profit.
+ */
+export function FilmMoneyBreakdown({ film }: { film: Film }) {
+  return (
+    <div className="stack" style={{ gap: 16 }}>
+      <FilmPerformance film={film} />
+      <FilmFinancials film={film} />
     </div>
   );
 }

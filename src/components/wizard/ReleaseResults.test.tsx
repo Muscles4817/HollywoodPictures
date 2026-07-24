@@ -14,7 +14,7 @@
 // class can't recur structurally, but the regression coverage stays as a
 // pin on the observable behavior.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { StudioProvider } from '../../state/StudioContext';
 import { ReleaseResults } from './ReleaseResults';
 import { studioReducer } from '../../state/studioReducer';
@@ -95,5 +95,48 @@ describe('ReleaseResults - Premiere Reveal replaces the old flat Reception/Revie
       expect(screen.getByText(`“${quote.text}”`)).toBeInTheDocument();
     }
     expect(screen.queryByRole('heading', { name: 'Reviews' })).not.toBeInTheDocument();
+  });
+});
+
+describe('ReleaseResults - story-ordered redesign moves raw numbers into a dev panel', () => {
+  it('renders the story-beat sections after a finished release', () => {
+    const released = studioReducer(buildStateWithReadyDraft(7), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    const finished = advanceDays(released, MAX_SIMULATION_WEEKS * 7 + 7);
+    expect(playerReleasedFilms(finished.projects)[0].boxOfficeRun.status).toBe('finished');
+    saveState(finished);
+    render(
+      <StudioProvider>
+        <ReleaseResults />
+      </StudioProvider>,
+    );
+
+    // Box office is split into "how it drew" vs "what you kept".
+    expect(screen.getByText('Box Office — Performance')).toBeInTheDocument();
+    expect(screen.getByText('Box Office — Financials')).toBeInTheDocument();
+    // Qualitative reaction + studio story replace the old numeric bars.
+    expect(screen.getByText('The Reaction')).toBeInTheDocument();
+    expect(screen.getByText('Studio Impact')).toBeInTheDocument();
+  });
+
+  it('keeps quality/buzz/department numbers out of the main page and inside the collapsed dev panel', () => {
+    const released = studioReducer(buildStateWithReadyDraft(8), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    const finished = advanceDays(released, MAX_SIMULATION_WEEKS * 7 + 7);
+    saveState(finished);
+    render(
+      <StudioProvider>
+        <ReleaseResults />
+      </StudioProvider>,
+    );
+
+    // The old player-facing "Quality Score"/"Buzz Score" bars are gone.
+    expect(screen.queryByText('Quality Score')).not.toBeInTheDocument();
+    expect(screen.queryByText('Buzz Score')).not.toBeInTheDocument();
+
+    // The balancing panel exists and carries the raw numbers instead.
+    const panel = screen.getByText('Developer · Balancing Values').closest('details') as HTMLElement;
+    expect(panel).toBeTruthy();
+    expect(within(panel).getByText('Quality')).toBeInTheDocument();
+    expect(within(panel).getByText('Buzz')).toBeInTheDocument();
+    expect(within(panel).getByText('Screenplay')).toBeInTheDocument();
   });
 });

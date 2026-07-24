@@ -2185,6 +2185,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'VIEW_IP_LIBRARY':
       return { ...state, screen: 'ip-library', ...clearTransientView() };
 
+    // Dashboard -> the studio's milestones/records page. Pure detour, same as VIEW_STATS.
+    case 'VIEW_MILESTONES':
+      return { ...state, screen: 'milestones', ...clearTransientView() };
+
     // First IP-layer milestone - promote one of the player's own released
     // Films into a persistent IntellectualProperty (engine/intellectualProperty.ts),
     // referencing the Film by id and lifting the chosen Characters + Setting
