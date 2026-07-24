@@ -81,6 +81,9 @@ const RELEASE_TYPE_DESCRIPTIONS = pluckDescriptions(RELEASE_TYPE_PROFILES);
 // way an independently-picked one used to.
 // A modest starter split (mostly trailers) - the player reallocates from here.
 const DEFAULT_CHANNEL_SPEND: ChannelSpend = { trailers: 2_000_000, tv: 0, digital: 1_000_000, press: 0 };
+// No self-marketing at all - what a distributor deal leaves the studio with,
+// since the distributor funds and runs the whole campaign itself.
+const CHANNEL_SPEND_ZERO: ChannelSpend = { trailers: 0, tv: 0, digital: 0, press: 0 };
 
 const DEFAULT_CHOICES: MarketingChoices = {
   channelSpend: DEFAULT_CHANNEL_SPEND,
@@ -251,9 +254,6 @@ export function MarketingRelease() {
   function update<K extends keyof MarketingChoices>(key: K, value: MarketingChoices[K]) {
     dispatch({ type: 'SET_MARKETING_CHOICES', choices: { ...choices, [key]: value } });
   }
-  function updateChoices(patch: Partial<MarketingChoices>) {
-    dispatch({ type: 'SET_MARKETING_CHOICES', choices: { ...choices, ...patch } });
-  }
 
   const channelSpend: ChannelSpend = choices.channelSpend ?? DEFAULT_CHANNEL_SPEND;
   // Adjusting a channel keeps marketingSpend (the canonical total the cost and
@@ -289,6 +289,39 @@ export function MarketingRelease() {
   // folded into the live opening projection below and frozen at SCHEDULE_RELEASE.
   const armTier = distributionArmTier(state.studio);
   const canSelfWide = canSelfDistributeWide(state.studio);
+
+  // Whether a proposed set of choices resolves to a distributor-funded Wide
+  // deal - the same gate `onDistributorDeal` derives below (via requestedMethod
+  // /distributionMethod), but evaluated against an arbitrary choices object so a
+  // pending change can be normalized before it lands in state.
+  function resolvesToDistributorDeal(next: MarketingChoices): boolean {
+    if (next.releaseType !== 'Wide') return false;
+    const method = next.distributionMethod ?? defaultDistributionMethod(next.releaseType, state.studio);
+    const effective = method === 'self' && !canSelfWide ? 'distributor' : method;
+    return effective === 'distributor';
+  }
+
+  // Apply a change to the marketing choices, reconciling the studio's own
+  // self-marketing spend with the distribution method. Under a distributor deal
+  // the distributor funds and runs the campaign, so the player's channel spend is
+  // meaningless - clear it so that money is returned to the budget rather than
+  // lingering, hidden, behind the distributor card (the channel sliders vanish
+  // but the spend used to stay in the draft). Leaving a deal - back to
+  // self-distribution, or a Limited/Festival release - restores the default
+  // starter split so the player isn't silently stranded at zero marketing.
+  function commitChoices(patch: Partial<MarketingChoices>) {
+    const next: MarketingChoices = { ...choices, ...patch };
+    const wasDeal = resolvesToDistributorDeal(choices);
+    const nowDeal = resolvesToDistributorDeal(next);
+    if (nowDeal) {
+      next.channelSpend = CHANNEL_SPEND_ZERO;
+      next.marketingSpend = 0;
+    } else if (wasDeal) {
+      next.channelSpend = DEFAULT_CHANNEL_SPEND;
+      next.marketingSpend = totalMarketingSpend(DEFAULT_CHANNEL_SPEND);
+    }
+    dispatch({ type: 'SET_MARKETING_CHOICES', choices: next });
+  }
   // International reach is frozen at SCHEDULE_RELEASE from the studio's current
   // International Distribution tier - shown here so the player knows, before
   // committing, whether this release will earn overseas box office at all.
@@ -586,7 +619,7 @@ export function MarketingRelease() {
         label="Release Type"
         options={RELEASE_TYPES}
         value={choices.releaseType}
-        onChange={(v) => update('releaseType', v)}
+        onChange={(v) => commitChoices({ releaseType: v })}
         descriptions={RELEASE_TYPE_DESCRIPTIONS}
       />
 
@@ -608,7 +641,7 @@ export function MarketingRelease() {
                   key={offer.id}
                   type="button"
                   className={`distributor-offer${isSelected ? ' distributor-offer--selected' : ''}`}
-                  onClick={() => updateChoices({ distributionMethod: 'distributor', selectedDistributorId: offer.id })}
+                  onClick={() => commitChoices({ distributionMethod: 'distributor', selectedDistributorId: offer.id })}
                 >
                   <div className="row-between">
                     <strong>{offer.name}</strong>
@@ -625,7 +658,7 @@ export function MarketingRelease() {
               className={`distributor-offer${!onDistributorDeal ? ' distributor-offer--selected' : ''}${!canSelfWide ? ' distributor-offer--disabled' : ''}`}
               disabled={!canSelfWide}
               title={!canSelfWide ? 'Build a Distribution Arm (on the Dashboard) to self-distribute Wide releases.' : undefined}
-              onClick={() => canSelfWide && update('distributionMethod', 'self')}
+              onClick={() => canSelfWide && commitChoices({ distributionMethod: 'self' })}
             >
               <div className="row-between">
                 <strong>Self-Distribute</strong>

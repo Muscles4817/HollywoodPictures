@@ -98,6 +98,89 @@ describe('MarketingRelease - press tour', () => {
   });
 });
 
+describe('MarketingRelease - distributor deal clears self-marketing', () => {
+  /**
+   * A release-ready Wide, self-distributed state with the player's own channel
+   * campaign set - the situation before they hand the film to a distributor.
+   * The fixture studio owns a distribution arm, so a Wide release defaults to
+   * self-distribution; the channel sliders are shown and its spend is charged.
+   */
+  function stateWithSelfMarketedWide(): GameState {
+    const base = stateWithScreening(true);
+    const draft = asPlayerDraft(findProject(base.projects, base.focusedProjectId))!;
+    const patched = {
+      ...draft,
+      marketingChoices: {
+        ...draft.marketingChoices!,
+        releaseType: 'Wide' as const,
+        distributionMethod: 'self' as const,
+        channelSpend: { trailers: 5_000_000, tv: 3_000_000, digital: 2_000_000, press: 0 },
+        marketingSpend: 10_000_000,
+      },
+    };
+    return { ...base, projects: [{ kind: 'player-in-progress', draft: patched }] } as GameState;
+  }
+
+  /** The non-self-distribute offer buttons in the Distribution card. */
+  function distributorOfferButtons(): HTMLButtonElement[] {
+    return Array.from(document.querySelectorAll<HTMLButtonElement>('button.distributor-offer')).filter(
+      (b) => !b.textContent?.includes('Self-Distribute'),
+    );
+  }
+
+  it('zeroes the channel spend (returning the money to the budget) when a distributor is picked', () => {
+    dispatch.mockClear();
+    mockState = stateWithSelfMarketedWide();
+    render(<MarketingRelease />);
+
+    const offers = distributorOfferButtons();
+    expect(offers.length).toBeGreaterThan(0);
+    fireEvent.click(offers[0]);
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'SET_MARKETING_CHOICES',
+        choices: expect.objectContaining({
+          distributionMethod: 'distributor',
+          marketingSpend: 0,
+          channelSpend: { trailers: 0, tv: 0, digital: 0, press: 0 },
+        }),
+      }),
+    );
+  });
+
+  it('restores the default self-marketing split when a distributor deal is abandoned for a Limited release', () => {
+    dispatch.mockClear();
+    const base = stateWithScreening(true);
+    const draft = asPlayerDraft(findProject(base.projects, base.focusedProjectId))!;
+    const patched = {
+      ...draft,
+      marketingChoices: {
+        ...draft.marketingChoices!,
+        releaseType: 'Wide' as const,
+        distributionMethod: 'distributor' as const,
+        channelSpend: { trailers: 0, tv: 0, digital: 0, press: 0 },
+        marketingSpend: 0,
+      },
+    };
+    mockState = { ...base, projects: [{ kind: 'player-in-progress', draft: patched }] } as GameState;
+    render(<MarketingRelease />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limited' }));
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'SET_MARKETING_CHOICES',
+        choices: expect.objectContaining({
+          releaseType: 'Limited',
+          marketingSpend: 3_000_000,
+          channelSpend: { trailers: 2_000_000, tv: 0, digital: 1_000_000, press: 0 },
+        }),
+      }),
+    );
+  });
+});
+
 describe('MarketingRelease - projected opening tracking band', () => {
   it('shows the projection as a range with a baseline note nudging Market Research when the studio has none', () => {
     mockState = stateWithResearch(null); // no office, no research
