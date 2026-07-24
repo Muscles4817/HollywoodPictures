@@ -4,9 +4,15 @@
  * A film is scored on three axes - LOOK (how it looks), SOUND (how it sounds),
  * FEEL (how it makes you feel) - each 0-100, each with clear role owners:
  *
- *   LOOK  <- Cinematographer (dominant) + Set design + realised VFX + practical + Director
- *   SOUND <- Composer + Sound Designer (a NEW role) + Director
- *   FEEL  <- Script + Acting + Direction + Editor (pacing) + Composer (emotion)
+ *   LOOK  <- Cinematographer (dominant) + Set design + realised VFX + practical
+ *   SOUND <- Composer + Sound Designer (a NEW role)
+ *   FEEL  <- Script + Acting + Editor (pacing) + Composer (emotion)
+ *
+ * The DIRECTOR is not an axis owner - they are the unlocker: director skill gates
+ * how much of each raw axis is realised (most on Feel, least on Sound), the same
+ * way engine/actingModel.ts already has a director unlock a performance. This
+ * keeps the Director the single most impactful hire while every craft role owns
+ * its department.
  *
  * The three axes fuse into three DIFFERENT reader scores via one mechanism - a
  * weighted power mean, whose exponent `p` sets the temperament:
@@ -55,6 +61,22 @@ const CRITIC_ORIGINALITY_PULL = 0.12; // critics reward script originality
 const CRITIC_SPECTACLE_DISCOUNT = 0.06; // ...and are a little cold on pure spectacle
 const AUDIENCE_SPECTACLE_PULL = 0.12; // audiences enjoy spectacle for its own sake
 
+// Director-as-unlocker. The Director is NOT a co-owner contributing raw craft to
+// an axis - they are the force that determines how much of each department's
+// craft is realised (generalising engine/actingModel.ts, where a director
+// unlocks a performance's headroom). Each axis's realised value =
+//   raw * (floor + (ceil - floor) * directorRatio)
+// where directorRatio is the direction score / 100. A terrible director suppresses
+// each axis toward its `floor` multiplier; a great one lifts it to `ceil` (which
+// can exceed 1 - a great director genuinely elevates, not merely preserves). Feel
+// is the most director-dependent (performances, pacing, tone); a cinematographer
+// and composer are more self-sufficient, so Look/Sound are gated more gently.
+const DIRECTOR_UNLOCK: Record<keyof FilmAxes, { floor: number; ceil: number }> = {
+  feel: { floor: 0.48, ceil: 1.22 },
+  look: { floor: 0.66, ceil: 1.12 },
+  sound: { floor: 0.7, ceil: 1.12 },
+};
+
 interface FilmAxes {
   look: number;
   sound: number;
@@ -80,17 +102,21 @@ function crewSkill(talent: TalentAssignment[], role: CrewRole): number {
 }
 
 /**
- * Derive the three perceptual axes from the same signals the real engine
- * already produces (Principle 7: reuse, don't reinvent). Sound Designer isn't a
- * real role yet, so its skill is passed in explicitly.
+ * Raw department craft on each axis - what each department delivers BEFORE the
+ * director determines how much of it is realised. No director term here; the
+ * director enters as a separate unlocker (applyDirection). Derived from the same
+ * signals the real engine already produces (Principle 7: reuse, don't reinvent).
+ * Sound Designer isn't a real role yet, so its skill is passed in explicitly.
+ * (Note: computeActingScore already folds in the director's per-performance
+ * unlock, so Feel carries a little director dependence even before applyDirection
+ * - an accepted overlap in this prototype.)
  */
-function computeAxes(draft: FilmDraft, soundDesignerSkill = 50): FilmAxes {
+function computeRawAxes(draft: FilmDraft, soundDesignerSkill = 50): FilmAxes {
   const script = draft.script!;
   const talent = draft.talent;
   const choices = draft.productionChoices!;
 
   const story = computeScriptScore(script);
-  const direction = computeDirectionScore(talent, script);
   const acting = computeActingScore(talent, script);
   const editor = crewSkill(talent, 'Editor');
   const composer = crewSkill(talent, 'Composer');
@@ -99,14 +125,20 @@ function computeAxes(draft: FilmDraft, soundDesignerSkill = 50): FilmAxes {
   const practical = practicalEffectsScore(choices.practicalEffectsAmount);
   const realizedVfx = realizedVfxScore(choices.vfxAmount, crewSkill(talent, 'VFX Supervisor'));
 
-  // FEEL - story + performance heavy; the editor shapes pacing/clarity, the
-  // composer lends emotion.
-  const feel = clamp(story * 0.3 + acting * 0.3 + direction * 0.2 + editor * 0.15 + composer * 0.05, 0, 100);
+  // FEEL - story + performance heavy; the editor shapes pacing/clarity, the composer lends emotion.
+  const feel = clamp(story * 0.35 + acting * 0.35 + editor * 0.22 + composer * 0.08, 0, 100);
   // LOOK - the cinematographer is the dominant voice; sets and VFX fill it in.
-  const look = clamp(cinematography * 0.42 + set * 0.2 + realizedVfx * 0.18 + practical * 0.1 + direction * 0.1, 0, 100);
-  // SOUND - composer + the new sound designer own it.
-  const sound = clamp(composer * 0.55 + soundDesignerSkill * 0.35 + direction * 0.1, 0, 100);
+  const look = clamp(cinematography * 0.44 + set * 0.24 + realizedVfx * 0.2 + practical * 0.12, 0, 100);
+  // SOUND - composer leads, the new sound designer a strong second.
+  const sound = clamp(composer * 0.55 + soundDesignerSkill * 0.45, 0, 100);
   return { look, sound, feel };
+}
+
+/** The Director determines how much of each raw axis is realised - the unlocker. `directionScore` is computeDirectionScore (0-100). */
+function applyDirection(raw: FilmAxes, directionScore: number): FilmAxes {
+  const r = clamp(directionScore, 0, 100) / 100;
+  const gate = (v: number, u: { floor: number; ceil: number }) => clamp(v * (u.floor + (u.ceil - u.floor) * r), 0, 100);
+  return { look: gate(raw.look, DIRECTOR_UNLOCK.look), sound: gate(raw.sound, DIRECTOR_UNLOCK.sound), feel: gate(raw.feel, DIRECTOR_UNLOCK.feel) };
 }
 
 function qualityScore(a: FilmAxes): number {
@@ -182,7 +214,7 @@ function buildBaseline(rng: RandomFn): FilmDraft {
 
 /** Score a draft through the prototype (neutral shoot - the model's structural sensitivity). */
 function scoreDraft(draft: FilmDraft, genre: Genre, soundDesignerSkill: number) {
-  const axes = computeAxes(draft, soundDesignerSkill);
+  const axes = applyDirection(computeRawAxes(draft, soundDesignerSkill), computeDirectionScore(draft.talent, draft.script!));
   const spectacle = realizedVfxScore(draft.productionChoices!.vfxAmount, crewSkill(draft.talent, 'VFX Supervisor'));
   return {
     axes,
