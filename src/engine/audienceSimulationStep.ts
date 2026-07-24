@@ -607,6 +607,29 @@ const MAX_WEEKLY_EXPANSION_POINTS = 0.12;
 // file.
 const COMPETITIVE_PRESSURE_WEIGHT = 0.05;
 
+// Attention competition (docs/DESIGN_box_office_calibration_targets.md §6a, the
+// "audience competition" level, distinct from the exhibition-access level
+// COMPETITIVE_PRESSURE_WEIGHT drives above). Two films can both have seats to
+// spare and still cannibalise each other: viewers pick the bigger release this
+// weekend. So a film's own weekly CONVERSION is suppressed in proportion to how
+// out-gunned it is on its window - competitivePressure is now relative (the
+// matchup weighting in engine/releaseCrowding.ts: a film stronger than its
+// neighbours barely feels it, a weaker one feels it hard). This is the lever
+// that redistributes gross - a persistently out-gunned film converts too little
+// each week to clear its own stopping rule and leaves theatres sooner, its
+// audience effectively captured by the stronger films sharing its window.
+//
+// Deliberately a DEMAND suppressor, not a pool shrinker: the un-converted stay
+// in interestedRemaining (never destroyed - they may convert once the
+// competition clears), exactly like the availability gate. That is what keeps
+// this WOM-safe: fewer admissions this week only ever LOWER next week's
+// word-of-mouth signal, never raise it, so unlike a smaller interested pool it
+// cannot amplify the reproduction loop (the funnel-recalibration coupling this
+// whole reorder was meant to avoid). ATTENTION_FLOOR caps the worst-case
+// suppression so even a maximally out-gunned film still sells something.
+const ATTENTION_COMPETITION_WEIGHT = 0.55;
+const ATTENTION_FLOOR = 0.25;
+
 export function computeNextAvailability(
   fixed: AudienceSimulationFixedState,
   currentAvailability: number,
@@ -807,8 +830,16 @@ export function advanceOneWeekWithDiagnostics(
   // (docs/DESIGN.md 5.34): WOM would create the backlog and drain it in
   // the same motion, rather than pull-forward genuinely just shifting
   // *timing* of demand that already existed.
-  const ticketsFromExistingPool = sellTicketsThisWeek(priorWeek.interestedRemaining, attendanceProbability);
-  const ticketsFromNewInterest = sellTicketsThisWeek(newInterestThisWeek, baselineAttendanceProbability);
+  // Step 8.5: attention competition suppresses this week's conversion for a film
+  // out-gunned on its window (see ATTENTION_COMPETITION_WEIGHT). Applied to both
+  // the pulled-forward backlog and this week's new interest, so a weaker film
+  // loses part of every week's audience to stronger neighbours. The un-converted
+  // simply remain interested (unconstrainedDemand is smaller, the pool update
+  // below never subtracts them out), so this shifts/loses admissions without
+  // ever shrinking the interested pool - the WOM-safe redistribution lever.
+  const attentionFactor = clamp(1 - ATTENTION_COMPETITION_WEIGHT * competitivePressure, ATTENTION_FLOOR, 1);
+  const ticketsFromExistingPool = sellTicketsThisWeek(priorWeek.interestedRemaining, attendanceProbability * attentionFactor);
+  const ticketsFromNewInterest = sellTicketsThisWeek(newInterestThisWeek, baselineAttendanceProbability * attentionFactor);
   const unconstrainedDemand = ticketsFromExistingPool + ticketsFromNewInterest;
 
   // Step 9.5: availability gates unconstrained demand down to what this

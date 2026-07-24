@@ -56,6 +56,7 @@ const AUDIENCE_MATCH_BONUS = 0.3;
 export function computeCompetitiveCrowding(
   candidate: Omit<UpcomingRelease, 'strength'>,
   known: UpcomingRelease[],
+  candidateStrength?: number,
 ): number {
   const total = known.reduce((sum, other) => {
     const daysApart = Math.abs(candidate.releaseDay - other.releaseDay);
@@ -65,13 +66,35 @@ export function computeCompetitiveCrowding(
     const genreOverlap = candidate.genre === other.genre ? GENRE_MATCH_WEIGHT : GENRE_MISMATCH_WEIGHT;
     const audienceBonus = candidate.targetAudience === other.targetAudience ? AUDIENCE_MATCH_BONUS : 0;
 
-    return sum + proximity * (genreOverlap + audienceBonus) * other.strength;
+    return sum + proximity * (genreOverlap + audienceBonus) * other.strength * matchupWeight(candidateStrength, other.strength);
   }, 0);
 
   // Several strong, close, same-genre competitors saturate the penalty
   // rather than compounding past it - crowding is a fraction of screen
   // access lost, it can't take away more than all of it.
   return Math.max(0, Math.min(1, total));
+}
+
+// The relative-strength matchup (docs/DESIGN_box_office_calibration_targets.md
+// §6b): how much `other` actually displaces `candidate`, given their relative
+// strength. Pure share-of-strength - `other`'s pull as a fraction of the two
+// combined, doubled so that evenly-matched films (0.5 share) reproduce the old
+// absolute weighting (1.0) while a candidate much stronger than `other` feels
+// almost nothing (-> 0, it displaces `other` instead) and a much weaker one
+// feels up to double (-> 2). This is the single primitive that turns crowding
+// from "how much competition is nearby" into "am I the one being pushed out, or
+// the one doing the pushing," reused identically by the AI's own release-window
+// choice (engine/rivalStudios.ts) once it passes its candidate's strength too.
+//
+// `candidateStrength` undefined preserves the old candidate-blind absolute
+// behaviour verbatim (weight 1) - the callers that haven't yet been given a
+// candidate strength to reason about (the pre-release player warning) keep
+// exactly their current numbers until they opt in.
+function matchupWeight(candidateStrength: number | undefined, otherStrength: number): number {
+  if (candidateStrength === undefined) return 1;
+  const combined = candidateStrength + otherStrength;
+  if (combined <= 0) return 1;
+  return Math.max(0, Math.min(2, (2 * otherStrength) / combined));
 }
 
 function marketingStrengthFraction(marketingSpend: number): number {
