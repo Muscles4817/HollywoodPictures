@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { collectBidNotifications, unreadBidCount, markAllBidNotificationsRead } from './bidNotifications';
+import { collectBidNotifications, unreadBidCount, markAllBidNotificationsRead, timeCriticalUnreadBidCount } from './bidNotifications';
 import type { ResolvedBid } from './opportunities';
 import type { BidNotification, Opportunity, OpportunityBid } from '../types';
 
@@ -114,5 +114,48 @@ describe('unreadBidCount / markAllBidNotificationsRead', () => {
     const marked = markAllBidNotificationsRead(notes);
     expect(unreadBidCount(marked)).toBe(0);
     expect(markAllBidNotificationsRead(marked)).toBe(marked);
+  });
+});
+
+describe('timeCriticalUnreadBidCount (the auto-pause / resume-guard trigger)', () => {
+  const outbidNote = (opportunityId: string, read: boolean): BidNotification => ({
+    id: `n-${opportunityId}`,
+    kind: 'outbid',
+    opportunityId,
+    scriptTitle: 'X',
+    amount: 900,
+    rivalName: 'Rival',
+    day: 5,
+    read,
+  });
+
+  it('counts an unread outbid on a still-open auction the player is still behind on', () => {
+    const o = opp('o1', 'X', [['player', 'Silver Reel', 500], ['rival', 'Rival', 900]]);
+    expect(timeCriticalUnreadBidCount([outbidNote('o1', false)], [o], 10)).toBe(1);
+  });
+
+  it('ignores a read outbid (the player has already seen it)', () => {
+    const o = opp('o1', 'X', [['rival', 'Rival', 900]]);
+    expect(timeCriticalUnreadBidCount([outbidNote('o1', true)], [o], 10)).toBe(0);
+  });
+
+  it('ignores won/lost - informational, nothing left to do, must not pause the sim', () => {
+    const won: BidNotification = { id: 'w', kind: 'won', opportunityId: 'o1', scriptTitle: 'X', amount: 1, day: 5, read: false };
+    const lost: BidNotification = { id: 'l', kind: 'lost', opportunityId: 'o2', scriptTitle: 'Y', amount: 1, day: 5, read: false };
+    expect(timeCriticalUnreadBidCount([won, lost], [], 10)).toBe(0);
+  });
+
+  it('ignores an outbid whose auction has already closed (expiresOnDay passed)', () => {
+    const o = opp('o1', 'X', [['rival', 'Rival', 900]]); // opp helper sets expiresOnDay 100
+    expect(timeCriticalUnreadBidCount([outbidNote('o1', false)], [o], 150)).toBe(0);
+  });
+
+  it('ignores an outbid where the player has since retaken the lead', () => {
+    const o = opp('o1', 'X', [['rival', 'Rival', 500], ['player', 'Silver Reel', 900]]);
+    expect(timeCriticalUnreadBidCount([outbidNote('o1', false)], [o], 10)).toBe(0);
+  });
+
+  it('ignores an outbid whose opportunity is no longer in the pool at all', () => {
+    expect(timeCriticalUnreadBidCount([outbidNote('gone', false)], [], 10)).toBe(0);
   });
 });

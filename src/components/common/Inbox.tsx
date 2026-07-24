@@ -5,11 +5,19 @@ import { OnSetDecisionCard } from './OnSetDecisionCard';
 import { backgroundedPlayerDrafts, deriveInboxItems, isParkedActionable } from '../../engine/project';
 import { highestBid } from '../../engine/opportunities';
 import { responsesForPolarity } from '../../engine/pressTourMoments';
+import { unacknowledgedAwardHighlights } from '../../state/selectors';
 import type { BidNotification } from '../../types';
 
 interface InboxProps {
   open: boolean;
   onClose: () => void;
+  /**
+   * Opens the released-film dossier (components/common/FilmDetailModal.tsx) for
+   * a finished box-office run - the Inbox routes the player there rather than
+   * reproducing the numbers. Wired from App.tsx, which owns the dossier overlay
+   * (the same local-state pattern Dashboard/StatsPage already use to show it).
+   */
+  onViewFilmDossier?: (filmId: string) => void;
 }
 
 /**
@@ -52,7 +60,7 @@ interface InboxProps {
  * same way the Dashboard's manual pause button already does - a slow
  * decision in here shouldn't cost the player time either.
  */
-export function Inbox({ open, onClose }: InboxProps) {
+export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
   const { state, dispatch } = useStudio();
   if (!open) return null;
 
@@ -63,16 +71,21 @@ export function Inbox({ open, onClose }: InboxProps) {
   // (ProductionRun.tsx/MarketingRelease.tsx) is where it belongs, not the
   // Inbox. The exact same derivation Header.tsx's badge count reads
   // (engine/project.ts:inboxBadgeCount), so the two can never drift apart.
-  const { awaitingChoice, wrapped, parked, casting, pressTourIncidents, nowPlaying } = deriveInboxItems(state.projects, state.focusedProjectId);
+  const { awaitingChoice, wrapped, parked, casting, pressTourIncidents, nowPlaying, boxOfficeFinished } = deriveInboxItems(state.projects, state.focusedProjectId);
+  // Recently-resolved award ceremonies the player hasn't clicked through yet
+  // (state/selectors.ts) - awards settle silently in the background tick, so
+  // this is the Inbox's "Awards night" catch-up beat.
+  const awardHighlights = unacknowledgedAwardHighlights(state);
   // Every backgrounded draft, regardless of category - the "N productions
   // in the background" reassurance line below, distinct from badgeCount
   // (only the ones actually needing attention).
   const productions = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
   // Kept in lockstep with engine/project.ts:inboxBadgeCount - only ACTIONABLE
   // parked films count (a film still waiting on its test screening renders a
-  // card below but must not keep the badge lit), plus unwatched premieres.
+  // card below but must not keep the badge lit), plus unwatched premieres and
+  // unreviewed finished runs.
   const badgeCount =
-    awaitingChoice.length + wrapped.length + parked.filter(isParkedActionable).length + casting.length + pressTourIncidents.length + nowPlaying.length;
+    awaitingChoice.length + wrapped.length + parked.filter(isParkedActionable).length + casting.length + pressTourIncidents.length + nowPlaying.length + boxOfficeFinished.length;
 
   // Bid "emails" (engine/bidNotifications.ts) - stored newest-first. An
   // 'outbid' is still actionable only while its opportunity is genuinely live
@@ -101,7 +114,7 @@ export function Inbox({ open, onClose }: InboxProps) {
     onClose();
   };
 
-  const nothingAtAll = badgeCount === 0 && bidNotifications.length === 0;
+  const nothingAtAll = badgeCount === 0 && bidNotifications.length === 0 && awardHighlights.length === 0;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -147,6 +160,67 @@ export function Inbox({ open, onClose }: InboxProps) {
             })}
           </div>
         )}
+
+        {boxOfficeFinished.map((film) => {
+          // Informational catch-up: the run is over, nothing is blocked. Brief
+          // qualitative summary here, then route to the film's own dossier
+          // (FilmDetailModal) for the full breakdown - the Inbox is a catch-up
+          // surface, not a second results screen. Opening the dossier is what
+          // marks it reviewed (ACKNOWLEDGE_BOX_OFFICE_RESULTS), so it stays
+          // unread until the player actually looks.
+          const outcome = film.results.outcome;
+          return (
+            <div className="card stack" key={`${film.id}-box-office`}>
+              <span className="dashboard-section-kicker">Box office</span>
+              <div className="card-title">🎬 {film.title || 'Untitled Film'} has finished its run</div>
+              {outcome && (
+                <div>
+                  <span className={`badge badge-outcome-${outcome.replace(/\s+/g, '-')}`}>{outcome}</span>
+                </div>
+              )}
+              <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+                Its theatrical run is over
+                {film.results.totalBoxOffice != null ? <> at <Money amount={film.results.totalBoxOffice} /></> : null}. Take
+                a look at how it played out.
+              </p>
+              <div>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    dispatch({ type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS', filmId: film.id });
+                    onViewFilmDossier?.(film.id);
+                  }}
+                >
+                  View box office
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+
+        {awardHighlights.map((highlight) => (
+          <div className="card stack" key={highlight.id}>
+            <span className="dashboard-section-kicker">Awards night</span>
+            <div className="card-title">🏆 {highlight.showName} · Year {highlight.year}</div>
+            <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+              {highlight.wins > 0 ? `${highlight.wins} win${highlight.wins === 1 ? '' : 's'} from ` : ''}
+              {highlight.nominations} nomination{highlight.nominations === 1 ? '' : 's'}
+              {highlight.payout > 0 ? <> — <Money amount={highlight.payout} /> in prize money</> : null}.
+            </p>
+            <div>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  dispatch({ type: 'ACKNOWLEDGE_AWARD_CEREMONY', ceremonyId: highlight.id });
+                  dispatch({ type: 'VIEW_AWARDS' });
+                  onClose();
+                }}
+              >
+                View awards
+              </Button>
+            </div>
+          </div>
+        ))}
 
         {nowPlaying.map((film) => (
           <div className="card stack" key={film.id}>

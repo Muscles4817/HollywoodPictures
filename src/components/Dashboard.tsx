@@ -7,7 +7,6 @@ import { StatTile } from './common/StatTile';
 import { Money } from './common/Money';
 import { GameGuide } from './common/GameGuide';
 import { BoxOfficeChart } from './common/BoxOfficeChart';
-import { BoxOfficeFinishedPopup } from './common/BoxOfficeFinishedPopup';
 import { FilmDetailModal } from './common/FilmDetailModal';
 import { ReputationHistoryModal } from './common/ReputationHistoryModal';
 import { CashHistoryModal } from './common/CashHistoryModal';
@@ -100,9 +99,6 @@ export function Dashboard() {
     .sort((a, b) => a.releaseDay - b.releaseDay);
 
   const runningFilms = playerReleasedFilms.filter((film) => film.boxOfficeRun.status === 'running');
-  const unacknowledgedFinished = playerReleasedFilms.find(
-    (film) => film.boxOfficeRun.status === 'finished' && !film.boxOfficeRun.acknowledged,
-  );
 
   const attentionDrafts = backgroundedDrafts.filter((production) => {
     const status = production.photography?.status;
@@ -324,7 +320,6 @@ export function Dashboard() {
 
   return (
     <div className="dashboard-page">
-      {unacknowledgedFinished && <BoxOfficeFinishedPopup film={unacknowledgedFinished} />}
       {selectedFilm && <FilmDetailModal film={selectedFilm} onClose={() => setSelectedFilm(null)} />}
       {showReputationHistory && (
         <ReputationHistoryModal events={deriveReputationHistory(state)} onClose={() => setShowReputationHistory(false)} />

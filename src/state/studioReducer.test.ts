@@ -9,7 +9,7 @@ import { computeTalentCost, computeProductionBudgetCost } from '../engine/cost';
 import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, footageLowerBound, footageUpperBound } from '../engine/production';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
 import { generateTalentPool, generateTalentCandidates } from '../engine/talentGenerator';
-import { playerDraftToProject, playerReleasedFilms, findProject, filmToProject, asFilm, asScheduled, asPlayerDraft } from '../engine/project';
+import { playerDraftToProject, playerReleasedFilms, findProject, filmToProject, asFilm, asScheduled, asPlayerDraft, deriveInboxItems } from '../engine/project';
 import { ipForSourceFilm } from '../engine/intellectualProperty';
 import { computeProjectSpendSoFar } from './selectors';
 import { STAGE_DURATIONS } from '../data/schedule';
@@ -178,6 +178,29 @@ describe('ACKNOWLEDGE_BOX_OFFICE_RESULTS', () => {
     expect(film.boxOfficeRun.acknowledged).toBe(true);
     expect(film.boxOfficeRun.weeks).toEqual(theFilm(finished).boxOfficeRun.weeks);
     expect(film.results).toEqual(theFilm(finished).results);
+  });
+
+  it('surfaces a finished, unacknowledged run as a boxOfficeFinished Inbox item that clears on acknowledge', () => {
+    const released = studioReducer(buildStateWithReadyDraft(8), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    const finished = advanceDays(released, MAX_SIMULATION_WEEKS * 7 + 7);
+    const filmId = theFilm(finished).id;
+    expect(deriveInboxItems(finished.projects, null).boxOfficeFinished.map((f) => f.id)).toContain(filmId);
+
+    const acknowledged = studioReducer(finished, { type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS', filmId });
+    expect(deriveInboxItems(acknowledged.projects, null).boxOfficeFinished).toHaveLength(0);
+  });
+});
+
+describe('ACKNOWLEDGE_AWARD_CEREMONY', () => {
+  it('records the ceremony id (per-ceremony read state) and is idempotent', () => {
+    const base = buildStateWithReadyDraft(3);
+    expect(base.acknowledgedAwardCeremonies).toBeUndefined();
+
+    const acked = studioReducer(base, { type: 'ACKNOWLEDGE_AWARD_CEREMONY', ceremonyId: 'award-highlight-2-academy' });
+    expect(acked.acknowledgedAwardCeremonies).toEqual(['award-highlight-2-academy']);
+
+    const again = studioReducer(acked, { type: 'ACKNOWLEDGE_AWARD_CEREMONY', ceremonyId: 'award-highlight-2-academy' });
+    expect(again).toBe(acked); // no-op returns the same reference
   });
 });
 

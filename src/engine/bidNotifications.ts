@@ -121,9 +121,32 @@ export function collectBidNotifications(params: CollectBidNotificationsParams): 
   return [...deduped, ...existing].slice(0, MAX_STORED_NOTIFICATIONS);
 }
 
-/** How many stored notifications are still unread - the header badge contribution and the auto-pause / resume-guard trigger (App.tsx). */
+/** How many stored notifications are still unread - the header badge contribution (App.tsx / Header.tsx). */
 export function unreadBidCount(notifications: BidNotification[]): number {
   return notifications.reduce((n, m) => (m.read ? n : n + 1), 0);
+}
+
+/**
+ * How many unread notifications are still *time-critical* - the trigger for the
+ * auto-pause and resume-guard (App.tsx). Only an 'outbid' whose opportunity is
+ * still open and where the player is still behind qualifies: they can still
+ * raise before the weekly close, so the clock stopping is genuinely useful. A
+ * resolved 'won'/'lost' (or an 'outbid' whose auction has since closed) is
+ * purely informational - nothing is left to do - so it must never stop the
+ * simulation. Mirrors the isOutbidActionable check components/common/Inbox.tsx
+ * uses to decide whether to show "Raise your bid".
+ */
+export function timeCriticalUnreadBidCount(
+  notifications: BidNotification[],
+  opportunities: Opportunity[],
+  totalDays: number,
+): number {
+  return notifications.reduce((count, n) => {
+    if (n.read || n.kind !== 'outbid') return count;
+    const opp = opportunities.find((o) => o.id === n.opportunityId && o.expiresOnDay > totalDays);
+    if (!opp) return count;
+    return highestBid(opp)?.bidderId !== PLAYER_ID ? count + 1 : count;
+  }, 0);
 }
 
 /** Marks every stored notification read - dispatched when the player opens the Inbox. */
