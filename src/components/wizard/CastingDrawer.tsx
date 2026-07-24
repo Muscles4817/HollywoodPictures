@@ -15,6 +15,8 @@ import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
 import { TalentStats } from '../common/TalentStats';
+import { TalentComparison, type CompareSlot } from '../common/TalentComparison';
+import { useComparePins, MAX_PINNED } from '../common/useComparePins';
 import { CheckboxToggle } from '../common/CheckboxToggle';
 import { isAvailableImmediately, getTypicalSalaryForRole } from '../../engine/person';
 import type { CastingChannel, Person, Script, ScriptCharacter } from '../../types';
@@ -33,6 +35,11 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 ];
 // A name search reaches past the price window; cap how many it lists.
 const DIRECT_SEARCH_LIMIT = 12;
+
+/** Pinned candidates float to the top of the list, keeping their relative order below (Talent Card UX Redesign - "they remain fixed at the top of the list"). */
+function pinnedFirst<T>(items: T[], idOf: (t: T) => string, isPinned: (id: string) => boolean): T[] {
+  return [...items.filter((t) => isPinned(idOf(t))), ...items.filter((t) => !isPinned(idOf(t)))];
+}
 
 // How long an accepted offer lingers, showing "accepted," before the
 // drawer auto-closes - same beat components/wizard/RoleHiringDrawer.tsx's
@@ -76,6 +83,9 @@ function CandidateCard({
   affordable,
   actionLabel,
   onAct,
+  pinned,
+  pinCapped,
+  onTogglePin,
   onDismiss,
 }: {
   person: Person;
@@ -93,6 +103,9 @@ function CandidateCard({
   affordable: boolean;
   actionLabel: string;
   onAct: () => void;
+  pinned: boolean;
+  pinCapped: boolean;
+  onTogglePin: () => void;
   // Open Casting only - lets the player clear an applicant they're not
   // interested in off the list (and keep them from re-applying). Absent for
   // Direct Approach, whose candidate list is derived from the talent pool, not
@@ -112,11 +125,12 @@ function CandidateCard({
   // strengths the appeal math already found, plus a direct-interest draw and the
   // decision-critical blockers/warnings - the same reads that otherwise only
   // surface as a rejection after the click.
+  // Over-budget now reads off TalentStats' salary affordability dot, so it's no
+  // longer duplicated as a chip here (Talent Card UX Redesign).
   const signals: CandidateSignal[] = [];
   if (channel === 'InterestedTalent') signals.push({ label: 'Sought you out', tone: 'positive' });
   if (overall) signals.push(...candidateStrengthSignals(overall, directorName));
   if (belowFloor) signals.push({ label: 'Wants more pay', tone: 'blocked' });
-  if (!affordable) signals.push({ label: 'Over your budget', tone: 'warning' });
 
   const blockedTitle = !available
     ? 'Booked elsewhere - unavailable until their commitments clear.'
@@ -129,7 +143,7 @@ function CandidateCard({
       <div className="card-title">{person.identity.name}</div>
       {/* TalentStats' own Availability section already covers "available
           now" vs "busy until X" - no need to repeat it here. */}
-      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} />
+      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} affordable={affordable} />
       {signals.length > 0 && (
         <div className="candidate-signals">
           {signals.map((signal) => (
@@ -148,6 +162,14 @@ function CandidateCard({
           title={blockedTitle}
         >
           {actionLabel}
+        </Button>
+        <Button
+          variant={pinned ? 'primary' : 'secondary'}
+          className="btn-sm"
+          disabled={!pinned && pinCapped}
+          onClick={onTogglePin}
+        >
+          {pinned ? 'Pinned' : 'Pin to Compare'}
         </Button>
         {onDismiss && (
           <Button variant="secondary" className="btn-sm" onClick={onDismiss}>
@@ -177,6 +199,11 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   const [sortBy, setSortBy] = useState<SortKey>('appeal');
   const [search, setSearch] = useState('');
   const [lastResponse, setLastResponse] = useState<{ personName: string; response: OfferResponse } | null>(null);
+  // Pin to Compare (Talent Card UX Redesign) - now available on the actor
+  // casting flow too, both Open Casting and Direct Approach, where it was
+  // previously missing entirely. Two pins swap the browse grid for the
+  // dedicated head-to-head comparison view.
+  const pins = useComparePins();
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -298,8 +325,36 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   };
   const bySort = (a: Person, b: Person) => sortValue(b) - sortValue(a);
 
-  const shownApplicants = (call?.applicants ?? []).filter((a) => passesFilters(a.person)).sort((a, b) => bySort(a.person, b.person));
-  const shownDirectCandidates = directCandidates.filter(passesFilters).sort(bySort);
+  const shownApplicants = pinnedFirst(
+    (call?.applicants ?? []).filter((a) => passesFilters(a.person)).sort((a, b) => bySort(a.person, b.person)),
+    (a) => a.person.id,
+    pins.isPinned,
+  );
+  const shownDirectCandidates = pinnedFirst(directCandidates.filter(passesFilters).sort(bySort), (p) => p.id, pins.isPinned);
+
+  // Pin to Compare wiring. A booked actor or a below-floor offer can't be cast
+  // today (the same hard gates the card and its Cast button already respect),
+  // so the comparison view's action is disabled for exactly those.
+  const offerBlockedFor = (person: Person) =>
+    !isAvailableImmediately(person, state.totalDays) || (appealById.get(person.id)?.belowSalaryFloor ?? false);
+  const candidateById = new Map<string, Person>();
+  for (const p of [...(call?.applicants ?? []).map((a) => a.person), ...eligibleDirectActors]) candidateById.set(p.id, p);
+  const pinnedPersons = pins.pinnedIds.map((id) => candidateById.get(id)).filter((p): p is Person => p !== undefined);
+  const comparing = pinnedPersons.length >= MAX_PINNED;
+  const compareSlots: CompareSlot[] = comparing
+    ? pinnedPersons.map((person) => ({
+        person,
+        role,
+        category: 'actor' as const,
+        script: draft.script,
+        character,
+        affordable: isAffordable(person),
+        actionLabel: 'Cast',
+        actionDisabled: offerBlockedFor(person),
+        onAct: () => attemptToAttach(person),
+        onUnpin: () => pins.toggle(person.id),
+      }))
+    : [];
 
   // How many the availability filter hid in the current tab (for its hint) -
   // measured over the name-searched source, so it reads against what's in view.
@@ -365,7 +420,14 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
           </Button>
         </div>
 
-        {(tab === 'direct-approach' || (!!call && call.applicants.length > 0)) && (
+        {comparing && compareSlots.length === MAX_PINNED && (
+          <div className="stack">
+            <h3 style={{ margin: 0 }}>Comparing two candidates</h3>
+            <TalentComparison a={compareSlots[0]} b={compareSlots[1]} totalDays={state.totalDays} />
+          </div>
+        )}
+
+        {!comparing && (tab === 'direct-approach' || (!!call && call.applicants.length > 0)) && (
           <div className="casting-controls">
             <input
               type="search"
@@ -393,7 +455,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
           </div>
         )}
 
-        {tab === 'open-casting' && (
+        {!comparing && tab === 'open-casting' && (
           <>
             {!call ? (
               <div className="card stack">
@@ -438,6 +500,9 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                         affordable={isAffordable(applicant.person)}
                         actionLabel="Cast"
                         onAct={() => attemptToAttach(applicant.person)}
+                        pinned={pins.isPinned(applicant.person.id)}
+                        pinCapped={pins.isFull}
+                        onTogglePin={() => pins.toggle(applicant.person.id)}
                         onDismiss={() => dispatch({ type: 'DISMISS_CASTING_APPLICANT', characterId: character.id, personId: applicant.person.id })}
                       />
                     ))}
@@ -448,7 +513,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
           </>
         )}
 
-        {tab === 'direct-approach' && (
+        {!comparing && tab === 'direct-approach' && (
           <>
             <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
               Target a specific actor directly, rather than waiting for Open Casting to surface them - the same
@@ -477,6 +542,9 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                   affordable={isAffordable(person)}
                   actionLabel="Make Offer"
                   onAct={() => attemptToAttach(person)}
+                  pinned={pins.isPinned(person.id)}
+                  pinCapped={pins.isFull}
+                  onTogglePin={() => pins.toggle(person.id)}
                 />
               ))}
             </div>
