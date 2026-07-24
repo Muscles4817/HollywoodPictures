@@ -196,36 +196,54 @@ export const CRITIC_REVIEW_LINES: Record<ReviewBand, string[]> = {
     'Fails on nearly every level a film can fail on.',
     'There is no version of this that works.',
     'A career low for everyone involved.',
+    'It is hard to imagine who this was made for.',
+    'An interminable slog with nothing to recommend it.',
+    'The rare film with no redeeming feature to point to.',
   ],
   poor: [
     'Undercooked and overlong.',
     "The ambition is visible; the execution isn't.",
     'A frustrating watch that never finds its footing.',
     'More miss than hit, and not for lack of trying.',
+    'Sporadically interesting, mostly inert.',
+    'The pieces are here; the film around them never arrives.',
+    'You can feel the better film trapped inside this one.',
   ],
   mixed: [
     'Competent, occasionally clever, ultimately forgettable.',
     'Has a handful of good ideas buried in a middling film.',
     'Neither a disaster nor a success - just there.',
     'Worth a matinee, not much more.',
+    'Perfectly watchable, entirely disposable.',
+    'It works often enough to frustrate you when it doesn’t.',
+    'A middleweight that never quite punches above itself.',
   ],
   solid: [
     'A well-made, confident piece of studio filmmaking.',
     'Delivers exactly what it promises, and does it well.',
-    "Sturdy craft carries this one further than its premise alone would.",
+    'Sturdy craft carries this one further than its premise alone would.',
     'Not groundbreaking, but genuinely well done.',
+    'A satisfying, well-oiled piece of entertainment.',
+    'Knows exactly what it is and executes it cleanly.',
+    'The kind of dependable film that ages better than the flashy ones.',
   ],
   excellent: [
     'Sharp, assured, and frequently exhilarating.',
     'A genuine achievement in nearly every department.',
     'This is the kind of filmmaking studios should be proud of.',
     'Confident from the first frame to the last.',
+    'Ambitious and, remarkably, in full command of that ambition.',
+    'A film that earns every one of its big swings.',
+    'Rich, precise, and quietly moving.',
   ],
   triumph: [
     'An instant classic.',
     'Filmmaking at the absolute top of its craft.',
     'This is the film of the year, full stop.',
     'Rarely does a film this ambitious land this cleanly.',
+    'The kind of picture careers are measured against.',
+    'A near-flawless marriage of craft and feeling.',
+    'They will be studying this one for a long time.',
   ],
 };
 
@@ -236,37 +254,193 @@ export const AUDIENCE_REVIEW_LINES: Record<ReviewBand, string[]> = {
     "Worst theater experience I've had in years.",
     'Save your money, seriously.',
     'I want those two hours back.',
+    'Checked my watch about forty times.',
+    'We were laughing at it, not with it.',
+    'Genuinely one of the worst I’ve sat through.',
   ],
   poor: [
     'Kind of a slog, not gonna lie.',
     'Expected way more than this.',
     'Fell asleep twice. That says it all.',
     "Wouldn't recommend it to a friend.",
+    'Wanted to like it, just couldn’t.',
+    'Left feeling pretty let down.',
+    'Not terrible, but I wouldn’t bother.',
   ],
   mixed: [
     "It's fine. Wouldn't watch it again though.",
     'Some good parts, mostly just okay.',
     'Decent popcorn flick, nothing special.',
     'Fun enough for a Friday night, forget it by Monday.',
+    'Glad I saw it once. Once.',
+    'Waited-for-streaming energy, honestly.',
+    'Perfectly okay. That’s about it.',
   ],
   solid: [
     'Really enjoyed this one, honestly!',
     'Solid watch, would recommend to friends.',
     'Better than I expected going in.',
     'Had a great time, no complaints.',
+    'Way more fun than I thought it’d be.',
+    'Good night out at the movies.',
+    'Would happily watch it again.',
   ],
   excellent: [
     'Loved every minute of this!',
     "One of the best theater experiences I've had all year.",
     'Already planning to see it again.',
     'Everyone in the theater was buzzing after.',
+    'Still thinking about it days later.',
+    'Dragged my whole group back for a second viewing.',
+    'Honestly did not want it to end.',
   ],
   triumph: [
     "Best movie I've seen in years, hands down.",
     'Standing ovation. Need I say more.',
     'Perfect. Absolutely perfect.',
     'This is why I go to the movies.',
+    'I cried, I cheered, I saw it three times.',
+    'A forever favourite. No notes.',
+    'The whole theater was on its feet.',
   ],
+};
+
+// --- Department-anchored review lines (engine/reviews.ts:composeScoredReviews) ---
+//
+// The reviews the redesign leans on to *teach* the player: when one department
+// clearly stands out - great or poor - a quote reaches for it by name, so
+// repeated notes about (say) weak pacing or incredible effects become the
+// pattern a player learns to read. Critics and audiences describe the SAME
+// department in their own register (a critic notes "the screenplay's
+// structure"; a viewer says "the story pulled me in"), and the two voices
+// weight different departments (engine/reviews.ts), so they teach different
+// signals - exactly the point.
+export type ReviewValence = 'praise' | 'pan';
+
+export const CRITIC_DEPARTMENT_LINES: Record<Department, Record<ReviewValence, string[]>> = {
+  script: {
+    praise: [
+      'The screenplay is sharp, and its structure never sags.',
+      'A genuinely intelligent script anchors the whole picture.',
+      'The writing crackles from scene to scene.',
+    ],
+    pan: [
+      'The screenplay is the weak link - thin and underwritten.',
+      'A muddled script keeps undercutting everything around it.',
+      'The dialogue lands with a thud more often than not.',
+    ],
+  },
+  direction: {
+    praise: [
+      'Assured direction gives every scene real purpose.',
+      'The director stages the whole thing with total control.',
+      'Confident, unfussy direction holds it together.',
+    ],
+    pan: [
+      'The direction is flat, and the pacing suffers for it.',
+      'A tonally uncertain hand behind the camera.',
+      'The film never finds a rhythm - and that’s on the direction.',
+    ],
+  },
+  acting: {
+    praise: [
+      'The performances are the film’s clear highlight.',
+      'A cast operating at the very top of its game.',
+      'The lead turns are worth the price of admission alone.',
+    ],
+    pan: [
+      'The performances rarely rise above serviceable.',
+      'A miscast ensemble drains the drama out of it.',
+      'The acting is stiff exactly where it needs to breathe.',
+    ],
+  },
+  production: {
+    praise: [
+      'Handsome production design does real dramatic work.',
+      'The craft on display is genuinely impressive.',
+      'Every frame is meticulously mounted.',
+    ],
+    pan: [
+      'The production values betray the budget at every turn.',
+      'It looks conspicuously cheap for what it’s attempting.',
+      'The effects undercut the very spectacle they’re reaching for.',
+    ],
+  },
+  postProduction: {
+    praise: [
+      'Crisp editing and a strong score sharpen every beat.',
+      'The cut is tight and the sound design immaculate.',
+      'Impeccably assembled in the edit.',
+    ],
+    pan: [
+      'Choppy editing keeps breaking the spell.',
+      'The cut feels unfinished and the score forgettable.',
+      'A ragged edit robs the film of its momentum.',
+    ],
+  },
+};
+
+export const AUDIENCE_DEPARTMENT_LINES: Record<Department, Record<ReviewValence, string[]>> = {
+  script: {
+    praise: [
+      'The story really pulled me in.',
+      'Didn’t see half the twists coming - loved it.',
+      'Such a smart, satisfying story.',
+    ],
+    pan: [
+      'The story just didn’t make much sense.',
+      'Some of the dialogue was rough, not gonna lie.',
+      'Plot had holes you could drive a truck through.',
+    ],
+  },
+  direction: {
+    praise: [
+      'Gripping the whole way through.',
+      'So well paced I never once looked away.',
+      'It just flew by.',
+    ],
+    pan: [
+      'Dragged so much in the middle.',
+      'Kept losing my attention, honestly.',
+      'Felt way longer than it actually was.',
+    ],
+  },
+  acting: {
+    praise: [
+      'The two leads had unreal chemistry.',
+      'The cast was so good together.',
+      'I fell for these characters completely.',
+    ],
+    pan: [
+      'Couldn’t buy the cast together at all.',
+      'The acting kept taking me out of it.',
+      'Zero chemistry between the leads.',
+    ],
+  },
+  production: {
+    praise: [
+      'Looked absolutely incredible on the big screen.',
+      'The effects were unreal.',
+      'So worth seeing in a proper theater.',
+    ],
+    pan: [
+      'The effects looked kind of cheap.',
+      'You could tell where they saved money.',
+      'Didn’t exactly look like the blockbuster it wanted to be.',
+    ],
+  },
+  postProduction: {
+    praise: [
+      'The soundtrack was a whole vibe.',
+      'Every scene just flowed into the next.',
+      'Slick from start to finish.',
+    ],
+    pan: [
+      'The editing was kind of all over the place.',
+      'Some scenes cut so abruptly it was jarring.',
+      'The music did not fit the film at all.',
+    ],
+  },
 };
 
 export function pickReviewBucket(criticScore: number, audienceScore: number): ReviewBucket {

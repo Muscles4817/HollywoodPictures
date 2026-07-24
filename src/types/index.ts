@@ -2279,4 +2279,5 @@ export type Screen =
   | 'projects'
   | 'awards'
   | 'talent-database'
-  | 'ip-library';
+  | 'ip-library'
+  | 'milestones';

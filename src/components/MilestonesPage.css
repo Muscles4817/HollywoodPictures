@@ -1,0 +1,64 @@
+.milestones-summary {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.9em;
+}
+
+.milestones-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.milestone-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.milestone-card--earned {
+  border-color: color-mix(in srgb, var(--star) 45%, var(--border));
+  background: color-mix(in srgb, var(--star) 10%, var(--panel));
+}
+
+.milestone-card--locked {
+  opacity: 0.65;
+}
+
+.milestone-card__icon {
+  font-size: 1.5rem;
+  line-height: 1.1;
+}
+
+.milestone-card--locked .milestone-card__icon {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+.milestone-card__body {
+  min-width: 0;
+}
+
+.milestone-card__label {
+  font-weight: 700;
+}
+
+.milestone-card__meta {
+  margin: 3px 0 0;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.milestone-card__value {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.milestone-card__date {
+  margin: 2px 0 0;
+  font-size: 0.78em;
+  color: var(--text-muted);
+}

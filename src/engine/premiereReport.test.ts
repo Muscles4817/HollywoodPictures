@@ -5,8 +5,10 @@ import {
   deriveReceptionRead,
   deriveFilmInsights,
   deriveStudioImpact,
-  deriveAchievements,
-  type AchievementFacts,
+  deriveFilmMilestones,
+  deriveStudioMilestones,
+  MILESTONES,
+  type MilestoneFacts,
 } from './premiereReport';
 
 // A minimal FilmResults with sensible mid values; individual tests override
@@ -141,48 +143,97 @@ describe('deriveStudioImpact', () => {
   });
 });
 
-describe('deriveAchievements', () => {
-  const facts = (overrides: Partial<AchievementFacts> = {}): AchievementFacts => ({
+function mFacts(overrides: Partial<MilestoneFacts> = {}): MilestoneFacts {
+  return {
+    filmId: 'f1',
+    title: 'Film One',
+    day: 100,
+    finished: true,
+    outcome: 'Hit',
     openingWeekend: 10_000_000,
     audienceScore: 60,
     criticScore: 60,
+    worldwide: 60_000_000,
     profit: 5_000_000,
-    totalBoxOffice: 60_000_000,
     legs: 3,
     prestigeChange: 1,
+    hasInternational: false,
     ...overrides,
-  });
+  };
+}
 
+describe('deriveFilmMilestones', () => {
   it('celebrates a beaten record only when there is a prior film to beat', () => {
-    const current = facts({ openingWeekend: 20_000_000 });
-    const prior = [facts({ openingWeekend: 12_000_000 })];
-    const ids = deriveAchievements(current, prior, true).map((a) => a.id);
-    expect(ids).toContain('biggest-opening');
+    const current = mFacts({ openingWeekend: 20_000_000 });
+    const prior = [mFacts({ filmId: 'p', openingWeekend: 12_000_000 })];
+    expect(deriveFilmMilestones(current, prior).map((a) => a.id)).toContain('biggest-opening');
   });
 
-  it('does not fire max-based records for a debut film with no prior history', () => {
-    const ids = deriveAchievements(facts(), [], true).map((a) => a.id);
+  it('does not fire record milestones for a debut film with no prior history', () => {
+    const ids = deriveFilmMilestones(mFacts(), []).map((a) => a.id);
     expect(ids).not.toContain('biggest-opening');
-    expect(ids).not.toContain('biggest-gross');
+    expect(ids).not.toContain('highest-gross');
   });
 
   it('fires first-ever milestones for a debut on qualification alone', () => {
-    const current = facts({ profit: 3_000_000, criticScore: 80 });
-    const ids = deriveAchievements(current, [], true).map((a) => a.id);
-    expect(ids).toContain('first-profit');
-    expect(ids).toContain('first-critical-hit');
+    const current = mFacts({ profit: 3_000_000, criticScore: 80, outcome: 'Hit' });
+    const ids = deriveFilmMilestones(current, []).map((a) => a.id);
+    expect(ids).toEqual(expect.arrayContaining(['first-release', 'first-profit', 'first-critical-hit', 'first-hit']));
   });
 
   it('withholds money-based milestones until the run has finished', () => {
-    const current = facts({ profit: 3_000_000 });
-    const ids = deriveAchievements(current, [], false).map((a) => a.id);
-    expect(ids).not.toContain('first-profit');
+    const current = mFacts({ finished: false, profit: 3_000_000 });
+    expect(deriveFilmMilestones(current, []).map((a) => a.id)).not.toContain('first-profit');
   });
 
   it('does not re-award a first critical hit once the studio already has one', () => {
-    const current = facts({ criticScore: 85 });
-    const prior = [facts({ criticScore: 78 })];
-    const ids = deriveAchievements(current, prior, true).map((a) => a.id);
-    expect(ids).not.toContain('first-critical-hit');
+    const current = mFacts({ criticScore: 85 });
+    const prior = [mFacts({ filmId: 'p', criticScore: 78 })];
+    expect(deriveFilmMilestones(current, prior).map((a) => a.id)).not.toContain('first-critical-hit');
+  });
+
+  it('carries a per-milestone icon and sorts the most impressive first', () => {
+    const current = mFacts({ outcome: 'Masterpiece', criticScore: 95, profit: 10_000_000, worldwide: 300_000_000 });
+    const found = deriveFilmMilestones(current, []);
+    expect(found[0].icon).toBeTruthy();
+    // first-masterpiece (priority 70) should outrank first-release (priority 5).
+    const masterpieceIdx = found.findIndex((a) => a.id === 'first-masterpiece');
+    const releaseIdx = found.findIndex((a) => a.id === 'first-release');
+    expect(masterpieceIdx).toBeLessThan(releaseIdx);
+  });
+});
+
+describe('deriveStudioMilestones', () => {
+  it('marks every catalog milestone, earned or locked', () => {
+    const result = deriveStudioMilestones([]);
+    expect(result).toHaveLength(MILESTONES.length);
+    expect(result.every((m) => m.earned === false)).toBe(true);
+  });
+
+  it('attributes a "first" milestone to the earliest qualifying film', () => {
+    const films = [
+      mFacts({ filmId: 'late', title: 'Later', day: 200, profit: 9_000_000 }),
+      mFacts({ filmId: 'early', title: 'Earlier', day: 50, profit: 1_000_000 }),
+    ];
+    const firstProfit = deriveStudioMilestones(films).find((m) => m.id === 'first-profit')!;
+    expect(firstProfit.earned).toBe(true);
+    expect(firstProfit.filmTitle).toBe('Earlier');
+  });
+
+  it('attributes a "record" milestone to the current holder with its value', () => {
+    const films = [
+      mFacts({ filmId: 'a', title: 'A', openingWeekend: 30_000_000 }),
+      mFacts({ filmId: 'b', title: 'B', openingWeekend: 70_000_000 }),
+    ];
+    const biggest = deriveStudioMilestones(films).find((m) => m.id === 'biggest-opening')!;
+    expect(biggest.filmTitle).toBe('B');
+    expect(biggest.value).toBe(70_000_000);
+    expect(biggest.valueKind).toBe('money');
+  });
+
+  it('leaves a record locked until a film clears its quality floor', () => {
+    // best-reviewed needs criticScore >= 65; a studio of weak films hasn't earned it.
+    const films = [mFacts({ criticScore: 50 }), mFacts({ filmId: 'g', criticScore: 60 })];
+    expect(deriveStudioMilestones(films).find((m) => m.id === 'best-reviewed')!.earned).toBe(false);
   });
 });

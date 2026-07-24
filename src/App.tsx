@@ -20,6 +20,7 @@ import { ReleaseResults } from './components/wizard/ReleaseResults';
 import { OpportunityMarket } from './components/OpportunityMarket';
 import { AssetLibrary } from './components/AssetLibrary';
 import { ProjectsPage } from './components/ProjectsPage';
+import { MilestonesPage } from './components/MilestonesPage';
 import { IpLibrary } from './components/IpLibrary';
 import type { ProjectWorkspaceSection, Screen } from './types';
 import { DAY_TICK_MS, type TickSpeedMultiplier } from './constants';
@@ -353,6 +354,8 @@ function AppShell() {
         return <TalentDatabase />;
       case 'ip-library':
         return <IpLibrary />;
+      case 'milestones':
+        return <MilestonesPage />;
       default:
         return <Dashboard />;
     }

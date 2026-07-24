@@ -1,14 +1,13 @@
 import { useStudio } from '../../state/StudioContext';
-import { deriveFocusedFilm, collectFilmStats, computeReportedLegs } from '../../state/selectors';
+import { deriveFocusedFilm, collectFilmStats, milestoneFactsFromFilm } from '../../state/selectors';
 import {
   deriveReceptionRead,
   deriveFilmInsights,
   deriveStudioImpact,
-  deriveAchievements,
+  deriveFilmMilestones,
   brandChangeReason,
   prestigeChangeReason,
   type Achievement,
-  type AchievementFacts,
   type FilmInsights,
 } from '../../engine/premiereReport';
 import type { Film, FilmResults, Genre } from '../../types';
@@ -29,28 +28,22 @@ function SectionHead({ eyebrow, title }: { eyebrow: string; title: string }) {
   );
 }
 
-function achievementFacts(film: Film): AchievementFacts {
-  const r = film.results;
-  return {
-    openingWeekend: r.openingWeekend,
-    audienceScore: r.audienceScore,
-    criticScore: r.criticScore,
-    profit: r.profit,
-    totalBoxOffice: r.totalBoxOffice,
-    legs: computeReportedLegs(film),
-    prestigeChange: r.prestigeChange,
-  };
-}
+// How many milestone chips the banner shows before deferring the rest to the
+// Milestones page - a debut phenomenon can earn many at once; the banner
+// celebrates the biggest, the page has them all.
+const MAX_BANNER_MILESTONES = 6;
 
 function AchievementsBanner({ achievements }: { achievements: Achievement[] }) {
   if (achievements.length === 0) return null;
+  const shown = achievements.slice(0, MAX_BANNER_MILESTONES);
+  const overflow = achievements.length - shown.length;
   return (
     <div className="stack" style={{ gap: 10 }}>
       <SectionHead eyebrow="This film made history" title="Milestones" />
       <div className="achievements">
-        {achievements.map((a) => (
+        {shown.map((a) => (
           <div key={a.id} className="achievement-chip">
-            <span className="achievement-chip__medal" aria-hidden="true">🏆</span>
+            <span className="achievement-chip__medal" aria-hidden="true">{a.icon ?? '🏆'}</span>
             <div>
               <div className="achievement-chip__label">{a.label}</div>
               {a.detail && <p className="achievement-chip__detail">{a.detail}</p>}
@@ -58,6 +51,11 @@ function AchievementsBanner({ achievements }: { achievements: Achievement[] }) {
           </div>
         ))}
       </div>
+      {overflow > 0 && (
+        <p className="choice-description" style={{ margin: 0 }}>
+          …and {overflow} more milestone{overflow === 1 ? '' : 's'} — see the Milestones page.
+        </p>
+      )}
     </div>
   );
 }
@@ -267,8 +265,8 @@ export function ReleaseResults() {
   // very film (it is already in projects, now 'released').
   const priorFilms = collectFilmStats(state.projects, state.studio.name)
     .filter((row) => row.isPlayer && row.film.id !== film.id)
-    .map((row) => achievementFacts(row.film));
-  const achievements = deriveAchievements(achievementFacts(film), priorFilms, finished);
+    .map((row) => milestoneFactsFromFilm(row.film));
+  const achievements = deriveFilmMilestones(milestoneFactsFromFilm(film), priorFilms);
 
   return (
     <div className="stack">

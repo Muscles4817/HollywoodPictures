@@ -250,94 +250,283 @@ export function prestigeChangeReason(results: FilmResults): string {
   return explainPrestigeChange({ criticScore: results.criticScore, qualityScore: results.qualityScore });
 }
 
-// --- Achievements & records -------------------------------------------------
+// --- Milestones & records ---------------------------------------------------
 
 export interface Achievement {
   id: string;
   label: string;
   detail?: string;
+  icon?: string;
 }
 
-/** The comparable facts of one released film - built from FilmResults by the caller. */
-export interface AchievementFacts {
+/** The comparable facts of one released film, built from a Film by the caller (see state/selectors.ts:milestoneFactsFromFilm). */
+export interface MilestoneFacts {
+  filmId: string;
+  title: string;
+  /** Release day, for chronological ordering of who earned a "first" milestone. */
+  day: number;
+  finished: boolean;
+  outcome: OutcomeLabel | null;
   openingWeekend: number;
   audienceScore: number;
   criticScore: number;
+  worldwide: number | null;
   profit: number | null;
-  totalBoxOffice: number | null;
   legs: number | null;
   prestigeChange: number | null;
+  hasInternational: boolean;
 }
 
-const CRITICAL_HIT_SCORE = 75;
+export type MilestoneCategory = 'commercial' | 'critical' | 'audience' | 'scale' | 'studio';
 
-function maxOf<T>(items: T[], get: (item: T) => number | null): number | null {
-  const values = items.map(get).filter((v): v is number => v !== null);
-  return values.length > 0 ? Math.max(...values) : null;
+/** How a record milestone's value should be formatted for the page. */
+export type MilestoneValueKind = 'money' | 'score' | 'multiplier';
+
+interface MilestoneDef {
+  id: string;
+  label: string;
+  icon: string;
+  category: MilestoneCategory;
+  /** Higher = more impressive; orders the premiere banner and floats the best chips to the top. */
+  priority: number;
+  kind: 'first' | 'record';
+  /** Money/box-office milestones aren't knowable until the run finishes. */
+  needsFinished: boolean;
+  /** What earning this represents - shown on the Milestones page, especially while still locked. */
+  description: string;
+  /** Short congratulatory subtext once earned. */
+  earnedNote: string;
+  /** 'first' kind: does this film qualify at all? */
+  qualifies?: (f: MilestoneFacts) => boolean;
+  /** 'record' kind: the metric to maximise; null when not yet knowable for this film. */
+  metric?: (f: MilestoneFacts) => number | null;
+  /** 'record' kind: the holder's metric must clear this floor to count as a real milestone. */
+  floor?: number;
+  /** 'record' kind: how to render the held value on the page. */
+  valueKind?: MilestoneValueKind;
+}
+
+const HIT_OUTCOMES: OutcomeLabel[] = ['Hit', 'Blockbuster', 'Phenomenon'];
+const BLOCKBUSTER_OUTCOMES: OutcomeLabel[] = ['Blockbuster', 'Phenomenon'];
+const CRITICAL_HIT_SCORE = 75;
+const CROWD_PLEASER_SCORE = 85;
+
+/**
+ * The studio's milestone catalog - the achievements the Premiere banner
+ * celebrates in the moment and the Milestones page tracks over a career. Two
+ * kinds: "first" milestones are earned permanently by the earliest film to
+ * qualify; "record" milestones are held by the current best film and change
+ * hands as the studio tops itself. Everything is derived from released films
+ * (see deriveStudioMilestones / deriveFilmMilestones), never stored - the same
+ * "derive, don't persist" approach as engine reputation history.
+ */
+export const MILESTONES: MilestoneDef[] = [
+  // --- First-of-a-kind -----------------------------------------------------
+  {
+    id: 'first-release', label: 'First Film Released', icon: '🎬', category: 'studio', priority: 5,
+    kind: 'first', needsFinished: false,
+    description: 'Release your studio’s very first film.', earnedNote: 'Where it all began.',
+    qualifies: () => true,
+  },
+  {
+    id: 'first-profit', label: 'First Profit', icon: '💰', category: 'commercial', priority: 20,
+    kind: 'first', needsFinished: true,
+    description: 'Turn a profit on a film.', earnedNote: 'The studio is in the black.',
+    qualifies: (f) => (f.profit ?? 0) > 0,
+  },
+  {
+    id: 'first-hit', label: 'First Hit', icon: '🎟️', category: 'commercial', priority: 35,
+    kind: 'first', needsFinished: true,
+    description: 'Land a film that lands as a commercial hit.', earnedNote: 'A genuine crowd-puller.',
+    qualifies: (f) => f.outcome !== null && HIT_OUTCOMES.includes(f.outcome),
+  },
+  {
+    id: 'first-critical-hit', label: 'First Critical Hit', icon: '⭐', category: 'critical', priority: 35,
+    kind: 'first', needsFinished: false,
+    description: 'Win the critics over with a strongly-reviewed film.', earnedNote: 'Critics are taking notice.',
+    qualifies: (f) => f.criticScore >= CRITICAL_HIT_SCORE,
+  },
+  {
+    id: 'first-crowd-pleaser', label: 'First Crowd-Pleaser', icon: '❤️', category: 'audience', priority: 35,
+    kind: 'first', needsFinished: false,
+    description: 'Delight audiences with a film they adore.', earnedNote: 'Audiences adored it.',
+    qualifies: (f) => f.audienceScore >= CROWD_PLEASER_SCORE,
+  },
+  {
+    id: 'first-cult-hit', label: 'First Cult Hit', icon: '🖤', category: 'critical', priority: 40,
+    kind: 'first', needsFinished: true,
+    description: 'Make a film that finds a devoted following.', earnedNote: 'It found its people.',
+    qualifies: (f) => f.outcome === 'Cult Hit',
+  },
+  {
+    id: 'first-international', label: 'First International Release', icon: '🌍', category: 'scale', priority: 25,
+    kind: 'first', needsFinished: false,
+    description: 'Take a film to overseas markets.', earnedNote: 'The studio goes global.',
+    qualifies: (f) => f.hasInternational,
+  },
+  {
+    id: 'first-hundred-million', label: 'Crossed £100M', icon: '💯', category: 'scale', priority: 45,
+    kind: 'first', needsFinished: true,
+    description: 'Gross over £100M worldwide with a single film.', earnedNote: 'Nine figures.',
+    qualifies: (f) => (f.worldwide ?? 0) >= 100_000_000,
+  },
+  {
+    id: 'first-blockbuster', label: 'First Blockbuster', icon: '💥', category: 'scale', priority: 60,
+    kind: 'first', needsFinished: true,
+    description: 'Release a full-blown blockbuster.', earnedNote: 'You made a giant.',
+    qualifies: (f) => f.outcome !== null && BLOCKBUSTER_OUTCOMES.includes(f.outcome),
+  },
+  {
+    id: 'first-quarter-billion', label: 'Crossed £250M', icon: '🚀', category: 'scale', priority: 65,
+    kind: 'first', needsFinished: true,
+    description: 'Gross over £250M worldwide with a single film.', earnedNote: 'A quarter-billion and climbing.',
+    qualifies: (f) => (f.worldwide ?? 0) >= 250_000_000,
+  },
+  {
+    id: 'first-masterpiece', label: 'First Masterpiece', icon: '🏛️', category: 'critical', priority: 70,
+    kind: 'first', needsFinished: true,
+    description: 'Make a film hailed as a masterpiece.', earnedNote: 'One for the ages.',
+    qualifies: (f) => f.outcome === 'Masterpiece',
+  },
+
+  // --- Records (current holder) -------------------------------------------
+  {
+    id: 'biggest-opening', label: 'Biggest Opening Weekend', icon: '📈', category: 'commercial', priority: 50,
+    kind: 'record', needsFinished: false, valueKind: 'money',
+    description: 'Your largest opening weekend.', earnedNote: 'A new studio record.',
+    metric: (f) => f.openingWeekend, floor: 0,
+  },
+  {
+    id: 'highest-gross', label: 'Highest-Grossing Film', icon: '🏆', category: 'commercial', priority: 55,
+    kind: 'record', needsFinished: true, valueKind: 'money',
+    description: 'Your highest worldwide gross.', earnedNote: 'Your biggest ever.',
+    metric: (f) => f.worldwide, floor: 0,
+  },
+  {
+    id: 'most-profitable', label: 'Most Profitable Film', icon: '🤑', category: 'commercial', priority: 50,
+    kind: 'record', needsFinished: true, valueKind: 'money',
+    description: 'Your largest profit on a single film.', earnedNote: 'Your best return yet.',
+    metric: (f) => f.profit, floor: 1,
+  },
+  {
+    id: 'best-reviewed', label: 'Best Reviewed', icon: '📝', category: 'critical', priority: 45,
+    kind: 'record', needsFinished: false, valueKind: 'score',
+    description: 'Your best-reviewed film by the critics.', earnedNote: 'Your critical high-water mark.',
+    metric: (f) => f.criticScore, floor: 65,
+  },
+  {
+    id: 'best-loved', label: 'Best-Loved by Audiences', icon: '😍', category: 'audience', priority: 45,
+    kind: 'record', needsFinished: false, valueKind: 'score',
+    description: 'Your strongest audience reaction.', earnedNote: 'They loved this one most.',
+    metric: (f) => f.audienceScore, floor: 70,
+  },
+  {
+    id: 'longest-legs', label: 'Longest Legs', icon: '🦵', category: 'audience', priority: 40,
+    kind: 'record', needsFinished: true, valueKind: 'multiplier',
+    description: 'Your longest-legged run - the film word of mouth carried furthest past its opening.', earnedNote: 'Word of mouth carried it furthest.',
+    metric: (f) => f.legs, floor: 2,
+  },
+  {
+    id: 'biggest-prestige', label: 'Biggest Prestige Leap', icon: '🎖️', category: 'studio', priority: 50,
+    kind: 'record', needsFinished: true, valueKind: 'score',
+    description: 'The film that raised your studio’s prestige the most.', earnedNote: 'Your most respected film yet.',
+    metric: (f) => f.prestigeChange, floor: 1,
+  },
+];
+
+const MILESTONE_PRIORITY = new Map(MILESTONES.map((m) => [m.id, m.priority]));
+
+/** The record metric for a film only when it counts - respects needsFinished so a still-running film can't hold a money record. */
+function recordMetric(def: MilestoneDef, f: MilestoneFacts): number | null {
+  if (def.needsFinished && !f.finished) return null;
+  const v = def.metric!(f);
+  if (v === null || v < (def.floor ?? -Infinity)) return null;
+  return v;
 }
 
 /**
- * The celebratory milestones this film just set for the studio - "biggest
- * opening", "first profitable film", "one of your strongest audience
- * reactions", and so on. Records that beat a previous best need at least one
- * prior film to beat; "first ever" milestones fire on qualification alone, so
- * a debut film can still light up. Money-based milestones only appear once the
- * run has `finished`; opening-weekend and reception milestones land at the
- * premiere. Deliberately capped so the banner celebrates, never overwhelms.
+ * The milestones THIS film just earned for the studio, for the Premiere
+ * banner. "First" milestones fire when this film is the earliest to qualify;
+ * "record" milestones fire only when this film genuinely beats a prior holder
+ * (a debut trivially "holds" every record, but that isn't a record *moment* -
+ * its firsts carry the celebration instead). Sorted most-impressive first; the
+ * caller caps how many chips to show.
  */
-export function deriveAchievements(current: AchievementFacts, prior: AchievementFacts[], finished: boolean): Achievement[] {
-  const found: Achievement[] = [];
-  const hasPrior = prior.length > 0;
+export function deriveFilmMilestones(current: MilestoneFacts, prior: MilestoneFacts[]): Achievement[] {
+  const out: Achievement[] = [];
+  for (const def of MILESTONES) {
+    if (def.needsFinished && !current.finished) continue;
 
-  // Biggest opening weekend (known at premiere).
-  const bestOpening = maxOf(prior, (f) => f.openingWeekend);
-  if (hasPrior && bestOpening !== null && current.openingWeekend > bestOpening) {
-    found.push({ id: 'biggest-opening', label: 'Biggest opening weekend yet', detail: 'A new studio record.' });
-  }
-
-  // First critical hit / strongest reviews.
-  const priorCriticHit = prior.some((f) => f.criticScore >= CRITICAL_HIT_SCORE);
-  if (current.criticScore >= CRITICAL_HIT_SCORE && !priorCriticHit) {
-    found.push({ id: 'first-critical-hit', label: 'Your first critical hit', detail: 'Critics are taking notice.' });
-  }
-
-  // Strongest audience reaction (known at premiere).
-  const bestAudience = maxOf(prior, (f) => f.audienceScore);
-  if (hasPrior && bestAudience !== null && current.audienceScore > bestAudience) {
-    found.push({ id: 'best-audience', label: 'Your strongest audience reaction', detail: 'They loved this one.' });
-  }
-
-  if (finished) {
-    // First profitable film ever.
-    const priorProfit = prior.some((f) => (f.profit ?? 0) > 0);
-    if ((current.profit ?? 0) > 0 && !priorProfit) {
-      found.push({ id: 'first-profit', label: 'Your first profitable film', detail: 'The studio is in the black.' });
-    }
-
-    // Biggest box office to date.
-    const bestGross = maxOf(prior, (f) => f.totalBoxOffice);
-    if (hasPrior && bestGross !== null && current.totalBoxOffice !== null && current.totalBoxOffice > bestGross) {
-      found.push({ id: 'biggest-gross', label: 'Your highest-grossing film', detail: 'A new box-office high.' });
-    }
-
-    // Longest legs - the run that held on longest.
-    const bestLegs = maxOf(prior, (f) => f.legs);
-    if (hasPrior && bestLegs !== null && current.legs !== null && current.legs > bestLegs) {
-      found.push({ id: 'longest-legs', label: 'Your longest theatrical run', detail: 'Word of mouth carried it.' });
-    }
-
-    // Biggest prestige gain.
-    const bestPrestige = maxOf(prior, (f) => f.prestigeChange);
-    if (
-      hasPrior &&
-      bestPrestige !== null &&
-      current.prestigeChange !== null &&
-      current.prestigeChange > bestPrestige &&
-      current.prestigeChange > 0
-    ) {
-      found.push({ id: 'biggest-prestige', label: 'Your biggest prestige gain', detail: 'Your most respected film yet.' });
+    if (def.kind === 'first') {
+      if (!def.qualifies!(current)) continue;
+      const alreadyEarned = prior.some((f) => (!def.needsFinished || f.finished) && def.qualifies!(f));
+      if (alreadyEarned) continue;
+      out.push({ id: def.id, label: def.label, detail: def.earnedNote, icon: def.icon });
+    } else {
+      const value = recordMetric(def, current);
+      if (value === null) continue;
+      const priorBest = prior.reduce<number | null>((best, f) => {
+        const v = recordMetric(def, f);
+        return v !== null && (best === null || v > best) ? v : best;
+      }, null);
+      // No prior holder = a debut trivially "sets" the record; not a record moment.
+      if (priorBest === null || value <= priorBest) continue;
+      out.push({ id: def.id, label: def.label, detail: def.earnedNote, icon: def.icon });
     }
   }
+  return out.sort((a, b) => (MILESTONE_PRIORITY.get(b.id) ?? 0) - (MILESTONE_PRIORITY.get(a.id) ?? 0));
+}
 
-  return found;
+export interface StudioMilestone {
+  id: string;
+  label: string;
+  icon: string;
+  category: MilestoneCategory;
+  description: string;
+  earnedNote: string;
+  earned: boolean;
+  /** The film that earned/holds this milestone, when earned. */
+  filmId: string | null;
+  filmTitle: string | null;
+  day: number | null;
+  /** For a held record: the value and how to format it. Null for "first" milestones. */
+  value: number | null;
+  valueKind: MilestoneValueKind | null;
+}
+
+/**
+ * The whole milestone catalog resolved against the studio's released films -
+ * the data behind the Milestones page. Every milestone appears, earned or not;
+ * an earned one names the film that holds it (the earliest qualifier for a
+ * "first", the current record holder for a "record"). Pure and derived, never
+ * stored.
+ */
+export function deriveStudioMilestones(films: MilestoneFacts[]): StudioMilestone[] {
+  const chrono = [...films].sort((a, b) => a.day - b.day || (a.filmId < b.filmId ? -1 : 1));
+
+  return MILESTONES.map((def): StudioMilestone => {
+    const base = {
+      id: def.id, label: def.label, icon: def.icon, category: def.category,
+      description: def.description, earnedNote: def.earnedNote,
+      valueKind: def.kind === 'record' ? (def.valueKind ?? null) : null,
+    };
+
+    if (def.kind === 'first') {
+      const earner = chrono.find((f) => (!def.needsFinished || f.finished) && def.qualifies!(f)) ?? null;
+      return earner
+        ? { ...base, earned: true, filmId: earner.filmId, filmTitle: earner.title, day: earner.day, value: null }
+        : { ...base, earned: false, filmId: null, filmTitle: null, day: null, value: null };
+    }
+
+    // Record: the current holder among films that clear the floor (ties -> earliest, since we replace only on strictly greater).
+    let best: { f: MilestoneFacts; v: number } | null = null;
+    for (const f of chrono) {
+      const v = recordMetric(def, f);
+      if (v === null) continue;
+      if (best === null || v > best.v) best = { f, v };
+    }
+    return best
+      ? { ...base, earned: true, filmId: best.f.filmId, filmTitle: best.f.title, day: best.f.day, value: best.v }
+      : { ...base, earned: false, filmId: null, filmTitle: null, day: null, value: null };
+  });
 }

@@ -30,13 +30,27 @@ describe('computeReleaseResults - criticReviews/audienceReviews (Premiere Reveal
     expect(results.audienceReviews).toHaveLength(3);
   });
 
-  it("each quote's score sits close to the film's own criticScore/audienceScore", () => {
+  it("each quote's score tracks either the film's overall reception or the department it calls out", () => {
+    // Since the redesign, a quote is either an overall-impression line (score
+    // near criticScore/audienceScore) or a department-anchored one (score near
+    // that department's own score) - never an arbitrary number. Every quote
+    // sits within the jitter band of one of those real signals.
     const { results } = computeReleaseResults(baseInput(), createRng(11));
+    const departmentScores = [
+      results.scriptScore,
+      results.directionScore,
+      results.actingScore,
+      results.productionScore,
+      results.postProductionScore,
+    ];
+    const nearSomeSignal = (score: number, overall: number) =>
+      [overall, ...departmentScores].some((signal) => Math.abs(score - signal) <= 8);
+
     for (const quote of results.criticReviews!) {
-      expect(Math.abs(quote.score - results.criticScore)).toBeLessThanOrEqual(8);
+      expect(nearSomeSignal(quote.score, results.criticScore)).toBe(true);
     }
     for (const quote of results.audienceReviews!) {
-      expect(Math.abs(quote.score - results.audienceScore)).toBeLessThanOrEqual(8);
+      expect(nearSomeSignal(quote.score, results.audienceScore)).toBe(true);
     }
   });
 

@@ -424,6 +424,8 @@ export type GameAction =
   | { type: 'VIEW_TALENT_DATABASE' }
   // Dashboard -> the studio's owned Intellectual Property library. Pure detour, same as VIEW_STATS.
   | { type: 'VIEW_IP_LIBRARY' }
+  // Dashboard -> the studio's milestones/records page. Pure detour, same as VIEW_STATS.
+  | { type: 'VIEW_MILESTONES' }
   // First IP-layer milestone - promote one of the player's own released Films
   // into a persistent IntellectualProperty on demand, lifting the chosen
   // Characters (by their script-local ids) and the Film's Setting into
