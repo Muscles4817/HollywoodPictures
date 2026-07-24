@@ -2,8 +2,8 @@ import { deriveMatchQualityLabel } from '../../utils/StarRatingConversion';
 
 interface MatchBreakdownProps {
   title: string;
-  /** Each row is already a 0-100 "how well does this one dimension match" reading, not two raw numbers the player has to compare themselves - see engine/compatibility.ts:computeCharacterCompatibilityBreakdown/computeTalentCompatibilityBreakdown. */
-  rows: Array<{ label: string; matchScore: number }>;
+  /** Each row is already a 0-100 "how well does this one dimension match" reading, not two raw numbers the player has to compare themselves - see engine/compatibility.ts:computeCharacterCompatibilityBreakdown/computeTalentCompatibilityBreakdown. `known === false` veils the score as "Unknown" - an axis the casting eye can't yet vouch for (engine/talentCardPresentation.ts:gateKnownAxes); absent/true shows the score as normal. */
+  rows: Array<{ label: string; matchScore: number; known?: boolean }>;
 }
 
 /** A 0-100 match as its bar-fill tier - green for a genuine strength, blue for a fair match, amber for a soft spot. Colour does the triage the old identical star rows couldn't. */
@@ -23,10 +23,21 @@ function matchTier(score: number): 'hi' | 'mid' | 'lo' {
  * values are raw stats) - a MatchBreakdown row is already a comparison outcome.
  */
 export function MatchBreakdown({ title, rows }: MatchBreakdownProps) {
+  const anyVeiled = rows.some((r) => r.known === false);
   return (
     <div className="talent-more-group">
       <div className="talent-more-heading">{title}</div>
-      {rows.map(({ label, matchScore }) => {
+      {rows.map(({ label, matchScore, known }) => {
+        // An axis the casting eye can't vouch for yet reads as a question mark,
+        // not a precise fit for a performance nobody has seen (gateKnownAxes).
+        if (known === false) {
+          return (
+            <div className="talent-bar-row talent-bar-row--unknown" key={label}>
+              <span className="talent-bar-label">{label}</span>
+              <span className="talent-bar-unknown">Unknown</span>
+            </div>
+          );
+        }
         const tier = matchTier(matchScore);
         return (
           <div className="talent-bar-row" key={label}>
@@ -38,6 +49,7 @@ export function MatchBreakdown({ title, rows }: MatchBreakdownProps) {
           </div>
         );
       })}
+      {anyVeiled && <p className="talent-bar-unknown-note">Unknown until you see them in the part.</p>}
     </div>
   );
 }
