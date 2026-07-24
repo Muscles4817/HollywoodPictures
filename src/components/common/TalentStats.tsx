@@ -5,7 +5,7 @@ import {
   computeCharacterCompatibilityBreakdown,
 } from '../../engine/compatibility';
 import { dominantLean } from '../../engine/recommendation';
-import { describeActorCraft, describeDirectorTouch, describeDirectorActorPairing } from '../../engine/castingPresentation';
+import { describeActorCraft, describeSignatureGift, describeFameCraftContrast, describeDirectorTouch, describeDirectorActorPairing } from '../../engine/castingPresentation';
 import { getCareerForRole, deriveBookedUntil } from '../../engine/person';
 import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../../engine/personTraits';
 import { gameDateFromTotalDays, formatGameDateWithMonth } from '../../engine/calendar';
@@ -153,10 +153,29 @@ export function TalentStats({ person, role, category, script, character = null, 
 
   const traits = deriveTraits(person).slice(0, MAX_DISPLAYED_TRAITS);
 
+  // Actor identity, led BEFORE the role-fit verdict (user request): who this
+  // performer *is* - their signature gift, their craft archetype, and the
+  // fame-vs-craft trade they represent - so the card reads as a person to
+  // choose between, not a match score to sort by. Actor-only; all derived,
+  // no stored state. Layer 3 (studio<->person history) will add its own
+  // "you have history" read into this same block via describeRelationship.
+  const isActor = category === 'actor';
+  const signatureLine = isActor ? describeSignatureGift(person) : null;
+  const contrastLine = isActor ? describeFameCraftContrast(person) : null;
+
   return (
     <>
       {identityLine && <div className="candidate-identity-line">{identityLine}</div>}
       <div className="card-subtitle"><Money amount={career?.typicalSalary ?? 0} /></div>
+
+      {isActor && (
+        <div className="talent-identity">
+          {signatureLine && <p className="talent-signature">{signatureLine}</p>}
+          <p className="talent-flavor-line">{describeActorCraft(person)}</p>
+          {contrastLine && <p className="talent-flavor-line">{contrastLine}</p>}
+          {pairedDirector && <p className="talent-flavor-line">{describeDirectorActorPairing(pairedDirector, person)}</p>}
+        </div>
+      )}
 
       {category === 'director' && career && 'productionStyle' in career && (
         <>
@@ -168,7 +187,14 @@ export function TalentStats({ person, role, category, script, character = null, 
       {overallScore !== null && (
         <div className="hiring-verdict">
           <StarRating value={overallScore} />
-          <span className="hiring-verdict-label">{deriveHiringVerdict(overallScore)}</span>
+          <div className="hiring-verdict-text">
+            <span className="hiring-verdict-label">{deriveHiringVerdict(overallScore)}</span>
+            {/* The verdict is role fit - one axis, not a global judgment of the
+                person. Naming it as such (when it's an actor up for a specific
+                part) reframes "best match" as "best for THIS part," so it stops
+                reading as the only thing that matters (user request). */}
+            {isActor && character && <span className="hiring-verdict-caption">How they fit this part</span>}
+          </div>
         </div>
       )}
 
@@ -201,13 +227,6 @@ export function TalentStats({ person, role, category, script, character = null, 
         <p className="talent-flavor-line">
           Up for: {character.name} ({character.prominence} {CHARACTER_ARCHETYPE_LABELS[character.archetype]})
         </p>
-      )}
-
-      {category === 'actor' && (
-        <>
-          <p className="talent-flavor-line">{describeActorCraft(person)}</p>
-          {pairedDirector && <p className="talent-flavor-line">{describeDirectorActorPairing(pairedDirector, person)}</p>}
-        </>
       )}
 
       {roleFit && <MatchBreakdown title={roleFit.title} rows={roleFit.rows} />}

@@ -23,11 +23,13 @@ import {
   PRODUCER_SPECIALTIES,
 } from '../data/producers';
 import { HANDCRAFTED_TALENTS_BY_ROLE } from '../data/handcraftedTalents';
+import { MARQUEE_PERSONALITIES } from '../data/marqueePersonalities';
 import { TALENT_FIRST_NAMES, TALENT_LAST_NAMES } from '../data/talentNames';
 import { TONES } from '../data/tones';
 import { ACTING_STYLE_AXES } from '../data/actingStyle';
 import { CREW_CAREER_KEY } from './person';
 import { deriveHandsOnSeeded, deriveCraftSeeded } from './actingModel';
+import { buildPersonality, resolveHandcraftedPersonality } from './personality';
 import { logAmount, logT } from './interpolate';
 import { clamp, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn } from './random';
 
@@ -366,19 +368,34 @@ function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Perso
     careers = { [CREW_CAREER_KEY[role]]: { role, ...roleCareerCommon, experience: skill, skill } };
   }
 
+  // Name/gender/dateOfBirth are hoisted out of the return object unchanged in
+  // draw order (they were already the final rng draws) purely so age + a stable
+  // per-person seed are available to buildPersonality below. buildPersonality is
+  // a pure HASH derivation that consumes no rng, so the generation stream stays
+  // byte-identical - the sharp edge from docs/DESIGN_REVIEW_acting_model.md §15.
+  const name = randomName(rng);
+  const gender = generateGender(rng);
+  const dateOfBirth = generateDateOfBirth(rng);
+  const personalitySeed = `${role}:${fame}:${reliability}:${ego}:${salary}:${dateOfBirth.year}.${dateOfBirth.month}.${dateOfBirth.day}`;
+
   return {
     id: `talent-${nextTalentId++}`,
-    identity: { name: randomName(rng), gender: generateGender(rng), dateOfBirth: generateDateOfBirth(rng), appearanceTags: [] },
-    personality: {
-      professionalism: reliability,
-      ambition: 50,
-      loyalty: 50,
-      ego,
-      temperament: 50,
-      pressureHandling: 50,
-      controversy: 20,
-      adaptability: 50,
-    },
+    identity: { name, gender, dateOfBirth, appearanceTags: [] },
+    // The six formerly-flat axes now cohere into a real archetype (see
+    // engine/personality.ts) so engine/personTraits.ts can actually fire;
+    // professionalism (= reliability) and ego are carried through unchanged.
+    personality: buildPersonality(
+      {
+        professionalism: reliability,
+        ego,
+        fame,
+        prestige: fame,
+        industryRespect: reliability,
+        currentHeat: fame,
+        age: 1 - dateOfBirth.year,
+      },
+      personalitySeed,
+    ),
     reputation: { fame, prestige: fame, industryRespect: reliability, reliability, currentHeat: fame },
     primaryRole: role,
     careers,
@@ -433,6 +450,11 @@ const BUDGET_TIER: Partial<Record<TalentProfession, { ceiling: number; poolSize:
   Editor: { ceiling: 180_000, poolSize: 80 },
 };
 
+/** A handcrafted person with their personality resolved (marquee override → authored inline → archetype-derived from their own stats), everything else untouched. */
+function withResolvedPersonality(person: Person): Person {
+  return { ...person, personality: resolveHandcraftedPersonality(person, MARQUEE_PERSONALITIES[person.id]) };
+}
+
 /** The full studio roster: every role's candidate slate, generated once. */
 export function generateTalentPool(
   rng: RandomFn,
@@ -440,7 +462,11 @@ export function generateTalentPool(
   const pool = {} as Record<TalentProfession, Person[]>;
 
   for (const role of ALL_TALENT_PROFESSIONS) {
-    const handcrafted = HANDCRAFTED_TALENTS_BY_ROLE[role] ?? [];
+    // The handcrafted roster stores a flat placeholder personality for all but a
+    // few hand-authored marquee names; resolve each to its real archetype-derived
+    // (or authored-override) personality as it enters the pool. A pure, per-person
+    // deterministic read - it never mutates the source data or touches rng.
+    const handcrafted = (HANDCRAFTED_TALENTS_BY_ROLE[role] ?? []).map(withResolvedPersonality);
     const budget = BUDGET_TIER[role];
 
     // Handcrafted recognizable roster + a capped procedural budget tier just
@@ -485,19 +511,28 @@ function generateProducer(rng: RandomFn, t: number): Person {
 
   const producer: ProducerCareer = { specialty, skill, genreAffinity, typicalSalary: salary };
 
+  // Hoisted for the same reason as generateTalent: a stable seed + age for the
+  // no-rng archetype derivation, draw order unchanged.
+  const name = randomName(rng);
+  const gender = generateGender(rng);
+  const dateOfBirth = generateDateOfBirth(rng);
+  const personalitySeed = `Producer:${fame}:${reliability}:${ego}:${salary}:${dateOfBirth.year}.${dateOfBirth.month}.${dateOfBirth.day}`;
+
   return {
     id: `producer-${nextTalentId++}`,
-    identity: { name: randomName(rng), gender: generateGender(rng), dateOfBirth: generateDateOfBirth(rng), appearanceTags: [] },
-    personality: {
-      professionalism: reliability,
-      ambition: 55,
-      loyalty: 50,
-      ego,
-      temperament: 50,
-      pressureHandling: 55,
-      controversy: 18,
-      adaptability: 55,
-    },
+    identity: { name, gender, dateOfBirth, appearanceTags: [] },
+    personality: buildPersonality(
+      {
+        professionalism: reliability,
+        ego,
+        fame,
+        prestige: fame,
+        industryRespect: reliability,
+        currentHeat: fame,
+        age: 1 - dateOfBirth.year,
+      },
+      personalitySeed,
+    ),
     reputation: { fame, prestige: fame, industryRespect: reliability, reliability, currentHeat: fame },
     primaryRole: 'Producer',
     careers: { producer },

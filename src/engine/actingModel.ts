@@ -14,6 +14,7 @@
 // auteur-magnet wins with the right one.
 import type { ActingStyle, Person } from '../types';
 import { computeActorAbility } from '../types';
+import { ACTING_STYLE_AXES } from '../data/actingStyle';
 import { getActorCareer, getDirectorCareer } from './person';
 import { computeCompatibility, deriveToneFromActingStyle } from './compatibility';
 import { clamp } from './random';
@@ -158,6 +159,85 @@ export function actorArchetype(person: Person): ActorArchetype {
   if (headroom >= MAGNET_HEADROOM) return 'director-dependent';
   if (floor >= DEPENDABLE_FLOOR && headroom < DEPENDABLE_HEADROOM) return 'dependable';
   return 'all-rounder';
+}
+
+// --- Signature gift: what an actor is uniquely good at ---------------------
+//
+// The card's whole "why hire X over Y" problem is that role fit - a per-role
+// number - dominates, and everything that makes an actor a distinct *person*
+// stays buried. An actor's acting style is spiky by construction
+// (talentGenerator.ts:generateSignatureProfile rolls 1-2 signature axes high),
+// so most actors HAVE a standout - a thing they're known for, independent of
+// any one role. Surfacing it turns "a 4.5-star role fit" into "a magnetic
+// comic talent" - an identity the player remembers, not a score they sort by.
+
+/** An actor's standout acting-style axis - the thing they're known for - when one clearly stands out. */
+export interface SignatureGift {
+  axis: keyof ActingStyle;
+  /** 'defining' - a towering, single signature; 'notable' - a real strength, but not their whole identity. */
+  tier: 'defining' | 'notable';
+}
+
+const GIFT_NOTABLE = 62; // below this on every axis, no single standout - a rounded (or simply limited) actor
+const GIFT_DEFINING = 78; // a towering signature...
+const GIFT_LEAD_GAP = 10; // ...that also clears the next-best axis by this much (a single signature, not a two-way tie)
+
+/**
+ * The acting-style axis an actor is uniquely gifted at, if one clearly stands
+ * out - the "known for X" read, independent of any specific role (unlike role
+ * fit). null for a rounded or simply limited actor with no standout axis, and
+ * for non-actors. Derived from the same ActingStyle the performance model reads,
+ * so it never disagrees with what the actor can actually do.
+ */
+export function signatureGift(person: Person): SignatureGift | null {
+  const style = getActorCareer(person)?.actingStyle;
+  if (!style) return null;
+  const ranked = ACTING_STYLE_AXES.map((axis) => ({ axis, value: style[axis] })).sort((a, b) => b.value - a.value);
+  const [top, second] = ranked;
+  if (top.value < GIFT_NOTABLE) return null;
+  const tier = top.value >= GIFT_DEFINING && top.value - second.value >= GIFT_LEAD_GAP ? 'defining' : 'notable';
+  return { axis: top.axis, tier };
+}
+
+// --- Fame vs craft: the marquee-vs-performance trade ------------------------
+//
+// Fame and craft are already generated on separate axes (fame from the salary
+// band, craft from the fame-independent style/seed - see deriveCraftSeeded), so
+// the two genuinely diverge. That divergence IS the trade-off the design wants a
+// player to feel (docs/DESIGN_REVIEW_acting_model.md §7): a famous coaster buys
+// an opening weekend, an undiscovered talent buys quality cheaply. This names it
+// when it's real, and stays quiet when fame and craft roughly agree.
+
+/** Where an actor's fame and their craft ceiling notably diverge - the trade a savvy player reads. */
+export type FameCraftContrast = 'coaster' | 'undiscovered' | 'star-and-craft';
+
+const FAME_HIGH = 62;
+const FAME_LOW = 40;
+const PEAK_CRAFT_HIGH = 80; // best achievable craft (floor + fully-unlocked headroom)
+const PEAK_CRAFT_LOW = 68;
+
+/**
+ * How an actor's fame lines up against their craft ceiling: a famous 'coaster'
+ * (name outruns craft), an 'undiscovered' talent (craft outruns name), or a
+ * genuine 'star-and-craft' (both high). null when the two roughly agree - there's
+ * no notable trade to point out - and for non-actors. Craft ceiling is
+ * floor+headroom (the best a great director could unlock), so a high-headroom
+ * unknown reads as undiscovered even though their self-directed floor is modest.
+ */
+export function fameCraftContrast(person: Person): FameCraftContrast | null {
+  const career = getActorCareer(person);
+  if (!career) return null;
+  const fame = person.reputation.fame;
+  const { floor, headroom } = actorCraft(person);
+  const peakCraft = clamp(floor + headroom, 0, 100);
+  const fameHigh = fame >= FAME_HIGH;
+  const fameLow = fame <= FAME_LOW;
+  const craftHigh = peakCraft >= PEAK_CRAFT_HIGH;
+  const craftLow = peakCraft <= PEAK_CRAFT_LOW;
+  if (fameHigh && craftLow) return 'coaster';
+  if (fameLow && craftHigh) return 'undiscovered';
+  if (fameHigh && craftHigh) return 'star-and-craft';
+  return null;
 }
 
 /** How forcefully a director shapes performances, as a band. */

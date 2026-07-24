@@ -7,9 +7,9 @@
 // CharacterTraitProfile).
 import type { ActorAppealFactors, ActorScheduleAssessment, OfferRejectionReason } from './castingAppeal';
 import type { DirectorAppealFactors, DirectorOfferRejectionReason } from './directorAppeal';
-import { actorArchetype, directorTouch, directorActorPairing } from './actingModel';
+import { actorArchetype, directorTouch, directorActorPairing, signatureGift, fameCraftContrast, type FameCraftContrast } from './actingModel';
 import type { RelationshipStanding } from './relationships';
-import type { Person } from '../types';
+import type { ActingStyle, Person } from '../types';
 
 // --- Acting model reads (docs/DESIGN_REVIEW_acting_model.md §10) -----------
 // Qualitative casting reads for the floor+headroom craft model - never raw
@@ -30,6 +30,94 @@ export function describeActorCraft(person: Person): string {
     case 'all-rounder':
       return 'A capable all-rounder - a good director still lifts them.';
   }
+}
+
+// A stable index into a phrasing bank from a person id - the same person always
+// reads the same line (variety ACROSS the roster, consistency PER person),
+// without consuming the rng stream. Two dependable pros shouldn't narrate
+// identically just because they share an archetype; two DIFFERENT gifts already
+// diverge, and this spreads phrasing within a single gift on top of that.
+function stablePick<T>(id: string, options: T[]): T {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return options[(h >>> 0) % options.length];
+}
+
+// Two phrasing tiers per gift axis (a towering signature vs. a real-but-lesser
+// strength), two phrasings each - so the lead line reads as authored character,
+// not a filled-in template. Gender-neutral throughout (the roster is mixed and
+// identity.gender is optional). Kept here in presentation, per house style:
+// the engine (signatureGift) returns the category, the copy lives here.
+const GIFT_PHRASES: Record<keyof ActingStyle, { defining: string[]; notable: string[] }> = {
+  characterTransformation: {
+    defining: [
+      "A total chameleon - disappears so completely into a part you forget it's them.",
+      'One of the great transformers, unrecognisable from one film to the next.',
+    ],
+    notable: ['A transformative actor who genuinely reshapes for a role.', 'Comfortable vanishing into a character.'],
+  },
+  emotionalPerformance: {
+    defining: [
+      'An emotional powerhouse who can crack a scene wide open.',
+      'Devastating in the emotional beats - the rare actor who moves an audience to tears.',
+    ],
+    notable: ['A feeling, emotionally present performer.', "Reaches an emotional register a lot of actors can't."],
+  },
+  charisma: {
+    defining: [
+      'Pure movie-star charisma - the camera simply loves them.',
+      "A magnetic presence it's impossible to look away from.",
+    ],
+    notable: ['An easy, likeable screen presence.', 'Naturally charismatic on camera.'],
+  },
+  comedy: {
+    defining: [
+      'A gifted comic with impeccable, hard-to-teach timing.',
+      'Reliably, genuinely funny - lands jokes other actors fumble.',
+    ],
+    notable: ['A capable, well-judged comic touch.', 'Can carry the lighter, funnier moments.'],
+  },
+  physicalPerformance: {
+    defining: [
+      'A fearless physical performer who does the demanding, bodily work.',
+      'Built for the physical roles - athletic, committed, does the hard stuff on camera.',
+    ],
+    notable: ['A physically capable, athletic performer.', 'Comfortable with the physical demands of a role.'],
+  },
+};
+
+/**
+ * An actor's signature gift as a short, evocative line - "what they're uniquely
+ * good at," the lead read on a casting card (the thing that makes them a person
+ * rather than a role-fit score). null when no single strength stands out, in
+ * which case the card simply leads with their craft archetype instead
+ * (describeActorCraft). Reads signatureGift (engine/actingModel.ts), so the copy
+ * never disagrees with what the actor can actually do.
+ */
+export function describeSignatureGift(person: Person): string | null {
+  const gift = signatureGift(person);
+  if (!gift) return null;
+  return stablePick(`${person.id}:gift`, GIFT_PHRASES[gift.axis][gift.tier]);
+}
+
+const CONTRAST_PHRASES: Record<FameCraftContrast, string> = {
+  coaster: "A big name whose craft has never quite matched the billing - you're buying the marquee, not the performance.",
+  undiscovered: 'Barely known, but the talent is the real thing - cheap now, if you can pull the performance out of them.',
+  'star-and-craft': 'A genuine star - the fame and the craft are both real.',
+};
+
+/**
+ * The fame-vs-craft trade an actor represents, in a sentence - the "why hire
+ * this one over that one" read the sim already knows (a famous coaster vs. an
+ * undiscovered talent vs. a genuine star). null when fame and craft roughly
+ * agree, so the line appears only when there's a real trade to point out.
+ */
+export function describeFameCraftContrast(person: Person): string | null {
+  const contrast = fameCraftContrast(person);
+  return contrast ? CONTRAST_PHRASES[contrast] : null;
 }
 
 /** How a director's approach to performances reads on a card - a hands-on performance-driver vs. one who gives actors room. */

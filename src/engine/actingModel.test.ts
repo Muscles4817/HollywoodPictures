@@ -14,6 +14,8 @@ import {
   actorArchetype,
   directorTouch,
   directorActorPairing,
+  signatureGift,
+  fameCraftContrast,
 } from './actingModel';
 import { deriveToneFromActingStyle } from './compatibility';
 import type { ActingStyle, Person, ToneProfile } from '../types';
@@ -226,5 +228,66 @@ describe('directorHandsOn / deriveHandsOnFromUnit', () => {
     expect(directorHandsOn(bare)).toBe(directorHandsOn(bare));
     expect(directorHandsOn(bare)).toBeGreaterThanOrEqual(0.25);
     expect(directorHandsOn(bare)).toBeLessThanOrEqual(0.85);
+  });
+});
+
+// Signature gift (docs: casting card "who they are, not a role-fit score") -
+// the standout acting-style axis an actor is known for, if one clearly stands
+// out. The tier splits a towering single signature from a real-but-lesser one.
+describe('signatureGift - what an actor is uniquely good at', () => {
+  const style = (over: Partial<ActingStyle>): ActingStyle => ({
+    characterTransformation: 40, emotionalPerformance: 40, charisma: 40, comedy: 40, physicalPerformance: 40, ...over,
+  });
+
+  it('names a towering single signature as "defining"', () => {
+    const a = actor('a', style({ charisma: 90 }));
+    expect(signatureGift(a)).toEqual({ axis: 'charisma', tier: 'defining' });
+  });
+
+  it('reads a real-but-moderate standout as "notable"', () => {
+    const a = actor('a', style({ comedy: 68 }));
+    expect(signatureGift(a)).toEqual({ axis: 'comedy', tier: 'notable' });
+  });
+
+  it('a two-way tie at the top is "notable", not "defining" (no single signature)', () => {
+    const a = actor('a', style({ charisma: 82, physicalPerformance: 80 }));
+    expect(signatureGift(a)).toEqual({ axis: 'charisma', tier: 'notable' });
+  });
+
+  it('is null for a rounded/limited actor with no standout axis', () => {
+    expect(signatureGift(actor('a', style({})))).toBeNull();
+  });
+
+  it('is null for a non-actor', () => {
+    const dir = director('d', { toneProfile: deriveToneFromActingStyle(PRO_STYLE), skill: 50, handsOn: 0.5 });
+    expect(signatureGift(dir)).toBeNull();
+  });
+});
+
+// Fame vs craft (docs/DESIGN_REVIEW_acting_model.md §7) - the marquee-vs-
+// performance trade, surfaced only when fame and craft ceiling genuinely
+// diverge. Craft ceiling is floor+headroom (the best a director could unlock).
+describe('fameCraftContrast - the marquee-vs-performance trade', () => {
+  const S: ActingStyle = { characterTransformation: 50, emotionalPerformance: 50, charisma: 50, comedy: 50, physicalPerformance: 50 };
+
+  it('famous + low craft ceiling reads as a coaster', () => {
+    expect(fameCraftContrast(actor('a', S, { fame: 82, craftFloor: 40, craftHeadroom: 10 }))).toBe('coaster');
+  });
+
+  it('unknown + high craft ceiling reads as an undiscovered talent', () => {
+    expect(fameCraftContrast(actor('a', S, { fame: 20, craftFloor: 78, craftHeadroom: 20 }))).toBe('undiscovered');
+  });
+
+  it('famous + high craft ceiling reads as a genuine star', () => {
+    expect(fameCraftContrast(actor('a', S, { fame: 82, craftFloor: 78, craftHeadroom: 20 }))).toBe('star-and-craft');
+  });
+
+  it('is null when fame and craft roughly agree (no notable trade to point out)', () => {
+    expect(fameCraftContrast(actor('a', S, { fame: 50, craftFloor: 62, craftHeadroom: 10 }))).toBeNull();
+  });
+
+  it('is null for a non-actor', () => {
+    const dir = director('d', { toneProfile: deriveToneFromActingStyle(PRO_STYLE), skill: 50, handsOn: 0.5 });
+    expect(fameCraftContrast(dir)).toBeNull();
   });
 });
