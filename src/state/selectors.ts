@@ -236,8 +236,8 @@ export function deriveReputationHistory(state: GameState): ReputationEvent[] {
     // numbers match what the reducer actually credited.
     const show = awardShow(ceremony.show);
     const raw = computeStudioAwardDeltas(ceremony, playerFilmIds);
-    const prestige = raw.prestige * show.payoffScale;
-    const brand = raw.brand * show.payoffScale;
+    const prestige = Math.round(raw.prestige * show.payoffScale);
+    const brand = Math.round(raw.brand * show.payoffScale);
     if (prestige === 0 && brand === 0) return [];
     const { wins, nominations } = playerAwardHaul(ceremony, playerFilmIds);
     const haul = wins > 0

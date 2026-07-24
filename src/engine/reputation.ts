@@ -213,6 +213,16 @@ export function explainPrestigeChange({ criticScore, qualityScore }: PrestigeCha
   return 'A career-defining critical triumph';
 }
 
+/**
+ * Apply a delta to a 0-100 progression stat (Brand or Prestige) and clamp
+ * back into range. The result is rounded to a whole number: Brand and
+ * Prestige are integer stats, but some deltas arrive fractional - award
+ * payoffs scale a film's raw delta by the show's `payoffScale` (0.3-1.0,
+ * data/awardsShows.ts), so e.g. a +3 Prestige tally at a 0.5 precursor is a
+ * +1.5 change. Rounding here keeps the stored value integral at its single
+ * choke point, so every read-out (dashboard tiles, rival pages, history
+ * modals) shows a whole number without each having to round on its own.
+ */
 export function applyStatChange(current: number, change: number): number {
-  return clamp(current + change, 0, 100);
+  return clamp(Math.round(current + change), 0, 100);
 }

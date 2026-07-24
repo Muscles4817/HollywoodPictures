@@ -107,4 +107,14 @@ describe('applyStatChange', () => {
     expect(applyStatChange(50, 7)).toBe(57);
     expect(applyStatChange(50, -7)).toBe(43);
   });
+
+  it('rounds a fractional change to a whole number - Brand/Prestige are integer stats', () => {
+    // Award payoffs scale a raw delta by the show's payoffScale (data/awardsShows.ts),
+    // e.g. a +3 tally at a 0.5 precursor arrives here as +1.5. The stored stat must
+    // stay integral so no read-out (dashboard, rival pages, history) shows a decimal.
+    expect(applyStatChange(50, 1.5)).toBe(52);
+    expect(applyStatChange(50, 0.84)).toBe(51);
+    expect(applyStatChange(50, -1.4)).toBe(49);
+    expect(Number.isInteger(applyStatChange(30, 2.4))).toBe(true);
+  });
 });
