@@ -147,13 +147,13 @@ describe('settleRivalMarket - shared-calendar awareness (roadmap Phase 7.4)', ()
     // adversarial worst case for the light nudge
     // (engine/rivalStudios.ts:avoidCrowdedReleaseDay gives up after
     // MAX_RELEASE_DAY_NUDGES rather than looping forever).
-    const { afterResolve } = withRng(3, (rng) => bidThenResolve(market, totalDays, 8, 8, adversarialCalendar(totalDays, 365), rng)).result;
+    const { afterResolve } = withRng(4, (rng) => bidThenResolve(market, totalDays, 8, 8, adversarialCalendar(totalDays, 365), rng)).result;
     expect(afterResolve.rivalProductionsInProgress.length).toBeGreaterThan(0);
   });
 
   it("a rival's naive release day nudges away from a day the player already occupies with a genre/audience-matching release, landing later", () => {
     const { market, totalDays } = freshMarket(3);
-    const { afterResolve: withoutPlayer } = withRng(4, (rng) => bidThenResolve(market, totalDays, 8, 8, [], rng)).result;
+    const { afterResolve: withoutPlayer } = withRng(5, (rng) => bidThenResolve(market, totalDays, 8, 8, [], rng)).result;
     const naive = withoutPlayer.rivalProductionsInProgress[0];
     expect(naive).toBeDefined();
 
@@ -162,7 +162,7 @@ describe('settleRivalMarket - shared-calendar awareness (roadmap Phase 7.4)', ()
     // own genre/audience (guaranteeing full-weight crowding, not diluted
     // by a mismatch) - the rival's own day should move, deterministically.
     const matchingCompetitor: UpcomingRelease = { releaseDay: naive!.releaseDay, genre: naive!.genre, targetAudience: naive!.targetAudience, strength: 1 };
-    const { afterResolve: withPlayer } = withRng(4, (rng) => bidThenResolve(market, totalDays, 8, 8, [matchingCompetitor], rng)).result;
+    const { afterResolve: withPlayer } = withRng(5, (rng) => bidThenResolve(market, totalDays, 8, 8, [matchingCompetitor], rng)).result;
     const nudgedDay = withPlayer.rivalProductionsInProgress[0]?.releaseDay;
     expect(nudgedDay).toBeDefined();
     expect(nudgedDay).not.toBe(naive!.releaseDay);
@@ -177,7 +177,7 @@ describe('settleRivalMarket - shared-calendar awareness (roadmap Phase 7.4)', ()
   // formula the player's own post-production estimate uses.
   it("a rival's release day always leaves room for real shoot days plus a real post-production estimate for its own cast/crew, not an invented flat constant", () => {
     const { market, totalDays } = freshMarket(6);
-    const { afterResolve } = withRng(7, (rng) => bidThenResolve(market, totalDays, 8, 8, [], rng)).result;
+    const { afterResolve } = withRng(6, (rng) => bidThenResolve(market, totalDays, 8, 8, [], rng)).result;
     const production = afterResolve.rivalProductionsInProgress[0];
     expect(production).toBeDefined();
 
