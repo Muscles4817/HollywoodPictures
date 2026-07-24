@@ -33,7 +33,13 @@ export const ROLE_GENERATION_PROFILES: Record<TalentProfession, RoleGenerationPr
   Writer: { salaryRange: { min: 15_000, max: 2_000_000 }, fameCeiling: 55 },
   Cinematographer: { salaryRange: { min: 25_000, max: 6_000_000 }, fameCeiling: 62 },
   Composer: { salaryRange: { min: 15_000, max: 2_500_000 }, fameCeiling: 60 },
-  Editor: { salaryRange: { min: 10_000, max: 1_200_000 }, fameCeiling: 45 },
+  // Editors are fully hand-authored - no procedural editor pool (see
+  // engine/talentGenerator.ts:generateTalentPool). The range spans the ~100
+  // hand-authored editors' actual salaries (~$180K-$1.5M in HANDCRAFTED_EDITORS,
+  // from up-and-coming cutters to legends like Schoonmaker/Murch) so the price
+  // slider, rival target pricing, and casting-call bands only ever point where
+  // a real editor exists.
+  Editor: { salaryRange: { min: 180_000, max: 1_500_000 }, fameCeiling: 45 },
   'VFX Supervisor': { salaryRange: { min: 30_000, max: 5_000_000 }, fameCeiling: 65 },
   'Casting Director': { salaryRange: { min: 20_000, max: 3_000_000 }, fameCeiling: 40 },
 };

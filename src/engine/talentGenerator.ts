@@ -455,6 +455,15 @@ export function generateTalentPool(
       continue;
     }
 
+    // Editors are fully hand-authored too (see HANDCRAFTED_EDITORS): the roster
+    // covers the whole $180K-$1.5M pay band densely, so there's no procedural
+    // fill - every hireable editor is a real, named cutter. Same shape as the
+    // Director case above; the Editor salaryRange is pinned to the roster's span.
+    if (role === 'Editor') {
+      pool[role] = [...handcrafted];
+      continue;
+    }
+
     pool[role] = [...handcrafted, ...generateTalentCandidates(role, rng)];
   }
 
