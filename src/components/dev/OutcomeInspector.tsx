@@ -8,7 +8,9 @@ import { RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS, MARKETING_SPEND_RANG
 import { SHOOTING_BUDGET_RANGE, ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../../data/production';
 import { computeReleaseResults } from '../../engine/releaseFilm';
 import { combineProductionEvents } from '../../engine/scoring';
-import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta } from '../../engine/cost';
+import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeFilmCostBreakdown } from '../../engine/cost';
+import { runtimeCostMultiplier } from '../../engine/productionDials';
+import { MARKETING_CHANNELS, MARKETING_CHANNEL_LABEL } from '../../data/marketing';
 import { deriveCommercialProfile } from '../../engine/commercialProfile';
 import { computeTalentCompatibility, computeTalentCompatibilityBreakdown } from '../../engine/compatibility';
 import { advanceToWeek, MAX_SIMULATION_WEEKS } from '../../engine/audienceSimulationStep';
@@ -466,6 +468,35 @@ export function OutcomeInspector() {
       ? Math.round(originalProjectedWeeks[originalProjectedWeeks.length - 1].cumulativeTicketsSold * AVERAGE_TICKET_PRICE)
       : 0);
 
+  // Itemised cost breakdown - the exact terms engine/releaseFilm.ts sums into
+  // productionCost/marketingCost/totalCost, so every dial and selection's cash
+  // is visible. Current is fed the identical inputs as the computeReleaseResults
+  // call above (same synthetic `events`, empty post-production events, neutral
+  // producers), so currentCost.totalCost === results.totalCost exactly. Original
+  // is reconstructed from the loaded film; its photography term comes from
+  // photographyCostForFilm (defined by subtraction to make the sum land on the
+  // stored productionCost), so originalCost.totalCost === original.totalCost too.
+  const currentCost = computeFilmCostBreakdown({
+    talent,
+    productionChoices,
+    photographyCost,
+    events,
+    postProductionEvents: [],
+    marketingChoices,
+  });
+  const originalCost = computeFilmCostBreakdown({
+    talent: selectedFilm.talent,
+    productionChoices: selectedFilm.productionChoices,
+    photographyCost: photographyCostForFilm(selectedFilm),
+    events: selectedFilm.events,
+    postProductionEvents: selectedFilm.postProductionEvents,
+    marketingChoices: selectedFilm.marketingChoices,
+  });
+  // Raw production dials (sets + practical + VFX) feeding the Production Budget
+  // line, before the runtime-intensity multiplier that scales them.
+  const currentRuntimeMult = runtimeCostMultiplier(productionChoices.runtimeIntensity);
+  const originalRuntimeMult = runtimeCostMultiplier(selectedFilm.productionChoices.runtimeIntensity);
+
   return (
     <div className="stack">
       <div>
@@ -540,6 +571,81 @@ export function OutcomeInspector() {
             <span>{original.prestigeChange ?? 0} → {prestigeChange}</span>
           </div>
         </div>
+      </div>
+
+      <div className="card stack">
+        <h2 style={{ margin: 0 }}>Cost Breakdown - Original → Current</h2>
+        <p className="choice-description" style={{ margin: 0 }}>
+          Every cash line that goes into this film's all-in cost, itemised down to the dial. The lines under each
+          heading sum to their subtotal, and the two subtotals to Total Cost - the exact terms
+          engine/releaseFilm.ts charges (script cost is charged separately at acquisition, so it's noted below the
+          total, not in it).
+        </p>
+
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+          <p className="choice-description" style={{ margin: '0 0 6px', fontWeight: 600 }}>Production</p>
+          <CompareMoneyRow label="Talent salaries" original={originalCost.talent} current={currentCost.talent} />
+          <CompareMoneyRow label="Production budget (sets · practical · VFX)" original={originalCost.productionBudget} current={currentCost.productionBudget} />
+          <div style={{ paddingLeft: 12, fontSize: '0.85em', opacity: 0.8 }}>
+            {(['setQualityAmount', 'practicalEffectsAmount', 'vfxAmount'] as const).map((key) => (
+              <CompareMoneyRow
+                key={key}
+                label={`↳ ${key === 'setQualityAmount' ? 'Set quality' : key === 'practicalEffectsAmount' ? 'Practical effects' : 'VFX'}`}
+                original={selectedFilm.productionChoices[key]}
+                current={productionChoices[key]}
+              />
+            ))}
+            <p className="choice-description" style={{ margin: '2px 0 0' }}>
+              ↳ × runtime-intensity multiplier {originalRuntimeMult.toFixed(2)} → {currentRuntimeMult.toFixed(2)}
+            </p>
+          </div>
+          <CompareMoneyRow label="Photography (contingency burn)" original={originalCost.photography} current={currentCost.photography} />
+          <CompareMoneyRow label="On-set events (net)" original={originalCost.onSetEvents} current={currentCost.onSetEvents} />
+          <CompareMoneyRow label="Post-production interventions (net)" original={originalCost.postProductionInterventions} current={currentCost.postProductionInterventions} />
+          {(originalCost.producerFees > 0 || currentCost.producerFees > 0) && (
+            <CompareMoneyRow label="Producer fees" original={originalCost.producerFees} current={currentCost.producerFees} />
+          )}
+          <div style={{ borderTop: '1px solid var(--border)', marginTop: 6, paddingTop: 6, fontWeight: 700 }}>
+            <CompareMoneyRow label="Production Cost" original={originalCost.productionCost} current={currentCost.productionCost} />
+          </div>
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+          <p className="choice-description" style={{ margin: '0 0 6px', fontWeight: 600 }}>Marketing</p>
+          {currentCost.onDistributorDeal || originalCost.onDistributorDeal ? (
+            <p className="choice-description" style={{ margin: '0 0 4px' }}>
+              Distributor-funded campaign - its committed P&amp;A is fronted and recouped off the gross, so the studio
+              pays no channel cost up front (only the press tour below).
+            </p>
+          ) : (
+            <div style={{ paddingLeft: 12, fontSize: '0.85em', opacity: 0.8 }}>
+              {MARKETING_CHANNELS.map((channel) => (
+                <CompareMoneyRow
+                  key={channel}
+                  label={`↳ ${MARKETING_CHANNEL_LABEL[channel]}`}
+                  original={selectedFilm.marketingChoices.channelSpend?.[channel] ?? 0}
+                  current={marketingChoices.channelSpend?.[channel] ?? 0}
+                />
+              ))}
+              <p className="choice-description" style={{ margin: '2px 0 0' }}>
+                ↳ × {marketingChoices.releaseType} release-type cost multiplier
+              </p>
+            </div>
+          )}
+          <CompareMoneyRow label="Channel campaign" original={originalCost.channelCampaign} current={currentCost.channelCampaign} />
+          <CompareMoneyRow label="Press tour" original={originalCost.pressTour} current={currentCost.pressTour} />
+          <div style={{ borderTop: '1px solid var(--border)', marginTop: 6, paddingTop: 6, fontWeight: 700 }}>
+            <CompareMoneyRow label="Marketing Cost" original={originalCost.marketingCost} current={currentCost.marketingCost} />
+          </div>
+        </div>
+
+        <div style={{ borderTop: '2px solid var(--border)', paddingTop: 8, fontWeight: 700 }}>
+          <CompareMoneyRow label="Total Cost" original={originalCost.totalCost} current={currentCost.totalCost} />
+        </div>
+        <p className="choice-description" style={{ margin: 0 }}>
+          Script acquisition (<Money amount={script.cost} />) is charged once at the Opportunity stage, before this film
+          exists - not part of Total Cost above.
+        </p>
       </div>
 
       <div className="row">

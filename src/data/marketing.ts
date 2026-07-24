@@ -37,6 +37,23 @@ export const CHANNEL_AUDIENCE_EFFICIENCY: Record<MarketingChannel, Record<Target
 export const REACH_PER_CHANNEL = 50_000_000;
 export const SATURATION_SCALE = 25_000_000;
 
+// Per-channel spend ceilings on the campaign dials. Real P&A is nowhere near
+// evenly split across these categories: national TV commands the largest slice,
+// trailers and digital a large-but-smaller one, and press/publicity (junkets,
+// premieres, critic screenings) is one of the *smallest* line items - a real
+// campaign never pours tens of millions into press alone. A single uniform cap
+// made every category look equally expensive and let the four dials sum to
+// ~$240M, ~1.6x over the campaign-wide MARKETING_SPEND_RANGE ceiling ($150M,
+// data/release.ts) that the awareness pipeline treats as the real-world top.
+// These per-category ceilings track the absolute range each category actually
+// commands, and their sum (~$160M) lines the dials back up with that ceiling.
+export const CHANNEL_SPEND_MAX: Record<MarketingChannel, number> = {
+  tv: 60_000_000, // the dominant slice of a real P&A budget
+  trailers: 45_000_000, // creative + heavy theatrical/placement spend
+  digital: 40_000_000, // large and growing, but below TV
+  press: 15_000_000, // publicity/junkets/screenings - the smallest real line
+};
+
 // --- Campaign angle -------------------------------------------------------
 // Each loud angle boosts the opening (hype) but risks the legs if the film
 // can't back up what it promised. `faithful` is the safe, hype-free baseline.

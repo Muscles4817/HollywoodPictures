@@ -9,11 +9,30 @@ import {
   totalMarketingSpend,
   type ChannelSpend,
 } from './marketing';
-import { CAMPAIGN_FULL_ROLLOUT_WEEKS, CAMPAIGN_MOMENTUM_BONUS, OPENING_HYPE_SCALE } from '../data/marketing';
+import { CAMPAIGN_FULL_ROLLOUT_WEEKS, CAMPAIGN_MOMENTUM_BONUS, CHANNEL_SPEND_MAX, OPENING_HYPE_SCALE } from '../data/marketing';
+import { MARKETING_SPEND_RANGE } from '../data/release';
 
 function spend(partial: Partial<ChannelSpend>): ChannelSpend {
   return { trailers: 0, tv: 0, digital: 0, press: 0, ...partial };
 }
+
+describe('CHANNEL_SPEND_MAX (per-category dial ceilings)', () => {
+  it('caps the four dials near the campaign-wide ceiling, not ~1.6x over it', () => {
+    const sum = CHANNEL_SPEND_MAX.tv + CHANNEL_SPEND_MAX.trailers + CHANNEL_SPEND_MAX.digital + CHANNEL_SPEND_MAX.press;
+    // The old uniform $60M cap summed to $240M, ~1.6x the $150M ceiling the
+    // awareness pipeline treats as the real-world top. The rebalanced caps sit
+    // within a modest band of that ceiling.
+    expect(sum).toBeLessThanOrEqual(MARKETING_SPEND_RANGE.max * 1.1);
+    expect(sum).toBeGreaterThanOrEqual(MARKETING_SPEND_RANGE.max * 0.9);
+  });
+
+  it('ranks the categories the way real P&A does - TV the largest, press the smallest', () => {
+    expect(CHANNEL_SPEND_MAX.tv).toBeGreaterThanOrEqual(CHANNEL_SPEND_MAX.trailers);
+    expect(CHANNEL_SPEND_MAX.trailers).toBeGreaterThanOrEqual(CHANNEL_SPEND_MAX.digital);
+    expect(CHANNEL_SPEND_MAX.digital).toBeGreaterThan(CHANNEL_SPEND_MAX.press);
+    expect(CHANNEL_SPEND_MAX.press).toBe(Math.min(...Object.values(CHANNEL_SPEND_MAX)));
+  });
+});
 
 describe('totalMarketingSpend', () => {
   it('sums every channel and ignores negatives', () => {

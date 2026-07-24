@@ -2,6 +2,7 @@ import type { MarketingChoices, ProductionChoices, ProductionEvent, TalentAssign
 import { runtimeCostMultiplier } from './productionDials';
 import { RELEASE_TYPE_PROFILES } from '../data/release';
 import { getTypicalSalaryForRole } from './person';
+import { pressTourCost } from './pressTour';
 
 /** Sum of every hired person's typical salary under the role they were actually cast in. */
 export function computeTalentCost(talent: TalentAssignment[]): number {
@@ -43,4 +44,83 @@ export function computeEventsCostDelta(events: ProductionEvent[]): number {
 export function computeMarketingCost(choices: MarketingChoices): number {
   const releaseCostMultiplier = RELEASE_TYPE_PROFILES[choices.releaseType].costMultiplier;
   return Math.round(choices.marketingSpend * releaseCostMultiplier);
+}
+
+/**
+ * Every cash line that goes into a film's all-in cost, itemised - the exact
+ * same components engine/releaseFilm.ts:computeReleaseResults sums into
+ * FilmResults.productionCost / marketingCost / totalCost, pulled out into their
+ * own labelled terms so a breakdown can show where every pound went (per dial
+ * and selection) without re-deriving the arithmetic and risking drift. The
+ * itemised terms sum to the returned productionCost/marketingCost/totalCost
+ * exactly (barring the same non-negative clamps releaseFilm applies).
+ *
+ * Producer effects are passed as plain scalars (a production-cost multiplier and
+ * a flat per-film fee) rather than the ProducerEffects type, so this stays a
+ * dependency-light pure helper; both default to neutral (1x, £0).
+ */
+export interface FilmCostBreakdown {
+  // --- Production ---
+  talent: number;
+  productionBudget: number;
+  photography: number;
+  onSetEvents: number;
+  postProductionInterventions: number;
+  producerFees: number;
+  productionCost: number;
+  // --- Marketing ---
+  channelCampaign: number;
+  pressTour: number;
+  marketingCost: number;
+  // --- All-in ---
+  totalCost: number;
+  /** True when a distributor funds the ad campaign (its P&A), so the studio pays no channel cost up front. */
+  onDistributorDeal: boolean;
+}
+
+export function computeFilmCostBreakdown(input: {
+  talent: TalentAssignment[];
+  productionChoices: ProductionChoices;
+  /** Contingency burn from the finished shoot (engine/releaseFilm.ts:photographyCost). */
+  photographyCost: number;
+  /** On-set events (their net cost delta). */
+  events: ProductionEvent[];
+  /** Resolved test-screening / post-production interventions (their net cost delta). */
+  postProductionEvents: ProductionEvent[];
+  marketingChoices: MarketingChoices;
+  /** Producer production-cost multiplier (engine/producers.ts). Defaults to 1 (neutral). */
+  productionCostMultiplier?: number;
+  /** Total attached per-film producer fees. Defaults to 0. */
+  producerFees?: number;
+}): FilmCostBreakdown {
+  const talent = computeTalentCost(input.talent);
+  const productionBudget = Math.round(computeProductionBudgetCost(input.productionChoices) * (input.productionCostMultiplier ?? 1));
+  const photography = Math.max(0, Math.round(input.photographyCost));
+  const onSetEvents = computeEventsCostDelta(input.events);
+  const postProductionInterventions = computeEventsCostDelta(input.postProductionEvents);
+  const producerFees = input.producerFees ?? 0;
+  const productionCost = Math.max(0, talent + productionBudget + photography + onSetEvents + postProductionInterventions + producerFees);
+
+  // Under a distributor deal the ad campaign is the distributor's fronted P&A
+  // (recouped off the gross), so the studio's own channel outlay is nil - only
+  // the press tour is the studio's marketing cash. Mirrors releaseFilm exactly.
+  const onDistributorDeal = (input.marketingChoices.distributionPAndA ?? 0) > 0;
+  const channelCampaign = onDistributorDeal ? 0 : computeMarketingCost(input.marketingChoices);
+  const pressTour = pressTourCost(input.talent, input.marketingChoices.pressTourCast);
+  const marketingCost = Math.max(0, channelCampaign + pressTour);
+
+  return {
+    talent,
+    productionBudget,
+    photography,
+    onSetEvents,
+    postProductionInterventions,
+    producerFees,
+    productionCost,
+    channelCampaign,
+    pressTour,
+    marketingCost,
+    totalCost: productionCost + marketingCost,
+    onDistributorDeal,
+  };
 }
