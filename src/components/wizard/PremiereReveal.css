@@ -1,12 +1,35 @@
 .premiere-reveal {
   position: relative;
-  gap: 20px;
+  gap: 24px;
+  overflow: hidden;
 }
+
+/* A soft, verdict-toned glow behind the hero so a triumph reads warm and a
+   flop reads cool the instant the card appears - cinematic, not numeric. */
+.premiere-reveal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background: radial-gradient(120% 80% at 50% -10%, var(--premiere-glow, transparent), transparent 60%);
+}
+
+.premiere-reveal > * {
+  position: relative;
+}
+
+.premiere-reveal--triumph { --premiere-glow: color-mix(in srgb, var(--star) 40%, transparent); }
+.premiere-reveal--good { --premiere-glow: color-mix(in srgb, var(--green) 28%, transparent); }
+.premiere-reveal--mixed { --premiere-glow: color-mix(in srgb, var(--primary) 20%, transparent); }
+.premiere-reveal--poor { --premiere-glow: color-mix(in srgb, var(--amber) 22%, transparent); }
+.premiere-reveal--disaster { --premiere-glow: color-mix(in srgb, var(--red) 22%, transparent); }
 
 .premiere-reveal__skip {
   position: absolute;
   top: 12px;
   right: 12px;
+  z-index: 2;
   padding: 4px 12px;
   font-size: 0.85em;
   color: var(--text-muted);
@@ -32,10 +55,93 @@
   transform: translateY(0);
 }
 
-.premiere-reveal__subtitle {
-  margin: 4px 0 0;
+/* --- Hero: poster + title + verdict ------------------------------------ */
+
+.premiere-hero {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+
+.premiere-hero__headline {
+  min-width: 0;
+}
+
+.premiere-hero__eyebrow {
+  margin: 0;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
 }
+
+.premiere-hero__title {
+  margin: 6px 0 12px;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.premiere-hero__verdict {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.premiere-hero__verdict-line {
+  font-size: 1.15em;
+  font-weight: 600;
+}
+
+/* --- Generated poster tile --------------------------------------------- */
+
+.premiere-poster {
+  flex: 0 0 auto;
+  width: 150px;
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 14px;
+  color: #fff;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  /* Fallback gradient; each genre overrides the two stops below. */
+  background: linear-gradient(160deg, #3a4a63, #1c2536);
+}
+
+.premiere-poster__mono {
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1;
+  opacity: 0.22;
+  letter-spacing: -0.04em;
+}
+
+.premiere-poster__genre {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.85;
+}
+
+.premiere-poster[data-genre='action'] { background: linear-gradient(160deg, #b5361f, #2a0f0a); }
+.premiere-poster[data-genre='comedy'] { background: linear-gradient(160deg, #e0a92c, #7a4a12); }
+.premiere-poster[data-genre='drama'] { background: linear-gradient(160deg, #3f5a86, #161d2c); }
+.premiere-poster[data-genre='horror'] { background: linear-gradient(160deg, #4a1030, #0c0710); }
+.premiere-poster[data-genre='romance'] { background: linear-gradient(160deg, #c65a86, #4a1330); }
+.premiere-poster[data-genre='sci-fi'] { background: linear-gradient(160deg, #1f8a94, #0a2230); }
+.premiere-poster[data-genre='fantasy'] { background: linear-gradient(160deg, #6a3fa0, #1a1236); }
+.premiere-poster[data-genre='thriller'] { background: linear-gradient(160deg, #2c3e50, #0a0e14); }
+
+/* --- Reviews columns ---------------------------------------------------- */
 
 .premiere-reveal__columns {
   display: grid;
@@ -71,15 +177,38 @@
   gap: 48px;
   padding: 16px 0;
   border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
   text-align: center;
 }
 
-.premiere-reveal__boxoffice {
+/* --- Opening weekend: the payoff, the largest figure on the page -------- */
+
+.premiere-hero__boxoffice {
   text-align: center;
+  padding-top: 4px;
+}
+
+.premiere-hero__boxoffice .stat-label {
+  font-size: 0.85em;
+  letter-spacing: 0.08em;
+}
+
+.premiere-hero__boxoffice-value {
+  font-size: clamp(2.6rem, 8vw, 4.75rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  margin-top: 4px;
 }
 
 @media (max-width: 640px) {
+  .premiere-hero {
+    gap: 16px;
+  }
+
+  .premiere-poster {
+    width: 104px;
+  }
+
   .premiere-reveal__columns {
     grid-template-columns: 1fr;
     gap: 12px;
