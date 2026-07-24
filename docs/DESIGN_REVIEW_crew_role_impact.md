@@ -1,5 +1,23 @@
 # Design Review: Making Hireable Crew Roles Matter
 
+## Status
+
+**Craft-term wiring implemented** (the four craft roles), Decision **B** taken —
+Cinematographer and realised-VFX route into the captured-footage blend. Measured
+floor→ceiling Quality swing on the harness after wiring:
+
+```
+Director 23.3 | Lead 8.1 | Editor 5.9 | Composer 4.6 | Supporting 3.5
+Cinematographer 3.1 | VFX Supervisor 2.7 (Action; genre-scaled) | Writer 0.1 | Casting Dir 0.0
+```
+
+All four craft roles clear the near-nil bar and sit below the creative leads, with
+Director still dominant. Every crew term is centred at neutral skill 50, so
+crew-less fixtures and rivals are unchanged; full suite green. Remaining
+follow-ups from this doc, **not yet done**: expanded on-set event coverage
+(§"Event coverage to add") and the two companion diagnostics for Writer & Casting
+Director (§5).
+
 ## Problem
 
 The `roleSensitivity` diagnostic (`src/engine/roleSensitivity.diagnostic.test.ts`,

@@ -76,6 +76,23 @@ export const vfxT = (amount: number) => logT(amount, VFX_RANGE);
 export const vfxScore = (amount: number) => interpolateScale(vfxT(amount), VFX_ANCHORS, 'quality');
 export const vfxDescription = (amount: number) => describeScale(vfxT(amount), VFX_ANCHORS);
 
+// How much a VFX Supervisor's craft swings the realised value of the VFX spend:
+// the money buys the shots, but the supervisor determines how well that spend is
+// actually landed on screen. Centred at skill 50 (factor 1.0), so an unstaffed
+// production - and every existing crew-less fixture/rival - reads exactly the
+// old money-only vfxScore. A floor hire realises ~0.6x the spend, a ceiling hire
+// ~1.4x, before the genre-scaled effects weighting in scoring.ts decides how much
+// that matters at all (a chamber drama barely leans on VFX; an Action tentpole
+// leans hard).
+const VFX_SUPERVISOR_FLOOR_FACTOR = 0.6;
+const VFX_SUPERVISOR_SKILL_SPAN = 0.8;
+
+/** Realised VFX quality: the money-driven vfxScore scaled by how well the supervisor lands it (factor 1.0 at neutral skill 50). */
+export function realizedVfxScore(vfxAmount: number, supervisorSkill = 50): number {
+  const factor = VFX_SUPERVISOR_FLOOR_FACTOR + (supervisorSkill / 100) * VFX_SUPERVISOR_SKILL_SPAN;
+  return clamp(vfxScore(vfxAmount) * factor, 0, 100);
+}
+
 /**
  * How far toward the expensive end of its *own* range each of the four
  * spend dials sits, averaged into one 0-1 "how well-resourced is this

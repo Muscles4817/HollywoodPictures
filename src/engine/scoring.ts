@@ -1,4 +1,5 @@
 import type {
+  CrewRole,
   Genre,
   Person,
   PostProductionChoices,
@@ -13,7 +14,7 @@ import { TONES } from '../data/tones';
 import { computeCharacterCompatibility, computeTalentCompatibility } from './compatibility';
 import { deriveCommercialProfile } from './commercialProfile';
 import { findAssignedPerson, filterAssignedPeople } from '../data/helpers';
-import { getActorCareer, getDirectorCareer } from './person';
+import { getActorCareer, getCrewCareer, getDirectorCareer } from './person';
 import { characterForRoleSlot } from './castRequirements';
 import {
   contingencyQuality,
@@ -22,7 +23,7 @@ import {
   shootingQualityFromRatio,
   setQualityScore,
   practicalEffectsScore,
-  vfxScore,
+  realizedVfxScore,
   runtimeMarketabilityDelta,
   marketingBuzzContribution,
 } from './productionDials';
@@ -54,6 +55,21 @@ function compatibility(person: Person | undefined, role: 'Director' | 'Lead Acto
 function average(values: number[]): number | null {
   if (values.length === 0) return null;
   return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+/**
+ * A crew hire's 0-100 craft skill for the role they occupy, or a neutral 50 when
+ * the seat is empty - so an unstaffed production (and every existing crew-less
+ * fixture and rival) reads exactly as before a given craft role was wired in.
+ * This is the single seam that gives Cinematographer/Composer/Editor/VFX
+ * Supervisor a voice in the department node they belong to (see
+ * docs/DESIGN_REVIEW_crew_role_impact.md); before this they reached quality only
+ * through the occasional skill-sensitive on-set event.
+ */
+function crewSkill(talent: TalentAssignment[], role: CrewRole): number {
+  const person = findAssignedPerson(talent, role);
+  if (!person) return 50;
+  return getCrewCareer(person, role)?.skill ?? 50;
 }
 
 /**
@@ -167,14 +183,22 @@ export function computeActingScore(talent: TalentAssignment[], script: Script): 
  * (PhotographyState) - shooting quality is read off how photography
  * actually went, not a pre-set pace dial (see
  * productionDials.ts:shootingQualityFromRatio).
+ *
+ * The VFX spend's realised value is now scaled by the VFX Supervisor's craft
+ * (realizedVfxScore) rather than being money alone: the same VFX budget lands
+ * better under a strong supervisor, and this enters via the already
+ * genre-scaled effects term, so a great VFX Supervisor matters on an Action
+ * tentpole and barely at all on a chamber drama (a real genre trade-off, not a
+ * flat bonus). `talent` is optional - omitted, every crew skill reads a neutral
+ * 50, so this scores exactly as before for crew-less callers.
  */
-export function computeProductionScore(choices: ProductionChoices, genre: Genre, shootingRatio: number): number {
+export function computeProductionScore(choices: ProductionChoices, genre: Genre, shootingRatio: number, talent: TalentAssignment[] = []): number {
   const profile = GENRE_PROFILES[genre];
   const contingency = contingencyQuality(choices.contingencyAmount);
   const style = shootingQualityFromRatio(shootingRatio);
   const set = setQualityScore(choices.setQualityAmount);
   const practical = practicalEffectsScore(choices.practicalEffectsAmount);
-  const vfx = vfxScore(choices.vfxAmount);
+  const vfx = realizedVfxScore(choices.vfxAmount, crewSkill(talent, 'VFX Supervisor'));
 
   const effectsWeightTotal = profile.vfxImportance + profile.practicalEffectsImportance;
   const effectsScore =
@@ -236,11 +260,33 @@ export function computeEventsScore(events: ProductionEvent[]): number {
  * same as this function's own base score always meant "no post-production
  * choices have helped yet."
  */
-export function computePostProductionScore(choices: PostProductionChoices): number {
+// How much the Editor's and Composer's craft swing the post-production sub-score.
+// Post-Production is a top-level Quality weight, so this is where a craft crew
+// hire buys the most (docs/DESIGN_REVIEW_crew_role_impact.md). Both are centred
+// at skill 50 (zero swing / unit music factor), so a post team left unstaffed -
+// and every existing crew-less fixture and rival - reads exactly the old
+// choice-only score. The Editor authors the base quality of the cut itself; the
+// Composer both contributes directly and scales how much the chosen music focus
+// actually delivers (a bold score from a journeyman is not a bold score from a
+// master).
+const EDITOR_QUALITY_SWING = 14; // +/- at ceiling/floor skill vs neutral
+const COMPOSER_QUALITY_SWING = 8;
+
+/** A crew craft contribution centred at neutral skill 50: 0 at 50, +swing at 100, -swing at 0. */
+function craftSwing(skill: number, swing: number): number {
+  return ((skill - 50) / 50) * swing;
+}
+
+export function computePostProductionScore(choices: PostProductionChoices, editorSkill = 50, composerSkill = 50): number {
   const base = 55;
-  const music = MUSIC_FOCUS_PROFILES[choices.musicFocus].qualityDelta;
+  // A stronger composer makes the same music focus land harder (and a weaker one
+  // squanders it); factor 1.0 at neutral skill 50.
+  const musicSkillFactor = 0.5 + composerSkill / 100;
+  const music = MUSIC_FOCUS_PROFILES[choices.musicFocus].qualityDelta * musicSkillFactor;
   const balancedBonus = choices.editStyle === 'Balanced' ? 5 : 0;
-  return clamp(base + music + balancedBonus, 0, 100);
+  const editorContribution = craftSwing(editorSkill, EDITOR_QUALITY_SWING);
+  const composerContribution = craftSwing(composerSkill, COMPOSER_QUALITY_SWING);
+  return clamp(base + music + balancedBonus + editorContribution + composerContribution, 0, 100);
 }
 
 /** How well the whole package (script, key talent, budget) suits the chosen genre. */
@@ -324,6 +370,33 @@ const FOOTAGE_DIRECTION_WEIGHT = 0.4;
 const FOOTAGE_ACTING_WEIGHT = 0.3;
 const FOOTAGE_PRODUCTION_WEIGHT = 0.3;
 
+// The Cinematographer's home. Photography IS the captured image, so the DP scales
+// the whole footage the edit inherits: a well-shot film gives Post more to work
+// with, a badly-shot one less, on top of the footage the shoot actually produced.
+// A multiplicative factor centred at neutral skill 50 (1.0), spanning
+// [1-SPAN/2 .. 1+SPAN/2] - so an unstaffed camera department (and every crew-less
+// fixture/rival) leaves the footage ratio untouched. Routed here, not into
+// computeProductionScore, because Production is not a top-level Quality term and
+// the footage ceiling on Post is where the DP's grip on the finished film lives
+// (docs/DESIGN_REVIEW_crew_role_impact.md, Decision B).
+const CINEMATOGRAPHY_FOOTAGE_SPAN = 0.3; // +/-15% on the footage ratio at skill extremes
+
+// The VFX Supervisor's grip on the footage, alongside their effect on Production's
+// own effects term (realizedVfxScore). Same footage-capture home as the DP
+// (Decision B), but scaled by how much the genre actually leans on VFX
+// (GENRE_PROFILES[genre].vfxImportance) - so a strong supervisor visibly lifts an
+// Action tentpole's footage and does almost nothing for a chamber drama, the
+// genre trade-off Principle 6 asks for. Centred at 1.0 for neutral skill 50.
+const VFX_FOOTAGE_SPAN = 0.3;
+
+// How much a skilled Editor can recover from incomplete coverage - lifting the
+// edit-coverage ceiling toward 100 without ever exceeding it (you still cannot
+// cut footage that was never shot). Only a better-than-neutral editor recovers,
+// and only when the shoot came in under-covered; on a fully-covered shoot the
+// ceiling is already 100 and this is a no-op. The "editor could not fully repair
+// the third act" causal chain from SIMULATION_PHILOSOPHY.md, given its author.
+const EDITOR_COVERAGE_RECOVERY = 0.4;
+
 /**
  * Final Quality Score: no longer six independently-weighted departments -
  * Script sets the film's potential, Direction determines how much of it
@@ -371,19 +444,32 @@ export function computeQualityBreakdown(
 ): QualityBreakdown {
   const execution = executionProfile ?? computeExecutionProfile({ events, shootingRatio, talent, productionChoices });
 
+  // Craft crew skills (neutral 50 when a seat is empty), read once and threaded
+  // into the department node each role belongs to - see
+  // docs/DESIGN_REVIEW_crew_role_impact.md.
+  const editorSkill = crewSkill(talent, 'Editor');
+  const composerSkill = crewSkill(talent, 'Composer');
+  const cinematographySkill = crewSkill(talent, 'Cinematographer');
+  const vfxSupervisorSkill = crewSkill(talent, 'VFX Supervisor');
+
   const scriptScore = computeScriptScore(script);
   const directionScore = computeDirectionScore(talent, script);
   const actingScore = computeActingScore(talent, script);
-  const productionScore = computeProductionScore(productionChoices, genre, shootingRatio);
+  const productionScore = computeProductionScore(productionChoices, genre, shootingRatio, talent);
   // Footage coverage caps the edit: an under-shot film (below the recommended
   // schedule) can't be cut into a great one no matter how good the Editor is.
   // Coverage is read from execution.coverageRatio, not raw shootingRatio, so
   // scenes/days lost to on-set events (coverage-impact) tighten the ceiling on
   // top of a short schedule (engine/productionExecution.ts). The ceiling only
   // binds below ratio 1, so a fully-covered shoot is judged on the edit's own
-  // merits. Post-production interventions (the bonus, e.g. reshoots/re-edits)
-  // are added after the cap - extra work that can lift a thin shoot back up.
-  const cappedEdit = Math.min(computePostProductionScore(postProductionChoices), editCoverageCeiling(execution.coverageRatio));
+  // merits. A skilled Editor recovers some of what incomplete coverage would
+  // otherwise cost (lifting the ceiling toward, never past, 100). Post-production
+  // interventions (the bonus, e.g. reshoots/re-edits) are added after the cap -
+  // extra work that can lift a thin shoot back up.
+  const coverageCeiling = editCoverageCeiling(execution.coverageRatio);
+  const editorRecovery = clamp((editorSkill - 50) / 50, 0, 1) * EDITOR_COVERAGE_RECOVERY;
+  const effectiveCeiling = coverageCeiling + (100 - coverageCeiling) * editorRecovery;
+  const cappedEdit = Math.min(computePostProductionScore(postProductionChoices, editorSkill, composerSkill), effectiveCeiling);
   const postProductionScore = clamp(cappedEdit + postProductionScoreBonus, 0, 100);
   const eventsScore = computeEventsScore(events);
 
@@ -414,8 +500,16 @@ export function computeQualityBreakdown(
   const productionRatio =
     (productionScore / 100) * (K_DIRECTION_TO_PRODUCTION + (1 - K_DIRECTION_TO_PRODUCTION) * directionRatio);
 
+  // The camera & VFX departments scale the captured footage the edit inherits
+  // (Decision B): a well-shot, well-supervised film hands Post more to work with.
+  // Both centred at 1.0 for neutral skill; VFX's grip is further scaled by how
+  // much the genre leans on it, so it barely registers outside VFX-driven genres.
+  const cinematographyFactor = 1 + ((cinematographySkill - 50) / 100) * CINEMATOGRAPHY_FOOTAGE_SPAN;
+  const vfxFactor = 1 + ((vfxSupervisorSkill - 50) / 100) * VFX_FOOTAGE_SPAN * GENRE_PROFILES[genre].vfxImportance;
   const footageRatio =
-    FOOTAGE_DIRECTION_WEIGHT * directionRatio + FOOTAGE_ACTING_WEIGHT * actingRatio + FOOTAGE_PRODUCTION_WEIGHT * productionRatio;
+    (FOOTAGE_DIRECTION_WEIGHT * directionRatio + FOOTAGE_ACTING_WEIGHT * actingRatio + FOOTAGE_PRODUCTION_WEIGHT * productionRatio) *
+    cinematographyFactor *
+    vfxFactor;
   const postProductionRatio =
     (executedPostProduction / 100) * (K_FOOTAGE_TO_EDITING + (1 - K_FOOTAGE_TO_EDITING) * footageRatio);
 

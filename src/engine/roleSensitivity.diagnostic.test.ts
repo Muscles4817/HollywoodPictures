@@ -22,20 +22,25 @@
  * asks the bluntest question of all: does having a top person in this seat beat
  * having nobody?
  *
- * Why this exists: only Director / Lead Actor / Supporting Actor feed
- * computeQualityBreakdown directly (scoring.ts). The six crew roles (Writer,
- * Cinematographer, Composer, Editor, VFX Supervisor, Casting Director) reach
- * quality ONLY through skill-sensitive events - and two of them (VFX Supervisor,
- * Casting Director) have no involvesRole event at all, so no pathway whatsoever.
- * This harness quantifies exactly how near-nil each role is, so a rebalance has
- * numbers to aim at.
+ * Why this exists, and what it now guards: this harness originally showed that
+ * six of nine hireable roles were near-nil - only Director / Lead Actor /
+ * Supporting Actor moved the finished film. The four CRAFT crew roles
+ * (Cinematographer, VFX Supervisor, Composer, Editor) have since been wired into
+ * the department node each belongs to (docs/DESIGN_REVIEW_crew_role_impact.md):
+ * Editor + Composer into Post-Production, Cinematographer + VFX Supervisor into
+ * the captured-footage blend (VFX genre-scaled). The harness is now the
+ * calibration guard for that wiring - it should keep those four meaningfully
+ * above nil while Director stays dominant.
  *
- * NOTE on Writer: a writer's real leverage is UPSTREAM, at script generation
- * (engine/scriptGenerator.ts) - baked into the Script's craft stats before this
- * pipeline ever runs. This harness measures only the production->quality
- * pipeline, where the Writer is crew (events only). A low fullDelta here is
- * therefore expected and by-design for Writer, unlike VFX Supervisor / Casting
- * Director, which have no route to film quality anywhere.
+ * Two roles remain ~0 here BY DESIGN, because their real work happens outside
+ * this production->quality pass:
+ *   - Writer: shapes the Script at generation (engine/scriptGenerator.ts) - its
+ *     craft is already baked into Script Score before the shoot begins.
+ *   - Casting Director: shapes the applicant shortlist at casting time
+ *     (engine/castingCalls.ts) - it lifts achievable Acting Score by surfacing
+ *     better-fitting candidates, which a harness holding the cast fixed cannot see.
+ * Both should be measured by their own companion diagnostics, not wired into the
+ * finished-film pass (that would double-count Writer and miscategorise casting).
  *
  * Opt-in:
  *   ROLE_SENSITIVITY_DIAGNOSTIC=1 npx vitest run src/engine/roleSensitivity.diagnostic.test.ts --disable-console-intercept
@@ -77,20 +82,23 @@ const ROLES: ProductionRole[] = [
   'Casting Director',
 ];
 
-// Which quality pathways each role even HAS - printed alongside the measured
-// deltas so the report explains itself. `direct` = appears in a compute*Score
-// term inside computeQualityBreakdown; `events` = number of on-set event
+// Which quality pathways each role has - printed alongside the measured deltas
+// so the report explains itself. `direct` = contributes a deterministic term to
+// computeQualityBreakdown (scoring.ts); `events` = number of on-set event
 // templates that name it via involvesRole (data/productionEvents.ts).
-const PATHWAYS: Record<ProductionRole, { direct: boolean; events: number }> = {
+// `byDesignOffChain` marks the two roles whose real leverage is outside this
+// production->quality pass (Writer: script generation; Casting Director:
+// casting), so a ~0 reading here is expected, not a regression.
+const PATHWAYS: Record<ProductionRole, { direct: boolean; events: number; byDesignOffChain?: boolean }> = {
   Director: { direct: true, events: 1 },
   'Lead Actor': { direct: true, events: 4 },
   'Supporting Actor': { direct: true, events: 1 },
-  Writer: { direct: false, events: 2 },
-  Cinematographer: { direct: false, events: 1 },
-  Composer: { direct: false, events: 1 },
-  Editor: { direct: false, events: 2 },
-  'VFX Supervisor': { direct: false, events: 0 },
-  'Casting Director': { direct: false, events: 0 },
+  Cinematographer: { direct: true, events: 1 }, // footage-capture blend (Decision B)
+  'VFX Supervisor': { direct: true, events: 0 }, // production effects + footage blend, genre-scaled
+  Composer: { direct: true, events: 1 }, // post-production craft term
+  Editor: { direct: true, events: 2 }, // post-production craft term + coverage recovery
+  Writer: { direct: false, events: 2, byDesignOffChain: true }, // upstream at script generation
+  'Casting Director': { direct: false, events: 0, byDesignOffChain: true }, // casting-time shortlist lever
 };
 
 type Level = 'floor' | 'strong' | 'ceil';
@@ -280,18 +288,21 @@ describe.skipIf(!enabled)('Hireable-role quality sensitivity diagnostic', () => 
       const p = PATHWAYS[r.role];
       const path = `${p.direct ? 'Y' : 'n'}/${p.events}`;
       const nearNil = Math.abs(r.fullDelta) < NIL_THRESHOLD;
-      const flag = !p.direct && p.events === 0 ? 'NO PATHWAY' : nearNil ? 'near-nil' : '';
+      const flag = p.byDesignOffChain ? 'off-chain (by design)' : nearNil ? 'NEAR-NIL (regression?)' : '';
       lines.push(
         `  ${r.role.padEnd(18)} ${path.padStart(13)} ${r.floorQ.toFixed(1).padStart(7)} ${r.ceilQ.toFixed(1).padStart(7)} ${r.absentQ.toFixed(1).padStart(8)} ${r.directDelta.toFixed(2).padStart(8)} ${r.fullDelta.toFixed(2).padStart(7)} ${r.fullDeltaSd.toFixed(2).padStart(6)} ${r.presenceDelta.toFixed(2).padStart(10)}  ${flag}`,
       );
     }
 
-    const nil = ranked.filter((r) => Math.abs(r.fullDelta) < NIL_THRESHOLD);
-    const noPath = ROLES.filter((role) => !PATHWAYS[role].direct && PATHWAYS[role].events === 0);
+    // A near-nil reading is only a concern for a role that is SUPPOSED to move
+    // quality here - the two by-design off-chain roles (Writer, Casting Director)
+    // are expected at ~0 and excluded.
+    const unexpectedNil = ranked.filter((r) => Math.abs(r.fullDelta) < NIL_THRESHOLD && !PATHWAYS[r.role].byDesignOffChain);
+    const offChain = ROLES.filter((role) => PATHWAYS[role].byDesignOffChain);
     lines.push('\nHEADLINE');
-    lines.push(`  Roles whose best->worst hire moves finished quality < ${NIL_THRESHOLD.toFixed(1)} pt: ${nil.length ? nil.map((r) => r.role).join(', ') : '(none)'}`);
-    lines.push(`  Roles with NO pathway to film quality at all (no direct term AND no involvesRole event): ${noPath.length ? noPath.join(', ') : '(none)'}`);
-    lines.push(`  Widest sensitivity: ${ranked[0].role} (${ranked[0].fullDelta.toFixed(1)} pt)  |  Narrowest: ${ranked[ranked.length - 1].role} (${ranked[ranked.length - 1].fullDelta.toFixed(1)} pt)`);
+    lines.push(`  Craft/creative roles below ${NIL_THRESHOLD.toFixed(1)} pt (would be a regression): ${unexpectedNil.length ? unexpectedNil.map((r) => r.role).join(', ') : '(none)'}`);
+    lines.push(`  By-design off-chain here (measured by their own harness): ${offChain.join(', ')}`);
+    lines.push(`  Widest sensitivity: ${ranked[0].role} (${ranked[0].fullDelta.toFixed(1)} pt)  |  Narrowest in-chain: ${ranked.filter((r) => !PATHWAYS[r.role].byDesignOffChain).at(-1)!.role} (${ranked.filter((r) => !PATHWAYS[r.role].byDesignOffChain).at(-1)!.fullDelta.toFixed(1)} pt)`);
 
     // eslint-disable-next-line no-console
     console.log(lines.join('\n'));
