@@ -20,18 +20,10 @@ import { isRecentlyCommissioned } from '../engine/commission';
 import { campaignRolloutProgress } from '../engine/marketing';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
+import { ActivityCard } from './common/ActivityCard';
+import type { ActivityEntry } from '../state/studioActivity';
 import type { Film, FilmDraft } from '../types';
 import './Dashboard.css';
-
-type ActivityItem = {
-  id: string;
-  tone: 'urgent' | 'warning' | 'positive' | 'neutral';
-  eyebrow: string;
-  title: string;
-  detail: string;
-  actionLabel?: string;
-  onAction?: () => void;
-};
 
 // Which "nothing in the command centre right now" message to show. Pure and
 // exported so it can be unit-tested without mounting the Dashboard (same
@@ -156,111 +148,105 @@ export function Dashboard() {
     [state.projects, state.awards, state.totalDays],
   );
 
-  const activityItems = useMemo<ActivityItem[]>(() => {
-    const items: ActivityItem[] = [];
+  // The Dashboard's "What's happening" feed, expressed in the shared activity
+  // vocabulary (state/studioActivity.ts) and rendered by the shared ActivityCard.
+  // Same items, same order, same copy as before - only the shape changed (each
+  // entry is now { activity, action } instead of a Dashboard-local type), so the
+  // Inbox can render the same card style for its own catch-up beats.
+  const activityItems = useMemo<ActivityEntry[]>(() => {
+    const items: ActivityEntry[] = [];
 
     attentionDrafts.forEach((production) => {
       const status = production.photography?.status;
       const title = production.title || 'Untitled Film';
+      const open: ActivityEntry['action'] = { label: 'Open project', onClick: () => dispatch({ type: 'VIEW_PRODUCTION', productionId: production.id }) };
 
       if (status === 'awaiting-choice') {
         items.push({
-          id: `${production.id}-decision`,
-          tone: 'urgent',
-          eyebrow: 'Decision required',
-          title,
-          detail: 'Production is paused until you resolve the latest on-set decision.',
-          actionLabel: 'Open project',
-          onAction: () => dispatch({ type: 'VIEW_PRODUCTION', productionId: production.id }),
+          activity: { id: `${production.id}-decision`, tone: 'urgent', category: 'attention', eyebrow: 'Decision required', title, detail: 'Production is paused until you resolve the latest on-set decision.' },
+          action: open,
         });
       } else if (production.testScreeningPendingChoice) {
         items.push({
-          id: `${production.id}-screening`,
-          tone: 'urgent',
-          eyebrow: 'Decision required',
-          title,
-          detail: 'A test screening is in and waiting on your response before post-production can wrap.',
-          actionLabel: 'Open project',
-          onAction: () => dispatch({ type: 'VIEW_PRODUCTION', productionId: production.id }),
+          activity: { id: `${production.id}-screening`, tone: 'urgent', category: 'attention', eyebrow: 'Decision required', title, detail: 'A test screening is in and waiting on your response before post-production can wrap.' },
+          action: open,
         });
       } else if (status === 'finished') {
         items.push({
-          id: `${production.id}-wrapped`,
-          tone: 'warning',
-          eyebrow: production.postProductionChoices ? 'Release preparation' : 'Post-production ready',
-          title,
-          detail: production.postProductionChoices
-            ? 'The film is complete and waiting for its release day.'
-            : 'Principal photography has wrapped and the film is ready for post-production.',
-          actionLabel: 'Open project',
-          onAction: () => dispatch({ type: 'VIEW_PRODUCTION', productionId: production.id }),
+          activity: {
+            id: `${production.id}-wrapped`,
+            tone: 'warning',
+            category: 'attention',
+            eyebrow: production.postProductionChoices ? 'Release preparation' : 'Post-production ready',
+            title,
+            detail: production.postProductionChoices
+              ? 'The film is complete and waiting for its release day.'
+              : 'Principal photography has wrapped and the film is ready for post-production.',
+          },
+          action: open,
         });
       }
     });
 
     recentAwardHighlights.forEach((highlight) => {
       items.push({
-        id: `${highlight.id}-activity`,
-        tone: 'positive',
-        eyebrow: 'Awards night',
-        title: `${highlight.showName} · Year ${highlight.year}`,
-        detail: `${highlight.wins > 0 ? `${highlight.wins} win${highlight.wins === 1 ? '' : 's'} from ` : ''}${highlight.nominations} nomination${highlight.nominations === 1 ? '' : 's'} — ${formatMoney(highlight.payout)} in award prize money, plus brand and prestige.`,
-        actionLabel: 'View awards',
-        onAction: () => dispatch({ type: 'VIEW_AWARDS' }),
+        activity: {
+          id: `${highlight.id}-activity`,
+          tone: 'positive',
+          category: 'update',
+          eyebrow: 'Awards night',
+          title: `${highlight.showName} · Year ${highlight.year}`,
+          detail: `${highlight.wins > 0 ? `${highlight.wins} win${highlight.wins === 1 ? '' : 's'} from ` : ''}${highlight.nominations} nomination${highlight.nominations === 1 ? '' : 's'} — ${formatMoney(highlight.payout)} in award prize money, plus brand and prestige.`,
+        },
+        action: { label: 'View awards', onClick: () => dispatch({ type: 'VIEW_AWARDS' }) },
       });
     });
 
     runningFilms.forEach((film) => {
       const latestWeek = film.boxOfficeRun.weeks.at(-1);
       items.push({
-        id: `${film.id}-cinemas`,
-        tone: 'positive',
-        eyebrow: `In theatres · Week ${film.boxOfficeRun.weeks.length}`,
-        title: film.title,
-        detail: latestWeek
-          ? `${formatMoney(getWeekGross(latestWeek))} this week · ${formatMoney(film.boxOfficeRun.cumulativeGross)} total`
-          : `${formatMoney(film.boxOfficeRun.cumulativeGross)} gross so far`,
-        actionLabel: 'View performance',
-        onAction: () => setSelectedFilm(film),
+        activity: {
+          id: `${film.id}-cinemas`,
+          tone: 'positive',
+          category: 'status',
+          eyebrow: `In theatres · Week ${film.boxOfficeRun.weeks.length}`,
+          title: film.title,
+          detail: latestWeek
+            ? `${formatMoney(getWeekGross(latestWeek))} this week · ${formatMoney(film.boxOfficeRun.cumulativeGross)} total`
+            : `${formatMoney(film.boxOfficeRun.cumulativeGross)} gross so far`,
+        },
+        action: { label: 'View performance', onClick: () => setSelectedFilm(film) },
       });
     });
 
     if (nextRelease) {
       items.push({
-        id: `${nextRelease.draft.id}-release`,
-        tone: 'neutral',
-        eyebrow: 'Next release',
-        title: nextRelease.draft.title || 'Untitled Film',
-        detail: `Scheduled for ${formatGameMonthYear(nextRelease.releaseDay)}.`,
-        actionLabel: 'Open calendar',
-        onAction: () => dispatch({ type: 'VIEW_RELEASE_CALENDAR' }),
+        activity: { id: `${nextRelease.draft.id}-release`, tone: 'neutral', category: 'status', eyebrow: 'Next release', title: nextRelease.draft.title || 'Untitled Film', detail: `Scheduled for ${formatGameMonthYear(nextRelease.releaseDay)}.` },
+        action: { label: 'Open calendar', onClick: () => dispatch({ type: 'VIEW_RELEASE_CALENDAR' }) },
       });
     }
 
     justDeliveredCommissions.forEach((asset) => {
       const writerName = state.talentPool.Writer.find((writer) => writer.id === asset.writerIds?.[0])?.identity.name;
       items.push({
-        id: `${asset.id}-commission-delivered`,
-        tone: 'positive',
-        eyebrow: 'Screenplay delivered',
-        title: asset.script.title,
-        detail: writerName
-          ? `${writerName} delivered your commissioned screenplay — it's in the Asset Library.`
-          : `Your commissioned screenplay is in the Asset Library.`,
-        actionLabel: 'Open library',
-        onAction: () => dispatch({ type: 'VIEW_ASSET_LIBRARY' }),
+        activity: {
+          id: `${asset.id}-commission-delivered`,
+          tone: 'positive',
+          category: 'update',
+          eyebrow: 'Screenplay delivered',
+          title: asset.script.title,
+          detail: writerName
+            ? `${writerName} delivered your commissioned screenplay — it's in the Asset Library.`
+            : `Your commissioned screenplay is in the Asset Library.`,
+        },
+        action: { label: 'Open library', onClick: () => dispatch({ type: 'VIEW_ASSET_LIBRARY' }) },
       });
     });
 
     pendingCommissions.forEach((commission) => {
       items.push({
-        id: `${commission.id}-commission-pending`,
-        tone: 'neutral',
-        eyebrow: 'In commission',
-        title: `Original ${commission.genre}`,
-        detail: `${commission.writerName} is writing — ready ${formatGameMonthYear(commission.readyOnDay)}.`,
-        actionLabel: 'Open library',
-        onAction: () => dispatch({ type: 'VIEW_ASSET_LIBRARY' }),
+        activity: { id: `${commission.id}-commission-pending`, tone: 'neutral', category: 'status', eyebrow: 'In commission', title: `Original ${commission.genre}`, detail: `${commission.writerName} is writing — ready ${formatGameMonthYear(commission.readyOnDay)}.` },
+        action: { label: 'Open library', onClick: () => dispatch({ type: 'VIEW_ASSET_LIBRARY' }) },
       });
     });
 
@@ -270,35 +256,20 @@ export function Dashboard() {
         // Films are on the slate (staffing or filming) - they just don't need
         // a decision this moment. The pipeline section below has the detail.
         items.push({
-          id: 'all-caught-up',
-          tone: 'positive',
-          eyebrow: "You're all caught up",
-          title: 'Nothing needs a decision right now',
-          detail: 'Your active projects are moving through the pipeline below - nothing is waiting on you.',
-          actionLabel: 'View projects',
-          onAction: () => dispatch({ type: 'VIEW_PROJECTS' }),
+          activity: { id: 'all-caught-up', tone: 'positive', category: 'status', eyebrow: "You're all caught up", title: 'Nothing needs a decision right now', detail: 'Your active projects are moving through the pipeline below - nothing is waiting on you.' },
+          action: { label: 'View projects', onClick: () => dispatch({ type: 'VIEW_PROJECTS' }) },
         });
       } else if (emptyKind === 'between-projects') {
         // A returning studio between projects - not their first rodeo.
         items.push({
-          id: 'ready-for-next',
-          tone: 'neutral',
-          eyebrow: 'Between projects',
-          title: 'Ready for your next project',
-          detail: 'No active projects right now. Browse the Opportunity Market to line up your next film.',
-          actionLabel: 'Browse opportunities',
-          onAction: () => dispatch({ type: 'VIEW_OPPORTUNITY_MARKET' }),
+          activity: { id: 'ready-for-next', tone: 'neutral', category: 'status', eyebrow: 'Between projects', title: 'Ready for your next project', detail: 'No active projects right now. Browse the Opportunity Market to line up your next film.' },
+          action: { label: 'Browse opportunities', onClick: () => dispatch({ type: 'VIEW_OPPORTUNITY_MARKET' }) },
         });
       } else {
         // Genuinely a brand-new studio that has never started anything.
         items.push({
-          id: 'start-first-film',
-          tone: 'neutral',
-          eyebrow: 'Your studio is ready',
-          title: 'Find your first project',
-          detail: 'Browse the Opportunity Market, acquire a script and begin building your slate.',
-          actionLabel: 'Browse opportunities',
-          onAction: () => dispatch({ type: 'VIEW_OPPORTUNITY_MARKET' }),
+          activity: { id: 'start-first-film', tone: 'neutral', category: 'status', eyebrow: 'Your studio is ready', title: 'Find your first project', detail: 'Browse the Opportunity Market, acquire a script and begin building your slate.' },
+          action: { label: 'Browse opportunities', onClick: () => dispatch({ type: 'VIEW_OPPORTUNITY_MARKET' }) },
         });
       }
     }
@@ -456,18 +427,8 @@ export function Dashboard() {
             </div>
 
             <div className="dashboard-activity-list">
-              {activityItems.map((item) => (
-                <article key={item.id} className={`dashboard-activity dashboard-activity-${item.tone}`}>
-                  <span className="dashboard-activity-dot" aria-hidden="true" />
-                  <div className="dashboard-activity-copy">
-                    <span className="dashboard-activity-eyebrow">{item.eyebrow}</span>
-                    <strong>{item.title}</strong>
-                    <p>{item.detail}</p>
-                  </div>
-                  {item.onAction && item.actionLabel && (
-                    <Button className="btn-sm" onClick={item.onAction}>{item.actionLabel}</Button>
-                  )}
-                </article>
+              {activityItems.map(({ activity, action }) => (
+                <ActivityCard key={activity.id} activity={activity} action={action} />
               ))}
             </div>
           </section>

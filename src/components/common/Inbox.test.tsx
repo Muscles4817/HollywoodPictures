@@ -51,6 +51,13 @@ describe('Inbox - parked film messaging', () => {
     expect(screen.queryByText(/still wrapping up/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Continue to Marketing & Release' })).toBeInTheDocument();
   });
+
+  it('places a production that needs attention under the "Needs you" group', () => {
+    mockState = stateWith(parkedDraft(true));
+    render(<Inbox open onClose={() => {}} />);
+    expect(screen.getByText(/Needs you/i)).toBeInTheDocument();
+    expect(screen.queryByText(/While you were away/i)).not.toBeInTheDocument();
+  });
 });
 
 const INCIDENT: PressTourIncident = {
@@ -97,7 +104,9 @@ describe('Inbox - box office finished (informational catch-up)', () => {
     mockState = boxOfficeFinishedState();
     render(<Inbox open onClose={() => {}} onViewFilmDossier={onViewFilmDossier} />);
 
-    expect(screen.getByText(/has finished its run/i)).toBeInTheDocument();
+    // Grouped under "While you were away", with a brief qualitative summary.
+    expect(screen.getByText(/While you were away/i)).toBeInTheDocument();
+    expect(screen.getByText(/finishing as a Hit/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'View box office' }));
     expect(dispatch).toHaveBeenCalledWith({ type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS', filmId: 'bo-film' });

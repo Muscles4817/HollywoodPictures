@@ -318,6 +318,13 @@
   line-height: 1.45;
 }
 
+/* An action that's temporarily unavailable renders as a muted note in place of
+   the button (e.g. the Inbox's "finish what you're working on first"). */
+.dashboard-activity-note {
+  font-style: italic;
+  opacity: 0.85;
+}
+
 .dashboard-pipeline-summary {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
