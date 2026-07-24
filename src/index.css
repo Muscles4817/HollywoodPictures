@@ -1214,9 +1214,38 @@ textarea, input, select {
   font-size: 1.3em;
 }
 
+.hiring-verdict-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
 .hiring-verdict-label {
   font-weight: 700;
   font-size: 0.95em;
+}
+
+/* The verdict is role fit, one axis - this caption says so, so it reads as
+   "how they fit this part" rather than a global judgment of the person. */
+.hiring-verdict-caption {
+  font-weight: 500;
+  font-size: 0.75em;
+  color: var(--text-muted);
+}
+
+/* Actor identity - "who this performer is," led on the casting card ABOVE the
+   role-fit verdict so the choice reads as a person, not a match score. The
+   signature line is the character read; the craft/contrast lines under it are
+   muted flavor (.talent-flavor-line). */
+.talent-identity {
+  margin: 8px 0 2px;
+}
+
+.talent-signature {
+  margin: 0 0 6px;
+  font-size: 0.9em;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .talent-availability {
