@@ -8,6 +8,7 @@ import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { deriveBookedUntil, getTypicalSalaryForRole, isAvailableImmediately } from '../../engine/person';
 import { computeDirectorAppeal, resolveDirectorOfferResponse, type DirectorOfferResponse } from '../../engine/directorAppeal';
+import { playerRelationshipWith } from '../../engine/relationships';
 import { describeDirectorRejection, directorStrengthSignals, type CandidateSignal } from '../../engine/castingPresentation';
 import { deriveFocusedDraft, computeCommittedSpend } from '../../state/selectors';
 import { professionForProductionRole } from '../../data/helpers';
@@ -201,9 +202,14 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   // Casting Appeal Rework - computed once per candidate shown, not
   // re-derived per render pass, so the prestige-gate hint below and
   // selectPerson's own resolution never disagree on the same person.
+  // Talent Relationship History (engine/relationships.ts) - a director's
+  // persistent standing with the studio, read into their interest score and
+  // accept/decline so a loyal filmmaker is easier (and cheaper) to bring back.
+  const relationshipFor = (person: Person) => playerRelationshipWith(state.collaborations ?? [], person);
+
   const directorAppealByPersonId = new Map(
     isDirectorRole && draft.script
-      ? displayList.map((person) => [person.id, computeDirectorAppeal(person, draft.script!, state.studio, targetPrice, state.totalDays)] as const)
+      ? displayList.map((person) => [person.id, computeDirectorAppeal(person, draft.script!, state.studio, targetPrice, state.totalDays, relationshipFor(person))] as const)
       : [],
   );
 
@@ -238,8 +244,8 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
       // (there's no offer being made). Without a script there's nothing to
       // gate on, so hiring stays instant, same as every other role.
       if (wasEmpty && isDirectorRole && draft.script) {
-        const outcome = computeDirectorAppeal(person, draft.script, state.studio, targetPrice, state.totalDays);
-        const response = resolveDirectorOfferResponse(outcome, person);
+        const outcome = computeDirectorAppeal(person, draft.script, state.studio, targetPrice, state.totalDays, relationshipFor(person));
+        const response = resolveDirectorOfferResponse(outcome, person, relationshipFor(person));
         if (response) setLastDirectorResponse({ personName: person.identity.name, response });
         if (response && response.status !== 'accepted') return;
       }

@@ -14,7 +14,22 @@ import { logAmount } from './interpolate';
 import { computeActorAppeal, resolveOfferResponse } from './castingAppeal';
 import { actorMeetsCharacterGender } from './casting';
 import { WEEK_LENGTH_DAYS } from './opportunities';
+import { NO_RELATIONSHIP, type RelationshipStanding } from './relationships';
 import { clamp, pick, randInt, type RandomFn } from './random';
+
+/**
+ * A per-person relationship-standing lookup (engine/relationships.ts) - lets a
+ * loyal collaborator's history lift the appeal that decides both who shows up
+ * to an Open Casting call and who says yes unprompted (Interested Talent), so a
+ * good history genuinely reads as "they seek you out." Optional throughout;
+ * absent (or a person with no history) resolves to the neutral standing, so
+ * every existing behaviour and test is unchanged for strangers.
+ */
+export type RelationshipLookup = (personId: string) => RelationshipStanding;
+
+function standingFor(lookup: RelationshipLookup | undefined, personId: string): RelationshipStanding {
+  return lookup?.(personId) ?? NO_RELATIONSHIP;
+}
 
 export { WEEK_LENGTH_DAYS };
 
@@ -135,6 +150,7 @@ export function generateCastingApplicants(
   rejectionCount: number,
   castingDirectorSkill: number | undefined,
   rng: RandomFn,
+  relationshipOf?: RelationshipLookup,
 ): Person[] {
   const eligible = talentPool.filter((p) => !excludeIds.has(p.id) && actorMeetsCharacterGender(p.identity.gender, character.castingGender));
   if (eligible.length === 0) return [];
@@ -146,7 +162,7 @@ export function generateCastingApplicants(
   const appealByPersonId = new Map(
     eligible.map((person) => [
       person.id,
-      computeActorAppeal(person, character, script, studio, director, currentTalent, offeredSalary, plannedStartDay),
+      computeActorAppeal(person, character, script, studio, director, currentTalent, offeredSalary, plannedStartDay, standingFor(relationshipOf, person.id)),
     ]),
   );
 
@@ -204,6 +220,7 @@ export function generateInterestedTalent(
   talentPool: Person[],
   excludeIds: Set<string>,
   rng: RandomFn,
+  relationshipOf?: RelationshipLookup,
 ): Person[] {
   const eligible = talentPool.filter((p) => !excludeIds.has(p.id) && actorMeetsCharacterGender(p.identity.gender, character.castingGender));
   if (eligible.length === 0) return [];
@@ -220,12 +237,13 @@ export function generateInterestedTalent(
   const hits: Person[] = [];
   for (const person of sample) {
     if (hits.length >= INTERESTED_TALENT_MAX_HITS) break;
-    const appeal = computeActorAppeal(person, character, script, studio, director, currentTalent, offeredSalary, plannedStartDay);
+    const standing = standingFor(relationshipOf, person.id);
+    const appeal = computeActorAppeal(person, character, script, studio, director, currentTalent, offeredSalary, plannedStartDay, standing);
     // resolveOfferResponse's own schedule/salary-floor gates already exclude
     // anyone this offer genuinely can't reach - no separate eligibility
     // filter needed here (Casting Appeal Rework).
     if (!appeal) continue;
-    if (resolveOfferResponse(appeal, person).status === 'accepted') hits.push(person);
+    if (resolveOfferResponse(appeal, person, standing).status === 'accepted') hits.push(person);
   }
   return hits;
 }
@@ -266,7 +284,7 @@ export function castingCallsAwaitingReview(draft: FilmDraft): FilmDraft['casting
  * every backgrounded one, the same real-time beat everything else
  * week-driven in this codebase already rides.
  */
-export function tickCastingCalls(draft: FilmDraft, totalDays: number, studio: Studio, talentPool: Person[], rng: RandomFn): FilmDraft {
+export function tickCastingCalls(draft: FilmDraft, totalDays: number, studio: Studio, talentPool: Person[], rng: RandomFn, relationshipOf?: RelationshipLookup): FilmDraft {
   if (!draft.script || draft.castingCalls.length === 0) return draft;
   const script = draft.script;
   const director = findAssignedPerson(draft.talent, 'Director');
@@ -308,6 +326,7 @@ export function tickCastingCalls(draft: FilmDraft, totalDays: number, studio: St
       call.rejectionCount,
       castingDirectorSkill,
       rng,
+      relationshipOf,
     );
 
     const excludingThisWeeksApplicants = new Set([...alreadyInvolvedIds, ...openApplicants.map((p) => p.id)]);
@@ -322,6 +341,7 @@ export function tickCastingCalls(draft: FilmDraft, totalDays: number, studio: St
       talentPool,
       excludingThisWeeksApplicants,
       rng,
+      relationshipOf,
     );
 
     return {

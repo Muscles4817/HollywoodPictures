@@ -8,6 +8,7 @@ import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { actorMeetsCharacterGender } from '../../engine/casting';
 import { computeActorAppeal, resolveOfferResponse, type OfferResponse } from '../../engine/castingAppeal';
 import { candidateStrengthSignals, describeOfferRejection, type CandidateSignal } from '../../engine/castingPresentation';
+import { playerRelationshipWith } from '../../engine/relationships';
 import { formatMoney } from '../common/Money';
 import { CHARACTER_ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
 import { Card } from '../common/Card';
@@ -217,9 +218,15 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   const offeredSalary = draft.talentTargetPriceByRole[role] ?? logAmount(0.5, range);
   const rejectionCount = call?.rejectionCount ?? 0;
 
+  // Talent Relationship History (engine/relationships.ts) - the studio's
+  // persistent standing with each candidate, read into both the appeal score
+  // and the accept/decline so a loyal actor is easier (and cheaper) to land and
+  // a grudge harder.
+  const relationshipFor = (person: Person) => playerRelationshipWith(state.collaborations ?? [], person);
+
   function appealFor(person: Person) {
     return draft.script
-      ? computeActorAppeal(person, character, draft.script, state.studio, director, draft.talent, offeredSalary, state.totalDays)
+      ? computeActorAppeal(person, character, draft.script, state.studio, director, draft.talent, offeredSalary, state.totalDays, relationshipFor(person))
       : null;
   }
 
@@ -227,7 +234,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   function attemptToAttach(person: Person) {
     const appeal = appealFor(person);
     if (!appeal) return;
-    const response = resolveOfferResponse(appeal, person);
+    const response = resolveOfferResponse(appeal, person, relationshipFor(person));
     setLastResponse({ personName: person.identity.name, response });
     if (response.status === 'accepted') {
       dispatch({ type: 'TOGGLE_TALENT_FOR_ROLE', role, person, characterId: character.id });

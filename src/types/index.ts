@@ -2157,6 +2157,45 @@ export type Project =
   | { kind: 'rival-in-progress'; production: RivalProductionInProgress }
   | { kind: 'released'; film: Film };
 
+// --- Studio<->person working history (docs/DESIGN_REVIEW_domain_model.md) ---
+//
+// One persistent record that a studio and a key person worked together on one
+// film, carrying enough release-day-knowable outcome signal to colour future
+// dealings: did the film do well, and did the shoot go smoothly or blow up.
+// Accumulated good history reads as loyalty (comes back, seeks the studio out,
+// takes a lower effective offer); bad history reads as a grudge (harder or
+// pricier to re-hire - engine/relationships.ts, engine/castingAppeal.ts).
+//
+// Genuinely persistent state - it cannot be derived from anything else, since a
+// finished Film's box-office/reception is knowable but "how the studio and this
+// person got on" is a fact about their shared past, not this film alone. Kept
+// as a FLAT, world-level list keyed by studioId/personId (the same shared-pool
+// shape Talent and Project already use), never nested inside Studio or Person -
+// so "our whole history with this actor" is a query, not a walk across every
+// released film. Relationship *strength* is a read over this list
+// (engine/relationships.ts:computeRelationship), never itself stored.
+export interface Collaboration {
+  /**
+   * The studio side of the relationship. The player's Studio has no id (and can
+   * be renamed), so the player is keyed by the stable sentinel
+   * engine/relationships.ts:PLAYER_STUDIO_ID; a rival would be keyed by its
+   * RivalStudio.id. Recorded for the player today - rivals don't re-hire through
+   * the appeal path, so their history isn't read yet.
+   */
+  studioId: string;
+  personId: PersonId;
+  /** The released Film this collaboration was on (Film.id) - the dedup key, so re-seeing the same film across settlement passes never double-records it. */
+  filmId: string;
+  /** Which hat this person wore on the film. A person can hold more than one (a MultiHyphenate directing and acting), so each role is its own record; the relationship read aggregates across all of them. */
+  role: ProductionRole;
+  /** The release day this collaboration was recorded on. */
+  day: GameDay;
+  /** 0-100 blend of the film's critic + audience reception - "did the film do well." Read once from the film's release-day results and never revised. */
+  reception: number;
+  /** 1-5 stars from the film's production-execution outcome - "did the shoot go smoothly or blow up" (engine/productionExecution.ts). 3 (neutral) when a film carries no execution outcome. */
+  shootSmoothness: number;
+}
+
 // Post-greenlight only, now that Develop/Hire Talent/Plan Production/
 // Greenlight have been replaced by the free-navigation Producer Workspace
 // (see ProjectWorkspaceSection below, and 'workspace' on Screen) - those

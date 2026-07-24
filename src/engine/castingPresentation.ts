@@ -8,6 +8,7 @@
 import type { ActorAppealFactors, ActorScheduleAssessment, OfferRejectionReason } from './castingAppeal';
 import type { DirectorAppealFactors, DirectorOfferRejectionReason } from './directorAppeal';
 import { actorArchetype, directorTouch, directorActorPairing } from './actingModel';
+import type { RelationshipStanding } from './relationships';
 import type { Person } from '../types';
 
 // --- Acting model reads (docs/DESIGN_REVIEW_acting_model.md §10) -----------
@@ -167,6 +168,7 @@ const REJECTION_LABELS: Record<OfferRejectionReason, string> = {
   'brand-prestige-mismatch': "isn't where they want their name attached right now",
   salary: 'wants more money than this offer',
   schedule: "can't clear their existing commitments in time",
+  relationship: "won't work with your studio again after how things went last time",
 };
 
 /** "Why did they say no" - engine/castingAppeal.ts:OfferRejectionReason turned into a sentence a producer would actually say, per section 7's "rejected offers should explain the primary reason." */
@@ -217,9 +219,49 @@ const DIRECTOR_REJECTION_LABELS: Record<DirectorOfferRejectionReason, string> = 
   'brand-prestige-mismatch': "isn't where they want their name attached right now",
   salary: 'wants more money than this offer',
   schedule: "can't clear their existing commitments in time",
+  relationship: "won't work with your studio again after how things went last time",
 };
 
 /** describeOfferRejection's director-side counterpart, including the prestige-gate reason actors never have. */
 export function describeDirectorRejection(reason: DirectorOfferRejectionReason): string {
   return `They passed - ${DIRECTOR_REJECTION_LABELS[reason]}.`;
+}
+
+// --- Talent Relationship History (engine/relationships.ts) -----------------
+// A short, qualitative chip about the studio's shared past with this person -
+// "worked with you twice, keen to do it again" / "you have history, and not the
+// good kind." Never raw warmth or a collaboration count as a stat (the house
+// style, CLAUDE.md) - a count only appears woven into prose. A sibling session
+// owns the casting card that PLACES this chip; this is the read it positions.
+
+function timesPhrase(n: number): string {
+  if (n === 1) return 'once';
+  if (n === 2) return 'twice';
+  return `${n} times`;
+}
+
+/**
+ * The studio<->person relationship as a single card chip, or null when there's
+ * no history to show (strangers - the card shows nothing rather than an empty
+ * "no relationship" line). Computed by the caller via
+ * engine/relationships.ts:computeRelationship (or playerRelationshipWith) and
+ * handed here purely for phrasing, the same "derive elsewhere, phrase here"
+ * split every other function in this file follows.
+ */
+export function describeRelationship(standing: RelationshipStanding): string | null {
+  const times = timesPhrase(standing.collaborations);
+  switch (standing.tier) {
+    case 'none':
+      return null;
+    case 'loyal':
+      return `Worked with you ${times} - loyal to your studio and keen to do it again.`;
+    case 'warm':
+      return `You have history - ${times} together, and it went well.`;
+    case 'neutral':
+      return `You've worked together ${times} before.`;
+    case 'strained':
+      return `You have history - ${times} together, and it left a mark.`;
+    case 'grudge':
+      return `Bad blood - your last collaboration soured them on working with you again.`;
+  }
 }
