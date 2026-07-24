@@ -1,9 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { describeCommissionProjection, describeWriter, writerTierLabel } from './writerPresentation';
-import { HANDCRAFTED_WRITERS } from '../data/handcraftedTalents';
+import { HANDCRAFTED_TALENTS_BY_ROLE } from '../data/handcraftedTalents';
 import { withRng } from './random';
 import { generateTalentPool } from './talentGenerator';
 import type { Genre, WriterCreativeProfile } from '../types';
+
+// The hireable writer roster is derived from career presence, so it includes
+// writer-directors (one Person, both careers) alongside pure screenwriters -
+// e.g. Charlie Kaufman is a writer-director, surfaced here via his writer
+// career rather than as a separate writer-only entry.
+const HANDCRAFTED_WRITERS = HANDCRAFTED_TALENTS_BY_ROLE.Writer!;
 
 const FLAT_GENRE: Record<Genre, number> = { Action: 50, Comedy: 50, Drama: 50, Horror: 50, Romance: 50, 'Sci-Fi': 50, Fantasy: 50, Thriller: 50 };
 function commissionProfile(consistency: number): WriterCreativeProfile {

@@ -1,4 +1,4 @@
-import type { Person, TalentProfession } from '../types';
+import type { Person, TalentProfession, WriterCareer } from '../types';
 
 /**
  * Hand-authored talent is additive: it sits alongside the procedurally
@@ -49819,148 +49819,6 @@ export const HANDCRAFTED_WRITERS: Person[] = [
         traits: [],
     },
     {
-        id: 'real-writer-taika-waititi',
-        identity: {
-            name: 'Taika Waititi',
-            appearanceTags: [],
-            gender: 'Male',
-            dateOfBirth: { year: -50, month: 7, day: 1 },
-        },
-        personality: {
-            professionalism: 84,
-            ambition: 50,
-            loyalty: 50,
-            ego: 60,
-            temperament: 50,
-            pressureHandling: 50,
-            controversy: 20,
-            adaptability: 50,
-        },
-        reputation: {
-            fame: 89,
-            prestige: 89,
-            industryRespect: 84,
-            reliability: 84,
-            currentHeat: 89,
-        },
-        primaryRole: 'Writer',
-        careers: {
-            writer: {
-                role: 'Writer',
-                active: true,
-                experience: 88,
-                roleReputation: 89,
-                minimumSalary: 3_000_000,
-                typicalSalary: 3_000_000,
-                skill: 88,
-                // Taika Waititi - irreverent comedy elite, warm characters, high
-                // originality, crowd-pleasing genre mash-ups, variable from film to film.
-                craft: { originality: 88, structure: 74, characters: 84, dialogue: 86 },
-                toneProfile: { action: 55, comedy: 95, romance: 40, suspense: 25, drama: 60, spectacle: 65 },
-                genreAffinity: { Action: 55, Comedy: 92, Drama: 50, Horror: 30, Romance: 30, 'Sci-Fi': 35, Fantasy: 60, Thriller: 20 },
-                commercialLean: 70,
-                consistency: 62,
-            },
-        },
-        availability: { commitments: [] },
-        traits: [],
-    },
-    {
-        id: 'real-writer-charlie-kaufman',
-        identity: {
-            name: 'Charlie Kaufman',
-            appearanceTags: [],
-            gender: 'Male',
-            dateOfBirth: { year: -67, month: 7, day: 1 },
-        },
-        personality: {
-            professionalism: 92,
-            ambition: 50,
-            loyalty: 50,
-            ego: 26,
-            temperament: 50,
-            pressureHandling: 50,
-            controversy: 20,
-            adaptability: 50,
-        },
-        reputation: {
-            fame: 70,
-            prestige: 70,
-            industryRespect: 92,
-            reliability: 92,
-            currentHeat: 70,
-        },
-        primaryRole: 'Writer',
-        careers: {
-            writer: {
-                role: 'Writer',
-                active: true,
-                experience: 98,
-                roleReputation: 70,
-                minimumSalary: 2_500_000,
-                typicalSalary: 2_500_000,
-                skill: 98,
-                // Charlie Kaufman - the purest originality in Hollywood and elite
-                // characters, but wilfully uncommercial and wildly variable: the
-                // masterpiece-or-misfire auteur (very low commercial lean & consistency).
-                craft: { originality: 100, structure: 82, characters: 94, dialogue: 90 },
-                toneProfile: { action: 10, comedy: 62, romance: 55, suspense: 45, drama: 92, spectacle: 25 },
-                genreAffinity: { Action: 8, Comedy: 60, Drama: 88, Horror: 25, Romance: 45, 'Sci-Fi': 55, Fantasy: 45, Thriller: 35 },
-                commercialLean: 18,
-                consistency: 38,
-            },
-        },
-        availability: { commitments: [] },
-        traits: [],
-    },
-    {
-        id: 'real-writer-jordan-peele',
-        identity: {
-            name: 'Jordan Peele',
-            appearanceTags: [],
-            gender: 'Male',
-            dateOfBirth: { year: -46, month: 7, day: 1 },
-        },
-        personality: {
-            professionalism: 91,
-            ambition: 50,
-            loyalty: 50,
-            ego: 38,
-            temperament: 50,
-            pressureHandling: 50,
-            controversy: 20,
-            adaptability: 50,
-        },
-        reputation: {
-            fame: 90,
-            prestige: 90,
-            industryRespect: 91,
-            reliability: 91,
-            currentHeat: 90,
-        },
-        primaryRole: 'Writer',
-        careers: {
-            writer: {
-                role: 'Writer',
-                active: true,
-                experience: 92,
-                roleReputation: 90,
-                minimumSalary: 4_000_000,
-                typicalSalary: 4_000_000,
-                skill: 92,
-                // Jordan Peele - social horror-thriller with high originality and
-                // suspense, sturdy characters, commercially sharp, fairly consistent.
-                craft: { originality: 90, structure: 82, characters: 84, dialogue: 82 },
-                toneProfile: { action: 30, comedy: 35, romance: 20, suspense: 92, drama: 65, spectacle: 45 },
-                genreAffinity: { Action: 25, Comedy: 40, Drama: 55, Horror: 92, Romance: 12, 'Sci-Fi': 60, Fantasy: 30, Thriller: 85 },
-                commercialLean: 62,
-                consistency: 78,
-            },
-        },
-        availability: { commitments: [] },
-        traits: [],
-    },
-    {
         id: 'real-writer-taylor-sheridan',
         identity: {
             name: 'Taylor Sheridan',
@@ -56581,11 +56439,85 @@ export const HANDCRAFTED_EDITORS: Person[] = [
     },
 ];
 
+// Secondary writer careers for directors who also write their own films. A
+// writer-director is ONE Person with both a director and a writer career - not
+// two duplicate people - so their writer work is attached here, keyed by the
+// director's id, and merged onto the single Person object below. Sits above
+// the by-role pools because those are derived from career presence.
+const DIRECTOR_WRITER_CAREERS: Record<string, WriterCareer> = {
+  'real-director-taika-waititi': {
+    role: 'Writer',
+    active: true,
+    experience: 88,
+    roleReputation: 89,
+    minimumSalary: 3_000_000,
+    typicalSalary: 3_000_000,
+    skill: 88,
+    // Taika Waititi - irreverent comedy elite, warm characters, high
+    // originality, crowd-pleasing genre mash-ups, variable from film to film.
+    craft: { originality: 88, structure: 74, characters: 84, dialogue: 86 },
+    toneProfile: { action: 55, comedy: 95, romance: 40, suspense: 25, drama: 60, spectacle: 65 },
+    genreAffinity: { Action: 55, Comedy: 92, Drama: 50, Horror: 30, Romance: 30, 'Sci-Fi': 35, Fantasy: 60, Thriller: 20 },
+    commercialLean: 70,
+    consistency: 62,
+  },
+  'real-director-charlie-kaufman': {
+    role: 'Writer',
+    active: true,
+    experience: 98,
+    roleReputation: 70,
+    minimumSalary: 2_500_000,
+    typicalSalary: 2_500_000,
+    skill: 98,
+    // Charlie Kaufman - the purest originality in Hollywood and elite
+    // characters, but wilfully uncommercial and wildly variable: the
+    // masterpiece-or-misfire auteur (very low commercial lean & consistency).
+    craft: { originality: 100, structure: 82, characters: 94, dialogue: 90 },
+    toneProfile: { action: 10, comedy: 62, romance: 55, suspense: 45, drama: 92, spectacle: 25 },
+    genreAffinity: { Action: 8, Comedy: 60, Drama: 88, Horror: 25, Romance: 45, 'Sci-Fi': 55, Fantasy: 45, Thriller: 35 },
+    commercialLean: 18,
+    consistency: 38,
+  },
+  'real-director-jordan-peele': {
+    role: 'Writer',
+    active: true,
+    experience: 92,
+    roleReputation: 90,
+    minimumSalary: 4_000_000,
+    typicalSalary: 4_000_000,
+    skill: 92,
+    // Jordan Peele - social horror-thriller with high originality and
+    // suspense, sturdy characters, commercially sharp, fairly consistent.
+    craft: { originality: 90, structure: 82, characters: 84, dialogue: 82 },
+    toneProfile: { action: 30, comedy: 35, romance: 20, suspense: 92, drama: 65, spectacle: 45 },
+    genreAffinity: { Action: 25, Comedy: 40, Drama: 55, Horror: 92, Romance: 12, 'Sci-Fi': 60, Fantasy: 30, Thriller: 85 },
+    commercialLean: 62,
+    consistency: 78,
+  },
+};
+for (const person of HANDCRAFTED_DIRECTORS) {
+  const writerCareer = DIRECTOR_WRITER_CAREERS[person.id];
+  if (writerCareer) person.careers.writer = writerCareer;
+}
+
+// One flat roster of every hand-authored Person. The by-role pools are built
+// from career presence (not from which array a person was defined in), so a
+// multi-career Person - e.g. a writer-director - surfaces in every pool they
+// are actually qualified for without being duplicated.
+const ALL_HANDCRAFTED_TALENT: Person[] = [
+  ...HANDCRAFTED_DIRECTORS,
+  ...HANDCRAFTED_ACTORS,
+  ...HANDCRAFTED_WRITERS,
+  ...HANDCRAFTED_CINEMATOGRAPHERS,
+  ...HANDCRAFTED_COMPOSERS,
+  ...HANDCRAFTED_EDITORS,
+];
+
 export const HANDCRAFTED_TALENTS_BY_ROLE: Partial<Record<TalentProfession, Person[]>> = {
-  Director: HANDCRAFTED_DIRECTORS,
-  'Actor': HANDCRAFTED_ACTORS,
-  Writer: HANDCRAFTED_WRITERS,
-  Cinematographer: HANDCRAFTED_CINEMATOGRAPHERS,
-  Composer: HANDCRAFTED_COMPOSERS,
-  Editor: HANDCRAFTED_EDITORS,
+  Director: ALL_HANDCRAFTED_TALENT.filter((p) => p.careers.director),
+  'Actor': ALL_HANDCRAFTED_TALENT.filter((p) => p.careers.actor),
+  Writer: ALL_HANDCRAFTED_TALENT.filter((p) => p.careers.writer),
+  Cinematographer: ALL_HANDCRAFTED_TALENT.filter((p) => p.careers.cinematographer),
+  Composer: ALL_HANDCRAFTED_TALENT.filter((p) => p.careers.composer),
+  Editor: ALL_HANDCRAFTED_TALENT.filter((p) => p.careers.editor),
 };
