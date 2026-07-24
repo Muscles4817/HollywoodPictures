@@ -8,6 +8,9 @@ import {
   isStarDraw,
   deriveRiskRead,
   deriveFitReason,
+  deriveFitConfidence,
+  perceivedFitBias,
+  deriveFitRead,
   deriveComparisonVerdict,
   type CompareSide,
 } from './talentCardPresentation';
@@ -102,6 +105,96 @@ describe('deriveFitReason', () => {
 
   it('returns null when there are no rows to reason about', () => {
     expect(deriveFitReason([])).toBeNull();
+  });
+});
+
+describe('deriveFitConfidence', () => {
+  function withReputation(base: Person, reputation: Partial<Person['reputation']>): Person {
+    return { ...base, reputation: { ...base.reputation, ...reputation } };
+  }
+
+  it('reads an established, reliable name as a confident read with no caveat and a tight band', () => {
+    const [base] = generateTalentCandidates('Actor', createRng(40), 1);
+    const known = withReputation(base, { fame: 80, industryRespect: 70, currentHeat: 60, reliability: 80 });
+    const unknown = withReputation(base, { fame: 20, industryRespect: 20, currentHeat: 20, reliability: 70 });
+    const conf = deriveFitConfidence(known);
+    expect(conf.tier).toBe('high');
+    expect(conf.cause).toBeNull();
+    // The whole point: an uncertain read must SHOW as a wider band than a sure one.
+    expect(conf.halfWidth).toBeLessThan(deriveFitConfidence(unknown).halfWidth);
+  });
+
+  it('reads an unproven newcomer as hard to read, naming the lack of track record', () => {
+    const [base] = generateTalentCandidates('Actor', createRng(41), 1);
+    const unknown = withReputation(base, { fame: 20, industryRespect: 20, currentHeat: 20, reliability: 70 });
+    const conf = deriveFitConfidence(unknown);
+    expect(conf.tier).toBe('low');
+    expect(conf.cause).toMatch(/unproven/i);
+  });
+
+  it('caps a flaky big name below a confident read however established, and blames the inconsistency', () => {
+    const [base] = generateTalentCandidates('Actor', createRng(42), 1);
+    const flakyStar = withReputation(base, { fame: 85, industryRespect: 70, currentHeat: 70, reliability: 25 });
+    const conf = deriveFitConfidence(flakyStar);
+    expect(conf.tier).toBe('medium');
+    expect(conf.cause).toMatch(/hot and cold|bank on/i);
+  });
+});
+
+describe('perceivedFitBias', () => {
+  function asContrast(base: Person, fame: number, craftFloor: number, craftHeadroom: number): Person {
+    return {
+      ...base,
+      reputation: { ...base.reputation, fame },
+      careers: { ...base.careers, actor: { ...base.careers.actor!, craftFloor, craftHeadroom } },
+    };
+  }
+
+  it('flatters a famous coaster (name outruns craft) - reads better than they are', () => {
+    const [base] = generateTalentCandidates('Actor', createRng(43), 1);
+    expect(perceivedFitBias(asContrast(base, 80, 40, 10))).toBeGreaterThan(0);
+  });
+
+  it('under-rates an undiscovered talent (craft outruns name) - reads worse than they are', () => {
+    const [base] = generateTalentCandidates('Actor', createRng(44), 1);
+    expect(perceivedFitBias(asContrast(base, 30, 70, 15))).toBeLessThan(0);
+  });
+
+  it('is honest (zero) for a genuine star whose fame and craft agree', () => {
+    const [base] = generateTalentCandidates('Actor', createRng(45), 1);
+    expect(perceivedFitBias(asContrast(base, 80, 80, 5))).toBe(0);
+  });
+});
+
+describe('deriveFitRead', () => {
+  it('shifts the perceived centre up for a coaster and down for an undiscovered talent', () => {
+    const [base] = generateTalentCandidates('Actor', createRng(46), 1);
+    const coaster: Person = { ...base, reputation: { ...base.reputation, fame: 80 }, careers: { ...base.careers, actor: { ...base.careers.actor!, craftFloor: 40, craftHeadroom: 10 } } };
+    const undiscovered: Person = { ...base, reputation: { ...base.reputation, fame: 30 }, careers: { ...base.careers, actor: { ...base.careers.actor!, craftFloor: 70, craftHeadroom: 15 } } };
+    expect(deriveFitRead(60, coaster).perceived).toBeGreaterThan(60);
+    expect(deriveFitRead(60, undiscovered).perceived).toBeLessThan(60);
+  });
+
+  it('widens the band and hedges the verdict when the person is hard to read', () => {
+    const [base] = generateTalentCandidates('Actor', createRng(47), 1);
+    const sure: Person = { ...base, reputation: { ...base.reputation, fame: 80, industryRespect: 70, currentHeat: 60, reliability: 80 } };
+    const unsure: Person = { ...base, reputation: { ...base.reputation, fame: 15, industryRespect: 15, currentHeat: 15, reliability: 70 } };
+    const sureRead = deriveFitRead(72, sure);
+    const unsureRead = deriveFitRead(72, unsure);
+    expect(unsureRead.high - unsureRead.low).toBeGreaterThan(sureRead.high - sureRead.low);
+    // No read-bias on either here (fame/craft roughly agree), so a confident read
+    // is the bare quality word and an unsure one wears a hedge.
+    expect(sureRead.verdict).toMatch(/^a good fit/i);
+    expect(unsureRead.verdict).toMatch(/reads like/i);
+  });
+
+  it('keeps the perceived centre and band inside 0-100', () => {
+    const [base] = generateTalentCandidates('Actor', createRng(48), 1);
+    const coaster: Person = { ...base, reputation: { ...base.reputation, fame: 80 }, careers: { ...base.careers, actor: { ...base.careers.actor!, craftFloor: 40, craftHeadroom: 10 } } };
+    const read = deriveFitRead(98, coaster);
+    expect(read.perceived).toBeLessThanOrEqual(100);
+    expect(read.high).toBeLessThanOrEqual(100);
+    expect(read.low).toBeGreaterThanOrEqual(0);
   });
 });
 

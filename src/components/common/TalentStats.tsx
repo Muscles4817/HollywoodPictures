@@ -6,7 +6,7 @@ import {
 } from '../../engine/compatibility';
 import { dominantLean } from '../../engine/recommendation';
 import { describeActorCraft, describeSignatureGift, describeFameCraftContrast, describeDirectorTouch, describeDirectorActorPairing } from '../../engine/castingPresentation';
-import { deriveFitReason, deriveRiskRead, qualitativeMagnitude, isStarDraw } from '../../engine/talentCardPresentation';
+import { deriveFitReason, deriveFitRead, deriveRiskRead, qualitativeMagnitude, isStarDraw } from '../../engine/talentCardPresentation';
 import { getCareerForRole, deriveBookedUntil } from '../../engine/person';
 import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../../engine/personTraits';
 import { gameDateFromTotalDays, formatGameDateWithMonth } from '../../engine/calendar';
@@ -145,6 +145,10 @@ export function TalentStats({ person, role, category, script, character = null, 
   const overallScore = deriveOverallScore(person, role, category, script, character);
   const roleFit = deriveRoleFitBreakdown(person, role, category, script, character);
   const fitReason = roleFit ? deriveFitReason(roleFit.rows, roleFit.noun) : null;
+  // A fit (actor/director) is a judgment made under uncertainty, so it reads as a
+  // hedged band, not an exact number. Crew "fit" is really their skill - a known
+  // résumé figure - so it keeps a precise read (but no raw digit either).
+  const fitRead = overallScore !== null && roleFit ? deriveFitRead(overallScore, person) : null;
 
   // Both optional (see PersonIdentity's own comment, types/index.ts) - real,
   // handcrafted people deliberately carry neither rather than a fabricated
@@ -203,24 +207,39 @@ export function TalentStats({ person, role, category, script, character = null, 
         </>
       )}
 
-      {/* THE FIT HERO - the card's anchor. Verdict + fill meter + a plain
-          "why" naming the strongest and weakest axis (earned recommendation). */}
-      {overallScore !== null && (
-        <div className={`talent-fit talent-fit--${fitTier(overallScore)}`}>
+      {/* THE FIT HERO - the card's anchor. For an actor/director this is a
+          hedged read over a band (how sure the casting eye is), not an exact
+          number; for crew it's their known skill. A plain "why" names the
+          strongest/weakest axis and, when the read is shaky, why. */}
+      {fitRead ? (
+        <div className={`talent-fit talent-fit--${fitTier(fitRead.perceived)}`}>
           <div className="talent-fit-top">
-            <span className="talent-fit-verdict">{deriveHiringVerdict(overallScore)}</span>
-            <span className="talent-fit-caption">
-              {isActor && character ? 'Fit for this part' : roleFit ? 'Overall fit' : 'Match'} · {Math.round(overallScore)}
-            </span>
+            <span className="talent-fit-verdict">{fitRead.verdict}</span>
+            <span className={`talent-fit-caption talent-fit-caption--${fitRead.confidence}`}>{fitRead.confidenceLabel}</span>
           </div>
-          <div className="talent-fit-meter"><span style={{ width: `${Math.round(overallScore)}%` }} /></div>
-          {fitReason && (
+          {/* A band, not a point: the fill spans [low, high], wider the harder
+              they are to read - so precision is never implied where there is none. */}
+          <div className="talent-fit-meter talent-fit-meter--band">
+            <span style={{ marginLeft: `${fitRead.low}%`, width: `${Math.max(2, fitRead.high - fitRead.low)}%` }} />
+          </div>
+          {(fitReason || fitRead.uncertaintyCause) && (
             <p className="talent-fit-why">
-              {fitReason.strengths}
-              {fitReason.caveat && <span className="talent-fit-caveat"> {fitReason.caveat}</span>}
+              {fitReason?.strengths}
+              {fitReason?.caveat && <span className="talent-fit-caveat"> {fitReason.caveat}</span>}
+              {fitRead.uncertaintyCause && <span className="talent-fit-caveat"> Hard to be sure — {fitRead.uncertaintyCause}.</span>}
             </p>
           )}
         </div>
+      ) : (
+        overallScore !== null && (
+          <div className={`talent-fit talent-fit--${fitTier(overallScore)}`}>
+            <div className="talent-fit-top">
+              <span className="talent-fit-verdict">{deriveHiringVerdict(overallScore)}</span>
+              <span className="talent-fit-caption">Match</span>
+            </div>
+            <div className="talent-fit-meter"><span style={{ width: `${Math.round(overallScore)}%` }} /></div>
+          </div>
+        )
       )}
 
       {/* Status, as traffic-lights rather than prose or stars. */}

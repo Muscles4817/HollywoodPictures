@@ -4,9 +4,11 @@ import { deriveOverallScore, deriveRoleFitBreakdown } from './TalentStats';
 import {
   deriveComparisonVerdict,
   deriveFitReason,
+  deriveFitRead,
   deriveRiskRead,
   qualitativeMagnitude,
   type CompareSide,
+  type FitRead,
 } from '../../engine/talentCardPresentation';
 import { deriveHiringVerdict } from '../../utils/StarRatingConversion';
 import { getTypicalSalaryForRole, isAvailableImmediately, deriveBookedUntil } from '../../engine/person';
@@ -33,7 +35,10 @@ export interface CompareSlot {
 interface SideData {
   name: string;
   ageGender: string;
+  /** Perceived fit (post read-bias) for actor/director, raw skill for crew, null when nothing to compare. Kept in step with what each card shows. */
   fit: number | null;
+  /** The full hedged read for an actor/director fit; null for crew (skill is a known figure, shown exactly). */
+  fitRead: FitRead | null;
   fitNote: string | null;
   salary: number;
   availableNow: boolean;
@@ -45,15 +50,19 @@ interface SideData {
 
 function deriveSide(slot: CompareSlot, totalDays: number): SideData {
   const { person, role, category, script, character } = slot;
-  const fit = deriveOverallScore(person, role, category, script, character);
+  const rawFit = deriveOverallScore(person, role, category, script, character);
   const breakdown = deriveRoleFitBreakdown(person, role, category, script, character);
   const reason = breakdown ? deriveFitReason(breakdown.rows, breakdown.noun) : null;
+  // Band the fit the same way the card does - but only where it's a judgment
+  // (actor/director, i.e. there's a per-axis breakdown); crew skill stays exact.
+  const fitRead = rawFit !== null && breakdown ? deriveFitRead(rawFit, person) : null;
   const bookedUntil = deriveBookedUntil(person.availability.commitments);
   const identity = person.identity.gender ?? '';
   return {
     name: person.identity.name,
     ageGender: identity,
-    fit,
+    fit: fitRead ? fitRead.perceived : rawFit,
+    fitRead,
     fitNote: reason?.strengths.replace(/\.$/, '') ?? null,
     salary: getTypicalSalaryForRole(person, role),
     availableNow: isAvailableImmediately(person, totalDays),
@@ -68,6 +77,7 @@ function toCompareSide(d: SideData): CompareSide {
   return {
     name: d.name,
     fit: d.fit,
+    fitConfidence: d.fitRead?.confidence,
     salary: d.salary,
     availableNow: d.availableNow,
     reliability: d.reliability,
@@ -112,6 +122,31 @@ function MiniBar({ value, tier }: { value: number; tier?: 'hi' | 'mid' | 'lo' })
     <span className="talent-cmp-bar">
       <span className={`talent-cmp-bar-fill${tier ? ` talent-bar-fill--${tier}` : ''}`} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
     </span>
+  );
+}
+
+// The fit cell, kept in step with the card: a hedged verdict over a band for an
+// actor/director (never a bare number), the exact skill read for crew.
+function fitCell(d: SideData): ReactNode {
+  if (d.fitRead) {
+    const { verdict, confidenceLabel, low, high } = d.fitRead;
+    return (
+      <>
+        <span className="talent-cmp-big">{verdict}</span>
+        <span className="talent-cmp-note">{confidenceLabel}</span>
+        <span className="talent-cmp-bar">
+          <span className="talent-cmp-bar-fill" style={{ marginLeft: `${low}%`, width: `${Math.max(2, high - low)}%` }} />
+        </span>
+        {d.fitNote && <span className="talent-cmp-note">{d.fitNote}</span>}
+      </>
+    );
+  }
+  return (
+    <>
+      <span className="talent-cmp-big">{deriveHiringVerdict(d.fit!)}</span>
+      <MiniBar value={d.fit!} tier={fitTier(d.fit!) === 'strong' ? 'hi' : fitTier(d.fit!) === 'good' ? 'mid' : 'lo'} />
+      {d.fitNote && <span className="talent-cmp-note">{d.fitNote}</span>}
+    </>
   );
 }
 
@@ -187,20 +222,8 @@ export function TalentComparison({ a, b, totalDays }: { a: CompareSlot; b: Compa
           attr="Role fit"
           winner={fitWinner}
           winTag="Better fit"
-          left={
-            <>
-              <span className="talent-cmp-big">{Math.round(da.fit!)} · {deriveHiringVerdict(da.fit!)}</span>
-              <MiniBar value={da.fit!} tier={fitTier(da.fit!) === 'strong' ? 'hi' : fitTier(da.fit!) === 'good' ? 'mid' : 'lo'} />
-              {da.fitNote && <span className="talent-cmp-note">{da.fitNote}</span>}
-            </>
-          }
-          right={
-            <>
-              <span className="talent-cmp-big">{Math.round(db.fit!)} · {deriveHiringVerdict(db.fit!)}</span>
-              <MiniBar value={db.fit!} tier={fitTier(db.fit!) === 'strong' ? 'hi' : fitTier(db.fit!) === 'good' ? 'mid' : 'lo'} />
-              {db.fitNote && <span className="talent-cmp-note">{db.fitNote}</span>}
-            </>
-          }
+          left={fitCell(da)}
+          right={fitCell(db)}
         />
       )}
 

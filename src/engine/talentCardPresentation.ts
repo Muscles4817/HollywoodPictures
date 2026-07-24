@@ -11,6 +11,8 @@
 // alongside the classification, the same "derive and phrase together" split
 // engine/castingPresentation.ts already uses for the appeal reads.
 import { deriveTraits } from './personTraits';
+import { fameCraftContrast } from './actingModel';
+import { clamp } from './random';
 import type { Person } from '../types';
 
 // --- Magnitude words -------------------------------------------------------
@@ -139,6 +141,161 @@ function capitalize(s: string): string {
   return s.length === 0 ? s : `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
 }
 
+// --- Reading role fit under uncertainty ------------------------------------
+// The engine's fit score is exact and deterministic, but a producer sizing up a
+// candidate never sees it that cleanly. Two real-life truths the raw number
+// hides:
+//   1. How *confidently* you can read a fit depends on how much of a known
+//      quantity the person is - a much-seen, dependable name is predictable; an
+//      unproven newcomer or a flaky one is a gamble whatever the number says.
+//   2. The read itself is *biased* by reputation - a star's marquee flatters a
+//      shaky fit (you over-rate them), an unknown gets under-rated.
+// So this turns the exact score into what a casting eye would actually perceive:
+// a hedged verdict over a band, not a figure to two digits. Crucially it stays
+// DETERMINISTIC per person (no RNG) - a *knowledge* problem the player can
+// reason about (and, later, buy their way out of with a screen test), never a
+// slot machine bolted onto the outcome. The true fit underneath is untouched;
+// this is a presentation read of it (CLAUDE.md house style: qualitative, never
+// the raw stat).
+
+export type FitConfidence = 'high' | 'medium' | 'low';
+
+// How established a name reads - blends public fame, peer respect, and current
+// heat. A respected character actor (modest fame, high respect) is still a known
+// quantity, so respect counts alongside fame rather than fame carrying it alone.
+function establishment(person: Person): number {
+  const { fame, industryRespect, currentHeat } = person.reputation;
+  return 0.55 * fame + 0.3 * industryRespect + 0.15 * currentHeat;
+}
+
+const WELL_KNOWN = 62; // a bankable, much-seen name - matches actingModel's FAME_HIGH
+const SOMEWHAT_KNOWN = 40; // enough of a track record to have a read on
+const WILDCARD_RELIABILITY = 35; // below this they're unpredictable however famous
+// Band half-widths in fit points, per confidence tier - how far the shown range
+// spreads around the perceived centre. First-draft, tunable like every cutoff here.
+const BAND_HALF_WIDTH: Record<FitConfidence, number> = { high: 4, medium: 11, low: 20 };
+const CONFIDENCE_LABEL: Record<FitConfidence, string> = {
+  high: 'Confident read',
+  medium: 'Fairly sure',
+  low: 'Hard to read',
+};
+
+export interface FitConfidenceRead {
+  tier: FitConfidence;
+  /** ± fit points the shown band spreads around the perceived centre. */
+  halfWidth: number;
+  /** The short caption that replaces the old raw "· 87" number under the verdict. */
+  label: string;
+  /** The named reason the read isn't a sure thing, for the verdict's caveat - null at high confidence. */
+  cause: string | null;
+}
+
+/**
+ * How confidently this person's fit can be read, and why not, when it can't.
+ * Establishment sets the base tier; low reliability caps it (a flaky name is a
+ * gamble however established). Deterministic - purely a function of who they are.
+ */
+export function deriveFitConfidence(person: Person): FitConfidenceRead {
+  const known = establishment(person);
+  const { reliability } = person.reputation;
+
+  let tier: FitConfidence;
+  if (reliability < WILDCARD_RELIABILITY) {
+    // Unpredictable film to film - never a confident read, even for a big name.
+    tier = known >= WELL_KNOWN ? 'medium' : 'low';
+  } else if (known >= WELL_KNOWN) {
+    tier = 'high';
+  } else if (known >= SOMEWHAT_KNOWN) {
+    tier = 'medium';
+  } else {
+    tier = 'low';
+  }
+
+  let cause: string | null = null;
+  if (tier !== 'high') {
+    if (reliability < WILDCARD_RELIABILITY) cause = 'they blow hot and cold - hard to bank on';
+    else if (known < SOMEWHAT_KNOWN) cause = 'an unproven name, with little to go on';
+    else cause = 'still something of an unknown quantity';
+  }
+
+  return { tier, halfWidth: BAND_HALF_WIDTH[tier], label: CONFIDENCE_LABEL[tier], cause };
+}
+
+// How far a reputation pushes a fit read off the truth, in points. A famous
+// 'coaster' (name outruns craft) reads BETTER than they are - the marquee
+// flatters a shaky fit; an 'undiscovered' talent (craft outruns name) reads
+// WORSE - no name to trust, so they're under-rated. Reuses the exact fame-vs-
+// craft contrast the sim already computes (engine/actingModel.ts), so the card's
+// read never disagrees with the identity line right above it. 0 when fame and
+// craft roughly agree, and for non-actors.
+const READ_BIAS_POINTS = 8;
+export function perceivedFitBias(person: Person): number {
+  switch (fameCraftContrast(person)) {
+    case 'coaster':
+      return READ_BIAS_POINTS;
+    case 'undiscovered':
+      return -READ_BIAS_POINTS;
+    default:
+      return 0; // 'star-and-craft' or null - the read is honest
+  }
+}
+
+export interface FitRead {
+  /** Player-facing centre of the read: the true fit shifted by reputation bias. Deterministic, still 0-100, but NOT the raw engine number when a bias applies. */
+  perceived: number;
+  confidence: FitConfidence;
+  /** Band edges around `perceived`, wider the harder the person is to read - what the meter fills as a range instead of a point. */
+  low: number;
+  high: number;
+  /** The hedged verdict phrase, e.g. "A strong fit" / "Likely a good fit" / "Reads like a risky fit". */
+  verdict: string;
+  /** The confidence caption that replaces the raw score number. */
+  confidenceLabel: string;
+  /** The named reason the read is uncertain, for the "why" caveat - null at high confidence. */
+  uncertaintyCause: string | null;
+}
+
+// The fit-quality word for a perceived score - the adjective the hedged verdict
+// is built from. Same cutoffs as StarRatingConversion.deriveHiringVerdict, but a
+// bare quality so a hedge can sit in front of it ("Likely a strong fit").
+function fitQualityWord(score: number): string {
+  if (score >= 90) return 'excellent';
+  if (score >= 75) return 'strong';
+  if (score >= 60) return 'good';
+  if (score >= 40) return 'risky';
+  return 'poor';
+}
+
+const HEDGE: Record<FitConfidence, (phrase: string) => string> = {
+  high: (phrase) => capitalize(phrase),
+  medium: (phrase) => `Likely ${phrase}`,
+  low: (phrase) => `Reads like ${phrase}`,
+};
+
+/**
+ * The exact engine fit score as a casting eye would actually perceive it -
+ * shifted by reputation bias (perceivedFitBias), hedged and banded by how
+ * readable the person is (deriveFitConfidence). The card leads with this instead
+ * of the raw number, so "always accurate and exact" becomes "here's my read, and
+ * how sure I am of it." `trueScore` is the untouched 0-100 fit; everything
+ * derived here is deterministic.
+ */
+export function deriveFitRead(trueScore: number, person: Person): FitRead {
+  const perceived = clamp(trueScore + perceivedFitBias(person), 0, 100);
+  const { tier, halfWidth, label, cause } = deriveFitConfidence(person);
+  const word = fitQualityWord(perceived);
+  const phrase = `${word === 'excellent' ? 'an' : 'a'} ${word} fit`;
+  return {
+    perceived,
+    confidence: tier,
+    low: clamp(perceived - halfWidth, 0, 100),
+    high: clamp(perceived + halfWidth, 0, 100),
+    verdict: HEDGE[tier](phrase),
+    confidenceLabel: label,
+    uncertaintyCause: cause,
+  };
+}
+
 // --- Head-to-head comparison verdict ---------------------------------------
 // The recommendation the two-candidate comparison view leads with. Only names a
 // pick when one candidate clearly wins the decisive axes (user choice: "diffs +
@@ -148,8 +305,10 @@ function capitalize(s: string): string {
 
 export interface CompareSide {
   name: string;
-  /** Role-fit / skill score 0-100, or null when there's nothing to compare on (e.g. crew with no script). */
+  /** Role-fit / skill score 0-100, or null when there's nothing to compare on (e.g. crew with no script). The *perceived* fit (post read-bias), so the verdict matches what each card shows. */
   fit: number | null;
+  /** How readable that fit is - a fit edge over a candidate you can't confidently read isn't worth claiming, so an uncertain side widens the margin. Optional/high-by-default, so existing callers are unchanged. */
+  fitConfidence?: FitConfidence;
   salary: number;
   availableNow: boolean;
   reliability: number;
@@ -191,7 +350,12 @@ export function deriveComparisonVerdict(a: CompareSide, b: CompareSide): Compare
     edges.push({ winner, weight: 3, reason: `${loser.name} can't start yet` });
   }
 
-  if (a.fit !== null && b.fit !== null && Math.abs(a.fit - b.fit) >= FIT_MARGIN) {
+  // A fit edge is only worth claiming if you can actually read both fits - when
+  // either side is a hard-to-read gamble, the numbers alone don't justify "a
+  // clearly better fit," so the margin needed doubles.
+  const fitReadable = (a.fitConfidence ?? 'high') !== 'low' && (b.fitConfidence ?? 'high') !== 'low';
+  const fitMargin = fitReadable ? FIT_MARGIN : FIT_MARGIN * 2;
+  if (a.fit !== null && b.fit !== null && Math.abs(a.fit - b.fit) >= fitMargin) {
     const winner = a.fit > b.fit ? 'a' : 'b';
     edges.push({ winner, weight: 3, reason: 'a clearly better fit for this part' });
   }
