@@ -149,6 +149,52 @@ describe('computeRealizedPerformance - the unlock', () => {
   });
 });
 
+// Prototype 3: actor ADAPTABILITY reshapes the response to direction - a rigid
+// actor swings further both ways (boom-or-bust), an adaptable one is steadier
+// but capped. Zero-change at adaptability 50 (the builder's default), so every
+// test above still holds.
+function withAdaptability(a: Person, adaptability: number): Person {
+  return { ...a, personality: { ...a.personality, adaptability } };
+}
+
+describe('adaptability reshapes the unlock (Prototype 3)', () => {
+  it('does not change the performance of a neutral-adaptability (50) actor', () => {
+    const base = actor('magnet', MAGNET_STYLE);
+    const dir = matchedDirector(MAGNET_STYLE, { skill: 95, handsOn: 0.95 });
+    expect(computeRealizedPerformance(withAdaptability(base, 50), dir, FULL_FIT)).toBe(
+      computeRealizedPerformance(base, dir, FULL_FIT),
+    );
+  });
+
+  it('a rigid actor reaches a HIGHER ceiling than an adaptable one under a great matched director', () => {
+    const rigid = withAdaptability(actor('magnet', MAGNET_STYLE), 5);
+    const adaptable = withAdaptability(actor('magnet', MAGNET_STYLE), 95);
+    const dir = matchedDirector(MAGNET_STYLE, { skill: 95, handsOn: 0.95 });
+    expect(computeRealizedPerformance(rigid, dir, FULL_FIT)).toBeGreaterThan(
+      computeRealizedPerformance(adaptable, dir, FULL_FIT),
+    );
+  });
+
+  it('a rigid actor craters LOWER than an adaptable one under a mis-aimed director', () => {
+    const rigid = withAdaptability(actor('magnet', MAGNET_STYLE), 5);
+    const adaptable = withAdaptability(actor('magnet', MAGNET_STYLE), 95);
+    const dir = mismatchedDirector(MAGNET_STYLE, { skill: 95, handsOn: 0.95 });
+    expect(computeRealizedPerformance(rigid, dir, FULL_FIT)).toBeLessThan(
+      computeRealizedPerformance(adaptable, dir, FULL_FIT),
+    );
+  });
+
+  it('rigidity widens the outcome distribution (rigid spread > adaptable spread across match and mismatch)', () => {
+    const rigid = withAdaptability(actor('magnet', MAGNET_STYLE), 5);
+    const adaptable = withAdaptability(actor('magnet', MAGNET_STYLE), 95);
+    const matched = matchedDirector(MAGNET_STYLE, { skill: 95, handsOn: 0.95 });
+    const mismatched = mismatchedDirector(MAGNET_STYLE, { skill: 95, handsOn: 0.95 });
+    const rigidSpread = computeRealizedPerformance(rigid, matched, FULL_FIT) - computeRealizedPerformance(rigid, mismatched, FULL_FIT);
+    const adaptableSpread = computeRealizedPerformance(adaptable, matched, FULL_FIT) - computeRealizedPerformance(adaptable, mismatched, FULL_FIT);
+    expect(rigidSpread).toBeGreaterThan(adaptableSpread);
+  });
+});
+
 describe('fame != craft', () => {
   it('two actors with identical style but wildly different fame deliver the identical performance', () => {
     const unknown = actor('unknown', MAGNET_STYLE, { fame: 3 });
