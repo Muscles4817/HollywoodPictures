@@ -21,8 +21,10 @@
  *   p = -2  flaw-punishing, the weakest axis pulls hard  AUDIENCE (wants no flaws)
  *   p = +2  peak-rewarding, an exceptional axis lifts .. CRITIC   (admires ambition)
  *
- * QUALITY weights all three axes EQUALLY and is genre-neutral. Genre only tilts
- * how CRITIC and AUDIENCE weight the axes, and each carries a personality:
+ * QUALITY is genre-neutral (never tilted by genre) but Feel-primary - Feel is the
+ * emotional core a film is built to deliver, so it carries the most weight, with
+ * Story and Acting the two co-leads inside Feel. Genre only tilts how CRITIC and
+ * AUDIENCE weight the axes, and each carries a personality:
  *   - Audience: feel-led, enjoys spectacle, blind to craft subtlety / originality.
  *   - Critic: craft+story-led, rewards originality, discounts spectacle.
  * So the SAME film can read very differently across the three - and the more
@@ -54,6 +56,16 @@ import type { CrewRole, FilmDraft, Genre, Person, ProductionRole, TalentAssignme
 const P_QUALITY = 0; // geometric - mild weakest-link
 const P_CRITIC = 2; // peak-rewarding
 const P_AUDIENCE = -2; // flaw-punishing
+
+// Quality axis weights - GENRE-NEUTRAL (never tilted by genre; that's what "even
+// split" was really protecting). Not literally equal, though: Feel is the
+// emotional core a film is built to deliver - Look and Sound largely serve it -
+// so Feel carries the most. Only critic/audience tilt these per genre.
+const QUALITY_AXIS_WEIGHTS: FilmAxes = { look: 0.3, sound: 0.28, feel: 0.42 };
+
+// Feel's internal composition. Story (the writer's craft) and Acting are the two
+// co-leads; the editor shapes pacing/clarity, the composer lends emotion.
+const FEEL_WEIGHTS = { story: 0.38, acting: 0.4, editor: 0.17, composer: 0.05 };
 
 // How much of each reader's personality is expressed as a flat modifier on top
 // of the axis blend (the rest is the exponent + the genre-tilted weights).
@@ -126,7 +138,7 @@ function computeRawAxes(draft: FilmDraft, soundDesignerSkill = 50): FilmAxes {
   const realizedVfx = realizedVfxScore(choices.vfxAmount, crewSkill(talent, 'VFX Supervisor'));
 
   // FEEL - story + performance heavy; the editor shapes pacing/clarity, the composer lends emotion.
-  const feel = clamp(story * 0.35 + acting * 0.35 + editor * 0.22 + composer * 0.08, 0, 100);
+  const feel = clamp(story * FEEL_WEIGHTS.story + acting * FEEL_WEIGHTS.acting + editor * FEEL_WEIGHTS.editor + composer * FEEL_WEIGHTS.composer, 0, 100);
   // LOOK - the cinematographer is the dominant voice; sets and VFX fill it in.
   const look = clamp(cinematography * 0.44 + set * 0.24 + realizedVfx * 0.2 + practical * 0.12, 0, 100);
   // SOUND - composer leads, the new sound designer a strong second.
@@ -142,8 +154,8 @@ function applyDirection(raw: FilmAxes, directionScore: number): FilmAxes {
 }
 
 function qualityScore(a: FilmAxes): number {
-  // Equal weights, genre-neutral - the objective craft reading.
-  return powerMean([{ v: a.look, w: 1 }, { v: a.sound, w: 1 }, { v: a.feel, w: 1 }], P_QUALITY);
+  // Feel-primary but genre-neutral - the objective craft reading.
+  return powerMean([{ v: a.look, w: QUALITY_AXIS_WEIGHTS.look }, { v: a.sound, w: QUALITY_AXIS_WEIGHTS.sound }, { v: a.feel, w: QUALITY_AXIS_WEIGHTS.feel }], P_QUALITY);
 }
 
 function audienceWeights(genre: Genre): FilmAxes {
@@ -238,7 +250,7 @@ describe.skipIf(!enabled)('Quality-axes prototype (Look/Sound/Feel)', () => {
     const lines: string[] = [];
 
     // --- 1. COMBINATION SHOWCASE: hand-picked axis triples, one default genre ---
-    lines.push('\n=== 1. COMBINATION SHOWCASE (equal-weight axes; Action reception) ===');
+    lines.push('\n=== 1. COMBINATION SHOWCASE (Feel-primary Quality; Action reception) ===');
     lines.push('The same three numbers read as three scores. Balanced films agree; lopsided films diverge.');
     lines.push(`  ${'archetype'.padEnd(24)} ${'Look'.padStart(5)} ${'Sound'.padStart(6)} ${'Feel'.padStart(5)}  ${'QUALITY'.padStart(7)} ${'CRITIC'.padStart(7)} ${'AUD'.padStart(6)}  ${'C-A gap'.padStart(7)}`);
     const showcase: { name: string; a: FilmAxes; orig: number; spec: number }[] = [
@@ -301,14 +313,13 @@ describe.skipIf(!enabled)('Quality-axes prototype (Look/Sound/Feel)', () => {
     // --- 5. FEEL BREAKDOWN: what's actually in the axis, and acting's real range ---
     lines.push('\n=== 5. FEEL BREAKDOWN (baseline excellent film) ===');
     const script = baseline.script!;
-    const FEEL_W = { story: 0.35, acting: 0.35, editor: 0.22, composer: 0.08 };
     const story = computeScriptScore(script);
     const actingStrong = computeActingScore(baseline.talent, script);
     const editorStrong = crewSkill(baseline.talent, 'Editor');
     const composerStrong = crewSkill(baseline.talent, 'Composer');
-    lines.push('  Raw Feel = story*.35 + acting*.35 + editor*.22 + composer*.08  (before the director unlock).');
+    lines.push(`  Raw Feel = story*${FEEL_WEIGHTS.story} + acting*${FEEL_WEIGHTS.acting} + editor*${FEEL_WEIGHTS.editor} + composer*${FEEL_WEIGHTS.composer}  (before the director unlock).`);
     lines.push(`  ${'input'.padEnd(10)} ${'value'.padStart(6)} ${'weight'.padStart(7)} ${'contribution'.padStart(13)}`);
-    const parts: [string, number, number][] = [['story', story, FEEL_W.story], ['acting', actingStrong, FEEL_W.acting], ['editor', editorStrong, FEEL_W.editor], ['composer', composerStrong, FEEL_W.composer]];
+    const parts: [string, number, number][] = [['story', story, FEEL_WEIGHTS.story], ['acting', actingStrong, FEEL_WEIGHTS.acting], ['editor', editorStrong, FEEL_WEIGHTS.editor], ['composer', composerStrong, FEEL_WEIGHTS.composer]];
     for (const [n, v, w] of parts) lines.push(`  ${n.padEnd(10)} ${f1(v)} ${w.toFixed(2).padStart(7)} ${f1(v * w)}`);
     lines.push(`  ${'RAW FEEL'.padEnd(10)} ${' '.repeat(6)} ${' '.repeat(7)} ${f1(parts.reduce((s, [, v, w]) => s + v * w, 0))}`);
 
@@ -322,15 +333,16 @@ describe.skipIf(!enabled)('Quality-axes prototype (Look/Sound/Feel)', () => {
     for (const level of ['floor', 'strong', 'ceil'] as Level[]) {
       const d = actorsAt(level);
       const act = computeActingScore(d.talent, script);
-      const rawFeel = story * FEEL_W.story + act * FEEL_W.acting + editorStrong * FEEL_W.editor + composerStrong * FEEL_W.composer;
+      const rawFeel = story * FEEL_WEIGHTS.story + act * FEEL_WEIGHTS.acting + editorStrong * FEEL_WEIGHTS.editor + composerStrong * FEEL_WEIGHTS.composer;
       const q = scoreDraft(d, genre, 78).quality;
       actingQ[level] = q;
       lines.push(`  ${level.padEnd(8)} ${f1(act)} ${f1(rawFeel)} ${f1(q)}`);
     }
     lines.push(`  -> BOTH actors floor->ceil moves Quality by ${(actingQ.ceil - actingQ.floor).toFixed(1)} pt (per-role table splits this across Lead/Supporting).`);
-    lines.push('\n  Why acting reads low: it shares Feel with a FIXED 90-pt story, Feel is only 1/3 of an equal-weighted');
-    lines.push('  Quality, and actors swing over a compressed craft range (~40-90) vs crew skill (8-98). Effective');
-    lines.push(`  weight of acting on Quality ~= .35 (in Feel) x 1/3 (Feel's share) ~= 0.12, vs ~0.25 in the current model.`);
+    const actingEff = FEEL_WEIGHTS.acting * QUALITY_AXIS_WEIGHTS.feel;
+    lines.push(`\n  Acting's effective weight on Quality ~= ${FEEL_WEIGHTS.acting} (in Feel) x ${QUALITY_AXIS_WEIGHTS.feel} (Feel's share) ~= ${actingEff.toFixed(2)}`);
+    lines.push('  (was ~0.12 under the equal-axis / lighter-acting split; ~0.25 in the current pre-axis model). It still');
+    lines.push('  shares Feel with a fixed 90-pt story and swings over a compressed craft range (~37-80) vs crew (8-98).');
 
     // eslint-disable-next-line no-console
     console.log(lines.join('\n'));
