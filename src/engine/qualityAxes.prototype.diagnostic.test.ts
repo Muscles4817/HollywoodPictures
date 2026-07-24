@@ -298,6 +298,40 @@ describe.skipIf(!enabled)('Quality-axes prototype (Look/Sound/Feel)', () => {
       lines.push(`  ${gg.padEnd(12)} ${GENRE_PROFILES[gg].vfxImportance.toFixed(2).padStart(6)} ${f1(qualityScore(filmA))} ${f1(criticScore(filmA, gg, 40, 85))} ${f1(audienceScore(filmA, gg, 85))}`);
     }
 
+    // --- 5. FEEL BREAKDOWN: what's actually in the axis, and acting's real range ---
+    lines.push('\n=== 5. FEEL BREAKDOWN (baseline excellent film) ===');
+    const script = baseline.script!;
+    const FEEL_W = { story: 0.35, acting: 0.35, editor: 0.22, composer: 0.08 };
+    const story = computeScriptScore(script);
+    const actingStrong = computeActingScore(baseline.talent, script);
+    const editorStrong = crewSkill(baseline.talent, 'Editor');
+    const composerStrong = crewSkill(baseline.talent, 'Composer');
+    lines.push('  Raw Feel = story*.35 + acting*.35 + editor*.22 + composer*.08  (before the director unlock).');
+    lines.push(`  ${'input'.padEnd(10)} ${'value'.padStart(6)} ${'weight'.padStart(7)} ${'contribution'.padStart(13)}`);
+    const parts: [string, number, number][] = [['story', story, FEEL_W.story], ['acting', actingStrong, FEEL_W.acting], ['editor', editorStrong, FEEL_W.editor], ['composer', composerStrong, FEEL_W.composer]];
+    for (const [n, v, w] of parts) lines.push(`  ${n.padEnd(10)} ${f1(v)} ${w.toFixed(2).padStart(7)} ${f1(v * w)}`);
+    lines.push(`  ${'RAW FEEL'.padEnd(10)} ${' '.repeat(6)} ${' '.repeat(7)} ${f1(parts.reduce((s, [, v, w]) => s + v * w, 0))}`);
+
+    lines.push('\n  Acting\'s real range - move BOTH actors floor->strong->ceil (everything else fixed):');
+    lines.push(`  ${'actors'.padEnd(8)} ${'actingScore'.padStart(11)} ${'rawFeel'.padStart(8)} ${'QUALITY'.padStart(7)}`);
+    const actorsAt = (level: Level): FilmDraft => ({
+      ...baseline,
+      talent: baseline.talent.map((a) => (a.role === 'Lead Actor' || a.role === 'Supporting Actor' ? { ...a, person: setRoleLevel(a.person, a.role, level) } : a)),
+    });
+    const actingQ: Record<Level, number> = { floor: 0, strong: 0, ceil: 0 };
+    for (const level of ['floor', 'strong', 'ceil'] as Level[]) {
+      const d = actorsAt(level);
+      const act = computeActingScore(d.talent, script);
+      const rawFeel = story * FEEL_W.story + act * FEEL_W.acting + editorStrong * FEEL_W.editor + composerStrong * FEEL_W.composer;
+      const q = scoreDraft(d, genre, 78).quality;
+      actingQ[level] = q;
+      lines.push(`  ${level.padEnd(8)} ${f1(act)} ${f1(rawFeel)} ${f1(q)}`);
+    }
+    lines.push(`  -> BOTH actors floor->ceil moves Quality by ${(actingQ.ceil - actingQ.floor).toFixed(1)} pt (per-role table splits this across Lead/Supporting).`);
+    lines.push('\n  Why acting reads low: it shares Feel with a FIXED 90-pt story, Feel is only 1/3 of an equal-weighted');
+    lines.push('  Quality, and actors swing over a compressed craft range (~40-90) vs crew skill (8-98). Effective');
+    lines.push(`  weight of acting on Quality ~= .35 (in Feel) x 1/3 (Feel's share) ~= 0.12, vs ~0.25 in the current model.`);
+
     // eslint-disable-next-line no-console
     console.log(lines.join('\n'));
   }, 120_000);
