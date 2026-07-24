@@ -6,7 +6,8 @@ import {
 } from '../../engine/compatibility';
 import { dominantLean } from '../../engine/recommendation';
 import { describeActorCraft, describeSignatureGift, describeFameCraftContrast, describeDirectorTouch, describeDirectorActorPairing } from '../../engine/castingPresentation';
-import { deriveFitReason, deriveFitRead, deriveRiskRead, qualitativeMagnitude, isStarDraw, gateKnownAxes } from '../../engine/talentCardPresentation';
+import { deriveFitReason, deriveFitRead, deriveFitReadAssist, deriveRiskRead, qualitativeMagnitude, isStarDraw, gateKnownAxes } from '../../engine/talentCardPresentation';
+import type { RelationshipStanding } from '../../engine/relationships';
 import { getCareerForRole, deriveBookedUntil } from '../../engine/person';
 import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../../engine/personTraits';
 import { gameDateFromTotalDays, formatGameDateWithMonth } from '../../engine/calendar';
@@ -142,14 +143,17 @@ function BarRow({ label, value }: { label: string; value: number }) {
  * dot when the caller knows the studio's budget (the hiring drawers do; the
  * on-set decision card doesn't, and passes nothing).
  */
-export function TalentStats({ person, role, category, script, character = null, totalDays, availabilityMode = 'delay', pairedDirector = null, affordable = null }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number; availabilityMode?: 'delay' | 'blocked'; pairedDirector?: Person | null; affordable?: boolean | null }) {
+export function TalentStats({ person, role, category, script, character = null, totalDays, availabilityMode = 'delay', pairedDirector = null, affordable = null, castingDirectorSkill = null, relationship = null }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number; availabilityMode?: 'delay' | 'blocked'; pairedDirector?: Person | null; affordable?: boolean | null; castingDirectorSkill?: number | null; relationship?: RelationshipStanding | null }) {
   const career = getCareerForRole(person, role);
   const overallScore = deriveOverallScore(person, role, category, script, character);
   const roleFit = deriveRoleFitBreakdown(person, role, category, script, character);
   // A fit (actor/director) is a judgment made under uncertainty, so it reads as a
   // hedged band, not an exact number. Crew "fit" is really their skill - a known
-  // résumé figure - so it keeps a precise read (but no raw digit either).
-  const fitRead = overallScore !== null && roleFit ? deriveFitRead(overallScore, person) : null;
+  // résumé figure - so it keeps a precise read (but no raw digit either). Two
+  // studio-side things sharpen an actor/director read: the production's casting
+  // director (actors only) and history with this person (deriveFitReadAssist).
+  const fitAssist = deriveFitReadAssist(castingDirectorSkill, relationship ?? undefined, category === 'actor');
+  const fitRead = overallScore !== null && roleFit ? deriveFitRead(overallScore, person, fitAssist) : null;
   // Only the axes you'd actually know are shown in full; the rest are veiled as
   // "Unknown" the less of a known quantity they are. The "why" line reasons over
   // the known axes only, so it never cites a dimension the breakdown hides.
@@ -228,11 +232,12 @@ export function TalentStats({ person, role, category, script, character = null, 
           <div className="talent-fit-meter talent-fit-meter--band">
             <span style={{ marginLeft: `${fitRead.low}%`, width: `${Math.max(2, fitRead.high - fitRead.low)}%` }} />
           </div>
-          {(fitReason || fitRead.uncertaintyCause) && (
+          {(fitReason || fitRead.uncertaintyCause || fitRead.assistNote) && (
             <p className="talent-fit-why">
               {fitReason?.strengths}
               {fitReason?.caveat && <span className="talent-fit-caveat"> {fitReason.caveat}</span>}
               {fitRead.uncertaintyCause && <span className="talent-fit-caveat"> Hard to be sure — {fitRead.uncertaintyCause}.</span>}
+              {fitRead.assistNote && <span className="talent-fit-assist"> {fitRead.assistNote.charAt(0).toUpperCase()}{fitRead.assistNote.slice(1)}.</span>}
             </p>
           )}
         </div>

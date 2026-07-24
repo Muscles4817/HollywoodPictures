@@ -11,13 +11,20 @@ import {
   deriveFitConfidence,
   perceivedFitBias,
   deriveFitRead,
+  deriveFitReadAssist,
   gateKnownAxes,
   deriveComparisonVerdict,
+  NO_ASSIST,
   type CompareSide,
 } from './talentCardPresentation';
 import { generateTalentCandidates } from './talentGenerator';
 import { createRng } from './random';
+import type { RelationshipStanding } from './relationships';
 import type { Person } from '../types';
+
+function history(collaborations: number): RelationshipStanding {
+  return { collaborations, warmth: 0, tier: collaborations > 0 ? 'neutral' : 'none', lastWorkedDay: null };
+}
 
 describe('qualitativeMagnitude', () => {
   it('maps a 0-100 value to a coarse band, not a number', () => {
@@ -196,6 +203,70 @@ describe('deriveFitRead', () => {
     expect(read.perceived).toBeLessThanOrEqual(100);
     expect(read.high).toBeLessThanOrEqual(100);
     expect(read.low).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('deriveFitReadAssist', () => {
+  it('reads a hired casting director as the assist for an actor', () => {
+    const assist = deriveFitReadAssist(80, history(0), true);
+    expect(assist.source).toBe('casting-director');
+    expect(assist.level).toBeCloseTo(0.8);
+  });
+
+  it('ignores a casting director for a non-actor (they read actors, not directors or crew)', () => {
+    expect(deriveFitReadAssist(80, history(0), false)).toEqual(NO_ASSIST);
+  });
+
+  it('reads history with the person as an assist, keyed off the collaboration count', () => {
+    const assist = deriveFitReadAssist(undefined, history(3), true);
+    expect(assist.source).toBe('history');
+    expect(assist.level).toBeGreaterThan(0);
+  });
+
+  it('takes the stronger of the two ways of knowing them, not their sum', () => {
+    // CD skill 40 (0.40) vs two collaborations (0.60) - history is the stronger read.
+    const assist = deriveFitReadAssist(40, history(2), true);
+    expect(assist.source).toBe('history');
+    expect(assist.level).toBeCloseTo(0.6);
+  });
+});
+
+describe('deriveFitConfidence with a studio-side assist', () => {
+  it('promotes a hard-to-read newcomer and tightens the band when a strong assist is present', () => {
+    const [base] = generateTalentCandidates('Actor', createRng(50), 1);
+    const newcomer: Person = { ...base, reputation: { ...base.reputation, fame: 15, industryRespect: 15, currentHeat: 15, reliability: 70 } };
+    const unaided = deriveFitConfidence(newcomer);
+    const aided = deriveFitConfidence(newcomer, deriveFitReadAssist(90, history(0), true));
+    expect(unaided.tier).toBe('low');
+    expect(aided.tier).toBe('high');
+    expect(aided.halfWidth).toBeLessThan(unaided.halfWidth);
+    expect(aided.cause).toBeNull();
+  });
+});
+
+describe('deriveFitRead with a studio-side assist', () => {
+  const coaster = (base: Person): Person => ({
+    ...base,
+    reputation: { ...base.reputation, fame: 80 },
+    careers: { ...base.careers, actor: { ...base.careers.actor!, craftFloor: 40, craftHeadroom: 10 } },
+  });
+
+  it('sees through the reputation over-read - a casting director pulls a coaster back toward the truth', () => {
+    const [base] = generateTalentCandidates('Actor', createRng(51), 1);
+    const c = coaster(base);
+    const unaided = deriveFitRead(60, c);
+    const aided = deriveFitRead(60, c, deriveFitReadAssist(90, history(0), true));
+    // Both still read above the true 60 (a coaster flatters), but the CD's eye
+    // shrinks the illusion toward the truth.
+    expect(aided.perceived).toBeLessThan(unaided.perceived);
+    expect(aided.perceived).toBeGreaterThan(60);
+  });
+
+  it('credits the assist source on the read, and stays silent with no assist', () => {
+    const [base] = generateTalentCandidates('Actor', createRng(52), 1);
+    expect(deriveFitRead(60, base, deriveFitReadAssist(90, history(0), true)).assistNote).toMatch(/casting director/i);
+    expect(deriveFitRead(60, base, deriveFitReadAssist(undefined, history(3), true)).assistNote).toMatch(/worked together/i);
+    expect(deriveFitRead(60, base).assistNote).toBeNull();
   });
 });
 

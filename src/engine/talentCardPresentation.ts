@@ -13,6 +13,7 @@
 import { deriveTraits } from './personTraits';
 import { fameCraftContrast } from './actingModel';
 import { clamp } from './random';
+import { NO_RELATIONSHIP, type RelationshipStanding } from './relationships';
 import type { Person } from '../types';
 
 // --- Magnitude words -------------------------------------------------------
@@ -171,14 +172,74 @@ function establishment(person: Person): number {
 const WELL_KNOWN = 62; // a bankable, much-seen name - matches actingModel's FAME_HIGH
 const SOMEWHAT_KNOWN = 40; // enough of a track record to have a read on
 const WILDCARD_RELIABILITY = 35; // below this they're unpredictable however famous
-// Band half-widths in fit points, per confidence tier - how far the shown range
-// spreads around the perceived centre. First-draft, tunable like every cutoff here.
-const BAND_HALF_WIDTH: Record<FitConfidence, number> = { high: 4, medium: 11, low: 20 };
+// Band half-widths in fit points, per confidence tier. Deliberately HARSH at the
+// base (an unread candidate is a real gamble, not a mild wobble) - because the
+// point of the uncertainty is to give the things that *reduce* it real value: a
+// hired casting director's eye and a history of working together (see
+// deriveFitReadAssist). Mild base uncertainty would make both pointless. The old,
+// gentler spreads are now roughly what a strong assist earns you back, not the
+// starting point. First-draft, tunable like every cutoff here.
+const BAND_HALF_WIDTH: Record<FitConfidence, number> = { high: 7, medium: 18, low: 30 };
 const CONFIDENCE_LABEL: Record<FitConfidence, string> = {
   high: 'Confident read',
   medium: 'Fairly sure',
   low: 'Hard to read',
 };
+
+// How a studio-side assist (a casting director, or history with the person)
+// sharpens a read: promote the confidence tier, shave the band within it, and
+// fade the reputation bias. Tunable.
+const TIER_ORDER: FitConfidence[] = ['low', 'medium', 'high'];
+const ASSIST_NOTABLE = 0.3; // below this an assist is too slight to credit or promote on
+const ASSIST_STRONG = 0.66; // a genuinely expert eye / deep history - promotes two tiers
+const WITHIN_TIER_SHAVE = 0.35; // how much a full assist tightens the band inside its tier
+const BIAS_SHAVE = 0.8; // how much a full assist sees through the reputation over/under-read
+
+// --- The studio-side assist: a casting director, or history with the person --
+// The candidate-intrinsic read above is only half the story. Two things the
+// STUDIO brings sharpen it, and are exactly what harsh base uncertainty makes
+// worth paying for:
+//   - a hired Casting Director, whose whole job is reading actors - a per-
+//     production hire whose skill sharpens every actor read on the film (and who
+//     already "discovers" well-suited unknowns in open casting, engine/
+//     castingCalls.ts - the same eye, now speaking on the card too);
+//   - HISTORY with the person - you can read someone you've worked with, because
+//     you know them. Keyed off the collaboration COUNT, not warmth: a grudge
+//     still means you know them well (that read lives in relationships.ts's
+//     appeal/salary effects, not here).
+
+export interface FitReadAssist {
+  /** 0..1 - how much studio-side knowledge sharpens the read. */
+  level: number;
+  /** What's providing it, for crediting on the card - null when nothing is. */
+  source: 'casting-director' | 'history' | null;
+}
+export const NO_ASSIST: FitReadAssist = { level: 0, source: null };
+
+const MAX_FAMILIARITY = 0.85; // even a long history leaves the shoot itself to surprise you
+const FAMILIARITY_PER_COLLAB = 0.3;
+function familiarityLevel(collaborations: number): number {
+  return clamp(collaborations * FAMILIARITY_PER_COLLAB, 0, MAX_FAMILIARITY);
+}
+
+/**
+ * The studio-side assist to a fit read: the stronger of a hired casting
+ * director's eye (actors only - they don't read directors or crew) and how well
+ * you already know the person from working together. The two don't stack into
+ * false certainty - the better of your two ways of knowing them wins.
+ */
+export function deriveFitReadAssist(
+  castingDirectorSkill: number | null | undefined,
+  relationship: RelationshipStanding = NO_RELATIONSHIP,
+  isActor = true,
+): FitReadAssist {
+  const cdLevel = isActor ? clamp((castingDirectorSkill ?? 0) / 100, 0, 1) : 0;
+  const familiarity = familiarityLevel(relationship.collaborations);
+  if (cdLevel === 0 && familiarity === 0) return NO_ASSIST;
+  return cdLevel >= familiarity
+    ? { level: cdLevel, source: 'casting-director' }
+    : { level: familiarity, source: 'history' };
+}
 
 export interface FitConfidenceRead {
   tier: FitConfidence;
@@ -190,35 +251,46 @@ export interface FitConfidenceRead {
   cause: string | null;
 }
 
-/**
- * How confidently this person's fit can be read, and why not, when it can't.
- * Establishment sets the base tier; low reliability caps it (a flaky name is a
- * gamble however established). Deterministic - purely a function of who they are.
- */
-export function deriveFitConfidence(person: Person): FitConfidenceRead {
+// The candidate-intrinsic tier, before any studio-side assist. Establishment
+// sets it; low reliability caps it (a flaky name is a gamble however established).
+function baseConfidenceTier(person: Person): FitConfidence {
   const known = establishment(person);
   const { reliability } = person.reputation;
+  if (reliability < WILDCARD_RELIABILITY) return known >= WELL_KNOWN ? 'medium' : 'low';
+  if (known >= WELL_KNOWN) return 'high';
+  if (known >= SOMEWHAT_KNOWN) return 'medium';
+  return 'low';
+}
 
-  let tier: FitConfidence;
-  if (reliability < WILDCARD_RELIABILITY) {
-    // Unpredictable film to film - never a confident read, even for a big name.
-    tier = known >= WELL_KNOWN ? 'medium' : 'low';
-  } else if (known >= WELL_KNOWN) {
-    tier = 'high';
-  } else if (known >= SOMEWHAT_KNOWN) {
-    tier = 'medium';
-  } else {
-    tier = 'low';
-  }
+// The residual doubt to name when a read still isn't a sure thing - only ever
+// read for a non-high tier, so it always has a real reason to point at.
+function residualCause(person: Person): string {
+  if (person.reputation.reliability < WILDCARD_RELIABILITY) return 'they blow hot and cold - hard to bank on';
+  if (establishment(person) < SOMEWHAT_KNOWN) return 'an unproven name, with little to go on';
+  return 'still something of an unknown quantity';
+}
 
-  let cause: string | null = null;
-  if (tier !== 'high') {
-    if (reliability < WILDCARD_RELIABILITY) cause = 'they blow hot and cold - hard to bank on';
-    else if (known < SOMEWHAT_KNOWN) cause = 'an unproven name, with little to go on';
-    else cause = 'still something of an unknown quantity';
-  }
+function promoteTier(base: FitConfidence, assistLevel: number): FitConfidence {
+  const steps = assistLevel >= ASSIST_STRONG ? 2 : assistLevel >= ASSIST_NOTABLE ? 1 : 0;
+  return TIER_ORDER[Math.min(TIER_ORDER.indexOf(base) + steps, TIER_ORDER.length - 1)];
+}
 
-  return { tier, halfWidth: BAND_HALF_WIDTH[tier], label: CONFIDENCE_LABEL[tier], cause };
+/**
+ * How confidently this person's fit can be read, and why not, when it can't.
+ * The candidate-intrinsic tier (baseConfidenceTier) is then sharpened by any
+ * studio-side `assist` - a casting director or shared history promotes the tier
+ * and tightens the band, but never to a razor point (the shoot still surprises).
+ * Deterministic throughout.
+ */
+export function deriveFitConfidence(person: Person, assist: FitReadAssist = NO_ASSIST): FitConfidenceRead {
+  const tier = promoteTier(baseConfidenceTier(person), assist.level);
+  const halfWidth = BAND_HALF_WIDTH[tier] * (1 - assist.level * WITHIN_TIER_SHAVE);
+  return {
+    tier,
+    halfWidth,
+    label: CONFIDENCE_LABEL[tier],
+    cause: tier === 'high' ? null : residualCause(person),
+  };
 }
 
 // How far a reputation pushes a fit read off the truth, in points. A famous
@@ -228,7 +300,7 @@ export function deriveFitConfidence(person: Person): FitConfidenceRead {
 // craft contrast the sim already computes (engine/actingModel.ts), so the card's
 // read never disagrees with the identity line right above it. 0 when fame and
 // craft roughly agree, and for non-actors.
-const READ_BIAS_POINTS = 8;
+const READ_BIAS_POINTS = 13;
 export function perceivedFitBias(person: Person): number {
   switch (fameCraftContrast(person)) {
     case 'coaster':
@@ -253,6 +325,8 @@ export interface FitRead {
   confidenceLabel: string;
   /** The named reason the read is uncertain, for the "why" caveat - null at high confidence. */
   uncertaintyCause: string | null;
+  /** Why the read can be trusted more than it otherwise would - a casting director's eye or history together - for a positive note on the card. null when nothing is sharpening it. */
+  assistNote: string | null;
 }
 
 // The fit-quality word for a perceived score - the adjective the hedged verdict
@@ -272,17 +346,25 @@ const HEDGE: Record<FitConfidence, (phrase: string) => string> = {
   low: (phrase) => `Reads like ${phrase}`,
 };
 
+const ASSIST_NOTE: Record<'casting-director' | 'history', string> = {
+  'casting-director': 'your casting director has a read on this one',
+  history: "you've worked together, so you know what you're getting",
+};
+
 /**
  * The exact engine fit score as a casting eye would actually perceive it -
  * shifted by reputation bias (perceivedFitBias), hedged and banded by how
- * readable the person is (deriveFitConfidence). The card leads with this instead
- * of the raw number, so "always accurate and exact" becomes "here's my read, and
- * how sure I am of it." `trueScore` is the untouched 0-100 fit; everything
- * derived here is deterministic.
+ * readable the person is (deriveFitConfidence), and SHARPENED by any studio-side
+ * `assist` (a casting director's eye, or history with the person - see
+ * deriveFitReadAssist), which both tightens the band and fades the bias. The card
+ * leads with this instead of the raw number, so "always accurate and exact"
+ * becomes "here's my read, how sure I am, and why." `trueScore` is the untouched
+ * 0-100 fit; everything derived here is deterministic.
  */
-export function deriveFitRead(trueScore: number, person: Person): FitRead {
-  const perceived = clamp(trueScore + perceivedFitBias(person), 0, 100);
-  const { tier, halfWidth, label, cause } = deriveFitConfidence(person);
+export function deriveFitRead(trueScore: number, person: Person, assist: FitReadAssist = NO_ASSIST): FitRead {
+  const bias = perceivedFitBias(person) * (1 - assist.level * BIAS_SHAVE);
+  const perceived = clamp(trueScore + bias, 0, 100);
+  const { tier, halfWidth, label, cause } = deriveFitConfidence(person, assist);
   const word = fitQualityWord(perceived);
   const phrase = `${word === 'excellent' ? 'an' : 'a'} ${word} fit`;
   return {
@@ -293,6 +375,7 @@ export function deriveFitRead(trueScore: number, person: Person): FitRead {
     verdict: HEDGE[tier](phrase),
     confidenceLabel: label,
     uncertaintyCause: cause,
+    assistNote: assist.source && assist.level >= ASSIST_NOTABLE ? ASSIST_NOTE[assist.source] : null,
   };
 }
 

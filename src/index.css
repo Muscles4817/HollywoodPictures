@@ -1339,6 +1339,8 @@ textarea, input, select {
 }
 
 .talent-fit-caveat { color: var(--text-muted); }
+/* Why you can trust the read more than usual - a casting director or history. */
+.talent-fit-assist { color: var(--green); }
 
 /* Status, as traffic-light badges. */
 .talent-badges {
