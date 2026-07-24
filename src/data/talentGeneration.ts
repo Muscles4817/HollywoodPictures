@@ -36,7 +36,13 @@ export const ROLE_GENERATION_PROFILES: Record<TalentProfession, RoleGenerationPr
   // careers), spanning ~$0.25M-$4M, so the price slider, rival target pricing
   // and commission bands only ever point where a real writer exists.
   Writer: { salaryRange: { min: 250_000, max: 4_000_000 }, fameCeiling: 55 },
-  Cinematographer: { salaryRange: { min: 25_000, max: 6_000_000 }, fameCeiling: 62 },
+  // Cinematographers are fully hand-authored - no procedural pool (see
+  // engine/talentGenerator.ts:generateTalentPool). The range spans the ~100
+  // hand-authored DPs' actual salaries (~$0.3M-$3.5M in
+  // HANDCRAFTED_CINEMATOGRAPHERS, from indie/emerging up to Deakins/Lubezki)
+  // so the price slider, rival target pricing and casting-call bands only ever
+  // point where a real DP exists - the old $25K-$6M range never matched.
+  Cinematographer: { salaryRange: { min: 300_000, max: 3_500_000 }, fameCeiling: 62 },
   Composer: { salaryRange: { min: 15_000, max: 2_500_000 }, fameCeiling: 60 },
   // Editors are fully hand-authored - no procedural editor pool (see
   // engine/talentGenerator.ts:generateTalentPool). The range spans the ~100

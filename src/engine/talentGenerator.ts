@@ -472,6 +472,14 @@ export function generateTalentPool(
       continue;
     }
 
+    // Cinematographers are fully hand-authored too (see
+    // HANDCRAFTED_CINEMATOGRAPHERS): real DPs from indie/emerging up to the
+    // A-list, spanning ~$0.3M-$3.5M, so no procedural fill.
+    if (role === 'Cinematographer') {
+      pool[role] = [...handcrafted];
+      continue;
+    }
+
     pool[role] = [...handcrafted, ...generateTalentCandidates(role, rng)];
   }
 
