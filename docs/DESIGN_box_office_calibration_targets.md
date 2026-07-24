@@ -1,75 +1,78 @@
 # Box Office Calibration Targets — the framework we tune *against*
 
 Status: **proposed targets, awaiting ratification.** This document defines what a
-correct box-office simulation should *look like*, at the level of individual
-films, a whole simulated year, and the buzz scale — **before** any constant is
-changed. Once ratified, these targets become regression assertions
-(`audienceSimulationScenarios.test.ts`, a new full-year distribution harness, and
-buzz fixtures), and every calibration change is judged against them rather than
-tuned by feel.
+correct box-office simulation should *look like* — at the level of individual
+films, a whole simulated year, the spread of outcomes, and the buzz scale —
+**before** any calibration change is made. Once ratified, these targets become
+regression assertions, and every change is judged against them rather than tuned
+by feel.
 
-Companion to `DESIGN_REVIEW_box_office_revenue_analysis.md` (the diagnosis). This
-doc is the answer to that review's Lever 0, rebuilt around the architectural
-guidance that the fix must preserve headroom for genuine phenomena, must attack
-the *interest-generation* layer rather than merely shrink the audience constant,
-and must be validated at the level of the whole yearly distribution, not a few
-hand-picked archetypes.
+**This is a behavioural specification, not a tuning document.** It defines
+*observable outcomes* only. It deliberately names no engine constants and proposes
+no constant values — those belong in implementation notes (the diagnosis in
+`DESIGN_REVIEW_box_office_revenue_analysis.md` holds the current engine-level
+analysis). Any implementation is free to reach these outcomes however it likes; it
+is *measured* against this document.
 
-Every number below marked _(ratify)_ is a judgment call for the designer to set;
-they are proposed with a real-world basis but are meant to be edited here first,
-then implemented.
+Every number marked _(ratify)_ is a judgment call for the designer to set; each is
+proposed with a real-world basis, meant to be edited here first, then implemented.
 
 ---
 
 ## 1. Principle: shrink *activation*, not the market
 
-The current absolute scale is too high, but the fix is **not** primarily to lower
-`BASE_ADDRESSABLE_POPULATION`. A small population constant would compress the top
-end and make Avatar / Endgame / Barbie-scale phenomena impossible. We keep a
-large theoretical market and make it *harder for an ordinary film to activate*.
+The absolute scale is too high, but the fix must **not** primarily shrink the
+theoretical audience. A smaller market would compress the top end and make
+Avatar / Endgame / Barbie-scale phenomena impossible. We keep a large theoretical
+market and make it **harder for an ordinary film to activate it**.
 
-Model the demand path as an explicit funnel, and locate the fix in the middle
-layers:
+Model demand as an explicit funnel:
 
 ```
-Total theoretical audience        (large — keep it; headroom for phenomena)
-   ↓  eligibility          ← which of them could ever want THIS film (genre/audience/concept fit)
+Total theoretical audience     large — preserved; headroom for phenomena
+   ↓  ELIGIBILITY        which of them could ever want THIS film
 Eligible audience
-   ↓  awareness            ← do they know it exists (marketing reach × efficiency, cast reach)
+   ↓  AWARENESS          of the eligible, how many know it exists
 Aware audience
-   ↓  interest             ← of the aware, how many actually want to see it (concept/accessibility)
+   ↓  INTEREST           of the aware, how many actually want to see it
 Interested audience
-   ↓  intent / urgency     ← how soon (pacing, buzz, word of mouth)
+   ↓  INTENT / URGENCY   how soon they act
 Intent to watch
-   ↓  attendance           ← gated by exhibition access (availability/capacity) AND attention competition
+   ↓  ATTENDANCE         gated by exhibition access AND attention competition
 Actual attendance
 ```
 
-**The prime suspect is not the population constant — it is
-`BASE_INTEREST_FLOOR = 0.15`.** Guaranteeing every film a 15% slice of an enormous
-eligible pool is what inflates the average film to a hit. The recalibration must:
+**Behavioural target for the funnel:** an *ordinary* film should activate only a
+**small fraction** of its eligible audience; an *exceptional, broadly-positioned*
+film should be capable of activating a **very large fraction**. The everyday case
+sits far down the funnel; the phenomenon case — every stage near-maxed at once — is
+rare and unchanged in ceiling. Success is measured as: the *average* film moves
+sharply down, the *maximum possible* film does not move down at all.
 
-- **Lower the guaranteed interest floor** sharply (toward ~0.02–0.05 _(ratify)_)
-  so an ordinary concept activates only a small fraction of its eligible market,
-  and only a genuinely broad, accessible, well-positioned concept earns a large
-  one.
-- **Introduce an explicit eligibility layer** (film-specific reachable fraction of
-  the total market, from genre/audience/concept fit) so "how many could ever want
-  this" is separated from "how many know about it" and "how many end up
-  interested" — three distinct funnel stages instead of two.
-- **Keep (or even enlarge) `BASE_ADDRESSABLE_POPULATION`** so the top of the funnel
-  still has phenomenon-scale headroom. Scale comes from the *product* of all
-  funnel stages being near-maxed at once (a rare event), not from the average film
-  starting near the ceiling.
+### 1.1 What "Eligibility" represents
 
-The test of success: the *average* film should land far down the funnel while the
-*maximum possible* film is unchanged or higher.
+Eligibility is "of the entire theoretical market, how many could **ever** plausibly
+want a film like this" — distinct from Awareness ("do they know it exists") and
+Interest ("of those who know, how many want it"). It is a property of the film's
+*concept and positioning*, set before any marketing, and is influenced by:
+
+- **genre popularity** — how broad the genre's natural audience is;
+- **target demographic size** — the reachable audience the film is aimed at;
+- **concept accessibility** — how easy the premise is to grasp and want;
+- **age rating / content gating** — a hard restriction on the reachable pool;
+- **franchise familiarity** — an existing audience predisposed to this title;
+- **breadth of appeal** — four-quadrant vs. narrowly targeted;
+- **cultural specificity** — how universal vs. locale-specific the material is.
+
+Keeping Eligibility as its own stage gives every future system a single clean place
+to plug in (an age-rating system, a franchise system, a demographics system) without
+overlapping Awareness or Interest.
 
 ---
 
 ## 2. Per-film targets (worldwide gross)
 
-Worldwide potential gross. "Current" = today's live model (measured);
+Worldwide potential gross. "Current" = today's model (measured);
 "Target" _(ratify)_ = where each archetype should land.
 
 | Archetype | Current WW | Target WW | Target opening | Target legs |
@@ -83,24 +86,20 @@ Worldwide potential gross. "Current" = today's live model (measured);
 | Indie drama (Limited/platform) | $41M | **$8–45M** | $1–4M | 6–15× |
 | Horror cheapie (Wide) | $258M | **$40–120M** | $15–40M | 3–5× |
 
-Headline: the **average wide film must drop ~5–7×** (≈$712M → ≈$120M), while the
-**phenomenon ceiling is preserved** (~$2B+ still reachable by a near-maxed funnel).
+Headline: the **average wide film must drop ~5–7×** while the **phenomenon ceiling
+is preserved**.
 
 ---
 
 ## 3. Whole-year distribution targets
 
-Cherry-picked archetypes are not enough — the *shape of a simulated year* must be
-believable. A new full-year harness (drives the real `settleTheatricalMarket`
-loop over N years × seeds, as `aiStudioStats.diagnostic.test.ts` already does) will
-report these and assert the ratified bands.
+A believable *year* matters as much as believable individual films. A full-year
+harness (drives the real settlement loop over N years × seeds) reports and asserts
+these.
 
-Measured current baseline: **83.4% of films profitable**, average wide ~$712M WW,
-AI field ~67 films/year.
-
-Real-world basis: ~100–140 wide releases/industry-year; top-10 take **40%+** of
-annual box office; roughly **half of wide releases fail to recoup all-in** (P&A
-often rivals the production budget).
+Measured baseline: **83.4% of films profitable**, average wide ~$712M WW, field
+~67 films/year. Real-world basis: top-10 take **40%+** of annual box office;
+roughly **half of wide releases fail to recoup all-in**.
 
 **Over WIDE releases** _(all ratify)_:
 
@@ -116,22 +115,60 @@ often rivals the production budget).
 | Avg run length (weeks) | 5–10 | Wide **5–8**, Limited/platform **10–20** |
 | Opening multiple (total/opening) | 2.5–4.6× | Wide **2–3×**, Limited **5–12×** |
 
-The current model is close to flat (most films are hits); the target is a **steep
-power law** — a handful of winners, a large unprofitable tail.
+The current model is nearly flat (most films are hits); the target is a **steep
+power law** — a few winners, a large unprofitable tail.
 
 ---
 
-## 4. Profitability distribution targets
+## 4. Volatility / variance targets
 
-Profitability must be validated **separately from gross** — production budget,
-marketing/P&A, exhibitor splits, and international keep shares all sit between
-gross and profit and can be independently wrong. The harness reports the *return
-multiple* (studio cash ÷ all-in cost) distribution.
+Averages and distributions are not enough — the framework must also define **how
+predictable outcomes are.** Real box office is noisy: two films with similar
+budgets, casts and marketing can perform very differently. Outcomes must not feel
+deterministic; the simulation should produce genuine surprises while still
+rewarding good decisions **over the long run**.
 
-Measured current baseline: **83.4% profitable.** Real theatrical is far more
-brutal.
+**Target outcome spread for an average commercial film** (relative to its own
+expectation) _(ratify)_:
 
-Target bands, over **all** films _(ratify)_:
+| Outcome vs. expectation | Target probability |
+|---|--:|
+| Significantly underperforms | ~15% |
+| Modestly underperforms | ~30% |
+| Performs roughly as expected | ~30% |
+| Modestly overperforms | ~20% |
+| Genuine breakout hit | ~5% |
+
+The same principle applies at the top: **even expensive blockbusters should
+occasionally disappoint.** No budget tier is a guaranteed outcome.
+
+**Regression tests must assert variance, not just the mean** — e.g. the spread /
+coefficient of variation of outcomes for a *fixed* set of inputs across many seeds
+and market contexts should fall in a target band (neither near-deterministic nor
+pure noise).
+
+**Architectural constraint (from `SIMULATION_PHILOSOPHY.md`, Principle 1):** this
+variance must be **endogenous** — it should emerge from how the production actually
+went (execution/reception varying with the shoot and the creative risks taken) and
+from the *market context* a film releases into (who else is on screens), **not**
+from a hidden release-time dice roll bolted onto box office. Identical
+pre-production inputs re-scored must still yield the identical film; the spread
+comes from the decisions and the world, not from re-rolling the outcome. The
+variance *target* is a property to validate across many productions and contexts —
+not a licence to inject box-office randomness.
+
+---
+
+## 5. Profitability distribution targets
+
+Profitability is validated **separately from gross** — production budget,
+marketing/P&A, exhibitor splits and international keep shares all sit between gross
+and profit and can be independently wrong. The harness reports the **return
+multiple** (studio cash ÷ all-in cost) distribution.
+
+Measured baseline: **83.4% profitable.**
+
+Target bands over **all** films _(ratify)_:
 
 | Outcome | Return multiple (cash ÷ all-in) | Target share |
 |---|---|--:|
@@ -142,19 +179,17 @@ Target bands, over **all** films _(ratify)_:
 | Major hit | 2.5–5× | **~15%** |
 | Studio-changing blockbuster | > 5× | **~3%** |
 
-→ **~45% of films unprofitable** (bomb + loss), vs. ~17% today. This is the number
-that makes the economy have stakes; every other lever (identity, scheduling,
-competition) becomes meaningful only once failure is common.
+→ **~45% of films unprofitable** vs. ~17% today. This is what gives the economy
+stakes; identity, scheduling and competition only matter once failure is common.
 
 ---
 
-## 5. Buzz: bands and real-film fixtures
+## 6. Buzz: bands and real-film fixtures
 
-Buzz must not be **purchasable**. Money buys *awareness* and contributes to buzz,
+Buzz must not be **purchasable.** Money buys *awareness* and contributes to buzz,
 but phenomenon-level anticipation requires latent audience demand that marketing
-*amplifies* — franchise, star, cultural moment — not a cheque alone. `computeBuzzScore`
-currently lets marketing spend reach ~75/100 on its own; the target caps money's
-solo contribution well below the top bands.
+*amplifies* — franchise, star, cultural moment — not a cheque alone. Today, marketing
+spend alone can reach the upper bands; the target forbids that.
 
 **Ratified bands** (adopt verbatim as regression thresholds):
 
@@ -168,131 +203,150 @@ solo contribution well below the top bands.
 | 90–97 | Rare cultural event | Barbie, Spider-Man: No Way Home |
 | 98–100 | Once-in-years global phenomenon | Endgame, The Force Awakens, Avatar |
 
-**Real-film buzz fixtures** (compute buzz from *only* pre-release information;
-build inputs from handcrafted scripts/talent modelling each equivalent). These
-become regression tests — if the buzz system drifts, these break:
+**Real-film buzz fixtures** (computed from *only* pre-release information; become
+regression tests):
 
-| Fixture | Construction (pre-release only) | Target buzz |
+| Fixture | Character (pre-release only) | Target buzz |
 |---|---|--:|
-| Ordinary studio action film | mid brand, mid fame, ~$30M mktg | **48–58** |
-| Well-marketed star vehicle | mid brand, A-list lead, ~$60M mktg | **62–72** |
+| Ordinary studio action film | mid brand, mid fame, ordinary campaign | **48–58** |
+| Well-marketed star vehicle | mid brand, A-list lead, large campaign | **62–72** |
 | Successful horror sequel | genre brand, modest fame, franchise recall | **58–68** |
-| Marvel-style tentpole | high brand, ensemble fame, ~$120M mktg, franchise | **80–90** |
-| Barbie | high brand, star + director, huge mktg + cultural hook | **90–95** |
+| Marvel-style tentpole | high brand, ensemble fame, huge campaign, franchise | **80–90** |
+| Barbie | high brand, star + director, huge campaign + cultural hook | **90–95** |
 | The Force Awakens | franchise return, near-max latent demand | **96–99** |
 | Avengers: Endgame | franchise culmination, max latent demand | **98–100** |
 
-The gap between "Marvel-style tentpole" (~85, buildable with money + fame) and
-"Endgame" (~99, requires franchise/cultural latent demand) is the exact
-non-purchasability property we're asserting: the top two bands must be
-**unreachable by marketing spend alone.**
+The gap between "Marvel-style tentpole" (buildable with money + fame) and "Endgame"
+(requires franchise/cultural latent demand) is the non-purchasability property:
+**the top two bands must be unreachable by marketing spend alone.**
 
 ---
 
-## 6. Competition: two levels, one shared matchup model
+## 7. Competition: two levels, one shared matchup model
 
-The diagnosis showed competition is inert because it only touches *availability*,
-which only binds when demand exceeds capacity — which never happens. Two
-architectural corrections:
+Competition is currently inert because it only touches *exhibition access*, which
+only bites when demand exceeds capacity — which never happens. Two corrections:
 
-**(a) Model competition at both levels, not just exhibition.**
+**(a) Model competition at both levels.**
 
-- **Exhibition competition** (what availability already models, once made able to
-  bind): screens, premium formats, showtimes, theatre retention, geographic
-  rollout. Throughput should stay *physically meaningful* (screens × showings ×
-  seats × occupancy), not become a pure balancing knob — but it must be able to
-  fall below demand under pressure so it can actually bind.
-- **Attention / audience competition** (new): two films with plenty of seats still
-  cannibalise each other for awareness, media coverage, urgency, discretionary
-  spend, and overlapping demographics. This should suppress the *demand* side
-  (awareness growth and/or conversion) directly, weighted by **audience overlap** —
-  not just the availability side. This is what lets same-weekend clashes hurt even
-  when nobody sells out, and is the seam for counter-programming (opposite
-  demographics → low overlap → little mutual harm; the Barbenheimer property).
+- **Exhibition competition** — screens, premium formats, showtimes, theatre
+  retention, geographic rollout. Exhibition capacity should stay *physically
+  meaningful* (it represents real seats and showings), **and** must be able to fall
+  below demand under pressure so it can actually constrain attendance.
+- **Attention / audience competition** — even with seats to spare, films fight for
+  awareness, media coverage, urgency, discretionary spend and overlapping
+  demographics. This suppresses the **demand** side, weighted by **audience
+  overlap** — so same-window clashes hurt even without sell-outs, and opposite
+  demographics barely harm each other (the counter-programming / Barbenheimer
+  property).
 
 **(b) Make crowding relative, via one reusable matchup model.**
 
-Build a single **release-strength / matchup** primitive that answers, for any two
-releases: *how strong is each, how much does their audience overlap, and who
-displaces whom?* Every film uses it to ask: How strong am I? How strong are the
-incumbents on my window? How much overlap? Am I likely to displace them, or they
-me? The **stronger** film takes screens/attention; the **weaker** one loses them —
-the opposite of today's absolute, candidate-blind crowding.
-
-This same primitive is consumed by **both** theatrical settlement (Section 6a) and
-AI scheduling (Section 7) — not two parallel formulas. That shared model is the
-key architectural payoff.
+A single **release-strength / matchup** primitive answers, for any two releases:
+how strong is each, how much does their audience overlap, and who displaces whom?
+The **stronger** film takes screens/attention; the **weaker** one loses them — the
+opposite of today's absolute, candidate-blind crowding. This same primitive is
+consumed by **both** theatrical settlement (7a) and AI scheduling (§8) — not two
+parallel formulas. That shared model is the key architectural payoff.
 
 ---
 
-## 7. AI scheduling: contest by strength, don't just avoid
+## 8. AI scheduling: contest by strength, don't just avoid
 
-Rivals currently only *avoid* crowded windows (±14-day nudge, identical for all
-tiers). Target behaviour, built on the Section 6 matchup model:
+Built on the §7 matchup model:
 
-- A film **stronger** than a window's incumbents will *tolerate or claim* it —
-  majors plant flags on prime weekends and force weaker films off. A film
-  **weaker** than the field flees to quiet pockets — everyone else surviving
-  cleverly around the majors.
+- A film **stronger** than a window's incumbents tolerates or *claims* it — majors
+  plant flags on prime weekends and force weaker films off. A film **weaker** than
+  the field flees to quiet pockets — everyone else surviving cleverly around the
+  majors.
 - **Counter-programming:** same-audience clashes carry the split penalty;
-  opposite-audience films on the same window are spared it (or benefit), which
-  spreads the quiet-pocket survivors across the calendar instead of stacking them.
-- **Per-tier frequency emerges from marketing capital + window scarcity**, not a
-  flat spawn cadence. Calibration check against researched real volumes: Major
-  ~10–15 wide/yr, Mid ~10, Indie/boutique ~4–10 (often limited/platform).
+  opposite-audience films are spared it (or benefit), spreading the survivors across
+  the calendar rather than stacking them.
+- **Per-tier frequency emerges from marketing capital + window scarcity**, not a flat
+  cadence. Calibration check against researched volumes: Major ~10–15 wide/yr, Mid
+  ~10, Indie/boutique ~4–10 (often limited/platform).
 
 ---
 
-## 8. Studio identity: via intermediate systems, emergent from history
+## 9. Studio identity: via intermediate systems, emergent from history
 
-Identity must **not** be a flat "+15% horror revenue" multiplier. It influences
-the *intermediate* systems, so its effects are believable and legible:
+Identity must **not** be a flat revenue multiplier. It influences *intermediate*
+systems, so its effects are believable and legible:
 
-- audiences trust that studio's marketing (→ higher marketing efficiency / awareness
-  for on-brand films);
-- exhibitors are more confident (→ better opening availability for on-brand films);
+- audiences trust that studio's marketing (→ awareness efficiency on-brand);
+- exhibitors are more confident (→ opening availability on-brand);
 - talent is more willing to sign (→ casting/availability edge in that space);
-- awareness spreads more easily on-brand (→ external awareness / word-of-mouth);
-- competitors *respect that studio's territory* (→ feeds the Section 7 matchup —
-  rivals weight an on-brand incumbent as stronger on that window).
+- awareness spreads more easily on-brand (→ external awareness / word of mouth);
+- competitors *respect that studio's territory* (→ the §7 matchup weights an on-brand
+  incumbent as stronger on that window).
 
-And identity **emerges from history** — a studio becomes known for a genre/audience
-through repeated commercial success there, rather than being picked upfront. No
-hidden revenue multiplier anywhere.
+And identity **emerges from history** — earned through repeated commercial success in
+a space, not selected upfront.
 
 ---
 
-## 9. Revised implementation order
+## 10. Future target: genre-specific calibration
 
-Per the designer's refinement — **targets before constants**:
+The targets above treat the market as one distribution, which is right for now. But
+the eventual goal is to validate distributions **both globally and per genre**, because
+genres behave differently:
 
-1. **Ratify this document** (the targets + bands below become the spec).
-2. Build the **calibration harnesses**: full-year distribution report + assertions,
-   profitability-distribution report, buzz-band fixtures. These fail loudly at
-   first (that's correct — they encode the target, not the current state).
-3. **Recalibrate the funnel**: eligibility layer + interest-generation (lower floor)
-   + overall scale, tuned until Sections 2–4 pass. Population stays large.
-4. **Recalibrate awareness, opening conversion, and buzz** until Sections 2 & 5
-   pass (buzz non-purchasable; opening multiples in range).
-5. **Relative competition + capacity that can bind** (Section 6), built as the
-   shared matchup model.
-6. **Reuse the matchup model for AI scheduling** (Section 7); check per-tier
-   frequency.
-7. **Evolving studio identity** (Section 8), then re-validate the full-year
-   financial + profitability distributions end to end.
+- **Horror** — lower budgets, lower ceilings, much higher ROI.
+- **Animation** — enormous family appeal, long theatrical runs, strong holiday
+  performance.
+- **Awards drama** — often opens small, exceptional legs.
+- **Action** — opens very large, more front-loaded.
+- **Comedy** — increasingly volatile.
 
-The discipline: **no constant changes in steps 3–4 until the step-2 harnesses
-exist and encode ratified targets.** We tune against the framework, never by feel.
+Documented now as a **future calibration target** so genre behaviour is something we
+*validate*, not merely hope emerges. Not for immediate implementation.
+
+---
+
+## 11. Future target: seasonality calibration
+
+Likewise, release windows should have **measurable** characteristics, validated rather
+than assumed:
+
+- **Summer** — supports the largest blockbuster openings.
+- **Christmas** — benefits family films and prestige releases.
+- **Halloween** — significantly boosts horror.
+- **January / quiet months** — generally weaker commercially.
+
+Documented now as a **future calibration target**. Not for immediate implementation.
+
+---
+
+## 12. Implementation order
+
+**Targets before constants:**
+
+1. **Ratify this document.**
+2. Build the **calibration harnesses**: full-year distribution + assertions,
+   outcome-variance report, profitability-distribution report, buzz-band fixtures.
+   They fail loudly at first — correct, since they encode the target, not the current
+   state.
+3. **Recalibrate the funnel** (eligibility + interest + overall scale) until §§2–5
+   pass; theoretical market stays large.
+4. **Recalibrate awareness, opening conversion and buzz** until §2 & §6 pass.
+5. **Relative competition + capacity that can bind** (§7), as the shared matchup model.
+6. **Reuse the matchup model for AI scheduling** (§8); check per-tier frequency.
+7. **Evolving studio identity** (§9), then re-validate the full-year financial and
+   profitability distributions end to end.
+
+The discipline: **no calibration change in steps 3–4 until the step-2 harnesses exist
+and encode ratified targets.** We tune against the framework, never by feel.
 
 ---
 
 ## Open decisions to ratify
 
-The most consequential judgment calls (everything else can follow from these):
+The most consequential judgment calls (everything else follows from these):
 
-1. **Average wide WW gross** — proposed ~$120M (down from $712M). Higher/lower?
-2. **% of films unprofitable** — proposed ~45% (up from ~17%). Harsher/softer?
-3. **Top-10 annual share** — proposed ~45%. 
-4. **Phenomenon ceiling** — proposed ~$2–2.5B preserved. Higher for Avatar-scale?
-5. **Buzz non-purchasability line** — confirmed that marketing-alone must cap
-   below the top two bands (≤ ~75)?
+1. **Average wide WW gross** — proposed ~$120M (down from $712M).
+2. **% of films unprofitable** — proposed ~45% (up from ~17%).
+3. **Top-10 annual box-office share** — proposed ~45%.
+4. **Phenomenon ceiling** — proposed ~$2–2.5B preserved (raise for Avatar-scale?).
+5. **Buzz non-purchasability line** — marketing-alone must cap below the top two
+   bands (≤ "clearly anticipated", ~75)?
+6. **Average-film outcome spread** (§4) — the 15/30/30/20/5 split as stated?
