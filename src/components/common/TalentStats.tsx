@@ -5,7 +5,8 @@ import {
   computeCharacterCompatibilityBreakdown,
 } from '../../engine/compatibility';
 import { dominantLean } from '../../engine/recommendation';
-import { describeActorCraft, describeSignatureGift, describeFameCraftContrast, describeDirectorTouch, describeDirectorActorPairing } from '../../engine/castingPresentation';
+import { describeActorCraft, describeSignatureGift, describeFameCraftContrast, describeDirectorTouch, describeDirectorActorPairing, describeCastAffinity, castAffinityTone } from '../../engine/castingPresentation';
+import type { CastAffinity } from '../../engine/pairHistory';
 import { deriveFitReason, deriveFitRead, deriveFitReadAssist, deriveRiskRead, qualitativeMagnitude, isStarDraw, gateKnownAxes } from '../../engine/talentCardPresentation';
 import type { RelationshipStanding } from '../../engine/relationships';
 import { getCareerForRole, deriveBookedUntil } from '../../engine/person';
@@ -144,7 +145,7 @@ function BarRow({ label, value }: { label: string; value: number }) {
  * dot when the caller knows the studio's budget (the hiring drawers do; the
  * on-set decision card doesn't, and passes nothing).
  */
-export function TalentStats({ person, role, category, script, character = null, totalDays, availabilityMode = 'delay', pairedDirector = null, affordable = null, castingDirectorSkill = null, relationship = null }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number; availabilityMode?: 'delay' | 'blocked'; pairedDirector?: Person | null; affordable?: boolean | null; castingDirectorSkill?: number | null; relationship?: RelationshipStanding | null }) {
+export function TalentStats({ person, role, category, script, character = null, totalDays, availabilityMode = 'delay', pairedDirector = null, affordable = null, castingDirectorSkill = null, relationship = null, castAffinity = null }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number; availabilityMode?: 'delay' | 'blocked'; pairedDirector?: Person | null; affordable?: boolean | null; castingDirectorSkill?: number | null; relationship?: RelationshipStanding | null; castAffinity?: CastAffinity | null }) {
   const career = getCareerForRole(person, role);
   const overallScore = deriveOverallScore(person, role, category, script, character);
   const roleFit = deriveRoleFitBreakdown(person, role, category, script, character);
@@ -214,6 +215,7 @@ export function TalentStats({ person, role, category, script, character = null, 
       {signatureLine && <p className="talent-identity-line">{signatureLine}</p>}
       {contrastLine && <p className="talent-identity-line talent-identity-line--muted">{contrastLine}</p>}
       {isActor && pairedDirector && <p className="talent-identity-line talent-identity-line--muted">{describeDirectorActorPairing(pairedDirector, person)}</p>}
+      {castAffinity && <p className={`talent-identity-line talent-affinity talent-affinity--${castAffinityTone(castAffinity)}`}>{describeCastAffinity(castAffinity)}</p>}
       {isDirector && career && 'productionStyle' in career && (
         <>
           <p className="talent-identity-line">{describeProductionStyle(career)}</p>

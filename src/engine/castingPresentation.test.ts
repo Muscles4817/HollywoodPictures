@@ -1,9 +1,17 @@
 // Casting Redesign (docs/DESIGN_REVIEW_casting_redesign.md section 7) - no
 // dedicated test coverage existed for this file before it was added.
 import { describe, it, expect } from 'vitest';
-import { candidateStrengthSignals, directorStrengthSignals, describeApplicantInterest, describeDirectorInterest, describeDirectorRejection, describeOfferRejection, describeScheduleRejection } from './castingPresentation';
+import { candidateStrengthSignals, directorStrengthSignals, describeApplicantInterest, describeDirectorInterest, describeDirectorRejection, describeOfferRejection, describeScheduleRejection, describeCastAffinity, castAffinityTone } from './castingPresentation';
 import type { ActorAppealFactors, ActorScheduleAssessment, OfferRejectionReason } from './castingAppeal';
 import type { DirectorAppealFactors, DirectorOfferRejectionReason } from './directorAppeal';
+import type { CastAffinity } from './pairHistory';
+
+function partner(name: string): Person {
+  return { id: name, identity: { name, appearanceTags: [] } } as unknown as Person;
+}
+function affinity(over: Partial<CastAffinity> = {}): CastAffinity {
+  return { partner: partner('Jane Vane'), partnerRole: 'Director', chemistry: 0.6, films: 0, ...over };
+}
 
 function factors(overrides: Partial<ActorAppealFactors> = {}): ActorAppealFactors {
   return {
@@ -227,5 +235,39 @@ describe('describeFameCraftContrast', () => {
     const undiscovered = describeFameCraftContrast(actor('b', {}, { fame: 20, craftFloor: 78, craftHeadroom: 20 }));
     const star = describeFameCraftContrast(actor('c', {}, { fame: 82, craftFloor: 78, craftHeadroom: 20 }));
     expect(new Set([coaster, undiscovered, star]).size).toBe(3);
+  });
+});
+
+describe('describeCastAffinity / castAffinityTone (Phase 4 - the cast-affinity chip)', () => {
+  it('leads with a proven partnership and names the partner when there is shared history', () => {
+    const line = describeCastAffinity(affinity({ films: 2, chemistry: 0.5 }));
+    expect(line).toContain('Proven partnership');
+    expect(line).toContain('twice');
+    expect(line).toContain('director');
+    expect(line).toContain('Jane Vane');
+  });
+
+  it('reads a fresh positive pairing as a natural fit', () => {
+    const line = describeCastAffinity(affinity({ films: 0, chemistry: 0.5 }));
+    expect(line).toContain('natural fit');
+    expect(line).toContain('Jane Vane');
+  });
+
+  it('warns on a fresh negative pairing', () => {
+    expect(describeCastAffinity(affinity({ films: 0, chemistry: -0.5 }))).toContain('clash');
+  });
+
+  it('reads a soured shared history distinctly from a fresh clash', () => {
+    expect(describeCastAffinity(affinity({ films: 2, chemistry: -0.5 }))).toContain("didn't gel");
+  });
+
+  it('tones positive vs negative by the sign of the chemistry', () => {
+    expect(castAffinityTone(affinity({ chemistry: 0.4 }))).toBe('positive');
+    expect(castAffinityTone(affinity({ chemistry: -0.4 }))).toBe('negative');
+  });
+
+  it('never leaks a raw number into the prose', () => {
+    const line = describeCastAffinity(affinity({ films: 2, chemistry: 0.73 }));
+    expect(line).not.toMatch(/0\.73|73/);
   });
 });

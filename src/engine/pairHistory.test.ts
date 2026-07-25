@@ -9,6 +9,7 @@ import {
   pairHistory,
   effectivePairChemistry,
   computeEffectivePairChemistry,
+  notableCastAffinity,
 } from './pairHistory';
 import { computePairChemistry, pairChemistry } from './creativeTension';
 import type { Film, PersonPersonality, Person, ProductionRole, TalentAssignment, TalentPairing } from '../types';
@@ -157,6 +158,58 @@ describe('computeEffectivePairChemistry', () => {
       200,
     );
     expect(computeEffectivePairChemistry(talent, proven)).toBeGreaterThan(computePairChemistry(talent));
+  });
+});
+
+// Phase 4: the casting-card affinity read.
+describe('notableCastAffinity', () => {
+  const easyDirector = assignment('dir', 'Director', { adaptability: 100, professionalism: 100 });
+  const easyCandidate = () => person('cand', { adaptability: 100, professionalism: 100 });
+
+  it('is null when the candidate would pair with nobody on the cast', () => {
+    expect(notableCastAffinity(easyCandidate(), 'Lead Actor', [], [])).toBeNull();
+  });
+
+  it('is null for a role that pairs with no one (a Writer forms no key pairing)', () => {
+    expect(notableCastAffinity(person('w', { adaptability: 100, professionalism: 100 }), 'Writer', [easyDirector], [])).toBeNull();
+  });
+
+  it('surfaces a strong personality fit with a signed cast member, naming them', () => {
+    const affinity = notableCastAffinity(easyCandidate(), 'Lead Actor', [easyDirector], []);
+    expect(affinity).not.toBeNull();
+    expect(affinity!.partner.id).toBe('dir');
+    expect(affinity!.partnerRole).toBe('Director');
+    expect(affinity!.chemistry).toBeGreaterThan(0);
+    expect(affinity!.films).toBe(0);
+  });
+
+  it('does not surface a merely mild personality read (no history) - only a strong one earns a line', () => {
+    const mild = notableCastAffinity(person('cand', { adaptability: 55, professionalism: 55 }), 'Lead Actor', [assignment('dir', 'Director', { adaptability: 55, professionalism: 55 })], []);
+    expect(mild).toBeNull();
+  });
+
+  it('leads with a proven partnership when the pair has shared history, even a mild one', () => {
+    // Neutral personalities (no personality read), but two good films together.
+    const signed = [assignment('dir', 'Director')];
+    const candidate = person('cand');
+    const cast: TalentAssignment[] = [...signed, { role: 'Lead Actor', person: candidate }];
+    const history = recordPlayerFilmPairings(
+      [],
+      [filmFixture({ id: 'f1', talent: cast, criticScore: 90, audienceScore: 90, stars: 5 }), filmFixture({ id: 'f2', talent: cast, criticScore: 88, audienceScore: 88, stars: 4 })],
+      200,
+    );
+    const affinity = notableCastAffinity(candidate, 'Lead Actor', signed, history);
+    expect(affinity).not.toBeNull();
+    expect(affinity!.films).toBe(2);
+    expect(affinity!.chemistry).toBeGreaterThan(0);
+  });
+
+  it('surfaces a clash as negative chemistry', () => {
+    const clashDirector = assignment('dir', 'Director', { ego: 95, adaptability: 5 });
+    const clashCandidate = person('cand', { ego: 95, adaptability: 5 });
+    const affinity = notableCastAffinity(clashCandidate, 'Lead Actor', [clashDirector], []);
+    expect(affinity).not.toBeNull();
+    expect(affinity!.chemistry).toBeLessThan(0);
   });
 });
 

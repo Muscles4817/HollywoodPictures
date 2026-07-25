@@ -9,6 +9,7 @@ import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { deriveBookedUntil, getTypicalSalaryForRole, isAvailableImmediately, getCrewCareer } from '../../engine/person';
 import { computeDirectorAppeal, resolveDirectorOfferResponse, type DirectorOfferResponse } from '../../engine/directorAppeal';
 import { playerRelationshipWith, type RelationshipStanding } from '../../engine/relationships';
+import { notableCastAffinity, type CastAffinity } from '../../engine/pairHistory';
 import { describeDirectorRejection, directorStrengthSignals, type CandidateSignal } from '../../engine/castingPresentation';
 import { deriveFocusedDraft, computeCommittedSpend } from '../../state/selectors';
 import { professionForProductionRole, findAssignedPerson } from '../../data/helpers';
@@ -48,11 +49,13 @@ interface CandidateCardProps {
   castingDirectorSkill: number | null;
   /** The studio's standing with this person - history sharpens the fit read too. */
   relationship: RelationshipStanding;
+  /** The candidate's most notable chemistry with someone already on the cast (engine/pairHistory.ts), or null. */
+  castAffinity: CastAffinity | null;
   onSelect: () => void;
   onTogglePin: () => void;
 }
 
-function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, affordable, signals, castingDirectorSkill, relationship, onSelect, onTogglePin }: CandidateCardProps) {
+function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, affordable, signals, castingDirectorSkill, relationship, castAffinity, onSelect, onTogglePin }: CandidateCardProps) {
   const isActor = category === 'actor';
   return (
     <Card selectable selected={selected} disabled={disabled} onClick={onSelect}>
@@ -61,7 +64,7 @@ function CandidateCard({ person, role, category, script, character, totalDays, s
           the drawer only needs to add its own casting-flow state on top
           (Cast/Hired, or Fully cast once the role's at capacity), not repeat
           the calendar read a second time. */}
-      <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} availabilityMode="blocked" affordable={affordable} castingDirectorSkill={castingDirectorSkill} relationship={relationship} />
+      <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} availabilityMode="blocked" affordable={affordable} castingDirectorSkill={castingDirectorSkill} relationship={relationship} castAffinity={castAffinity} />
       {signals.length > 0 && (
         <div className="candidate-signals">
           {signals.map((signal) => (
@@ -218,6 +221,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   // persistent standing with the studio, read into their interest score and
   // accept/decline so a loyal filmmaker is easier (and cheaper) to bring back.
   const relationshipFor = (person: Person) => playerRelationshipWith(state.collaborations ?? [], person);
+  const castAffinityFor = (person: Person) => notableCastAffinity(person, role, draft.talent, state.talentPairings ?? []);
   // The production's attached casting director sharpens actor fit reads (TalentStats
   // gates it to actors; harmless to pass for a director/crew hire). undefined with none.
   const attachedCastingDirector = findAssignedPerson(draft.talent, 'Casting Director');
@@ -401,6 +405,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
                   signals={signals}
                   castingDirectorSkill={castingDirectorSkill}
                   relationship={relationshipFor(person)}
+                  castAffinity={castAffinityFor(person)}
                   onSelect={() => selectPerson(person)}
                   onTogglePin={() => pins.toggle(person.id)}
                 />
