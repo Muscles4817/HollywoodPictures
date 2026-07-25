@@ -1,8 +1,9 @@
-// Talent chemistry, Phase 0: a well-matched director/lead makes the positive
-// "the cast developed real chemistry" beat likelier to be the good news that
-// lands, without changing anything else about event selection. These pin that
-// wiring end-to-end through pickShootEvent - the same entry point the player's
-// shoot and the rival synthesizer both use.
+// Talent chemistry: a well-matched pairing makes the positive "the cast
+// developed real chemistry" beat likelier to be the good news that lands,
+// without changing anything else about event selection. These pin that wiring
+// end-to-end through pickShootEvent - the same entry point the player's shoot
+// and the rival synthesizer both use. Phase 0 covers the director/lead pairing;
+// Phase 1 adds co-stars (actor<->actor).
 import { describe, it, expect } from 'vitest';
 import { pickShootEvent, type FullProductionRisk } from './production';
 import { generateTalentCandidates } from './talentGenerator';
@@ -29,6 +30,18 @@ function castWith(personality: Partial<PersonPersonality>): TalentAssignment[] {
 const NEUTRAL: Partial<PersonPersonality> = { ego: 50, adaptability: 50, professionalism: 50 };
 const HIGH_CHEMISTRY: Partial<PersonPersonality> = { ego: 50, adaptability: 100, professionalism: 100 };
 
+/** An average (chemistry-neutral) director plus two leads with a controlled personality - isolates the co-star (actor<->actor) pairing Phase 1 added. */
+function castCoStars(leadPersonality: Partial<PersonPersonality>): TalentAssignment[] {
+  const { result: director } = withRng(1, (rng) => generateTalentCandidates('Director', rng, 1)[0]);
+  const { result: actors } = withRng(2, (rng) => generateTalentCandidates('Actor', rng, 2));
+  const withPersonality = (p: Person, over: Partial<PersonPersonality>): Person => ({ ...p, personality: { ...p.personality, ...over } });
+  return [
+    { role: 'Director', person: withPersonality(director, NEUTRAL) }, // neutral, so only the co-star pair contributes chemistry
+    { role: 'Lead Actor', person: withPersonality(actors[0], leadPersonality) },
+    { role: 'Lead Actor', person: withPersonality(actors[1], leadPersonality) },
+  ];
+}
+
 /** How often 'pos-chemistry' is the event that fires over `runs` independent positive-pool rolls, for the given cast. Same seed sequence regardless of cast, so chemistry weighting is the only variable. */
 function chemistryHitRate(talent: TalentAssignment[], runs: number): number {
   let hits = 0;
@@ -50,6 +63,15 @@ describe('pair chemistry biases positive event selection', () => {
 
     expect(neutral).toBeGreaterThan(0); // the beat is reachable at baseline - the test isn't vacuous
     expect(highChemistry).toBeGreaterThan(neutral); // ...and chemistry makes it materially likelier
+    expect(highChemistry).toBeGreaterThan(neutral * 1.5);
+  });
+
+  it('two clicking co-stars bias the chemistry beat even with an unremarkable director (Phase 1)', () => {
+    const neutral = chemistryHitRate(castCoStars(NEUTRAL), RUNS);
+    const highChemistry = chemistryHitRate(castCoStars(HIGH_CHEMISTRY), RUNS);
+
+    expect(neutral).toBeGreaterThan(0);
+    expect(highChemistry).toBeGreaterThan(neutral); // the actor<->actor pairing reaches selection, not just director<->actor
     expect(highChemistry).toBeGreaterThan(neutral * 1.5);
   });
 

@@ -1098,6 +1098,7 @@ const RAW_GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplate[]
       severity: 'low',
       interactive: true,
       involvesRole: 'Lead Actor',
+      chemistry: true,
       choices: [
         {
           id: 'add-two-hander',

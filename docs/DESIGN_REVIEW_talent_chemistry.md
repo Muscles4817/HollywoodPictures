@@ -176,9 +176,17 @@ add pairing surfaces, not rework.
   `moraleRisk` path. Tests: `creativeTension.test.ts`,
   `production.chemistry.test.ts`.
 
-- **Phase 1 — Actor↔actor co-stars.** Extend the baseline to lead↔lead and
-  lead↔supporting pairs — the evocative case for romance and ensembles, and
-  where `genre-romance-*-chemistry` already wants a cause. Still no new state.
+- **Phase 1 — Actor↔actor co-stars. Implemented.** `computePairChemistry` now
+  reads every key creative pairing — director↔principal *and* principal↔principal
+  (lead↔lead, lead↔supporting, supporting↔supporting) — via a shared
+  `keyCreativePairs` helper, and takes the best. Two clicking leads now land the
+  chemistry beat even under an unremarkable director, giving the on-the-nose
+  romance events (`genre-romance-pos-chemistry`, and the now-flagged interactive
+  `genre-romance-int-chemistry-window`) their cause. Still no new state; the
+  friction pole (`computeCreativeTension` → `moraleRisk`) stays director-centric
+  for now — co-star friction is a natural follow-up but would recalibrate the
+  risk model, so it's deliberately out of this slice. Tests:
+  `creativeTension.test.ts`, `production.chemistry.test.ts`.
 
 - **Phase 2 — Pairing memory (new persistent state, save bump).** Add the
   talent-pair history log and the record-on-settlement plumbing (see Open

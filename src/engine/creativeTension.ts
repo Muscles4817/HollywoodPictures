@@ -98,9 +98,9 @@ export function computeCreativeTension(talent: TalentAssignment[]): number {
 // --- The positive pole: chemistry --------------------------------------------
 //
 // Friction is only half a pairing. The same interaction that lets two clashing
-// wills poison a shoot lets two EASY ones lift it - a director and a lead who
-// are both adaptable and professional read each other, defuse problems, and are
-// the ones who actually hit the "the cast developed real chemistry" beat. This
+// wills poison a shoot lets two EASY ones lift it - a director and a lead, or two
+// co-stars, both adaptable and professional read each other, defuse problems, and
+// are the ones who actually hit the "the cast developed real chemistry" beat. This
 // is the signed generalisation of pairFriction: negative is friction (the exact
 // number computeCreativeTension already feeds into moraleRisk - unchanged),
 // positive is chemistry, read by engine/production.ts to up-weight the positive
@@ -132,23 +132,42 @@ export function pairChemistry(a: Person, b: Person): number {
 }
 
 /**
- * The positive counterpart to computeCreativeTension: how much natural chemistry
- * the key creatives bring, 0-100. Uses the single BEST director<->principal
- * pairing (one standout partnership defines a shoot's chemistry, the same way
- * its worst clash defines its tension) and reads only the positive pole -
- * friction stays with computeCreativeTension. Returns 0 with no director, no
- * principal cast, or no pairing that clicks.
+ * The pairings whose chemistry can define a shoot: the director against each
+ * principal, AND the principals against each other. Co-stars matter as much as
+ * the director does - "the two leads have real off-screen chemistry" is its own
+ * beat (genre-romance-pos-chemistry), independent of who's directing. Every such
+ * pair is a candidate; computePairChemistry takes the best.
  */
-export function computePairChemistry(talent: TalentAssignment[]): number {
+function keyCreativePairs(talent: TalentAssignment[]): Array<readonly [Person, Person]> {
   const director = filterAssignedPeople(talent, 'Director')[0];
-  if (!director) return 0;
   const principals = [
     ...filterAssignedPeople(talent, 'Lead Actor'),
     ...filterAssignedPeople(talent, 'Supporting Actor'),
   ];
+  const pairs: Array<readonly [Person, Person]> = [];
+  if (director) {
+    for (const actor of principals) pairs.push([director, actor] as const);
+  }
+  for (let i = 0; i < principals.length; i++) {
+    for (let j = i + 1; j < principals.length; j++) {
+      pairs.push([principals[i], principals[j]] as const);
+    }
+  }
+  return pairs;
+}
+
+/**
+ * The positive counterpart to computeCreativeTension: how much natural chemistry
+ * the key creatives bring, 0-100. Uses the single BEST key pairing - director
+ * against a principal, OR two co-stars - because one standout partnership
+ * defines a shoot's chemistry, the same way its worst clash defines its tension.
+ * Reads only the positive pole; friction stays with computeCreativeTension.
+ * Returns 0 with no principal cast, or no pairing that clicks.
+ */
+export function computePairChemistry(talent: TalentAssignment[]): number {
   let best = 0;
-  for (const actor of principals) {
-    best = Math.max(best, pairChemistry(director, actor));
+  for (const [a, b] of keyCreativePairs(talent)) {
+    best = Math.max(best, pairChemistry(a, b));
   }
   return Math.round(best * 100);
 }

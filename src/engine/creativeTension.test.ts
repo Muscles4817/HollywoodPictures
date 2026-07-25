@@ -130,6 +130,32 @@ describe('computePairChemistry', () => {
     );
     expect(computePairChemistry(oneClicks)).toBeGreaterThan(70);
   });
+
+  // Phase 1: co-stars matter too, not just the director.
+  it('is high when two co-stars click, even with an unremarkable director', () => {
+    const leadsSpark = cast(
+      ['Director', {}], // average - contributes no chemistry
+      ['Lead Actor', { adaptability: 100, professionalism: 100 }],
+      ['Lead Actor', { adaptability: 100, professionalism: 100 }],
+    );
+    expect(computePairChemistry(leadsSpark)).toBeGreaterThan(70);
+  });
+
+  it('reads a lead<->supporting pairing, not only lead<->lead', () => {
+    const pairing = cast(
+      ['Lead Actor', { adaptability: 100, professionalism: 100 }],
+      ['Supporting Actor', { adaptability: 100, professionalism: 100 }],
+    );
+    expect(computePairChemistry(pairing)).toBeGreaterThan(70);
+  });
+
+  it('never reads a feuding co-star pair as chemistry (the poles still partition)', () => {
+    const feuding = cast(
+      ['Lead Actor', { ego: 95, adaptability: 5 }],
+      ['Lead Actor', { ego: 95, adaptability: 5 }],
+    );
+    expect(computePairChemistry(feuding)).toBe(0);
+  });
 });
 
 describe('topCreativeClash (legibility - names the clashing pair)', () => {
