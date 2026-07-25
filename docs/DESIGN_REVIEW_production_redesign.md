@@ -450,3 +450,69 @@ feed scoring, but only Sets has its conversation card so far.
   ask/confidence UX. Light-UI by design for this step.
 - No schema change → **no save bump** this step (the facets read existing
   `ProductionChoices` fields).
+
+## 15. Step 5 — the full version on the Sets facet (deltas from step 4)
+
+Status: **built** (`engine/facetModel.ts:executionSwing`, the `sets` re-route in
+`engine/productionExecution.ts`, `engine/setsFacet.ts:realiseSetsQuality` +
+`setsOutlook`, and the Production Design conversation card). This is rollout
+step 5: take Sets from the deterministic prototype to the full design — the
+endogenous **execution swing** (§3.3) that steps 2–4 deferred, plus
+production-quality conversation UX. Closes the two big deferrals from §13/§14.
+
+**What shipped**
+- **The execution swing (`executionSwing`, engine/facetModel.ts).** The base
+  facet is what the plan *buys*; the swing is how it actually *came out*. `stretch`
+  sets the swing's half-width (a comfortably-funded build lands tight to its base;
+  an over-reaching one fans wide), the facet's own events roll the position, and
+  the head's skill tilts it toward the upside — the boom-or-bust bet §3.3 asks
+  for, resolved from **already-recorded** events (pure, deterministic; no new
+  release-time randomness, same contract as productionExecution.ts).
+- **The visual-event re-route (spec §10), done as a `sets` slice.** Rather than
+  moving the whole mixed `visual` bucket, we carved a **`sets` impact** out of it:
+  set/design build outcomes (a design breakthrough, an over-ambitious build, a set
+  collapse, worldbuilding detail) now feed the Sets facet's swing
+  (`ExecutionProfile.setsSignal`) instead of `postExecution` — a re-route, not a
+  copy, so a set triumph/collapse moves **Production (Sets)**, not Post. The rest
+  of `visual` (VFX, stunts, rigs, effects) stays in `postExecution` until those
+  facets get their own swings (step 6). Both prep and on-set set events flow in
+  (Sets' time is pre-production; `prepQualityEvents` already reach the pipeline).
+- **`realiseSetsQuality`** = base + swing — the delivered Sets quality, threaded
+  through `computeProductionScore` via the execution profile. A forecast (no
+  events) is exactly the base, so nothing pre-release changes.
+- **Production-quality conversation UX.** The Production Design card now voices the
+  bet: `setsOutlook` reads a qualitative `spread` (tight/moderate/wide, from
+  stretch) and `lean` (from designer skill), and the designer speaks it in
+  character — a comfortably-funded build stays quiet (no gamble framing), an
+  over-reaching one becomes "a real gamble" the designer's skill makes worth
+  taking (or a warning a weak art department can't tip your way). Qualitative
+  only — no raw numbers, per CLAUDE.md.
+- **Results legibility** rides the existing execution summary: set events now
+  carry the `sets` label ("the sets and design"), so a set triumph/collapse
+  surfaces in the shoot's causal write-up and star rating.
+
+**Model deltas / decisions that mattered**
+- **A `sets` impact instead of a raw `visual` split.** Bare `set`/`design` tokens
+  collide (`setpiece`, `sound-design`), so the genuine set/design templates carry
+  an explicit `impact: 'sets'`, backed by a tight, collision-guarded inference
+  rule. A "design-ambition" event that is really a **VFX** spaceship, and
+  costume/creature "designs", deliberately stay `visual` — Sets is the Production
+  Designer's *built world*, not all of "design". `sound-design` moved to `pacing`
+  (it was mis-bucketed as `visual`).
+- **Skill appears in both the base and the swing tilt — by design, not
+  double-count** (§3.3): skill raises the deterministic capability *and* buys the
+  upside of the widening. The tilt only bites under stretch (the band is ~0 when
+  well-funded), so a low-ambition build isn't quietly skill-gated twice.
+- **Swing tuning** (`DEFAULT_SWING_TUNING`): maxHalfWidth 22, eventScale 10,
+  skillTilt 0.6, stretchExponent 0.85 — a low-stretch plan swings ≲±2 whatever the
+  team/luck; a full-stretch plan reaches ±~20, elite-vs-weak splitting neutral
+  luck by ~±8. First-draft, tunable; flagged OPEN in §3.4.
+
+**Deferred (unchanged from §14, plus)**
+- **Swings for VFX & Practical** and their re-routed slices (vfx/stunt events) —
+  step 6, when the swing generalises across facets.
+- **A per-facet Production breakdown on the Results screen** — set outcomes read
+  through the shared execution summary today; a dedicated "Production Design came
+  together / fell short" line waits on the Production department being reported
+  by facet.
+- No schema change → **no save bump**.

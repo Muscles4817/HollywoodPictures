@@ -137,3 +137,61 @@ export function facetConfidence(result: FacetResult): FacetConfidence {
   if (result.stretch < 0.5) return 'a-stretch';
   return 'set-up-to-fail';
 }
+
+// --- Endogenous variance: the execution swing (spec §3.3/§3.4) --------------
+//
+// computeFacet is the deterministic base — what the plan BUYS. On top of it,
+// how the facet actually CAME OUT swings around that base, and `stretch` sets
+// how wide that swing can be:
+//
+//   - Low stretch (well-funded for the ambition) → a tight band near the base:
+//     dependable, rarely spectacular.
+//   - High stretch (attempting more than you comfortably funded) → a WIDE band,
+//     and who you hired biases where in it you land. An elite head on an
+//     under-funded, ambitious plan is a genuine boom-or-bust bet; the same plan
+//     with a weak head is just a bust.
+//
+// The swing is a PURE, DETERMINISTIC read of already-recorded facts (the facet's
+// own on-set/prep events, already rolled day by day) — no new randomness at
+// scoring time, same as engine/productionExecution.ts. Two inputs shape it:
+//   - eventSignal: net (resilience-mitigated) quality points from the facet's
+//     own events — the endogenous roll that already happened during the shoot.
+//   - skill: the head's skill (0-100) — tilts the band toward the upside; the
+//     "buy the upside of the widening" lever, and it only bites under stretch.
+
+export interface FacetSwingTuning {
+  /** the widest the swing can reach (± quality points) at full stretch. */
+  maxHalfWidth: number;
+  /** event net points that map to a full-magnitude roll (tanh scale). */
+  eventScale: number;
+  /** how far the head's skill alone tilts the roll at full stretch (0..1 of the band). */
+  skillTilt: number;
+  /** how the band width grows with stretch (<1 = a low-stretch plan already has a little give). */
+  stretchExponent: number;
+}
+
+export const DEFAULT_SWING_TUNING: FacetSwingTuning = {
+  maxHalfWidth: 22,
+  eventScale: 10,
+  skillTilt: 0.6,
+  stretchExponent: 0.85,
+};
+
+/**
+ * The swing (± quality points) to add to a facet's deterministic base. Centred
+ * near 0 at low stretch (a tight, dependable band); at high stretch it fans out,
+ * the facet's own events roll it up or down, and skill tilts it toward the
+ * upside. Bounded by the stretch-scaled band, so no single input runs away.
+ */
+export function executionSwing(
+  stretch: number,
+  skill: number,
+  eventSignal: number,
+  tuning: FacetSwingTuning = DEFAULT_SWING_TUNING,
+): number {
+  const halfWidth = Math.pow(clamp(stretch, 0, 1), tuning.stretchExponent) * tuning.maxHalfWidth;
+  const roll = Math.tanh(eventSignal / tuning.eventScale); // where the events landed, -1..1
+  const tilt = ((clamp(skill, 0, 100) - 50) / 50) * tuning.skillTilt; // skill's directional bias
+  const position = clamp(roll + tilt, -1, 1);
+  return halfWidth * position;
+}

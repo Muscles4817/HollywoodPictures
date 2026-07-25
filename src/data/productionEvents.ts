@@ -1195,6 +1195,7 @@ const RAW_GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplate[]
       description: 'Background worldbuilding details the crew snuck in are the kind of thing fans will freeze-frame.',
       polarity: 'positive',
       severity: 'low',
+      impact: 'sets',
       costRange: [0, 0],
       qualityRange: [3, 6],
       buzzRange: [0, 0],
@@ -1337,6 +1338,7 @@ const RAW_GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplate[]
     },
     {
       id: 'genre-fantasy-neg-set-collapse',
+      impact: 'sets',
       description: 'An elaborate set piece collapsed overnight and needs to be rebuilt.',
       polarity: 'negative',
       severity: 'high',
@@ -2935,7 +2937,7 @@ export const PRE_PRODUCTION_EVENT_TEMPLATES: ProductionEventTemplate[] = [
   {
     id: 'preprod-design-breakthrough',
     description: 'The production designer landed on a look for the film that everyone immediately believed in.',
-    polarity: 'positive', severity: 'low', impact: 'visual',
+    polarity: 'positive', severity: 'low', impact: 'sets',
     costRange: [0, 20_000], qualityRange: [2, 6], buzzRange: [0, 0], delayDaysRange: [0, 0],
   },
   {
@@ -2968,7 +2970,7 @@ export const PRE_PRODUCTION_EVENT_TEMPLATES: ProductionEventTemplate[] = [
   {
     id: 'preprod-int-ambitious-set',
     situation: 'The director wants to build a signature practical set that is not in the budget.',
-    polarity: 'positive', severity: 'medium', interactive: true, involvesRole: 'Director', impact: 'visual',
+    polarity: 'positive', severity: 'medium', interactive: true, involvesRole: 'Director', impact: 'sets',
     choices: [
       {
         id: 'build-it',

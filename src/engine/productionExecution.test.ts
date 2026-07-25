@@ -137,6 +137,17 @@ describe('classifyEventImpact', () => {
     expect(classifyEventImpact({ id: 'risk-morale-neg-shouting-match', impact: 'visual' })).toBe('visual');
   });
 
+  it('routes set/design build outcomes to the sets slice, but not effects/sound-design/setpieces', () => {
+    // Genuine set/design build → 'sets' (the Sets facet's swing).
+    expect(classifyEventImpact({ id: 'genre-fantasy-neg-set-collapse' })).toBe('sets');
+    expect(classifyEventImpact({ id: 'preprod-design-breakthrough' })).toBe('sets');
+    expect(classifyEventImpact({ id: 'genre-scifi-pos-worldbuilding-detail' })).toBe('sets');
+    // Collision guards: these are NOT set/design and must stay where they were.
+    expect(classifyEventImpact({ id: 'genre-action-pos-setpiece-under-budget' })).toBe('visual');
+    expect(classifyEventImpact({ id: 'genre-horror-pos-sound-design' })).toBe('pacing');
+    expect(classifyEventImpact({ id: 'genre-scifi-int-design-ambition' })).toBe('visual'); // a VFX spaceship, not a set
+  });
+
   it('a legacy event with no impact still classifies from its id (no migration needed)', () => {
     const legacy: ProductionEvent = { id: 'risk-morale-neg-walked-off', description: 'x', severity: 'high', costDelta: 0, qualityDelta: -5, buzzDelta: 0, delayDaysDelta: 1 };
     expect(classifyEventImpact(legacy)).toBe('performances');
@@ -152,6 +163,18 @@ describe('computeExecutionProfile', () => {
     expect(p.coverageRatio).toBe(1.1);
     expect(p.overall).toBe(0);
     expect(neutralExecutionProfile(1.1)).toMatchObject({ performanceCapture: 1, coverageRatio: 1.1 });
+  });
+
+  it('set/design events feed setsSignal and are re-routed OUT of postExecution (no double-count)', () => {
+    const good = computeExecutionProfile(profileInput([ev(6, { impact: 'sets' })]));
+    const bad = computeExecutionProfile(profileInput([ev(-10, { impact: 'sets' })]));
+    // The signal carries the (mitigated) net; positive lifts it, negative sinks it.
+    expect(good.setsSignal).toBeGreaterThan(0);
+    expect(bad.setsSignal).toBeLessThan(0);
+    // ...and a lone set event does NOT move the post-production multiplier: it's a
+    // re-route to Production (Sets), not a copy into Post.
+    expect(good.postExecution).toBe(1);
+    expect(bad.postExecution).toBe(1);
   });
 
   it('negative performance events lower performanceCapture; positive raise it', () => {

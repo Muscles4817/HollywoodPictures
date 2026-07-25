@@ -25,8 +25,10 @@ import {
   computeSetsFacet,
   designerAsk,
   designerConfidence,
+  setsOutlook,
   NO_DESIGNER_SKILL,
   type DesignerConfidence,
+  type SetsOutlook,
 } from '../../engine/setsFacet';
 import { DistributionEditor } from '../common/DistributionEditor';
 import { RangeSlider } from '../common/RangeSlider';
@@ -59,6 +61,25 @@ const CONFIDENCE_PRESENTATION: Record<DesignerConfidence, { label: string; color
 
 function ambitionWord(a: number): string {
   return a >= 75 ? 'a hugely demanding' : a >= 50 ? 'a demanding' : a >= 30 ? 'a moderate' : 'a modest';
+}
+
+/**
+ * The designer's boom-or-bust read, in their own voice (spec §3.3). A tight
+ * spread reads as dependable and needs no gamble framing (returns null). A
+ * moderate/wide spread is a bet whose odds the designer's skill tips — a strong
+ * designer makes it worth taking, a weak one makes it a warning.
+ */
+function describeSetsOutlook(outlook: SetsOutlook, designerName: string | undefined): string | null {
+  if (outlook.spread === 'tight') return null;
+  const who = designerName ?? 'The art department';
+  const gamble = outlook.spread === 'wide' ? 'a real gamble' : 'no sure thing';
+  if (outlook.lean === 'promising') {
+    return `${who}: “This is ${gamble} — but give me this and if it comes together it'll be a highlight. I'll take that bet.” A strong designer is who you want swinging for it.`;
+  }
+  if (outlook.lean === 'precarious') {
+    return `This is ${gamble}, and the art department isn't equipped to tip it your way — if the shoot fights the build, it will show. A stronger Production Designer would make the same bet worth taking.`;
+  }
+  return `${who}: “This is ${gamble} — it could come together beautifully or slip, depending on how the shoot goes.”`;
 }
 
 const ENVIRONMENT_METHOD_KEYS: readonly EnvironmentMethodKey[] = ['studio', 'location', 'digital'];
@@ -335,6 +356,10 @@ export function ProductionPlanning() {
   // confidence read below.
   const setsFacet = computeSetsFacet({ ambition: setsAmbition, moneyAmount: currentChoices.setQualityAmount, prepDays: designPrepDays, designerSkill });
   const setsConfidence = designerConfidence(setsFacet);
+  // The boom-or-bust read: an over-reaching plan becomes a gamble the designer's
+  // skill tips (spec §3.3). Only voiced when the plan actually is a gamble (the
+  // spread isn't tight); a comfortably-funded build needs no such warning.
+  const setsOutlookText = describeSetsOutlook(setsOutlook(setsFacet, designerSkill), productionDesigner?.identity.name);
 
   const estimatedCost = computeProductionBudgetCost(currentChoices);
   const canAfford = state.studio.cash - computeCommittedSpend(draft, state.producerPool ?? []) >= 0;
@@ -430,6 +455,9 @@ export function ProductionPlanning() {
         <p style={{ margin: 0, fontWeight: 600, color: CONFIDENCE_PRESENTATION[setsConfidence].color }}>
           {productionDesigner ? productionDesigner.identity.name : 'The art department'}: “{CONFIDENCE_PRESENTATION[setsConfidence].label}.”
         </p>
+        {setsOutlookText && (
+          <p style={{ margin: 0, fontSize: '0.9em', color: 'var(--text-muted)' }}>{setsOutlookText}</p>
+        )}
       </div>
 
       <RecommendationCard

@@ -10,7 +10,7 @@ import { ENVIRONMENT_BUDGET_RANGE } from '../data/production';
 import { setQualityT } from './productionDials';
 import { logAmount } from './interpolate';
 import { clamp } from './random';
-import { computeFacet, facetConfidence, DEFAULT_FACET_TUNING, type FacetConfidence, type FacetResult } from './facetModel';
+import { computeFacet, executionSwing, facetConfidence, DEFAULT_FACET_TUNING, type FacetConfidence, type FacetResult } from './facetModel';
 
 // --- Tunables --------------------------------------------------------------
 
@@ -97,6 +97,22 @@ export function computeSetsFacet(input: SetsFacetInput): SetsFacet {
   );
 }
 
+// --- The delivered quality (base + how the build actually came out) ---------
+
+/**
+ * The Sets facet's DELIVERED quality once the shoot is done: the deterministic
+ * base (what the plan bought) plus the execution swing (how the set/design build
+ * actually came out — engine/facetModel.ts:executionSwing). The swing is scaled
+ * by the facet's own `stretch`, so a comfortably-funded build lands tight to its
+ * base while an over-reaching one is a boom-or-bust bet the designer's skill
+ * biases. `setsSignal` = the net set/design event points from the shoot
+ * (engine/productionExecution.ts:ExecutionProfile.setsSignal); it defaults to 0
+ * — a forecast, or a shoot with no set events, is just the base.
+ */
+export function realiseSetsQuality(facet: SetsFacet, designerSkill: number, setsSignal = 0): number {
+  return clamp(Math.round(facet.quality + executionSwing(facet.stretch, designerSkill, setsSignal)), 0, 100);
+}
+
 // --- The designer's confidence (the conversation's forecast) ---------------
 
 export type DesignerConfidence = FacetConfidence;
@@ -104,4 +120,23 @@ export type DesignerConfidence = FacetConfidence;
 /** The qualitative forecast the designer gives as you move the money/time dials. */
 export function designerConfidence(facet: SetsFacet): DesignerConfidence {
   return facetConfidence(facet);
+}
+
+/**
+ * The boom-or-bust read of the plan, for the planning conversation (spec §3.3).
+ * `spread` = how much the shoot can swing the build around its funded base
+ * (driven by stretch: a comfortably-funded plan is dependable; an over-reaching
+ * one is a gamble). `lean` = which way the designer's skill tips that gamble —
+ * only meaningful when the spread isn't tight. Qualitative only; the UI turns it
+ * into the designer's own words.
+ */
+export interface SetsOutlook {
+  spread: 'tight' | 'moderate' | 'wide';
+  lean: 'promising' | 'even' | 'precarious';
+}
+
+export function setsOutlook(facet: SetsFacet, designerSkill: number): SetsOutlook {
+  const spread = facet.stretch < 0.12 ? 'tight' : facet.stretch < 0.35 ? 'moderate' : 'wide';
+  const lean = designerSkill >= 68 ? 'promising' : designerSkill <= 45 ? 'precarious' : 'even';
+  return { spread, lean };
 }
