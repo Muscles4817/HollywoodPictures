@@ -18,9 +18,9 @@ import { SETTING_ARCHETYPE_PROFILES } from '../data/settings';
 import { GENRE_PROFILES } from '../data/genres';
 import { practicalEffectsT } from './productionDials';
 import { clamp } from './random';
-import { computeFacet, DEFAULT_FACET_TUNING, type FacetResult, type FacetTuning } from './facetModel';
+import { computeFacet, realiseFacetQuality, facetOutlook, DEFAULT_FACET_TUNING, type FacetOutlook, type FacetResult, type FacetTuning } from './facetModel';
 
-/** Skill of the practical-effects work with no dedicated Stunt Team modelled yet — a competent general unit. */
+/** Skill of the practical-effects work with no Stunt Team attached — a competent general unit. The facet's skill axis is the hired Stunt Team (engine/stuntTeams.ts); absent, this fallback. */
 export const NO_STUNT_TEAM_SKILL = 42;
 
 const SCALE_AMBITION: Record<Script['scale'], number> = { Intimate: 0.2, Medium: 0.55, Epic: 1 };
@@ -39,15 +39,30 @@ export function computePracticalAmbition(genre: Genre, script: Script): number {
   return Math.round(raw * 100);
 }
 
-/** `shootingRatio` = daysElapsed/recommendedDays from the finished shoot; it's this facet's time axis (1.0 = shot to schedule). At planning time (no shoot yet) callers pass 1. */
-export function computePracticalFacet(practicalAmount: number, genre: Genre, script: Script, shootingRatio: number): FacetResult {
+/** `shootingRatio` = daysElapsed/recommendedDays from the finished shoot; it's this facet's time axis (1.0 = shot to schedule). At planning time (no shoot yet) callers pass 1. `teamSkill` is the attached Stunt Team's effective skill (engine/stuntTeams.ts), defaulting to the no-team fallback. */
+export function computePracticalFacet(practicalAmount: number, genre: Genre, script: Script, shootingRatio: number, teamSkill: number = NO_STUNT_TEAM_SKILL): FacetResult {
   return computeFacet(
     {
       ambition: computePracticalAmbition(genre, script),
       moneyT: practicalEffectsT(practicalAmount),
       timeRatio: clamp(shootingRatio, 0, 1.3),
-      skill: NO_STUNT_TEAM_SKILL,
+      skill: teamSkill,
     },
     PRACTICAL_TUNING,
   );
+}
+
+/**
+ * The delivered Practical quality once the shoot's stunt/practical events are in:
+ * the deterministic base plus the execution swing (engine/facetModel.ts).
+ * `practicalSignal` = the net practical event points from the shoot
+ * (engine/productionExecution.ts:facetSignals.practical); defaults to 0 → base only.
+ */
+export function realisePracticalQuality(facet: FacetResult, teamSkill: number, practicalSignal = 0): number {
+  return realiseFacetQuality(facet, teamSkill, practicalSignal);
+}
+
+/** The Stunt Team's boom-or-bust read for the planning conversation (spec §3.3). */
+export function practicalOutlook(facet: FacetResult, teamSkill: number): FacetOutlook {
+  return facetOutlook(facet, teamSkill);
 }

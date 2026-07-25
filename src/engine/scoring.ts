@@ -16,8 +16,8 @@ import { deriveCommercialProfile } from './commercialProfile';
 import { findAssignedPerson, filterAssignedPeople } from '../data/helpers';
 import { getActorCareer, getDirectorCareer, getCrewCareer } from './person';
 import { computeSetsAmbition, computeSetsFacet, defaultDesignPrepDays, realiseSetsQuality, NO_DESIGNER_SKILL } from './setsFacet';
-import { computeVfxFacet } from './vfxFacet';
-import { computePracticalFacet } from './practicalFacet';
+import { computeVfxFacet, realiseVfxQuality, vfxSupervisorSkill } from './vfxFacet';
+import { computePracticalFacet, realisePracticalQuality, NO_STUNT_TEAM_SKILL } from './practicalFacet';
 import { characterForRoleSlot } from './castRequirements';
 import {
   contingencyQuality,
@@ -198,25 +198,27 @@ export function computeSetsFacetQuality(choices: ProductionChoices, talent: Tale
  * actually went, not a pre-set pace dial (see
  * productionDials.ts:shootingQualityFromRatio).
  *
- * The Sets/Design term is the realised Sets facet (money + prep time +
- * Production Designer skill vs the script's design ambition, engine/setsFacet.ts)
- * PLUS its execution swing: `execution.setsSignal` (the set/design events the
- * shoot rolled) moves the delivered Sets quality, stretch-scaled and skill-tilted
- * (spec §3.3). Passing no execution profile (a forecast) leaves the Sets term at
- * its deterministic base. Contingency, style, and effects stay as they were
- * pending their own facets.
+ * The Sets/Design, VFX and Practical terms are realised facets (money + time +
+ * head skill vs ambition, engine/facetModel.ts) PLUS their execution swings:
+ * `execution.facetSignals` (the set/vfx/practical events the shoot rolled) move
+ * each delivered facet quality, stretch-scaled and skill-tilted (spec §3.3).
+ * Passing no execution profile (a forecast) leaves every facet at its
+ * deterministic base. Contingency and style stay as they were.
  */
-export function computeProductionScore(choices: ProductionChoices, genre: Genre, shootingRatio: number, talent: TalentAssignment[], script: Script, execution?: ExecutionProfile): number {
+export function computeProductionScore(choices: ProductionChoices, genre: Genre, shootingRatio: number, talent: TalentAssignment[], script: Script, execution?: ExecutionProfile, stuntTeamSkill: number = NO_STUNT_TEAM_SKILL): number {
   const profile = GENRE_PROFILES[genre];
   const contingency = contingencyQuality(choices.contingencyAmount);
   const style = shootingQualityFromRatio(shootingRatio);
-  // Sets, VFX and Practical Effects are now realised facets (money × time × head
-  // skill vs ambition, engine/facetModel.ts) rather than flat spend readouts.
-  // Sets additionally takes its endogenous execution swing from the shoot's
-  // set/design events (execution.setsSignal); VFX/Practical swings are deferred.
-  const sets = computeSetsFacetQuality(choices, talent, script, execution?.setsSignal ?? 0);
-  const practical = computePracticalFacet(choices.practicalEffectsAmount, genre, script, shootingRatio).quality;
-  const vfx = computeVfxFacet(choices.vfxAmount, talent, genre, script).quality;
+  // Sets, VFX and Practical Effects are realised facets (money × time × head skill
+  // vs ambition, engine/facetModel.ts), each PLUS its endogenous execution swing
+  // from the shoot's own events for that facet (execution.facetSignals): a set
+  // triumph/collapse, a VFX breakthrough/redo, a stunt landing/reshoot moves that
+  // facet, stretch-scaled and skill-tilted. A forecast (no execution) is the base.
+  const sets = computeSetsFacetQuality(choices, talent, script, execution?.facetSignals.sets ?? 0);
+  const vfxSkill = vfxSupervisorSkill(talent);
+  const vfx = realiseVfxQuality(computeVfxFacet(choices.vfxAmount, talent, genre, script), vfxSkill, execution?.facetSignals.vfx ?? 0);
+  const practicalFacet = computePracticalFacet(choices.practicalEffectsAmount, genre, script, shootingRatio, stuntTeamSkill);
+  const practical = realisePracticalQuality(practicalFacet, stuntTeamSkill, execution?.facetSignals.practical ?? 0);
 
   const effectsWeightTotal = profile.vfxImportance + profile.practicalEffectsImportance;
   const effectsScore =
@@ -410,13 +412,18 @@ export function computeQualityBreakdown(
   // multipliers 1), scoring exactly as before - so rivals (no recorded shoot)
   // are unaffected in Phase 1.
   executionProfile?: ExecutionProfile,
+  // The attached Stunt Team's effective skill (engine/stuntTeams.ts) - the
+  // Practical Effects facet's skill axis + swing tilt. Optional: absent (no team,
+  // rivals, older callers) falls back to NO_STUNT_TEAM_SKILL inside
+  // computeProductionScore, scoring exactly as before.
+  stuntTeamSkill: number = NO_STUNT_TEAM_SKILL,
 ): QualityBreakdown {
   const execution = executionProfile ?? computeExecutionProfile({ events, shootingRatio, talent, productionChoices });
 
   const scriptScore = computeScriptScore(script);
   const directionScore = computeDirectionScore(talent, script);
   const actingScore = computeActingScore(talent, script);
-  const productionScore = computeProductionScore(productionChoices, genre, shootingRatio, talent, script, execution);
+  const productionScore = computeProductionScore(productionChoices, genre, shootingRatio, talent, script, execution, stuntTeamSkill);
   // Footage coverage caps the edit: an under-shot film (below the recommended
   // schedule) can't be cut into a great one no matter how good the Editor is.
   // Coverage is read from execution.coverageRatio, not raw shootingRatio, so

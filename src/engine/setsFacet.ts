@@ -10,7 +10,7 @@ import { ENVIRONMENT_BUDGET_RANGE } from '../data/production';
 import { setQualityT } from './productionDials';
 import { logAmount } from './interpolate';
 import { clamp } from './random';
-import { computeFacet, executionSwing, facetConfidence, DEFAULT_FACET_TUNING, type FacetConfidence, type FacetResult } from './facetModel';
+import { computeFacet, realiseFacetQuality, facetOutlook, facetConfidence, DEFAULT_FACET_TUNING, type FacetConfidence, type FacetOutlook, type FacetResult } from './facetModel';
 
 // --- Tunables --------------------------------------------------------------
 
@@ -110,7 +110,7 @@ export function computeSetsFacet(input: SetsFacetInput): SetsFacet {
  * — a forecast, or a shoot with no set events, is just the base.
  */
 export function realiseSetsQuality(facet: SetsFacet, designerSkill: number, setsSignal = 0): number {
-  return clamp(Math.round(facet.quality + executionSwing(facet.stretch, designerSkill, setsSignal)), 0, 100);
+  return realiseFacetQuality(facet, designerSkill, setsSignal);
 }
 
 // --- The designer's confidence (the conversation's forecast) ---------------
@@ -130,13 +130,8 @@ export function designerConfidence(facet: SetsFacet): DesignerConfidence {
  * only meaningful when the spread isn't tight. Qualitative only; the UI turns it
  * into the designer's own words.
  */
-export interface SetsOutlook {
-  spread: 'tight' | 'moderate' | 'wide';
-  lean: 'promising' | 'even' | 'precarious';
-}
+export type SetsOutlook = FacetOutlook;
 
 export function setsOutlook(facet: SetsFacet, designerSkill: number): SetsOutlook {
-  const spread = facet.stretch < 0.12 ? 'tight' : facet.stretch < 0.35 ? 'moderate' : 'wide';
-  const lean = designerSkill >= 68 ? 'promising' : designerSkill <= 45 ? 'precarious' : 'even';
-  return { spread, lean };
+  return facetOutlook(facet, designerSkill);
 }

@@ -19,6 +19,7 @@ import type {
   RivalStudio,
   Screen,
   Studio,
+  StuntTeam,
   TalentProfession,
   ProductionRole,
   TargetAudience,
@@ -66,6 +67,14 @@ export interface GameState {
    * (there is no migration pass - see state/persistence.ts).
    */
   producerPool?: Person[];
+  /**
+   * The hireable Stunt Team roster (docs/DESIGN_REVIEW_production_redesign.md
+   * §5.2) - the head of the Practical Effects facet. A world-level pool of
+   * non-Person team/vendor entities, generated once at game start, same shape of
+   * reasoning as producerPool. Optional/absent on pre-Stunt-Team saves; read as
+   * `[]` (no migration - see state/persistence.ts).
+   */
+  stuntTeamPool?: StuntTeam[];
   // Development pipeline (docs/DESIGN_REVIEW_development_pipeline.md) -
   // world-level and shared, same reasoning as talentPool: an Opportunity
   // isn't anyone's property yet, so it can't live inside one Studio. Not
@@ -185,6 +194,7 @@ export function createDraftFromAsset(asset: Asset, talentTargetPriceByRole: Part
     script: asset.script,
     talent: [],
     attachedProducerIds: [],
+    stuntTeamId: null,
     talentTargetPriceByRole,
     castingCalls: [],
     environmentStrategy: null,
@@ -271,6 +281,9 @@ export type GameAction =
   | { type: 'FIRE_PRODUCER'; producerId: string }
   | { type: 'ATTACH_PRODUCER'; producerId: string }
   | { type: 'DETACH_PRODUCER'; producerId: string }
+  // Attach/clear the Stunt Team for the focused film (docs/DESIGN_REVIEW_production_redesign.md §5.2).
+  // One team per film; stuntTeamId: null clears it. Charged (per-film fee) only at RELEASE_FILM.
+  | { type: 'SET_STUNT_TEAM'; stuntTeamId: string | null }
   // Producer Workspace free navigation (PRODUCER_WORKSPACE_DESIGN.md) - the
   // only way GameState.projectWorkspaceSection changes. Unlike GO_TO_STEP,
   // charges no calendar time and never touches STAGE_DURATIONS: moving

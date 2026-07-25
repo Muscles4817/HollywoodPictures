@@ -1,9 +1,10 @@
-import type { Film, FilmDraft, Genre, Person, RivalProductionInProgress, RivalStudio } from '../types';
+import type { Film, FilmDraft, Genre, Person, RivalProductionInProgress, RivalStudio, StuntTeam } from '../types';
 import type { RandomFn } from './random';
 import { computeReleaseResults } from './releaseFilm';
 import { prepQualityEvents } from './production';
 import { rollPressTourMoments, pressTourReputationDeltas, windowOutcomeToMoments, type PressTourMomentsOutcome, type TalentReputationDelta } from './pressTourMoments';
 import { computeProducerEffects, producersByIds, totalAttachedPerFilmFees } from './producers';
+import { stuntTeamById, stuntTeamEffectiveSkill, stuntTeamFee } from './stuntTeams';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta } from './cost';
 import { computeCompetitiveCrowding, runningFilmAsUpcomingRelease, type UpcomingRelease } from './releaseCrowding';
 import { marketingRolloutMultiplier } from './marketing';
@@ -96,7 +97,7 @@ function windowPressTourOutcome(draft: FilmDraft): PressTourMomentsOutcome | nul
   return null;
 }
 
-function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand: number, studioGenreIdentity: number, known: UpcomingRelease[], producerPool: Person[], rng: RandomFn): { film: Film; costCharged: number; reputationDeltas: TalentReputationDelta[] } {
+function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand: number, studioGenreIdentity: number, known: UpcomingRelease[], producerPool: Person[], stuntTeamPool: StuntTeam[], rng: RandomFn): { film: Film; costCharged: number; reputationDeltas: TalentReputationDelta[] } {
   // The shoot's recorded events, PLUS the creative-prep wins/losses from
   // pre-production (a revelatory table read, casting friction) - those carry a
   // qualityDelta/impact and reach the finished film through the exact same
@@ -111,6 +112,13 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
   const attachedIds = draft.attachedProducerIds ?? [];
   const producerEffects = computeProducerEffects(producersByIds(producerPool, attachedIds), draft.genre!);
   const producerFees = totalAttachedPerFilmFees(producerPool, attachedIds);
+
+  // The attached Stunt Team (docs/DESIGN_REVIEW_production_redesign.md §5.2) - the
+  // Practical Effects facet's head. Its effective skill on this film is the
+  // facet's skill axis + swing tilt; its per-film fee is charged at release.
+  const stuntTeam = stuntTeamById(stuntTeamPool, draft.stuntTeamId);
+  const stuntTeamSkill = stuntTeam ? stuntTeamEffectiveSkill(stuntTeam, draft.genre!) : undefined;
+  const stuntFee = stuntTeamFee(stuntTeam);
 
   // Press-tour moment. Two paths, mutually exclusive per tour:
   //  - Interactive: if the moment already fired during the release window
@@ -150,6 +158,8 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
       competitiveCrowding,
       producerEffects,
       producerFees,
+      stuntTeamSkill,
+      stuntTeamFee: stuntFee,
       pressTourMoment: { buzzDelta: tourMoments.buzzDelta, storyBeat: tourMoments.storyBeat },
       marketingRolloutMultiplier: rolloutMultiplier,
     },
@@ -232,6 +242,10 @@ export function settleTheatricalMarket(
   // on-brand player release earns a marketing-efficiency lift. Defaulted empty so
   // pre-identity callers (diagnostics, older tests) keep their exact behaviour.
   playerGenreIdentity: Partial<Record<Genre, number>> = {},
+  // The world Stunt Team roster (engine/stuntTeams.ts) - resolved per film against
+  // draft.stuntTeamId. Trailing + defaulted so every existing caller/test keeps
+  // working (empty pool → no film has a team → the Practical facet uses its fallback).
+  stuntTeamPool: StuntTeam[] = [],
 ): TheatricalMarketSettlement {
   let filmsById: Map<string, Film> = new Map(runningFilms.map((f) => [f.id, f]));
   let scheduled = playerScheduled;
@@ -263,7 +277,7 @@ export function settleTheatricalMarket(
     if (scheduledDay <= rivalDay && scheduledDay <= filmDay) {
       const draft = nextScheduled!.draft;
       const known = knownCompetitorsExcluding(draft.id, scheduled, inProgress, filmsById);
-      const { film, costCharged, reputationDeltas } = resolvePlayerRelease(draft, nextScheduled!.releaseDay, playerStudioBrand, genreIdentityFor(playerGenreIdentity, draft.genre!), known, producerPool, rng);
+      const { film, costCharged, reputationDeltas } = resolvePlayerRelease(draft, nextScheduled!.releaseDay, playerStudioBrand, genreIdentityFor(playerGenreIdentity, draft.genre!), known, producerPool, stuntTeamPool, rng);
       filmsById.set(film.id, film);
       scheduled = scheduled.filter((s) => s.draft.id !== draft.id);
       playerCostCharged += costCharged;

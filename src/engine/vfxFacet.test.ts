@@ -3,7 +3,7 @@
 // VFX-specific wiring: the ambition source, VFX being money-heavier than a
 // generic facet, and the VFX Supervisor's skill mattering below saturation.
 import { describe, it, expect } from 'vitest';
-import { computeVfxAmbition, computeVfxFacet, NO_VFX_SUPERVISOR_SKILL } from './vfxFacet';
+import { computeVfxAmbition, computeVfxFacet, realiseVfxQuality, vfxOutlook, vfxSupervisorSkill, NO_VFX_SUPERVISOR_SKILL } from './vfxFacet';
 import { generateTalentCandidates } from './talentGenerator';
 import { withRng } from './random';
 import { VFX_RANGE } from '../data/production';
@@ -52,5 +52,33 @@ describe('the VFX Supervisor is the skill axis', () => {
     const none = computeVfxFacet(midSpend, [], g, sc).quality;
     const forcedFloor = computeVfxFacet(midSpend, [vfxSupervisor(2, NO_VFX_SUPERVISOR_SKILL)], g, sc).quality;
     expect(none).toBe(forcedFloor);
+    expect(vfxSupervisorSkill([])).toBe(NO_VFX_SUPERVISOR_SKILL);
+  });
+});
+
+describe('the VFX execution swing (spec §3.3)', () => {
+  const g: Genre = 'Sci-Fi';
+  const sc = script('FuturisticCity', 'Epic');
+  // An under-funded, unmanaged VFX build (high stretch) vs a fully-funded managed one.
+  const stretched = () => computeVfxFacet(VFX_RANGE.min, [], g, sc);
+  const funded = () => computeVfxFacet(VFX_RANGE.max, [vfxSupervisor(3, 90)], g, sc);
+
+  it('a stretched VFX build swings hard with the shoot; a funded one barely moves', () => {
+    const s = stretched();
+    const f = funded();
+    const stretchedSwing = Math.abs(realiseVfxQuality(s, 60, 10) - realiseVfxQuality(s, 60, -10));
+    const fundedSwing = Math.abs(realiseVfxQuality(f, 90, 10) - realiseVfxQuality(f, 90, -10));
+    expect(stretchedSwing).toBeGreaterThan(fundedSwing + 10);
+  });
+
+  it('a forecast (no VFX events) delivers the deterministic base', () => {
+    const s = stretched();
+    expect(realiseVfxQuality(s, 50, 0)).toBe(s.quality);
+  });
+
+  it('vfxOutlook reads spread from stretch and lean from supervisor skill', () => {
+    expect(vfxOutlook(funded(), 90).spread).toBe('tight');
+    expect(vfxOutlook(stretched(), 90).lean).toBe('promising');
+    expect(vfxOutlook(stretched(), 30).lean).toBe('precarious');
   });
 });

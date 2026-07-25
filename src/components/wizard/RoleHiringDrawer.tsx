@@ -180,7 +180,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   // here): a candidate reads "over budget" if hiring them would put committed
   // spend past cash. A single-slot role currently filled frees that salary on
   // replacement; already-hired people are always affordable.
-  const committedSpend = computeCommittedSpend(draft, state.producerPool ?? []);
+  const committedSpend = computeCommittedSpend(draft, state.producerPool ?? [], state.stuntTeamPool ?? []);
   const slotFreedSalary = capacity.max === 1 && hired[0] ? getTypicalSalaryForRole(hired[0], role) : 0;
   const remainingBudget = state.studio.cash - committedSpend + slotFreedSalary;
   const isAffordable = (person: Person) =>

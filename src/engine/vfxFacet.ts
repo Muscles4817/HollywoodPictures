@@ -19,7 +19,7 @@ import { vfxT } from './productionDials';
 import { findAssignedPerson } from '../data/helpers';
 import { getCrewCareer } from './person';
 import { clamp } from './random';
-import { computeFacet, DEFAULT_FACET_TUNING, type FacetResult, type FacetTuning } from './facetModel';
+import { computeFacet, realiseFacetQuality, facetOutlook, DEFAULT_FACET_TUNING, type FacetOutlook, type FacetResult, type FacetTuning } from './facetModel';
 
 /** Skill of the VFX work with NO VFX Supervisor — an unmanaged, outsourced pipeline: rougher than a managed one. */
 export const NO_VFX_SUPERVISOR_SKILL = 35;
@@ -42,16 +42,35 @@ export function computeVfxAmbition(genre: Genre, script: Script): number {
   return Math.round(raw * 100);
 }
 
-export function computeVfxFacet(vfxAmount: number, talent: TalentAssignment[], genre: Genre, script: Script): FacetResult {
+/** The VFX Supervisor's skill (the facet's skill axis + swing tilt), or the unmanaged-pipeline fallback when none is hired. */
+export function vfxSupervisorSkill(talent: TalentAssignment[]): number {
   const supervisor = findAssignedPerson(talent, 'VFX Supervisor');
-  const skill = (supervisor && getCrewCareer(supervisor, 'VFX Supervisor')?.skill) ?? NO_VFX_SUPERVISOR_SKILL;
+  return (supervisor && getCrewCareer(supervisor, 'VFX Supervisor')?.skill) ?? NO_VFX_SUPERVISOR_SKILL;
+}
+
+export function computeVfxFacet(vfxAmount: number, talent: TalentAssignment[], genre: Genre, script: Script): FacetResult {
   return computeFacet(
     {
       ambition: computeVfxAmbition(genre, script),
       moneyT: vfxT(vfxAmount),
       timeRatio: 1, // post-production time not yet a lever (see header)
-      skill,
+      skill: vfxSupervisorSkill(talent),
     },
     VFX_TUNING,
   );
+}
+
+/**
+ * The delivered VFX quality once the shoot's VFX events are in: the deterministic
+ * base plus the execution swing (engine/facetModel.ts). `vfxSignal` = the net VFX
+ * event points from the shoot (engine/productionExecution.ts:facetSignals.vfx);
+ * defaults to 0 (a forecast, or a shoot with no VFX events) → base only.
+ */
+export function realiseVfxQuality(facet: FacetResult, supervisorSkill: number, vfxSignal = 0): number {
+  return realiseFacetQuality(facet, supervisorSkill, vfxSignal);
+}
+
+/** The VFX Supervisor's boom-or-bust read for the planning conversation (spec §3.3). */
+export function vfxOutlook(facet: FacetResult, supervisorSkill: number): FacetOutlook {
+  return facetOutlook(facet, supervisorSkill);
 }

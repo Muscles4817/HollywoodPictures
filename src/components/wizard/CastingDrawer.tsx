@@ -252,7 +252,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   // draft's committed spend past the studio's cash. Recasting frees the current
   // occupant's salary, so add that back into what's available before comparing.
   const directorName = director?.identity.name;
-  const committedSpend = computeCommittedSpend(draft, state.producerPool ?? []);
+  const committedSpend = computeCommittedSpend(draft, state.producerPool ?? [], state.stuntTeamPool ?? []);
   const slotFreedSalary = castHere ? getTypicalSalaryForRole(castHere, role) : 0;
   const remainingBudget = state.studio.cash - committedSpend + slotFreedSalary;
   const isAffordable = (person: Person) => getTypicalSalaryForRole(person, role) <= remainingBudget;

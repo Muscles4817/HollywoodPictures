@@ -516,3 +516,63 @@ production-quality conversation UX. Closes the two big deferrals from §13/§14.
   together / fell short" line waits on the Production department being reported
   by facet.
 - No schema change → **no save bump**.
+
+## 16. Step 6 — roll the full facet treatment out to all craft facets
+
+Status: **built**. Rollout step 6: generalise step 5's Sets swing across the
+remaining craft facets and build out the Practical facet's real head. All three
+Production-cluster facets (Sets, VFX, Practical) now run the full model — money ×
+time × head skill vs ambition, plus the endogenous execution swing from their own
+re-routed event slice — and each has its planning conversation card.
+
+**What shipped**
+- **Generalised swing machinery** (`engine/facetModel.ts`): `realiseFacetQuality`
+  (base + swing) and `facetOutlook` (spread from stretch, lean from skill) are now
+  shared; Sets, VFX and Practical all delegate to them. One implementation, three
+  facets.
+- **VFX & Practical re-routes** (`engine/productionExecution.ts`): carved `vfx`
+  and `practical` impacts alongside `sets`, exposed as a per-facet `facetSignals`
+  map (replacing the lone `setsSignal`). Each craft facet's own events — VFX
+  renders/greenscreen/scope-creep; stunts/rigs/pyro/practical-creatures/setpieces
+  — re-route to that facet's swing instead of `postExecution`. The
+  "design-ambition" spaceship event correctly moved set→vfx (it was always VFX).
+- **The Stunt Team entity** (`engine/stuntTeams.ts`, `data/stuntTeams.ts`) — the
+  Practical facet's real head (spec §5.2), and the first non-Person entity
+  attached to a draft. A world-pool of team/vendors with a skill + 1–2 specialties
+  + a per-film fee; `stuntTeamEffectiveSkill` bumps skill when a specialty fits the
+  genre, so hiring the right team for the film pays off. It is the Practical
+  facet's skill axis + swing tilt. Attached per film (`FilmDraft.stuntTeamId`, the
+  `SET_STUNT_TEAM` action), fee charged at release like a producer's, shown in the
+  cost forecast. Save bumped to **v62**.
+- **Conversation cards for VFX and Stunts/Practical** in Production Planning, each
+  with the head's confidence + boom-or-bust outlook; the Stunts card is also the
+  Stunt Team hiring surface (specialty-fit flagged; skill shown qualitatively).
+
+**Decisions that mattered**
+- **Only genre-specific craft events re-route; generic risk stays put.** The broad
+  `risk-safety-*` / `risk-technical-*` incidents are *not* swept into a facet —
+  they remain in general execution. Re-routing them wholesale would over-attribute
+  a generic incident to one facet and would have forced a calibration pass; the
+  clearly-attributable genre events (a stunt landing, a VFX redo) are the honest
+  swing signal. This is why the full suite stayed green with no drift.
+- **The Stunt Team is a standalone entity, not a crew Person** — the design (and
+  the producer-roster precedent) both call for a team/vendor. Its whole effect is
+  being the Practical facet's skill axis, so it needs none of the producer
+  system's separate release-effects machinery — a much smaller build.
+- **VFX time is still neutral** (post-production render time isn't a player lever
+  yet); the VFX swing runs on stretch + supervisor skill + VFX events. When
+  post-production gains time levers, VFX's `timeRatio` becomes real — the same
+  deferral noted in §14.
+
+**Deferred**
+- **Post-production facets (Score, Edit) and Cinematography** — the money-fork
+  facets still need their money source / post-score restructure sorted before they
+  can join the model (unchanged from §14).
+- **Stunt Team depth** — specialties are a flat skill bump today; richer effects
+  (specialty-specific event odds, a studio-level roster/relationship) are future
+  work.
+- **A per-facet Production breakdown on the Results screen** — craft outcomes read
+  through the shared execution summary (now labelled per facet: "the sets and
+  design", "the visual effects", "the stunts and practical effects"); a dedicated
+  per-facet results line still waits on the Production department being reported by
+  facet (unchanged from §15).
