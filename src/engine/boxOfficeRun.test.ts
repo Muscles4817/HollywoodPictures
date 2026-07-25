@@ -212,7 +212,7 @@ describe('settleBoxOfficeForAllFilms - distributor P&A recoup', () => {
     // sums the per-week rounded credits, so the two can differ by a single unit
     // of rounding - allow that ±1 rather than asserting exact equality.
     const grossCredit = baseCredit; // domestic-only, so the two match up to rounding
-    expect(Math.abs(withRecoup.filmsReleased[0].results.studioRevenue - (grossCredit - recoup))).toBeLessThanOrEqual(1);
+    expect(Math.abs((withRecoup.filmsReleased[0].results.studioRevenue ?? 0) - (grossCredit - recoup))).toBeLessThanOrEqual(1);
   });
 
   it('recoup off the top settles identically in one big jump as week by week (reconstructable)', () => {
