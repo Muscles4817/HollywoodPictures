@@ -68,6 +68,7 @@ import {
 } from '../engine/distribution';
 import { distributorChannelAllocation } from '../engine/marketing';
 import { applyStatChange } from '../engine/reputation';
+import { applyGenreIdentityDeltas } from '../engine/studioIdentity';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 import { currentScreenFor } from './selectors';
 import {
@@ -419,6 +420,7 @@ function runCalendarSettlement(
     state.studio.brand,
     rng,
     state.producerPool ?? [],
+    state.studio.genreIdentity ?? {},
   );
 
   const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng, state.talentPool.Writer);
@@ -435,6 +437,7 @@ function runCalendarSettlement(
     cash: opportunityWins.studio.cash + marketSettlement.playerCashCredit - marketSettlement.playerCostCharged,
     brand: applyStatChange(opportunityWins.studio.brand, marketSettlement.playerBrandDelta),
     prestige: applyStatChange(opportunityWins.studio.prestige, marketSettlement.playerPrestigeDelta),
+    genreIdentity: applyGenreIdentityDeltas(opportunityWins.studio.genreIdentity, marketSettlement.playerGenreIdentityDeltas),
     assets: [...rewrittenAssets, ...commissionSettlement.delivered],
     pendingCommissions: commissionSettlement.pendingCommissions,
   };
@@ -447,6 +450,7 @@ function runCalendarSettlement(
       cash: rival.cash + delta.cashCredit,
       brand: applyStatChange(rival.brand, delta.brandDelta),
       prestige: applyStatChange(rival.prestige, delta.prestigeDelta),
+      genreIdentity: applyGenreIdentityDeltas(rival.genreIdentity, delta.genreIdentityDeltas),
       lifetimeRevenue: rival.lifetimeRevenue + delta.cashCredit,
     };
   });

@@ -145,6 +145,32 @@
   background: var(--metric-accent, #6d8cff);
 }
 
+.dashboard-standing {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--dashboard-border);
+  border-left: 3px solid #6d8cff;
+  border-radius: 11px;
+  background: var(--dashboard-panel);
+}
+
+.dashboard-standing-headline {
+  color: var(--dashboard-text-soft);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.dashboard-standing-body {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text, #e6e9f0);
+}
+
 .dashboard-metric-money { --metric-accent: #2bd981; }
 .dashboard-metric-brand { --metric-accent: #5d8cff; }
 .dashboard-metric-prestige { --metric-accent: #b47cff; }

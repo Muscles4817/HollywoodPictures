@@ -6,6 +6,7 @@ import { Money } from './common/Money';
 import { FilmDetailModal } from './common/FilmDetailModal';
 import { asFilm, asRivalProduction } from '../engine/project';
 import { rivalReleaseIsAnnounced } from '../engine/rivalStudios';
+import { synthesizeStudioStanding, type StandingFilm } from '../engine/studioStanding';
 import type { Film } from '../types';
 
 /**
@@ -45,13 +46,27 @@ export function RivalStudioPage() {
 
   const totalGross = films.reduce((sum, f) => sum + f.boxOfficeRun.cumulativeGross, 0);
 
+  // The same industry-standing read the player gets on their own studio page
+  // (engine/studioStanding.ts) - where this rival sits on Brand, Prestige and
+  // its earned genre identity, plus its own biggest hit and costliest misfire.
+  const standingFilms: StandingFilm[] = films.flatMap((film) =>
+    film.results.profit !== null
+      ? [{ title: film.title, genre: film.genre, profit: film.results.profit, totalCost: film.results.totalCost, audienceScore: film.results.audienceScore }]
+      : [],
+  );
+  const standing = synthesizeStudioStanding({ brand: rival.brand, prestige: rival.prestige, genreIdentity: rival.genreIdentity, films: standingFilms });
+
   return (
     <div className="stack">
       {selectedFilm && <FilmDetailModal film={selectedFilm} onClose={() => setSelectedFilm(null)} />}
 
       <div>
         <h1>{rival.name}</h1>
-        <p><span className="badge">{rival.tier}</span></p>
+        <p><span className="badge">{rival.tier}</span> <span className="badge">{standing.headline}</span></p>
+      </div>
+
+      <div className="card">
+        <p style={{ margin: 0, lineHeight: 1.5 }}>{standing.body}</p>
       </div>
 
       <div className="row">

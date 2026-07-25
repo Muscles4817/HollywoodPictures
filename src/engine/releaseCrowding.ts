@@ -121,16 +121,29 @@ const PRODUCTION_BUDGET_STRENGTH_RANGE: Range = { min: 100_000, max: 200_000_000
 // would silently bias crowding toward whichever side's number happens to
 // run hotter.
 
-/** A not-yet-released rival production's rough competitive strength - engine/rivalStudios.ts has no simulated box office for it yet to rank by, so this stands in for one. */
-export function computeRivalReleaseStrength(marketingSpend: number, scale: ProductionScale): number {
-  return Math.max(0, Math.min(1, 0.7 * marketingStrengthFraction(marketingSpend) + 0.3 * SCALE_STRENGTH[scale]));
+// The competitor-territory effect of studio identity (engine/studioIdentity.ts):
+// a studio releasing in a genre it's known for reads as a stronger presence on
+// the calendar, so the relative-strength matchup (matchupWeight above) steers
+// rivals away from its home turf - the "majors defend their territories, everyone
+// else survives in the quiet pockets around them" behaviour. Boost-only and
+// modest, on the same 0-1 scale as the marketing/scale terms; the outer clamp
+// keeps a maxed-identity release from ever exceeding full strength.
+const IDENTITY_STRENGTH_BOOST = 0.2;
+
+function identityStrengthLift(genreIdentity: number): number {
+  return IDENTITY_STRENGTH_BOOST * (Math.max(0, Math.min(100, genreIdentity)) / 100);
 }
 
-/** A player's own scheduled draft's rough competitive strength - the same shape as computeRivalReleaseStrength, substituting production budget (players have no ProductionScale) for scale. */
-export function computePlayerReleaseStrength(marketingSpend: number, productionBudgetCost: number): number {
+/** A not-yet-released rival production's rough competitive strength - engine/rivalStudios.ts has no simulated box office for it yet to rank by, so this stands in for one. `genreIdentity` (0-100, the releasing studio's identity in this genre) lifts an on-brand release's presence; 0 (default) is the pre-identity behaviour. */
+export function computeRivalReleaseStrength(marketingSpend: number, scale: ProductionScale, genreIdentity = 0): number {
+  return Math.max(0, Math.min(1, 0.7 * marketingStrengthFraction(marketingSpend) + 0.3 * SCALE_STRENGTH[scale] + identityStrengthLift(genreIdentity)));
+}
+
+/** A player's own scheduled draft's rough competitive strength - the same shape as computeRivalReleaseStrength, substituting production budget (players have no ProductionScale) for scale. `genreIdentity` lifts an on-brand release the same way. */
+export function computePlayerReleaseStrength(marketingSpend: number, productionBudgetCost: number, genreIdentity = 0): number {
   return Math.max(
     0,
-    Math.min(1, 0.7 * marketingStrengthFraction(marketingSpend) + 0.3 * logT(productionBudgetCost, PRODUCTION_BUDGET_STRENGTH_RANGE)),
+    Math.min(1, 0.7 * marketingStrengthFraction(marketingSpend) + 0.3 * logT(productionBudgetCost, PRODUCTION_BUDGET_STRENGTH_RANGE) + identityStrengthLift(genreIdentity)),
   );
 }
 

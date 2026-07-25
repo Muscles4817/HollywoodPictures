@@ -140,7 +140,7 @@ describe('rivals inherit the personality wiring (parity with the player)', () =>
 
 describe('resolveRivalProduction - the shared finished-film pipeline', () => {
   it('(1) a rival film runs the same execution pipeline: its summary matches computeExecutionProfile on its stored events', () => {
-    const film = resolveRivalProduction(productionFor(), 'Test Studio', 50, [], createRng(11));
+    const film = resolveRivalProduction(productionFor(), 'Test Studio', 50, 0, [], createRng(11));
     // The rival now carries a real recorded shoot and a derived execution outcome.
     expect(film.events.length).toBeGreaterThan(0);
     expect(film.results.productionExecution).toBeDefined();
@@ -155,7 +155,7 @@ describe('resolveRivalProduction - the shared finished-film pipeline', () => {
   });
 
   it('(7) the execution summary is generated correctly and its causes come from real events', () => {
-    const film = resolveRivalProduction(productionFor(5), 'Test Studio', 50, [], createRng(12));
+    const film = resolveRivalProduction(productionFor(5), 'Test Studio', 50, 0, [], createRng(12));
     const outcome = film.results.productionExecution!;
     for (const cause of outcome.causes) {
       expect(film.events.some((e) => e.description === cause.text)).toBe(true);
@@ -164,14 +164,14 @@ describe('resolveRivalProduction - the shared finished-film pipeline', () => {
   });
 
   it('(2) two rival films with identical inputs + seed are identical', () => {
-    const a = resolveRivalProduction(productionFor(9), 'Test Studio', 50, [], createRng(21));
-    const b = resolveRivalProduction(productionFor(9), 'Test Studio', 50, [], createRng(21));
+    const a = resolveRivalProduction(productionFor(9), 'Test Studio', 50, 0, [], createRng(21));
+    const b = resolveRivalProduction(productionFor(9), 'Test Studio', 50, 0, [], createRng(21));
     expect(a.results.qualityScore).toBe(b.results.qualityScore);
     expect(a.events).toEqual(b.events);
   });
 
   it('(8) the rival execution history + outcome survive a JSON round-trip (current schema)', () => {
-    const film = resolveRivalProduction(productionFor(3), 'Test Studio', 50, [], createRng(31));
+    const film = resolveRivalProduction(productionFor(3), 'Test Studio', 50, 0, [], createRng(31));
     const roundTripped = JSON.parse(JSON.stringify({ events: film.events, productionExecution: film.results.productionExecution }));
     expect(roundTripped.events).toEqual(film.events);
     expect(roundTripped.productionExecution).toEqual(film.results.productionExecution);
