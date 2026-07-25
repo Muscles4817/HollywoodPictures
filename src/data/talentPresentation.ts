@@ -70,4 +70,10 @@ export const TALENT_PRESENTATION: Record<ProductionRole, TalentPresentationProfi
       "Curates who shows up for your open roles - not just more applicants, but better-suited ones, and an occasional exceptional unknown a wider net alone wouldn't have surfaced. Optional - Open Casting still works without one, just with more variance.",
     hook: 'Saves time finding the right people for your roles.',
   },
+  'Production Designer': {
+    category: 'crew',
+    blurb:
+      "Runs the look of the physical world - sets, locations, dressing, props. A skilled one stretches your design budget and prep time much further; a great designer on a modest build can outshine a lavish one that was rushed or badly led. Optional, but they shape how the film reads on screen.",
+    hook: 'Turns budget and prep time into how the film actually looks.',
+  },
 };

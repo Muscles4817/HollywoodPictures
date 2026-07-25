@@ -26,7 +26,7 @@ const superbad = byId('test-script-superbad'); // Comedy
 const acquiredHeat: Asset = { ...byId('test-script-heat'), id: 'acquired-heat' }; // Action
 
 const EMPTY_TALENT_POOL = {
-  Director: [], Actor: [], Writer: [], Cinematographer: [], Composer: [], Editor: [], 'VFX Supervisor': [], 'Casting Director': [],
+  Director: [], Actor: [], Writer: [], Cinematographer: [], Composer: [], Editor: [], 'VFX Supervisor': [], 'Casting Director': [], 'Production Designer': [],
 };
 
 /** A minimal state exposing the given owned assets - AssetLibrary reads assets/projects/focus plus talentPool/totalDays/cash (for the Rewrite/Polish panel). */

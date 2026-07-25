@@ -20,7 +20,7 @@ let pid = 0;
 function person(opts: { gender?: Gender; crewRole?: CrewRole; skill?: number } = {}): Person {
   const careers: Record<string, unknown> = {};
   if (opts.crewRole) {
-    const key = { Writer: 'writer', Cinematographer: 'cinematographer', Composer: 'composer', Editor: 'editor', 'VFX Supervisor': 'vfxSupervisor', 'Casting Director': 'castingDirector' }[opts.crewRole];
+    const key = { Writer: 'writer', Cinematographer: 'cinematographer', Composer: 'composer', Editor: 'editor', 'VFX Supervisor': 'vfxSupervisor', 'Casting Director': 'castingDirector', 'Production Designer': 'productionDesigner' }[opts.crewRole];
     careers[key] = { role: opts.crewRole, skill: opts.skill ?? 50 };
   }
   return {

@@ -317,3 +317,63 @@ share the model but read separately on the Results screen), or merge the reporti
    only, light UI).
 5. **Full version on one facet** — production-quality UX for Sets.
 6. **Roll out to all facets.**
+
+---
+
+## 13. Prototype 1 — Sets facet, end-to-end (deltas from the spec above)
+
+Status: **built** (`engine/setsFacet.ts` + wiring). This section records what the
+first end-to-end slice actually did, and where reality forced a change from §1–§12
+(rollout step 3). The core model held; the deltas are calibration and scope.
+
+**What shipped**
+- New **Production Designer** crew role — **optional** (like VFX Supervisor), with
+  a `NO_DESIGNER_SKILL = 40` fallback when unhired. (Delta: the spec leaned toward
+  heads being real/mandatory hires; for a safe first slice it's optional. Making
+  it mandatory is a later call — it changes the greenlight gate and budget split
+  for every film.)
+- `engine/setsFacet.ts` — the money × time × skill vs ambition model
+  (`computeSetsAmbition`, `computeSetsFacet`, `designerAsk`, `designerConfidence`).
+  Replaces the flat `setQualityScore` term in `computeProductionScore`
+  (`scoring.ts`), keeping the 0.20 production weight.
+- **Money axis = the existing `setQualityAmount`** (the Environment Budget dial /
+  Environment Ambition slider). We did *not* add a separate money dial — the
+  Sets money is already per-facet, so "the Shooting Budget dissolves into
+  per-facet asks" is realised here by reusing that dial. (Full dissolution of the
+  contingency-vs-shooting-budget split, spec §8, is still pending — this slice
+  didn't touch contingency.)
+- **Time axis = pre-production days**, granted via a new `designPrepDays`
+  (ProductionChoices), which drives `preProduction.recommendedDays`
+  (`GREENLIGHT_PROJECT` now uses `max(scope-estimate, designPrepDays)`), with a
+  new **pre-production daily burn** (`computeDailyPrepBurn`, scaled by film scale)
+  so time genuinely costs money. (Delta from spec §6.1: phase length "emerges from
+  the sum of head asks" — with only one timed head so far, it's `max(base, ask)`.
+  The sum-of-heads model arrives when more facets land.)
+- **The conversation UX** (spec §7) — a "Production Design" card in Production
+  Planning: the designer names their ask (money + prep days), a Design Prep Time
+  slider is the time lever, and the designer's **confidence** ("Confident /
+  Workable / A stretch / Set up to fail") is the live, in-character forecast.
+
+**Model deltas that mattered**
+- **Money's weight must SCALE WITH AMBITION** (`MONEY_WEIGHT_LOW→HIGH`). This was
+  the key finding: with a fixed money/time weighting, a moderate no-designer film
+  scored ~95 (vs the old ~58) AND cheap+skilled could never fully match lavish.
+  Making money's weight rise with ambition (spec §3.2's principle, now concrete)
+  fixed both: at low ambition time+skill fully substitute (full match); at high
+  ambition money dominates (floors bite). This is now the load-bearing mechanism.
+- **Calibrated the neutral case** back to ~the old set-quality baseline
+  (`DEMAND_BASE/SLOPE`, ceiling/floor bands) so the change isn't a global quality
+  inflation — a catastrophic-shoot calibration test still holds.
+- **Confidence is read off `stretch`, not `realisation`** (4 stretch bands), since
+  the recalibration lands a "comfortable" build a touch under realisation 1.0.
+
+**Deferred (write down so it isn't lost)**
+- **Visual on-set event re-route into the Sets facet** (spec §10, §12 step 2) — the
+  endogenous-variance layer. The deterministic money/time/skill model already
+  produces the full 2×2 (skill+time are the "well/poorly realised" axis at equal
+  spend); the event-driven *stretch swing* on top is not yet wired. Next.
+- **Contingency-vs-Shooting-Budget split** (spec §8, option B) — untouched by this
+  slice; still pending.
+- **Resolve-delay prep days** advance the calendar but don't burn overhead or
+  advance `daysElapsed` (a minor accounting simplification).
+- Save bumped to **v59** (new career field + `designPrepDays`).
