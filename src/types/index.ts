@@ -2033,6 +2033,15 @@ export interface FilmDraft {
   attachedProducerIds?: PersonId[];
   /** The price the player is currently targeting for each casting slot - filters GameState.talentPool (once mapped to the underlying TalentProfession) down to who's shown. Keyed by ProductionRole, not TalentProfession, since Lead Actor and Supporting Actor need independent target prices even though both hire from the same Actor pool. */
   talentTargetPriceByRole: Partial<Record<ProductionRole, number>>;
+  /**
+   * The master Target Cast & Crew Budget the player set on the Hire Talent dial,
+   * or absent if they never touched it. When set, it drives the per-role targets
+   * above: SET_TALENT_BUDGET_SPLIT re-splits it by importance and, on every hire,
+   * TOGGLE_TALENT_FOR_ROLE re-splits the remainder net of what's been spent
+   * (engine/castBudget.ts), so opening the next role reflects the pot that's left.
+   * Absent leaves per-role dials fully manual. Optional/absent on older drafts.
+   */
+  castCrewBudget?: number;
   /** Casting Redesign, Phase B - every Open Casting call in progress for this draft's Lead/Supporting characters, at most one per Character. Empty until the player opens one; ticks weekly via engine/castingCalls.ts:tickCastingCalls. */
   castingCalls: CastingCall[];
   // The player's own Strategy/Ambition choices from the redesigned Plan

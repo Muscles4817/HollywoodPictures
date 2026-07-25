@@ -189,7 +189,11 @@ function CharacterCastingSection({
 export function HireTalent() {
   const { state, dispatch } = useStudio();
   const draft = deriveFocusedDraft(state)!;
-  const [masterBudget, setMasterBudget] = useState(DEFAULT_MASTER_BUDGET);
+  // The master budget lives on the draft (FilmDraft.castCrewBudget) so it
+  // persists and every subsequent hire can re-split the remainder against it
+  // (engine/castBudget.ts); the slider just reflects it, defaulting until the
+  // player first moves it.
+  const masterBudget = draft.castCrewBudget ?? DEFAULT_MASTER_BUDGET;
   const [openRole, setOpenRole] = useState<ProductionRole | null>(null);
   // Casting Redesign, Phase B - separate from `openRole` above (which still
   // drives Director/crew's unchanged RoleHiringDrawer flow) since Open
@@ -212,7 +216,6 @@ export function HireTalent() {
   const canAfford = state.studio.cash >= committedSpend;
 
   function handleMasterBudgetChange(value: number) {
-    setMasterBudget(value);
     dispatch({ type: 'SET_TALENT_BUDGET_SPLIT', totalBudget: value });
   }
 
@@ -325,7 +328,7 @@ export function HireTalent() {
         value={masterBudget}
         onChange={handleMasterBudgetChange}
         formatValue={formatMoney}
-        description="Splits evenly per person you need to cast, not per role - a script needing 3 leads gets 3 times the budget share of a 1-hire role. Open any role below to tilt its own price up or down afterward."
+        description="Splits across everyone still to cast, weighted by how much each role carries the film - your lead and director claim the biggest shares, crew the smallest. Each hire's own fee comes off the top as you go, so casting one role above its target leaves less for the rest and retargets them lower. Open any role to fine-tune its target afterward."
         lowLabel="Shoestring"
         highLabel="Big Budget"
       />
