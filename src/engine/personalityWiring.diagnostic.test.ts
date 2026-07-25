@@ -14,6 +14,7 @@ import { buildReadyDraft } from '../state/testFixtures';
 import { computeStaticProductionRisk, computeRecommendedShootDays, computeShootEscalation, rollDayEvent, resolveEventChoice } from './production';
 import { computeActingScore, computeQualityBreakdown } from './scoring';
 import { computeExecutionProfile, computeExecutionResilience, neutralExecutionProfile } from './productionExecution';
+import { resolveRivalExecution } from './rivalExecution';
 import { computeCreativeTension } from './creativeTension';
 import { deriveToneFromActingStyle } from './compatibility';
 import { getActorCareer } from './person';
@@ -162,6 +163,38 @@ describe.skipIf(!enabled)('Personality wiring diagnostic', () => {
     actingCohort('rigid (adapt 5)', 5);
     actingCohort('neutral (adapt 50)', 50);
     actingCohort('adaptable (adapt 95)', 95);
+
+    // --- D. PLAYER vs RIVAL parity ------------------------------------------
+    // The rival resolver synthesizes its history from the SAME staticRisk +
+    // resilience the player's lived shoot uses, so the morale amplifiers must
+    // move a rival's execution the same direction they move a player's. Report
+    // both paths for a calm vs a volatile+clashing cast, on the same seeds.
+    lines.push(`\n=== D. PLAYER vs RIVAL parity (exec effect vs neutral), reliability=60 ===`);
+    lines.push(`  ${'cohort'.padEnd(22)} ${'who'.padEnd(7)} ${'exec'.padStart(6)} ${'events'.padStart(6)}`);
+    const rivalExec = (over: Partial<PersonPersonality>): number => {
+      let total = 0; let n = 0;
+      for (let i = 0; i < SEEDS; i++) {
+        const s = withRng(7000 + i, (rng): number | null => {
+          let d = excellentDraft(rng);
+          if (!d.script || !d.genre || !d.productionChoices) return null;
+          const baseChoices = d.productionChoices;
+          d = applyCast(d, over, 60);
+          const { events, shootingRatio } = resolveRivalExecution({ talent: d.talent, script: d.script!, productionChoices: baseChoices, genre: d.genre! }, rng);
+          const withProfile = computeExecutionProfile({ events, shootingRatio, talent: d.talent, productionChoices: baseChoices });
+          const q = (p: ReturnType<typeof computeExecutionProfile>) => computeQualityBreakdown(d.script!, d.talent, d.genre!, baseChoices, d.postProductionChoices!, events, shootingRatio, 0, p).qualityScore;
+          return q(withProfile) - q(neutralExecutionProfile(shootingRatio));
+        }).result;
+        if (s !== null) { total += s; n += 1; }
+      }
+      return n ? total / n : 0;
+    };
+    const parityCohort = (label: string, over: Partial<PersonPersonality>) => {
+      const player = run(over, 60, 1_000_000);
+      lines.push(`  ${label.padEnd(22)} ${'player'.padEnd(7)} ${mean(player.map((x) => x.delta)).toFixed(2).padStart(6)} ${mean(player.map((x) => x.events)).toFixed(1).padStart(6)}`);
+      lines.push(`  ${''.padEnd(22)} ${'rival'.padEnd(7)} ${rivalExec(over).toFixed(2).padStart(6)}`);
+    };
+    parityCohort('calm+agreeable', { temperament: 90, ego: 40, adaptability: 75 });
+    parityCohort('volatile+clashing', { temperament: 15, ego: 90, adaptability: 10 });
 
     // eslint-disable-next-line no-console
     console.log(lines.join('\n'));
