@@ -3,6 +3,7 @@ import type {
   AwardsState,
   BidNotification,
   Collaboration,
+  TalentPairing,
   Distribution,
   EffectsMethodKey,
   EnvironmentMethodKey,
@@ -85,6 +86,16 @@ export interface GameState {
    * migration pass - see state/persistence.ts).
    */
   collaborations?: Collaboration[];
+  /**
+   * Persistent talent<->talent pairing history (types/index.ts:TalentPairing) -
+   * the same flat, world-level shape as `collaborations`, but keyed by a pair of
+   * people rather than a studio and a person. Appended to when a film releases
+   * (engine/pairHistory.ts:recordPlayerFilmPairings, from the settlement); read
+   * as a chemistry modulation by the on-set event selection
+   * (engine/pairHistory.ts:computeEffectivePairChemistry). Optional/absent on
+   * saves predating the feature; read defensively as `[]` (no migration pass).
+   */
+  talentPairings?: TalentPairing[];
   /** Which rival studio the 'rival-studio' screen is currently showing, if any - identified by name, same as Film.releasedBy (see types/index.ts:Film). */
   viewingRivalStudioName: string | null;
   // Which `projects` entry the 'production' screen is showing, if it's not

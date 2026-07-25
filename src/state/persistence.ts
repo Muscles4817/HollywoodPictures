@@ -342,7 +342,13 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   []), so an un-bumped save would technically still load; the bump is the
 //   honest "the stored shape changed" signal, same convention as every entry
 //   above. No migration code.
-const SAVE_KEY = 'hollywood-pictures-save-v59';
+// v59 -> v60 (Talent Chemistry Phase 2, docs/DESIGN_REVIEW_talent_chemistry.md):
+//   GameState gained an optional talentPairings (types/index.ts:TalentPairing) -
+//   a flat, world-level talent<->talent pairing history, recorded like
+//   collaborations when a film releases and read as a chemistry modulation by the
+//   on-set event selection (engine/pairHistory.ts). Additive/optional (read
+//   defensively as []). No migration code.
+const SAVE_KEY = 'hollywood-pictures-save-v60';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
@@ -376,6 +382,7 @@ export function loadState(): GameState {
       opportunities: [],
       nextOpportunityCheckDay: 1,
       collaborations: [],
+      talentPairings: [],
       awards: { history: [], season: null, nextSeasonDay: firstDayOfYear(2) },
       bidNotifications: [],
       viewingRivalStudioName: null,

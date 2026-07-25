@@ -188,12 +188,21 @@ add pairing surfaces, not rework.
   risk model, so it's deliberately out of this slice. Tests:
   `creativeTension.test.ts`, `production.chemistry.test.ts`.
 
-- **Phase 2 — Pairing memory (new persistent state, save bump).** Add the
-  talent-pair history log and the record-on-settlement plumbing (see Open
-  questions on reuse vs. parallel). History modulates the reliability of the
-  Phase 0/1 baseline. This is the phase that turns a per-film modifier into a
-  *relationship the player builds*. Bump `SAVE_KEY` (`persistence.ts:345`);
-  **no migration** per pre-launch policy (`CLAUDE.md`).
+- **Phase 2 — Pairing memory (new persistent state, save bump). Implemented.**
+  A new `GameState.talentPairings` (`types/index.ts:TalentPairing`) is a flat,
+  world-level talent↔talent log, recorded on settlement exactly like
+  `collaborations` (`engine/pairHistory.ts:recordPlayerFilmPairings`, same
+  idempotent record-once-per-(pair, film) shape). On the read side,
+  `computeEffectivePairChemistry` blends the personality baseline toward the
+  pair's realised track record in proportion to how many films they've shared —
+  a fresh pairing reads pure personality, a proven duo reads mostly its record,
+  bounded so personality always keeps a say. It reduces exactly to the Phase 0/1
+  `computePairChemistry` when the log is empty, so rivals, first-time casts, and
+  every pre-history save are unchanged. Threaded into event selection via an
+  optional `pairings` arg on `pickShootEvent`/`rollDayEvent` (defaults to `[]`).
+  `SAVE_KEY` bumped v59→v60; **no migration** per pre-launch policy. Tests:
+  `pairHistory.test.ts`, `studioReducer.pairings.test.ts`, and a proven-duo
+  end-to-end case in `production.chemistry.test.ts`.
 
 - **Phase 3 — Crew pairings.** Director↔editor and director↔cinematographer
   (both real `ProductionRole`s — `types/index.ts:39`). The recurring-crew
@@ -220,31 +229,30 @@ add pairing surfaces, not rework.
   people with their own agendas — sequence it last because it leans on every
   prior phase's signal being trustworthy.
 
-## Open questions to settle before Phase 2
+## Open questions
 
-1. **Reuse the `Collaboration` substrate or add a parallel pair-log?** A pair
-   history is a genuinely different key `(personA, personB, filmId, outcome)`
-   vs. the studio-keyed `Collaboration`. Reusing means generalizing the record
-   site in `studioReducer.ts`; a parallel log is cleaner-shaped but duplicates
-   the idempotent-record-on-settlement plumbing. Recommendation: **parallel
-   log, shared plumbing** — the keys are too different to force into one shape,
-   but the record-once-on-settlement helper should be lifted and reused.
+1. **Reuse the `Collaboration` substrate or add a parallel pair-log?**
+   *Resolved (Phase 2): parallel log, shared shape.* `TalentPairing` is its own
+   `(personA, personB, filmId, outcome)` record — the pair key is too different
+   to force into `Collaboration` — but it deliberately mirrors `Collaboration`'s
+   flat-world-list shape and idempotent record-on-settlement pattern, and
+   `pairHistory.ts` mirrors `relationships.ts` structurally so the two read the
+   same to anyone who knows one.
 
-2. **How does a pairing outcome get scored?** `Collaboration` stores
-   `reception` + `shootSmoothness`. A pairing wants "did *this pairing* go
-   well," which is closer to the film's execution/morale result than its box
-   office. Likely the same two signals, but confirm the pairing reads
-   `shootSmoothness` more heavily than reception.
+2. **How does a pairing outcome get scored?** *Resolved (Phase 2): the same two
+   signals as `Collaboration`, weighted the other way.* A pairing reads
+   `shootSmoothness` at 0.6 and `reception` at 0.4 — the inverse of
+   `relationships.ts`, because chemistry is about how the room felt, not the box
+   office, where a studio's memory leans on the hit.
 
-3. **Decay / recency.** Should a partnership fade if unused for years? The
-   studio↔person system currently doesn't decay (it stores `lastWorkedDay` but
-   doesn't read it). Chemistry has a stronger real-world case for it. Deferred,
-   but the `lastWorkedDay` field is already there to hang it on.
+3. **Decay / recency.** Should a partnership fade if unused for years? Still
+   deferred. `TalentPairing.day` (and `Collaboration.lastWorkedDay`) are stored
+   and available to hang a recency weight on, but nothing reads them yet.
 
-4. **Rivals.** Do AI studios' recurring pairings matter (a rival that keeps a
-   duo together locks them up, the same way `Collaboration.studioId` anticipates
-   rival loyalty)? Out of scope for v1; the pair-log should be studio-agnostic
-   so it *can* extend there without rework.
+4. **Rivals.** Do AI studios' recurring pairings matter? Still out of scope; the
+   pair-log is studio-agnostic (it keys people, not studios), and the read path
+   already runs for the rival synthesizer, so extending to accumulate rival
+   history later is additive — rivals simply pass `[]` today.
 
 5. **How binding is a demand (Phase 5)?** Spectrum from soft (refuse and take a
    warmth hit) to hard (refuse and they walk via `relationshipRefuses`). Likely

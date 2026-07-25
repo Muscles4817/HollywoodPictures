@@ -138,7 +138,7 @@ export function pairChemistry(a: Person, b: Person): number {
  * beat (genre-romance-pos-chemistry), independent of who's directing. Every such
  * pair is a candidate; computePairChemistry takes the best.
  */
-function keyCreativePairs(talent: TalentAssignment[]): Array<readonly [Person, Person]> {
+export function keyCreativePairs(talent: TalentAssignment[]): Array<readonly [Person, Person]> {
   const director = filterAssignedPeople(talent, 'Director')[0];
   const principals = [
     ...filterAssignedPeople(talent, 'Lead Actor'),

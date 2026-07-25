@@ -2281,6 +2281,31 @@ export interface Collaboration {
   shootSmoothness: number;
 }
 
+// One film's record of two key creatives having worked TOGETHER - the
+// talent<->talent counterpart to Collaboration (studio<->person). Where
+// Collaboration remembers "has this studio worked with this person", a
+// TalentPairing remembers "have these two people worked with EACH OTHER", so a
+// director and their regular lead, or two co-stars who keep being cast together,
+// accumulate a shared history. Same flat, world-level, keyed-by-id shape;
+// recorded once per (pair, film) when the film releases, and pairing *strength*
+// is a read over this list (engine/pairHistory.ts), never itself stored. The
+// pair is stored in a canonical id order (personA < personB) so (A,B) and (B,A)
+// are one relationship, not two.
+export interface TalentPairing {
+  /** The lower of the two PersonIds - canonical ordering makes the pair order-independent. */
+  personA: PersonId;
+  /** The higher of the two PersonIds. */
+  personB: PersonId;
+  /** The released Film this pairing was on (Film.id) - the dedup key, so re-seeing the same film across settlement passes never double-records it. */
+  filmId: string;
+  /** The release day this pairing was recorded on. */
+  day: GameDay;
+  /** 0-100 blend of the film's critic + audience reception - "did the film do well." Read once from the film's release-day results and never revised. */
+  reception: number;
+  /** 1-5 stars from the film's production-execution outcome - "did the shoot go smoothly" - weighted more heavily than reception for a pairing, since chemistry is about the room, not the box office. 3 (neutral) when a film carries no execution outcome. */
+  shootSmoothness: number;
+}
+
 // Post-greenlight only, now that Develop/Hire Talent/Plan Production/
 // Greenlight have been replaced by the free-navigation Producer Workspace
 // (see ProjectWorkspaceSection below, and 'workspace' on Screen) - those

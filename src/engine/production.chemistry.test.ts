@@ -6,9 +6,10 @@
 // Phase 1 adds co-stars (actor<->actor).
 import { describe, it, expect } from 'vitest';
 import { pickShootEvent, type FullProductionRisk } from './production';
+import { recordPlayerFilmPairings } from './pairHistory';
 import { generateTalentCandidates } from './talentGenerator';
 import { withRng } from './random';
-import type { Person, PersonPersonality, TalentAssignment, TalentProfession } from '../types';
+import type { Film, Person, PersonPersonality, TalentAssignment, TalentPairing, TalentProfession } from '../types';
 
 // All-zero risk forces the positive pool every roll (rollNegative is
 // `rng()*100 < avgRisk`, so avgRisk 0 is never negative) - isolating the
@@ -42,16 +43,28 @@ function castCoStars(leadPersonality: Partial<PersonPersonality>): TalentAssignm
   ];
 }
 
-/** How often 'pos-chemistry' is the event that fires over `runs` independent positive-pool rolls, for the given cast. Same seed sequence regardless of cast, so chemistry weighting is the only variable. */
-function chemistryHitRate(talent: TalentAssignment[], runs: number): number {
+/** How often 'pos-chemistry' is the event that fires over `runs` independent positive-pool rolls, for the given cast and (optional) shared pairing history. Same seed sequence regardless of inputs, so chemistry weighting is the only variable. */
+function chemistryHitRate(talent: TalentAssignment[], runs: number, pairings: TalentPairing[] = []): number {
   let hits = 0;
   for (let i = 0; i < runs; i++) {
-    const rolled = withRng(1000 + i, (rng) => pickShootEvent(NO_RISK, 0, 'Action', new Set<string>(), talent, null, NO_POOL, rng)).result;
+    const rolled = withRng(1000 + i, (rng) => pickShootEvent(NO_RISK, 0, 'Action', new Set<string>(), talent, null, NO_POOL, rng, pairings)).result;
     if (!rolled) continue;
     const id = 'event' in rolled ? rolled.event.id : rolled.pendingChoice.templateId;
     if (id === 'pos-chemistry') hits++;
   }
   return hits;
+}
+
+function filmWith(id: string, talent: TalentAssignment[], criticScore: number, stars: number): Film {
+  return {
+    id,
+    talent,
+    results: {
+      criticScore,
+      audienceScore: criticScore,
+      productionExecution: { stars, rating: 'solid', headline: '', detail: '', causes: [], mitigation: [], modifiers: { performanceCapture: 0, postExecution: 0, scriptExecution: 0, coverageRatio: 1, overall: 0 } },
+    },
+  } as unknown as Film;
 }
 
 describe('pair chemistry biases positive event selection', () => {
@@ -73,6 +86,22 @@ describe('pair chemistry biases positive event selection', () => {
     expect(neutral).toBeGreaterThan(0);
     expect(highChemistry).toBeGreaterThan(neutral); // the actor<->actor pairing reaches selection, not just director<->actor
     expect(highChemistry).toBeGreaterThan(neutral * 1.5);
+  });
+
+  it('a proven duo lands the chemistry beat more often than the same neutral duo with no shared history (Phase 2)', () => {
+    // Both casts are personality-neutral (baseline chemistry 0), so the ONLY
+    // difference is the pairing history - proving history reaches selection.
+    const talent = castWith(NEUTRAL);
+    const noHistory = chemistryHitRate(talent, RUNS);
+    const provenHistory = recordPlayerFilmPairings(
+      [],
+      [filmWith('past1', talent, 95, 5), filmWith('past2', talent, 92, 5)],
+      500,
+    );
+    const proven = chemistryHitRate(talent, RUNS, provenHistory);
+
+    expect(proven).toBeGreaterThan(noHistory);
+    expect(proven).toBeGreaterThan(noHistory * 1.5);
   });
 
   it('a neutral pairing leaves selection identical to no chemistry input at all (the weighting no-ops at 0)', () => {
