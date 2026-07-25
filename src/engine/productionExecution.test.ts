@@ -137,15 +137,29 @@ describe('classifyEventImpact', () => {
     expect(classifyEventImpact({ id: 'risk-morale-neg-shouting-match', impact: 'visual' })).toBe('visual');
   });
 
-  it('routes set/design build outcomes to the sets slice, but not effects/sound-design/setpieces', () => {
-    // Genuine set/design build → 'sets' (the Sets facet's swing).
+  it('re-routes each craft facet\'s own events to its slice, with collision guards', () => {
+    // Sets: genuine set/design build → 'sets'.
     expect(classifyEventImpact({ id: 'genre-fantasy-neg-set-collapse' })).toBe('sets');
     expect(classifyEventImpact({ id: 'preprod-design-breakthrough' })).toBe('sets');
     expect(classifyEventImpact({ id: 'genre-scifi-pos-worldbuilding-detail' })).toBe('sets');
-    // Collision guards: these are NOT set/design and must stay where they were.
-    expect(classifyEventImpact({ id: 'genre-action-pos-setpiece-under-budget' })).toBe('visual');
+    // VFX: digital-effects work → 'vfx' (incl. the "design-ambition" spaceship, which is VFX not a set).
+    expect(classifyEventImpact({ id: 'genre-scifi-pos-vfx-test' })).toBe('vfx');
+    expect(classifyEventImpact({ id: 'genre-scifi-neg-greenscreen-spill' })).toBe('vfx');
+    expect(classifyEventImpact({ id: 'genre-scifi-int-scope-creep' })).toBe('vfx');
+    expect(classifyEventImpact({ id: 'genre-scifi-int-design-ambition' })).toBe('vfx');
+    // Practical: stunts/rigs/pyro/practical creatures/setpieces → 'practical'.
+    expect(classifyEventImpact({ id: 'genre-action-pos-stunt-gag' })).toBe('practical');
+    expect(classifyEventImpact({ id: 'genre-action-neg-rig-slow' })).toBe('practical');
+    expect(classifyEventImpact({ id: 'genre-action-neg-squib-misfire' })).toBe('practical');
+    expect(classifyEventImpact({ id: 'genre-action-pos-setpiece-under-budget' })).toBe('practical');
+    expect(classifyEventImpact({ id: 'genre-horror-pos-creature-reveal' })).toBe('practical');
+    expect(classifyEventImpact({ id: 'genre-fantasy-pos-practical-creature' })).toBe('practical');
+    // Collision guards — these are NOT craft-facet events and stay where they were.
     expect(classifyEventImpact({ id: 'genre-horror-pos-sound-design' })).toBe('pacing');
-    expect(classifyEventImpact({ id: 'genre-scifi-int-design-ambition' })).toBe('visual'); // a VFX spaceship, not a set
+    // Generic safety/technical risk incidents are NOT swept into a facet: they stay
+    // in general execution (a deliberate scoping line, spec §16).
+    expect(classifyEventImpact({ id: 'risk-safety-neg-stunt-hospital' })).toBe('visual');
+    expect(classifyEventImpact({ id: 'risk-technical-neg-shot-rebuilt' })).toBe('visual');
   });
 
   it('a legacy event with no impact still classifies from its id (no migration needed)', () => {
@@ -165,16 +179,18 @@ describe('computeExecutionProfile', () => {
     expect(neutralExecutionProfile(1.1)).toMatchObject({ performanceCapture: 1, coverageRatio: 1.1 });
   });
 
-  it('set/design events feed setsSignal and are re-routed OUT of postExecution (no double-count)', () => {
-    const good = computeExecutionProfile(profileInput([ev(6, { impact: 'sets' })]));
-    const bad = computeExecutionProfile(profileInput([ev(-10, { impact: 'sets' })]));
-    // The signal carries the (mitigated) net; positive lifts it, negative sinks it.
-    expect(good.setsSignal).toBeGreaterThan(0);
-    expect(bad.setsSignal).toBeLessThan(0);
-    // ...and a lone set event does NOT move the post-production multiplier: it's a
-    // re-route to Production (Sets), not a copy into Post.
-    expect(good.postExecution).toBe(1);
-    expect(bad.postExecution).toBe(1);
+  it('craft-facet events feed facetSignals and are re-routed OUT of postExecution (no double-count)', () => {
+    for (const facet of ['sets', 'vfx', 'practical'] as const) {
+      const good = computeExecutionProfile(profileInput([ev(6, { impact: facet })]));
+      const bad = computeExecutionProfile(profileInput([ev(-10, { impact: facet })]));
+      // The signal carries the (mitigated) net; positive lifts it, negative sinks it.
+      expect(good.facetSignals[facet]).toBeGreaterThan(0);
+      expect(bad.facetSignals[facet]).toBeLessThan(0);
+      // ...and a lone craft event does NOT move the post-production multiplier: it's
+      // a re-route to Production, not a copy into Post.
+      expect(good.postExecution).toBe(1);
+      expect(bad.postExecution).toBe(1);
+    }
   });
 
   it('negative performance events lower performanceCapture; positive raise it', () => {

@@ -195,3 +195,36 @@ export function executionSwing(
   const position = clamp(roll + tilt, -1, 1);
   return halfWidth * position;
 }
+
+/**
+ * A facet's DELIVERED quality once the shoot is done: the deterministic base
+ * (what the plan bought) plus its execution swing (how it actually came out).
+ * `eventSignal` defaults to 0, so a forecast — or a shoot with no events for this
+ * facet — is exactly the base. Every craft facet realises through this.
+ */
+export function realiseFacetQuality(
+  facet: FacetResult,
+  skill: number,
+  eventSignal = 0,
+  tuning: FacetSwingTuning = DEFAULT_SWING_TUNING,
+): number {
+  return clamp(Math.round(facet.quality + executionSwing(facet.stretch, skill, eventSignal, tuning)), 0, 100);
+}
+
+/**
+ * The boom-or-bust read of a plan, for the planning conversation (spec §3.3).
+ * `spread` = how much the shoot can swing the facet around its funded base (from
+ * stretch: comfortably-funded is dependable, over-reaching is a gamble). `lean` =
+ * which way the head's skill tips that gamble — only meaningful when the spread
+ * isn't tight. Qualitative only; the UI turns it into the head's own words.
+ */
+export interface FacetOutlook {
+  spread: 'tight' | 'moderate' | 'wide';
+  lean: 'promising' | 'even' | 'precarious';
+}
+
+export function facetOutlook(facet: FacetResult, skill: number): FacetOutlook {
+  const spread = facet.stretch < 0.12 ? 'tight' : facet.stretch < 0.35 ? 'moderate' : 'wide';
+  const lean = skill >= 68 ? 'promising' : skill <= 45 ? 'precarious' : 'even';
+  return { spread, lean };
+}
