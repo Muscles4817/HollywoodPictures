@@ -9,6 +9,7 @@ import { actorMeetsCharacterGender, personMeetsCharacterAge } from '../../engine
 import { computeActorAppeal, resolveOfferResponse, type OfferResponse } from '../../engine/castingAppeal';
 import { candidateStrengthSignals, describeOfferRejection, type CandidateSignal } from '../../engine/castingPresentation';
 import { playerRelationshipWith, type RelationshipStanding } from '../../engine/relationships';
+import { notableCastAffinity, type CastAffinity } from '../../engine/pairHistory';
 import { formatMoney } from '../common/Money';
 import { CHARACTER_ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
 import { Card } from '../common/Card';
@@ -89,6 +90,7 @@ function CandidateCard({
   onDismiss,
   castingDirectorSkill,
   relationship,
+  castAffinity,
 }: {
   person: Person;
   role: 'Lead Actor' | 'Supporting Actor';
@@ -107,6 +109,8 @@ function CandidateCard({
   castingDirectorSkill: number | null;
   /** The studio's standing with this actor - history sharpens the fit read the same way. */
   relationship: RelationshipStanding;
+  /** The candidate's most notable chemistry with someone already on the cast (engine/pairHistory.ts), or null. */
+  castAffinity: CastAffinity | null;
   actionLabel: string;
   onAct: () => void;
   pinned: boolean;
@@ -149,7 +153,7 @@ function CandidateCard({
       <div className="card-title">{person.identity.name}</div>
       {/* TalentStats' own Availability section already covers "available
           now" vs "busy until X" - no need to repeat it here. */}
-      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} affordable={affordable} castingDirectorSkill={castingDirectorSkill} relationship={relationship} />
+      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} affordable={affordable} castingDirectorSkill={castingDirectorSkill} relationship={relationship} castAffinity={castAffinity} />
       {signals.length > 0 && (
         <div className="candidate-signals">
           {signals.map((signal) => (
@@ -262,6 +266,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   // and the accept/decline so a loyal actor is easier (and cheaper) to land and
   // a grudge harder.
   const relationshipFor = (person: Person) => playerRelationshipWith(state.collaborations ?? [], person);
+  const castAffinityFor = (person: Person) => notableCastAffinity(person, role, draft.talent, state.talentPairings ?? []);
 
   function appealFor(person: Person) {
     return draft.script
@@ -525,6 +530,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                         onDismiss={() => dispatch({ type: 'DISMISS_CASTING_APPLICANT', characterId: character.id, personId: applicant.person.id })}
                         castingDirectorSkill={castingDirectorSkill}
                         relationship={relationshipFor(applicant.person)}
+                        castAffinity={castAffinityFor(applicant.person)}
                       />
                     ))}
                   </div>
@@ -568,6 +574,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                   onTogglePin={() => pins.toggle(person.id)}
                   castingDirectorSkill={castingDirectorSkill}
                   relationship={relationshipFor(person)}
+                  castAffinity={castAffinityFor(person)}
                 />
               ))}
             </div>

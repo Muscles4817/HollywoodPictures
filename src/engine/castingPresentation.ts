@@ -9,7 +9,8 @@ import type { ActorAppealFactors, ActorScheduleAssessment, OfferRejectionReason 
 import type { DirectorAppealFactors, DirectorOfferRejectionReason } from './directorAppeal';
 import { actorArchetype, directorTouch, directorActorPairing, signatureGift, fameCraftContrast, type FameCraftContrast } from './actingModel';
 import type { RelationshipStanding } from './relationships';
-import type { ActingStyle, Person } from '../types';
+import type { CastAffinity } from './pairHistory';
+import type { ActingStyle, Person, ProductionRole } from '../types';
 
 // --- Acting model reads (docs/DESIGN_REVIEW_acting_model.md §10) -----------
 // Qualitative casting reads for the floor+headroom craft model - never raw
@@ -352,4 +353,43 @@ export function describeRelationship(standing: RelationshipStanding): string | n
     case 'grudge':
       return `Bad blood - your last collaboration soured them on working with you again.`;
   }
+}
+
+/** How a signed cast member is named in an affinity line - "your director", "your lead", etc. */
+function castRoleLabel(role: ProductionRole): string {
+  switch (role) {
+    case 'Director': return 'director';
+    case 'Lead Actor': return 'lead';
+    case 'Supporting Actor': return 'co-star';
+    case 'Editor': return 'editor';
+    case 'Cinematographer': return 'cinematographer';
+    default: return 'collaborator';
+  }
+}
+
+/** Whether an affinity line is good news or a warning - lets the card colour it. */
+export function castAffinityTone(affinity: CastAffinity): 'positive' | 'negative' {
+  return affinity.chemistry >= 0 ? 'positive' : 'negative';
+}
+
+/**
+ * A candidate's chemistry with someone already on the cast, as a casting-card
+ * chip - the passive "assemble a band" read (engine/pairHistory.ts:CastAffinity).
+ * Leads with a proven partnership when there's shared history, and names the
+ * person so the player can see WHO the pull is toward (or away from). Qualitative
+ * only, never the raw number.
+ */
+export function describeCastAffinity(affinity: CastAffinity): string {
+  const label = castRoleLabel(affinity.partnerRole);
+  const name = affinity.partner.identity.name;
+  const positive = affinity.chemistry >= 0;
+  if (affinity.films > 0) {
+    const times = timesPhrase(affinity.films);
+    return positive
+      ? `Proven partnership - ${times} with your ${label} ${name}, and it clicked.`
+      : `You've paired them with your ${label} ${name} ${times} before, and it didn't gel.`;
+  }
+  return positive
+    ? `Looks like a natural fit with your ${label} ${name}.`
+    : `Risks clashing with your ${label} ${name}.`;
 }

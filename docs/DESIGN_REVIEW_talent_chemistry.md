@@ -224,12 +224,20 @@ add pairing surfaces, not rework.
   placed like `describeRelationship` — qualitative tiers and prose, never raw
   numbers (`CLAUDE.md`). The `directorActorPairing` prose is the tone template.
 
-- **Phase 4 — Affinity highlights (passive decision surface).** The casting
-  card flags candidates with strong positive (or negative) pairings against
-  already-signed talent. Pure presentation over the Phase 0–3 signal; no new
-  state. Lands the "assemble a band on purpose" fantasy at the point of
-  decision. Best value once Phase 2 history exists, but works on the Phase 0
-  baseline alone.
+- **Phase 4 — Affinity highlights (passive decision surface). Implemented.**
+  `pairHistory.ts:notableCastAffinity` finds the single most notable pairing a
+  candidate would form with the already-signed cast — reusing `keyCreativePairs`
+  so an actor reads against the director and co-stars, an editor against the
+  director, and a Writer/Composer never surfaces one. It leads with a proven
+  partnership when there's shared history and only shows a personality-only
+  hunch when it reads strongly, so a fresh cast isn't littered with faint
+  guesses. `castingPresentation.ts:describeCastAffinity` renders it as a
+  qualitative, person-named chip (*"Proven partnership — twice with your lead
+  Jane, and it clicked"* / *"Risks clashing with your director"*), placed on the
+  casting card's identity block in `TalentStats` and wired through both
+  `CastingDrawer` and `RoleHiringDrawer`. Pure presentation over the Phase 0–3
+  signal; no new state. Tests: `pairHistory.test.ts` (the affinity read),
+  `castingPresentation.test.ts` (the chip prose, both tones, no raw numbers).
 
 - **Phase 5 — Demands and vetoes (active decision surface).** A signed person
   conditions their participation on a specific collaborator, driven by ego

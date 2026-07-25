@@ -13,7 +13,7 @@
 // one place a film's key pairings are recorded when it releases. Pure: plain data
 // in, plain data out; pairing strength is always recomputed from the flat list on
 // read, never stored.
-import type { ChemistryDimension, Film, GameDay, Person, PersonId, TalentAssignment, TalentPairing } from '../types';
+import type { ChemistryDimension, Film, GameDay, Person, PersonId, ProductionRole, TalentAssignment, TalentPairing } from '../types';
 import { clamp } from './random';
 import { craftPairs, keyCreativePairs, pairChemistry, performancePairs } from './creativeTension';
 
@@ -132,4 +132,60 @@ export function computeEffectivePairChemistry(talent: TalentAssignment[], pairin
     best = Math.max(best, effectivePairChemistry(a, b, pairings));
   }
   return Math.round(best * 100);
+}
+
+// --- The casting-card read: a candidate's affinity with the signed cast -------
+
+/** The one pairing worth flagging when a candidate is weighed for a role - who on the current cast they'd pair with, how they read, and whether it's a proven partnership. */
+export interface CastAffinity {
+  /** The already-signed person this is about. */
+  partner: Person;
+  /** Their role on the current film, for naming ("your director"). */
+  partnerRole: ProductionRole;
+  /** Effective chemistry, signed -1..1 - personality baseline folded with any shared history. */
+  chemistry: number;
+  /** How many films the candidate and partner have shared (0 = personality read only). */
+  films: number;
+}
+
+// A pairing with real shared history is worth flagging even when it reads only
+// mildly; a personality-only hunch needs to be strong before it earns a line on
+// the card, so a fresh cast isn't littered with faint guesses.
+const AFFINITY_HISTORY_MIN = 0.1;
+const AFFINITY_PERSONALITY_MIN = 0.3;
+
+/**
+ * The single most notable pairing a candidate would form with the already-signed
+ * cast, or null if none clears the bar. Considers exactly the pairings the
+ * chemistry model cares about (engine/creativeTension.ts:keyCreativePairs) that
+ * involve the candidate - so an actor is read against the director and their
+ * co-stars, an editor against the director, and a Writer/Composer (who pair with
+ * nobody) never surfaces one. Prefers a pairing with shared HISTORY (the "proven
+ * partnership" read); a personality-only pairing must read strongly to show.
+ */
+export function notableCastAffinity(candidate: Person, role: ProductionRole, signed: TalentAssignment[], pairings: TalentPairing[]): CastAffinity | null {
+  const others = signed.filter((a) => a.person.id !== candidate.id);
+  const hypothetical: TalentAssignment[] = [...others, { role, person: candidate }];
+  const roleOf = new Map(others.map((a) => [a.person.id, a.role] as const));
+
+  let best: CastAffinity | null = null;
+  let bestScore = -Infinity;
+  for (const [a, b] of keyCreativePairs(hypothetical)) {
+    const partner = a.id === candidate.id ? b : b.id === candidate.id ? a : null;
+    if (!partner) continue; // pair not involving the candidate
+    const partnerRole = roleOf.get(partner.id);
+    if (!partnerRole) continue;
+    const chemistry = effectivePairChemistry(a, b, pairings);
+    const films = pairHistory(pairings, candidate.id, partner.id)?.films ?? 0;
+    // History wins ties and near-ties, so a proven partnership is what the card
+    // leads with even if a stranger reads a hair stronger on personality alone.
+    const score = Math.abs(chemistry) + (films > 0 ? 1 : 0);
+    if (score > bestScore) {
+      bestScore = score;
+      best = { partner, partnerRole, chemistry, films };
+    }
+  }
+  if (!best) return null;
+  const floor = best.films > 0 ? AFFINITY_HISTORY_MIN : AFFINITY_PERSONALITY_MIN;
+  return Math.abs(best.chemistry) >= floor ? best : null;
 }

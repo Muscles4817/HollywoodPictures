@@ -1266,6 +1266,17 @@ textarea, input, select {
   margin-top: 4px;
 }
 
+/* Cast affinity - the "assemble a band" read: who already on the cast this
+   candidate is pulled toward (or away from). Good news reads green, a wary
+   pairing reads amber (a soft caution, not a hard block). */
+.talent-affinity {
+  font-size: 0.8em;
+  margin-top: 4px;
+  font-weight: 500;
+}
+.talent-affinity--positive { color: var(--green); }
+.talent-affinity--negative { color: var(--amber); }
+
 /* THE FIT HERO - the card's anchor. A tinted band, a coloured verdict, a fill
    meter, and a plain-English reason. Tier colour makes the headline pop. */
 .talent-fit {
