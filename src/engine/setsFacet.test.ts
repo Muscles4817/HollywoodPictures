@@ -8,6 +8,7 @@ import {
   designerAsk,
   designerConfidence,
   realiseSetsQuality,
+  setsOutlook,
   NO_DESIGNER_SKILL,
   type SetsFacetInput,
 } from './setsFacet';
@@ -141,6 +142,14 @@ describe('realiseSetsQuality — base + execution swing (spec §3.3)', () => {
   it('a well-funded build stays close to its base even with a rough set break (tight band)', () => {
     const c = comfortable();
     expect(Math.abs(realiseSetsQuality(c, 70, -10) - c.quality)).toBeLessThan(5);
+  });
+
+  it('setsOutlook reads spread from stretch and lean from skill', () => {
+    expect(setsOutlook(comfortable(), 90).spread).toBe('tight');
+    const o = overreach();
+    expect(o.stretch).toBeGreaterThan(0.35);
+    expect(setsOutlook(o, 90)).toEqual({ spread: 'wide', lean: 'promising' });
+    expect(setsOutlook(o, 30)).toEqual({ spread: 'wide', lean: 'precarious' });
   });
 });
 

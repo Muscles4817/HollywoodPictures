@@ -121,3 +121,22 @@ export type DesignerConfidence = FacetConfidence;
 export function designerConfidence(facet: SetsFacet): DesignerConfidence {
   return facetConfidence(facet);
 }
+
+/**
+ * The boom-or-bust read of the plan, for the planning conversation (spec §3.3).
+ * `spread` = how much the shoot can swing the build around its funded base
+ * (driven by stretch: a comfortably-funded plan is dependable; an over-reaching
+ * one is a gamble). `lean` = which way the designer's skill tips that gamble —
+ * only meaningful when the spread isn't tight. Qualitative only; the UI turns it
+ * into the designer's own words.
+ */
+export interface SetsOutlook {
+  spread: 'tight' | 'moderate' | 'wide';
+  lean: 'promising' | 'even' | 'precarious';
+}
+
+export function setsOutlook(facet: SetsFacet, designerSkill: number): SetsOutlook {
+  const spread = facet.stretch < 0.12 ? 'tight' : facet.stretch < 0.35 ? 'moderate' : 'wide';
+  const lean = designerSkill >= 68 ? 'promising' : designerSkill <= 45 ? 'precarious' : 'even';
+  return { spread, lean };
+}
