@@ -427,7 +427,11 @@ describe('regression matrix: 10. ordinary film', () => {
   });
 
   it('produces middle-range legs - well above a poor collapse, well below a phenomenon', () => {
-    expect(summary.legs).toBeGreaterThan(5);
+    // Threshold lowered 5 -> 4 with the WOM re-tune (engine/audienceSimulationStep.ts):
+    // slightly gentler word-of-mouth growth pulls an ordinary film's legs down a
+    // touch, still clearly middle-range (well above a ~2x collapse, well below a
+    // phenomenon's) - the ordering vs the poor/phenomenon archetypes is unchanged.
+    expect(summary.legs).toBeGreaterThan(4);
     expect(summary.legs).toBeLessThan(30);
   });
 });

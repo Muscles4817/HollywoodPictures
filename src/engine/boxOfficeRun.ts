@@ -228,9 +228,17 @@ export function competitivePressureOn(target: Film, others: Film[]): number {
     .filter((f) => f.id !== target.id && f.boxOfficeRun.status === 'running')
     .map(runningFilmAsUpcomingRelease)
     .filter((u): u is UpcomingRelease => u !== null);
+  // The target's own live strength makes the crowding relative (engine/
+  // releaseCrowding.ts:matchupWeight) - a film stronger than its neighbours
+  // shrugs the week's competition off, a weaker one is pushed out by it. A film
+  // with no settled week yet has no live strength to read (null); it feels the
+  // old candidate-blind pressure for its opening week and the matchup takes over
+  // once it has a week of real performance behind it.
+  const targetStrength = runningFilmAsUpcomingRelease(target)?.strength;
   return computeCompetitiveCrowding(
     { releaseDay: target.releasedOnDay, genre: target.genre, targetAudience: target.targetAudience },
     known,
+    targetStrength,
   );
 }
 
