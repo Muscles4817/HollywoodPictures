@@ -246,6 +246,43 @@ add pairing surfaces, not rework.
    only the highest-ego signed person may demand), tuned like an event rate, not
    left to fire on every eligible pair.
 
+## Testing frequency and occurrence (Phase 5, and any rate-gated behaviour)
+
+A demand is a rare stochastic event, so "does it fire correctly" and "does it
+fire *the right amount*" are two different tests, and the second is the one that
+protects the annoyance budget. The sim is deterministic under a seeded
+`RandomFn`, so both are checkable:
+
+- **Deterministic mechanics (normal suite, `npm test`).** Seeded unit tests
+  asserting the *logic*: given a pairing + ego + loyalty, a demand does/doesn't
+  become eligible; ego gates entitlement; loyalty scales the refusal cost;
+  refusing applies the warmth hit or the walk (`relationshipRefuses`). Fixed
+  seeds, exact assertions — the shape of `relationships.test.ts` and
+  `creativeTension.test.ts`.
+
+- **Statistical frequency (opt-in diagnostic harness).** A new
+  `demands.diagnostic.test.ts` in the mould of the existing
+  `*.diagnostic.test.ts` harnesses (env-gated, `--disable-console-intercept`,
+  skipped in the normal suite — see `CLAUDE.md`). Run many seeded films / many
+  seeds and assert on the *distribution*, not a single outcome:
+  - demands land inside an expected per-film / per-career rate band (the
+    annoyance-budget guarantee);
+  - they don't cluster (no run where three fire on one film, no roster that
+    demands every signing);
+  - the rate *scales as designed* — a high-ego roster produces measurably more
+    than a deferential one, confirming ego is actually the driver and not noise.
+
+  These are trend assertions with tolerance bands, like the AI-stats and
+  production-execution diagnostics already do — the honest home for "over time,
+  this feels right," which a fixed-seed unit test can't express.
+
+The same two-layer approach applies to the chemistry-event weighting itself
+(Phases 0–1): a unit test that a strong pairing *raises* the positive event's
+weight, and a diagnostic that over many shoots a proven duo actually hits the
+positive chemistry event more often than a fresh pairing — the payoff the whole
+feature rests on, and exactly the kind of claim that needs a distribution, not
+an anecdote, to trust.
+
 ## What this deliberately is not
 
 - Not a flat quality bonus for a good pairing (Principle: upside is earned in
