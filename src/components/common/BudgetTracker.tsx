@@ -14,7 +14,7 @@ export function BudgetTracker() {
   const draft = deriveFocusedDraft(state);
   if (!draft) return null;
 
-  const committed = computeCommittedSpend(draft, state.producerPool ?? []);
+  const committed = computeCommittedSpend(draft, state.producerPool ?? [], state.stuntTeamPool ?? []);
   const projected = state.studio.cash - committed;
 
   return (

@@ -92,6 +92,14 @@ export interface ReleaseComputationInput {
    */
   producerFees?: number;
   /**
+   * The attached Stunt Team's EFFECTIVE skill on this film (engine/stuntTeams.ts)
+   * - the Practical Effects facet's skill axis + execution-swing tilt. Optional;
+   * absent (no team, rivals, older paths) → the facet's NO_STUNT_TEAM_SKILL fallback.
+   */
+  stuntTeamSkill?: number;
+  /** The Stunt Team's per-film fee, folded into productionCost exactly like producerFees. Optional; defaults to 0. */
+  stuntTeamFee?: number;
+  /**
    * A resolved press-tour moment (engine/pressTourMoments.ts), rolled at
    * settlement (resolvePlayerRelease) and passed in as plain data so this
    * function stays pure and deterministic. Its buzzDelta lifts/saps Buzz and its
@@ -168,6 +176,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     input.shootingRatio,
     producerEffects.postProductionDelta, // Creative
     executionProfile,
+    input.stuntTeamSkill, // the Practical facet's skill axis (undefined → fallback)
   );
   const criticScore = computeCriticScore(quality, input.script, input.postProductionChoices);
   const audienceScore = computeAudienceScore(
@@ -262,7 +271,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // price.
   const productionCost = Math.max(
     0,
-    talentCost + productionBudgetCost + input.photographyCost + eventsCostDelta + postProductionInterventionCost + producerFees,
+    talentCost + productionBudgetCost + input.photographyCost + eventsCostDelta + postProductionInterventionCost + producerFees + (input.stuntTeamFee ?? 0),
   );
   // The press tour is a promotional expense - folded into the reported
   // marketingCost (and therefore totalCost) so it reads as part of the campaign.

@@ -425,6 +425,7 @@ function runCalendarSettlement(
     rng,
     state.producerPool ?? [],
     state.studio.genreIdentity ?? {},
+    state.stuntTeamPool ?? [],
   );
 
   const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng, state.talentPool.Writer);

@@ -412,13 +412,18 @@ export function computeQualityBreakdown(
   // multipliers 1), scoring exactly as before - so rivals (no recorded shoot)
   // are unaffected in Phase 1.
   executionProfile?: ExecutionProfile,
+  // The attached Stunt Team's effective skill (engine/stuntTeams.ts) - the
+  // Practical Effects facet's skill axis + swing tilt. Optional: absent (no team,
+  // rivals, older callers) falls back to NO_STUNT_TEAM_SKILL inside
+  // computeProductionScore, scoring exactly as before.
+  stuntTeamSkill: number = NO_STUNT_TEAM_SKILL,
 ): QualityBreakdown {
   const execution = executionProfile ?? computeExecutionProfile({ events, shootingRatio, talent, productionChoices });
 
   const scriptScore = computeScriptScore(script);
   const directionScore = computeDirectionScore(talent, script);
   const actingScore = computeActingScore(talent, script);
-  const productionScore = computeProductionScore(productionChoices, genre, shootingRatio, talent, script, execution);
+  const productionScore = computeProductionScore(productionChoices, genre, shootingRatio, talent, script, execution, stuntTeamSkill);
   // Footage coverage caps the edit: an under-shot film (below the recommended
   // schedule) can't be cut into a great one no matter how good the Editor is.
   // Coverage is read from execution.coverageRatio, not raw shootingRatio, so
