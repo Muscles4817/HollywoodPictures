@@ -433,6 +433,28 @@ export interface ProducerCareer {
   typicalSalary: Money; // the per-film fee
 }
 
+// A Stunt Team — the head of the Practical Effects facet
+// (docs/DESIGN_REVIEW_production_redesign.md §5.2). Deliberately NOT a Person /
+// TalentProfession: it represents a contracted team/vendor chosen for a film, the
+// first non-Person entity attached to a draft. Its effective skill (base +
+// specialty fit for the genre, engine/stuntTeams.ts) is the Practical facet's
+// skill axis and its execution-swing tilt. The per-film fee is `typicalSalary`.
+export type StuntSpecialty =
+  | 'FightChoreography'
+  | 'Vehicular'
+  | 'Fire'
+  | 'HeightsAndFalls'
+  | 'Creature'
+  | 'Aquatic';
+
+export interface StuntTeam {
+  id: string; // 'stunt-N'
+  name: string;
+  skill: number; // 1-100 base skill
+  specialties: StuntSpecialty[]; // 1-2; a fit with the genre bumps effective skill
+  typicalSalary: Money; // per-film fee
+}
+
 export interface PersonCareers {
   actor?: ActorCareer;
   director?: DirectorCareer;
@@ -2077,6 +2099,8 @@ export interface FilmDraft {
   talent: TalentAssignment[];
   /** Producers attached to this in-progress film, by PersonId (docs/DESIGN_REVIEW_production_office.md). Charged (per-film fee) only at RELEASE_FILM, like every other production cost. Optional/absent on older drafts; read as `[]`. */
   attachedProducerIds?: PersonId[];
+  /** The Stunt Team attached to this film (docs/DESIGN_REVIEW_production_redesign.md §5.2), by id into GameState.stuntTeamPool - the Practical Effects facet's head. Its per-film fee is charged at RELEASE_FILM like every other production cost. null/absent = no team hired (the facet falls back to NO_STUNT_TEAM_SKILL). */
+  stuntTeamId?: string | null;
   /** The price the player is currently targeting for each casting slot - filters GameState.talentPool (once mapped to the underlying TalentProfession) down to who's shown. Keyed by ProductionRole, not TalentProfession, since Lead Actor and Supporting Actor need independent target prices even though both hire from the same Actor pool. */
   talentTargetPriceByRole: Partial<Record<ProductionRole, number>>;
   /**

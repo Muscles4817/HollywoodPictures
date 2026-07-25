@@ -2,6 +2,7 @@ import type { GameState } from './gameState';
 import { createInitialStudio } from './gameState';
 import { generateRivalStudios } from '../engine/rivalStudios';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
+import { generateStuntTeamPool } from '../engine/stuntTeams';
 import { randomSeed, withRng } from '../engine/random';
 import { firstDayOfYear } from '../engine/calendar';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
@@ -353,7 +354,7 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   onto a release at SCHEDULE_RELEASE so rivals steer around the player's home
 //   genre (engine/scheduledReleases.ts, engine/studioIdentity.ts). Additive/
 //   optional (read defensively as 0). No migration code.
-const SAVE_KEY = 'hollywood-pictures-save-v61';
+const SAVE_KEY = 'hollywood-pictures-save-v62';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
@@ -372,6 +373,7 @@ export function loadState(): GameState {
       talentPool: generateTalentPool(rng),
       rivalStudios: generateRivalStudios(rng),
       producerPool: generateProducerPool(rng),
+      stuntTeamPool: generateStuntTeamPool(rng),
     }));
     return {
       studio: { ...createInitialStudio(DEFAULT_STARTING_CASH), assets: TEST_SCRIPT_ASSETS },
@@ -384,6 +386,7 @@ export function loadState(): GameState {
       talentPool: result.talentPool,
       rivalStudios: result.rivalStudios,
       producerPool: result.producerPool,
+      stuntTeamPool: result.stuntTeamPool,
       opportunities: [],
       nextOpportunityCheckDay: 1,
       collaborations: [],

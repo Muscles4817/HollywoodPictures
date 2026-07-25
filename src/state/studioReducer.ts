@@ -43,6 +43,7 @@ import { acquisitionEvent } from '../engine/screenplay';
 import { collectBidNotifications, markAllBidNotificationsRead, dismissBidNotification } from '../engine/bidNotifications';
 import { openCastingCall, tickCastingCalls } from '../engine/castingCalls';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
+import { generateStuntTeamPool, stuntTeamById } from '../engine/stuntTeams';
 import {
   benchCapacity,
   benchProducerIds,
@@ -1125,6 +1126,14 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const attached = focusedDraft.attachedProducerIds ?? [];
       if (!attached.includes(action.producerId)) return state;
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, attachedProducerIds: attached.filter((pid) => pid !== action.producerId) }) };
+    }
+
+    case 'SET_STUNT_TEAM': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      // Only a team that exists in the world pool (or null to clear) is valid.
+      if (action.stuntTeamId !== null && !stuntTeamById(state.stuntTeamPool, action.stuntTeamId)) return state;
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, stuntTeamId: action.stuntTeamId }) };
     }
 
     // Producer Workspace free navigation (PRODUCER_WORKSPACE_DESIGN.md) -
@@ -2336,6 +2345,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         talentPool: generateTalentPool(rng),
         rivalStudios: generateRivalStudios(rng),
         producerPool: generateProducerPool(rng),
+        stuntTeamPool: generateStuntTeamPool(rng),
       }));
       return {
         studio: { ...createInitialStudio(action.startingCash, action.brand, action.prestige), assets: TEST_SCRIPT_ASSETS },
@@ -2348,6 +2358,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         talentPool: result.talentPool,
         rivalStudios: result.rivalStudios,
         producerPool: result.producerPool,
+        stuntTeamPool: result.stuntTeamPool,
         opportunities: [],
         nextOpportunityCheckDay: 1,
         collaborations: [],
