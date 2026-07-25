@@ -826,6 +826,7 @@ export type EventSeverity = 'low' | 'medium' | 'high';
 export type ProductionExecutionImpact =
   | 'performances' // morale, chemistry, improv, on-set conflict -> captured performances
   | 'coverage'     // lost/gained shoot days and scenes -> how much the edit has to work with
+  | 'sets'         // set/design build outcomes -> the Sets & Design facet's execution swing
   | 'visual'       // technical/VFX/practical/safety execution -> what's on screen
   | 'pacing'       // editing/structure/music coherence -> the cut
   | 'script'       // mid-shoot rewrites -> the material itself

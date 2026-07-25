@@ -7,7 +7,7 @@
 //   - time has its own floor on ambitious work (money can't buy back a rush),
 //   - diminishing returns on both inputs, and an over-deliver headroom.
 import { describe, it, expect } from 'vitest';
-import { computeFacet, facetConfidence } from './facetModel';
+import { computeFacet, facetConfidence, executionSwing } from './facetModel';
 
 /** money-t (0..1 dial): a full spend, a modest-but-not-starved spend, a starvation budget. */
 const LAVISH = 1.0;
@@ -99,5 +99,46 @@ describe('over-delivery headroom', () => {
     const result = computeFacet({ ambition: 15, moneyT: LAVISH, timeRatio: 1.3, skill: 100 });
     expect(result.realisation).toBeGreaterThan(1);
     expect(result.quality).toBeGreaterThan(80);
+  });
+});
+
+describe('executionSwing — the endogenous variance (§3.3)', () => {
+  it('a well-funded (low-stretch) plan barely swings, whatever the events or team', () => {
+    const skilledGood = executionSwing(0.05, 95, 8);
+    const weakBad = executionSwing(0.05, 20, -8);
+    expect(Math.abs(skilledGood)).toBeLessThan(4);
+    expect(Math.abs(weakBad)).toBeLessThan(4);
+  });
+
+  it('a stretched plan is a boom-or-bust bet decided by who you hired', () => {
+    // Same under-funded, ambitious plan; same (neutral) event luck — skill alone
+    // tips it. The elite head booms, the weak one busts.
+    const elite = executionSwing(0.8, 95, 0);
+    const weak = executionSwing(0.8, 20, 0);
+    expect(elite).toBeGreaterThan(6);
+    expect(weak).toBeLessThan(-4);
+  });
+
+  it('the facet\'s own events roll a stretched plan up or down', () => {
+    const goodBreak = executionSwing(0.8, 70, 12);
+    const badBreak = executionSwing(0.8, 70, -12);
+    expect(goodBreak).toBeGreaterThan(8);
+    expect(badBreak).toBeLessThan(-2);
+    expect(goodBreak).toBeGreaterThan(badBreak + 15);
+  });
+
+  it('skill partially rescues a bad break under stretch (buys the upside of the widening)', () => {
+    const eliteBadBreak = executionSwing(0.8, 95, -10);
+    const weakBadBreak = executionSwing(0.8, 20, -10);
+    expect(eliteBadBreak).toBeGreaterThan(weakBadBreak + 10);
+  });
+
+  it('the swing is bounded by the stretch-scaled band (no runaway from a huge event pile)', () => {
+    const huge = executionSwing(1, 100, 1000);
+    expect(huge).toBeLessThanOrEqual(22); // maxHalfWidth
+  });
+
+  it('is a pure, deterministic read — same inputs, same swing', () => {
+    expect(executionSwing(0.6, 80, 5)).toBe(executionSwing(0.6, 80, 5));
   });
 });

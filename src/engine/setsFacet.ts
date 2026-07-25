@@ -10,7 +10,7 @@ import { ENVIRONMENT_BUDGET_RANGE } from '../data/production';
 import { setQualityT } from './productionDials';
 import { logAmount } from './interpolate';
 import { clamp } from './random';
-import { computeFacet, facetConfidence, DEFAULT_FACET_TUNING, type FacetConfidence, type FacetResult } from './facetModel';
+import { computeFacet, executionSwing, facetConfidence, DEFAULT_FACET_TUNING, type FacetConfidence, type FacetResult } from './facetModel';
 
 // --- Tunables --------------------------------------------------------------
 
@@ -95,6 +95,22 @@ export function computeSetsFacet(input: SetsFacetInput): SetsFacet {
     },
     SETS_TUNING,
   );
+}
+
+// --- The delivered quality (base + how the build actually came out) ---------
+
+/**
+ * The Sets facet's DELIVERED quality once the shoot is done: the deterministic
+ * base (what the plan bought) plus the execution swing (how the set/design build
+ * actually came out — engine/facetModel.ts:executionSwing). The swing is scaled
+ * by the facet's own `stretch`, so a comfortably-funded build lands tight to its
+ * base while an over-reaching one is a boom-or-bust bet the designer's skill
+ * biases. `setsSignal` = the net set/design event points from the shoot
+ * (engine/productionExecution.ts:ExecutionProfile.setsSignal); it defaults to 0
+ * — a forecast, or a shoot with no set events, is just the base.
+ */
+export function realiseSetsQuality(facet: SetsFacet, designerSkill: number, setsSignal = 0): number {
+  return clamp(Math.round(facet.quality + executionSwing(facet.stretch, designerSkill, setsSignal)), 0, 100);
 }
 
 // --- The designer's confidence (the conversation's forecast) ---------------

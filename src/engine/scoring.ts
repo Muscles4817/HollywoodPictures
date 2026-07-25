@@ -15,7 +15,7 @@ import { ageFitMultiplier } from './casting';
 import { deriveCommercialProfile } from './commercialProfile';
 import { findAssignedPerson, filterAssignedPeople } from '../data/helpers';
 import { getActorCareer, getDirectorCareer, getCrewCareer } from './person';
-import { computeSetsAmbition, computeSetsFacet, defaultDesignPrepDays, NO_DESIGNER_SKILL } from './setsFacet';
+import { computeSetsAmbition, computeSetsFacet, defaultDesignPrepDays, realiseSetsQuality, NO_DESIGNER_SKILL } from './setsFacet';
 import { computeVfxFacet } from './vfxFacet';
 import { computePracticalFacet } from './practicalFacet';
 import { characterForRoleSlot } from './castRequirements';
@@ -172,13 +172,22 @@ export function computeActingScore(talent: TalentAssignment[], script: Script): 
   return (leadScoreAvg ?? 30) * 0.7 + (supportScoreAvg ?? 30) * 0.3;
 }
 
-/** The Sets/Design contribution to the Production score, realised from money + prep time + Production Designer skill against the script's design ambition (engine/setsFacet.ts) - the first facet of the Production redesign, replacing the old flat setQualityScore term. */
-export function computeSetsFacetQuality(choices: ProductionChoices, talent: TalentAssignment[], script: Script): number {
+/**
+ * The Sets/Design contribution to the Production score. The deterministic base
+ * is realised from money + prep time + Production Designer skill against the
+ * script's design ambition (engine/setsFacet.ts); on top of it, `setsSignal` (the
+ * net set/design event points the shoot actually rolled, from the execution
+ * profile) drives the facet's execution swing — stretch-scaled and skill-tilted,
+ * so an over-reaching build is a boom-or-bust bet (spec §3.3). setsSignal
+ * defaults to 0, so a forecast (or a shoot with no set events) is just the base.
+ */
+export function computeSetsFacetQuality(choices: ProductionChoices, talent: TalentAssignment[], script: Script, setsSignal = 0): number {
   const ambition = computeSetsAmbition(script);
   const designer = findAssignedPerson(talent, 'Production Designer');
   const designerSkill = (designer && getCrewCareer(designer, 'Production Designer')?.skill) ?? NO_DESIGNER_SKILL;
   const prepDays = choices.designPrepDays ?? defaultDesignPrepDays(ambition, designerSkill);
-  return computeSetsFacet({ ambition, moneyAmount: choices.setQualityAmount, prepDays, designerSkill }).quality;
+  const facet = computeSetsFacet({ ambition, moneyAmount: choices.setQualityAmount, prepDays, designerSkill });
+  return realiseSetsQuality(facet, designerSkill, setsSignal);
 }
 
 /**
@@ -189,19 +198,23 @@ export function computeSetsFacetQuality(choices: ProductionChoices, talent: Tale
  * actually went, not a pre-set pace dial (see
  * productionDials.ts:shootingQualityFromRatio).
  *
- * The Sets/Design term is no longer a flat spend readout: it's the realised
- * Sets facet (money + prep time + Production Designer skill vs the script's
- * design ambition, engine/setsFacet.ts) - the first slice of the Production
- * redesign (docs/DESIGN_REVIEW_production_redesign.md). Contingency, style, and
- * effects stay as they were pending their own facets.
+ * The Sets/Design term is the realised Sets facet (money + prep time +
+ * Production Designer skill vs the script's design ambition, engine/setsFacet.ts)
+ * PLUS its execution swing: `execution.setsSignal` (the set/design events the
+ * shoot rolled) moves the delivered Sets quality, stretch-scaled and skill-tilted
+ * (spec §3.3). Passing no execution profile (a forecast) leaves the Sets term at
+ * its deterministic base. Contingency, style, and effects stay as they were
+ * pending their own facets.
  */
-export function computeProductionScore(choices: ProductionChoices, genre: Genre, shootingRatio: number, talent: TalentAssignment[], script: Script): number {
+export function computeProductionScore(choices: ProductionChoices, genre: Genre, shootingRatio: number, talent: TalentAssignment[], script: Script, execution?: ExecutionProfile): number {
   const profile = GENRE_PROFILES[genre];
   const contingency = contingencyQuality(choices.contingencyAmount);
   const style = shootingQualityFromRatio(shootingRatio);
   // Sets, VFX and Practical Effects are now realised facets (money × time × head
   // skill vs ambition, engine/facetModel.ts) rather than flat spend readouts.
-  const sets = computeSetsFacetQuality(choices, talent, script);
+  // Sets additionally takes its endogenous execution swing from the shoot's
+  // set/design events (execution.setsSignal); VFX/Practical swings are deferred.
+  const sets = computeSetsFacetQuality(choices, talent, script, execution?.setsSignal ?? 0);
   const practical = computePracticalFacet(choices.practicalEffectsAmount, genre, script, shootingRatio).quality;
   const vfx = computeVfxFacet(choices.vfxAmount, talent, genre, script).quality;
 
@@ -403,7 +416,7 @@ export function computeQualityBreakdown(
   const scriptScore = computeScriptScore(script);
   const directionScore = computeDirectionScore(talent, script);
   const actingScore = computeActingScore(talent, script);
-  const productionScore = computeProductionScore(productionChoices, genre, shootingRatio, talent, script);
+  const productionScore = computeProductionScore(productionChoices, genre, shootingRatio, talent, script, execution);
   // Footage coverage caps the edit: an under-shot film (below the recommended
   // schedule) can't be cut into a great one no matter how good the Editor is.
   // Coverage is read from execution.coverageRatio, not raw shootingRatio, so

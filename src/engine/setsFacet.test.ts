@@ -7,6 +7,7 @@ import {
   computeSetsFacet,
   designerAsk,
   designerConfidence,
+  realiseSetsQuality,
   NO_DESIGNER_SKILL,
   type SetsFacetInput,
 } from './setsFacet';
@@ -107,6 +108,39 @@ describe('skill and stretch', () => {
   it('designerConfidence reads the facet: comfortable = confident, starved = set-up-to-fail', () => {
     expect(designerConfidence(facet2(80, LAVISH, patient(80, 90), 90))).toBe('confident');
     expect(designerConfidence(facet2(80, CHEAP, rushed(80, 30), 30))).toBe('set-up-to-fail');
+  });
+});
+
+describe('realiseSetsQuality — base + execution swing (spec §3.3)', () => {
+  const A = 80;
+  // A comfortably-funded build (low stretch) vs an over-reaching one (high stretch).
+  const comfortable = () => computeSetsFacet({ ambition: A, moneyAmount: LAVISH, prepDays: patient(A, 90), designerSkill: 90 });
+  const overreach = () => computeSetsFacet({ ambition: A, moneyAmount: CHEAP, prepDays: rushed(A, 90), designerSkill: 90 });
+
+  it('a well-funded build barely moves with the shoot; an over-reaching one swings hard', () => {
+    const c = comfortable();
+    const o = overreach();
+    const comfortableSwing = Math.abs(realiseSetsQuality(c, 90, 10) - realiseSetsQuality(c, 90, -10));
+    const overreachSwing = Math.abs(realiseSetsQuality(o, 90, 10) - realiseSetsQuality(o, 90, -10));
+    expect(overreachSwing).toBeGreaterThan(comfortableSwing + 12);
+  });
+
+  it('on an over-reaching build, an elite designer booms where a weak one busts (same events)', () => {
+    const o = overreach(); // computed at high skill, but the swing tilt reads the skill arg
+    const elite = realiseSetsQuality(o, 95, 0);
+    const weak = realiseSetsQuality(o, 20, 0);
+    expect(elite).toBeGreaterThan(weak);
+  });
+
+  it('a neutral-skill forecast with no set events delivers exactly the deterministic base', () => {
+    // skill 50 → no tilt, signal 0 → no roll → zero swing at any stretch.
+    const c = comfortable();
+    expect(realiseSetsQuality(c, 50, 0)).toBe(c.quality);
+  });
+
+  it('a well-funded build stays close to its base even with a rough set break (tight band)', () => {
+    const c = comfortable();
+    expect(Math.abs(realiseSetsQuality(c, 70, -10) - c.quality)).toBeLessThan(5);
   });
 });
 

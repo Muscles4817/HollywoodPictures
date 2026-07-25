@@ -40,9 +40,15 @@ interface KeywordRule {
 // lands on the department it's really about.
 const CLASSIFICATION_RULES: KeywordRule[] = [
   { impact: 'script', keywords: ['writer', 'rewrite', 'script-doctor', 'draft', 'punch-up'] },
-  { impact: 'pacing', keywords: ['composer', 'score', 'music', 'temp-track', 'arranger', 'editor', 'assembly', 'twist', 'climax', 'centerpiece', 'continuity', 'structure', 'format-mismatch'] },
+  { impact: 'pacing', keywords: ['composer', 'score', 'music', 'temp-track', 'arranger', 'editor', 'assembly', 'twist', 'climax', 'centerpiece', 'continuity', 'structure', 'format-mismatch', 'sound-design'] },
   { impact: 'performances', keywords: ['morale', 'tension', 'clash', 'diva', 'rivalry', 'walked-off', 'no-show', 'blowup', 'mediator', 'bonding', 'bonded'] },
   { impact: 'coverage', keywords: ['schedule', 'weather', 'location', 'scene-cut', 'double-booked', 'exhausted', 'ad-quit', 'frantic', 'second-unit', 'rest', 'pace', 'wrapped', 'generous-time', 'extra-take', 'caught-continuity'] },
+  // Set/design build outcomes — the Production Designer's domain — routed to the
+  // Sets facet's execution swing (docs/DESIGN_REVIEW_production_redesign.md §10),
+  // NOT the shared visual/post bucket. Tight, collision-free tokens (never bare
+  // 'set'/'design', which catch 'setpiece'/'sound-design'); the genuine
+  // templates also carry an explicit `impact: 'sets'`, which wins over this.
+  { impact: 'sets', keywords: ['set-collapse', 'ambitious-set', 'design-breakthrough', 'worldbuilding', 'scenic', 'set-design', 'set-dressing', 'backdrop', 'production-design'] },
   { impact: 'visual', keywords: ['safety', 'stunt', 'explosion', 'rig', 'injury', 'near-miss', 'hazard', 'technical', 'vfx', 'equipment', 'render', 'effects', 'set', 'prop', 'design', 'gore', 'creature', 'scifi', 'fantasy', 'horror', 'action'] },
   { impact: 'general', keywords: ['budget', 'financing', 'contingency', 'corners', 'reserve', 'discount', 'exchange', 'vendor', 'insurance'] },
   { impact: 'performances', keywords: ['actor', 'lead', 'cast', 'chemistry', 'improv', 'raw-take', 'coach', 'performance', 'nailed'] },
@@ -87,6 +93,8 @@ export interface ExecutionProfile {
   scriptExecution: number;
   /** Coverage-adjusted shooting ratio feeding the edit ceiling - lost scenes/days mean the editor has less to work with. */
   coverageRatio: number;
+  /** Net (mitigated) set/design event points — the endogenous roll fed into the Sets facet's execution swing (engine/facetModel.ts:executionSwing). Not a multiplier: the facet scales it by its own stretch. */
+  setsSignal: number;
   /** Aggregate execution quality in roughly [-1, +1], for the star rating and sensitivity reporting. */
   overall: number;
   /** Resilience applied (0-1) - how much negative execution damage was absorbed by reliability + contingency. */
@@ -184,7 +192,7 @@ export function computeExecutionProfile(input: ExecutionProfileInput): Execution
   const resilience = computeExecutionResilience(input.talent, input.productionChoices);
 
   const buckets: Record<ProductionExecutionImpact, PosNeg> = {
-    performances: { pos: 0, neg: 0 }, coverage: { pos: 0, neg: 0 }, visual: { pos: 0, neg: 0 },
+    performances: { pos: 0, neg: 0 }, coverage: { pos: 0, neg: 0 }, sets: { pos: 0, neg: 0 }, visual: { pos: 0, neg: 0 },
     pacing: { pos: 0, neg: 0 }, script: { pos: 0, neg: 0 }, general: { pos: 0, neg: 0 },
   };
   const contributions: ExecutionContribution[] = [];
@@ -219,17 +227,26 @@ export function computeExecutionProfile(input: ExecutionProfileInput): Execution
   const coverageAdj = (buckets.coverage.pos + buckets.coverage.neg) * COVERAGE_TO_RATIO;
   const coverageRatio = clamp(input.shootingRatio + coverageAdj, 0.4, 3);
 
+  // Set/design build outcomes: their net (mitigated) points are the endogenous
+  // roll for the Sets facet's execution swing (engine/scoring.ts routes this via
+  // engine/facetModel.ts:executionSwing). They are deliberately NOT in postBucket
+  // — a re-route, not a copy, so a set outcome moves Production (Sets), not Post.
+  const setsSignal = buckets.sets.pos + buckets.sets.neg;
+
   // Aggregate for the star rating: acting + finished cut dominate, script and
   // coverage contribute less. Coverage's effect is only counted where it
-  // actually bites (below ratio 1, where the edit ceiling binds).
+  // actually bites (below ratio 1, where the edit ceiling binds). The sets signal
+  // is a raw quality-point net (not a multiplier), so it's scaled down to sit on
+  // the same [-1,+1]-ish axis as the others before contributing.
   const coverageEffect = Math.min(coverageRatio, 1) - Math.min(input.shootingRatio, 1);
   const overall =
     (performanceCapture - 1) * 0.40 +
     (postExecution - 1) * 0.40 +
     (scriptExecution - 1) * 0.10 +
-    coverageEffect * 0.6;
+    coverageEffect * 0.6 +
+    clamp(setsSignal / 100, -0.2, 0.2) * 0.20;
 
-  return { performanceCapture, postExecution, scriptExecution, coverageRatio, overall, resilience, contributions };
+  return { performanceCapture, postExecution, scriptExecution, coverageRatio, setsSignal, overall, resilience, contributions };
 }
 
 /** A neutral profile (no events, on-schedule) - the finished film is unchanged from its pre-production potential. Used as the default when no history is available. */
@@ -239,6 +256,7 @@ export function neutralExecutionProfile(shootingRatio = 1): ExecutionProfile {
     postExecution: 1,
     scriptExecution: 1,
     coverageRatio: shootingRatio,
+    setsSignal: 0,
     overall: 0,
     resilience: 0,
     contributions: [],
@@ -250,6 +268,7 @@ export function neutralExecutionProfile(shootingRatio = 1): ExecutionProfile {
 const IMPACT_LABEL: Record<ProductionExecutionImpact, string> = {
   performances: 'the performances',
   coverage: 'the available coverage',
+  sets: 'the sets and design',
   visual: 'the visual execution',
   pacing: 'the edit and pacing',
   script: 'the screenplay',
