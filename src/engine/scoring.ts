@@ -16,14 +16,14 @@ import { deriveCommercialProfile } from './commercialProfile';
 import { findAssignedPerson, filterAssignedPeople } from '../data/helpers';
 import { getActorCareer, getDirectorCareer, getCrewCareer } from './person';
 import { computeSetsAmbition, computeSetsFacet, defaultDesignPrepDays, NO_DESIGNER_SKILL } from './setsFacet';
+import { computeVfxFacet } from './vfxFacet';
+import { computePracticalFacet } from './practicalFacet';
 import { characterForRoleSlot } from './castRequirements';
 import {
   contingencyQuality,
   editCoverageCeiling,
   overallSpendT,
   shootingQualityFromRatio,
-  practicalEffectsScore,
-  vfxScore,
   runtimeMarketabilityDelta,
   marketingBuzzContribution,
 } from './productionDials';
@@ -199,9 +199,11 @@ export function computeProductionScore(choices: ProductionChoices, genre: Genre,
   const profile = GENRE_PROFILES[genre];
   const contingency = contingencyQuality(choices.contingencyAmount);
   const style = shootingQualityFromRatio(shootingRatio);
+  // Sets, VFX and Practical Effects are now realised facets (money × time × head
+  // skill vs ambition, engine/facetModel.ts) rather than flat spend readouts.
   const sets = computeSetsFacetQuality(choices, talent, script);
-  const practical = practicalEffectsScore(choices.practicalEffectsAmount);
-  const vfx = vfxScore(choices.vfxAmount);
+  const practical = computePracticalFacet(choices.practicalEffectsAmount, genre, script, shootingRatio).quality;
+  const vfx = computeVfxFacet(choices.vfxAmount, talent, genre, script).quality;
 
   const effectsWeightTotal = profile.vfxImportance + profile.practicalEffectsImportance;
   const effectsScore =

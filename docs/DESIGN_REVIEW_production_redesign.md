@@ -377,3 +377,76 @@ first end-to-end slice actually did, and where reality forced a change from §1�
 - **Resolve-delay prep days** advance the calendar but don't burn overhead or
   advance `daysElapsed` (a minor accounting simplification).
 - Save bumped to **v59** (new career field + `designPrepDays`).
+
+## 14. Step 4 — prototype all facets (deltas from Prototype 1)
+
+Status: **built** (`engine/facetModel.ts` + `engine/vfxFacet.ts` +
+`engine/practicalFacet.ts`, wired into `computeProductionScore`). This is
+rollout step 4: with the model proven on Sets, generalise it and put the rest of
+the effects/design side of Production onto it. Scope was deliberately the
+**clean** facets — Sets, VFX, Practical Effects — deferring the ones that need
+structural work first (see below). The math is light-UI only: the new facets
+feed scoring, but only Sets has its conversation card so far.
+
+**What shipped**
+- **`engine/facetModel.ts`** — the Sets math, extracted verbatim into a shared,
+  independently-tested core: `computeFacet(input, tuning)` +
+  `DEFAULT_FACET_TUNING` + `facetConfidence`. Every facet now supplies only its
+  own ambition source, money-t, time-ratio, skill, and a small `FacetTuning`
+  override; the load-bearing "money's weight scales with ambition" mechanism
+  lives here once. `facetModel.test.ts` asserts the model's invariants directly
+  (the 2×2, ambition-widens-money-dependence, the time floor, diminishing
+  returns, over-deliver headroom, stretch→confidence).
+- **`engine/setsFacet.ts` refactored onto the core**, behaviour-preserving — it
+  now owns only the Sets specifics (ambition source, `designerAsk`, the
+  ProductionChoices→FacetInput mapping) and calls `computeFacet`. All 10 existing
+  Sets tests pass unchanged, confirming the extraction is a no-op for Sets.
+- **`engine/vfxFacet.ts`** — VFX ambition from genre VFX reliance + setting
+  digital-world demand + scale; money = the existing `vfxAmount` dial; skill =
+  the **VFX Supervisor** (existing optional crew role, `NO_VFX_SUPERVISOR_SKILL`
+  fallback). `VFX_TUNING` makes VFX money-heavier than Sets (higher money weight
+  and floor) — spectacle genuinely needs the render/artist spend.
+- **`engine/practicalFacet.ts`** — Practical ambition from genre practical
+  reliance + setting physical-logistics demand + scale; money = the existing
+  `practicalEffectsAmount` dial.
+- **Both new facets replace their flat `productionDials` terms**
+  (`vfxScore` / `practicalEffectsScore`, now removed) inside
+  `computeProductionScore`'s genre-weighted effects blend. The 0.20 effects
+  weight and the vfx/practical genre weighting are unchanged, so this is not a
+  global quality shift — the full suite (incl. the production-execution and
+  box-office calibrations) is green.
+
+**Model deltas / decisions that mattered**
+- **VFX time axis is NEUTRAL (ratio 1.0) for now.** VFX's real time is
+  post-production render/finishing time, which is not a player lever yet
+  (post-production days are auto-computed). So VFX runs on money × skill with
+  time neutral; when post-production gains time levers (as pre-production did),
+  `timeRatio` becomes a real input. Documented in the module header.
+- **Practical time axis = the finished shoot's `shootingRatio`.** Practical
+  effects are shot on set, so a rushed shoot (low shootingRatio) genuinely dulls
+  the unit and an ample one helps — the same value the shooting-quality term
+  already reads, reused as this facet's time axis. (This means Practical, unlike
+  the others, has a *real* time axis today, read from how the shoot went rather
+  than a planning lever.)
+
+**Deferred (write down so it isn't lost)**
+- **Stunt Team entity** — Practical's intended head is a contracted **Stunt
+  Team** (a tiered vendor with specialties, spec §5.2), which isn't modelled
+  yet. The prototype uses a fixed `NO_STUNT_TEAM_SKILL = 42` (a competent,
+  unspecialised unit) as the skill axis. Wiring the team entity in as that axis
+  is the next Practical step.
+- **The money-fork facets — Cinematography, Score, Edit — are NOT in this step.**
+  Their money doesn't come from a clean per-facet dial the way Sets/VFX/Practical
+  do: cinematography spend is entangled with the shoot's daily burn, and
+  score/edit are post-production, whose money and the post-score structure need
+  their own pass first. Facet-ising them is a later step, once their money source
+  and (for Score/Edit) the post-production score restructure are sorted.
+- **Visual on-set event re-route into the facets** (spec §10) — still deferred, as
+  in §13: the deterministic money/time/skill model produces the full 2×2, but the
+  event-driven *stretch swing* on top needs a production-execution multiplier that
+  Production doesn't have today. Unchanged by this step.
+- **Per-facet conversation cards for VFX & Practical** — only Sets has its card so
+  far; VFX/Practical feed scoring but don't yet have their in-character
+  ask/confidence UX. Light-UI by design for this step.
+- No schema change → **no save bump** this step (the facets read existing
+  `ProductionChoices` fields).
