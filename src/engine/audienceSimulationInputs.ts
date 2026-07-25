@@ -154,7 +154,14 @@ export interface ReleaseSimulationInputs {
 // addressable pool scales up by the same proportion and stays exactly as
 // small *relative to the ceiling* as it always was - this constant scales
 // the whole range, not just the top of it.
-const BASE_ADDRESSABLE_POPULATION = 250_000_000;
+// Trimmed 250M -> 200M as a modest uniform contribution to the box-office
+// recalibration (docs/DESIGN_box_office_calibration_targets.md). Deliberately
+// modest, not the main lever - the bulk of the cooling comes from convex
+// interest activation below, because a large uniform market cut compresses the
+// billion-scale top end too (calibration doc §1). Paired with a word-of-mouth
+// re-tune (audienceSimulationStep.ts) so the smaller pools don't amplify the
+// reproduction loop.
+const BASE_ADDRESSABLE_POPULATION = 200_000_000;
 
 function computeTotalAddressableAudience(genre: Genre, targetAudience: TargetAudience): number {
   const marketSize = AUDIENCE_PROFILES[targetAudience].marketSize;
@@ -195,8 +202,20 @@ function computeTotalAddressableAudience(genre: Genre, targetAudience: TargetAud
 // "the screenplay should mostly affect whether people become interested
 // once they know about it"), just no longer at a magnitude that outweighs
 // marketing's own realistic range.
-const BASE_INTEREST_FLOOR = 0.15;
+// Interest *activation* is the primary box-office recalibration lever (docs/
+// DESIGN_box_office_calibration_targets.md §1). The diagnosis found an ordinary
+// film activating ~30% of an enormous eligible pool, grossing like a hit. The
+// fix is a CONVEX curve (accessibility ^ INTEREST_CONVEXITY) with a modestly
+// reduced floor: convexity puts an ordinary concept in the shallow part (small
+// activation) while the ceiling - and so the phenomenon at accessibility ~90+ -
+// is preserved. The floor is reduced only to 0.08, NOT near-zero: the opening
+// elasticity is floor-dominated, and dropping it further makes the screenplay a
+// bigger opening lever than marketing (the Milestone 12 invariant), and starves
+// a low-accessibility acclaimed film of the interest headroom its slow build
+// needs.
+const BASE_INTEREST_FLOOR = 0.08;
 const BASE_INTEREST_CEILING = 0.45;
+const INTEREST_CONVEXITY = 2.2;
 // scriptHookStrength's own multiplier range - deliberately narrow (a 1.5x
 // spread) so it reads as a real but clearly secondary contributor to
 // interest generation, never approaching scriptAccessibility's own
@@ -230,7 +249,7 @@ const AUDIENCE_MISMATCH_PENALTY = 0.7;
  * Milestone 11's "the screenplay should matter, but much less directly."
  */
 function computeBaseInterestFraction(scriptAccessibility: number, scriptHookStrength: number, targetAudience: TargetAudience, scriptIntendedAudience: TargetAudience): number {
-  const raw = BASE_INTEREST_FLOOR + (BASE_INTEREST_CEILING - BASE_INTEREST_FLOOR) * (scriptAccessibility / 100);
+  const raw = BASE_INTEREST_FLOOR + (BASE_INTEREST_CEILING - BASE_INTEREST_FLOOR) * Math.pow(clamp(scriptAccessibility / 100, 0, 1), INTEREST_CONVEXITY);
   const hookMultiplier = HOOK_STRENGTH_INTEREST_FLOOR + (HOOK_STRENGTH_INTEREST_CEILING - HOOK_STRENGTH_INTEREST_FLOOR) * (scriptHookStrength / 100);
   const fitMultiplier = targetAudience === scriptIntendedAudience ? 1 : AUDIENCE_MISMATCH_PENALTY;
   return clamp(raw * hookMultiplier * fitMultiplier, 0, 1);

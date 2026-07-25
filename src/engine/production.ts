@@ -4,6 +4,8 @@ import type {
   Genre,
   PendingEventChoice,
   Person,
+  PersonTrait,
+  PreProductionState,
   ProductionChoices,
   ProductionEvent,
   ProductionRole,
@@ -17,8 +19,11 @@ import {
   NEGATIVE_EVENT_TEMPLATES,
   GENRE_EVENT_TEMPLATES,
   RISK_DIMENSION_EVENT_TEMPLATES,
+  TRAIT_EVENT_TEMPLATES,
+  PRE_PRODUCTION_EVENT_TEMPLATES,
   type ProductionEventTemplate,
 } from '../data/productionEvents';
+import { deriveTraits } from './personTraits';
 import { GENRE_PROFILES } from '../data/genres';
 import { SETTING_ARCHETYPE_PROFILES } from '../data/settings';
 import { contingencyT, practicalEffectsT, vfxT, overallSpendT, FOOTAGE_LOWER_RATIO, FOOTAGE_UPPER_RATIO } from './productionDials';
@@ -28,7 +33,7 @@ import { findCandidatesNearPrice } from './talentFilter';
 import { professionForProductionRole, filterAssignedPeople, findAssignedPerson } from '../data/helpers';
 import { getCareerForRole, getCrewCareer, getTypicalSalaryForRole } from './person';
 import { classifyEventImpact } from './productionExecution';
-import { clamp, pick, pickMany, randFloat, weightedPick, type RandomFn } from './random';
+import { clamp, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn } from './random';
 
 const BASE_SHOOT_DAYS = 18;
 const MAX_COMPLEXITY_DAYS = 35;
@@ -361,6 +366,9 @@ function rollSimpleEvent(template: Extract<ProductionEventTemplate, { interactiv
     // much it pressures the rest of the shoot; id inference is only a fallback.
     impact: template.impact ?? classifyEventImpact({ id: template.id }),
     escalates: template.escalates ?? defaultEscalates(template.severity, template.polarity),
+    // Pre-production templates only (data/productionEvents.ts): prep quality that
+    // sets the shoot's starting risk. Rounded; omitted entirely for on-set events.
+    ...(template.riskDeltaRange ? { riskDelta: Math.round(randFloat(rng, template.riskDeltaRange[0], template.riskDeltaRange[1])) } : {}),
   };
 }
 
@@ -389,6 +397,8 @@ function rollChoiceOutcome(pending: PendingEventChoice, choice: EventChoiceTempl
     // A choice that lands negative can still ripple (the situation's seed);
     // a choice resolved positively contains it.
     escalates: qualityDelta < 0 ? (pending.escalates ?? defaultEscalates(pending.severity, 'negative')) : 0,
+    // Pre-production choices only: prep quality feeding the shoot's starting risk.
+    ...(choice.riskDeltaRange ? { riskDelta: Math.round(randFloat(rng, choice.riskDeltaRange[0], choice.riskDeltaRange[1])) } : {}),
   };
 }
 
@@ -409,9 +419,10 @@ export function talentSkillScore(person: Person | undefined, role: ProductionRol
   return (script && computeTalentCompatibility(person, role, script)) ?? 50;
 }
 
-/** Picks the specific hired person an `involvesRole` event is about - a random one, for a multi-hire role. */
-function resolveInvolvedTalent(role: ProductionRole, talent: TalentAssignment[], rng: RandomFn): Person | undefined {
-  const hired = filterAssignedPeople(talent, role);
+/** Picks the specific hired person an `involvesRole` event is about - a random one, for a multi-hire role. When the template `requiresTrait`, only someone in that role who actually has the trait is eligible (so the named person genuinely fits the event). */
+function resolveInvolvedTalent(role: ProductionRole, talent: TalentAssignment[], rng: RandomFn, requiresTrait?: PersonTrait): Person | undefined {
+  let hired = filterAssignedPeople(talent, role);
+  if (requiresTrait) hired = hired.filter((p) => deriveTraits(p).includes(requiresTrait));
   return hired.length > 0 ? pick(rng, hired) : undefined;
 }
 
@@ -556,13 +567,36 @@ function pickSeverity(weights: Record<EventSeverity, number>, rng: RandomFn): Ev
   return 'high';
 }
 
+/**
+ * The trait-driven templates (data/productionEvents.ts:TRAIT_EVENT_TEMPLATES)
+ * this specific cast makes eligible - a Difficult star's standoff only exists on
+ * a shoot that hired one. An interactive template (with `involvesRole`) is gated
+ * on the person in THAT role carrying the trait; a simple one (no role) is gated
+ * on anyone on the cast carrying it. Deriving traits is cheap for a ~10-person
+ * cast and this runs at most once per event roll.
+ */
+/** Whether a template's `requiresTrait` gate is satisfied by this cast (always true when it sets no trait). For an interactive template the trait is checked on the person in `involvesRole`; for a simple one, across the whole cast. */
+function traitSatisfied(t: ProductionEventTemplate, talent: TalentAssignment[]): boolean {
+  if (!t.requiresTrait) return true;
+  const role = 'involvesRole' in t ? t.involvesRole : undefined;
+  const people = role ? filterAssignedPeople(talent, role) : talent.map((a) => a.person);
+  return people.some((p) => deriveTraits(p).includes(t.requiresTrait!));
+}
+
+export function eligibleTraitTemplates(talent: TalentAssignment[]): ProductionEventTemplate[] {
+  if (talent.length === 0) return [];
+  return TRAIT_EVENT_TEMPLATES.filter((t) => t.requiresTrait && traitSatisfied(t, talent));
+}
+
 function buildEventPools(
   fullRisk: Record<'schedulePressure' | 'moraleRisk' | 'safetyRisk' | 'technicalComplexity' | 'budgetRisk', number>,
   genre: Genre,
+  talent: TalentAssignment[],
 ): { positivePool: ProductionEventTemplate[]; negativePool: ProductionEventTemplate[] } {
   const genreTemplates = GENRE_EVENT_TEMPLATES[genre] ?? [];
-  const positivePool = [...POSITIVE_EVENT_TEMPLATES, ...genreTemplates.filter((t) => t.polarity === 'positive')];
-  const negativePool = [...NEGATIVE_EVENT_TEMPLATES, ...genreTemplates.filter((t) => t.polarity === 'negative')];
+  const traitTemplates = eligibleTraitTemplates(talent);
+  const positivePool = [...POSITIVE_EVENT_TEMPLATES, ...genreTemplates.filter((t) => t.polarity === 'positive'), ...traitTemplates.filter((t) => t.polarity === 'positive')];
+  const negativePool = [...NEGATIVE_EVENT_TEMPLATES, ...genreTemplates.filter((t) => t.polarity === 'negative'), ...traitTemplates.filter((t) => t.polarity === 'negative')];
 
   for (const dimension of Object.keys(fullRisk) as Array<keyof typeof fullRisk>) {
     const value = fullRisk[dimension];
@@ -640,7 +674,7 @@ export function pickShootEvent(
   talentPool: Record<TalentProfession, Person[]>,
   rng: RandomFn,
 ): { event: ProductionEvent } | { pendingChoice: PendingEventChoice } | null {
-  const { positivePool, negativePool } = buildEventPools(fullRisk, genre);
+  const { positivePool, negativePool } = buildEventPools(fullRisk, genre, talent);
   const rollNegative = rng() * 100 < avgRisk;
   const pool = (rollNegative ? negativePool : positivePool).filter((t) => !usedIds.has(t.id));
   const fallbackPool = (rollNegative ? positivePool : negativePool).filter((t) => !usedIds.has(t.id));
@@ -665,7 +699,7 @@ export function pickShootEvent(
     return { event: rollSimpleEvent(template, rng) };
   }
 
-  const involved = template.involvesRole ? resolveInvolvedTalent(template.involvesRole, talent, rng) : undefined;
+  const involved = template.involvesRole ? resolveInvolvedTalent(template.involvesRole, talent, rng, template.requiresTrait) : undefined;
   // involvesRole is only ever set on templates about a mandatory role, which
   // is guaranteed hired by the time photography can begin - but if it's
   // ever missing for any reason, skip this template for today rather than
@@ -728,4 +762,91 @@ export function rollDayEvent(
   if (rng() >= dailyEventChance(avgRisk)) return null;
 
   return pickShootEvent(fullRisk, avgRisk, genre, usedIds, talent, script, talentPool, rng);
+}
+
+// --- Pre-production (the day-by-day prep phase) -----------------------------
+// A lean sibling to the on-set roller above (types/index.ts:PreProductionState).
+// Prep has no live risk dimensions of its own, so selection is simpler: a flat
+// daily chance, then a uniform pick from the prep bank (minus anything already
+// fired this prep, and gated by the same trait rules on-set events use). The
+// prep history it builds then feeds the shoot two ways - computePrepRiskDelta
+// (starting risk) and prepQualityEvents (finished film).
+
+// Roughly one prep event every ~5-6 days - prep should feel eventful without a
+// decision every day. First-draft, tunable.
+const PREPROD_EVENT_CHANCE = 0.18;
+
+/** Rolls whatever happens on a single day of pre-production - usually nothing. Mirrors rollDayEvent's shape (an interactive template returns a pendingChoice to pause on), but without the on-set risk model. */
+export function rollPreProductionDayEvent(
+  talent: TalentAssignment[],
+  script: Script | null,
+  usedIds: ReadonlySet<string>,
+  rng: RandomFn,
+): { event: ProductionEvent } | { pendingChoice: PendingEventChoice } | null {
+  if (rng() >= PREPROD_EVENT_CHANCE) return null;
+  const pool = PRE_PRODUCTION_EVENT_TEMPLATES.filter((t) => !usedIds.has(t.id) && traitSatisfied(t, talent));
+  if (pool.length === 0) return null;
+
+  const template = pool[randInt(rng, 0, pool.length - 1)];
+  if (!template.interactive) return { event: rollSimpleEvent(template, rng) };
+
+  const involved = template.involvesRole ? resolveInvolvedTalent(template.involvesRole, talent, rng, template.requiresTrait) : undefined;
+  if (template.involvesRole && !involved) return null;
+
+  const skillScore = involved ? talentSkillScore(involved, template.involvesRole, script) : 50;
+  const choices = involved ? prepareChoicesForInvolvedTalent(template.choices, involved.identity.name, skillScore) : template.choices;
+  const situation = involved ? interpolateName(template.situation, involved.identity.name) : template.situation;
+
+  return {
+    pendingChoice: {
+      templateId: template.id,
+      situation,
+      polarity: template.polarity,
+      severity: template.severity,
+      choices,
+      involvedTalentId: involved?.id,
+      involvedTalentName: involved?.identity.name,
+      involvedRole: template.involvesRole,
+      impact: template.impact ?? classifyEventImpact({ id: template.id }),
+      escalates: template.escalates ?? defaultEscalates(template.severity, template.polarity),
+    },
+  };
+}
+
+// The most prep can move the shoot's starting risk in either direction - bounded
+// so no amount of good (or bad) prep can trivialize or doom a shoot on its own.
+const MAX_PREP_RISK_SWING = 25;
+
+/** The net starting-risk adjustment a finished prep produces, from its events' riskDelta - negative = well-prepared, clamped to a bounded swing. */
+export function computePrepRiskDelta(preProduction: PreProductionState | null): number {
+  if (!preProduction) return 0;
+  const sum = preProduction.events.reduce((s, e) => s + (e.riskDelta ?? 0), 0);
+  return clamp(sum, -MAX_PREP_RISK_SWING, MAX_PREP_RISK_SWING);
+}
+
+/**
+ * The prep events that carry a finished-film consequence (nonzero qualityDelta),
+ * merged into the shoot's execution history at release so good/bad prep genuinely
+ * reaches the film. Cost/buzz/delay are ZEROED on the copy: a prep event's cash
+ * cost was already charged live during pre-production (studioReducer:
+ * ADVANCE_PREPRODUCTION_DAY), so only its quality/impact should reach the
+ * finished-film accounting - not a second charge.
+ */
+export function prepQualityEvents(preProduction: PreProductionState | null): ProductionEvent[] {
+  if (!preProduction) return [];
+  return preProduction.events
+    .filter((e) => e.qualityDelta !== 0)
+    .map((e) => ({ ...e, costDelta: 0, buzzDelta: 0, delayDaysDelta: 0 }));
+}
+
+/** Applies a prep starting-risk delta uniformly across the four static risk dimensions (each clamped 0-100) - good prep lowers what the shoot begins with, bad prep raises it. */
+export function applyPrepRiskDelta(risk: StaticProductionRisk, delta: number): StaticProductionRisk {
+  if (delta === 0) return risk;
+  const adj = (v: number) => clamp(Math.round(v + delta), 0, 100);
+  return {
+    moraleRisk: adj(risk.moraleRisk),
+    safetyRisk: adj(risk.safetyRisk),
+    technicalComplexity: adj(risk.technicalComplexity),
+    budgetRisk: adj(risk.budgetRisk),
+  };
 }

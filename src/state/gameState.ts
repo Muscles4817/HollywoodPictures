@@ -182,6 +182,7 @@ export function createDraftFromAsset(asset: Asset, talentTargetPriceByRole: Part
     effectsAmbition: null,
     productionChoices: null,
     greenlitOnDay: null,
+    preProduction: null,
     photography: null,
     furthestStepIndexCharged: -1,
     postProductionScreeningReadyDay: null,
@@ -331,6 +332,15 @@ export type GameAction =
   // state/studioReducer.ts. Fails safely (returns state unchanged) if the
   // studio can't afford the full commitment right now.
   | { type: 'GREENLIGHT_PROJECT' }
+  // Pre-production day-by-day phase (types/index.ts:PreProductionState), the
+  // mirror of ADVANCE_SHOOTING_DAY/RESOLVE_EVENT_CHOICE for the prep run.
+  // ADVANCE always drives the focused project's prep; RESOLVE names the draft
+  // (a prep choice can be answered from the Inbox for a backgrounded one).
+  | { type: 'ADVANCE_PREPRODUCTION_DAY' }
+  | { type: 'RESOLVE_PREPRODUCTION_CHOICE'; choiceId: string; productionId: string }
+  // Jump the already-focused project back to its live pre-production screen
+  // (the prep analogue of GO_TO_STEP for the shoot/marketing screens).
+  | { type: 'GO_TO_PREPRODUCTION' }
   | { type: 'ADVANCE_SHOOTING_DAY' }
   // Every project - focused or backgrounded - now lives in the same
   // GameState.projects array (roadmap Phase 5), so there's no more implicit
@@ -407,6 +417,15 @@ export type GameAction =
   // when the player opens the Inbox (engine/bidNotifications.ts). Clears the
   // header badge's bid contribution and the real-time clock's resume-guard.
   | { type: 'MARK_BID_NOTIFICATIONS_READ' }
+  // Removes one stored bid notification (GameState.bidNotifications) - the
+  // player dismissing a single bid "email" from the Inbox. Distinct from
+  // MARK_BID_NOTIFICATIONS_READ (which only clears the unread flag/badge): a
+  // stored won/lost/outbid can't be recomputed from state, so this is the only
+  // way to actually clear one out of the Inbox (engine/bidNotifications.ts).
+  | { type: 'DISMISS_BID_NOTIFICATION'; id: string }
+  // Clears every stored bid notification at once - the Inbox's "Clear all"
+  // convenience when several have piled up.
+  | { type: 'DISMISS_ALL_BID_NOTIFICATIONS' }
   // Marks one award ceremony acknowledged (GameState.acknowledgedAwardCeremonies)
   // - dispatched when the player clicks through an Inbox "Awards night" beat to
   // the Awards page. Read state is per-ceremony and explicit (state/selectors.ts:

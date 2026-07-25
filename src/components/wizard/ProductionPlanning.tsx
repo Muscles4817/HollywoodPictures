@@ -6,6 +6,7 @@ import { logAmount } from '../../engine/interpolate';
 import { GENRE_PROFILES } from '../../data/genres';
 import { computeProductionBudgetCost, computeDailyContingencyBurn } from '../../engine/cost';
 import { computeRecommendedShootDays, computeStaticProductionRisk } from '../../engine/production';
+import { topCreativeClash } from '../../engine/creativeTension';
 import { adaptRecommendationsToProductionChoices } from '../../engine/productionChoicesAdapter';
 import {
   explainEffectsStrategy,
@@ -304,6 +305,11 @@ export function ProductionPlanning() {
   const dailyShootCost = computeDailyContingencyBurn(currentChoices.contingencyAmount, recommendedDays);
   const totalEstimatedCost = estimatedCost + currentChoices.contingencyAmount;
   const staticRisk = computeStaticProductionRisk(draft.talent, script, currentChoices, genre);
+  // The specific clashing pairing behind an elevated Morale Risk, if any -
+  // named so the risk is legible before greenlight, not just a bar (SIMULATION_PHILOSOPHY.md
+  // Principle 3). Only surfaced when the friction is real (a meaningful tension).
+  const creativeClash = topCreativeClash(draft.talent);
+  const notableClash = creativeClash && creativeClash.tension >= 30 ? creativeClash : null;
 
   const identity = synthesizeProductionIdentity(script, envBreakdown, fxBreakdown);
   const biggestTension = findBiggestTension([
@@ -395,12 +401,18 @@ export function ProductionPlanning() {
       <div className="card stack">
         <h3 style={{ margin: 0 }}>Production Risk Profile</h3>
         <p style={{ margin: 0 }}>
-          A preview of how this plan (plus your cast's reliability and ego) shapes what's likely to happen on set -
-          higher isn't automatically bad news, but it opens the door to worse events and closes the door on the
-          better ones. Schedule Pressure isn't shown here - it depends on how photography actually goes, not on
-          anything you can set in advance.
+          A preview of how this plan (plus your cast's reliability, ego, temperament and how well the key creatives
+          get on) shapes what's likely to happen on set - higher isn't automatically bad news, but it opens the door
+          to worse events and closes the door on the better ones. Schedule Pressure isn't shown here - it depends on
+          how photography actually goes, not on anything you can set in advance.
         </p>
         <ScoreBar label="Morale Risk" value={staticRisk.moraleRisk} />
+        {notableClash && (
+          <p style={{ margin: '-4px 0 0', fontSize: '0.85em', color: 'var(--danger)' }}>
+            ⚠ {notableClash.director.identity.name} and {notableClash.actor.identity.name} are both strong-willed and
+            set in their ways - expect creative friction on set, and the on-set clashes that come with it.
+          </p>
+        )}
         <ScoreBar label="Safety Risk" value={staticRisk.safetyRisk} />
         <ScoreBar label="Technical Complexity" value={staticRisk.technicalComplexity} />
         <ScoreBar label="Budget Risk" value={staticRisk.budgetRisk} />

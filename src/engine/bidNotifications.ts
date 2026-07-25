@@ -154,3 +154,15 @@ export function markAllBidNotificationsRead(notifications: BidNotification[]): B
   if (notifications.every((n) => n.read)) return notifications;
   return notifications.map((n) => (n.read ? n : { ...n, read: true }));
 }
+
+/**
+ * Drops one stored notification by id - the player dismissing a single bid
+ * "email" from the Inbox. Returns the same array reference when the id isn't
+ * present, so the reducer can no-op. Unlike marking read, this genuinely
+ * removes it: these are stored (not recomputable from state), so without a way
+ * to clear them a settled won/lost/outbid would linger in the Inbox forever.
+ */
+export function dismissBidNotification(notifications: BidNotification[], id: string): BidNotification[] {
+  const next = notifications.filter((n) => n.id !== id);
+  return next.length === notifications.length ? notifications : next;
+}

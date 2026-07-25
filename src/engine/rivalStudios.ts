@@ -1,5 +1,6 @@
 import type {
   Film,
+  Genre,
   MarketingChoices,
   Opportunity,
   Person,
@@ -30,7 +31,7 @@ import { logAmount } from './interpolate';
 import { GENRE_PROFILES } from '../data/genres';
 import { SHOOTING_BUDGET_RANGE, ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../data/production';
 import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../data/postProduction';
-import { RELEASE_TYPE_PROFILES, MARKETING_SPEND_RANGE } from '../data/release';
+import { RELEASE_TYPE_PROFILES, MARKETING_SPEND_RANGE, RELEASE_WINDOW_BASE_MULTIPLIER, RELEASE_WINDOW_GENRE_BONUS } from '../data/release';
 import { clamp, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn } from './random';
 import { deriveReleaseWindowFromDay } from './calendar';
 import { computeCompetitiveCrowding, computeRivalReleaseStrength, type UpcomingRelease } from './releaseCrowding';
@@ -352,38 +353,68 @@ const STARTING_CASH_BY_TIER: Record<StudioTier, number> = {
 const STARTING_BRAND_BY_TIER: Record<StudioTier, number> = { Indie: 25, 'Mid-Size': 45, Major: 70 };
 const STARTING_PRESTIGE_BY_TIER: Record<StudioTier, number> = { Indie: 25, 'Mid-Size': 40, Major: 55 };
 
-// Roadmap Phase 7.4, upgraded for Phase 1 of release scheduling
-// competition: a new production nudges its naive release day forward, one
-// day at a time, while computeCompetitiveCrowding scores it above this
-// threshold against the shared calendar (the player's own scheduled
-// projects and every other rival's own in-progress production) - genre/
-// audience-weighted now, not just date-proximity. Deliberately small and
-// deterministic (no rng spent on it) - just enough that a rival steers away
-// from genuinely stiff competition, without trying to actually optimize
-// the calendar. First-draft, tunable alongside engine/releaseCrowding.ts's
-// own constants.
-const MAX_ACCEPTABLE_CROWDING = 0.35;
-const MAX_RELEASE_DAY_NUDGES = 14;
+// Strength-aware release scheduling (docs/DESIGN_box_office_calibration_
+// targets.md §8). A production no longer merely *avoids* crowding - it picks
+// the release day that maximises (seasonal desirability - relative crowding)
+// across a forward search window. The key is that the crowding term is now
+// RELATIVE (engine/releaseCrowding.ts:matchupWeight, fed the candidate's own
+// pre-release strength): a strong film barely feels the crowd, so seasonal pull
+// dominates and it heads straight for the prime window (summer/holidays) even
+// though other majors are already there - majors contest each other for the
+// best frames. A weak film feels the crowd hard, so the crowding term dominates
+// and it retreats to a quiet pocket where it can survive - everyone else working
+// around the majors. Both behaviours fall out of the SAME scoring formula via
+// the matchup; nothing branches on tier.
+//
+// How far forward a production is willing to shift its release from its naive
+// (production-driven) date to reach a better window. Wide enough to reach the
+// next major season, not so wide that films drift a whole year.
+const MAX_RELEASE_SHIFT_DAYS = 120;
+// How the crowding penalty trades off against seasonal desirability in the day
+// score. Seasonal desirability spans ~0.85 (quiet month) to ~1.5 (summer
+// action); this weight sets how much *relative* crowding (0-1) has to bite
+// before it outweighs a prime window's pull - i.e. how out-gunned a film must be
+// before fleeing a good season for a quiet one. Tunable alongside the
+// competition constants in engine/audienceSimulationStep.ts.
+const SCHEDULING_CROWD_WEIGHT = 0.6;
+// Only step weekly through the search window - releases land on weekend frames,
+// and a 1-day granularity would spend ~7x the compute for no behavioural gain.
+const SCHEDULING_STEP_DAYS = 7;
+
+/** A day's seasonal box-office desirability for a genre - the same window/genre multipliers the box office itself reads (data/release.ts), so the AI targets exactly the frames that actually pay off. */
+function seasonalDesirability(day: number, genre: Genre): number {
+  const window = deriveReleaseWindowFromDay(day);
+  return RELEASE_WINDOW_BASE_MULTIPLIER[window] * (RELEASE_WINDOW_GENRE_BONUS[window][genre] ?? 1);
+}
 
 /**
- * Pushes `naiveDay` forward past any day that scores above
- * MAX_ACCEPTABLE_CROWDING against `known` - see startRivalProductionFromWonScript
- * below. Pure and rng-free by design: the release-day choice stays fully
- * deterministic given the same inputs, same as everything else about when
- * a rival's production starts.
+ * Picks the release day maximising seasonal desirability net of *relative*
+ * crowding, searching forward from `naiveDay` (a film can delay to reach a
+ * better frame, but never release before production wraps). Pure and rng-free -
+ * the choice is fully deterministic given its inputs, as release-day selection
+ * has always been. `candidateStrength` (pre-release, engine/releaseCrowding.ts:
+ * computeRivalReleaseStrength) is what makes a strong film willing to sit in a
+ * crowded prime window and a weak one flee it - see the block comment above.
  */
-function avoidCrowdedReleaseDay(
+function chooseReleaseDay(
   naiveDay: number,
   candidate: Omit<UpcomingRelease, 'strength' | 'releaseDay'>,
   known: UpcomingRelease[],
+  candidateStrength: number,
 ): number {
-  let day = naiveDay;
-  let nudges = 0;
-  while (computeCompetitiveCrowding({ releaseDay: day, ...candidate }, known) > MAX_ACCEPTABLE_CROWDING && nudges < MAX_RELEASE_DAY_NUDGES) {
-    day += 1;
-    nudges += 1;
+  let bestDay = naiveDay;
+  let bestScore = -Infinity;
+  for (let day = naiveDay; day <= naiveDay + MAX_RELEASE_SHIFT_DAYS; day += SCHEDULING_STEP_DAYS) {
+    const crowd = computeCompetitiveCrowding({ releaseDay: day, ...candidate }, known, candidateStrength);
+    const score = seasonalDesirability(day, candidate.genre) - SCHEDULING_CROWD_WEIGHT * crowd;
+    // Strictly-greater keeps the earliest day among ties, so a film never delays
+    // longer than an actual score improvement justifies.
+    if (score > bestScore + 1e-9) {
+      bestScore = score;
+      bestDay = day;
+    }
   }
-  return day;
+  return bestDay;
 }
 
 /** A RivalProductionInProgress reduced to what computeCompetitiveCrowding needs - see engine/releaseCrowding.ts:UpcomingRelease. Exported for components/wizard/MarketingRelease.tsx, which needs the same conversion to preview crowding before a release is actually scheduled - one formula, not two independent implementations. */
@@ -770,13 +801,14 @@ function startRivalProductionFromWonScript(
   const recommendedDays = computeRecommendedShootDays(talent, script, productionChoices);
   const postProductionDays = computeRecommendedPostProductionDays(talent, productionChoices);
   const naiveReleaseDay = totalDays + recommendedDays + postProductionDays + RIVAL_MARKETING_LEAD_DAYS;
-  // Roadmap Phase 7.4, upgraded for Phase 1 of release scheduling
-  // competition: nudges forward while the day is genuinely crowded (genre/
-  // audience-weighted, not just date-proximity) instead of just avoiding
-  // exact-day clustering - reads the shared calendar (the player's own
-  // scheduled releases, every other rival's already-in-progress production)
-  // instead of picking a day in a vacuum.
-  const releaseDay = avoidCrowdedReleaseDay(naiveReleaseDay, { genre: script.genre, targetAudience: script.intendedAudience }, knownUpcoming);
+  // Strength-aware scheduling (docs/DESIGN_box_office_calibration_targets.md §8):
+  // this production's own pre-release strength (marketing + scale) decides
+  // whether it contests a prime window or retreats to a quiet one - see
+  // chooseReleaseDay. Marketing spend is resolved here (rather than only inside
+  // marketingChoices below) so it can feed both that strength and the campaign.
+  const marketingSpend = logAmount(spendPlan.marketingSpendT, MARKETING_SPEND_RANGE);
+  const candidateStrength = computeRivalReleaseStrength(marketingSpend, scale);
+  const releaseDay = chooseReleaseDay(naiveReleaseDay, { genre: script.genre, targetAudience: script.intendedAudience }, knownUpcoming, candidateStrength);
 
   const postProductionChoices: PostProductionChoices = {
     editStyle: pick(rng, EDIT_STYLES),
@@ -784,7 +816,7 @@ function startRivalProductionFromWonScript(
     finalCutFocus: pick(rng, FINAL_CUT_FOCI),
   };
   const marketingChoices: MarketingChoices = {
-    marketingSpend: logAmount(spendPlan.marketingSpendT, MARKETING_SPEND_RANGE),
+    marketingSpend,
     releaseType: releaseTypeForScale(scale, rng),
     releaseWindow: deriveReleaseWindowFromDay(releaseDay),
     // Rivals are established majors with full overseas distribution - freeze

@@ -837,6 +837,12 @@ export interface ProductionEvent {
   // seed of a bounded failure chain (engine/production.ts:computeShootEscalation).
   // Set at roll time from the template's `escalates` (default from severity).
   escalates?: number;
+  // PRE-PRODUCTION ONLY: signed adjustment to the shoot's STARTING static risk
+  // (engine/production.ts:computePrepRiskDelta). Negative = good prep that
+  // lowers the risk the shoot begins with (locations locked, cast rehearsed);
+  // positive = prep trouble that raises it. On-set events never set this - the
+  // shoot's own risk is already live. See PreProductionState.
+  riskDelta?: number;
 }
 
 // One option the player can pick when an interactive event pauses
@@ -854,6 +860,10 @@ export interface EventChoiceTemplate {
   qualityRange: [number, number];
   buzzRange: [number, number];
   delayDaysRange: [number, number];
+  // PRE-PRODUCTION choices only: how much picking this moves the shoot's
+  // starting static risk (negative = lowers it). Rolled into the resolved
+  // event's riskDelta; absent/ignored for on-set choices. See PreProductionState.
+  riskDeltaRange?: [number, number];
   // If true, this choice's qualityRange/delayDaysRange shift based on the
   // involved talent's skill (see PendingEventChoice.involvedTalentId) before
   // being rolled - a stronger writer/director/actor genuinely handles this
@@ -926,6 +936,27 @@ export interface StaticProductionRisk {
 // is paused on pendingChoice until RESOLVE_EVENT_CHOICE is dispatched; the
 // reducer only accepts ADVANCE_SHOOTING_DAY while 'in-progress'.
 export interface PhotographyState {
+  status: 'in-progress' | 'awaiting-choice' | 'finished';
+  recommendedDays: number;
+  daysElapsed: number;
+  events: ProductionEvent[];
+  runningCost: number;
+  pendingChoice: PendingEventChoice | null;
+}
+
+// Pre-Production run - a real day-by-day phase between Greenlight and Principal
+// Photography, mirroring PhotographyState's lifecycle exactly (the player watches
+// a ticking progress bar and answers the occasional interactive decision). Its
+// recorded `events` do double duty once the shoot begins:
+//   - those carrying qualityDelta/impact are folded into the finished film's
+//     execution history at release (a great table read genuinely lifts the film;
+//     casting friction genuinely dents it) - the "quality potential" of prep;
+//   - those carrying `riskDelta` set the shoot's STARTING static risk
+//     (engine/production.ts:computePrepRiskDelta) - good prep protects the
+//     downside, bad prep starts the shoot already tense.
+// The object persists on the draft after prep finishes (like photography does),
+// as the record both of those reads draw from.
+export interface PreProductionState {
   status: 'in-progress' | 'awaiting-choice' | 'finished';
   recommendedDays: number;
   daysElapsed: number;
@@ -2002,6 +2033,15 @@ export interface FilmDraft {
   attachedProducerIds?: PersonId[];
   /** The price the player is currently targeting for each casting slot - filters GameState.talentPool (once mapped to the underlying TalentProfession) down to who's shown. Keyed by ProductionRole, not TalentProfession, since Lead Actor and Supporting Actor need independent target prices even though both hire from the same Actor pool. */
   talentTargetPriceByRole: Partial<Record<ProductionRole, number>>;
+  /**
+   * The master Target Cast & Crew Budget the player set on the Hire Talent dial,
+   * or absent if they never touched it. When set, it drives the per-role targets
+   * above: SET_TALENT_BUDGET_SPLIT re-splits it by importance and, on every hire,
+   * TOGGLE_TALENT_FOR_ROLE re-splits the remainder net of what's been spent
+   * (engine/castBudget.ts), so opening the next role reflects the pot that's left.
+   * Absent leaves per-role dials fully manual. Optional/absent on older drafts.
+   */
+  castCrewBudget?: number;
   /** Casting Redesign, Phase B - every Open Casting call in progress for this draft's Lead/Supporting characters, at most one per Character. Empty until the player opens one; ticks weekly via engine/castingCalls.ts:tickCastingCalls. */
   castingCalls: CastingCall[];
   // The player's own Strategy/Ambition choices from the redesigned Plan
@@ -2022,6 +2062,12 @@ export interface FilmDraft {
   // own acquisition cost. Deliberately not a new Project `kind` - see
   // Project's own comment below for why.
   greenlitOnDay: number | null;
+  // The live pre-production run (Greenlight -> Principal Photography), or null
+  // before greenlight. Non-null with status 'in-progress'/'awaiting-choice'
+  // means prep is underway; 'finished' means it's the persisted record the shoot
+  // and finished film read from (see PreProductionState). Distinguishes the prep
+  // phase from filming, which `photography` tracks.
+  preProduction: PreProductionState | null;
   photography: PhotographyState | null;
   // Index into the wizard's canonical step order (state/studioReducer.ts:WIZARD_STEP_ORDER)
   // of the furthest stage whose fixed day cost (data/schedule.ts:STAGE_DURATIONS)
@@ -2270,6 +2316,7 @@ export type ProjectWorkspaceSection = 'overview' | 'cast-and-crew' | 'production
 export type Screen =
   | 'dashboard'
   | 'workspace'
+  | 'pre-production'
   | WizardStep
   | 'rival-studio'
   | 'stats'

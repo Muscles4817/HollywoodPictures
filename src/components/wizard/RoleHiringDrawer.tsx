@@ -334,7 +334,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
           value={targetPrice}
           onChange={(price) => dispatch({ type: 'SET_TALENT_TARGET_PRICE', role, price })}
           formatValue={formatMoney}
-          description="Drag to set how much you're willing to pay - the candidates shown update to match."
+          description="Drag to target a price band - the candidates shown update to match. It isn't the fee you pay: each hire is paid their own quoted salary, shown on their card."
           lowLabel="Cheap"
           highLabel="Star Power"
         />

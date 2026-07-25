@@ -47,6 +47,16 @@ PROD_EXEC_DIAGNOSTIC=1 npx vitest run src/engine/productionExecution.diagnostic.
 RIVAL_DIAGNOSTIC=1     npx vitest run src/engine/rivalStudios.diagnostic.test.ts
 ```
 
+Box-office calibration gates (encode the targets in
+`docs/DESIGN_box_office_calibration_targets.md`; **expected to fail** until the
+recalibration work lands — that is their purpose). One shared flag:
+
+```bash
+BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeDistribution.diagnostic.test.ts --disable-console-intercept  # §2/§3/§5 whole-year distribution & profitability
+BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/buzzCalibration.diagnostic.test.ts --disable-console-intercept        # §6 buzz bands, fixtures, non-purchasability
+BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeVariance.diagnostic.test.ts --disable-console-intercept      # §4 endogenous outcome variance
+```
+
 ## Conventions worth keeping
 
 - `engine/` functions are pure (plain data in, plain data out) — no React, no

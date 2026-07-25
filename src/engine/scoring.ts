@@ -524,6 +524,36 @@ export function computeAudienceScore(
  * studio"), not a critical-esteem one. Events/music/final-cut/script-
  * marketability stay as smaller flavor modifiers on top, same as before.
  */
+// Buzz non-purchasability (docs/DESIGN_box_office_calibration_targets.md §6).
+// Money buys awareness and contributes to buzz, but phenomenon-level
+// anticipation (the 75-100 bands) has to be *earned* - franchise, stars, an
+// established studio - not bought. So marketing no longer adds to buzz on its
+// own flat channel; it AMPLIFIES an anticipation core, gated by how much star/
+// brand power there is to amplify. A studio with no-name talent and no
+// recognition has little for its marketing pound to work on, so it cannot buy
+// its way past the mid bands however much it spends (buzzCalibration.diagnostic
+// .test.ts's non-purchasability probes).
+const BUZZ_BASE = 10;
+const FAME_BUZZ_WEIGHT = 0.5;
+const BRAND_BUZZ_WEIGHT = 0.55;
+const SCRIPT_BUZZ_WEIGHT = 0.15;
+// Marketing's amplification of the anticipation core, and how hard it's gated by
+// star/brand power. GATE_FLOOR is the fraction of marketing's effect an
+// utterly-unknown package still gets (some awareness is buyable); the rest is
+// unlocked by fame + brand.
+const MARKETING_BUZZ_WEIGHT = 0.68;
+const MARKETING_GATE_FLOOR = 0.3;
+// Soft ceiling: the raw score approaches 100 asymptotically above the knee
+// rather than hard-clamping, so the top three bands (blockbuster / cultural
+// event / phenomenon) stay distinguishable instead of all pinning to 100.
+const BUZZ_SOFT_KNEE = 85;
+const BUZZ_SOFT_SCALE = 15;
+
+function softCeilBuzz(raw: number): number {
+  if (raw <= BUZZ_SOFT_KNEE) return clamp(raw, 0, 100);
+  return BUZZ_SOFT_KNEE + (100 - BUZZ_SOFT_KNEE) * (1 - Math.exp(-(raw - BUZZ_SOFT_KNEE) / BUZZ_SOFT_SCALE));
+}
+
 export function computeBuzzScore(
   script: Script,
   talent: TalentAssignment[],
@@ -540,14 +570,21 @@ export function computeBuzzScore(
   const buzzworthyFame = [director?.reputation.fame, ...leads.map((l) => l.reputation.fame)].filter((f): f is number => f !== undefined);
   const fameAvg = average(buzzworthyFame) ?? 30;
 
-  const fameBuzz = (fameAvg - 50) * 0.5;
-  const brandBuzz = (studioBrand - 50) * 0.4;
-  const marketingBuzz = marketingBuzzContribution(marketingReach);
-
   const eventsBuzz = events.reduce((sum, e) => sum + e.buzzDelta, 0);
   const musicBuzz = MUSIC_FOCUS_PROFILES[postProductionChoices.musicFocus].buzzDelta;
   const finalCutBuzz = FINAL_CUT_FOCUS_PROFILES[postProductionChoices.finalCutFocus].buzzDelta;
-  const scriptBuzz = (deriveCommercialProfile(script).hookStrength - 50) * 0.2;
+  const scriptBuzz = (deriveCommercialProfile(script).hookStrength - 50) * SCRIPT_BUZZ_WEIGHT;
 
-  return clamp(10 + fameBuzz + brandBuzz + marketingBuzz + eventsBuzz + musicBuzz + finalCutBuzz + scriptBuzz, 0, 100);
+  // Non-purchasable anticipation core: who's involved, how established the studio
+  // is, the concept's hook, and production moments. What audiences already want.
+  const anticipation =
+    BUZZ_BASE + (fameAvg - 50) * FAME_BUZZ_WEIGHT + (studioBrand - 50) * BRAND_BUZZ_WEIGHT + scriptBuzz + eventsBuzz + musicBuzz + finalCutBuzz;
+
+  // Marketing amplifies that core, gated by star/brand power - an unknown package
+  // gives marketing little to amplify, so spend alone can't reach the top bands.
+  const starPower = clamp((fameAvg + studioBrand) / 200, 0, 1);
+  const marketingGate = MARKETING_GATE_FLOOR + (1 - MARKETING_GATE_FLOOR) * starPower;
+  const marketingBuzz = marketingBuzzContribution(marketingReach) * MARKETING_BUZZ_WEIGHT * marketingGate;
+
+  return softCeilBuzz(anticipation + marketingBuzz);
 }

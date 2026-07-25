@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { collectBidNotifications, unreadBidCount, markAllBidNotificationsRead, timeCriticalUnreadBidCount } from './bidNotifications';
+import { collectBidNotifications, unreadBidCount, markAllBidNotificationsRead, dismissBidNotification, timeCriticalUnreadBidCount } from './bidNotifications';
 import type { ResolvedBid } from './opportunities';
 import type { BidNotification, Opportunity, OpportunityBid } from '../types';
 
@@ -114,6 +114,15 @@ describe('unreadBidCount / markAllBidNotificationsRead', () => {
     const marked = markAllBidNotificationsRead(notes);
     expect(unreadBidCount(marked)).toBe(0);
     expect(markAllBidNotificationsRead(marked)).toBe(marked);
+  });
+
+  it('dismisses one notification by id, leaving the rest', () => {
+    const after = dismissBidNotification(notes, 'b');
+    expect(after.map((n) => n.id)).toEqual(['a', 'c']);
+  });
+
+  it('returns the same reference when dismissing an id that is not present (reducer no-op)', () => {
+    expect(dismissBidNotification(notes, 'missing')).toBe(notes);
   });
 });
 

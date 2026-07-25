@@ -1,12 +1,13 @@
 import type { Asset, AwardShowId, AwardsState, BidNotification, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
-import { randomSeed, withRng, clamp, type RandomFn } from '../engine/random';
+import { randomSeed, withRng, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
-import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
+import { ALL_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
 import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequirements';
+import { splitCastBudgetByImportance } from '../engine/castBudget';
 import { personMeetsCharacterGender, personMeetsCharacterAge, personCastingAge } from '../engine/casting';
-import { computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeShootEscalation, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, resolveEventChoice } from '../engine/production';
+import { applyPrepRiskDelta, computePrepRiskDelta, computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeShootEscalation, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, rollPreProductionDayEvent, resolveEventChoice } from '../engine/production';
 import { computeExecutionResilience } from '../engine/productionExecution';
 import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
 import { promoteFilmToIp, ipForSourceFilm } from '../engine/intellectualProperty';
@@ -37,7 +38,7 @@ import { accrueMomentum, computeBoxOfficeBump, computeCeremony, computeStudioAwa
 import { AWARD_SHOWS, awardShow } from '../data/awardsShows';
 import { settleOpportunities, reopenForfeitedOpportunity, highestBid, placeBid, type ResolvedBid } from '../engine/opportunities';
 import { acquisitionEvent } from '../engine/screenplay';
-import { collectBidNotifications, markAllBidNotificationsRead } from '../engine/bidNotifications';
+import { collectBidNotifications, markAllBidNotificationsRead, dismissBidNotification } from '../engine/bidNotifications';
 import { openCastingCall, tickCastingCalls } from '../engine/castingCalls';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
 import {
@@ -192,6 +193,22 @@ function wrapPhotography(draft: FilmDraft, wrapDay: number): { draft: FilmDraft;
   return {
     draft: { ...draft, photography: { ...photography, status: 'finished' }, postProductionScreeningReadyDay },
     contingencySettlement,
+  };
+}
+
+/**
+ * Pre-production is over - open Principal Photography. Leaves the finished
+ * preProduction record in place (the shoot and finished film still read its
+ * risk delta and quality events), and creates a fresh in-progress
+ * PhotographyState, mirroring what Greenlight used to do inline before prep
+ * became its own day-by-day phase. Prep event costs were already charged to
+ * cash as they fired, so nothing settles here.
+ */
+function beginPhotographyFromPrep(draft: FilmDraft): FilmDraft {
+  const recommendedDays = computeRecommendedShootDays(draft.talent, draft.script!, draft.productionChoices!);
+  return {
+    ...draft,
+    photography: { status: 'in-progress', recommendedDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
   };
 }
 
@@ -522,6 +539,24 @@ function assembleProjects(parts: {
 /** Replaces whichever `projects` entry is the player-in-progress draft with this id - the single-project update every simple wizard-field-edit case below uses. */
 function replaceDraft(projects: Project[], draft: FilmDraft): Project[] {
   return projects.map((p) => (p.kind === 'player-in-progress' && p.draft.id === draft.id ? playerDraftToProject(draft) : p));
+}
+
+/**
+ * Swaps in a draft's new talent list and, when the player has set a master cast
+ * & crew budget, re-splits it across whoever's still to hire net of what this
+ * change now leaves committed (engine/castBudget.ts) - so casting one role above
+ * (or below) its target immediately retargets the rest. With no master budget
+ * set the per-role dials stay fully manual: only the talent list changes.
+ */
+function withRebalancedTargets(draft: FilmDraft, nextTalent: TalentAssignment[]): FilmDraft {
+  if (draft.castCrewBudget == null) return { ...draft, talent: nextTalent };
+  const talentTargetPriceByRole = splitCastBudgetByImportance({
+    totalBudget: draft.castCrewBudget,
+    talent: nextTalent,
+    script: draft.script,
+    current: draft.talentTargetPriceByRole,
+  });
+  return { ...draft, talent: nextTalent, talentTargetPriceByRole };
 }
 
 /** Replaces a 'scheduled' project's draft in place, keeping its releaseDay - the scheduled-project analogue of replaceDraft (used to answer a press-tour incident). */
@@ -1086,7 +1121,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // GO_TO_STEP as before).
     case 'OPEN_PROJECT_WORKSPACE_SECTION': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
-      if (!focusedDraft || focusedDraft.photography) return state;
+      // Once greenlit (in pre-production or beyond) the workspace is behind us -
+      // greenlitOnDay is the canonical "past the workspace" marker (photography
+      // alone no longer covers it, since prep now precedes the shoot).
+      if (!focusedDraft || focusedDraft.greenlitOnDay !== null) return state;
       return { ...state, screen: 'workspace', projectWorkspaceSection: action.section, ...clearTransientView() };
     }
 
@@ -1224,7 +1262,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // binding-independent, so it stays exactly as it was.
       if (alreadyHired) {
         const nextTalent = focusedDraft.talent.filter((a) => a.person.id !== action.person.id);
-        return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, talent: nextTalent }) };
+        return { ...state, projects: replaceDraft(state.projects, withRebalancedTargets(focusedDraft, nextTalent)) };
       }
 
       const capacity = effectiveRoleCapacity(action.role, script);
@@ -1276,7 +1314,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       } else {
         return state;
       }
-      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, talent: nextTalent }) };
+      return { ...state, projects: replaceDraft(state.projects, withRebalancedTargets(focusedDraft, nextTalent)) };
     }
 
     // Casting Redesign, Phase B - opens a new Open Casting call for one
@@ -1348,23 +1386,26 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'SET_TALENT_BUDGET_SPLIT': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;
-      // Split per *head*, not per role - Lead Actor and Supporting Actor can
-      // each require more than one hire (script.requiredLeads/requiredSupporting),
-      // so a script needing 3 leads and 3 supporting actors has 8 mandatory
-      // heads to cast, not 6. Splitting the budget across a flat 6 roles
-      // understated the target price for every multi-hire role by however
-      // many extra people it actually needs.
-      const totalHeads = MANDATORY_TALENT_ROLES.reduce(
-        (sum, role) => sum + effectiveRoleCapacity(role, focusedDraft.script).max,
-        0,
-      );
-      const perHead = action.totalBudget / totalHeads;
-      const updated = { ...focusedDraft.talentTargetPriceByRole };
-      for (const role of MANDATORY_TALENT_ROLES) {
-        const range = ROLE_GENERATION_PROFILES[professionForProductionRole(role)].salaryRange;
-        updated[role] = clamp(perHead, range.min, range.max);
-      }
-      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, talentTargetPriceByRole: updated }) };
+      // Split by *importance* across the heads still to cast, net of what's
+      // already been committed to earlier hires (engine/castBudget.ts) - a lead
+      // actor's target is a bigger slice than an editor's, and a hire made above
+      // its suggested target shrinks what the rest can draw on. The master budget
+      // is stored on the draft so every subsequent hire re-splits the remainder
+      // (see withRebalancedTargets / TOGGLE_TALENT_FOR_ROLE).
+      const updated = splitCastBudgetByImportance({
+        totalBudget: action.totalBudget,
+        talent: focusedDraft.talent,
+        script: focusedDraft.script,
+        current: focusedDraft.talentTargetPriceByRole,
+      });
+      return {
+        ...state,
+        projects: replaceDraft(state.projects, {
+          ...focusedDraft,
+          castCrewBudget: action.totalBudget,
+          talentTargetPriceByRole: updated,
+        }),
+      };
     }
 
     case 'SET_PRODUCTION_PLAN': {
@@ -1427,36 +1468,25 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
 
       const recommendedDays = computeRecommendedShootDays(focusedDraft.talent, focusedDraft.script, focusedDraft.productionChoices);
       // How long pre-production itself takes, scaled to this project's own
-      // scope (engine/production.ts) - charged as a single lump sum here,
-      // replacing the old per-wizard-stage STAGE_DURATIONS charges GO_TO_STEP
-      // used to apply one at a time on the way to this point (data/schedule.ts).
+      // scope (engine/production.ts). No longer charged as a lump of calendar
+      // time here: pre-production is now a live, day-by-day phase
+      // (ADVANCE_PREPRODUCTION_DAY), so Greenlight settles nothing and advances
+      // no days - it books the talent, charges the upfront cost at today's date,
+      // and drops the player into the prep run. The world then moves one prep day
+      // at a time, exactly as it does during the shoot.
       const preProductionDays = computeRecommendedPreProductionDays(focusedDraft.talent, focusedDraft.script, focusedDraft.productionChoices);
       const upfrontCharge =
         computeTalentCost(focusedDraft.talent) +
         computeProductionBudgetCost(focusedDraft.productionChoices) +
         focusedDraft.productionChoices.contingencyAmount;
 
-      // Greenlight now advances the calendar for real (by preProductionDays),
-      // so it has to run the same settlement machinery every other
-      // calendar-advancing action does (GO_TO_STEP above) - scheduled
-      // releases, box office, the opportunity market, rival studios, and
-      // every other backgrounded production all keep moving during
-      // pre-production exactly as they would during any other multi-day
-      // stage transition.
-      const totalDaysAfter = state.totalDays + preProductionDays;
-      const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
-        const settlement = runCalendarSettlement(state, totalDaysAfter, rng);
-        const productionsInProgress = settleProductionsInProgress(backgroundedPlayerDrafts(state.projects, state.focusedProjectId), preProductionDays, state.talentPool, rng)
-          .map((d) => checkTestScreeningReadiness(d, totalDaysAfter, rng));
-        return { settlement, productionsInProgress };
-      });
-
       // Per-assignment, not per-role-then-profession: Lead Actor and
       // Supporting Actor share one Actor pool, so looping over pool keys and
       // re-filtering by id would visit that pool once per role and double up
       // an actor's commitment (see the identical fix in rivalStudios.ts).
-      const bookedUntil = totalDaysAfter + recommendedDays;
-      const talentPool = { ...result.settlement.talentPool };
+      // Committed through prep + the shoot from today.
+      const bookedUntil = state.totalDays + preProductionDays + recommendedDays;
+      const talentPool = { ...state.talentPool };
       for (const assignment of focusedDraft.talent) {
         const profession = professionForProductionRole(assignment.role);
         const commitment = { projectId: focusedDraft.id, role: assignment.role, startDay: state.totalDays, endDay: bookedUntil };
@@ -1465,32 +1495,181 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         );
       }
 
+      const greenlitDraft: FilmDraft = {
+        ...focusedDraft,
+        greenlitOnDay: state.totalDays,
+        preProduction: { status: 'in-progress', recommendedDays: preProductionDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
+      };
+
+      return {
+        ...state,
+        screen: 'pre-production',
+        talentPool,
+        ...clearTransientView(),
+        studio: recordCashChange(state.studio, state.totalDays, -upfrontCharge, 'production', `Greenlit "${focusedDraft.title}"`),
+        projects: replaceDraft(state.projects, greenlitDraft),
+      };
+    }
+
+    // One day of PRE-PRODUCTION: the mirror of ADVANCE_SHOOTING_DAY for the prep
+    // run (types/index.ts:PreProductionState). Rolls whether a prep event fires
+    // (engine/production.ts:rollPreProductionDayEvent), charges any prep cost to
+    // cash as it happens, advances the calendar (with every backgrounded shoot,
+    // rival and scheduled release settling in lockstep), and - once the
+    // recommended prep days are met - opens Principal Photography and hands off
+    // to the shoot. Always the focused project; a backgrounded prep simply waits
+    // until it's focused again. An interactive prep event pauses on
+    // 'awaiting-choice' exactly as the shoot does.
+    case 'ADVANCE_PREPRODUCTION_DAY': {
+      const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!d?.preProduction || d.preProduction.status !== 'in-progress' || !d.script) return state;
+      const usedIds = new Set(d.preProduction.events.map((e) => e.id));
+      const backgrounded = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
+
+      const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
+        const rolled = rollPreProductionDayEvent(d.talent, d.script, usedIds, rng);
+        if (rolled && 'pendingChoice' in rolled) {
+          const totalDaysAfter = state.totalDays + 1;
+          const settlement = runCalendarSettlement(state, totalDaysAfter, rng);
+          const productionsInProgress = settleProductionsInProgress(backgrounded, 1, state.talentPool, rng)
+            .map((p) => checkTestScreeningReadiness(p, totalDaysAfter, rng));
+          return { kind: 'pendingChoice' as const, pendingChoice: rolled.pendingChoice, totalDaysAfter, settlement, productionsInProgress };
+        }
+        const event = rolled?.event ?? null;
+        const daysAdvanced = 1 + (event?.delayDaysDelta ?? 0);
+        const totalDaysAfter = state.totalDays + daysAdvanced;
+        const settlement = runCalendarSettlement(state, totalDaysAfter, rng);
+        const productionsInProgress = settleProductionsInProgress(backgrounded, daysAdvanced, state.talentPool, rng)
+          .map((p) => checkTestScreeningReadiness(p, totalDaysAfter, rng));
+        return { kind: 'event' as const, event, daysAdvanced, totalDaysAfter, settlement, productionsInProgress };
+      });
+
+      if (result.kind === 'pendingChoice') {
+        const updatedFocused: FilmDraft = {
+          ...d,
+          preProduction: { ...d.preProduction, status: 'awaiting-choice', daysElapsed: d.preProduction.daysElapsed + 1, pendingChoice: result.pendingChoice },
+        };
+        return {
+          ...state,
+          rngSeed: nextSeed,
+          totalDays: result.totalDaysAfter,
+          rivalStudios: result.settlement.rivalStudios,
+          talentPool: result.settlement.talentPool,
+          opportunities: result.settlement.opportunities,
+          nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
+          bidNotifications: result.settlement.bidNotifications,
+          collaborations: result.settlement.collaborations,
+          studio: result.settlement.studio,
+          projects: assembleProjects({
+            playerDrafts: [updatedFocused, ...result.productionsInProgress],
+            scheduled: result.settlement.stillScheduled,
+            rivalProductions: result.settlement.rivalProductionsInProgress,
+            playerFilms: result.settlement.playerFilms,
+            rivalFilms: result.settlement.rivalFilms,
+          }),
+        };
+      }
+
+      const { event, daysAdvanced, totalDaysAfter, settlement, productionsInProgress } = result;
+      const prepCost = event?.costDelta ?? 0;
+      const advancedPrep = {
+        ...d.preProduction,
+        daysElapsed: d.preProduction.daysElapsed + daysAdvanced,
+        events: event ? [...d.preProduction.events, event] : d.preProduction.events,
+        runningCost: d.preProduction.runningCost + prepCost,
+      };
+      const finished = advancedPrep.daysElapsed >= advancedPrep.recommendedDays;
+      const updatedFocused: FilmDraft = finished
+        ? beginPhotographyFromPrep({ ...d, preProduction: { ...advancedPrep, status: 'finished' as const } })
+        : { ...d, preProduction: advancedPrep };
+      const studioAfterCost = prepCost !== 0
+        ? recordCashChange(settlement.studio, totalDaysAfter, -prepCost, 'production', `Pre-production on "${d.title}"`)
+        : settlement.studio;
       return {
         ...state,
         rngSeed: nextSeed,
-        screen: 'production',
         totalDays: totalDaysAfter,
-        rivalStudios: result.settlement.rivalStudios,
-        talentPool,
-        opportunities: result.settlement.opportunities,
-        nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
-        bidNotifications: result.settlement.bidNotifications,
-        collaborations: result.settlement.collaborations,
-        ...clearTransientView(),
-        studio: recordCashChange(result.settlement.studio, totalDaysAfter, -upfrontCharge, 'production', `Greenlit "${focusedDraft.title}"`),
+        screen: finished ? 'production' : state.screen,
+        rivalStudios: settlement.rivalStudios,
+        talentPool: settlement.talentPool,
+        opportunities: settlement.opportunities,
+        nextOpportunityCheckDay: settlement.nextOpportunityCheckDay,
+        bidNotifications: settlement.bidNotifications,
+        collaborations: settlement.collaborations,
+        studio: studioAfterCost,
         projects: assembleProjects({
-          playerDrafts: [
-            {
-              ...focusedDraft,
-              greenlitOnDay: totalDaysAfter,
-              photography: { status: 'in-progress', recommendedDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
-            },
-            ...result.productionsInProgress,
-          ],
-          scheduled: result.settlement.stillScheduled,
-          rivalProductions: result.settlement.rivalProductionsInProgress,
-          playerFilms: result.settlement.playerFilms,
-          rivalFilms: result.settlement.rivalFilms,
+          playerDrafts: [updatedFocused, ...productionsInProgress],
+          scheduled: settlement.stillScheduled,
+          rivalProductions: settlement.rivalProductionsInProgress,
+          playerFilms: settlement.playerFilms,
+          rivalFilms: settlement.rivalFilms,
+        }),
+      };
+    }
+
+    // Resolve a paused pre-production decision (RESOLVE_EVENT_CHOICE's prep
+    // sibling). Applies the chosen outcome's cost/quality/delay, unpauses, and -
+    // if that tipped prep past its recommended days - opens photography. Names
+    // the productionId so a prep choice can also be answered from the Inbox.
+    case 'RESOLVE_PREPRODUCTION_CHOICE': {
+      const target = asPlayerDraft(findProject(state.projects, action.productionId));
+      if (!target?.preProduction || target.preProduction.status !== 'awaiting-choice' || !target.preProduction.pendingChoice || !target.script) {
+        return state;
+      }
+      const isFocused = action.productionId === state.focusedProjectId;
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      const pendingChoice = target.preProduction.pendingChoice;
+      const otherBackgrounded = backgroundedPlayerDrafts(state.projects, state.focusedProjectId).filter((p) => p.id !== action.productionId);
+
+      const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
+        const event = resolveEventChoice(pendingChoice, action.choiceId, rng);
+        const totalDaysAfter = state.totalDays + event.delayDaysDelta;
+        const settlement = runCalendarSettlement(state, totalDaysAfter, rng);
+        const productionsInProgress = settleProductionsInProgress(otherBackgrounded, event.delayDaysDelta, state.talentPool, rng)
+          .map((p) => checkTestScreeningReadiness(p, totalDaysAfter, rng));
+        return { event, totalDaysAfter, settlement, productionsInProgress };
+      });
+
+      const { event, totalDaysAfter, settlement, productionsInProgress } = result;
+      const resolvedPrep = {
+        ...target.preProduction,
+        status: 'in-progress' as const,
+        events: [...target.preProduction.events, event],
+        runningCost: target.preProduction.runningCost + event.costDelta,
+        pendingChoice: null,
+      };
+      const finished = resolvedPrep.daysElapsed >= resolvedPrep.recommendedDays;
+      const updatedTarget: FilmDraft = finished
+        ? beginPhotographyFromPrep({ ...target, preProduction: { ...resolvedPrep, status: 'finished' as const } })
+        : { ...target, preProduction: resolvedPrep };
+      const studioAfterCost = event.costDelta !== 0
+        ? recordCashChange(settlement.studio, totalDaysAfter, -event.costDelta, 'production', `Pre-production on "${target.title}"`)
+        : settlement.studio;
+
+      // The resolved production is updatedTarget; the focused project passes
+      // through untouched when this was answered from the Inbox for a different
+      // (backgrounded) prep.
+      const playerDrafts = isFocused
+        ? [updatedTarget, ...productionsInProgress]
+        : [focusedDraft!, updatedTarget, ...productionsInProgress];
+      return {
+        ...state,
+        rngSeed: nextSeed,
+        totalDays: totalDaysAfter,
+        screen: finished && isFocused ? 'production' : state.screen,
+        rivalStudios: settlement.rivalStudios,
+        talentPool: settlement.talentPool,
+        opportunities: settlement.opportunities,
+        nextOpportunityCheckDay: settlement.nextOpportunityCheckDay,
+        bidNotifications: settlement.bidNotifications,
+        collaborations: settlement.collaborations,
+        studio: studioAfterCost,
+        projects: assembleProjects({
+          playerDrafts,
+          scheduled: settlement.stillScheduled,
+          rivalProductions: settlement.rivalProductionsInProgress,
+          playerFilms: settlement.playerFilms,
+          rivalFilms: settlement.rivalFilms,
         }),
       };
     }
@@ -1514,7 +1693,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       if (!d?.photography || d.photography.status !== 'in-progress' || !d.script || !d.productionChoices || !d.genre) {
         return state;
       }
-      const staticRisk = computeStaticProductionRisk(d.talent, d.script, d.productionChoices, d.genre);
+      // Pre-production sets the shoot's STARTING risk: good prep lowers every
+      // dimension, bad prep raises it (engine/production.ts:computePrepRiskDelta).
+      const staticRisk = applyPrepRiskDelta(
+        computeStaticProductionRisk(d.talent, d.script, d.productionChoices, d.genre),
+        computePrepRiskDelta(d.preProduction),
+      );
       const usedIds = new Set(d.photography.events.map((e) => e.id));
       const backgrounded = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
       // Bounded failure chains: prior major setbacks raise today's risk,
@@ -2122,6 +2306,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // same as Film.releasedBy, so no id lookup is needed either place it's
     // triggered from. Doesn't touch the calendar; it's just a detour, same
     // as opening the Dashboard's Studio History table.
+    case 'GO_TO_PREPRODUCTION': {
+      const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!d?.preProduction || d.preProduction.status === 'finished') return state;
+      return { ...state, screen: 'pre-production' };
+    }
+
     case 'VIEW_RIVAL_STUDIO':
       return { ...state, screen: 'rival-studio', ...clearTransientView({ viewingRivalStudioName: action.studioName }) };
 
@@ -2155,6 +2345,21 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const current = state.bidNotifications ?? [];
       const marked = markAllBidNotificationsRead(current);
       return marked === current ? state : { ...state, bidNotifications: marked };
+    }
+
+    // The player dismissed one bid "email" from the Inbox - drop it from the
+    // store entirely (these are stored, not recomputable, so nothing else would
+    // ever clear it). No-op if it's already gone (engine/bidNotifications.ts).
+    case 'DISMISS_BID_NOTIFICATION': {
+      const current = state.bidNotifications ?? [];
+      const next = dismissBidNotification(current, action.id);
+      return next === current ? state : { ...state, bidNotifications: next };
+    }
+
+    // "Clear all" from the Inbox - empties the whole bid-notification store.
+    case 'DISMISS_ALL_BID_NOTIFICATIONS': {
+      const current = state.bidNotifications ?? [];
+      return current.length === 0 ? state : { ...state, bidNotifications: [] };
     }
 
     // The player clicked through an Inbox "Awards night" beat - record that one
