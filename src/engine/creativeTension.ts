@@ -48,6 +48,38 @@ export function pairFriction(a: Person, b: Person): number {
   return egoClash * (1 - RIGIDITY_AMPLIFY + RIGIDITY_AMPLIFY * rigidity);
 }
 
+/** The worst director<->principal pairing on a cast and its friction, for both the risk number and the player-facing "why". */
+export interface CreativeClash {
+  director: Person;
+  actor: Person;
+  /** 0-100, the same scale computeCreativeTension returns. */
+  tension: number;
+}
+
+/**
+ * The single most friction-prone director<->principal pairing, or null when
+ * there's no director, no principal cast, or nobody actually clashes (tension 0
+ * - an agreeable/average/one-strong-will collaboration). Exposes WHO is at odds
+ * so the UI can name the cause, not just show a risk bar (SIMULATION_PHILOSOPHY.md
+ * Principle 3 - every meaningful risk should be legible).
+ */
+export function topCreativeClash(talent: TalentAssignment[]): CreativeClash | null {
+  const director = filterAssignedPeople(talent, 'Director')[0];
+  if (!director) return null;
+  const principals = [
+    ...filterAssignedPeople(talent, 'Lead Actor'),
+    ...filterAssignedPeople(talent, 'Supporting Actor'),
+  ];
+  let best: CreativeClash | null = null;
+  for (const actor of principals) {
+    const friction = pairFriction(director, actor);
+    if (friction > 0 && (!best || friction > best.tension / 100)) {
+      best = { director, actor, tension: Math.round(friction * 100) };
+    }
+  }
+  return best;
+}
+
 /**
  * How much extra creative friction the key creatives generate, 0-100. Zero for
  * an agreeable, average, or one-strong-will collaboration; high only when a
@@ -59,15 +91,5 @@ export function pairFriction(a: Person, b: Person): number {
  * clash with.
  */
 export function computeCreativeTension(talent: TalentAssignment[]): number {
-  const director = filterAssignedPeople(talent, 'Director')[0];
-  if (!director) return 0;
-  const principals = [
-    ...filterAssignedPeople(talent, 'Lead Actor'),
-    ...filterAssignedPeople(talent, 'Supporting Actor'),
-  ];
-  let worst = 0;
-  for (const actor of principals) {
-    worst = Math.max(worst, pairFriction(director, actor));
-  }
-  return Math.round(worst * 100);
+  return topCreativeClash(talent)?.tension ?? 0;
 }
