@@ -139,9 +139,20 @@ function thresholdResponse(womInfluence: number, threshold: number, sensitivity:
 // so ordinary-good reception now spends the whole run in the shallow
 // part of the curve instead of the steep part.
 const AWARENESS_RESPONSE = { threshold: 0.0, sensitivity: 300 };
-const NATURAL_INTEREST_RESPONSE = { threshold: 0.003, sensitivity: 75 };
+// NATURAL_INTEREST and CROSSOVER sensitivities were lowered (75 -> 55, 100 -> 70)
+// alongside the box-office funnel recalibration (engine/audienceSimulationInputs.ts:
+// convex interest activation + smaller market). That recalibration shrank each
+// film's interested pool, and because word-of-mouth influence is measured as
+// admissions *relative to* that pool (computeCurrentWomInfluence normalises
+// against maxInterestedAudience), a smaller pool raised the same reception's
+// effective influence - enough to push a merely-strong-WOM film's reproduction
+// ratio over replacement (a runaway phenomenon, the "Quantum Signal" failure
+// mode). These sensitivities are re-picked against the new pool sizes to restore
+// sub-replacement reproduction for that archetype, the same discipline the
+// original values were chosen with - see the block comment above.
+const NATURAL_INTEREST_RESPONSE = { threshold: 0.003, sensitivity: 55 };
 const PULL_FORWARD_RESPONSE = { threshold: 0.005, sensitivity: 100 };
-const CROSSOVER_RESPONSE = { threshold: 0.0075, sensitivity: 100 };
+const CROSSOVER_RESPONSE = { threshold: 0.0075, sensitivity: 70 };
 
 // Reception -> a 0-1 multiplier on word-of-mouth influence, convex in the
 // same spirit, with a small nonzero floor (organic chatter never reaches

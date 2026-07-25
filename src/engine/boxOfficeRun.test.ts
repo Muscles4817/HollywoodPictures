@@ -207,9 +207,12 @@ describe('settleBoxOfficeForAllFilms - distributor P&A recoup', () => {
     // The gross itself is untouched - the recoup is a cash withholding, not a
     // gross reduction.
     expect(withRecoup.filmsReleased[0].boxOfficeRun.cumulativeGross).toBe(noRecoup.filmsReleased[0].boxOfficeRun.cumulativeGross);
-    // studioRevenue on the finished film nets the recoup too.
-    const grossCredit = baseCredit; // domestic-only, so the finished-film gross credit equals the summed weekly credit
-    expect(withRecoup.filmsReleased[0].results.studioRevenue).toBe(grossCredit - recoup);
+    // studioRevenue on the finished film nets the recoup too. The finished-film
+    // gross credit is rounded once off the cumulative markets, whereas baseCredit
+    // sums the per-week rounded credits, so the two can differ by a single unit
+    // of rounding - allow that ±1 rather than asserting exact equality.
+    const grossCredit = baseCredit; // domestic-only, so the two match up to rounding
+    expect(Math.abs(withRecoup.filmsReleased[0].results.studioRevenue - (grossCredit - recoup))).toBeLessThanOrEqual(1);
   });
 
   it('recoup off the top settles identically in one big jump as week by week (reconstructable)', () => {

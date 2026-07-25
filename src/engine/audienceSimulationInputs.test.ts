@@ -461,8 +461,13 @@ describe('named archetype diagnostics', () => {
     const fixed = deriveAudienceSimulationFixedState(nicheInputs);
     const weeks = runFullSimulation(nicheInputs);
     const admissions = weeklyAdmissions(weeks);
-    // Acclaim is genuinely doing something - the run keeps growing, not just decaying from a tiny opening.
-    expect(admissions[Math.min(9, admissions.length - 1)]).toBeGreaterThan(admissions[0]);
+    // Acclaim is genuinely doing something - the run climbs to a peak clearly
+    // above its opening rather than just decaying from a tiny start. Checked at
+    // the peak rather than a fixed late week: post the box-office recalibration
+    // (convex interest + WOM re-tune) an acclaimed niche film front-loads its
+    // peak earlier (~week 4) and still has exceptional legs, so a deep-tail week
+    // can dip below the opening even though real acclaim-driven growth happened.
+    expect(Math.max(...admissions)).toBeGreaterThan(admissions[0]);
     // But Niche's own market size (data/audiences.ts) caps how big that growth can ever get, regardless of reception -
     // the same structural ceiling the standalone boundary test above checks directly.
     expect(totalAdmissions(weeks)).toBeLessThan(fixed.totalAddressableAudience * 0.15);

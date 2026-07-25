@@ -215,8 +215,13 @@ describe('named archetype regression scenarios', () => {
     expect(r.fixed.initialAwareCount).toBeLessThan(r.fixed.totalAddressableAudience * 0.05);
     // Durable run - genuinely uses most/all of the available runway, not a quick flame-out.
     expect(r.runWeeks).toBeGreaterThanOrEqual(MAX_SIMULATION_WEEKS - 2);
-    // Acclaim is doing real work - later weeks clearly outsell the opening.
-    expect(r.admissions[r.admissions.length - 1]).toBeGreaterThan(r.admissions[0]);
+    // Acclaim is doing real work - the run climbs to a peak clearly above its
+    // opening. Checked at the peak rather than the final week: post the box-office
+    // recalibration (convex interest activation + WOM re-tune) an acclaimed niche
+    // film peaks earlier (~week 4) and then gently declines over a long, durable
+    // run (still ~18x legs here), so the very last week can sit below the opening
+    // even though genuine acclaim-driven growth happened.
+    expect(Math.max(...r.admissions)).toBeGreaterThan(r.admissions[0]);
     // Niche's own market size structurally caps how big this can ever get, regardless of how far the acclaim carries it - compared against the film's own ceiling rather than a separately-simulated Mass Market run, since at this scenario's low Buzz/marketing level *both* versions sit in the same "hasn't tipped into the WOM feedback loop yet" regime and would otherwise scale by little more than the audience-size ratio alone (Milestone 3's own documented finding for this exact comparison).
     const massMarketEquivalent = deriveAudienceSimulationFixedState({ ...CRITICALLY_ACCLAIMED_NICHE, targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market' });
     expect(r.ceiling).toBeLessThan(maxInterestedAudience(massMarketEquivalent) * 0.5);
@@ -247,8 +252,12 @@ describe('named archetype regression scenarios', () => {
     }
     // Never spikes wildly past the opening either - a genuinely "sustained" shape, not a delayed version of the exceptional-reception archetype's explosion.
     expect(Math.max(...r.admissions)).toBeLessThan(r.admissions[0] * 3);
-    // Strong total in absolute terms.
-    expect(r.totalGross).toBeGreaterThan(200_000_000);
+    // Strong total in absolute terms. Threshold lowered from $200M with the
+    // box-office recalibration (engine/audienceSimulationInputs.ts): the ordinary
+    // commercial film's scale came down by design (a broad crowd-pleaser is a
+    // solid mid-tier hit now, not a $200M+ blockbuster), while still clearly
+    // outperforming the negligible/collapse archetypes.
+    expect(r.totalGross).toBeGreaterThan(140_000_000);
   });
 
   it('highly original but disliked film: originality alone never creates a breakout - poor reception suppresses WOM and expansion', () => {
