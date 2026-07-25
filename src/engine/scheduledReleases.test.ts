@@ -11,6 +11,8 @@
 // costCharged -> playerCostCharged).
 import { describe, it, expect } from 'vitest';
 import { settleTheatricalMarket } from './marketSettlement';
+import { asUpcomingRelease } from './scheduledReleases';
+import { computeCompetitiveCrowding, computeRivalReleaseStrength } from './releaseCrowding';
 import { buildReadyDraft } from '../state/testFixtures';
 import { withRng } from './random';
 
@@ -63,5 +65,36 @@ describe('settleTheatricalMarket - player release resolution (roadmap Phase 7.2)
     const { result: lowRep } = withRng(10, (rng) => settleTheatricalMarket([], [{ draft, releaseDay: 40 }], [], [], 40, 10, rng));
     const { result: highRep } = withRng(10, (rng) => settleTheatricalMarket([], [{ draft, releaseDay: 40 }], [], [], 40, 90, rng));
     expect(lowRep.settledFilms[0].results.buzzScore).not.toBe(highRep.settledFilms[0].results.buzzScore);
+  });
+});
+
+describe('asUpcomingRelease - player identity as home-turf territory', () => {
+  // The frozen studioGenreIdentity snapshot (set at SCHEDULE_RELEASE) lifts an
+  // on-brand release's competitive presence, so rivals reading the calendar via
+  // computeCompetitiveCrowding steer around the player's home genre - the
+  // player-side mirror of rivalAsUpcomingRelease's own genreIdentity read.
+  function scheduledWithIdentity(seed: number, studioGenreIdentity: number) {
+    const draft = withRng(seed, (rng) => buildReadyDraft(rng, { studioGenreIdentity })).result;
+    return { draft, releaseDay: 100 };
+  }
+
+  it('an on-brand scheduled release reads as a stronger presence than the same release with no identity', () => {
+    const bare = asUpcomingRelease(scheduledWithIdentity(1, 0));
+    const onBrand = asUpcomingRelease(scheduledWithIdentity(1, 85));
+    expect(onBrand.strength).toBeGreaterThan(bare.strength);
+    // Absent snapshot is the pre-identity behaviour, not a crash.
+    const legacy = withRng(1, (rng) => buildReadyDraft(rng)).result;
+    delete legacy.marketingChoices!.studioGenreIdentity;
+    expect(asUpcomingRelease({ draft: legacy, releaseDay: 100 }).strength).toBe(bare.strength);
+  });
+
+  it('a rival opening in the player home genre feels more crowding against an on-brand incumbent than an identity-less one', () => {
+    const bare = asUpcomingRelease(scheduledWithIdentity(2, 0));
+    const onBrand = asUpcomingRelease(scheduledWithIdentity(2, 85));
+    const rivalCandidate = { releaseDay: 100, genre: onBrand.genre, targetAudience: onBrand.targetAudience };
+    const rivalStrength = computeRivalReleaseStrength(30_000_000, 'Medium', 0);
+    const crowdVsBare = computeCompetitiveCrowding(rivalCandidate, [bare], rivalStrength);
+    const crowdVsOnBrand = computeCompetitiveCrowding(rivalCandidate, [onBrand], rivalStrength);
+    expect(crowdVsOnBrand).toBeGreaterThan(crowdVsBare);
   });
 });

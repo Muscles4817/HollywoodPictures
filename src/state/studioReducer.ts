@@ -69,7 +69,7 @@ import {
 } from '../engine/distribution';
 import { distributorChannelAllocation } from '../engine/marketing';
 import { applyStatChange } from '../engine/reputation';
-import { applyGenreIdentityDeltas } from '../engine/studioIdentity';
+import { applyGenreIdentityDeltas, genreIdentityFor } from '../engine/studioIdentity';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 import { currentScreenFor } from './selectors';
 import {
@@ -2227,6 +2227,13 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           // International Distribution tier - immune to later upgrades, exactly
           // like the domestic deal terms above. Absent tier => 0 => hard gate.
           internationalReachFraction: internationalReachForTier(internationalTier(state.studio)),
+          // Freeze the studio's identity in this film's genre so a rival choosing
+          // its release day reads this on-brand release as the stronger presence and
+          // steers around it (engine/scheduledReleases.ts:asUpcomingRelease). Frozen
+          // here, like the terms above, so the territory a scheduled release holds
+          // reflects the studio's standing when it was announced, not a value that
+          // shifts under rivals as later films settle.
+          studioGenreIdentity: genreIdentityFor(state.studio.genreIdentity, d.genre),
         },
       };
 

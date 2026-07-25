@@ -1124,6 +1124,22 @@ export interface MarketingChoices {
    * neutral (zero-bonus) rollout, so behaviour there is unchanged.
    */
   campaignStartDay?: number;
+  /**
+   * The studio's genre identity in THIS film's genre (0-100, engine/studioIdentity.ts),
+   * frozen at SCHEDULE_RELEASE - the player-side analogue of the snapshot a rival
+   * freezes onto its own production (RivalProductionInProgress.genreIdentity). It
+   * feeds the competitive-strength proxy (engine/releaseCrowding.ts:computePlayerReleaseStrength
+   * via scheduledReleases.ts:asUpcomingRelease) so a rival choosing its release day
+   * reads the player's on-brand release as the stronger presence and steers around
+   * its home turf - the same "majors defend their territory" behaviour rivals already
+   * show each other. Frozen (not read live) so a rival's day choice, often made weeks
+   * before the film opens, reacts to the player's standing as it was when the release
+   * was announced, and never shifts retroactively. Absent = 0 (the pre-identity
+   * behaviour): rivals, saves predating this, and the pre-schedule projection.
+   * Deliberately NOT the box-office path - the player's own funnel reads live identity
+   * at settlement (engine/marketSettlement.ts:settleTheatricalMarket), exactly as before.
+   */
+  studioGenreIdentity?: number;
 }
 
 export type OutcomeLabel =

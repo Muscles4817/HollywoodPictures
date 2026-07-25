@@ -25,6 +25,14 @@ export function asUpcomingRelease(s: ScheduledRelease): UpcomingRelease {
     releaseDay: s.releaseDay,
     genre: s.draft.genre!,
     targetAudience: s.draft.targetAudience!,
-    strength: computePlayerReleaseStrength(s.draft.marketingChoices!.marketingSpend, computeProductionBudgetCost(s.draft.productionChoices!)),
+    // The frozen genre-identity snapshot (types/index.ts:MarketingChoices.studioGenreIdentity,
+    // set at SCHEDULE_RELEASE) lifts an on-brand release's presence so rivals steer around
+    // the player's home turf - the player-side mirror of rivalAsUpcomingRelease reading a
+    // rival production's own frozen genreIdentity. Absent => 0 => the pre-identity behaviour.
+    strength: computePlayerReleaseStrength(
+      s.draft.marketingChoices!.marketingSpend,
+      computeProductionBudgetCost(s.draft.productionChoices!),
+      s.draft.marketingChoices!.studioGenreIdentity ?? 0,
+    ),
   };
 }
