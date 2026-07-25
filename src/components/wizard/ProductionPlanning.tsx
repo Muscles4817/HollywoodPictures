@@ -30,6 +30,11 @@ import {
   type DesignerConfidence,
   type SetsOutlook,
 } from '../../engine/setsFacet';
+import { computeVfxFacet, vfxOutlook, vfxSupervisorSkill } from '../../engine/vfxFacet';
+import { computePracticalFacet, practicalOutlook, NO_STUNT_TEAM_SKILL } from '../../engine/practicalFacet';
+import { facetConfidence, type FacetOutlook } from '../../engine/facetModel';
+import { stuntTeamById, stuntTeamEffectiveSkill, stuntTeamFitsGenre } from '../../engine/stuntTeams';
+import { STUNT_SPECIALTY_LABEL } from '../../data/stuntTeams';
 import { DistributionEditor } from '../common/DistributionEditor';
 import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
@@ -80,6 +85,29 @@ function describeSetsOutlook(outlook: SetsOutlook, designerName: string | undefi
     return `This is ${gamble}, and the art department isn't equipped to tip it your way — if the shoot fights the build, it will show. A stronger Production Designer would make the same bet worth taking.`;
   }
   return `${who}: “This is ${gamble} — it could come together beautifully or slip, depending on how the shoot goes.”`;
+}
+
+/**
+ * A generic head's boom-or-bust read (spec §3.3), used for the VFX and Practical
+ * conversation cards. Same shape as describeSetsOutlook, parameterised by voice:
+ * a tight plan needs no gamble framing (null); a stretched one is a bet the
+ * head's skill tips. `name` is the hired head (or a generic stand-in).
+ */
+function describeHeadOutlook(outlook: FacetOutlook, opts: { name: string; unmanaged: string; strongHire: string }): string | null {
+  if (outlook.spread === 'tight') return null;
+  const gamble = outlook.spread === 'wide' ? 'a real gamble' : 'no sure thing';
+  if (outlook.lean === 'promising') {
+    return `${opts.name}: “This is ${gamble} — but with this plan, if it comes together it'll be a highlight. I'll take that bet.”`;
+  }
+  if (outlook.lean === 'precarious') {
+    return `This is ${gamble}, and ${opts.unmanaged} can't tip it your way — if the shoot fights it, it'll show. ${opts.strongHire}`;
+  }
+  return `${opts.name}: “This is ${gamble} — it could come together or slip, depending on how the shoot goes.”`;
+}
+
+/** A qualitative word for a head's skill — presentation stays qualitative (CLAUDE.md), never the raw number. */
+function skillWord(skill: number): string {
+  return skill >= 80 ? 'Elite' : skill >= 62 ? 'Seasoned' : skill >= 45 ? 'Capable' : 'Journeyman';
 }
 
 const ENVIRONMENT_METHOD_KEYS: readonly EnvironmentMethodKey[] = ['studio', 'location', 'digital'];
@@ -361,6 +389,31 @@ export function ProductionPlanning() {
   // spread isn't tight); a comfortably-funded build needs no such warning.
   const setsOutlookText = describeSetsOutlook(setsOutlook(setsFacet, designerSkill), productionDesigner?.identity.name);
 
+  // VFX facet (Production Redesign) — the VFX Supervisor's live read on the
+  // current VFX plan (money from the effects allocation; post-time not a lever yet).
+  const vfxSupervisor = findAssignedPerson(draft.talent, 'VFX Supervisor');
+  const vfxSkill = vfxSupervisorSkill(draft.talent);
+  const vfxFacet = computeVfxFacet(currentChoices.vfxAmount, draft.talent, genre, script);
+  const vfxConf = facetConfidence(vfxFacet);
+  const vfxOutlookText = describeHeadOutlook(vfxOutlook(vfxFacet, vfxSkill), {
+    name: vfxSupervisor?.identity.name ?? 'The VFX vendor',
+    unmanaged: 'an unmanaged, outsourced pipeline',
+    strongHire: 'A VFX Supervisor would make the same bet worth taking.',
+  });
+
+  // Practical Effects facet — the hired Stunt Team's read. Time is filming time,
+  // unknown at planning (neutral), money is the practical allocation.
+  const stuntTeam = stuntTeamById(state.stuntTeamPool, draft.stuntTeamId);
+  const stuntTeamSkill = stuntTeam ? stuntTeamEffectiveSkill(stuntTeam, genre) : NO_STUNT_TEAM_SKILL;
+  const practicalFacet = computePracticalFacet(currentChoices.practicalEffectsAmount, genre, script, 1, stuntTeamSkill);
+  const practicalConf = facetConfidence(practicalFacet);
+  const practicalOutlookText = describeHeadOutlook(practicalOutlook(practicalFacet, stuntTeamSkill), {
+    name: stuntTeam?.name ?? 'The pickup stunt crew',
+    unmanaged: 'an ad-hoc stunt crew',
+    strongHire: 'A dedicated Stunt Team would make the same bet worth taking.',
+  });
+  const stuntTeamOptions = [...(state.stuntTeamPool ?? [])].sort((a, b) => b.skill - a.skill);
+
   const estimatedCost = computeProductionBudgetCost(currentChoices);
   const canAfford = state.studio.cash - computeCommittedSpend(draft, state.producerPool ?? [], state.stuntTeamPool ?? []) >= 0;
   const genreProfile = GENRE_PROFILES[genre];
@@ -472,6 +525,68 @@ export function ProductionPlanning() {
         onAmbitionChange={(next) => updatePlan({ effectsAmbition: next })}
         consequence={effectsConsequence}
       />
+
+      {/* Visual Effects conversation (Production Redesign, VFX facet) - the VFX
+          Supervisor reads the current effects plan and gives a confidence + a
+          boom-or-bust outlook. The money is the digital slice of the effects
+          allocation above; the VFX Supervisor is hired on the Cast & Crew tab. */}
+      <div className="card stack">
+        <div className="row-between">
+          <h3 style={{ margin: 0 }}>Visual Effects</h3>
+          <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+            {vfxSupervisor ? `${vfxSupervisor.identity.name} · ${skillWord(vfxSkill)}` : 'No VFX Supervisor hired'}
+          </span>
+        </div>
+        <p style={{ margin: 0 }}>
+          {vfxSupervisor
+            ? `${vfxSupervisor.identity.name} is supervising the digital work.`
+            : 'With no VFX Supervisor, the digital work is an unmanaged, outsourced pipeline — rougher than a supervised one. Hire one on the Cast & Crew tab to get more from the same VFX spend.'}{' '}
+          How convincing the effects read depends on the digital spend (your Effects Strategy and Ambition, above) against how much this film leans on VFX.
+        </p>
+        <p style={{ margin: 0, fontWeight: 600, color: CONFIDENCE_PRESENTATION[vfxConf].color }}>
+          {vfxSupervisor ? vfxSupervisor.identity.name : 'The VFX vendor'}: “{CONFIDENCE_PRESENTATION[vfxConf].label}.”
+        </p>
+        {vfxOutlookText && <p style={{ margin: 0, fontSize: '0.9em', color: 'var(--text-muted)' }}>{vfxOutlookText}</p>}
+      </div>
+
+      {/* Stunts & Practical Effects conversation (Production Redesign, Practical
+          facet). The head is a contracted Stunt Team chosen here — a specialty
+          that fits the film's genre lifts their effective skill. */}
+      <div className="card stack">
+        <div className="row-between">
+          <h3 style={{ margin: 0 }}>Stunts &amp; Practical Effects</h3>
+          <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+            {stuntTeam ? `${skillWord(stuntTeamSkill)}${stuntTeamFitsGenre(stuntTeam, genre) ? ' · fits this film' : ''}` : 'No Stunt Team hired'}
+          </span>
+        </div>
+        <p style={{ margin: 0 }}>
+          Pick the Stunt Team that will run the physical spectacle — stunts, rigs, pyro, practical creatures. A team whose
+          specialty fits this {genre} film works to a higher standard for the same money.
+        </p>
+        <label className="stack" style={{ gap: 4 }}>
+          <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>Stunt Team</span>
+          <select
+            value={draft.stuntTeamId ?? ''}
+            onChange={(e) => dispatch({ type: 'SET_STUNT_TEAM', stuntTeamId: e.target.value || null })}
+          >
+            <option value="">— No dedicated team (pickup crew) —</option>
+            {stuntTeamOptions.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} · {skillWord(t.skill)}{stuntTeamFitsGenre(t, genre) ? ' · fits' : ''} · {formatMoney(t.typicalSalary)}
+              </option>
+            ))}
+          </select>
+        </label>
+        {stuntTeam && (
+          <p style={{ margin: 0, fontSize: '0.9em', color: 'var(--text-muted)' }}>
+            Specialties: {stuntTeam.specialties.map((s) => STUNT_SPECIALTY_LABEL[s]).join(', ')}. Fee <Money amount={stuntTeam.typicalSalary} /> (charged at release).
+          </p>
+        )}
+        <p style={{ margin: 0, fontWeight: 600, color: CONFIDENCE_PRESENTATION[practicalConf].color }}>
+          {stuntTeam ? stuntTeam.name : 'The pickup crew'}: “{CONFIDENCE_PRESENTATION[practicalConf].label}.”
+        </p>
+        {practicalOutlookText && <p style={{ margin: 0, fontSize: '0.9em', color: 'var(--text-muted)' }}>{practicalOutlookText}</p>}
+      </div>
 
       <RangeSlider
         label="Contingency Reserve"
