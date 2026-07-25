@@ -117,6 +117,46 @@ can still break either way (`SIMULATION_PHILOSOPHY.md:215–225`), and variance
 stays inside the production where the player can watch it happen — never a
 release-time roll.
 
+## The casting-time decision surface
+
+Everything above changes *outcomes*. The bigger gameplay lever is making
+pairings change *decisions* — surfacing them while the player is still choosing
+who to hire, so the roster you've already signed pulls on who you sign next.
+Two levels, escalating in force:
+
+- **Passive — affinity highlights.** When filling a role, flag candidates who
+  have a strong positive pairing (baseline or history) with someone **already
+  signed to this film**: *"Your director has made two hits with this
+  cinematographer."* / *"These two leads have crackled before."* It reads the
+  same `pairChemistry`/history the outcome layer reads, just at the casting
+  card instead of on set — so the player can *deliberately assemble a band*
+  rather than discover it after the fact. The negative symmetry matters too:
+  quietly de-emphasise (or warn on) a candidate a signed person has a real
+  grudge with, so a bad pairing is a visible cost, not an ambush.
+
+- **Active — demands and vetoes.** A signed person can make their participation
+  *conditional on a specific collaborator*. A high-ego, high-loyalty star asks
+  for their trusted director or their favourite DP; refuse and their warmth
+  drops, or at the extreme they walk (the hard-refusal path in
+  `resolveOfferResponse` already exists — this feeds it). The veto is the mirror
+  image: *"I won't do the film if they're the editor."* Now the player has a
+  genuine choice with no clean answer — bring in the demanded person (who may be
+  a worse individual fit, pricier, or already booked elsewhere), or hold the
+  line and pay the relationship cost. That is Principle 6 (real trade-offs)
+  expressed as a casting event rather than a slider.
+
+The demand is where two otherwise-cosmetic personality axes finally do work:
+**ego** decides *who is entitled to make demands at all* (a deferential
+character never issues one), and **loyalty** decides *how hard they push and how
+much a refusal costs* (`PersonPersonality.ego`/`loyalty`, `types/index.ts:263`,
+noted as read by no formula today). Wiring them here is a clean Principle-7 win —
+the same move `creativeTension` made for ego/adaptability.
+
+Mechanically the demand should reuse the existing decision-surface pattern
+(the `OnSetDecisionCard` shape, or a casting-time inbox request) rather than a
+new modal — a bounded choice with a stated consequence on each branch, so it
+stays legible.
+
 ## Phasing
 
 Each phase is independently shippable and independently valuable; later phases
@@ -151,6 +191,21 @@ add pairing surfaces, not rework.
   placed like `describeRelationship` — qualitative tiers and prose, never raw
   numbers (`CLAUDE.md`). The `directorActorPairing` prose is the tone template.
 
+- **Phase 4 — Affinity highlights (passive decision surface).** The casting
+  card flags candidates with strong positive (or negative) pairings against
+  already-signed talent. Pure presentation over the Phase 0–3 signal; no new
+  state. Lands the "assemble a band on purpose" fantasy at the point of
+  decision. Best value once Phase 2 history exists, but works on the Phase 0
+  baseline alone.
+
+- **Phase 5 — Demands and vetoes (active decision surface).** A signed person
+  conditions their participation on a specific collaborator, driven by ego
+  (entitlement to demand) and loyalty (push/refusal cost). Reuses the
+  decision-card / casting-request pattern and the existing hard-refusal path.
+  This is the highest-drama phase and the one that makes the roster feel like
+  people with their own agendas — sequence it last because it leans on every
+  prior phase's signal being trustworthy.
+
 ## Open questions to settle before Phase 2
 
 1. **Reuse the `Collaboration` substrate or add a parallel pair-log?** A pair
@@ -176,6 +231,20 @@ add pairing surfaces, not rework.
    duo together locks them up, the same way `Collaboration.studioId` anticipates
    rival loyalty)? Out of scope for v1; the pair-log should be studio-agnostic
    so it *can* extend there without rework.
+
+5. **How binding is a demand (Phase 5)?** Spectrum from soft (refuse and take a
+   warmth hit) to hard (refuse and they walk via `relationshipRefuses`). Likely
+   ego/loyalty-scaled — a mid-tier character's demand is a preference with a
+   cost, a marquee star's is closer to an ultimatum. Also: does a demand fire at
+   offer time, or only once they're signed and you're filling the *next* seat?
+   The latter is more interesting (you already committed) but needs the casting
+   flow to support a mid-assembly interruption.
+
+6. **Demand frequency / annoyance budget.** Demands are high-drama and therefore
+   easy to overuse — if every signing triggers one, they stop reading as
+   character and start reading as tax. Needs a rarity gate (per-film cap, or
+   only the highest-ego signed person may demand), tuned like an event rate, not
+   left to fire on every eligible pair.
 
 ## What this deliberately is not
 
