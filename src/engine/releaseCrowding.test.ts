@@ -124,14 +124,14 @@ describe('studio identity as competitor territory - rivals steer around a strong
   // identity-less studio of otherwise identical marketing/scale. This is the
   // "majors defend their territory" behaviour, checked at the crowding layer.
   const day = 100;
-  const challenger = { releaseDay: day, genre: 'Horror' as const, targetAudience: 'General' as const };
+  const challenger = { releaseDay: day, genre: 'Horror' as const, targetAudience: 'Mass Market' as const };
   const challengerStrength = computeRivalReleaseStrength(30_000_000, 'Medium', 0);
 
   it('a same-genre incumbent with a home-genre identity crowds a challenger more than an identity-less one', () => {
     const marketing = 30_000_000;
     const scale = 'Medium' as const;
-    const incumbentBare: UpcomingRelease = { releaseDay: day, genre: 'Horror', targetAudience: 'General', strength: computeRivalReleaseStrength(marketing, scale, 0) };
-    const incumbentOnBrand: UpcomingRelease = { releaseDay: day, genre: 'Horror', targetAudience: 'General', strength: computeRivalReleaseStrength(marketing, scale, 90) };
+    const incumbentBare: UpcomingRelease = { releaseDay: day, genre: 'Horror', targetAudience: 'Mass Market', strength: computeRivalReleaseStrength(marketing, scale, 0) };
+    const incumbentOnBrand: UpcomingRelease = { releaseDay: day, genre: 'Horror', targetAudience: 'Mass Market', strength: computeRivalReleaseStrength(marketing, scale, 90) };
 
     const crowdingVsBare = computeCompetitiveCrowding(challenger, [incumbentBare], challengerStrength);
     const crowdingVsOnBrand = computeCompetitiveCrowding(challenger, [incumbentOnBrand], challengerStrength);
