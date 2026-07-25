@@ -16,6 +16,7 @@ import { ProductionOfficeCard } from './ProductionOfficeCard';
 import { DistributionArmCard } from './DistributionArmCard';
 import { computeTopGrossingFilms, deriveRecentAwardHighlights, deriveReputationHistory, hasDraftProgress, countActivePlayerProjects } from '../state/selectors';
 import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
+import { synthesizeStudioStanding, type StandingFilm } from '../engine/studioStanding';
 import { isRecentlyCommissioned } from '../engine/commission';
 import { campaignRolloutProgress } from '../engine/marketing';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
@@ -130,6 +131,20 @@ export function Dashboard() {
   }, 0);
 
   const nextRelease = scheduledReleases[0];
+
+  // Where the studio sits in the industry - a prose read of Brand, Prestige,
+  // its earned genre identity, and its own biggest hit and costliest misfire
+  // (engine/studioStanding.ts). Only films whose run has finished carry a
+  // known profit, so the standing's success/misfire picks read a settled
+  // history, never a film still in theatres.
+  const studioStanding = useMemo(() => {
+    const finishedFilms: StandingFilm[] = playerReleasedFilms.flatMap((film) =>
+      film.results.profit !== null
+        ? [{ title: film.title, genre: film.genre, profit: film.results.profit, totalCost: film.results.totalCost, audienceScore: film.results.audienceScore }]
+        : [],
+    );
+    return synthesizeStudioStanding({ brand: studio.brand, prestige: studio.prestige, genreIdentity: studio.genreIdentity, films: finishedFilms });
+  }, [playerReleasedFilms, studio.brand, studio.prestige, studio.genreIdentity]);
 
   // Development Department: original screenplays being written, and ones just
   // delivered - the commission "delivery moment" so a finished script doesn't
@@ -401,6 +416,11 @@ export function Dashboard() {
             {runningFilms.length} film{runningFilms.length === 1 ? '' : 's'} currently playing
           </span>
         </div>
+      </section>
+
+      <section className="dashboard-standing" aria-label="Studio standing">
+        <span className="dashboard-standing-headline">{studioStanding.headline}</span>
+        <p className="dashboard-standing-body">{studioStanding.body}</p>
       </section>
 
       <div className="dashboard-main-grid">
