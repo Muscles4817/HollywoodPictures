@@ -417,6 +417,15 @@ export type GameAction =
   // when the player opens the Inbox (engine/bidNotifications.ts). Clears the
   // header badge's bid contribution and the real-time clock's resume-guard.
   | { type: 'MARK_BID_NOTIFICATIONS_READ' }
+  // Removes one stored bid notification (GameState.bidNotifications) - the
+  // player dismissing a single bid "email" from the Inbox. Distinct from
+  // MARK_BID_NOTIFICATIONS_READ (which only clears the unread flag/badge): a
+  // stored won/lost/outbid can't be recomputed from state, so this is the only
+  // way to actually clear one out of the Inbox (engine/bidNotifications.ts).
+  | { type: 'DISMISS_BID_NOTIFICATION'; id: string }
+  // Clears every stored bid notification at once - the Inbox's "Clear all"
+  // convenience when several have piled up.
+  | { type: 'DISMISS_ALL_BID_NOTIFICATIONS' }
   // Marks one award ceremony acknowledged (GameState.acknowledgedAwardCeremonies)
   // - dispatched when the player clicks through an Inbox "Awards night" beat to
   // the Awards page. Read state is per-ceremony and explicit (state/selectors.ts:

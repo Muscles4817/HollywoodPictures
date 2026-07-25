@@ -1,10 +1,11 @@
 import type { Asset, AwardShowId, AwardsState, BidNotification, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
-import { randomSeed, withRng, clamp, type RandomFn } from '../engine/random';
+import { randomSeed, withRng, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
-import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
+import { ALL_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
 import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequirements';
+import { splitCastBudgetByImportance } from '../engine/castBudget';
 import { personMeetsCharacterGender, personMeetsCharacterAge, personCastingAge } from '../engine/casting';
 import { applyPrepRiskDelta, computePrepRiskDelta, computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeShootEscalation, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, rollPreProductionDayEvent, resolveEventChoice } from '../engine/production';
 import { computeExecutionResilience } from '../engine/productionExecution';
@@ -37,7 +38,7 @@ import { accrueMomentum, computeBoxOfficeBump, computeCeremony, computeStudioAwa
 import { AWARD_SHOWS, awardShow } from '../data/awardsShows';
 import { settleOpportunities, reopenForfeitedOpportunity, highestBid, placeBid, type ResolvedBid } from '../engine/opportunities';
 import { acquisitionEvent } from '../engine/screenplay';
-import { collectBidNotifications, markAllBidNotificationsRead } from '../engine/bidNotifications';
+import { collectBidNotifications, markAllBidNotificationsRead, dismissBidNotification } from '../engine/bidNotifications';
 import { openCastingCall, tickCastingCalls } from '../engine/castingCalls';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
 import {
@@ -538,6 +539,24 @@ function assembleProjects(parts: {
 /** Replaces whichever `projects` entry is the player-in-progress draft with this id - the single-project update every simple wizard-field-edit case below uses. */
 function replaceDraft(projects: Project[], draft: FilmDraft): Project[] {
   return projects.map((p) => (p.kind === 'player-in-progress' && p.draft.id === draft.id ? playerDraftToProject(draft) : p));
+}
+
+/**
+ * Swaps in a draft's new talent list and, when the player has set a master cast
+ * & crew budget, re-splits it across whoever's still to hire net of what this
+ * change now leaves committed (engine/castBudget.ts) - so casting one role above
+ * (or below) its target immediately retargets the rest. With no master budget
+ * set the per-role dials stay fully manual: only the talent list changes.
+ */
+function withRebalancedTargets(draft: FilmDraft, nextTalent: TalentAssignment[]): FilmDraft {
+  if (draft.castCrewBudget == null) return { ...draft, talent: nextTalent };
+  const talentTargetPriceByRole = splitCastBudgetByImportance({
+    totalBudget: draft.castCrewBudget,
+    talent: nextTalent,
+    script: draft.script,
+    current: draft.talentTargetPriceByRole,
+  });
+  return { ...draft, talent: nextTalent, talentTargetPriceByRole };
 }
 
 /** Replaces a 'scheduled' project's draft in place, keeping its releaseDay - the scheduled-project analogue of replaceDraft (used to answer a press-tour incident). */
@@ -1243,7 +1262,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // binding-independent, so it stays exactly as it was.
       if (alreadyHired) {
         const nextTalent = focusedDraft.talent.filter((a) => a.person.id !== action.person.id);
-        return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, talent: nextTalent }) };
+        return { ...state, projects: replaceDraft(state.projects, withRebalancedTargets(focusedDraft, nextTalent)) };
       }
 
       const capacity = effectiveRoleCapacity(action.role, script);
@@ -1295,7 +1314,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       } else {
         return state;
       }
-      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, talent: nextTalent }) };
+      return { ...state, projects: replaceDraft(state.projects, withRebalancedTargets(focusedDraft, nextTalent)) };
     }
 
     // Casting Redesign, Phase B - opens a new Open Casting call for one
@@ -1367,23 +1386,26 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'SET_TALENT_BUDGET_SPLIT': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;
-      // Split per *head*, not per role - Lead Actor and Supporting Actor can
-      // each require more than one hire (script.requiredLeads/requiredSupporting),
-      // so a script needing 3 leads and 3 supporting actors has 8 mandatory
-      // heads to cast, not 6. Splitting the budget across a flat 6 roles
-      // understated the target price for every multi-hire role by however
-      // many extra people it actually needs.
-      const totalHeads = MANDATORY_TALENT_ROLES.reduce(
-        (sum, role) => sum + effectiveRoleCapacity(role, focusedDraft.script).max,
-        0,
-      );
-      const perHead = action.totalBudget / totalHeads;
-      const updated = { ...focusedDraft.talentTargetPriceByRole };
-      for (const role of MANDATORY_TALENT_ROLES) {
-        const range = ROLE_GENERATION_PROFILES[professionForProductionRole(role)].salaryRange;
-        updated[role] = clamp(perHead, range.min, range.max);
-      }
-      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, talentTargetPriceByRole: updated }) };
+      // Split by *importance* across the heads still to cast, net of what's
+      // already been committed to earlier hires (engine/castBudget.ts) - a lead
+      // actor's target is a bigger slice than an editor's, and a hire made above
+      // its suggested target shrinks what the rest can draw on. The master budget
+      // is stored on the draft so every subsequent hire re-splits the remainder
+      // (see withRebalancedTargets / TOGGLE_TALENT_FOR_ROLE).
+      const updated = splitCastBudgetByImportance({
+        totalBudget: action.totalBudget,
+        talent: focusedDraft.talent,
+        script: focusedDraft.script,
+        current: focusedDraft.talentTargetPriceByRole,
+      });
+      return {
+        ...state,
+        projects: replaceDraft(state.projects, {
+          ...focusedDraft,
+          castCrewBudget: action.totalBudget,
+          talentTargetPriceByRole: updated,
+        }),
+      };
     }
 
     case 'SET_PRODUCTION_PLAN': {
@@ -2323,6 +2345,21 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const current = state.bidNotifications ?? [];
       const marked = markAllBidNotificationsRead(current);
       return marked === current ? state : { ...state, bidNotifications: marked };
+    }
+
+    // The player dismissed one bid "email" from the Inbox - drop it from the
+    // store entirely (these are stored, not recomputable, so nothing else would
+    // ever clear it). No-op if it's already gone (engine/bidNotifications.ts).
+    case 'DISMISS_BID_NOTIFICATION': {
+      const current = state.bidNotifications ?? [];
+      const next = dismissBidNotification(current, action.id);
+      return next === current ? state : { ...state, bidNotifications: next };
+    }
+
+    // "Clear all" from the Inbox - empties the whole bid-notification store.
+    case 'DISMISS_ALL_BID_NOTIFICATIONS': {
+      const current = state.bidNotifications ?? [];
+      return current.length === 0 ? state : { ...state, bidNotifications: [] };
     }
 
     // The player clicked through an Inbox "Awards night" beat - record that one

@@ -403,14 +403,14 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         )}
 
         <RangeSlider
-          label="Offered Salary"
+          label="Target Salary for this Role"
           min={range.min}
           max={range.max}
           logScale
           value={offeredSalary}
           onChange={(price) => dispatch({ type: 'SET_TALENT_TARGET_PRICE', role, price })}
           formatValue={formatMoney}
-          description="What you're offering for this role - shapes who applies to Open Casting and how any offer, direct or otherwise, is received."
+          description="What you're budgeting for this role - it shapes who applies to Open Casting and how any offer lands. It isn't the fee you pay: each actor is paid their own quoted salary, shown on their card."
           lowLabel="Cheap"
           highLabel="Star Power"
         />

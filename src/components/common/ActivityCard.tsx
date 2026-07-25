@@ -12,8 +12,20 @@ import type { ActivityAction, StudioActivity } from '../../state/studioActivity'
  * routes differently per surface; when an action is present but has no onClick,
  * it renders as a muted note (e.g. "finish what you're working on first")
  * instead of a live button.
+ *
+ * `onDismiss`, when supplied, renders a small "×" that clears this card from its
+ * surface - used by the Inbox to let the player get rid of a stored bid "email"
+ * (there's nothing to route to; it just goes away).
  */
-export function ActivityCard({ activity, action }: { activity: StudioActivity; action?: ActivityAction }) {
+export function ActivityCard({
+  activity,
+  action,
+  onDismiss,
+}: {
+  activity: StudioActivity;
+  action?: ActivityAction;
+  onDismiss?: () => void;
+}) {
   return (
     <article className={`dashboard-activity dashboard-activity-${activity.tone}`}>
       <span className="dashboard-activity-dot" aria-hidden="true" />
@@ -26,6 +38,17 @@ export function ActivityCard({ activity, action }: { activity: StudioActivity; a
       {action?.onClick && (
         <Button className="btn-sm" onClick={action.onClick}>
           {action.label}
+        </Button>
+      )}
+      {onDismiss && (
+        <Button
+          variant="secondary"
+          className="btn-sm"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          title="Dismiss this message"
+        >
+          ×
         </Button>
       )}
     </article>

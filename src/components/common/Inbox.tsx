@@ -313,6 +313,7 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
                   detail: `${n.rivalName ?? 'A rival'} outbid you at ${formatMoney(n.amount)}. The auction is still open — you can still raise.`,
                 }}
                 action={{ label: 'Raise your bid', onClick: openMarket }}
+                onDismiss={() => dispatch({ type: 'DISMISS_BID_NOTIFICATION', id: n.id })}
               />
             ))}
           </div>
@@ -397,9 +398,21 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
                     title: `“${n.scriptTitle || 'Untitled script'}”`,
                     detail,
                   }}
+                  onDismiss={() => dispatch({ type: 'DISMISS_BID_NOTIFICATION', id: n.id })}
                 />
               );
             })}
+          </div>
+        )}
+
+        {bidNotifications.length > 1 && (
+          <div className="row-between">
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.85em' }}>
+              {bidNotifications.length} bid message{bidNotifications.length === 1 ? '' : 's'}.
+            </span>
+            <Button className="btn-sm" variant="secondary" onClick={() => dispatch({ type: 'DISMISS_ALL_BID_NOTIFICATIONS' })}>
+              Clear all bid messages
+            </Button>
           </div>
         )}
 
