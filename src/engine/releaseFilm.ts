@@ -74,6 +74,8 @@ export interface ReleaseComputationInput {
   shootingRatio: number;
   /** Studio.brand (Brand Recognition, engine/reputation.ts) - never Prestige, see computeBuzzScore/deriveAudienceSimulationFixedState's own doc comments for why. */
   studioBrand: number;
+  /** The releasing studio's identity in this film's genre (engine/studioIdentity.ts), 0-100 - an on-brand release earns a modest marketing-efficiency lift. Optional/absent (the live projection, older paths) reads as 0 (no lift). */
+  studioGenreIdentity?: number;
   /** engine/releaseCrowding.ts:computeCompetitiveCrowding's output, 0-1 - pre-resolved by the caller (engine/scheduledReleases.ts, engine/rivalStudios.ts), since this orchestration point never sees a raw releaseDay itself. Threaded straight into deriveAudienceSimulationFixedState - see ReleaseSimulationInputs.competitiveCrowding's own doc comment for why it dents initialAvailabilityFraction only. */
   competitiveCrowding: number;
   /**
@@ -298,6 +300,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     directorFame: averageFame(input.talent, 'Director'),
     leadFame: averageFame(input.talent, 'Lead Actor'),
     studioBrand: input.studioBrand,
+    studioGenreIdentity: input.studioGenreIdentity,
     scriptAccessibility: commercialProfile.accessibility,
     scriptHookStrength: commercialProfile.hookStrength,
     scriptCrossoverPotential: commercialProfile.crossoverPotential,

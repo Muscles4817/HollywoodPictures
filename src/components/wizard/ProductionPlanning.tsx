@@ -19,7 +19,15 @@ import {
 import { synthesizeProductionIdentity, findBiggestTension } from '../../engine/productionIdentity';
 import { computeCommittedSpend, deriveFocusedDraft } from '../../state/selectors';
 import { findAssignedPerson } from '../../data/helpers';
-import { getDirectorCareer } from '../../engine/person';
+import { getDirectorCareer, getCrewCareer } from '../../engine/person';
+import {
+  computeSetsAmbition,
+  computeSetsFacet,
+  designerAsk,
+  designerConfidence,
+  NO_DESIGNER_SKILL,
+  type DesignerConfidence,
+} from '../../engine/setsFacet';
 import { DistributionEditor } from '../common/DistributionEditor';
 import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
@@ -39,6 +47,19 @@ import type {
 
 const DEFAULT_CONTINGENCY = logAmount(0.5, SHOOTING_BUDGET_RANGE);
 const DEFAULT_RUNTIME_INTENSITY = 0.5;
+
+// Production Redesign, Sets facet — the designer's live confidence read,
+// rendered in character as the conversation's qualitative forecast.
+const CONFIDENCE_PRESENTATION: Record<DesignerConfidence, { label: string; color: string }> = {
+  confident: { label: 'Confident we can deliver this', color: 'var(--green, #2e7d32)' },
+  workable: { label: 'We can work with this', color: 'var(--text-muted)' },
+  'a-stretch': { label: 'This is a stretch — no promises', color: 'var(--warn, #b8860b)' },
+  'set-up-to-fail': { label: "We're set up to fail here", color: 'var(--danger)' },
+};
+
+function ambitionWord(a: number): string {
+  return a >= 75 ? 'a hugely demanding' : a >= 50 ? 'a demanding' : a >= 30 ? 'a moderate' : 'a modest';
+}
 
 const ENVIRONMENT_METHOD_KEYS: readonly EnvironmentMethodKey[] = ['studio', 'location', 'digital'];
 const EFFECTS_METHOD_KEYS: readonly EffectsMethodKey[] = ['practical', 'digital'];
@@ -236,6 +257,15 @@ export function ProductionPlanning() {
   const contingencyAmount = draft.productionChoices?.contingencyAmount ?? DEFAULT_CONTINGENCY;
   const runtimeIntensity = draft.productionChoices?.runtimeIntensity ?? DEFAULT_RUNTIME_INTENSITY;
 
+  // Production Redesign, Sets facet: the Production Designer, the script's design
+  // ambition, and the designer's build ask (money + prep days). designPrepDays is
+  // the facet's TIME lever; absent, it defaults to the designer's recommendation.
+  const setsAmbition = computeSetsAmbition(script);
+  const productionDesigner = findAssignedPerson(draft.talent, 'Production Designer');
+  const designerSkill = (productionDesigner && getCrewCareer(productionDesigner, 'Production Designer')?.skill) ?? NO_DESIGNER_SKILL;
+  const designerAskValue = designerAsk(setsAmbition, designerSkill);
+  const designPrepDays = draft.productionChoices?.designPrepDays ?? designerAskValue.neededDays;
+
   // Seed the draft with the recommendation as a starting point the first
   // time this screen is visited - so every other screen reading the draft
   // sees real values from the first render, same reasoning the old
@@ -281,6 +311,7 @@ export function ProductionPlanning() {
     effectsAmbition?: NormalizedScalar;
     contingencyAmount?: number;
     runtimeIntensity?: number;
+    designPrepDays?: number;
   }) {
     dispatch({
       type: 'SET_PRODUCTION_PLAN',
@@ -290,6 +321,7 @@ export function ProductionPlanning() {
       effectsAmbition,
       contingencyAmount,
       runtimeIntensity,
+      designPrepDays,
       ...overrides,
     });
   }
@@ -297,6 +329,12 @@ export function ProductionPlanning() {
   const currentChoices: ProductionChoices =
     draft.productionChoices ??
     adaptRecommendationsToProductionChoices(environmentAmbition, effectsStrategy, effectsAmbition, contingencyAmount, runtimeIntensity);
+
+  // The Sets facet as it stands with the current money (setQualityAmount) + the
+  // granted prep time + the designer's skill - drives the designer's live
+  // confidence read below.
+  const setsFacet = computeSetsFacet({ ambition: setsAmbition, moneyAmount: currentChoices.setQualityAmount, prepDays: designPrepDays, designerSkill });
+  const setsConfidence = designerConfidence(setsFacet);
 
   const estimatedCost = computeProductionBudgetCost(currentChoices);
   const canAfford = state.studio.cash - computeCommittedSpend(draft, state.producerPool ?? []) >= 0;
@@ -358,6 +396,41 @@ export function ProductionPlanning() {
         onAmbitionChange={(next) => updatePlan({ environmentAmbition: next })}
         consequence={environmentConsequence}
       />
+
+      {/* Production Design conversation (Production Redesign, Sets facet) - the
+          designer reads the script's ambition, states an ask, and reacts as you
+          move the design budget (Environment Ambition, above) and prep time. */}
+      <div className="card stack">
+        <div className="row-between">
+          <h3 style={{ margin: 0 }}>Production Design</h3>
+          <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+            {productionDesigner ? productionDesigner.identity.name : 'No Production Designer hired'}
+          </span>
+        </div>
+        <p style={{ margin: 0 }}>
+          {productionDesigner
+            ? `${productionDesigner.identity.name} is running the look of the film — sets, locations, dressing, props.`
+            : 'With no Production Designer, an unmanaged art department handles the look — workable, rarely inspired. Hire one from the Cast & Crew tab to get the most out of your design budget and prep time.'}{' '}
+          This is {ambitionWord(setsAmbition)} world to build. To hit it comfortably they'd want around{' '}
+          <Money amount={designerAskValue.neededMoney} /> of design budget and about {designerAskValue.neededDays} days of prep.
+          Trading budget for prep time (or the reverse) is the lever — on a modest film a skilled designer can make a lean
+          budget sing given the weeks, but a spectacle genuinely needs the spend.
+        </p>
+        <RangeSlider
+          label="Design Prep Time"
+          min={3}
+          max={Math.max(designerAskValue.neededDays * 2, 24)}
+          value={designPrepDays}
+          onChange={(v) => updatePlan({ designPrepDays: Math.round(v) })}
+          formatValue={(v) => `${Math.round(v)} days`}
+          description="Longer prep lets the designer realise more of the build — but every prep day burns overhead and pushes your release later."
+          lowLabel="Rushed"
+          highLabel="Ample"
+        />
+        <p style={{ margin: 0, fontWeight: 600, color: CONFIDENCE_PRESENTATION[setsConfidence].color }}>
+          {productionDesigner ? productionDesigner.identity.name : 'The art department'}: “{CONFIDENCE_PRESENTATION[setsConfidence].label}.”
+        </p>
+      </div>
 
       <RecommendationCard
         title="Effects Strategy"

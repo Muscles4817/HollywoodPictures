@@ -34,7 +34,8 @@ export type TalentProfession =
   | 'Composer'
   | 'Editor'
   | 'VFX Supervisor'
-  | 'Casting Director';
+  | 'Casting Director'
+  | 'Production Designer';
 
 export type ProductionRole =
   | 'Director'
@@ -45,7 +46,8 @@ export type ProductionRole =
   | 'Composer'
   | 'Editor'
   | 'VFX Supervisor'
-  | 'Casting Director';
+  | 'Casting Director'
+  | 'Production Designer';
 
 // Producer (docs/DESIGN_REVIEW_production_office.md) is deliberately NOT a
 // TalentProfession or a ProductionRole: producers are employed at the studio
@@ -441,6 +443,8 @@ export interface PersonCareers {
   vfxSupervisor?: CrewCareer<'VFX Supervisor'>;
   /** Casting Redesign, Phase D (docs/DESIGN_REVIEW_casting_redesign.md section 11) - optional, same "doesn't block Greenlight, materially improves an existing mechanic when present" shape as vfxSupervisor above. Biases engine/castingCalls.ts:generateCastingApplicants's volume/curation and unlocks a small "discovery" chance. */
   castingDirector?: CrewCareer<'Casting Director'>;
+  /** Production Redesign, Sets facet (docs/DESIGN_REVIEW_production_redesign.md) - optional, same "doesn't block Greenlight, materially improves when present" shape as vfxSupervisor. Their skill is the realisation axis of the Sets/Design facet (engine/setsFacet.ts): a great designer stretches money and prep time further. Absent => a modest default. */
+  productionDesigner?: CrewCareer<'Production Designer'>;
   /** Production Office (docs/DESIGN_REVIEW_production_office.md) - present on producer-Persons only; never cast via the wizard, attached on the Producer Workspace instead. */
   producer?: ProducerCareer;
 }
@@ -800,6 +804,12 @@ export interface ProductionChoices {
   practicalEffectsAmount: number;
   vfxAmount: number;
   runtimeIntensity: number; // 0 = Short, 1 = Long
+  // Production Redesign, Sets facet (docs/DESIGN_REVIEW_production_redesign.md):
+  // days of pre-production the player grants the Production Designer to build.
+  // This is the Sets facet's TIME axis and drives the pre-production phase length
+  // (state/studioReducer.ts:GREENLIGHT_PROJECT). Optional/additive: absent means
+  // "use the designer's recommended build time" (engine/setsFacet.ts:defaultDesignPrepDays).
+  designPrepDays?: number;
 }
 
 // How big a deal an event actually is - low-stakes texture vs a genuine
@@ -1784,6 +1794,8 @@ export interface RivalStudio {
   brand: number;
   /** Same Prestige stat the player's Studio has - grows/falls from this studio's own films' critical reception alone. Not yet consumed by any formula here either, same documented gap as the player's own Prestige (docs/DESIGN.md 5.39). */
   prestige: number;
+  /** Same per-genre identity the player's Studio has (engine/studioIdentity.ts) - a rival earns a reputation in the genres it keeps succeeding in, which then defends its home turf via the competitor-territory matchup. Absent for a fresh rival. */
+  genreIdentity?: Partial<Record<Genre, number>>;
   /** Cumulative studioRevenue this studio has ever been credited from box office - debugging/display only (components/dev/RivalFinancesInspector.tsx), never itself read by any formula. */
   lifetimeRevenue: number;
   /** Cumulative amount this studio has ever committed to starting productions - debugging/display only, same as lifetimeRevenue. */
@@ -1809,6 +1821,8 @@ export interface RivalProductionInProgress {
   marketingChoices: MarketingChoices;
   targetAudience: TargetAudience;
   releaseDay: number;
+  /** The rival's identity in this production's genre (engine/studioIdentity.ts), 0-100, snapshotted when the production started - lets its on-brand presence read as stronger on the shared calendar (the competitor-territory effect), without re-looking-up the studio. Absent (pre-identity productions) reads as 0. */
+  genreIdentity?: number;
 }
 
 // Architecture roadmap Phase 5: filmsReleased/productionsInProgress moved to
@@ -1888,6 +1902,16 @@ export interface Studio {
   brand: number; // 0-100
   /** How respected the studio is within the industry and by critics - grows from critical reception alone, independent of a film's commercial outcome. Not yet consumed by any formula (no critic-facing mechanic exists yet) - tracked now so a future system (e.g. awards) has real history to read, the same "compute and track now, wire in later" precedent commercialProfile.crossoverPotential set. */
   prestige: number; // 0-100
+  /**
+   * What the studio is *known for* (engine/studioIdentity.ts) - a per-genre
+   * affinity, 0-100, earned by repeatedly shipping successful films in a genre
+   * and eroded by costly failures there. Absent/empty for a new studio (it isn't
+   * known for anything yet); an absent genre reads as 0. Feeds intermediate
+   * systems for on-brand films (marketing efficiency, awareness, exhibitor
+   * confidence, and the competitor-territory matchup), never a flat revenue
+   * multiplier.
+   */
+  genreIdentity?: Partial<Record<Genre, number>>;
   assets: Asset[];
   /**
    * Original screenplays commissioned from specific writers and not yet

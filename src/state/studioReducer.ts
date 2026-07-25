@@ -1,9 +1,9 @@
-import type { Asset, AwardShowId, AwardsState, BidNotification, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
+import type { Asset, AwardShowId, AwardsState, BidNotification, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
 import { ALL_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
-import { professionForProductionRole } from '../data/helpers';
+import { professionForProductionRole, findAssignedPerson } from '../data/helpers';
 import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequirements';
 import { splitCastBudgetByImportance } from '../engine/castBudget';
 import { personMeetsCharacterGender, personMeetsCharacterAge, personCastingAge } from '../engine/casting';
@@ -11,8 +11,9 @@ import { applyPrepRiskDelta, computePrepRiskDelta, computeRecommendedPostProduct
 import { computeExecutionResilience } from '../engine/productionExecution';
 import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
 import { promoteFilmToIp, ipForSourceFilm } from '../engine/intellectualProperty';
-import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
-import { getTypicalSalaryForRole, getWriterCareer, isPersonAvailableForCommitment, withCommitment, withReputationChange } from '../engine/person';
+import { computeDailyContingencyBurn, computeDailyPrepBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
+import { computeSetsAmbition, defaultDesignPrepDays, NO_DESIGNER_SKILL } from '../engine/setsFacet';
+import { getCrewCareer, getTypicalSalaryForRole, getWriterCareer, isPersonAvailableForCommitment, withCommitment, withReputationChange } from '../engine/person';
 import { writerProfileFromPerson } from '../engine/writers';
 import { computeRewriteOutcome, makePendingRewrite, rewriteDurationDays, rewriteFee, settleAssetRewrites } from '../engine/rewrite';
 import { commissionDurationDays, commissionFee, generateCommissionedScript, makePendingCommission, settlePendingCommissions } from '../engine/commission';
@@ -68,6 +69,7 @@ import {
 } from '../engine/distribution';
 import { distributorChannelAllocation } from '../engine/marketing';
 import { applyStatChange } from '../engine/reputation';
+import { applyGenreIdentityDeltas } from '../engine/studioIdentity';
 import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 import { currentScreenFor } from './selectors';
 import {
@@ -421,6 +423,7 @@ function runCalendarSettlement(
     state.studio.brand,
     rng,
     state.producerPool ?? [],
+    state.studio.genreIdentity ?? {},
   );
 
   const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng, state.talentPool.Writer);
@@ -437,6 +440,7 @@ function runCalendarSettlement(
     cash: opportunityWins.studio.cash + marketSettlement.playerCashCredit - marketSettlement.playerCostCharged,
     brand: applyStatChange(opportunityWins.studio.brand, marketSettlement.playerBrandDelta),
     prestige: applyStatChange(opportunityWins.studio.prestige, marketSettlement.playerPrestigeDelta),
+    genreIdentity: applyGenreIdentityDeltas(opportunityWins.studio.genreIdentity, marketSettlement.playerGenreIdentityDeltas),
     assets: [...rewrittenAssets, ...commissionSettlement.delivered],
     pendingCommissions: commissionSettlement.pendingCommissions,
   };
@@ -449,6 +453,7 @@ function runCalendarSettlement(
       cash: rival.cash + delta.cashCredit,
       brand: applyStatChange(rival.brand, delta.brandDelta),
       prestige: applyStatChange(rival.prestige, delta.prestigeDelta),
+      genreIdentity: applyGenreIdentityDeltas(rival.genreIdentity, delta.genreIdentityDeltas),
       lifetimeRevenue: rival.lifetimeRevenue + delta.cashCredit,
     };
   });
@@ -1423,13 +1428,18 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'SET_PRODUCTION_PLAN': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;
-      const productionChoices = adaptRecommendationsToProductionChoices(
-        action.environmentAmbition,
-        action.effectsStrategy,
-        action.effectsAmbition,
-        action.contingencyAmount,
-        action.runtimeIntensity,
-      );
+      const productionChoices: ProductionChoices = {
+        ...adaptRecommendationsToProductionChoices(
+          action.environmentAmbition,
+          action.effectsStrategy,
+          action.effectsAmbition,
+          action.contingencyAmount,
+          action.runtimeIntensity,
+        ),
+        // Threaded on top of the (temporary) adapter rather than into it, per the
+        // adapter's own "don't extend me" note (engine/productionChoicesAdapter.ts).
+        designPrepDays: action.designPrepDays ?? focusedDraft.productionChoices?.designPrepDays,
+      };
       return {
         ...state,
         projects: replaceDraft(state.projects, {
@@ -1486,7 +1496,19 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // no days - it books the talent, charges the upfront cost at today's date,
       // and drops the player into the prep run. The world then moves one prep day
       // at a time, exactly as it does during the shoot.
-      const preProductionDays = computeRecommendedPreProductionDays(focusedDraft.talent, focusedDraft.script, focusedDraft.productionChoices);
+      // Pre-production length reflects the design build the player granted
+      // (Production Redesign, Sets facet): the Production Designer's prep window
+      // is the dominant prep activity, so the phase runs at least as long as the
+      // granted design days (falling back to the designer's own recommendation),
+      // with the legacy scope-based estimate as a floor.
+      const designer = findAssignedPerson(focusedDraft.talent, 'Production Designer');
+      const designerSkill = (designer && getCrewCareer(designer, 'Production Designer')?.skill) ?? NO_DESIGNER_SKILL;
+      const designPrepDays =
+        focusedDraft.productionChoices.designPrepDays ?? defaultDesignPrepDays(computeSetsAmbition(focusedDraft.script), designerSkill);
+      const preProductionDays = Math.max(
+        computeRecommendedPreProductionDays(focusedDraft.talent, focusedDraft.script, focusedDraft.productionChoices),
+        designPrepDays,
+      );
       const upfrontCharge =
         computeTalentCost(focusedDraft.talent) +
         computeProductionBudgetCost(focusedDraft.productionChoices) +
@@ -1557,9 +1579,11 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       });
 
       if (result.kind === 'pendingChoice') {
+        // The situation still consumes its prep day, which still burns overhead.
+        const dayBurn = computeDailyPrepBurn(d.script.scale);
         const updatedFocused: FilmDraft = {
           ...d,
-          preProduction: { ...d.preProduction, status: 'awaiting-choice', daysElapsed: d.preProduction.daysElapsed + 1, pendingChoice: result.pendingChoice },
+          preProduction: { ...d.preProduction, status: 'awaiting-choice', daysElapsed: d.preProduction.daysElapsed + 1, runningCost: d.preProduction.runningCost + dayBurn, pendingChoice: result.pendingChoice },
         };
         return {
           ...state,
@@ -1572,7 +1596,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           bidNotifications: result.settlement.bidNotifications,
           collaborations: result.settlement.collaborations,
           talentPairings: result.settlement.talentPairings,
-          studio: result.settlement.studio,
+          studio: recordCashChange(result.settlement.studio, result.totalDaysAfter, -dayBurn, 'production', `Pre-production on "${d.title}"`),
           projects: assembleProjects({
             playerDrafts: [updatedFocused, ...result.productionsInProgress],
             scheduled: result.settlement.stillScheduled,
@@ -1584,7 +1608,11 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       }
 
       const { event, daysAdvanced, totalDaysAfter, settlement, productionsInProgress } = result;
-      const prepCost = event?.costDelta ?? 0;
+      // Prep cost = the day-by-day overhead burn (the production office, the
+      // design build in progress - scaled by the film's scale) plus any event
+      // cost swing. This is what makes granting the designer more prep days a
+      // real, felt cost (docs/DESIGN_REVIEW_production_redesign.md, cost-of-time).
+      const prepCost = computeDailyPrepBurn(d.script.scale) * daysAdvanced + (event?.costDelta ?? 0);
       const advancedPrep = {
         ...d.preProduction,
         daysElapsed: d.preProduction.daysElapsed + daysAdvanced,

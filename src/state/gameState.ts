@@ -330,6 +330,10 @@ export type GameAction =
       effectsAmbition: NormalizedScalar;
       contingencyAmount: number;
       runtimeIntensity: number;
+      // Production Redesign, Sets facet: prep days granted to the Production
+      // Designer (the Sets facet's TIME axis). Optional; absent falls back to the
+      // designer's recommended build time at greenlight (engine/setsFacet.ts).
+      designPrepDays?: number;
     }
   // Replaces the old BEGIN_PHOTOGRAPHY - the explicit business decision the
   // development-pipeline doc is about. Talent selection up to this point is

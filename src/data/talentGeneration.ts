@@ -54,6 +54,10 @@ export const ROLE_GENERATION_PROFILES: Record<TalentProfession, RoleGenerationPr
   Editor: { salaryRange: { min: 10_000, max: 1_500_000 }, fameCeiling: 45 },
   'VFX Supervisor': { salaryRange: { min: 30_000, max: 5_000_000 }, fameCeiling: 65 },
   'Casting Director': { salaryRange: { min: 20_000, max: 3_000_000 }, fameCeiling: 40 },
+  // Production Designer (Production Redesign, Sets facet) - fully procedural for
+  // now (no handcrafted roster yet), so a plain min→max range. Fame stays low
+  // (a below-the-line craft head), skill is what matters.
+  'Production Designer': { salaryRange: { min: 15_000, max: 3_000_000 }, fameCeiling: 40 },
 };
 
 // Every film needs one of each mandatory role; VFX Supervisor and Casting
@@ -70,7 +74,7 @@ export const MANDATORY_TALENT_ROLES: ProductionRole[] = [
   'Composer',
   'Editor',
 ];
-export const OPTIONAL_TALENT_ROLES: ProductionRole[] = ['VFX Supervisor', 'Casting Director'];
+export const OPTIONAL_TALENT_ROLES: ProductionRole[] = ['VFX Supervisor', 'Casting Director', 'Production Designer'];
 export const ALL_TALENT_ROLES: ProductionRole[] = [...MANDATORY_TALENT_ROLES, ...OPTIONAL_TALENT_ROLES];
 
 // Every profession the world talent pool actually generates a candidate
@@ -87,6 +91,9 @@ export const ALL_TALENT_PROFESSIONS: TalentProfession[] = [
   'Editor',
   'VFX Supervisor',
   'Casting Director',
+  // Appended last so existing professions' generation draws are byte-identical
+  // (generateTalentPool draws per-profession in array order).
+  'Production Designer',
 ];
 
 // How many people a role can hold. Most roles are one-in, one-out (hiring
@@ -108,4 +115,5 @@ export const ROLE_CAPACITY: Record<ProductionRole, RoleCapacity> = {
   Editor: { min: 1, max: 1 },
   'VFX Supervisor': { min: 0, max: 1 },
   'Casting Director': { min: 0, max: 1 },
+  'Production Designer': { min: 0, max: 1 },
 };

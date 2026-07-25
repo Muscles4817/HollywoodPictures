@@ -232,6 +232,15 @@ function generateFame(role: TalentProfession, rng: RandomFn, t: number): number 
         100,
       );
     }
+
+    case 'Production Designer': {
+      const fameT = 0.15 * t + 0.85 * rng();
+      return clamp(
+        Math.round(2 + 22 * fameT + randFloat(rng, -4, 4)),
+        1,
+        100,
+      );
+    }
   }
 }
 
@@ -245,6 +254,7 @@ function generateEgo(role: TalentProfession, rng: RandomFn, fame: number): numbe
     Editor: 0.1,
     'VFX Supervisor': 0.1,
     'Casting Director': 0.1,
+    'Production Designer': 0.12,
   };
 
   const base: Record<TalentProfession, number> = {
@@ -256,6 +266,7 @@ function generateEgo(role: TalentProfession, rng: RandomFn, fame: number): numbe
     Editor: 8,
     'VFX Supervisor': 8,
     'Casting Director': 8,
+    'Production Designer': 10,
   };
 
   return clamp(

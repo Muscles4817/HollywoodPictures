@@ -1,8 +1,9 @@
-import type { BoxOfficeWeek, Film } from '../types';
+import type { BoxOfficeWeek, Film, Genre } from '../types';
 import { advanceOneWeekWithDiagnostics, hasSimulationEnded } from './audienceSimulationStep';
 import { computeCompetitiveCrowding, runningFilmAsUpcomingRelease, type UpcomingRelease } from './releaseCrowding';
 import { determineOutcome } from './outcome';
 import { computeBrandChange, computePrestigeChange } from './reputation';
+import { computeGenreIdentityChange } from './studioIdentity';
 import {
   computeInternationalAppeal,
   domesticKeepShareForFilm,
@@ -158,10 +159,12 @@ export interface BoxOfficeSettlement {
   brandDelta: number;
   /** Sum of prestigeChange for any film whose run finished this call - apply via applyStatChange. */
   prestigeDelta: number;
+  /** Per-genre identity change for any film whose run finished this call (engine/studioIdentity.ts) - fold into Studio.genreIdentity via applyGenreIdentityChange. */
+  genreIdentityDeltas: Partial<Record<Genre, number>>;
 }
 
-/** A run that just crossed into 'finished' - computes totalBoxOffice/studioRevenue/profit/outcome/brandChange/prestigeChange from whatever its weeks actually added up to, the same job RELEASE_FILM used to do in one shot at release time. */
-function finishFilm(film: Film): { film: Film; brandChange: number; prestigeChange: number } {
+/** A run that just crossed into 'finished' - computes totalBoxOffice/studioRevenue/profit/outcome/brandChange/prestigeChange/genreIdentityChange from whatever its weeks actually added up to, the same job RELEASE_FILM used to do in one shot at release time. */
+function finishFilm(film: Film): { film: Film; brandChange: number; prestigeChange: number; genreIdentityChange: number } {
   const totalBoxOffice = film.boxOfficeRun.cumulativeGross;
   // studioRevenue from the run's actual per-market cumulative, each market's
   // keep applied - the exact total of the weekly credits already banked.
@@ -198,6 +201,16 @@ function finishFilm(film: Film): { film: Film; brandChange: number; prestigeChan
     qualityScore: film.results.qualityScore,
   });
 
+  // How much this film moves its owner's identity in its own genre (applied to
+  // Studio/RivalStudio.genreIdentity by the caller, keyed on film.genre). Earned
+  // the same way brand is - from the run's actual commercial outcome - but
+  // per-genre and cumulative (engine/studioIdentity.ts).
+  const genreIdentityChange = computeGenreIdentityChange({
+    profit,
+    totalCost: film.results.totalCost,
+    audienceScore: film.results.audienceScore,
+  });
+
   return {
     film: {
       ...film,
@@ -205,6 +218,7 @@ function finishFilm(film: Film): { film: Film; brandChange: number; prestigeChan
     },
     brandChange,
     prestigeChange,
+    genreIdentityChange,
   };
 }
 
@@ -269,6 +283,8 @@ export interface WeekAdvanceResult {
   cashCredit: number;
   brandDelta: number;
   prestigeDelta: number;
+  /** The advanced film's own identity move in its genre, if its run finished this step (else 0) - the caller reads film.genre off `advancedFilmId` to key it. See engine/studioIdentity.ts. */
+  genreIdentityDelta: number;
 }
 
 /**
@@ -284,7 +300,7 @@ export interface WeekAdvanceResult {
  */
 export function advanceEarliestDueFilmByOneWeek(filmsById: ReadonlyMap<string, Film>, currentTotalDays: number): WeekAdvanceResult {
   const due = nextDueFilm(filmsById, currentTotalDays);
-  if (!due) return { filmsById: filmsById as Map<string, Film>, advancedFilmId: null, cashCredit: 0, brandDelta: 0, prestigeDelta: 0 };
+  if (!due) return { filmsById: filmsById as Map<string, Film>, advancedFilmId: null, cashCredit: 0, brandDelta: 0, prestigeDelta: 0, genreIdentityDelta: 0 };
   const { film } = due;
 
   const run = film.boxOfficeRun;
@@ -317,17 +333,19 @@ export function advanceEarliestDueFilmByOneWeek(filmsById: ReadonlyMap<string, F
   let updatedFilm: Film = { ...film, boxOfficeRun: updatedRun };
   let brandDelta = 0;
   let prestigeDelta = 0;
+  let genreIdentityDelta = 0;
 
   if (finished) {
     const result = finishFilm(updatedFilm);
     updatedFilm = result.film;
     brandDelta = result.brandChange;
     prestigeDelta = result.prestigeChange;
+    genreIdentityDelta = result.genreIdentityChange;
   }
 
   const updated = new Map(filmsById);
   updated.set(film.id, updatedFilm);
-  return { filmsById: updated, advancedFilmId: film.id, cashCredit, brandDelta, prestigeDelta };
+  return { filmsById: updated, advancedFilmId: film.id, cashCredit, brandDelta, prestigeDelta, genreIdentityDelta };
 }
 
 /**
@@ -359,6 +377,7 @@ export function settleBoxOfficeForAllFilms(filmsReleased: Film[], currentTotalDa
   let cashCredit = 0;
   let brandDelta = 0;
   let prestigeDelta = 0;
+  const genreIdentityDeltas: Partial<Record<Genre, number>> = {};
   let filmsById: Map<string, Film> = new Map(filmsReleased.map((f) => [f.id, f]));
 
   for (;;) {
@@ -368,7 +387,11 @@ export function settleBoxOfficeForAllFilms(filmsReleased: Film[], currentTotalDa
     cashCredit += step.cashCredit;
     brandDelta += step.brandDelta;
     prestigeDelta += step.prestigeDelta;
+    if (step.genreIdentityDelta !== 0) {
+      const genre = filmsById.get(step.advancedFilmId)!.genre;
+      genreIdentityDeltas[genre] = (genreIdentityDeltas[genre] ?? 0) + step.genreIdentityDelta;
+    }
   }
 
-  return { filmsReleased: [...filmsById.values()], cashCredit, brandDelta, prestigeDelta };
+  return { filmsReleased: [...filmsById.values()], cashCredit, brandDelta, prestigeDelta, genreIdentityDeltas };
 }

@@ -106,4 +106,35 @@ describe('computeRivalReleaseStrength / computePlayerReleaseStrength - comparabl
     const player = computePlayerReleaseStrength(150_000_000, 200_000_000);
     expect(Math.abs(rival - player)).toBeLessThan(0.15);
   });
+
+  it('a strong genre identity lifts an on-brand release above the same release with none - and boost-only, never below', () => {
+    const bare = computeRivalReleaseStrength(30_000_000, 'Medium', 0);
+    const onBrand = computeRivalReleaseStrength(30_000_000, 'Medium', 80);
+    expect(onBrand).toBeGreaterThan(bare);
+    expect(computeRivalReleaseStrength(30_000_000, 'Medium')).toBe(bare); // default is the no-identity behaviour
+    // Same lift shape on the player side.
+    expect(computePlayerReleaseStrength(30_000_000, 60_000_000, 80)).toBeGreaterThan(computePlayerReleaseStrength(30_000_000, 60_000_000, 0));
+  });
+});
+
+describe('studio identity as competitor territory - rivals steer around a strong incumbent', () => {
+  // An incumbent maxed out in its home genre reads as a stronger presence on
+  // the calendar, so the relative-strength matchup (matchupWeight) makes a
+  // same-genre challenger feel more crowded than it would against an
+  // identity-less studio of otherwise identical marketing/scale. This is the
+  // "majors defend their territory" behaviour, checked at the crowding layer.
+  const day = 100;
+  const challenger = { releaseDay: day, genre: 'Horror' as const, targetAudience: 'Mass Market' as const };
+  const challengerStrength = computeRivalReleaseStrength(30_000_000, 'Medium', 0);
+
+  it('a same-genre incumbent with a home-genre identity crowds a challenger more than an identity-less one', () => {
+    const marketing = 30_000_000;
+    const scale = 'Medium' as const;
+    const incumbentBare: UpcomingRelease = { releaseDay: day, genre: 'Horror', targetAudience: 'Mass Market', strength: computeRivalReleaseStrength(marketing, scale, 0) };
+    const incumbentOnBrand: UpcomingRelease = { releaseDay: day, genre: 'Horror', targetAudience: 'Mass Market', strength: computeRivalReleaseStrength(marketing, scale, 90) };
+
+    const crowdingVsBare = computeCompetitiveCrowding(challenger, [incumbentBare], challengerStrength);
+    const crowdingVsOnBrand = computeCompetitiveCrowding(challenger, [incumbentOnBrand], challengerStrength);
+    expect(crowdingVsOnBrand).toBeGreaterThan(crowdingVsBare);
+  });
 });
