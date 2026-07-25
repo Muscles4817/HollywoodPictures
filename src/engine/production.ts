@@ -4,6 +4,7 @@ import type {
   Genre,
   PendingEventChoice,
   Person,
+  PersonTrait,
   ProductionChoices,
   ProductionEvent,
   ProductionRole,
@@ -17,8 +18,10 @@ import {
   NEGATIVE_EVENT_TEMPLATES,
   GENRE_EVENT_TEMPLATES,
   RISK_DIMENSION_EVENT_TEMPLATES,
+  TRAIT_EVENT_TEMPLATES,
   type ProductionEventTemplate,
 } from '../data/productionEvents';
+import { deriveTraits } from './personTraits';
 import { GENRE_PROFILES } from '../data/genres';
 import { SETTING_ARCHETYPE_PROFILES } from '../data/settings';
 import { contingencyT, practicalEffectsT, vfxT, overallSpendT, FOOTAGE_LOWER_RATIO, FOOTAGE_UPPER_RATIO } from './productionDials';
@@ -409,9 +412,10 @@ export function talentSkillScore(person: Person | undefined, role: ProductionRol
   return (script && computeTalentCompatibility(person, role, script)) ?? 50;
 }
 
-/** Picks the specific hired person an `involvesRole` event is about - a random one, for a multi-hire role. */
-function resolveInvolvedTalent(role: ProductionRole, talent: TalentAssignment[], rng: RandomFn): Person | undefined {
-  const hired = filterAssignedPeople(talent, role);
+/** Picks the specific hired person an `involvesRole` event is about - a random one, for a multi-hire role. When the template `requiresTrait`, only someone in that role who actually has the trait is eligible (so the named person genuinely fits the event). */
+function resolveInvolvedTalent(role: ProductionRole, talent: TalentAssignment[], rng: RandomFn, requiresTrait?: PersonTrait): Person | undefined {
+  let hired = filterAssignedPeople(talent, role);
+  if (requiresTrait) hired = hired.filter((p) => deriveTraits(p).includes(requiresTrait));
   return hired.length > 0 ? pick(rng, hired) : undefined;
 }
 
@@ -556,13 +560,33 @@ function pickSeverity(weights: Record<EventSeverity, number>, rng: RandomFn): Ev
   return 'high';
 }
 
+/**
+ * The trait-driven templates (data/productionEvents.ts:TRAIT_EVENT_TEMPLATES)
+ * this specific cast makes eligible - a Difficult star's standoff only exists on
+ * a shoot that hired one. An interactive template (with `involvesRole`) is gated
+ * on the person in THAT role carrying the trait; a simple one (no role) is gated
+ * on anyone on the cast carrying it. Deriving traits is cheap for a ~10-person
+ * cast and this runs at most once per event roll.
+ */
+export function eligibleTraitTemplates(talent: TalentAssignment[]): ProductionEventTemplate[] {
+  if (talent.length === 0) return [];
+  return TRAIT_EVENT_TEMPLATES.filter((t) => {
+    if (!t.requiresTrait) return false;
+    const role = 'involvesRole' in t ? t.involvesRole : undefined;
+    const people = role ? filterAssignedPeople(talent, role) : talent.map((a) => a.person);
+    return people.some((p) => deriveTraits(p).includes(t.requiresTrait!));
+  });
+}
+
 function buildEventPools(
   fullRisk: Record<'schedulePressure' | 'moraleRisk' | 'safetyRisk' | 'technicalComplexity' | 'budgetRisk', number>,
   genre: Genre,
+  talent: TalentAssignment[],
 ): { positivePool: ProductionEventTemplate[]; negativePool: ProductionEventTemplate[] } {
   const genreTemplates = GENRE_EVENT_TEMPLATES[genre] ?? [];
-  const positivePool = [...POSITIVE_EVENT_TEMPLATES, ...genreTemplates.filter((t) => t.polarity === 'positive')];
-  const negativePool = [...NEGATIVE_EVENT_TEMPLATES, ...genreTemplates.filter((t) => t.polarity === 'negative')];
+  const traitTemplates = eligibleTraitTemplates(talent);
+  const positivePool = [...POSITIVE_EVENT_TEMPLATES, ...genreTemplates.filter((t) => t.polarity === 'positive'), ...traitTemplates.filter((t) => t.polarity === 'positive')];
+  const negativePool = [...NEGATIVE_EVENT_TEMPLATES, ...genreTemplates.filter((t) => t.polarity === 'negative'), ...traitTemplates.filter((t) => t.polarity === 'negative')];
 
   for (const dimension of Object.keys(fullRisk) as Array<keyof typeof fullRisk>) {
     const value = fullRisk[dimension];
@@ -617,7 +641,7 @@ export function pickShootEvent(
   talentPool: Record<TalentProfession, Person[]>,
   rng: RandomFn,
 ): { event: ProductionEvent } | { pendingChoice: PendingEventChoice } | null {
-  const { positivePool, negativePool } = buildEventPools(fullRisk, genre);
+  const { positivePool, negativePool } = buildEventPools(fullRisk, genre, talent);
   const rollNegative = rng() * 100 < avgRisk;
   const pool = (rollNegative ? negativePool : positivePool).filter((t) => !usedIds.has(t.id));
   const fallbackPool = (rollNegative ? positivePool : negativePool).filter((t) => !usedIds.has(t.id));
@@ -637,7 +661,7 @@ export function pickShootEvent(
     return { event: rollSimpleEvent(template, rng) };
   }
 
-  const involved = template.involvesRole ? resolveInvolvedTalent(template.involvesRole, talent, rng) : undefined;
+  const involved = template.involvesRole ? resolveInvolvedTalent(template.involvesRole, talent, rng, template.requiresTrait) : undefined;
   // involvesRole is only ever set on templates about a mandatory role, which
   // is guaranteed hired by the time photography can begin - but if it's
   // ever missing for any reason, skip this template for today rather than

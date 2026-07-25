@@ -1,4 +1,4 @@
-import type { Genre, EventChoiceTemplate, EventSeverity, ProductionExecutionImpact, ProductionRole } from '../types';
+import type { Genre, EventChoiceTemplate, EventSeverity, PersonTrait, ProductionExecutionImpact, ProductionRole } from '../types';
 
 // Templates for randomized production events. The engine picks a handful of
 // these per shoot, biased by an overall risk score, then rolls a concrete
@@ -52,6 +52,13 @@ interface SimpleProductionEventTemplate {
   delayDaysRange: [number, number];
   impact?: ProductionExecutionImpact;
   escalates?: number;
+  // If set, this template is only eligible when someone on the cast actually
+  // has this derived trait (engine/personTraits.ts) - a character-driven event
+  // that exists BECAUSE of who was hired. For a simple (non-interactive)
+  // template with no involvesRole, the trait is checked across the whole cast;
+  // the description references it generically since a simple event can't name a
+  // person. See engine/production.ts:eligibleTraitTemplates.
+  requiresTrait?: PersonTrait;
 }
 
 // An event that pauses photography and hands the player a real decision,
@@ -90,6 +97,12 @@ interface InteractiveProductionEventTemplate {
   offersReplacementFor?: ProductionRole;
   impact?: ProductionExecutionImpact;
   escalates?: number;
+  // Only eligible when the person hired for `involvesRole` has this derived
+  // trait (engine/personTraits.ts) - so the resolved involved talent is
+  // guaranteed to be someone the trait actually fits, and the situation can name
+  // them. Requires involvesRole. See engine/production.ts:eligibleTraitTemplates
+  // and resolveInvolvedTalent.
+  requiresTrait?: PersonTrait;
 }
 
 export type ProductionEventTemplate = SimpleProductionEventTemplate | InteractiveProductionEventTemplate;
@@ -2695,3 +2708,141 @@ export const RISK_DIMENSION_EVENT_TEMPLATES: Record<
     }],
   ),
 ) as Record<RiskDimension, { positive: ProductionEventTemplate[]; negative: ProductionEventTemplate[] }>;
+
+// --- Trait-driven events ---------------------------------------------------
+// Events that exist BECAUSE of who was hired - each is gated on a cast member
+// actually carrying the derived PersonTrait (engine/personTraits.ts), so a
+// Difficult star's trailer standoff simply never fires on a shoot without one.
+// Interactive templates set `involvesRole` + `requiresTrait`, so the resolved
+// person is guaranteed to fit the trait and can be named; simple templates set
+// only `requiresTrait` (checked across the whole cast) and describe the moment
+// generically. Every template carries its own inline `impact`. Selection/gating
+// lives in engine/production.ts (eligibleTraitTemplates + resolveInvolvedTalent).
+export const TRAIT_EVENT_TEMPLATES: ProductionEventTemplate[] = [
+  // DifficultToWorkWith - the diva standoff, the type's own worked example made
+  // into a real on-set decision.
+  {
+    id: 'trait-difficult-trailer-standoff',
+    situation: '{name} is refusing to leave their trailer over a note they took badly, and the crew is standing around burning daylight.',
+    polarity: 'negative',
+    severity: 'medium',
+    interactive: true,
+    involvesRole: 'Lead Actor',
+    requiresTrait: 'DifficultToWorkWith',
+    impact: 'performances',
+    choices: [
+      {
+        id: 'smooth-it-over',
+        label: 'Send the director in to smooth it over',
+        description: 'Costs an hour and some ego-stroking, but the performance stays intact.',
+        costRange: [0, 0], qualityRange: [-1, 1], buzzRange: [0, 0], delayDaysRange: [0, 1],
+      },
+      {
+        id: 'overrule-them',
+        label: 'Overrule them and roll',
+        description: 'You get your shot on schedule, but a resentful lead gives a colder performance.',
+        costRange: [0, 0], qualityRange: [-6, -2], buzzRange: [0, 0], delayDaysRange: [0, 0],
+      },
+      {
+        id: 'give-in',
+        label: 'Give them the rewrite they want',
+        description: 'They come back happy and committed - at the cost of real time.',
+        costRange: [0, 0], qualityRange: [1, 4], buzzRange: [0, 0], delayDaysRange: [1, 2],
+        skillSensitive: true,
+      },
+    ],
+  },
+  // Perfectionist - the extra take. Real upside, real time.
+  {
+    id: 'trait-perfectionist-one-more-take',
+    situation: '{name} is certain there is a better version of a pivotal scene, and wants the day to get it.',
+    polarity: 'positive',
+    severity: 'low',
+    interactive: true,
+    involvesRole: 'Director',
+    requiresTrait: 'Perfectionist',
+    impact: 'performances',
+    choices: [
+      {
+        id: 'give-them-the-day',
+        label: 'Give them the day',
+        description: 'How much it pays off depends on how good they are.',
+        costRange: [0, 0], qualityRange: [2, 7], buzzRange: [0, 0], delayDaysRange: [1, 2],
+        skillSensitive: true,
+      },
+      {
+        id: 'protect-the-schedule',
+        label: 'Protect the schedule',
+        description: 'What is in the can is good enough. Move on, lose nothing, gain nothing.',
+        costRange: [0, 0], qualityRange: [0, 0], buzzRange: [0, 0], delayDaysRange: [0, 0],
+      },
+    ],
+  },
+  // MethodPerformer - immersion that can be transcendent or corrosive.
+  {
+    id: 'trait-method-immersion',
+    situation: '{name} has stayed in character between setups all week. The performance is electric; the rest of the cast is exhausted by it.',
+    polarity: 'positive',
+    severity: 'medium',
+    interactive: true,
+    involvesRole: 'Lead Actor',
+    requiresTrait: 'MethodPerformer',
+    impact: 'performances',
+    choices: [
+      {
+        id: 'let-them-cook',
+        label: 'Protect their process',
+        description: 'Lean into it - a career-best turn, if the ensemble can take the strain.',
+        costRange: [0, 0], qualityRange: [3, 9], buzzRange: [0, 0], delayDaysRange: [0, 1],
+        skillSensitive: true,
+      },
+      {
+        id: 'rein-it-in',
+        label: 'Ask them to dial it back for the others',
+        description: 'A steadier set and a merely-very-good performance.',
+        costRange: [0, 0], qualityRange: [1, 3], buzzRange: [0, 0], delayDaysRange: [0, 0],
+      },
+    ],
+  },
+  // Mentor - a cast-wide morale lift (simple: can't name the specific veteran).
+  {
+    id: 'trait-mentor-steadies-the-cast',
+    description: 'A respected veteran on the cast quietly spent the week running lines with the younger performers. Morale on set has visibly lifted.',
+    polarity: 'positive',
+    severity: 'low',
+    requiresTrait: 'Mentor',
+    impact: 'performances',
+    costRange: [0, 0], qualityRange: [2, 5], buzzRange: [0, 0], delayDaysRange: [0, 0],
+  },
+  // NaturalImproviser - an off-script moment that lands.
+  {
+    id: 'trait-improviser-inspired-moment',
+    description: 'An improvised beat nobody scripted turned an ordinary scene into one of the film’s best.',
+    polarity: 'positive',
+    severity: 'low',
+    requiresTrait: 'NaturalImproviser',
+    impact: 'performances',
+    costRange: [0, 0], qualityRange: [3, 7], buzzRange: [0, 0], delayDaysRange: [0, 0],
+  },
+  // Workaholic - relentless drive claws a slipping schedule back.
+  {
+    id: 'trait-workaholic-claws-back-time',
+    description: 'One relentless cast member pushed everyone to keep pace through a punishing week, and the shoot clawed back a day it looked set to lose.',
+    polarity: 'positive',
+    severity: 'low',
+    requiresTrait: 'Workaholic',
+    impact: 'coverage',
+    costRange: [0, 0], qualityRange: [1, 3], buzzRange: [0, 0], delayDaysRange: [0, 0],
+  },
+  // ScandalProne - a mid-shoot tabloid flare-up: a public buzz hit plus an
+  // on-set distraction.
+  {
+    id: 'trait-scandal-tabloid-flareup',
+    description: 'A tabloid story about one of the cast broke mid-shoot. The paparazzi outside and the mood inside both took a toll.',
+    polarity: 'negative',
+    severity: 'medium',
+    requiresTrait: 'ScandalProne',
+    impact: 'performances',
+    costRange: [0, 0], qualityRange: [-5, -2], buzzRange: [-6, -1], delayDaysRange: [0, 1],
+  },
+];
