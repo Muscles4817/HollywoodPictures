@@ -13,6 +13,7 @@ import { RecommendationInspector } from './components/dev/RecommendationInspecto
 import { OutcomeInspector } from './components/dev/OutcomeInspector';
 import { RivalFinancesInspector } from './components/dev/RivalFinancesInspector';
 import { ProjectWorkspace } from './components/projectWorkspace/ProjectWorkspace';
+import { PreProductionRun } from './components/wizard/PreProductionRun';
 import { ProductionRun } from './components/wizard/ProductionRun';
 import { PostProduction } from './components/wizard/PostProduction';
 import { MarketingRelease } from './components/wizard/MarketingRelease';
@@ -36,7 +37,7 @@ import { Button } from './components/common/Button';
 // begins (ProductionRun.tsx) - this background tick would otherwise double
 // up with it, or fire uselessly while the player is just reviewing the
 // pre-shoot risk profile.
-const PLANNING_SCREENS = new Set<Screen>(['workspace', 'production', 'post-production', 'marketing']);
+const PLANNING_SCREENS = new Set<Screen>(['workspace', 'pre-production', 'production', 'post-production', 'marketing']);
 
 // Screens that are a pure read-only detour from the Dashboard - entering or
 // leaving them costs no calendar time of its own (VIEW_RIVAL_STUDIO/
@@ -328,6 +329,8 @@ function AppShell() {
         return <Dashboard />;
       case 'workspace':
         return <ProjectWorkspace />;
+      case 'pre-production':
+        return <PreProductionRun />;
       case 'production':
         return <ProductionRun />;
       case 'post-production':

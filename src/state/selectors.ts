@@ -735,6 +735,8 @@ export function deriveProjectStage(project: Project, focusedProjectId: string | 
   }
   if (project.kind === 'scheduled') return 'scheduled';
   const { draft } = project;
+  // A live prep run (greenlit, not yet shooting) is 'pre-production' outright.
+  if (draft.preProduction && draft.preProduction.status !== 'finished') return 'pre-production';
   if (!draft.photography) {
     return draft.id === focusedProjectId || hasDraftProgress(draft) ? 'pre-production' : 'shelved';
   }
@@ -755,7 +757,8 @@ export function deriveProjectStage(project: Project, focusedProjectId: string | 
  * 'workspace' or a WizardStep, so a caller dispatching off this return value
  * doesn't need to re-narrow away the rest of Screen's members by hand.
  */
-export function currentScreenFor(draft: FilmDraft): 'workspace' | WizardStep {
+export function currentScreenFor(draft: FilmDraft): 'workspace' | 'pre-production' | WizardStep {
+  if (draft.preProduction && draft.preProduction.status !== 'finished') return 'pre-production';
   if (!draft.photography) return 'workspace';
   if (draft.photography.status === 'finished') return draft.postProductionChoices ? 'marketing' : 'post-production';
   return 'production';

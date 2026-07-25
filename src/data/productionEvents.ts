@@ -59,6 +59,10 @@ interface SimpleProductionEventTemplate {
   // the description references it generically since a simple event can't name a
   // person. See engine/production.ts:eligibleTraitTemplates.
   requiresTrait?: PersonTrait;
+  // PRE-PRODUCTION templates only: how much this prep event moves the shoot's
+  // STARTING static risk (negative = good prep lowers it). Rolled into the
+  // event's riskDelta; ignored by on-set templates. See PreProductionState.
+  riskDeltaRange?: [number, number];
 }
 
 // An event that pauses photography and hands the player a real decision,
@@ -2844,5 +2848,147 @@ export const TRAIT_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     requiresTrait: 'ScandalProne',
     impact: 'performances',
     costRange: [0, 0], qualityRange: [-5, -2], buzzRange: [-6, -1], delayDaysRange: [0, 1],
+  },
+];
+
+// --- Pre-production events --------------------------------------------------
+// A distinct bank for the day-by-day PRE-PRODUCTION phase (types/index.ts:
+// PreProductionState) - the weeks of locking deals, scouting/building, rehearsing
+// and prepping before a single frame is shot. These reuse the ProductionEvent
+// shape but pull on different levers than on-set events:
+//   - `riskDeltaRange` (negative = good prep): sets the shoot's STARTING static
+//     risk. This is the dominant channel - preparation protects the downside.
+//   - `qualityRange` + `impact`: genuinely creative prep (a revelatory table
+//     read, a design breakthrough) that feeds the finished film's execution
+//     history directly - the "quality potential" of good prep. Most logistical
+//     prep leaves this at 0 and works purely through risk.
+//   - `costRange` / `delayDaysRange`: prep money and prep days, exactly as on set.
+// Interactive templates carry the same `involvesRole` / `requiresTrait` gating as
+// on-set ones (a Difficult star can clash at the table read too). Gating +
+// rolling live in engine/preProduction.ts.
+export const PRE_PRODUCTION_EVENT_TEMPLATES: ProductionEventTemplate[] = [
+  // --- Logistical prep: pure starting-risk levers -------------------------
+  {
+    id: 'preprod-locations-locked-early',
+    description: 'Every location was scouted, secured and permitted ahead of schedule. The shoot starts on solid ground.',
+    polarity: 'positive', severity: 'low', impact: 'coverage',
+    costRange: [0, 0], qualityRange: [0, 0], buzzRange: [0, 0], delayDaysRange: [0, 0], riskDeltaRange: [-12, -6],
+  },
+  {
+    id: 'preprod-safety-walkthrough',
+    description: 'A thorough stunt-and-safety walkthrough flagged the real hazards early, and the team planned around them.',
+    polarity: 'positive', severity: 'low', impact: 'visual',
+    costRange: [0, 0], qualityRange: [0, 0], buzzRange: [0, 0], delayDaysRange: [0, 0], riskDeltaRange: [-12, -5],
+  },
+  {
+    id: 'preprod-previs-nailed',
+    description: 'The previs team mapped the most technically demanding sequences shot-for-shot before anyone set foot on set.',
+    polarity: 'positive', severity: 'low', impact: 'visual',
+    costRange: [0, 0], qualityRange: [0, 0], buzzRange: [0, 0], delayDaysRange: [0, 0], riskDeltaRange: [-10, -4],
+  },
+  {
+    id: 'preprod-permit-snag',
+    description: 'A permit for a key location fell through late, forcing a scramble for an alternative.',
+    polarity: 'negative', severity: 'medium', impact: 'coverage',
+    costRange: [20_000, 80_000], qualityRange: [0, 0], buzzRange: [0, 0], delayDaysRange: [1, 3], riskDeltaRange: [4, 10],
+  },
+  {
+    id: 'preprod-department-understaffed',
+    description: 'A key department went into the shoot short-handed after a hiring fell through - a shaky footing to start on.',
+    polarity: 'negative', severity: 'medium', impact: 'general',
+    costRange: [0, 30_000], qualityRange: [0, 0], buzzRange: [0, 0], delayDaysRange: [0, 1], riskDeltaRange: [6, 12],
+  },
+  {
+    id: 'preprod-vendor-discount',
+    description: 'A favourable deal with an equipment vendor came in under budget.',
+    polarity: 'positive', severity: 'low', impact: 'general',
+    costRange: [-60_000, -20_000], qualityRange: [0, 0], buzzRange: [0, 0], delayDaysRange: [0, 0], riskDeltaRange: [-4, 0],
+  },
+  // --- Creative prep: feeds the finished film + steadies the shoot ---------
+  {
+    id: 'preprod-table-read-revelation',
+    description: 'A full table read cracked open a scene everyone had privately worried about. The script is stronger for it.',
+    polarity: 'positive', severity: 'low', impact: 'script',
+    costRange: [0, 0], qualityRange: [3, 7], buzzRange: [0, 0], delayDaysRange: [0, 0], riskDeltaRange: [-4, 0],
+  },
+  {
+    id: 'preprod-rehearsal-chemistry',
+    description: 'Rehearsals surfaced real chemistry between the leads - the kind you cannot fake once cameras roll.',
+    polarity: 'positive', severity: 'low', impact: 'performances',
+    costRange: [0, 0], qualityRange: [2, 6], buzzRange: [0, 0], delayDaysRange: [0, 0], riskDeltaRange: [-6, -2],
+  },
+  {
+    id: 'preprod-design-breakthrough',
+    description: 'The production designer landed on a look for the film that everyone immediately believed in.',
+    polarity: 'positive', severity: 'low', impact: 'visual',
+    costRange: [0, 20_000], qualityRange: [2, 6], buzzRange: [0, 0], delayDaysRange: [0, 0],
+  },
+  {
+    id: 'preprod-casting-chemistry-concern',
+    description: 'Rehearsals exposed a flat dynamic between two principals that no amount of blocking quite fixed.',
+    polarity: 'negative', severity: 'medium', impact: 'performances',
+    costRange: [0, 0], qualityRange: [-5, -1], buzzRange: [0, 0], delayDaysRange: [0, 0], riskDeltaRange: [4, 9],
+  },
+  // --- Interactive prep decisions -----------------------------------------
+  {
+    id: 'preprod-int-rewrite-window',
+    situation: 'There is a narrow window to bring {name} back for one more pass on the third act before the lock.',
+    polarity: 'positive', severity: 'low', interactive: true, involvesRole: 'Writer', impact: 'script',
+    choices: [
+      {
+        id: 'commission-the-pass',
+        label: 'Commission the rewrite',
+        description: 'How much it helps depends on the writer - and it costs prep days and their fee.',
+        costRange: [40_000, 90_000], qualityRange: [2, 8], buzzRange: [0, 0], delayDaysRange: [1, 3], riskDeltaRange: [-2, 0],
+        skillSensitive: true,
+      },
+      {
+        id: 'lock-the-script',
+        label: 'Lock the script as is',
+        description: 'Protect the schedule and the budget. What you have is what you shoot.',
+        costRange: [0, 0], qualityRange: [0, 0], buzzRange: [0, 0], delayDaysRange: [0, 0],
+      },
+    ],
+  },
+  {
+    id: 'preprod-int-ambitious-set',
+    situation: 'The director wants to build a signature practical set that is not in the budget.',
+    polarity: 'positive', severity: 'medium', interactive: true, involvesRole: 'Director', impact: 'visual',
+    choices: [
+      {
+        id: 'build-it',
+        label: 'Find the money and build it',
+        description: 'A real visual centrepiece - if the shoot can afford the cost and the extra prep.',
+        costRange: [120_000, 300_000], qualityRange: [4, 9], buzzRange: [0, 0], delayDaysRange: [2, 4], riskDeltaRange: [2, 5],
+        skillSensitive: true,
+      },
+      {
+        id: 'scale-it-back',
+        label: 'Scale it back to what is planned',
+        description: 'Sensible and safe - a modest, dependable set and no surprises.',
+        costRange: [0, 0], qualityRange: [0, 1], buzzRange: [0, 0], delayDaysRange: [0, 0], riskDeltaRange: [-3, 0],
+      },
+    ],
+  },
+  // Trait-gated prep clash - a Difficult star makes their presence felt early.
+  {
+    id: 'preprod-int-difficult-early-clash',
+    situation: '{name} is already picking fights over billing and script pages before a frame is shot.',
+    polarity: 'negative', severity: 'medium', interactive: true, involvesRole: 'Lead Actor',
+    requiresTrait: 'DifficultToWorkWith', impact: 'performances',
+    choices: [
+      {
+        id: 'set-boundaries-now',
+        label: 'Set firm boundaries now',
+        description: 'An uncomfortable conversation that heads off worse trouble once shooting starts.',
+        costRange: [0, 0], qualityRange: [0, 0], buzzRange: [0, 0], delayDaysRange: [0, 1], riskDeltaRange: [-8, -3],
+      },
+      {
+        id: 'keep-the-peace',
+        label: 'Keep the peace for now',
+        description: 'Avoid the friction today and hope it settles - but the shoot inherits the tension.',
+        costRange: [0, 0], qualityRange: [0, 0], buzzRange: [0, 0], delayDaysRange: [0, 0], riskDeltaRange: [6, 12],
+      },
+    ],
   },
 ];

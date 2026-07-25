@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { studioReducer } from './studioReducer';
-import { buildStateWithReadyDraft, buildReadyDraft, buildReadyAsset, defaultMarketingChoices, conformActorGenderToSlot, shootThroughToFinish } from './testFixtures';
+import { buildStateWithReadyDraft, buildReadyDraft, buildReadyAsset, defaultMarketingChoices, conformActorGenderToSlot, shootThroughToFinish, prepThroughToShoot } from './testFixtures';
 import { createInitialStudio } from './gameState';
 import { withRng } from '../engine/random';
 import { studioCreditFromMarkets, domesticKeepShareForFilm } from '../engine/distribution';
@@ -606,26 +606,45 @@ describe('OPEN_PROJECT_WORKSPACE_SECTION - free navigation', () => {
   it('is a no-op once the focused project is already greenlit (past the workspace)', () => {
     const ready = stateReadyToGreenlight(202);
     const greenlit = studioReducer(ready, { type: 'GREENLIGHT_PROJECT' });
-    expect(greenlit.screen).toBe('production'); // sanity: greenlight actually succeeded
+    expect(greenlit.screen).toBe('pre-production'); // sanity: greenlight actually succeeded
     const after = studioReducer(greenlit, { type: 'OPEN_PROJECT_WORKSPACE_SECTION', section: 'overview' });
     expect(after).toBe(greenlit);
   });
 });
 
-describe('GREENLIGHT_PROJECT - the new lump pre-production time charge', () => {
-  it('advances totalDays by exactly computeRecommendedPreProductionDays, not a flat/zero amount', () => {
+describe('GREENLIGHT_PROJECT - enters the live pre-production phase', () => {
+  it('opens pre-production without advancing the calendar or creating photography', () => {
     const s = stateReadyToGreenlight(210);
     const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
-    const expectedDays = computeRecommendedPreProductionDays(draft.talent, draft.script!, draft.productionChoices!);
-    expect(expectedDays).toBeGreaterThan(0);
+    const expectedPrepDays = computeRecommendedPreProductionDays(draft.talent, draft.script!, draft.productionChoices!);
+    expect(expectedPrepDays).toBeGreaterThan(0);
 
     const after = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });
-    expect(after.totalDays).toBe(s.totalDays + expectedDays);
+    expect(after.screen).toBe('pre-production');
+    expect(after.totalDays).toBe(s.totalDays); // greenlight no longer jumps the calendar - prep ticks day-by-day
     const draftAfter = asPlayerDraft(findProject(after.projects, after.focusedProjectId))!;
-    expect(draftAfter.greenlitOnDay).toBe(after.totalDays);
+    expect(draftAfter.greenlitOnDay).toBe(s.totalDays);
+    expect(draftAfter.photography).toBeNull();
+    expect(draftAfter.preProduction?.status).toBe('in-progress');
+    expect(draftAfter.preProduction?.daysElapsed).toBe(0);
+    expect(draftAfter.preProduction?.recommendedDays).toBe(expectedPrepDays);
   });
 
-  it('runs the same settlement machinery GO_TO_STEP does - a scheduled release due within the pre-production window actually resolves', () => {
+  it('running pre-production to completion opens photography and advances the calendar by roughly the prep length', () => {
+    const s = stateReadyToGreenlight(211);
+    const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
+    const prepDays = computeRecommendedPreProductionDays(draft.talent, draft.script!, draft.productionChoices!);
+    const greenlit = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });
+    const shooting = prepThroughToShoot(greenlit);
+    const draftAfter = asPlayerDraft(findProject(shooting.projects, shooting.focusedProjectId))!;
+    expect(shooting.screen).toBe('production');
+    expect(draftAfter.preProduction?.status).toBe('finished');
+    expect(draftAfter.photography?.status).toBe('in-progress');
+    // Prep can run a little over its estimate if a delay event fires, never under.
+    expect(shooting.totalDays - s.totalDays).toBeGreaterThanOrEqual(prepDays);
+  });
+
+  it('a scheduled release due during pre-production resolves as the prep days tick past it', () => {
     // An Epic-scale project at max effects ambition to guarantee a large
     // enough preProductionDays (see MAX_SCALE_PREPRODUCTION_DAYS/
     // MAX_AMBITION_PREPRODUCTION_DAYS, engine/production.ts) to exceed
@@ -677,12 +696,25 @@ describe('GREENLIGHT_PROJECT - the new lump pre-production time charge', () => {
     combined = { ...combined, focusedProjectId: readyToGreenlight.focusedProjectId };
     expect(findProject(combined.projects, scheduledState.focusedProjectId!)?.kind).toBe('scheduled');
 
-    const after = studioReducer(combined, { type: 'GREENLIGHT_PROJECT' });
-    // SCHEDULE_RELEASE (dispatched above, against the second project) itself
-    // already advanced totalDays by its own marketing lead time - that's the
-    // baseline GREENLIGHT_PROJECT's own lump charge stacks on top of.
-    expect(after.totalDays).toBe(combined.totalDays + preProductionDays);
+    // Greenlight enters pre-production (no calendar jump); running prep to the
+    // shoot ticks the calendar day-by-day, and the settlement each of those
+    // days runs is what resolves the scheduled release due within the window.
+    const greenlit = studioReducer(combined, { type: 'GREENLIGHT_PROJECT' });
+    const after = prepThroughToShoot(greenlit);
+    expect(after.totalDays - combined.totalDays).toBeGreaterThanOrEqual(preProductionDays);
     expect(findProject(after.projects, scheduledState.focusedProjectId!)?.kind).toBe('released');
+  });
+
+  it('records prep events whose accumulated cost stays consistent, then opens photography', () => {
+    const greenlit = studioReducer(stateReadyToGreenlight(240), { type: 'GREENLIGHT_PROJECT' });
+    const shooting = prepThroughToShoot(greenlit);
+    const draft = asPlayerDraft(findProject(shooting.projects, shooting.focusedProjectId))!;
+    expect(draft.preProduction?.status).toBe('finished');
+    expect(draft.photography?.status).toBe('in-progress');
+    expect(draft.preProduction!.daysElapsed).toBeGreaterThanOrEqual(draft.preProduction!.recommendedDays);
+    // runningCost is exactly the sum of the prep events' own cost swings.
+    const eventCostSum = draft.preProduction!.events.reduce((sum, e) => sum + e.costDelta, 0);
+    expect(draft.preProduction!.runningCost).toBe(eventCostSum);
   });
 
   it('is blocked by the readiness gate even when fully affordable - e.g. a still-missing crew role', () => {
@@ -707,7 +739,8 @@ describe('GREENLIGHT_PROJECT - the new lump pre-production time charge', () => {
 describe('FINISH_PHOTOGRAPHY - post-production estimate (Post-Production Redesign, Phase A)', () => {
   it('is null before photography finishes', () => {
     const greenlit = studioReducer(stateReadyToGreenlight(230), { type: 'GREENLIGHT_PROJECT' });
-    const draft = asPlayerDraft(findProject(greenlit.projects, greenlit.focusedProjectId))!;
+    const shooting = prepThroughToShoot(greenlit); // prep first now precedes the shoot
+    const draft = asPlayerDraft(findProject(shooting.projects, shooting.focusedProjectId))!;
     expect(draft.photography?.status).toBe('in-progress'); // sanity - still shooting
     expect(draft.postProductionScreeningReadyDay).toBeNull();
   });
@@ -753,8 +786,9 @@ describe('FINISH_PHOTOGRAPHY - post-production estimate (Post-Production Redesig
 describe('Footage bounds - the shoot has a hard floor and an auto-wrap ceiling', () => {
   function greenlitShoot(seed: number): { state: GameState; recommendedDays: number } {
     const greenlit = studioReducer(stateReadyToGreenlight(seed), { type: 'GREENLIGHT_PROJECT' });
-    const draft = asPlayerDraft(findProject(greenlit.projects, greenlit.focusedProjectId))!;
-    return { state: greenlit, recommendedDays: draft.photography!.recommendedDays };
+    const shooting = prepThroughToShoot(greenlit); // prep now precedes photography
+    const draft = asPlayerDraft(findProject(shooting.projects, shooting.focusedProjectId))!;
+    return { state: shooting, recommendedDays: draft.photography!.recommendedDays };
   }
 
   it('FINISH_PHOTOGRAPHY is a no-op below the lower footage bound - an under-shot film cannot be wrapped', () => {
