@@ -34,7 +34,8 @@ export type TalentProfession =
   | 'Composer'
   | 'Editor'
   | 'VFX Supervisor'
-  | 'Casting Director';
+  | 'Casting Director'
+  | 'Production Designer';
 
 export type ProductionRole =
   | 'Director'
@@ -45,7 +46,8 @@ export type ProductionRole =
   | 'Composer'
   | 'Editor'
   | 'VFX Supervisor'
-  | 'Casting Director';
+  | 'Casting Director'
+  | 'Production Designer';
 
 // Producer (docs/DESIGN_REVIEW_production_office.md) is deliberately NOT a
 // TalentProfession or a ProductionRole: producers are employed at the studio
@@ -441,6 +443,8 @@ export interface PersonCareers {
   vfxSupervisor?: CrewCareer<'VFX Supervisor'>;
   /** Casting Redesign, Phase D (docs/DESIGN_REVIEW_casting_redesign.md section 11) - optional, same "doesn't block Greenlight, materially improves an existing mechanic when present" shape as vfxSupervisor above. Biases engine/castingCalls.ts:generateCastingApplicants's volume/curation and unlocks a small "discovery" chance. */
   castingDirector?: CrewCareer<'Casting Director'>;
+  /** Production Redesign, Sets facet (docs/DESIGN_REVIEW_production_redesign.md) - optional, same "doesn't block Greenlight, materially improves when present" shape as vfxSupervisor. Their skill is the realisation axis of the Sets/Design facet (engine/setsFacet.ts): a great designer stretches money and prep time further. Absent => a modest default. */
+  productionDesigner?: CrewCareer<'Production Designer'>;
   /** Production Office (docs/DESIGN_REVIEW_production_office.md) - present on producer-Persons only; never cast via the wizard, attached on the Producer Workspace instead. */
   producer?: ProducerCareer;
 }
@@ -800,6 +804,12 @@ export interface ProductionChoices {
   practicalEffectsAmount: number;
   vfxAmount: number;
   runtimeIntensity: number; // 0 = Short, 1 = Long
+  // Production Redesign, Sets facet (docs/DESIGN_REVIEW_production_redesign.md):
+  // days of pre-production the player grants the Production Designer to build.
+  // This is the Sets facet's TIME axis and drives the pre-production phase length
+  // (state/studioReducer.ts:GREENLIGHT_PROJECT). Optional/additive: absent means
+  // "use the designer's recommended build time" (engine/setsFacet.ts:defaultDesignPrepDays).
+  designPrepDays?: number;
 }
 
 // How big a deal an event actually is - low-stakes texture vs a genuine

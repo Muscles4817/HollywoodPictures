@@ -14,14 +14,14 @@ import { computeCharacterCompatibility, computeTalentCompatibility } from './com
 import { ageFitMultiplier } from './casting';
 import { deriveCommercialProfile } from './commercialProfile';
 import { findAssignedPerson, filterAssignedPeople } from '../data/helpers';
-import { getActorCareer, getDirectorCareer } from './person';
+import { getActorCareer, getDirectorCareer, getCrewCareer } from './person';
+import { computeSetsAmbition, computeSetsFacet, defaultDesignPrepDays, NO_DESIGNER_SKILL } from './setsFacet';
 import { characterForRoleSlot } from './castRequirements';
 import {
   contingencyQuality,
   editCoverageCeiling,
   overallSpendT,
   shootingQualityFromRatio,
-  setQualityScore,
   practicalEffectsScore,
   vfxScore,
   runtimeMarketabilityDelta,
@@ -172,6 +172,15 @@ export function computeActingScore(talent: TalentAssignment[], script: Script): 
   return (leadScoreAvg ?? 30) * 0.7 + (supportScoreAvg ?? 30) * 0.3;
 }
 
+/** The Sets/Design contribution to the Production score, realised from money + prep time + Production Designer skill against the script's design ambition (engine/setsFacet.ts) - the first facet of the Production redesign, replacing the old flat setQualityScore term. */
+export function computeSetsFacetQuality(choices: ProductionChoices, talent: TalentAssignment[], script: Script): number {
+  const ambition = computeSetsAmbition(script);
+  const designer = findAssignedPerson(talent, 'Production Designer');
+  const designerSkill = (designer && getCrewCareer(designer, 'Production Designer')?.skill) ?? NO_DESIGNER_SKILL;
+  const prepDays = choices.designPrepDays ?? defaultDesignPrepDays(ambition, designerSkill);
+  return computeSetsFacet({ ambition, moneyAmount: choices.setQualityAmount, prepDays, designerSkill }).quality;
+}
+
 /**
  * Quality contributed by production choices. VFX/practical-effects weight is
  * scaled per genre - Action/Sci-Fi/Fantasy lean on VFX, Drama/Romance don't.
@@ -179,12 +188,18 @@ export function computeActingScore(talent: TalentAssignment[], script: Script): 
  * (PhotographyState) - shooting quality is read off how photography
  * actually went, not a pre-set pace dial (see
  * productionDials.ts:shootingQualityFromRatio).
+ *
+ * The Sets/Design term is no longer a flat spend readout: it's the realised
+ * Sets facet (money + prep time + Production Designer skill vs the script's
+ * design ambition, engine/setsFacet.ts) - the first slice of the Production
+ * redesign (docs/DESIGN_REVIEW_production_redesign.md). Contingency, style, and
+ * effects stay as they were pending their own facets.
  */
-export function computeProductionScore(choices: ProductionChoices, genre: Genre, shootingRatio: number): number {
+export function computeProductionScore(choices: ProductionChoices, genre: Genre, shootingRatio: number, talent: TalentAssignment[], script: Script): number {
   const profile = GENRE_PROFILES[genre];
   const contingency = contingencyQuality(choices.contingencyAmount);
   const style = shootingQualityFromRatio(shootingRatio);
-  const set = setQualityScore(choices.setQualityAmount);
+  const sets = computeSetsFacetQuality(choices, talent, script);
   const practical = practicalEffectsScore(choices.practicalEffectsAmount);
   const vfx = vfxScore(choices.vfxAmount);
 
@@ -194,7 +209,7 @@ export function computeProductionScore(choices: ProductionChoices, genre: Genre,
       ? (vfx * profile.vfxImportance + practical * profile.practicalEffectsImportance) / effectsWeightTotal
       : (vfx + practical) / 2;
 
-  return contingency * 0.35 + style * 0.25 + set * 0.2 + effectsScore * 0.2;
+  return contingency * 0.35 + style * 0.25 + sets * 0.2 + effectsScore * 0.2;
 }
 
 /**
@@ -386,7 +401,7 @@ export function computeQualityBreakdown(
   const scriptScore = computeScriptScore(script);
   const directionScore = computeDirectionScore(talent, script);
   const actingScore = computeActingScore(talent, script);
-  const productionScore = computeProductionScore(productionChoices, genre, shootingRatio);
+  const productionScore = computeProductionScore(productionChoices, genre, shootingRatio, talent, script);
   // Footage coverage caps the edit: an under-shot film (below the recommended
   // schedule) can't be cut into a great one no matter how good the Editor is.
   // Coverage is read from execution.coverageRatio, not raw shootingRatio, so

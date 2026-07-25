@@ -23,6 +23,7 @@ export const ROLE_BUDGET_IMPORTANCE: Record<ProductionRole, number> = {
   Editor: 1,
   'VFX Supervisor': 1.5,
   'Casting Director': 1,
+  'Production Designer': 1.5,
 };
 
 export interface CastBudgetSplitParams {

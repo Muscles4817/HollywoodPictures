@@ -40,6 +40,22 @@ export function computeEventsCostDelta(events: ProductionEvent[]): number {
   return events.reduce((sum, e) => sum + e.costDelta, 0);
 }
 
+// Pre-production overhead burned per day — the production office, department
+// heads prepping, scouts, the design build in progress (docs/DESIGN_REVIEW_production_redesign.md,
+// cost-of-time model). Scales with the film's scale so a bigger show costs more
+// to keep in prep, which is what makes "grant the designer more weeks" a real,
+// felt trade-off rather than free time. First-draft, tunable.
+const PREP_DAILY_BURN_BY_SCALE: Record<'Intimate' | 'Medium' | 'Epic', number> = {
+  Intimate: 25_000,
+  Medium: 55_000,
+  Epic: 95_000,
+};
+
+/** Cash burned per day of pre-production, by the film's scale. */
+export function computeDailyPrepBurn(scale: 'Intimate' | 'Medium' | 'Epic'): number {
+  return PREP_DAILY_BURN_BY_SCALE[scale];
+}
+
 /** Marketing spend scaled by how expensive the chosen release type is to support. */
 export function computeMarketingCost(choices: MarketingChoices): number {
   const releaseCostMultiplier = RELEASE_TYPE_PROFILES[choices.releaseType].costMultiplier;
