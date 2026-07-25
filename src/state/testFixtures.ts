@@ -154,9 +154,35 @@ export function buildStateWithReadyDraft(seed: number, marketingOverrides: Parti
  * then finish. Replaces the old "greenlight then FINISH_PHOTOGRAPHY on day 0"
  * shortcut, which the footage lower bound now (correctly) blocks.
  */
+/**
+ * Advance a focused, greenlit project's pre-production to completion - resolving
+ * any prep decision with its first option - which auto-opens Principal
+ * Photography (state/studioReducer.ts:ADVANCE_PREPRODUCTION_DAY). A no-op once
+ * the project is already shooting. ADVANCE_PREPRODUCTION_DAY always drives the
+ * FOCUSED project, so this only advances prep for the focused one.
+ */
+export function prepThroughToShoot(state: GameState, productionId?: string): GameState {
+  let s = state;
+  const id = productionId ?? s.focusedProjectId!;
+  for (let guard = 0; guard < 1000; guard++) {
+    const prep = asPlayerDraft(findProject(s.projects, id))?.preProduction;
+    if (!prep || prep.status === 'finished') break;
+    if (prep.status === 'awaiting-choice' && prep.pendingChoice) {
+      s = studioReducer(s, { type: 'RESOLVE_PREPRODUCTION_CHOICE', choiceId: prep.pendingChoice.choices[0].id, productionId: id });
+      continue;
+    }
+    s = studioReducer(s, { type: 'ADVANCE_PREPRODUCTION_DAY' });
+  }
+  return s;
+}
+
 export function shootThroughToFinish(state: GameState, productionId?: string): GameState {
   let s = state;
   const id = productionId ?? s.focusedProjectId!;
+  // Greenlight now drops into a live pre-production phase before photography
+  // (types/index.ts:PreProductionState); run it to completion first (resolving
+  // any prep decision with its first option), which auto-opens the shoot.
+  s = prepThroughToShoot(s, id);
   for (let guard = 0; guard < 1000; guard++) {
     const photo = asPlayerDraft(findProject(s.projects, id))?.photography;
     if (!photo || photo.status === 'finished') break;

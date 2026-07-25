@@ -3,7 +3,7 @@
 // zero at neutral/agreeable, driven by shared ego, amplified by shared rigidity,
 // dominated by the single worst pairing.
 import { describe, it, expect } from 'vitest';
-import { computeCreativeTension, pairFriction } from './creativeTension';
+import { computeCreativeTension, pairFriction, topCreativeClash } from './creativeTension';
 import type { Person, PersonPersonality, ProductionRole, TalentAssignment } from '../types';
 
 function person(id: string, over: Partial<PersonPersonality> = {}): Person {
@@ -66,5 +66,24 @@ describe('computeCreativeTension', () => {
       ['Supporting Actor', {}],
     );
     expect(computeCreativeTension(oneClash)).toBeGreaterThan(70);
+  });
+});
+
+describe('topCreativeClash (legibility - names the clashing pair)', () => {
+  it('is null when nobody clashes', () => {
+    expect(topCreativeClash(cast(['Director', {}], ['Lead Actor', {}]))).toBeNull();
+  });
+
+  it('names the director and the specific clashing principal, matching the tension number', () => {
+    const talent = cast(
+      ['Director', { ego: 95, adaptability: 5 }],
+      ['Lead Actor', {}], // agreeable
+      ['Supporting Actor', { ego: 95, adaptability: 5 }], // the real clash
+    );
+    const clash = topCreativeClash(talent);
+    expect(clash).not.toBeNull();
+    expect(clash!.director.id).toBe('Director-0');
+    expect(clash!.actor.id).toBe('Supporting Actor-2');
+    expect(clash!.tension).toBe(computeCreativeTension(talent));
   });
 });

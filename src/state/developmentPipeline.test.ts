@@ -333,7 +333,7 @@ describe('GREENLIGHT_PROJECT', () => {
     expect(draft.greenlitOnDay).toBeNull();
   });
 
-  it('on success, charges talent + production budget + contingency exactly once, reserves cast bookings, and moves to production', () => {
+  it('on success, charges talent + production budget + contingency exactly once, reserves cast bookings, and moves to pre-production', () => {
     const s = stateReadyToGreenlight(32);
     const draftBefore = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
     const expectedCharge =
@@ -342,10 +342,11 @@ describe('GREENLIGHT_PROJECT', () => {
     const after = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });
 
     expect(after.studio.cash).toBe(s.studio.cash - expectedCharge);
-    expect(after.screen).toBe('production');
+    expect(after.screen).toBe('pre-production');
     const draftAfter = asPlayerDraft(findProject(after.projects, after.focusedProjectId))!;
     expect(draftAfter.greenlitOnDay).toBe(after.totalDays);
-    expect(draftAfter.photography?.status).toBe('in-progress');
+    expect(draftAfter.preProduction?.status).toBe('in-progress');
+    expect(draftAfter.photography).toBeNull();
     for (const a of draftAfter.talent) {
       const inPool = after.talentPool[professionForProductionRole(a.role)]?.find((p) => p.id === a.person.id);
       expect(deriveBookedUntil(inPool?.availability.commitments ?? [])).toBeGreaterThan(after.totalDays - 1);

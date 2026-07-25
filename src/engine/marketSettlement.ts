@@ -1,6 +1,7 @@
 import type { Film, FilmDraft, Person, RivalProductionInProgress, RivalStudio } from '../types';
 import type { RandomFn } from './random';
 import { computeReleaseResults } from './releaseFilm';
+import { prepQualityEvents } from './production';
 import { rollPressTourMoments, pressTourReputationDeltas, windowOutcomeToMoments, type PressTourMomentsOutcome, type TalentReputationDelta } from './pressTourMoments';
 import { computeProducerEffects, producersByIds, totalAttachedPerFilmFees } from './producers';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta } from './cost';
@@ -84,7 +85,11 @@ function windowPressTourOutcome(draft: FilmDraft): PressTourMomentsOutcome | nul
 }
 
 function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand: number, known: UpcomingRelease[], producerPool: Person[], rng: RandomFn): { film: Film; costCharged: number; reputationDeltas: TalentReputationDelta[] } {
-  const photographyEvents = draft.photography!.events;
+  // The shoot's recorded events, PLUS the creative-prep wins/losses from
+  // pre-production (a revelatory table read, casting friction) - those carry a
+  // qualityDelta/impact and reach the finished film through the exact same
+  // execution pipeline as an on-set event (engine/production.ts:prepQualityEvents).
+  const photographyEvents = [...prepQualityEvents(draft.preProduction), ...draft.photography!.events];
   const postProductionEvents = draft.postProductionEvents;
   const shootingRatio = draft.photography!.recommendedDays > 0 ? draft.photography!.daysElapsed / draft.photography!.recommendedDays : 1;
   const competitiveCrowding = computeCompetitiveCrowding({ releaseDay, genre: draft.genre!, targetAudience: draft.targetAudience! }, known);

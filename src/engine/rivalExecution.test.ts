@@ -9,7 +9,7 @@ import { resolveRivalProduction } from './rivalStudios';
 import { computeExecutionProfile, summarizeExecution } from './productionExecution';
 import { buildReadyDraft } from '../state/testFixtures';
 import { createRng, withRng } from './random';
-import type { RivalProductionInProgress, TalentAssignment } from '../types';
+import type { PersonPersonality, RivalProductionInProgress, TalentAssignment } from '../types';
 
 function inputFor(seed = 2024, reliability?: number, contingencyAmount?: number): RivalExecutionInput {
   const draft = withRng(seed, (rng) => buildReadyDraft(rng)).result;
@@ -22,6 +22,15 @@ function inputFor(seed = 2024, reliability?: number, contingencyAmount?: number)
     script: draft.script!,
     productionChoices: contingencyAmount === undefined ? draft.productionChoices! : { ...draft.productionChoices!, contingencyAmount },
     genre: draft.genre!,
+  };
+}
+
+/** A rival input whose whole cast carries a forced personality + reliability - for the parity checks below. */
+function personalityInputFor(seed: number, over: Partial<PersonPersonality>, reliability: number, contingencyAmount?: number): RivalExecutionInput {
+  const base = inputFor(seed, reliability, contingencyAmount);
+  return {
+    ...base,
+    talent: base.talent.map((a) => ({ ...a, person: { ...a.person, personality: { ...a.person.personality, ...over } } })),
   };
 }
 
@@ -88,6 +97,44 @@ describe('resolveRivalExecution - synthesized history', () => {
       return total / 40;
     };
     expect(netFor(20, 150_000)).toBeLessThan(netFor(92, 4_000_000));
+  });
+});
+
+// The personality wiring (temperament + creative tension -> moraleRisk;
+// pressureHandling -> execution resilience) lives in computeStaticProductionRisk
+// and computeExecutionResilience, both of which resolveRivalExecution already
+// calls. So rivals must inherit the exact same behaviour the player's shoot got
+// - these pin that parity, the same way the reliability test above does.
+describe('rivals inherit the personality wiring (parity with the player)', () => {
+  const SEEDS = 60;
+
+  it('a volatile, clashing cast yields a harsher synthesized history than a calm, agreeable one (moraleRisk parity)', () => {
+    const netFor = (over: Partial<PersonPersonality>) => {
+      let total = 0;
+      for (let s = 0; s < SEEDS; s++) {
+        const { events } = resolveRivalExecution(personalityInputFor(6000 + s, over, 60), createRng(6000 + s));
+        total += events.reduce((sum, e) => sum + e.qualityDelta, 0);
+      }
+      return total / SEEDS;
+    };
+    const volatileClashing = netFor({ temperament: 15, ego: 90, adaptability: 10 });
+    const calmAgreeable = netFor({ temperament: 90, ego: 40, adaptability: 75 });
+    expect(volatileClashing).toBeLessThan(calmAgreeable);
+  });
+
+  it('a composed cast ships a better-executed rival film than a hair-trigger one on a rough shoot (resilience parity)', () => {
+    const overallFor = (pressureHandling: number) => {
+      let total = 0;
+      for (let s = 0; s < SEEDS; s++) {
+        const input = personalityInputFor(6500 + s, { pressureHandling }, 35, 150_000);
+        const { events, shootingRatio } = resolveRivalExecution(input, createRng(6500 + s));
+        // Resilience mitigates negative damage at PROFILE time (same call the
+        // player uses), so measure the finished execution, not raw events.
+        total += computeExecutionProfile({ events, shootingRatio, talent: input.talent, productionChoices: input.productionChoices }).overall;
+      }
+      return total / SEEDS;
+    };
+    expect(overallFor(95)).toBeGreaterThan(overallFor(5));
   });
 });
 

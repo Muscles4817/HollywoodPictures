@@ -91,6 +91,7 @@ export function ProjectsPage() {
       if (!draft) return;
       const screen = currentScreenFor(draft);
       if (screen === 'workspace') dispatch({ type: 'OPEN_PROJECT_WORKSPACE_SECTION', section: 'overview' });
+      else if (screen === 'pre-production') dispatch({ type: 'GO_TO_PREPRODUCTION' });
       else dispatch({ type: 'GO_TO_STEP', step: screen });
       return;
     }

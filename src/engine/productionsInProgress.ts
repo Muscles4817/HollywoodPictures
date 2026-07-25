@@ -1,5 +1,5 @@
 import type { FilmDraft, Person, TalentProfession } from '../types';
-import { computeStaticProductionRisk, rollDayEvent } from './production';
+import { applyPrepRiskDelta, computePrepRiskDelta, computeStaticProductionRisk, rollDayEvent } from './production';
 import { computeDailyContingencyBurn } from './cost';
 import type { RandomFn } from './random';
 
@@ -37,9 +37,11 @@ function advanceOne(d: FilmDraft, daysToAdvance: number, talentPool: Record<Tale
 
   let photography = d.photography;
   const dailyBurn = computeDailyContingencyBurn(d.productionChoices.contingencyAmount, photography.recommendedDays);
+  // Same starting-risk adjustment from prep the focused shoot gets (studioReducer:ADVANCE_SHOOTING_DAY).
+  const prepRiskDelta = computePrepRiskDelta(d.preProduction);
 
   for (let i = 0; i < daysToAdvance; i++) {
-    const staticRisk = computeStaticProductionRisk(d.talent, d.script, d.productionChoices, d.genre);
+    const staticRisk = applyPrepRiskDelta(computeStaticProductionRisk(d.talent, d.script, d.productionChoices, d.genre), prepRiskDelta);
     const usedIds = new Set(photography.events.map((e) => e.id));
     const rolled = rollDayEvent(
       staticRisk,
