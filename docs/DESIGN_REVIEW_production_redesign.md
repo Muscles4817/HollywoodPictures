@@ -50,19 +50,45 @@ ambition). Hitting `A` takes **work**, and work is produced by three inputs:
 - **Skill `S`** — the department head's rating. **Multiplies** what a given `M`
   and `T` produce, and can push realisation past 1.0 (over-delivery).
 
-### 3.2 The central principle: money = speed, skill + time = the cheap road
+### 3.2 The central principle: money = speed, skill + time = the cheap road — *within limits set by ambition*
 
 Skill does **not** substitute for money directly. It substitutes **through
 time**. A brilliant Production Designer *can* match a lavish build on a fraction
 of the budget — but they need the prep weeks to do it. Rush them cheap → it looks
 like a set; give them time → they find the clever solution.
 
-Consequence (resolves the "should cheap fully match expensive?" question — **yes,
-it can**): cheap-and-skilful reaches the *same quality* as expensive-and-fast.
-The price of going cheap is **time and its downstream risks** (later release,
-extended talent holds, more daily burn, rivals crowding), never a quality cap. So
-money never becomes worthless — it is *speed and safety* — and "clever + patient +
-cheap" is a real, viable studio identity.
+**But substitution is bounded, and ambition sets the bounds.** More money does
+not scale endlessly into perfect work in miniscule time, and more time + skill
+does not scale endlessly into a spectacle for pennies. Both `moneyWork` and
+`timeWork` have **diminishing returns**, and — critically — each has an
+**ambition-scaled floor**:
+
+- **Money floor `M_floor(A)`** — below it, no amount of time or skill reaches the
+  ceiling. A convincing space battle has a hard minimum spend; you cannot be
+  clever your way under it. (This is what keeps money meaningful and makes
+  spectacle genuinely require budget.)
+- **Time floor `T_floor(A)`** — below it, no amount of money reaches the ceiling.
+  Complex work takes calendar time; a rushed tentpole with all the money in the
+  world still can't hit its mark. (This is what keeps *time* meaningful and makes
+  a rushed shoot genuinely risk the film regardless of budget.)
+
+Between the floors, money and time trade off (money = speed; skill + time = the
+slow, cheap road). Skill shifts the *efficiency* curves — an elite head needs
+less of both, and can push realisation past 1.0 — but **skill does not remove the
+ambition floors.**
+
+So — resolving the "should cheap fully match expensive?" question — **it depends
+entirely on the ambition of the project:**
+- **Low / moderate ambition** → the floors sit low, so cheap + skilful + patient
+  can *fully match* expensive + fast. The price of going cheap is time and its
+  downstream risks (later release, extended talent holds, more daily burn, rivals
+  crowding), not a quality cap. "Clever + patient + cheap" is a real identity.
+- **High ambition (spectacle scale)** → the floors sit high. There is a mandatory
+  minimum of *both* money and time; skill lets you exceed the baseline, never
+  duck under it. A tentpole genuinely requires money **and** time **and** skill.
+
+Ambition is therefore the master dial: it sets the ceiling, the risk, *and* how
+much substitution between money and time is even possible.
 
 ### 3.3 Stretch → variance; overreach is a SWING, not a wall
 
@@ -85,24 +111,40 @@ distribution; skill/preparation buys the upside of that widening.)
 Per facet, roughly:
 
 ```
-workRequired   = curve(A)                    # higher ambition => more work
-workDelivered  = S01 * (moneyWork(M) + timeWork(T))   # money faster per unit than time
-realisation    = clamp(workDelivered / workRequired, 0, ~1.1)
-stretch        = clamp(workRequired / (workDelivered + eps) - 1, 0, 1)   # >0 when under-resourced
-facetCeiling   = lerp(COMPETENT, SPECTACULAR, A01)   # ambitious facets can score higher when realised
-facetQuality   = facetCeiling * realisation  +  executionSwing(stretch, S, onSetEvents)
+workRequired   = curve(A)                          # higher ambition => more work
+M_floor, T_floor = floors(A)                        # ambition-scaled minimums (§3.2)
+# Each input's contribution is CONCAVE (diminishing returns) and GATED below its floor:
+moneyWork = M < M_floor ? starved(M) : concave(M)   # can't reach full work below the floor
+timeWork  = T < T_floor ? starved(T) : concave(T)   # ditto
+workDelivered = S01 * combine(moneyWork, timeWork)  # money higher per-unit rate => money = speed
+realisation   = clamp(workDelivered / workRequired, 0, ~1.1)
+stretch       = clamp(workRequired / (workDelivered + eps) - 1, 0, 1)   # >0 when under-resourced
+facetCeiling  = lerp(COMPETENT, SPECTACULAR, A01)   # ambitious facets can score higher when realised
+facetQuality  = facetCeiling * realisation  +  executionSwing(stretch, S, onSetEvents)
 ```
 
+- **Diminishing returns** on both `moneyWork` and `timeWork` (concave curves):
+  past a point, more of either barely moves the work done — no endless scaling to
+  perfection.
+- **Ambition floors** (`M_floor`, `T_floor`): below either floor the input is
+  "starved" and `realisation` can't reach 1 no matter the other input or skill.
+  Low-ambition facets have low floors (full substitution / full match possible);
+  high-ambition facets have high floors (both money and time are mandatory).
 - `moneyWork` has a higher per-unit rate than `timeWork` → **money = speed**
-  (fewer days to reach `workRequired`), time = the slow substitute.
+  (fewer days to reach `workRequired`), time = the slow substitute — but only
+  *above* the floors.
+- **Skill `S01`** scales efficiency (needs less of both, can exceed 1.0) but does
+  **not** lower the floors.
 - `executionSwing` is centred at 0 for low stretch and fans out (skill-biased) as
   stretch rises — the endogenous variance, realised by the **re-routed visual/
   technical on-set events** (§10).
 - **Ingenuity** (cheap + amazing) is not a separate term — it falls out of high
-  `S` × high `T` compensating for low `M`, so `realisation` still reaches ~1.
+  `S` × high `T` compensating for low `M` *when the ambition floors permit it*, so
+  `realisation` still reaches ~1 on low/moderate-ambition facets but is capped on
+  spectacle-scale ones.
 
-**OPEN:** exact curves — how fast `timeWork` plateaus, the money/time rate ratio,
-how wide `executionSwing` fans, and the facet-ceiling span.
+**OPEN:** exact curves — floor heights vs ambition, concavity of each input, the
+money/time rate ratio, how wide `executionSwing` fans, and the facet-ceiling span.
 
 ## 4. Facet catalogue
 
@@ -169,7 +211,9 @@ you're paying me to gold-plate").
 Five real costs, mapped to game levers:
 
 1. **Prep/phase daily burn** — *new for pre-production* (prep currently costs only
-   via events). Each phase burns cash per day it runs.
+   via events). Each phase burns cash per day it runs. **DECIDED: add a
+   pre-production daily burn** as part of the Sets prototype (§12 step 2) so time
+   has a real cost in the slice.
 2. **Talent-holding cost & availability risk** — longer phases extend the
    `greenlight → prep+shoot` booking; at the extreme, a held star/crew can **drop
    out** (recast risk).
@@ -183,8 +227,8 @@ Net: time is worth buying up to each head's sweet spot, wasteful beyond, risky a
 the far extreme; going cheap on money means needing more time, which pushes
 release later and extends holds. The trade-off closes.
 
-**OPEN:** do we add a prep daily burn now (item 1), and do we add availability/
-drop-out risk (item 2) in v1 or defer?
+**DECIDED:** add the prep daily burn (item 1) now. **OPEN:** availability /
+drop-out risk (item 2) — v1 or defer?
 
 ## 7. The department-head conversation (UX)
 
@@ -219,10 +263,10 @@ Split today's overloaded "Contingency Reserve" into two honest decisions:
   overruns/disasters. Protects the downside; does **not** buy quality. Matches the
   player's intuition.
 
-**OPEN:** does the Shooting Budget stay one number, or dissolve entirely into the
-per-facet money asks (§6.1)? Leaning: per-facet asks *are* the shooting budget;
-"Shooting Budget" becomes the sum readout, and Contingency is the one separate
-buffer dial.
+**DECIDED:** the Shooting Budget **dissolves into the per-facet money asks**
+(§6.1). Each head's granted budget *is* the shooting budget for its facet;
+"Shooting Budget" becomes a sum readout, and **Contingency Reserve is the one
+separate buffer dial** (a true downside buffer, no quality effect).
 
 ## 9. Forecast (option C)
 
@@ -252,9 +296,10 @@ share the model but read separately on the Results screen), or merge the reporti
 
 1. Final facet list & whether Score/Edit ship in v1 (§4).
 2. VFX as vendor-house vs. supervisor-person vs. both (§5.2).
-3. Money dials for Score/Effects, and whether Shooting Budget dissolves into
-   per-facet asks (§4, §8).
-4. Prep daily burn + talent drop-out risk in v1 or later (§6.3).
+3. Money dials for Score/Effects (§4). *(Shooting Budget → per-facet asks:
+   DECIDED, §8.)*
+4. Talent drop-out / availability risk in v1 or later (§6.3). *(Prep daily burn:
+   DECIDED, §6.3.)*
 5. Curve tuning: money/time rate ratio, time plateau, swing width (§3.4).
 6. Head conversation: authored voice vs templated (§7).
 7. Production vs Post reporting: two departments or one (§10).
