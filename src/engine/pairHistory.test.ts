@@ -159,3 +159,34 @@ describe('computeEffectivePairChemistry', () => {
     expect(computeEffectivePairChemistry(talent, proven)).toBeGreaterThan(computePairChemistry(talent));
   });
 });
+
+// Phase 3: crew partnerships are their own dimension and must not bleed into cast chemistry.
+describe('craft dimension (director<->editor / cinematographer)', () => {
+  const crewCast: TalentAssignment[] = [assignment('dir', 'Director'), assignment('lead1', 'Lead Actor'), assignment('editor', 'Editor'), assignment('dp', 'Cinematographer')];
+
+  it('records both cast and crew pairings from one released film', () => {
+    const recorded = recordFilmPairings([], filmFixture({ id: 'f1', talent: crewCast, criticScore: 80, audienceScore: 80, stars: 4 }), 100);
+    // dir-lead1 (performance) + dir-editor + dir-dp (craft) = 3
+    expect(recorded).toHaveLength(3);
+    expect(pairHistory(recorded, 'dir', 'editor')).not.toBeNull();
+    expect(pairHistory(recorded, 'dir', 'dp')).not.toBeNull();
+  });
+
+  it('a strong director<->editor history lifts CRAFT chemistry but leaves PERFORMANCE chemistry untouched', () => {
+    // History from a crew-only cast, so ONLY the director<->editor pairing is
+    // remembered - no cast pairing sneaks in to move the performance read.
+    const crewOnly: TalentAssignment[] = [assignment('dir', 'Director'), assignment('editor', 'Editor')];
+    const craftHistory = recordPlayerFilmPairings(
+      [],
+      [
+        filmFixture({ id: 'f1', talent: crewOnly, criticScore: 95, audienceScore: 95, stars: 5 }),
+        filmFixture({ id: 'f2', talent: crewOnly, criticScore: 95, audienceScore: 95, stars: 5 }),
+      ],
+      200,
+    );
+    // Craft rises above its personality baseline...
+    expect(computeEffectivePairChemistry(crewCast, craftHistory, 'craft')).toBeGreaterThan(computeEffectivePairChemistry(crewCast, [], 'craft'));
+    // ...while the cast read (director<->lead) is unmoved by crew history.
+    expect(computeEffectivePairChemistry(crewCast, craftHistory, 'performance')).toBe(computeEffectivePairChemistry(crewCast, [], 'performance'));
+  });
+});

@@ -3,7 +3,7 @@
 // zero at neutral/agreeable, driven by shared ego, amplified by shared rigidity,
 // dominated by the single worst pairing.
 import { describe, it, expect } from 'vitest';
-import { computeCreativeTension, computePairChemistry, pairChemistry, pairFriction, topCreativeClash } from './creativeTension';
+import { computeCreativeTension, computePairChemistry, craftPairs, pairChemistry, pairFriction, performancePairs, topCreativeClash } from './creativeTension';
 import type { Person, PersonPersonality, ProductionRole, TalentAssignment } from '../types';
 
 function person(id: string, over: Partial<PersonPersonality> = {}): Person {
@@ -155,6 +155,27 @@ describe('computePairChemistry', () => {
       ['Lead Actor', { ego: 95, adaptability: 5 }],
     );
     expect(computePairChemistry(feuding)).toBe(0);
+  });
+});
+
+// Phase 3: the two chemistry dimensions read disjoint pairings.
+describe('performancePairs / craftPairs (dimension split)', () => {
+  const talent = cast(['Director', {}], ['Lead Actor', {}], ['Supporting Actor', {}], ['Editor', {}], ['Cinematographer', {}]);
+
+  it('performancePairs are the cast pairings only (director<->principal and co-stars), never crew', () => {
+    const roles = new Set(performancePairs(talent).flatMap(([a, b]) => [a.id, b.id]));
+    expect(roles.has('Editor-3')).toBe(false);
+    expect(roles.has('Cinematographer-4')).toBe(false);
+    expect(roles.has('Lead Actor-1')).toBe(true);
+  });
+
+  it('craftPairs are the director against editor and cinematographer only, never actors', () => {
+    const pairs = craftPairs(talent).map(([a, b]) => [a.id, b.id].sort().join('-')).sort();
+    expect(pairs).toEqual(['Cinematographer-4-Director-0', 'Director-0-Editor-3']);
+  });
+
+  it('craftPairs is empty without a director', () => {
+    expect(craftPairs(cast(['Editor', {}], ['Cinematographer', {}]))).toHaveLength(0);
   });
 });
 

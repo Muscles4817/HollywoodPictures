@@ -13,9 +13,9 @@
 // one place a film's key pairings are recorded when it releases. Pure: plain data
 // in, plain data out; pairing strength is always recomputed from the flat list on
 // read, never stored.
-import type { Film, GameDay, Person, PersonId, TalentAssignment, TalentPairing } from '../types';
+import type { ChemistryDimension, Film, GameDay, Person, PersonId, TalentAssignment, TalentPairing } from '../types';
 import { clamp } from './random';
-import { keyCreativePairs, pairChemistry } from './creativeTension';
+import { craftPairs, keyCreativePairs, pairChemistry, performancePairs } from './creativeTension';
 
 /** The 3 neutral stars a film with no recorded production-execution outcome contributes - a shoot we know nothing about reads as neither smooth nor troubled. */
 const NEUTRAL_SHOOT_STARS = 3;
@@ -115,17 +115,20 @@ export function effectivePairChemistry(a: Person, b: Person, pairings: TalentPai
 }
 
 /**
- * How much natural chemistry the key creatives bring once their shared history is
- * folded in, 0-100 - the history-aware counterpart to
- * engine/creativeTension.ts:computePairChemistry. Uses the single BEST key
- * pairing (director<->principal or two co-stars), reads only the positive pole,
- * and reduces EXACTLY to computePairChemistry when `pairings` is empty (every
- * pairing a stranger) - so a first-time cast, a rival, and every pre-history save
- * are unchanged.
+ * How much natural chemistry the key creatives bring in one dimension once their
+ * shared history is folded in, 0-100 - the history-aware counterpart to
+ * engine/creativeTension.ts:computePairChemistry. `dimension` selects which
+ * partnerships count: 'performance' (cast - director<->principal and co-stars,
+ * the default) or 'craft' (director<->editor and director<->cinematographer),
+ * so cast chemistry and crew chemistry route to their own on-set beats. Uses the
+ * single BEST pairing in that dimension, reads only the positive pole, and
+ * reduces EXACTLY to the personality-only read when `pairings` is empty - so a
+ * first-time cast, a rival, and every pre-history save are unchanged.
  */
-export function computeEffectivePairChemistry(talent: TalentAssignment[], pairings: TalentPairing[]): number {
+export function computeEffectivePairChemistry(talent: TalentAssignment[], pairings: TalentPairing[], dimension: ChemistryDimension = 'performance'): number {
+  const pairs = dimension === 'craft' ? craftPairs(talent) : performancePairs(talent);
   let best = 0;
-  for (const [a, b] of keyCreativePairs(talent)) {
+  for (const [a, b] of pairs) {
     best = Math.max(best, effectivePairChemistry(a, b, pairings));
   }
   return Math.round(best * 100);

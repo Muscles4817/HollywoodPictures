@@ -1,4 +1,5 @@
 import type {
+  ChemistryDimension,
   EventChoiceTemplate,
   EventSeverity,
   Genre,
@@ -617,17 +618,21 @@ function buildEventPools(
 const CHEMISTRY_EVENT_WEIGHT = 3;
 
 /**
- * Picks one template from the pool, up-weighting positive chemistry beats
- * (data/productionEvents.ts:chemistry) in proportion to the shoot's pair
- * chemistry (0..1). At chemistry 0 every weight is 1, so this reduces EXACTLY to
- * the old uniform `candidates[randInt(...)]` - same index, same single rng draw -
- * leaving a neutral shoot's selection (and every seeded test around it)
- * untouched. Keyed by template id, which is unique within a pool.
+ * Picks one template from the pool, up-weighting each positive chemistry beat
+ * (data/productionEvents.ts:chemistry) in proportion to the shoot's chemistry in
+ * THAT beat's dimension - cast chemistry lifts performance beats, crew chemistry
+ * lifts craft beats, so a director/editor clicking never makes the cast's
+ * chemistry event fire. `chemistryByDimension` is each dimension's 0..1 value. At
+ * all-zero chemistry every weight is 1, so this reduces EXACTLY to the old
+ * uniform `candidates[randInt(...)]` - same index, same single rng draw - leaving
+ * a neutral shoot's selection (and every seeded test around it) untouched. Keyed
+ * by template id, which is unique within a pool.
  */
-function pickTemplateWeightedByChemistry(candidates: ProductionEventTemplate[], chemistry01: number, rng: RandomFn): ProductionEventTemplate {
+function pickTemplateWeightedByChemistry(candidates: ProductionEventTemplate[], chemistryByDimension: Record<ChemistryDimension, number>, rng: RandomFn): ProductionEventTemplate {
   const weights: Record<string, number> = {};
   for (const t of candidates) {
-    weights[t.id] = t.polarity === 'positive' && t.chemistry ? 1 + chemistry01 * CHEMISTRY_EVENT_WEIGHT : 1;
+    const chem = t.polarity === 'positive' && t.chemistry ? chemistryByDimension[t.chemistry] : 0;
+    weights[t.id] = 1 + chem * CHEMISTRY_EVENT_WEIGHT;
   }
   const chosenId = weightedPick(rng, candidates.map((t) => t.id), weights);
   return candidates.find((t) => t.id === chosenId) ?? candidates[candidates.length - 1];
@@ -692,13 +697,17 @@ export function pickShootEvent(
   const severityPool = polarityPool.filter((t) => t.severity === severity);
   const candidates = severityPool.length > 0 ? severityPool : polarityPool;
 
-  // A well-matched pairing is likelier to actually hit the chemistry beat when
+  // A well-matched pairing is likelier to actually hit its chemistry beat when
   // good news lands - read off `talent` plus any shared history (`pairings`), so
   // a proven duo lands it more reliably than personality alone would predict.
-  // Reads identically for the player's shoot and the rival synthesizer; neutral
-  // personalities with no history read 0 and leave selection unchanged.
-  const chemistry01 = computeEffectivePairChemistry(talent, pairings) / 100;
-  const template = pickTemplateWeightedByChemistry(candidates, chemistry01, rng);
+  // Read per dimension so cast chemistry and crew chemistry route to their own
+  // beats. Reads identically for the player's shoot and the rival synthesizer;
+  // neutral personalities with no history read 0 and leave selection unchanged.
+  const chemistryByDimension: Record<ChemistryDimension, number> = {
+    performance: computeEffectivePairChemistry(talent, pairings, 'performance') / 100,
+    craft: computeEffectivePairChemistry(talent, pairings, 'craft') / 100,
+  };
+  const template = pickTemplateWeightedByChemistry(candidates, chemistryByDimension, rng);
   if (!template.interactive) {
     return { event: rollSimpleEvent(template, rng) };
   }

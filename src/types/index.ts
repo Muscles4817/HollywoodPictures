@@ -2281,6 +2281,16 @@ export interface Collaboration {
   shootSmoothness: number;
 }
 
+// Which kind of on-set good news a pairing's chemistry makes likelier, so a
+// clash or a click routes to the department it logically touches (typed
+// consequences, SIMULATION_PHILOSOPHY.md). 'performance' is cast chemistry -
+// director<->principal and co-star<->co-star - lifting captured performances;
+// 'craft' is the key below-the-line partnerships - director<->editor and
+// director<->cinematographer - lifting the cut and the look. A director and
+// their regular editor clicking must NOT make "the cast developed real
+// chemistry" fire; it makes the editorial beat fire.
+export type ChemistryDimension = 'performance' | 'craft';
+
 // One film's record of two key creatives having worked TOGETHER - the
 // talent<->talent counterpart to Collaboration (studio<->person). Where
 // Collaboration remembers "has this studio worked with this person", a

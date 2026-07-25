@@ -132,13 +132,12 @@ export function pairChemistry(a: Person, b: Person): number {
 }
 
 /**
- * The pairings whose chemistry can define a shoot: the director against each
+ * The CAST pairings whose chemistry lifts performances: the director against each
  * principal, AND the principals against each other. Co-stars matter as much as
  * the director does - "the two leads have real off-screen chemistry" is its own
- * beat (genre-romance-pos-chemistry), independent of who's directing. Every such
- * pair is a candidate; computePairChemistry takes the best.
+ * beat (genre-romance-pos-chemistry), independent of who's directing.
  */
-export function keyCreativePairs(talent: TalentAssignment[]): Array<readonly [Person, Person]> {
+export function performancePairs(talent: TalentAssignment[]): Array<readonly [Person, Person]> {
   const director = filterAssignedPeople(talent, 'Director')[0];
   const principals = [
     ...filterAssignedPeople(talent, 'Lead Actor'),
@@ -157,16 +156,39 @@ export function keyCreativePairs(talent: TalentAssignment[]): Array<readonly [Pe
 }
 
 /**
- * The positive counterpart to computeCreativeTension: how much natural chemistry
- * the key creatives bring, 0-100. Uses the single BEST key pairing - director
- * against a principal, OR two co-stars - because one standout partnership
- * defines a shoot's chemistry, the same way its worst clash defines its tension.
- * Reads only the positive pole; friction stays with computeCreativeTension.
- * Returns 0 with no principal cast, or no pairing that clicks.
+ * The key BELOW-THE-LINE partnerships whose chemistry lifts the craft: the
+ * director against their editor and their cinematographer - the recurring-crew
+ * partnerships (the "Scorsese and their editor" fantasy). These lift the cut and
+ * the look, never the cast's performances, so they route to their own beats.
+ */
+export function craftPairs(talent: TalentAssignment[]): Array<readonly [Person, Person]> {
+  const director = filterAssignedPeople(talent, 'Director')[0];
+  if (!director) return [];
+  const crew = [
+    ...filterAssignedPeople(talent, 'Editor'),
+    ...filterAssignedPeople(talent, 'Cinematographer'),
+  ];
+  return crew.map((hand) => [director, hand] as const);
+}
+
+/** Every pairing worth remembering - both dimensions - so a released film records its cast AND its crew partnerships (engine/pairHistory.ts). */
+export function keyCreativePairs(talent: TalentAssignment[]): Array<readonly [Person, Person]> {
+  return [...performancePairs(talent), ...craftPairs(talent)];
+}
+
+/**
+ * The positive counterpart to computeCreativeTension: how much natural CAST
+ * chemistry the key creatives bring, 0-100. Uses the single BEST performance
+ * pairing - director against a principal, OR two co-stars - because one standout
+ * partnership defines a shoot's chemistry, the same way its worst clash defines
+ * its tension. Reads only the positive pole; friction stays with
+ * computeCreativeTension. Returns 0 with no principal cast, or no pairing that
+ * clicks. (Craft chemistry has no personality-only public read; it's read
+ * history-aware in engine/pairHistory.ts.)
  */
 export function computePairChemistry(talent: TalentAssignment[]): number {
   let best = 0;
-  for (const [a, b] of keyCreativePairs(talent)) {
+  for (const [a, b] of performancePairs(talent)) {
     best = Math.max(best, pairChemistry(a, b));
   }
   return Math.round(best * 100);

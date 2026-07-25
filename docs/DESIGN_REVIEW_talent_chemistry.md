@@ -204,11 +204,21 @@ add pairing surfaces, not rework.
   `pairHistory.test.ts`, `studioReducer.pairings.test.ts`, and a proven-duo
   end-to-end case in `production.chemistry.test.ts`.
 
-- **Phase 3 — Crew pairings.** Director↔editor and director↔cinematographer
-  (both real `ProductionRole`s — `types/index.ts:39`). The recurring-crew
-  fantasy. Routes to the relevant execution channel (an editor pairing touches
-  post/coverage, not performances), keeping consequences typed
-  (`SIMULATION_PHILOSOPHY.md:227`).
+- **Phase 3 — Crew pairings. Implemented.** Chemistry now has two *dimensions*
+  (`types/index.ts:ChemistryDimension`): `performance` (the cast pairings from
+  Phases 0–1) and `craft` (director↔editor and director↔cinematographer, via
+  `creativeTension.ts:craftPairs`). A film records both dimensions'
+  pairings on settlement; `computeEffectivePairChemistry(talent, pairings,
+  dimension)` reads them separately, and each positive event carries a
+  `chemistry` dimension tag so crew chemistry up-weights the *craft* beats
+  (`int-editor-assembly-ahead`, `genre-action-int-signature-oner`) while cast
+  chemistry up-weights the *performance* beats — a director and their regular
+  editor clicking never makes "the cast developed real chemistry" fire, keeping
+  consequences typed (`SIMULATION_PHILOSOPHY.md:227`). Still no new *shape* of
+  state (the same `TalentPairing` log carries both dimensions); no save bump.
+  Tests: `creativeTension.test.ts` (the pair-set split), `pairHistory.test.ts`
+  (craft recording + dimension isolation), `production.chemistry.test.ts`
+  (craft beat lifts end-to-end).
 
 - **Presentation (spans all phases).** A pairing read on the casting card,
   placed like `describeRelationship` — qualitative tiers and prose, never raw

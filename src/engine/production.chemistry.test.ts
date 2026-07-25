@@ -43,16 +43,21 @@ function castCoStars(leadPersonality: Partial<PersonPersonality>): TalentAssignm
   ];
 }
 
-/** How often 'pos-chemistry' is the event that fires over `runs` independent positive-pool rolls, for the given cast and (optional) shared pairing history. Same seed sequence regardless of inputs, so chemistry weighting is the only variable. */
-function chemistryHitRate(talent: TalentAssignment[], runs: number, pairings: TalentPairing[] = []): number {
+/** How often `targetId` is the event that fires over `runs` independent positive-pool rolls, for the given cast and (optional) shared pairing history. Same seed sequence regardless of inputs, so chemistry weighting is the only variable. */
+function hitRate(talent: TalentAssignment[], runs: number, targetId: string, pairings: TalentPairing[] = []): number {
   let hits = 0;
   for (let i = 0; i < runs; i++) {
     const rolled = withRng(1000 + i, (rng) => pickShootEvent(NO_RISK, 0, 'Action', new Set<string>(), talent, null, NO_POOL, rng, pairings)).result;
     if (!rolled) continue;
     const id = 'event' in rolled ? rolled.event.id : rolled.pendingChoice.templateId;
-    if (id === 'pos-chemistry') hits++;
+    if (id === targetId) hits++;
   }
   return hits;
+}
+
+/** Convenience for the performance beat the Phase 0/1 cases assert on. */
+function chemistryHitRate(talent: TalentAssignment[], runs: number, pairings: TalentPairing[] = []): number {
+  return hitRate(talent, runs, 'pos-chemistry', pairings);
 }
 
 function filmWith(id: string, talent: TalentAssignment[], criticScore: number, stars: number): Film {
@@ -100,6 +105,30 @@ describe('pair chemistry biases positive event selection', () => {
     );
     const proven = chemistryHitRate(talent, RUNS, provenHistory);
 
+    expect(proven).toBeGreaterThan(noHistory);
+    expect(proven).toBeGreaterThan(noHistory * 1.5);
+  });
+
+  it('a proven director/editor lifts the CRAFT beat end-to-end (Phase 3 typed routing)', () => {
+    const { result: director } = withRng(1, (rng) => generateTalentCandidates('Director', rng, 1)[0]);
+    const { result: editor } = withRng(3, (rng) => generateTalentCandidates('Editor', rng, 1)[0]);
+    const neutralize = (p: Person): Person => ({ ...p, personality: { ...p.personality, ...NEUTRAL } });
+    const talent: TalentAssignment[] = [
+      { role: 'Director', person: neutralize(director) },
+      { role: 'Editor', person: neutralize(editor) },
+    ];
+    const provenCraft = recordPlayerFilmPairings(
+      [],
+      [filmWith('e1', talent, 95, 5), filmWith('e2', talent, 92, 5)],
+      500,
+    );
+
+    // The editorial beat fires more once the director/editor are a proven
+    // partnership - crew chemistry reaches selection, routed to a craft event.
+    // (Cast-beat isolation is proven at the value level in pairHistory.test.ts:
+    // the performance chemistry read is unmoved by craft-only history.)
+    const noHistory = hitRate(talent, RUNS, 'int-editor-assembly-ahead');
+    const proven = hitRate(talent, RUNS, 'int-editor-assembly-ahead', provenCraft);
     expect(proven).toBeGreaterThan(noHistory);
     expect(proven).toBeGreaterThan(noHistory * 1.5);
   });
