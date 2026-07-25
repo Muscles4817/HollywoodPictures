@@ -888,6 +888,7 @@ export function resolveRivalProduction(
   production: RivalProductionInProgress,
   rivalStudioName: string,
   studioBrand: number,
+  studioGenreIdentity: number,
   knownUpcoming: UpcomingRelease[],
   rng: RandomFn,
 ): Film {
@@ -919,6 +920,7 @@ export function resolveRivalProduction(
       photographyCost,
       shootingRatio,
       studioBrand,
+      studioGenreIdentity,
       competitiveCrowding,
     },
     rng,

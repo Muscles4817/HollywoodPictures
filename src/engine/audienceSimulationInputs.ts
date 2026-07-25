@@ -85,6 +85,17 @@ export interface ReleaseSimulationInputs {
   leadFame: number;
   /** Studio.brand (Brand Recognition, engine/reputation.ts), 0-100 verbatim - sizes marketingEfficiency (how far a marketing pound actually goes). A brand-new studio's marketing dollar buys less attention than an established one's; this is what makes marketing effectiveness itself a genuine mid/late-game progression mechanic rather than a flat multiplier available from day one. Deliberately reads Brand, never Prestige - how far a marketing pound reaches is a commercial-recognition question, not a critical-esteem one. */
   studioBrand: number;
+  /**
+   * Studio identity in THIS film's genre (engine/studioIdentity.ts), 0-100 -
+   * how known the studio is for this kind of film. On-brand releases get a
+   * modest marketingEfficiency lift (audiences/press trust the studio in its
+   * wheelhouse, so its marketing pound goes further - and via efficiency, its
+   * awareness spread and Wide exhibitor confidence too). Boost-only: a studio
+   * branching out of its wheelhouse simply gets no lift, never a penalty. Absent
+   * genre / new studio reads as 0 (no effect). Defaults to 0 for callers that
+   * don't supply it (the live pre-schedule projection, older paths).
+   */
+  studioGenreIdentity?: number;
   /** deriveCommercialProfile(script).accessibility, 0-100 - how broad a natural audience the screenplay's *concept* has, independent of how it's marketed. The dominant driver of baseInterestFraction ("of the people who know this exists, how many are even in its natural audience") - see computeBaseInterestFraction. Never touches marketingEfficiency (Milestone 11 - a script being easy to explain doesn't mean it's easy to promote, and either way that's a marketing-side question, not a content one). */
   scriptAccessibility: number;
   /** deriveCommercialProfile(script).hookStrength, 0-100 - how compelling the marketing *proposition* itself is (trailer effectiveness, click-through, "does the pitch land") - a secondary, narrower-range multiplier on baseInterestFraction alongside scriptAccessibility (Milestone 12, see computeBaseInterestFraction). Deliberately distinct from scriptAccessibility's job: a concept can be easy to *understand* without being compellingly *pitched*, and vice versa. No longer feeds crossoverCapacityFraction (Milestone 11 briefly routed it there; Milestone 12 moved crossover onto scriptCrossoverPotential below, a purpose-built value, instead) and never touches awareness/reach - matches Milestone 11's "the screenplay should matter, but much less directly" principle by staying inside interest generation, not awareness. */
@@ -366,6 +377,25 @@ const MARKETING_EFFICIENCY_CEILING = 1.0;
 
 function computeMarketingEfficiency(studioBrand: number): number {
   return clamp(MARKETING_EFFICIENCY_FLOOR + (MARKETING_EFFICIENCY_CEILING - MARKETING_EFFICIENCY_FLOOR) * (studioBrand / 100), 0, 1);
+}
+
+// Studio identity's on-brand lift to marketing efficiency (engine/studioIdentity.ts,
+// the studio-identity feature's first three effects). A studio releasing in a
+// genre it's known for sees its marketing pound go further - audiences and press
+// trust it in its wheelhouse - which via the *effective* efficiency below flows
+// into three intermediates at once: awareness reach (computeInitialAwareCount),
+// awareness spread (computeExternalWeeklyAwarenessRate), and Wide exhibitor
+// confidence (computeReleaseStrength). A multiplier, not a floor change, so it
+// scales an already-established studio's reach up a little and does nothing for a
+// studio with no identity here (identity 0 -> x1). Deliberately modest and
+// boost-only: at most +15% effective efficiency at a fully-established (100)
+// home genre, and never a penalty off-brand. Kept OUT of the stored, brand-only
+// marketingEfficiency (below) so inferStudioBrandFromMarketingEfficiency stays an
+// exact brand inverse for the dev inspector.
+const IDENTITY_MARKETING_BOOST = 0.15;
+
+function computeEffectiveMarketingEfficiency(marketingEfficiency: number, studioGenreIdentity: number): number {
+  return clamp(marketingEfficiency * (1 + IDENTITY_MARKETING_BOOST * (clamp(studioGenreIdentity, 0, 100) / 100)), 0, 1);
 }
 
 /**
@@ -766,18 +796,23 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
     inputs.genre,
     inputs.targetAudience,
   );
+  // Brand-only efficiency is stored on the fixed state (below) so the dev
+  // inspector's brand inverse stays exact; the *effective* efficiency - lifted
+  // by on-brand studio identity - is what actually drives awareness reach,
+  // awareness spread, and Wide exhibitor confidence for this release.
   const marketingEfficiency = computeMarketingEfficiency(inputs.studioBrand);
+  const effectiveMarketingEfficiency = computeEffectiveMarketingEfficiency(marketingEfficiency, inputs.studioGenreIdentity ?? 0);
   const conversionPacingBaseline = computeConversionPacingBaseline(inputs.releaseType, inputs.releaseWindow, inputs.genre, inputs.buzzScore);
-  const externalWeeklyAwarenessRate = computeExternalWeeklyAwarenessRate(marketingEfficiency);
+  const externalWeeklyAwarenessRate = computeExternalWeeklyAwarenessRate(effectiveMarketingEfficiency);
   const initialAwareCount = computeInitialAwareCount(
-    { totalAddressableAudience, marketingEfficiency },
+    { totalAddressableAudience, marketingEfficiency: effectiveMarketingEfficiency },
     inputs.directorFame,
     inputs.leadFame,
     inputs.marketingSpend,
   );
 
   const distribution = distributionProfile(inputs.releaseType);
-  const releaseStrength = computeReleaseStrength(inputs.marketingSpend, marketingEfficiency);
+  const releaseStrength = computeReleaseStrength(inputs.marketingSpend, effectiveMarketingEfficiency);
   const uncrowdedAvailabilityFraction = computeInitialAvailabilityFraction(inputs.releaseType, releaseStrength, inputs.wideAvailabilityCeiling);
   const initialAvailabilityFraction = uncrowdedAvailabilityFraction * (1 - CROWDING_PENALTY_WEIGHT * inputs.competitiveCrowding);
 

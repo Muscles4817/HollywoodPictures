@@ -81,7 +81,7 @@ function captureOnePlan(seed: number): RivalProductionInProgress {
 /** Resolve a fixed plan under one execution seed and settle its whole run (no competitors) - returns total gross. */
 function grossForResolve(plan: RivalProductionInProgress, seed: number): number {
   return withRng(seed, (rng: RandomFn) => {
-    const film = resolveRivalProduction(plan, 'Variance Studio', 60, [], rng);
+    const film = resolveRivalProduction(plan, 'Variance Studio', 60, 0, [], rng);
     const settled = settleBoxOfficeForAllFilms([film], film.releasedOnDay + 200);
     const f = settled.filmsReleased.find((x) => x.id === film.id)!;
     return f.boxOfficeRun.cumulativeGross;

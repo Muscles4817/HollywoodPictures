@@ -10,6 +10,7 @@ import { marketingRolloutMultiplier } from './marketing';
 import { resolveRivalProduction, rivalAsUpcomingRelease } from './rivalStudios';
 import { nextDueFilm, advanceEarliestDueFilmByOneWeek } from './boxOfficeRun';
 import { asUpcomingRelease, type ScheduledRelease } from './scheduledReleases';
+import { genreIdentityFor } from './studioIdentity';
 
 export interface RivalBoxOfficeDelta {
   cashCredit: number;
@@ -95,7 +96,7 @@ function windowPressTourOutcome(draft: FilmDraft): PressTourMomentsOutcome | nul
   return null;
 }
 
-function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand: number, known: UpcomingRelease[], producerPool: Person[], rng: RandomFn): { film: Film; costCharged: number; reputationDeltas: TalentReputationDelta[] } {
+function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand: number, studioGenreIdentity: number, known: UpcomingRelease[], producerPool: Person[], rng: RandomFn): { film: Film; costCharged: number; reputationDeltas: TalentReputationDelta[] } {
   // The shoot's recorded events, PLUS the creative-prep wins/losses from
   // pre-production (a revelatory table read, casting friction) - those carry a
   // qualityDelta/impact and reach the finished film through the exact same
@@ -145,6 +146,7 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
       photographyCost: draft.photography!.runningCost,
       shootingRatio,
       studioBrand,
+      studioGenreIdentity,
       competitiveCrowding,
       producerEffects,
       producerFees,
@@ -226,6 +228,10 @@ export function settleTheatricalMarket(
   // that predates producers keeps working unchanged - an empty pool means no
   // film has any producers attached, which is exactly their world.
   producerPool: Person[] = [],
+  // The player studio's per-genre identity (engine/studioIdentity.ts) - an
+  // on-brand player release earns a marketing-efficiency lift. Defaulted empty so
+  // pre-identity callers (diagnostics, older tests) keep their exact behaviour.
+  playerGenreIdentity: Partial<Record<Genre, number>> = {},
 ): TheatricalMarketSettlement {
   let filmsById: Map<string, Film> = new Map(runningFilms.map((f) => [f.id, f]));
   let scheduled = playerScheduled;
@@ -257,7 +263,7 @@ export function settleTheatricalMarket(
     if (scheduledDay <= rivalDay && scheduledDay <= filmDay) {
       const draft = nextScheduled!.draft;
       const known = knownCompetitorsExcluding(draft.id, scheduled, inProgress, filmsById);
-      const { film, costCharged, reputationDeltas } = resolvePlayerRelease(draft, nextScheduled!.releaseDay, playerStudioBrand, known, producerPool, rng);
+      const { film, costCharged, reputationDeltas } = resolvePlayerRelease(draft, nextScheduled!.releaseDay, playerStudioBrand, genreIdentityFor(playerGenreIdentity, draft.genre!), known, producerPool, rng);
       filmsById.set(film.id, film);
       scheduled = scheduled.filter((s) => s.draft.id !== draft.id);
       playerCostCharged += costCharged;
@@ -269,7 +275,7 @@ export function settleTheatricalMarket(
       const production = nextRival!;
       const rival = rivalStudios.find((r) => r.id === production.rivalStudioId);
       const known = knownCompetitorsExcluding(production.id, scheduled, inProgress, filmsById);
-      const film = resolveRivalProduction(production, rival?.name ?? 'A Rival Studio', rival?.brand ?? 50, known, rng);
+      const film = resolveRivalProduction(production, rival?.name ?? 'A Rival Studio', rival?.brand ?? 50, genreIdentityFor(rival?.genreIdentity, production.genre), known, rng);
       filmsById.set(film.id, film);
       inProgress = inProgress.filter((p) => p.id !== production.id);
       continue;
