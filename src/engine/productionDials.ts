@@ -67,13 +67,15 @@ export const setQualityScore = (amount: number) => interpolateScale(setQualityT(
 export const setQualityDescription = (amount: number) => describeScale(setQualityT(amount), ENVIRONMENT_BUDGET_ANCHORS);
 
 export const practicalEffectsT = (amount: number) => logT(amount, PRACTICAL_EFFECTS_RANGE);
-export const practicalEffectsScore = (amount: number) =>
-  interpolateScale(practicalEffectsT(amount), PRACTICAL_EFFECTS_ANCHORS, 'quality');
+// The flat practicalEffectsScore readout was retired when Practical Effects
+// became a realised facet (engine/practicalFacet.ts); only the dial position
+// (practicalEffectsT) and the player-facing description remain.
 export const practicalEffectsDescription = (amount: number) =>
   describeScale(practicalEffectsT(amount), PRACTICAL_EFFECTS_ANCHORS);
 
 export const vfxT = (amount: number) => logT(amount, VFX_RANGE);
-export const vfxScore = (amount: number) => interpolateScale(vfxT(amount), VFX_ANCHORS, 'quality');
+// The flat vfxScore readout was retired when VFX became a realised facet
+// (engine/vfxFacet.ts); the dial position (vfxT) and description remain.
 export const vfxDescription = (amount: number) => describeScale(vfxT(amount), VFX_ANCHORS);
 
 /**
