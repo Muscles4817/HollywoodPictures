@@ -35,6 +35,7 @@ import { RELEASE_TYPE_PROFILES, MARKETING_SPEND_RANGE, RELEASE_WINDOW_BASE_MULTI
 import { clamp, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn } from './random';
 import { deriveReleaseWindowFromDay } from './calendar';
 import { computeCompetitiveCrowding, computeRivalReleaseStrength, type UpcomingRelease } from './releaseCrowding';
+import { genreIdentityFor } from './studioIdentity';
 
 const EDIT_STYLES = Object.keys(EDIT_STYLE_PROFILES) as PostProductionChoices['editStyle'][];
 const MUSIC_FOCI = Object.keys(MUSIC_FOCUS_PROFILES) as PostProductionChoices['musicFocus'][];
@@ -423,7 +424,7 @@ export function rivalAsUpcomingRelease(p: RivalProductionInProgress): UpcomingRe
     releaseDay: p.releaseDay,
     genre: p.genre,
     targetAudience: p.targetAudience,
-    strength: computeRivalReleaseStrength(p.marketingChoices.marketingSpend, p.scale),
+    strength: computeRivalReleaseStrength(p.marketingChoices.marketingSpend, p.scale, p.genreIdentity ?? 0),
   };
 }
 
@@ -807,7 +808,12 @@ function startRivalProductionFromWonScript(
   // chooseReleaseDay. Marketing spend is resolved here (rather than only inside
   // marketingChoices below) so it can feed both that strength and the campaign.
   const marketingSpend = logAmount(spendPlan.marketingSpendT, MARKETING_SPEND_RANGE);
-  const candidateStrength = computeRivalReleaseStrength(marketingSpend, scale);
+  // The rival's identity in this genre lifts its own release strength, so a
+  // studio contesting its home turf schedules more confidently against a crowded
+  // window (and, once released, defends that turf against others - see
+  // rivalAsUpcomingRelease). Snapshotted onto the production below.
+  const productionGenreIdentity = genreIdentityFor(rival.genreIdentity, script.genre);
+  const candidateStrength = computeRivalReleaseStrength(marketingSpend, scale, productionGenreIdentity);
   const releaseDay = chooseReleaseDay(naiveReleaseDay, { genre: script.genre, targetAudience: script.intendedAudience }, knownUpcoming, candidateStrength);
 
   const postProductionChoices: PostProductionChoices = {
@@ -866,6 +872,7 @@ function startRivalProductionFromWonScript(
       marketingChoices,
       targetAudience: script.intendedAudience,
       releaseDay,
+      genreIdentity: productionGenreIdentity,
     },
     talentPool: updatedPool,
     cost,

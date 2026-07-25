@@ -1811,6 +1811,8 @@ export interface RivalProductionInProgress {
   marketingChoices: MarketingChoices;
   targetAudience: TargetAudience;
   releaseDay: number;
+  /** The rival's identity in this production's genre (engine/studioIdentity.ts), 0-100, snapshotted when the production started - lets its on-brand presence read as stronger on the shared calendar (the competitor-territory effect), without re-looking-up the studio. Absent (pre-identity productions) reads as 0. */
+  genreIdentity?: number;
 }
 
 // Architecture roadmap Phase 5: filmsReleased/productionsInProgress moved to
