@@ -22,13 +22,13 @@ import {
 import { GENRE_PROFILES } from '../data/genres';
 import { SETTING_ARCHETYPE_PROFILES } from '../data/settings';
 import { contingencyT, practicalEffectsT, vfxT, overallSpendT, FOOTAGE_LOWER_RATIO, FOOTAGE_UPPER_RATIO } from './productionDials';
-import { computeCreativeTension } from './creativeTension';
+import { computeCreativeTension, computePairChemistry } from './creativeTension';
 import { computeTalentCompatibility } from './compatibility';
 import { findCandidatesNearPrice } from './talentFilter';
 import { professionForProductionRole, filterAssignedPeople, findAssignedPerson } from '../data/helpers';
 import { getCareerForRole, getCrewCareer, getTypicalSalaryForRole } from './person';
 import { classifyEventImpact } from './productionExecution';
-import { clamp, pick, pickMany, randFloat, randInt, type RandomFn } from './random';
+import { clamp, pick, pickMany, randFloat, weightedPick, type RandomFn } from './random';
 
 const BASE_SHOOT_DAYS = 18;
 const MAX_COMPLEXITY_DAYS = 35;
@@ -574,6 +574,29 @@ function buildEventPools(
   return { positivePool, negativePool };
 }
 
+// At full pair chemistry a flagged chemistry beat is this many times likelier,
+// relative to an ordinary event in the same pool, to be the one that fires - a
+// meaningful lean, not a guarantee (SIMULATION_PHILOSOPHY.md: chemistry shapes
+// the odds, it doesn't hand out a flat bonus). First-draft, tunable.
+const CHEMISTRY_EVENT_WEIGHT = 3;
+
+/**
+ * Picks one template from the pool, up-weighting positive chemistry beats
+ * (data/productionEvents.ts:chemistry) in proportion to the shoot's pair
+ * chemistry (0..1). At chemistry 0 every weight is 1, so this reduces EXACTLY to
+ * the old uniform `candidates[randInt(...)]` - same index, same single rng draw -
+ * leaving a neutral shoot's selection (and every seeded test around it)
+ * untouched. Keyed by template id, which is unique within a pool.
+ */
+function pickTemplateWeightedByChemistry(candidates: ProductionEventTemplate[], chemistry01: number, rng: RandomFn): ProductionEventTemplate {
+  const weights: Record<string, number> = {};
+  for (const t of candidates) {
+    weights[t.id] = t.polarity === 'positive' && t.chemistry ? 1 + chemistry01 * CHEMISTRY_EVENT_WEIGHT : 1;
+  }
+  const chosenId = weightedPick(rng, candidates.map((t) => t.id), weights);
+  return candidates.find((t) => t.id === chosenId) ?? candidates[candidates.length - 1];
+}
+
 // On-set event generation, shared by the player's day-by-day shoot and the
 // rival execution synthesizer. `usedIds` (every template already fired this
 // shoot) prevents repeats within one production; an interactive template comes
@@ -632,7 +655,12 @@ export function pickShootEvent(
   const severityPool = polarityPool.filter((t) => t.severity === severity);
   const candidates = severityPool.length > 0 ? severityPool : polarityPool;
 
-  const template = candidates[randInt(rng, 0, candidates.length - 1)];
+  // A well-matched director/lead is likelier to actually hit the chemistry beat
+  // when good news lands. Reads the pairing straight off `talent`, so the
+  // player's shoot and the rival synthesizer (both call through here) get it
+  // identically. Neutral personalities read 0 and leave selection unchanged.
+  const chemistry01 = computePairChemistry(talent) / 100;
+  const template = pickTemplateWeightedByChemistry(candidates, chemistry01, rng);
   if (!template.interactive) {
     return { event: rollSimpleEvent(template, rng) };
   }

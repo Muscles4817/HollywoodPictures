@@ -7,8 +7,9 @@
 // INTERACTION between a specific pair, not a mean. A calm, deferential lead next
 // to a domineering director is fine; two immovable egos in the same room are
 // not. This module reads the key creative pairing(s) - the Director against each
-// principal actor - and returns how much EXTRA morale friction their particular
-// combination creates.
+// principal actor - as a signed relationship: how much EXTRA morale friction a
+// clash creates (the negative pole, computeCreativeTension), and how much natural
+// chemistry an easy pairing brings (the positive pole, computePairChemistry).
 //
 // It is deliberately a RISK amplifier, not a quality penalty: the number feeds
 // engine/production.ts's moraleRisk (so a high-tension shoot rolls more, and
@@ -70,4 +71,62 @@ export function computeCreativeTension(talent: TalentAssignment[]): number {
     worst = Math.max(worst, pairFriction(director, actor));
   }
   return Math.round(worst * 100);
+}
+
+// --- The positive pole: chemistry --------------------------------------------
+//
+// Friction is only half a pairing. The same interaction that lets two clashing
+// wills poison a shoot lets two EASY ones lift it - a director and a lead who
+// are both adaptable and professional read each other, defuse problems, and are
+// the ones who actually hit the "the cast developed real chemistry" beat. This
+// is the signed generalisation of pairFriction: negative is friction (the exact
+// number computeCreativeTension already feeds into moraleRisk - unchanged),
+// positive is chemistry, read by engine/production.ts to up-weight the positive
+// chemistry events. It is deliberately a SELECTION weight, not a quality bonus:
+// chemistry makes the good on-set moment likelier to fire, never a flat
+// `quality += n` (SIMULATION_PHILOSOPHY.md - upside is earned in execution).
+
+// The two axes that make a collaboration smooth. Both are unambiguously
+// "higher = easier to work with", so a pair strong in both clicks - the mirror
+// of the ego/rigidity that makes a pair clash.
+function collaborationEase(p: Person): number {
+  return (p.personality.adaptability + p.personality.professionalism) / 2;
+}
+
+/**
+ * One director<->actor pairing's chemistry, signed -1..1. Negative is friction,
+ * numerically identical to pairFriction (so the moraleRisk path it already feeds
+ * is untouched); positive is natural affinity - both parties easy to collaborate
+ * with, gated on the WORSE of the two (the `min`), mirroring pairFriction's
+ * min-ego gate: one difficult party kills the chemistry exactly as one
+ * deferential party defuses a clash. The poles partition cleanly - a pair with
+ * an ego clash reads as friction and never as chemistry; a pair without one
+ * reads as chemistry or simply neutral.
+ */
+export function pairChemistry(a: Person, b: Person): number {
+  const friction = pairFriction(a, b);
+  if (friction > 0) return -friction;
+  return clamp((Math.min(collaborationEase(a), collaborationEase(b)) - 50) / 50, 0, 1);
+}
+
+/**
+ * The positive counterpart to computeCreativeTension: how much natural chemistry
+ * the key creatives bring, 0-100. Uses the single BEST director<->principal
+ * pairing (one standout partnership defines a shoot's chemistry, the same way
+ * its worst clash defines its tension) and reads only the positive pole -
+ * friction stays with computeCreativeTension. Returns 0 with no director, no
+ * principal cast, or no pairing that clicks.
+ */
+export function computePairChemistry(talent: TalentAssignment[]): number {
+  const director = filterAssignedPeople(talent, 'Director')[0];
+  if (!director) return 0;
+  const principals = [
+    ...filterAssignedPeople(talent, 'Lead Actor'),
+    ...filterAssignedPeople(talent, 'Supporting Actor'),
+  ];
+  let best = 0;
+  for (const actor of principals) {
+    best = Math.max(best, pairChemistry(director, actor));
+  }
+  return Math.round(best * 100);
 }

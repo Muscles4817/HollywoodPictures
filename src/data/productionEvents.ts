@@ -52,6 +52,7 @@ interface SimpleProductionEventTemplate {
   delayDaysRange: [number, number];
   impact?: ProductionExecutionImpact;
   escalates?: number;
+  chemistry?: boolean;
 }
 
 // An event that pauses photography and hands the player a real decision,
@@ -90,8 +91,17 @@ interface InteractiveProductionEventTemplate {
   offersReplacementFor?: ProductionRole;
   impact?: ProductionExecutionImpact;
   escalates?: number;
+  chemistry?: boolean;
 }
 
+// Marks a POSITIVE "the pairing clicked" beat (pos-chemistry and the genre
+// chemistry events). engine/production.ts up-weights these in the positive pool
+// in proportion to the shoot's pair chemistry
+// (engine/creativeTension.ts:computePairChemistry), so a well-matched
+// director/lead is likelier to actually land the chemistry moment. Purely a
+// selection weight - the event's own cost/quality/buzz ranges are unchanged, and
+// a shoot with no chemistry (the neutral default) leaves selection exactly as it
+// was.
 export type ProductionEventTemplate = SimpleProductionEventTemplate | InteractiveProductionEventTemplate;
 
 /** Assigns a default `impact` (department) to every template in a bank; an inline `impact` on a template still wins. */
@@ -159,6 +169,7 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     qualityRange: [5, 9],
     buzzRange: [2, 5], // the leak is the public angle, not the chemistry itself
     delayDaysRange: [0, 0],
+    chemistry: true,
   },
   {
     id: 'int-writer-punch-up',
@@ -1011,6 +1022,7 @@ const RAW_GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplate[]
       qualityRange: [5, 10],
       buzzRange: [2, 5],
       delayDaysRange: [0, 0],
+      chemistry: true,
     },
     {
       id: 'genre-romance-pos-location-magic',

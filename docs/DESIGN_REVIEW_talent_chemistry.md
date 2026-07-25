@@ -162,13 +162,19 @@ stays legible.
 Each phase is independently shippable and independently valuable; later phases
 add pairing surfaces, not rework.
 
-- **Phase 0 — Signed pairing baseline (no new state).** Generalize
-  `creativeTension`'s `pairFriction` into a signed `pairChemistry(a, b)` on the
-  director↔actor pair it already reads. Wire the positive side into the
-  positive chemistry events' selection weight; keep the negative side on its
-  existing `moraleRisk` path. Ships a real mechanic with **zero save impact** —
-  it's all derived from personality already in the pool. Proves the event-weight
-  seam before any persistence is added.
+- **Phase 0 — Signed pairing baseline (no new state). Implemented.**
+  `creativeTension.ts` now exposes a signed `pairChemistry(a, b)` (negative =
+  the existing friction, numerically unchanged; positive = natural affinity from
+  adaptability + professionalism, gated on the worse party) and a
+  `computePairChemistry(talent)` reading the best director↔principal pairing.
+  `production.ts:pickShootEvent` up-weights the `chemistry`-flagged positive
+  events (`productionEvents.ts`: `pos-chemistry`, `genre-romance-pos-chemistry`)
+  in proportion to that chemistry, reducing exactly to the old uniform pick at
+  chemistry 0 — so a neutral shoot (and every existing seeded test) is
+  untouched, and both the player's roll and the rival synthesizer get it through
+  the shared entry point. **Zero save impact**; the negative side stays on its
+  `moraleRisk` path. Tests: `creativeTension.test.ts`,
+  `production.chemistry.test.ts`.
 
 - **Phase 1 — Actor↔actor co-stars.** Extend the baseline to lead↔lead and
   lead↔supporting pairs — the evocative case for romance and ensembles, and

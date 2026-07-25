@@ -3,7 +3,7 @@
 // zero at neutral/agreeable, driven by shared ego, amplified by shared rigidity,
 // dominated by the single worst pairing.
 import { describe, it, expect } from 'vitest';
-import { computeCreativeTension, pairFriction } from './creativeTension';
+import { computeCreativeTension, computePairChemistry, pairChemistry, pairFriction } from './creativeTension';
 import type { Person, PersonPersonality, ProductionRole, TalentAssignment } from '../types';
 
 function person(id: string, over: Partial<PersonPersonality> = {}): Person {
@@ -66,5 +66,68 @@ describe('computeCreativeTension', () => {
       ['Supporting Actor', {}],
     );
     expect(computeCreativeTension(oneClash)).toBeGreaterThan(70);
+  });
+});
+
+describe('pairChemistry', () => {
+  it('is zero for an average pair - neither clashing nor exceptionally easy', () => {
+    expect(pairChemistry(person('a'), person('b'))).toBe(0);
+  });
+
+  it('is the negative of pairFriction for a clashing pair (the friction pole is unchanged)', () => {
+    const a = person('a', { ego: 95, adaptability: 5 });
+    const b = person('b', { ego: 95, adaptability: 5 });
+    expect(pairChemistry(a, b)).toBeCloseTo(-pairFriction(a, b));
+    expect(pairChemistry(a, b)).toBeLessThan(0);
+  });
+
+  it('is positive when both parties are easy to collaborate with (high adaptability + professionalism)', () => {
+    const easy = pairChemistry(
+      person('a', { adaptability: 100, professionalism: 100 }),
+      person('b', { adaptability: 100, professionalism: 100 }),
+    );
+    expect(easy).toBeGreaterThan(0);
+  });
+
+  it('is gated on the worse party - one difficult collaborator kills the chemistry', () => {
+    const easy = person('a', { adaptability: 100, professionalism: 100 });
+    const difficult = person('b', { adaptability: 20, professionalism: 20 });
+    expect(pairChemistry(easy, difficult)).toBe(0);
+  });
+
+  it('never reads a clashing pair as chemistry (the poles partition)', () => {
+    // Two high egos: this is a clash, so it must be friction, never chemistry -
+    // even though they are also adaptable.
+    const clashy = pairChemistry(
+      person('a', { ego: 90, adaptability: 100, professionalism: 100 }),
+      person('b', { ego: 90, adaptability: 100, professionalism: 100 }),
+    );
+    expect(clashy).toBeLessThan(0);
+  });
+});
+
+describe('computePairChemistry', () => {
+  it('is zero for an average collaboration', () => {
+    expect(computePairChemistry(cast(['Director', {}], ['Lead Actor', {}]))).toBe(0);
+  });
+
+  it('is zero without a director or without principal cast', () => {
+    expect(computePairChemistry(cast(['Lead Actor', { adaptability: 100, professionalism: 100 }]))).toBe(0);
+    expect(computePairChemistry(cast(['Director', { adaptability: 100, professionalism: 100 }], ['Editor', { adaptability: 100, professionalism: 100 }]))).toBe(0);
+  });
+
+  it('is high when an easy director and lead click', () => {
+    const clicking = cast(['Director', { adaptability: 100, professionalism: 100 }], ['Lead Actor', { adaptability: 100, professionalism: 100 }]);
+    expect(computePairChemistry(clicking)).toBeGreaterThan(70);
+  });
+
+  it('is driven by the single best pairing, not an average (one standout partnership defines the shoot)', () => {
+    const oneClicks = cast(
+      ['Director', { adaptability: 100, professionalism: 100 }],
+      ['Lead Actor', { adaptability: 100, professionalism: 100 }], // clicks with the director
+      ['Supporting Actor', {}], // merely average
+      ['Supporting Actor', {}],
+    );
+    expect(computePairChemistry(oneClicks)).toBeGreaterThan(70);
   });
 });
