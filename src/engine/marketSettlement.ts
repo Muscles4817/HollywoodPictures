@@ -1,4 +1,4 @@
-import type { Film, FilmDraft, Person, RivalProductionInProgress, RivalStudio } from '../types';
+import type { Film, FilmDraft, Genre, Person, RivalProductionInProgress, RivalStudio } from '../types';
 import type { RandomFn } from './random';
 import { computeReleaseResults } from './releaseFilm';
 import { prepQualityEvents } from './production';
@@ -15,6 +15,8 @@ export interface RivalBoxOfficeDelta {
   cashCredit: number;
   brandDelta: number;
   prestigeDelta: number;
+  /** Per-genre identity change for this rival's films that finished this pass (engine/studioIdentity.ts) - fold into RivalStudio.genreIdentity. */
+  genreIdentityDeltas: Partial<Record<Genre, number>>;
 }
 
 export interface TheatricalMarketSettlement {
@@ -33,6 +35,8 @@ export interface TheatricalMarketSettlement {
   playerCashCredit: number;
   playerBrandDelta: number;
   playerPrestigeDelta: number;
+  /** Per-genre identity change for the player's films that finished this pass (engine/studioIdentity.ts) - fold into Studio.genreIdentity via applyGenreIdentityChange. */
+  playerGenreIdentityDeltas: Partial<Record<Genre, number>>;
   /** The remainder of a newly-released player film's own results.totalCost not already deducted at BEGIN_PHOTOGRAPHY/FINISH_PHOTOGRAPHY - subtract from Studio.cash alongside playerCashCredit, the same accounting engine/scheduledReleases.ts's retired settleScheduledReleases always did. */
   playerCostCharged: number;
   /** Keyed by rival studio name (the same Film.releasedBy discriminator) - apply cashCredit to that studio's cash and brandDelta/prestigeDelta via applyStatChange, the same crediting engine/rivalStudios.ts's retired settleRivalBoxOffice used to do per studio. */
@@ -41,12 +45,19 @@ export interface TheatricalMarketSettlement {
   playerTalentReputationDeltas: TalentReputationDelta[];
 }
 
+function mergeGenreDeltas(a: Partial<Record<Genre, number>>, b: Partial<Record<Genre, number>>): Partial<Record<Genre, number>> {
+  const out: Partial<Record<Genre, number>> = { ...a };
+  for (const [g, v] of Object.entries(b) as [Genre, number][]) out[g] = (out[g] ?? 0) + v;
+  return out;
+}
+
 function creditRival(deltas: Map<string, RivalBoxOfficeDelta>, name: string, delta: RivalBoxOfficeDelta): void {
-  const existing = deltas.get(name) ?? { cashCredit: 0, brandDelta: 0, prestigeDelta: 0 };
+  const existing = deltas.get(name) ?? { cashCredit: 0, brandDelta: 0, prestigeDelta: 0, genreIdentityDeltas: {} };
   deltas.set(name, {
     cashCredit: existing.cashCredit + delta.cashCredit,
     brandDelta: existing.brandDelta + delta.brandDelta,
     prestigeDelta: existing.prestigeDelta + delta.prestigeDelta,
+    genreIdentityDeltas: mergeGenreDeltas(existing.genreIdentityDeltas, delta.genreIdentityDeltas),
   });
 }
 
@@ -224,6 +235,7 @@ export function settleTheatricalMarket(
   let playerBrandDelta = 0;
   let playerPrestigeDelta = 0;
   let playerCostCharged = 0;
+  let playerGenreIdentityDeltas: Partial<Record<Genre, number>> = {};
   const rivalDeltas = new Map<string, RivalBoxOfficeDelta>();
   const playerTalentReputationDeltas: TalentReputationDelta[] = [];
 
@@ -267,12 +279,16 @@ export function settleTheatricalMarket(
     filmsById = step.filmsById;
     const advancedFilm = step.advancedFilmId ? filmsById.get(step.advancedFilmId) : undefined;
     const owner = advancedFilm?.releasedBy;
+    // A film's identity move (nonzero only on the step its run finishes) is keyed
+    // on its own genre and credited to whichever studio released it.
+    const identityDeltas = advancedFilm && step.genreIdentityDelta !== 0 ? { [advancedFilm.genre]: step.genreIdentityDelta } : {};
     if (owner === undefined) {
       playerCashCredit += step.cashCredit;
       playerBrandDelta += step.brandDelta;
       playerPrestigeDelta += step.prestigeDelta;
+      playerGenreIdentityDeltas = mergeGenreDeltas(playerGenreIdentityDeltas, identityDeltas);
     } else {
-      creditRival(rivalDeltas, owner, { cashCredit: step.cashCredit, brandDelta: step.brandDelta, prestigeDelta: step.prestigeDelta });
+      creditRival(rivalDeltas, owner, { cashCredit: step.cashCredit, brandDelta: step.brandDelta, prestigeDelta: step.prestigeDelta, genreIdentityDeltas: identityDeltas });
     }
   }
 
@@ -283,6 +299,7 @@ export function settleTheatricalMarket(
     playerCashCredit,
     playerBrandDelta,
     playerPrestigeDelta,
+    playerGenreIdentityDeltas,
     playerCostCharged,
     rivalDeltas,
     playerTalentReputationDeltas,

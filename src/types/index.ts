@@ -1784,6 +1784,8 @@ export interface RivalStudio {
   brand: number;
   /** Same Prestige stat the player's Studio has - grows/falls from this studio's own films' critical reception alone. Not yet consumed by any formula here either, same documented gap as the player's own Prestige (docs/DESIGN.md 5.39). */
   prestige: number;
+  /** Same per-genre identity the player's Studio has (engine/studioIdentity.ts) - a rival earns a reputation in the genres it keeps succeeding in, which then defends its home turf via the competitor-territory matchup. Absent for a fresh rival. */
+  genreIdentity?: Partial<Record<Genre, number>>;
   /** Cumulative studioRevenue this studio has ever been credited from box office - debugging/display only (components/dev/RivalFinancesInspector.tsx), never itself read by any formula. */
   lifetimeRevenue: number;
   /** Cumulative amount this studio has ever committed to starting productions - debugging/display only, same as lifetimeRevenue. */
@@ -1888,6 +1890,16 @@ export interface Studio {
   brand: number; // 0-100
   /** How respected the studio is within the industry and by critics - grows from critical reception alone, independent of a film's commercial outcome. Not yet consumed by any formula (no critic-facing mechanic exists yet) - tracked now so a future system (e.g. awards) has real history to read, the same "compute and track now, wire in later" precedent commercialProfile.crossoverPotential set. */
   prestige: number; // 0-100
+  /**
+   * What the studio is *known for* (engine/studioIdentity.ts) - a per-genre
+   * affinity, 0-100, earned by repeatedly shipping successful films in a genre
+   * and eroded by costly failures there. Absent/empty for a new studio (it isn't
+   * known for anything yet); an absent genre reads as 0. Feeds intermediate
+   * systems for on-brand films (marketing efficiency, awareness, exhibitor
+   * confidence, and the competitor-territory matchup), never a flat revenue
+   * multiplier.
+   */
+  genreIdentity?: Partial<Record<Genre, number>>;
   assets: Asset[];
   /**
    * Original screenplays commissioned from specific writers and not yet
