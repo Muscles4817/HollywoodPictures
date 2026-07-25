@@ -1,4 +1,4 @@
-import type { Genre, EventChoiceTemplate, EventSeverity, PersonTrait, ProductionExecutionImpact, ProductionRole } from '../types';
+import type { ChemistryDimension, Genre, EventChoiceTemplate, EventSeverity, PersonTrait, ProductionExecutionImpact, ProductionRole } from '../types';
 
 // Templates for randomized production events. The engine picks a handful of
 // these per shoot, biased by an overall risk score, then rolls a concrete
@@ -52,7 +52,7 @@ interface SimpleProductionEventTemplate {
   delayDaysRange: [number, number];
   impact?: ProductionExecutionImpact;
   escalates?: number;
-  chemistry?: boolean;
+  chemistry?: ChemistryDimension;
   // If set, this template is only eligible when someone on the cast actually
   // has this derived trait (engine/personTraits.ts) - a character-driven event
   // that exists BECAUSE of who was hired. For a simple (non-interactive)
@@ -102,7 +102,7 @@ interface InteractiveProductionEventTemplate {
   offersReplacementFor?: ProductionRole;
   impact?: ProductionExecutionImpact;
   escalates?: number;
-  chemistry?: boolean;
+  chemistry?: ChemistryDimension;
   // Only eligible when the person hired for `involvesRole` has this derived
   // trait (engine/personTraits.ts) - so the resolved involved talent is
   // guaranteed to be someone the trait actually fits, and the situation can name
@@ -186,7 +186,7 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     qualityRange: [5, 9],
     buzzRange: [2, 5], // the leak is the public angle, not the chemistry itself
     delayDaysRange: [0, 0],
-    chemistry: true,
+    chemistry: 'performance',
   },
   {
     id: 'int-writer-punch-up',
@@ -233,6 +233,7 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     severity: 'low',
     interactive: true,
     involvesRole: 'Editor',
+    chemistry: 'craft',
     choices: [
       {
         id: 'adopt-new-structure',
@@ -553,6 +554,7 @@ const RAW_GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplate[]
       severity: 'low',
       interactive: true,
       involvesRole: 'Cinematographer',
+      chemistry: 'craft',
       choices: [
         {
           id: 'commit-to-oner',
@@ -1039,7 +1041,7 @@ const RAW_GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplate[]
       qualityRange: [5, 10],
       buzzRange: [2, 5],
       delayDaysRange: [0, 0],
-      chemistry: true,
+      chemistry: 'performance',
     },
     {
       id: 'genre-romance-pos-location-magic',
@@ -1098,6 +1100,7 @@ const RAW_GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplate[]
       severity: 'low',
       interactive: true,
       involvesRole: 'Lead Actor',
+      chemistry: 'performance',
       choices: [
         {
           id: 'add-two-hander',
