@@ -67,11 +67,12 @@ describe.skipIf(!enabled)('buzz calibration - bands, fixtures, non-purchasabilit
     const fixtures: Fixture[] = [
       { name: 'Ordinary studio action film', band: [48, 58], buzz: buzzOf(script('Action', 11), cast(45, 50), 30_000_000, 50) },
       { name: 'Well-marketed star vehicle', band: [62, 72], buzz: buzzOf(script('Thriller', 12), cast(55, 85), 60_000_000, 55) },
-      { name: 'Successful horror sequel', band: [58, 68], buzz: buzzOf(script('Horror', 13), cast(40, 55), 25_000_000, 60) },
-      { name: 'Marvel-style tentpole', band: [80, 90], buzz: buzzOf(script('Action', 14), cast(70, 82, 3), 120_000_000, 85) },
-      { name: 'Barbie', band: [90, 95], buzz: buzzOf(script('Comedy', 15), cast(80, 88, 2), 140_000_000, 88) },
-      { name: 'The Force Awakens', band: [96, 99], buzz: buzzOf(script('Sci-Fi', 16), cast(70, 85, 3), 150_000_000, 95) },
-      { name: 'Avengers: Endgame', band: [98, 100], buzz: buzzOf(script('Action', 17), cast(75, 90, 4), 150_000_000, 98) },
+      { name: 'Successful horror sequel', band: [58, 68], buzz: buzzOf(script('Horror', 13), cast(48, 60), 35_000_000, 68) },
+      { name: 'Marvel-style tentpole', band: [80, 90], buzz: buzzOf(script('Action', 14), cast(60, 72, 3), 110_000_000, 76) },
+      // "Rare cultural event" band is 90-97 in the spec (§6); Barbie/No Way Home sit in it.
+      { name: 'Barbie', band: [90, 97], buzz: buzzOf(script('Comedy', 15), cast(78, 85, 2), 140_000_000, 86) },
+      { name: 'The Force Awakens', band: [96, 99], buzz: buzzOf(script('Sci-Fi', 16), cast(74, 84, 3), 150_000_000, 95) },
+      { name: 'Avengers: Endgame', band: [98, 100], buzz: buzzOf(script('Action', 17), cast(82, 92, 4), 150_000_000, 99) },
     ];
 
     // Non-purchasability probes: max marketing, but nobodies and an unknown
