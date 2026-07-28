@@ -428,6 +428,12 @@ export function ProductionPlanning() {
   const dailyShootCost = computeDailyShootBurn(currentChoices.shootingBudgetAmount, recommendedDays);
   const totalEstimatedCost = estimatedCost + currentChoices.shootingBudgetAmount + (currentChoices.contingencyReserveAmount ?? 0);
   const staticRisk = computeStaticProductionRisk(draft.talent, script, currentChoices, genre);
+  // The same risk profile with the reserve zeroed out, so the Risk Profile card
+  // can show — live, as the reserve slider moves — exactly how much lower the
+  // current Contingency Reserve is making Safety Risk and Technical Complexity.
+  const staticRiskNoReserve = computeStaticProductionRisk(draft.talent, script, { ...currentChoices, contingencyReserveAmount: 0 }, genre);
+  const safetyReduction = staticRiskNoReserve.safetyRisk - staticRisk.safetyRisk;
+  const technicalReduction = staticRiskNoReserve.technicalComplexity - staticRisk.technicalComplexity;
   // The specific clashing pairing behind an elevated Morale Risk, if any -
   // named so the risk is legible before greenlight, not just a bar (SIMULATION_PHILOSOPHY.md
   // Principle 3). Only surfaced when the friction is real (a meaningful tension).
@@ -654,7 +660,17 @@ export function ProductionPlanning() {
           </p>
         )}
         <ScoreBar label="Safety Risk" value={staticRisk.safetyRisk} />
+        {safetyReduction > 0 && (
+          <p style={{ margin: '-4px 0 0', fontSize: '0.82em', color: 'var(--green, #2e7d32)' }}>
+            ↓ {safetyReduction} lower thanks to your <Money amount={contingencyReserveAmount} /> Contingency Reserve.
+          </p>
+        )}
         <ScoreBar label="Technical Complexity" value={staticRisk.technicalComplexity} />
+        {technicalReduction > 0 && (
+          <p style={{ margin: '-4px 0 0', fontSize: '0.82em', color: 'var(--green, #2e7d32)' }}>
+            ↓ {technicalReduction} lower thanks to your Contingency Reserve.
+          </p>
+        )}
         <ScoreBar label="Budget Risk" value={staticRisk.budgetRisk} />
       </div>
 
