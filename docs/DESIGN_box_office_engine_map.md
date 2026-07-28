@@ -400,6 +400,38 @@ The combine convexity (geometric blend) and lower K-floors remain *reasonable
 components* of #1/#2 but are amplifiers, not the fix. This is materially larger
 than the pacing pass and should be scoped as its own multi-part effort.
 
+### The unprofitable tail is a COST-side problem, not a score-side one (2026-07-28)
+
+Chasing the tail through scores was a red herring. Decomposing cost/gross/profit
+over 521 rival wide films:
+- Median wide **cost is only ~$20M** (p10 $4M, p90 $114M) against median gross
+  ~$103M — most films return **1.75×**; they are simply too cheap to fail.
+- The 22% that lose money have the **same audienceScore** as the profitable ones
+  (67 vs 68) but **2.5× the cost** ($45M vs $18M). **Flops are expensive films,
+  not worse films** — so the score-combine averaging (which blocked the score
+  approach) is irrelevant here.
+- Counterfactual: 42% would lose money if costs ran realistically higher.
+
+A budget-realism sweep (`rivalStudios.ts:deriveRivalSpendPlan`, shifting the whole
+spend plan up) confirmed the lever and its coupling:
+
+| budget shift | wide films (6 seeds × 8y) | unprofit% | bomb% | top-10% | median | mean |
+|---|--:|--:|--:|--:|--:|--:|
+| 0 (current) | 1048 | 20 | 7 | 20 | 117 | 171 |
+| +0.15 | **432** | 40 | **16 ✅** | 37 | 128 | 181 |
+| +0.30 | 65 | 58 | 27 | 85 | 70 | — |
+| +0.45 | 0 (bankrupt) | — | — | — | — | — |
+
+Budget realism drives the unprofitable/bomb/top-10 metrics toward target **without
+touching scoring** — but it **bankrupts the rivals**: the film count collapses as
+costs rise, because rivals lose money on expensive films and can't fund new ones.
+So the tail fix is **coupled**: budget realism **+ rival capital reserves** (the
+power-law economy where hits fund flops, the way real studios carry expensive
+slates). Both levers must move together; validate on unprofitable% AND film-count
+(economy health) AND the box-office center. NOTE this also lifts top-10 share and
+bomb%, overlapping the deferred crossover/top-tail piece — worth sequencing
+together.
+
 Both increase score dispersion, which will widen the box-office distribution
 (fatter unprofitable tail AND fatter megahit tail — a likely side-benefit for the
 deferred crossover/top-tail metrics). **This moves audienceScore, which drives the
