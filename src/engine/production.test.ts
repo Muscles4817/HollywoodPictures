@@ -9,7 +9,7 @@ import type { ProductionChoices, Script, TalentAssignment } from '../types';
 
 function baseChoices(overrides: Partial<ProductionChoices> = {}): ProductionChoices {
   return {
-    contingencyAmount: 500_000,
+    shootingBudgetAmount: 500_000,
     setQualityAmount: 500_000,
     practicalEffectsAmount: PRACTICAL_EFFECTS_RANGE.min,
     vfxAmount: VFX_RANGE.min,
@@ -92,7 +92,7 @@ describe('computeRecommendedPreProductionDays', () => {
     const daysAtHighSpend = computeRecommendedPreProductionDays(
       talent,
       script,
-      baseChoices({ contingencyAmount: 20_000_000, setQualityAmount: 20_000_000 }),
+      baseChoices({ shootingBudgetAmount: 20_000_000, setQualityAmount: 20_000_000 }),
     );
     expect(daysAtMaxRuntime).toBe(days);
     expect(daysAtHighSpend).toBe(days);
@@ -206,7 +206,7 @@ describe('computeStaticProductionRisk - Setting Archetype influence', () => {
 
   it('an ambitious setting (Futuristic City) underfunded relative to a minimal spend carries more budget risk than a modest setting at the same spend', () => {
     const talent = assignmentsOfSize(10, 6);
-    const minimalSpend = baseChoices({ practicalEffectsAmount: PRACTICAL_EFFECTS_RANGE.min, vfxAmount: VFX_RANGE.min, contingencyAmount: 0, setQualityAmount: 0 });
+    const minimalSpend = baseChoices({ practicalEffectsAmount: PRACTICAL_EFFECTS_RANGE.min, vfxAmount: VFX_RANGE.min, shootingBudgetAmount: 0, setQualityAmount: 0 });
     const modest = baseScript(10, { primarySetting: 'SuburbanCommunity' });
     const ambitious = baseScript(10, { primarySetting: 'FuturisticCity' });
     const modestRisk = computeStaticProductionRisk(talent, modest, minimalSpend, 'Action');

@@ -523,7 +523,7 @@ function stateReadyToGreenlight(seed: number, startingCash = 50_000_000): GameSt
     environmentAmbition: 0.5,
     effectsStrategy: { practical: 0.5, digital: 0.5 },
     effectsAmbition: 0.5,
-    contingencyAmount: 500_000,
+    shootingBudgetAmount: 500_000,
     runtimeIntensity: 0.5,
   });
   return s;
@@ -675,7 +675,7 @@ describe('GREENLIGHT_PROJECT - enters the live pre-production phase', () => {
       environmentAmbition: 0.5,
       effectsStrategy: { practical: 0.5, digital: 0.5 },
       effectsAmbition: 1,
-      contingencyAmount: 500_000,
+      shootingBudgetAmount: 500_000,
       runtimeIntensity: 0.5,
     });
     const readyToGreenlight = s;

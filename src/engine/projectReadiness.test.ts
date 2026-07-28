@@ -12,7 +12,7 @@ import { computeTalentCost } from './cost';
 import type { FilmDraft, ProductionChoices, ProductionRole, TalentAssignment } from '../types';
 
 const CHEAP_CHOICES: ProductionChoices = {
-  contingencyAmount: 200_000,
+  shootingBudgetAmount: 200_000,
   setQualityAmount: 200_000,
   practicalEffectsAmount: PRACTICAL_EFFECTS_RANGE.min,
   vfxAmount: VFX_RANGE.min,
@@ -120,7 +120,7 @@ describe('deriveProjectReadiness - production plan and affordability', () => {
   it('low-cash-reserve is a warning, not a blocker, when cash after greenlighting is thin but non-negative', () => {
     const draft = readyDraft(22);
     const talentCost = computeTalentCost(draft.talent);
-    const totalCommitment = talentCost + draft.productionChoices!.contingencyAmount + draft.productionChoices!.setQualityAmount + PRACTICAL_EFFECTS_RANGE.min + VFX_RANGE.min;
+    const totalCommitment = talentCost + draft.productionChoices!.shootingBudgetAmount + draft.productionChoices!.setQualityAmount + PRACTICAL_EFFECTS_RANGE.min + VFX_RANGE.min;
     const readiness = deriveProjectReadiness(draft, totalCommitment + 50_000);
     expect(readiness.ready).toBe(true);
     expect(readiness.warnings.map((w) => w.code)).toContain('low-cash-reserve');

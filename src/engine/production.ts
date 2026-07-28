@@ -28,7 +28,7 @@ import {
 import { deriveTraits } from './personTraits';
 import { GENRE_PROFILES } from '../data/genres';
 import { SETTING_ARCHETYPE_PROFILES } from '../data/settings';
-import { contingencyT, practicalEffectsT, vfxT, overallSpendT, FOOTAGE_LOWER_RATIO, FOOTAGE_UPPER_RATIO } from './productionDials';
+import { contingencyReserveT, practicalEffectsT, vfxT, overallSpendT, FOOTAGE_LOWER_RATIO, FOOTAGE_UPPER_RATIO } from './productionDials';
 import { computeCreativeTension } from './creativeTension';
 import { computeEffectivePairChemistry } from './pairHistory';
 import { computeTalentCompatibility } from './compatibility';
@@ -257,10 +257,11 @@ export function computeStaticProductionRisk(
   // Physical/stunt danger: how ambitious the practical-effects spend is,
   // plus how logistically demanding the Setting Archetype itself is
   // (Underwater/Rural Wilderness carry real physical risk independent of
-  // the effects budget), offset by how much contingency margin exists to
-  // do it safely.
+  // the effects budget), offset by the Contingency Reserve - the buffer set
+  // aside to handle trouble is what buys the safety cover, redundancy and
+  // backup plans that make ambitious work safer (docs/DESIGN_REVIEW_production_redesign.md §8).
   const practicalAmbitionT = practicalEffectsT(choices.practicalEffectsAmount);
-  const contingencyMitigation = contingencyT(choices.contingencyAmount);
+  const contingencyMitigation = contingencyReserveT(choices.contingencyReserveAmount ?? 0);
   const safetyRisk = clamp(
     Math.round(20 + practicalAmbitionT * 50 + settingProfile.practicalLogisticsDemand * 20 - contingencyMitigation * 35),
     0,
@@ -268,8 +269,8 @@ export function computeStaticProductionRisk(
   );
 
   // Technical/creative difficulty: VFX ambition and script complexity,
-  // offset by contingency margin (money helps absorb a technical hiccup,
-  // just less than it helps with physical safety).
+  // offset by the Contingency Reserve (a buffer helps absorb a technical
+  // hiccup, just less than it helps with physical safety).
   const vfxAmbitionT = vfxT(choices.vfxAmount);
   const complexityT = script.complexity / 100;
   const technicalComplexity = clamp(

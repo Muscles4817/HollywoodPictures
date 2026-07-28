@@ -789,13 +789,13 @@ export function OutcomeInspector() {
       <div className="card stack">
         <h2 style={{ margin: 0 }}>Production Budget</h2>
         <SliderRow
-          label="Contingency Reserve"
-          value={productionChoices.contingencyAmount}
+          label="Shooting Budget"
+          value={productionChoices.shootingBudgetAmount}
           min={SHOOTING_BUDGET_RANGE.min}
           max={SHOOTING_BUDGET_RANGE.max}
           step={1000}
           formatValue={(v) => `$${Math.round(v).toLocaleString()}`}
-          onChange={(v) => setProductionChoices({ ...productionChoices, contingencyAmount: v })}
+          onChange={(v) => setProductionChoices({ ...productionChoices, shootingBudgetAmount: v })}
         />
         <SliderRow
           label="Set Quality"

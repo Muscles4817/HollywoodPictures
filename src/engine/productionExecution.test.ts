@@ -34,7 +34,7 @@ function ev(qualityDelta: number, opts: { id?: string; impact?: ProductionExecut
 }
 
 const choices: ProductionChoices = {
-  contingencyAmount: 1_000_000,
+  shootingBudgetAmount: 1_000_000,
   setQualityAmount: 500_000,
   practicalEffectsAmount: 500_000,
   vfxAmount: 500_000,

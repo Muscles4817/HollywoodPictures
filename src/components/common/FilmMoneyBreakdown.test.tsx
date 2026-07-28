@@ -25,7 +25,7 @@ function film(
   return {
     id: 'f', title: 'Test', genre: 'Sci-Fi', targetAudience: 'Mass Market',
     script: undefined as never, talent: [],
-    productionChoices: { contingencyAmount: 0, setQualityAmount: 0, practicalEffectsAmount: 0, vfxAmount: 0, runtimeIntensity: 0.5 },
+    productionChoices: { shootingBudgetAmount: 0, setQualityAmount: 0, practicalEffectsAmount: 0, vfxAmount: 0, runtimeIntensity: 0.5 },
     postProductionChoices: { editStyle: 'Balanced', musicFocus: 'Standard', finalCutFocus: 'Trailer-focused' },
     marketingChoices: { marketingSpend: 100_000_000, releaseType: 'Wide', releaseWindow: 'Summer', ...overrides.marketing },
     events: [], postProductionEvents: [],

@@ -11,7 +11,9 @@ import type { EventChoiceTemplate, EventSeverity, FilmDraft, PendingEventChoice 
 import { computeQualityBreakdown, combineProductionEvents } from './scoring';
 import { pickDepartmentBlurb } from './reviews';
 import { DEFAULT_POST_PRODUCTION_CHOICES } from '../data/postProduction';
-import { findAssignedPerson } from '../data/helpers';
+import { findAssignedPerson, filterAssignedPeople } from '../data/helpers';
+import { getTypicalSalaryForRole } from './person';
+import { computeDailyShootBurn } from './cost';
 import { talentSkillScore, prepareChoicesForInvolvedTalent } from './production';
 import type { RandomFn } from './random';
 
@@ -74,33 +76,68 @@ const RE_EDIT_CHOICE: EventChoiceTemplate = {
   skillSensitive: true,
 };
 
+// A round of additional filming costs what a stretch of the actual shoot cost:
+// the film's own daily shoot burn (engine/cost.ts:computeDailyShootBurn) for the
+// filming days it needs, plus a rush fee to bring the principals back on short
+// notice. This makes a reshoot's price track the production it belongs to - a
+// lean indie's pickups cost a fraction of a tentpole's - rather than a flat
+// authored number that's cheap for a blockbuster and ruinous for a small film.
+// Pickups are a quick recall of the leads for a few days; major reshoots pull
+// the whole principal cast (leads + supporting) and the director back for a much
+// longer stretch - so major reshoots cost decisively more, both in shoot days and
+// in the far bigger recall. Rates are the fraction of a person's per-film salary
+// their short-notice recall costs.
+const PICKUPS = { filmingDays: 4, recallRate: 0.1, roles: ['Lead Actor'] as const };
+const MAJOR_RESHOOTS = { filmingDays: 16, recallRate: 0.25, roles: ['Lead Actor', 'Supporting Actor', 'Director'] as const };
+
+/** The cost of recalling the given roles' principals for a reshoot - a rush-premium fraction of their per-film salaries. */
+function talentRecallCost(draft: FilmDraft, roles: readonly ('Lead Actor' | 'Supporting Actor' | 'Director')[], rate: number): number {
+  return roles
+    .flatMap((role) => filterAssignedPeople(draft.talent, role).map((p) => getTypicalSalaryForRole(p, role)))
+    .reduce((sum, salary) => sum + salary * rate, 0);
+}
+
+/** A ±15% cost range around the derived estimate: the film's own shoot-day burn × filming days + talent recall. */
+function reshootCostRange(draft: FilmDraft, spec: typeof PICKUPS | typeof MAJOR_RESHOOTS): [number, number] {
+  const dailyBurn = draft.photography && draft.productionChoices
+    ? computeDailyShootBurn(draft.productionChoices.shootingBudgetAmount, draft.photography.recommendedDays)
+    : 0;
+  const estimate = dailyBurn * spec.filmingDays + talentRecallCost(draft, spec.roles, spec.recallRate);
+  return [Math.round(estimate * 0.85), Math.round(estimate * 1.15)];
+}
+
 // A short, targeted round of additional filming - real money and real time,
-// wider outcome range than Re-edit since it's genuinely new footage, not
-// just a smarter arrangement of what already exists.
-const PICKUPS_CHOICE: EventChoiceTemplate = {
-  id: 'pickups',
-  label: 'Pickups',
-  description: 'A short, targeted round of additional filming to shore up the weakest material - real cost and delay, for a wider range of possible improvement.',
-  costRange: [600_000, 1_200_000],
-  qualityRange: [1, 15],
-  buzzRange: [1, 4],
-  delayDaysRange: [10, 20],
-  skillSensitive: true,
-};
+// wider outcome range than Re-edit since it's genuinely new footage. Cost tracks
+// the film's own shoot-day burn for a few filming days plus recalling the leads.
+function pickupsChoice(draft: FilmDraft): EventChoiceTemplate {
+  return {
+    id: 'pickups',
+    label: 'Pickups',
+    description: 'A short, targeted round of additional filming to shore up the weakest material - priced off your own shoot and the cost of recalling the leads, for a wider range of possible improvement.',
+    costRange: reshootCostRange(draft, PICKUPS),
+    qualityRange: [1, 15],
+    buzzRange: [1, 4],
+    delayDaysRange: [10, 20],
+    skillSensitive: true,
+  };
+}
 
 // The biggest possible swing - highest potential upside, but also the only
-// choice with real downside risk (a troubled reshoot can make things worse,
-// not just fail to help), so affording it is never automatically correct.
-const MAJOR_RESHOOTS_CHOICE: EventChoiceTemplate = {
-  id: 'major-reshoots',
-  label: 'Major Reshoots',
-  description: 'A significant reworking of the film - the highest possible cost and the longest delay, for the widest range of outcomes, including the risk of making things worse.',
-  costRange: [2_000_000, 4_500_000],
-  qualityRange: [-6, 22],
-  buzzRange: [-3, 7],
-  delayDaysRange: [25, 45],
-  skillSensitive: true,
-};
+// choice with real downside risk (a troubled reshoot can make things worse),
+// so affording it is never automatically correct. A major reworking recalls the
+// director and the whole principal cast over many more filming days.
+function majorReshootsChoice(draft: FilmDraft): EventChoiceTemplate {
+  return {
+    id: 'major-reshoots',
+    label: 'Major Reshoots',
+    description: 'A significant reworking of the film - many filming days at your own shoot-day rate and recalling the director and full principal cast, for the widest range of outcomes, including the risk of making things worse.',
+    costRange: reshootCostRange(draft, MAJOR_RESHOOTS),
+    qualityRange: [-6, 22],
+    buzzRange: [-3, 7],
+    delayDaysRange: [25, 45],
+    skillSensitive: true,
+  };
+}
 
 /**
  * The opening line for the screening, given which round it is and how the last
@@ -168,8 +205,8 @@ export function generateTestScreeningPendingChoice(draft: FilmDraft, rng: Random
   // First screening: accept, or one of the three editing rounds. Every later
   // screening also offers reverting to the original cut.
   const templates: EventChoiceTemplate[] = round === 0
-    ? [acceptCutChoice(round), RE_EDIT_CHOICE, PICKUPS_CHOICE, MAJOR_RESHOOTS_CHOICE]
-    : [acceptCutChoice(round), RE_EDIT_CHOICE, PICKUPS_CHOICE, MAJOR_RESHOOTS_CHOICE, REVERT_TO_ORIGINAL_CHOICE];
+    ? [acceptCutChoice(round), RE_EDIT_CHOICE, pickupsChoice(draft), majorReshootsChoice(draft)]
+    : [acceptCutChoice(round), RE_EDIT_CHOICE, pickupsChoice(draft), majorReshootsChoice(draft), REVERT_TO_ORIGINAL_CHOICE];
 
   const editor = findAssignedPerson(draft.talent, 'Editor');
   const editorSkill = talentSkillScore(editor, 'Editor', draft.script ?? null);

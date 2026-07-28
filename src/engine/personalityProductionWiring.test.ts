@@ -33,7 +33,7 @@ function cast(over: Partial<PersonPersonality>): TalentAssignment[] {
 // so a minimal stub is all these morale-focused tests need.
 const SCRIPT = { primarySetting: 'SingleInteriorLocation', complexity: 50 } as unknown as Script;
 const CHOICES: ProductionChoices = {
-  contingencyAmount: 500_000,
+  shootingBudgetAmount: 500_000,
   setQualityAmount: 500_000,
   practicalEffectsAmount: 500_000,
   vfxAmount: 500_000,

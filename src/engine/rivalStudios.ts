@@ -24,7 +24,7 @@ import { computeRecommendedShootDays, computeRecommendedPostProductionDays } fro
 import { resolveRivalExecution } from './rivalExecution';
 import { computeReleaseResults } from './releaseFilm';
 import { internationalReachForRivalStudio } from './distribution';
-import { computeDailyContingencyBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
+import { computeDailyShootBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
 import { highestBid, placeBid, reopenForfeitedOpportunity, type ResolvedBid } from './opportunities';
 import { findCandidatesNearPrice } from './talentFilter';
 import { logAmount } from './interpolate';
@@ -801,7 +801,7 @@ function startRivalProductionFromWonScript(
   }
 
   const productionChoices: ProductionChoices = {
-    contingencyAmount: logAmount(
+    shootingBudgetAmount: logAmount(
       spendPlan.shootingSpendT,
       SHOOTING_BUDGET_RANGE,
     ),
@@ -870,7 +870,7 @@ function startRivalProductionFromWonScript(
     bidAmount +
     computeTalentCost(talent) +
     computeProductionBudgetCost(productionChoices) +
-    productionChoices.contingencyAmount +
+    productionChoices.shootingBudgetAmount +
     computeMarketingCost(marketingChoices);
   if (cost > rival.cash) return null;
 
@@ -934,7 +934,7 @@ export function resolveRivalProduction(
   // by how its shoot went, not a flat neutral profile.
   const { events, shootingRatio } = resolveRivalExecution(production, rng);
   const recommendedDays = computeRecommendedShootDays(production.talent, production.script, production.productionChoices);
-  const dailyBurn = computeDailyContingencyBurn(production.productionChoices.contingencyAmount, recommendedDays);
+  const dailyBurn = computeDailyShootBurn(production.productionChoices.shootingBudgetAmount, recommendedDays);
   const photographyCost = Math.round(dailyBurn * recommendedDays * shootingRatio);
   const competitiveCrowding = computeCompetitiveCrowding(
     { releaseDay: production.releaseDay, genre: production.genre, targetAudience: production.targetAudience },

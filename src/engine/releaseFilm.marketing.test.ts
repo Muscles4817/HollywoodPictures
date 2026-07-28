@@ -68,7 +68,7 @@ describe('computeReleaseResults - campaign angle', () => {
   it('overselling a film that cannot deliver saps the sim word-of-mouth (worse legs)', () => {
     // A no-budget production can't back up a Spectacle campaign (production score
     // well below the promise), so the legs penalty bites.
-    const noBudget: ProductionChoices = { contingencyAmount: 0, setQualityAmount: 0, practicalEffectsAmount: 0, vfxAmount: 0, runtimeIntensity: 0 };
+    const noBudget: ProductionChoices = { shootingBudgetAmount: 0, setQualityAmount: 0, practicalEffectsAmount: 0, vfxAmount: 0, runtimeIntensity: 0 };
     const oversell = computeReleaseResults({ ...base, productionChoices: noBudget, marketingChoices: { ...base.marketingChoices, ...withChannels, campaignAngle: 'spectacle' } }, createRng(1));
     const honest = computeReleaseResults({ ...base, productionChoices: noBudget, marketingChoices: { ...base.marketingChoices, ...withChannels, campaignAngle: 'faithful' } }, createRng(1));
     // The sim's audience (word-of-mouth) score is dragged down for the oversell...

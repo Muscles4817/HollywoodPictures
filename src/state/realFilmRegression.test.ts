@@ -60,7 +60,7 @@ function finishedPhotography(recommendedDays: number): PhotographyState {
 // A generous blockbuster line: high set quality/VFX/practical spend - the
 // production-budget dials a tentpole would actually push.
 const BLOCKBUSTER_PRODUCTION_CHOICES: ProductionChoices = {
-  contingencyAmount: 5_000_000,
+  shootingBudgetAmount: 5_000_000,
   setQualityAmount: 20_000_000,
   practicalEffectsAmount: 10_000_000,
   vfxAmount: 15_000_000,

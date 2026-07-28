@@ -52,8 +52,8 @@ function stateWithInProgressShoot(
   return { state, draft };
 }
 
-describe('ProductionRun - Contingency Reserve visible live during filming', () => {
-  it('shows Contingency Remaining and a Contingency Reserve Consumed bar while the shoot is in progress', () => {
+describe('ProductionRun - Shooting Budget & Contingency Reserve visible live during filming', () => {
+  it('shows the Shooting Budget draining and the Contingency Reserve untouched while on schedule', () => {
     const { state } = stateWithInProgressShoot();
     saveState(state);
     render(
@@ -61,10 +61,12 @@ describe('ProductionRun - Contingency Reserve visible live during filming', () =
         <ProductionRun />
       </StudioProvider>,
     );
-    // contingencyAmount 500,000 (testFixtures.ts PRODUCTION_CHOICES) - runningCost 300,000 = 200,000 remaining.
-    expect(screen.getByText('Contingency Remaining')).toBeInTheDocument();
+    // shootingBudgetAmount 500,000 (testFixtures.ts PRODUCTION_CHOICES) - runningCost 300,000 = 200,000 left.
+    expect(screen.getByText('Shooting Budget Left')).toBeInTheDocument();
     expect(screen.getByText('£200,000')).toBeInTheDocument();
-    expect(screen.getByText('Contingency Reserve Consumed')).toBeInTheDocument();
+    expect(screen.getByText('Shooting Budget Spent')).toBeInTheDocument();
+    // On schedule (runningCost below the shooting budget) the reserve is untouched.
+    expect(screen.getByText('Untouched')).toBeInTheDocument();
   });
 
   it('shows an overrun warning once running cost exceeds the reserve', () => {

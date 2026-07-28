@@ -814,14 +814,21 @@ export const SCRIPT_CRAFT_KEYS = ['originality', 'structure', 'characters', 'dia
 // engine/production.ts:computeRecommendedShootDays and PhotographyState
 // below).
 export interface ProductionChoices {
-  // Crew size, equipment, insurance, general overhead - and the safety
-  // margin that offsets risk from ambitious practical/VFX spend elsewhere.
-  // Not "the total budget" (that's the sum of every dial, shown on the Plan
-  // Production screen) - see docs/DESIGN.md 5.9 for why this dial
-  // specifically doubles as risk mitigation rather than just another
-  // quality lever. Spent as a daily burn rate during principal photography
-  // (PhotographyState.runningCost), not a flat lump sum - see 5.16.
-  contingencyAmount: number;
+  // The Shooting Budget: crew, equipment, insurance and general operating cost
+  // of principal photography (data/production.ts:SHOOTING_BUDGET_*). Funds the
+  // daily burn (PhotographyState.runningCost) and contributes the baseline
+  // "well-resourced shoot" quality; a bigger shoot also absorbs on-set problems
+  // better (engine/productionExecution.ts resilience). Not "the total budget"
+  // (that's the sum of every dial). Renamed from the old, mislabelled
+  // `contingencyAmount` - see docs/DESIGN_REVIEW_production_redesign.md §8.
+  shootingBudgetAmount: number;
+  // A GENUINE contingency buffer (docs/DESIGN_REVIEW_production_redesign.md §8):
+  // set aside up front, but only CONSUMED by overage - days the shoot runs past
+  // its recommended schedule. A clean, on-schedule shoot leaves it untouched and
+  // it is refunded at wrap. It buys no quality; it is purely downside protection.
+  // Overruns beyond it become a cash overage. Optional/additive: absent reads as
+  // 0 (no buffer) so overruns fall straight through to cash, as before the split.
+  contingencyReserveAmount?: number;
   setQualityAmount: number;
   practicalEffectsAmount: number;
   vfxAmount: number;
