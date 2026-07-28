@@ -10,7 +10,7 @@
 > *targets*) and `docs/SIMULATION_PHILOSOPHY.md` (the principles). This doc is
 > the *how it works and why it misses*, not the *where we're going*.
 
-_Last updated: 2026-07-28 (pacing/variance root-cause investigation)._
+_Last updated: 2026-07-28 (pacing landed; Root-B scoring/variance investigation)._
 
 ---
 
@@ -292,6 +292,123 @@ re-tighten to a clear profit once the crossover/top-tail piece restores big-film
 legs. The theatrical-only sim omits ancillaries (home video etc.), on which the
 real film's profit substantially depended, so a thin theatrical result is itself
 not unrealistic.
+
+---
+
+## 11. Root B — the scoring & execution pipeline (why scores compress & don't vary)
+
+Investigated 2026-07-28. `audienceScore`/`criticScore` (0–100, FilmResults) are
+**pure and deterministic given the plan + recorded event history** — no rng at
+release (`engine/scoring.ts`). Two distinct failures, four structural causes.
+
+### Composition (engine/scoring.ts)
+```
+audienceScore = qualityScore·0.50 + genreFulfilment·0.25 + audienceEditing·0.15 + productionScore·0.10   (:515)
+criticScore   = qualityScore·0.78 + originality·0.14      + criticalEdit·0.08                             (:489)
+qualityScore  = soft-ceiling dependency chain over {script, direction, acting, postProduction},
+                each term renormalized to sum 1, with per-link independence floors K (:394-486)
+```
+
+### Empirical decomposition (measured over 931 varied films + one fixed plan × 150 exec seeds)
+
+| Field | varied-film p5–p95 (sd) | fixed-plan cv | Reads as |
+|---|---|--:|---|
+| audienceScore | 54–76 (6.7) | 0.015 | compressed + execution-invariant |
+| criticScore | 49–71 (6.9) | 0.022 | compressed |
+| qualityScore | 47–69 (6.7) | 0.029 | compressed |
+| scriptScore | 52–82 (9.2) | 0.000 | varies across films, fixed within a plan |
+| directionScore | 49–83 (9.7) | — | varies across films |
+| actingScore | 53–85 (10.0) | — | varies across films |
+| **eventsScore** (shoot outcome) | 38–100 (20.7) | **0.221** | **huge variance, both across films AND within a fixed plan** |
+
+The tell: the craft sub-scores genuinely vary (sd 9–10), and the shoot outcome
+swings wildly (eventsScore 12→100 for a *fixed plan*), yet audienceScore collapses
+to sd 6.7 and barely moves within a plan (cv 0.015). **Execution variance exists;
+it's absorbed before it reaches the score.**
+
+### The four compression/determinism sources (priority order)
+
+1. **The quality combine averages + floors (dominant across-film compression).**
+   `computeQualityBreakdown` (`scoring.ts:394-486`) is a 4-term weighted average
+   renormalized to sum 1, with independence floors `K_SCRIPT_TO_DIRECTION=0.65`,
+   `K_DIRECTION_TO_ACTING=0.4`, `K_DIRECTION_TO_PRODUCTION=0.4`,
+   `K_FOOTAGE_TO_EDITING=0.25` (`:344-347`) that stop any department from ever
+   dropping below K·raw. Averaging + floors pull qualityScore to the middle.
+2. **Execution upside is near-neutral (fixed-plan variance killer).**
+   `productionExecution.ts:136-143`: positive conversion sensitivity
+   (SCRIPT 0.0042 / PERF 0.0072 / POST 0.0062) is 3–4× smaller than negative
+   (0.015 / 0.027 / 0.0235), ceilings only ~1.10–1.16, and resilience absorbs up
+   to 50% of the downside (`MAX_MITIGATION=0.5`, positives never mitigated). So a
+   great shoot ≈ an average shoot; only genuinely troubled shoots move the score,
+   and only downward. This is why a fixed plan gives cv 0.015.
+3. **Rival plan variety is narrow (input-side clustering).** Rivals pick
+   top-8-by-craft scripts (`rivalStudios.ts:690`), jitter spend only ±0.06
+   (`:144-154`), and price-match talent — so rival films cluster in a narrow
+   quality band; nothing samples genuinely weak plans.
+4. **Anchored sub-terms.** post-production base 55 (`scoring.ts:284`), editing
+   terms anchored at 50 (`:494`, `:530`), `budgetFit` flat 85 for any funded film
+   (`:304`) — keep even weak films' components off the floor.
+
+### Which fix hits which diagnostic — and why they can't be separated
+Initial read was "variance ⟵ #2 (execution), tail ⟵ #1/#3/#4 (combine)". **A sweep
+refuted the clean split.** Scaling execution's positive sensitivity up to **20×**
+and widening its ceiling to ~1.96 with mitigation 0.05 moved the same-plan
+variance CV only 0.012 → **0.026**, still **100% "as expected."** Execution is
+absorbed by the two averaging stages downstream (execution → one craft axis →
+quality *average* → audience *average*), so tuning the execution *conversion* in
+isolation cannot create same-plan variance.
+
+**Conclusion: source #1 (the averaging combine) is the shared, dominant lever for
+BOTH failures.** Until the combine stops averaging single-axis swings away:
+- a tanked execution can't drag the score down (no same-plan variance), and
+- a weak craft axis can't drag the score down (no unprofitable tail).
+
+The next hypothesis was to make `computeQualityBreakdown` **less central-tendency**
+(weighted geometric mean + lower K-floors). **A sweep refuted this too** — it is
+NOT sufficient, for two structural reasons found in the data:
+
+- **Variance stays immovable.** Blending fully to the geometric mean AND zeroing
+  the K-floors left the same-plan variance CV at **0.010** (still 100% "as
+  expected"). Why: `audienceScore = qualityScore·0.50 + genreFulfilment·0.25 +
+  audienceEditing·0.15 + productionScore·0.10`. The **non-quality 50%** is
+  execution-invariant (genreFulfilment is script/talent/budget; editing is
+  anchored at 50; production barely moves), so it anchors audienceScore no matter
+  what the quality combine does. Same-plan variance therefore cannot be created in
+  the quality combine at all — it needs execution to reach a larger share of
+  audienceScore (recompose the score, or give execution a more direct term).
+- **A punishing combine crashes the median before it builds a low tail.** Full
+  geometric + zero floors dropped the wide median $117M → **$57M** while
+  unprofitable% reached only ~35% (target 45–55). It lowers *every* film roughly
+  uniformly rather than fattening the *low* tail, because the tail needs genuinely
+  weak **inputs** (bad scripts / risky plans) that the rival AI never generates
+  (source #3) — punishing the combine on uniformly-competent inputs just shifts
+  the whole distribution down.
+
+**Revised conclusion (the approach the combine-reshape hypothesis assumed is
+wrong): Root B is not a scoring-combine calibration. It is a structural rework
+spanning two subsystems:**
+1. **Variance** ⟶ recompose `audienceScore`/`criticScore` so execution reaches a
+   larger, less-diluted share (e.g. lean audienceScore harder on qualityScore, or
+   add a direct endogenous execution term), so a troubled/triumphant shoot moves
+   the finished film. Touches `scoring.ts:489-547` + execution routing.
+2. **Unprofitable tail** ⟶ widen the **input** distribution: make the rival AI
+   greenlight a real spread of plan quality (weaker scripts, riskier budgets), not
+   just top-8-craft picks (`rivalStudios.ts:690, 144`). Without genuinely weak
+   films in the field, no combine can manufacture a believable flop tail.
+
+The combine convexity (geometric blend) and lower K-floors remain *reasonable
+components* of #1/#2 but are amplifiers, not the fix. This is materially larger
+than the pacing pass and should be scoped as its own multi-part effort.
+
+Both increase score dispersion, which will widen the box-office distribution
+(fatter unprofitable tail AND fatter megahit tail — a likely side-benefit for the
+deferred crossover/top-tail metrics). **This moves audienceScore, which drives the
+funnel, so every change here must be re-validated against the whole-year
+distribution diagnostic** (median/mean were just calibrated by the pacing pass).
+
+Sanctioned by SIMULATION_PHILOSOPHY.md Principles 1 (variance should be
+endogenous — emerge from decisions, not a release-time roll) & 2 (execution
+quality should emerge during production).
 
 ---
 
