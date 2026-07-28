@@ -445,13 +445,44 @@ targets cleanly:
 power law needs BOTH — expensive films (so the ones that miss lose money) AND big
 enough hits (so the ones that connect stay profitable and fund the slate).
 Raising budgets without fattening the top just slides the whole outcome
-distribution toward failure. So the remaining box-office work is really ONE
-coordinated calibration: **budget realism + rival capital + crossover top-tail**
-(§4, `CROSSOVER_CAPACITY_CEILING` and its coupling to the WOM normalization
-denominator `maxInterestedAudience`), validated together against unprofitable%,
-top-10/over-$1B, the outcome-category bands (loss/major/blockbuster), film-count
-(economy health), AND the box-office center + opening multiple. Larger than any
-single pass so far; scope it as its own focused effort.
+distribution toward failure.
+
+### The three-lever coordinated sweep — frontier & structural caps (2026-07-28)
+
+Ran budget + capital + `CROSSOVER_CAPACITY_CEILING` together. Best balanced point
+found — **budget +0.10, cash 3×, crossover ceiling 0.7**:
+
+| metric | value | target | |
+|---|--:|--:|--|
+| unprofitable% | 49.6 | 45–55 | ✅ |
+| bomb% | 18.7 | 10–20 | ✅ |
+| median / mean | 121 / 223 | 90–130 / 170–230 | ✅ |
+| opening multiple | 2.8 | 2–3 | ✅ |
+| **over-500%** | **14.4** | 5–8 | ❌ overshoot |
+| over-1000% | 0.5 | 1–2 | ❌ |
+| top-10 share | 30 | 40–50 | ❌ |
+| major% / blockbuster% | 8.5 / 0.4 | 10–20 / 1–6 | ❌ |
+
+**Two structural caps block a clean all-bands landing with these three levers:**
+1. **`baseInterestFraction + crossoverCapacityFraction ≤ 1`** (hard invariant,
+   `audienceSimulation.ts:152`) — the crossover ceiling can't exceed ~0.7, and
+   raising it that far broadly lifts the *upper-middle* (over-500 overshoots to
+   14×) while **no single film can concentrate enough to reach $1B** (over-1000
+   stays ~0.5, top-10 share ~30). It makes *many* $500M films, not the *few* $1B
+   films a real power law concentrates into.
+2. **Outcome categories are profit-relative**, so raising costs pushes
+   major/blockbuster *outcomes* down even as gross rises.
+
+So the extreme top-tail (top-10 40–50, over-$1B 1–2) needs levers BEYOND these
+three: **market-size** (so a top film can actually reach $1B in admissions) and
+**crossover *response* concentration** (`CROSSOVER_RESPONSE` sensitivity/threshold
+— realize crossover in a *few* great films, not broadly), and it interacts with
+the **front-loaded pacing** (short runs cap how much of the market a hit can
+convert). The full calibration is genuinely **5–6 coupled levers across 15+
+bands** — an over-constrained system that needs a dedicated, staged effort with
+its own test reconciliation, not a single sweep. What IS cleanly achievable with
+budget+capital(+modest crossover): the **flop tail + center + pacing**; the
+extreme concentration is the residual.
 
 Both increase score dispersion, which will widen the box-office distribution
 (fatter unprofitable tail AND fatter megahit tail — a likely side-benefit for the
