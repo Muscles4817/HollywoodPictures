@@ -332,16 +332,17 @@ export type GameAction =
   // Ambition values directly (Plan Production, docs/DESIGN.md), and the
   // reducer derives ProductionChoices from them via
   // engine/productionChoicesAdapter.ts rather than the screen setting that
-  // legacy shape by hand. contingencyAmount/runtimeIntensity are the two
-  // fields nothing in the new model replaced, so they're still passed
-  // through as-is.
+  // legacy shape by hand. The Shooting Budget, the Contingency Reserve and
+  // runtimeIntensity are the fields nothing in the new model replaced, so
+  // they're passed through as-is.
   | {
       type: 'SET_PRODUCTION_PLAN';
       environmentStrategy: Distribution<EnvironmentMethodKey>;
       environmentAmbition: NormalizedScalar;
       effectsStrategy: Distribution<EffectsMethodKey>;
       effectsAmbition: NormalizedScalar;
-      contingencyAmount: number;
+      shootingBudgetAmount: number;
+      contingencyReserveAmount?: number;
       runtimeIntensity: number;
       // Production Redesign, Sets facet: prep days granted to the Production
       // Designer (the Sets facet's TIME axis). Optional; absent falls back to the

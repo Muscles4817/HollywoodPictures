@@ -121,7 +121,7 @@ describe('CastingDrawer - discovery controls', () => {
       // Zero out production + marketing so committed spend is ~0 and only the
       // candidate's own salary decides affordability against the £5.5M cash.
       const draft = draftWithActors(rng, 5_000_000, {
-        productionChoices: { contingencyAmount: 0, setQualityAmount: 0, practicalEffectsAmount: 0, vfxAmount: 0, runtimeIntensity: 0 },
+        productionChoices: { shootingBudgetAmount: 0, setQualityAmount: 0, practicalEffectsAmount: 0, vfxAmount: 0, runtimeIntensity: 0 },
       });
       draft.marketingChoices = { ...draft.marketingChoices!, marketingSpend: 0 };
       return wrapState(studio, talentPool, draft);

@@ -52,8 +52,8 @@ function excellentDraft(rng: RandomFn): FilmDraft {
 function applyCohort(draft: FilmDraft, cohort: Cohort): FilmDraft {
   const reliability = cohort === 'careful' ? 92 : cohort === 'typical' ? 60 : 22;
   const talent = draft.talent.map((a) => ({ ...a, person: { ...a.person, reputation: { ...a.person.reputation, reliability } } }));
-  const contingencyAmount = cohort === 'careful' ? 4_000_000 : cohort === 'typical' ? 1_000_000 : 150_000;
-  return { ...draft, talent, productionChoices: { ...draft.productionChoices!, contingencyAmount } };
+  const shootingBudgetAmount = cohort === 'careful' ? 4_000_000 : cohort === 'typical' ? 1_000_000 : 150_000;
+  return { ...draft, talent, productionChoices: { ...draft.productionChoices!, shootingBudgetAmount } };
 }
 
 function runOneShoot(seed: number, cohort: Cohort): Sample | null {

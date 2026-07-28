@@ -123,7 +123,7 @@ function walkFilmThroughWizard(state: GameState): GameState {
     environmentAmbition: 0.5,
     effectsStrategy: EFFECTS_STRATEGY,
     effectsAmbition: 0.5,
-    contingencyAmount: 500_000,
+    shootingBudgetAmount: 500_000,
     runtimeIntensity: 0.5,
   });
   expect(deriveFocusedDraft(s)!.productionChoices).not.toBeNull();

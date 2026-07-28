@@ -83,7 +83,7 @@ function freshFilm(id: string, releasedOnDay: number, fixed: AudienceSimulationF
       cast: [],
     },
     talent: [],
-    productionChoices: { contingencyAmount: 500_000, setQualityAmount: 500_000, practicalEffectsAmount: 500_000, vfxAmount: 500_000, runtimeIntensity: 0.5 },
+    productionChoices: { shootingBudgetAmount: 500_000, setQualityAmount: 500_000, practicalEffectsAmount: 500_000, vfxAmount: 500_000, runtimeIntensity: 0.5 },
     postProductionChoices: { editStyle: 'Balanced', musicFocus: 'Standard', finalCutFocus: 'Trailer-focused' },
     marketingChoices: { marketingSpend: RELEASE_INPUTS.marketingSpend, releaseType: RELEASE_INPUTS.releaseType, releaseWindow: RELEASE_INPUTS.releaseWindow },
     events: [],

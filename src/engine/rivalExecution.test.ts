@@ -11,7 +11,7 @@ import { buildReadyDraft } from '../state/testFixtures';
 import { createRng, withRng } from './random';
 import type { PersonPersonality, RivalProductionInProgress, TalentAssignment } from '../types';
 
-function inputFor(seed = 2024, reliability?: number, contingencyAmount?: number): RivalExecutionInput {
+function inputFor(seed = 2024, reliability?: number, shootingBudgetAmount?: number): RivalExecutionInput {
   const draft = withRng(seed, (rng) => buildReadyDraft(rng)).result;
   const talent: TalentAssignment[] =
     reliability === undefined
@@ -20,14 +20,14 @@ function inputFor(seed = 2024, reliability?: number, contingencyAmount?: number)
   return {
     talent,
     script: draft.script!,
-    productionChoices: contingencyAmount === undefined ? draft.productionChoices! : { ...draft.productionChoices!, contingencyAmount },
+    productionChoices: shootingBudgetAmount === undefined ? draft.productionChoices! : { ...draft.productionChoices!, shootingBudgetAmount },
     genre: draft.genre!,
   };
 }
 
 /** A rival input whose whole cast carries a forced personality + reliability - for the parity checks below. */
-function personalityInputFor(seed: number, over: Partial<PersonPersonality>, reliability: number, contingencyAmount?: number): RivalExecutionInput {
-  const base = inputFor(seed, reliability, contingencyAmount);
+function personalityInputFor(seed: number, over: Partial<PersonPersonality>, reliability: number, shootingBudgetAmount?: number): RivalExecutionInput {
+  const base = inputFor(seed, reliability, shootingBudgetAmount);
   return {
     ...base,
     talent: base.talent.map((a) => ({ ...a, person: { ...a.person, personality: { ...a.person.personality, ...over } } })),

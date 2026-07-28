@@ -42,7 +42,7 @@ export const SHOOTING_BUDGET_RANGE: Range = {
  * problems without immediately losing quality or control.
  *
  * The existing engine may still refer to this value internally as
- * `contingencyT`; that naming should eventually be updated separately.
+ * `shootingBudgetT`; that naming should eventually be updated separately.
  */
 export const SHOOTING_BUDGET_ANCHORS: ScaleAnchor<'quality'>[] = [
   {

@@ -22,7 +22,7 @@ import type {
   TalentAssignment,
 } from '../types';
 import { clamp } from './random';
-import { contingencyT } from './productionDials';
+import { shootingBudgetT } from './productionDials';
 
 // --- Impact classification -------------------------------------------------
 // Which part of the finished film an on-set event logically affects. An event
@@ -164,7 +164,7 @@ const COMPOSURE_SWING = 0.16;
 /** Resilience 0-1: reliable, well-resourced, level-headed productions absorb on-set problems with less damage to the finished film (and dampen failure chains harder - see engine/production.ts:computeShootEscalation). */
 export function computeExecutionResilience(talent: TalentAssignment[], productionChoices: ProductionChoices): number {
   const reliabilityT = clamp(avgReliability(talent) / 100, 0, 1);
-  const contingencyStrength = clamp(contingencyT(productionChoices.contingencyAmount), 0, 1);
+  const contingencyStrength = clamp(shootingBudgetT(productionChoices.shootingBudgetAmount), 0, 1);
   const composureAdj = ((avgPressureHandling(talent) - 50) / 50) * COMPOSURE_SWING;
   return clamp(0.55 * reliabilityT + 0.45 * contingencyStrength + composureAdj, 0, 1);
 }

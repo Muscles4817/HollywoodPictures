@@ -17,7 +17,7 @@ function ev(qualityDelta: number, impact: ProductionExecutionImpact, escalates?:
   return { id: `t-${seq}`, description: 'x', severity: 'medium', costDelta: 0, qualityDelta, buzzDelta: 0, delayDaysDelta: 0, impact, escalates };
 }
 
-const choices: ProductionChoices = { contingencyAmount: 1_000_000, setQualityAmount: 500_000, practicalEffectsAmount: 500_000, vfxAmount: 500_000, runtimeIntensity: 0.5 };
+const choices: ProductionChoices = { shootingBudgetAmount: 1_000_000, setQualityAmount: 500_000, practicalEffectsAmount: 500_000, vfxAmount: 500_000, runtimeIntensity: 0.5 };
 
 function talent(): TalentAssignment[] {
   return withRng(2024, (rng) => buildReadyDraft(rng)).result.talent;
@@ -26,7 +26,7 @@ function withReliability(t: TalentAssignment[], reliability: number): TalentAssi
   return t.map((a) => ({ ...a, person: { ...a.person, reputation: { ...a.person.reputation, reliability } } }));
 }
 
-function releaseInput(events: ProductionEvent[], over: { talent?: TalentAssignment[]; scriptCraft?: number; contingencyAmount?: number } = {}): ReleaseComputationInput {
+function releaseInput(events: ProductionEvent[], over: { talent?: TalentAssignment[]; scriptCraft?: number; shootingBudgetAmount?: number } = {}): ReleaseComputationInput {
   const draft = withRng(2024, (rng) => buildReadyDraft(rng)).result;
   const script: Script = over.scriptCraft !== undefined
     ? { ...draft.script!, originality: over.scriptCraft, structure: over.scriptCraft, characters: over.scriptCraft, dialogue: over.scriptCraft }
@@ -34,7 +34,7 @@ function releaseInput(events: ProductionEvent[], over: { talent?: TalentAssignme
   return {
     title: 'Untitled', genre: draft.genre!, targetAudience: draft.targetAudience!, script,
     talent: over.talent ?? draft.talent,
-    productionChoices: over.contingencyAmount !== undefined ? { ...draft.productionChoices!, contingencyAmount: over.contingencyAmount } : draft.productionChoices!,
+    productionChoices: over.shootingBudgetAmount !== undefined ? { ...draft.productionChoices!, shootingBudgetAmount: over.shootingBudgetAmount } : draft.productionChoices!,
     postProductionChoices: draft.postProductionChoices!, marketingChoices: draft.marketingChoices!,
     events, postProductionEvents: [], photographyCost: draft.photography!.runningCost, shootingRatio: 1, studioBrand: 20, competitiveCrowding: 0,
   };

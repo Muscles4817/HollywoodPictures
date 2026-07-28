@@ -28,7 +28,7 @@ import {
 import { deriveTraits } from './personTraits';
 import { GENRE_PROFILES } from '../data/genres';
 import { SETTING_ARCHETYPE_PROFILES } from '../data/settings';
-import { contingencyT, practicalEffectsT, vfxT, overallSpendT, FOOTAGE_LOWER_RATIO, FOOTAGE_UPPER_RATIO } from './productionDials';
+import { shootingBudgetT, practicalEffectsT, vfxT, overallSpendT, FOOTAGE_LOWER_RATIO, FOOTAGE_UPPER_RATIO } from './productionDials';
 import { computeCreativeTension } from './creativeTension';
 import { computeEffectivePairChemistry } from './pairHistory';
 import { computeTalentCompatibility } from './compatibility';
@@ -260,7 +260,7 @@ export function computeStaticProductionRisk(
   // the effects budget), offset by how much contingency margin exists to
   // do it safely.
   const practicalAmbitionT = practicalEffectsT(choices.practicalEffectsAmount);
-  const contingencyMitigation = contingencyT(choices.contingencyAmount);
+  const contingencyMitigation = shootingBudgetT(choices.shootingBudgetAmount);
   const safetyRisk = clamp(
     Math.round(20 + practicalAmbitionT * 50 + settingProfile.practicalLogisticsDemand * 20 - contingencyMitigation * 35),
     0,

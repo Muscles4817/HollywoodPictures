@@ -20,20 +20,22 @@ import { logAmount } from './interpolate';
 
 /**
  * Derives a full ProductionChoices from the player's Strategy/Ambition
- * choices, plus the two fields nothing in the new model replaced
- * (contingencyAmount stays entirely player-set; runtimeIntensity is
- * unexposed on Plan Production for now, defaulted, pending its own move to
- * Post-Production - see docs/DESIGN.md).
+ * choices, plus the player-set money fields nothing in the new model replaced:
+ * the Shooting Budget and the Contingency Reserve (both entirely player-set;
+ * runtimeIntensity is unexposed on Plan Production for now, defaulted, pending
+ * its own move to Post-Production - see docs/DESIGN.md).
  */
 export function adaptRecommendationsToProductionChoices(
   environmentAmbition: NormalizedScalar,
   effectsStrategy: Distribution<EffectsMethodKey>,
   effectsAmbition: NormalizedScalar,
-  contingencyAmount: number,
+  shootingBudgetAmount: number,
   runtimeIntensity: number,
+  contingencyReserveAmount = 0,
 ): ProductionChoices {
   return {
-    contingencyAmount,
+    shootingBudgetAmount,
+    contingencyReserveAmount,
     runtimeIntensity,
     setQualityAmount: logAmount(environmentAmbition, ENVIRONMENT_BUDGET_RANGE),
     practicalEffectsAmount: logAmount(effectsAmbition * effectsStrategy.practical, PRACTICAL_EFFECTS_RANGE),

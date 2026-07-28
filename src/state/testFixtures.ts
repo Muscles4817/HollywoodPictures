@@ -54,7 +54,7 @@ export function conformActorGenderToSlot(person: Person, script: Script | null, 
 }
 
 const PRODUCTION_CHOICES: ProductionChoices = {
-  contingencyAmount: 500_000,
+  shootingBudgetAmount: 500_000,
   setQualityAmount: 1_000_000,
   practicalEffectsAmount: 500_000,
   vfxAmount: 500_000,
