@@ -639,7 +639,10 @@ export function ProductionPlanning() {
 
       {!canAfford && <p style={{ color: 'var(--red)' }}>This plan costs more than the studio has on hand.</p>}
 
-      <div className="card stack">
+      {/* Pinned so the risk bars stay on screen while you drag the dials above —
+          you can watch Safety/Technical Risk move as you change the Contingency
+          Reserve, rather than losing them off-screen. */}
+      <div className="card stack" style={{ position: 'sticky', bottom: 8, zIndex: 2, boxShadow: '0 -4px 16px rgba(0,0,0,0.35)' }}>
         <h3 style={{ margin: 0 }}>Production Risk Profile</h3>
         <p style={{ margin: 0 }}>
           A preview of how this plan (plus your cast's reliability, ego, temperament and how well the key creatives
