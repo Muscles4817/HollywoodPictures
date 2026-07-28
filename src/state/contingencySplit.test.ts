@@ -9,6 +9,8 @@ import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft } from './testFixtures';
 import { deriveGreenlightCommitment, computeCommittedSpend } from './selectors';
 import { playerDraftToProject, asPlayerDraft } from '../engine/project';
+import { computeStaticProductionRisk } from '../engine/production';
+import { computeExecutionResilience } from '../engine/productionExecution';
 import type { GameState, GameAction } from './gameState';
 import type { FilmDraft, PhotographyState, ProductionChoices } from '../types';
 
@@ -81,6 +83,22 @@ describe('the Contingency Reserve absorbs overage', () => {
     const state = midShootState(SHOOTING_BUDGET + overrun, 0);
     const after = finish(state);
     expect(after.studio.cash - state.studio.cash).toBe(-overrun);
+  });
+});
+
+describe('the Contingency Reserve is the trouble-handling lever', () => {
+  it('a bigger reserve lowers Safety and Technical risk and raises execution resilience', () => {
+    const base = buildStateWithReadyDraft(1);
+    const draft = asPlayerDraft(base.projects[0])!;
+    const withRisk = (reserve: number) => ({ ...draft.productionChoices!, contingencyReserveAmount: reserve });
+
+    const lean = computeStaticProductionRisk(draft.talent, draft.script!, withRisk(0), draft.genre!);
+    const cushioned = computeStaticProductionRisk(draft.talent, draft.script!, withRisk(10_000_000), draft.genre!);
+    expect(cushioned.safetyRisk).toBeLessThan(lean.safetyRisk);
+    expect(cushioned.technicalComplexity).toBeLessThan(lean.technicalComplexity);
+
+    expect(computeExecutionResilience(draft.talent, withRisk(10_000_000)))
+      .toBeGreaterThan(computeExecutionResilience(draft.talent, withRisk(0)));
   });
 });
 

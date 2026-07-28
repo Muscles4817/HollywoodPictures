@@ -615,7 +615,7 @@ export function ProductionPlanning() {
         value={contingencyReserveAmount}
         onChange={(v) => updatePlan({ contingencyReserveAmount: v })}
         formatValue={formatMoney}
-        description="A true safety buffer, set aside up front. It is only spent if the shoot runs past its recommended schedule; a clean, on-schedule shoot returns it in full. Overruns beyond it come straight out of studio cash. It buys no quality — it is pure insurance."
+        description="Money set aside to handle trouble. It lowers Safety and Technical Risk below (backup plans, safety cover, redundancy) and helps the shoot absorb on-set problems with less damage to the film. It's also the buffer for overruns — only spent if the shoot runs past schedule, and refunded in full on a clean shoot. It buys no quality; it protects the downside."
         lowLabel="No buffer"
         highLabel="Well-cushioned"
       />
@@ -640,6 +640,11 @@ export function ProductionPlanning() {
           get on) shapes what's likely to happen on set - higher isn't automatically bad news, but it opens the door
           to worse events and closes the door on the better ones. Schedule Pressure isn't shown here - it depends on
           how photography actually goes, not on anything you can set in advance.
+        </p>
+        <p style={{ margin: 0, fontSize: '0.9em', color: 'var(--text-muted)' }}>
+          Raising your <strong>Contingency Reserve</strong> above lowers <strong>Safety Risk</strong> and{' '}
+          <strong>Technical Complexity</strong> — and helps the shoot shrug off problems when they do hit. Budget Risk
+          reflects whether the production is well-resourced for its ambitions overall; Morale Risk is about your people.
         </p>
         <ScoreBar label="Morale Risk" value={staticRisk.moraleRisk} />
         {notableClash && (

@@ -596,10 +596,17 @@ jobs — is now two honest decisions:
   clean, on-schedule shoot lands `runningCost` at the budget and the whole reserve
   is refunded at wrap; overruns beyond the reserve become a cash overage. It buys
   **no quality**. Net cash is identical to the old model when the reserve is 0.
-- Decision recorded: **resilience/risk stay on the Shooting Budget**, not the
-  reserve — a bigger, better-resourced shoot absorbs problems (as the data comment
-  always said); the reserve is purely the financial buffer. Moving resilience onto
-  the reserve is a later option if the buffer should also mean "handles trouble".
+- **The Contingency Reserve handles trouble** (revised decision): risk mitigation
+  moved OFF the Shooting Budget and ONTO the reserve. A bigger reserve lowers
+  static **Safety Risk** and **Technical Complexity** (`computeStaticProductionRisk`)
+  and raises **execution resilience** (`computeExecutionResilience`, softening
+  negative on-set event damage and dampening escalation chains). The reserve is now
+  one clear, legible lever — the money set aside to handle trouble both pays for
+  overruns *and* reduces how much trouble happens and how badly it scars the film.
+  The Shooting Budget is purely operating cost + quality. This is communicated in
+  the UI (the reserve slider says it lowers Safety/Technical risk; the Production
+  Risk Profile card names the reserve as the lever) — the prior split renamed the
+  dial but never told the player the buffer lowers risk.
 - UI: two sliders on Plan Production; ProductionRun shows the Shooting Budget
   draining and the Contingency Reserve reading **"Untouched"** until an overrun
   draws it — directly answering the "why is my contingency going down as I film?"
