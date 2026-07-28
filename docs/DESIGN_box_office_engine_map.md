@@ -425,12 +425,33 @@ spend plan up) confirmed the lever and its coupling:
 Budget realism drives the unprofitable/bomb/top-10 metrics toward target **without
 touching scoring** — but it **bankrupts the rivals**: the film count collapses as
 costs rise, because rivals lose money on expensive films and can't fund new ones.
-So the tail fix is **coupled**: budget realism **+ rival capital reserves** (the
-power-law economy where hits fund flops, the way real studios carry expensive
-slates). Both levers must move together; validate on unprofitable% AND film-count
-(economy health) AND the box-office center. NOTE this also lifts top-10 share and
-bomb%, overlapping the deferred crossover/top-tail piece — worth sequencing
-together.
+
+**Capital sustains it, but a second coupling emerges (2026-07-28).** Scaling
+starting cash (`STARTING_CASH_BY_TIER`) 1.5–6× restores the film count and
+stabilises the economy — but budget+capital *alone* cannot reach the full tail
+targets cleanly:
+
+- A **modest** shift (budget +0.05, cash 1.5×) is a clean partial win: bomb 7→
+  **10.4** (into band), unprofitable 20→29, while majorPct (14), blockbusterPct
+  (1.6), opening multiple (2.9) and median (122) all stay in band. Shippable, but
+  unprofitable only reaches ~30 (target 45–55).
+- Pushing budgets harder to reach unprofitable 45–55 (budget +0.13, cash 3×)
+  **converts successes into losses**: `lossPct` 28→40 (over 35), `majorPct` 18→7
+  (below 10), `blockbusterPct` 5→0.8 (below 1), and the opening multiple drifts
+  3.0→3.1 (out of band). Expensive films that don't break out become losses
+  because the **top tail isn't fat enough for them to stay winners.**
+
+**Conclusion: the flop tail is coupled to the megahit top-tail.** A believable
+power law needs BOTH — expensive films (so the ones that miss lose money) AND big
+enough hits (so the ones that connect stay profitable and fund the slate).
+Raising budgets without fattening the top just slides the whole outcome
+distribution toward failure. So the remaining box-office work is really ONE
+coordinated calibration: **budget realism + rival capital + crossover top-tail**
+(§4, `CROSSOVER_CAPACITY_CEILING` and its coupling to the WOM normalization
+denominator `maxInterestedAudience`), validated together against unprofitable%,
+top-10/over-$1B, the outcome-category bands (loss/major/blockbuster), film-count
+(economy health), AND the box-office center + opening multiple. Larger than any
+single pass so far; scope it as its own focused effort.
 
 Both increase score dispersion, which will widen the box-office distribution
 (fatter unprofitable tail AND fatter megahit tail — a likely side-benefit for the
