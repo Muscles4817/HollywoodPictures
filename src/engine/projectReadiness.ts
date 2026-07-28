@@ -138,7 +138,7 @@ export function deriveProjectReadiness(draft: FilmDraft, studioCash: number): Pr
 
   const talentCost = computeTalentCost(draft.talent);
   const productionCost = hasProductionPlan ? computeProductionBudgetCost(draft.productionChoices!) : 0;
-  const contingency = hasProductionPlan ? draft.productionChoices!.contingencyAmount : 0;
+  const contingency = hasProductionPlan ? draft.productionChoices!.shootingBudgetAmount : 0;
   const totalCommitment = talentCost + productionCost + contingency;
   const cashAfter = studioCash - totalCommitment;
   const canAfford = cashAfter >= 0;

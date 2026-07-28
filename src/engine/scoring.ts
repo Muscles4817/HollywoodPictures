@@ -20,7 +20,7 @@ import { computeVfxFacet, realiseVfxQuality, vfxSupervisorSkill } from './vfxFac
 import { computePracticalFacet, realisePracticalQuality, NO_STUNT_TEAM_SKILL } from './practicalFacet';
 import { characterForRoleSlot } from './castRequirements';
 import {
-  contingencyQuality,
+  shootingBudgetQuality,
   editCoverageCeiling,
   overallSpendT,
   shootingQualityFromRatio,
@@ -207,7 +207,7 @@ export function computeSetsFacetQuality(choices: ProductionChoices, talent: Tale
  */
 export function computeProductionScore(choices: ProductionChoices, genre: Genre, shootingRatio: number, talent: TalentAssignment[], script: Script, execution?: ExecutionProfile, stuntTeamSkill: number = NO_STUNT_TEAM_SKILL): number {
   const profile = GENRE_PROFILES[genre];
-  const contingency = contingencyQuality(choices.contingencyAmount);
+  const contingency = shootingBudgetQuality(choices.shootingBudgetAmount);
   const style = shootingQualityFromRatio(shootingRatio);
   // Sets, VFX and Practical Effects are realised facets (money × time × head skill
   // vs ambition, engine/facetModel.ts), each PLUS its endogenous execution swing

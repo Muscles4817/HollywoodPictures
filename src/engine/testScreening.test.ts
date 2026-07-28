@@ -48,6 +48,16 @@ describe('generateTestScreeningPendingChoice', () => {
     expect(pickups.delayDaysRange[1]).toBeLessThan(reshoots.delayDaysRange[0]);
   });
 
+  it('reshoot cost tracks the film: a bigger shooting budget (pricier shoot days) costs more to reshoot', () => {
+    const base = draftWithEditor(5, 50);
+    const lean: FilmDraft = { ...base, productionChoices: { ...base.productionChoices!, shootingBudgetAmount: 500_000 } };
+    const lavish: FilmDraft = { ...base, productionChoices: { ...base.productionChoices!, shootingBudgetAmount: 40_000_000 } };
+    const pickupsCost = (d: FilmDraft) => withRng(6, (rng) => generateTestScreeningPendingChoice(d, rng)).result.choices.find((c) => c.id === 'pickups')!.costRange[0];
+    // Same talent, same reshoot scope - only the shoot-day burn differs, so the
+    // lavish production's pickups cost strictly more.
+    expect(pickupsCost(lavish)).toBeGreaterThan(pickupsCost(lean));
+  });
+
   it('Major Reshoots is the only choice with real downside risk (a negative floor) at neutral skill', () => {
     const draft = draftWithEditor(7, 50);
     const pending = withRng(8, (rng) => generateTestScreeningPendingChoice(draft, rng)).result;

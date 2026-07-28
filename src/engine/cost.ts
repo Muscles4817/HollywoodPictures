@@ -11,12 +11,11 @@ export function computeTalentCost(talent: TalentAssignment[]): number {
 
 /**
  * Pre-photography production spend: sets, practical effects and VFX,
- * scaled by runtime. Contingency is deliberately not part of this - it's no
- * longer a flat lump sum, it's spent as a daily burn rate over however many
- * days principal photography actually takes
- * (computeDailyContingencyBurn below, PhotographyState.runningCost) - so it
- * genuinely costs less to wrap early and more to run long, rather than
- * being a fixed number decided before filming even starts.
+ * scaled by runtime. The Shooting Budget is deliberately not part of this - it's
+ * not a flat lump sum, it's spent as a daily burn rate over however many days
+ * principal photography actually takes (computeDailyShootBurn below,
+ * PhotographyState.runningCost) - so it genuinely costs less to wrap early and
+ * more to run long, rather than being a fixed number decided before filming.
  */
 export function computeProductionBudgetCost(choices: ProductionChoices): number {
   const base = choices.setQualityAmount + choices.practicalEffectsAmount + choices.vfxAmount;
@@ -24,15 +23,15 @@ export function computeProductionBudgetCost(choices: ProductionChoices): number 
 }
 
 /**
- * Contingency's daily spend rate during principal photography - the
+ * The Shooting Budget's daily spend rate during principal photography - the
  * budgeted total for the *recommended* schedule, spread evenly across it.
- * Wrapping early spends less than planned; running past the recommended
- * count keeps burning at the same rate with no upper bound, which is what
- * makes "give the team more time" a genuine cost, not just a schedule-risk
- * abstraction.
+ * Wrapping early spends less than planned; running past the recommended count
+ * keeps burning at the same rate - those overrun days are what the Contingency
+ * Reserve absorbs (docs/DESIGN_REVIEW_production_redesign.md §8), which is what
+ * makes "give the team more time" a genuine cost, not just a schedule abstraction.
  */
-export function computeDailyContingencyBurn(contingencyAmount: number, recommendedDays: number): number {
-  return recommendedDays > 0 ? contingencyAmount / recommendedDays : contingencyAmount;
+export function computeDailyShootBurn(shootingBudgetAmount: number, recommendedDays: number): number {
+  return recommendedDays > 0 ? shootingBudgetAmount / recommendedDays : shootingBudgetAmount;
 }
 
 /** Net cost swing from all rolled production events (can be negative = savings). */

@@ -305,7 +305,7 @@ describe('GREENLIGHT_PROJECT', () => {
       environmentAmbition: 0.5,
       effectsStrategy: EFFECTS_STRATEGY,
       effectsAmbition: 0.5,
-      contingencyAmount: 500_000,
+      shootingBudgetAmount: 500_000,
       runtimeIntensity: 0.5,
     });
     return s;
@@ -337,7 +337,7 @@ describe('GREENLIGHT_PROJECT', () => {
     const s = stateReadyToGreenlight(32);
     const draftBefore = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
     const expectedCharge =
-      computeTalentCost(draftBefore.talent) + computeProductionBudgetCost(draftBefore.productionChoices!) + draftBefore.productionChoices!.contingencyAmount;
+      computeTalentCost(draftBefore.talent) + computeProductionBudgetCost(draftBefore.productionChoices!) + draftBefore.productionChoices!.shootingBudgetAmount;
 
     const after = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });
 
@@ -384,12 +384,12 @@ describe('no double-charging: the script cost is charged exactly once, at acquis
       environmentAmbition: 0.5,
       effectsStrategy: EFFECTS_STRATEGY,
       effectsAmbition: 0.5,
-      contingencyAmount: 300_000,
+      shootingBudgetAmount: 300_000,
       runtimeIntensity: 0.5,
     });
     const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
     const greenlightCharge =
-      computeTalentCost(draft.talent) + computeProductionBudgetCost(draft.productionChoices!) + draft.productionChoices!.contingencyAmount;
+      computeTalentCost(draft.talent) + computeProductionBudgetCost(draft.productionChoices!) + draft.productionChoices!.shootingBudgetAmount;
     const cashBeforeGreenlight = s.studio.cash;
 
     s = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });

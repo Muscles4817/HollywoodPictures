@@ -45,7 +45,7 @@ function applyCast(draft: FilmDraft, over: Partial<PersonPersonality>, reliabili
 
 interface Sample { quality: number; delta: number; events: number; troubled: boolean; }
 
-function runShoot(seed: number, over: Partial<PersonPersonality>, reliability: number, contingencyAmount: number): Sample | null {
+function runShoot(seed: number, over: Partial<PersonPersonality>, reliability: number, shootingBudgetAmount: number): Sample | null {
   return withRng(seed, (rng: RandomFn): Sample | null => {
     let draft = excellentDraft(rng);
     if (!draft.script || !draft.genre || !draft.productionChoices) return null;
@@ -53,7 +53,7 @@ function runShoot(seed: number, over: Partial<PersonPersonality>, reliability: n
     draft = applyCast(draft, over, reliability);
     const script = draft.script!;
     const genre = draft.genre!;
-    const choices: ProductionChoices = { ...baseChoices, contingencyAmount };
+    const choices: ProductionChoices = { ...baseChoices, shootingBudgetAmount };
     const talentPool: Record<string, Person[]> = generateTalentPool(rng);
     const staticRisk = computeStaticProductionRisk(draft.talent, script, choices, genre);
     const recommendedDays = computeRecommendedShootDays(draft.talent, script, choices);

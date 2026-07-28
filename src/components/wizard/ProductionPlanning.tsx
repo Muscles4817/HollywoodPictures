@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { SHOOTING_BUDGET_RANGE } from '../../data/production';
-import { contingencyDescription, runtimeDescription } from '../../engine/productionDials';
+import { shootingBudgetDescription, runtimeDescription } from '../../engine/productionDials';
 import { logAmount } from '../../engine/interpolate';
 import { GENRE_PROFILES } from '../../data/genres';
-import { computeProductionBudgetCost, computeDailyContingencyBurn } from '../../engine/cost';
+import { computeProductionBudgetCost, computeDailyShootBurn } from '../../engine/cost';
 import { computeRecommendedShootDays, computeStaticProductionRisk } from '../../engine/production';
 import { topCreativeClash } from '../../engine/creativeTension';
 import { adaptRecommendationsToProductionChoices } from '../../engine/productionChoicesAdapter';
@@ -52,7 +52,10 @@ import type {
   TalentAssignment,
 } from '../../types';
 
-const DEFAULT_CONTINGENCY = logAmount(0.5, SHOOTING_BUDGET_RANGE);
+const DEFAULT_SHOOTING_BUDGET = logAmount(0.5, SHOOTING_BUDGET_RANGE);
+// A modest starting buffer (~15% of the way up the log range) so new players
+// begin with real downside protection they can dial up or down.
+const DEFAULT_CONTINGENCY_RESERVE = logAmount(0.15, SHOOTING_BUDGET_RANGE);
 const DEFAULT_RUNTIME_INTENSITY = 0.5;
 
 // Production Redesign, Sets facet — the designer's live confidence read,
@@ -303,7 +306,8 @@ export function ProductionPlanning() {
   const environmentAmbition = draft.environmentAmbition ?? envAmbitionRec.value;
   const effectsStrategyOrNull = draft.effectsStrategy ?? fxBreakdown?.recommendation.value ?? null;
   const effectsAmbition = draft.effectsAmbition ?? fxAmbitionRec.value;
-  const contingencyAmount = draft.productionChoices?.contingencyAmount ?? DEFAULT_CONTINGENCY;
+  const shootingBudgetAmount = draft.productionChoices?.shootingBudgetAmount ?? DEFAULT_SHOOTING_BUDGET;
+  const contingencyReserveAmount = draft.productionChoices?.contingencyReserveAmount ?? DEFAULT_CONTINGENCY_RESERVE;
   const runtimeIntensity = draft.productionChoices?.runtimeIntensity ?? DEFAULT_RUNTIME_INTENSITY;
 
   // Production Redesign, Sets facet: the Production Designer, the script's design
@@ -330,7 +334,8 @@ export function ProductionPlanning() {
         environmentAmbition,
         effectsStrategy: effectsStrategyOrNull,
         effectsAmbition,
-        contingencyAmount,
+        shootingBudgetAmount,
+        contingencyReserveAmount,
         runtimeIntensity,
       });
     }
@@ -358,7 +363,8 @@ export function ProductionPlanning() {
     environmentAmbition?: NormalizedScalar;
     effectsStrategy?: Distribution<EffectsMethodKey>;
     effectsAmbition?: NormalizedScalar;
-    contingencyAmount?: number;
+    shootingBudgetAmount?: number;
+    contingencyReserveAmount?: number;
     runtimeIntensity?: number;
     designPrepDays?: number;
   }) {
@@ -368,7 +374,8 @@ export function ProductionPlanning() {
       environmentAmbition,
       effectsStrategy,
       effectsAmbition,
-      contingencyAmount,
+      shootingBudgetAmount,
+      contingencyReserveAmount,
       runtimeIntensity,
       designPrepDays,
       ...overrides,
@@ -377,7 +384,7 @@ export function ProductionPlanning() {
 
   const currentChoices: ProductionChoices =
     draft.productionChoices ??
-    adaptRecommendationsToProductionChoices(environmentAmbition, effectsStrategy, effectsAmbition, contingencyAmount, runtimeIntensity);
+    adaptRecommendationsToProductionChoices(environmentAmbition, effectsStrategy, effectsAmbition, shootingBudgetAmount, runtimeIntensity, contingencyReserveAmount);
 
   // The Sets facet as it stands with the current money (setQualityAmount) + the
   // granted prep time + the designer's skill - drives the designer's live
@@ -418,9 +425,15 @@ export function ProductionPlanning() {
   const canAfford = state.studio.cash - computeCommittedSpend(draft, state.producerPool ?? [], state.stuntTeamPool ?? []) >= 0;
   const genreProfile = GENRE_PROFILES[genre];
   const recommendedDays = computeRecommendedShootDays(draft.talent, script, currentChoices);
-  const dailyShootCost = computeDailyContingencyBurn(currentChoices.contingencyAmount, recommendedDays);
-  const totalEstimatedCost = estimatedCost + currentChoices.contingencyAmount;
+  const dailyShootCost = computeDailyShootBurn(currentChoices.shootingBudgetAmount, recommendedDays);
+  const totalEstimatedCost = estimatedCost + currentChoices.shootingBudgetAmount + (currentChoices.contingencyReserveAmount ?? 0);
   const staticRisk = computeStaticProductionRisk(draft.talent, script, currentChoices, genre);
+  // The same risk profile with the reserve zeroed out, so the Risk Profile card
+  // can show — live, as the reserve slider moves — exactly how much lower the
+  // current Contingency Reserve is making Safety Risk and Technical Complexity.
+  const staticRiskNoReserve = computeStaticProductionRisk(draft.talent, script, { ...currentChoices, contingencyReserveAmount: 0 }, genre);
+  const safetyReduction = staticRiskNoReserve.safetyRisk - staticRisk.safetyRisk;
+  const technicalReduction = staticRiskNoReserve.technicalComplexity - staticRisk.technicalComplexity;
   // The specific clashing pairing behind an elevated Morale Risk, if any -
   // named so the risk is legible before greenlight, not just a bar (SIMULATION_PHILOSOPHY.md
   // Principle 3). Only surfaced when the friction is real (a meaningful tension).
@@ -435,13 +448,13 @@ export function ProductionPlanning() {
 
   const environmentConsequence = consequenceOf(
     currentChoices,
-    adaptRecommendationsToProductionChoices(0, effectsStrategy, effectsAmbition, contingencyAmount, runtimeIntensity),
+    adaptRecommendationsToProductionChoices(0, effectsStrategy, effectsAmbition, shootingBudgetAmount, runtimeIntensity, contingencyReserveAmount),
     draft.talent,
     script,
   );
   const effectsConsequence = consequenceOf(
     currentChoices,
-    adaptRecommendationsToProductionChoices(environmentAmbition, effectsStrategy, 0, contingencyAmount, runtimeIntensity),
+    adaptRecommendationsToProductionChoices(environmentAmbition, effectsStrategy, 0, shootingBudgetAmount, runtimeIntensity, contingencyReserveAmount),
     draft.talent,
     script,
   );
@@ -589,16 +602,28 @@ export function ProductionPlanning() {
       </div>
 
       <RangeSlider
-        label="Contingency Reserve"
+        label="Shooting Budget"
         min={SHOOTING_BUDGET_RANGE.min}
         max={SHOOTING_BUDGET_RANGE.max}
         logScale
-        value={contingencyAmount}
-        onChange={(v) => updatePlan({ contingencyAmount: v })}
+        value={shootingBudgetAmount}
+        onChange={(v) => updatePlan({ shootingBudgetAmount: v })}
         formatValue={formatMoney}
-        description={contingencyDescription(contingencyAmount)}
+        description={shootingBudgetDescription(shootingBudgetAmount)}
         lowLabel="Shoestring"
         highLabel="Deep Pockets"
+      />
+      <RangeSlider
+        label="Contingency Reserve"
+        min={0}
+        max={SHOOTING_BUDGET_RANGE.max}
+        logScale
+        value={contingencyReserveAmount}
+        onChange={(v) => updatePlan({ contingencyReserveAmount: v })}
+        formatValue={formatMoney}
+        description="Money set aside to handle trouble. It lowers Safety and Technical Risk below (backup plans, safety cover, redundancy) and helps the shoot absorb on-set problems with less damage to the film. It's also the buffer for overruns — only spent if the shoot runs past schedule, and refunded in full on a clean shoot. It buys no quality; it protects the downside."
+        lowLabel="No buffer"
+        highLabel="Well-cushioned"
       />
       <RangeSlider
         label="Runtime Target"
@@ -614,13 +639,21 @@ export function ProductionPlanning() {
 
       {!canAfford && <p style={{ color: 'var(--red)' }}>This plan costs more than the studio has on hand.</p>}
 
-      <div className="card stack">
+      {/* Pinned so the risk bars stay on screen while you drag the dials above —
+          you can watch Safety/Technical Risk move as you change the Contingency
+          Reserve, rather than losing them off-screen. */}
+      <div className="card stack" style={{ position: 'sticky', bottom: 8, zIndex: 2, boxShadow: '0 -4px 16px rgba(0,0,0,0.35)' }}>
         <h3 style={{ margin: 0 }}>Production Risk Profile</h3>
         <p style={{ margin: 0 }}>
           A preview of how this plan (plus your cast's reliability, ego, temperament and how well the key creatives
           get on) shapes what's likely to happen on set - higher isn't automatically bad news, but it opens the door
           to worse events and closes the door on the better ones. Schedule Pressure isn't shown here - it depends on
           how photography actually goes, not on anything you can set in advance.
+        </p>
+        <p style={{ margin: 0, fontSize: '0.9em', color: 'var(--text-muted)' }}>
+          Raising your <strong>Contingency Reserve</strong> above lowers <strong>Safety Risk</strong> and{' '}
+          <strong>Technical Complexity</strong> — and helps the shoot shrug off problems when they do hit. Budget Risk
+          reflects whether the production is well-resourced for its ambitions overall; Morale Risk is about your people.
         </p>
         <ScoreBar label="Morale Risk" value={staticRisk.moraleRisk} />
         {notableClash && (
@@ -630,7 +663,17 @@ export function ProductionPlanning() {
           </p>
         )}
         <ScoreBar label="Safety Risk" value={staticRisk.safetyRisk} />
+        {safetyReduction > 0 && (
+          <p style={{ margin: '-4px 0 0', fontSize: '0.82em', color: 'var(--green, #2e7d32)' }}>
+            ↓ {safetyReduction} lower thanks to your <Money amount={contingencyReserveAmount} /> Contingency Reserve.
+          </p>
+        )}
         <ScoreBar label="Technical Complexity" value={staticRisk.technicalComplexity} />
+        {technicalReduction > 0 && (
+          <p style={{ margin: '-4px 0 0', fontSize: '0.82em', color: 'var(--green, #2e7d32)' }}>
+            ↓ {technicalReduction} lower thanks to your Contingency Reserve.
+          </p>
+        )}
         <ScoreBar label="Budget Risk" value={staticRisk.budgetRisk} />
       </div>
 
@@ -655,10 +698,10 @@ export function ProductionPlanning() {
         </div>
       </div>
       <p className="choice-description" style={{ margin: 0 }}>
-        {genreProfile.description} Principal photography burns your Contingency Reserve at{' '}
-        <Money amount={dailyShootCost} />/day - over ~{recommendedDays} recommended days, that's the full{' '}
-        <Money amount={contingencyAmount} /> reserve spent. Wrapping early spends less than planned; running longer
-        keeps burning at that same daily rate with no cap.
+        {genreProfile.description} Principal photography draws your Shooting Budget at{' '}
+        <Money amount={dailyShootCost} />/day — over ~{recommendedDays} recommended days that's the full{' '}
+        <Money amount={shootingBudgetAmount} /> shooting budget. Wrapping early spends less; every day over runs into your{' '}
+        <Money amount={contingencyReserveAmount} /> Contingency Reserve, and anything past that comes out of studio cash.
       </p>
     </div>
   );

@@ -576,3 +576,56 @@ re-routed event slice — and each has its planning conversation card.
   design", "the visual effects", "the stunts and practical effects"); a dedicated
   per-facet results line still waits on the Production department being reported by
   facet (unchanged from §15).
+
+## 17. Money model — implemented (§8 + cost-of-time follow-ups)
+
+Status: **built**. The §8 split and two adjacent cost-honesty fixes.
+
+**Shooting Budget vs. Contingency Reserve (§8).** The single mislabelled
+"Contingency Reserve" dial — which was really the Shooting Budget doing several
+jobs — is now two honest decisions:
+- `ProductionChoices.shootingBudgetAmount` (renamed from `contingencyAmount`; the
+  data layer was already `SHOOTING_BUDGET_*`): the operating budget. Funds the
+  daily burn, provides the baseline production quality (the 0.35 term), and drives
+  resilience + static-risk mitigation. Behaviour unchanged — an honest rename. All
+  internal names followed (`contingencyT/Quality/Description` → `shootingBudget*`,
+  `computeDailyContingencyBurn` → `computeDailyShootBurn`).
+- `ProductionChoices.contingencyReserveAmount` (new, optional): a GENUINE buffer.
+  Committed up front but only **consumed by overage** — days the shoot runs past
+  its recommended schedule. The daily burn draws only the Shooting Budget, so a
+  clean, on-schedule shoot lands `runningCost` at the budget and the whole reserve
+  is refunded at wrap; overruns beyond the reserve become a cash overage. It buys
+  **no quality**. Net cash is identical to the old model when the reserve is 0.
+- **The Contingency Reserve handles trouble** (revised decision): risk mitigation
+  moved OFF the Shooting Budget and ONTO the reserve. A bigger reserve lowers
+  static **Safety Risk** and **Technical Complexity** (`computeStaticProductionRisk`)
+  and raises **execution resilience** (`computeExecutionResilience`, softening
+  negative on-set event damage and dampening escalation chains). The reserve is now
+  one clear, legible lever — the money set aside to handle trouble both pays for
+  overruns *and* reduces how much trouble happens and how badly it scars the film.
+  The Shooting Budget is purely operating cost + quality. This is communicated in
+  the UI (the reserve slider says it lowers Safety/Technical risk; the Production
+  Risk Profile card names the reserve as the lever) — the prior split renamed the
+  dial but never told the player the buffer lowers risk.
+- UI: two sliders on Plan Production; ProductionRun shows the Shooting Budget
+  draining and the Contingency Reserve reading **"Untouched"** until an overrun
+  draws it — directly answering the "why is my contingency going down as I film?"
+  confusion that motivated the split.
+
+**Reshoot costs track the film (cost-of-time honesty).** The test-screening
+Pickups / Major Reshoots options were flat authored ranges (cheap for a tentpole,
+ruinous for a small film). They now derive from the film's OWN shoot-day burn
+(`computeDailyShootBurn`) for the filming days each needs, plus a rush fee to
+recall the principals (Pickups: the leads; Major Reshoots: the full principal
+cast + director, at a higher rate over more days). So a reshoot's price reflects
+both how expensive the shoot was and who has to be brought back.
+
+**Prep-delay days are real prep days.** `RESOLVE_PREPRODUCTION_CHOICE`'s delay
+days now advance `preProduction.daysElapsed` and burn prep overhead
+(`computeDailyPrepBurn × delay`), mirroring the non-interactive prep path and the
+on-set path. Before, a resolved prep decision's delay moved only the world
+calendar, leaving those days free of both prep progress and cost.
+
+Save bumped to **v63**. Deferred (unchanged): dissolving the Shooting Budget into
+per-facet money asks (§8's longer-term end state) — the single Shooting Budget
+dial remains for now.

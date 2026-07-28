@@ -25,7 +25,7 @@ const TALENT: TalentAssignment[] = [
   { role: 'Lead Actor' as ProductionRole, person: person('lead') },
 ];
 
-const CHOICES: ProductionChoices = { contingencyAmount: 500_000, setQualityAmount: 500_000, practicalEffectsAmount: 500_000, vfxAmount: 500_000, runtimeIntensity: 0.5 };
+const CHOICES: ProductionChoices = { shootingBudgetAmount: 500_000, setQualityAmount: 500_000, practicalEffectsAmount: 500_000, vfxAmount: 500_000, runtimeIntensity: 0.5 };
 
 function prepWith(events: ProductionEvent[]): PreProductionState {
   return { status: 'finished', recommendedDays: 20, daysElapsed: 20, events, runningCost: 0, pendingChoice: null };

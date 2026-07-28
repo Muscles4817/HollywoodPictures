@@ -22,7 +22,7 @@ import type {
   TalentAssignment,
 } from '../types';
 import { clamp } from './random';
-import { contingencyT } from './productionDials';
+import { contingencyReserveT } from './productionDials';
 
 // --- Impact classification -------------------------------------------------
 // Which part of the finished film an on-set event logically affects. An event
@@ -161,10 +161,10 @@ function avgPressureHandling(talent: TalentAssignment[]): number {
 // still becomes a genuine input. First-draft, tunable.
 const COMPOSURE_SWING = 0.16;
 
-/** Resilience 0-1: reliable, well-resourced, level-headed productions absorb on-set problems with less damage to the finished film (and dampen failure chains harder - see engine/production.ts:computeShootEscalation). */
+/** Resilience 0-1: reliable, well-cushioned, level-headed productions absorb on-set problems with less damage to the finished film (and dampen failure chains harder - see engine/production.ts:computeShootEscalation). The financial cushion is the Contingency Reserve - the buffer set aside to handle trouble is what pays to fix a problem before it scars the film (docs/DESIGN_REVIEW_production_redesign.md §8). */
 export function computeExecutionResilience(talent: TalentAssignment[], productionChoices: ProductionChoices): number {
   const reliabilityT = clamp(avgReliability(talent) / 100, 0, 1);
-  const contingencyStrength = clamp(contingencyT(productionChoices.contingencyAmount), 0, 1);
+  const contingencyStrength = clamp(contingencyReserveT(productionChoices.contingencyReserveAmount ?? 0), 0, 1);
   const composureAdj = ((avgPressureHandling(talent) - 50) / 50) * COMPOSURE_SWING;
   return clamp(0.55 * reliabilityT + 0.45 * contingencyStrength + composureAdj, 0, 1);
 }

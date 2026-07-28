@@ -354,7 +354,14 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   onto a release at SCHEDULE_RELEASE so rivals steer around the player's home
 //   genre (engine/scheduledReleases.ts, engine/studioIdentity.ts). Additive/
 //   optional (read defensively as 0). No migration code.
-const SAVE_KEY = 'hollywood-pictures-save-v62';
+// v61 -> v62 added the Stunt Team roster (GameState.stuntTeamPool) and
+//   FilmDraft.stuntTeamId - the Practical Effects facet's head
+//   (docs/DESIGN_REVIEW_production_redesign.md §5.2).
+// v62 -> v63 (§8 money split): ProductionChoices.contingencyAmount renamed to
+//   shootingBudgetAmount, and a genuine ProductionChoices.contingencyReserveAmount
+//   buffer added. The old field is gone from the shape, so old saves are cleanly
+//   ignored - no migration code, same as every past shape-break here.
+const SAVE_KEY = 'hollywood-pictures-save-v63';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

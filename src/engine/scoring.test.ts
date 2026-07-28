@@ -16,7 +16,7 @@ function scriptFor(genre: Parameters<typeof generateScriptOptions>[0], seed: num
 }
 
 const choices: ProductionChoices = {
-  contingencyAmount: 1_000_000, setQualityAmount: 500_000, practicalEffectsAmount: 500_000, vfxAmount: 500_000, runtimeIntensity: 0.5,
+  shootingBudgetAmount: 1_000_000, setQualityAmount: 500_000, practicalEffectsAmount: 500_000, vfxAmount: 500_000, runtimeIntensity: 0.5,
 };
 const postProductionChoices: PostProductionChoices = {
   editStyle: 'Balanced', musicFocus: 'Standard', finalCutFocus: 'Trailer-focused',

@@ -11,7 +11,7 @@ import { applyPrepRiskDelta, computePrepRiskDelta, computeRecommendedPostProduct
 import { computeExecutionResilience } from '../engine/productionExecution';
 import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
 import { promoteFilmToIp, ipForSourceFilm } from '../engine/intellectualProperty';
-import { computeDailyContingencyBurn, computeDailyPrepBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
+import { computeDailyShootBurn, computeDailyPrepBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
 import { computeSetsAmbition, defaultDesignPrepDays, NO_DESIGNER_SKILL } from '../engine/setsFacet';
 import { getCrewCareer, getTypicalSalaryForRole, getWriterCareer, isPersonAvailableForCommitment, withCommitment, withReputationChange } from '../engine/person';
 import { writerProfileFromPerson } from '../engine/writers';
@@ -183,16 +183,21 @@ function applyOpportunityWins(
 
 /**
  * Wrap principal photography: flip the shoot to 'finished' and lock in the
- * post-production screening estimate, returning the contingency settlement to
- * fold into studio cash (the full reserve was deducted up front, so leftover
- * comes back and an overrun is charged the rest of the way). Shared by the
- * player's explicit FINISH_PHOTOGRAPHY and the automatic upper-footage-bound
- * wrap inside ADVANCE_SHOOTING_DAY, so both settle identically.
+ * post-production screening estimate, returning the wrap settlement to fold
+ * into studio cash. The Shooting Budget AND the Contingency Reserve were both
+ * deducted up front (GREENLIGHT_PROJECT); the daily burn only draws the
+ * Shooting Budget, so an on-schedule shoot leaves the reserve fully unspent and
+ * it comes straight back here. Running long spends past the Shooting Budget into
+ * the reserve; blowing through the reserve too makes the settlement negative
+ * (an overage charged the rest of the way). Shared by the player's explicit
+ * FINISH_PHOTOGRAPHY and the automatic upper-footage-bound wrap, so both settle
+ * identically. See docs/DESIGN_REVIEW_production_redesign.md §8.
  */
 function wrapPhotography(draft: FilmDraft, wrapDay: number): { draft: FilmDraft; contingencySettlement: number } {
   const photography = draft.photography!;
   const productionChoices = draft.productionChoices!;
-  const contingencySettlement = productionChoices.contingencyAmount - photography.runningCost;
+  const committed = productionChoices.shootingBudgetAmount + (productionChoices.contingencyReserveAmount ?? 0);
+  const contingencySettlement = committed - photography.runningCost;
   const postProductionScreeningReadyDay = wrapDay + computeRecommendedPostProductionDays(draft.talent, productionChoices);
   return {
     draft: { ...draft, photography: { ...photography, status: 'finished' }, postProductionScreeningReadyDay },
@@ -603,7 +608,7 @@ function resolveChoiceOnDraft(
   const photography = d.photography!;
   const chosen = pendingChoice.choices.find((c) => c.id === chosenChoiceId);
   const extraDays = event.delayDaysDelta;
-  const dailyBurn = computeDailyContingencyBurn(d.productionChoices!.contingencyAmount, photography.recommendedDays);
+  const dailyBurn = computeDailyShootBurn(d.productionChoices!.shootingBudgetAmount, photography.recommendedDays);
 
   let talent = d.talent;
   let cashDelta = 0;
@@ -1443,8 +1448,9 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           action.environmentAmbition,
           action.effectsStrategy,
           action.effectsAmbition,
-          action.contingencyAmount,
+          action.shootingBudgetAmount,
           action.runtimeIntensity,
+          action.contingencyReserveAmount ?? 0,
         ),
         // Threaded on top of the (temporary) adapter rather than into it, per the
         // adapter's own "don't extend me" note (engine/productionChoicesAdapter.ts).
@@ -1519,10 +1525,14 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         computeRecommendedPreProductionDays(focusedDraft.talent, focusedDraft.script, focusedDraft.productionChoices),
         designPrepDays,
       );
+      // Commit the full Shooting Budget AND the Contingency Reserve up front;
+      // the reserve is reconciled at wrap (wrapPhotography), coming back in full
+      // if the shoot stayed on schedule (docs/DESIGN_REVIEW_production_redesign.md §8).
       const upfrontCharge =
         computeTalentCost(focusedDraft.talent) +
         computeProductionBudgetCost(focusedDraft.productionChoices) +
-        focusedDraft.productionChoices.contingencyAmount;
+        focusedDraft.productionChoices.shootingBudgetAmount +
+        (focusedDraft.productionChoices.contingencyReserveAmount ?? 0);
 
       // Per-assignment, not per-role-then-profession: Lead Actor and
       // Supporting Actor share one Actor pool, so looping over pool keys and
@@ -1683,19 +1693,28 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       });
 
       const { event, totalDaysAfter, settlement, productionsInProgress } = result;
+      // A resolved prep decision's delay days are real prep days: they advance
+      // the phase toward completion AND burn prep overhead, exactly as the
+      // non-interactive path (ADVANCE_PREPRODUCTION_DAY) and the on-set
+      // equivalent (resolveChoiceOnDraft) already do. Previously only the
+      // world calendar moved (totalDaysAfter) while the prep phase's own
+      // daysElapsed and overhead were left untouched, making delay days free.
+      const prepDelayBurn = computeDailyPrepBurn(target.script.scale) * event.delayDaysDelta;
       const resolvedPrep = {
         ...target.preProduction,
         status: 'in-progress' as const,
+        daysElapsed: target.preProduction.daysElapsed + event.delayDaysDelta,
         events: [...target.preProduction.events, event],
-        runningCost: target.preProduction.runningCost + event.costDelta,
+        runningCost: target.preProduction.runningCost + event.costDelta + prepDelayBurn,
         pendingChoice: null,
       };
       const finished = resolvedPrep.daysElapsed >= resolvedPrep.recommendedDays;
       const updatedTarget: FilmDraft = finished
         ? beginPhotographyFromPrep({ ...target, preProduction: { ...resolvedPrep, status: 'finished' as const } })
         : { ...target, preProduction: resolvedPrep };
-      const studioAfterCost = event.costDelta !== 0
-        ? recordCashChange(settlement.studio, totalDaysAfter, -event.costDelta, 'production', `Pre-production on "${target.title}"`)
+      const prepChargeTotal = event.costDelta + prepDelayBurn;
+      const studioAfterCost = prepChargeTotal !== 0
+        ? recordCashChange(settlement.studio, totalDaysAfter, -prepChargeTotal, 'production', `Pre-production on "${target.title}"`)
         : settlement.studio;
 
       // The resolved production is updatedTarget; the focused project passes
@@ -1791,7 +1810,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         return { kind: 'event' as const, event, daysAdvanced, totalDaysAfter, settlement, productionsInProgress };
       });
 
-      const dailyBurn = computeDailyContingencyBurn(d.productionChoices.contingencyAmount, d.photography.recommendedDays);
+      const dailyBurn = computeDailyShootBurn(d.productionChoices.shootingBudgetAmount, d.photography.recommendedDays);
 
       if (result.kind === 'pendingChoice') {
         const updatedFocused: FilmDraft = {

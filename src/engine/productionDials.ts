@@ -19,9 +19,12 @@ import type { ProductionChoices } from '../types';
 // scoring.ts/production.ts) means the UI and the engine read from the same
 // single source of truth for "what does this slider position mean".
 
-export const contingencyT = (amount: number) => logT(amount, SHOOTING_BUDGET_RANGE);
-export const contingencyQuality = (amount: number) => interpolateScale(contingencyT(amount), SHOOTING_BUDGET_ANCHORS, 'quality');
-export const contingencyDescription = (amount: number) => describeScale(contingencyT(amount), SHOOTING_BUDGET_ANCHORS);
+export const shootingBudgetT = (amount: number) => logT(amount, SHOOTING_BUDGET_RANGE);
+export const shootingBudgetQuality = (amount: number) => interpolateScale(shootingBudgetT(amount), SHOOTING_BUDGET_ANCHORS, 'quality');
+export const shootingBudgetDescription = (amount: number) => describeScale(shootingBudgetT(amount), SHOOTING_BUDGET_ANCHORS);
+
+/** The Contingency Reserve dial's log position (0-1) over the same range - the buffer that only absorbs overage (docs/DESIGN_REVIEW_production_redesign.md §8). */
+export const contingencyReserveT = (amount: number) => logT(amount, SHOOTING_BUDGET_RANGE);
 
 /**
  * Shooting quality is no longer a slider position - it's read off how the
@@ -82,14 +85,15 @@ export const vfxDescription = (amount: number) => describeScale(vfxT(amount), VF
  * How far toward the expensive end of its *own* range each of the four
  * spend dials sits, averaged into one 0-1 "how well-resourced is this
  * production overall" figure - used by Genre Fit's cheapness check and
- * Budget Risk, in place of reading contingencyAmount alone. Each dial has
+ * Budget Risk, in place of reading the shooting budget alone. Each dial has
  * its own min/max, so this is a fair composite regardless of how different
  * those ranges are (a maxed-out Set Quality slider and a maxed-out VFX
  * slider both read as 1.0 here, even though the underlying pound amounts
- * are nothing alike).
+ * are nothing alike). The Contingency Reserve is a downside buffer, not spend,
+ * so it is deliberately NOT part of "how well-resourced is this production".
  */
 export const overallSpendT = (choices: ProductionChoices) =>
-  (contingencyT(choices.contingencyAmount) + setQualityT(choices.setQualityAmount) +
+  (shootingBudgetT(choices.shootingBudgetAmount) + setQualityT(choices.setQualityAmount) +
     practicalEffectsT(choices.practicalEffectsAmount) + vfxT(choices.vfxAmount)) / 4;
 
 export const runtimeCostMultiplier = (intensity: number) => interpolateScale(intensity, RUNTIME_ANCHORS, 'costMultiplier');

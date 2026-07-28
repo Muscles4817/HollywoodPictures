@@ -120,22 +120,25 @@ export function ProductionRun() {
   const totalQualityDelta = photography.events.reduce((sum, e) => sum + e.qualityDelta, 0);
   const totalBuzzDelta = photography.events.reduce((sum, e) => sum + e.buzzDelta, 0);
   const finalSchedulePressure = computeSchedulePressure(photography.daysElapsed, photography.recommendedDays);
-  // Positive = unspent Contingency Reserve credited back to Studio Cash when
-  // this shoot wrapped; negative = it ran over the reserve and the excess
-  // was charged instead - see FINISH_PHOTOGRAPHY, state/studioReducer.ts.
-  const contingencySettlement =
-    draft.productionChoices ? draft.productionChoices.contingencyAmount - photography.runningCost : 0;
-  // The same reserve, framed live during the shoot rather than only once it
-  // wraps - photography.runningCost is entirely contingency burn (see
-  // engine/cost.ts:computeDailyContingencyBurn), so this is a direct,
-  // always-current reading of how much of the reserve is left, not an
-  // estimate.
-  const contingencyRemaining =
-    draft.productionChoices ? draft.productionChoices.contingencyAmount - photography.runningCost : 0;
-  const contingencyPercentConsumed =
-    draft.productionChoices && draft.productionChoices.contingencyAmount > 0
-      ? (photography.runningCost / draft.productionChoices.contingencyAmount) * 100
-      : 0;
+  // The Shooting Budget drains as photography runs (runningCost is entirely
+  // shoot burn - engine/cost.ts:computeDailyShootBurn). A clean, on-schedule
+  // shoot spends up to the Shooting Budget and no further.
+  const shootingBudget = draft.productionChoices?.shootingBudgetAmount ?? 0;
+  const reserve = draft.productionChoices?.contingencyReserveAmount ?? 0;
+  const shootingBudgetRemaining = shootingBudget - photography.runningCost;
+  const shootingBudgetPercentConsumed =
+    shootingBudget > 0 ? (Math.min(photography.runningCost, shootingBudget) / shootingBudget) * 100 : 0;
+  // Overrun - anything spent beyond the Shooting Budget - is what draws the
+  // Contingency Reserve. Until the shoot goes over schedule this is 0 and the
+  // reserve is genuinely untouched (docs/DESIGN_REVIEW_production_redesign.md §8).
+  const overrun = Math.max(0, photography.runningCost - shootingBudget);
+  const reserveConsumed = Math.min(overrun, reserve);
+  const reserveRemaining = reserve - overrun; // negative once the reserve is blown through
+  const reservePercentConsumed = reserve > 0 ? (reserveConsumed / reserve) * 100 : 0;
+  // Wrap credit (positive) / charge (negative): the Shooting Budget AND the
+  // Reserve were both committed up front; leftover of either comes back, an
+  // overage past the reserve is charged - see FINISH_PHOTOGRAPHY, studioReducer.ts.
+  const wrapSettlement = draft.productionChoices ? shootingBudget + reserve - photography.runningCost : 0;
 
   return (
     <div className="stack">
@@ -166,17 +169,24 @@ export function ProductionRun() {
               />
             )}
             <StatTile label="Spent So Far" value={<Money amount={photography.runningCost} />} />
-            <StatTile label="Contingency Remaining" value={<Money amount={Math.max(0, contingencyRemaining)} />} />
+            <StatTile label="Shooting Budget Left" value={<Money amount={Math.max(0, shootingBudgetRemaining)} />} />
+            <StatTile
+              label="Contingency Reserve"
+              value={overrun <= 0 ? 'Untouched' : <Money amount={Math.max(0, reserveRemaining)} />}
+            />
             {photography.status === 'in-progress' && (
               <StatTile label="Schedule Pressure" value={`${computeSchedulePressure(photography.daysElapsed, photography.recommendedDays)}/100`} />
             )}
           </div>
           {photography.status !== 'finished' && (
-            <ScoreBar label="Contingency Reserve Consumed" value={contingencyPercentConsumed} />
+            <ScoreBar label="Shooting Budget Spent" value={shootingBudgetPercentConsumed} />
           )}
-          {contingencyRemaining < 0 && photography.status !== 'finished' && (
+          {photography.status !== 'finished' && overrun > 0 && reserve > 0 && (
+            <ScoreBar label="Contingency Reserve Drawn" value={reservePercentConsumed} />
+          )}
+          {reserveRemaining < 0 && photography.status !== 'finished' && (
             <p style={{ color: 'var(--red)', margin: 0 }}>
-              Contingency Reserve exhausted - <Money amount={-contingencyRemaining} /> over, charged when you wrap.
+              Contingency Reserve exhausted - <Money amount={-reserveRemaining} /> over, charged from studio cash when you wrap.
             </p>
           )}
           {photography.status === 'in-progress' && photography.daysElapsed > photography.recommendedDays && (
@@ -305,8 +315,8 @@ export function ProductionRun() {
                   <div className="stat-value">{finalSchedulePressure}/100</div>
                 </div>
                 <div className="stat">
-                  <div className="stat-label">{contingencySettlement >= 0 ? 'Contingency Refunded' : 'Contingency Overrun Charged'}</div>
-                  <div className="stat-value"><Money amount={Math.abs(contingencySettlement)} /></div>
+                  <div className="stat-label">{wrapSettlement >= 0 ? 'Budget Refunded' : 'Overrun Charged'}</div>
+                  <div className="stat-value"><Money amount={Math.abs(wrapSettlement)} /></div>
                 </div>
               </div>
 

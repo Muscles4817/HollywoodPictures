@@ -77,7 +77,7 @@ export function computeCommittedSpend(draft: FilmDraft | null, producerPool: Per
     total += computeTalentCost(draft.talent);
     if (draft.productionChoices) {
       total += computeProductionBudgetCost(draft.productionChoices);
-      total += draft.productionChoices.contingencyAmount;
+      total += draft.productionChoices.shootingBudgetAmount + (draft.productionChoices.contingencyReserveAmount ?? 0);
     }
   } else {
     total += computeEventsCostDelta(draft.photography.events);
@@ -817,7 +817,11 @@ export interface GreenlightCommitment {
 export function deriveGreenlightCommitment(draft: FilmDraft, studioCash: number): GreenlightCommitment {
   const talentCost = computeTalentCost(draft.talent);
   const productionCost = draft.productionChoices ? computeProductionBudgetCost(draft.productionChoices) : 0;
-  const contingency = draft.productionChoices ? draft.productionChoices.contingencyAmount : 0;
+  // The Shooting Budget plus the Contingency Reserve - both committed up front at
+  // greenlight (state/studioReducer.ts). The reserve is reconciled at wrap.
+  const contingency = draft.productionChoices
+    ? draft.productionChoices.shootingBudgetAmount + (draft.productionChoices.contingencyReserveAmount ?? 0)
+    : 0;
   const totalCommitment = talentCost + productionCost + contingency;
   const cashAfter = studioCash - totalCommitment;
   return { talentCost, productionCost, contingency, totalCommitment, cashAfter, canAfford: cashAfter >= 0 };
@@ -847,7 +851,7 @@ export function computeProjectSpendSoFar(project: Project, assets: Asset[]): num
 
   const draft = project.draft;
   let spend = scriptCostFor(draft.assetId) + computeTalentCost(draft.talent);
-  if (draft.productionChoices) spend += computeProductionBudgetCost(draft.productionChoices) + draft.productionChoices.contingencyAmount;
+  if (draft.productionChoices) spend += computeProductionBudgetCost(draft.productionChoices) + draft.productionChoices.shootingBudgetAmount + (draft.productionChoices.contingencyReserveAmount ?? 0);
   if (draft.photography) spend += computeEventsCostDelta(draft.photography.events);
   // Architecture cleanup (post-Phase-B post-production redesign) - a
   // resolved test-screening choice's cost is charged immediately, straight
