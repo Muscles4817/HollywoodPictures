@@ -110,6 +110,26 @@ const SCALE_SPEND_RANGE: Record<ProductionScale, [number, number]> = {
   Big: [0.75, 1.0],
 };
 
+// Budget realism (docs/DESIGN_box_office_engine_map.md §11, "the unprofitable tail
+// is a COST-side problem"). Every rival production's whole spend plan is nudged up
+// by this fraction of the log-scale budget position. The tail investigation found
+// rival wide releases were far too cheap to fail - median cost ~$20M against a
+// ~$103M gross (1.75x return) - so almost nothing lost money (~20% vs a realistic
+// ~50%), and the films that DID lose money were simply the expensive ones (same
+// audience score as the profitable ones, 2.5x the cost). Lifting the whole slate a
+// notch makes wide releases cost enough that the ones which don't break out fail
+// to recoup, the way real theatrical economics work. Deliberately MODEST (+0.06):
+// a diagnostic sweep showed this brings bomb% into band (7->11) and roughly
+// halves the "everything profits" gap (unprofitable 20->32) while HOLDING the
+// box-office centre, opening multiple, and the success tiers (major/blockbuster) -
+// pushing it harder converts genuine successes into losses because the megahit
+// top-tail isn't yet fat enough for expensive films to stay winners (that's the
+// coupled crossover/market-size piece, §11). Paired with a capital bump
+// (STARTING_CASH_BY_TIER ×1.5) so the pricier slate doesn't throttle the rivals'
+// film output. Reaching the full 45-55% unprofitable target is the coordinated
+// budget+capital+crossover+market-size effort the map scopes.
+const RIVAL_BUDGET_REALISM = 0.06;
+
 // How the production scale nudges a rival's VFX-Supervisor hire probability on
 // top of the genre's own vfxImportance: a Big-scale tentpole staffs a VFX lead
 // as a matter of course, a Small-scale film slightly less often than its genre
@@ -175,7 +195,7 @@ function deriveRivalSpendPlan(
   };
 
   const adjustedBase = clamp(
-    baseSpendT + tierAdjustment[rival.tier],
+    baseSpendT + tierAdjustment[rival.tier] + RIVAL_BUDGET_REALISM,
     0,
     1,
   );
@@ -337,10 +357,19 @@ const INITIAL_ROSTER_TIERS: StudioTier[] = [
 // throughput lever - the 6-year Big-vs-Medium share is governed by
 // production-slot and shoot-length dynamics, not this float (verified via
 // engine/rivalStudios.diagnostic.test.ts: the bump barely moves the mix).
+// Raised ×1.5 (Indie 4M→6M... 260M→390M below) alongside RIVAL_BUDGET_REALISM: a
+// pricier slate deletes cash faster and loses money on more films, so without more
+// reserve the affordability gate (`cost > rival.cash`) throttles rivals into
+// making fewer films (a budget-realism sweep saw the wide-film count fall ~40% at
+// this budget shift with the old floats). The bump restores the film count to
+// within ~10% of baseline (930 vs 1048 wide over the 6×8yr harness) - the
+// power-law economy where a studio's hits carry the reserve it needs to keep
+// funding an expensive, riskier slate. Headroom, not a throughput lever (see the
+// note above the values). docs/DESIGN_box_office_engine_map.md §11.
 const STARTING_CASH_BY_TIER: Record<StudioTier, number> = {
-  Indie: 6_000_000,
-  'Mid-Size': 40_000_000,
-  Major: 260_000_000,
+  Indie: 9_000_000,
+  'Mid-Size': 60_000_000,
+  Major: 390_000_000,
 };
 
 // Flavor, not balance - a Major studio has already been making films for
