@@ -362,14 +362,14 @@ describe('boundaries', () => {
     const weeks = runFullSimulation(releaseInputs);
     const admissions = weeklyAdmissions(weeks);
     expect(admissions[0]).toBeGreaterThan(500_000); // huge awareness really does buy a huge opening
-    // Steady collapse, not sustained: by the 5th week, admissions have fallen
-    // to close to half of opening. Threshold loosened from 0.5 to 0.55 as
-    // part of Milestone 11's release-input redesign (docs/DESIGN.md) - real
-    // diagnostic value here is ~50.5% regardless of cast fame (fame scales
-    // both weeks proportionally, it doesn't change the decay rate), a
-    // pre-existing decay-curve characteristic this boundary test's old 0.5
-    // threshold sat right on top of, not a regression this milestone caused.
-    expect(admissions[4]).toBeLessThan(admissions[0] * 0.55);
+    // Steady collapse, not sustained: after the pacing reshape (front-loaded
+    // pacing 0.62 + steeper reception coupling, docs/DESIGN_box_office_engine_map.md
+    // §9) a terrible-reception film collapses so fast its run is now short - it
+    // often ends before week 5 - so this reads the later of week 4 or the final
+    // week, which for a pure-depletion (no-WOM) film is far below half of opening
+    // either way. The intent is unchanged: enormous awareness buys a huge opening,
+    // then near-zero reception gives it no legs at all.
+    expect(admissions[Math.min(4, admissions.length - 1)]).toBeLessThan(admissions[0] * 0.55);
   });
 
   it('a niche acclaimed film with almost no expansion capacity stays capped at its (small) ceiling, never approaching mass-market scale', () => {
@@ -399,8 +399,10 @@ describe('named archetype diagnostics', () => {
     for (let i = 1; i < Math.min(admissions.length, 10); i++) {
       expect(admissions[i]).toBeLessThanOrEqual(admissions[i - 1]); // never a single up-week this early - pure depletion, no WOM replenishment
     }
-    // By the 5th week, admissions have fallen well below half of the opening.
-    expect(admissions[4]).toBeLessThan(admissions[0] * 0.6);
+    // By the 5th week (or the run's end, which the reshape now brings sooner -
+    // see the terrible-film boundary test above), admissions have fallen well
+    // below half of the opening.
+    expect(admissions[Math.min(4, admissions.length - 1)]).toBeLessThan(admissions[0] * 0.6);
   });
 
   it('2. sleeper hit: tiny opening, but a later week matches or exceeds an earlier one - real growth, not just a slow decline', () => {
