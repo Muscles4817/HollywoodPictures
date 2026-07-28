@@ -187,7 +187,10 @@ describe('regression matrix: 1. ordinary positive reception', () => {
 
   it('holds reasonably in weeks 2-4 (does not collapse immediately)', () => {
     const week2to4Avg = (summary.admissions[1] + summary.admissions[2] + summary.admissions[3]) / 3;
-    expect(week2to4Avg).toBeGreaterThan(summary.opening * 0.7);
+    // Threshold 0.7 -> 0.6 with the pacing reshape (DESIGN_box_office_engine_map.md
+    // §9): a front-loaded ordinary film sheds a little more early, but weeks 2-4
+    // still average ~65% of opening - a real hold, not the near-zero of a collapse.
+    expect(week2to4Avg).toBeGreaterThan(summary.opening * 0.6);
   });
 
   it('does not grow for an extreme number of consecutive weeks', () => {
@@ -299,19 +302,22 @@ describe('regression matrix: 4. rare phenomenon', () => {
     expect(summary.totalGross).toBeGreaterThan(ordinary.totalGross * 4);
   });
 
-  it('is dramatically higher than every other scenario\'s peak reproduction ratio, not literally self-sustaining', () => {
-    // The run-length recalibration (DESIGN.md Milestone 13) front-loads Wide
-    // runs, which concentrates admissions and raises week-over-week
-    // reproduction ratios across the board: this phenomenon's own peak ratio
-    // rises to ~1.07 (a brief, transient >1 that the finite reachable audience
-    // still caps - the run saturates and ends in ~8 weeks, it does not run
-    // away), and the next-highest, ordinary-positive, rises to ~0.49 - so the
-    // gap narrows from the old ~4x to ~2.2x. Still by far the highest in the
-    // matrix; "uniquely closest to self-sustaining relative to everything else
-    // here" still holds.
+  it('peaks well above an ordinary film, but never self-sustains (its scale shows in total gross, not weekly ratio)', () => {
+    // After the pacing reshape (DESIGN_box_office_engine_map.md §9) the phenomenon
+    // FRONT-LOADS like a modern blockbuster (legs ~2.3x, peaks week ~1), so its
+    // *peak weekly reproduction ratio* (~0.78) is no longer the single highest in
+    // the matrix - a strong-WOM film with a SMALLER reachable pool shows a higher
+    // per-week ratio (~0.85), because reproduction is normalised against pool size
+    // and the phenomenon's huge crossover pool dilutes its per-week figure. This
+    // is a normalization artefact, not the phenomenon being "less special": its
+    // dominance lives in TOTAL GROSS (~$1B, ~10x an ordinary film - asserted
+    // above), the metric that actually captures scale. What still holds here is
+    // that it stays below true self-sustaining (<1.0, no runaway) while clearly
+    // out-reproducing an ordinary film week-to-week.
     const ordinaryPeak = summarize(ORDINARY_POSITIVE).peakReproductionRatio;
     expect(summary.peakReproductionRatio).toBeGreaterThan(0.5);
-    expect(summary.peakReproductionRatio).toBeGreaterThan(ordinaryPeak * 1.8);
+    expect(summary.peakReproductionRatio).toBeLessThan(1.0); // never literally self-sustaining
+    expect(summary.peakReproductionRatio).toBeGreaterThan(ordinaryPeak * 1.4);
   });
 });
 
@@ -426,12 +432,15 @@ describe('regression matrix: 10. ordinary film', () => {
     expect(summary.peakIndex).toBe(0);
   });
 
-  it('produces middle-range legs - well above a poor collapse, well below a phenomenon', () => {
-    // Threshold lowered 5 -> 4 with the WOM re-tune (engine/audienceSimulationStep.ts):
-    // slightly gentler word-of-mouth growth pulls an ordinary film's legs down a
-    // touch, still clearly middle-range (well above a ~2x collapse, well below a
-    // phenomenon's) - the ordering vs the poor/phenomenon archetypes is unchanged.
-    expect(summary.legs).toBeGreaterThan(4);
+  it('produces front-loaded legs - well above a poor collapse, comfortably short of a leggy sleeper', () => {
+    // The pacing reshape (DESIGN_box_office_engine_map.md §9) front-loads Wide
+    // releases, so an ordinary film's legs drop from the old ~5-8x to ~2x - a
+    // realistic front-loaded shape. Legs no longer separate an ordinary film from
+    // a phenomenon (which also front-loads to ~2.3x - the two are distinguished by
+    // total gross now, not legs); what this still guards is that an ordinary film
+    // is well above a poor-reception collapse (~1.3-1.5x) and nowhere near a leggy
+    // Limited/sleeper multiple.
+    expect(summary.legs).toBeGreaterThan(1.8);
     expect(summary.legs).toBeLessThan(30);
   });
 });
@@ -470,18 +479,16 @@ describe('regression matrix: cross-scenario assertions', () => {
     expect(originalDisliked.crossoverRealizedFraction).toBeLessThan(strongWom.crossoverRealizedFraction);
   });
 
-  it('a strong sleeper peaks after opening, and an ordinary-positive film peaks nowhere near the deep tail', () => {
+  it('a strong sleeper peaks after opening, while a front-loaded ordinary Wide film peaks at/near its opening (not in the deep tail)', () => {
     const sleeper = summarize(SLEEPER_BREAKOUT);
     const ordinary = summarize(ORDINARY_POSITIVE);
-    // Both peak after their opening week (a delayed, WOM-driven peak, not an
-    // immediate decline). The old assertion that the sleeper peaks *later*
-    // than the ordinary film no longer holds: the run-length recalibration
-    // (DESIGN.md Milestone 13) front-loads the Wide ordinary-positive film so
-    // its own peak moved early (week ~4), close to the (unchanged) Limited
-    // sleeper's (week ~3) - so we assert each peaks after opening and neither
-    // peaks in the deep tail, rather than an ordering between the two.
+    // The Limited/platform sleeper still builds to a delayed, WOM-driven peak
+    // after opening (its gentle pacing is unchanged). The Wide ordinary-positive
+    // film, after the pacing reshape (DESIGN_box_office_engine_map.md §9), now
+    // FRONT-LOADS to peak at its opening week - the realistic modern shape - so we
+    // assert the sleeper peaks after opening while the ordinary Wide film peaks
+    // early (at opening) and, either way, neither peaks in the deep tail.
     expect(sleeper.peakIndex).toBeGreaterThan(0);
-    expect(ordinary.peakIndex).toBeGreaterThan(0);
     expect(ordinary.peakIndex).toBeLessThan(13);
   });
 
@@ -586,7 +593,7 @@ describe('regression matrix: additional property sweeps', () => {
       })).totalGross,
     );
     for (let i = 1; i < totals.length; i++) {
-      expect(totals[i]).toBeGreaterThanOrEqual(totals[i - 1] * 0.98); // near-monotonic, tolerant of float/threshold noise
+      expect(totals[i]).toBeGreaterThanOrEqual(totals[i - 1] * 0.95); // near-monotonic; the pivoted reception curve (DESIGN_box_office_engine_map.md §9) admits a small (<5%) dip at one band boundary, still no cliff and still overall increasing
       // No single step between adjacent, evenly-spaced reception bands should be an explosive cliff.
       expect(totals[i]).toBeLessThan(totals[i - 1] * 4);
     }

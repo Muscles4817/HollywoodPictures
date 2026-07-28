@@ -161,11 +161,39 @@ const CROSSOVER_RESPONSE = { threshold: 0.0075, sensitivity: 70 };
 const RECEPTION_FLOOR = 0.01;
 const AUDIENCE_SCORE_WEIGHT = 0.7;
 const CRITIC_SCORE_WEIGHT = 0.3;
+// The reception-coupling curve is a *pivoted* square (docs/DESIGN_box_office_engine_map.md
+// §7, "pacing reshape"). A plain `weighted²` mapped an ordinary-good film
+// (audienceScore ~68, weighted ~0.66) to ~0.44 - enough word-of-mouth to hold
+// its weekly gross nearly flat for the first 3 weeks, which is what pushed the
+// whole-industry opening multiple to ~5.2x (target 2-3x) and runs to ~11 weeks
+// (target 5-8): films were far too back-loaded. RECEPTION_PIVOT shifts the low
+// end of the curve up so ordinary reception sits in its shallow part (its
+// word-of-mouth reproduction drops ~25%, front-loading it into a bigger opening
+// and a faster fall) while genuinely strong reception (weighted ~0.83+) keeps
+// almost all of its legs - a steeper reception→legs coupling, not a flat
+// suppression. Calibrated jointly with Wide's conversionPacingBaseline
+// (engine/audienceSimulationInputs.ts, raised 0.35→0.62 in the same pass to
+// front-load the opening while a fully-drained pool preserves each film's total)
+// against the whole-year distribution diagnostic: opening multiple 5.2→3.0x,
+// runs 11→~7wk, median/mean held in band. The pivot deliberately stops at 0.22
+// (not higher): steeper front-loading pushed a merely-strong film's week-over-
+// week reproduction ratio toward replacement (the Quantum-Signal edge, guarded
+// by audienceSimulationRegressionMatrix.test.ts) and over-front-loaded the
+// typical film below a 2x leg. See that doc's change log for the full sweep.
+//
+// Deliberately does NOT chase the megahit tail (over-$1B share, top-10
+// concentration) - that is gated by the crossover *capacity ceiling* and its
+// coupling to the WOM normalization denominator (maxInterestedAudience), a
+// separate entanglement left to a dedicated crossover-normalization pass. Nor
+// the unprofitable/bomb tail, which is upstream score compression (§7, Root B).
+const RECEPTION_PIVOT = 0.22;
+const RECEPTION_EXPONENT = 2;
 
-/** How much a given reception (critic/audience score, reused verbatim from FilmResults - see AudienceSimulationFixedState) amplifies word of mouth - convex, audience-weighted over critic. */
+/** How much a given reception (critic/audience score, reused verbatim from FilmResults - see AudienceSimulationFixedState) amplifies word of mouth - a pivoted convex curve (audience-weighted over critic): ordinary reception sits in the shallow part (front-loaded, weak legs) while only genuinely strong reception reproduces enough to hold or break out. */
 export function computeReceptionResponseMultiplier(fixed: AudienceSimulationFixedState): number {
   const weighted = (fixed.audienceScore * AUDIENCE_SCORE_WEIGHT + fixed.criticScore * CRITIC_SCORE_WEIGHT) / 100;
-  return RECEPTION_FLOOR + (1 - RECEPTION_FLOOR) * weighted * weighted;
+  const above = clamp((weighted - RECEPTION_PIVOT) / (1 - RECEPTION_PIVOT), 0, 1);
+  return RECEPTION_FLOOR + (1 - RECEPTION_FLOOR) * Math.pow(above, RECEPTION_EXPONENT);
 }
 
 /**
