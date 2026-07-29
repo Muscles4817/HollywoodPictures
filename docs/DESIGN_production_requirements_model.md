@@ -429,8 +429,12 @@ shape change when heads gain specialties.
   **Production Designer** (`getCrewCareer … skill` / `NO_DESIGNER_SKILL`) and
   **VFX Supervisor** (`vfxSupervisorSkill` / `NO_VFX_SUPERVISOR_SKILL`). An
   unstaffed row reads as a demand-to-fill prompt; a staffed one reads the head
-  against the workload. Stunts has no staffing row (contracted team), so its
-  read lives in the engine only for now.
+  against the workload. **Stunts** is a contracted team (chosen in Production
+  Planning), not a `ProductionRole` crew head, so it has no place in the
+  role-keyed table — it surfaces instead as a board-level `StaffingBoard.stunts`
+  read (a compact "Stunts & Practical" panel on the hub), reading the attached
+  team's genre-effective skill (or `NO_STUNT_TEAM_SKILL`) against the stunts
+  workload. That completes the fit-read floor's third department on the hub.
 - Surfaced in the live Cast & Crew hub as a compact qualitative line on those
   rows. **Calibration-safe:** reads capability vs workload, changes no cost or
   scoring — the facet model still decides realised quality.

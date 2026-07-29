@@ -14,6 +14,9 @@ import { deriveCrewFitRead, unloadedDepartmentRead, type CrewFitRead } from '../
 import { getCrewCareer } from '../engine/person';
 import { NO_DESIGNER_SKILL } from '../engine/setsFacet';
 import { NO_VFX_SUPERVISOR_SKILL } from '../engine/vfxFacet';
+import { NO_STUNT_TEAM_SKILL } from '../engine/practicalFacet';
+import { stuntTeamById, stuntTeamEffectiveSkill } from '../engine/stuntTeams';
+import type { StuntTeam } from '../types';
 import { assignmentCost } from '../engine/person';
 
 // The shared staffing lifecycle every role moves through. Crew skip the middle
@@ -109,6 +112,13 @@ export interface StaffingBoard {
   totalPlanned: Money;
   totalCommitted: Money;
   totalRemaining: Money;
+  /**
+   * The Stunts & Practical department's fit-read. Board-level rather than a row
+   * because stunts is a contracted team (chosen in Production Planning), not a
+   * ProductionRole crew head — it has no place in the role-keyed table. Present
+   * whenever there's a script; `attachedTeamName` is set when a team is hired.
+   */
+  stunts?: { read: CrewFitRead; attachedTeamName?: string };
 }
 
 // Non-actor heads, in a sensible reading order: Director first, then the rest of
@@ -129,7 +139,26 @@ function stageFor(attached: number, counts: StaffingCounts, activeSearch: boolea
 
 const NO_COUNTS: StaffingCounts = { applicants: 0, shortlist: 0, auditions: 0, auditionsReady: 0, negotiations: 0, counters: 0 };
 
-export function deriveStaffingBoard(draft: FilmDraft, totalDays: GameDay): StaffingBoard {
+// The Stunts & Practical fit-read: the attached stunt team's genre-effective
+// skill (or the no-hire fallback) against the film's stunts workload. Returns
+// undefined only when there's no script to derive a workload from.
+function deriveStuntsSuitability(
+  draft: FilmDraft,
+  workloads: Map<DepartmentId, DepartmentWorkload>,
+  stuntTeamPool: StuntTeam[] | undefined,
+): StaffingBoard['stunts'] {
+  if (!draft.script) return undefined;
+  const team = stuntTeamById(stuntTeamPool, draft.stuntTeamId);
+  const hired = team !== undefined;
+  const skill = team ? stuntTeamEffectiveSkill(team, draft.script.genre) : NO_STUNT_TEAM_SKILL;
+  const workload = workloads.get('stunts');
+  const read = workload
+    ? deriveCrewFitRead({ skill, hired }, workload)
+    : unloadedDepartmentRead('stunts', hired);
+  return { read, attachedTeamName: team?.name };
+}
+
+export function deriveStaffingBoard(draft: FilmDraft, totalDays: GameDay, stuntTeamPool?: StuntTeam[]): StaffingBoard {
   const script = draft.script;
   const perHead = (role: ProductionRole): Money => draft.talentTargetPriceByRole[role] ?? 0;
   const locked = new Set(draft.lockedRoleBudgets ?? []);
@@ -214,6 +243,7 @@ export function deriveStaffingBoard(draft: FilmDraft, totalDays: GameDay): Staff
     totalPlanned,
     totalCommitted,
     totalRemaining: Math.max(0, totalPlanned - totalCommitted),
+    stunts: deriveStuntsSuitability(draft, workloads, stuntTeamPool),
   };
 }
 

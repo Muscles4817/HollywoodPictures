@@ -136,6 +136,21 @@ describe('HireTalent - crew suitability read (Workstream II fit-read floor)', ()
     // Qualitative only — no raw score digits leak into the read.
     expect(read.textContent).not.toMatch(/\d/);
   });
+
+  it('surfaces a Stunts & Practical read on the hub, unstaffed by default', () => {
+    saveState(stateWithInceptionDraft());
+    render(
+      <StudioProvider>
+        <HireTalent />
+      </StudioProvider>,
+    );
+    const board = screen.getByText('Shoot begins as soon as the cast is set.').closest('.staffing-board') as HTMLElement;
+    const stunts = board.querySelector('.staffing-stunts') as HTMLElement;
+    expect(stunts).toBeInTheDocument();
+    expect(stunts.textContent).toMatch(/Stunts & Practical/);
+    expect(stunts.textContent).toMatch(/No stunt team/);
+    expect(stunts.textContent).toMatch(/demand/i);
+  });
 });
 
 describe('HireTalent - live staffing board (Phase 2a)', () => {
