@@ -12,6 +12,7 @@ import {
   type FitRead,
 } from '../../engine/talentCardPresentation';
 import { deriveHiringVerdict } from '../../utils/StarRatingConversion';
+import { describeCastingDirectorTake, type CastingDirectorTake, type CDRecommendation } from '../../engine/castingDirectorAdvice';
 import type { RelationshipStanding } from '../../engine/relationships';
 import { getTypicalSalaryForRole, isAvailableImmediately, deriveBookedUntil } from '../../engine/person';
 import { formatGameDateWithMonth } from '../../engine/calendar';
@@ -34,6 +35,8 @@ export interface CompareSlot {
   onUnpin: () => void;
   /** The production's attached casting director skill (actors only) - sharpens the fit read the same way it does on the card. */
   castingDirectorSkill?: number | null;
+  /** The casting director's consolidated take on this candidate (Phase 7), or null when no CD is hired. Passed in (not recomputed) so it matches the card exactly. */
+  castingDirectorTake?: CastingDirectorTake | null;
   /** The studio's standing with this person - history sharpens the read too. */
   relationship?: RelationshipStanding;
 }
@@ -167,6 +170,22 @@ function availabilityBadge(d: SideData): ReactNode {
   );
 }
 
+// Stronger recommendation wins the casting-director row. Ordered best-to-worst.
+const CD_REC_RANK: Record<CDRecommendation, number> = { 'strong-yes': 3, 'worth-it': 2, reach: 1, pass: 0 };
+
+// The casting director's take as a compare cell: the verdict big, its reasons and
+// confidence beneath - the same one-liner the card shows, split for the table.
+function cdTakeCell(take: CastingDirectorTake): ReactNode {
+  const full = describeCastingDirectorTake(take);
+  const note = full.startsWith(take.headline) ? full.slice(take.headline.length).replace(/^\s*-\s*/, '').trim() : full;
+  return (
+    <>
+      <span className="talent-cmp-big">{take.headline}</span>
+      {note && <span className="talent-cmp-note">{note}</span>}
+    </>
+  );
+}
+
 const FIT_MARGIN = 3;
 const RELIABILITY_MARGIN = 8;
 const FAME_MARGIN = 8;
@@ -205,6 +224,19 @@ export function TalentComparison({ a, b, totalDays }: { a: CompareSlot; b: Compa
   const salaryGap = Math.abs(da.salary - db.salary);
   const bothFit = da.fit !== null && db.fit !== null;
 
+  // The casting director's take on each side (Phase 7) - shown only when a CD is
+  // hired (both sides share the same production, so both are present or neither).
+  // The stronger recommendation wins the row.
+  const cdA = a.castingDirectorTake ?? null;
+  const cdB = b.castingDirectorTake ?? null;
+  const bothCDTakes = cdA !== null && cdB !== null;
+  const cdWinner: Winner =
+    bothCDTakes && cdA.recommendation !== cdB.recommendation
+      ? CD_REC_RANK[cdA.recommendation] > CD_REC_RANK[cdB.recommendation]
+        ? 'a'
+        : 'b'
+      : null;
+
   return (
     <div className="talent-cmp">
       <div className={`talent-cmp-verdict${verdict.pick ? ` talent-cmp-verdict--pick-${verdict.pick}` : ''}`}>
@@ -224,6 +256,16 @@ export function TalentComparison({ a, b, totalDays }: { a: CompareSlot; b: Compa
           <button className="talent-cmp-unpin" onClick={b.onUnpin}>Unpin</button>
         </div>
       </div>
+
+      {bothCDTakes && (
+        <Row
+          attr="Casting director"
+          winner={cdWinner}
+          winTag="Recommended"
+          left={cdTakeCell(cdA)}
+          right={cdTakeCell(cdB)}
+        />
+      )}
 
       {bothFit && (
         <Row

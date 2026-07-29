@@ -9,7 +9,7 @@ import { actorMeetsCharacterGender, personMeetsCharacterAge } from '../../engine
 import { computeActorAppeal, countActorsFreedByDelay } from '../../engine/castingAppeal';
 import { estimateDeal } from '../../engine/castingEstimate';
 import { deriveFitReadAssist, deriveFitRead, deriveFitReason, deriveRiskRead } from '../../engine/talentCardPresentation';
-import { deriveCastingDirectorTake, describeCastingDirectorTake } from '../../engine/castingDirectorAdvice';
+import { deriveCastingDirectorTake, describeCastingDirectorTake, type CastingDirectorTake } from '../../engine/castingDirectorAdvice';
 import { candidateStrengthSignals, describeOfferRejection, describeCounterOffer, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast, type CandidateSignal } from '../../engine/castingPresentation';
 import { forecastOpenCasting } from '../../engine/castingCalls';
 import { playerRelationshipWith, type RelationshipStanding } from '../../engine/relationships';
@@ -150,6 +150,7 @@ function CandidateCard({
   onAudition,
   onWaitForActor,
   waitAlsoFrees,
+  castingDirectorTake,
   castingDirectorSkill,
   relationship,
   castAffinity,
@@ -202,6 +203,8 @@ function CandidateCard({
   /** Casting Redesign, Phase 6 - wait for a booked actor: pushes the shoot start to free them. waitAlsoFrees is how many other candidates the same delay would free (the ripple). */
   onWaitForActor?: () => void;
   waitAlsoFrees?: number;
+  /** Casting Redesign, Phase 7 - the casting director's consolidated take on this candidate, or null when no CD is hired. Computed by the drawer so the card and compare view agree. */
+  castingDirectorTake?: CastingDirectorTake | null;
 }) {
   // A booked actor can't be cast today - the schedule gate is a hard rejection
   // (engine/castingNegotiation.ts) no offer can clear, so disable and say so.
@@ -247,35 +250,18 @@ function CandidateCard({
   // Casting Director's take (Phase 7): the CD's single, consolidated read on this
   // candidate - a recommendation and why, only present when a Casting Director is
   // hired (deriveCastingDirectorTake returns null otherwise) and only as sharp as
-  // their skill. Built from the SAME fit read/odds/risk the card already shows, so
-  // the advisory never contradicts the reads above it.
-  const fitScore = deriveOverallScore(person, role, 'actor', script, character);
-  const fitRead = fitScore !== null ? deriveFitRead(fitScore, person, assist) : null;
-  const fitBreakdown = deriveRoleFitBreakdown(person, role, 'actor', script, character);
-  const fitReason = fitBreakdown ? deriveFitReason(fitBreakdown.rows.map((r) => ({ label: r.label, matchScore: r.matchScore })), fitBreakdown.noun) : null;
-  const cdTake =
-    fitRead && deal
-      ? deriveCastingDirectorTake({
-          castingDirectorSkill,
-          fit: fitRead,
-          odds: deal.odds,
-          risk: deriveRiskRead(person).tier,
-          affordable,
-          strengths: fitReason?.strengths ?? null,
-          caveat: fitReason?.caveat ?? null,
-        })
-      : null;
-
+  // their skill. Computed once by the drawer (castingDirectorTakeFor) and passed
+  // in, so the card and the compare view show the exact same take.
   return (
     <Card>
       <div className="card-title">{person.identity.name}</div>
       {/* TalentStats' own Availability section already covers "available
           now" vs "busy until X" - no need to repeat it here. */}
       <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} affordable={affordable} castingDirectorSkill={castingDirectorSkill} relationship={relationship} castAffinity={castAffinity} audited={audited} />
-      {cdTake && (
-        <div className={`cd-take cd-take--${cdTake.recommendation}`}>
+      {castingDirectorTake && (
+        <div className={`cd-take cd-take--${castingDirectorTake.recommendation}`}>
           <span className="cd-take__label">Casting director&rsquo;s take</span>
-          <span className="cd-take__body">{describeCastingDirectorTake(cdTake)}</span>
+          <span className="cd-take__body">{describeCastingDirectorTake(castingDirectorTake)}</span>
         </div>
       )}
       {signals.length > 0 && (
@@ -556,6 +542,34 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   const appealById = new Map(scored.map((p) => [p.id, appealFor(p)]));
   const appealOverall = (person: Person) => appealById.get(person.id)?.overall ?? 0;
 
+  // The casting director's consolidated take on a candidate (Phase 7), computed
+  // once here so the card and the head-to-head compare view show the identical
+  // read - built from the same fit/odds/risk/affordability the card shows. Null
+  // when no casting director is hired (deriveCastingDirectorTake gates on it).
+  const castingDirectorTakeFor = (person: Person): CastingDirectorTake | null => {
+    const appeal = appealById.get(person.id) ?? appealFor(person);
+    if (!appeal) return null;
+    const audition = auditionFor(person);
+    const audited = !!audition && state.totalDays >= audition.readyOnDay;
+    const relationship = relationshipFor(person);
+    const assist = deriveFitReadAssist(castingDirectorSkill, relationship, true, audited);
+    const deal = estimateDeal(appeal, person, offeredSalary, assist, relationship);
+    const fitScore = deriveOverallScore(person, role, 'actor', draft.script, character);
+    if (fitScore === null || !deal) return null;
+    const fitRead = deriveFitRead(fitScore, person, assist);
+    const fitBreakdown = deriveRoleFitBreakdown(person, role, 'actor', draft.script, character);
+    const fitReason = fitBreakdown ? deriveFitReason(fitBreakdown.rows.map((r) => ({ label: r.label, matchScore: r.matchScore })), fitBreakdown.noun) : null;
+    return deriveCastingDirectorTake({
+      castingDirectorSkill,
+      fit: fitRead,
+      odds: deal.odds,
+      risk: deriveRiskRead(person).tier,
+      affordable: isAffordable(person),
+      strengths: fitReason?.strengths ?? null,
+      caveat: fitReason?.caveat ?? null,
+    });
+  };
+
   // Filters. "Available now only": a booked actor can't be cast today (the offer
   // is hard-rejected on the schedule gate), so hiding them cuts the list to
   // people an offer could land. "Affordable only": hides picks that would put
@@ -619,6 +633,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         onAct: () => makeOffer(person),
         onUnpin: () => pins.toggle(person.id),
         castingDirectorSkill,
+        castingDirectorTake: castingDirectorTakeFor(person),
         relationship: relationshipFor(person),
       }))
     : [];
@@ -668,6 +683,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         onAudition={() => dispatch({ type: 'REQUEST_AUDITION', characterId: character.id, role, personId: person.id })}
         onWaitForActor={bookedUntil ? () => dispatch({ type: 'SET_SHOOT_DELAY', offsetDays: bookedUntil - state.totalDays }) : undefined}
         waitAlsoFrees={bookedUntil ? countActorsFreedByDelay(eligibleDirectActors, plannedStartDay, bookedUntil, person.id) : 0}
+        castingDirectorTake={castingDirectorTakeFor(person)}
         pinned={pins.isPinned(person.id)}
         pinCapped={pins.isFull}
         onTogglePin={() => pins.toggle(person.id)}
