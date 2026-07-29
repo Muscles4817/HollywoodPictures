@@ -7,6 +7,8 @@
 // CharacterTraitProfile).
 import type { ActorAppealFactors, ActorScheduleAssessment, OfferRejectionReason } from './castingAppeal';
 import type { DirectorAppealFactors, DirectorOfferRejectionReason } from './directorAppeal';
+import type { AcceptanceOdds } from './castingEstimate';
+import type { FitConfidence } from './talentCardPresentation';
 import { actorArchetype, directorTouch, directorActorPairing, signatureGift, fameCraftContrast, type FameCraftContrast } from './actingModel';
 import type { RelationshipStanding } from './relationships';
 import type { CastAffinity } from './pairHistory';
@@ -307,6 +309,43 @@ export function describeCounterReason(person: Person): string {
  */
 export function describeCounterOffer(person: Person, formattedCounter: string): string {
   return `Interested - but they’re holding out for ${formattedCounter}. ${describeCounterReason(person)}`;
+}
+
+// --- Pre-offer estimate (Phase 2, uncertainty) - reading the deal before you
+// make it. The asking-price band is hedged by how readable the actor is (the
+// same FitConfidence the fit read uses); the odds are a qualitative ladder. Both
+// take the money already formatted by the UI, per the house money-formatting split.
+
+const ASKING_HEDGE: Record<FitConfidence, (range: string) => string> = {
+  high: (range) => `Should want around ${range}.`,
+  medium: (range) => `Likely wants somewhere around ${range}.`,
+  low: (range) => `Hard to call - maybe ${range}, but that's a guess.`,
+};
+
+/** The estimated asking-price band as a hedged sentence, e.g. "Likely wants somewhere around £2M–£4M." - `formattedRange` is built by the UI's Money formatter. */
+export function describeAskingEstimate(formattedRange: string, confidence: FitConfidence): string {
+  return ASKING_HEDGE[confidence](formattedRange);
+}
+
+const ODDS_LABEL: Record<AcceptanceOdds, string> = {
+  likely: 'Your offer should land them',
+  even: 'Could go either way at this offer',
+  stretch: 'A stretch - they’ll likely want more',
+  'long-shot': 'A long shot at this offer',
+  no: 'Out of reach - their schedule or history with you rules it out',
+};
+
+const ODDS_TONE: Record<AcceptanceOdds, CandidateSignal['tone']> = {
+  likely: 'positive',
+  even: 'warning',
+  stretch: 'warning',
+  'long-shot': 'blocked',
+  no: 'blocked',
+};
+
+/** How a given offer would land, as a short phrase and a tone - the odds half of the pre-offer read. */
+export function describeAcceptanceOdds(odds: AcceptanceOdds): CandidateSignal {
+  return { label: ODDS_LABEL[odds], tone: ODDS_TONE[odds] };
 }
 
 /**

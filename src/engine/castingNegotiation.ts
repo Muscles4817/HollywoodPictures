@@ -107,25 +107,35 @@ function demandLevel(person: Person): number {
  * an actor quote under the minimum they'd actually take.
  */
 export function computeAskingPrice(person: Person, effectiveMinimum: Money, typicalSalary: Money, rng: RandomFn): Money {
-  const demand = demandLevel(person);
+  const centre = askingPriceCentre(person, effectiveMinimum, typicalSalary);
+  const wobble = 1 + randFloat(rng, -ASKING_WOBBLE, ASKING_WOBBLE);
+  // Never below the real floor; never runaway above a hot star's premium.
+  const ceiling = typicalSalary * (1 + MAX_PREMIUM_ABOVE_TYPICAL) * (1 + ASKING_WOBBLE);
+  return Math.round(clamp(centre * wobble, effectiveMinimum, ceiling));
+}
 
+/**
+ * The deterministic centre of an actor's asking price - everything
+ * computeAskingPrice derives BEFORE the seeded ±10% wobble is applied. Split out
+ * so the pre-offer estimate (engine/castingEstimate.ts) can band around the same
+ * centre the real roll lands near, without seeing (or re-rolling) the wobble
+ * itself. Never below the effective floor.
+ */
+export function askingPriceCentre(person: Person, effectiveMinimum: Money, typicalSalary: Money): Money {
+  const demand = demandLevel(person);
   // Centre between the (discounted) floor and typical: the midpoint of that band
   // for a zero-demand actor, rising to typicalSalary itself at full demand.
   const floorToTypical = Math.max(0, typicalSalary - effectiveMinimum);
   const bandMidpoint = effectiveMinimum + floorToTypical * 0.5;
   const centre = bandMidpoint + (typicalSalary - bandMidpoint) * demand;
-
   // Premium over typical, only past the onset of the demand curve.
   const premiumT = clamp((demand - PREMIUM_DEMAND_ONSET) / (1 - PREMIUM_DEMAND_ONSET), 0, 1);
   const premium = typicalSalary * MAX_PREMIUM_ABOVE_TYPICAL * premiumT;
-
-  const wobble = 1 + randFloat(rng, -ASKING_WOBBLE, ASKING_WOBBLE);
-  const asking = (centre + premium) * wobble;
-
-  // Never below the real floor; never runaway above a hot star's premium.
-  const ceiling = typicalSalary * (1 + MAX_PREMIUM_ABOVE_TYPICAL) * (1 + ASKING_WOBBLE);
-  return Math.round(clamp(asking, effectiveMinimum, ceiling));
+  return Math.max(centre + premium, effectiveMinimum);
 }
+
+/** The seeded wobble bound (±fraction) the real asking price can land either side of the centre - so an estimate's band never claims to be tighter than the roll itself can be. */
+export const ASKING_WOBBLE_FRACTION = ASKING_WOBBLE;
 
 // --- Resolving one offer against an asking price ----------------------------
 

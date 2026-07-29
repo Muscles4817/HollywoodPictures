@@ -652,3 +652,44 @@ engine slice and separately, per Phase C's precedent.
 revisions, schedule shifts, attached-talent demands), competing simultaneous
 offers, deadlines, and shortlisting/parallel negotiation. `NegotiationOutcome`
 and `RoleNegotiation` are shaped so these land additively.
+
+---
+
+## 15. Phase 2, uncertainty - reading the deal before you make it
+
+The casting-UX brief's point 4 ("embrace uncertainty") was already largely met
+for *craft fit*: `engine/talentCardPresentation.ts:deriveFitRead` shows a
+*perceived* fit (shifted off the truth by reputation bias), over a confidence
+band, with per-axis "Unknown" veiling for unproven names, all sharpened by a
+hired Casting Director or a working history (`deriveFitReadAssist`). What that
+uncertainty did NOT cover was the thing Phase E/1 just added - the money. The
+player negotiated blind: a salary slider with no read on what the actor would
+want or whether they'd say yes.
+
+Phase 2 extends the SAME uncertainty model to the deal
+(`engine/castingEstimate.ts`):
+
+- **`estimateAskingRange`** - a confidence-banded estimate of the asking price,
+  centred on the deterministic `askingPriceCentre` the real roll lands within
+  ±10% of (that centre was split out of `computeAskingPrice` for exactly this).
+  The band is wide for an unknown, tight for a well-known name, and narrowed by
+  a Casting Director / history - reusing `deriveFitConfidence` /
+  `deriveFitReadAssist`, so there is *one* uncertainty model and one thing to
+  buy your way out of it with. Never tighter than the roll's own wobble.
+- **`estimateAcceptanceOdds`** - a qualitative ladder (`likely` / `even` /
+  `stretch` / `long-shot` / `no`) for how the current offer would land, mirroring
+  `resolveNegotiation`'s own logic but against the visible centre, never the
+  hidden roll.
+- Prose (`castingPresentation.ts:describeAskingEstimate` /
+  `describeAcceptanceOdds`) and the `CastingDrawer` card surface both before an
+  offer is made, updating as the slider moves; they disappear once a real counter
+  exists (you have the actual number then, not a guess). The drawer also reframes
+  its heading to the character ("Who plays X?", brief point 6).
+
+Deterministic and derived throughout - no RNG, no stored estimate; re-read every
+render like every other card read. The true asking price and the accept/counter
+decision are untouched; this is a *read* of them under incomplete information.
+
+**Deferred within the uncertainty theme:** a paid "screen test" that buys down
+fit uncertainty for a specific candidate, and richer per-axis estimate detail -
+both land additively on `deriveFitRead` / `estimateDeal`.
