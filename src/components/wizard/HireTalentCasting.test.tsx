@@ -7,7 +7,7 @@
 // first" blocked state, even with nobody hired yet. Same jsdom + StudioProvider
 // pattern as CastingDrawer.test.tsx.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { StudioProvider } from '../../state/StudioContext';
 import { HireTalent } from './HireTalent';
 import { createInitialStudio, createDraftFromAsset, type GameState } from '../../state/gameState';
@@ -66,5 +66,22 @@ describe('HireTalent - slot-bound casting has no in-order gate', () => {
     // Five leads/supporting are uncast (six characters, none hired) - each
     // shows the plain uncast state, none a blocked one.
     expect(screen.getAllByText('Not yet cast').length).toBe(6);
+  });
+});
+
+describe('HireTalent - budget allocation table (Phase 1b)', () => {
+  it('lists per-role allocations with lock toggles that pin a role against the auto-split', () => {
+    saveState(stateWithInceptionDraft());
+    render(
+      <StudioProvider>
+        <HireTalent />
+      </StudioProvider>,
+    );
+
+    const lockDirector = screen.getByRole('button', { name: 'Lock Director budget' });
+    expect(lockDirector).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(lockDirector);
+    expect(screen.getByRole('button', { name: 'Unlock Director budget' })).toHaveAttribute('aria-pressed', 'true');
   });
 });

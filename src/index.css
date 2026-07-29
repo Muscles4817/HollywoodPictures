@@ -2074,3 +2074,14 @@ textarea, input, select {
     margin: -6px -2px;
   }
 }
+
+/* Phase 1b - the Cast & Crew budget allocation table. */
+.allocation-table { margin: 4px 0; font-size: 0.9em; }
+.allocation-table table { width: 100%; border-collapse: collapse; }
+.allocation-table th, .allocation-table td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--border, color-mix(in srgb, currentColor 12%, transparent)); }
+.allocation-table th:first-child, .allocation-table td:first-child { text-align: left; }
+.allocation-table thead th { color: var(--text-muted); font-weight: 600; }
+.allocation-table tfoot td { font-weight: 600; border-bottom: none; }
+.allocation-row--locked { background: color-mix(in srgb, var(--amber, #b8860b) 10%, transparent); }
+.allocation-lock { background: none; border: none; cursor: pointer; font-size: 1em; padding: 2px 4px; }
+.allocation-table__note { margin: 4px 0 0; color: var(--text-muted); font-size: 0.85em; }

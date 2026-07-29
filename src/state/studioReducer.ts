@@ -580,6 +580,7 @@ function withRebalancedTargets(draft: FilmDraft, nextTalent: TalentAssignment[])
     talent: nextTalent,
     script: draft.script,
     current: draft.talentTargetPriceByRole,
+    locked: draft.lockedRoleBudgets,
   });
   return { ...draft, talent: nextTalent, talentTargetPriceByRole };
 }
@@ -1604,13 +1605,39 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'SET_TALENT_TARGET_PRICE': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;
+      // Phase 1b - a hand-set target is an intent to pin it, so lock the role;
+      // otherwise the next hire's re-split would silently overwrite it. The
+      // allocation table can unlock it to return the role to the auto-split.
+      const locked = focusedDraft.lockedRoleBudgets ?? [];
       return {
         ...state,
         projects: replaceDraft(state.projects, {
           ...focusedDraft,
           talentTargetPriceByRole: { ...focusedDraft.talentTargetPriceByRole, [action.role]: action.price },
+          lockedRoleBudgets: locked.includes(action.role) ? locked : [...locked, action.role],
         }),
       };
+    }
+
+    // Phase 1b - lock/unlock a role's allocation from the allocation table, then
+    // re-split so the unlocked roles rebalance around the (un)reserved amount.
+    case 'SET_ROLE_BUDGET_LOCK': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const current = focusedDraft.lockedRoleBudgets ?? [];
+      const lockedRoleBudgets = action.locked
+        ? (current.includes(action.role) ? current : [...current, action.role])
+        : current.filter((r) => r !== action.role);
+      const talentTargetPriceByRole = focusedDraft.castCrewBudget == null
+        ? focusedDraft.talentTargetPriceByRole
+        : splitCastBudgetByImportance({
+            totalBudget: focusedDraft.castCrewBudget,
+            talent: focusedDraft.talent,
+            script: focusedDraft.script,
+            current: focusedDraft.talentTargetPriceByRole,
+            locked: lockedRoleBudgets,
+          });
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, lockedRoleBudgets, talentTargetPriceByRole }) };
     }
 
     case 'SET_TALENT_BUDGET_SPLIT': {
@@ -1621,12 +1648,14 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // actor's target is a bigger slice than an editor's, and a hire made above
       // its suggested target shrinks what the rest can draw on. The master budget
       // is stored on the draft so every subsequent hire re-splits the remainder
-      // (see withRebalancedTargets / TOGGLE_TALENT_FOR_ROLE).
+      // (see withRebalancedTargets / TOGGLE_TALENT_FOR_ROLE). Locked roles keep
+      // their target and reserve it off the pot (Phase 1b).
       const updated = splitCastBudgetByImportance({
         totalBudget: action.totalBudget,
         talent: focusedDraft.talent,
         script: focusedDraft.script,
         current: focusedDraft.talentTargetPriceByRole,
+        locked: focusedDraft.lockedRoleBudgets,
       });
       return {
         ...state,

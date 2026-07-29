@@ -308,6 +308,10 @@ export type GameAction =
   | { type: 'TOGGLE_TALENT_FOR_ROLE'; role: ProductionRole; person: Person; characterId?: string }
   | { type: 'SET_TALENT_TARGET_PRICE'; role: ProductionRole; price: number }
   | { type: 'SET_TALENT_BUDGET_SPLIT'; totalBudget: number }
+  // Phase 1b - lock/unlock a role's planned allocation from the allocation table.
+  // Locked roles keep their target across re-splits; the rest rebalance around
+  // the reservation.
+  | { type: 'SET_ROLE_BUDGET_LOCK'; role: ProductionRole; locked: boolean }
   // Casting Redesign, Phase B (docs/DESIGN_REVIEW_casting_redesign.md
   // section 1) - opens a new Open Casting call for one Lead/Supporting
   // Character. No-ops if one's already open for this character (see the
