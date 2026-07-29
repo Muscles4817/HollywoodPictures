@@ -933,3 +933,39 @@ each other was missing the advisor's opinion.
 No new engine logic - it reuses `deriveCastingDirectorTake` /
 `describeCastingDirectorTake` verbatim. This closes the gap between "advised on
 each card" and "advised when choosing between two."
+
+---
+
+## 23. Follow-up, Deferred Start - waiting for an actor moves the real shoot
+
+Phase 6 let you "wait for" a booked actor while casting, but the wait was only a
+casting-time schedule read: at greenlight the film booked everyone from *today*
+regardless, which could double-book the very actor you waited on. This wires the
+wait into the real production (user chose the "deferred start / development hold"
+option over a simpler advance-time gate).
+
+- **Greenlight derives the real shoot start.** `GREENLIGHT_PROJECT` now computes
+  `shootStartsOnDay = max(today, latestCastBookingEnd(cast))` -
+  `engine/person.ts:latestCastBookingEnd` reads each cast member's OTHER
+  commitments from the *live* pool (so a booking that has since cleared no longer
+  holds you up). This film's own cast commitments are booked from that day, not
+  today, so there's no overlap with the booking you waited out.
+- **If the start is in the future, the film is held in development.** A new
+  `PreProductionState` status `'scheduled'` plus `FilmDraft.shootStartsOnDay`
+  mean the film is greenlit and the deals are signed (upfront cost charged now),
+  but prep hasn't begun. `PreProductionRun` shows an "In development - shooting
+  begins &lt;date&gt;" hold with a single **Advance to the shoot start** control.
+- **Beginning the shoot.** `ADVANCE_TO_SHOOT_START` jumps the world to
+  `shootStartsOnDay` - settling every intervening day in one pass, the same
+  span-settlement `ADVANCE_PREPRODUCTION_DAY` already uses - and flips prep to
+  `'in-progress'`, after which the live day-by-day prep runs exactly as a
+  same-day greenlight would. If time has already moved past the start day, it
+  begins prep immediately with no jump.
+- **The greenlight modal warns first:** when a cast member is still booked, the
+  confirmation names the date the shoot will begin, so the hold is never a
+  surprise.
+
+Cost model note: the upfront commitment is charged at greenlight, as before - the
+development hold defers the *start*, not the money. Deferring the shoot budget
+across the hold would be a much larger money-model change and was deliberately
+left out of scope. `SAVE_KEY` v67->v68.

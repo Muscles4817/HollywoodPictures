@@ -375,7 +375,10 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // v66 -> v67 (Casting Redesign, Phase 6 - scheduling): FilmDraft gained an
 //   optional plannedStartOffsetDays (the shoot-delay lever for waiting on a
 //   booked actor). Additive/optional; key bumped per the same pre-launch policy.
-const SAVE_KEY = 'hollywood-pictures-save-v67';
+// v67 -> v68 (Deferred Start): FilmDraft gained shootStartsOnDay and
+//   PreProductionState a 'scheduled' status - greenlight can now hold a film in
+//   development until a waited-for actor is free. Additive; same pre-launch policy.
+const SAVE_KEY = 'hollywood-pictures-save-v68';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

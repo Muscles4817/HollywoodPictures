@@ -13,7 +13,7 @@ import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORI
 import { promoteFilmToIp, ipForSourceFilm } from '../engine/intellectualProperty';
 import { computeDailyShootBurn, computeDailyPrepBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
 import { computeSetsAmbition, defaultDesignPrepDays, NO_DESIGNER_SKILL } from '../engine/setsFacet';
-import { assignmentCost, getActorCareer, getCrewCareer, getTypicalSalaryForRole, getWriterCareer, isPersonAvailableForCommitment, withCommitment, withReputationChange } from '../engine/person';
+import { assignmentCost, getActorCareer, getCrewCareer, getTypicalSalaryForRole, getWriterCareer, isPersonAvailableForCommitment, latestCastBookingEnd, withCommitment, withReputationChange } from '../engine/person';
 import { computeActorAppeal } from '../engine/castingAppeal';
 import { computeAskingPrice, resolveNegotiation } from '../engine/castingNegotiation';
 import { auditionDurationDays } from '../engine/talentCardPresentation';
@@ -1732,16 +1732,28 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         focusedDraft.productionChoices.shootingBudgetAmount +
         (focusedDraft.productionChoices.contingencyReserveAmount ?? 0);
 
+      // Deferred Start: the shoot can't begin until every cast member is clear of
+      // their OTHER bookings - the ones you waited out during casting
+      // (engine/castingAppeal.ts). Read the LIVE pool, not the assignment
+      // snapshots, so a booking that has since cleared no longer holds you up. If
+      // someone's still booked, the film is greenlit but held in development until
+      // that day; otherwise it starts today exactly as before.
+      const liveCast = focusedDraft.talent.map(
+        (a) => state.talentPool[professionForProductionRole(a.role)].find((t) => t.id === a.person.id) ?? a.person,
+      );
+      const shootStartsOnDay = Math.max(state.totalDays, latestCastBookingEnd(liveCast, focusedDraft.id) ?? state.totalDays);
+      const deferred = shootStartsOnDay > state.totalDays;
+
       // Per-assignment, not per-role-then-profession: Lead Actor and
       // Supporting Actor share one Actor pool, so looping over pool keys and
       // re-filtering by id would visit that pool once per role and double up
       // an actor's commitment (see the identical fix in rivalStudios.ts).
-      // Committed through prep + the shoot from today.
-      const bookedUntil = state.totalDays + preProductionDays + recommendedDays;
+      // Committed through prep + the shoot from the (possibly deferred) start.
+      const bookedUntil = shootStartsOnDay + preProductionDays + recommendedDays;
       const talentPool = { ...state.talentPool };
       for (const assignment of focusedDraft.talent) {
         const profession = professionForProductionRole(assignment.role);
-        const commitment = { projectId: focusedDraft.id, role: assignment.role, startDay: state.totalDays, endDay: bookedUntil };
+        const commitment = { projectId: focusedDraft.id, role: assignment.role, startDay: shootStartsOnDay, endDay: bookedUntil };
         talentPool[profession] = talentPool[profession].map((t) =>
           t.id === assignment.person.id ? withCommitment(t, commitment) : t,
         );
@@ -1750,7 +1762,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const greenlitDraft: FilmDraft = {
         ...focusedDraft,
         greenlitOnDay: state.totalDays,
-        preProduction: { status: 'in-progress', recommendedDays: preProductionDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
+        shootStartsOnDay: deferred ? shootStartsOnDay : undefined,
+        preProduction: { status: deferred ? 'scheduled' : 'in-progress', recommendedDays: preProductionDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
       };
 
       return {
@@ -1772,6 +1785,46 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // to the shoot. Always the focused project; a backgrounded prep simply waits
     // until it's focused again. An interactive prep event pauses on
     // 'awaiting-choice' exactly as the shoot does.
+    // Deferred Start: leave the development hold and begin prep. Jumps the world
+    // to the film's shootStartsOnDay (settling every intervening day in one go,
+    // the same span-settlement ADVANCE_PREPRODUCTION_DAY uses for a multi-day
+    // event) and flips pre-production to 'in-progress'. If the day has already
+    // passed (time moved on elsewhere), it starts prep now with no jump.
+    case 'ADVANCE_TO_SHOOT_START': {
+      const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!d?.preProduction || d.preProduction.status !== 'scheduled' || !d.script) return state;
+      const totalDaysAfter = Math.max(state.totalDays, d.shootStartsOnDay ?? state.totalDays);
+      const daysAdvanced = totalDaysAfter - state.totalDays;
+      const backgrounded = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
+      const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
+        const settlement = runCalendarSettlement(state, totalDaysAfter, rng);
+        const productionsInProgress = settleProductionsInProgress(backgrounded, daysAdvanced, state.talentPool, rng)
+          .map((p) => checkTestScreeningReadiness(p, totalDaysAfter, rng));
+        return { settlement, productionsInProgress };
+      });
+      const startedFocused: FilmDraft = { ...d, preProduction: { ...d.preProduction, status: 'in-progress' } };
+      return {
+        ...state,
+        rngSeed: nextSeed,
+        totalDays: totalDaysAfter,
+        rivalStudios: result.settlement.rivalStudios,
+        talentPool: result.settlement.talentPool,
+        opportunities: result.settlement.opportunities,
+        nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
+        bidNotifications: result.settlement.bidNotifications,
+        collaborations: result.settlement.collaborations,
+        talentPairings: result.settlement.talentPairings,
+        studio: result.settlement.studio,
+        projects: assembleProjects({
+          playerDrafts: [startedFocused, ...result.productionsInProgress],
+          scheduled: result.settlement.stillScheduled,
+          rivalProductions: result.settlement.rivalProductionsInProgress,
+          playerFilms: result.settlement.playerFilms,
+          rivalFilms: result.settlement.rivalFilms,
+        }),
+      };
+    }
+
     case 'ADVANCE_PREPRODUCTION_DAY': {
       const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!d?.preProduction || d.preProduction.status !== 'in-progress' || !d.script) return state;

@@ -9,6 +9,7 @@ import { SeverityBadge } from '../common/SeverityBadge';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { asPlayerDraft, findProject } from '../../engine/project';
+import { formatGameDateWithMonth } from '../../engine/calendar';
 
 const TICK_INTERVAL_MS = 500;
 
@@ -35,6 +36,34 @@ export function PreProductionRun() {
       <div className="stack">
         <h1>Pre-Production</h1>
         <p>This project isn't in pre-production.</p>
+      </div>
+    );
+  }
+
+  // Deferred Start: the film is greenlit but held in development until a cast
+  // member you waited for is free. Prep hasn't begun; the player advances to the
+  // scheduled shoot start when ready.
+  if (prep.status === 'scheduled') {
+    const startDay = draft.shootStartsOnDay ?? state.totalDays;
+    const daysUntil = Math.max(0, startDay - state.totalDays);
+    return (
+      <div className="stack">
+        <h1>Pre-Production</h1>
+        {draft.script && <ScriptSummaryCard script={draft.script} />}
+        <div className="card stack">
+          <h2>In development</h2>
+          <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+            A cast member you waited for is still finishing other work, so the shoot is scheduled to begin{' '}
+            <strong>{formatGameDateWithMonth(startDay)}</strong>
+            {daysUntil > 0 ? ` — in ${daysUntil} day${daysUntil === 1 ? '' : 's'}` : ''}. The film is greenlit and the
+            deals are signed; pre-production begins when the shoot starts.
+          </p>
+          <div className="row">
+            <Button variant="primary" onClick={() => dispatch({ type: 'ADVANCE_TO_SHOOT_START' })}>
+              {daysUntil > 0 ? `Advance to the shoot start (${formatGameDateWithMonth(startDay)})` : 'Begin pre-production'}
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
