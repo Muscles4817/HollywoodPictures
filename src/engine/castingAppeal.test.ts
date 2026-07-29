@@ -353,6 +353,7 @@ describe('resolveOfferResponse', () => {
       overall: threshold - 1,
       schedule: { status: 'available', availableFromDay: 1, delayDays: 0 },
       belowSalaryFloor: false,
+      effectiveMinimum: 100_000,
     };
     const response = resolveOfferResponse(appeal, person);
     expect(response.status).toBe('rejected');

@@ -179,7 +179,7 @@ describe('describeDirectorRejection', () => {
 // categorization itself is tested in actingModel.test.ts, so these check the
 // null passthrough, stability, and that different gifts read differently.
 import type { ActingStyle, Person } from '../types';
-import { describeSignatureGift, describeFameCraftContrast } from './castingPresentation';
+import { describeSignatureGift, describeFameCraftContrast, describeCounterOffer, describeCounterReason, describeDealClosed } from './castingPresentation';
 
 function actor(id: string, style: Partial<ActingStyle>, over: { fame?: number; craftFloor?: number; craftHeadroom?: number } = {}): Person {
   return {
@@ -269,5 +269,29 @@ describe('describeCastAffinity / castAffinityTone (Phase 4 - the cast-affinity c
   it('never leaks a raw number into the prose', () => {
     const line = describeCastAffinity(affinity({ films: 2, chemistry: 0.73 }));
     expect(line).not.toMatch(/0\.73|73/);
+  });
+});
+
+describe('negotiation prose (Phase E)', () => {
+  it('embeds the UI-formatted counter figure and never a raw stat number', () => {
+    const line = describeCounterOffer(actor('c', {}, { fame: 40 }), '$2.5M');
+    expect(line).toContain('$2.5M');
+    expect(line).toMatch(/holding out/i);
+    // no leaked internal stat values (fame/heat/ego are all 40-50 here)
+    expect(line).not.toMatch(/\b(40|50)\b/);
+  });
+
+  it('reads a hot-streak hold distinctly from a humble one', () => {
+    const base = actor('hot', {}, { fame: 55 });
+    const hotActor: Person = { ...base, reputation: { ...base.reputation, currentHeat: 90 } };
+    const hot = describeCounterReason(hotActor);
+    const humble = describeCounterReason(actor('humble', {}, { fame: 30 }));
+    expect(hot).not.toBe(humble);
+    expect(hot).toMatch(/moment/i);
+  });
+
+  it('calls out a below-quote close, but stays plain for a standard one', () => {
+    expect(describeDealClosed(true)).toMatch(/under their usual quote/i);
+    expect(describeDealClosed(false)).not.toMatch(/under their usual quote/i);
   });
 });

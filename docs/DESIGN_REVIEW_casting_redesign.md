@@ -582,7 +582,8 @@ milestones and shouldn't land as one commit.
 | **B - Open Casting** ✅ shipped | `CastingCall`/`CastingApplicant` state, weekly applicant generation (§2) mirroring `engine/opportunities.ts`'s cadence, still instant-accept-whoever-the-player-picks; `describeApplicantInterest` (§7) surfaced per applicant | Casting a role becomes a multi-week activity with a growing, self-explaining applicant list instead of an instant static pool-browse. | Medium - new persistent state, new weekly tick logic, but no rejection risk yet (todays "willing" semantics hold). |
 | **C - Direct Approach + real acceptance** ✅ shipped | `computeActorAppeal` (§3, including `attachmentMomentum`), `OfferResponse` + `describeOfferRejection` (§5/§7), applied to both Direct Approach *and* Open Casting applicants (an applicant can now, in principle, decline if the player's offered terms don't clear their threshold). Also carries one piece pulled forward from Phase D: Inbox notifications for a backgrounded project's new Open Casting applicants (`engine/castingCalls.ts:castingCallsAwaitingReview`) - not the full Interested Talent reverse-appeal flow, just surfacing applicants who've already applied. | Actors can say no for the first time, and say why. This is the phase that actually changes the core loop. | Highest - shipped alongside §9's no-softlock widening formula in the same phase, not after, so a bad-luck stretch of rejections was never a real dead end. |
 | **D - Casting Director + Interested Talent** ✅ shipped | New optional `Casting Director` role (§11) biasing applicant curation - volume, curation exponent, and a low-fame "discovery" pick, all keyed off the hired Casting Director's skill (`engine/castingCalls.ts:generateCastingApplicants`); *true* inbound Interested Talent (§6, `generateInterestedTalent`) - an unattached person surfaced *before* ever applying, reusing the appeal function in reverse against people who haven't sought the role out. `CastingChannel` moved from `CastingCall` to `CastingApplicant` (a single call can now host both channels at once); `CastingDrawer.tsx` shows a Casting-Director hint until one's hired and tags Interested Talent applicants; the Inbox calls them out by name. | Reputation starts working *for* the player proactively, not just when they go looking. | Low - both features are thin wrappers around Phase C's already-built appeal function. |
-| **E - Future** (not scoped) | Negotiation/counter-offers extending `OfferResponse`, additional `CastingChannel` variants (§10), chemistry, deadlines, competing offers, relationship history, and shortlisting (Additional Notes point 9 - promoting a subset of `CastingApplicant`s within an open call before committing; genuinely low-cost whenever it lands, just not essential to any phase above) | — | Deferred entirely, per the brief's own scoping. |
+| **E - Negotiation (engine)** 🔶 in progress | Dynamic per-deal asking price + counter-offers - `engine/castingNegotiation.ts` (`computeAskingPrice`, `resolveNegotiation`, `NegotiationOutcome`), the qualitative counter prose (`castingPresentation.ts:describeCounterOffer`/`describeCounterReason`/`describeDealClosed`), and the supporting `ActorAppealResult.effectiveMinimum` + `overallWithSalaryFit`/`offerBlameReason` exports. Landed as a pure, fully-tested engine layer AHEAD of any reducer/UI wiring (see §14). | None yet - the engine ships unwired; player-visible change arrives with the reducer/UI/greenlight-charge follow-up. | Low for this slice (pure functions, no money-flow touched); the follow-up that charges the negotiated fee at Greenlight is the higher-risk part, deliberately isolated. |
+| **E - Future** (not scoped) | Additional `CastingChannel` variants (§10), chemistry, deadlines, competing simultaneous offers, and non-money negotiation conditions (script revisions, schedule shifts, attached-talent demands - each depends on a system that is itself later work, e.g. a shift-dates flow). `NegotiationOutcome` is a discriminated union shaped so these land as new variants, not a rewrite. | — | Deferred, per the brief's own scoping. |
 
 Phase C is the one I'd expect to need the same heavily-tested, one-continuous-effort
 treatment the Person Model Redesign and Character and Setting Foundations
@@ -590,3 +591,57 @@ milestones both got - it's the phase where a wrong call (an acceptance
 threshold tuned too high, a widening formula that kicks in too late)
 directly produces a stuck project, which is exactly the failure mode §9
 exists to prevent.
+
+---
+
+## 14. Phase E, negotiation - design notes (engine slice shipped)
+
+The casting-UX brief asked casting to become "a strategic, uncertain
+process": offers that can be accepted, rejected, or **countered**; a
+per-deal asking price that varies with the project; and "sometimes you get
+lucky and secure someone below their usual quote." This is the first slice
+of that - the pure engine, landed ahead of any reducer/UI so the model can
+be reviewed before the money-flow wiring.
+
+**The one real tension, and how it's resolved.** `SIMULATION_PHILOSOPHY.md`
+Principle 2 deliberately made offer acceptance *deterministic and legible* -
+"variance lives in the production, or it doesn't exist," no hidden
+end-of-process dice roll - and `engine/castingAppeal.ts:resolveOfferResponse`
+was written that way on purpose. A naive "roll to see if they accept" would
+break that. The resolution:
+
+- **The accept/counter/reject decision stays deterministic.** Given an
+  actor's asking price, `resolveNegotiation` is a pure comparison of the
+  offer against numbers the player can see and manage (their quote, their
+  interest in the role). Whether money is the gap, or the project itself
+  doesn't sell them, is a legible read - not a coin flip on the accept button.
+- **The uncertainty ("sometimes lucky") lives in the *asking price*, not the
+  decision.** `computeAskingPrice` derives a centre from who the actor is
+  (typicalSalary/minimumSalary, selectiveness, current heat) and this
+  project (the prestige/loyalty discount already in
+  `computeEffectiveMinimumSalary`), then applies a bounded ±10% seeded
+  wobble. So the luck is endogenous - a function of the actor and the deal -
+  and once rolled it's a stable number the player negotiates against, not an
+  invisible probability. A prestige project or a loyal relationship, or a
+  favourable wobble, is exactly how you "land them below their usual quote."
+- **Information uncertainty (the brief's "you don't *know* how good a fit
+  someone is") is a separate, later slice** - perceived-vs-true stats and
+  confidence, which the philosophy fully endorses as fog-of-war. It is *not*
+  the same lever as outcome randomness and is intentionally not in this
+  slice.
+
+**Money-based only, for now.** The brief's non-money counters (script
+revisions, schedule shifts, attached-talent demands) each depend on a system
+that is itself later work - a "shift the shoot dates" flow, most obviously.
+`NegotiationOutcome` is a discriminated union so those land as new variants
+rather than a rewrite, the same way this slice landed on top of
+`OfferResponse` without disturbing it.
+
+**What's deliberately NOT in this slice** (the follow-up that makes it
+player-visible): persisted per-character negotiation state on `FilmDraft`, an
+`agreedSalary` on `TalentAssignment`, the reducer actions
+(make-offer/accept-counter/raise/walk) resolved through `withRng`, the
+`CastingDrawer` UI, and - the higher-risk piece - charging the negotiated fee
+at `GREENLIGHT_PROJECT` instead of the static `typicalSalary`. Kept out of
+the engine PR on purpose, so the money-flow change is isolated and separately
+testable, per Phase C's own precedent.
