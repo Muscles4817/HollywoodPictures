@@ -5,7 +5,7 @@
 // compatibility, department workload/problems) can hang new sections off the
 // same rows without reshaping the hub. Extension points are left explicitly
 // undefined here rather than mocked with placeholder data.
-import type { FilmDraft, GameDay, ProductionRole, Money } from '../types';
+import type { FilmDraft, GameDay, ProductionRole, Money, StaffingEvent } from '../types';
 import { MANDATORY_TALENT_ROLES, OPTIONAL_TALENT_ROLES } from '../data/talentGeneration';
 import { TALENT_PRESENTATION, type RoleCategory } from '../data/talentPresentation';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
@@ -170,6 +170,20 @@ export function deriveStaffingBoard(draft: FilmDraft, totalDays: GameDay): Staff
     totalCommitted,
     totalRemaining: Math.max(0, totalPlanned - totalCommitted),
   };
+}
+
+// Phase 2b - how many staffing events the feed keeps (the most recent). Small: a
+// curated read of what just changed, not an audit trail.
+export const STAFFING_LOG_CAP = 40;
+
+/**
+ * Append a meaningful staffing event to the draft's feed, capping to the most
+ * recent STAFFING_LOG_CAP. Pure. Callers decide what counts as meaningful - this
+ * only ever records what it's handed (never trivial UI churn).
+ */
+export function appendStaffingEvent(draft: FilmDraft, event: StaffingEvent): FilmDraft {
+  const log = [...(draft.staffingLog ?? []), event];
+  return { ...draft, staffingLog: log.length > STAFFING_LOG_CAP ? log.slice(log.length - STAFFING_LOG_CAP) : log };
 }
 
 /** Labels for each lifecycle stage, player-facing. */

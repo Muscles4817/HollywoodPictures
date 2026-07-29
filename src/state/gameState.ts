@@ -354,7 +354,7 @@ export type GameAction =
   // Character. Takes calendar time (a Casting Director speeds it up); once it
   // completes it reads as the strongest possible fit. No-op if one's already
   // been arranged for this pair.
-  | { type: 'REQUEST_AUDITION'; characterId: string; role: 'Lead Actor' | 'Supporting Actor'; personId: string }
+  | { type: 'REQUEST_AUDITION'; characterId: string; role: 'Lead Actor' | 'Supporting Actor'; personId: string; personName?: string }
   // Casting Redesign, Phase 6 - push (or reset) the focused draft's planned
   // shoot start, so a booked actor can be waited for. offsetDays is measured
   // from today; clamped to >= 0. Waiting for someone sets it to free them up.

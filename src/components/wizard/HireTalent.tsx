@@ -24,7 +24,9 @@ import { CastingDrawer } from './CastingDrawer';
 import { findAssignedPerson } from '../../data/helpers';
 import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole } from '../../engine/person';
 import { deriveStaffingBoard, STAFFING_STAGE_LABELS, type StaffingRow } from '../../state/staffingBoard';
-import type { EffectsMethodKey, EnvironmentMethodKey, FilmDraft, Person, ProductionRole, Script, ScriptCharacter } from '../../types';
+import { formatGameDateWithMonth } from '../../engine/calendar';
+import type { ReactNode } from 'react';
+import type { EffectsMethodKey, EnvironmentMethodKey, FilmDraft, Person, ProductionRole, Script, ScriptCharacter, StaffingEvent } from '../../types';
 
 const MASTER_BUDGET_RANGE = { min: 300_000, max: 30_000_000 };
 const DEFAULT_MASTER_BUDGET = 3_000_000;
@@ -131,6 +133,45 @@ function StaffingBoardSection({
         </tfoot>
       </table>
       <p className="staffing-board__note">Every role's staffing at a glance - open any to search, audition, negotiate or hire. Lock a budget to keep its share when the rest rebalance. Suitability, compatibility and department reads will surface here as those systems come online.</p>
+    </div>
+  );
+}
+
+// Phase 2b - the curated staffing activity feed. Reads the draft's staffingLog
+// (only meaningful staffing decisions/changes are ever appended there - never
+// trivial UI churn) and shows the most recent, newest first.
+function renderStaffingEvent(e: StaffingEvent): ReactNode {
+  switch (e.kind) {
+    case 'attached':
+      return <>✓ <strong>{e.personName}</strong> attached — {e.subject}{e.amount != null ? <> (<Money amount={e.amount} />)</> : null}</>;
+    case 'countered':
+      return <><strong>{e.personName}</strong> countered on {e.subject}{e.amount != null ? <> at <Money amount={e.amount} /></> : null}</>;
+    case 'rejected':
+      return <><strong>{e.personName}</strong> passed on {e.subject}{e.note ? ` (${e.note})` : ''}</>;
+    case 'audition':
+      return <>Screen test arranged{e.personName ? <> — <strong>{e.personName}</strong></> : null} for {e.subject}</>;
+    case 'dropped':
+      return <>{e.personName ?? 'A candidate'} dropped from {e.subject}</>;
+    case 'budget':
+      return <>{e.subject} budget {e.note}</>;
+  }
+}
+
+function StaffingActivityFeed({ draft }: { draft: FilmDraft }) {
+  const log = draft.staffingLog ?? [];
+  if (log.length === 0) return null;
+  const recent = [...log].reverse().slice(0, 8);
+  return (
+    <div className="staffing-feed">
+      <div className="staffing-feed__head">Recent activity</div>
+      <ul>
+        {recent.map((e, i) => (
+          <li key={`${e.day}-${i}`}>
+            <span className="staffing-feed__day">{formatGameDateWithMonth(e.day)}</span>
+            <span>{renderStaffingEvent(e)}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -431,6 +472,8 @@ export function HireTalent() {
         onOpenCharacter={(character, role) => setOpenCharacter({ character, role })}
         onOpenRole={setOpenRole}
       />
+
+      <StaffingActivityFeed draft={draft} />
 
       <div className="grid">
         <RoleTile role="Director" optional={false} onOpen={() => setOpenRole('Director')} />
