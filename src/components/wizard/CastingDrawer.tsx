@@ -24,7 +24,7 @@ import { CheckboxToggle } from '../common/CheckboxToggle';
 import { isAvailableImmediately, getTypicalSalaryForRole, getCrewCareer } from '../../engine/person';
 import type { CastingChannel, Person, RoleNegotiation, Script, ScriptCharacter } from '../../types';
 
-type CastingTab = 'open-casting' | 'direct-approach';
+type CastingTab = 'open-casting' | 'direct-approach' | 'shortlist';
 
 // Discovery controls (docs/DESIGN_REVIEW_casting_ux.md) - the player browses by
 // intent ("best available I can afford", "highest appeal", "best value"),
@@ -94,6 +94,8 @@ function CandidateCard({
   negotiation,
   onAcceptCounter,
   onWalkAway,
+  shortlisted,
+  onToggleShortlist,
   castingDirectorSkill,
   relationship,
   castAffinity,
@@ -135,6 +137,9 @@ function CandidateCard({
   negotiation?: RoleNegotiation | null;
   onAcceptCounter?: () => void;
   onWalkAway?: () => void;
+  /** Casting Redesign, Phase 3 - whether this candidate is on the character's shortlist, and the toggle. Absent on cards where shortlisting doesn't apply. */
+  shortlisted?: boolean;
+  onToggleShortlist?: () => void;
 }) {
   // A booked actor can't be cast today - the schedule gate is a hard rejection
   // (engine/castingNegotiation.ts) no offer can clear, so disable and say so.
@@ -223,6 +228,11 @@ function CandidateCard({
         {negotiation && (
           <Button variant="secondary" className="btn-sm" onClick={onWalkAway}>
             Walk away
+          </Button>
+        )}
+        {onToggleShortlist && (
+          <Button variant={shortlisted ? 'primary' : 'secondary'} className="btn-sm" onClick={onToggleShortlist}>
+            {shortlisted ? '★ Shortlisted' : '☆ Shortlist'}
           </Button>
         )}
         <Button
@@ -379,9 +389,23 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
     ? eligibleDirectActors.filter((t) => t.identity.name.toLowerCase().includes(query)).slice(0, DIRECT_SEARCH_LIMIT)
     : findCandidatesNearPrice(eligibleDirectActors, role, offeredSalary, 9).candidates;
 
+  // Every candidate we might resolve by id - Open Casting applicants plus the
+  // whole eligible pool. Shared by the shortlist and the compare view.
+  const candidatePool = new Map<string, Person>();
+  for (const p of [...(call?.applicants ?? []).map((a) => a.person), ...eligibleDirectActors]) candidatePool.set(p.id, p);
+
+  // Casting Redesign, Phase 3 - the shortlist for THIS Character: candidates the
+  // player is tracking to compare and negotiate in parallel before committing
+  // one. Resolved to live persons (their fit/estimate/negotiation are all
+  // re-derived, never frozen on the entry).
+  const shortlistedIds = new Set((draft.shortlist ?? []).filter((s) => s.characterId === character.id).map((s) => s.personId));
+  const isShortlisted = (id: string) => shortlistedIds.has(id);
+  const toggleShortlist = (person: Person) => dispatch({ type: 'TOGGLE_SHORTLIST', characterId: character.id, role, personId: person.id });
+  const shortlistedPersons = [...shortlistedIds].map((id) => candidatePool.get(id)).filter((p): p is Person => p !== undefined);
+
   // Appeal for everyone we might show or sort, computed once - computeActorAppeal
   // is pure, but there's no reason to re-run it per sort comparison.
-  const scored = [...(call?.applicants ?? []).map((a) => a.person), ...directCandidates];
+  const scored = [...(call?.applicants ?? []).map((a) => a.person), ...directCandidates, ...shortlistedPersons];
   const appealById = new Map(scored.map((p) => [p.id, appealFor(p)]));
   const appealOverall = (person: Person) => appealById.get(person.id)?.overall ?? 0;
 
@@ -425,9 +449,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   // schedule gate is the one hard rejection no offer clears); a below-floor
   // offer now just draws a counter, so it no longer disables the action.
   const offerBlockedFor = (person: Person) => !isAvailableImmediately(person, state.totalDays);
-  const candidateById = new Map<string, Person>();
-  for (const p of [...(call?.applicants ?? []).map((a) => a.person), ...eligibleDirectActors]) candidateById.set(p.id, p);
-  const pinnedPersons = pins.pinnedIds.map((id) => candidateById.get(id)).filter((p): p is Person => p !== undefined);
+  const pinnedPersons = pins.pinnedIds.map((id) => candidatePool.get(id)).filter((p): p is Person => p !== undefined);
   const comparing = pinnedPersons.length >= MAX_PINNED;
   const compareSlots: CompareSlot[] = comparing
     ? pinnedPersons.map((person) => ({
@@ -452,6 +474,41 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   const availabilityHiddenCount = availableOnly
     ? tabPersons.filter((p) => matchesQuery(p) && !onThisDraftIds.has(p.id) && !isAvailableImmediately(p, state.totalDays)).length
     : 0;
+
+  // One candidate card, wired identically wherever it's shown (Open Casting,
+  // Direct Approach, or the Shortlist) - the fit read, pre-offer estimate,
+  // negotiation state, shortlist toggle, and offer/accept/walk actions all come
+  // from the same place, so a candidate reads and behaves the same in every tab.
+  const renderCandidate = (person: Person, opts: { channel?: CastingChannel; onDismiss?: () => void } = {}) => (
+    <CandidateCard
+      key={person.id}
+      person={person}
+      role={role}
+      script={draft.script}
+      character={character}
+      totalDays={state.totalDays}
+      overall={appealById.get(person.id) ?? appealFor(person)}
+      offeredSalary={offeredSalary}
+      channel={opts.channel}
+      directorName={directorName}
+      director={director}
+      affordable={isAffordable(person)}
+      actionLabel="Make Offer"
+      onAct={() => makeOffer(person)}
+      negotiation={negotiationFor(person)}
+      onAcceptCounter={() => acceptCounter(person)}
+      onWalkAway={() => walkAway(person)}
+      shortlisted={isShortlisted(person.id)}
+      onToggleShortlist={() => toggleShortlist(person)}
+      pinned={pins.isPinned(person.id)}
+      pinCapped={pins.isFull}
+      onTogglePin={() => pins.toggle(person.id)}
+      onDismiss={opts.onDismiss}
+      castingDirectorSkill={castingDirectorSkill}
+      relationship={relationshipFor(person)}
+      castAffinity={castAffinityFor(person)}
+    />
+  );
 
   return (
     <>
@@ -499,6 +556,9 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
           </Button>
           <Button variant={tab === 'direct-approach' ? 'primary' : 'secondary'} onClick={() => setTab('direct-approach')}>
             Direct Approach
+          </Button>
+          <Button variant={tab === 'shortlist' ? 'primary' : 'secondary'} onClick={() => setTab('shortlist')}>
+            Shortlist{shortlistedPersons.length > 0 ? ` (${shortlistedPersons.length})` : ''}
           </Button>
         </div>
 
@@ -567,34 +627,12 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                   </p>
                 ) : (
                   <div className="grid grid-wide">
-                    {shownApplicants.map((applicant) => (
-                      <CandidateCard
-                        key={applicant.person.id}
-                        person={applicant.person}
-                        role={role}
-                        script={draft.script}
-                        character={character}
-                        totalDays={state.totalDays}
-                        overall={appealById.get(applicant.person.id) ?? null}
-                        offeredSalary={offeredSalary}
-                        channel={applicant.channel}
-                        directorName={directorName}
-                        director={director}
-                        affordable={isAffordable(applicant.person)}
-                        actionLabel="Make Offer"
-                        onAct={() => makeOffer(applicant.person)}
-                        negotiation={negotiationFor(applicant.person)}
-                        onAcceptCounter={() => acceptCounter(applicant.person)}
-                        onWalkAway={() => walkAway(applicant.person)}
-                        pinned={pins.isPinned(applicant.person.id)}
-                        pinCapped={pins.isFull}
-                        onTogglePin={() => pins.toggle(applicant.person.id)}
-                        onDismiss={() => dispatch({ type: 'DISMISS_CASTING_APPLICANT', characterId: character.id, personId: applicant.person.id })}
-                        castingDirectorSkill={castingDirectorSkill}
-                        relationship={relationshipFor(applicant.person)}
-                        castAffinity={castAffinityFor(applicant.person)}
-                      />
-                    ))}
+                    {shownApplicants.map((applicant) =>
+                      renderCandidate(applicant.person, {
+                        channel: applicant.channel,
+                        onDismiss: () => dispatch({ type: 'DISMISS_CASTING_APPLICANT', characterId: character.id, personId: applicant.person.id }),
+                      }),
+                    )}
                   </div>
                 )}
               </>
@@ -618,32 +656,26 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
               </p>
             ) : (
             <div className="grid grid-wide">
-              {shownDirectCandidates.map((person) => (
-                <CandidateCard
-                  key={person.id}
-                  person={person}
-                  role={role}
-                  script={draft.script}
-                  character={character}
-                  totalDays={state.totalDays}
-                  overall={appealById.get(person.id) ?? null}
-                  offeredSalary={offeredSalary}
-                  directorName={directorName}
-                  affordable={isAffordable(person)}
-                  actionLabel="Make Offer"
-                  onAct={() => makeOffer(person)}
-                  negotiation={negotiationFor(person)}
-                  onAcceptCounter={() => acceptCounter(person)}
-                  onWalkAway={() => walkAway(person)}
-                  pinned={pins.isPinned(person.id)}
-                  pinCapped={pins.isFull}
-                  onTogglePin={() => pins.toggle(person.id)}
-                  castingDirectorSkill={castingDirectorSkill}
-                  relationship={relationshipFor(person)}
-                  castAffinity={castAffinityFor(person)}
-                />
-              ))}
+              {shownDirectCandidates.map((person) => renderCandidate(person))}
             </div>
+            )}
+          </>
+        )}
+
+        {!comparing && tab === 'shortlist' && (
+          <>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
+              Your shortlist for this role - track several contenders at once, open a negotiation with each, and keep
+              backups alive until you commit one. Shortlisting is just bookkeeping: it makes no offer on its own.
+            </p>
+            {shortlistedPersons.length === 0 ? (
+              <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+                Nobody shortlisted yet. Use ☆ Shortlist on any candidate in Open Casting or Direct Approach to add them here.
+              </p>
+            ) : (
+              <div className="grid grid-wide">
+                {shortlistedPersons.map((person) => renderCandidate(person))}
+              </div>
             )}
           </>
         )}

@@ -693,3 +693,40 @@ decision are untouched; this is a *read* of them under incomplete information.
 **Deferred within the uncertainty theme:** a paid "screen test" that buys down
 fit uncertainty for a specific candidate, and richer per-axis estimate detail -
 both land additively on `deriveFitRead` / `estimateDeal`.
+
+---
+
+## 16. Phase 3, shortlisting & parallel negotiation
+
+The brief's point 2: let the player shortlist candidates, compare them, negotiate
+with several at once, keep backups alive, and eventually choose one to cast.
+
+Most of the *parallel* half already fell out of Phase E's data model - a
+`FilmDraft.negotiations` record is per (character, actor), so the player could
+already open offers with several actors for the same character at once; each
+holds its own stable asking price and counter. What was missing was the
+container to manage them: a persisted **shortlist** and a place to see the
+contenders together.
+
+- **State:** `FilmDraft.shortlist: ShortlistEntry[]` - just the (character,
+  actor, role) link by id. Everything shown about a shortlisted candidate (fit,
+  estimate, live negotiation) is re-derived from the live person + draft state,
+  never frozen on the entry (the same rule `CastingApplicant` follows). The live
+  `Person` is resolved from `GameState.talentPool`. `SAVE_KEY` bumped v64→v65.
+- **Reducer:** `TOGGLE_SHORTLIST` - pure bookkeeping. It never makes an offer,
+  signs anyone, or touches a negotiation; it's only the set the player is
+  tracking. Signing one candidate leaves the others on the shortlist as backups.
+- **UI:** a ☆/★ Shortlist toggle on every candidate card, and a third
+  **Shortlist** tab (with a count) in `CastingDrawer` that lists the tracked
+  contenders - each rendered by the *same* card as the other tabs, so their fit
+  read, pre-offer estimate, live counter/rejection, and offer/accept/walk
+  actions are identical everywhere. A single `renderCandidate` helper now backs
+  all three tabs, so a candidate reads and behaves the same however you reached
+  them.
+
+No new engine math and no RNG - Phase 3 is state + bookkeeping + a consolidating
+view over the negotiation and estimate systems Phases E/2 already built.
+
+**Deferred within this theme:** competing offers from *rival* studios on a
+shortlisted actor (a real deadline pressure), and auto-pruning a filled
+character's stale shortlist - both additive on `ShortlistEntry` / the reducer.

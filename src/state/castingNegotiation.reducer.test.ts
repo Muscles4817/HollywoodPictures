@@ -166,3 +166,40 @@ describe('WALK_AWAY_NEGOTIATION', () => {
     expect(after).toBe(state);
   });
 });
+
+describe('TOGGLE_SHORTLIST', () => {
+  it('adds a candidate to the character shortlist, and removes them when toggled again', () => {
+    const { state, lead } = uncastState(20);
+    const actor = buildActor('short-1', matchingGender(lead));
+
+    const added = studioReducer(state, { type: 'TOGGLE_SHORTLIST', characterId: lead.id, role: 'Lead Actor', personId: actor.id });
+    expect((draftOf(added).shortlist ?? []).some((s) => s.characterId === lead.id && s.personId === actor.id)).toBe(true);
+
+    const removed = studioReducer(added, { type: 'TOGGLE_SHORTLIST', characterId: lead.id, role: 'Lead Actor', personId: actor.id });
+    expect((draftOf(removed).shortlist ?? []).some((s) => s.personId === actor.id)).toBe(false);
+  });
+
+  it('holds several candidates for one character at once (parallel backups)', () => {
+    const { state, lead } = uncastState(21);
+    const a = buildActor('short-a', matchingGender(lead));
+    const b = buildActor('short-b', matchingGender(lead));
+    let s = studioReducer(state, { type: 'TOGGLE_SHORTLIST', characterId: lead.id, role: 'Lead Actor', personId: a.id });
+    s = studioReducer(s, { type: 'TOGGLE_SHORTLIST', characterId: lead.id, role: 'Lead Actor', personId: b.id });
+    const ids = (draftOf(s).shortlist ?? []).filter((e) => e.characterId === lead.id).map((e) => e.personId);
+    expect(ids).toContain(a.id);
+    expect(ids).toContain(b.id);
+  });
+
+  it('signing one candidate leaves the others on the shortlist as backups', () => {
+    const { state, lead } = uncastState(22);
+    const signed = buildActor('signed', matchingGender(lead), { typical: 1_000_000, personality: { ego: 10, ambition: 10 }, reputation: { fame: 10, currentHeat: 10 } });
+    const backup = buildActor('backup', matchingGender(lead));
+    let s = studioReducer(state, { type: 'TOGGLE_SHORTLIST', characterId: lead.id, role: 'Lead Actor', personId: signed.id });
+    s = studioReducer(s, { type: 'TOGGLE_SHORTLIST', characterId: lead.id, role: 'Lead Actor', personId: backup.id });
+    // Sign `signed` with a generous offer.
+    s = studioReducer(s, { type: 'MAKE_OFFER', characterId: lead.id, role: 'Lead Actor', person: signed, offeredSalary: 20_000_000 });
+    expect(draftOf(s).talent.some((a) => a.person.id === signed.id)).toBe(true); // signed
+    // The backup is still shortlisted.
+    expect((draftOf(s).shortlist ?? []).some((e) => e.personId === backup.id)).toBe(true);
+  });
+});
