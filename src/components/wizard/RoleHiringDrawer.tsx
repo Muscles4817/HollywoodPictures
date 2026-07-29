@@ -5,7 +5,7 @@ import { TALENT_PRESENTATION, type RoleCategory } from '../../data/talentPresent
 import { effectiveRoleCapacity, characterForRoleSlot } from '../../engine/castRequirements';
 import { actorMeetsCharacterGender, personMeetsCharacterAge, castingGenderLabel, castingAgeBandLabel } from '../../engine/casting';
 import { logAmount } from '../../engine/interpolate';
-import { findCandidatesNearPrice } from '../../engine/talentFilter';
+import { deriveOverallScore } from '../common/TalentStats';
 import { deriveBookedUntil, getTypicalSalaryForRole, isAvailableImmediately, getCrewCareer } from '../../engine/person';
 import { computeDirectorAppeal, resolveDirectorOfferResponse, type DirectorOfferResponse } from '../../engine/directorAppeal';
 import { playerRelationshipWith, type RelationshipStanding } from '../../engine/relationships';
@@ -15,8 +15,6 @@ import { deriveFocusedDraft, computeCommittedSpend } from '../../state/selectors
 import { professionForProductionRole, findAssignedPerson } from '../../data/helpers';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
-import { RangeSlider } from '../common/RangeSlider';
-import { formatMoney } from '../common/Money';
 import { TalentStats } from '../common/TalentStats';
 import { TalentComparison, type CompareSlot } from '../common/TalentComparison';
 import { useComparePins, MAX_PINNED } from '../common/useComparePins';
@@ -24,7 +22,15 @@ import { CheckboxToggle } from '../common/CheckboxToggle';
 import type { Person, ProductionRole, Script, ScriptCharacter } from '../../types';
 
 const VFX_RECOMMENDED_GENRES = new Set(['Action', 'Sci-Fi', 'Fantasy']);
-const VISIBLE_CANDIDATE_COUNT = 9;
+// Phase 1c - the hiring drawer is a search tool now; cap how many candidates
+// render at once, with an honest overflow count telling the player to narrow.
+const HIRE_DISPLAY_LIMIT = 24;
+type HireSort = 'fit' | 'value' | 'fee';
+const HIRE_SORT_OPTIONS: { key: HireSort; label: string }[] = [
+  { key: 'fit', label: 'Fit' },
+  { key: 'value', label: 'Value' },
+  { key: 'fee', label: 'Fee' },
+];
 // How long a single-slot hire lingers, showing "Hired", before the drawer
 // auto-closes and returns the player to the hub - long enough to register
 // as confirmation, short enough that it still feels immediate.
@@ -109,6 +115,8 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   const draft = deriveFocusedDraft(state)!;
   const pins = useComparePins();
   const [availableOnly, setAvailableOnly] = useState(false);
+  const [affordableOnly, setAffordableOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<HireSort>('fit');
 
   // Body scroll lock + Escape-to-close, same conventions any overlay needs.
   useEffect(() => {
@@ -161,20 +169,22 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   // Redesign, Additional Notes point 1 - "we're still looking for our
   // villain," not "Character #4 isn't assigned").
 
-  const { candidates: visible, toleranceUsed } = findCandidatesNearPrice(candidates, role, targetPrice, VISIBLE_CANDIDATE_COUNT);
-  const hiredNotVisible = hired.filter((h) => !visible.some((v) => v.id === h.id));
-  const displayList = [...hiredNotVisible, ...visible].sort((person) => getTypicalSalaryForRole(person, role));
-  const tolerancePercent = Math.round(toleranceUsed * 100);
-  // "Available now only" filter: a booked hire is already disabled below (you
-  // can't clear their commitments in time), so hiding them declutters the list
-  // to people you can actually hire today. Anyone already on this production is
-  // never hidden. Defaults off. isAvailableImmediately matches the exact reading
-  // TalentStats shows ("Available immediately" vs "Busy until X").
+  // Phase 1c - the hiring drawer is a SEARCH tool, not a price window: show the
+  // whole eligible pool, ranked by the chosen sort and narrowed by the filters.
+  // The role's planned allocation (targetPrice) is set on the hub allocation
+  // table now, not by a slider here - so the same slider never means "offer" on
+  // the casting screen and "filter" on this one.
+  const fitOf = (person: Person) => deriveOverallScore(person, role, profile.category, draft.script, characterForCandidate(person)) ?? 0;
+  const salaryOf = (person: Person) => getTypicalSalaryForRole(person, role);
+  const sortValue = (person: Person) =>
+    sortBy === 'fee'
+      ? -salaryOf(person)
+      : sortBy === 'value'
+        ? (salaryOf(person) > 0 ? fitOf(person) / salaryOf(person) : fitOf(person))
+        : fitOf(person);
+  const hiredNotInPool = hired.filter((h) => !candidates.some((c) => c.id === h.id));
+  const displayList = [...hiredNotInPool, ...[...candidates].sort((a, b) => sortValue(b) - sortValue(a))];
   const onThisDraftIds = new Set(draft.talent.map((a) => a.person.id));
-  const shownList = availableOnly
-    ? displayList.filter((person) => onThisDraftIds.has(person.id) || isAvailableImmediately(person, state.totalDays))
-    : displayList;
-  const availabilityHiddenCount = displayList.length - shownList.length;
 
   // Affordability (a soft warning - talent salary is charged at greenlight, not
   // here): a candidate reads "over budget" if hiring them would put committed
@@ -185,6 +195,19 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   const remainingBudget = state.studio.cash - committedSpend + slotFreedSalary;
   const isAffordable = (person: Person) =>
     hired.some((h) => h.id === person.id) || getTypicalSalaryForRole(person, role) <= remainingBudget;
+
+  // Filters (Phase 1c): "Available now only" hides booked candidates (a booked
+  // hire is disabled anyway); "Affordable only" hides picks that'd put the film
+  // over budget. Anyone already on this production is never hidden. The list is
+  // capped for display with an honest overflow count.
+  const filteredList = displayList.filter((person) => {
+    if (onThisDraftIds.has(person.id)) return true;
+    if (availableOnly && !isAvailableImmediately(person, state.totalDays)) return false;
+    if (affordableOnly && !isAffordable(person)) return false;
+    return true;
+  });
+  const shownList = filteredList.slice(0, HIRE_DISPLAY_LIMIT);
+  const overflowCount = filteredList.length - shownList.length;
 
   // Candidate reasoning chips. The Director is the one role with a real appeal
   // model (engine/directorAppeal.ts) - its strengths and hard gates (prestige,
@@ -229,7 +252,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
 
   const directorAppealByPersonId = new Map(
     isDirectorRole && draft.script
-      ? displayList.map((person) => [person.id, computeDirectorAppeal(person, draft.script!, state.studio, targetPrice, state.totalDays, relationshipFor(person))] as const)
+      ? shownList.map((person) => [person.id, computeDirectorAppeal(person, draft.script!, state.studio, targetPrice, state.totalDays, relationshipFor(person))] as const)
       : [],
   );
 
@@ -330,31 +353,21 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
           <Button onClick={onClose}>Close</Button>
         </div>
 
-        <RangeSlider
-          label="Target Price"
-          min={range.min}
-          max={range.max}
-          logScale
-          value={targetPrice}
-          onChange={(price) => dispatch({ type: 'SET_TALENT_TARGET_PRICE', role, price })}
-          formatValue={formatMoney}
-          description="Drag to target a price band - the candidates shown update to match. It isn't the fee you pay: each hire is paid their own quoted salary, shown on their card."
-          lowLabel="Cheap"
-          highLabel="Star Power"
-        />
-
         <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
-          Showing candidates within {tolerancePercent}% of your target price.
+          Browse the roster and narrow it with the controls - the target fee for this role is set on the Cast &amp; Crew budget table; each hire is paid their own quoted salary, shown on their card.
           {capacity.max > 1 && ` Hire up to ${capacity.max} for this role.`}
-          {displayList.length === 0 && ' Nobody in the studio roster is available at this price - try adjusting the slider.'}
         </span>
         {displayList.length > 0 && (
-          <CheckboxToggle
-            checked={availableOnly}
-            onChange={setAvailableOnly}
-            label="Available now only"
-            hint={availableOnly && availabilityHiddenCount > 0 ? `${availabilityHiddenCount} booked hidden` : ''}
-          />
+          <div className="casting-controls">
+            <label className="casting-sort">
+              <span>Sort</span>
+              <select aria-label="Sort candidates" value={sortBy} onChange={(e) => setSortBy(e.target.value as HireSort)}>
+                {HIRE_SORT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
+            </label>
+            <CheckboxToggle checked={availableOnly} onChange={setAvailableOnly} label="Available now only" />
+            <CheckboxToggle checked={affordableOnly} onChange={setAffordableOnly} label="Affordable only" />
+          </div>
         )}
         {showVfxHint && <p style={{ margin: 0 }}>This genre benefits strongly from VFX - consider hiring a supervisor.</p>}
 
@@ -366,9 +379,9 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
           </div>
         )}
 
-        {availableOnly && shownList.length === 0 && displayList.length > 0 && (
+        {shownList.length === 0 && displayList.length > 0 && (
           <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-            Every candidate at this price is booked elsewhere. Turn off &ldquo;Available now only&rdquo; to see them.
+            No candidates match your filters - clear them to see the rest.
           </p>
         )}
 
@@ -412,6 +425,12 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
               );
             })}
           </div>
+        )}
+
+        {!comparing && overflowCount > 0 && (
+          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
+            Showing {HIRE_DISPLAY_LIMIT} of {shownList.length + overflowCount} - narrow with the controls to see the rest.
+          </p>
         )}
 
         {capacity.max > 1 && (

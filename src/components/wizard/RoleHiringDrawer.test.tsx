@@ -67,7 +67,10 @@ function stateWithNoDirector(seed: number, studioPrestige: number): GameState {
     projectWorkspaceSection: 'cast-and-crew',
     rngSeed: nextSeed,
     totalDays: 1,
-    talentPool: { ...talentPool, Director: [...talentPool.Director, highFameDirector()] },
+    // Deterministic single-director pool: the hiring drawer now ranks/caps the
+    // whole roster (Phase 1c - search, not a price window), so pin the pool to
+    // just our A-Lister rather than appending them to a large generated one.
+    talentPool: { ...talentPool, Director: [highFameDirector()] },
     rivalStudios: [],
     opportunities: [],
     nextOpportunityCheckDay: 1,
@@ -118,5 +121,22 @@ describe('RoleHiringDrawer - director interest (Casting Appeal Rework)', () => {
     );
     fireEvent.click(screen.getByText('A-Lister Director'));
     expect(screen.getByText(/A-Lister Director accepted\./)).toBeInTheDocument();
+  });
+});
+
+describe('RoleHiringDrawer - search tool, not a price window (Phase 1c)', () => {
+  it('drops the Target Price slider and offers sort + filter controls instead', () => {
+    const state = stateWithNoDirector(5, 60);
+    saveState(state);
+    render(
+      <StudioProvider>
+        <RoleHiringDrawer role="Editor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+    // The identical-slider-different-meaning bug is gone: no price slider here.
+    expect(screen.queryByLabelText('Target Price')).not.toBeInTheDocument();
+    // Search controls take its place.
+    expect(screen.getByLabelText('Sort candidates')).toBeInTheDocument();
+    expect(screen.getByText('Affordable only')).toBeInTheDocument();
   });
 });
