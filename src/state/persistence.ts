@@ -361,7 +361,12 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   shootingBudgetAmount, and a genuine ProductionChoices.contingencyReserveAmount
 //   buffer added. The old field is gone from the shape, so old saves are cleanly
 //   ignored - no migration code, same as every past shape-break here.
-const SAVE_KEY = 'hollywood-pictures-save-v63';
+// v63 -> v64 (Casting Redesign, Phase E - negotiation): TalentAssignment gained
+//   an optional agreedSalary (the negotiated fee a hire is charged at) and
+//   FilmDraft gained an optional negotiations list (live counter-offers). Both
+//   additive/optional, but the key is bumped as the honest shape-change signal
+//   per this project's pre-launch policy (CLAUDE.md). No migration code.
+const SAVE_KEY = 'hollywood-pictures-save-v64';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

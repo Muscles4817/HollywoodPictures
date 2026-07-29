@@ -582,7 +582,7 @@ milestones and shouldn't land as one commit.
 | **B - Open Casting** ✅ shipped | `CastingCall`/`CastingApplicant` state, weekly applicant generation (§2) mirroring `engine/opportunities.ts`'s cadence, still instant-accept-whoever-the-player-picks; `describeApplicantInterest` (§7) surfaced per applicant | Casting a role becomes a multi-week activity with a growing, self-explaining applicant list instead of an instant static pool-browse. | Medium - new persistent state, new weekly tick logic, but no rejection risk yet (todays "willing" semantics hold). |
 | **C - Direct Approach + real acceptance** ✅ shipped | `computeActorAppeal` (§3, including `attachmentMomentum`), `OfferResponse` + `describeOfferRejection` (§5/§7), applied to both Direct Approach *and* Open Casting applicants (an applicant can now, in principle, decline if the player's offered terms don't clear their threshold). Also carries one piece pulled forward from Phase D: Inbox notifications for a backgrounded project's new Open Casting applicants (`engine/castingCalls.ts:castingCallsAwaitingReview`) - not the full Interested Talent reverse-appeal flow, just surfacing applicants who've already applied. | Actors can say no for the first time, and say why. This is the phase that actually changes the core loop. | Highest - shipped alongside §9's no-softlock widening formula in the same phase, not after, so a bad-luck stretch of rejections was never a real dead end. |
 | **D - Casting Director + Interested Talent** ✅ shipped | New optional `Casting Director` role (§11) biasing applicant curation - volume, curation exponent, and a low-fame "discovery" pick, all keyed off the hired Casting Director's skill (`engine/castingCalls.ts:generateCastingApplicants`); *true* inbound Interested Talent (§6, `generateInterestedTalent`) - an unattached person surfaced *before* ever applying, reusing the appeal function in reverse against people who haven't sought the role out. `CastingChannel` moved from `CastingCall` to `CastingApplicant` (a single call can now host both channels at once); `CastingDrawer.tsx` shows a Casting-Director hint until one's hired and tags Interested Talent applicants; the Inbox calls them out by name. | Reputation starts working *for* the player proactively, not just when they go looking. | Low - both features are thin wrappers around Phase C's already-built appeal function. |
-| **E - Negotiation (engine)** 🔶 in progress | Dynamic per-deal asking price + counter-offers - `engine/castingNegotiation.ts` (`computeAskingPrice`, `resolveNegotiation`, `NegotiationOutcome`), the qualitative counter prose (`castingPresentation.ts:describeCounterOffer`/`describeCounterReason`/`describeDealClosed`), and the supporting `ActorAppealResult.effectiveMinimum` + `overallWithSalaryFit`/`offerBlameReason` exports. Landed as a pure, fully-tested engine layer AHEAD of any reducer/UI wiring (see §14). | None yet - the engine ships unwired; player-visible change arrives with the reducer/UI/greenlight-charge follow-up. | Low for this slice (pure functions, no money-flow touched); the follow-up that charges the negotiated fee at Greenlight is the higher-risk part, deliberately isolated. |
+| **E - Negotiation** ✅ shipped | Dynamic per-deal asking price + counter-offers end to end. Engine: `engine/castingNegotiation.ts` (`computeAskingPrice`, `resolveNegotiation`, `NegotiationOutcome`), the counter prose (`castingPresentation.ts:describeCounterOffer`/`describeCounterReason`/`describeDealClosed`), and supporting `ActorAppealResult.effectiveMinimum` + `overallWithSalaryFit`/`offerBlameReason`. Wiring: `TalentAssignment.agreedSalary` (charged via `person.ts:assignmentCost` → `computeTalentCost` → Greenlight), persisted `FilmDraft.negotiations`, reducer actions `MAKE_OFFER`/`ACCEPT_COUNTER`/`WALK_AWAY_NEGOTIATION` (asking price rolled once through `withRng`), and the `CastingDrawer` counter/accept/re-offer/walk UI. `SAVE_KEY` bumped v63→v64. | Making an offer can now be accepted, **countered**, or rejected; the player raises and re-offers against a stable asking price, and the **negotiated fee is what the studio pays** at Greenlight. | Medium - the money-flow change (negotiated fee charged instead of typicalSalary) was the higher-risk piece; landed behind the engine slice and covered by reducer tests. |
 | **E - Future** (not scoped) | Additional `CastingChannel` variants (§10), chemistry, deadlines, competing simultaneous offers, and non-money negotiation conditions (script revisions, schedule shifts, attached-talent demands - each depends on a system that is itself later work, e.g. a shift-dates flow). `NegotiationOutcome` is a discriminated union shaped so these land as new variants, not a rewrite. | — | Deferred, per the brief's own scoping. |
 
 Phase C is the one I'd expect to need the same heavily-tested, one-continuous-effort
@@ -637,11 +637,18 @@ that is itself later work - a "shift the shoot dates" flow, most obviously.
 rather than a rewrite, the same way this slice landed on top of
 `OfferResponse` without disturbing it.
 
-**What's deliberately NOT in this slice** (the follow-up that makes it
-player-visible): persisted per-character negotiation state on `FilmDraft`, an
-`agreedSalary` on `TalentAssignment`, the reducer actions
-(make-offer/accept-counter/raise/walk) resolved through `withRng`, the
-`CastingDrawer` UI, and - the higher-risk piece - charging the negotiated fee
-at `GREENLIGHT_PROJECT` instead of the static `typicalSalary`. Kept out of
-the engine PR on purpose, so the money-flow change is isolated and separately
-testable, per Phase C's own precedent.
+**The wiring (now shipped, on top of the engine slice).** Persisted
+per-character negotiation state (`FilmDraft.negotiations`), an `agreedSalary`
+on `TalentAssignment`, the reducer actions (`MAKE_OFFER` /`ACCEPT_COUNTER` /
+`WALK_AWAY_NEGOTIATION`) with the asking price rolled once through `withRng`,
+the `CastingDrawer` counter/accept/re-offer/walk UI, and - the higher-risk
+piece - charging the negotiated fee at `GREENLIGHT_PROJECT` via a single money
+seam (`engine/person.ts:assignmentCost`, read by `computeTalentCost`, the
+cast-budget split, and the mid-shoot recast delta). `SAVE_KEY` bumped v63→v64,
+no migration (pre-launch policy). The money-flow change was landed after the
+engine slice and separately, per Phase C's precedent.
+
+**Still deferred** (Phase E - Future above): non-money conditions (script
+revisions, schedule shifts, attached-talent demands), competing simultaneous
+offers, deadlines, and shortlisting/parallel negotiation. `NegotiationOutcome`
+and `RoleNegotiation` are shaped so these land additively.

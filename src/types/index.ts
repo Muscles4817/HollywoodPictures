@@ -2044,6 +2044,44 @@ export interface TalentAssignment {
    * absent is read as no age constraint (engine/casting.ts:ageFitMultiplier).
    */
   ageAtCasting?: number;
+  /**
+   * The fee this actor was actually signed for, negotiated per-deal (Casting
+   * Redesign, Phase E - engine/castingNegotiation.ts). Set when a hire came
+   * through the negotiation flow (the player's accepted offer, or an accepted
+   * counter); absent for crew, rivals, and anyone attached outside a
+   * negotiation, which fall back to the standing typicalSalary. This is what
+   * the studio is charged at Greenlight (engine/person.ts:assignmentCost,
+   * engine/cost.ts:computeTalentCost) - the point of negotiating a price is
+   * that the negotiated price is what you pay.
+   */
+  agreedSalary?: Money;
+}
+
+/**
+ * Casting Redesign, Phase E - one live money negotiation between the studio and
+ * a specific actor for a specific Character. Persisted on the draft (unlike the
+ * always-re-derived appeal/suitability reads) because a counter the player can
+ * respond to has to hold still between renders: the asking price is rolled once,
+ * with the run's seeded RNG, when the negotiation opens, and every later offer
+ * is judged against that same stable number (engine/castingNegotiation.ts). One
+ * record per (characterId, personId); cleared when the actor is signed or the
+ * player walks away.
+ */
+export interface RoleNegotiation {
+  /** ScriptCharacter.id being cast. */
+  characterId: string;
+  personId: PersonId;
+  role: 'Lead Actor' | 'Supporting Actor';
+  /** The actor's rolled opening quote for this deal - stable for the life of the negotiation, so raising your offer is judged against a fixed target (engine/castingNegotiation.ts:computeAskingPrice). */
+  askingPrice: Money;
+  /** The most recent offer the player made. */
+  lastOfferedSalary: Money;
+  /** Where the last offer landed: a live counter the player can accept/raise/walk, or a rejection with its reason. An accepted offer clears the record entirely (the actor becomes a TalentAssignment), so 'accepted' is never a stored status. */
+  status: 'countered' | 'rejected';
+  /** The actor's counter, present only when status is 'countered'. */
+  counterSalary?: Money;
+  /** Why they passed, present only when status is 'rejected' - mirrors engine/castingAppeal.ts:OfferRejectionReason (kept as a local union so types/ needn't import from engine/; the reducer only ever writes those values). */
+  reason?: 'suitability' | 'brand-prestige-mismatch' | 'salary' | 'schedule' | 'relationship';
 }
 
 // --- Casting Redesign, Phase B (docs/DESIGN_REVIEW_casting_redesign.md
@@ -2121,6 +2159,8 @@ export interface FilmDraft {
   castCrewBudget?: number;
   /** Casting Redesign, Phase B - every Open Casting call in progress for this draft's Lead/Supporting characters, at most one per Character. Empty until the player opens one; ticks weekly via engine/castingCalls.ts:tickCastingCalls. */
   castingCalls: CastingCall[];
+  /** Casting Redesign, Phase E - live money negotiations for this draft's characters, at most one per (character, actor). Empty/absent until the player makes an offer through the negotiation flow; a record is dropped the moment the actor signs or the player walks. Read as `[]` when absent (older drafts). */
+  negotiations?: RoleNegotiation[];
   // The player's own Strategy/Ambition choices from the redesigned Plan
   // Production screen - null until that screen has been visited at least
   // once. `productionChoices` below is still what every downstream system

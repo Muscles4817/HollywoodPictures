@@ -1,12 +1,12 @@
 import type { MarketingChoices, ProductionChoices, ProductionEvent, TalentAssignment } from '../types';
 import { runtimeCostMultiplier } from './productionDials';
 import { RELEASE_TYPE_PROFILES } from '../data/release';
-import { getTypicalSalaryForRole } from './person';
+import { assignmentCost } from './person';
 import { pressTourCost } from './pressTour';
 
-/** Sum of every hired person's typical salary under the role they were actually cast in. */
+/** Sum of what every hire actually costs - their negotiated fee (TalentAssignment.agreedSalary) where one was struck, else their typical salary under the role they were cast in (engine/person.ts:assignmentCost). */
 export function computeTalentCost(talent: TalentAssignment[]): number {
-  return talent.reduce((sum, a) => sum + getTypicalSalaryForRole(a.person, a.role), 0);
+  return talent.reduce((sum, a) => sum + assignmentCost(a), 0);
 }
 
 /**

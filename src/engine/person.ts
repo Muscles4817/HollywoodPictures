@@ -13,6 +13,7 @@ import type {
   Person,
   PersonCommitment,
   ProductionRole,
+  TalentAssignment,
   TalentProfession,
   WriterCareer,
 } from '../types';
@@ -87,6 +88,20 @@ export function getTypicalSalaryForRole(person: Person, role: ProductionRole): M
 
 export function getMinimumSalaryForRole(person: Person, role: ProductionRole): Money {
   return getCareerForRole(person, role)?.minimumSalary ?? 0;
+}
+
+/**
+ * What one hire actually costs the studio: the fee negotiated for THIS deal
+ * (TalentAssignment.agreedSalary, from the Phase E casting negotiation) when
+ * there is one, otherwise the person's standing typicalSalary. The single
+ * source of truth for "what does this assignment cost" - computeTalentCost, the
+ * cast-budget split, and the mid-shoot recast delta all read it, so a negotiated
+ * fee is charged consistently wherever a hire's cost is summed. An assignment
+ * with no agreedSalary (crew, rivals, anyone attached outside a negotiation)
+ * reads exactly as before.
+ */
+export function assignmentCost(a: TalentAssignment): Money {
+  return a.agreedSalary ?? getTypicalSalaryForRole(a.person, a.role);
 }
 
 /** Every crew profession, for callers that need to enumerate them (e.g. generation). */

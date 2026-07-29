@@ -389,7 +389,7 @@ function stateWithBelowFloorCandidate(): GameState {
 }
 
 describe('CastingDrawer - candidate reasoning chips', () => {
-  it('flags a below-salary-floor candidate with a "Wants more pay" blocker and a disabled offer, while an at-offer actor stays actionable', () => {
+  it('flags a below-salary-floor candidate with a "Below their floor" heads-up, but still lets you make the offer (they counter, not hard-reject)', () => {
     const state = stateWithBelowFloorCandidate();
     const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;
     saveState(state);
@@ -404,11 +404,12 @@ describe('CastingDrawer - candidate reasoning chips', () => {
 
     const affordableCard = screen.getByText('Ava Affordable').closest('.card') as HTMLElement;
     const priceyCard = screen.getByText('Priya Pricey').closest('.card') as HTMLElement;
-    // The below-floor actor: a blocker chip and a disabled offer (it would be hard-rejected).
-    expect(within(priceyCard).getByText('Wants more pay')).toBeInTheDocument();
-    expect(within(priceyCard).getByRole('button', { name: 'Make Offer' })).toBeDisabled();
-    // The at-offer actor carries no such blocker and can be offered.
-    expect(within(affordableCard).queryByText('Wants more pay')).not.toBeInTheDocument();
+    // The below-floor actor: a heads-up chip, but the offer is still actionable -
+    // under negotiation a below-floor offer draws a counter rather than a wall.
+    expect(within(priceyCard).getByText('Below their floor')).toBeInTheDocument();
+    expect(within(priceyCard).getByRole('button', { name: 'Make Offer' })).toBeEnabled();
+    // The at-offer actor carries no such heads-up and can be offered.
+    expect(within(affordableCard).queryByText('Below their floor')).not.toBeInTheDocument();
     expect(within(affordableCard).getByRole('button', { name: 'Make Offer' })).toBeEnabled();
   });
 

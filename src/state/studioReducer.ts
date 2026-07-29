@@ -1,4 +1,4 @@
-import type { Asset, AwardShowId, AwardsState, BidNotification, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
+import type { Asset, AwardShowId, AwardsState, BidNotification, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, RoleNegotiation, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
@@ -13,7 +13,9 @@ import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORI
 import { promoteFilmToIp, ipForSourceFilm } from '../engine/intellectualProperty';
 import { computeDailyShootBurn, computeDailyPrepBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
 import { computeSetsAmbition, defaultDesignPrepDays, NO_DESIGNER_SKILL } from '../engine/setsFacet';
-import { getCrewCareer, getTypicalSalaryForRole, getWriterCareer, isPersonAvailableForCommitment, withCommitment, withReputationChange } from '../engine/person';
+import { assignmentCost, getActorCareer, getCrewCareer, getTypicalSalaryForRole, getWriterCareer, isPersonAvailableForCommitment, withCommitment, withReputationChange } from '../engine/person';
+import { computeActorAppeal } from '../engine/castingAppeal';
+import { computeAskingPrice, resolveNegotiation } from '../engine/castingNegotiation';
 import { writerProfileFromPerson } from '../engine/writers';
 import { computeRewriteOutcome, makePendingRewrite, rewriteDurationDays, rewriteFee, settleAssetRewrites } from '../engine/rewrite';
 import { commissionDurationDays, commissionFee, generateCommissionedScript, makePendingCommission, settlePendingCommissions } from '../engine/commission';
@@ -581,6 +583,47 @@ function withRebalancedTargets(draft: FilmDraft, nextTalent: TalentAssignment[])
   return { ...draft, talent: nextTalent, talentTargetPriceByRole };
 }
 
+/**
+ * Signs an actor into a character slot with a negotiated fee - the shared
+ * attach step behind an accepted offer and an accepted counter (Casting
+ * Redesign, Phase E). Mirrors TOGGLE_TALENT_FOR_ROLE's add/recast branch
+ * exactly (capacity, gender/age eligibility, slot binding, ageAtCasting
+ * snapshot, budget rebalance) so a negotiated hire and a plain toggle bind a
+ * character identically - the only addition is stamping `agreedSalary`, the
+ * negotiated price this hire is charged at. Returns the updated draft, or null
+ * if the hire is ineligible or the role is full (caller no-ops). Cross-role
+ * double-casting is guarded by the caller, as in TOGGLE.
+ */
+function attachActorToRole(
+  draft: FilmDraft,
+  role: 'Lead Actor' | 'Supporting Actor',
+  person: Person,
+  characterId: string,
+  totalDays: number,
+  agreedSalary: number,
+): FilmDraft | null {
+  const script = draft.script;
+  const current = draft.talent.filter((a) => a.role === role);
+  const capacity = effectiveRoleCapacity(role, script);
+  const targetCharacter = !script
+    ? null
+    : (script.cast.find((c) => c.id === characterId) ?? null);
+  if (script && !personMeetsCharacterGender(person, targetCharacter)) return null;
+  if (script && !personMeetsCharacterAge(person, targetCharacter, totalDays)) return null;
+  const ageAtCasting = targetCharacter ? personCastingAge(person, totalDays) : undefined;
+  const newAssignment: TalentAssignment = { role, person, characterId, ageAtCasting, agreedSalary };
+  const existingForCharacter = draft.talent.find((a) => a.role === role && a.characterId === characterId);
+  let nextTalent: TalentAssignment[];
+  if (existingForCharacter) {
+    nextTalent = draft.talent.map((a) => (a === existingForCharacter ? newAssignment : a));
+  } else if (current.length < capacity.max) {
+    nextTalent = [...draft.talent, newAssignment];
+  } else {
+    return null;
+  }
+  return withRebalancedTargets(draft, nextTalent);
+}
+
 /** Replaces a 'scheduled' project's draft in place, keeping its releaseDay - the scheduled-project analogue of replaceDraft (used to answer a press-tour incident). */
 function replaceScheduledProject(projects: Project[], draft: FilmDraft): Project[] {
   return projects.map((p) => (p.kind === 'scheduled' && p.draft.id === draft.id ? scheduledDraftToProject(draft, p.releaseDay) : p));
@@ -618,7 +661,11 @@ function resolveChoiceOnDraft(
     const outgoing = d.talent.find((a) => a.person.id === pendingChoice.involvedTalentId);
     if (candidate && outgoing) {
       const role = pendingChoice.replacementRole;
-      cashDelta = -(getTypicalSalaryForRole(candidate, role) - getTypicalSalaryForRole(outgoing.person, role));
+      // Credit what the outgoing actor was actually charged (their negotiated
+      // fee if one was struck - assignmentCost), not just their typical quote,
+      // so a mid-shoot recast settles against real money out. The replacement
+      // comes from the pool with no negotiated deal, so their typical stands.
+      cashDelta = -(getTypicalSalaryForRole(candidate, role) - assignmentCost(outgoing));
       // A mid-shoot replacement steps into the same Character the outgoing
       // actor played - carry their characterId so the binding survives the
       // recast (slot-bound casting), not just their role.
@@ -1401,6 +1448,108 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           : c,
       );
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, castingCalls: nextCalls }) };
+    }
+
+    // Casting Redesign, Phase E (docs/DESIGN_REVIEW_casting_redesign.md §14) -
+    // one offer in a money negotiation. Unlike RECORD_CASTING_REJECTION (which
+    // only records a client-decided outcome), this action OWNS the decision:
+    // the asking price is rolled with the run's seeded RNG here, in the reducer,
+    // because it must be reproducible and stable. Appeal is recomputed
+    // authoritatively from live state (never trusted from the client).
+    case 'MAKE_OFFER': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft?.script) return state;
+      const script = focusedDraft.script;
+      const character = script.cast.find((c) => c.id === action.characterId);
+      if (!character) return state;
+      const { person, role, offeredSalary } = action;
+      // Don't let the same person be negotiated into a second role on this draft
+      // (mirrors TOGGLE_TALENT_FOR_ROLE's cross-role guard).
+      if (focusedDraft.talent.some((a) => a.role !== role && a.person.id === person.id)) return state;
+      const career = getActorCareer(person);
+      if (!career) return state;
+
+      const director = findAssignedPerson(focusedDraft.talent, 'Director');
+      const relationship = computeRelationship(state.collaborations ?? [], PLAYER_STUDIO_ID, person.id);
+      const appeal = computeActorAppeal(person, character, script, state.studio, director, focusedDraft.talent, offeredSalary, state.totalDays, relationship);
+      if (!appeal) return state;
+
+      const negotiations = focusedDraft.negotiations ?? [];
+      const existing = negotiations.find((n) => n.characterId === action.characterId && n.personId === person.id);
+
+      // Roll the asking price ONCE, when the negotiation opens - a live
+      // negotiation reuses its stable rolled price so raising your offer is
+      // judged against a fixed target. Only a genuinely new negotiation consumes
+      // the RNG stream.
+      let askingPrice = existing?.askingPrice;
+      let nextSeed = state.rngSeed;
+      if (askingPrice == null) {
+        const rolled = withRng(state.rngSeed, (rng) => computeAskingPrice(person, appeal.effectiveMinimum, career.typicalSalary, rng));
+        askingPrice = rolled.result;
+        nextSeed = rolled.nextSeed;
+      }
+
+      const outcome = resolveNegotiation(appeal, person, offeredSalary, askingPrice, relationship);
+
+      if (outcome.status === 'accepted') {
+        const attached = attachActorToRole(focusedDraft, role, person, action.characterId, state.totalDays, outcome.agreedSalary);
+        if (!attached) return state;
+        const signed: FilmDraft = {
+          ...attached,
+          negotiations: negotiations.filter((n) => !(n.characterId === action.characterId && n.personId === person.id)),
+        };
+        return { ...state, rngSeed: nextSeed, projects: replaceDraft(state.projects, signed) };
+      }
+
+      const record: RoleNegotiation =
+        outcome.status === 'countered'
+          ? { characterId: action.characterId, personId: person.id, role, askingPrice, lastOfferedSalary: offeredSalary, status: 'countered', counterSalary: outcome.counterSalary }
+          : { characterId: action.characterId, personId: person.id, role, askingPrice, lastOfferedSalary: offeredSalary, status: 'rejected', reason: outcome.reason };
+      const nextNegotiations = existing ? negotiations.map((n) => (n === existing ? record : n)) : [...negotiations, record];
+
+      // A rejection also feeds the no-softlock widening, exactly like
+      // RECORD_CASTING_REJECTION - a counter does not (they didn't say no).
+      let nextCalls = focusedDraft.castingCalls;
+      if (outcome.status === 'rejected') {
+        const call = nextCalls.find((c) => c.characterId === action.characterId);
+        nextCalls = call
+          ? nextCalls.map((c) => (c.characterId === action.characterId ? { ...c, rejectionCount: c.rejectionCount + 1 } : c))
+          : [...nextCalls, { ...openCastingCall(action.characterId, role, state.totalDays), rejectionCount: 1 }];
+      }
+
+      return {
+        ...state,
+        rngSeed: nextSeed,
+        projects: replaceDraft(state.projects, { ...focusedDraft, negotiations: nextNegotiations, castingCalls: nextCalls }),
+      };
+    }
+
+    // Casting Redesign, Phase E - accept an actor's standing counter: sign them
+    // at counterSalary and clear the negotiation. Deterministic, no RNG.
+    case 'ACCEPT_COUNTER': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const negotiations = focusedDraft.negotiations ?? [];
+      const neg = negotiations.find((n) => n.characterId === action.characterId && n.personId === action.person.id && n.status === 'countered');
+      if (!neg || neg.counterSalary == null) return state;
+      // Don't let a stale counter double-cast someone who's since been hired
+      // into a different role on this draft (mirrors MAKE_OFFER's guard).
+      if (focusedDraft.talent.some((a) => a.role !== neg.role && a.person.id === action.person.id)) return state;
+      const attached = attachActorToRole(focusedDraft, neg.role, action.person, neg.characterId, state.totalDays, neg.counterSalary);
+      if (!attached) return state;
+      const signed: FilmDraft = { ...attached, negotiations: negotiations.filter((n) => n !== neg) };
+      return { ...state, projects: replaceDraft(state.projects, signed) };
+    }
+
+    // Casting Redesign, Phase E - walk away from a live negotiation, dropping
+    // its record (rolled asking price included). A later offer starts fresh.
+    case 'WALK_AWAY_NEGOTIATION': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const negotiations = focusedDraft.negotiations ?? [];
+      const next = negotiations.filter((n) => !(n.characterId === action.characterId && n.personId === action.personId));
+      if (next.length === negotiations.length) return state;
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, negotiations: next }) };
     }
 
     case 'SET_TALENT_TARGET_PRICE': {

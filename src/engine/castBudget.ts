@@ -2,7 +2,7 @@ import type { ProductionRole, Script, TalentAssignment } from '../types';
 import { MANDATORY_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
 import { effectiveRoleCapacity } from './castRequirements';
-import { getTypicalSalaryForRole } from './person';
+import { assignmentCost } from './person';
 import { clamp } from './random';
 
 /**
@@ -61,7 +61,7 @@ export function splitCastBudgetByImportance(params: CastBudgetSplitParams): Part
   // What's already been committed to hires (their own quoted fees), across every
   // role - real money out of the same pot, so it comes off the top before the
   // remainder is divided among who's still left to cast.
-  const spent = talent.reduce((sum, a) => sum + getTypicalSalaryForRole(a.person, a.role), 0);
+  const spent = talent.reduce((sum, a) => sum + assignmentCost(a), 0);
   const remaining = Math.max(0, totalBudget - spent);
 
   // Heads still to hire per mandatory role (max capacity minus who's already in),
