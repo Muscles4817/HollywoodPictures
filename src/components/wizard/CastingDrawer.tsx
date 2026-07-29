@@ -715,7 +715,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         audited={audited}
         auditioning={!!audition && !audited}
         auditionReadyInDays={audition ? Math.max(0, audition.readyOnDay - state.totalDays) : undefined}
-        onAudition={() => dispatch({ type: 'REQUEST_AUDITION', characterId: character.id, role, personId: person.id })}
+        onAudition={() => dispatch({ type: 'REQUEST_AUDITION', characterId: character.id, role, personId: person.id, personName: person.identity.name })}
         onWaitForActor={bookedUntil ? () => dispatch({ type: 'SET_SHOOT_DELAY', offsetDays: bookedUntil - state.totalDays }) : undefined}
         waitAlsoFrees={bookedUntil ? countActorsFreedByDelay(eligibleDirectActors, plannedStartDay, bookedUntil, person.id) : 0}
         castingDirectorTake={castingDirectorTakeFor(person)}

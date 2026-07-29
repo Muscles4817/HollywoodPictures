@@ -2098,6 +2098,12 @@ textarea, input, select {
 .staffing-board__window { padding: 6px 10px; margin-bottom: 6px; border-radius: 6px; background: var(--info-bg, color-mix(in srgb, var(--primary) 10%, transparent)); font-size: 0.95em; }
 .staffing-board__note { margin: 6px 0 0; color: var(--text-muted); font-size: 0.85em; }
 .staffing-progress { color: var(--text-muted); }
+.staffing-feed { margin: 8px 0 4px; font-size: 0.88em; }
+.staffing-feed__head { color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
+.staffing-feed ul { list-style: none; margin: 0; padding: 0; }
+.staffing-feed li { display: flex; gap: 10px; padding: 3px 0; border-bottom: 1px solid var(--border, color-mix(in srgb, currentColor 8%, transparent)); }
+.staffing-feed li:last-child { border-bottom: none; }
+.staffing-feed__day { flex: 0 0 auto; min-width: 72px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .staffing-row--warn .staffing-overbudget { color: var(--red); font-weight: 600; }
 .staffing-stage { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.82em; font-weight: 600; }
 .staffing-stage--unstaffed { background: var(--track-bg); color: var(--text-muted); }

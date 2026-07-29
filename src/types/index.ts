@@ -2118,6 +2118,19 @@ export interface AuditionRecord {
   readyOnDay: GameDay;
 }
 
+// Phase 2b - one meaningful staffing event for the Cast & Crew activity feed.
+// `kind` drives how the feed renders it; `subject` is the character name or role
+// it concerns; `personName`/`amount`/`note` fill in the specifics.
+export type StaffingEventKind = 'attached' | 'countered' | 'rejected' | 'audition' | 'dropped' | 'budget';
+export interface StaffingEvent {
+  day: GameDay;
+  kind: StaffingEventKind;
+  subject: string;
+  personName?: string;
+  amount?: Money;
+  note?: string;
+}
+
 // --- Casting Redesign, Phase B (docs/DESIGN_REVIEW_casting_redesign.md
 // sections 1-2) - Open Casting: a persistent, per-Character call that
 // accumulates applicants over real calendar time instead of the whole
@@ -2200,6 +2213,14 @@ export interface FilmDraft {
    * (SET_ROLE_BUDGET_LOCK). Absent/[] = fully auto-split, as before.
    */
   lockedRoleBudgets?: ProductionRole[];
+  /**
+   * Phase 2b - the curated staffing activity feed: a capped, reverse-readable log
+   * of the MEANINGFUL staffing decisions and changes on this production (offers
+   * countered/rejected, roles filled, auditions arranged, applicants dropped,
+   * budgets locked) - deliberately NOT trivial UI churn like slider drags.
+   * Appended by the relevant reducers; read as `[]` when absent (older drafts).
+   */
+  staffingLog?: StaffingEvent[];
   /** Casting Redesign, Phase B - every Open Casting call in progress for this draft's Lead/Supporting characters, at most one per Character. Empty until the player opens one; ticks weekly via engine/castingCalls.ts:tickCastingCalls. */
   castingCalls: CastingCall[];
   /** Casting Redesign, Phase E - live money negotiations for this draft's characters, at most one per (character, actor). Empty/absent until the player makes an offer through the negotiation flow; a record is dropped the moment the actor signs or the player walks. Read as `[]` when absent (older drafts). */

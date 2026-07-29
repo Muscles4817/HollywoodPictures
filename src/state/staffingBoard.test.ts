@@ -1,6 +1,6 @@
 // Workstream I, Phase 2a - the staffing lifecycle derivation.
 import { describe, it, expect } from 'vitest';
-import { deriveStaffingBoard, type StaffingBoard } from './staffingBoard';
+import { deriveStaffingBoard, appendStaffingEvent, STAFFING_LOG_CAP, type StaffingBoard } from './staffingBoard';
 import { buildReadyDraft } from './testFixtures';
 import { withRng } from '../engine/random';
 import type { FilmDraft, Person } from '../types';
@@ -78,5 +78,33 @@ describe('deriveStaffingBoard', () => {
     const b = deriveStaffingBoard(d, 10);
     expect(b.plannedStartOffsetDays).toBe(30);
     expect(rowFor(b, 'Director').budget.locked).toBe(true);
+  });
+});
+
+describe('appendStaffingEvent', () => {
+  it('records a meaningful event onto the draft feed without mutating the input', () => {
+    const d = baseDraft();
+    const next = appendStaffingEvent(d, { day: 3, kind: 'attached', subject: 'Ava', personName: 'Star', amount: 5_000_000 });
+    expect(d.staffingLog ?? []).toHaveLength(0);
+    expect(next.staffingLog).toHaveLength(1);
+    expect(next.staffingLog![0]).toMatchObject({ kind: 'attached', subject: 'Ava', personName: 'Star' });
+  });
+
+  it('preserves order (oldest first) as events accrue', () => {
+    let d = baseDraft();
+    d = appendStaffingEvent(d, { day: 1, kind: 'audition', subject: 'Ava', personName: 'A' });
+    d = appendStaffingEvent(d, { day: 2, kind: 'countered', subject: 'Ava', personName: 'A', amount: 6_000_000 });
+    expect(d.staffingLog!.map((e) => e.kind)).toEqual(['audition', 'countered']);
+  });
+
+  it('caps the feed at STAFFING_LOG_CAP, dropping the oldest', () => {
+    let d = baseDraft();
+    for (let i = 0; i < STAFFING_LOG_CAP + 5; i++) {
+      d = appendStaffingEvent(d, { day: i, kind: 'budget', subject: 'Director', note: 'locked' });
+    }
+    expect(d.staffingLog).toHaveLength(STAFFING_LOG_CAP);
+    // the earliest five should have been evicted
+    expect(d.staffingLog![0].day).toBe(5);
+    expect(d.staffingLog![STAFFING_LOG_CAP - 1].day).toBe(STAFFING_LOG_CAP + 4);
   });
 });

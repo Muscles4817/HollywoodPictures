@@ -1,4 +1,4 @@
-import type { Asset, AwardShowId, AwardsState, BidNotification, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, RoleNegotiation, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
+import type { Asset, AwardShowId, AwardsState, BidNotification, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, RoleNegotiation, StaffingEvent, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
@@ -6,6 +6,7 @@ import { ALL_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGenera
 import { professionForProductionRole, findAssignedPerson } from '../data/helpers';
 import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequirements';
 import { splitCastBudgetByImportance } from '../engine/castBudget';
+import { appendStaffingEvent } from './staffingBoard';
 import { personMeetsCharacterGender, personMeetsCharacterAge, personCastingAge } from '../engine/casting';
 import { applyPrepRiskDelta, computePrepRiskDelta, computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeShootEscalation, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, rollPreProductionDayEvent, resolveEventChoice } from '../engine/production';
 import { computeExecutionResilience } from '../engine/productionExecution';
@@ -1319,7 +1320,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       }
       const withoutRole = focusedDraft.talent.filter((a) => a.role !== action.role);
       const nextTalent = action.person ? [...withoutRole, { role: action.role, person: action.person }] : withoutRole;
-      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, talent: nextTalent }) };
+      const withTalent: FilmDraft = { ...focusedDraft, talent: nextTalent };
+      // Phase 2b - a genuine hire is a meaningful staffing event; clearing a role isn't logged.
+      const hireLogged = action.person
+        ? appendStaffingEvent(withTalent, { day: state.totalDays, kind: 'attached', subject: action.role, personName: action.person.identity.name })
+        : withTalent;
+      return { ...state, projects: replaceDraft(state.projects, hireLogged) };
     }
 
     // For roles that can hold more than one person (Lead Actor and
@@ -1438,6 +1444,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       if (!focusedDraft) return state;
       const call = focusedDraft.castingCalls.find((c) => c.characterId === action.characterId);
       if (!call || !call.applicants.some((a) => a.person.id === action.personId)) return state;
+      const dismissedName = call.applicants.find((a) => a.person.id === action.personId)?.person.identity.name;
       const nextCalls = focusedDraft.castingCalls.map((c) =>
         c.characterId === action.characterId
           ? {
@@ -1449,7 +1456,9 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             }
           : c,
       );
-      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, castingCalls: nextCalls }) };
+      const dismissedSubject = focusedDraft.script?.cast.find((c) => c.id === action.characterId)?.name ?? 'a role';
+      const logged = appendStaffingEvent({ ...focusedDraft, castingCalls: nextCalls }, { day: state.totalDays, kind: 'dropped', subject: dismissedSubject, personName: dismissedName });
+      return { ...state, projects: replaceDraft(state.projects, logged) };
     }
 
     // Casting Redesign, Phase E (docs/DESIGN_REVIEW_casting_redesign.md §14) -
@@ -1496,10 +1505,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       if (outcome.status === 'accepted') {
         const attached = attachActorToRole(focusedDraft, role, person, action.characterId, state.totalDays, outcome.agreedSalary);
         if (!attached) return state;
-        const signed: FilmDraft = {
-          ...attached,
-          negotiations: negotiations.filter((n) => !(n.characterId === action.characterId && n.personId === person.id)),
-        };
+        const signed = appendStaffingEvent(
+          { ...attached, negotiations: negotiations.filter((n) => !(n.characterId === action.characterId && n.personId === person.id)) },
+          { day: state.totalDays, kind: 'attached', subject: character.name, personName: person.identity.name, amount: outcome.agreedSalary },
+        );
         return { ...state, rngSeed: nextSeed, projects: replaceDraft(state.projects, signed) };
       }
 
@@ -1519,10 +1528,13 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           : [...nextCalls, { ...openCastingCall(action.characterId, role, state.totalDays), rejectionCount: 1 }];
       }
 
+      const offerEvent: StaffingEvent = outcome.status === 'countered'
+        ? { day: state.totalDays, kind: 'countered', subject: character.name, personName: person.identity.name, amount: outcome.counterSalary }
+        : { day: state.totalDays, kind: 'rejected', subject: character.name, personName: person.identity.name, note: outcome.reason };
       return {
         ...state,
         rngSeed: nextSeed,
-        projects: replaceDraft(state.projects, { ...focusedDraft, negotiations: nextNegotiations, castingCalls: nextCalls }),
+        projects: replaceDraft(state.projects, appendStaffingEvent({ ...focusedDraft, negotiations: nextNegotiations, castingCalls: nextCalls }, offerEvent)),
       };
     }
 
@@ -1540,7 +1552,9 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const attached = attachActorToRole(focusedDraft, neg.role, action.person, neg.characterId, state.totalDays, neg.counterSalary);
       if (!attached) return state;
       const signed: FilmDraft = { ...attached, negotiations: negotiations.filter((n) => n !== neg) };
-      return { ...state, projects: replaceDraft(state.projects, signed) };
+      const acceptSubject = focusedDraft.script?.cast.find((c) => c.id === neg.characterId)?.name ?? neg.role;
+      const loggedSigned = appendStaffingEvent(signed, { day: state.totalDays, kind: 'attached', subject: acceptSubject, personName: action.person.identity.name, amount: neg.counterSalary });
+      return { ...state, projects: replaceDraft(state.projects, loggedSigned) };
     }
 
     // Casting Redesign, Phase E - walk away from a live negotiation, dropping
@@ -1588,7 +1602,9 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         requestedOnDay: state.totalDays,
         readyOnDay: state.totalDays + auditionDurationDays(cdSkill),
       };
-      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, auditions: [...auditions, record] }) };
+      const auditionSubject = focusedDraft.script?.cast.find((c) => c.id === action.characterId)?.name ?? action.role;
+      const loggedAudition = appendStaffingEvent({ ...focusedDraft, auditions: [...auditions, record] }, { day: state.totalDays, kind: 'audition', subject: auditionSubject, personName: action.personName });
+      return { ...state, projects: replaceDraft(state.projects, loggedAudition) };
     }
 
     // Casting Redesign, Phase 6 - push (or reset) the planned shoot start so a
@@ -1625,8 +1641,9 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;
       const current = focusedDraft.lockedRoleBudgets ?? [];
+      if (current.includes(action.role) === action.locked) return state; // no change
       const lockedRoleBudgets = action.locked
-        ? (current.includes(action.role) ? current : [...current, action.role])
+        ? [...current, action.role]
         : current.filter((r) => r !== action.role);
       const talentTargetPriceByRole = focusedDraft.castCrewBudget == null
         ? focusedDraft.talentTargetPriceByRole
@@ -1637,7 +1654,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             current: focusedDraft.talentTargetPriceByRole,
             locked: lockedRoleBudgets,
           });
-      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, lockedRoleBudgets, talentTargetPriceByRole }) };
+      const budgetLogged = appendStaffingEvent({ ...focusedDraft, lockedRoleBudgets, talentTargetPriceByRole }, { day: state.totalDays, kind: 'budget', subject: action.role, note: action.locked ? 'locked' : 'unlocked' });
+      return { ...state, projects: replaceDraft(state.projects, budgetLogged) };
     }
 
     case 'SET_TALENT_BUDGET_SPLIT': {

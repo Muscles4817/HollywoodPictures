@@ -104,6 +104,25 @@ the spine later phases plug their state into.
 **Dependencies.** Reads Phase 1's allocation/offer state and Phase 6's timers as
 they land (degrade gracefully before then).
 
+**Status — shipped.**
+- *2a — live staffing board.* `deriveStaffingBoard(draft, totalDays)` in
+  `src/state/staffingBoard.ts` is a pure aggregation of every role's state into a
+  shared lifecycle (`unstaffed → searching → candidates → evaluating →
+  negotiating → attached`) with planned/committed/remaining budget, shortlist /
+  audition / negotiation / counter counts, warnings (`over-budget` now; `schedule`
+  and `expiring` recognised for later phases), and the planned shoot window.
+  `StaffingRow` carries `suitability? / compatibility? / workload?` as **typed but
+  deliberately unpopulated extension points** — the seams Workstream II hangs its
+  fit-reads on, not mocked data.
+- *2b — curated activity feed.* `StaffingEvent` (`attached | countered | rejected
+  | audition | dropped | budget`) is appended to `draft.staffingLog` via
+  `appendStaffingEvent` (capped at `STAFFING_LOG_CAP = 40`) **only for decisions
+  and changes that matter** — offers signed, counters received, screen tests
+  arranged, candidates dropped, roles filled, budgets locked/reallocated. It is
+  explicitly **not** a log of UI churn: a budget-split slider drag
+  (`SET_TALENT_BUDGET_SPLIT`) appends nothing, and re-locking an already-locked
+  role is a no-op. The hub renders the eight most recent events, newest first.
+
 ---
 
 ## Phase 3 — Scheduling: preview-then-confirm

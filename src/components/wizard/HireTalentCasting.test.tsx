@@ -86,6 +86,39 @@ describe('HireTalent - budget allocation table (Phase 1b)', () => {
   });
 });
 
+describe('HireTalent - curated activity feed (Phase 2b)', () => {
+  it('renders recent meaningful staffing events, newest first, and stays hidden when the log is empty', () => {
+    // Empty log: no feed at all.
+    saveState(stateWithInceptionDraft());
+    const { unmount } = render(
+      <StudioProvider>
+        <HireTalent />
+      </StudioProvider>,
+    );
+    expect(screen.queryByText('Recent activity')).not.toBeInTheDocument();
+    unmount();
+
+    // Seed a couple of meaningful events onto the draft.
+    const seeded = stateWithInceptionDraft();
+    const project = seeded.projects[0];
+    if (project.kind === 'player-in-progress') {
+      project.draft.staffingLog = [
+        { day: 1, kind: 'audition', subject: 'Dom Cobb', personName: 'Screen Tester' },
+        { day: 3, kind: 'attached', subject: 'Dom Cobb', personName: 'Marquee Star', amount: 5_000_000 },
+      ];
+    }
+    saveState(seeded);
+    render(
+      <StudioProvider>
+        <HireTalent />
+      </StudioProvider>,
+    );
+    expect(screen.getByText('Recent activity')).toBeInTheDocument();
+    expect(screen.getByText('Marquee Star')).toBeInTheDocument();
+    expect(screen.getByText('Screen Tester')).toBeInTheDocument();
+  });
+});
+
 describe('HireTalent - live staffing board (Phase 2a)', () => {
   it('shows the shoot window and per-role lifecycle, and opens a character into casting', () => {
     saveState(stateWithInceptionDraft());
