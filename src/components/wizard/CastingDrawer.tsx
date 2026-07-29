@@ -9,7 +9,8 @@ import { actorMeetsCharacterGender, personMeetsCharacterAge } from '../../engine
 import { computeActorAppeal } from '../../engine/castingAppeal';
 import { estimateDeal } from '../../engine/castingEstimate';
 import { deriveFitReadAssist } from '../../engine/talentCardPresentation';
-import { candidateStrengthSignals, describeOfferRejection, describeCounterOffer, describeAskingEstimate, describeAcceptanceOdds, type CandidateSignal } from '../../engine/castingPresentation';
+import { candidateStrengthSignals, describeOfferRejection, describeCounterOffer, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast, type CandidateSignal } from '../../engine/castingPresentation';
+import { forecastOpenCasting } from '../../engine/castingCalls';
 import { playerRelationshipWith, type RelationshipStanding } from '../../engine/relationships';
 import { notableCastAffinity, type CastAffinity } from '../../engine/pairHistory';
 import { formatMoney } from '../common/Money';
@@ -22,6 +23,8 @@ import { TalentComparison, type CompareSlot } from '../common/TalentComparison';
 import { useComparePins, MAX_PINNED } from '../common/useComparePins';
 import { CheckboxToggle } from '../common/CheckboxToggle';
 import { isAvailableImmediately, getTypicalSalaryForRole, getCrewCareer } from '../../engine/person';
+import { getPersonAge } from '../../types';
+import { gameDateFromTotalDays } from '../../engine/calendar';
 import type { CastingChannel, Person, RoleNegotiation, Script, ScriptCharacter } from '../../types';
 
 type CastingTab = 'open-casting' | 'direct-approach' | 'shortlist';
@@ -38,6 +41,48 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 ];
 // A name search reaches past the price window; cap how many it lists.
 const DIRECT_SEARCH_LIMIT = 12;
+
+// Casting Redesign, Phase 5 - Direct Approach becomes a proper search tool, not
+// a sort-only list: filter the eligible pool by the facets a producer actually
+// scouts on. These map to fields every Person carries, so they're always
+// meaningful (age/language/awards facets that need cross-referencing filmography
+// are deferred - see the design doc). 'any' is the no-op default throughout.
+type GenderPick = 'any' | 'Male' | 'Female' | 'NonBinary';
+type FamePick = 'any' | 'star' | 'established' | 'rising' | 'unknown';
+type AgePick = 'any' | 'le25' | 'a26to35' | 'a36to45' | 'a46to60' | 'a60plus';
+
+const GENDER_OPTIONS: { key: GenderPick; label: string }[] = [
+  { key: 'any', label: 'Any gender' }, { key: 'Female', label: 'Women' }, { key: 'Male', label: 'Men' }, { key: 'NonBinary', label: 'Non-binary' },
+];
+const FAME_OPTIONS: { key: FamePick; label: string }[] = [
+  { key: 'any', label: 'Any fame' }, { key: 'star', label: 'Star draw' }, { key: 'established', label: 'Established' }, { key: 'rising', label: 'Rising' }, { key: 'unknown', label: 'Unknown' },
+];
+const AGE_OPTIONS: { key: AgePick; label: string }[] = [
+  { key: 'any', label: 'Any age' }, { key: 'le25', label: '25 & under' }, { key: 'a26to35', label: '26–35' }, { key: 'a36to45', label: '36–45' }, { key: 'a46to60', label: '46–60' }, { key: 'a60plus', label: '60+' },
+];
+
+/** Fame band, matching the qualitativeMagnitude cutoffs the cards already read by. */
+function fameInBand(fame: number, pick: FamePick): boolean {
+  switch (pick) {
+    case 'star': return fame >= 62;
+    case 'established': return fame >= 45 && fame < 62;
+    case 'rising': return fame >= 28 && fame < 45;
+    case 'unknown': return fame < 28;
+    default: return true;
+  }
+}
+
+function ageInGroup(age: number | undefined, pick: AgePick): boolean {
+  if (pick === 'any') return true;
+  if (age === undefined) return false; // an unknown age can't satisfy a specific band
+  switch (pick) {
+    case 'le25': return age <= 25;
+    case 'a26to35': return age >= 26 && age <= 35;
+    case 'a36to45': return age >= 36 && age <= 45;
+    case 'a46to60': return age >= 46 && age <= 60;
+    case 'a60plus': return age >= 60;
+  }
+}
 
 /** Pinned candidates float to the top of the list, keeping their relative order below (Talent Card UX Redesign - "they remain fixed at the top of the list"). */
 function pinnedFirst<T>(items: T[], idOf: (t: T) => string, isPinned: (id: string) => boolean): T[] {
@@ -291,6 +336,10 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   const [affordableOnly, setAffordableOnly] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>('appeal');
   const [search, setSearch] = useState('');
+  // Phase 5 - Direct Approach facet filters (all default to 'any' = no-op).
+  const [genderPick, setGenderPick] = useState<GenderPick>('any');
+  const [famePick, setFamePick] = useState<FamePick>('any');
+  const [agePick, setAgePick] = useState<AgePick>('any');
   // The actor we last made an offer to - so an accepted sign (which the reducer
   // resolves and binds to this Character) can auto-close the drawer, the same
   // beat the old instant-accept flow did.
@@ -442,11 +491,18 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   // baseline (isAvailableImmediately matches the card's own "Available now" read).
   const onThisDraftIds = new Set(draft.talent.map((a) => a.person.id));
   const matchesQuery = (person: Person) => !query || person.identity.name.toLowerCase().includes(query);
+  const today = gameDateFromTotalDays(state.totalDays);
   const passesFilters = (person: Person) => {
     if (!matchesQuery(person)) return false;
     const onDraft = onThisDraftIds.has(person.id);
-    if (availableOnly && !onDraft && !isAvailableImmediately(person, state.totalDays)) return false;
-    if (affordableOnly && !onDraft && !isAffordable(person)) return false;
+    // Anyone already on this production is never filtered out - you must always
+    // be able to see (and recast) who you've picked.
+    if (onDraft) return true;
+    if (availableOnly && !isAvailableImmediately(person, state.totalDays)) return false;
+    if (affordableOnly && !isAffordable(person)) return false;
+    if (genderPick !== 'any' && person.identity.gender !== genderPick) return false;
+    if (!fameInBand(person.reputation.fame, famePick)) return false;
+    if (!ageInGroup(getPersonAge(person.identity.dateOfBirth, today), agePick)) return false;
     return true;
   };
 
@@ -620,6 +676,24 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                 ))}
               </select>
             </label>
+            <label className="casting-sort">
+              <span>Gender</span>
+              <select aria-label="Filter by gender" value={genderPick} onChange={(e) => setGenderPick(e.target.value as GenderPick)}>
+                {GENDER_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
+            </label>
+            <label className="casting-sort">
+              <span>Age</span>
+              <select aria-label="Filter by age" value={agePick} onChange={(e) => setAgePick(e.target.value as AgePick)}>
+                {AGE_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
+            </label>
+            <label className="casting-sort">
+              <span>Fame</span>
+              <select aria-label="Filter by fame" value={famePick} onChange={(e) => setFamePick(e.target.value as FamePick)}>
+                {FAME_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
+            </label>
             <CheckboxToggle
               checked={availableOnly}
               onChange={setAvailableOnly}
@@ -638,6 +712,16 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                   No casting call open yet. Opening one lets applicants apply over the coming weeks, weighted by how
                   well they'd suit this character, your studio's reputation, and what you're offering.
                 </p>
+                {(() => {
+                  const forecast = forecastOpenCasting(eligibleDirectActors, character, castingDirectorSkill);
+                  const { estimate, confidence } = describeOpenCastingForecast(forecast);
+                  return (
+                    <div className="casting-forecast">
+                      <div className="casting-forecast__estimate">{estimate}</div>
+                      <div className="casting-forecast__confidence">{confidence}</div>
+                    </div>
+                  );
+                })()}
                 <Button variant="primary" onClick={() => dispatch({ type: 'OPEN_CASTING_CALL', characterId: character.id, role })}>
                   Open the Call
                 </Button>

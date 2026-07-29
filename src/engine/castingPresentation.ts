@@ -311,6 +311,32 @@ export function describeCounterOffer(person: Person, formattedCounter: string): 
   return `Interested - but they’re holding out for ${formattedCounter}. ${describeCounterReason(person)}`;
 }
 
+// --- Open Casting forecast (Phase 5, design brief point 10) ------------------
+// A pre-open read on a casting call, in a producer's voice - volume, field
+// strength, and how much to trust the estimate. Reads the OpenCastingForecast
+// engine/castingCalls.ts derives; the numbers here are forecast ranges, not
+// stat values.
+
+const FORECAST_QUALITY_LABEL: Record<'thin' | 'moderate' | 'deep', string> = {
+  deep: 'a deep field of genuine fits for this part',
+  moderate: 'a fair few who could suit this part',
+  thin: 'a thin field - few obvious fits',
+};
+const FORECAST_CONFIDENCE_LABEL: Record<'low' | 'medium' | 'high', string> = {
+  high: 'Your casting director is confident in this read.',
+  medium: 'A rough read - a casting director would firm it up.',
+  low: 'Only a rough guess without a casting director to scout.',
+};
+
+/** The pre-open forecast for a casting call as two short lines: expected volume + field, then how much to trust it. `forecast` is engine/castingCalls.ts:OpenCastingForecast. */
+export function describeOpenCastingForecast(forecast: { weeklyLow: number; weeklyHigh: number; quality: 'thin' | 'moderate' | 'deep'; confidence: 'low' | 'medium' | 'high' }): { estimate: string; confidence: string } {
+  const perWeek = forecast.weeklyLow === forecast.weeklyHigh ? `${forecast.weeklyHigh}` : `${forecast.weeklyLow}–${forecast.weeklyHigh}`;
+  return {
+    estimate: `Expect about ${perWeek} applicant${forecast.weeklyHigh === 1 ? '' : 's'} a week, from ${FORECAST_QUALITY_LABEL[forecast.quality]}.`,
+    confidence: FORECAST_CONFIDENCE_LABEL[forecast.confidence],
+  };
+}
+
 // --- Pre-offer estimate (Phase 2, uncertainty) - reading the deal before you
 // make it. The asking-price band is hedged by how readable the actor is (the
 // same FitConfidence the fit read uses); the odds are a qualitative ladder. Both

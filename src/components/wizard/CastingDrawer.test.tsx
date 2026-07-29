@@ -455,6 +455,43 @@ describe('CastingDrawer - candidate reasoning chips', () => {
     expect(within(shortlistCard).getByRole('button', { name: '★ Shortlisted' })).toBeInTheDocument();
   });
 
+  it('shows an Open Casting forecast before the call is opened', () => {
+    const state = stateWithBelowFloorCandidate(); // no casting call open -> pre-open panel
+    const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;
+    saveState(state);
+
+    render(
+      <StudioProvider>
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+
+    // The default Open Casting tab, with no call yet, previews the forecast.
+    expect(screen.getByText(/Expect about/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open the Call' })).toBeInTheDocument();
+  });
+
+  it('filters the Direct Approach list by a facet (gender)', () => {
+    const state = stateWithBelowFloorCandidate(); // Ava and Priya are both Female
+    const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;
+    saveState(state);
+
+    render(
+      <StudioProvider>
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+    expect(screen.getByText('Ava Affordable')).toBeInTheDocument();
+    // Filter to men - both female candidates drop out.
+    fireEvent.change(screen.getByLabelText('Filter by gender'), { target: { value: 'Male' } });
+    expect(screen.queryByText('Ava Affordable')).not.toBeInTheDocument();
+    // Back to women - they return.
+    fireEvent.change(screen.getByLabelText('Filter by gender'), { target: { value: 'Female' } });
+    expect(screen.getByText('Ava Affordable')).toBeInTheDocument();
+  });
+
   it('arranges a screen test from a candidate card and shows it in progress', () => {
     const state = stateWithBelowFloorCandidate();
     const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;

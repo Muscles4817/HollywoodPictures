@@ -1202,6 +1202,21 @@ textarea, input, select {
   color: var(--text-muted);
 }
 
+/* Casting Redesign, Phase 5 - the pre-open Open Casting forecast. */
+.casting-forecast {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 5%, transparent);
+  border: 1px dashed var(--border, color-mix(in srgb, currentColor 15%, transparent));
+}
+.casting-forecast__confidence {
+  font-size: 0.82em;
+  color: var(--text-muted);
+}
+
 /* --- Talent Card UX Redesign (user request) ---
    "Should I hire this person" answered in about three seconds, and no taller
    as systems are added. A prominent salary paired with age/gender, a one-line
