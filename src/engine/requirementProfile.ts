@@ -20,6 +20,7 @@
 import type { Script, ScriptCharacter, Tone } from '../types';
 import { SETTING_ARCHETYPE_PROFILES } from '../data/settings';
 import { clamp } from './random';
+import { strategyRoutes, type ExecutionStrategy } from './executionStrategy';
 
 /** The five broad categories every requirement leaf belongs to. */
 export type RequirementCategory =
@@ -143,9 +144,19 @@ function ramp(value: number, lo: number, hi: number): number {
   return clamp((value - lo) / (hi - lo), 0, 1);
 }
 
-function readSignals(script: Script): RequirementSignals {
+function readSignals(script: Script, strategy?: ExecutionStrategy): RequirementSignals {
   const digitalBias = clamp(script.effectsStrategy.digital, 0, 1);
   const practicalBias = clamp(script.effectsStrategy.practical, 0, 1);
+  // Approach routes: from the explicit Execution Strategy when one is chosen
+  // (Layer 2), otherwise inferred from the script's continuous lean (unchanged
+  // default behaviour, so unengaged play is identical).
+  const routes = strategy
+    ? strategyRoutes(strategy)
+    : {
+        practicalRoute: ramp(practicalBias, 0.35, 0.8),
+        digitalRoute: ramp(digitalBias, 0.35, 0.8),
+        envDigitalRoute: ramp(script.environmentStrategy.digital, 0.3, 0.8),
+      };
   return {
     pr: script.productionRequirements,
     setting: SETTING_ARCHETYPE_PROFILES[script.primarySetting],
@@ -154,9 +165,9 @@ function readSignals(script: Script): RequirementSignals {
     complexityWeight: clamp(script.complexity / 100, 0, 1),
     digitalBias,
     practicalBias,
-    practicalRoute: ramp(practicalBias, 0.35, 0.8),
-    digitalRoute: ramp(digitalBias, 0.35, 0.8),
-    envDigitalRoute: ramp(script.environmentStrategy.digital, 0.3, 0.8),
+    practicalRoute: routes.practicalRoute,
+    digitalRoute: routes.digitalRoute,
+    envDigitalRoute: routes.envDigitalRoute,
     isHorror: script.genre === 'Horror',
     isWar: script.storyType === 'War',
     hasCreature: script.cast.some((c) => c.archetype === 'MonsterOrCreature'),
@@ -313,10 +324,13 @@ function buildLeaf(def: LeafDefinition, s: RequirementSignals): RequirementLeaf 
 /**
  * Derive a film's narrative requirement profile from its script. Pure — no
  * scoring, no cost, no side effects. Only present leaves are returned, most
- * critical first.
+ * critical first. When an Execution Strategy (Layer 2) is supplied, the chosen
+ * methods drive the approach routing (a fully-CG creature → CG animation, an
+ * animatronic one → practical embodiment); otherwise routing is inferred from
+ * the script's own effects/environment lean.
  */
-export function deriveRequirementProfile(script: Script): RequirementProfile {
-  const signals = readSignals(script);
+export function deriveRequirementProfile(script: Script, strategy?: ExecutionStrategy): RequirementProfile {
+  const signals = readSignals(script, strategy);
   return LEAF_DEFINITIONS
     .map((def) => buildLeaf(def, signals))
     .filter((leaf): leaf is RequirementLeaf => leaf !== null)

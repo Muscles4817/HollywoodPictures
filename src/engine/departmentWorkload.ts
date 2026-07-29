@@ -25,6 +25,7 @@
 // UNROUTED rather than misassigned; that coverage gap is explicit, not hidden.
 import type { Script } from '../types';
 import { clamp } from './random';
+import type { ExecutionStrategy } from './executionStrategy';
 import {
   deriveRequirementProfile,
   type RequirementProfile,
@@ -140,9 +141,9 @@ export function deriveDepartmentWorkloads(profile: RequirementProfile): Departme
     .sort((a, b) => b.magnitude - a.magnitude);
 }
 
-/** Convenience: derive the requirement profile from a script, then its department workloads. */
-export function deriveDepartmentWorkloadsForScript(script: Script): DepartmentWorkload[] {
-  return deriveDepartmentWorkloads(deriveRequirementProfile(script));
+/** Convenience: derive the requirement profile from a script (optionally under a chosen Execution Strategy), then its department workloads. */
+export function deriveDepartmentWorkloadsForScript(script: Script, strategy?: ExecutionStrategy): DepartmentWorkload[] {
+  return deriveDepartmentWorkloads(deriveRequirementProfile(script, strategy));
 }
 
 /** The workload for one department, or null if the production barely loads it. */
