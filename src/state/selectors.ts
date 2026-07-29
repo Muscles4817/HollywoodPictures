@@ -698,6 +698,7 @@ export function filterAndSortPersonStats(rows: PersonStatRow[], filters: PersonS
 // neither an in-progress rival production nor an already-released rival
 // film - this page is "your current projects," not the market's.
 export type ProjectStage =
+  | 'in-development'
   | 'pre-production'
   | 'filming'
   | 'post-production'
@@ -738,6 +739,10 @@ export function deriveProjectStage(project: Project, focusedProjectId: string | 
   }
   if (project.kind === 'scheduled') return 'scheduled';
   const { draft } = project;
+  // Deferred Start: greenlit but held in development until a waited-for actor is
+  // free (preProduction.status 'scheduled') - a distinct stage from live prep, so
+  // the overview shows "waiting to shoot" rather than a generic pre-production.
+  if (draft.preProduction?.status === 'scheduled') return 'in-development';
   // A live prep run (greenlit, not yet shooting) is 'pre-production' outright.
   if (draft.preProduction && draft.preProduction.status !== 'finished') return 'pre-production';
   if (!draft.photography) {
@@ -885,6 +890,8 @@ export interface ProjectCardData {
   shootProgress: { daysElapsed: number; recommendedDays: number } | null;
   /** Only for a scheduled project - the release day it's committed to. */
   scheduledReleaseDay: number | null;
+  /** Only for an 'in-development' project (Deferred Start) - the day its shoot is scheduled to begin. */
+  shootStartsOnDay: number | null;
   /** Only for a released film (in-cinemas or archived). */
   boxOffice: {
     running: boolean;
@@ -924,6 +931,7 @@ export function buildProjectCardData(project: Project, state: GameState): Projec
       spendSoFar,
       shootProgress: null,
       scheduledReleaseDay: null,
+      shootStartsOnDay: null,
       boxOffice: {
         running: boxOfficeRun.status === 'running',
         cumulativeGross: boxOfficeRun.cumulativeGross,
@@ -953,6 +961,7 @@ export function buildProjectCardData(project: Project, state: GameState): Projec
         ? { daysElapsed: draft.photography.daysElapsed, recommendedDays: draft.photography.recommendedDays }
         : null,
     scheduledReleaseDay: project.kind === 'scheduled' ? project.releaseDay : null,
+    shootStartsOnDay: draft.preProduction?.status === 'scheduled' ? (draft.shootStartsOnDay ?? null) : null,
     boxOffice: null,
   };
 }
