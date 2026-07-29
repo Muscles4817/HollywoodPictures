@@ -665,6 +665,28 @@ describe('CastingDrawer - Pin to Compare', () => {
     expect(screen.getByText('Comparing two candidates')).toBeInTheDocument();
     expect(screen.getByText('Recommendation')).toBeInTheDocument();
   });
+
+  it("surfaces the casting director's take as a compare row when a CD is hired", () => {
+    const state = stateWithFemaleLead();
+    const proj = state.projects[0];
+    if (proj && 'draft' in proj) proj.draft.talent = [{ person: castingDirectorPerson(90), role: 'Casting Director' } as unknown as (typeof proj.draft.talent)[number]];
+    const character = proj && 'draft' in proj ? proj.draft.script!.cast[0] : null;
+    saveState(state);
+
+    render(
+      <StudioProvider>
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+    fireEvent.click(within(screen.getByText('Fiona Female').closest('.card') as HTMLElement).getByRole('button', { name: 'Pin to Compare' }));
+    fireEvent.click(within(screen.getByText('Fran Female').closest('.card') as HTMLElement).getByRole('button', { name: 'Pin to Compare' }));
+
+    expect(screen.getByText('Comparing two candidates')).toBeInTheDocument();
+    // The CD-take row is present only because a casting director is on the production.
+    expect(screen.getByText('Casting director')).toBeInTheDocument();
+  });
 });
 
 describe('CastingDrawer - Direct Approach gender filter', () => {

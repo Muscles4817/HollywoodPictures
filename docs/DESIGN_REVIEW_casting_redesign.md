@@ -910,3 +910,26 @@ stay visible regardless of fame, so you can always see and recast your own picks
 Pure and deterministic; the fame floor is a single tunable function. This closes
 the "search should be player-driven, not price-driven" thread the redesign's
 discovery work (Phase 5) started.
+
+---
+
+## 22. Follow-up, the Casting Director's take in the compare view
+
+Phase 7 gave each candidate card a "Casting director's take" - a single
+recommendation with reasons. The head-to-head compare view (Pin to Compare)
+didn't have it, so the one place you're explicitly weighing two backups against
+each other was missing the advisor's opinion.
+
+- The take is now computed once, in the drawer (`castingDirectorTakeFor`), and
+  passed into both the card and each compare slot - so the compare view and the
+  card can never show a different verdict for the same actor. The card's own
+  inline derivation was removed in favour of this single source.
+- `TalentComparison` gains a "Casting director" row, rendered only when a CD is
+  hired (both sides share the production, so both takes are present or neither).
+  Each side shows its verdict and reasons; the stronger recommendation
+  (strong-yes > worth-it > reach > pass) wins the row, highlighted like every
+  other compared attribute.
+
+No new engine logic - it reuses `deriveCastingDirectorTake` /
+`describeCastingDirectorTake` verbatim. This closes the gap between "advised on
+each card" and "advised when choosing between two."
