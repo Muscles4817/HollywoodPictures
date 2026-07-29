@@ -71,7 +71,12 @@ const CASTING_DIRECTOR_MAX_CURATION_EXPONENT = 1.6;
 // even at max skill - the fantasy is "saves the producer time," not
 // "flips a switch that finds a star every week."
 const DISCOVERY_MAX_CHANCE = 0.35;
-const DISCOVERY_FAME_CEILING = 25;
+// The fame at/below which an actor counts as an undiscovered "hidden gem": too
+// obscure to scout by name (Direct Approach gates them out entirely) and only
+// surfaced by a casting call's discovery pick below. Exported so the Direct
+// Approach fame gate (engine/talentFilter.ts) can pin its hard floor to exactly
+// this line - the two channels partition the pool on one shared constant.
+export const DISCOVERY_FAME_CEILING = 25;
 const DISCOVERY_SUITABILITY_FLOOR = 60;
 
 // Interested Talent (Phase D, design review section 6) - the reverse of

@@ -4,7 +4,7 @@ import { deriveFocusedDraft, computeCommittedSpend } from '../../state/selectors
 import { findAssignedPerson, professionForProductionRole } from '../../data/helpers';
 import { ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
 import { logAmount } from '../../engine/interpolate';
-import { findCandidatesNearPrice } from '../../engine/talentFilter';
+import { directApproachFameFloor } from '../../engine/talentFilter';
 import { actorMeetsCharacterGender, personMeetsCharacterAge } from '../../engine/casting';
 import { computeActorAppeal, countActorsFreedByDelay } from '../../engine/castingAppeal';
 import { estimateDeal } from '../../engine/castingEstimate';
@@ -40,8 +40,10 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'price', label: 'Price' },
   { key: 'fame', label: 'Fame' },
 ];
-// A name search reaches past the price window; cap how many it lists.
-const DIRECT_SEARCH_LIMIT = 12;
+// Direct Approach can now surface the whole scoutable pool, so cap how many
+// cards render at once; the honest overflow count tells the player to narrow
+// with filters rather than silently hiding the rest.
+const DIRECT_DISPLAY_LIMIT = 40;
 
 // Casting Redesign, Phase 5 - Direct Approach becomes a proper search tool, not
 // a sort-only list: filter the eligible pool by the facets a producer actually
@@ -516,12 +518,23 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
       personMeetsCharacterAge(t, character, state.totalDays),
   );
   const query = search.trim().toLowerCase();
-  // Direct Approach source: a name search reaches the whole eligible pool - the
-  // escape hatch past the price window that would otherwise hide the specific
-  // actor you're hunting. Without a query, the price-window shortlist as before.
-  const directCandidates = query
-    ? eligibleDirectActors.filter((t) => t.identity.name.toLowerCase().includes(query)).slice(0, DIRECT_SEARCH_LIMIT)
-    : findCandidatesNearPrice(eligibleDirectActors, role, offeredSalary, 9).candidates;
+  // Direct Approach is a SCOUTING screen, not a price window (casting redesign
+  // follow-up): it shows the whole eligible pool you could plausibly approach by
+  // name, and the salary bar is only your offer, never a filter on who's listed.
+  // Who's scoutable is gated by fame and lowered by a Casting Director
+  // (engine/talentFilter.ts) - below the floor sit hidden gems only a casting
+  // call can surface. Anyone already on this draft stays visible regardless, so
+  // you can always see and recast your own picks.
+  const onThisDraftIds = new Set(draft.talent.map((a) => a.person.id));
+  const directFameFloor = directApproachFameFloor(castingDirectorSkill);
+  const directSourcePool = eligibleDirectActors.filter(
+    (t) => onThisDraftIds.has(t.id) || t.reputation.fame >= directFameFloor,
+  );
+  // Eligible actors currently gated out of Direct Approach by fame - the ones a
+  // (better) Casting Director would surface, or a casting call could discover.
+  const hiddenByFameCount = eligibleDirectActors.filter(
+    (t) => !onThisDraftIds.has(t.id) && t.reputation.fame < directFameFloor,
+  ).length;
 
   // Every candidate we might resolve by id - Open Casting applicants plus the
   // whole eligible pool. Shared by the shortlist and the compare view.
@@ -539,7 +552,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
 
   // Appeal for everyone we might show or sort, computed once - computeActorAppeal
   // is pure, but there's no reason to re-run it per sort comparison.
-  const scored = [...(call?.applicants ?? []).map((a) => a.person), ...directCandidates, ...shortlistedPersons];
+  const scored = [...(call?.applicants ?? []).map((a) => a.person), ...directSourcePool, ...shortlistedPersons];
   const appealById = new Map(scored.map((p) => [p.id, appealFor(p)]));
   const appealOverall = (person: Person) => appealById.get(person.id)?.overall ?? 0;
 
@@ -549,7 +562,6 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   // the film over budget. A name search narrows by name. Anyone already on this
   // production is never hidden. All default off/empty, so the full roster is the
   // baseline (isAvailableImmediately matches the card's own "Available now" read).
-  const onThisDraftIds = new Set(draft.talent.map((a) => a.person.id));
   const matchesQuery = (person: Person) => !query || person.identity.name.toLowerCase().includes(query);
   const today = gameDateFromTotalDays(state.totalDays);
   const passesFilters = (person: Person) => {
@@ -584,7 +596,9 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
     (a) => a.person.id,
     pins.isPinned,
   );
-  const shownDirectCandidates = pinnedFirst(directCandidates.filter(passesFilters).sort(bySort), (p) => p.id, pins.isPinned);
+  const directMatches = directSourcePool.filter(passesFilters).sort(bySort);
+  const shownDirectCandidates = pinnedFirst(directMatches, (p) => p.id, pins.isPinned).slice(0, DIRECT_DISPLAY_LIMIT);
+  const directOverflowCount = directMatches.length - shownDirectCandidates.length;
 
   // Pin to Compare wiring. Only a booked actor can't be offered today (the
   // schedule gate is the one hard rejection no offer clears); a below-floor
@@ -611,7 +625,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
 
   // How many the availability filter hid in the current tab (for its hint) -
   // measured over the name-searched source, so it reads against what's in view.
-  const tabPersons = tab === 'open-casting' ? (call?.applicants ?? []).map((a) => a.person) : directCandidates;
+  const tabPersons = tab === 'open-casting' ? (call?.applicants ?? []).map((a) => a.person) : directSourcePool;
   const availabilityHiddenCount = availableOnly
     ? tabPersons.filter((p) => matchesQuery(p) && !onThisDraftIds.has(p.id) && !isAvailableImmediately(p, plannedStartDay)).length
     : 0;
@@ -837,21 +851,35 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         {!comparing && tab === 'direct-approach' && (
           <>
             <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
-              Target a specific actor directly, rather than waiting for Open Casting to surface them - the same
-              acceptance math applies either way.
+              Scout a specific actor by name or narrow the field with the filters - the same acceptance math applies as
+              Open Casting. The salary bar above is only your offer; it doesn't limit who's shown here.{' '}
+              {castingDirector
+                ? 'Your casting director is surfacing lesser-known names, not just the famous.'
+                : 'Without a casting director you can only reach genuinely famous names.'}
+              {hiddenByFameCount > 0 &&
+                ` ${hiddenByFameCount} more ${hiddenByFameCount === 1 ? 'actor is' : 'actors are'} beyond your current reach - ${castingDirector ? 'a stronger casting director' : 'a casting director'} would surface more, and a casting call can turn up hidden gems.`}
             </p>
             {shownDirectCandidates.length === 0 ? (
               <p style={{ margin: 0, color: 'var(--text-muted)' }}>
                 {query
-                  ? `No actors match "${search.trim()}" for this role.`
-                  : directCandidates.length > 0
+                  ? `No scoutable actors match "${search.trim()}" for this role. Hidden gems only turn up through a casting call.`
+                  : directSourcePool.length > 0
                     ? 'No actors match your filters - clear them to see the rest.'
-                    : 'No actors near this price. Adjust the offered salary, or search by name to reach past this window.'}
+                    : castingDirector
+                      ? 'No actors are scoutable for this role right now. Hold a casting call to find talent.'
+                      : 'No famous actors fit this role. Hire a casting director to scout wider, or hold a casting call.'}
               </p>
             ) : (
-            <div className="grid grid-wide">
-              {shownDirectCandidates.map((person) => renderCandidate(person))}
-            </div>
+              <>
+                <div className="grid grid-wide">
+                  {shownDirectCandidates.map((person) => renderCandidate(person))}
+                </div>
+                {directOverflowCount > 0 && (
+                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
+                    Showing {DIRECT_DISPLAY_LIMIT} of {directMatches.length} - narrow with the filters to see the rest.
+                  </p>
+                )}
+              </>
             )}
           </>
         )}

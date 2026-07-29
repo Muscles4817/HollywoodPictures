@@ -32,11 +32,18 @@ function actorId(name: string): string {
   return `actor-${name.replace(/\s+/g, '-').toLowerCase()}`;
 }
 
+// Direct Approach now gates who's scoutable by fame (only famous names show
+// without a Casting Director), so hand-built fixture actors get a clearly-famous
+// fame unless a test is specifically about the fame gate - otherwise they'd be
+// hidden and every unrelated Direct Approach test would break.
+const SCOUTABLE_FAME = 60;
+
 function actorNamed(base: Person, name: string, gender: 'Male' | 'Female'): Person {
   return {
     ...base,
     id: actorId(name),
     identity: { ...base.identity, name, gender },
+    reputation: { ...base.reputation, fame: SCOUTABLE_FAME },
     careers: { ...base.careers, actor: { ...base.careers.actor!, minimumSalary: SALARY, typicalSalary: SALARY } },
   };
 }
@@ -47,6 +54,7 @@ function femaleActor(base: Person, name: string, salary: number): Person {
     ...base,
     id: actorId(name),
     identity: { ...base.identity, name, gender: 'Female' },
+    reputation: { ...base.reputation, fame: SCOUTABLE_FAME },
     careers: { ...base.careers, actor: { ...base.careers.actor!, minimumSalary: salary, typicalSalary: salary } },
   };
 }
@@ -104,8 +112,44 @@ function renderDrawer(state: GameState) {
   );
 }
 
+describe('CastingDrawer - Direct Approach fame gate', () => {
+  function stateWithFames(actors: { name: string; fame: number }[], withCD: boolean): GameState {
+    return withRng(4, (rng) => {
+      const studio = createInitialStudio(50_000_000);
+      const talentPool = generateTalentPool(rng);
+      const base = generateTalentCandidates('Actor', rng, 1)[0];
+      talentPool.Actor = actors.map((a) => ({
+        ...base,
+        id: actorId(a.name),
+        identity: { ...base.identity, name: a.name, gender: 'Female' as const },
+        reputation: { ...base.reputation, fame: a.fame },
+        careers: { ...base.careers, actor: { ...base.careers.actor!, minimumSalary: SALARY, typicalSalary: SALARY } },
+      }));
+      const talent = withCD ? [{ person: castingDirectorPerson(95), role: 'Casting Director' as const }] : [];
+      return wrapState(studio, talentPool, draftWithActors(rng, SALARY, { talent }));
+    }).result;
+  }
+
+  const FAMOUS = { name: 'Famous Fran', fame: 70 };
+  const OBSCURE = { name: 'Obscure Odette', fame: 35 };
+
+  it('scouts only famous names when no casting director is hired', () => {
+    renderDrawer(stateWithFames([FAMOUS, OBSCURE], false));
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+    expect(screen.getByText('Famous Fran')).toBeInTheDocument();
+    expect(screen.queryByText('Obscure Odette')).not.toBeInTheDocument();
+  });
+
+  it('surfaces lesser-known names once a casting director is hired', () => {
+    renderDrawer(stateWithFames([FAMOUS, OBSCURE], true));
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+    expect(screen.getByText('Famous Fran')).toBeInTheDocument();
+    expect(screen.getByText('Obscure Odette')).toBeInTheDocument();
+  });
+});
+
 describe('CastingDrawer - discovery controls', () => {
-  it('a name search reaches past the price window to find a specific actor', () => {
+  it('shows scoutable actors regardless of price (the salary bar is only the offer), and a name search narrows', () => {
     const state = withRng(3, (rng) => {
       const studio = createInitialStudio(50_000_000);
       const talentPool = generateTalentPool(rng);
@@ -116,11 +160,12 @@ describe('CastingDrawer - discovery controls', () => {
     renderDrawer(state);
 
     fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
-    // The far-priced actor is outside the ±100% price window by default.
+    // Both show - Direct Approach is no longer a price window; the far-priced
+    // actor is scoutable just the same, since the salary bar is only your offer.
     expect(screen.getByText('Near Nancy')).toBeInTheDocument();
-    expect(screen.queryByText('Far Fiona')).not.toBeInTheDocument();
+    expect(screen.getByText('Far Fiona')).toBeInTheDocument();
 
-    // Searching her name surfaces her, past the window, and narrows to the match.
+    // A name search narrows the field to the match.
     fireEvent.change(screen.getByLabelText('Search candidates by name'), { target: { value: 'Far' } });
     expect(screen.getByText('Far Fiona')).toBeInTheDocument();
     expect(screen.queryByText('Near Nancy')).not.toBeInTheDocument();
@@ -404,6 +449,7 @@ function stateWithBelowFloorCandidate(): GameState {
       ...base,
       id: actorId(name),
       identity: { ...base.identity, name, gender: 'Female' },
+      reputation: { ...base.reputation, fame: SCOUTABLE_FAME },
       careers: { ...base.careers, actor: { ...base.careers.actor!, minimumSalary: salary, typicalSalary: salary } },
     });
     talentPool.Actor = [priced('Ava Affordable', SALARY), priced('Priya Pricey', 9_000_000)];
