@@ -48,7 +48,19 @@ function practicalDirector() {
 function stateWithInceptionDraft(withDirector = false): GameState {
   const draft = createDraftFromAsset(inceptionAsset, {});
   if (withDirector) {
-    draft.talent = [...draft.talent, { role: 'Director', person: practicalDirector() } as typeof draft.talent[number]];
+    // A practical director + a digital-leaning PD -> a Director↔PD philosophy clash.
+    const digitalPD = {
+      id: 'pd-digital', identity: { name: 'Dana Digital', appearanceTags: [], gender: 'Female', dateOfBirth: undefined },
+      personality: { professionalism: 60, ambition: 60, loyalty: 60, ego: 40, temperament: 60, pressureHandling: 60, controversy: 20, adaptability: 60 },
+      reputation: { fame: 55, prestige: 55, industryRespect: 55, reliability: 65, currentHeat: 35 },
+      availability: { commitments: [] }, traits: [], primaryRole: 'Production Designer',
+      careers: { productionDesigner: { role: 'Production Designer', active: true, experience: 60, roleReputation: 60, minimumSalary: 1, typicalSalary: 1, skill: 65, philosophy: { digitalAffinity: 0.95, stylisation: 0.6 } } },
+    } as unknown as typeof draft.talent[number]['person'];
+    draft.talent = [
+      ...draft.talent,
+      { role: 'Director', person: practicalDirector() } as typeof draft.talent[number],
+      { role: 'Production Designer', person: digitalPD } as typeof draft.talent[number],
+    ];
     draft.executionStrategy = { creatureMethod: 'fullyCG', environmentMethod: 'fullyDigital' };
   }
   const talentPool = withRng(1, (rng) => generateTalentPool(rng)).result;
@@ -200,6 +212,21 @@ describe('HireTalent - crew suitability read (Workstream II fit-read floor)', ()
     expect(read).toBeInTheDocument();
     expect(read.className).toMatch(/director-approach--friction/);
     expect(read.textContent).toMatch(/pulling against|friction/i);
+  });
+
+  it('surfaces the crew collaboration edges among attached heads (Director↔PD clash)', () => {
+    saveState(stateWithInceptionDraft(true));
+    render(
+      <StudioProvider>
+        <HireTalent />
+      </StudioProvider>,
+    );
+    expect(screen.getByText('Creative collaboration')).toBeInTheDocument();
+    const edges = document.querySelectorAll('.crew-collab__edge');
+    expect(edges.length).toBeGreaterThan(0);
+    const text = Array.from(edges).map((e) => e.textContent).join(' ');
+    expect(text).toMatch(/Director & Production Designer/);
+    expect(text).not.toMatch(/\d/); // qualitative only
   });
 
   it('surfaces a Stunts & Practical read on the hub, unstaffed by default', () => {

@@ -127,7 +127,7 @@ export function actorCraft(person: Person): { floor: number; headroom: number } 
 // --- Director hands-on-ness -------------------------------------------------
 
 /** A stable 0..1 value from an id - a deterministic stand-in for an unauthored trait (not rng; same person always reads the same). */
-function stableUnit(id: string): number {
+export function stableUnit(id: string): number {
   let h = 2166136261;
   for (let i = 0; i < id.length; i++) {
     h ^= id.charCodeAt(i);
