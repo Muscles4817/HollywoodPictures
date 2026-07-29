@@ -25,6 +25,7 @@ import { findAssignedPerson } from '../../data/helpers';
 import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole } from '../../engine/person';
 import { deriveStaffingBoard, STAFFING_STAGE_LABELS, type StaffingRow } from '../../state/staffingBoard';
 import { deriveDefaultStrategy, relevantStrategyAxes, STRATEGY_AXIS_META, type ExecutionStrategy } from '../../engine/executionStrategy';
+import { deriveDirectorApproachFit } from '../../engine/collaborationEdges';
 import { formatGameDateWithMonth } from '../../engine/calendar';
 import type { ReactNode } from 'react';
 import type { EffectsMethodKey, EnvironmentMethodKey, FilmDraft, Person, ProductionRole, Script, ScriptCharacter, StaffingEvent } from '../../types';
@@ -96,27 +97,43 @@ function ProductionApproachPanel({ draft, dispatch }: { draft: FilmDraft; dispat
   const axes = relevantStrategyAxes(script);
   if (axes.length === 0) return null;
   const strategy: ExecutionStrategy = { ...deriveDefaultStrategy(script), ...(draft.executionStrategy ?? {}) };
+
+  // Director ↔ approach compatibility edge: the attached director's practical/
+  // digital lean reacting to the chosen methods. Only when a director is hired.
+  const directorStyle = draft.talent
+    .filter((a) => a.role === 'Director')
+    .map((a) => getDirectorCareer(a.person)?.productionStyle)
+    .find((s): s is NonNullable<typeof s> => s != null);
+  const directorFit = directorStyle ? deriveDirectorApproachFit(directorStyle, strategy, axes) : null;
+
   return (
-    <div className="production-approach">
-      <span className="production-approach__label">Production approach</span>
-      {axes.map((axis) => {
-        const meta = STRATEGY_AXIS_META[axis];
-        return (
-          <label key={axis} className="production-approach__axis" title={meta.question}>
-            <span>{meta.label}</span>
-            <select
-              value={strategy[axis]}
-              aria-label={meta.label}
-              onChange={(e) => dispatch({ type: 'SET_EXECUTION_STRATEGY', patch: { [axis]: e.target.value } as Partial<ExecutionStrategy> })}
-            >
-              {meta.options.map((o) => (
-                <option key={o.value} value={o.value} title={o.blurb}>{o.label}</option>
-              ))}
-            </select>
-          </label>
-        );
-      })}
-      <span className="production-approach__hint">shapes what each department is up against</span>
+    <div className="production-approach-block">
+      <div className="production-approach">
+        <span className="production-approach__label">Production approach</span>
+        {axes.map((axis) => {
+          const meta = STRATEGY_AXIS_META[axis];
+          return (
+            <label key={axis} className="production-approach__axis" title={meta.question}>
+              <span>{meta.label}</span>
+              <select
+                value={strategy[axis]}
+                aria-label={meta.label}
+                onChange={(e) => dispatch({ type: 'SET_EXECUTION_STRATEGY', patch: { [axis]: e.target.value } as Partial<ExecutionStrategy> })}
+              >
+                {meta.options.map((o) => (
+                  <option key={o.value} value={o.value} title={o.blurb}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+          );
+        })}
+        <span className="production-approach__hint">shapes what each department is up against</span>
+      </div>
+      {directorFit && (
+        <div className={`director-approach director-approach--${directorFit.alignment}`} title={directorFit.detail}>
+          <strong>{directorFit.headline}.</strong> {directorFit.detail}
+        </div>
+      )}
     </div>
   );
 }
