@@ -24,6 +24,7 @@ import { CastingDrawer } from './CastingDrawer';
 import { findAssignedPerson } from '../../data/helpers';
 import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole } from '../../engine/person';
 import { deriveStaffingBoard, STAFFING_STAGE_LABELS, type StaffingRow } from '../../state/staffingBoard';
+import { deriveDefaultStrategy, relevantStrategyAxes, STRATEGY_AXIS_META, type ExecutionStrategy } from '../../engine/executionStrategy';
 import { formatGameDateWithMonth } from '../../engine/calendar';
 import type { ReactNode } from 'react';
 import type { EffectsMethodKey, EnvironmentMethodKey, FilmDraft, Person, ProductionRole, Script, ScriptCharacter, StaffingEvent } from '../../types';
@@ -85,6 +86,41 @@ function suitabilityLabel(read: NonNullable<StaffingRow['suitability']>): string
   return `${DEMAND_WORD[read.demand]} · ${SUITABILITY_WORD[read.suitability]}`;
 }
 
+// Workstream II, Layer 2 - the producer's Execution Strategy method choices,
+// surfaced where their effect lands: change a method and the department
+// suitability reads below re-route in place. Only the axes the film actually
+// contains are shown; each axis pre-selects the script's lean-derived default
+// until the player chooses otherwise.
+function ProductionApproachPanel({ draft, dispatch }: { draft: FilmDraft; dispatch: ReturnType<typeof useStudio>['dispatch'] }) {
+  const script = draft.script!;
+  const axes = relevantStrategyAxes(script);
+  if (axes.length === 0) return null;
+  const strategy: ExecutionStrategy = { ...deriveDefaultStrategy(script), ...(draft.executionStrategy ?? {}) };
+  return (
+    <div className="production-approach">
+      <span className="production-approach__label">Production approach</span>
+      {axes.map((axis) => {
+        const meta = STRATEGY_AXIS_META[axis];
+        return (
+          <label key={axis} className="production-approach__axis" title={meta.question}>
+            <span>{meta.label}</span>
+            <select
+              value={strategy[axis]}
+              aria-label={meta.label}
+              onChange={(e) => dispatch({ type: 'SET_EXECUTION_STRATEGY', patch: { [axis]: e.target.value } as Partial<ExecutionStrategy> })}
+            >
+              {meta.options.map((o) => (
+                <option key={o.value} value={o.value} title={o.blurb}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+        );
+      })}
+      <span className="production-approach__hint">shapes what each department is up against</span>
+    </div>
+  );
+}
+
 function StaffingBoardSection({
   draft,
   onOpenCharacter,
@@ -115,6 +151,7 @@ function StaffingBoardSection({
           ? <>Shoot planned to start <strong>day {plannedStartDay}</strong> - delayed {board.plannedStartOffsetDays} day{board.plannedStartOffsetDays === 1 ? '' : 's'} to wait on booked talent.</>
           : <>Shoot begins as soon as the cast is set.</>}
       </div>
+      {draft.script && <ProductionApproachPanel draft={draft} dispatch={dispatch} />}
       <table>
         <thead>
           <tr>

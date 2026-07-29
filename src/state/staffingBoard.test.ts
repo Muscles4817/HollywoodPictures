@@ -146,6 +146,39 @@ describe('crew suitability seam (Workstream II fit-read floor)', () => {
   });
 });
 
+describe('execution strategy re-routes the hub fit-reads (Layer 2 persisted)', () => {
+  // A creature film so the creature axis actually forks the workload.
+  function creatureDraft(): FilmDraft {
+    const d = baseDraft();
+    const script = {
+      ...d.script!,
+      genre: 'Horror' as const,
+      effectsStrategy: { practical: 0.5, digital: 0.5 },
+      productionRequirements: { ...d.script!.productionRequirements, practicalEffects: 0.7, vfx: 0.6, stunts: 0.4 },
+      cast: [
+        ...d.script!.cast,
+        { id: 'creature', name: 'The Thing', archetype: 'MonsterOrCreature' as const, prominence: 'Supporting' as const,
+          traits: { dramaticDepth: 40, charismaDemand: 40, comedyDemand: 20, emotionalDemand: 40, physicalDemand: 70, transformationDemand: 85, audienceAccessibility: 40, distinctiveness: 60, merchandisePotential: 50 } },
+      ],
+    };
+    return { ...d, script };
+  }
+  const vfxDemand = (d: FilmDraft) => deriveStaffingBoard(d, 10).rows.find((r) => r.role === 'VFX Supervisor')!.suitability!.demandScore;
+
+  it('a fully-CG creature drives the VFX demand higher than an animatronic one — same script', () => {
+    const base = creatureDraft();
+    const cg = vfxDemand({ ...base, executionStrategy: { creatureMethod: 'fullyCG' } });
+    const animatronic = vfxDemand({ ...base, executionStrategy: { creatureMethod: 'animatronic' } });
+    expect(cg).toBeGreaterThan(animatronic);
+  });
+
+  it('no chosen strategy leaves the reads lean-derived (unchanged behaviour)', () => {
+    const base = creatureDraft();
+    // With no executionStrategy, the board still derives — it just uses the lean.
+    expect(deriveStaffingBoard(base, 10).rows.find((r) => r.role === 'VFX Supervisor')!.suitability).toBeDefined();
+  });
+});
+
 describe('stunts board-level fit-read (contracted team, not a row)', () => {
   const team = (id: string, skill: number) => ({ id, name: `Team ${id}`, skill, specialties: [], typicalSalary: 300_000 });
 

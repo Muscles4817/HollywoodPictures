@@ -16,6 +16,7 @@ import { NO_DESIGNER_SKILL } from '../engine/setsFacet';
 import { NO_VFX_SUPERVISOR_SKILL } from '../engine/vfxFacet';
 import { NO_STUNT_TEAM_SKILL } from '../engine/practicalFacet';
 import { stuntTeamById, stuntTeamEffectiveSkill } from '../engine/stuntTeams';
+import { deriveDefaultStrategy } from '../engine/executionStrategy';
 import type { StuntTeam } from '../types';
 import { assignmentCost } from '../engine/person';
 
@@ -204,9 +205,15 @@ export function deriveStaffingBoard(draft: FilmDraft, totalDays: GameDay, stuntT
   }
 
   // Department workloads for the film, derived once (Layer 3) - the crew rows
-  // read their suitability against these.
+  // read their suitability against these. When the producer has chosen any
+  // Execution Strategy method (Layer 2), the effective strategy (their choices
+  // over the script's lean-derived default) re-routes the workload; otherwise the
+  // lean drives it, unchanged from before.
+  const strategy = script && draft.executionStrategy
+    ? { ...deriveDefaultStrategy(script), ...draft.executionStrategy }
+    : undefined;
   const workloads = new Map<DepartmentId, DepartmentWorkload>(
-    (script ? deriveDepartmentWorkloadsForScript(script) : []).map((w) => [w.department, w]),
+    (script ? deriveDepartmentWorkloadsForScript(script, strategy) : []).map((w) => [w.department, w]),
   );
 
   // Director + crew rows - one per head slot. Instant hire, so only unstaffed vs
