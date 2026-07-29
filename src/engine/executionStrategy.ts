@@ -50,6 +50,15 @@ const ENVIRONMENT_DIGITAL: Record<EnvironmentMethod, number> = {
   fullyDigital: 1.0,
 };
 
+/**
+ * How digital (0 = fully practical, 1 = fully digital) the chosen method is on a
+ * given axis. The practical↔digital character each department executes — read by
+ * the collaboration edges to compare against a director's own lean.
+ */
+export function methodDigitalCharacter(axis: ExecutionStrategyAxis, strategy: ExecutionStrategy): number {
+  return axis === 'creatureMethod' ? CREATURE_DIGITAL[strategy.creatureMethod] : ENVIRONMENT_DIGITAL[strategy.environmentMethod];
+}
+
 /** The approach routes a chosen strategy imposes, replacing the lean-derived ones. */
 export interface StrategyRoutes {
   practicalRoute: number; // creature embodiment (practical build)

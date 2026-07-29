@@ -480,9 +480,35 @@ effects/environment lean into explicit, named METHOD axes:
   above the staffing board (only the axes the film exposes), so changing a method
   and seeing the department suitability reads shift happens in one place.
 
-Not yet built: Layer 4 (Department Simulation), the compatibility/workload hub
-sections, the richer per-specialty crew capability model, and the
-`destructionMethod`/`actionMethod` axes (awaiting the finer-taxonomy split).
+**Compatibility edges — STARTED (Director ↔ approach; calibration-safe).**
+`src/engine/collaborationEdges.ts` implements the first collaborator edge, per
+Addition #2 / Revision 1 #6: a relationship read DERIVED from creative-philosophy
+vectors that produces an INTERACTION (a story about how they'll get on), never a
+hidden quality modifier.
+- `deriveDirectorApproachFit(directorStyle, strategy, axes)` compares the
+  director's practical↔digital lean (`productionStyle.effectsStrategy` /
+  `environmentStrategy` — real data) against the practical↔digital character of
+  the chosen Execution Strategy, averaged over the axes the film exposes →
+  `aligned · mixed · friction` with qualitative prose ("your director is a
+  practical-first film-maker, but you've committed to a digital production —
+  expect friction"). This is the computable core of the design's Director↔VFX /
+  Director↔PD edges: the strategy is exactly what those departments execute.
+- Surfaced inline in the hub's "Production approach" panel — pick methods and the
+  attached director reacts in place. Shown only when a director is hired.
+- **Calibration-safe:** a clash is a story (and, later, an event/recommendation
+  surface), not a −quality knob — feeds no cost or scoring.
+- Tests: `src/engine/collaborationEdges.test.ts` (aligned/friction/mixed banding,
+  axis-averaging, no digits in copy) + hub render.
+
+**Deferred — the person↔person crew edges** (Director↔PD/DP as individuals,
+PD↔VFX, Actor↔Stunt): these need both endpoints to carry a creative-philosophy
+vector, and crew heads are still flat `skill`. They land once crew heads gain
+philosophy vectors (Addition #1 — three dimensions per head).
+
+Not yet built: crew philosophy vectors (Addition #1), Layer 4 (Department
+Simulation), the workload hub section, the richer per-specialty crew capability
+model, and the `destructionMethod`/`actionMethod` axes (awaiting the
+finer-taxonomy split).
 
 ## Script-model depth — an open roadmap question (raised, not yet scoped)
 

@@ -23,8 +23,34 @@ beforeEach(() => {
 
 const inceptionAsset = TEST_SCRIPT_ASSETS.find((a) => a.script.id === 'test-script-inception')!;
 
-function stateWithInceptionDraft(): GameState {
+const FLAT_TONE = { action: 40, comedy: 40, romance: 40, suspense: 40, drama: 40, spectacle: 40 };
+function practicalDirector() {
+  return {
+    identity: { name: 'Chris Practical', appearanceTags: [], gender: 'Male', dateOfBirth: undefined },
+    personality: { professionalism: 60, ambition: 60, loyalty: 60, ego: 40, temperament: 60, pressureHandling: 60, controversy: 20, adaptability: 60 },
+    reputation: { fame: 60, prestige: 60, industryRespect: 60, reliability: 70, currentHeat: 40 },
+    availability: { commitments: [] },
+    traits: [],
+    primaryRole: 'Director',
+    careers: {
+      director: {
+        role: 'Director', active: true, experience: 70, roleReputation: 70, minimumSalary: 1_000_000, typicalSalary: 4_000_000,
+        skill: 80, toneProfile: FLAT_TONE,
+        productionStyle: {
+          effectsStrategy: { practical: 0.9, digital: 0.1 },
+          environmentStrategy: { studio: 0.45, location: 0.45, digital: 0.1 },
+        },
+      },
+    },
+  } as unknown as Parameters<typeof playerDraftToProject>[0]['talent'][number]['person'];
+}
+
+function stateWithInceptionDraft(withDirector = false): GameState {
   const draft = createDraftFromAsset(inceptionAsset, {});
+  if (withDirector) {
+    draft.talent = [...draft.talent, { role: 'Director', person: practicalDirector() } as typeof draft.talent[number]];
+    draft.executionStrategy = { creatureMethod: 'fullyCG', environmentMethod: 'fullyDigital' };
+  }
   const talentPool = withRng(1, (rng) => generateTalentPool(rng)).result;
   return {
     studio: createInitialStudio(400_000_000),
@@ -150,6 +176,30 @@ describe('HireTalent - crew suitability read (Workstream II fit-read floor)', ()
     fireEvent.change(envSelect, { target: { value: 'fullyDigital' } });
     // The choice persists (re-render reflects it) — the producer decision took.
     expect((screen.getByLabelText('Environment method') as HTMLSelectElement).value).toBe('fullyDigital');
+  });
+
+  it('shows the Director-approach compatibility read when a director is attached, and hides it otherwise', () => {
+    // No director: no compatibility read, but the approach control still renders.
+    saveState(stateWithInceptionDraft(false));
+    const { unmount } = render(
+      <StudioProvider>
+        <HireTalent />
+      </StudioProvider>,
+    );
+    expect(document.querySelector('.director-approach')).not.toBeInTheDocument();
+    unmount();
+
+    // A practical director on a fully-CG/fully-digital production -> friction.
+    saveState(stateWithInceptionDraft(true));
+    render(
+      <StudioProvider>
+        <HireTalent />
+      </StudioProvider>,
+    );
+    const read = document.querySelector('.director-approach') as HTMLElement;
+    expect(read).toBeInTheDocument();
+    expect(read.className).toMatch(/director-approach--friction/);
+    expect(read.textContent).toMatch(/pulling against|friction/i);
   });
 
   it('surfaces a Stunts & Practical read on the hub, unstaffed by default', () => {
