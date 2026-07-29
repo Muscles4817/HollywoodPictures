@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { collectProjectCards, currentScreenFor, type ProjectCardData, type ProjectStage } from '../state/selectors';
 import { asPlayerDraft, findProject, asFilm } from '../engine/project';
-import { formatGameMonthYear } from '../engine/calendar';
+import { formatGameMonthYear, formatGameDateWithMonth } from '../engine/calendar';
 import { Card } from './common/Card';
 import { Button } from './common/Button';
 import { Money } from './common/Money';
@@ -10,9 +10,10 @@ import { ScoreBar } from './common/ScoreBar';
 import { FilmDetailModal } from './common/FilmDetailModal';
 import type { Film } from '../types';
 
-const STAGE_ORDER: ProjectStage[] = ['pre-production', 'filming', 'post-production', 'scheduled', 'in-cinemas', 'archived', 'shelved'];
+const STAGE_ORDER: ProjectStage[] = ['in-development', 'pre-production', 'filming', 'post-production', 'scheduled', 'in-cinemas', 'archived', 'shelved'];
 
 const STAGE_LABELS: Record<ProjectStage, string> = {
+  'in-development': 'In Development',
   'pre-production': 'Pre-Production',
   filming: 'Filming',
   'post-production': 'Post-Production',
@@ -25,6 +26,7 @@ const STAGE_LABELS: Record<ProjectStage, string> = {
 // Matches the CSS classes in index.css (.badge-stage-<X>/.project-card-<X>) -
 // hyphen-free so they compose directly into a className string.
 const STAGE_CLASS: Record<ProjectStage, string> = {
+  'in-development': 'InDevelopment',
   'pre-production': 'PreProduction',
   filming: 'Filming',
   'post-production': 'PostProduction',
@@ -35,6 +37,7 @@ const STAGE_CLASS: Record<ProjectStage, string> = {
 };
 
 const STAGE_BLURBS: Record<ProjectStage, string> = {
+  'in-development': 'Greenlit and cast, but a cast member you waited for is still finishing other work - the shoot begins once they are free.',
   'pre-production': 'Still being planned - develop, cast, and plan the production before Greenlight.',
   filming: 'Principal photography is under way.',
   'post-production': 'Photography wrapped - editing, scoring, and marketing choices are being locked in.',
@@ -48,7 +51,7 @@ const STAGE_BLURBS: Record<ProjectStage, string> = {
 // three (scheduled, in-cinemas, archived) open a read-only view instead
 // (nothing left to decide for a scheduled project; a released film's own
 // dossier for the other two), so they're never gated by focus.
-const RESUMABLE_STAGES = new Set<ProjectStage>(['pre-production', 'filming', 'post-production', 'shelved']);
+const RESUMABLE_STAGES = new Set<ProjectStage>(['in-development', 'pre-production', 'filming', 'post-production', 'shelved']);
 
 /**
  * Every one of the player's own current projects, one card each, grouped by
@@ -180,6 +183,10 @@ function ProjectCardBody({ card }: { card: ProjectCardData }) {
 
       {card.scheduledReleaseDay !== null && (
         <p style={{ margin: '8px 0 0' }}>Releasing {formatGameMonthYear(card.scheduledReleaseDay)}</p>
+      )}
+
+      {card.shootStartsOnDay !== null && (
+        <p style={{ margin: '8px 0 0' }}>Shoot begins {formatGameDateWithMonth(card.shootStartsOnDay)}</p>
       )}
 
       {card.boxOffice && (

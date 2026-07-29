@@ -108,8 +108,14 @@ export function Dashboard() {
   // rendered drafts with `photography` set) and read as "Shelved" on the
   // Projects page, indistinguishable from a script nobody's touched since
   // acquisition (state/selectors.ts:hasDraftProgress).
+  // Deferred Start: films greenlit but held in development until a waited-for
+  // cast member is free. Pulled out of the Staffing bucket below so the overview
+  // reads them as "greenlit, waiting to shoot" rather than "still being staffed."
+  const developmentHoldDrafts = backgroundedDrafts.filter(
+    (production) => production.preProduction?.status === 'scheduled',
+  );
   const staffingDrafts = backgroundedDrafts.filter(
-    (production) => !production.photography && hasDraftProgress(production),
+    (production) => !production.photography && production.preProduction?.status !== 'scheduled' && hasDraftProgress(production),
   );
 
   // The player's own active slate - films in development/production plus ones
@@ -466,6 +472,7 @@ export function Dashboard() {
 
               <div className="dashboard-pipeline-summary">
                 <PipelineStat label="Staffing" value={staffingDrafts.length} />
+                {developmentHoldDrafts.length > 0 && <PipelineStat label="In development" value={developmentHoldDrafts.length} />}
                 <PipelineStat label="Filming" value={activeShoots.length} />
                 <PipelineStat label="Needs attention" value={attentionDrafts.length} emphasis={attentionDrafts.length > 0} />
                 <PipelineStat label="Scheduled" value={scheduledReleases.length} />
@@ -473,6 +480,10 @@ export function Dashboard() {
               </div>
 
               <div className="dashboard-project-list">
+                {developmentHoldDrafts.map((production) => (
+                  <DevelopmentHoldRow key={production.id} production={production} totalDays={state.totalDays} onOpen={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })} />
+                ))}
+
                 {staffingDrafts.map((production) => (
                   <StaffingProjectRow key={production.id} production={production} onOpen={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })} />
                 ))}
@@ -751,6 +762,26 @@ export function Dashboard() {
         </aside>
       </div>
     </div>
+  );
+}
+
+/** One row for a film greenlit into a Deferred-Start development hold - waiting on a cast member you waited for to finish other work. Shares the slate rows' shape; reads the scheduled shoot-start date rather than any progress, since prep hasn't begun. */
+function DevelopmentHoldRow({ production, totalDays, onOpen }: { production: FilmDraft; totalDays: number; onOpen: () => void }) {
+  const startDay = production.shootStartsOnDay ?? totalDays;
+  const daysUntil = Math.max(0, startDay - totalDays);
+  return (
+    <article className="dashboard-project-row">
+      <div className="dashboard-project-main">
+        <span className="dashboard-status-pill dashboard-status-staffing">In development</span>
+        <strong>{production.title || 'Untitled Film'}</strong>
+        <span className="dashboard-project-meta">
+          Shoot begins {formatGameDateWithMonth(startDay)}{daysUntil > 0 ? ` (in ${daysUntil} day${daysUntil === 1 ? '' : 's'})` : ''}
+        </span>
+      </div>
+      <div className="dashboard-project-actions">
+        <Button className="btn-sm" onClick={onOpen}>Open</Button>
+      </div>
+    </article>
   );
 }
 

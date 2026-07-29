@@ -969,3 +969,29 @@ Cost model note: the upfront commitment is charged at greenlight, as before - th
 development hold defers the *start*, not the money. Deferring the shoot budget
 across the hold would be a much larger money-model change and was deliberately
 left out of scope. `SAVE_KEY` v67->v68.
+
+---
+
+## 24. Follow-up, surfacing the development hold on the studio overview
+
+Deferred Start (§23) added a real "held in development" state, but the studio's
+overview screens didn't distinguish it: a held film read as a generic
+"Pre-Production" badge on the Projects page and, worse, as "Staffing" on the
+Dashboard slate - as if nobody had been hired yet, when in fact it's fully cast
+and greenlit, just waiting on a date.
+
+- **`ProjectStage` gains `'in-development'`** (`state/selectors.ts`).
+  `deriveProjectStage` returns it whenever `preProduction.status === 'scheduled'`,
+  ahead of the generic pre-production check, and `ProjectCardData` now carries
+  `shootStartsOnDay` so a card can show the date.
+- **Projects page:** a distinct "In Development" badge (amber), its own group and
+  blurb, and a "Shoot begins &lt;date&gt;" line. It remains resumable - clicking
+  it re-enters the development-hold screen.
+- **Dashboard slate:** held films are pulled out of the "Staffing" bucket into
+  their own "In development" rows ("Shoot begins &lt;date&gt; (in N days)") with a
+  matching pipeline stat, so the at-a-glance overview reads them as greenlit and
+  waiting rather than still being staffed.
+
+Presentation-only - no engine or state-shape change beyond the additive
+`shootStartsOnDay` on the card DTO; the hold itself is entirely the Deferred
+Start work from §23.

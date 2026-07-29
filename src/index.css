@@ -917,6 +917,7 @@ th {
    mistaken for the same signal. No dark-mode override, same as
    .badge-outcome-* - a light pastel background with dark text stays
    readable floating on a dark page. */
+.badge-stage-InDevelopment { background: #fdeecb; color: #8a5a00; }
 .badge-stage-PreProduction { background: #dbeafe; color: #1e40af; }
 .badge-stage-Filming { background: #ffe0b3; color: #9a5b00; }
 .badge-stage-PostProduction { background: #e6ddfb; color: #4b2a91; }
@@ -925,6 +926,7 @@ th {
 .badge-stage-Archived { background: #e7e9ed; color: #555; }
 .badge-stage-Shelved { background: #f3e3c9; color: #7a5a1e; }
 
+.project-card-InDevelopment { border-left: 3px solid #8a5a00; }
 .project-card-PreProduction { border-left: 3px solid #1e40af; }
 .project-card-Filming { border-left: 3px solid #9a5b00; }
 .project-card-PostProduction { border-left: 3px solid #4b2a91; }

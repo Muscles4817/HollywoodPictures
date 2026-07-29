@@ -170,6 +170,18 @@ describe('deriveProjectStage - Projects page (components/ProjectsPage.tsx)', () 
     expect(deriveProjectStage(project, 'some-other-project-id')).toBe('pre-production');
   });
 
+  it('a Deferred-Start development hold (preProduction scheduled) reads as in-development, distinct from live pre-production', () => {
+    const { result: draft } = withRng(100, (rng) => buildReadyDraft(rng));
+    const held = playerDraftToProject({
+      ...draft,
+      photography: null,
+      shootStartsOnDay: 500,
+      preProduction: { status: 'scheduled', recommendedDays: 30, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
+    });
+    expect(deriveProjectStage(held, draft.id)).toBe('in-development');
+    expect(deriveProjectStage(held, null)).toBe('in-development'); // stays distinct even backgrounded
+  });
+
   it('mid-shoot photography (in-progress or awaiting-choice) is always filming, regardless of focus - a backgrounded shoot keeps advancing on its own', () => {
     const { result: draft } = withRng(101, (rng) => buildReadyDraft(rng));
     const filming = playerDraftToProject({ ...draft, photography: inProgressPhotography() });
