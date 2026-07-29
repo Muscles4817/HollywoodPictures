@@ -7,6 +7,7 @@ import type {
   Distribution,
   EffectsMethodKey,
   EnvironmentMethodKey,
+  ExecutionStrategy,
   FilmDraft,
   Genre,
   MarketingChoices,
@@ -284,6 +285,11 @@ export type GameAction =
   // Attach/clear the Stunt Team for the focused film (docs/DESIGN_REVIEW_production_redesign.md §5.2).
   // One team per film; stuntTeamId: null clears it. Charged (per-film fee) only at RELEASE_FILM.
   | { type: 'SET_STUNT_TEAM'; stuntTeamId: string | null }
+  // Workstream II, Layer 2 - set the producer's Execution Strategy method(s) for
+  // the focused film. Merges the patch into FilmDraft.executionStrategy (partial;
+  // unset axes follow the script's lean-derived default). Re-routes requirements
+  // -> workload -> crew fit-reads; no cost/scoring effect (calibration-safe).
+  | { type: 'SET_EXECUTION_STRATEGY'; patch: Partial<ExecutionStrategy> }
   // Producer Workspace free navigation (PRODUCER_WORKSPACE_DESIGN.md) - the
   // only way GameState.projectWorkspaceSection changes. Unlike GO_TO_STEP,
   // charges no calendar time and never touches STAGE_DURATIONS: moving

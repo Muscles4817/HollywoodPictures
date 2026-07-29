@@ -137,6 +137,21 @@ describe('HireTalent - crew suitability read (Workstream II fit-read floor)', ()
     expect(read.textContent).not.toMatch(/\d/);
   });
 
+  it('surfaces the Execution Strategy method choice on the hub and persists a change', () => {
+    saveState(stateWithInceptionDraft());
+    render(
+      <StudioProvider>
+        <HireTalent />
+      </StudioProvider>,
+    );
+    // Every film exposes the environment-method axis.
+    const envSelect = screen.getByLabelText('Environment method') as HTMLSelectElement;
+    expect(envSelect).toBeInTheDocument();
+    fireEvent.change(envSelect, { target: { value: 'fullyDigital' } });
+    // The choice persists (re-render reflects it) — the producer decision took.
+    expect((screen.getByLabelText('Environment method') as HTMLSelectElement).value).toBe('fullyDigital');
+  });
+
   it('surfaces a Stunts & Practical read on the hub, unstaffed by default', () => {
     saveState(stateWithInceptionDraft());
     render(

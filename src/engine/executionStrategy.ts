@@ -22,20 +22,13 @@
 // environment build. Destruction and action methods join when the taxonomy
 // splits those requirements by approach (finer-taxonomy expansion); they are
 // deliberately NOT surfaced here rather than shipped inert.
-import type { Script } from '../types';
+import type { Script, CreatureMethod, EnvironmentMethod, ExecutionStrategy } from '../types';
 import { clamp } from './random';
 
-/** How a written creature is realised — practical build ↔ fully digital. */
-export type CreatureMethod = 'animatronic' | 'hybrid' | 'mostlyCG' | 'fullyCG';
-
-/** How the film's world is built — on real locations ↔ fully digital. */
-export type EnvironmentMethod = 'location' | 'studioBuild' | 'setExtension' | 'virtualProduction' | 'fullyDigital';
-
-/** The production's chosen methods. Only the axes a film actually exposes matter. */
-export interface ExecutionStrategy {
-  creatureMethod: CreatureMethod;
-  environmentMethod: EnvironmentMethod;
-}
+// The pure method-axis types persist on FilmDraft, so they live in ../types;
+// re-exported here so this module stays the one place callers import the
+// Execution Strategy vocabulary from.
+export type { CreatureMethod, EnvironmentMethod, ExecutionStrategy } from '../types';
 
 export type ExecutionStrategyAxis = keyof ExecutionStrategy;
 

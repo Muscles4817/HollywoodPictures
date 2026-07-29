@@ -866,6 +866,18 @@ export type ProductionExecutionImpact =
 /** The craft facets that take an endogenous execution swing from their own re-routed event slice (engine/facetModel.ts:executionSwing). */
 export type CraftFacet = 'sets' | 'vfx' | 'practical';
 
+// Workstream II, Layer 2 - Execution Strategy method axes (see
+// engine/executionStrategy.ts for the logic/derivation; the pure types live here
+// because they persist on FilmDraft). A production-level method choice re-routes
+// the film's narrative requirements to different departments (an animatronic
+// creature loads Stunts + Production Design; a fully-CG one loads VFX).
+export type CreatureMethod = 'animatronic' | 'hybrid' | 'mostlyCG' | 'fullyCG';
+export type EnvironmentMethod = 'location' | 'studioBuild' | 'setExtension' | 'virtualProduction' | 'fullyDigital';
+export interface ExecutionStrategy {
+  creatureMethod: CreatureMethod;
+  environmentMethod: EnvironmentMethod;
+}
+
 export interface ProductionEvent {
   id: string;
   description: string;
@@ -2221,6 +2233,16 @@ export interface FilmDraft {
    * Appended by the relevant reducers; read as `[]` when absent (older drafts).
    */
   staffingLog?: StaffingEvent[];
+  /**
+   * Workstream II, Layer 2 - the producer's chosen Execution Strategy methods
+   * (how the film's requirements are realised). Partial: only axes the player has
+   * explicitly set; unset axes fall back to the script's lean-derived default
+   * (engine/executionStrategy.ts:deriveDefaultStrategy). Absent = fully
+   * lean-derived, i.e. unchanged from before this system. Re-routes the
+   * requirement profile -> department workload -> crew fit-reads; deliberately
+   * NOT wired to cost or scoring yet (calibration-safe).
+   */
+  executionStrategy?: Partial<ExecutionStrategy>;
   /** Casting Redesign, Phase B - every Open Casting call in progress for this draft's Lead/Supporting characters, at most one per Character. Empty until the player opens one; ticks weekly via engine/castingCalls.ts:tickCastingCalls. */
   castingCalls: CastingCall[];
   /** Casting Redesign, Phase E - live money negotiations for this draft's characters, at most one per (character, actor). Empty/absent until the player makes an offer through the negotiation flow; a record is dropped the moment the actor signs or the player walks. Read as `[]` when absent (older drafts). */

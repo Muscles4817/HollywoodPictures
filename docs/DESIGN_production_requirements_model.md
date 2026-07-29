@@ -467,11 +467,22 @@ effects/environment lean into explicit, named METHOD axes:
   join when the finer-taxonomy expansion splits those requirements by approach —
   not shipped inert.
 
-Not yet built: **persisting a chosen strategy on the draft + surfacing the method
-axes as a live production-plan decision** (the immediate follow-up — this slice
-establishes the model and re-routing; nothing in live play reads a chosen
-strategy yet), Layer 4 (Department Simulation), the compatibility/workload hub
-sections, and the richer per-specialty crew capability model.
+**Layer 2 is now live in play.** The chosen strategy persists and drives the hub:
+- `FilmDraft.executionStrategy?: Partial<ExecutionStrategy>` (types) — only the
+  axes the player has explicitly set; unset axes follow the lean-derived default;
+  absent = fully lean-derived (unchanged). `SET_EXECUTION_STRATEGY` merges a
+  partial patch (reducer). `SAVE_KEY` bumped v70 → v71.
+- `deriveStaffingBoard` threads the effective strategy (player choices over the
+  default) into the Layer-3 workload, so the hub's crew fit-reads re-route in
+  response to the producer's method choice. Still calibration-safe — the strategy
+  reaches only the non-scoring fit-reads, never cost or box office.
+- Surfaced on the Cast & Crew hub as a **"Production approach"** control right
+  above the staffing board (only the axes the film exposes), so changing a method
+  and seeing the department suitability reads shift happens in one place.
+
+Not yet built: Layer 4 (Department Simulation), the compatibility/workload hub
+sections, the richer per-specialty crew capability model, and the
+`destructionMethod`/`actionMethod` axes (awaiting the finer-taxonomy split).
 
 ## Script-model depth — an open roadmap question (raised, not yet scoped)
 

@@ -1192,6 +1192,13 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, stuntTeamId: action.stuntTeamId }) };
     }
 
+    case 'SET_EXECUTION_STRATEGY': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const executionStrategy = { ...(focusedDraft.executionStrategy ?? {}), ...action.patch };
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, executionStrategy }) };
+    }
+
     // Producer Workspace free navigation (PRODUCER_WORKSPACE_DESIGN.md) -
     // unlike GO_TO_STEP, never advances the calendar and never touches
     // STAGE_DURATIONS; moving between workspace sections is meant to cost
