@@ -8,7 +8,8 @@ import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { actorMeetsCharacterGender, personMeetsCharacterAge } from '../../engine/casting';
 import { computeActorAppeal, countActorsFreedByDelay } from '../../engine/castingAppeal';
 import { estimateDeal } from '../../engine/castingEstimate';
-import { deriveFitReadAssist } from '../../engine/talentCardPresentation';
+import { deriveFitReadAssist, deriveFitRead, deriveFitReason, deriveRiskRead } from '../../engine/talentCardPresentation';
+import { deriveCastingDirectorTake, describeCastingDirectorTake } from '../../engine/castingDirectorAdvice';
 import { candidateStrengthSignals, describeOfferRejection, describeCounterOffer, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast, type CandidateSignal } from '../../engine/castingPresentation';
 import { forecastOpenCasting } from '../../engine/castingCalls';
 import { playerRelationshipWith, type RelationshipStanding } from '../../engine/relationships';
@@ -18,7 +19,7 @@ import { CHARACTER_ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
-import { TalentStats } from '../common/TalentStats';
+import { TalentStats, deriveOverallScore, deriveRoleFitBreakdown } from '../common/TalentStats';
 import { TalentComparison, type CompareSlot } from '../common/TalentComparison';
 import { useComparePins, MAX_PINNED } from '../common/useComparePins';
 import { CheckboxToggle } from '../common/CheckboxToggle';
@@ -237,8 +238,31 @@ function CandidateCard({
   // (deriveFitReadAssist). Hidden once a negotiation is live - by then you have
   // their real counter, not a guess. Updates as the salary slider moves.
   const assist = deriveFitReadAssist(castingDirectorSkill, relationship, true, audited);
-  const estimate = overall && !negotiation ? estimateDeal(overall, person, offeredSalary, assist, relationship) : null;
+  const deal = overall ? estimateDeal(overall, person, offeredSalary, assist, relationship) : null;
+  const estimate = deal && !negotiation ? deal : null; // the pre-offer read is hidden once a negotiation is live
   const oddsSignal = estimate ? describeAcceptanceOdds(estimate.odds) : null;
+
+  // Casting Director's take (Phase 7): the CD's single, consolidated read on this
+  // candidate - a recommendation and why, only present when a Casting Director is
+  // hired (deriveCastingDirectorTake returns null otherwise) and only as sharp as
+  // their skill. Built from the SAME fit read/odds/risk the card already shows, so
+  // the advisory never contradicts the reads above it.
+  const fitScore = deriveOverallScore(person, role, 'actor', script, character);
+  const fitRead = fitScore !== null ? deriveFitRead(fitScore, person, assist) : null;
+  const fitBreakdown = deriveRoleFitBreakdown(person, role, 'actor', script, character);
+  const fitReason = fitBreakdown ? deriveFitReason(fitBreakdown.rows.map((r) => ({ label: r.label, matchScore: r.matchScore })), fitBreakdown.noun) : null;
+  const cdTake =
+    fitRead && deal
+      ? deriveCastingDirectorTake({
+          castingDirectorSkill,
+          fit: fitRead,
+          odds: deal.odds,
+          risk: deriveRiskRead(person).tier,
+          affordable,
+          strengths: fitReason?.strengths ?? null,
+          caveat: fitReason?.caveat ?? null,
+        })
+      : null;
 
   return (
     <Card>
@@ -246,6 +270,12 @@ function CandidateCard({
       {/* TalentStats' own Availability section already covers "available
           now" vs "busy until X" - no need to repeat it here. */}
       <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} affordable={affordable} castingDirectorSkill={castingDirectorSkill} relationship={relationship} castAffinity={castAffinity} audited={audited} />
+      {cdTake && (
+        <div className={`cd-take cd-take--${cdTake.recommendation}`}>
+          <span className="cd-take__label">Casting director&rsquo;s take</span>
+          <span className="cd-take__body">{describeCastingDirectorTake(cdTake)}</span>
+        </div>
+      )}
       {signals.length > 0 && (
         <div className="candidate-signals">
           {signals.map((signal) => (

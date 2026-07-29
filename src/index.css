@@ -1202,6 +1202,29 @@ textarea, input, select {
   color: var(--text-muted);
 }
 
+/* Casting Redesign, Phase 7 - the Casting Director's take (consolidated advisory). */
+.cd-take {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border-left: 3px solid var(--text-muted);
+  background: color-mix(in srgb, currentColor 5%, transparent);
+  font-size: 0.85em;
+}
+.cd-take__label {
+  font-size: 0.82em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.cd-take--strong-yes { border-left-color: var(--green); }
+.cd-take--worth-it { border-left-color: var(--green); }
+.cd-take--reach { border-left-color: var(--amber, #b8860b); }
+.cd-take--pass { border-left-color: var(--red); }
+
 /* Casting Redesign, Phase 6 - the wait-for-a-booked-actor strip on a card, and
    the production-level "shoot delayed" banner. */
 .candidate-schedule {
