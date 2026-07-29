@@ -500,15 +500,32 @@ hidden quality modifier.
 - Tests: `src/engine/collaborationEdges.test.ts` (aligned/friction/mixed banding,
   axis-averaging, no digits in copy) + hub render.
 
-**Deferred — the person↔person crew edges** (Director↔PD/DP as individuals,
-PD↔VFX, Actor↔Stunt): these need both endpoints to carry a creative-philosophy
-vector, and crew heads are still flat `skill`. They land once crew heads gain
-philosophy vectors (Addition #1 — three dimensions per head).
+**Addition #1 — crew creative-philosophy vectors: SHIPPED (calibration-safe).**
+`src/engine/crewPhilosophy.ts` gives each creative head a second dimension beside
+`skill`: a `CrewPhilosophy` vector (`digitalAffinity` practical↔digital ·
+`stylisation` naturalistic↔stylised) in the same space the Director/Execution
+Strategy already speak. Like director hands-on-ness, an unauthored philosophy is
+a STABLE per-person derivation from the person id (no rng, so no generated pool
+shifts; no save impact), with an optional authored `CrewCareer.philosophy`
+override for future marquee crew. `directorPhilosophy(career)` maps a director
+into the same space (digital lean → digitalAffinity; tone → stylisation).
 
-Not yet built: crew philosophy vectors (Addition #1), Layer 4 (Department
-Simulation), the workload hub section, the richer per-specialty crew capability
-model, and the `destructionMethod`/`actionMethod` axes (awaiting the
-finer-taxonomy split).
+This **unlocks the person↔person compatibility edges**: `deriveCrewCollaborationReads`
+now derives **Director↔PD, Director↔VFX, PD↔VFX** from the two heads' vectors
+(O(N) data, edges emergent) — aligned / mixed / friction, with the dominant
+disagreement naming the topic ("clash over practical vs digital" / "grounded vs
+stylised"). Surfaced on the hub as a **"Creative collaboration"** panel listing
+the active edges among the attached heads. Still calibration-safe — a clash is a
+story, not a −quality knob. Tests in `crewPhilosophy.test.ts` (stable/authored/
+director-mapping) and `collaborationEdges.test.ts` (edge banding, attach-gating).
+
+**Still deferred:** Actor↔Stunt and Director↔Composer/Editor edges (those parties
+don't carry philosophy vectors yet); the per-specialty crew *technical* capability
+(the third of the three dimensions).
+
+Not yet built: Layer 4 (Department Simulation), the workload hub section, the
+per-specialty crew capability model, and the `destructionMethod`/`actionMethod`
+axes (awaiting the finer-taxonomy split).
 
 ## Script-model depth — an open roadmap question (raised, not yet scoped)
 

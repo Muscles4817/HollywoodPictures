@@ -25,7 +25,7 @@ import { findAssignedPerson } from '../../data/helpers';
 import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole } from '../../engine/person';
 import { deriveStaffingBoard, STAFFING_STAGE_LABELS, type StaffingRow } from '../../state/staffingBoard';
 import { deriveDefaultStrategy, relevantStrategyAxes, STRATEGY_AXIS_META, type ExecutionStrategy } from '../../engine/executionStrategy';
-import { deriveDirectorApproachFit } from '../../engine/collaborationEdges';
+import { deriveDirectorApproachFit, deriveCrewCollaborationReads } from '../../engine/collaborationEdges';
 import { formatGameDateWithMonth } from '../../engine/calendar';
 import type { ReactNode } from 'react';
 import type { EffectsMethodKey, EnvironmentMethodKey, FilmDraft, Person, ProductionRole, Script, ScriptCharacter, StaffingEvent } from '../../types';
@@ -138,6 +138,27 @@ function ProductionApproachPanel({ draft, dispatch }: { draft: FilmDraft; dispat
   );
 }
 
+// Workstream II, Addition #1 - the collaborator compatibility edges among the
+// attached creative heads (Director, Production Designer, VFX Supervisor),
+// derived from their creative-philosophy vectors. A relationship story, not a
+// modifier; only edges whose both heads are hired appear.
+function CrewCollaborationPanel({ draft }: { draft: FilmDraft }) {
+  const reads = deriveCrewCollaborationReads(draft);
+  if (reads.length === 0) return null;
+  return (
+    <div className="crew-collab">
+      <div className="crew-collab__head">Creative collaboration</div>
+      <ul>
+        {reads.map((r) => (
+          <li key={r.pair} className={`crew-collab__edge crew-collab__edge--${r.alignment}`} title={r.detail}>
+            <strong>{r.headline}.</strong> {r.detail}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function StaffingBoardSection({
   draft,
   onOpenCharacter,
@@ -215,7 +236,8 @@ function StaffingBoardSection({
         </tfoot>
       </table>
       {board.stunts && <StuntsPanel stunts={board.stunts} />}
-      <p className="staffing-board__note">Every role's staffing at a glance - open any to search, audition, negotiate or hire. Lock a budget to keep its share when the rest rebalance. Department heads show how this film's demands suit them; compatibility and workload reads will surface here as those systems come online.</p>
+      <CrewCollaborationPanel draft={draft} />
+      <p className="staffing-board__note">Every role's staffing at a glance - open any to search, audition, negotiate or hire. Lock a budget to keep its share when the rest rebalance. Department heads show how this film's demands suit them, and how your creative leads get on; workload reads will surface here as those systems come online.</p>
     </div>
   );
 }

@@ -4,22 +4,25 @@
 // produces an INTERACTION read — a story about how they'll get on — never a
 // hidden quality modifier.
 //
-// v1 wires the one edge whose BOTH endpoints carry a real philosophy vector
-// today: Director ↔ the production's approach. A director's practical↔digital
-// lean (productionStyle.effectsStrategy / environmentStrategy — real data) is
-// compared against the practical↔digital character of the chosen Execution
-// Strategy (Layer 2). This is the computable core of the design's Director↔VFX /
-// Director↔PD edges ("practical-vs-digital strategy disagreements"): the strategy
-// is exactly what those departments execute. Person↔person crew edges
-// (Director↔PD/DP as individuals, PD↔VFX) wait on crew heads gaining their own
-// philosophy vectors (Addition #1) — not invented here.
+// Two kinds of edge live here:
+//  1. Director ↔ the production's approach — the director's practical↔digital
+//     lean vs the chosen Execution Strategy (Layer 2). The computable core of the
+//     design's Director↔VFX/PD "practical-vs-digital" disagreement, mediated by
+//     the strategy those departments execute.
+//  2. Person↔person edges (Director↔PD, Director↔VFX, PD↔VFX) — now that crew
+//     heads carry a creative-philosophy vector (Addition #1,
+//     engine/crewPhilosophy.ts), these are DERIVED from the two heads' vectors,
+//     O(N) data with the O(N²) edges emergent. Actor↔Stunt and Composer/Editor
+//     edges still wait on those parties gaining vectors.
 //
 // Calibration-safe, like the rest of the floor: this reads existing data and
 // emits a relationship read. It feeds no cost or scoring — a philosophy clash is
 // a STORY (and, later, an event/recommendation surface), not a −quality knob.
-import type { DirectorProductionStyle } from '../types';
+import type { CrewPhilosophy, DirectorProductionStyle, FilmDraft } from '../types';
 import { clamp } from './random';
 import { methodDigitalCharacter, type ExecutionStrategy, type ExecutionStrategyAxis } from './executionStrategy';
+import { getDirectorCareer } from './person';
+import { crewPhilosophy, directorPhilosophy } from './crewPhilosophy';
 
 /** How well two collaborators' creative philosophies line up. */
 export type Alignment = 'aligned' | 'mixed' | 'friction';
@@ -85,4 +88,71 @@ export function deriveDirectorApproachFit(
   }
 
   return { alignment, directorPrefers, approachIs, headline, detail, directorLean, approachLean, gap };
+}
+
+// --- Person↔person collaborator edges (Addition #1 unlock) -----------------
+// DERIVED from the two heads' creative-philosophy vectors (never authored per
+// pair, so data stays O(N) and the edges are emergent). Each produces a
+// relationship read on the two axes; the dominant disagreement names the topic.
+
+/** A collaborator relationship read between two attached heads. */
+export interface CollaboratorEdgeRead {
+  pair: string; // "Director & Production Designer"
+  alignment: Alignment;
+  topic: 'practical vs digital' | 'grounded vs stylised' | 'aligned';
+  headline: string;
+  detail: string;
+  gap: number; // dev/test only
+}
+
+function alignmentFromGap(gap: number): Alignment {
+  if (gap < 0.18) return 'aligned';
+  if (gap < 0.4) return 'mixed';
+  return 'friction';
+}
+
+function edgeRead(aLabel: string, bLabel: string, a: CrewPhilosophy, b: CrewPhilosophy): CollaboratorEdgeRead {
+  const digitalGap = Math.abs(a.digitalAffinity - b.digitalAffinity);
+  const styleGap = Math.abs(a.stylisation - b.stylisation);
+  const gap = (digitalGap + styleGap) / 2;
+  const alignment = alignmentFromGap(gap);
+  const pair = `${aLabel} & ${bLabel}`;
+  if (alignment === 'aligned') {
+    return { pair, alignment, topic: 'aligned', headline: `${pair} see eye to eye`, detail: `Their creative instincts line up — expect a smooth, mutually reinforcing collaboration.`, gap };
+  }
+  const digitalDominant = digitalGap >= styleGap;
+  const topic = digitalDominant ? 'practical vs digital' : 'grounded vs stylised';
+  const axisPhrase = digitalDominant
+    ? 'one leans practical and tactile, the other digital'
+    : 'one wants it grounded, the other heightened and stylised';
+  const verb = alignment === 'friction' ? 'clash' : 'differ';
+  return {
+    pair, alignment, topic,
+    headline: `${pair} ${verb} over ${topic}`,
+    detail: `On this production ${axisPhrase} — ${alignment === 'friction' ? 'a real source of friction to manage.' : 'a workable difference, with some negotiation.'}`,
+    gap,
+  };
+}
+
+/**
+ * The active collaborator edges among the attached creative heads (Director,
+ * Production Designer, VFX Supervisor), derived from their philosophy vectors.
+ * Only edges whose BOTH heads are attached appear. Director maps into the same
+ * philosophy space via directorPhilosophy. Pure.
+ */
+export function deriveCrewCollaborationReads(draft: FilmDraft): CollaboratorEdgeRead[] {
+  const personFor = (role: string) => draft.talent.find((a) => a.role === role)?.person;
+  const directorPerson = personFor('Director');
+  const directorCareer = directorPerson ? getDirectorCareer(directorPerson) : null;
+  const director = directorCareer ? directorPhilosophy(directorCareer) : null;
+  const pdPerson = personFor('Production Designer');
+  const pd = pdPerson ? crewPhilosophy(pdPerson, 'Production Designer') : null;
+  const vfxPerson = personFor('VFX Supervisor');
+  const vfx = vfxPerson ? crewPhilosophy(vfxPerson, 'VFX Supervisor') : null;
+
+  const reads: CollaboratorEdgeRead[] = [];
+  if (director && pd) reads.push(edgeRead('Director', 'Production Designer', director, pd));
+  if (director && vfx) reads.push(edgeRead('Director', 'VFX Supervisor', director, vfx));
+  if (pd && vfx) reads.push(edgeRead('Production Designer', 'VFX Supervisor', pd, vfx));
+  return reads;
 }

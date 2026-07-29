@@ -355,6 +355,25 @@ export function computeActorAbility(style: ActingStyle): number {
 // actually consume one (see PERSON_MODEL_REDESIGN.md).
 export interface CrewCareer<TRole extends CrewRole> extends RoleCareerCommon<TRole> {
   skill: number; // 1-100
+  /**
+   * Workstream II, Addition #1 - a creative head's creative-philosophy vector
+   * (HOW they like to execute, distinct from `skill` = how well). Optional
+   * authored override for marquee crew; when absent it's derived stably per
+   * person (engine/crewPhilosophy.ts:crewPhilosophy), exactly as director
+   * hands-on-ness is. Feeds the collaborator compatibility edges - never a flat
+   * quality dial.
+   */
+  philosophy?: CrewPhilosophy;
+}
+
+// Workstream II, Addition #1 - a creative head's creative philosophy. Two 0-1
+// axes, reusing the practical<->digital language the Director/Execution-Strategy
+// already speak so heads and directors live in one comparable space:
+//   digitalAffinity: 0 practical/tactile <-> 1 digital/CG
+//   stylisation:     0 naturalistic/photoreal <-> 1 stylised/heightened
+export interface CrewPhilosophy {
+  digitalAffinity: number;
+  stylisation: number;
 }
 
 // --- Writer creative identity (Phase 2: writers become authors) -----------
