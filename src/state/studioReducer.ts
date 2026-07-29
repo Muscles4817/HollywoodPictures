@@ -1590,6 +1590,17 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, auditions: [...auditions, record] }) };
     }
 
+    // Casting Redesign, Phase 6 - push (or reset) the planned shoot start so a
+    // booked actor can be waited for. A later start only ever frees actors up
+    // (their bookings are fixed), at the cost of the delay itself; never negative.
+    case 'SET_SHOOT_DELAY': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const offsetDays = Math.max(0, Math.round(action.offsetDays));
+      if ((focusedDraft.plannedStartOffsetDays ?? 0) === offsetDays) return state;
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, plannedStartOffsetDays: offsetDays }) };
+    }
+
     case 'SET_TALENT_TARGET_PRICE': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;

@@ -803,3 +803,37 @@ gives a concrete, pre-commitment reason to value a Casting Director, exactly the
 
 No new persisted state and no RNG - the filters are a view over the pool, the
 forecast is a derived read over the same constants the tick already uses.
+
+---
+
+## 19. Phase 6, scheduling as a real constraint
+
+The brief's point 7: a booked actor shouldn't just be a wall. Until now
+`computeScheduleAssessment` classified a clash as `requires-delay` or
+`unavailable` and both resolved as a flat rejection - the "shift the production
+date" flow the code comment always pointed to didn't exist. This phase builds
+it, minimally and generally.
+
+- **The lever:** `FilmDraft.plannedStartOffsetDays` - how far the shoot's
+  planned start is pushed from today. `SET_SHOOT_DELAY` sets it (clamped ≥ 0);
+  every schedule read in the drawer now measures against `plannedStartDay =
+  today + offset` rather than today, so a later start genuinely opens up who can
+  be cast. `SAVE_KEY` v66→v67.
+- **The decision, on the card:** a booked candidate now shows *"Booked - free in
+  N days"* with a **Wait for them (+Nd)** action instead of a dead end. Taking it
+  pushes the planned start to their free day; the candidate immediately reads as
+  available and castable. A production-level banner shows the delay and offers
+  *Start as soon as cast* to undo it.
+- **The ripple, made visible:** waiting for one actor is rarely just about them.
+  `engine/castingAppeal.ts:countActorsFreedByDelay` counts how many *other*
+  eligible candidates the same delay frees, and the card says so - *"The same
+  delay also frees M other candidates."* So the schedule read is a shared,
+  legible trade-off (a later shoot, but a wider field), not a private one-off.
+
+A later start only ever frees actors (bookings are fixed), so the cost is purely
+the delay itself - exactly the wait-or-don't judgement the brief asks for. No
+RNG; `plannedStartDay` flows through the existing appeal gate untouched.
+
+**Deferred:** feeding `plannedStartOffsetDays` into the actual production start
+at greenlight (today it scopes the casting-time schedule read), and a "move the
+shoot earlier than an actor needs" negotiation - both build on the same offset.

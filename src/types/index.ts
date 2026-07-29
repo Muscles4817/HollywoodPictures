@@ -2196,6 +2196,8 @@ export interface FilmDraft {
   shortlist?: ShortlistEntry[];
   /** Casting Redesign, Phase 4 - screen tests the studio has arranged for candidates on this draft's characters, at most one per (character, actor). Each takes calendar time to complete (AuditionRecord.readyOnDay) and then reads as a confident fit. Read as `[]` when absent (older drafts). */
   auditions?: AuditionRecord[];
+  /** Casting Redesign, Phase 6 - how many days the planned shoot start is pushed out from today, so a booked actor can be waited for (their schedule frees up) at the cost of a later start. 0/absent means "start as soon as cast". Drives the schedule gate's plannedStartDay; never negative. */
+  plannedStartOffsetDays?: number;
   // The player's own Strategy/Ambition choices from the redesigned Plan
   // Production screen - null until that screen has been visited at least
   // once. `productionChoices` below is still what every downstream system

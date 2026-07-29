@@ -9,7 +9,7 @@
 // `overall` and every other factor could fully offset it. The regression
 // test for that scenario lives at the bottom of this file.
 import { describe, it, expect } from 'vitest';
-import { computeActorAppeal, computeAcceptanceThreshold, computeEffectiveMinimumSalary, resolveOfferResponse, type ActorAppealResult } from './castingAppeal';
+import { computeActorAppeal, computeAcceptanceThreshold, computeEffectiveMinimumSalary, resolveOfferResponse, countActorsFreedByDelay, type ActorAppealResult } from './castingAppeal';
 import { generateScriptOptions } from './scriptGenerator';
 import { createRng } from './random';
 import type { ActingStyle, CharacterTraitProfile, Person, Script, ScriptCharacter, Studio, TalentAssignment } from '../types';
@@ -453,5 +453,28 @@ describe('relationship effect on appeal, threshold, and salary floor', () => {
     expect(asStranger.status).toBe('accepted');
     expect(asGrudge.status).toBe('rejected');
     if (asGrudge.status === 'rejected') expect(asGrudge.reason).toBe('relationship');
+  });
+});
+
+describe('countActorsFreedByDelay', () => {
+  const pool = [
+    actorPerson('free-now'), // no booking
+    actorPerson('books-60', { bookedUntil: 60 }),
+    actorPerson('books-120', { bookedUntil: 120 }),
+    actorPerson('books-400', { bookedUntil: 400 }),
+  ];
+
+  it('counts actors blocked at the old start who free up by the new one', () => {
+    // From day 30 to day 150: books-60 and books-120 free up; books-400 still stuck; free-now was never blocked.
+    expect(countActorsFreedByDelay(pool, 30, 150)).toBe(2);
+  });
+
+  it('excludes the actor being waited for, so it reads as "also frees N"', () => {
+    expect(countActorsFreedByDelay(pool, 30, 150, 'books-120')).toBe(1);
+  });
+
+  it('frees nobody when the start does not move forward', () => {
+    expect(countActorsFreedByDelay(pool, 150, 150)).toBe(0);
+    expect(countActorsFreedByDelay(pool, 150, 100)).toBe(0);
   });
 });
