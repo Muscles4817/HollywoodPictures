@@ -119,6 +119,25 @@ describe('HireTalent - curated activity feed (Phase 2b)', () => {
   });
 });
 
+describe('HireTalent - crew suitability read (Workstream II fit-read floor)', () => {
+  it('shows a qualitative demand read on the modelled department-head rows', () => {
+    saveState(stateWithInceptionDraft());
+    render(
+      <StudioProvider>
+        <HireTalent />
+      </StudioProvider>,
+    );
+    const board = screen.getByText('Shoot begins as soon as the cast is set.').closest('.staffing-board') as HTMLElement;
+    // Inception is VFX/design-heavy: the VFX Supervisor row carries a demand read.
+    const vfxRow = within(board).getByText(/VFX Supervisor/).closest('tr') as HTMLElement;
+    const read = vfxRow.querySelector('.staffing-suitability') as HTMLElement;
+    expect(read).toBeInTheDocument();
+    expect(read.textContent).toMatch(/demand/i);
+    // Qualitative only — no raw score digits leak into the read.
+    expect(read.textContent).not.toMatch(/\d/);
+  });
+});
+
 describe('HireTalent - live staffing board (Phase 2a)', () => {
   it('shows the shoot window and per-role lifecycle, and opens a character into casting', () => {
     saveState(stateWithInceptionDraft());
