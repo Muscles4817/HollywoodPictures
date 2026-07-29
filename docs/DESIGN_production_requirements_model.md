@@ -315,3 +315,44 @@ NARRATIVE REQUIREMENTS  ⇄  EXECUTION STRATEGY  ⇄  DEPARTMENT WORKLOAD  ⇄  
         ▲                        ▲ (major gameplay system)                    │ plan·prep·execute·
         └──────────── feedback (rewrites, strategy changes) ──────────────────┘  adapt·problems·deliver
 ```
+
+## Revision 2 — decisions locked
+
+- **Coverage unification = one coordinated programme.** Cinematographer/Composer/
+  Editor quality dimensions, the missing Best Production Design award, and the
+  associated scoring recalibration are one phase — split into small commits and
+  testable role slices, but **calibrated once** rather than shifting scoring
+  repeatedly.
+- **Working style = reuse the existing personality axes wherever possible.** A
+  production-specific facet is added only where it is demonstrated that the
+  existing substrate cannot express a meaningful behaviour that passes the
+  inclusion test.
+- **Starter compatibility edges:** Director↔DP, Director↔PD, PD↔VFX,
+  Actor↔Stunt Coordinator, **+ Director↔VFX** (practical-vs-digital strategy
+  disagreements should become meaningful early). **Defer** Director↔Composer and
+  Director↔Editor until those roles are brought up to standard.
+- **Creative briefs replace the quality-proxy menus (critical refinement).**
+  Retiring `musicFocus`/`editStyle` as *quality* proxies must **not** remove
+  player creative direction. Convert them into **creative briefs / intended
+  approaches**:
+
+  ```
+  creative brief  +  hired person's capability/philosophy  +  resources/time/compatibility
+        →  delivered result
+  ```
+
+  The player/director can still ask for an orchestral / electronic / restrained /
+  thematic score, or a kinetic / classical / comedic / suspense-focused cut. The
+  Composer/Editor then determines how *successfully* that intention is realised,
+  may **recommend** a different approach, and may introduce their own creative
+  identity. The menu stops *directly* creating quality but remains a genuine
+  production decision (a brief, not a dial).
+
+## Sequencing (locked)
+
+1. **Workstream I Phase 1 — budgeting & offers** (first: fixes the most immediate
+   player-facing contradiction; establishes infrastructure Director hiring and the
+   live hub reuse).
+2. **Crew fit-read floor** — Production Designer, VFX Supervisor, Stunt Coordinator.
+3. **Live Cast & Crew hub** — with the richer state from 1 and 2 available to
+   surface.
