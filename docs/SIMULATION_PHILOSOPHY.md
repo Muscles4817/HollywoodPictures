@@ -206,6 +206,57 @@ ceiling already models "you can't cut footage you didn't shoot" and is the exact
 template for typed production consequences. The work is mostly wiring, not
 invention.
 
+## Principle 8 — Intrinsic properties are stored; strengths are derived
+
+A thing's **intrinsic properties** — what it fundamentally _is_ — should be
+rolled once, at creation, and then frozen. A thing's **strength** — how good,
+valuable, or appealing it is — should be **derived on demand** from those
+properties, never stored as its own rolled number.
+
+This applies most sharply to a screenplay. Its concept (genre, archetype, story
+type, setting, scale) and the intrinsic quality of its idea (originality, hook,
+emotional and franchise potential) are stored and immutable. Its _Concept
+Strength_ — how exciting the idea is — should be a pure function of those,
+computed when needed, exactly as `deriveCommercialProfile` already computes
+commercial appeal without storing it (see
+`docs/DESIGN_REVIEW_source_generation_and_determinants.md`).
+
+Two payoffs. Rebalancing _what makes a great concept_ becomes a formula change
+with **zero data migration**, because strength was never stored — which matters
+even pre-launch, where it keeps schema churn down. And a stored value can never
+drift out of sync with the properties that are supposed to define it, because it
+does not exist to drift.
+
+The test: if you are storing a "quality" or "strength" number that could be
+computed from more fundamental stored values, prefer the derivation — changing
+how strength is judged should never require touching saved data.
+
+## Principle 9 — Development converges on competence; it does not manufacture brilliance
+
+The two ways to obtain a film are fundamentally asymmetric. You **acquire** for
+the chance at a great _idea_; you **develop** for reliable _execution_. Every
+development pass — rewrite, polish, or adaptation — moves a screenplay's
+execution (structure, characters, dialogue) toward the working writer's own
+ceiling, with diminishing returns as it approaches. It can raise the odds of a
+_competent_ film; it can never manufacture a _brilliant_ concept, because it can
+never touch the concept at all.
+
+Concretely: development changes only mutable execution, never the immutable idea.
+A studio can always pay a capable writer to turn a rough draft into a solid one —
+that is what development _is_. What it cannot do is pay its way to "What if
+dinosaurs were brought back through genetic engineering?" Those ideas are found
+and fought over, not commissioned into existence.
+
+This is what gives acquisition its stakes. If development could lift any script
+to greatness, the market would be a formality; because it converges on competence
+rather than brilliance, discovering a great concept — a bold spec, the right IP —
+is the thing worth bidding on. It is the same shape as Principle 1, one stage
+earlier: a bold idea is a **wider concept distribution** (higher ceiling, lower
+floor) the way an ambitious shoot is a wider execution distribution.
+
+The test: a fully-developed film's ceiling should be set by the idea it started
+from — not by how much was spent developing it.
+
 ---
 
 ## What this looks like in practice
@@ -241,6 +292,16 @@ A few worked implications, to make the principles concrete:
   risk profile, identity, talent, and plan into synthesized events. Both should
   feed the _same_ finished-film calculation, so a rival can go sideways or
   transcend expectations the same way a player's film can.
+
+- **You buy ideas; you develop execution.** A screenplay's concept is fixed the
+  moment it exists; every development pass only moves its execution toward the
+  writer's ceiling. So a commissioned or heavily-rewritten film reliably reaches
+  _competent_, while _brilliant_ requires a concept that was acquired rather than
+  manufactured. An acquisition source is then just _where on the development
+  ladder a project is found_ (a raw spec vs. a proven IP vs. a shelved
+  production), and its price, attached talent, and rewrite need all follow from
+  that — the market generates stories, not loose numbers (see
+  `docs/DESIGN_REVIEW_acquisition_provenance_and_pipeline.md`).
 
 ---
 
