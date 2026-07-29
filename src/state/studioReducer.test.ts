@@ -628,6 +628,55 @@ describe('GREENLIGHT_PROJECT - enters the live pre-production phase', () => {
     expect(draftAfter.preProduction?.status).toBe('in-progress');
     expect(draftAfter.preProduction?.daysElapsed).toBe(0);
     expect(draftAfter.preProduction?.recommendedDays).toBe(expectedPrepDays);
+    expect(draftAfter.shootStartsOnDay).toBeUndefined(); // free cast -> starts immediately
+  });
+
+  // Deferred Start: inject an OTHER-project booking on one cast member of a
+  // ready-to-greenlight state, so the shoot can't start until that clears.
+  function withCastBookedUntil(s: GameState, endDay: number): GameState {
+    const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
+    const a = draft.talent[0];
+    const profession = professionForProductionRole(a.role);
+    const commitment = { projectId: 'other-film', role: a.role, startDay: s.totalDays, endDay };
+    // Fresh-generated cast aren't in the pool by default; add this one WITH the
+    // booking so greenlight's live-pool read sees it holds them up.
+    const pooledPerson = { ...a.person, availability: { commitments: [...a.person.availability.commitments, commitment] } };
+    const others = s.talentPool[profession].filter((t) => t.id !== a.person.id);
+    return { ...s, talentPool: { ...s.talentPool, [profession]: [pooledPerson, ...others] } };
+  }
+
+  it('holds the film in a development schedule when a cast member is still booked, booking this film from the deferred start', () => {
+    const base = stateReadyToGreenlight(212);
+    const startDay = base.totalDays + 100;
+    const s = withCastBookedUntil(base, startDay);
+
+    const after = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });
+    expect(after.totalDays).toBe(base.totalDays); // greenlight itself never jumps the calendar
+    const draftAfter = asPlayerDraft(findProject(after.projects, after.focusedProjectId))!;
+    expect(draftAfter.preProduction?.status).toBe('scheduled');
+    expect(draftAfter.shootStartsOnDay).toBe(startDay);
+    expect(draftAfter.greenlitOnDay).toBe(base.totalDays);
+
+    // This film's OWN cast commitment starts at the deferred day, not today - so
+    // it doesn't overlap the booking that was waited out.
+    const bookedActorId = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!.talent[0].person.id;
+    const profession = professionForProductionRole(draftAfter.talent[0].role);
+    const pooled = after.talentPool[profession].find((t) => t.id === bookedActorId)!;
+    const ownCommitment = pooled.availability.commitments.find((c) => c.projectId === draftAfter.id)!;
+    expect(ownCommitment.startDay).toBe(startDay);
+  });
+
+  it('ADVANCE_TO_SHOOT_START jumps to the scheduled day and begins prep', () => {
+    const base = stateReadyToGreenlight(213);
+    const startDay = base.totalDays + 100;
+    const scheduled = studioReducer(withCastBookedUntil(base, startDay), { type: 'GREENLIGHT_PROJECT' });
+    expect(asPlayerDraft(findProject(scheduled.projects, scheduled.focusedProjectId))!.preProduction?.status).toBe('scheduled');
+
+    const started = studioReducer(scheduled, { type: 'ADVANCE_TO_SHOOT_START' });
+    expect(started.totalDays).toBe(startDay);
+    const draftAfter = asPlayerDraft(findProject(started.projects, started.focusedProjectId))!;
+    expect(draftAfter.preProduction?.status).toBe('in-progress');
+    expect(draftAfter.preProduction?.daysElapsed).toBe(0);
   });
 
   it('running pre-production to completion opens photography and advances the calendar by roughly the prep length', () => {

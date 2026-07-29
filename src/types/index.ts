@@ -1002,7 +1002,10 @@ export interface PhotographyState {
 // The object persists on the draft after prep finishes (like photography does),
 // as the record both of those reads draw from.
 export interface PreProductionState {
-  status: 'in-progress' | 'awaiting-choice' | 'finished';
+  // 'scheduled' (Deferred Start): greenlit but held in development until the cast
+  // waited-for is free - the shoot start is FilmDraft.shootStartsOnDay, prep hasn't
+  // begun yet (daysElapsed 0). Advancing to that day flips it to 'in-progress'.
+  status: 'scheduled' | 'in-progress' | 'awaiting-choice' | 'finished';
   recommendedDays: number;
   daysElapsed: number;
   events: ProductionEvent[];
@@ -2216,6 +2219,12 @@ export interface FilmDraft {
   // own acquisition cost. Deliberately not a new Project `kind` - see
   // Project's own comment below for why.
   greenlitOnDay: number | null;
+  // Deferred Start: the day principal-photography prep actually begins, set at
+  // greenlight when a cast member is still booked elsewhere (you waited for them,
+  // engine/castingAppeal.ts). While preProduction.status is 'scheduled' the film
+  // is held in development until this day; absent/equal to greenlitOnDay means it
+  // started immediately (the common case).
+  shootStartsOnDay?: number;
   // The live pre-production run (Greenlight -> Principal Photography), or null
   // before greenlight. Non-null with status 'in-progress'/'awaiting-choice'
   // means prep is underway; 'finished' means it's the persisted record the shoot

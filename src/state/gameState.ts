@@ -393,6 +393,11 @@ export type GameAction =
   // ADVANCE always drives the focused project's prep; RESOLVE names the draft
   // (a prep choice can be answered from the Inbox for a backgrounded one).
   | { type: 'ADVANCE_PREPRODUCTION_DAY' }
+  // Deferred Start: a film greenlit into a 'scheduled' development hold begins
+  // its shoot - jump the world to its shootStartsOnDay (settling the span) and
+  // flip pre-production to 'in-progress' so prep starts. No-op unless the focused
+  // project is in that held state.
+  | { type: 'ADVANCE_TO_SHOOT_START' }
   | { type: 'RESOLVE_PREPRODUCTION_CHOICE'; choiceId: string; productionId: string }
   // Jump the already-focused project back to its live pre-production screen
   // (the prep analogue of GO_TO_STEP for the shoot/marketing screens).

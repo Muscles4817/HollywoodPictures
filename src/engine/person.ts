@@ -117,6 +117,24 @@ export function deriveBookedUntil(commitments: PersonCommitment[]): GameDay | un
   return Math.max(...commitments.map((c) => c.endDay));
 }
 
+/**
+ * Deferred Start: the latest day any of these cast/crew is still booked
+ * elsewhere - the earliest a shoot could actually begin without a booking
+ * clash. Ignores commitments on `exceptProjectId` (this film's own, once it has
+ * any), so it reads only the OTHER work holding people up. Returns `undefined`
+ * when nobody is booked past nothing - i.e. everyone's free now. Deterministic.
+ */
+export function latestCastBookingEnd(cast: Person[], exceptProjectId?: string): GameDay | undefined {
+  let latest: GameDay | undefined;
+  for (const person of cast) {
+    for (const c of person.availability.commitments) {
+      if (exceptProjectId !== undefined && c.projectId === exceptProjectId) continue;
+      if (latest === undefined || c.endDay > latest) latest = c.endDay;
+    }
+  }
+  return latest;
+}
+
 function commitmentsOverlap(a: { startDay: GameDay; endDay: GameDay }, b: { startDay: GameDay; endDay: GameDay }): boolean {
   return a.startDay <= b.endDay && b.startDay <= a.endDay;
 }
