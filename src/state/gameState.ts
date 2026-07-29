@@ -328,6 +328,20 @@ export type GameAction =
   // keep the list uncluttered - not a rejection (rejectionCount is untouched),
   // and Direct Approach can still target them deliberately.
   | { type: 'DISMISS_CASTING_APPLICANT'; characterId: string; personId: string }
+  // Casting Redesign, Phase E (docs/DESIGN_REVIEW_casting_redesign.md §14) -
+  // the negotiation flow. MAKE_OFFER resolves one offer through the run's
+  // seeded RNG (engine/castingNegotiation.ts): it rolls (or reuses) the actor's
+  // stable asking price and returns accept/counter/reject. An accept signs the
+  // actor at the offered fee (agreedSalary) and clears the negotiation; a
+  // counter/reject is persisted on the draft (FilmDraft.negotiations) for the
+  // player to answer.
+  | { type: 'MAKE_OFFER'; characterId: string; role: 'Lead Actor' | 'Supporting Actor'; person: Person; offeredSalary: number }
+  // Accept the actor's standing counter - signs them at counterSalary and
+  // clears the negotiation. No-op if there's no live counter for this pair.
+  | { type: 'ACCEPT_COUNTER'; characterId: string; person: Person }
+  // Walk away from a live negotiation - drops the record (its rolled asking
+  // price included), so a fresh offer later starts a new negotiation.
+  | { type: 'WALK_AWAY_NEGOTIATION'; characterId: string; personId: string }
   // Replaces the old SET_PRODUCTION_CHOICES - the player now edits Strategy/
   // Ambition values directly (Plan Production, docs/DESIGN.md), and the
   // reducer derives ProductionChoices from them via

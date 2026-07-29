@@ -6,8 +6,8 @@ import { ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { actorMeetsCharacterGender, personMeetsCharacterAge } from '../../engine/casting';
-import { computeActorAppeal, resolveOfferResponse, type OfferResponse } from '../../engine/castingAppeal';
-import { candidateStrengthSignals, describeOfferRejection, type CandidateSignal } from '../../engine/castingPresentation';
+import { computeActorAppeal } from '../../engine/castingAppeal';
+import { candidateStrengthSignals, describeOfferRejection, describeCounterOffer, type CandidateSignal } from '../../engine/castingPresentation';
 import { playerRelationshipWith, type RelationshipStanding } from '../../engine/relationships';
 import { notableCastAffinity, type CastAffinity } from '../../engine/pairHistory';
 import { formatMoney } from '../common/Money';
@@ -20,7 +20,7 @@ import { TalentComparison, type CompareSlot } from '../common/TalentComparison';
 import { useComparePins, MAX_PINNED } from '../common/useComparePins';
 import { CheckboxToggle } from '../common/CheckboxToggle';
 import { isAvailableImmediately, getTypicalSalaryForRole, getCrewCareer } from '../../engine/person';
-import type { CastingChannel, Person, Script, ScriptCharacter } from '../../types';
+import type { CastingChannel, Person, RoleNegotiation, Script, ScriptCharacter } from '../../types';
 
 type CastingTab = 'open-casting' | 'direct-approach';
 
@@ -88,6 +88,9 @@ function CandidateCard({
   pinCapped,
   onTogglePin,
   onDismiss,
+  negotiation,
+  onAcceptCounter,
+  onWalkAway,
   castingDirectorSkill,
   relationship,
   castAffinity,
@@ -121,15 +124,21 @@ function CandidateCard({
   // Direct Approach, whose candidate list is derived from the talent pool, not
   // a stored set of applicants there'd be anything to dismiss from.
   onDismiss?: () => void;
+  // Casting Redesign, Phase E - this candidate's live negotiation (a standing
+  // counter or a rejection), or null if no offer's been made yet. Drives the
+  // counter panel and its accept/walk actions.
+  negotiation?: RoleNegotiation | null;
+  onAcceptCounter?: () => void;
+  onWalkAway?: () => void;
 }) {
-  // A booked actor OR a below-floor offer can't actually be cast - both are hard
-  // gates the sim rejects (engine/castingAppeal.ts:resolveOfferResponse), so an
-  // enabled button would only lead to a guaranteed "they passed". Disable it and
-  // say why up front (docs/DESIGN_REVIEW_casting_ux.md - surface the reasoning
-  // before the click), matching how the crew drawer already treats a booked hire.
+  // A booked actor can't be cast today - the schedule gate is a hard rejection
+  // (engine/castingNegotiation.ts) no offer can clear, so disable and say so.
+  // A below-floor offer is NOT blocked any more: under negotiation the actor
+  // simply counters (or, if it's insulting, passes), which is a useful outcome
+  // to let the player provoke rather than a dead end.
   const available = isAvailableImmediately(person, totalDays);
   const belowFloor = overall?.belowSalaryFloor ?? false;
-  const offerBlocked = !available || belowFloor;
+  const offerBlocked = !available;
 
   // The candidate's reasoning, both directions, as scannable chips: the
   // strengths the appeal math already found, plus a direct-interest draw and the
@@ -140,13 +149,12 @@ function CandidateCard({
   const signals: CandidateSignal[] = [];
   if (channel === 'InterestedTalent') signals.push({ label: 'Sought you out', tone: 'positive' });
   if (overall) signals.push(...candidateStrengthSignals(overall, directorName));
-  if (belowFloor) signals.push({ label: 'Wants more pay', tone: 'blocked' });
+  if (belowFloor && !negotiation) signals.push({ label: 'Below their floor', tone: 'blocked' });
 
-  const blockedTitle = !available
-    ? 'Booked elsewhere - unavailable until their commitments clear.'
-    : belowFloor
-      ? "Below their salary floor - they won't take this offer. Raise what you're offering."
-      : undefined;
+  const blockedTitle = !available ? 'Booked elsewhere - unavailable until their commitments clear.' : undefined;
+
+  const countered = negotiation?.status === 'countered' && negotiation.counterSalary != null;
+  const rejected = negotiation?.status === 'rejected';
 
   return (
     <Card>
@@ -163,16 +171,36 @@ function CandidateCard({
           ))}
         </div>
       )}
+      {countered && (
+        <div className="card production-tension" style={{ margin: '8px 0 0' }}>
+          {describeCounterOffer(person, formatMoney(negotiation!.counterSalary!))}
+        </div>
+      )}
+      {rejected && negotiation?.reason && (
+        <div className="card production-tension" style={{ margin: '8px 0 0' }}>
+          {describeOfferRejection(negotiation.reason)}
+        </div>
+      )}
       <div className="row" style={{ marginTop: 8, gap: 8 }}>
+        {countered && (
+          <Button variant="primary" className="btn-sm" onClick={onAcceptCounter}>
+            Accept {formatMoney(negotiation!.counterSalary!)}
+          </Button>
+        )}
         <Button
-          variant="primary"
+          variant={countered ? 'secondary' : 'primary'}
           className="btn-sm"
           onClick={onAct}
           disabled={offerBlocked}
           title={blockedTitle}
         >
-          {actionLabel}
+          {countered || rejected ? 'Re-offer' : actionLabel}
         </Button>
+        {negotiation && (
+          <Button variant="secondary" className="btn-sm" onClick={onWalkAway}>
+            Walk away
+          </Button>
+        )}
         <Button
           variant={pinned ? 'primary' : 'secondary'}
           className="btn-sm"
@@ -208,7 +236,10 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   const [affordableOnly, setAffordableOnly] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>('appeal');
   const [search, setSearch] = useState('');
-  const [lastResponse, setLastResponse] = useState<{ personName: string; response: OfferResponse } | null>(null);
+  // The actor we last made an offer to - so an accepted sign (which the reducer
+  // resolves and binds to this Character) can auto-close the drawer, the same
+  // beat the old instant-accept flow did.
+  const [pendingOfferId, setPendingOfferId] = useState<string | null>(null);
   // Pin to Compare (Talent Card UX Redesign) - now available on the actor
   // casting flow too, both Open Casting and Direct Approach, where it was
   // previously missing entirely. Two pins swap the browse grid for the
@@ -274,22 +305,34 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
       : null;
   }
 
-  /** Shared by both tabs - resolves the offer, then either finalizes the assignment or records the rejection, per engine/castingAppeal.ts:resolveOfferResponse. */
-  function attemptToAttach(person: Person) {
-    const appeal = appealFor(person);
-    if (!appeal) return;
-    const response = resolveOfferResponse(appeal, person, relationshipFor(person));
-    setLastResponse({ personName: person.identity.name, response });
-    if (response.status === 'accepted') {
-      dispatch({ type: 'TOGGLE_TALENT_FOR_ROLE', role, person, characterId: character.id });
-      // Same beat RoleHiringDrawer's own AUTO_CLOSE_DELAY_MS uses - long
-      // enough for the "accepted" message above to actually register
-      // before the drawer closes out from under it.
-      setTimeout(onClose, AUTO_CLOSE_DELAY_MS);
-    } else {
-      dispatch({ type: 'RECORD_CASTING_REJECTION', characterId: character.id, role });
-    }
+  // This candidate's live negotiation for this Character (a standing counter or
+  // rejection), or null before any offer. Re-read from the draft every render.
+  const negotiationFor = (person: Person): RoleNegotiation | null =>
+    (draft.negotiations ?? []).find((n) => n.characterId === character.id && n.personId === person.id) ?? null;
+
+  /** Make (or raise) an offer at the current target salary - the reducer rolls/reuses the actor's asking price and resolves accept/counter/reject (engine/castingNegotiation.ts). */
+  function makeOffer(person: Person) {
+    setPendingOfferId(person.id);
+    dispatch({ type: 'MAKE_OFFER', characterId: character.id, role, person, offeredSalary });
   }
+  function acceptCounter(person: Person) {
+    setPendingOfferId(person.id);
+    dispatch({ type: 'ACCEPT_COUNTER', characterId: character.id, person });
+  }
+  function walkAway(person: Person) {
+    dispatch({ type: 'WALK_AWAY_NEGOTIATION', characterId: character.id, personId: person.id });
+  }
+
+  // An accepted offer/counter binds the actor to this Character (castHere), and
+  // clears their negotiation - close the drawer on that beat, as the old
+  // instant-accept flow did. A counter or rejection leaves them uncast, so the
+  // drawer stays open for the player to respond.
+  useEffect(() => {
+    if (pendingOfferId && castHere?.id === pendingOfferId) {
+      const timer = setTimeout(onClose, AUTO_CLOSE_DELAY_MS);
+      return () => clearTimeout(timer);
+    }
+  }, [pendingOfferId, castHere, onClose]);
 
   const hiredElsewhereIds = new Set(draft.talent.filter((a) => a.role !== role).map((a) => a.person.id));
   // Only surface actors who can actually play this character - matching the
@@ -354,11 +397,10 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   );
   const shownDirectCandidates = pinnedFirst(directCandidates.filter(passesFilters).sort(bySort), (p) => p.id, pins.isPinned);
 
-  // Pin to Compare wiring. A booked actor or a below-floor offer can't be cast
-  // today (the same hard gates the card and its Cast button already respect),
-  // so the comparison view's action is disabled for exactly those.
-  const offerBlockedFor = (person: Person) =>
-    !isAvailableImmediately(person, state.totalDays) || (appealById.get(person.id)?.belowSalaryFloor ?? false);
+  // Pin to Compare wiring. Only a booked actor can't be offered today (the
+  // schedule gate is the one hard rejection no offer clears); a below-floor
+  // offer now just draws a counter, so it no longer disables the action.
+  const offerBlockedFor = (person: Person) => !isAvailableImmediately(person, state.totalDays);
   const candidateById = new Map<string, Person>();
   for (const p of [...(call?.applicants ?? []).map((a) => a.person), ...eligibleDirectActors]) candidateById.set(p.id, p);
   const pinnedPersons = pins.pinnedIds.map((id) => candidateById.get(id)).filter((p): p is Person => p !== undefined);
@@ -371,9 +413,9 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         script: draft.script,
         character,
         affordable: isAffordable(person),
-        actionLabel: 'Cast',
+        actionLabel: 'Make Offer',
         actionDisabled: offerBlockedFor(person),
-        onAct: () => attemptToAttach(person),
+        onAct: () => makeOffer(person),
         onUnpin: () => pins.toggle(person.id),
         castingDirectorSkill,
         relationship: relationshipFor(person),
@@ -415,7 +457,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
           value={offeredSalary}
           onChange={(price) => dispatch({ type: 'SET_TALENT_TARGET_PRICE', role, price })}
           formatValue={formatMoney}
-          description="What you're budgeting for this role - it shapes who applies to Open Casting and how any offer lands. It isn't the fee you pay: each actor is paid their own quoted salary, shown on their card."
+          description="Your offer for this role - it shapes who applies to Open Casting, and it's what each actor weighs when you make them an offer. They may accept, counter for more, or pass; the fee you finally agree is what you pay."
           lowLabel="Cheap"
           highLabel="Star Power"
         />
@@ -425,14 +467,6 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
             Turned down {rejectionCount} time{rejectionCount === 1 ? '' : 's'} so far - the search has widened: more
             applicants, including some who wouldn't otherwise have floated to the top.
           </p>
-        )}
-
-        {lastResponse && (
-          <div className={lastResponse.response.status === 'accepted' ? 'card' : 'card production-tension'} style={{ margin: 0 }}>
-            {lastResponse.response.status === 'accepted'
-              ? `${lastResponse.personName} accepted.`
-              : `${lastResponse.personName}: ${describeOfferRejection(lastResponse.response.reason)}`}
-          </div>
         )}
 
         <div className="row">
@@ -522,8 +556,11 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                         directorName={directorName}
                         director={director}
                         affordable={isAffordable(applicant.person)}
-                        actionLabel="Cast"
-                        onAct={() => attemptToAttach(applicant.person)}
+                        actionLabel="Make Offer"
+                        onAct={() => makeOffer(applicant.person)}
+                        negotiation={negotiationFor(applicant.person)}
+                        onAcceptCounter={() => acceptCounter(applicant.person)}
+                        onWalkAway={() => walkAway(applicant.person)}
                         pinned={pins.isPinned(applicant.person.id)}
                         pinCapped={pins.isFull}
                         onTogglePin={() => pins.toggle(applicant.person.id)}
@@ -568,7 +605,10 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                   directorName={directorName}
                   affordable={isAffordable(person)}
                   actionLabel="Make Offer"
-                  onAct={() => attemptToAttach(person)}
+                  onAct={() => makeOffer(person)}
+                  negotiation={negotiationFor(person)}
+                  onAcceptCounter={() => acceptCounter(person)}
+                  onWalkAway={() => walkAway(person)}
                   pinned={pins.isPinned(person.id)}
                   pinCapped={pins.isFull}
                   onTogglePin={() => pins.toggle(person.id)}

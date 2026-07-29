@@ -61,6 +61,8 @@ export type ActorAppealResult = ActorAppealFactors & {
   schedule: ActorScheduleAssessment;
   /** offeredSalary < this person's effective minimum - a hard gate, checked ahead of `overall` (see resolveOfferResponse and engine/castingCalls.ts's pool-eligibility filter). `salaryFit` above still carries a low score in this case, purely for display (e.g. sorting an applicant list), never for the accept/decline or pool-inclusion decision. */
   belowSalaryFloor: boolean;
+  /** The discounted salary floor this specific offer was judged against (computeEffectiveMinimumSalary) - the raw career minimum pulled down by project prestige, director draw and relationship loyalty. Surfaced here so negotiation (engine/castingNegotiation.ts) and presentation can read the same floor the accept/decline used, without recomputing the prestige signal. */
+  effectiveMinimum: Money;
 };
 
 // First-draft, tunable weights, like every other numeric constant in this
@@ -317,7 +319,23 @@ export function computeActorAppeal(
     overall: clamp(overall, 0, 100),
     schedule: computeScheduleAssessment(person, plannedStartDay),
     belowSalaryFloor: offeredSalary < effectiveMinimum,
+    effectiveMinimum,
   };
+}
+
+/**
+ * `overall` recomputed as if salaryFit had a different value, every other
+ * factor held fixed - salaryFit enters `overall` linearly and independently
+ * of the other terms (see the weighted sum above), so swapping it is a simple
+ * delta rather than a full recompute. Used by engine/castingNegotiation.ts to
+ * ask "would paying their asking price be enough to land them" without
+ * rebuilding the whole ActorAppealResult. The result is re-clamped 0-100; when
+ * the original `overall` was already at a clamp edge the reconstruction carries
+ * that edge's rounding, which is immaterial for the negotiation band this is
+ * read in.
+ */
+export function overallWithSalaryFit(appeal: ActorAppealResult, salaryFit: number): number {
+  return clamp(appeal.overall + (salaryFit - appeal.salaryFit) * WEIGHTS.salaryFit, 0, 100);
 }
 
 // --- Accept/decline (docs/DESIGN_REVIEW_casting_redesign.md section 5),
@@ -341,6 +359,11 @@ function offerRejectionReason(factors: ActorAppealFactors, reputationFit: number
     ['salary', factors.salaryFit],
   ];
   return candidates.reduce((worst, candidate) => (candidate[1] < worst[1] ? candidate : worst))[0];
+}
+
+/** The single lowest-scoring soft factor to blame for a below-threshold appeal - suitability, blended reputation fit, or salary. Exported so engine/castingNegotiation.ts blames a rejection with the exact same logic resolveOfferResponse uses, rather than a second parallel judgement. Hard gates (schedule/relationship) are resolved by the caller before this is read. */
+export function offerBlameReason(appeal: ActorAppealResult): OfferRejectionReason {
+  return offerRejectionReason(appeal, appeal.brandFit + appeal.prestigeFit);
 }
 
 // First-draft, tunable - a bigger star (higher fame/heat) or a bigger
@@ -384,6 +407,5 @@ export function resolveOfferResponse(appeal: ActorAppealResult, person: Person, 
   if (relationshipRefuses(relationship)) return { status: 'rejected', reason: 'relationship' };
   const threshold = computeAcceptanceThreshold(person, relationship);
   if (appeal.overall >= threshold) return { status: 'accepted' };
-  const reputationFit = appeal.brandFit + appeal.prestigeFit;
-  return { status: 'rejected', reason: offerRejectionReason(appeal, reputationFit) };
+  return { status: 'rejected', reason: offerBlameReason(appeal) };
 }

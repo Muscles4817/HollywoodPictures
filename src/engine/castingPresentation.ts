@@ -280,6 +280,47 @@ export function describeScheduleRejection(schedule: ActorScheduleAssessment): st
   return describeOfferRejection('schedule');
 }
 
+// --- Negotiation (docs/DESIGN_REVIEW_casting_redesign.md section 13, Phase E) -
+// A counter-offer's "why they're holding out," in a producer's voice - the
+// qualitative half of engine/castingNegotiation.ts's NegotiationOutcome. The
+// counter's actual figure is a game-facing salary (shown on cards and sliders
+// throughout), so the UI renders that number; this module only supplies the
+// human reason for it, never an internal stat. Derived from the same
+// reputation/personality fields the asking price itself reads, so the copy and
+// the number it explains never drift.
+
+/** Why this actor is holding their price - a hot streak, an established name, or a hard-nosed sense of their own worth. One clause, no raw numbers. */
+export function describeCounterReason(person: Person): string {
+  const { fame, currentHeat } = person.reputation;
+  const { ego, ambition } = person.personality;
+  if (currentHeat >= 62) return 'They know they’re having a moment, and they’re pricing it accordingly.';
+  if (fame >= 62) return 'An established name rarely moves far off their quote.';
+  if ((ego + ambition) / 2 >= 62) return 'They have a firm sense of exactly what they’re worth.';
+  return 'They’re open to the right number - just not this one yet.';
+}
+
+/**
+ * A counter-offer as a producer would relay it - "interested, but they want
+ * `formattedCounter`" plus the human reason. Takes the counter already
+ * formatted by the UI's own Money formatter rather than formatting here, so
+ * money presentation stays in one place (the Money component / formatMoney).
+ */
+export function describeCounterOffer(person: Person, formattedCounter: string): string {
+  return `Interested - but they’re holding out for ${formattedCounter}. ${describeCounterReason(person)}`;
+}
+
+/**
+ * How a closed deal reads when it landed for less than the actor's usual quote -
+ * the "sometimes you get lucky" payoff surfaced back to the player. `belowQuote`
+ * is decided by the caller (agreed fee < the actor's typicalSalary); this just
+ * picks the line.
+ */
+export function describeDealClosed(belowQuote: boolean): string {
+  return belowQuote
+    ? 'Deal - and you landed them for under their usual quote.'
+    : 'Deal - terms agreed.';
+}
+
 const DIRECTOR_POSITIVE_LABELS: Record<keyof DirectorAppealFactors, string> = {
   scriptFit: 'genuinely excited by this script',
   brandFit: "drawn to the studio's commercial reach",

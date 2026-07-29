@@ -14,6 +14,7 @@ import { withRng } from '../engine/random';
 import { AWARD_CATEGORIES } from '../data/awards';
 import type { AwardCategory, AwardNomination, AwardShowId, AwardsCeremony, Person } from '../types';
 import { formatWinnerMarquee, type AwardTally, type PersonAwardSummary } from '../state/selectors';
+import { payRangeLabel } from './TalentDatabase';
 
 beforeEach(() => {
   localStorage.clear();
@@ -208,5 +209,28 @@ describe('formatWinnerMarquee', () => {
         }),
       ),
     ).toBe('Two-time Best Actor winner · Best Supporting Actor winner');
+  });
+});
+
+describe('payRangeLabel - obfuscated per-film fee', () => {
+  it('never discloses the exact figure, only a band that contains it', () => {
+    // Fee 1.5M sits in the [1M, 2M) band; the label is the range, never the figure.
+    expect(payRangeLabel(1_500_000)).toBe('£1,000,000–£2,000,000');
+    expect(payRangeLabel(1_500_000)).not.toContain('1,500,000');
+    // Two different fees in the same band read identically (the obfuscation).
+    expect(payRangeLabel(1_100_000)).toBe(payRangeLabel(1_900_000));
+  });
+
+  it('bands always bracket the true value', () => {
+    for (const fee of [120_000, 600_000, 3_000_000, 9_000_000, 30_000_000]) {
+      const label = payRangeLabel(fee);
+      expect(label).toMatch(/–|\+/); // a range, or the open-topped top band
+    }
+  });
+
+  it('handles the extremes: a nominal/undisclosed fee, a tiny fee, and a top-tier one', () => {
+    expect(payRangeLabel(0)).toBe('Undisclosed');
+    expect(payRangeLabel(50_000)).toBe('Under £100,000');
+    expect(payRangeLabel(300_000_000)).toBe('£150,000,000+');
   });
 });
