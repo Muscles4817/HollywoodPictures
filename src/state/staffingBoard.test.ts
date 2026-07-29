@@ -146,6 +146,31 @@ describe('crew suitability seam (Workstream II fit-read floor)', () => {
   });
 });
 
+describe('stunts board-level fit-read (contracted team, not a row)', () => {
+  const team = (id: string, skill: number) => ({ id, name: `Team ${id}`, skill, specialties: [], typicalSalary: 300_000 });
+
+  it('reports a stunts read from the film, unstaffed when no team is attached', () => {
+    const b = deriveStaffingBoard(vfxHeavyDraft(), 10, []);
+    expect(b.stunts).toBeDefined();
+    expect(b.stunts!.read.department).toBe('stunts');
+    expect(b.stunts!.read.hired).toBe(false);
+    expect(b.stunts!.attachedTeamName).toBeUndefined();
+    // Stunts is not shoehorned into the role-keyed table.
+    expect(b.rows.some((r) => r.key === 'Stunts' || r.role === ('Stunts' as never))).toBe(false);
+  });
+
+  it('reads the attached team by id, and a stronger team is more suitable than a weaker one', () => {
+    const d = { ...vfxHeavyDraft(), stuntTeamId: 'weak' };
+    const pool = [team('weak', 20), team('strong', 95)];
+    const weak = deriveStaffingBoard(d, 10, pool as never);
+    expect(weak.stunts!.read.hired).toBe(true);
+    expect(weak.stunts!.attachedTeamName).toBe('Team weak');
+
+    const strong = deriveStaffingBoard({ ...d, stuntTeamId: 'strong' }, 10, pool as never);
+    expect(strong.stunts!.read.margin).toBeGreaterThan(weak.stunts!.read.margin);
+  });
+});
+
 describe('appendStaffingEvent', () => {
   it('records a meaningful event onto the draft feed without mutating the input', () => {
     const d = baseDraft();

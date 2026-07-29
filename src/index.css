@@ -2102,6 +2102,14 @@ textarea, input, select {
 .staffing-suitability--stretch { color: #8a5a00; }
 .staffing-suitability--outmatched { color: var(--red); font-weight: 600; }
 :root[data-theme='dark'] .staffing-suitability--stretch { color: #e0b050; }
+.staffing-stunts { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 6px 0 0; padding: 6px 10px; border-radius: 6px; background: var(--track-bg, color-mix(in srgb, currentColor 6%, transparent)); font-size: 0.9em; }
+.staffing-stunts__label { font-weight: 600; }
+.staffing-stunts__team { color: var(--text-muted); }
+.staffing-stunts__read { margin-left: auto; }
+.staffing-stunts--stretch .staffing-stunts__read { color: #8a5a00; }
+.staffing-stunts--outmatched .staffing-stunts__read { color: var(--red); font-weight: 600; }
+:root[data-theme='dark'] .staffing-stunts--stretch .staffing-stunts__read { color: #e0b050; }
+.staffing-stunts__hint { color: var(--text-muted); font-size: 0.85em; font-style: italic; }
 .staffing-feed { margin: 8px 0 4px; font-size: 0.88em; }
 .staffing-feed__head { color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
 .staffing-feed ul { list-style: none; margin: 0; padding: 0; }

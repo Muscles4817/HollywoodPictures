@@ -95,7 +95,7 @@ function StaffingBoardSection({
   onOpenRole: (role: ProductionRole) => void;
 }) {
   const { state, dispatch } = useStudio();
-  const board = deriveStaffingBoard(draft, state.totalDays);
+  const board = deriveStaffingBoard(draft, state.totalDays, state.stuntTeamPool);
   const plannedStartDay = state.totalDays + board.plannedStartOffsetDays;
   const charById = new Map((draft.script?.cast ?? []).map((c) => [c.id, c] as const));
 
@@ -160,7 +160,23 @@ function StaffingBoardSection({
           <tr><td colSpan={3}>Total</td><td><Money amount={board.totalPlanned} /></td><td><Money amount={board.totalCommitted} /></td><td><Money amount={board.totalRemaining} /></td><td colSpan={2} /></tr>
         </tfoot>
       </table>
+      {board.stunts && <StuntsPanel stunts={board.stunts} />}
       <p className="staffing-board__note">Every role's staffing at a glance - open any to search, audition, negotiate or hire. Lock a budget to keep its share when the rest rebalance. Department heads show how this film's demands suit them; compatibility and workload reads will surface here as those systems come online.</p>
+    </div>
+  );
+}
+
+// Stunts & Practical is a contracted team (chosen in Production Planning), not a
+// crew-head row, so it gets its own compact read here - completing the fit-read
+// floor's third department on the hub.
+function StuntsPanel({ stunts }: { stunts: NonNullable<ReturnType<typeof deriveStaffingBoard>['stunts']> }) {
+  const { read, attachedTeamName } = stunts;
+  return (
+    <div className={`staffing-stunts staffing-stunts--${read.suitability}`} title={read.detail}>
+      <span className="staffing-stunts__label">Stunts &amp; Practical</span>
+      <span className="staffing-stunts__team">{attachedTeamName ?? 'No stunt team'}</span>
+      <span className="staffing-stunts__read">{read.hired ? suitabilityLabel(read) : `${DEMAND_WORD[read.demand]} demand`}</span>
+      <span className="staffing-stunts__hint">set in Production Planning</span>
     </div>
   );
 }
