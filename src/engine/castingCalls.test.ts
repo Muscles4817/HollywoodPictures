@@ -2,7 +2,7 @@
 // sections 1-2) - no dedicated test coverage existed for this file before
 // it was added.
 import { describe, it, expect } from 'vitest';
-import { openCastingCall, findOrOpenCastingCall, castingCallsAwaitingReview, generateCastingApplicants, generateInterestedTalent, tickCastingCalls, WEEK_LENGTH_DAYS } from './castingCalls';
+import { openCastingCall, findOrOpenCastingCall, castingCallsAwaitingReview, generateCastingApplicants, generateInterestedTalent, tickCastingCalls, forecastOpenCasting, WEEK_LENGTH_DAYS } from './castingCalls';
 import { computeActorAppeal, resolveOfferResponse } from './castingAppeal';
 import { createDraftFromAsset } from '../state/gameState';
 import { generateScriptOptions } from './scriptGenerator';
@@ -451,5 +451,27 @@ describe('castingCallsAwaitingReview', () => {
     const talent: TalentAssignment[] = [{ role: 'Lead Actor', person: castPerson }];
     const withCall = { ...draft, castingCalls: [call], talent };
     expect(castingCallsAwaitingReview(withCall)).toEqual([]);
+  });
+});
+
+describe('forecastOpenCasting', () => {
+  // A character every all-50 actor perfectly suits (zero trait gap -> compat 100).
+  const flatChar: ScriptCharacter = {
+    id: 'flat', name: 'Flat', archetype: 'Other', prominence: 'Lead',
+    traits: { dramaticDepth: 50, charismaDemand: 50, comedyDemand: 50, emotionalDemand: 50, physicalDemand: 50, transformationDemand: 50, audienceAccessibility: 50, distinctiveness: 50, merchandisePotential: 50 },
+  };
+  const pool = Array.from({ length: 10 }, (_, i) => actorPerson(`a${i}`));
+
+  it('reads a deep field of fits, and an empty pool as thin', () => {
+    expect(forecastOpenCasting(pool, flatChar, null).quality).toBe('deep');
+    expect(forecastOpenCasting([], flatChar, null)).toMatchObject({ quality: 'thin', strongFits: 0 });
+  });
+
+  it('a Casting Director raises the expected volume and the confidence', () => {
+    const bare = forecastOpenCasting(pool, flatChar, null);
+    const withCd = forecastOpenCasting(pool, flatChar, 100);
+    expect(withCd.weeklyHigh).toBeGreaterThan(bare.weeklyHigh);
+    expect(bare.confidence).toBe('low');
+    expect(withCd.confidence).toBe('high');
   });
 });

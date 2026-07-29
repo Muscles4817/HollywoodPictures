@@ -179,7 +179,7 @@ describe('describeDirectorRejection', () => {
 // categorization itself is tested in actingModel.test.ts, so these check the
 // null passthrough, stability, and that different gifts read differently.
 import type { ActingStyle, Person } from '../types';
-import { describeSignatureGift, describeFameCraftContrast, describeCounterOffer, describeCounterReason, describeDealClosed, describeAskingEstimate, describeAcceptanceOdds } from './castingPresentation';
+import { describeSignatureGift, describeFameCraftContrast, describeCounterOffer, describeCounterReason, describeDealClosed, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast } from './castingPresentation';
 
 function actor(id: string, style: Partial<ActingStyle>, over: { fame?: number; craftFloor?: number; craftHeadroom?: number } = {}): Person {
   return {
@@ -311,5 +311,18 @@ describe('pre-offer estimate prose (Phase 2)', () => {
     expect(describeAcceptanceOdds('long-shot').tone).toBe('blocked');
     expect(describeAcceptanceOdds('likely').label).toMatch(/land them/i);
     expect(describeAcceptanceOdds('no').label.length).toBeGreaterThan(0);
+  });
+});
+
+describe('describeOpenCastingForecast (Phase 5)', () => {
+  it('gives a volume+field estimate and a confidence line, tuned by the read', () => {
+    const low = describeOpenCastingForecast({ weeklyLow: 1, weeklyHigh: 3, quality: 'deep', confidence: 'low' });
+    expect(low.estimate).toMatch(/1–3 applicants a week/);
+    expect(low.estimate).toMatch(/deep field/i);
+    expect(low.confidence).toMatch(/without a casting director/i);
+
+    const high = describeOpenCastingForecast({ weeklyLow: 1, weeklyHigh: 5, quality: 'thin', confidence: 'high' });
+    expect(high.confidence).toMatch(/confident/i);
+    expect(high.estimate).toMatch(/thin field/i);
   });
 });

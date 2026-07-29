@@ -773,3 +773,33 @@ clearly, it doesn't re-roll it.
 tier) and chemistry reads (an audition between a candidate and the attached
 lead/director, keyed off `engine/pairHistory.ts`) - both additive on
 `AuditionRecord` / the assist model.
+
+---
+
+## 18. Phase 5, informed search - Direct Approach filters & Open Casting forecasts
+
+Two of the brief's asks, both about making the casting decision informed rather
+than blind:
+
+**Direct Approach filters (point 3 - "sorting alone isn't enough").** The tab
+gains real facet filters on top of the existing sort/available/affordable
+controls: gender, age group, and fame band, each mapping to a field every Person
+carries so they're always meaningful. They filter the eligible pool live and are
+UI-local state (no reducer/save change). Facets that need cross-referencing
+filmography or missing fields - genre experience, awards, nationality, language -
+are deferred; they'd want a small derived index over released films/awards to be
+worth a control.
+
+**Open Casting forecast (point 10 - "make Open Casting more active").** Before
+committing to a call, the pre-open panel now previews what it'll surface:
+`engine/castingCalls.ts:forecastOpenCasting` reads the SAME batch-size and
+curation constants `tickCastingCalls` samples with, so the forecast can't
+disagree with what the call goes on to produce. It reports expected applicants a
+week (a range that widens with a Casting Director), how strong the eligible field
+is (`computeActorCharacterCompatibility` over the pool - deep / moderate / thin),
+and how much to trust the estimate (a hired Casting Director firms it up). This
+gives a concrete, pre-commitment reason to value a Casting Director, exactly the
+"another reason to hire one" the brief calls for.
+
+No new persisted state and no RNG - the filters are a view over the pool, the
+forecast is a derived read over the same constants the tick already uses.

@@ -12,6 +12,7 @@ import { professionForProductionRole, findAssignedPerson } from '../data/helpers
 import { getCrewCareer } from './person';
 import { logAmount } from './interpolate';
 import { computeActorAppeal, resolveOfferResponse } from './castingAppeal';
+import { computeActorCharacterCompatibility } from './compatibility';
 import { actorMeetsCharacterGender, actorMeetsCharacterAge, personCastingAge } from './casting';
 import { WEEK_LENGTH_DAYS } from './opportunities';
 import { NO_RELATIONSHIP, type RelationshipStanding } from './relationships';
@@ -98,6 +99,49 @@ export function openCastingCall(characterId: string, role: 'Lead Actor' | 'Suppo
     rejectionCount: 0,
     dismissedApplicantIds: [],
   };
+}
+
+// Casting Redesign, Phase 5 (design brief point 10) - "make Open Casting more
+// active." Before committing to a call, the player should have a read on what
+// it'll surface: how many apply, how strong the field is, and how much to trust
+// that estimate - a Casting Director sharpens all three. Derived from the same
+// batch-size + curation constants tickCastingCalls actually samples with, so the
+// forecast never disagrees with what the call goes on to produce. Suitability
+// alone drives the quality read (computeActorCharacterCompatibility - cheap, and
+// exactly what the appeal weighting leans on), so this needs no salary/studio.
+export type ForecastBand = 'thin' | 'moderate' | 'deep';
+export type ForecastConfidence = 'low' | 'medium' | 'high';
+
+export interface OpenCastingForecast {
+  /** Expected applicants in a typical week - a range, not a promise. */
+  weeklyLow: number;
+  weeklyHigh: number;
+  /** How strong the eligible field is for this character. */
+  quality: ForecastBand;
+  /** How much to trust the forecast - a Casting Director's read firms it up. */
+  confidence: ForecastConfidence;
+  /** Count of eligible actors who genuinely suit the part (dev/testing read). */
+  strongFits: number;
+}
+
+const FORECAST_STRONG_SUITABILITY = 60; // matches the "Great fit" bar used elsewhere
+const FORECAST_DEEP_FIELD = 8; // this many genuine fits reads as a deep field
+const FORECAST_MODERATE_FIELD = 3;
+
+/**
+ * A pre-open read on an Open Casting call for one Character (design brief point
+ * 10). `eligiblePool` is the actors who could actually play the part (already
+ * gender/age filtered by the caller). A hired Casting Director (skill 0-100)
+ * raises the expected volume and the confidence, mirroring their real effect on
+ * the weekly batch.
+ */
+export function forecastOpenCasting(eligiblePool: Person[], character: ScriptCharacter, castingDirectorSkill: number | null | undefined): OpenCastingForecast {
+  const skillT = clamp((castingDirectorSkill ?? 0) / 100, 0, 1);
+  const weeklyHigh = APPLICANT_BATCH_SIZE[1] + Math.round(skillT * CASTING_DIRECTOR_MAX_BATCH_BONUS);
+  const strongFits = eligiblePool.filter((p) => (computeActorCharacterCompatibility(p, character) ?? 0) >= FORECAST_STRONG_SUITABILITY).length;
+  const quality: ForecastBand = strongFits >= FORECAST_DEEP_FIELD ? 'deep' : strongFits >= FORECAST_MODERATE_FIELD ? 'moderate' : 'thin';
+  const confidence: ForecastConfidence = skillT >= 0.66 ? 'high' : skillT >= 0.3 ? 'medium' : 'low';
+  return { weeklyLow: APPLICANT_BATCH_SIZE[0], weeklyHigh, quality, confidence, strongFits };
 }
 
 /** Finds this Character's existing call, or opens a fresh one - Direct Approach (Phase C) can target someone before Open Casting has ever been used, but still needs somewhere to track rejectionCount for the no-softlock widening below. */
