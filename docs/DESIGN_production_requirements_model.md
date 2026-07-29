@@ -519,13 +519,35 @@ the active edges among the attached heads. Still calibration-safe — a clash is
 story, not a −quality knob. Tests in `crewPhilosophy.test.ts` (stable/authored/
 director-mapping) and `collaborationEdges.test.ts` (edge banding, attach-gating).
 
-**Still deferred:** Actor↔Stunt and Director↔Composer/Editor edges (those parties
-don't carry philosophy vectors yet); the per-specialty crew *technical* capability
-(the third of the three dimensions).
+**Addition #1 — per-specialty technical capability: SHIPPED (calibration-safe).**
+The third of the three dimensions per head. `src/engine/crewSpecialty.ts` splits a
+head's flat `skill` into per-specialty capability — Production Design
+(`periodCraft · scaleBuild · locationBuild · creatureBuild`), VFX
+(`digitalEnvironments · creatureAnimation · compositing · digitalDoubles`) — so a
+great digital-environments house is expressibly *not* a great creature animator.
+Same discipline as philosophy: a stable per-person spiky profile around overall
+skill (a standout and a weakness), keyed on the id, with an optional authored
+`CrewCareer.specialties` override; no rng, no save impact.
+- `specialtyWeightedCapability(caps, contributions, overallSkill)` collapses the
+  profile to an effective capability for THIS film — weighting each specialty by
+  how much the film's Layer-3 workload loads it — plus a qualitative note ("a
+  specialist in digital environments — the film's biggest demand" / "their weaker
+  area is creature animation, which is exactly what this film leans on").
+- The crew fit-read now reads a hired head on the specialties the film actually
+  demands, not flat skill: two heads of equal overall skill read differently by
+  how their strengths line up with the workload. Surfaced in the fit-read detail
+  on the hub. Still calibration-safe (feeds the read only).
+- Tests: `crewSpecialty.test.ts` (spiky/stable/authored, specialty-weighting up
+  and down, fallback) + staffing-board seam (specialist vs misfit at equal skill).
 
-Not yet built: Layer 4 (Department Simulation), the workload hub section, the
-per-specialty crew capability model, and the `destructionMethod`/`actionMethod`
-axes (awaiting the finer-taxonomy split).
+With this, all three head dimensions are live: technical (skill + specialties),
+creative philosophy, and working style (reused personality axes).
+
+**Still deferred:** Actor↔Stunt and Director↔Composer/Editor compatibility edges
+(those parties don't carry philosophy vectors yet).
+
+Not yet built: Layer 4 (Department Simulation), the workload hub section, and the
+`destructionMethod`/`actionMethod` axes (awaiting the finer-taxonomy split).
 
 ## Script-model depth — an open roadmap question (raised, not yet scoped)
 

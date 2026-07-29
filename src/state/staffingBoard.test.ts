@@ -45,13 +45,14 @@ function vfxHeavyDraft(): FilmDraft {
   return { ...d, script };
 }
 
-function vfxSupervisor(name: string, skill: number, experience = 60): Person {
+function vfxSupervisor(name: string, skill: number, experience = 60, specialties?: Record<string, number>): Person {
   return {
+    id: name,
     identity: { name },
     careers: {
       vfxSupervisor: {
         role: 'VFX Supervisor', active: true, experience, roleReputation: 50,
-        minimumSalary: 100_000, typicalSalary: 500_000, skill,
+        minimumSalary: 100_000, typicalSalary: 500_000, skill, specialties,
       },
     },
   } as unknown as Person;
@@ -176,6 +177,20 @@ describe('execution strategy re-routes the hub fit-reads (Layer 2 persisted)', (
     const base = creatureDraft();
     // With no executionStrategy, the board still derives — it just uses the lean.
     expect(deriveStaffingBoard(base, 10).rows.find((r) => r.role === 'VFX Supervisor')!.suitability).toBeDefined();
+  });
+});
+
+describe('per-specialty capability shapes the crew fit-read (Addition #1)', () => {
+  const vfxRead = (d: FilmDraft) => rowFor(deriveStaffingBoard(d, 10), 'VFX Supervisor').suitability!;
+  it('a head strong in the film\'s dominant VFX specialty reads more capable than one weak in it, at equal overall skill', () => {
+    const d = vfxHeavyDraft(); // vfx-heavy -> compositing/digital-environments dominant
+    const specialist = { person: vfxSupervisor('Ace', 70, 60, { compositing: 98, digitalEnvironments: 98, creatureAnimation: 98, digitalDoubles: 98 }), role: 'VFX Supervisor' };
+    const wrongFit = { person: vfxSupervisor('Misfit', 70, 60, { compositing: 30, digitalEnvironments: 30, creatureAnimation: 30, digitalDoubles: 30 }), role: 'VFX Supervisor' };
+    const strong = vfxRead({ ...d, talent: [specialist] as FilmDraft['talent'] });
+    const weak = vfxRead({ ...d, talent: [wrongFit] as FilmDraft['talent'] });
+    expect(strong.capabilityScore).toBeGreaterThan(weak.capabilityScore);
+    expect(strong.detail).toMatch(/specialist/i);
+    expect(weak.detail).toMatch(/weaker area/i);
   });
 });
 
