@@ -67,6 +67,24 @@ function progressSummary(row: StaffingRow): string {
   return parts.length > 0 ? parts.join(' · ') : '—';
 }
 
+// A compact, qualitative one-liner for a crew row's fit-read (Workstream II
+// suitability floor). Never shows a raw number - a demand band and, once a head
+// is attached, how they sit against it.
+const SUITABILITY_WORD: Record<NonNullable<StaffingRow['suitability']>['suitability'], string> = {
+  overqualified: 'over-qualified',
+  strong: 'strong fit',
+  solid: 'solid fit',
+  stretch: 'a stretch',
+  outmatched: 'outmatched',
+};
+const DEMAND_WORD: Record<NonNullable<StaffingRow['suitability']>['demand'], string> = {
+  light: 'Light', moderate: 'Moderate', demanding: 'Demanding', severe: 'Severe',
+};
+function suitabilityLabel(read: NonNullable<StaffingRow['suitability']>): string {
+  if (!read.hired) return `${DEMAND_WORD[read.demand]} demand`;
+  return `${DEMAND_WORD[read.demand]} · ${SUITABILITY_WORD[read.suitability]}`;
+}
+
 function StaffingBoardSection({
   draft,
   onOpenCharacter,
@@ -108,7 +126,17 @@ function StaffingBoardSection({
             <tr key={row.key} className={row.warnings.includes('over-budget') ? 'staffing-row--warn' : undefined}>
               <td>{row.label}{row.optional ? ' (optional)' : ''}</td>
               <td><span className={`staffing-stage staffing-stage--${row.stage}`}>{STAFFING_STAGE_LABELS[row.stage]}</span></td>
-              <td className="staffing-progress">{progressSummary(row)}</td>
+              <td className="staffing-progress">
+                {progressSummary(row)}
+                {row.suitability && (
+                  <div
+                    className={`staffing-suitability staffing-suitability--${row.suitability.suitability}`}
+                    title={row.suitability.detail}
+                  >
+                    {suitabilityLabel(row.suitability)}
+                  </div>
+                )}
+              </td>
               <td><Money amount={row.budget.planned} /></td>
               <td><Money amount={row.budget.committed} /></td>
               <td className={row.warnings.includes('over-budget') ? 'staffing-overbudget' : undefined}><Money amount={row.budget.remaining} /></td>
@@ -132,7 +160,7 @@ function StaffingBoardSection({
           <tr><td colSpan={3}>Total</td><td><Money amount={board.totalPlanned} /></td><td><Money amount={board.totalCommitted} /></td><td><Money amount={board.totalRemaining} /></td><td colSpan={2} /></tr>
         </tfoot>
       </table>
-      <p className="staffing-board__note">Every role's staffing at a glance - open any to search, audition, negotiate or hire. Lock a budget to keep its share when the rest rebalance. Suitability, compatibility and department reads will surface here as those systems come online.</p>
+      <p className="staffing-board__note">Every role's staffing at a glance - open any to search, audition, negotiate or hire. Lock a budget to keep its share when the rest rebalance. Department heads show how this film's demands suit them; compatibility and workload reads will surface here as those systems come online.</p>
     </div>
   );
 }

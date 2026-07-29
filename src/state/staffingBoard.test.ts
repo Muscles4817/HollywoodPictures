@@ -26,6 +26,37 @@ const leadCharacterId = (d: FilmDraft) => d.script!.cast.find((c) => c.prominenc
 const rowFor = (b: StaffingBoard, key: string) => b.rows.find((r) => r.key === key)!;
 const person = (name: string): Person => ({ identity: { name } }) as unknown as Person;
 
+// A VFX-heavy script so the VFX department is meaningfully loaded (Layer 3), and
+// a VFX Supervisor person of a given skill — for the suitability-seam tests.
+function vfxHeavyDraft(): FilmDraft {
+  const d = baseDraft();
+  const script = {
+    ...d.script!,
+    genre: 'Sci-Fi' as const,
+    primarySetting: 'SpacecraftOrStation' as const,
+    scale: 'Epic' as const,
+    effectsStrategy: { practical: 0.2, digital: 0.8 },
+    environmentStrategy: { studio: 0.4, location: 0.1, digital: 0.5 },
+    productionRequirements: {
+      ...d.script!.productionRequirements,
+      vfx: 0.95, practicalEffects: 0.3, stunts: 0.5, periodSetting: false,
+    },
+  };
+  return { ...d, script };
+}
+
+function vfxSupervisor(name: string, skill: number, experience = 60): Person {
+  return {
+    identity: { name },
+    careers: {
+      vfxSupervisor: {
+        role: 'VFX Supervisor', active: true, experience, roleReputation: 50,
+        minimumSalary: 100_000, typicalSalary: 500_000, skill,
+      },
+    },
+  } as unknown as Person;
+}
+
 describe('deriveStaffingBoard', () => {
   it('reports every character and the crew heads, all unstaffed at the start', () => {
     const b = deriveStaffingBoard(baseDraft(), 10);
@@ -78,6 +109,40 @@ describe('deriveStaffingBoard', () => {
     const b = deriveStaffingBoard(d, 10);
     expect(b.plannedStartOffsetDays).toBe(30);
     expect(rowFor(b, 'Director').budget.locked).toBe(true);
+  });
+});
+
+describe('crew suitability seam (Workstream II fit-read floor)', () => {
+  it('populates a suitability read on the modelled department heads, and leaves others absent', () => {
+    const b = deriveStaffingBoard(vfxHeavyDraft(), 10);
+    expect(rowFor(b, 'VFX Supervisor').suitability).toBeDefined();
+    expect(rowFor(b, 'Production Designer').suitability).toBeDefined();
+    // Director is not a modelled Layer-3 department — no fit-read yet.
+    expect(rowFor(b, 'Director').suitability).toBeUndefined();
+  });
+
+  it('reads an unstaffed VFX-heavy film as an unstaffed, high-demand prompt', () => {
+    const read = rowFor(deriveStaffingBoard(vfxHeavyDraft(), 10), 'VFX Supervisor').suitability!;
+    expect(read.hired).toBe(false);
+    expect(read.department).toBe('vfx');
+    expect(['demanding', 'severe']).toContain(read.demand);
+    expect(read.headline).toMatch(/Unstaffed/);
+  });
+
+  it('a stronger attached supervisor reads as more suitable than a weak one on the same film', () => {
+    const d = vfxHeavyDraft();
+    const weak = deriveStaffingBoard(
+      { ...d, talent: [{ person: vfxSupervisor('Junior', 25), role: 'VFX Supervisor' }] as FilmDraft['talent'] }, 10,
+    );
+    const strong = deriveStaffingBoard(
+      { ...d, talent: [{ person: vfxSupervisor('Maestro', 95), role: 'VFX Supervisor' }] as FilmDraft['talent'] }, 10,
+    );
+    const weakRead = rowFor(weak, 'VFX Supervisor').suitability!;
+    const strongRead = rowFor(strong, 'VFX Supervisor').suitability!;
+    expect(weakRead.hired).toBe(true);
+    expect(strongRead.hired).toBe(true);
+    expect(strongRead.margin).toBeGreaterThan(weakRead.margin);
+    expect(strongRead.capabilityScore).toBeGreaterThan(weakRead.capabilityScore);
   });
 });
 

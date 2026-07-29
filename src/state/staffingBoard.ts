@@ -9,6 +9,11 @@ import type { FilmDraft, GameDay, ProductionRole, Money, StaffingEvent } from '.
 import { MANDATORY_TALENT_ROLES, OPTIONAL_TALENT_ROLES } from '../data/talentGeneration';
 import { TALENT_PRESENTATION, type RoleCategory } from '../data/talentPresentation';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
+import { deriveDepartmentWorkloadsForScript, type DepartmentId, type DepartmentWorkload } from '../engine/departmentWorkload';
+import { deriveCrewFitRead, unloadedDepartmentRead, type CrewFitRead } from '../engine/crewFitRead';
+import { getCrewCareer } from '../engine/person';
+import { NO_DESIGNER_SKILL } from '../engine/setsFacet';
+import { NO_VFX_SUPERVISOR_SKILL } from '../engine/vfxFacet';
 import { assignmentCost } from '../engine/person';
 
 // The shared staffing lifecycle every role moves through. Crew skip the middle
@@ -56,12 +61,45 @@ export interface StaffingRow {
   warnings: StaffingWarning[];
   budget: { planned: Money; committed: Money; remaining: Money; locked: boolean };
   // --- Workstream II extension points ---------------------------------------
-  // Deliberately absent until those systems exist. The row renderer shows each
-  // section only when present, so wiring them later needs no hub change and no
-  // fake data now.
-  suitability?: unknown;
+  // The row renderer shows each section only when present, so wiring one needs no
+  // hub change. `suitability` is now populated for the modelled department heads
+  // (Production Design, VFX); `compatibility` and `workload` remain absent until
+  // their systems exist (no fake data).
+  suitability?: CrewFitRead;
   compatibility?: unknown;
   workload?: unknown;
+}
+
+// Which staffing rows map to a modelled Layer-3 department (the crew fit-read
+// floor). Roles absent here get no suitability read yet. Stunts has no staffing
+// row (it's a contracted team, hired elsewhere), so only these two appear here.
+const ROLE_DEPARTMENT: Partial<Record<ProductionRole, DepartmentId>> = {
+  'Production Designer': 'productionDesign',
+  'VFX Supervisor': 'vfx',
+};
+
+const NO_HIRE_SKILL: Record<DepartmentId, number> = {
+  productionDesign: NO_DESIGNER_SKILL,
+  vfx: NO_VFX_SUPERVISOR_SKILL,
+  stunts: 42, // NO_STUNT_TEAM_SKILL — no staffing row today, listed for completeness
+};
+
+// The suitability read for a crew row: the attached head's capability (or the
+// no-hire fallback) against this department's derived workload for the film.
+function crewSuitability(
+  role: ProductionRole,
+  attached: FilmDraft['talent'],
+  workloads: Map<DepartmentId, DepartmentWorkload>,
+): CrewFitRead | undefined {
+  const department = ROLE_DEPARTMENT[role];
+  if (!department) return undefined;
+  const head = attached.find((a) => a.role === role)?.person;
+  const hired = head !== undefined;
+  const career = head ? getCrewCareer(head, role as Parameters<typeof getCrewCareer>[1]) : null;
+  const skill = career?.skill ?? NO_HIRE_SKILL[department];
+  const workload = workloads.get(department);
+  if (!workload) return unloadedDepartmentRead(department, hired);
+  return deriveCrewFitRead({ skill, experience: career?.experience, hired }, workload);
 }
 
 export interface StaffingBoard {
@@ -136,6 +174,12 @@ export function deriveStaffingBoard(draft: FilmDraft, totalDays: GameDay): Staff
     });
   }
 
+  // Department workloads for the film, derived once (Layer 3) - the crew rows
+  // read their suitability against these.
+  const workloads = new Map<DepartmentId, DepartmentWorkload>(
+    (script ? deriveDepartmentWorkloadsForScript(script) : []).map((w) => [w.department, w]),
+  );
+
   // Director + crew rows - one per head slot. Instant hire, so only unstaffed vs
   // attached, but reported on the same lifecycle.
   for (const role of CREW_ROLE_ORDER) {
@@ -158,6 +202,7 @@ export function deriveStaffingBoard(draft: FilmDraft, totalDays: GameDay): Staff
       counts: NO_COUNTS,
       warnings,
       budget: { planned, committed, remaining: Math.max(0, planned - committed), locked: locked.has(role) },
+      suitability: crewSuitability(role, draft.talent, workloads),
     });
   }
 

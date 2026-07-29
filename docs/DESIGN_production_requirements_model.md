@@ -414,6 +414,30 @@ first.
   (Costume, Makeup, Assistant Director / crowd logistics, animal unit) are left
   UNROUTED rather than misassigned. They join when those departments are modelled.
 
+**Crew fit-read floor — SHIPPED (calibration-safe).**
+`src/engine/crewFitRead.ts` implements `deriveCrewFitRead(capability, workload)` —
+a head's technical capability read against the Layer-3 department workload, as a
+QUALITATIVE verdict (`overqualified · strong · solid · stretch · outmatched`)
+plus a demand band (`light · moderate · demanding · severe`), a make-or-break
+`critical` flag (from routed criticality), a confidence band from experience, and
+prose. Player-facing output is bands + prose; raw scores are dev/test only. v1
+reads a FLAT capability (crew `skill`); it refines to per-specialty without a
+shape change when heads gain specialties.
+
+- The hub's `StaffingRow.suitability` extension point (typed-but-empty since
+  Workstream I Phase 2) is now populated for the modelled department heads —
+  **Production Designer** (`getCrewCareer … skill` / `NO_DESIGNER_SKILL`) and
+  **VFX Supervisor** (`vfxSupervisorSkill` / `NO_VFX_SUPERVISOR_SKILL`). An
+  unstaffed row reads as a demand-to-fill prompt; a staffed one reads the head
+  against the workload. Stunts has no staffing row (contracted team), so its
+  read lives in the engine only for now.
+- Surfaced in the live Cast & Crew hub as a compact qualitative line on those
+  rows. **Calibration-safe:** reads capability vs workload, changes no cost or
+  scoring — the facet model still decides realised quality.
+- Tests: `src/engine/crewFitRead.test.ts` (banding, margin, stakes, confidence,
+  hired-vs-unstaffed prose) + staffing-board seam tests (seam populated for the
+  modelled heads, stronger head reads as more suitable).
+
 Not yet built: Layer 2 (Execution Strategy as first-class producer choices),
-Layer 4 (Department Simulation), and the PD/VFX/Stunt fit-reads that read this
-workload floor (the next slice).
+Layer 4 (Department Simulation), the compatibility/workload hub sections, and the
+richer per-specialty crew capability model.
