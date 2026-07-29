@@ -145,16 +145,17 @@ function BarRow({ label, value }: { label: string; value: number }) {
  * dot when the caller knows the studio's budget (the hiring drawers do; the
  * on-set decision card doesn't, and passes nothing).
  */
-export function TalentStats({ person, role, category, script, character = null, totalDays, availabilityMode = 'delay', pairedDirector = null, affordable = null, castingDirectorSkill = null, relationship = null, castAffinity = null }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number; availabilityMode?: 'delay' | 'blocked'; pairedDirector?: Person | null; affordable?: boolean | null; castingDirectorSkill?: number | null; relationship?: RelationshipStanding | null; castAffinity?: CastAffinity | null }) {
+export function TalentStats({ person, role, category, script, character = null, totalDays, availabilityMode = 'delay', pairedDirector = null, affordable = null, castingDirectorSkill = null, relationship = null, castAffinity = null, audited = false }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number; availabilityMode?: 'delay' | 'blocked'; pairedDirector?: Person | null; affordable?: boolean | null; castingDirectorSkill?: number | null; relationship?: RelationshipStanding | null; castAffinity?: CastAffinity | null; audited?: boolean }) {
   const career = getCareerForRole(person, role);
   const overallScore = deriveOverallScore(person, role, category, script, character);
   const roleFit = deriveRoleFitBreakdown(person, role, category, script, character);
   // A fit (actor/director) is a judgment made under uncertainty, so it reads as a
   // hedged band, not an exact number. Crew "fit" is really their skill - a known
-  // résumé figure - so it keeps a precise read (but no raw digit either). Two
-  // studio-side things sharpen an actor/director read: the production's casting
-  // director (actors only) and history with this person (deriveFitReadAssist).
-  const fitAssist = deriveFitReadAssist(castingDirectorSkill, relationship ?? undefined, category === 'actor');
+  // résumé figure - so it keeps a precise read (but no raw digit either). Three
+  // studio-side things sharpen an actor/director read: a completed audition
+  // (Phase 4), the production's casting director (actors only), and history with
+  // this person (deriveFitReadAssist).
+  const fitAssist = deriveFitReadAssist(castingDirectorSkill, relationship ?? undefined, category === 'actor', audited);
   const fitRead = overallScore !== null && roleFit ? deriveFitRead(overallScore, person, fitAssist) : null;
   // Only the axes you'd actually know are shown in full; the rest are veiled as
   // "Unknown" the less of a known quantity they are. The "why" line reasons over

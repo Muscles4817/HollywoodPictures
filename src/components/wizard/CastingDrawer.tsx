@@ -96,6 +96,10 @@ function CandidateCard({
   onWalkAway,
   shortlisted,
   onToggleShortlist,
+  audited,
+  auditioning,
+  auditionReadyInDays,
+  onAudition,
   castingDirectorSkill,
   relationship,
   castAffinity,
@@ -140,6 +144,11 @@ function CandidateCard({
   /** Casting Redesign, Phase 3 - whether this candidate is on the character's shortlist, and the toggle. Absent on cards where shortlisting doesn't apply. */
   shortlisted?: boolean;
   onToggleShortlist?: () => void;
+  /** Casting Redesign, Phase 4 - screen-test state: a completed audition (audited, sharpens the read), one in progress (auditioning, with days left), and the request handler. */
+  audited?: boolean;
+  auditioning?: boolean;
+  auditionReadyInDays?: number;
+  onAudition?: () => void;
 }) {
   // A booked actor can't be cast today - the schedule gate is a hard rejection
   // (engine/castingNegotiation.ts) no offer can clear, so disable and say so.
@@ -158,6 +167,7 @@ function CandidateCard({
   // longer duplicated as a chip here (Talent Card UX Redesign).
   const signals: CandidateSignal[] = [];
   if (channel === 'InterestedTalent') signals.push({ label: 'Sought you out', tone: 'positive' });
+  if (audited) signals.push({ label: '✓ Auditioned', tone: 'positive' });
   if (overall) signals.push(...candidateStrengthSignals(overall, directorName));
   if (belowFloor && !negotiation) signals.push({ label: 'Below their floor', tone: 'blocked' });
 
@@ -171,7 +181,7 @@ function CandidateCard({
   // by how readable they are and sharpened by a hired Casting Director / history
   // (deriveFitReadAssist). Hidden once a negotiation is live - by then you have
   // their real counter, not a guess. Updates as the salary slider moves.
-  const assist = deriveFitReadAssist(castingDirectorSkill, relationship, true);
+  const assist = deriveFitReadAssist(castingDirectorSkill, relationship, true, audited);
   const estimate = overall && !negotiation ? estimateDeal(overall, person, offeredSalary, assist, relationship) : null;
   const oddsSignal = estimate ? describeAcceptanceOdds(estimate.odds) : null;
 
@@ -180,7 +190,7 @@ function CandidateCard({
       <div className="card-title">{person.identity.name}</div>
       {/* TalentStats' own Availability section already covers "available
           now" vs "busy until X" - no need to repeat it here. */}
-      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} affordable={affordable} castingDirectorSkill={castingDirectorSkill} relationship={relationship} castAffinity={castAffinity} />
+      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} affordable={affordable} castingDirectorSkill={castingDirectorSkill} relationship={relationship} castAffinity={castAffinity} audited={audited} />
       {signals.length > 0 && (
         <div className="candidate-signals">
           {signals.map((signal) => (
@@ -228,6 +238,17 @@ function CandidateCard({
         {negotiation && (
           <Button variant="secondary" className="btn-sm" onClick={onWalkAway}>
             Walk away
+          </Button>
+        )}
+        {onAudition && !audited && (
+          <Button
+            variant="secondary"
+            className="btn-sm"
+            onClick={onAudition}
+            disabled={auditioning || !available}
+            title={auditioning ? 'Screen test in progress' : !available ? 'Booked elsewhere - audition once they free up.' : 'Arrange a screen test - takes some days and gives you a confident read on their fit.'}
+          >
+            {auditioning ? `Auditioning… ${auditionReadyInDays}d` : 'Audition'}
           </Button>
         )}
         {onToggleShortlist && (
@@ -343,6 +364,10 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   // rejection), or null before any offer. Re-read from the draft every render.
   const negotiationFor = (person: Person): RoleNegotiation | null =>
     (draft.negotiations ?? []).find((n) => n.characterId === character.id && n.personId === person.id) ?? null;
+
+  // This candidate's screen test for this Character (Phase 4). Completeness is
+  // derived from the clock, not stored - audited once readyOnDay has passed.
+  const auditionFor = (person: Person) => (draft.auditions ?? []).find((a) => a.characterId === character.id && a.personId === person.id) ?? null;
 
   /** Make (or raise) an offer at the current target salary - the reducer rolls/reuses the actor's asking price and resolves accept/counter/reject (engine/castingNegotiation.ts). */
   function makeOffer(person: Person) {
@@ -479,36 +504,44 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   // Direct Approach, or the Shortlist) - the fit read, pre-offer estimate,
   // negotiation state, shortlist toggle, and offer/accept/walk actions all come
   // from the same place, so a candidate reads and behaves the same in every tab.
-  const renderCandidate = (person: Person, opts: { channel?: CastingChannel; onDismiss?: () => void } = {}) => (
-    <CandidateCard
-      key={person.id}
-      person={person}
-      role={role}
-      script={draft.script}
-      character={character}
-      totalDays={state.totalDays}
-      overall={appealById.get(person.id) ?? appealFor(person)}
-      offeredSalary={offeredSalary}
-      channel={opts.channel}
-      directorName={directorName}
-      director={director}
-      affordable={isAffordable(person)}
-      actionLabel="Make Offer"
-      onAct={() => makeOffer(person)}
-      negotiation={negotiationFor(person)}
-      onAcceptCounter={() => acceptCounter(person)}
-      onWalkAway={() => walkAway(person)}
-      shortlisted={isShortlisted(person.id)}
-      onToggleShortlist={() => toggleShortlist(person)}
-      pinned={pins.isPinned(person.id)}
-      pinCapped={pins.isFull}
-      onTogglePin={() => pins.toggle(person.id)}
-      onDismiss={opts.onDismiss}
-      castingDirectorSkill={castingDirectorSkill}
-      relationship={relationshipFor(person)}
-      castAffinity={castAffinityFor(person)}
-    />
-  );
+  const renderCandidate = (person: Person, opts: { channel?: CastingChannel; onDismiss?: () => void } = {}) => {
+    const audition = auditionFor(person);
+    const audited = !!audition && state.totalDays >= audition.readyOnDay;
+    return (
+      <CandidateCard
+        key={person.id}
+        person={person}
+        role={role}
+        script={draft.script}
+        character={character}
+        totalDays={state.totalDays}
+        overall={appealById.get(person.id) ?? appealFor(person)}
+        offeredSalary={offeredSalary}
+        channel={opts.channel}
+        directorName={directorName}
+        director={director}
+        affordable={isAffordable(person)}
+        actionLabel="Make Offer"
+        onAct={() => makeOffer(person)}
+        negotiation={negotiationFor(person)}
+        onAcceptCounter={() => acceptCounter(person)}
+        onWalkAway={() => walkAway(person)}
+        shortlisted={isShortlisted(person.id)}
+        onToggleShortlist={() => toggleShortlist(person)}
+        audited={audited}
+        auditioning={!!audition && !audited}
+        auditionReadyInDays={audition ? Math.max(0, audition.readyOnDay - state.totalDays) : undefined}
+        onAudition={() => dispatch({ type: 'REQUEST_AUDITION', characterId: character.id, role, personId: person.id })}
+        pinned={pins.isPinned(person.id)}
+        pinCapped={pins.isFull}
+        onTogglePin={() => pins.toggle(person.id)}
+        onDismiss={opts.onDismiss}
+        castingDirectorSkill={castingDirectorSkill}
+        relationship={relationshipFor(person)}
+        castAffinity={castAffinityFor(person)}
+      />
+    );
+  };
 
   return (
     <>

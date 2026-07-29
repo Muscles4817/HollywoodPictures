@@ -346,6 +346,11 @@ export type GameAction =
   // shortlist (the set the player is tracking to compare/negotiate in parallel
   // before committing one). A pure toggle; never touches negotiations or the cast.
   | { type: 'TOGGLE_SHORTLIST'; characterId: string; role: 'Lead Actor' | 'Supporting Actor'; personId: string }
+  // Casting Redesign, Phase 4 - arrange a screen test for a candidate on a
+  // Character. Takes calendar time (a Casting Director speeds it up); once it
+  // completes it reads as the strongest possible fit. No-op if one's already
+  // been arranged for this pair.
+  | { type: 'REQUEST_AUDITION'; characterId: string; role: 'Lead Actor' | 'Supporting Actor'; personId: string }
   // Replaces the old SET_PRODUCTION_CHOICES - the player now edits Strategy/
   // Ambition values directly (Plan Production, docs/DESIGN.md), and the
   // reducer derives ProductionChoices from them via
