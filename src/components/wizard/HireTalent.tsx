@@ -14,6 +14,7 @@ import { deriveProjectReadiness } from '../../engine/projectReadiness';
 import { toneProfileBreakdown } from '../../data/tones';
 import { CHARACTER_ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
 import { Card } from '../common/Card';
+import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
 import { ScoreBar } from '../common/ScoreBar';
 import { Money, formatMoney } from '../common/Money';
@@ -21,7 +22,8 @@ import { CompatibilityBadge } from '../common/CompatibilityBadge';
 import { RoleHiringDrawer } from './RoleHiringDrawer';
 import { CastingDrawer } from './CastingDrawer';
 import { findAssignedPerson } from '../../data/helpers';
-import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole, assignmentCost } from '../../engine/person';
+import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole } from '../../engine/person';
+import { deriveStaffingBoard, STAFFING_STAGE_LABELS, type StaffingRow } from '../../state/staffingBoard';
 import type { EffectsMethodKey, EnvironmentMethodKey, FilmDraft, Person, ProductionRole, Script, ScriptCharacter } from '../../types';
 
 const MASTER_BUDGET_RANGE = { min: 300_000, max: 30_000_000 };
@@ -42,58 +44,93 @@ function tileHeadline(person: Person, role: ProductionRole, category: RoleCatego
   return career && 'skill' in career ? `Skill ${career.skill}` : '';
 }
 
-// Phase 1b - the budget allocation table: the visible, controllable face of the
-// auto-split (engine/castBudget.ts). Shows each role's planned allocation (its
-// per-head target x its head count), what's already committed to hires, and
-// what's left, with a lock per role. Locking reserves that allocation so the
-// auto-split leaves it alone and the rest divide what remains ("reserve £X for
-// the director even if another role goes over").
-function AllocationTable({ draft }: { draft: FilmDraft }) {
-  const { dispatch } = useStudio();
-  const locked = new Set(draft.lockedRoleBudgets ?? []);
-  const rows = MANDATORY_TALENT_ROLES.map((role) => {
-    const perHead = draft.talentTargetPriceByRole[role] ?? 0;
-    const capacity = effectiveRoleCapacity(role, draft.script).max;
-    const planned = perHead * capacity;
-    const committed = draft.talent.filter((a) => a.role === role).reduce((sum, a) => sum + assignmentCost(a), 0);
-    return { role, planned, committed, remaining: Math.max(0, planned - committed), isLocked: locked.has(role) };
-  });
-  const totalPlanned = rows.reduce((s, r) => s + r.planned, 0);
-  const totalCommitted = rows.reduce((s, r) => s + r.committed, 0);
+// Workstream I, Phase 2a - the live Cast & Crew staffing board: the central
+// dashboard for the whole production. One row per role (actor character or crew
+// head), each on the same staffing lifecycle (state/staffingBoard.ts), with its
+// budget allocation + lock (subsuming Phase 1b's allocation table), a compact
+// progress read, over-budget warning, and direct navigation into the relevant
+// hiring/casting flow. Suitability / compatibility / department reads are left as
+// documented extension points (state/staffingBoard.ts) - rendered only once those
+// Workstream II systems populate them, never mocked here.
+function progressSummary(row: StaffingRow): string {
+  if (row.stage === 'attached') return `✓ ${row.attached.join(', ')}`;
+  if (row.stage === 'negotiating') {
+    return `Offer out${row.counts.counters > 0 ? ` - ${row.counts.counters} counter${row.counts.counters === 1 ? '' : 's'}` : ''}`;
+  }
+  const parts: string[] = [];
+  if (row.counts.applicants > 0) parts.push(`${row.counts.applicants} applicant${row.counts.applicants === 1 ? '' : 's'}`);
+  if (row.counts.shortlist > 0) parts.push(`${row.counts.shortlist} shortlisted`);
+  if (row.counts.auditions > 0) parts.push(`${row.counts.auditionsReady}/${row.counts.auditions} audition${row.counts.auditions === 1 ? '' : 's'}`);
+  if (row.activeSearch && row.counts.applicants === 0) parts.push('call open');
+  return parts.length > 0 ? parts.join(' · ') : '—';
+}
+
+function StaffingBoardSection({
+  draft,
+  onOpenCharacter,
+  onOpenRole,
+}: {
+  draft: FilmDraft;
+  onOpenCharacter: (character: ScriptCharacter, role: 'Lead Actor' | 'Supporting Actor') => void;
+  onOpenRole: (role: ProductionRole) => void;
+}) {
+  const { state, dispatch } = useStudio();
+  const board = deriveStaffingBoard(draft, state.totalDays);
+  const plannedStartDay = state.totalDays + board.plannedStartOffsetDays;
+  const charById = new Map((draft.script?.cast ?? []).map((c) => [c.id, c] as const));
+
+  const openRow = (row: StaffingRow) => {
+    if (row.characterId) {
+      const character = charById.get(row.characterId);
+      if (character) onOpenCharacter(character, row.role as 'Lead Actor' | 'Supporting Actor');
+    } else {
+      onOpenRole(row.role);
+    }
+  };
 
   return (
-    <div className="allocation-table">
+    <div className="staffing-board">
+      <div className="staffing-board__window">
+        {board.plannedStartOffsetDays > 0
+          ? <>Shoot planned to start <strong>day {plannedStartDay}</strong> - delayed {board.plannedStartOffsetDays} day{board.plannedStartOffsetDays === 1 ? '' : 's'} to wait on booked talent.</>
+          : <>Shoot begins as soon as the cast is set.</>}
+      </div>
       <table>
         <thead>
-          <tr><th>Role</th><th>Planned</th><th>Committed</th><th>Remaining</th><th aria-label="Lock" /></tr>
+          <tr>
+            <th>Role</th><th>Status</th><th>Progress</th><th>Planned</th><th>Committed</th><th>Remaining</th><th aria-label="Lock" /><th aria-label="Open" />
+          </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.role} className={r.isLocked ? 'allocation-row--locked' : undefined}>
-              <td>{r.role}</td>
-              <td><Money amount={r.planned} /></td>
-              <td><Money amount={r.committed} /></td>
-              <td><Money amount={r.remaining} /></td>
+          {board.rows.map((row) => (
+            <tr key={row.key} className={row.warnings.includes('over-budget') ? 'staffing-row--warn' : undefined}>
+              <td>{row.label}{row.optional ? ' (optional)' : ''}</td>
+              <td><span className={`staffing-stage staffing-stage--${row.stage}`}>{STAFFING_STAGE_LABELS[row.stage]}</span></td>
+              <td className="staffing-progress">{progressSummary(row)}</td>
+              <td><Money amount={row.budget.planned} /></td>
+              <td><Money amount={row.budget.committed} /></td>
+              <td className={row.warnings.includes('over-budget') ? 'staffing-overbudget' : undefined}><Money amount={row.budget.remaining} /></td>
               <td>
                 <button
                   type="button"
                   className="allocation-lock"
-                  aria-label={`${r.isLocked ? 'Unlock' : 'Lock'} ${r.role} budget`}
-                  aria-pressed={r.isLocked}
-                  title={r.isLocked ? 'Locked - this allocation is reserved; the auto-split leaves it alone' : 'Lock to reserve this allocation against the auto-split'}
-                  onClick={() => dispatch({ type: 'SET_ROLE_BUDGET_LOCK', role: r.role, locked: !r.isLocked })}
+                  aria-label={`${row.budget.locked ? 'Unlock' : 'Lock'} ${row.role} budget`}
+                  aria-pressed={row.budget.locked}
+                  title={row.budget.locked ? 'Locked - reserved against the auto-split' : 'Lock to reserve this allocation against the auto-split'}
+                  onClick={() => dispatch({ type: 'SET_ROLE_BUDGET_LOCK', role: row.role, locked: !row.budget.locked })}
                 >
-                  {r.isLocked ? '🔒' : '🔓'}
+                  {row.budget.locked ? '🔒' : '🔓'}
                 </button>
               </td>
+              <td><Button className="btn-sm" onClick={() => openRow(row)}>Open</Button></td>
             </tr>
           ))}
         </tbody>
         <tfoot>
-          <tr><td>Total</td><td><Money amount={totalPlanned} /></td><td><Money amount={totalCommitted} /></td><td colSpan={2} /></tr>
+          <tr><td colSpan={3}>Total</td><td><Money amount={board.totalPlanned} /></td><td><Money amount={board.totalCommitted} /></td><td><Money amount={board.totalRemaining} /></td><td colSpan={2} /></tr>
         </tfoot>
       </table>
-      <p className="allocation-table__note">Planned splits your budget by how much each role carries the film; lock a role to keep its share when the rest rebalance.</p>
+      <p className="staffing-board__note">Every role's staffing at a glance - open any to search, audition, negotiate or hire. Lock a budget to keep its share when the rest rebalance. Suitability, compatibility and department reads will surface here as those systems come online.</p>
     </div>
   );
 }
@@ -389,7 +426,11 @@ export function HireTalent() {
         highLabel="Big Budget"
       />
 
-      <AllocationTable draft={draft} />
+      <StaffingBoardSection
+        draft={draft}
+        onOpenCharacter={(character, role) => setOpenCharacter({ character, role })}
+        onOpenRole={setOpenRole}
+      />
 
       <div className="grid">
         <RoleTile role="Director" optional={false} onOpen={() => setOpenRole('Director')} />

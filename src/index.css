@@ -2085,3 +2085,29 @@ textarea, input, select {
 .allocation-row--locked { background: color-mix(in srgb, var(--amber, #b8860b) 10%, transparent); }
 .allocation-lock { background: none; border: none; cursor: pointer; font-size: 1em; padding: 2px 4px; }
 .allocation-table__note { margin: 4px 0 0; color: var(--text-muted); font-size: 0.85em; }
+
+/* Workstream I, Phase 2a - the live Cast & Crew staffing board. */
+.staffing-board { margin: 4px 0; font-size: 0.9em; }
+.staffing-board table { width: 100%; border-collapse: collapse; }
+.staffing-board th, .staffing-board td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--border, color-mix(in srgb, currentColor 12%, transparent)); }
+.staffing-board th:first-child, .staffing-board td:first-child,
+.staffing-board th:nth-child(2), .staffing-board td:nth-child(2),
+.staffing-board .staffing-progress { text-align: left; }
+.staffing-board thead th { color: var(--text-muted); font-weight: 600; }
+.staffing-board tfoot td { font-weight: 600; border-bottom: none; }
+.staffing-board__window { padding: 6px 10px; margin-bottom: 6px; border-radius: 6px; background: var(--info-bg, color-mix(in srgb, var(--primary) 10%, transparent)); font-size: 0.95em; }
+.staffing-board__note { margin: 6px 0 0; color: var(--text-muted); font-size: 0.85em; }
+.staffing-progress { color: var(--text-muted); }
+.staffing-row--warn .staffing-overbudget { color: var(--red); font-weight: 600; }
+.staffing-stage { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.82em; font-weight: 600; }
+.staffing-stage--unstaffed { background: var(--track-bg); color: var(--text-muted); }
+.staffing-stage--searching { background: #dbe4ff; color: #2f3fa8; }
+.staffing-stage--candidates { background: #d7ecf5; color: #1a6a86; }
+.staffing-stage--evaluating { background: #e6ddfb; color: #4b2a91; }
+.staffing-stage--negotiating { background: #f7e6c8; color: #8a5a00; }
+.staffing-stage--attached { background: #d7f0d9; color: #1a7f37; }
+:root[data-theme='dark'] .staffing-stage--searching { background: #24305e; color: #b9c6ff; }
+:root[data-theme='dark'] .staffing-stage--candidates { background: #16323d; color: #9fd6e8; }
+:root[data-theme='dark'] .staffing-stage--evaluating { background: #2b2150; color: #cbb8ff; }
+:root[data-theme='dark'] .staffing-stage--negotiating { background: #3a2c12; color: #e6c98a; }
+:root[data-theme='dark'] .staffing-stage--attached { background: #163020; color: #7fe0a3; }
