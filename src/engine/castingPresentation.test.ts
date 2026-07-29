@@ -179,7 +179,7 @@ describe('describeDirectorRejection', () => {
 // categorization itself is tested in actingModel.test.ts, so these check the
 // null passthrough, stability, and that different gifts read differently.
 import type { ActingStyle, Person } from '../types';
-import { describeSignatureGift, describeFameCraftContrast, describeCounterOffer, describeCounterReason, describeDealClosed } from './castingPresentation';
+import { describeSignatureGift, describeFameCraftContrast, describeCounterOffer, describeCounterReason, describeDealClosed, describeAskingEstimate, describeAcceptanceOdds } from './castingPresentation';
 
 function actor(id: string, style: Partial<ActingStyle>, over: { fame?: number; craftFloor?: number; craftHeadroom?: number } = {}): Person {
   return {
@@ -293,5 +293,23 @@ describe('negotiation prose (Phase E)', () => {
   it('calls out a below-quote close, but stays plain for a standard one', () => {
     expect(describeDealClosed(true)).toMatch(/under their usual quote/i);
     expect(describeDealClosed(false)).not.toMatch(/under their usual quote/i);
+  });
+});
+
+describe('pre-offer estimate prose (Phase 2)', () => {
+  it('hedges the asking-price band by confidence, embedding the UI-formatted range', () => {
+    expect(describeAskingEstimate('£2M–£4M', 'high')).toContain('£2M–£4M');
+    expect(describeAskingEstimate('£2M–£4M', 'high')).toMatch(/should want/i);
+    expect(describeAskingEstimate('£2M–£4M', 'low')).toMatch(/guess/i);
+    // the hedge differs by confidence
+    expect(describeAskingEstimate('£2M–£4M', 'high')).not.toBe(describeAskingEstimate('£2M–£4M', 'low'));
+  });
+
+  it('maps acceptance odds to a labelled, toned signal', () => {
+    expect(describeAcceptanceOdds('likely').tone).toBe('positive');
+    expect(describeAcceptanceOdds('even').tone).toBe('warning');
+    expect(describeAcceptanceOdds('long-shot').tone).toBe('blocked');
+    expect(describeAcceptanceOdds('likely').label).toMatch(/land them/i);
+    expect(describeAcceptanceOdds('no').label.length).toBeGreaterThan(0);
   });
 });

@@ -7,7 +7,9 @@ import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { actorMeetsCharacterGender, personMeetsCharacterAge } from '../../engine/casting';
 import { computeActorAppeal } from '../../engine/castingAppeal';
-import { candidateStrengthSignals, describeOfferRejection, describeCounterOffer, type CandidateSignal } from '../../engine/castingPresentation';
+import { estimateDeal } from '../../engine/castingEstimate';
+import { deriveFitReadAssist } from '../../engine/talentCardPresentation';
+import { candidateStrengthSignals, describeOfferRejection, describeCounterOffer, describeAskingEstimate, describeAcceptanceOdds, type CandidateSignal } from '../../engine/castingPresentation';
 import { playerRelationshipWith, type RelationshipStanding } from '../../engine/relationships';
 import { notableCastAffinity, type CastAffinity } from '../../engine/pairHistory';
 import { formatMoney } from '../common/Money';
@@ -78,6 +80,7 @@ function CandidateCard({
   character,
   totalDays,
   overall,
+  offeredSalary,
   channel,
   directorName,
   director,
@@ -101,6 +104,8 @@ function CandidateCard({
   character: ScriptCharacter;
   totalDays: number;
   overall: ReturnType<typeof computeActorAppeal>;
+  /** The player's current offer for this role - drives the pre-offer estimate (expected ask + odds) that updates as they move the slider. */
+  offeredSalary: number;
   channel?: CastingChannel;
   /** The attached director's name, so an "attachment" draw can say who (engine/castingPresentation.ts). */
   directorName?: string;
@@ -156,6 +161,15 @@ function CandidateCard({
   const countered = negotiation?.status === 'countered' && negotiation.counterSalary != null;
   const rejected = negotiation?.status === 'rejected';
 
+  // Pre-offer read (Casting Redesign, Phase 2 - uncertainty): before any offer's
+  // been made, estimate what they'll want and how this offer would land, banded
+  // by how readable they are and sharpened by a hired Casting Director / history
+  // (deriveFitReadAssist). Hidden once a negotiation is live - by then you have
+  // their real counter, not a guess. Updates as the salary slider moves.
+  const assist = deriveFitReadAssist(castingDirectorSkill, relationship, true);
+  const estimate = overall && !negotiation ? estimateDeal(overall, person, offeredSalary, assist, relationship) : null;
+  const oddsSignal = estimate ? describeAcceptanceOdds(estimate.odds) : null;
+
   return (
     <Card>
       <div className="card-title">{person.identity.name}</div>
@@ -169,6 +183,16 @@ function CandidateCard({
               {signal.label}
             </span>
           ))}
+        </div>
+      )}
+      {estimate && (
+        <div className="candidate-estimate">
+          <div className="candidate-estimate__ask">
+            {describeAskingEstimate(`${formatMoney(estimate.asking.low)}–${formatMoney(estimate.asking.high)}`, estimate.asking.confidence)}
+          </div>
+          {oddsSignal && (
+            <span className={`candidate-signal candidate-signal--${oddsSignal.tone}`}>{oddsSignal.label}</span>
+          )}
         </div>
       )}
       {countered && (
@@ -435,7 +459,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
       <div className="role-drawer stack" role="dialog" aria-label={`Cast ${character.name}`}>
         <div className="row-between">
           <div>
-            <h2 style={{ margin: 0 }}>Casting: {character.name}</h2>
+            <h2 style={{ margin: 0 }}>Who plays {character.name}?</h2>
             <p style={{ margin: '4px 0 0', color: 'var(--text-muted)' }}>
               {character.prominence} &middot; {CHARACTER_ARCHETYPE_LABELS[character.archetype]}
             </p>
@@ -552,6 +576,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                         character={character}
                         totalDays={state.totalDays}
                         overall={appealById.get(applicant.person.id) ?? null}
+                        offeredSalary={offeredSalary}
                         channel={applicant.channel}
                         directorName={directorName}
                         director={director}
@@ -602,6 +627,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                   character={character}
                   totalDays={state.totalDays}
                   overall={appealById.get(person.id) ?? null}
+                  offeredSalary={offeredSalary}
                   directorName={directorName}
                   affordable={isAffordable(person)}
                   actionLabel="Make Offer"

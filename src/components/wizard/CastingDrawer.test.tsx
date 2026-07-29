@@ -413,6 +413,24 @@ describe('CastingDrawer - candidate reasoning chips', () => {
     expect(within(affordableCard).getByRole('button', { name: 'Make Offer' })).toBeEnabled();
   });
 
+  it('shows a pre-offer read (expected ask + odds) on a candidate before any offer is made', () => {
+    const state = stateWithBelowFloorCandidate();
+    const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;
+    saveState(state);
+
+    render(
+      <StudioProvider>
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+    const card = screen.getByText('Ava Affordable').closest('.card') as HTMLElement;
+    // The estimate block renders, hedging the expected ask with one of its openers.
+    expect(card.querySelector('.candidate-estimate')).toBeTruthy();
+    expect(card.textContent).toMatch(/want|guess/i);
+  });
+
   it('shows a "Sought you out" chip for an applicant who reached out directly (InterestedTalent)', () => {
     const state = stateWithOpenCastingApplicant('InterestedTalent');
     const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;
