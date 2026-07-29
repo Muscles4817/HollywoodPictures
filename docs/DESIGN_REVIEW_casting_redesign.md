@@ -871,3 +871,42 @@ This phase is that consolidation, deliberately **not** new hidden math
 Pure and deterministic. This is the last of the eight brief points; with it the
 casting redesign's arc - produce a cast, under uncertainty, over time, advised -
 is complete.
+
+---
+
+## 21. Follow-up, Direct Approach as scouting (not a price window)
+
+A gap the seven phases left: Direct Approach still showed a list *filtered by the
+salary bar* - a price window around the target offer. That's backwards. The
+salary bar should say what you're willing to pay; it shouldn't decide who you're
+allowed to look at. And "everyone in a price band" is not how scouting works -
+you approach names you know, and knowing more obscure names is exactly what a
+Casting Director is for.
+
+This reframes Direct Approach as a scouting screen:
+
+- **The salary bar is only your offer.** `findCandidatesNearPrice` is gone from
+  this screen; the list no longer depends on the slider at all. The whole
+  eligible pool is the starting point, narrowed by the Phase 5 filters and sort.
+- **Fame gates who you can scout, a Casting Director lowers the gate.**
+  `engine/talentFilter.ts:directApproachFameFloor` returns the minimum fame to
+  appear: `DIRECT_APPROACH_FAMOUS_FLOOR` (45, "established and up") with no CD,
+  sliding down toward `DIRECT_APPROACH_HARD_FLOOR` with CD skill. Without a CD you
+  only reach genuinely famous names; hiring one surfaces progressively more
+  obscure talent.
+- **Hidden gems are casting-call-only.** The hard floor is pinned to
+  `DISCOVERY_FAME_CEILING + 1`, so actors at/below the casting-call discovery
+  ceiling (fame <= 25) never appear in Direct Approach no matter how good your CD
+  - the only way to turn one up is to hold a casting call, where the discovery
+  pick already surfaces exactly that pool. The two channels partition the pool on
+  one shared constant, with no gap or overlap.
+
+The screen tells the player where the edge is: a scouting note names the current
+reach and how many more actors sit beyond it (a CD would surface more; a call can
+find hidden gems), and a bounded list shows an honest "showing 40 of N - narrow
+with filters" rather than silently truncating. Actors already on the production
+stay visible regardless of fame, so you can always see and recast your own picks.
+
+Pure and deterministic; the fame floor is a single tunable function. This closes
+the "search should be player-driven, not price-driven" thread the redesign's
+discovery work (Phase 5) started.
