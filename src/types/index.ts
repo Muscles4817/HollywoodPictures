@@ -364,6 +364,14 @@ export interface CrewCareer<TRole extends CrewRole> extends RoleCareerCommon<TRo
    * quality dial.
    */
   philosophy?: CrewPhilosophy;
+  /**
+   * Workstream II, Addition #1 - per-specialty technical capability (WHAT this
+   * head is best at, distinct from `skill` = how good overall). Keys are the
+   * department's specialty ids (engine/crewSpecialty.ts). Optional authored
+   * override for marquee crew; when absent a stable per-person spiky profile is
+   * derived around `skill`. Feeds the crew fit-read only - never cost/scoring.
+   */
+  specialties?: Record<string, number>;
 }
 
 // Workstream II, Addition #1 - a creative head's creative philosophy. Two 0-1

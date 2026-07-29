@@ -28,10 +28,12 @@ export type FitConfidence = 'proven' | 'established' | 'unproven';
 
 /** A head's capability as this read consumes it. */
 export interface CrewCapability {
-  skill: number; // 0-100 technical capability
+  skill: number; // 0-100 technical capability (specialty-weighted for the film, when available)
   experience?: number; // 0-100; absent for the stunt team (no career track)
   /** false = the no-hire fallback skill (the gap the film faces with nobody attached). */
   hired: boolean;
+  /** Optional per-specialty note (Addition #1) appended to a hired head's detail. */
+  capabilityNote?: string;
 }
 
 export interface CrewFitRead {
@@ -132,6 +134,7 @@ export function deriveCrewFitRead(capability: CrewCapability, workload: Departme
   } else {
     headline = HIRED_HEADLINE[suitability];
     detail = hiredDetail({ suitability, demand, critical, departmentLabel });
+    if (capability.capabilityNote) detail += ` ${capability.capabilityNote}`;
     if (confidence === 'unproven') detail += ' Highly rated, but largely unproven.';
   }
 

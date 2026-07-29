@@ -17,6 +17,7 @@ import { NO_VFX_SUPERVISOR_SKILL } from '../engine/vfxFacet';
 import { NO_STUNT_TEAM_SKILL } from '../engine/practicalFacet';
 import { stuntTeamById, stuntTeamEffectiveSkill } from '../engine/stuntTeams';
 import { deriveDefaultStrategy } from '../engine/executionStrategy';
+import { crewSpecialtyCapability, specialtyWeightedCapability, isSpecialtyDepartment } from '../engine/crewSpecialty';
 import type { StuntTeam } from '../types';
 import { assignmentCost } from '../engine/person';
 
@@ -100,10 +101,21 @@ function crewSuitability(
   const head = attached.find((a) => a.role === role)?.person;
   const hired = head !== undefined;
   const career = head ? getCrewCareer(head, role as Parameters<typeof getCrewCareer>[1]) : null;
-  const skill = career?.skill ?? NO_HIRE_SKILL[department];
+  const overallSkill = career?.skill ?? NO_HIRE_SKILL[department];
   const workload = workloads.get(department);
   if (!workload) return unloadedDepartmentRead(department, hired);
-  return deriveCrewFitRead({ skill, experience: career?.experience, hired }, workload);
+
+  // Specialty-weighted capability (Addition #1): a hired head is read on the
+  // specialties this film actually demands, not their flat overall skill.
+  let skill = overallSkill;
+  let capabilityNote: string | undefined;
+  if (head && isSpecialtyDepartment(department)) {
+    const caps = crewSpecialtyCapability(head, role, department, overallSkill);
+    const weighted = specialtyWeightedCapability(caps, workload.contributions, overallSkill);
+    skill = weighted.skill;
+    capabilityNote = weighted.note;
+  }
+  return deriveCrewFitRead({ skill, experience: career?.experience, hired, capabilityNote }, workload);
 }
 
 export interface StaffingBoard {
