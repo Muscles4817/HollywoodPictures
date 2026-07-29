@@ -11,6 +11,12 @@ import {
   type RequirementProfile,
 } from '../../engine/requirementProfile';
 import { deriveDepartmentWorkloads, type DepartmentWorkload } from '../../engine/departmentWorkload';
+import {
+  deriveDefaultStrategy,
+  relevantStrategyAxes,
+  STRATEGY_AXIS_META,
+  type ExecutionStrategy,
+} from '../../engine/executionStrategy';
 import { Button } from '../common/Button';
 import { ScoreBar } from '../common/ScoreBar';
 import type { Genre, Script } from '../../types';
@@ -87,12 +93,21 @@ export function RequirementProfileInspector() {
   const rngRef = useRef(createRng(Date.now()));
   const [genre, setGenre] = useState<Genre>('Action');
   const [script, setScript] = useState<Script>(REFERENCE_SCRIPTS[0]);
+  // null = follow the script's lean-derived default; otherwise a chosen override.
+  const [strategyOverride, setStrategyOverride] = useState<Partial<ExecutionStrategy> | null>(null);
 
+  function chooseScript(s: Script) {
+    setScript(s);
+    setStrategyOverride(null); // a fresh script re-defaults its methods
+  }
   function rerollScript(forGenre: Genre = genre) {
-    setScript(generateScriptOptions(forGenre, rngRef.current, 1)[0]);
+    chooseScript(generateScriptOptions(forGenre, rngRef.current, 1)[0]);
   }
 
-  const profile = deriveRequirementProfile(script);
+  const defaultStrategy = deriveDefaultStrategy(script);
+  const strategy: ExecutionStrategy = { ...defaultStrategy, ...(strategyOverride ?? {}) };
+  const axes = relevantStrategyAxes(script);
+  const profile = deriveRequirementProfile(script, strategy);
   const workloads = deriveDepartmentWorkloads(profile);
 
   return (
@@ -125,7 +140,7 @@ export function RequirementProfileInspector() {
           value={script.id}
           onChange={(e) => {
             const found = REFERENCE_SCRIPTS.find((s) => s.id === e.target.value);
-            if (found) setScript(found);
+            if (found) chooseScript(found);
           }}
         >
           <option value="" disabled>
@@ -137,6 +152,31 @@ export function RequirementProfileInspector() {
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="card stack">
+        <div className="row-between">
+          <h2 style={{ margin: 0 }}>Execution strategy (Layer 2)</h2>
+          <span className="badge">{strategyOverride ? 'overridden' : 'lean default'}</span>
+        </div>
+        <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+          The producer's method choices - they re-route the requirements below and the department workloads.
+        </p>
+        <div className="row" style={{ flexWrap: 'wrap' }}>
+          {axes.map((axis) => (
+            <label key={axis} className="stack" style={{ gap: 2 }}>
+              <span className="stat-label" style={{ margin: 0 }}>{STRATEGY_AXIS_META[axis].label}</span>
+              <select
+                value={strategy[axis]}
+                onChange={(e) => setStrategyOverride({ ...strategy, [axis]: e.target.value })}
+              >
+                {STRATEGY_AXIS_META[axis].options.map((o) => (
+                  <option key={o.value} value={o.value} title={o.blurb}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
       </div>
 
       <div className="card stack">

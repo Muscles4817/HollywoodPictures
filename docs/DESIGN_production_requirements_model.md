@@ -442,6 +442,58 @@ shape change when heads gain specialties.
   hired-vs-unstaffed prose) + staffing-board seam tests (seam populated for the
   modelled heads, stronger head reads as more suitable).
 
-Not yet built: Layer 2 (Execution Strategy as first-class producer choices),
-Layer 4 (Department Simulation), the compatibility/workload hub sections, and the
-richer per-specialty crew capability model.
+**Layer 2 — Execution Strategy: SHIPPED (engine slice, calibration-safe).**
+`src/engine/executionStrategy.ts` lifts the production "how" out of the script's
+effects/environment lean into explicit, named METHOD axes:
+- `creatureMethod` (animatronic · hybrid · mostlyCG · fullyCG) and
+  `environmentMethod` (location · studioBuild · setExtension · virtualProduction ·
+  fullyDigital) — the two axes Layer 1 already forks on.
+- `deriveRequirementProfile(script, strategy?)` now takes an optional strategy:
+  when supplied, the chosen method drives the approach routing (a fully-CG
+  creature → `creatureAnimation`/VFX; an animatronic one →
+  `creatureEmbodiment`/Stunts+PD); when omitted, routing is inferred from the
+  lean exactly as before, so **unengaged play is byte-identical** and the whole
+  layer stays calibration-safe (strategy re-routes requirements → workload →
+  the non-scoring fit-reads, never cost or box office).
+- `deriveDefaultStrategy(script)` picks the discrete method closest to the
+  script's lean (what the UI pre-selects); `relevantStrategyAxes(script)` exposes
+  only the axes a film actually contains (creature axis only when a creature is
+  written).
+- Demonstrated in the Requirement Profile Inspector (method pickers re-derive the
+  profile and workloads live). Tests: `src/engine/executionStrategy.test.ts` —
+  the producer choice flips the creature's department; environment method drives
+  digital environments; no-strategy reproduces pre-Layer-2 behaviour.
+- **Deliberately only the two forked axes.** `destructionMethod` / `actionMethod`
+  join when the finer-taxonomy expansion splits those requirements by approach —
+  not shipped inert.
+
+Not yet built: **persisting a chosen strategy on the draft + surfacing the method
+axes as a live production-plan decision** (the immediate follow-up — this slice
+establishes the model and re-routing; nothing in live play reads a chosen
+strategy yet), Layer 4 (Department Simulation), the compatibility/workload hub
+sections, and the richer per-specialty crew capability model.
+
+## Script-model depth — an open roadmap question (raised, not yet scoped)
+
+Everything in Layers 1–3 *derives* structure by inferring from the existing
+`Script` fields (`genre / storyType / primarySetting / scale / toneProfile /
+complexity`, the coarse `ProductionRequirements`, and cast archetypes). There is
+**no planned phase that deepens the `Script` type's own authored content.** The
+planned depth work — the coarse→fine `ProductionRequirements` migration and the
+"finer-taxonomy expansion" (`DESIGN_production_crafts_and_crew.md` item #6) — all
+sits in the *derivation/requirements* layer on top of the script, not in the
+script itself.
+
+Concrete consequences of that gap, worth deciding deliberately:
+- **Creatures** register only via a `MonsterOrCreature` cast archetype, so a
+  creature that isn't a written cast member (Jaws' shark, Jurassic Park's
+  dinosaurs) reads as animals + VFX, not a creature requirement.
+- **Action** has no sub-types — swordplay, firearms, and hand-to-hand are one
+  `stunts` scalar; the `actionMethod` strategy axis waits on this.
+- No **per-scene / set-piece** granularity; magnitude/criticality are film-level.
+
+Decision to make when this becomes load-bearing: does the added depth come from
+**richer derivation** over existing fields (cheap, the current implicit plan) or
+from **genuinely authored** script content (per-scene beats, explicit set-pieces,
+creature/action sub-tags)? Not blocking — the layers above work on today's script
+— but it should be an explicit roadmap item rather than an implicit assumption.
