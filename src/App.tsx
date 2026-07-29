@@ -10,6 +10,7 @@ import { AwardsPage } from './components/AwardsPage';
 import { TalentDatabase } from './components/TalentDatabase';
 import { ReleaseCalendar } from './components/ReleaseCalendar';
 import { RecommendationInspector } from './components/dev/RecommendationInspector';
+import { RequirementProfileInspector } from './components/dev/RequirementProfileInspector';
 import { OutcomeInspector } from './components/dev/OutcomeInspector';
 import { RivalFinancesInspector } from './components/dev/RivalFinancesInspector';
 import { ProjectWorkspace } from './components/projectWorkspace/ProjectWorkspace';
@@ -420,6 +421,7 @@ function AppShell() {
       {devTool === 'recommendation' && <RecommendationInspector />}
       {devTool === 'outcome' && <OutcomeInspector />}
       {devTool === 'rival-finances' && <RivalFinancesInspector />}
+      {devTool === 'requirement-profile' && <RequirementProfileInspector />}
       {devTool === 'none' && renderScreen()}
     </>
   );

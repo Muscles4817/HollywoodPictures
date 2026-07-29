@@ -356,3 +356,38 @@ NARRATIVE REQUIREMENTS  ⇄  EXECUTION STRATEGY  ⇄  DEPARTMENT WORKLOAD  ⇄  
 2. **Crew fit-read floor** — Production Designer, VFX Supervisor, Stunt Coordinator.
 3. **Live Cast & Crew hub** — with the richer state from 1 and 2 available to
    surface.
+
+---
+
+## Implementation status
+
+**Layer 1 — Narrative Requirements: SHIPPED (scaffolding slice).**
+`src/engine/requirementProfile.ts` implements the mid-grained v1 leaf set (17
+leaves across the five categories) and `deriveRequirementProfile(script)`, a pure
+read of a script into the requirements actually present (magnitude above a floor),
+most-critical-first. Each leaf carries magnitude · frequency · complexity ·
+criticality (0-1) and its `permittedApproaches` — the Layer-1↔Layer-2 seam. The
+derivation reads existing script signals (coarse `ProductionRequirements`,
+setting/story/tone profiles, `effectsStrategy` / `environmentStrategy` leans,
+character `physicalDemand` / `transformationDemand`, `MonsterOrCreature` cast) —
+it does **not** yet replace the coarse `ProductionRequirements` (that reverse-view
+migration is deferred so this slice touches neither cost nor scoring; it is
+calibration-safe by construction).
+
+- The design's routing crux is realised: the **same** written creature routes to
+  `creatureEmbodiment` (practical) or `creatureAnimation` (CG) purely by the
+  production's practical-vs-digital lean, via steep routing gains.
+- Verified to separate the six target archetypes (grounded drama · period drama ·
+  action · creature horror · effects-heavy sci-fi · large-scale war) —
+  `src/engine/requirementProfile.test.ts`.
+- Read-only dev surface: **Requirement Profile Inspector**
+  (`src/components/dev/RequirementProfileInspector.tsx`), reachable from the dev
+  header, runs the derivation against generated and real reference scripts.
+- **Known data limitation:** creature leaves fire only when a cast character has
+  the `MonsterOrCreature` archetype; a creature that is not a written cast member
+  (Jaws' shark, Jurassic Park's dinosaurs) currently reads as animals + VFX. A
+  future content pass can promote non-cast creatures to a script-level signal.
+
+Not yet built: Layer 2 (Execution Strategy as first-class choices), Layer 3
+(Department Workload generalising the facet model), Layer 4 (Department
+Simulation), and the PD/VFX/Stunt fit-reads that consume this floor.
