@@ -100,3 +100,25 @@ describe('splitCastBudgetByImportance', () => {
     expect(after).toEqual(current);
   });
 });
+
+describe('splitCastBudgetByImportance - locked roles (Phase 1b)', () => {
+  const EMPTY2: Partial<Record<ProductionRole, number>> = {};
+
+  it('keeps a locked role at its current target and reserves it off the pot', () => {
+    const base = splitCastBudgetByImportance({ totalBudget: 10_000_000, talent: [], script: null, current: EMPTY2 });
+    // Lock the Director at a deliberately high figure, then re-split.
+    const pinned = { ...base, Director: 5_000_000 };
+    const relocked = splitCastBudgetByImportance({ totalBudget: 10_000_000, talent: [], script: null, current: pinned, locked: ['Director'] });
+    // Director is untouched...
+    expect(relocked['Director']).toBe(5_000_000);
+    // ...and the unlocked roles now share a smaller pool than when nothing was locked.
+    expect(relocked['Lead Actor']!).toBeLessThan(base['Lead Actor']!);
+  });
+
+  it('leaves every role untouched when all open roles are locked', () => {
+    const base = splitCastBudgetByImportance({ totalBudget: 10_000_000, talent: [], script: null, current: EMPTY2 });
+    const allRoles = Object.keys(base) as ProductionRole[];
+    const relocked = splitCastBudgetByImportance({ totalBudget: 10_000_000, talent: [], script: null, current: base, locked: allRoles });
+    expect(relocked).toEqual(base);
+  });
+});

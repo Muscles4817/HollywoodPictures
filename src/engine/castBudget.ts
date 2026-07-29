@@ -35,6 +35,8 @@ export interface CastBudgetSplitParams {
   script: Script | null;
   /** The current per-role targets - only unfilled mandatory roles are overwritten; everything else is preserved. */
   current: Partial<Record<ProductionRole, number>>;
+  /** Phase 1b - roles the player has locked: their allocation is reserved off the pot and never overwritten by the re-split, so the rest divide only what's left. */
+  locked?: ProductionRole[];
 }
 
 /**
@@ -57,6 +59,7 @@ export interface CastBudgetSplitParams {
  */
 export function splitCastBudgetByImportance(params: CastBudgetSplitParams): Partial<Record<ProductionRole, number>> {
   const { totalBudget, talent, script, current } = params;
+  const locked = new Set(params.locked ?? []);
 
   // What's already been committed to hires (their own quoted fees), across every
   // role - real money out of the same pot, so it comes off the top before the
@@ -64,25 +67,35 @@ export function splitCastBudgetByImportance(params: CastBudgetSplitParams): Part
   const spent = talent.reduce((sum, a) => sum + assignmentCost(a), 0);
   const remaining = Math.max(0, totalBudget - spent);
 
-  // Heads still to hire per mandatory role (max capacity minus who's already in),
-  // and the total importance weight across all of those open heads.
+  // Heads still to hire per mandatory role (max capacity minus who's already in).
   const openHeads: Partial<Record<ProductionRole, number>> = {};
-  let totalWeight = 0;
   for (const role of MANDATORY_TALENT_ROLES) {
     const hired = talent.filter((a) => a.role === role).length;
-    const open = Math.max(0, effectiveRoleCapacity(role, script).max - hired);
-    openHeads[role] = open;
-    totalWeight += open * ROLE_BUDGET_IMPORTANCE[role];
+    openHeads[role] = Math.max(0, effectiveRoleCapacity(role, script).max - hired);
   }
 
+  // Phase 1b - a locked role keeps its current target, and reserves that target
+  // per open head off the pot; only UNLOCKED open roles share what's left, and
+  // only they contribute weight. (Reserving £X for the director even when another
+  // role goes over.)
+  let reserved = 0;
+  let totalWeight = 0;
+  for (const role of MANDATORY_TALENT_ROLES) {
+    const open = openHeads[role] ?? 0;
+    if (open <= 0) continue;
+    if (locked.has(role)) reserved += (current[role] ?? 0) * open;
+    else totalWeight += open * ROLE_BUDGET_IMPORTANCE[role];
+  }
+  const pool = Math.max(0, remaining - reserved);
+
   const updated = { ...current };
-  if (totalWeight <= 0) return updated; // everyone mandatory is cast - nothing left to target.
+  if (totalWeight <= 0) return updated; // nothing unlocked left to target - locked keep their targets.
 
   for (const role of MANDATORY_TALENT_ROLES) {
-    if ((openHeads[role] ?? 0) <= 0) continue; // fully cast - leave its existing target alone.
+    if ((openHeads[role] ?? 0) <= 0 || locked.has(role)) continue; // cast or locked - leave its target alone.
     const range = ROLE_GENERATION_PROFILES[professionForProductionRole(role)].salaryRange;
-    // This role's per-head share of the remaining pot, weighted by importance.
-    const perHead = (remaining * ROLE_BUDGET_IMPORTANCE[role]) / totalWeight;
+    // This role's per-head share of the UNLOCKED pot, weighted by importance.
+    const perHead = (pool * ROLE_BUDGET_IMPORTANCE[role]) / totalWeight;
     updated[role] = clamp(perHead, range.min, range.max);
   }
   return updated;

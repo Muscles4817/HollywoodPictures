@@ -21,8 +21,8 @@ import { CompatibilityBadge } from '../common/CompatibilityBadge';
 import { RoleHiringDrawer } from './RoleHiringDrawer';
 import { CastingDrawer } from './CastingDrawer';
 import { findAssignedPerson } from '../../data/helpers';
-import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole } from '../../engine/person';
-import type { EffectsMethodKey, EnvironmentMethodKey, Person, ProductionRole, Script, ScriptCharacter } from '../../types';
+import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole, assignmentCost } from '../../engine/person';
+import type { EffectsMethodKey, EnvironmentMethodKey, FilmDraft, Person, ProductionRole, Script, ScriptCharacter } from '../../types';
 
 const MASTER_BUDGET_RANGE = { min: 300_000, max: 30_000_000 };
 const DEFAULT_MASTER_BUDGET = 3_000_000;
@@ -40,6 +40,62 @@ function tileHeadline(person: Person, role: ProductionRole, category: RoleCatego
   }
   if (category === 'actor') return `Fame ${person.reputation.fame}`;
   return career && 'skill' in career ? `Skill ${career.skill}` : '';
+}
+
+// Phase 1b - the budget allocation table: the visible, controllable face of the
+// auto-split (engine/castBudget.ts). Shows each role's planned allocation (its
+// per-head target x its head count), what's already committed to hires, and
+// what's left, with a lock per role. Locking reserves that allocation so the
+// auto-split leaves it alone and the rest divide what remains ("reserve £X for
+// the director even if another role goes over").
+function AllocationTable({ draft }: { draft: FilmDraft }) {
+  const { dispatch } = useStudio();
+  const locked = new Set(draft.lockedRoleBudgets ?? []);
+  const rows = MANDATORY_TALENT_ROLES.map((role) => {
+    const perHead = draft.talentTargetPriceByRole[role] ?? 0;
+    const capacity = effectiveRoleCapacity(role, draft.script).max;
+    const planned = perHead * capacity;
+    const committed = draft.talent.filter((a) => a.role === role).reduce((sum, a) => sum + assignmentCost(a), 0);
+    return { role, planned, committed, remaining: Math.max(0, planned - committed), isLocked: locked.has(role) };
+  });
+  const totalPlanned = rows.reduce((s, r) => s + r.planned, 0);
+  const totalCommitted = rows.reduce((s, r) => s + r.committed, 0);
+
+  return (
+    <div className="allocation-table">
+      <table>
+        <thead>
+          <tr><th>Role</th><th>Planned</th><th>Committed</th><th>Remaining</th><th aria-label="Lock" /></tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.role} className={r.isLocked ? 'allocation-row--locked' : undefined}>
+              <td>{r.role}</td>
+              <td><Money amount={r.planned} /></td>
+              <td><Money amount={r.committed} /></td>
+              <td><Money amount={r.remaining} /></td>
+              <td>
+                <button
+                  type="button"
+                  className="allocation-lock"
+                  aria-label={`${r.isLocked ? 'Unlock' : 'Lock'} ${r.role} budget`}
+                  aria-pressed={r.isLocked}
+                  title={r.isLocked ? 'Locked - this allocation is reserved; the auto-split leaves it alone' : 'Lock to reserve this allocation against the auto-split'}
+                  onClick={() => dispatch({ type: 'SET_ROLE_BUDGET_LOCK', role: r.role, locked: !r.isLocked })}
+                >
+                  {r.isLocked ? '🔒' : '🔓'}
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr><td>Total</td><td><Money amount={totalPlanned} /></td><td><Money amount={totalCommitted} /></td><td colSpan={2} /></tr>
+        </tfoot>
+      </table>
+      <p className="allocation-table__note">Planned splits your budget by how much each role carries the film; lock a role to keep its share when the rest rebalance.</p>
+    </div>
+  );
 }
 
 function RoleTile({ role, optional, onOpen }: { role: ProductionRole; optional: boolean; onOpen: () => void }) {
@@ -332,6 +388,8 @@ export function HireTalent() {
         lowLabel="Shoestring"
         highLabel="Big Budget"
       />
+
+      <AllocationTable draft={draft} />
 
       <div className="grid">
         <RoleTile role="Director" optional={false} onOpen={() => setOpenRole('Director')} />

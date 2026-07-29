@@ -2191,6 +2191,15 @@ export interface FilmDraft {
    * Absent leaves per-role dials fully manual. Optional/absent on older drafts.
    */
   castCrewBudget?: number;
+  /**
+   * Phase 1b - roles whose planned allocation the player has locked. A locked
+   * role keeps its target across re-splits (its allocation is reserved off the
+   * pot and the rest divide what's left), so "reserve £X for the director even if
+   * another role goes over" holds. Set implicitly when a role's target is edited
+   * by hand (SET_TALENT_TARGET_PRICE) and toggled from the allocation table
+   * (SET_ROLE_BUDGET_LOCK). Absent/[] = fully auto-split, as before.
+   */
+  lockedRoleBudgets?: ProductionRole[];
   /** Casting Redesign, Phase B - every Open Casting call in progress for this draft's Lead/Supporting characters, at most one per Character. Empty until the player opens one; ticks weekly via engine/castingCalls.ts:tickCastingCalls. */
   castingCalls: CastingCall[];
   /** Casting Redesign, Phase E - live money negotiations for this draft's characters, at most one per (character, actor). Empty/absent until the player makes an offer through the negotiation flow; a record is dropped the moment the actor signs or the player walks. Read as `[]` when absent (older drafts). */

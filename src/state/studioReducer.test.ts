@@ -1360,3 +1360,31 @@ describe('VIEW_IP_LIBRARY', () => {
     expect(after.screen).toBe('ip-library');
   });
 });
+
+describe('Phase 1b - lockable role budgets', () => {
+  function draftWithBudget(seed: number): GameState {
+    const { result: asset } = withRng(seed, (rng) => buildReadyAsset(rng));
+    let s = freshWorkspaceState(seed);
+    s = { ...s, studio: { ...s.studio, assets: [asset] } };
+    s = studioReducer(s, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
+    return studioReducer(s, { type: 'SET_TALENT_BUDGET_SPLIT', totalBudget: 10_000_000 });
+  }
+  const draftOf = (s: GameState) => asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
+
+  it('setting a role target by hand locks that role', () => {
+    const after = studioReducer(draftWithBudget(300), { type: 'SET_TALENT_TARGET_PRICE', role: 'Director', price: 4_000_000 });
+    const d = draftOf(after);
+    expect(d.talentTargetPriceByRole['Director']).toBe(4_000_000);
+    expect(d.lockedRoleBudgets).toContain('Director');
+  });
+
+  it('a locked role survives a re-split; unlocking returns it to the auto-split', () => {
+    let s = studioReducer(draftWithBudget(301), { type: 'SET_TALENT_TARGET_PRICE', role: 'Director', price: 4_000_000 });
+    s = studioReducer(s, { type: 'SET_TALENT_BUDGET_SPLIT', totalBudget: 20_000_000 }); // re-split
+    expect(draftOf(s).talentTargetPriceByRole['Director']).toBe(4_000_000); // locked -> untouched
+
+    s = studioReducer(s, { type: 'SET_ROLE_BUDGET_LOCK', role: 'Director', locked: false });
+    expect(draftOf(s).lockedRoleBudgets).not.toContain('Director');
+    expect(draftOf(s).talentTargetPriceByRole['Director']).not.toBe(4_000_000); // back on the auto-split
+  });
+});
