@@ -388,6 +388,32 @@ calibration-safe by construction).
   (Jaws' shark, Jurassic Park's dinosaurs) currently reads as animals + VFX. A
   future content pass can promote non-cast creatures to a script-level signal.
 
-Not yet built: Layer 2 (Execution Strategy as first-class choices), Layer 3
-(Department Workload generalising the facet model), Layer 4 (Department
-Simulation), and the PD/VFX/Stunt fit-reads that consume this floor.
+**Layer 3 — Department Workload: SHIPPED (scaffolding slice).**
+`src/engine/departmentWorkload.ts` implements `deriveDepartmentWorkloads(profile)`
+— how hard the production is for each modelled department, DERIVED from the Layer
+1 profile rather than decided per department. Modelled departments are the
+fit-read floor: **Production Design · VFX · Stunts** (the three with existing
+facets). A static `leaf → { department: weight }` routing table aggregates each
+department's routed requirements into a saturating `magnitude` (1 − e^−load) plus
+load-weighted `complexity` / `criticality`, `contributions`, and
+`dominantRequirements`. Returns only departments the film actually loads, most
+first.
+
+- Generalises the per-facet ambition functions (`computeSetsAmbition` /
+  `computeVfxAmbition` / `computePracticalAmbition`) but does **not** replace them
+  — nothing here feeds cost or scoring, so it stays calibration-safe. Wiring it
+  back into the facet ambition inputs is a later, gated step.
+- The routing crux carries through from Layer 1: a **practical** creature loads
+  Stunts + Production Design; the **same** creature realised digitally loads VFX —
+  because Layer 1 already split the approach fork into different leaves, routing is
+  a static map. Verified in `src/engine/departmentWorkload.test.ts` (period → PD,
+  action → Stunts, sci-fi → VFX, war → all three, and the creature flip).
+- Surfaced read-only in the Requirement Profile Inspector (department-workload
+  panel beneath the requirement categories).
+- **Coverage gap (explicit):** requirements owned by as-yet-unmodelled departments
+  (Costume, Makeup, Assistant Director / crowd logistics, animal unit) are left
+  UNROUTED rather than misassigned. They join when those departments are modelled.
+
+Not yet built: Layer 2 (Execution Strategy as first-class producer choices),
+Layer 4 (Department Simulation), and the PD/VFX/Stunt fit-reads that read this
+workload floor (the next slice).

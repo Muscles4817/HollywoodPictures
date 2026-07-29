@@ -10,6 +10,7 @@ import {
   type RequirementCategory,
   type RequirementProfile,
 } from '../../engine/requirementProfile';
+import { deriveDepartmentWorkloads, type DepartmentWorkload } from '../../engine/departmentWorkload';
 import { Button } from '../common/Button';
 import { ScoreBar } from '../common/ScoreBar';
 import type { Genre, Script } from '../../types';
@@ -54,6 +55,34 @@ function LeafRow({ profile, category }: { profile: RequirementProfile; category:
   );
 }
 
+function DepartmentWorkloadPanel({ workloads }: { workloads: DepartmentWorkload[] }) {
+  return (
+    <div className="card stack">
+      <h2 style={{ margin: 0 }}>Department workload (Layer 3)</h2>
+      <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+        Derived from the requirements above, routed by approach. The fit-read floor reads this.
+      </p>
+      {workloads.length === 0 ? (
+        <p style={{ margin: 0 }}>No modelled department is meaningfully loaded.</p>
+      ) : (
+        <div className="row" style={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          {workloads.map((w) => (
+            <div key={w.department} className="card stack" style={{ flex: 1, minWidth: 240 }}>
+              <h3 style={{ margin: 0 }}>{w.label}</h3>
+              <ScoreBar label="load" value={w.magnitude * 100} />
+              <ScoreBar label="complexity" value={w.complexity * 100} />
+              <ScoreBar label="criticality" value={w.criticality * 100} />
+              <div style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+                {w.contributions.map((c) => `${c.label} (${Math.round(c.load * 100)})`).join(' · ')}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function RequirementProfileInspector() {
   const rngRef = useRef(createRng(Date.now()));
   const [genre, setGenre] = useState<Genre>('Action');
@@ -64,6 +93,7 @@ export function RequirementProfileInspector() {
   }
 
   const profile = deriveRequirementProfile(script);
+  const workloads = deriveDepartmentWorkloads(profile);
 
   return (
     <div className="stack">
@@ -123,11 +153,14 @@ export function RequirementProfileInspector() {
       {profile.length === 0 ? (
         <div className="card">No significant production requirements.</div>
       ) : (
-        <div className="row" style={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
-          {CATEGORY_ORDER.map((c) => (
-            <LeafRow key={c.key} profile={profile} category={c.key} />
-          ))}
-        </div>
+        <>
+          <div className="row" style={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            {CATEGORY_ORDER.map((c) => (
+              <LeafRow key={c.key} profile={profile} category={c.key} />
+            ))}
+          </div>
+          <DepartmentWorkloadPanel workloads={workloads} />
+        </>
       )}
     </div>
   );
