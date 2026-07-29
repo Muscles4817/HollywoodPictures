@@ -383,7 +383,7 @@ describe('CastingDrawer - waiting for a booked actor (Phase 6)', () => {
     expect(screen.getByText(/Shoot delayed/)).toBeInTheDocument();
     const bellaAfter = screen.getByText('Bella Booked').closest('.card') as HTMLElement;
     expect(within(bellaAfter).queryByRole('button', { name: /Wait for them/ })).not.toBeInTheDocument();
-    expect(within(bellaAfter).getByRole('button', { name: 'Make Offer' })).toBeEnabled();
+    expect(within(bellaAfter).getByRole('button', { name: /Make Offer/ })).toBeEnabled();
 
     // Resetting the delay puts the wait decision back.
     fireEvent.click(screen.getByRole('button', { name: 'Start as soon as cast' }));
@@ -432,8 +432,8 @@ describe('CastingDrawer - "Available now only" filter', () => {
     const freeCard = screen.getByText('Fiona Free').closest('.card') as HTMLElement;
     const bookedCard = screen.getByText('Bella Booked').closest('.card') as HTMLElement;
     // The free actor can be offered; the booked one's Make Offer is disabled.
-    expect(within(freeCard).getByRole('button', { name: 'Make Offer' })).toBeEnabled();
-    expect(within(bookedCard).getByRole('button', { name: 'Make Offer' })).toBeDisabled();
+    expect(within(freeCard).getByRole('button', { name: /Make Offer/ })).toBeEnabled();
+    expect(within(bookedCard).getByRole('button', { name: /Make Offer/ })).toBeDisabled();
     // And the card explains why, without promising a delayed hire.
     expect(within(bookedCard).getByText(/You can't cast them until then/)).toBeInTheDocument();
   });
@@ -496,10 +496,10 @@ describe('CastingDrawer - candidate reasoning chips', () => {
     // The below-floor actor: a heads-up chip, but the offer is still actionable -
     // under negotiation a below-floor offer draws a counter rather than a wall.
     expect(within(priceyCard).getByText('Below their floor')).toBeInTheDocument();
-    expect(within(priceyCard).getByRole('button', { name: 'Make Offer' })).toBeEnabled();
+    expect(within(priceyCard).getByRole('button', { name: /Make Offer/ })).toBeEnabled();
     // The at-offer actor carries no such heads-up and can be offered.
     expect(within(affordableCard).queryByText('Below their floor')).not.toBeInTheDocument();
-    expect(within(affordableCard).getByRole('button', { name: 'Make Offer' })).toBeEnabled();
+    expect(within(affordableCard).getByRole('button', { name: /Make Offer/ })).toBeEnabled();
   });
 
   it('shows a pre-offer read (expected ask + odds) on a candidate before any offer is made', () => {
@@ -540,7 +540,7 @@ describe('CastingDrawer - candidate reasoning chips', () => {
     // The Shortlist tab now carries a count, and shows the shortlisted candidate.
     fireEvent.click(screen.getByRole('button', { name: 'Shortlist (1)' }));
     const shortlistCard = screen.getByText('Ava Affordable').closest('.card') as HTMLElement;
-    expect(within(shortlistCard).getByRole('button', { name: 'Make Offer' })).toBeInTheDocument();
+    expect(within(shortlistCard).getByRole('button', { name: /Make Offer/ })).toBeInTheDocument();
     expect(within(shortlistCard).getByRole('button', { name: '★ Shortlisted' })).toBeInTheDocument();
   });
 
@@ -708,5 +708,34 @@ describe('CastingDrawer - Direct Approach gender filter', () => {
     expect(screen.getByText('Fran Female')).toBeInTheDocument();
     expect(screen.queryByText('Marcus Male')).not.toBeInTheDocument();
     expect(screen.queryByText('Martin Male')).not.toBeInTheDocument();
+  });
+});
+
+describe('CastingDrawer - per-candidate offers (Phase 1a)', () => {
+  it('gives each candidate its own offer, independent of the others, and relabels the role slider as advertised', () => {
+    const state = withRng(7, (rng) => {
+      const studio = createInitialStudio(50_000_000);
+      const talentPool = generateTalentPool(rng);
+      const base = generateTalentCandidates('Actor', rng, 1)[0];
+      talentPool.Actor = [femaleActor(base, 'Alpha Actor', 5_000_000), femaleActor(base, 'Beta Actor', 5_000_000)];
+      return wrapState(studio, talentPool, draftWithActors(rng, 5_000_000));
+    }).result;
+    renderDrawer(state);
+
+    // The role slider is now the advertised budget, not "the offer".
+    expect(screen.getByLabelText('Advertised Salary for this Role')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+    const alpha = screen.getByText('Alpha Actor').closest('.card') as HTMLElement;
+    const beta = screen.getByText('Beta Actor').closest('.card') as HTMLElement;
+    const offerButton = (card: HTMLElement) => within(card).getByRole('button', { name: /Make Offer/ });
+
+    // Both start at the same advertised default.
+    expect(offerButton(alpha).textContent).toBe(offerButton(beta).textContent);
+
+    // Raise Alpha's own offer to the top of the range - Beta's is untouched.
+    const alphaOffer = within(alpha).getByLabelText('Your offer') as HTMLInputElement;
+    fireEvent.change(alphaOffer, { target: { value: alphaOffer.max } });
+    expect(offerButton(alpha).textContent).not.toBe(offerButton(beta).textContent);
   });
 });

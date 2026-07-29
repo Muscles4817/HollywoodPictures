@@ -1190,6 +1190,12 @@ textarea, input, select {
 }
 
 /* Casting Redesign, Phase 2 - the pre-offer read (expected ask + odds). */
+/* Casting, Phase 1a - the per-candidate offer control on a card. */
+.candidate-offer {
+  margin-top: 8px;
+  font-size: 0.9em;
+}
+
 .candidate-estimate {
   display: flex;
   flex-wrap: wrap;
