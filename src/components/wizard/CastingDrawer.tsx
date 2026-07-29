@@ -128,13 +128,14 @@ function CandidateCard({
   character,
   totalDays,
   overall,
-  offeredSalary,
+  advertisedSalary,
+  salaryRange,
   channel,
   directorName,
   director,
   affordable,
   actionLabel,
-  onAct,
+  onMakeOffer,
   pinned,
   pinCapped,
   onTogglePin,
@@ -161,8 +162,10 @@ function CandidateCard({
   character: ScriptCharacter;
   totalDays: number;
   overall: ReturnType<typeof computeActorAppeal>;
-  /** The player's current offer for this role - drives the pre-offer estimate (expected ask + odds) that updates as they move the slider. */
-  offeredSalary: number;
+  /** The role's advertised salary (planned allocation / what shapes Open Casting) - the default this candidate's own offer starts from. Not the fee: that's the per-candidate offer below. */
+  advertisedSalary: number;
+  /** The salary range for this role, so the per-candidate offer control has sensible bounds. */
+  salaryRange: { min: number; max: number };
   channel?: CastingChannel;
   /** The attached director's name, so an "attachment" draw can say who (engine/castingPresentation.ts). */
   directorName?: string;
@@ -177,7 +180,8 @@ function CandidateCard({
   /** The candidate's most notable chemistry with someone already on the cast (engine/pairHistory.ts), or null. */
   castAffinity: CastAffinity | null;
   actionLabel: string;
-  onAct: () => void;
+  /** Make this candidate's offer at the given amount (Phase 1a - the per-candidate offer, not the advertised default). */
+  onMakeOffer: (amount: number) => void;
   pinned: boolean;
   pinCapped: boolean;
   onTogglePin: () => void;
@@ -215,9 +219,22 @@ function CandidateCard({
   // today - so waiting for a booked actor (which pushes the start) genuinely
   // clears the gate. The appeal's schedule is computed at plannedStartDay, so
   // read it straight from there; fall back to today only when there's no appeal.
+  // Phase 1a: this candidate's own offer. The top slider sets the role's
+  // ADVERTISED salary (shapes Open Casting, the default here); the actual fee you
+  // put to THIS actor is set per-candidate, so two shortlisted contenders can
+  // carry different offers. Defaults to their live counter if they've countered
+  // (so a re-offer starts at the ask), else the advertised salary; re-baselines
+  // when either changes.
+  const counterSalary = negotiation?.status === 'countered' ? negotiation.counterSalary : undefined;
+  const defaultOffer = counterSalary ?? advertisedSalary;
+  const [offer, setOffer] = useState(defaultOffer);
+  useEffect(() => { setOffer(defaultOffer); }, [defaultOffer]);
+
   const sched = overall?.schedule ?? null;
   const available = sched ? sched.status === 'available' : isAvailableImmediately(person, totalDays);
-  const belowFloor = overall?.belowSalaryFloor ?? false;
+  // Below-floor now reads against THIS candidate's offer, not the advertised
+  // default (effectiveMinimum is offer-independent, so this is exact).
+  const belowFloor = overall ? offer < overall.effectiveMinimum : false;
   const offerBlocked = !available;
 
   // The candidate's reasoning, both directions, as scannable chips: the
@@ -243,7 +260,7 @@ function CandidateCard({
   // (deriveFitReadAssist). Hidden once a negotiation is live - by then you have
   // their real counter, not a guess. Updates as the salary slider moves.
   const assist = deriveFitReadAssist(castingDirectorSkill, relationship, true, audited);
-  const deal = overall ? estimateDeal(overall, person, offeredSalary, assist, relationship) : null;
+  const deal = overall ? estimateDeal(overall, person, offer, assist, relationship) : null;
   const estimate = deal && !negotiation ? deal : null; // the pre-offer read is hidden once a negotiation is live
   const oddsSignal = estimate ? describeAcceptanceOdds(estimate.odds) : null;
 
@@ -286,6 +303,20 @@ function CandidateCard({
           ) : null}
         </div>
       )}
+      {!offerBlocked && (
+        <div className="candidate-offer">
+          <RangeSlider
+            label="Your offer"
+            min={salaryRange.min}
+            max={salaryRange.max}
+            logScale
+            value={offer}
+            onChange={setOffer}
+            formatValue={formatMoney}
+            description="What you'll put to this actor - independent of other candidates."
+          />
+        </div>
+      )}
       {estimate && (
         <div className="candidate-estimate">
           <div className="candidate-estimate__ask">
@@ -315,11 +346,11 @@ function CandidateCard({
         <Button
           variant={countered ? 'secondary' : 'primary'}
           className="btn-sm"
-          onClick={onAct}
+          onClick={() => onMakeOffer(offer)}
           disabled={offerBlocked}
           title={blockedTitle}
         >
-          {countered || rejected ? 'Re-offer' : actionLabel}
+          {countered || rejected ? `Re-offer ${formatMoney(offer)}` : `${actionLabel} ${formatMoney(offer)}`}
         </Button>
         {negotiation && (
           <Button variant="secondary" className="btn-sm" onClick={onWalkAway}>
@@ -434,7 +465,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   const isAffordable = (person: Person) => getTypicalSalaryForRole(person, role) <= remainingBudget;
 
   const range = ROLE_GENERATION_PROFILES[professionForProductionRole(role)].salaryRange;
-  const offeredSalary = draft.talentTargetPriceByRole[role] ?? logAmount(0.5, range);
+  const advertisedSalary = draft.talentTargetPriceByRole[role] ?? logAmount(0.5, range);
   const rejectionCount = call?.rejectionCount ?? 0;
 
   // Talent Relationship History (engine/relationships.ts) - the studio's
@@ -453,7 +484,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
 
   function appealFor(person: Person) {
     return draft.script
-      ? computeActorAppeal(person, character, draft.script, state.studio, director, draft.talent, offeredSalary, plannedStartDay, relationshipFor(person))
+      ? computeActorAppeal(person, character, draft.script, state.studio, director, draft.talent, advertisedSalary, plannedStartDay, relationshipFor(person))
       : null;
   }
 
@@ -467,7 +498,10 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   const auditionFor = (person: Person) => (draft.auditions ?? []).find((a) => a.characterId === character.id && a.personId === person.id) ?? null;
 
   /** Make (or raise) an offer at the current target salary - the reducer rolls/reuses the actor's asking price and resolves accept/counter/reject (engine/castingNegotiation.ts). */
-  function makeOffer(person: Person) {
+  // Phase 1a: the offer is candidate-specific now, passed from the card's own
+  // control (defaulting to the role's advertised salary). The top slider sets the
+  // advertised budget, not the fee any one actor is offered.
+  function makeOffer(person: Person, offeredSalary: number) {
     setPendingOfferId(person.id);
     dispatch({ type: 'MAKE_OFFER', characterId: character.id, role, person, offeredSalary });
   }
@@ -553,7 +587,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
     const audited = !!audition && state.totalDays >= audition.readyOnDay;
     const relationship = relationshipFor(person);
     const assist = deriveFitReadAssist(castingDirectorSkill, relationship, true, audited);
-    const deal = estimateDeal(appeal, person, offeredSalary, assist, relationship);
+    const deal = estimateDeal(appeal, person, advertisedSalary, assist, relationship);
     const fitScore = deriveOverallScore(person, role, 'actor', draft.script, character);
     if (fitScore === null || !deal) return null;
     const fitRead = deriveFitRead(fitScore, person, assist);
@@ -630,7 +664,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         affordable: isAffordable(person),
         actionLabel: 'Make Offer',
         actionDisabled: offerBlockedFor(person),
-        onAct: () => makeOffer(person),
+        onAct: () => makeOffer(person, advertisedSalary),
         onUnpin: () => pins.toggle(person.id),
         castingDirectorSkill,
         castingDirectorTake: castingDirectorTakeFor(person),
@@ -665,13 +699,14 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         character={character}
         totalDays={state.totalDays}
         overall={appeal}
-        offeredSalary={offeredSalary}
+        advertisedSalary={advertisedSalary}
+        salaryRange={range}
         channel={opts.channel}
         directorName={directorName}
         director={director}
         affordable={isAffordable(person)}
         actionLabel="Make Offer"
-        onAct={() => makeOffer(person)}
+        onMakeOffer={(amount) => makeOffer(person, amount)}
         negotiation={negotiationFor(person)}
         onAcceptCounter={() => acceptCounter(person)}
         onWalkAway={() => walkAway(person)}
@@ -727,14 +762,14 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         )}
 
         <RangeSlider
-          label="Target Salary for this Role"
+          label="Advertised Salary for this Role"
           min={range.min}
           max={range.max}
           logScale
-          value={offeredSalary}
+          value={advertisedSalary}
           onChange={(price) => dispatch({ type: 'SET_TALENT_TARGET_PRICE', role, price })}
           formatValue={formatMoney}
-          description="Your offer for this role - it shapes who applies to Open Casting, and it's what each actor weighs when you make them an offer. They may accept, counter for more, or pass; the fee you finally agree is what you pay."
+          description="The budget you're advertising for this role - it shapes who applies to Open Casting and sets the default for each candidate's offer. It is not the fee: you set (and can vary) the actual offer per candidate below, and the amount you finally agree is what you pay."
           lowLabel="Cheap"
           highLabel="Star Power"
         />
