@@ -837,3 +837,37 @@ RNG; `plannedStartDay` flows through the existing appeal gate untouched.
 **Deferred:** feeding `plannedStartOffsetDays` into the actual production start
 at greenlight (today it scopes the casting-time schedule read), and a "move the
 shoot earlier than an actor needs" negotiation - both build on the same offset.
+
+---
+
+## 20. Phase 7, Casting Director depth - the "Casting Director's take"
+
+The brief's point 8 asks the Casting Director to do more: recommend candidates,
+estimate salary and acceptance odds, raise confidence, surface hidden gems. By
+this point in the redesign almost all of that already exists, threaded through
+earlier phases - a hired CD sharpens the fit read and price estimate (Phase 2),
+speeds up auditions (Phase 4), and widens/curates Open Casting plus firms up its
+forecast (Phase 5). What was missing was the CD speaking in ONE voice.
+
+This phase is that consolidation, deliberately **not** new hidden math
+(`engine/castingDirectorAdvice.ts`):
+
+- **`deriveCastingDirectorTake`** synthesises the reads the card already computes
+  - perceived fit, acceptance odds, risk tier, affordability, and the fit
+  breakdown's strengths/caveat - into a single **recommendation**
+  (`strong-yes` / `worth-it` / `reach` / `pass`) with its **reasons** and a
+  **confidence** tier. The reasons lead with the fit strengths, then the decisive
+  blockers (volatile, over budget) ahead of the softer odds read, so a trimmed
+  list still keeps the dealbreakers.
+- **It is CD-gated.** With nobody hired the take is `null` - there's no one to
+  give a read - so the advisory is a concrete thing you *unlock* by hiring a
+  Casting Director, and its confidence is only ever as sharp as their skill. That
+  is the cleanest possible expression of "another reason to hire one."
+- **UI:** a tinted "Casting director's take" callout on each candidate card,
+  present only when a CD is on the production. It reuses the very same
+  `deriveFitRead` / `estimateDeal` / `deriveRiskRead` the rest of the card shows,
+  so the advisory can never contradict the reads above it.
+
+Pure and deterministic. This is the last of the eight brief points; with it the
+casting redesign's arc - produce a cast, under uncertainty, over time, advised -
+is complete.

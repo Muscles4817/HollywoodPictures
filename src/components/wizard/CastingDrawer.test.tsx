@@ -51,6 +51,20 @@ function femaleActor(base: Person, name: string, salary: number): Person {
   };
 }
 
+/** A hired Casting Director (crew) for the draft's talent - unlocks the Phase 7 "Casting Director's take". */
+function castingDirectorPerson(skill: number): Person {
+  return {
+    id: 'cd-casey',
+    identity: { name: 'Casey Director', appearanceTags: [], gender: 'Female' },
+    personality: { professionalism: 60, ambition: 50, loyalty: 50, ego: 40, temperament: 60, pressureHandling: 60, controversy: 20, adaptability: 60 },
+    reputation: { fame: 20, prestige: 55, industryRespect: 60, reliability: 70, currentHeat: 20 },
+    availability: { commitments: [] },
+    traits: [],
+    primaryRole: 'Casting Director',
+    careers: { castingDirector: { role: 'Casting Director', active: true, experience: 60, roleReputation: 60, minimumSalary: 100_000, typicalSalary: 300_000, skill } },
+  } as unknown as Person;
+}
+
 /** A Female-lead, no-talent draft at the given offered salary (the pool is set on talentPool.Actor by the caller). */
 function draftWithActors(rng: Parameters<typeof buildReadyDraft>[0], offered: number, extras: Partial<Parameters<typeof playerDraftToProject>[0]> = {}) {
   const readyDraft = buildReadyDraft(rng);
@@ -519,6 +533,24 @@ describe('CastingDrawer - candidate reasoning chips', () => {
     // Back to women - they return.
     fireEvent.change(screen.getByLabelText('Filter by gender'), { target: { value: 'Female' } });
     expect(screen.getByText('Ava Affordable')).toBeInTheDocument();
+  });
+
+it("shows the Casting Director's take on a candidate once a casting director is hired", () => {
+    const state = stateWithBelowFloorCandidate();
+    const proj = state.projects[0];
+    if (proj && 'draft' in proj) proj.draft.talent = [{ person: castingDirectorPerson(85), role: 'Casting Director' } as unknown as (typeof proj.draft.talent)[number]];
+    const character = proj && 'draft' in proj ? proj.draft.script!.cast[0] : null;
+    saveState(state);
+
+    render(
+      <StudioProvider>
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+    const card = screen.getByText('Ava Affordable').closest('.card') as HTMLElement;
+    expect(within(card).getByText(/Casting director.s take/i)).toBeInTheDocument();
   });
 
   it('arranges a screen test from a candidate card and shows it in progress', () => {
