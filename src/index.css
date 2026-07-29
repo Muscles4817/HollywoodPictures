@@ -1202,6 +1202,30 @@ textarea, input, select {
   color: var(--text-muted);
 }
 
+/* Casting Redesign, Phase 6 - the wait-for-a-booked-actor strip on a card, and
+   the production-level "shoot delayed" banner. */
+.candidate-schedule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 8px;
+  font-size: 0.85em;
+}
+.candidate-schedule__note { color: var(--amber, #b8860b); }
+.candidate-schedule__ripple { color: var(--text-muted); }
+.casting-schedule-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--amber, #b8860b) 12%, transparent);
+  font-size: 0.9em;
+}
+
 /* Casting Redesign, Phase 5 - the pre-open Open Casting forecast. */
 .casting-forecast {
   display: flex;

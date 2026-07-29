@@ -219,3 +219,18 @@ describe('REQUEST_AUDITION', () => {
     expect((draftOf(again).auditions ?? []).filter((a) => a.personId === actor.id)).toHaveLength(1);
   });
 });
+
+describe('SET_SHOOT_DELAY', () => {
+  it('pushes the planned shoot start, clamps negatives to zero, and no-ops when unchanged', () => {
+    const { state } = uncastState(40);
+    const delayed = studioReducer(state, { type: 'SET_SHOOT_DELAY', offsetDays: 30 });
+    expect(draftOf(delayed).plannedStartOffsetDays).toBe(30);
+
+    // From a delayed state, a negative offset clamps back to 0.
+    const clamped = studioReducer(delayed, { type: 'SET_SHOOT_DELAY', offsetDays: -5 });
+    expect(draftOf(clamped).plannedStartOffsetDays).toBe(0);
+
+    const again = studioReducer(delayed, { type: 'SET_SHOOT_DELAY', offsetDays: 30 });
+    expect(again).toBe(delayed); // unchanged -> same reference
+  });
+});

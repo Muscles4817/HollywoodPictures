@@ -6,7 +6,7 @@ import { ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
 import { logAmount } from '../../engine/interpolate';
 import { findCandidatesNearPrice } from '../../engine/talentFilter';
 import { actorMeetsCharacterGender, personMeetsCharacterAge } from '../../engine/casting';
-import { computeActorAppeal } from '../../engine/castingAppeal';
+import { computeActorAppeal, countActorsFreedByDelay } from '../../engine/castingAppeal';
 import { estimateDeal } from '../../engine/castingEstimate';
 import { deriveFitReadAssist } from '../../engine/talentCardPresentation';
 import { candidateStrengthSignals, describeOfferRejection, describeCounterOffer, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast, type CandidateSignal } from '../../engine/castingPresentation';
@@ -145,6 +145,8 @@ function CandidateCard({
   auditioning,
   auditionReadyInDays,
   onAudition,
+  onWaitForActor,
+  waitAlsoFrees,
   castingDirectorSkill,
   relationship,
   castAffinity,
@@ -194,13 +196,21 @@ function CandidateCard({
   auditioning?: boolean;
   auditionReadyInDays?: number;
   onAudition?: () => void;
+  /** Casting Redesign, Phase 6 - wait for a booked actor: pushes the shoot start to free them. waitAlsoFrees is how many other candidates the same delay would free (the ripple). */
+  onWaitForActor?: () => void;
+  waitAlsoFrees?: number;
 }) {
   // A booked actor can't be cast today - the schedule gate is a hard rejection
   // (engine/castingNegotiation.ts) no offer can clear, so disable and say so.
   // A below-floor offer is NOT blocked any more: under negotiation the actor
   // simply counters (or, if it's insulting, passes), which is a useful outcome
   // to let the player provoke rather than a dead end.
-  const available = isAvailableImmediately(person, totalDays);
+  // Availability is read against the PLANNED shoot start (Phase 6), not just
+  // today - so waiting for a booked actor (which pushes the start) genuinely
+  // clears the gate. The appeal's schedule is computed at plannedStartDay, so
+  // read it straight from there; fall back to today only when there's no appeal.
+  const sched = overall?.schedule ?? null;
+  const available = sched ? sched.status === 'available' : isAvailableImmediately(person, totalDays);
   const belowFloor = overall?.belowSalaryFloor ?? false;
   const offerBlocked = !available;
 
@@ -216,7 +226,7 @@ function CandidateCard({
   if (overall) signals.push(...candidateStrengthSignals(overall, directorName));
   if (belowFloor && !negotiation) signals.push({ label: 'Below their floor', tone: 'blocked' });
 
-  const blockedTitle = !available ? 'Booked elsewhere - unavailable until their commitments clear.' : undefined;
+  const blockedTitle = !available ? 'Booked elsewhere - wait for them (below) to push your shoot, or pick someone free now.' : undefined;
 
   const countered = negotiation?.status === 'countered' && negotiation.counterSalary != null;
   const rejected = negotiation?.status === 'rejected';
@@ -243,6 +253,19 @@ function CandidateCard({
               {signal.label}
             </span>
           ))}
+        </div>
+      )}
+      {sched && sched.status !== 'available' && onWaitForActor && (
+        <div className="candidate-schedule">
+          <span className="candidate-schedule__note">
+            Booked - free in {sched.delayDays} day{sched.delayDays === 1 ? '' : 's'}.
+          </span>
+          <Button variant="secondary" className="btn-sm" onClick={onWaitForActor}>
+            Wait for them (+{sched.delayDays}d)
+          </Button>
+          {waitAlsoFrees ? (
+            <span className="candidate-schedule__ripple">The same delay also frees {waitAlsoFrees} other candidate{waitAlsoFrees === 1 ? '' : 's'}.</span>
+          ) : null}
         </div>
       )}
       {estimate && (
@@ -403,9 +426,16 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   const relationshipFor = (person: Person) => playerRelationshipWith(state.collaborations ?? [], person);
   const castAffinityFor = (person: Person) => notableCastAffinity(person, role, draft.talent, state.talentPairings ?? []);
 
+  // The planned shoot start (Phase 6): today, pushed out by any delay the player
+  // has taken to wait for a booked actor. Every schedule read - the appeal gate,
+  // the availability filters, the cards - measures against THIS, so waiting
+  // genuinely opens up who can be cast.
+  const plannedStartOffset = draft.plannedStartOffsetDays ?? 0;
+  const plannedStartDay = state.totalDays + plannedStartOffset;
+
   function appealFor(person: Person) {
     return draft.script
-      ? computeActorAppeal(person, character, draft.script, state.studio, director, draft.talent, offeredSalary, state.totalDays, relationshipFor(person))
+      ? computeActorAppeal(person, character, draft.script, state.studio, director, draft.talent, offeredSalary, plannedStartDay, relationshipFor(person))
       : null;
   }
 
@@ -498,7 +528,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
     // Anyone already on this production is never filtered out - you must always
     // be able to see (and recast) who you've picked.
     if (onDraft) return true;
-    if (availableOnly && !isAvailableImmediately(person, state.totalDays)) return false;
+    if (availableOnly && !isAvailableImmediately(person, plannedStartDay)) return false;
     if (affordableOnly && !isAffordable(person)) return false;
     if (genderPick !== 'any' && person.identity.gender !== genderPick) return false;
     if (!fameInBand(person.reputation.fame, famePick)) return false;
@@ -529,7 +559,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   // Pin to Compare wiring. Only a booked actor can't be offered today (the
   // schedule gate is the one hard rejection no offer clears); a below-floor
   // offer now just draws a counter, so it no longer disables the action.
-  const offerBlockedFor = (person: Person) => !isAvailableImmediately(person, state.totalDays);
+  const offerBlockedFor = (person: Person) => !isAvailableImmediately(person, plannedStartDay);
   const pinnedPersons = pins.pinnedIds.map((id) => candidatePool.get(id)).filter((p): p is Person => p !== undefined);
   const comparing = pinnedPersons.length >= MAX_PINNED;
   const compareSlots: CompareSlot[] = comparing
@@ -553,7 +583,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   // measured over the name-searched source, so it reads against what's in view.
   const tabPersons = tab === 'open-casting' ? (call?.applicants ?? []).map((a) => a.person) : directCandidates;
   const availabilityHiddenCount = availableOnly
-    ? tabPersons.filter((p) => matchesQuery(p) && !onThisDraftIds.has(p.id) && !isAvailableImmediately(p, state.totalDays)).length
+    ? tabPersons.filter((p) => matchesQuery(p) && !onThisDraftIds.has(p.id) && !isAvailableImmediately(p, plannedStartDay)).length
     : 0;
 
   // One candidate card, wired identically wherever it's shown (Open Casting,
@@ -563,6 +593,10 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   const renderCandidate = (person: Person, opts: { channel?: CastingChannel; onDismiss?: () => void } = {}) => {
     const audition = auditionFor(person);
     const audited = !!audition && state.totalDays >= audition.readyOnDay;
+    // Phase 6 - if this candidate is booked past the planned start, waiting for
+    // them means pushing the shoot to their free day; count who else that frees.
+    const appeal = appealById.get(person.id) ?? appealFor(person);
+    const bookedUntil = appeal && appeal.schedule.status !== 'available' ? appeal.schedule.availableFromDay : null;
     return (
       <CandidateCard
         key={person.id}
@@ -571,7 +605,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         script={draft.script}
         character={character}
         totalDays={state.totalDays}
-        overall={appealById.get(person.id) ?? appealFor(person)}
+        overall={appeal}
         offeredSalary={offeredSalary}
         channel={opts.channel}
         directorName={directorName}
@@ -588,6 +622,8 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         auditioning={!!audition && !audited}
         auditionReadyInDays={audition ? Math.max(0, audition.readyOnDay - state.totalDays) : undefined}
         onAudition={() => dispatch({ type: 'REQUEST_AUDITION', characterId: character.id, role, personId: person.id })}
+        onWaitForActor={bookedUntil ? () => dispatch({ type: 'SET_SHOOT_DELAY', offsetDays: bookedUntil - state.totalDays }) : undefined}
+        waitAlsoFrees={bookedUntil ? countActorsFreedByDelay(eligibleDirectActors, plannedStartDay, bookedUntil, person.id) : 0}
         pinned={pins.isPinned(person.id)}
         pinCapped={pins.isFull}
         onTogglePin={() => pins.toggle(person.id)}
@@ -617,6 +653,17 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
           <p style={{ margin: 0 }}>
             Currently cast: {castHere.identity.name}. Casting someone below recasts the role.
           </p>
+        )}
+
+        {plannedStartOffset > 0 && (
+          <div className="casting-schedule-banner">
+            <span>
+              Shoot delayed <strong>{plannedStartOffset} day{plannedStartOffset === 1 ? '' : 's'}</strong> to wait on booked talent - now planned to start day {plannedStartDay}.
+            </span>
+            <Button variant="secondary" className="btn-sm" onClick={() => dispatch({ type: 'SET_SHOOT_DELAY', offsetDays: 0 })}>
+              Start as soon as cast
+            </Button>
+          </div>
         )}
 
         <RangeSlider

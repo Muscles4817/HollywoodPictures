@@ -304,6 +304,35 @@ function stateWithMixedAvailability(): GameState {
   }).result;
 }
 
+describe('CastingDrawer - waiting for a booked actor (Phase 6)', () => {
+  it('offers to wait for a booked actor, which delays the shoot and frees them to be cast', () => {
+    const state = stateWithMixedAvailability(); // Bella Booked is committed until day 400
+    const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;
+    saveState(state);
+
+    render(
+      <StudioProvider>
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+    const bella = screen.getByText('Bella Booked').closest('.card') as HTMLElement;
+    fireEvent.click(within(bella).getByRole('button', { name: /Wait for them/ }));
+
+    // A production-level delay banner appears, and Bella is now castable.
+    expect(screen.getByText(/Shoot delayed/)).toBeInTheDocument();
+    const bellaAfter = screen.getByText('Bella Booked').closest('.card') as HTMLElement;
+    expect(within(bellaAfter).queryByRole('button', { name: /Wait for them/ })).not.toBeInTheDocument();
+    expect(within(bellaAfter).getByRole('button', { name: 'Make Offer' })).toBeEnabled();
+
+    // Resetting the delay puts the wait decision back.
+    fireEvent.click(screen.getByRole('button', { name: 'Start as soon as cast' }));
+    const bellaReset = screen.getByText('Bella Booked').closest('.card') as HTMLElement;
+    expect(within(bellaReset).getByRole('button', { name: /Wait for them/ })).toBeInTheDocument();
+  });
+});
+
 describe('CastingDrawer - "Available now only" filter', () => {
   it('hides actors booked elsewhere from Direct Approach when the filter is on, and shows them when off', () => {
     const state = stateWithMixedAvailability();

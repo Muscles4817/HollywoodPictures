@@ -147,6 +147,25 @@ export function computeScheduleAssessment(person: Person, plannedStartDay: GameD
   };
 }
 
+/**
+ * Casting Redesign, Phase 6 - the schedule "ripple" of pushing the shoot start
+ * from `fromDay` to `toDay`: how many actors in `pool` who couldn't start at
+ * `fromDay` (booked past it) free up by `toDay`. It's what makes waiting for one
+ * booked actor a visible, shared decision - "waiting for them also frees N
+ * others" - rather than a private one-off. `exceptId` drops the actor you're
+ * waiting FOR from the count, so it reads as "also frees...". Never negative;
+ * `toDay <= fromDay` frees nobody.
+ */
+export function countActorsFreedByDelay(pool: Person[], fromDay: GameDay, toDay: GameDay, exceptId?: string): number {
+  if (toDay <= fromDay) return 0;
+  return pool.reduce((count, person) => {
+    if (person.id === exceptId) return count;
+    const bookedUntil = deriveBookedUntil(person.availability.commitments);
+    // Blocked at the old start, but free by the new one.
+    return bookedUntil !== undefined && bookedUntil > fromDay && bookedUntil <= toDay ? count + 1 : count;
+  }, 0);
+}
+
 // How far below a raw minimumSalary a discount can ever push the effective
 // floor - first-draft, tunable. Nobody works for free, no matter how drawn
 // to the project.
