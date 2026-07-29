@@ -234,3 +234,84 @@ interface CompatibilityEdge { a: CollaboratorRef; b: CollaboratorRef;
 
 Once these are settled, Phase C (role-specific designs) can be written against a
 fixed model, and the implementation floor can begin.
+
+---
+
+## Revision 1 — review refinements (locked)
+
+Seven amendments from review, all adopted. Phase C is written against the model
+*as amended here*.
+
+1. **Layer 4 is renamed "Department Simulation" (not "Execution").** A department
+   doesn't merely calculate a quality number — it **plans, prepares, executes,
+   adapts, hits problems, and delivers**. The broader term makes future systems
+   (events, delays, reshoots, redesigns, morale, recovery) fit naturally as parts
+   of the department's ongoing simulation rather than bolt-ons to a quality calc.
+   The four-stage pipeline is now: Narrative Requirements → Execution Strategy →
+   Department Workload → **Department Simulation**.
+
+2. **Execution Strategy is a major gameplay system, not just a layer.** Practical
+   vs digital, locations vs sets, animatronics vs CG, miniatures vs full-CG
+   destruction, etc. become **first-class producer decisions** with visible
+   trade-offs (cost, schedule, risk, department load, actor experience, creative
+   identity). This answers open decision #1: **surface the first strategy axes as
+   real decisions**, don't leave them derived-from-dials. It becomes one of the
+   central things a producer *does* during production planning.
+
+3. **The pipeline has feedback loops — it is not strictly linear.** Real
+   productions push back: a department's limits force rewrites, strategy changes,
+   and production decisions. The model makes room for **upstream pressure** as an
+   explicit, first-class idea, surfaced as producer decisions/events (never silent
+   auto-adjustment):
+   - *Department Simulation → Execution Strategy*: a department over-loaded under
+     the chosen method recommends/forces a method change (VFX drowning → "go
+     hybrid/practical?").
+   - *Workload / Simulation → Narrative Requirements*: scope too big for the
+     budget/schedule → a **production-rewrite** recommendation (the Writer's
+     production-rewrite lever) that trims the requirement.
+   - *Simulation → Simulation*: one department's trouble raises another's load
+     (a blown practical effect pushes work into VFX cleanup).
+   Loops are **producer-facing prompts**, preserving the "support, not solve"
+   principle.
+
+4. **Technical capability is broader than specialties.** It encompasses
+   per-specialty execution *plus* experience, department leadership,
+   problem-solving, and management — i.e. how well the department **handles a
+   difficult production**, not only how good its best specialty is. (A brilliant
+   specialist who can't run a large department is a real, expressible profile.)
+
+5. **Working style shapes more than cost and schedule.** It drives **events,
+   collaboration, morale, creative upside, and recovery from problems** — a
+   perfectionist delivers upside on a good shoot but recovers badly from chaos; an
+   adaptable, collaborative head absorbs setbacks and lifts neighbouring
+   departments. Reuse the existing personality substrate; add only the few
+   production-specific facets (perfectionism, collaboration-under-pressure) that
+   pass the inclusion test.
+
+6. **Compatibility primarily generates interactions, stories and events — not
+   hidden numbers.** The interesting outcome is *"the Director and DP keep
+   inspiring each other"* or *"the Production Designer and VFX Supervisor clash
+   over practical vs digital again,"* not "+3 quality." Any quality effect is a
+   *consequence* of those narrated interactions (an inspired pair rolls a
+   creative-upside event; a clashing pair rolls a rework/delay event), never a
+   silent modifier. This strengthens the earlier "edges produce interaction, not a
+   flat knob" rule into the primary design intent.
+
+7. **`DepartmentDefinition` must not become a god object.** Decompose it now into
+   three concepts so it doesn't grow unbounded:
+   - **DepartmentResponsibilities** — what the department owns and which creative
+     decisions/strategy axes it makes/participates in.
+   - **RequirementRouting** — the rules mapping (requirement × strategy) → this
+     department's workload contribution.
+   - **DepartmentOutputs / event surface** — what it produces and which events it
+     can generate.
+   Keeping routing and outputs separate from responsibilities means adding a
+   department, a routing rule, or an event doesn't bloat one object.
+
+### Amended pipeline
+
+```
+NARRATIVE REQUIREMENTS  ⇄  EXECUTION STRATEGY  ⇄  DEPARTMENT WORKLOAD  ⇄  DEPARTMENT SIMULATION
+        ▲                        ▲ (major gameplay system)                    │ plan·prep·execute·
+        └──────────── feedback (rewrites, strategy changes) ──────────────────┘  adapt·problems·deliver
+```
