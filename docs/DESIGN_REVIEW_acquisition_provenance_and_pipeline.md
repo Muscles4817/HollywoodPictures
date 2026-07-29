@@ -20,10 +20,10 @@ It also folds in five corrections/additions from review of the second audit
 
 ---
 
-## Two principles this work has earned (candidates for `SIMULATION_PHILOSOPHY.md`)
+## Two principles this work has earned (now canonical — `SIMULATION_PHILOSOPHY.md` Principles 8 & 9)
 
-Both are stated here as proposals; promoting them into the canonical philosophy
-doc is a one-line follow-up if endorsed.
+Both have been promoted into the philosophy doc as Principles 8 and 9. Restated
+here for local context.
 
 - **P — Intrinsic values are stored; strengths are derived.** What a thing *is*
   gets rolled once and frozen (concept-quality inputs, execution craft). How
@@ -314,7 +314,8 @@ story that generates its own numbers.
 ## The remaining sequence
 
 1. **Adopt the two principles** (derive strengths from stored intrinsics;
-   development converges on competence) — promote into `SIMULATION_PHILOSOPHY.md`.
+   development converges on competence) — _done: now `SIMULATION_PHILOSOPHY.md`
+   Principles 8 & 9._
 2. **Concept model:** two-layer Concept (identity + stored intrinsic quality
    inputs → derived `ConceptStrength`), `originality` demoted to an input.
 3. **Writer refactor:** `originality` leaves `craft`; add `conceptAmbition`
