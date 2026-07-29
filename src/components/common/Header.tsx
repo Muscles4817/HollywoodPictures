@@ -8,7 +8,7 @@ import { Button } from './Button';
 import { TimeTickIndicator } from './TimeTickIndicator';
 import type { TickSpeedMultiplier } from '../../constants';
 
-export type DevTool = 'none' | 'recommendation' | 'outcome' | 'rival-finances';
+export type DevTool = 'none' | 'recommendation' | 'outcome' | 'rival-finances' | 'requirement-profile';
 
 interface HeaderProps {
   paused: boolean;
@@ -95,6 +95,7 @@ export function Header({
             <Button className="btn-sm" onClick={() => onSetDevTool('recommendation')}>Dev: Recommendation Inspector</Button>
             <Button className="btn-sm" onClick={() => onSetDevTool('outcome')}>Dev: Outcome Inspector</Button>
             <Button className="btn-sm" onClick={() => onSetDevTool('rival-finances')}>Dev: Rival Finances</Button>
+            <Button className="btn-sm" onClick={() => onSetDevTool('requirement-profile')}>Dev: Requirement Profile</Button>
           </>
         ) : (
           <Button className="btn-sm" onClick={() => onSetDevTool('none')}>Back to Game</Button>
