@@ -369,7 +369,10 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // v64 -> v65 (Casting Redesign, Phase 3 - shortlisting): FilmDraft gained an
 //   optional shortlist (candidates tracked per Character for parallel
 //   negotiation). Additive/optional; key bumped per the same pre-launch policy.
-const SAVE_KEY = 'hollywood-pictures-save-v65';
+// v65 -> v66 (Casting Redesign, Phase 4 - casting stages): FilmDraft gained an
+//   optional auditions list (screen tests, which take calendar time and then
+//   read as a confident fit). Additive/optional; key bumped per the same policy.
+const SAVE_KEY = 'hollywood-pictures-save-v66';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

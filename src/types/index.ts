@@ -2098,6 +2098,23 @@ export interface ShortlistEntry {
   role: 'Lead Actor' | 'Supporting Actor';
 }
 
+/**
+ * Casting Redesign, Phase 4 (casting stages) - a screen test the studio has
+ * arranged for one candidate on one Character. Auditioning takes calendar time
+ * (a Casting Director speeds it up); once `readyOnDay` has passed the audition
+ * is complete and becomes the strongest possible read on that candidate's fit
+ * (engine/talentCardPresentation.ts). Completion is DERIVED from the day, not
+ * stored - there's no "complete" flag to tick, just readyOnDay vs. the clock.
+ */
+export interface AuditionRecord {
+  characterId: string;
+  personId: PersonId;
+  role: 'Lead Actor' | 'Supporting Actor';
+  requestedOnDay: GameDay;
+  /** The day the audition completes; on/after it, the read is confident. */
+  readyOnDay: GameDay;
+}
+
 // --- Casting Redesign, Phase B (docs/DESIGN_REVIEW_casting_redesign.md
 // sections 1-2) - Open Casting: a persistent, per-Character call that
 // accumulates applicants over real calendar time instead of the whole
@@ -2177,6 +2194,8 @@ export interface FilmDraft {
   negotiations?: RoleNegotiation[];
   /** Casting Redesign, Phase 3 - the player's shortlist: candidates they're tracking per Character before committing one, so several can be compared and negotiated in parallel and kept alive as backups. A saved set of (character, actor) pairs, independent of whether an offer's been made (that's `negotiations`). Read as `[]` when absent (older drafts). */
   shortlist?: ShortlistEntry[];
+  /** Casting Redesign, Phase 4 - screen tests the studio has arranged for candidates on this draft's characters, at most one per (character, actor). Each takes calendar time to complete (AuditionRecord.readyOnDay) and then reads as a confident fit. Read as `[]` when absent (older drafts). */
+  auditions?: AuditionRecord[];
   // The player's own Strategy/Ambition choices from the redesigned Plan
   // Production screen - null until that screen has been visited at least
   // once. `productionChoices` below is still what every downstream system

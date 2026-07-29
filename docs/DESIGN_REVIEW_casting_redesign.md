@@ -730,3 +730,46 @@ view over the negotiation and estimate systems Phases E/2 already built.
 **Deferred within this theme:** competing offers from *rival* studios on a
 shortlisted actor (a real deadline pressure), and auto-pruning a filled
 character's stale shortlist - both additive on `ShortlistEntry` / the reducer.
+
+---
+
+## 17. Phase 4, casting stages - auditions
+
+The brief's point 5: casting shouldn't be instant; introduce stages (search →
+auditions → callbacks → chemistry reads → shortlist → offer) that take time,
+where a Casting Director speeds things up and sharpens the read. Several of
+those stages already exist under other names: "search" is Open Casting
+(applicants accumulate over weeks), "shortlist" is Phase 3, "offer" is the
+Phase E negotiation. The keystone missing stage - the one that makes casting a
+*process* and directly pays off Phase 2's uncertainty - is the **audition**.
+
+This phase adds screen tests:
+
+- **The audition IS the uncertainty lever.** Phase 2 already made a candidate's
+  fit a hedged read, sharpened by a Casting Director or a working history
+  (`deriveFitReadAssist`). An audition is the player-initiated way to buy that
+  certainty for a *specific* candidate: a completed screen test becomes the
+  **strongest** assist there is (`source: 'audition'`, above even an expert
+  casting director), tightening the fit band, revealing the veiled per-axis
+  reads, and - because the estimate reuses the same assist - narrowing the
+  pre-offer asking-price band too. This is exactly the "paid screen test that
+  buys down fit uncertainty" §15 named as deferred.
+- **It takes calendar time, and a Casting Director cuts it.**
+  `auditionDurationDays(castingDirectorSkill)` - a ~2-week base, down to ~1 with
+  a top casting director. `REQUEST_AUDITION` stamps `readyOnDay = today +
+  duration`; **completeness is derived from the clock**, not stored, so no tick
+  has to "finish" it - it's `audited` once `readyOnDay` passes, the same
+  derive-don't-store rule the rest of casting follows. The world already ticks
+  days while you cast (Open Casting depends on it), so a screen test resolves as
+  time passes.
+- **UI:** an Audition button on every candidate card → "Auditioning… Nd" while
+  it runs → a ✓ Auditioned chip and a visibly more confident read when it lands.
+
+State: `FilmDraft.auditions: AuditionRecord[]`, one per (character, actor).
+`SAVE_KEY` bumped v65→v66. No RNG - an audition reveals the *true* fit more
+clearly, it doesn't re-roll it.
+
+**Deferred within this phase:** callback rounds (a second, cheaper re-audition
+tier) and chemistry reads (an audition between a candidate and the attached
+lead/director, keyed off `engine/pairHistory.ts`) - both additive on
+`AuditionRecord` / the assist model.

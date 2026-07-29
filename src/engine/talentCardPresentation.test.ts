@@ -12,6 +12,7 @@ import {
   perceivedFitBias,
   deriveFitRead,
   deriveFitReadAssist,
+  auditionDurationDays,
   gateKnownAxes,
   deriveComparisonVerdict,
   NO_ASSIST,
@@ -228,6 +229,30 @@ describe('deriveFitReadAssist', () => {
     const assist = deriveFitReadAssist(40, history(2), true);
     expect(assist.source).toBe('history');
     expect(assist.level).toBeCloseTo(0.6);
+  });
+
+  it('a completed audition is the strongest read - it beats even an expert casting director', () => {
+    const audited = deriveFitReadAssist(80, history(0), true, true);
+    expect(audited.source).toBe('audition');
+    expect(audited.level).toBeGreaterThan(deriveFitReadAssist(80, history(0), true, false).level);
+  });
+
+  it('an audition still only reads actors, not directors/crew', () => {
+    expect(deriveFitReadAssist(null, history(0), false, true)).toEqual(NO_ASSIST);
+  });
+});
+
+describe('auditionDurationDays', () => {
+  it('takes the full base with no casting director, and markedly less with a skilled one', () => {
+    const none = auditionDurationDays(null);
+    const skilled = auditionDurationDays(100);
+    expect(none).toBeGreaterThan(skilled);
+    expect(skilled).toBeGreaterThanOrEqual(1);
+  });
+
+  it('is monotonic non-increasing in casting-director skill', () => {
+    expect(auditionDurationDays(0)).toBeGreaterThanOrEqual(auditionDurationDays(50));
+    expect(auditionDurationDays(50)).toBeGreaterThanOrEqual(auditionDurationDays(100));
   });
 });
 

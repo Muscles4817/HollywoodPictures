@@ -212,7 +212,7 @@ export interface FitReadAssist {
   /** 0..1 - how much studio-side knowledge sharpens the read. */
   level: number;
   /** What's providing it, for crediting on the card - null when nothing is. */
-  source: 'casting-director' | 'history' | null;
+  source: 'casting-director' | 'history' | 'audition' | null;
 }
 export const NO_ASSIST: FitReadAssist = { level: 0, source: null };
 
@@ -222,23 +222,45 @@ function familiarityLevel(collaborations: number): number {
   return clamp(collaborations * FAMILIARITY_PER_COLLAB, 0, MAX_FAMILIARITY);
 }
 
+// A completed audition (Casting Redesign, Phase 4 - "casting stages") is the
+// strongest read there is: you've actually seen them read for THIS part, so it
+// beats even an expert casting director's eye or a long working history. Not a
+// full 1.0 - a screen test still isn't the shoot - but close.
+const AUDITION_ASSIST_LEVEL = 0.92;
+
+// How many days a screen test takes to arrange and run, before a Casting
+// Director's help. Their whole job is finding and reading actors, so a skilled
+// one turns auditions around markedly faster. First-draft, tunable.
+const AUDITION_BASE_DAYS = 14;
+const AUDITION_MIN_DAYS = 6;
+
+/** How long an audition takes to complete, in days - the base turnaround, shortened by a hired Casting Director's skill (0-100). None hired = the full base. */
+export function auditionDurationDays(castingDirectorSkill: number | null | undefined): number {
+  const skillT = clamp((castingDirectorSkill ?? 0) / 100, 0, 1);
+  return Math.round(AUDITION_BASE_DAYS - skillT * (AUDITION_BASE_DAYS - AUDITION_MIN_DAYS));
+}
+
 /**
- * The studio-side assist to a fit read: the stronger of a hired casting
- * director's eye (actors only - they don't read directors or crew) and how well
- * you already know the person from working together. The two don't stack into
- * false certainty - the better of your two ways of knowing them wins.
+ * The studio-side assist to a fit read: the STRONGEST of a completed audition
+ * (you've seen them read for the part), a hired casting director's eye (actors
+ * only - they don't read directors or crew), and how well you already know the
+ * person from working together. They don't stack into false certainty - the
+ * best of your ways of knowing them wins. `audited` is a completed screen test
+ * for this specific candidate (Phase 4).
  */
 export function deriveFitReadAssist(
   castingDirectorSkill: number | null | undefined,
   relationship: RelationshipStanding = NO_RELATIONSHIP,
   isActor = true,
+  audited = false,
 ): FitReadAssist {
   const cdLevel = isActor ? clamp((castingDirectorSkill ?? 0) / 100, 0, 1) : 0;
   const familiarity = familiarityLevel(relationship.collaborations);
-  if (cdLevel === 0 && familiarity === 0) return NO_ASSIST;
-  return cdLevel >= familiarity
-    ? { level: cdLevel, source: 'casting-director' }
-    : { level: familiarity, source: 'history' };
+  const auditionLevel = audited && isActor ? AUDITION_ASSIST_LEVEL : 0;
+  const best = Math.max(cdLevel, familiarity, auditionLevel);
+  if (best === 0) return NO_ASSIST;
+  const source = best === auditionLevel ? 'audition' : best === cdLevel ? 'casting-director' : 'history';
+  return { level: best, source };
 }
 
 export interface FitConfidenceRead {
@@ -346,9 +368,10 @@ const HEDGE: Record<FitConfidence, (phrase: string) => string> = {
   low: (phrase) => `Reads like ${phrase}`,
 };
 
-const ASSIST_NOTE: Record<'casting-director' | 'history', string> = {
+const ASSIST_NOTE: Record<'casting-director' | 'history' | 'audition', string> = {
   'casting-director': 'your casting director has a read on this one',
   history: "you've worked together, so you know what you're getting",
+  audition: "you've seen them read for the part",
 };
 
 /**

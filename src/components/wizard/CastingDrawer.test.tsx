@@ -455,6 +455,27 @@ describe('CastingDrawer - candidate reasoning chips', () => {
     expect(within(shortlistCard).getByRole('button', { name: '★ Shortlisted' })).toBeInTheDocument();
   });
 
+  it('arranges a screen test from a candidate card and shows it in progress', () => {
+    const state = stateWithBelowFloorCandidate();
+    const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;
+    saveState(state);
+
+    render(
+      <StudioProvider>
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+    const card = screen.getByText('Ava Affordable').closest('.card') as HTMLElement;
+    fireEvent.click(within(card).getByRole('button', { name: 'Audition' }));
+    // The button flips to an in-progress, disabled countdown.
+    const updated = screen.getByText('Ava Affordable').closest('.card') as HTMLElement;
+    const auditioning = within(updated).getByRole('button', { name: /Auditioning/ });
+    expect(auditioning).toBeInTheDocument();
+    expect(auditioning).toBeDisabled();
+  });
+
   it('shows a "Sought you out" chip for an applicant who reached out directly (InterestedTalent)', () => {
     const state = stateWithOpenCastingApplicant('InterestedTalent');
     const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;

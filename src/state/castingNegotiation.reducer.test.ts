@@ -203,3 +203,19 @@ describe('TOGGLE_SHORTLIST', () => {
     expect((draftOf(s).shortlist ?? []).some((e) => e.personId === backup.id)).toBe(true);
   });
 });
+
+describe('REQUEST_AUDITION', () => {
+  it('schedules a screen test with a completion day in the future, once', () => {
+    const { state, lead } = uncastState(30);
+    const actor = buildActor('audition-1', matchingGender(lead));
+    const after = studioReducer(state, { type: 'REQUEST_AUDITION', characterId: lead.id, role: 'Lead Actor', personId: actor.id });
+    const rec = (draftOf(after).auditions ?? []).find((a) => a.characterId === lead.id && a.personId === actor.id);
+    expect(rec).toBeDefined();
+    expect(rec!.readyOnDay).toBeGreaterThan(after.totalDays);
+    expect(rec!.requestedOnDay).toBe(after.totalDays);
+
+    // Re-requesting the same pair is a no-op (you don't audition someone twice).
+    const again = studioReducer(after, { type: 'REQUEST_AUDITION', characterId: lead.id, role: 'Lead Actor', personId: actor.id });
+    expect((draftOf(again).auditions ?? []).filter((a) => a.personId === actor.id)).toHaveLength(1);
+  });
+});

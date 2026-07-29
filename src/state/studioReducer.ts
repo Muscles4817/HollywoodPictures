@@ -16,6 +16,7 @@ import { computeSetsAmbition, defaultDesignPrepDays, NO_DESIGNER_SKILL } from '.
 import { assignmentCost, getActorCareer, getCrewCareer, getTypicalSalaryForRole, getWriterCareer, isPersonAvailableForCommitment, withCommitment, withReputationChange } from '../engine/person';
 import { computeActorAppeal } from '../engine/castingAppeal';
 import { computeAskingPrice, resolveNegotiation } from '../engine/castingNegotiation';
+import { auditionDurationDays } from '../engine/talentCardPresentation';
 import { writerProfileFromPerson } from '../engine/writers';
 import { computeRewriteOutcome, makePendingRewrite, rewriteDurationDays, rewriteFee, settleAssetRewrites } from '../engine/rewrite';
 import { commissionDurationDays, commissionFee, generateCommissionedScript, makePendingCommission, settlePendingCommissions } from '../engine/commission';
@@ -1565,6 +1566,28 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         ? shortlist.filter((s) => !(s.characterId === action.characterId && s.personId === action.personId))
         : [...shortlist, { characterId: action.characterId, personId: action.personId, role: action.role }];
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, shortlist: next }) };
+    }
+
+    // Casting Redesign, Phase 4 - arrange a screen test. Its completion day is
+    // set from the current day plus the turnaround (shortened by any hired
+    // Casting Director's skill); completeness is then DERIVED from the clock, so
+    // no tick is needed to "finish" it. No-op if one's already been arranged for
+    // this pair - you don't audition someone twice.
+    case 'REQUEST_AUDITION': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const auditions = focusedDraft.auditions ?? [];
+      if (auditions.some((a) => a.characterId === action.characterId && a.personId === action.personId)) return state;
+      const castingDirector = findAssignedPerson(focusedDraft.talent, 'Casting Director');
+      const cdSkill = castingDirector ? getCrewCareer(castingDirector, 'Casting Director')?.skill ?? null : null;
+      const record = {
+        characterId: action.characterId,
+        personId: action.personId,
+        role: action.role,
+        requestedOnDay: state.totalDays,
+        readyOnDay: state.totalDays + auditionDurationDays(cdSkill),
+      };
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, auditions: [...auditions, record] }) };
     }
 
     case 'SET_TALENT_TARGET_PRICE': {
