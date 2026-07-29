@@ -7,7 +7,7 @@
 // first" blocked state, even with nobody hired yet. Same jsdom + StudioProvider
 // pattern as CastingDrawer.test.tsx.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { StudioProvider } from '../../state/StudioContext';
 import { HireTalent } from './HireTalent';
 import { createInitialStudio, createDraftFromAsset, type GameState } from '../../state/gameState';
@@ -83,5 +83,25 @@ describe('HireTalent - budget allocation table (Phase 1b)', () => {
 
     fireEvent.click(lockDirector);
     expect(screen.getByRole('button', { name: 'Unlock Director budget' })).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+describe('HireTalent - live staffing board (Phase 2a)', () => {
+  it('shows the shoot window and per-role lifecycle, and opens a character into casting', () => {
+    saveState(stateWithInceptionDraft());
+    render(
+      <StudioProvider>
+        <HireTalent />
+      </StudioProvider>,
+    );
+
+    const board = screen.getByText('Shoot begins as soon as the cast is set.').closest('.staffing-board') as HTMLElement;
+    // Every role starts Unstaffed on this fresh draft.
+    expect(within(board).getAllByText('Unstaffed').length).toBeGreaterThan(0);
+
+    // Open the Dom Cobb row from the board -> the casting drawer for that character.
+    const domRow = within(board).getByText(/Dom Cobb/).closest('tr') as HTMLElement;
+    fireEvent.click(within(domRow).getByRole('button', { name: 'Open' }));
+    expect(screen.getByText(/Who plays Dom Cobb/)).toBeInTheDocument();
   });
 });
