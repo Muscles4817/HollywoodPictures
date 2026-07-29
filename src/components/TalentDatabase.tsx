@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { StarRating } from './common/StarRating';
-import { Money } from './common/Money';
+import { Money, formatMoney } from './common/Money';
 import { InfoTip } from './common/InfoTip';
 import { describeProductionStyle } from './common/TalentStats';
 import { ACTING_STYLE_LABELS } from '../data/actingStyle';
@@ -9,7 +9,7 @@ import { TONE_LABELS } from '../data/tones';
 import { STAT_INFO, type StatKey } from '../data/talentStatInfo';
 import { getPersonAge, computeActorAbility } from '../types';
 import { gameDateFromTotalDays, formatGameDateWithMonth } from '../engine/calendar';
-import { deriveBookedUntil, getCareerForProfession, getWriterCareer, CREW_ROLES } from '../engine/person';
+import { deriveBookedUntil, getCareerForProfession, getWriterCareer, assignmentCost, CREW_ROLES } from '../engine/person';
 import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../engine/personTraits';
 import { qualitativeMagnitude } from '../engine/talentCardPresentation';
 import { describeActorCraft, describeSignatureGift, describeDirectorTouch, describeRelationship } from '../engine/castingPresentation';
@@ -37,6 +37,26 @@ const ALL_PRODUCTION_ROLES: ProductionRole[] = ['Director', 'Lead Actor', 'Suppo
 interface Credit {
   film: Film;
   roleLabel: string;
+  /** What this person was actually paid on this film - their negotiated fee (agreedSalary) if one was struck, else the typical fee snapshotted when they were cast (engine/person.ts:assignmentCost). Shown to the player only as an obfuscated band (payRangeLabel); the Dev section states it exactly. */
+  pay: number;
+}
+
+// Pay bands for the player-facing, obfuscated per-project fee (Casting Redesign,
+// Phase E audit). The audit shows a *range* a fee falls into, never the exact
+// figure - a studio knows roughly what a peer paid, not the line item - keeping
+// the house "qualitative, not raw numbers" rule while still being informative.
+// The Dev section reads the exact number instead. Edges are round, human money
+// milestones; adjacent fees deliberately share a band, which is the obfuscation.
+const PAY_BANDS = [0, 100_000, 250_000, 500_000, 1_000_000, 2_000_000, 4_000_000, 8_000_000, 15_000_000, 25_000_000, 40_000_000, 75_000_000, 150_000_000];
+
+/** An exact fee as the obfuscated band it falls into, e.g. "$1M–$2M" - always a range that contains the true figure, so it informs without disclosing. */
+export function payRangeLabel(amount: number): string {
+  if (amount <= 0) return 'Undisclosed';
+  if (amount < PAY_BANDS[1]) return `Under ${formatMoney(PAY_BANDS[1])}`;
+  for (let i = 1; i < PAY_BANDS.length - 1; i++) {
+    if (amount < PAY_BANDS[i + 1]) return `${formatMoney(PAY_BANDS[i])}–${formatMoney(PAY_BANDS[i + 1])}`;
+  }
+  return `${formatMoney(PAY_BANDS[PAY_BANDS.length - 1])}+`;
 }
 
 /** The career a person is filed under (their primaryRole bucket) - the one the database leads with. Producers never reach here (excluded from talentPool). */
@@ -267,7 +287,7 @@ function devCraftGroup(person: Person): { title: string; rows: Array<{ label: st
   return { title: 'Craft', rows: [siRow('skill', career.skill)] };
 }
 
-function DevSection({ person }: { person: Person }) {
+function DevSection({ person, credits }: { person: Person; credits: Credit[] }) {
   const [open, setOpen] = useState(false);
   const career = personCareer(person);
   const craftGroup = devCraftGroup(person);
@@ -333,6 +353,22 @@ function DevSection({ person }: { person: Person }) {
               </div>
             </div>
           )}
+          {credits.length > 0 && (
+            <div className="td-dev__group">
+              <h4>Per-film fees (exact)</h4>
+              <p className="td-dev__note" style={{ marginTop: 0 }}>
+                The precise fee this person was paid on each released film - the negotiated
+                agreedSalary where one was struck, otherwise their typical fee at the time of casting.
+                The Filmography above obfuscates these into bands.
+              </p>
+              {credits.map((credit) => (
+                <div className="td-stat-row" key={`${credit.film.id}:${credit.roleLabel}`}>
+                  <span className="td-stat-label">{credit.film.title} <span className="td-dev__note">({credit.roleLabel})</span></span>
+                  <span className="td-stat-value"><Money amount={credit.pay} /></span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -393,12 +429,16 @@ function PersonDetail({ person, totalDays, credits, award, performance, relation
           <p className="choice-description" style={{ margin: 0 }}>{noCreditsCopy}</p>
         ) : (
           <div className="td-filmography">
-            {credits.map(({ film, roleLabel }) => (
+            {credits.map(({ film, roleLabel, pay }) => (
               <div className="td-credit" key={`${film.id}:${roleLabel}`}>
                 <div className="td-credit__title">{film.title}</div>
                 <div className="td-credit__meta">
                   {film.genre} · {roleLabel} · {formatGameDateWithMonth(film.releasedOnDay)}
-                  {film.results.totalBoxOffice !== null && <> · <Money amount={film.results.totalBoxOffice} /></>}
+                  {film.results.totalBoxOffice !== null && <> · <Money amount={film.results.totalBoxOffice} /> box office</>}
+                </div>
+                <div className="td-credit__meta">
+                  Fee: {payRangeLabel(pay)}
+                  <InfoTip label="What this talent was paid on this film, shown as a range - studios don't disclose exact per-film fees. The Dev section states the precise figure." />
                 </div>
               </div>
             ))}
@@ -460,7 +500,7 @@ function PersonDetail({ person, totalDays, credits, award, performance, relation
         </section>
       )}
 
-      <DevSection person={person} />
+      <DevSection person={person} credits={credits} />
     </div>
   );
 }
@@ -493,7 +533,7 @@ export function TalentDatabase() {
     for (const film of films) {
       for (const assignment of film.talent) {
         const list = map.get(assignment.person.id) ?? [];
-        list.push({ film, roleLabel: creditRoleLabel(assignment.role) });
+        list.push({ film, roleLabel: creditRoleLabel(assignment.role), pay: assignmentCost(assignment) });
         map.set(assignment.person.id, list);
       }
     }
