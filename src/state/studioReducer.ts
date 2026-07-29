@@ -1552,6 +1552,21 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, negotiations: next }) };
     }
 
+    // Casting Redesign, Phase 3 - toggle a candidate on/off a Character's
+    // shortlist. Pure bookkeeping: it never makes an offer, signs anyone, or
+    // touches a negotiation - it's just the set the player is tracking so
+    // several candidates can be compared and negotiated in parallel as backups.
+    case 'TOGGLE_SHORTLIST': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const shortlist = focusedDraft.shortlist ?? [];
+      const isListed = shortlist.some((s) => s.characterId === action.characterId && s.personId === action.personId);
+      const next = isListed
+        ? shortlist.filter((s) => !(s.characterId === action.characterId && s.personId === action.personId))
+        : [...shortlist, { characterId: action.characterId, personId: action.personId, role: action.role }];
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, shortlist: next }) };
+    }
+
     case 'SET_TALENT_TARGET_PRICE': {
       const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (!focusedDraft) return state;

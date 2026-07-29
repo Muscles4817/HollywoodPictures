@@ -2084,6 +2084,20 @@ export interface RoleNegotiation {
   reason?: 'suitability' | 'brand-prestige-mismatch' | 'salary' | 'schedule' | 'relationship';
 }
 
+/**
+ * Casting Redesign, Phase 3 - one candidate the player has shortlisted for a
+ * Character. Just the (character, actor) link by id; everything shown about them
+ * (fit, estimate, live negotiation) is re-derived from the live person + draft
+ * state, never frozen here - the same "store the link, derive the read" rule
+ * CastingApplicant follows. The live Person is resolved from GameState.talentPool
+ * for rendering.
+ */
+export interface ShortlistEntry {
+  characterId: string;
+  personId: PersonId;
+  role: 'Lead Actor' | 'Supporting Actor';
+}
+
 // --- Casting Redesign, Phase B (docs/DESIGN_REVIEW_casting_redesign.md
 // sections 1-2) - Open Casting: a persistent, per-Character call that
 // accumulates applicants over real calendar time instead of the whole
@@ -2161,6 +2175,8 @@ export interface FilmDraft {
   castingCalls: CastingCall[];
   /** Casting Redesign, Phase E - live money negotiations for this draft's characters, at most one per (character, actor). Empty/absent until the player makes an offer through the negotiation flow; a record is dropped the moment the actor signs or the player walks. Read as `[]` when absent (older drafts). */
   negotiations?: RoleNegotiation[];
+  /** Casting Redesign, Phase 3 - the player's shortlist: candidates they're tracking per Character before committing one, so several can be compared and negotiated in parallel and kept alive as backups. A saved set of (character, actor) pairs, independent of whether an offer's been made (that's `negotiations`). Read as `[]` when absent (older drafts). */
+  shortlist?: ShortlistEntry[];
   // The player's own Strategy/Ambition choices from the redesigned Plan
   // Production screen - null until that screen has been visited at least
   // once. `productionChoices` below is still what every downstream system

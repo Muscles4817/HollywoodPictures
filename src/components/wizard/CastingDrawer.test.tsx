@@ -431,6 +431,30 @@ describe('CastingDrawer - candidate reasoning chips', () => {
     expect(card.textContent).toMatch(/want|guess/i);
   });
 
+  it('shortlists a candidate from Direct Approach and shows them under the Shortlist tab', () => {
+    const state = stateWithBelowFloorCandidate();
+    const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;
+    saveState(state);
+
+    render(
+      <StudioProvider>
+        <CastingDrawer character={character!} role="Lead Actor" onClose={() => {}} />
+      </StudioProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+    const card = screen.getByText('Ava Affordable').closest('.card') as HTMLElement;
+    // Add to shortlist; the toggle flips to the "on" state.
+    fireEvent.click(within(card).getByRole('button', { name: '☆ Shortlist' }));
+    expect(within(card).getByRole('button', { name: '★ Shortlisted' })).toBeInTheDocument();
+
+    // The Shortlist tab now carries a count, and shows the shortlisted candidate.
+    fireEvent.click(screen.getByRole('button', { name: 'Shortlist (1)' }));
+    const shortlistCard = screen.getByText('Ava Affordable').closest('.card') as HTMLElement;
+    expect(within(shortlistCard).getByRole('button', { name: 'Make Offer' })).toBeInTheDocument();
+    expect(within(shortlistCard).getByRole('button', { name: '★ Shortlisted' })).toBeInTheDocument();
+  });
+
   it('shows a "Sought you out" chip for an applicant who reached out directly (InterestedTalent)', () => {
     const state = stateWithOpenCastingApplicant('InterestedTalent');
     const character = state.projects[0] && 'draft' in state.projects[0] ? state.projects[0].draft.script!.cast[0] : null;

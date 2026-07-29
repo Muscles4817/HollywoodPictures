@@ -342,6 +342,10 @@ export type GameAction =
   // Walk away from a live negotiation - drops the record (its rolled asking
   // price included), so a fresh offer later starts a new negotiation.
   | { type: 'WALK_AWAY_NEGOTIATION'; characterId: string; personId: string }
+  // Casting Redesign, Phase 3 - add or remove a candidate from a Character's
+  // shortlist (the set the player is tracking to compare/negotiate in parallel
+  // before committing one). A pure toggle; never touches negotiations or the cast.
+  | { type: 'TOGGLE_SHORTLIST'; characterId: string; role: 'Lead Actor' | 'Supporting Actor'; personId: string }
   // Replaces the old SET_PRODUCTION_CHOICES - the player now edits Strategy/
   // Ambition values directly (Plan Production, docs/DESIGN.md), and the
   // reducer derives ProductionChoices from them via
