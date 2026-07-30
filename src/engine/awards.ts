@@ -244,6 +244,12 @@ function contendersForCategory(input: CeremonyInput, category: AwardCategory): S
       return craftContenders(input, 'Composer', (r) => r.postProductionScore);
     case 'best-visual-effects':
       return craftContenders(input, 'VFX Supervisor', (r) => r.productionScore);
+    case 'best-production-design':
+      // The Production Designer's own facet quality (engine/scoring.ts), not the
+      // blended productionScore VFX/cinematography read - so a great designer on
+      // a film whose production score was dragged down by effects still contends.
+      // Falls back to productionScore for any result built without the field.
+      return craftContenders(input, 'Production Designer', (r) => r.productionDesignScore ?? r.productionScore);
   }
 }
 

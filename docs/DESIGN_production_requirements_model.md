@@ -546,8 +546,137 @@ creative philosophy, and working style (reused personality axes).
 **Still deferred:** Actor↔Stunt and Director↔Composer/Editor compatibility edges
 (those parties don't carry philosophy vectors yet).
 
-Not yet built: Layer 4 (Department Simulation), the workload hub section, and the
-`destructionMethod`/`actionMethod` axes (awaiting the finer-taxonomy split).
+**Layer 4 — Department Simulation / coverage unification: STARTED (calibration-gated programme).**
+Per Revision 2, coverage unification is *one coordinated programme, calibrated
+once* — giving Cinematographer/Composer/Editor real person-driven quality
+dimensions, adding the missing Best Production Design award, and retiring the
+`musicFocus`/`editStyle` quality-proxy menus in favour of creative briefs. It is
+being built as safe scaffolding slices first, with the single box-office scoring
+shift (the facet→`computeProductionScore`/`computePostProductionScore` cutover)
+staged last and calibrated in one pass. Calibration boundary for the programme:
+keep the whole normal suite and the already-green, §6-ratified buzz diagnostic
+green, and do **not** regress the (red-by-design) distribution/variance
+diagnostics — those belong to the *separate* funnel/scale recalibration
+workstream, not folded in here. Quality feeds legs/word-of-mouth/variance, never
+reach/scale (the "acclaim doesn't buy mass-market scale" lock stands).
+
+- **Slice 1 — Best Production Design + its own sub-score: SHIPPED (box-office-safe).**
+  Production Design already *has* a real, person-driven quality — the existing
+  Sets facet (Production Designer skill × budget × prep vs ambition). It was
+  simply buried inside the blended `productionScore` and had no award.
+  `computeQualityBreakdown` now also returns `productionDesignScore` (the Sets
+  facet quality decomposed out — the *same* pure value it already blends into the
+  `sets` term, so no box-office maths change), carried on `FilmResults`
+  (optional; a result without it reads as the shared `productionScore` in the
+  awards path, exactly as cinematography/VFX do). A new `best-production-design`
+  `AwardCategory` (label + weight 0.4, enrolled in BAFTA + Academy via
+  `AWARD_CATEGORIES`) reads it through `craftContenders(Production Designer)`, so
+  a strong designer contends even when effects dragged the blended production
+  number down. Awards feed prestige/brand/momentum, not the box-office quality
+  seam, so this slice shifts no scoring. Renders automatically on the Awards page
+  (dynamic `ALL_AWARD_CATEGORIES` × label map). Tests in `awards.test.ts`
+  (reads the design facet not the blend; designer-skill tiebreak; no-designer
+  exclusion; loose-fixture fallback).
+
+- **Slice 2 — craft facets for Cinematographer/Composer/Editor: SHIPPED (safe scaffolding, NOT wired).**
+  Three new pure modules generalise the facet model (engine/facetModel.ts) to the
+  three inert heads: `cinematographyFacet.ts`, `scoreFacet.ts`, `editFacet.ts`.
+  Each supplies its own ambition source, a skill accessor with an unhired
+  fallback, `computeXFacet` / `realiseXQuality` / `xOutlook`, mirroring
+  `vfxFacet.ts`/`setsFacet.ts` exactly:
+  - **Cinematography** ambition from the tone's spectacle/action lean + the
+    setting's environment scale/location complexity + scale. Runs on the shoot's
+    `shootingRatio` (time) × DP skill; money held neutral (no camera-budget dial
+    yet, documented like VFX's neutral time axis). Fallback `NO_CINEMATOGRAPHER_SKILL`.
+  - **Score** ambition from the music-forward tones (suspense/drama/spectacle/
+    romance) + scale. Runs on Composer skill vs demand; money + post-time neutral.
+    Fallback `NO_COMPOSER_SKILL`.
+  - **Editing** ambition from the script's structural complexity + action/suspense
+    lean + scale. Runs on Editor skill vs cutting difficulty; money + post-time
+    neutral. The already-live `editCoverageCeiling` (an under-shot film caps the
+    cut) is orthogonal and untouched. Fallback `NO_EDITOR_SKILL`.
+  - **Calibration-safe by construction:** nothing reads these facets yet -
+    `computeProductionScore`/`computePostProductionScore` are unchanged, so box
+    office is byte-identical. They exist so the gated cutover is a small, focused
+    wiring change with the maths already built and tested.
+  - Tests: `cinematographyFacet.test.ts` / `scoreFacet.test.ts` /
+    `editFacet.test.ts` (ambition separates archetypes, the head's skill is the
+    axis, unhired falls back to the floor, forecast = base at neutral skill).
+
+- **Slice 3 — creative-brief seam: SHIPPED (behaviour-preserving).**
+  Reframes the `musicFocus`/`editStyle`/`finalCutFocus` menus as the director's
+  BRIEF (intended approach handed to the Composer/Editor) rather than a quality
+  dial, and — the substantive part — routes the four scattered menu→delta reads in
+  `scoring.ts` through one seam, `postProductionBrief.ts`:
+  - `CreativeBrief` (a view over the persisted `PostProductionChoices`; the menu
+    fields stay the state) + `briefFromChoices`.
+  - Four interpretation accessors — `briefQualityContribution` (post-production
+    quality), `briefCriticEditScore`, `briefAudienceEditScore`, `briefBuzzContribution`
+    — each returning EXACTLY the value scoring.ts computed inline before.
+    `computePostProductionScore`/`computeCriticScore`/`computeAudienceScore`/
+    `computeBuzzScore` now call these instead of indexing the profiles directly.
+  - `describeBriefIntent` — the brief as qualitative intent ("a bold, memorable
+    score"; "a fast, crowd-pleasing cut"), distinct from the profiles' effect
+    language; additive, not yet surfaced.
+  - **Byte-identical:** the entire normal suite passes unchanged and the §6-ratified
+    buzz gate stays green with identical fixture numbers — the seam is transparent.
+  - **Why it matters:** the cutover now changes these four accessors ALONE — each
+    stops returning a flat menu delta and instead returns the hired Composer's/
+    Editor's realisation of the brief (scoreFacet.ts / editFacet.ts) — with the
+    rest of scoring untouched. The intent stays a real player decision; the
+    quality becomes person-driven (Revision 2's "brief, not a dial").
+  - Tests: `postProductionBrief.test.ts` (mapping, per-combination byte-identity
+    against the raw profile arithmetic, digit-free intent prose).
+
+- **Slice 4 — the gated scoring cutover: SHIPPED (player-only, aggregate-neutral).**
+  Cinematography, Score and Editing quality is now realised from WHO you hired,
+  fixing the audit's quality-from-choices-not-hires defect. Each enters scoring as
+  a DEVIATION from the unhired-fallback baseline (facet quality with the actual
+  head minus the same facet at the no-head fallback), so a film with no such head
+  is byte-identical to before the term existed:
+  - Cinematography → a term in `computeProductionScore` (a brand-new delivered
+    dimension for the DP; feeds the production→quality chain and the
+    Best-Cinematography award's productionScore).
+  - Score + Edit → a deviation added to the post-production quality in
+    `computeQualityBreakdown`, on top of the brief baseline, bounded by footage
+    coverage with the rest of the cut.
+  - Weights (`CINEMATOGRAPHY_PROD_WEIGHT` 0.3, `SCORE`/`EDIT_POST_WEIGHT` 0.25) at
+    the top of `scoring.ts`; the character terms (critic/audience/buzz edit/score
+    deltas) stay brief-driven choices, and `computeBuzzScore` is untouched (buzz
+    gate trivially green).
+
+  **Player-only, and why (a measured decision).** A `personDrivenCraft` flag gates
+  the three new dimensions: true on the player's release + forecast paths
+  (`marketSettlement`, `MarketingRelease`, `OutcomeInspector`, `testScreening`),
+  absent/false everywhere else (rivals, the base model, every calibration
+  diagnostic). Sets/VFX/Practical remain person-driven for everyone regardless.
+  The reason: rivals attach these crew too, and the whole-year box-office
+  DISTRIBUTION diagnostic is a chaotic multi-year rival-feedback simulation — any
+  change to rival craft quality cascades non-monotonically through greenlight/
+  budget/release decisions across the simulated years (measured: weight 0.3 →
+  mean gross 167, weight 0.12 → 157, i.e. smaller weight moved it FURTHER, not
+  closer). So the distribution gate cannot be held stable by tuning under any
+  rival-scoring change, and it is red-by-design and PROPOSED (not ratified),
+  owned by the separate funnel/scale recalibration. Making the cutover player-only
+  keeps the distribution + variance gates BYTE-IDENTICAL (verified: wideMeanGrossM
+  173.5, wideOver500Pct 5.3, wideOpeningMultiple 2.9, variance 100%/CoV 0.017 all
+  exactly at baseline) while delivering the feature for the player. Rivals adopt
+  person-driven craft in the funnel/scale recalibration that owns the gate — so
+  rival scoring shifts ONCE, there, honouring "calibrated once."
+  - **Verified:** build ✓; full suite ✓ (1913, +4 cutover-wiring tests); lint ✓
+    (0 errors); buzz gate green; distribution + variance gates byte-identical to
+    baseline. Tests: `craftCutover.test.ts` (crew lifts player productionScore/
+    postProductionScore; monotonic in skill; flag-off ignores craft; unstaffed
+    film byte-identical flag on/off).
+
+**Coverage unification is complete for the player.** The whole chain now runs and
+is player-visible: script → producer's Execution Strategy → requirements →
+department workload → crew suitability → **realised craft quality that depends on
+who you hired** → box office and awards (incl. the new Best Production Design).
+Remaining (deliberately deferred): rivals adopting person-driven craft + the
+overall funnel/scale recalibration (one workstream that owns the box-office
+distribution gate); the workload hub section; and the `destructionMethod`/
+`actionMethod` axes (awaiting the finer-taxonomy split).
 
 ## Script-model depth — an open roadmap question (raised, not yet scoped)
 

@@ -100,6 +100,16 @@ export interface ReleaseComputationInput {
   /** The Stunt Team's per-film fee, folded into productionCost exactly like producerFees. Optional; defaults to 0. */
   stuntTeamFee?: number;
   /**
+   * Coverage-unification cutover (docs/DESIGN_production_requirements_model.md):
+   * when true, Cinematography/Score/Editing quality is realised from the hired
+   * heads (person-driven craft). Set on the PLAYER's release + forecast paths
+   * only; rivals leave it absent (→ false) so their films keep the flat model and
+   * the rival-driven box-office distribution/variance gates stay byte-identical
+   * until the funnel/scale recalibration. Sets/VFX/Practical stay person-driven
+   * for everyone regardless.
+   */
+  personDrivenCraft?: boolean;
+  /**
    * A resolved press-tour moment (engine/pressTourMoments.ts), rolled at
    * settlement (resolvePlayerRelease) and passed in as plain data so this
    * function stays pure and deterministic. Its buzzDelta lifts/saps Buzz and its
@@ -177,6 +187,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     producerEffects.postProductionDelta, // Creative
     executionProfile,
     input.stuntTeamSkill, // the Practical facet's skill axis (undefined → fallback)
+    input.personDrivenCraft ?? false, // player films realise DP/Composer/Editor craft; rivals keep the flat model
   );
   const criticScore = computeCriticScore(quality, input.script, input.postProductionChoices);
   const audienceScore = computeAudienceScore(
@@ -399,6 +410,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     directionScore: Math.round(quality.directionScore),
     actingScore: Math.round(quality.actingScore),
     productionScore: Math.round(quality.productionScore),
+    productionDesignScore: Math.round(quality.productionDesignScore),
     postProductionScore: Math.round(quality.postProductionScore),
     eventsScore: Math.round(quality.eventsScore),
     reviewBlurbs,

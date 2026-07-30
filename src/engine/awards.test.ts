@@ -134,6 +134,53 @@ describe('computeCeremony - crafts separate on crew skill', () => {
     expect(vfx).toHaveLength(1);
     expect(vfx[0].filmId).toBe(withVfx.id);
   });
+
+  it('Best Production Design reads productionDesignScore, not the blended productionScore', () => {
+    // Two films with the SAME blended productionScore but different design-facet
+    // quality: the stronger design should take the category even though the
+    // catch-all production number is level (this is the whole point of giving PD
+    // its own sub-score - VFX/effects can drag productionScore without touching
+    // the designer's craft).
+    const designer = () => person({ crewRole: 'Production Designer', skill: 60 });
+    const wellDesigned = film({
+      results: { productionScore: 70, productionDesignScore: 90 },
+      talent: [{ role: 'Production Designer', person: designer() }],
+    });
+    const plainlyDesigned = film({
+      results: { productionScore: 70, productionDesignScore: 40 },
+      talent: [{ role: 'Production Designer', person: designer() }],
+    });
+    const ceremony = computeCeremony(input([plainlyDesigned, wellDesigned]));
+    expect(ceremony.categories['best-production-design']![0].filmId).toBe(wellDesigned.id);
+  });
+
+  it('equal design facet, better Production Designer wins Best Production Design', () => {
+    const ace = person({ crewRole: 'Production Designer', skill: 95 });
+    const dud = person({ crewRole: 'Production Designer', skill: 20 });
+    const filmA = film({ results: { productionDesignScore: 70 }, talent: [{ role: 'Production Designer', person: ace }] });
+    const filmB = film({ results: { productionDesignScore: 70 }, talent: [{ role: 'Production Designer', person: dud }] });
+    const ceremony = computeCeremony(input([filmB, filmA]));
+    expect(ceremony.categories['best-production-design']![0].filmId).toBe(filmA.id);
+    expect(ceremony.categories['best-production-design']![0].personId).toBe(ace.id);
+  });
+
+  it('a film with no Production Designer is not in the Best Production Design race', () => {
+    const withPd = film({ talent: [{ role: 'Production Designer', person: person({ crewRole: 'Production Designer', skill: 80 }) }] });
+    const without = film({ talent: [] });
+    const ceremony = computeCeremony(input([withPd, without]));
+    const pd = ceremony.categories['best-production-design']!;
+    expect(pd).toHaveLength(1);
+    expect(pd[0].filmId).toBe(withPd.id);
+  });
+
+  it('a result without productionDesignScore falls back to productionScore (loose fixtures)', () => {
+    // A FilmResults built without the new field must still contend - the reader
+    // falls back to the blended productionScore, exactly as cinematography does.
+    const strong = film({ results: { productionScore: 85 }, talent: [{ role: 'Production Designer', person: person({ crewRole: 'Production Designer', skill: 60 }) }] });
+    const weak = film({ results: { productionScore: 30 }, talent: [{ role: 'Production Designer', person: person({ crewRole: 'Production Designer', skill: 60 }) }] });
+    const ceremony = computeCeremony(input([weak, strong]));
+    expect(ceremony.categories['best-production-design']![0].filmId).toBe(strong.id);
+  });
 });
 
 describe('computeCeremony - gender-split acting', () => {

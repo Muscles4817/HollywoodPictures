@@ -430,6 +430,7 @@ export function OutcomeInspector() {
       shootingRatio,
       studioBrand,
       competitiveCrowding,
+      personDrivenCraft: true, // player-film inspector: match settlement's person-driven craft
     },
     rng,
   );

@@ -432,6 +432,7 @@ export function MarketingRelease() {
           // opening climbs as the player holds the release for a longer campaign,
           // exactly as settlement will read it.
           marketingRolloutMultiplier: rolloutMultiplier,
+          personDrivenCraft: true, // player film: match settlement's person-driven craft in the projection
         },
         createRng(1),
       );

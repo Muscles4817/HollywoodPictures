@@ -1248,6 +1248,7 @@ export type AwardCategory =
   | 'best-film-editing'
   | 'best-original-score'
   | 'best-visual-effects'
+  | 'best-production-design'
   // Golden Globes split Best Picture and lead acting into Drama vs
   // Musical/Comedy. These only ever appear on a Globes ceremony; momentum and
   // payoffs fold them back onto their unsplit Academy equivalents.
@@ -1357,6 +1358,13 @@ export interface FilmResults {
   directionScore: number;
   actingScore: number;
   productionScore: number;
+  // The Production Design (sets) facet's realised quality on its own - the
+  // Production Designer's person-driven craft, read out of the blended
+  // productionScore so Best Production Design can judge the department directly
+  // (engine/scoring.ts:computeQualityBreakdown). Optional: a FilmResults built
+  // without it (loose test fixtures) reads as the shared productionScore in the
+  // awards path, exactly as cinematography/VFX do.
+  productionDesignScore?: number;
   postProductionScore: number;
   eventsScore: number;
   reviewBlurbs: string[];
