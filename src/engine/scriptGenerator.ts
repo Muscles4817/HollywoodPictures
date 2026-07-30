@@ -563,6 +563,17 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   ]);
   const intendedAudience = weightedPick(rng, TARGET_AUDIENCES, audienceWeights);
 
+  // Concept-quality inputs (immutable; feed the derived ConceptStrength). Rolled
+  // from the archetype's own bands - the archetype owns "what kind of concept
+  // this is" (a Spectacle hooks hard and franchises well; a Prestige piece trades
+  // that for emotional depth). Not writer-biased beyond originality: hook/
+  // emotional/franchise are properties of the concept, not the author's craft.
+  // Drawn last, so the rest of the script (including its cast) is byte-identical
+  // to before these fields existed - only the trailing rng position advances.
+  const hook = randIntRange(rng, archetypeProfile.qualityRange.hook);
+  const emotionalPremise = randIntRange(rng, archetypeProfile.qualityRange.emotionalPremise);
+  const franchisePotential = randIntRange(rng, archetypeProfile.qualityRange.franchisePotential);
+
   return {
     id,
     title,
@@ -572,6 +583,9 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
     primarySetting,
     scale,
     originality,
+    hook,
+    emotionalPremise,
+    franchisePotential,
     structure,
     characters,
     dialogue,

@@ -49,7 +49,7 @@ function makeScript(overrides: Partial<Script>): Script {
   return {
     id: 'fx', title: 'Fixture', genre: 'Drama', archetype: 'Prestige', storyType: 'Original',
     primarySetting: 'ContemporaryCity', scale: 'Medium',
-    originality: 60, structure: 60, characters: 60, dialogue: 60, complexity: 50, cost: 10_000_000,
+    originality: 60, hook: 50, emotionalPremise: 50, franchisePotential: 50, structure: 60, characters: 60, dialogue: 60, complexity: 50, cost: 10_000_000,
     toneProfile: FLAT_TONE,
     environmentStrategy: { studio: 0.34, location: 0.33, digital: 0.33 },
     environmentAmbition: 0.4,

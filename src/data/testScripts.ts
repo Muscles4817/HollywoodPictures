@@ -31,8 +31,11 @@ import { CHARACTER_ARCHETYPE_PROFILES } from './characterArchetypes';
 // engine/project.ts:deriveAssetStatus every real asset already goes
 // through, nothing special-cased.
 
-function script(fields: Omit<Script, 'id' | 'cost'> & { id: string }): Script {
-  return { ...fields, cost: estimateScriptCost(fields) };
+// Concept-quality inputs default to a neutral 50 unless a fixture overrides them
+// - test scripts predate the field and don't assert on it (docs concept-quality).
+function script(fields: Omit<Script, 'id' | 'cost' | 'hook' | 'emotionalPremise' | 'franchisePotential'> & { id: string; hook?: number; emotionalPremise?: number; franchisePotential?: number }): Script {
+  const full = { hook: 50, emotionalPremise: 50, franchisePotential: 50, ...fields };
+  return { ...full, cost: estimateScriptCost(full) };
 }
 
 function testAsset(s: Script): Asset {

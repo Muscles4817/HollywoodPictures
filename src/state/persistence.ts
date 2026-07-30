@@ -381,7 +381,7 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // v68 -> v69 (Phase 1b - budgeting): FilmDraft gained lockedRoleBudgets (roles
 //   whose allocation is pinned against the auto-split). Additive; same policy.
 // v69 -> v70 (Phase 2b - staffing activity feed): FilmDraft gained staffingLog.
-const SAVE_KEY = 'hollywood-pictures-save-v71';
+const SAVE_KEY = 'hollywood-pictures-save-v72';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

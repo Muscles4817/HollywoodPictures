@@ -42,7 +42,7 @@ describe('the concept/execution partition', () => {
     const concept = new Set<string>(SCRIPT_CONCEPT_KEYS);
     const craft = new Set<string>(SCRIPT_CRAFT_KEYS);
     for (const k of craft) expect(concept.has(k)).toBe(false);
-    expect([...concept].sort()).toEqual(['archetype', 'genre', 'originality', 'primarySetting', 'scale', 'storyType']);
+    expect([...concept].sort()).toEqual(['archetype', 'emotionalPremise', 'franchisePotential', 'genre', 'hook', 'originality', 'primarySetting', 'scale', 'storyType']);
     expect([...craft].sort()).toEqual(['characters', 'complexity', 'dialogue', 'structure', 'toneProfile']);
   });
 });

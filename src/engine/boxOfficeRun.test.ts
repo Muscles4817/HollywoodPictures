@@ -70,7 +70,7 @@ function freshFilm(id: string, releasedOnDay: number, fixed: AudienceSimulationF
     script: {
       id: 'script-1', title: 'Test Script', genre: RELEASE_INPUTS.genre,
       archetype: 'GenreFormula', storyType: 'Original', primarySetting: 'ContemporaryCity', scale: 'Medium',
-      originality: 40,
+      originality: 40, hook: 50, emotionalPremise: 50, franchisePotential: 50,
       structure: 60, characters: 60, dialogue: 60, complexity: 50, cost: 1_000_000,
       toneProfile: { action: 50, comedy: 50, romance: 50, suspense: 50, drama: 50, spectacle: RELEASE_INPUTS.scriptSpectacle },
       environmentStrategy: { studio: 0.34, location: 0.33, digital: 0.33 }, environmentAmbition: 0.5,

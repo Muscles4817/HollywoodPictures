@@ -755,16 +755,29 @@ export interface Script {
   storyType: StoryType;
   primarySetting: SettingArchetype;
   scale: ScriptScale;
-  // The five intrinsic screenplay-craft attributes - deliberately kept
-  // small, and each with exactly one job (docs/DESIGN.md): what the
-  // screenplay itself *is*, not how commercially attractive it is (see
-  // engine/commercialProfile.ts for that, computed from the fields above
-  // rather than stored as its own rolled stat).
-  originality: number; // 1-100
-  structure: number; // 1-100
-  characters: number; // 1-100 - depth/arcs, distinct from Dialogue's craft
-  dialogue: number; // 1-100
-  complexity: number; // 1-100, drives production difficulty/risk
+  // The intrinsic screenplay attributes - deliberately kept small, each with
+  // exactly one job (docs/DESIGN.md): what the screenplay itself *is*, not how
+  // commercially attractive it is (see engine/commercialProfile.ts for that,
+  // computed from these rather than stored as its own rolled stat).
+  //
+  // Two immutable partitions live in here, flat (see ScriptConcept/ScriptCraft):
+  //  - CONCEPT-QUALITY (originality/hook/emotionalPremise/franchisePotential):
+  //    how strong the *idea* is - set at conception, fought over at acquisition,
+  //    and never touched by a rewrite. These feed the derived ConceptStrength
+  //    (engine/conceptStrength.ts), the same "derive, don't store" pattern
+  //    commercialProfile uses. See docs/SIMULATION_PHILOSOPHY.md Principle 8-9.
+  //  - EXECUTION-CRAFT (structure/characters/dialogue): how well it's *written* -
+  //    the only axes a rewrite may improve.
+  // complexity is neither: it is production scope (how demanding a production the
+  // screenplay implies), immutable post-generation.
+  originality: number; // 1-100 - concept quality: how novel the underlying idea is
+  hook: number; // 1-100 - concept quality: how grabby/high-concept the premise is
+  emotionalPremise: number; // 1-100 - concept quality: the emotional stakes the idea promises
+  franchisePotential: number; // 1-100 - concept quality: sequel/universe/brand headroom
+  structure: number; // 1-100 - execution craft
+  characters: number; // 1-100 - execution craft: depth/arcs, distinct from Dialogue's craft
+  dialogue: number; // 1-100 - execution craft
+  complexity: number; // 1-100, drives production difficulty/risk (production scope, not quality)
   cost: number;
   toneProfile: ToneProfile;
   // The screenplay's own implied production approach - not a requirement,
@@ -842,14 +855,14 @@ export interface Script {
 // a more original premise. Categorical identity (genre/archetype/...) and the
 // idea's originality are therefore *both* immutable; only execution craft moves.
 
-/** The stable creative concept - what the film fundamentally is, including how original the idea is. A rewrite must never change these. */
-export type ScriptConcept = Pick<Script, 'genre' | 'archetype' | 'storyType' | 'primarySetting' | 'scale' | 'originality'>;
+/** The stable creative concept - what the film fundamentally is, including how strong the idea is (originality/hook/emotional/franchise). A rewrite must never change these. */
+export type ScriptConcept = Pick<Script, 'genre' | 'archetype' | 'storyType' | 'primarySetting' | 'scale' | 'originality' | 'hook' | 'emotionalPremise' | 'franchisePotential'>;
 
 /** The mutable execution - the craft a rewrite is allowed to improve. */
 export type ScriptCraft = Pick<Script, 'structure' | 'characters' | 'dialogue' | 'complexity' | 'toneProfile'>;
 
 /** Runtime companions to the two aliases above, for iteration/validation/tests. Kept in lockstep with them by construction. */
-export const SCRIPT_CONCEPT_KEYS = ['genre', 'archetype', 'storyType', 'primarySetting', 'scale', 'originality'] as const;
+export const SCRIPT_CONCEPT_KEYS = ['genre', 'archetype', 'storyType', 'primarySetting', 'scale', 'originality', 'hook', 'emotionalPremise', 'franchisePotential'] as const;
 export const SCRIPT_CRAFT_KEYS = ['structure', 'characters', 'dialogue', 'complexity', 'toneProfile'] as const;
 
 // Every production dial is continuous rather than a fixed tier: the four

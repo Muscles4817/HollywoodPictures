@@ -18,8 +18,11 @@ import { CHARACTER_ARCHETYPE_PROFILES } from '../characterArchetypes';
 // Dev-only reference data - never imported by anything the player's own
 // save touches.
 
-function script(fields: Omit<Script, 'id' | 'cost'> & { id: string }): Script {
-  return { ...fields, cost: estimateScriptCost(fields) };
+// Concept-quality inputs default to a neutral 50 unless overridden - these dev
+// reference scripts predate the field and can be hand-authored later.
+function script(fields: Omit<Script, 'id' | 'cost' | 'hook' | 'emotionalPremise' | 'franchisePotential'> & { id: string; hook?: number; emotionalPremise?: number; franchisePotential?: number }): Script {
+  const full = { hook: 50, emotionalPremise: 50, franchisePotential: 50, ...fields };
+  return { ...full, cost: estimateScriptCost(full) };
 }
 
 // Same hand-picked, baseTraits-verbatim approach as data/testScripts.ts -
