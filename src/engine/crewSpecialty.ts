@@ -62,6 +62,40 @@ const SPECIALTY_SPREAD = 22;
 
 export const isSpecialtyDepartment = (d: string): d is SpecialtyDepartment => d === 'productionDesign' || d === 'vfx';
 
+/** The specialty department a crew role heads, or null for roles with no distinct specialties (everyone but Production Designer / VFX Supervisor). */
+export function specialtyDepartmentForRole(role: ProductionRole): SpecialtyDepartment | null {
+  if (role === 'Production Designer') return 'productionDesign';
+  if (role === 'VFX Supervisor') return 'vfx';
+  return null;
+}
+
+// How far a specialty must sit from a head's overall skill to be worth calling
+// out as a genuine standout or weak spot (rather than noise around their level).
+const SPECIALTY_NOTABLE_EDGE = 8;
+
+/**
+ * A short, film-agnostic read of what a PD/VFX head is known for - their standout
+ * specialty and, if there's a real soft spot, their weakest - for the hiring
+ * card ("A specialist in period craft; weaker on practical creatures."). This is
+ * "what they're best at" in general, distinct from specialtyWeightedCapability's
+ * "how they suit THIS film's demands". null for roles with no specialties.
+ */
+export function describeStandoutSpecialty(person: Person, role: ProductionRole): string | null {
+  const department = specialtyDepartmentForRole(role);
+  if (!department) return null;
+  const overallSkill = getCrewCareer(person, role as Parameters<typeof getCrewCareer>[1])?.skill ?? 50;
+  const caps = crewSpecialtyCapability(person, role, department, overallSkill);
+  const entries = Object.entries(caps) as [CrewSpecialty, number][];
+  const best = entries.reduce((a, b) => (b[1] > a[1] ? b : a));
+  const worst = entries.reduce((a, b) => (b[1] < a[1] ? b : a));
+  const strongest = best[1] - overallSkill >= SPECIALTY_NOTABLE_EDGE ? `A specialist in ${SPECIALTY_LABEL[best[0]]}` : null;
+  const weakest = overallSkill - worst[1] >= SPECIALTY_NOTABLE_EDGE ? `weaker on ${SPECIALTY_LABEL[worst[0]]}` : null;
+  if (strongest && weakest) return `${strongest}; ${weakest}.`;
+  if (strongest) return `${strongest}.`;
+  if (weakest) return `A generalist — ${weakest}.`;
+  return `An even, all-round ${department === 'vfx' ? 'VFX' : 'design'} skill set.`;
+}
+
 /**
  * A head's per-specialty capability (1-100 each): the authored profile when
  * present, otherwise a stable per-person spiky spread around `overallSkill`.

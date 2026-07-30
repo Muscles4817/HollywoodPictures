@@ -37,6 +37,25 @@ export function crewPhilosophy(person: Person, role: CrewRole): CrewPhilosophy {
   };
 }
 
+/**
+ * A short, diegetic read of a creative head's aesthetic leanings for the hiring
+ * card - the crew counterpart of the director's "Leans location, practical
+ * effects" style line. Names only the axes that genuinely lean (a balanced axis
+ * says nothing rather than mush), so it reads as a real point of view. null for
+ * roles that don't carry a philosophy (Composer/Editor/Writer/etc.).
+ */
+export function describeCrewPhilosophy(person: Person, role: ProductionRole): string | null {
+  if (!CREW_PHILOSOPHY_ROLES.includes(role)) return null;
+  const { digitalAffinity, stylisation } = crewPhilosophy(person, role as CrewRole);
+  const parts: string[] = [];
+  if (digitalAffinity >= 0.6) parts.push('a digital, effects-forward approach');
+  else if (digitalAffinity <= 0.4) parts.push('practical, in-camera craft');
+  if (stylisation >= 0.6) parts.push('a stylised, heightened look');
+  else if (stylisation <= 0.4) parts.push('a grounded, naturalistic look');
+  if (parts.length === 0) return 'A versatile eye — no strong stylistic lean either way.';
+  return `Favours ${parts.length === 2 ? `${parts[0]} and ${parts[1]}` : parts[0]}.`;
+}
+
 // The tones that read as "heightened/stylised" vs "grounded", for mapping a
 // director's tone profile onto the stylisation axis.
 const STYLISED_TONES: Tone[] = ['spectacle', 'action'];

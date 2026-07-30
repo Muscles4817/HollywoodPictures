@@ -1,6 +1,6 @@
 // Workstream II, Addition #1 — crew creative-philosophy vectors.
 import { describe, it, expect } from 'vitest';
-import { crewPhilosophy, directorPhilosophy } from './crewPhilosophy';
+import { crewPhilosophy, directorPhilosophy, describeCrewPhilosophy } from './crewPhilosophy';
 import type { CrewPhilosophy, DirectorCareer, Person } from '../types';
 
 function pdPerson(id: string, philosophy?: CrewPhilosophy): Person {
@@ -57,5 +57,24 @@ describe('directorPhilosophy', () => {
     const v = directorPhilosophy(director(0.1, 0.1, 15, 90));
     expect(v.digitalAffinity).toBeLessThan(0.3);
     expect(v.stylisation).toBeLessThan(0.4);
+  });
+});
+
+describe('describeCrewPhilosophy', () => {
+  it('names both leanings when the head leans on both axes', () => {
+    const digitalStylised = describeCrewPhilosophy(pdPerson('a', { digitalAffinity: 0.9, stylisation: 0.9 }), 'Production Designer');
+    expect(digitalStylised).toMatch(/digital, effects-forward/i);
+    expect(digitalStylised).toMatch(/stylised, heightened/i);
+    const practicalGrounded = describeCrewPhilosophy(pdPerson('b', { digitalAffinity: 0.1, stylisation: 0.1 }), 'Production Designer');
+    expect(practicalGrounded).toMatch(/practical, in-camera/i);
+    expect(practicalGrounded).toMatch(/grounded, naturalistic/i);
+  });
+
+  it('reads a balanced head as having no strong lean', () => {
+    expect(describeCrewPhilosophy(pdPerson('c', { digitalAffinity: 0.5, stylisation: 0.5 }), 'Production Designer')).toMatch(/no strong stylistic lean/i);
+  });
+
+  it('returns null for a role that carries no philosophy', () => {
+    expect(describeCrewPhilosophy(pdPerson('d'), 'Editor')).toBeNull();
   });
 });
