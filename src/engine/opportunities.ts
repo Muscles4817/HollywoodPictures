@@ -1,6 +1,6 @@
 import type { Opportunity, OpportunityBid, MarketSource, Person, ProductionScale, Script } from '../types';
 import { GENRES } from '../data/genres';
-import { generateScriptOptions } from './scriptGenerator';
+import { generateScriptOptions, type GenerationProfile } from './scriptGenerator';
 import { pickGenreForAffinity, selectWriterForSource, writerProfileFromPerson } from './writers';
 import { pick, randInt, type RandomFn } from './random';
 
@@ -24,6 +24,22 @@ const SOURCE_EXPIRY_DAYS: Record<MarketSource, [number, number]> = {
   'Spec Screenplay': [15, 30],
   'Agent Package': [10, 20],
   'Publisher Rights': [30, 60],
+};
+
+/**
+ * How each source shapes what it generates (Phase 3b - source as a generation
+ * profile). This is what makes shopping the market tangibly different from
+ * commissioning: a Spec's wide concept spread is the lottery that occasionally
+ * turns up a powerhouse concept nobody could commission, at the cost of messy,
+ * undeveloped execution you then pay to fix; an Agent Package trades that upside
+ * for a reliably polished, professionally-developed draft. Commissioning uses the
+ * neutral profile (engine/scriptGenerator.ts:NEUTRAL_GENERATION) - the reliable
+ * floor, no lottery. See docs/DESIGN_REVIEW_source_generation_and_determinants.md.
+ */
+const SOURCE_GENERATION_PROFILE: Record<MarketSource, GenerationProfile> = {
+  'Spec Screenplay': { conceptSpread: 16, executionShift: -10 }, // wild concept, undeveloped execution
+  'Agent Package': { conceptSpread: 3, executionShift: 10 }, // reliable concept, polished execution
+  'Publisher Rights': { conceptSpread: 6, executionShift: 0 }, // proven-ish concept, execution comes at adaptation (Phase 4)
 };
 
 /**
@@ -75,7 +91,10 @@ function generateOpportunity(totalDays: number, rng: RandomFn, writers: Person[]
   const writer = selectWriterForSource(writers, source, rng);
   const profile = writer ? writerProfileFromPerson(writer) : null;
   const genre = profile ? pickGenreForAffinity(rng, profile.genreAffinity) : pick(rng, GENRES);
-  const script = generateScriptOptions(genre, rng, 1, profile ?? undefined)[0];
+  // The source's generation profile biases the concept/execution distributions on
+  // top of the author - this is what makes a Spec a lottery and an Agent Package a
+  // safe, polished buy (Phase 3b).
+  const script = generateScriptOptions(genre, rng, 1, profile ?? undefined, SOURCE_GENERATION_PROFILE[source])[0];
   return finishOpportunity(totalDays, rng, source, script, writer?.id);
 }
 
