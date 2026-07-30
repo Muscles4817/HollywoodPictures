@@ -533,7 +533,11 @@ export type PersonTrait =
   | 'RiskTaker'
   | 'Mentor'
   | 'ScandalProne'
-  | 'MultiHyphenate';
+  | 'MultiHyphenate'
+  | 'ConsummateProfessional'
+  | 'SteadyUnderPressure'
+  | 'Versatile'
+  | 'LoyalCollaborator';
 
 export interface Person {
   id: PersonId;

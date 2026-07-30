@@ -34,9 +34,15 @@ const ELIGIBLE_FLOOR = 50;
 
 /** Traits that can't both be a person's defining characteristic at once - whichever scores higher survives, the rest are dropped from the ranked list entirely (not just deprioritized). */
 const CONFLICT_GROUPS: PersonTrait[][] = [
-  ['DifficultToWorkWith', 'Mentor'],
+  // How they are to have on set: the short-fused diva, the generous veteran, and
+  // the unflappable pro are three different reputations - a person reads as one.
+  ['DifficultToWorkWith', 'Mentor', 'ConsummateProfessional'],
   ['MediaDarling', 'ScandalProne', 'HighlyPrivate'],
+  // What drives their deals: chasing the money vs. valuing the relationship.
   ['PrestigeFocused', 'PaychequeDriven'],
+  ['PaychequeDriven', 'LoyalCollaborator'],
+  // How they approach a role: total immersion in one vs. range across many.
+  ['MethodPerformer', 'Versatile'],
 ];
 
 function scoreTraits(person: Person): Array<[PersonTrait, number]> {
@@ -59,6 +65,15 @@ function scoreTraits(person: Person): Array<[PersonTrait, number]> {
     ['RiskTaker', Math.min(ramp(p.adaptability, 45, 95), ramp(p.pressureHandling, 45, 95))],
     // Respected, loyal, and not so ego-driven that generosity toward a younger cast reads as implausible.
     ['Mentor', Math.min(ramp(r.industryRespect, 45, 95), ramp(p.loyalty, 40, 80), ramp(p.ego, 75, 25))],
+    // Reliably excellent to have on set: high professionalism, a dependable
+    // track record, and an even temper. The calm opposite of DifficultToWorkWith.
+    ['ConsummateProfessional', Math.min(ramp(p.professionalism, 55, 95), ramp(r.reliability, 50, 90), ramp(p.temperament, 45, 85))],
+    // Keeps their nerve when the schedule bites - the person you want on set when
+    // a day is going sideways. Reads off pressureHandling, steadied by temperament.
+    ['SteadyUnderPressure', Math.min(ramp(p.pressureHandling, 55, 95), ramp(p.temperament, 40, 80))],
+    // Here for the work and the relationship, not the billing: genuine loyalty,
+    // and enough standing that it reads as a choice rather than a lack of options.
+    ['LoyalCollaborator', Math.min(ramp(p.loyalty, 55, 95), ramp(r.industryRespect, 35, 75))],
   ];
 
   // Structural, not a personality gradient - either they genuinely hold more than one active career or they don't.
@@ -73,6 +88,12 @@ function scoreTraits(person: Person): Array<[PersonTrait, number]> {
   if (actingStyle) {
     scores.push(['MethodPerformer', Math.min(ramp(actingStyle.characterTransformation, 55, 95), ramp(p.professionalism, 40, 80))]);
     scores.push(['NaturalImproviser', Math.min(ramp(p.adaptability, 45, 95), Math.max(ramp(actingStyle.comedy, 45, 85), ramp(actingStyle.charisma, 45, 85)))]);
+    // A true chameleon: adaptable, AND genuinely well-rounded across the craft
+    // axes (their WEAKEST axis is still respectable) rather than a one-note
+    // specialist. The weakest-axis floor is what separates range from a spiky
+    // profile that just happens to be high on average.
+    const roundedness = Math.min(actingStyle.characterTransformation, actingStyle.emotionalPerformance, actingStyle.charisma, actingStyle.comedy, actingStyle.physicalPerformance);
+    scores.push(['Versatile', Math.min(ramp(p.adaptability, 50, 90), ramp(roundedness, 45, 80))]);
   }
 
   return scores;
@@ -107,6 +128,10 @@ export const TRAIT_LABELS: Record<PersonTrait, string> = {
   Mentor: 'Mentor',
   ScandalProne: 'Scandal-Prone',
   MultiHyphenate: 'Multi-Hyphenate',
+  ConsummateProfessional: 'Consummate Professional',
+  SteadyUnderPressure: 'Steady Under Pressure',
+  Versatile: 'Versatile',
+  LoyalCollaborator: 'Loyal Collaborator',
 };
 
 export const TRAIT_DESCRIPTIONS: Record<PersonTrait, string> = {
@@ -123,4 +148,33 @@ export const TRAIT_DESCRIPTIONS: Record<PersonTrait, string> = {
   Mentor: 'A generous, respected veteran - good for morale on a young cast.',
   ScandalProne: 'Trouble seems to follow - handle with a plan for the fallout.',
   MultiHyphenate: 'Works more than one side of the camera.',
+  ConsummateProfessional: 'Unfailingly prepared and even-tempered - the calm centre of a set.',
+  SteadyUnderPressure: 'Keeps their nerve when the schedule bites - a cool head in a crunch.',
+  Versatile: 'A genuine chameleon - reshapes their performance to whatever the scene needs.',
+  LoyalCollaborator: 'Values the working relationship over the billing - the sort who comes back.',
+};
+
+// The player-facing GAMEPLAY effect of a trait - what it actually does to a
+// shoot or a deal, distinct from TRAIT_DESCRIPTIONS' "who they are" flavor. Kept
+// qualitative (house style, no raw numbers) and honest: only traits with a real
+// mechanical consequence make a promise; the rest describe a reputational read.
+// Surfaced in the "Working with them" section (components/common/TalentStats.tsx).
+export const TRAIT_EFFECTS: Record<PersonTrait, string> = {
+  Perfectionist: 'On set: may push for another take — real quality upside, if you can spare the time.',
+  Workaholic: 'On set: relentless pace can claw back a slipping schedule.',
+  MethodPerformer: 'On set: total immersion can land a career-best turn — and wear out the ensemble.',
+  NaturalImproviser: 'On set: off-script moments that can lift an ordinary scene.',
+  DifficultToWorkWith: 'On set: ego clashes to manage — and a higher chance of a blow-up.',
+  MediaDarling: 'The press is on-side — warmer coverage around them.',
+  HighlyPrivate: 'Stays out of the spotlight — little press, good or bad.',
+  PrestigeFocused: 'At the table: takes a bigger discount for a prestige project.',
+  PaychequeDriven: 'At the table: won’t discount — expect to pay their full quote.',
+  RiskTaker: 'On set: swings for bold choices under pressure.',
+  Mentor: 'On set: lifts morale — steadies a younger cast.',
+  ScandalProne: 'On set: a mid-shoot tabloid flare-up can dent buzz and the mood.',
+  MultiHyphenate: 'Works more than one craft — hireable in several roles.',
+  ConsummateProfessional: 'On set: a steadying presence who can pull a rough day back together.',
+  SteadyUnderPressure: 'On set: holds the set calm when the schedule tightens.',
+  Versatile: 'On set: adapts on the fly — can rescue a scene that isn’t working.',
+  LoyalCollaborator: 'At the table: values the relationship — likelier to come back, and to go the extra mile.',
 };
