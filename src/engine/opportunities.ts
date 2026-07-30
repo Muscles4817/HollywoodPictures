@@ -37,9 +37,16 @@ const SOURCE_EXPIRY_DAYS: Record<MarketSource, [number, number]> = {
  * floor, no lottery. See docs/DESIGN_REVIEW_source_generation_and_determinants.md.
  */
 const SOURCE_GENERATION_PROFILE: Record<MarketSource, GenerationProfile> = {
-  'Spec Screenplay': { conceptSpread: 16, executionShift: -10 }, // wild concept, undeveloped execution
-  'Agent Package': { conceptSpread: 3, executionShift: 10 }, // reliable concept, polished execution
-  'Publisher Rights': { conceptSpread: 6, executionShift: 0 }, // proven-ish concept, execution comes at adaptation (Phase 4)
+  // Wild concept, and a rough, UNEVEN draft: something may be sharp (a great ear
+  // for dialogue) while the rest is a mess. Special, but too rough to shoot as-is
+  // - you develop it up toward the concept.
+  'Spec Screenplay': { conceptSpread: 16, executionShift: -16, executionSpread: 24 },
+  // Reliable concept, and a polished, CONSISTENT draft - solid across the board,
+  // usable right away, rarely a game-changer. The safe bet.
+  'Agent Package': { conceptSpread: 3, executionShift: 8, executionSpread: 4 },
+  // Proven property; modestly uneven draft. (Its real power - marketability - and
+  // the IP-without-a-script model are Phase 4.)
+  'Publisher Rights': { conceptSpread: 6, executionShift: -2, executionSpread: 10 },
 };
 
 /**
