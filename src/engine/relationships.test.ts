@@ -13,6 +13,7 @@ import {
   relationshipThresholdDelta,
   relationshipSalaryMultiplier,
   relationshipRefuses,
+  describeRelationshipStanding,
 } from './relationships';
 import type { Collaboration, Film, Person, ProductionRole, TalentAssignment } from '../types';
 
@@ -189,5 +190,24 @@ describe('appeal-term mappings', () => {
     const disasters = [1, 2, 3].map((i) => collaboration({ filmId: `f${i}`, reception: 0, shootSmoothness: 1 }));
     const standing = computeRelationship(disasters, PLAYER_STUDIO_ID, 'p1');
     expect(relationshipRefuses(standing)).toBe(true);
+  });
+});
+
+describe('describeRelationshipStanding', () => {
+  it('says nothing about a stranger', () => {
+    expect(describeRelationshipStanding(NO_RELATIONSHIP)).toBeNull();
+    expect(describeRelationshipStanding({ collaborations: 0, warmth: 0, tier: 'none', lastWorkedDay: null })).toBeNull();
+  });
+
+  it('reads a loyal history as a friendlier deal and a grudge as a costlier one', () => {
+    const loyal = describeRelationshipStanding({ collaborations: 3, warmth: 60, tier: 'loyal', lastWorkedDay: 10 });
+    const grudge = describeRelationshipStanding({ collaborations: 2, warmth: -60, tier: 'grudge', lastWorkedDay: 10 });
+    expect(loyal).toMatch(/loyal/i);
+    expect(loyal).toMatch(/3 films/);
+    expect(grudge).toMatch(/bad blood|sour|reluctant/i);
+  });
+
+  it('uses the singular for a single shared film', () => {
+    expect(describeRelationshipStanding({ collaborations: 1, warmth: 20, tier: 'warm', lastWorkedDay: 5 })).toMatch(/1 film /);
   });
 });

@@ -8,10 +8,10 @@ import { dominantLean } from '../../engine/recommendation';
 import { describeActorCraft, describeSignatureGift, describeFameCraftContrast, describeDirectorTouch, describeDirectorActorPairing, describeCastAffinity, castAffinityTone } from '../../engine/castingPresentation';
 import type { CastAffinity } from '../../engine/pairHistory';
 import { deriveFitReason, deriveFitRead, deriveFitReadAssist, deriveFitConfidence, deriveRiskRead, qualitativeMagnitude, isStarDraw, gateKnownAxes, knownAxisCoverage } from '../../engine/talentCardPresentation';
-import type { RelationshipStanding } from '../../engine/relationships';
+import { describeRelationshipStanding, type RelationshipStanding } from '../../engine/relationships';
 import { getCareerForRole, deriveBookedUntil } from '../../engine/person';
 import { describeAgeFit } from '../../engine/casting';
-import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS } from '../../engine/personTraits';
+import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS, TRAIT_EFFECTS } from '../../engine/personTraits';
 import { gameDateFromTotalDays, formatGameDateWithMonth } from '../../engine/calendar';
 import { TONE_LABELS } from '../../data/tones';
 import { ENV_LEAN_SHORT, EFFECTS_LEAN_SHORT } from '../../data/productionStyleLabels';
@@ -184,6 +184,10 @@ export function TalentStats({ person, role, category, script, character = null, 
   const risk = deriveRiskRead(person);
   const starDraw = isStarDraw(person);
   const traits = deriveTraits(person).slice(0, MAX_DISPLAYED_TRAITS);
+  // The studio's standing with this person (engine/relationships.ts) - surfaced
+  // in "Working with them" so a history (and the friendlier/costlier deal it
+  // implies) is legible, not just silently priced into the numbers.
+  const relationshipStanding = relationship ? describeRelationshipStanding(relationship) : null;
 
   // Actor identity, led BEFORE the fit hero (user request): who this performer
   // *is* - their signature gift or craft archetype and, when there's a real
@@ -312,14 +316,19 @@ export function TalentStats({ person, role, category, script, character = null, 
           <div className="talent-more-group">
             <div className="talent-more-heading">Working with them</div>
             <p className={`talent-risk-line talent-risk-line--${risk.tier}`}>{risk.label} to work with.</p>
+            {relationshipStanding && <p className="talent-relationship-line">{relationshipStanding}</p>}
             {traits.length > 0 && (
-              <div className="candidate-traits">
+              // Each trait now reads with its actual gameplay consequence
+              // (TRAIT_EFFECTS - what it does to the shoot or the deal), not just a
+              // bare tag you'd have to hover to understand.
+              <ul className="candidate-trait-list">
                 {traits.map((trait) => (
-                  <span key={trait} className="candidate-trait-tag" title={TRAIT_DESCRIPTIONS[trait]}>
-                    {TRAIT_LABELS[trait]}
-                  </span>
+                  <li key={trait} className="candidate-trait-row">
+                    <span className="candidate-trait-tag" title={TRAIT_DESCRIPTIONS[trait]}>{TRAIT_LABELS[trait]}</span>
+                    <span className="candidate-trait-effect">{TRAIT_EFFECTS[trait]}</span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </div>
         </div>

@@ -1116,6 +1116,37 @@ textarea, input, select {
   cursor: default;
 }
 
+/* Expanded "Working with them": each trait paired with its actual gameplay
+   effect, rather than a bare tag you'd have to hover to understand. */
+.candidate-trait-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.candidate-trait-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+.candidate-trait-row .candidate-trait-tag {
+  flex: 0 0 auto;
+}
+.candidate-trait-effect {
+  flex: 1 1 60%;
+  min-width: 0;
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+.talent-relationship-line {
+  margin: 4px 0 0;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
 /* Casting discovery toolbar (docs/DESIGN_REVIEW_casting_ux.md) - search, sort,
    and the availability/affordability filters, so the player browses by intent. */
 .casting-controls {
