@@ -14,6 +14,7 @@ import {
   describeCharacterDemands,
 } from '../../engine/scriptPresentation';
 import { castingGenderLabel, castingAgeBandLabel } from '../../engine/casting';
+import { describeConceptStrength } from '../../engine/conceptStrength';
 import type { Script } from '../../types';
 
 /**
@@ -37,6 +38,7 @@ export function ScriptDetails({ script }: { script: Script }) {
         <span className="badge">{SCALE_LABELS[script.scale]}</span>
       </div>
       <p className="card-synopsis">{script.synopsis}</p>
+      <p style={{ margin: '0 0 6px', fontSize: '0.85em', fontWeight: 600 }}>{describeConceptStrength(script)}</p>
       <p style={{ margin: '0 0 6px', fontSize: '0.85em', color: 'var(--text-muted)' }}>
         {archetypeProfile.description} {script.storyType !== 'Original' && storyProfile.description} {settingProfile.description}
       </p>
