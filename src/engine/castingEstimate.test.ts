@@ -85,8 +85,15 @@ describe('estimateAcceptanceOdds', () => {
     expect(estimateAcceptanceOdds(appeal({ overall: 95 }), person, 5_000_000, grudge)).toBe('no');
   });
 
-  it('reads a bar-clearing offer as likely', () => {
-    expect(estimateAcceptanceOdds(appeal({ overall: 80 }), person, 800_000)).toBe('likely');
+  it('reads an offer that meets their asking number as likely', () => {
+    // centre ~825k; offering at/above it should land them.
+    expect(estimateAcceptanceOdds(appeal({ overall: 80 }), person, 900_000)).toBe('likely');
+  });
+
+  it('does not read a below-ask offer as likely just because the project sells them', () => {
+    // Strong appeal (interested), but the offer is well short of their number -
+    // mirrors resolveNegotiation, which would counter rather than accept.
+    expect(estimateAcceptanceOdds(appeal({ overall: 90 }), person, 600_000)).toBe('stretch');
   });
 
   it('reads a project that even full pay would not sell them on as a long shot', () => {
@@ -104,7 +111,7 @@ describe('estimateAcceptanceOdds', () => {
 describe('estimateDeal', () => {
   it('bundles the asking band and the odds for a candidate', () => {
     const person = actorPerson('a');
-    const deal = estimateDeal(appeal({ overall: 80 }), person, 800_000);
+    const deal = estimateDeal(appeal({ overall: 80 }), person, 900_000);
     expect(deal).not.toBeNull();
     expect(deal!.asking.low).toBeLessThan(deal!.asking.high);
     expect(deal!.odds).toBe('likely');

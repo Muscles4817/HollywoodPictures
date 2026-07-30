@@ -65,8 +65,11 @@ export function estimateAskingRange(person: Person, effectiveMinimum: Money, typ
 // sell them or the offer is nowhere near; up through 'likely'.
 export type AcceptanceOdds = 'no' | 'long-shot' | 'stretch' | 'even' | 'likely';
 
-// Where the offer sits relative to the asking centre for the middle bands.
-const EVEN_RATIO = 0.9; // within ~10% of the likely ask - could go either way
+// Where the offer sits relative to the asking centre. Mirrors resolveNegotiation:
+// being sold on the project makes them negotiate, not accept a lowball, so once
+// the "would they do it at all" gate is cleared the odds turn on the money.
+const LIKELY_RATIO = 1.0; // at or above their expected number - should land them
+const EVEN_RATIO = 0.9; // within ~10% below the ask - could go either way on the wobble
 const STRETCH_RATIO = 0.6; // this far below the ask is a real stretch, but not an insult
 
 /**
@@ -95,11 +98,12 @@ export function estimateAcceptanceOdds(
   const overallAtCentre = overallWithSalaryFit(appeal, computeSalaryFit(centre, appeal.effectiveMinimum, typicalSalary));
   if (overallAtCentre < threshold) return 'long-shot';
 
-  // The current offer already clears the bar - they'd very likely take it.
-  if (appeal.overall >= threshold) return 'likely';
-
-  // Interested, but the money isn't there yet - how far off is the offer?
+  // They're interested - now it's purely how the offer measures up to what
+  // they'll want. (No "strong appeal => likely at any price" shortcut any more:
+  // that read let a lowball look like a sure thing when the engine would counter
+  // it.) Graded against the deterministic centre, so it never leaks the wobble.
   const ratio = centre > 0 ? offeredSalary / centre : 0;
+  if (ratio >= LIKELY_RATIO) return 'likely';
   if (ratio >= EVEN_RATIO) return 'even';
   if (ratio >= STRETCH_RATIO) return 'stretch';
   return 'long-shot';

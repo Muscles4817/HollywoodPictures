@@ -120,18 +120,32 @@ describe('resolveNegotiation', () => {
     expect(out).toEqual({ status: 'rejected', reason: 'relationship' });
   });
 
-  it('accepts when the offer already clears the bar, closing at the offered fee', () => {
-    const out = resolveNegotiation(appeal({ overall: 80 }), person, 900_000, 1_000_000);
-    expect(out).toEqual({ status: 'accepted', agreedSalary: 900_000 });
+  it('accepts when the offer meets their asking number, closing at the offered fee', () => {
+    // Offer at their ask (1M) - clearly above the ~0.9 accept fraction.
+    const out = resolveNegotiation(appeal({ overall: 80 }), person, 1_000_000, 1_000_000);
+    expect(out).toEqual({ status: 'accepted', agreedSalary: 1_000_000 });
   });
 
-  it('a strong-enough project lands the actor below their usual quote (a real negotiated fee under typical)', () => {
-    // overall clears the bar at a below-typical offer thanks to strong non-salary appeal.
-    const out = resolveNegotiation(appeal({ overall: 75, salaryFit: 40 }), person, 400_000, 900_000);
+  it('lands the actor below their usual quote when their ASK itself is low (not by underpaying it)', () => {
+    // A discounted effective floor makes their ask low (600k, below the 1M
+    // typical); meeting that low ask lands them for under typical.
+    const out = resolveNegotiation(appeal({ overall: 75, salaryFit: 60, effectiveMinimum: 200_000 }), person, 600_000, 600_000);
     expect(out.status).toBe('accepted');
     if (out.status === 'accepted') {
-      expect(out.agreedSalary).toBe(400_000);
+      expect(out.agreedSalary).toBe(600_000);
       expect(out.agreedSalary).toBeLessThan(1_000_000); // below the actor's typicalSalary
+    }
+  });
+
+  it('counters a lowball even when the project strongly sells the actor (salary must actually be met)', () => {
+    // Strong non-salary appeal (overall 90) used to make this an instant yes at
+    // any in-range offer. Now the money has to be there: a 500k offer against a
+    // 1M ask draws a counter, it is not accepted cheap.
+    const out = resolveNegotiation(appeal({ overall: 90, salaryFit: 30 }), person, 500_000, 1_000_000);
+    expect(out.status).toBe('countered');
+    if (out.status === 'countered') {
+      expect(out.counterSalary).toBeGreaterThan(500_000);
+      expect(out.counterSalary).toBeLessThanOrEqual(1_000_000);
     }
   });
 
