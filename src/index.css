@@ -1155,6 +1155,47 @@ textarea, input, select {
   font-size: 0.95em;
 }
 
+/* Sort control: the select paired with a direction toggle (casting QOL). */
+.casting-sort__row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.casting-sort__dir {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: inherit;
+  font: inherit;
+  font-size: 0.95em;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.casting-sort__dir:hover { border-color: var(--primary); color: var(--primary); }
+/* The plain-English "what this sort means" line - spans the whole control row. */
+.casting-sort__hint {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.82em;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+/* Direct Approach pagination (casting QOL) - a real page window, not a cap. */
+.casting-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 4px;
+}
+.casting-pager__status {
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
 /* Candidate reasoning chips (docs/DESIGN_REVIEW_casting_ux.md) - why the sim
    rates a candidate (positive draws) and the decision-critical
    warnings/blockers, surfaced before the offer rather than after it. */
