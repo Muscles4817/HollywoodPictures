@@ -546,8 +546,42 @@ creative philosophy, and working style (reused personality axes).
 **Still deferred:** Actor↔Stunt and Director↔Composer/Editor compatibility edges
 (those parties don't carry philosophy vectors yet).
 
-Not yet built: Layer 4 (Department Simulation), the workload hub section, and the
-`destructionMethod`/`actionMethod` axes (awaiting the finer-taxonomy split).
+**Layer 4 — Department Simulation / coverage unification: STARTED (calibration-gated programme).**
+Per Revision 2, coverage unification is *one coordinated programme, calibrated
+once* — giving Cinematographer/Composer/Editor real person-driven quality
+dimensions, adding the missing Best Production Design award, and retiring the
+`musicFocus`/`editStyle` quality-proxy menus in favour of creative briefs. It is
+being built as safe scaffolding slices first, with the single box-office scoring
+shift (the facet→`computeProductionScore`/`computePostProductionScore` cutover)
+staged last and calibrated in one pass. Calibration boundary for the programme:
+keep the whole normal suite and the already-green, §6-ratified buzz diagnostic
+green, and do **not** regress the (red-by-design) distribution/variance
+diagnostics — those belong to the *separate* funnel/scale recalibration
+workstream, not folded in here. Quality feeds legs/word-of-mouth/variance, never
+reach/scale (the "acclaim doesn't buy mass-market scale" lock stands).
+
+- **Slice 1 — Best Production Design + its own sub-score: SHIPPED (box-office-safe).**
+  Production Design already *has* a real, person-driven quality — the existing
+  Sets facet (Production Designer skill × budget × prep vs ambition). It was
+  simply buried inside the blended `productionScore` and had no award.
+  `computeQualityBreakdown` now also returns `productionDesignScore` (the Sets
+  facet quality decomposed out — the *same* pure value it already blends into the
+  `sets` term, so no box-office maths change), carried on `FilmResults`
+  (optional; a result without it reads as the shared `productionScore` in the
+  awards path, exactly as cinematography/VFX do). A new `best-production-design`
+  `AwardCategory` (label + weight 0.4, enrolled in BAFTA + Academy via
+  `AWARD_CATEGORIES`) reads it through `craftContenders(Production Designer)`, so
+  a strong designer contends even when effects dragged the blended production
+  number down. Awards feed prestige/brand/momentum, not the box-office quality
+  seam, so this slice shifts no scoring. Renders automatically on the Awards page
+  (dynamic `ALL_AWARD_CATEGORIES` × label map). Tests in `awards.test.ts`
+  (reads the design facet not the blend; designer-skill tiebreak; no-designer
+  exclusion; loose-fixture fallback).
+
+Not yet built (rest of the programme): craft facets for Cinematographer/Composer/
+Editor, creative-brief conversion of the menus, and the gated scoring cutover;
+plus the workload hub section and the `destructionMethod`/`actionMethod` axes
+(awaiting the finer-taxonomy split).
 
 ## Script-model depth — an open roadmap question (raised, not yet scoped)
 

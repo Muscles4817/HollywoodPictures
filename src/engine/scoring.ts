@@ -325,6 +325,12 @@ export interface QualityBreakdown {
   directionScore: number;
   actingScore: number;
   productionScore: number;
+  // The Production Design (sets) facet quality on its own, pulled out of the
+  // blended productionScore so the Best Production Design award can read the
+  // Production Designer's craft directly. It is a component OF productionScore
+  // (contributes the sets term at line ~229), not an extra scoring channel -
+  // exposing it here changes no box-office maths.
+  productionDesignScore: number;
   postProductionScore: number;
   eventsScore: number;
   qualityScore: number;
@@ -424,6 +430,11 @@ export function computeQualityBreakdown(
   const directionScore = computeDirectionScore(talent, script);
   const actingScore = computeActingScore(talent, script);
   const productionScore = computeProductionScore(productionChoices, genre, shootingRatio, talent, script, execution, stuntTeamSkill);
+  // The sets facet quality on its own - the same value computeProductionScore
+  // blends into its `sets` term (identical pure inputs), read out here so the
+  // Production Design department has a craft score the award can judge. This is
+  // a decomposition of productionScore, not a new term feeding qualityScore.
+  const productionDesignScore = computeSetsFacetQuality(productionChoices, talent, script, execution.facetSignals.sets ?? 0);
   // Footage coverage caps the edit: an under-shot film (below the recommended
   // schedule) can't be cut into a great one no matter how good the Editor is.
   // Coverage is read from execution.coverageRatio, not raw shootingRatio, so
@@ -482,7 +493,7 @@ export function computeQualityBreakdown(
     100,
   );
 
-  return { scriptScore, directionScore, actingScore, productionScore, postProductionScore, eventsScore, qualityScore };
+  return { scriptScore, directionScore, actingScore, productionScore, productionDesignScore, postProductionScore, eventsScore, qualityScore };
 }
 
 /** Critic Score: craft-driven - quality, originality, direction, edit style. */

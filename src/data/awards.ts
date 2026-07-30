@@ -17,6 +17,7 @@ export const AWARD_CATEGORIES: readonly AwardCategory[] = [
   'best-film-editing',
   'best-original-score',
   'best-visual-effects',
+  'best-production-design',
 ];
 
 // Every category any show can award, in a stable display order (the Academy
@@ -45,6 +46,7 @@ export const AWARD_CATEGORY_LABEL: Record<AwardCategory, string> = {
   'best-film-editing': 'Best Film Editing',
   'best-original-score': 'Best Original Score',
   'best-visual-effects': 'Best Visual Effects',
+  'best-production-design': 'Best Production Design',
   'best-picture-drama': 'Best Picture — Drama',
   'best-picture-comedy': 'Best Picture — Musical/Comedy',
   'best-actor-drama': 'Best Actor — Drama',
@@ -68,6 +70,7 @@ export const AWARD_CATEGORY_WEIGHT: Record<AwardCategory, number> = {
   'best-film-editing': 0.4,
   'best-original-score': 0.4,
   'best-visual-effects': 0.4,
+  'best-production-design': 0.4,
   'best-picture-drama': 1.0,
   'best-picture-comedy': 1.0,
   'best-actor-drama': 0.7,

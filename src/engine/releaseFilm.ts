@@ -399,6 +399,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     directionScore: Math.round(quality.directionScore),
     actingScore: Math.round(quality.actingScore),
     productionScore: Math.round(quality.productionScore),
+    productionDesignScore: Math.round(quality.productionDesignScore),
     postProductionScore: Math.round(quality.postProductionScore),
     eventsScore: Math.round(quality.eventsScore),
     reviewBlurbs,

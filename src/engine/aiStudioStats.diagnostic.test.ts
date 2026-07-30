@@ -407,8 +407,8 @@ describe.skipIf(!diagnosticEnabled)('AI studio outcome & awards diagnostic', () 
     for (const cat of AWARD_CATEGORIES) {
       lines.push(`  ${AWARD_CATEGORY_LABEL[cat].padEnd(24)} ${TIERS.map((_, ti) => pct(wins[cat][ti], categoryYears).padStart(6)).join('')}`);
     }
-    // Any-category haul: how many of the 11 Oscars a player film takes home.
-    lines.push('\n  Player films\'s total Oscar haul (of 11 categories), by tier:');
+    // Any-category haul: how many of the 12 Oscars a player film takes home.
+    lines.push('\n  Player films\'s total Oscar haul (of 12 categories), by tier:');
     for (let ti = 0; ti < TIERS.length; ti++) {
       const totalNoms = AWARD_CATEGORIES.reduce((sum, cat) => sum + noms[cat][ti], 0);
       const totalWins = AWARD_CATEGORIES.reduce((sum, cat) => sum + wins[cat][ti], 0);
