@@ -3,10 +3,10 @@
 // share the same derivations; this is the first direct (non-component)
 // test coverage for them.
 import { describe, it, expect } from 'vitest';
-import { productionRequirementTags, describeCommercialAppeal, describeCostDrivers } from './scriptPresentation';
+import { productionRequirementTags, describeCommercialAppeal, describeCostDrivers, roleDemandProfile } from './scriptPresentation';
 import { generateScriptOptions } from './scriptGenerator';
 import { createRng } from './random';
-import type { Script } from '../types';
+import type { Script, ScriptCharacter } from '../types';
 
 function scriptFor(genre: Parameters<typeof generateScriptOptions>[0], seed: number): Script {
   return generateScriptOptions(genre, createRng(seed), 1)[0];
@@ -83,5 +83,25 @@ describe('describeCostDrivers', () => {
     const base = scriptFor('Drama', 8);
     const modest: Script = { ...base, scale: 'Intimate', complexity: 10, originality: 10, structure: 10, characters: 10, dialogue: 10 };
     expect(describeCostDrivers(modest)).toBe('A modest, straightforward production.');
+  });
+});
+
+describe('roleDemandProfile', () => {
+  const character = {
+    id: 'c1', name: 'Lead', archetype: 'Other', prominence: 'Lead',
+    traits: {
+      dramaticDepth: 50, charismaDemand: 40, comedyDemand: 20, emotionalDemand: 90,
+      physicalDemand: 60, transformationDemand: 75, audienceAccessibility: 50, distinctiveness: 50, merchandisePotential: 50,
+    },
+  } as ScriptCharacter;
+
+  it('returns the five acting-relevant axes, strongest demand first, labelled as the fit breakdown labels them', () => {
+    const rows = roleDemandProfile(character);
+    expect(rows).toHaveLength(5);
+    expect(rows[0]).toEqual({ label: 'Emotional Performance', value: 90 });
+    expect(rows.map((r) => r.value)).toEqual([90, 75, 60, 40, 20]); // sorted, strongest demand first
+    expect(rows.map((r) => r.label)).toContain('Character Transformation');
+    // The non-acting demands (dramaticDepth/accessibility/…) are excluded.
+    expect(rows.map((r) => r.label)).not.toContain('Dramatic Depth');
   });
 });

@@ -241,6 +241,24 @@ describe('CastingDrawer - discovery controls', () => {
     fireEvent.click(screen.getByRole('button', { name: /Next/ }));
     expect(screen.getByText(/Page 2 of 2 · 30 actors/)).toBeInTheDocument();
   });
+
+  it('renders the role brief pane (what the part needs) alongside the candidates', () => {
+    const state = withRng(9, (rng) => {
+      const studio = createInitialStudio(50_000_000);
+      const talentPool = generateTalentPool(rng);
+      const base = generateTalentCandidates('Actor', rng, 1)[0];
+      talentPool.Actor = [femaleActor(base, 'Brief Test', 3_000_000)];
+      return wrapState(studio, talentPool, draftWithActors(rng, 3_000_000));
+    }).result;
+    renderDrawer(state);
+
+    const brief = document.querySelector('.casting-brief');
+    expect(brief).not.toBeNull();
+    expect(brief!.textContent).toContain('The role');
+    expect(brief!.textContent).toContain('What the part needs');
+    // The demand axes read in the same terms as a candidate's fit breakdown.
+    expect(brief!.textContent).toContain('Emotional Performance');
+  });
 });
 
 function stateWithFemaleLead(): GameState {
