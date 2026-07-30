@@ -150,8 +150,12 @@ vs 0.4. Proposed re-anchor:
 |---|---|---|---|
 | Spec | 0.4 | **0.3** | the bargain; you pay to develop it |
 | Agent Package | 0.9 | **1.1** | script + implied talent commitments |
-| Publisher Rights | 1.1 | **2.5–4.0** (+ contested premium) | proven-draw premium; a franchise property is worth a multiple |
+| Publisher Rights | 1.1 | **tiered, super-linear (see §5b)** | mid IP ~1–2×, bestseller several×, franchise-tier tens–hundreds×; mega effectively unbuyable |
 | Commission | full fee | **full fee** (tier-scaled) | £150k WGA → £3M A-list |
+
+A flat multiplier can't express this — IP cost must scale with the **marketability
+tier** it carries (§5b), not with `script.cost`. That's a structural change: an IP
+listing's price is driven by its *draw*, not its screenplay-craft cost.
 
 ### Box office (how the two vectors pay out)
 
@@ -179,6 +183,69 @@ column's *legs*. A great original that also rolls high marketability is the
 phenomenon — and you couldn't have manufactured it.
 
 ---
+
+## 5b. The marketability curve — intense, convex, and rare at the top
+
+**This is the single most important calibration decision in the feature.** Real
+openings are a power law, not a line, and the top is a different universe:
+
+| Asset | Typical value (real) |
+|---|---|
+| Original spec screenplay | $100k–3M |
+| Unknown novel adaptation rights | $50k–1M |
+| Bestselling novel | $1–10M+ |
+| *Harry Potter*-level franchise | tens–hundreds of millions (if ever sold) |
+| Spider-Man film rights today | effectively billions in economic value |
+| Entire IP company (Marvel / Lucasfilm) | $4B+ |
+
+Openings follow the same shape. **Opening scales exponentially with
+marketability, never linearly** — calibrated to real domestic figures:
+
+| Marketability | Real analogue | Opening (domestic, illustrative) |
+|---|---|---|
+| 25 | a tiny original | ~$2–4M |
+| 50 | a solid genre film | ~$20–30M |
+| 75 | a strong franchise entry | ~$90–130M |
+| 90 | a major event | ~$200–260M |
+| **97+** | **a cultural phenomenon (rare)** | **~$300M+ domestic → $600M–1.2B worldwide** |
+
+That's roughly `opening ≈ base × exp(k·(M − M₀))` — about **10× per ~33 points** of
+marketability (k ≈ 0.07) — scaled by release size (a limited release can't reach
+event numbers however marketable it is). The top band (90–100) is soft-ceilinged
+but *enormous* and, when it lands, dominates a studio's fortunes — one Marvel
+carries a Disney. A true **90+ marketability IP should be rare and insanely
+powerful**, exactly as the brief says.
+
+**The top is RARE.** Marketability is long-tailed: most films sit 30–55. A genuine
+90+ is scarce *even among IP* — gated by a rare "franchise-tier" property, not
+handed to every Publisher Rights listing. Non-IP marketability is centred low–mid
+(originals seldom open huge), which is precisely *why* the hidden band matters so
+much: a spec that secretly rolled an 85 is a phenomenon nobody saw coming, and the
+convex curve makes that reveal land like a bomb.
+
+**Cost & availability scale super-linearly with it.** The proposed flat "Publisher
+2.5–4× a spec" in §5 is too tame for the top — value is tiered and the ceiling is
+barely for sale:
+
+| Tier | Real analogue | Value | In-game |
+|---|---|---|---|
+| Spec | original screenplay | $100k–3M | routine buy |
+| Mid IP | backlist / unknown novel | $50k–1M | affordable |
+| Bestseller | hot book | $1–10M+ | a real investment, contested |
+| Franchise property | *Harry Potter*-scale | tens–hundreds of M | rare, studio-defining, fierce bidding |
+| Mega-franchise | Spider-Man / Marvel library | billions | effectively **unbuyable** |
+
+So the very top is mostly something you **build, not buy**: your own hit earns
+sequel/franchise rights — self-made high-marketability IP (the Phase E franchise
+hook). Studios don't buy Spider-Man; they *make* a hit and franchise it. Acquiring
+a rare pre-existing mega-property is a once-in-a-studio's-life event, priced and
+contested to match. This also protects game balance — a buyable 90+ every few
+weeks would break the economy; a *buildable* one is a long-term arc.
+
+**Balance consequence:** landing or building a 90+ franchise is a studio-defining
+goal — rare, ruinously expensive or hard-earned, and transformative when it hits.
+Rarity, power, and cost all scale together, which is both realistic and the most
+compelling long-term hook in the game.
 
 ## 6. How box office consumes the vectors (wiring sketch)
 
@@ -233,13 +300,21 @@ diagnostics run.
 
 1. **Marketability inputs & weights** — proposed `hook` (lead) + `franchisePotential`
    (heaviest) + genre reach. Include `accessibility` from `commercialProfile`?
-2. **Band widths** (§4) — Spec ±30 down to IP ±6. Too swingy? Too tame?
-3. **Reveal cadence** — all at opening weekend (proposed), or leak partially during
+2. **The curve steepness** (§5b) — ~10× per 33 points (k ≈ 0.07) is the proposed
+   convexity. Steeper (more extreme top) or gentler? And where does the soft
+   ceiling on the 95–100 "phenomenon" band sit?
+3. **Franchise-tier rarity** (§5b) — how scarce is a 90+ property in the IP pool,
+   and is the true mega-tier **buildable-only** (your hit → franchise) rather than
+   ever purchasable?
+4. **Band widths** (§4) — Spec ±30 down to IP ±6. Too swingy? Too tame? (Note the
+   convex curve *amplifies* these — an ±30 band on the input is far more than ±30
+   on the output.)
+5. **Reveal cadence** — all at opening weekend (proposed), or leak partially during
    the marketing campaign / test screenings (a "tracking" mechanic — real studios
    buy tracking data)? Tracking-as-a-purchasable-signal is a lovely future hook.
-4. **Cost re-anchor** — is Publisher at 2.5–4× a spec the right premium, and should
-   the contested/bidding premium be automatic on IP?
-5. **Scope of the taxonomy cleanup** — fold `commercialProfile` into the two new
+6. **IP cost model** — price an IP listing by its **marketability tier** (§5b),
+   not `script.cost` — and make the mega-tier buildable-only rather than for sale?
+7. **Scope of the taxonomy cleanup** — fold `commercialProfile` into the two new
    reads now, or leave it and layer Marketability on top first?
 
 Nothing here is built. On sign-off, Steps 1–2 are the safe first PR; Step 3 is the
