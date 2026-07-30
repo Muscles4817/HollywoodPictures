@@ -578,10 +578,36 @@ reach/scale (the "acclaim doesn't buy mass-market scale" lock stands).
   (reads the design facet not the blend; designer-skill tiebreak; no-designer
   exclusion; loose-fixture fallback).
 
-Not yet built (rest of the programme): craft facets for Cinematographer/Composer/
-Editor, creative-brief conversion of the menus, and the gated scoring cutover;
-plus the workload hub section and the `destructionMethod`/`actionMethod` axes
-(awaiting the finer-taxonomy split).
+- **Slice 2 — craft facets for Cinematographer/Composer/Editor: SHIPPED (safe scaffolding, NOT wired).**
+  Three new pure modules generalise the facet model (engine/facetModel.ts) to the
+  three inert heads: `cinematographyFacet.ts`, `scoreFacet.ts`, `editFacet.ts`.
+  Each supplies its own ambition source, a skill accessor with an unhired
+  fallback, `computeXFacet` / `realiseXQuality` / `xOutlook`, mirroring
+  `vfxFacet.ts`/`setsFacet.ts` exactly:
+  - **Cinematography** ambition from the tone's spectacle/action lean + the
+    setting's environment scale/location complexity + scale. Runs on the shoot's
+    `shootingRatio` (time) × DP skill; money held neutral (no camera-budget dial
+    yet, documented like VFX's neutral time axis). Fallback `NO_CINEMATOGRAPHER_SKILL`.
+  - **Score** ambition from the music-forward tones (suspense/drama/spectacle/
+    romance) + scale. Runs on Composer skill vs demand; money + post-time neutral.
+    Fallback `NO_COMPOSER_SKILL`.
+  - **Editing** ambition from the script's structural complexity + action/suspense
+    lean + scale. Runs on Editor skill vs cutting difficulty; money + post-time
+    neutral. The already-live `editCoverageCeiling` (an under-shot film caps the
+    cut) is orthogonal and untouched. Fallback `NO_EDITOR_SKILL`.
+  - **Calibration-safe by construction:** nothing reads these facets yet -
+    `computeProductionScore`/`computePostProductionScore` are unchanged, so box
+    office is byte-identical. They exist so the gated cutover is a small, focused
+    wiring change with the maths already built and tested.
+  - Tests: `cinematographyFacet.test.ts` / `scoreFacet.test.ts` /
+    `editFacet.test.ts` (ambition separates archetypes, the head's skill is the
+    axis, unhired falls back to the floor, forecast = base at neutral skill).
+
+Not yet built (rest of the programme): the creative-brief conversion of the
+`musicFocus`/`editStyle` menus, and the gated scoring cutover that wires all four
+craft facets (incl. cinematography's new dimension) into scoring and calibrates
+once; plus the workload hub section and the `destructionMethod`/`actionMethod`
+axes (awaiting the finer-taxonomy split).
 
 ## Script-model depth — an open roadmap question (raised, not yet scoped)
 
