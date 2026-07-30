@@ -440,6 +440,20 @@ export function ProductionPlanning() {
   const creativeClash = topCreativeClash(draft.talent);
   const notableClash = creativeClash && creativeClash.tension >= 30 ? creativeClash : null;
 
+  // A slim, always-visible "risk at a glance" strip (see the sticky element in
+  // the render). The risk-affecting dials are spread down a long page (effects/
+  // environment ambition up top, budget/contingency/runtime at the foot), so a
+  // compact readout that stays in view keeps the player aware of how any change
+  // moves risk - without pinning the full, page-blocking detail card. Higher risk
+  // reads hotter. Schedule Pressure is omitted (it's shoot-driven, not set here).
+  const riskGlance = [
+    { label: 'Morale', value: staticRisk.moraleRisk },
+    { label: 'Safety', value: staticRisk.safetyRisk },
+    { label: 'Technical', value: staticRisk.technicalComplexity },
+    { label: 'Budget', value: staticRisk.budgetRisk },
+  ];
+  const riskTone = (v: number) => (v >= 66 ? 'var(--red)' : v >= 40 ? 'var(--amber, #b8860b)' : 'var(--green, #2e7d32)');
+
   const identity = synthesizeProductionIdentity(script, envBreakdown, fxBreakdown);
   const biggestTension = findBiggestTension([
     { label: 'Environment Strategy', agreementState: envBreakdown.agreementState, distance: envBreakdown.distance },
@@ -462,6 +476,27 @@ export function ProductionPlanning() {
   return (
     <div className="stack">
       <h1>Production Planning</h1>
+
+      {/* Always-visible risk summary: sticks to the top of the scroll as the
+          player works down the page, so any dial's effect on risk is legible at
+          a glance. Slim by design (one row) - it replaces the old full Risk
+          Profile card being pinned to the bottom, which blocked most of the
+          page. The detailed breakdown still lives in-flow lower down. */}
+      <div className="plan-risk-strip">
+        <span className="plan-risk-strip__title">Risk at a glance</span>
+        <div className="plan-risk-strip__pips">
+          {riskGlance.map((r) => (
+            <span className="plan-risk-pip" key={r.label} title={`${r.label} risk`}>
+              <span className="plan-risk-pip__label">{r.label}</span>
+              <span className="plan-risk-pip__track">
+                <span className="plan-risk-pip__fill" style={{ width: `${Math.max(0, Math.min(100, Math.round(r.value)))}%`, background: riskTone(r.value) }} />
+              </span>
+            </span>
+          ))}
+        </div>
+        <span className="plan-risk-strip__hint">Moves live as you adjust the dials — full detail lower down.</span>
+      </div>
+
       <ScriptSummaryCard script={script} />
 
       <p className="production-identity">{identity}</p>
@@ -639,10 +674,11 @@ export function ProductionPlanning() {
 
       {!canAfford && <p style={{ color: 'var(--red)' }}>This plan costs more than the studio has on hand.</p>}
 
-      {/* Pinned so the risk bars stay on screen while you drag the dials above —
-          you can watch Safety/Technical Risk move as you change the Contingency
-          Reserve, rather than losing them off-screen. */}
-      <div className="card stack" style={{ position: 'sticky', bottom: 8, zIndex: 2, boxShadow: '0 -4px 16px rgba(0,0,0,0.35)' }}>
+      {/* The detailed breakdown, in normal flow (no longer pinned to the bottom,
+          where the full-height card blocked most of the page). Live awareness now
+          comes from the slim "Risk at a glance" strip that sticks to the top; this
+          card carries the explanations, the reserve's reductions, and any clash. */}
+      <div className="card stack">
         <h3 style={{ margin: 0 }}>Production Risk Profile</h3>
         <p style={{ margin: 0 }}>
           A preview of how this plan (plus your cast's reliability, ego, temperament and how well the key creatives

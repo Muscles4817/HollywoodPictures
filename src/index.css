@@ -1147,6 +1147,67 @@ textarea, input, select {
   color: var(--text-muted);
 }
 
+/* Production Planning: a slim, always-visible risk summary that sticks to the
+   top of the scroll (replacing the old full Risk Profile card pinned to the
+   bottom, which blocked most of the page). One compact row so it never overlays
+   the content the player is working on. */
+.plan-risk-strip {
+  position: sticky;
+  top: 8px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.plan-risk-strip__title {
+  font-size: 0.8em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.plan-risk-strip__pips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  flex: 1 1 auto;
+}
+.plan-risk-pip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8em;
+}
+.plan-risk-pip__label {
+  color: var(--text-muted);
+}
+.plan-risk-pip__track {
+  display: inline-block;
+  width: 56px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--track-bg);
+  overflow: hidden;
+}
+.plan-risk-pip__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 120ms ease;
+}
+.plan-risk-strip__hint {
+  flex-basis: 100%;
+  font-size: 0.75em;
+  color: var(--text-muted);
+}
+
 /* Casting discovery toolbar (docs/DESIGN_REVIEW_casting_ux.md) - search, sort,
    and the availability/affordability filters, so the player browses by intent. */
 .casting-controls {
