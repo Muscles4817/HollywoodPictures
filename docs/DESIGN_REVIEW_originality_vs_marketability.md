@@ -233,19 +233,25 @@ barely for sale:
 | Mid IP | backlist / unknown novel | $50k–1M | affordable |
 | Bestseller | hot book | $1–10M+ | a real investment, contested |
 | Franchise property | *Harry Potter*-scale | tens–hundreds of M | rare, studio-defining, fierce bidding |
-| Mega-franchise | Spider-Man / Marvel library | billions | effectively **unbuyable** |
+| Mega-franchise | Spider-Man / Marvel library | billions | **buyable, but vanishingly rare** |
 
-So the very top is mostly something you **build, not buy**: your own hit earns
-sequel/franchise rights — self-made high-marketability IP (the Phase E franchise
-hook). Studios don't buy Spider-Man; they *make* a hit and franchise it. Acquiring
-a rare pre-existing mega-property is a once-in-a-studio's-life event, priced and
-contested to match. This also protects game balance — a buyable 90+ every few
-weeks would break the economy; a *buildable* one is a long-term arc.
+**The top tier is buyable — just absurdly rare.** You could play for in-game
+*decades* without one ever appearing. It is NOT gated to buildable-only, because a
+live studio-to-studio market is the point: an IP can be **sold between studios**
+(you buy a rival's franchise; a rival in trouble divests its crown jewel; you
+outbid the world for a property that surfaces once a generation). Building your own
+(your hit → franchise rights) is *a* path to a mega-property, but so is buying one
+— and wanting to buy from other studios is exactly why it must be purchasable.
 
-**Balance consequence:** landing or building a 90+ franchise is a studio-defining
-goal — rare, ruinously expensive or hard-earned, and transformative when it hits.
-Rarity, power, and cost all scale together, which is both realistic and the most
-compelling long-term hook in the game.
+Balance is protected by **rarity and price**, not by making it unbuyable: a 90+
+property appears so seldom, and costs so much (tens–hundreds of millions, fiercely
+contested), that acquiring one is a once-in-a-studio's-life event that reshapes the
+company — one Marvel carries a Disney. Rarity, power, and cost all scale together.
+
+This implies a real **studio-to-studio IP market**: IP is an ownable, tradeable
+asset (rival IP ownership was scoped-but-deferred in the pipeline doc). That, plus
+"an IP may have no screenplay yet," is what makes the **IP object** the entity this
+whole tier lives on — see the sequencing note in §7.
 
 ## 6. How box office consumes the vectors (wiring sketch)
 
@@ -277,22 +283,63 @@ Taxonomy cleanup this enables (removes today's overlap between `ConceptStrength`
 
 ---
 
-## 7. Phased plan (design locked here; build later, behind the gates)
+## 7. Sequencing — does the IP object come first?
 
-1. **`deriveMarketability` (pure)** — from hook + franchise + genre reach. Not yet
-   wired; unit-tested for the intended shape (franchise-heavy → high draw).
-2. **Provenance band + reveal** — true-vs-estimate split; wide/hidden for non-IP,
-   tight/known for IP; the true value resolves at opening. Player-facing hint copy.
-3. **Wire into Buzz/opening**, replacing the `hookStrength` script term — behind
-   `BOX_OFFICE_DIAGNOSTIC`, recalibrated, non-purchasability preserved.
-4. **Small legs term** for emotional premise; retire the now-redundant commercial
-   overlaps.
-5. **Re-anchor `SOURCE_COST_MULTIPLIER`** to §5 (Publisher premium + contested),
-   and align commission/rewrite fees to the real-price table.
+Honest answer: **the core marketability mechanic and the IP object are separable,
+but the *top tier* — the rare, buyable, tradeable mega-franchise you actually care
+about — genuinely needs the IP object.** Two facts pull in opposite directions:
 
-Steps 1–2 are safe and calibration-free (new derivation + a hidden value).
-Step 3 is the calibration-sensitive one and should be its own PR with the
-diagnostics run.
+- **Marketability lives on the film** (it's what *opens*), derived from concept
+  fields, and applies to *every* film. Its derivation, the exponential curve, and
+  even the hidden-vs-known band (keyed off the existing `AssetProvenance`) can all
+  be built and calibrated **without** the IP object. This is the biggest single
+  box-office improvement and the lowest-risk to prove.
+- **The IP object owns the top end.** "An IP with no screenplay," the rare 90+
+  franchise *tier*, and studio-to-studio trading are all IP-object features. Wire
+  marketability on plain scripts and its ceiling is whatever `franchisePotential`
+  rolls from an archetype band — the true mega-franchise, and the market you want
+  to buy from rivals, simply don't exist yet.
+
+So neither ordering causes rework (the IP feeds *into* film marketability either
+way), and the real question is which you want first:
+
+**Option A — Marketability core first, IP object second.** Ship draw-driven
+openings + the hidden-band gamble for all films now (Publisher-Rights-acquired
+assets get "known draw" via provenance immediately); add the IP entity, adaptation,
+franchise tier, and trading after. De-risks the scary box-office calibration before
+the big reshape; delivers the "buying is tangible" payoff soonest.
+
+**Option B — IP object first, then marketability (your lean).** Build the IP as a
+real ownable/tradeable/rare entity first, so marketability wires up with its full
+range (known-high IP draw, the rare buyable mega-tier, the studio-to-studio market)
+native from day one. Cleaner conceptually; front-loads the biggest, most invasive
+reshape (`Opportunity.script` becomes optional, every reader guarded), and the
+box-office calibration lands *after* it.
+
+**Recommendation:** given your priorities — a buyable-but-vanishingly-rare
+mega-franchise and a studio-to-studio market — **Option B is defensible and I'm
+happy to lead with the IP object.** The one thing I'd lift out and do *first
+regardless* is the **exponential opening curve** (§5b): it's the calibration-risky
+piece, it's independent of the IP object, and proving it early means the IP work
+lands on an already-validated box-office shape rather than stacking two big
+unknowns.
+
+### The build order under Option B
+
+1. **IP object** — `Opportunity`/`Asset` become a discriminated union: a listing is
+   a *screenplay* (today's shape) **or** an *IP* (no script, carries a
+   marketability/franchise tier). Every `opportunity.script` reader guarded.
+2. **Adaptation** — the development stage that turns an owned IP into a screenplay,
+   inheriting the IP's marketability. (The third rewrite kind from the pipeline doc.)
+3. **The exponential opening curve** (§5b) — behind `BOX_OFFICE_DIAGNOSTIC`,
+   recalibrated, non-purchasability preserved. *(Do this first if de-risking.)*
+4. **`deriveMarketability` + provenance band/reveal** — film draw from concept (or
+   inherited IP tier); wide/hidden for originals, tight/known for IP; resolves at
+   opening. Replaces the `hookStrength` script term in Buzz.
+5. **Rare mega-tier + studio-to-studio market** — franchise-tier IP generation
+   (vanishingly rare), rival IP ownership, and buying/selling IP between studios.
+6. **Re-anchor costs** — IP priced by marketability tier (§5, §5b); commission/
+   rewrite fees to the real-price table; small `emotionalPremise` legs term.
 
 ---
 
