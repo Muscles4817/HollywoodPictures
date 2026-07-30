@@ -162,6 +162,7 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
       stuntTeamFee: stuntFee,
       pressTourMoment: { buzzDelta: tourMoments.buzzDelta, storyBeat: tourMoments.storyBeat },
       marketingRolloutMultiplier: rolloutMultiplier,
+      personDrivenCraft: true, // player film: DP/Composer/Editor realise craft quality (coverage unification)
     },
     rng,
   );

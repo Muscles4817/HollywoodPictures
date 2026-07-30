@@ -628,12 +628,55 @@ reach/scale (the "acclaim doesn't buy mass-market scale" lock stands).
   - Tests: `postProductionBrief.test.ts` (mapping, per-combination byte-identity
     against the raw profile arithmetic, digit-free intent prose).
 
-**All safe scaffolding is now in place.** Remaining: the single gated scoring
-cutover — wire the four craft facets (Sets already live; Cinematography's brand-new
-dimension; Score/Edit replacing their menu-dials via the brief seam) into
-`computeProductionScore`/`computePostProductionScore`, re-centred aggregate-neutral,
-and calibrated once against the gates. Plus the workload hub section and the
-`destructionMethod`/`actionMethod` axes (awaiting the finer-taxonomy split).
+- **Slice 4 — the gated scoring cutover: SHIPPED (player-only, aggregate-neutral).**
+  Cinematography, Score and Editing quality is now realised from WHO you hired,
+  fixing the audit's quality-from-choices-not-hires defect. Each enters scoring as
+  a DEVIATION from the unhired-fallback baseline (facet quality with the actual
+  head minus the same facet at the no-head fallback), so a film with no such head
+  is byte-identical to before the term existed:
+  - Cinematography → a term in `computeProductionScore` (a brand-new delivered
+    dimension for the DP; feeds the production→quality chain and the
+    Best-Cinematography award's productionScore).
+  - Score + Edit → a deviation added to the post-production quality in
+    `computeQualityBreakdown`, on top of the brief baseline, bounded by footage
+    coverage with the rest of the cut.
+  - Weights (`CINEMATOGRAPHY_PROD_WEIGHT` 0.3, `SCORE`/`EDIT_POST_WEIGHT` 0.25) at
+    the top of `scoring.ts`; the character terms (critic/audience/buzz edit/score
+    deltas) stay brief-driven choices, and `computeBuzzScore` is untouched (buzz
+    gate trivially green).
+
+  **Player-only, and why (a measured decision).** A `personDrivenCraft` flag gates
+  the three new dimensions: true on the player's release + forecast paths
+  (`marketSettlement`, `MarketingRelease`, `OutcomeInspector`, `testScreening`),
+  absent/false everywhere else (rivals, the base model, every calibration
+  diagnostic). Sets/VFX/Practical remain person-driven for everyone regardless.
+  The reason: rivals attach these crew too, and the whole-year box-office
+  DISTRIBUTION diagnostic is a chaotic multi-year rival-feedback simulation — any
+  change to rival craft quality cascades non-monotonically through greenlight/
+  budget/release decisions across the simulated years (measured: weight 0.3 →
+  mean gross 167, weight 0.12 → 157, i.e. smaller weight moved it FURTHER, not
+  closer). So the distribution gate cannot be held stable by tuning under any
+  rival-scoring change, and it is red-by-design and PROPOSED (not ratified),
+  owned by the separate funnel/scale recalibration. Making the cutover player-only
+  keeps the distribution + variance gates BYTE-IDENTICAL (verified: wideMeanGrossM
+  173.5, wideOver500Pct 5.3, wideOpeningMultiple 2.9, variance 100%/CoV 0.017 all
+  exactly at baseline) while delivering the feature for the player. Rivals adopt
+  person-driven craft in the funnel/scale recalibration that owns the gate — so
+  rival scoring shifts ONCE, there, honouring "calibrated once."
+  - **Verified:** build ✓; full suite ✓ (1913, +4 cutover-wiring tests); lint ✓
+    (0 errors); buzz gate green; distribution + variance gates byte-identical to
+    baseline. Tests: `craftCutover.test.ts` (crew lifts player productionScore/
+    postProductionScore; monotonic in skill; flag-off ignores craft; unstaffed
+    film byte-identical flag on/off).
+
+**Coverage unification is complete for the player.** The whole chain now runs and
+is player-visible: script → producer's Execution Strategy → requirements →
+department workload → crew suitability → **realised craft quality that depends on
+who you hired** → box office and awards (incl. the new Best Production Design).
+Remaining (deliberately deferred): rivals adopting person-driven craft + the
+overall funnel/scale recalibration (one workstream that owns the box-office
+distribution gate); the workload hub section; and the `destructionMethod`/
+`actionMethod` axes (awaiting the finer-taxonomy split).
 
 ## Script-model depth — an open roadmap question (raised, not yet scoped)
 

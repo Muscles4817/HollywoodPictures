@@ -18,6 +18,9 @@ import { getActorCareer, getDirectorCareer, getCrewCareer } from './person';
 import { computeSetsAmbition, computeSetsFacet, defaultDesignPrepDays, realiseSetsQuality, NO_DESIGNER_SKILL } from './setsFacet';
 import { computeVfxFacet, realiseVfxQuality, vfxSupervisorSkill } from './vfxFacet';
 import { computePracticalFacet, realisePracticalQuality, NO_STUNT_TEAM_SKILL } from './practicalFacet';
+import { computeCinematographyFacet } from './cinematographyFacet';
+import { computeScoreFacet } from './scoreFacet';
+import { computeEditFacet } from './editFacet';
 import { characterForRoleSlot } from './castRequirements';
 import {
   shootingBudgetQuality,
@@ -205,7 +208,23 @@ export function computeSetsFacetQuality(choices: ProductionChoices, talent: Tale
  * Passing no execution profile (a forecast) leaves every facet at its
  * deterministic base. Contingency and style stay as they were.
  */
-export function computeProductionScore(choices: ProductionChoices, genre: Genre, shootingRatio: number, talent: TalentAssignment[], script: Script, execution?: ExecutionProfile, stuntTeamSkill: number = NO_STUNT_TEAM_SKILL): number {
+// --- Coverage-unification cutover: person-driven craft quality ---------------
+// Cinematography, Score and Editing now realise quality from WHO you hired
+// (cinematographyFacet/scoreFacet/editFacet), fixing the audit's
+// quality-from-choices-not-hires defect. Each enters as a DEVIATION from the
+// unhired-fallback baseline: the facet quality with the actual head minus the
+// same facet at the no-head fallback. So a film with no such head (every rival
+// had an identical flat post value before; every current scoring test fixture is
+// unstaffed for these roles) scores EXACTLY as before - deviation 0 - and a
+// hired head lifts (or a weak one dips) the film. The effect flows only through
+// the existing production/post -> quality -> legs channel (never reach/scale), so
+// "acclaim doesn't buy mass-market scale" still holds. Weights are modest and
+// kept so the rival box-office distribution stays put (box-office diagnostics).
+const CINEMATOGRAPHY_PROD_WEIGHT = 0.3;
+const SCORE_POST_WEIGHT = 0.25;
+const EDIT_POST_WEIGHT = 0.25;
+
+export function computeProductionScore(choices: ProductionChoices, genre: Genre, shootingRatio: number, talent: TalentAssignment[], script: Script, execution?: ExecutionProfile, stuntTeamSkill: number = NO_STUNT_TEAM_SKILL, personDrivenCraft = false): number {
   const profile = GENRE_PROFILES[genre];
   const contingency = shootingBudgetQuality(choices.shootingBudgetAmount);
   const style = shootingQualityFromRatio(shootingRatio);
@@ -226,7 +245,20 @@ export function computeProductionScore(choices: ProductionChoices, genre: Genre,
       ? (vfx * profile.vfxImportance + practical * profile.practicalEffectsImportance) / effectsWeightTotal
       : (vfx + practical) / 2;
 
-  return contingency * 0.35 + style * 0.25 + sets * 0.2 + effectsScore * 0.2;
+  // Cinematography: the DP's realised image, a person-driven deviation from an
+  // unled camera department. Uses the facet's deterministic base (no camera event
+  // channel yet). Player films only (personDrivenCraft) - rivals keep the flat
+  // model until the funnel/scale recalibration that owns the box-office
+  // distribution gate. Zero when no Cinematographer is attached, so even a player
+  // film with no DP is byte-identical to before this term existed.
+  let cinematography = 0;
+  if (personDrivenCraft) {
+    const cine = computeCinematographyFacet(talent, genre, script, shootingRatio).quality;
+    const cineBaseline = computeCinematographyFacet([], genre, script, shootingRatio).quality;
+    cinematography = CINEMATOGRAPHY_PROD_WEIGHT * (cine - cineBaseline);
+  }
+
+  return clamp(contingency * 0.35 + style * 0.25 + sets * 0.2 + effectsScore * 0.2 + cinematography, 0, 100);
 }
 
 /**
@@ -424,13 +456,21 @@ export function computeQualityBreakdown(
   // rivals, older callers) falls back to NO_STUNT_TEAM_SKILL inside
   // computeProductionScore, scoring exactly as before.
   stuntTeamSkill: number = NO_STUNT_TEAM_SKILL,
+  // Coverage-unification cutover: when true (the player's films) Cinematography,
+  // Score and Editing realise quality from the hired heads; when false (rivals,
+  // the base model, and every calibration diagnostic) those three keep the flat
+  // brief/fallback value, so the rival-driven box-office distribution & variance
+  // gates stay byte-identical. Rivals adopt person-driven craft in the separate
+  // funnel/scale recalibration. Sets/VFX/Practical are person-driven for everyone
+  // regardless (unchanged by this flag).
+  personDrivenCraft = false,
 ): QualityBreakdown {
   const execution = executionProfile ?? computeExecutionProfile({ events, shootingRatio, talent, productionChoices });
 
   const scriptScore = computeScriptScore(script);
   const directionScore = computeDirectionScore(talent, script);
   const actingScore = computeActingScore(talent, script);
-  const productionScore = computeProductionScore(productionChoices, genre, shootingRatio, talent, script, execution, stuntTeamSkill);
+  const productionScore = computeProductionScore(productionChoices, genre, shootingRatio, talent, script, execution, stuntTeamSkill, personDrivenCraft);
   // The sets facet quality on its own - the same value computeProductionScore
   // blends into its `sets` term (identical pure inputs), read out here so the
   // Production Design department has a craft score the award can judge. This is
@@ -444,7 +484,22 @@ export function computeQualityBreakdown(
   // binds below ratio 1, so a fully-covered shoot is judged on the edit's own
   // merits. Post-production interventions (the bonus, e.g. reshoots/re-edits)
   // are added after the cap - extra work that can lift a thin shoot back up.
-  const cappedEdit = Math.min(computePostProductionScore(postProductionChoices), editCoverageCeiling(execution.coverageRatio));
+  // Score & Edit (coverage unification): post-production quality is now
+  // person-driven for player films - the Composer's and Editor's realisation of
+  // the brief, each a deviation from an unmanaged post (their no-head fallback).
+  // Zero when neither is attached (or for rivals/base model, personDrivenCraft
+  // false), so those films keep the old brief-only value. The whole cut (brief
+  // baseline + craft deviation) is still bounded by footage coverage: an
+  // under-shot film caps even a great editor.
+  let postCraftDeviation = 0;
+  if (personDrivenCraft) {
+    const scoreCraft = computeScoreFacet(talent, genre, script).quality;
+    const scoreBaseline = computeScoreFacet([], genre, script).quality;
+    const editCraft = computeEditFacet(talent, genre, script).quality;
+    const editBaseline = computeEditFacet([], genre, script).quality;
+    postCraftDeviation = SCORE_POST_WEIGHT * (scoreCraft - scoreBaseline) + EDIT_POST_WEIGHT * (editCraft - editBaseline);
+  }
+  const cappedEdit = Math.min(computePostProductionScore(postProductionChoices) + postCraftDeviation, editCoverageCeiling(execution.coverageRatio));
   const postProductionScore = clamp(cappedEdit + postProductionScoreBonus, 0, 100);
   const eventsScore = computeEventsScore(events);
 
