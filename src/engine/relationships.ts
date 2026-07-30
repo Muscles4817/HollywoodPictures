@@ -227,3 +227,29 @@ const HARD_REFUSAL_WARMTH = -80;
 export function relationshipRefuses(standing: RelationshipStanding): boolean {
   return standing.warmth <= HARD_REFUSAL_WARMTH;
 }
+
+/**
+ * A short, producer-voiced read on the studio's standing with this person, for
+ * the "Working with them" card section - qualitative (house style, never raw
+ * warmth), and honest about the deal consequence each tier actually carries
+ * (relationshipThresholdDelta / relationshipSalaryMultiplier). null for a
+ * stranger (tier 'none' / no shared films), where there's nothing to say.
+ */
+export function describeRelationshipStanding(standing: RelationshipStanding): string | null {
+  if (standing.tier === 'none' || standing.collaborations === 0) return null;
+  const n = standing.collaborations;
+  const films = `${n} film${n === 1 ? '' : 's'} together`;
+  switch (standing.tier) {
+    case 'loyal':
+      return `A loyal collaborator — ${films}. They'll take a friendlier deal to work with you again.`;
+    case 'warm':
+      return `A warm history — ${films}; an easier yes than a stranger.`;
+    case 'strained':
+      return `A strained history — ${films}, and it didn't quite click; a harder, costlier yes.`;
+    case 'grudge':
+      return `Bad blood — ${films}, and it went sour. They'll be reluctant to come back, and dear if they do.`;
+    case 'neutral':
+    default:
+      return `You've worked together — ${films}, with no strong pull either way.`;
+  }
+}

@@ -128,6 +128,47 @@ describe('deriveTraits', () => {
     expect(mediaTraits.length).toBeLessThanOrEqual(1);
   });
 
+  it('derives ConsummateProfessional from high professionalism + reliability + even temper', () => {
+    const pro = withReputation(withPersonality(basePerson(), { professionalism: 90, temperament: 80, ego: 40 }), { reliability: 90 });
+    expect(deriveTraits(pro)).toContain('ConsummateProfessional');
+    // Not from professionalism alone (a flaky or hot-tempered pro doesn't read this way).
+    const flaky = withReputation(withPersonality(basePerson(), { professionalism: 90, temperament: 80 }), { reliability: 30 });
+    expect(deriveTraits(flaky)).not.toContain('ConsummateProfessional');
+  });
+
+  it('derives SteadyUnderPressure from high pressure handling + steady temperament', () => {
+    const steady = withPersonality(basePerson(), { pressureHandling: 90, temperament: 75 });
+    expect(deriveTraits(steady)).toContain('SteadyUnderPressure');
+    const rattled = withPersonality(basePerson(), { pressureHandling: 30, temperament: 75 });
+    expect(deriveTraits(rattled)).not.toContain('SteadyUnderPressure');
+  });
+
+  it('derives LoyalCollaborator from high loyalty + real standing, and never alongside PaychequeDriven', () => {
+    const loyal = withReputation(withPersonality(basePerson(), { loyalty: 90, ambition: 40 }), { industryRespect: 70 });
+    const traits = deriveTraits(loyal);
+    expect(traits).toContain('LoyalCollaborator');
+    expect(traits).not.toContain('PaychequeDriven');
+  });
+
+  it('derives Versatile for a well-rounded, adaptable actor - and never alongside MethodPerformer', () => {
+    const [actor] = generateTalentCandidates('Actor', createRng(9), 1);
+    const rounded: Person = withPersonality(
+      { ...actor, careers: { actor: { ...actor.careers.actor!, actingStyle: { characterTransformation: 75, emotionalPerformance: 75, charisma: 75, comedy: 75, physicalPerformance: 75 } } } },
+      { adaptability: 85, professionalism: 45 },
+    );
+    expect(deriveTraits(rounded)).toContain('Versatile');
+
+    // A deep specialist reads as MethodPerformer, not Versatile, even if rounded
+    // enough to clear Versatile's floor - the conflict keeps them one or the other.
+    const method: Person = withPersonality(
+      { ...actor, careers: { actor: { ...actor.careers.actor!, actingStyle: { characterTransformation: 95, emotionalPerformance: 85, charisma: 85, comedy: 85, physicalPerformance: 85 } } } },
+      { adaptability: 65, professionalism: 90 },
+    );
+    const methodTraits = deriveTraits(method);
+    expect(methodTraits).toContain('MethodPerformer');
+    expect(methodTraits).not.toContain('Versatile');
+  });
+
   it('conflict resolution: the higher-scoring member of a conflicting pair is the one that survives', () => {
     // Ego 95 (maximal DifficultToWorkWith support) vs a Mentor read that only
     // just clears its own floor - DifficultToWorkWith should win.
