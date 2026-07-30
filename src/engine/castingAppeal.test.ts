@@ -71,7 +71,7 @@ function writerPerson(id: string): Person {
     primaryRole: 'Writer',
     careers: { writer: {
       role: 'Writer', active: true, experience: 50, roleReputation: 50, minimumSalary: 50_000, typicalSalary: 100_000, skill: 50,
-      craft: { originality: 50, structure: 50, characters: 50, dialogue: 50 },
+      conceptAmbition: 50, craft: { structure: 50, characters: 50, dialogue: 50 },
       toneProfile: { action: 50, comedy: 50, romance: 50, suspense: 50, drama: 50, spectacle: 50 },
       genreAffinity: { Action: 50, Comedy: 50, Drama: 50, Horror: 50, Romance: 50, 'Sci-Fi': 50, Fantasy: 50, Thriller: 50 },
       commercialLean: 50, consistency: 50,

@@ -520,7 +520,10 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   // Craft rolls are biased toward the author's own craft shape (and spread by
   // their consistency), but anchored on the archetype's band. Complexity has no
   // writer axis, so it stays a plain band roll.
-  const originality = rollCraftStat(rng, archetypeProfile.qualityRange.originality, author?.craft.originality, author?.consistency);
+  // Originality is Concept, not craft: it's biased by the author's conceptAmbition
+  // (how bold their ideas run), not their execution craft (SIMULATION_PHILOSOPHY
+  // Principle 9). Still anchored on the archetype's own originality band.
+  const originality = rollCraftStat(rng, archetypeProfile.qualityRange.originality, author?.conceptAmbition, author?.consistency);
   const structure = rollCraftStat(rng, archetypeProfile.qualityRange.structure, author?.craft.structure, author?.consistency);
   const characters = rollCraftStat(rng, archetypeProfile.qualityRange.characters, author?.craft.characters, author?.consistency);
   const dialogue = rollCraftStat(rng, archetypeProfile.qualityRange.dialogue, author?.craft.dialogue, author?.consistency);

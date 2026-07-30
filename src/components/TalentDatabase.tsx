@@ -183,7 +183,7 @@ function CareerPanel({ person }: { person: Person }) {
           <h2>As a Writer <span className="td-panel__note">Their craft on the page</span></h2>
           <div className="td-bar-grid">
             <BarRow label="Writing skill" value={writer.skill} info={SKILL_INFO} />
-            <BarRow label="Originality" value={writer.craft.originality} />
+            <BarRow label="Originality" value={writer.conceptAmbition} />
             <BarRow label="Structure" value={writer.craft.structure} />
             <BarRow label="Characters" value={writer.craft.characters} />
             <BarRow label="Dialogue" value={writer.craft.dialogue} />
@@ -276,7 +276,7 @@ function devCraftGroup(person: Person): { title: string; rows: Array<{ label: st
         title: 'Writing (skill + craft axes)',
         rows: [
           siRow('skill', writer.skill),
-          { label: 'Originality', value: writer.craft.originality },
+          { label: 'Originality (concept ambition)', value: writer.conceptAmbition },
           { label: 'Structure', value: writer.craft.structure },
           { label: 'Characters', value: writer.craft.characters },
           { label: 'Dialogue', value: writer.craft.dialogue },

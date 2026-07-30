@@ -131,7 +131,9 @@ function generateSkill(rng: RandomFn, t: number): number {
 
 // --- Writer creative profile (Phase 2: writers become authors) ------------
 
-const WRITER_CRAFT_AXES = ['originality', 'structure', 'characters', 'dialogue'] as const;
+// The execution-craft axes only - originality is a Concept axis (a writer's
+// `conceptAmbition`), not craft (docs/SIMULATION_PHILOSOPHY.md Principle 9).
+const WRITER_CRAFT_AXES = ['structure', 'characters', 'dialogue'] as const;
 
 /**
  * A writer's craft *shape*, generated AROUND their overall skill rather than
@@ -367,6 +369,10 @@ function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Perso
         ...roleCareerCommon,
         experience: skill,
         skill,
+        // Concept boldness (how original their ideas run) - broad and deliberately
+        // decoupled from skill/craft, so a raw talent can out-imagine a polished
+        // craftsman (docs/SIMULATION_PHILOSOPHY.md Principle 9).
+        conceptAmbition: rollWriterScalar(rng, 52, 38),
         craft: generateWriterCraft(rng, skill),
         toneProfile: generateToneProfile(rng),
         genreAffinity: generateWriterGenreAffinity(rng),

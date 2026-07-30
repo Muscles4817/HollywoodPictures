@@ -5,7 +5,7 @@ import { getWriterCareer } from './person';
 import { pickGenreForAffinity, selectWriterForSource, sourceStandingWeight, writerProfileFromPerson, writerStanding } from './writers';
 import type { Genre, WriterGenreAffinity } from '../types';
 
-const CRAFT_AXES = ['originality', 'structure', 'characters', 'dialogue'] as const;
+const CRAFT_AXES = ['structure', 'characters', 'dialogue'] as const;
 const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
 describe('generated writer creative profiles', () => {
@@ -18,6 +18,8 @@ describe('generated writer creative profiles', () => {
         expect(c.craft[axis]).toBeGreaterThanOrEqual(1);
         expect(c.craft[axis]).toBeLessThanOrEqual(100);
       }
+      expect(c.conceptAmbition).toBeGreaterThanOrEqual(1);
+      expect(c.conceptAmbition).toBeLessThanOrEqual(100);
       expect(c.commercialLean).toBeGreaterThanOrEqual(1);
       expect(c.consistency).toBeGreaterThanOrEqual(1);
       expect(Object.keys(c.genreAffinity)).toHaveLength(8);

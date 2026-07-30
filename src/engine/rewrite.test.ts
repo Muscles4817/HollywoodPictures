@@ -9,7 +9,7 @@ const FLAT_GENRE: Record<Genre, number> = { Action: 50, Comedy: 50, Drama: 50, H
 function profile(o: Partial<WriterCreativeProfile> = {}): WriterCreativeProfile {
   return {
     skill: 80,
-    craft: { originality: 80, structure: 80, characters: 80, dialogue: 80 },
+    conceptAmbition: 80, craft: { structure: 80, characters: 80, dialogue: 80 },
     toneProfile: { action: 50, comedy: 50, romance: 50, suspense: 50, drama: 50, spectacle: 50 },
     genreAffinity: { ...FLAT_GENRE },
     commercialLean: 50,
@@ -37,21 +37,21 @@ describe('computeRewriteOutcome', () => {
 
   it('a strong writer with room reliably lifts a weak script', () => {
     const weak = scriptWith({ originality: 30, structure: 30, characters: 30, dialogue: 30 });
-    const strong = profile({ skill: 90, consistency: 90, craft: { originality: 90, structure: 90, characters: 90, dialogue: 90 } });
+    const strong = profile({ skill: 90, consistency: 90, conceptAmbition: 90, craft: { structure: 90, characters: 90, dialogue: 90 } });
     expect(avg(sampleDialogue(strong, weak, 'rewrite', 80))).toBeGreaterThan(45);
   });
 
   it('barely moves an already-great script, and can even nick it downward (a real gamble)', () => {
     const great = scriptWith({ originality: 95, structure: 95, characters: 95, dialogue: 95 });
-    const outcomes = sampleDialogue(profile({ craft: { originality: 90, structure: 90, characters: 90, dialogue: 90 } }), great, 'rewrite', 120);
+    const outcomes = sampleDialogue(profile({ conceptAmbition: 90, craft: { structure: 90, characters: 90, dialogue: 90 } }), great, 'rewrite', 120);
     expect(avg(outcomes)).toBeLessThan(97); // no meaningful gain - no room
     expect(Math.min(...outcomes)).toBeLessThan(95); // downside risk is real
   });
 
   it('low consistency widens the outcome variance versus high consistency', () => {
     const script = scriptWith({ originality: 50, structure: 50, characters: 50, dialogue: 50 });
-    const volatile = sampleDialogue(profile({ craft: { originality: 50, structure: 50, characters: 50, dialogue: 50 }, consistency: 5 }), script, 'rewrite', 120);
-    const steady = sampleDialogue(profile({ craft: { originality: 50, structure: 50, characters: 50, dialogue: 50 }, consistency: 95 }), script, 'rewrite', 120);
+    const volatile = sampleDialogue(profile({ conceptAmbition: 50, craft: { structure: 50, characters: 50, dialogue: 50 }, consistency: 5 }), script, 'rewrite', 120);
+    const steady = sampleDialogue(profile({ conceptAmbition: 50, craft: { structure: 50, characters: 50, dialogue: 50 }, consistency: 95 }), script, 'rewrite', 120);
     expect(sd(volatile)).toBeGreaterThan(sd(steady));
   });
 
@@ -73,7 +73,7 @@ describe('fee, duration, room', () => {
   });
 
   it('rewriteAxisRoom is positive only where the writer out-levels the script (execution craft only - originality is not an axis)', () => {
-    const room = rewriteAxisRoom(profile({ craft: { originality: 90, structure: 40, characters: 80, dialogue: 60 } }), scriptWith({ originality: 50, structure: 50, characters: 50, dialogue: 60 }));
+    const room = rewriteAxisRoom(profile({ conceptAmbition: 90, craft: { structure: 40, characters: 80, dialogue: 60 } }), scriptWith({ originality: 50, structure: 50, characters: 50, dialogue: 60 }));
     expect(room.characters).toBe(30); // writer out-levels the script here
     expect(room.structure).toBe(0); // writer weaker here
     expect(room.dialogue).toBe(0); // equal

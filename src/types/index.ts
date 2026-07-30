@@ -399,9 +399,8 @@ export interface CrewPhilosophy {
 // (keeping generation decoupled), and so a future collaboration system can
 // blend two writers' profiles into one.
 
-/** A writer's relative craft *shape* - what they're better/worse at, on the same four axes a Script's own craft uses. Generated around (not instead of) their overall skill: a spiky elite has a high dialogue/structure and merely-average originality yet a high overall skill. */
+/** A writer's relative *execution* craft shape - what they're better/worse at, on the same three mutable craft axes a Script's own execution uses (structure/characters/dialogue). Generated around (not instead of) their overall skill: a spiky elite has high dialogue/structure yet merely-average characters, at a high overall skill. Originality is NOT here - it belongs to the writer's `conceptAmbition` (how bold their *ideas* are), a Concept axis, not execution craft (docs/SIMULATION_PHILOSOPHY.md Principle 9). */
 export interface WriterCraft {
-  originality: number; // 1-100
   structure: number; // 1-100
   characters: number; // 1-100
   dialogue: number; // 1-100
@@ -414,14 +413,23 @@ export type WriterGenreAffinity = Record<Genre, number>;
  * Everything screenplay generation reads from a writer - deliberately a plain
  * value object, not a Person, so engine/scriptGenerator.ts never imports the
  * talent model. `skill` is included because generation uses it as the overall
- * level anchor; the four `craft` axes tilt which stats come out relatively
- * strongest; `toneProfile` pulls the script's tone toward the writer's
- * signature; `commercialLean` biases archetype selection (prestige<->crowd-
- * pleaser); `consistency` controls variance (low = an inconsistent auteur
- * whose scripts range from dud to masterpiece, high = a dependable craftsman).
+ * level anchor; `conceptAmbition` biases how original/bold their ideas run; the
+ * three `craft` axes tilt which execution stats come out relatively strongest;
+ * `toneProfile` pulls the script's tone toward the writer's signature;
+ * `commercialLean` biases archetype selection (prestige<->crowd-pleaser);
+ * `consistency` controls variance (low = an inconsistent auteur whose scripts
+ * range from dud to masterpiece, high = a dependable craftsman).
  */
 export interface WriterCreativeProfile {
   skill: number; // 1-100 overall execution level - independent of craft shape, NOT their average
+  // How bold/high-concept a writer's *ideas* run - the Concept-side counterpart
+  // of `craft` (docs/SIMULATION_PHILOSOPHY.md Principle 9). Biases the originality
+  // of the screenplay they author (engine/scriptGenerator.ts), and is deliberately
+  // decoupled from skill: a low-skill writer can have wild ideas, a polished
+  // craftsman can be conventional. A Nolan is high here; a dependable
+  // TV-procedural writer is low. `consistency` scales how widely it swings, the
+  // same as it does for craft.
+  conceptAmbition: number; // 1-100
   craft: WriterCraft;
   toneProfile: ToneProfile;
   genreAffinity: WriterGenreAffinity;

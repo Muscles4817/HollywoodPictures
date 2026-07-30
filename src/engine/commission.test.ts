@@ -6,7 +6,11 @@ import type { Genre, Person, Script } from '../types';
 
 const FLAT_GENRE: Record<Genre, number> = { Action: 50, Comedy: 50, Drama: 50, Horror: 50, Romance: 50, 'Sci-Fi': 50, Fantasy: 50, Thriller: 50 };
 
-function writerPerson(id: string, craft: { originality: number; structure: number; characters: number; dialogue: number }, skill = 80): Person {
+// Accepts the old four-value shape for call-site convenience, then splits it:
+// `originality` becomes the writer's conceptAmbition (Concept axis), the rest is
+// their execution craft (docs/SIMULATION_PHILOSOPHY.md Principle 9).
+function writerPerson(id: string, craftInput: { originality: number; structure: number; characters: number; dialogue: number }, skill = 80): Person {
+  const { originality, ...craft } = craftInput;
   return {
     id,
     identity: { name: `Writer ${id}`, appearanceTags: [] },
@@ -16,7 +20,7 @@ function writerPerson(id: string, craft: { originality: number; structure: numbe
     careers: {
       writer: {
         role: 'Writer', active: true, experience: skill, roleReputation: 40, minimumSalary: 100_000, typicalSalary: 200_000, skill,
-        craft, toneProfile: { action: 50, comedy: 50, romance: 50, suspense: 50, drama: 50, spectacle: 50 },
+        conceptAmbition: originality, craft, toneProfile: { action: 50, comedy: 50, romance: 50, suspense: 50, drama: 50, spectacle: 50 },
         genreAffinity: { ...FLAT_GENRE }, commercialLean: 50, consistency: 70,
       },
     },

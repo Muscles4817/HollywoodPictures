@@ -15,7 +15,7 @@ const FLAT_GENRE: Record<Genre, number> = { Action: 50, Comedy: 50, Drama: 50, H
 function commissionProfile(consistency: number): WriterCreativeProfile {
   return {
     skill: 80,
-    craft: { originality: 60, structure: 60, characters: 60, dialogue: 90 },
+    conceptAmbition: 60, craft: { structure: 60, characters: 60, dialogue: 90 },
     toneProfile: { action: 20, comedy: 20, romance: 20, suspense: 90, drama: 40, spectacle: 20 },
     genreAffinity: { ...FLAT_GENRE },
     commercialLean: 50,
@@ -43,7 +43,7 @@ describe('describeWriter', () => {
   it("reflects an auteur's low-standing/originality differently from a commercial craftsman", () => {
     const kaufman = HANDCRAFTED_WRITERS.find((w) => w.identity.name === 'Charlie Kaufman')!;
     const d = describeWriter(kaufman)!;
-    expect(d.knownFor).toContain('boldly original'); // originality 100 is his top craft
+    expect(d.knownFor).toContain('boldly original'); // conceptAmbition 100 (Concept axis) leads his execution craft
   });
 
   it('returns null for a person with no writer career', () => {

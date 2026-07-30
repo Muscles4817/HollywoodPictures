@@ -13,8 +13,8 @@ import { clamp, weightedPick, type RandomFn } from './random';
 export function writerProfileFromPerson(person: Person): WriterCreativeProfile | null {
   const career = getWriterCareer(person);
   if (!career) return null;
-  const { skill, craft, toneProfile, genreAffinity, commercialLean, consistency } = career;
-  return { skill, craft, toneProfile, genreAffinity, commercialLean, consistency };
+  const { skill, conceptAmbition, craft, toneProfile, genreAffinity, commercialLean, consistency } = career;
+  return { skill, conceptAmbition, craft, toneProfile, genreAffinity, commercialLean, consistency };
 }
 
 /** A writer's overall standing, 0-100 - how established they are. Skill-led (an elite writer is elite regardless of reputation noise) with a fame contribution. Drives how an opportunity's source biases writer selection. */
