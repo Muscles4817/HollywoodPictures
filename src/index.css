@@ -1074,6 +1074,76 @@ textarea, input, select {
   }
 }
 
+/* Casting drawer two-pane (desktop): the role brief pinned on the left stays in
+   view while the candidate list scrolls on the right. Collapses to a single
+   stacked column on narrow screens. */
+.casting-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.casting-candidates {
+  min-width: 0; /* let the candidate grid shrink instead of overflowing the pane */
+}
+.casting-brief {
+  position: sticky;
+  top: calc(var(--header-clearance) + 12px);
+  align-self: start;
+}
+@media (max-width: 900px) {
+  .casting-layout {
+    grid-template-columns: 1fr;
+  }
+  .casting-brief {
+    position: static;
+  }
+}
+.casting-brief__card {
+  gap: 8px;
+}
+.casting-brief__eyebrow {
+  font-size: 0.72em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.casting-brief__meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9em;
+}
+.casting-brief__desc {
+  margin: 4px 0 0;
+  font-size: 0.9em;
+}
+.casting-brief__writtenfor {
+  margin: 6px 0 0;
+  font-size: 0.88em;
+  font-weight: 600;
+}
+.casting-brief__agehint {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.casting-brief__demands {
+  margin-top: 6px;
+}
+.casting-brief__heading {
+  font-size: 0.78em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.casting-brief__note {
+  margin: 8px 0 0;
+  font-size: 0.82em;
+  color: var(--text-muted);
+}
+
 .candidate-headline {
   display: flex;
   flex-direction: column;

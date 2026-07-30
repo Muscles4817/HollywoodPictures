@@ -15,7 +15,7 @@ import { forecastOpenCasting } from '../../engine/castingCalls';
 import { playerRelationshipWith, type RelationshipStanding } from '../../engine/relationships';
 import { notableCastAffinity, type CastAffinity } from '../../engine/pairHistory';
 import { formatMoney } from '../common/Money';
-import { CHARACTER_ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
+import { CastingRoleBrief } from './CastingRoleBrief';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { RangeSlider } from '../common/RangeSlider';
@@ -810,14 +810,17 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
       <div className="role-drawer-backdrop" onClick={onClose} />
       <div className="role-drawer stack" role="dialog" aria-label={`Cast ${character.name}`}>
         <div className="row-between">
-          <div>
-            <h2 style={{ margin: 0 }}>Who plays {character.name}?</h2>
-            <p style={{ margin: '4px 0 0', color: 'var(--text-muted)' }}>
-              {character.prominence} &middot; {CHARACTER_ARCHETYPE_LABELS[character.archetype]}
-            </p>
-          </div>
+          <h2 style={{ margin: 0 }}>Who plays {character.name}?</h2>
           <Button onClick={onClose}>Close</Button>
         </div>
+
+        {/* Two-pane on desktop: the role's own brief pinned on the left (what the
+            part needs, who it's written for) stays in view while you work the
+            candidates on the right. Collapses to a single stacked column on
+            narrow screens (see .casting-layout in index.css). */}
+        <div className="casting-layout">
+          <CastingRoleBrief character={character} />
+          <div className="casting-candidates stack">
 
         {castHere && (
           <p style={{ margin: 0 }}>
@@ -1059,6 +1062,8 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
             )}
           </>
         )}
+          </div>{/* .casting-candidates */}
+        </div>{/* .casting-layout */}
       </div>
     </>
   );

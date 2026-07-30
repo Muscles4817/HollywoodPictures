@@ -7,7 +7,8 @@
 // touches JSX.
 import { deriveCommercialProfile } from './commercialProfile';
 import { SETTING_ARCHETYPE_PROFILES, type SettingProfile } from '../data/settings';
-import type { Script, ScriptCharacter, SettingArchetype } from '../types';
+import { ACTING_STYLE_LABELS } from '../data/actingStyle';
+import type { ActingStyle, CharacterTraitProfile, Script, ScriptCharacter, SettingArchetype } from '../types';
 
 // Threshold-to-tag mapping - drawn from the screenplay's own concept
 // (ProductionRequirements plus the chosen Setting Archetype's own
@@ -113,6 +114,39 @@ const CHARACTER_DEMAND_MAX_NOTES = 3;
  * distinctiveness/merchandisePotential deliberately aren't shown here -
  * they're not things an actor's own stats can satisfy.
  */
+// The five CharacterTraitProfile demands that map onto an actor's ActingStyle
+// (the same five computeActorCharacterCompatibility scores against) - the axes a
+// performer's own craft can actually satisfy. dramaticDepth/accessibility/
+// distinctiveness/merchandise are deliberately excluded (an actor's stats don't
+// speak to them). Paired with their ActingStyle label so a role brief and a
+// candidate's fit breakdown read in the same terms.
+const DEMAND_AXES: Array<[keyof CharacterTraitProfile, keyof ActingStyle]> = [
+  ['transformationDemand', 'characterTransformation'],
+  ['emotionalDemand', 'emotionalPerformance'],
+  ['charismaDemand', 'charisma'],
+  ['comedyDemand', 'comedy'],
+  ['physicalDemand', 'physicalPerformance'],
+];
+
+export interface RoleDemand {
+  /** The ActingStyle axis label this demand maps onto (e.g. "Emotional Performance"). */
+  label: string;
+  /** 1-100 - how much the part leans on this axis. */
+  value: number;
+}
+
+/**
+ * A role's performance demands as a sorted (strongest-first) list, for a "what
+ * the part needs" brief - the bar-chart counterpart of describeCharacterDemands'
+ * prose. Same five acting-relevant axes, labelled exactly as a candidate's fit
+ * breakdown labels them, so the two read against each other directly.
+ */
+export function roleDemandProfile(character: ScriptCharacter): RoleDemand[] {
+  return DEMAND_AXES.map(([demandKey, axisKey]) => ({ label: ACTING_STYLE_LABELS[axisKey], value: character.traits[demandKey] })).sort(
+    (a, b) => b.value - a.value,
+  );
+}
+
 export function describeCharacterDemands(character: ScriptCharacter): string {
   const { traits } = character;
   const entries: Array<[label: string, value: number]> = [

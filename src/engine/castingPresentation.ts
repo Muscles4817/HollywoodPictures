@@ -406,26 +406,72 @@ function auditionTier(fitScore: number): AuditionTier {
 
 // {name} / {character} are filled from the specific read. Two variants per tier
 // so a slate of screen tests doesn't read as copy-paste.
+// Roughly ten variants per grade, and deliberately varied in ANGLE as well as
+// wording - the crew's reaction, the director's, the dailies/tape, the chemistry
+// read, a comparative note, a specific craft beat - so a slate of screen tests
+// never reads as one sentence with the names swapped. Every line references
+// {name} and {character} (interpolated at render), so the pick is always
+// grounded whichever one the stable hash lands on.
 const AUDITION_REPORT: Record<AuditionTier, string[]> = {
   excellent: [
     'The read was electric — {name} simply became {character}. You could shoot it tomorrow.',
     'Goosebumps in the room. {name} found things in {character} that weren’t even on the page.',
+    'The crew stopped what they were doing to watch. {name} is {character} — there’s no daylight between them.',
+    'A masterclass. {name} played {character} three different ways and every one of them worked.',
+    'The director sat back and just grinned. That’s the whole movie, right there in {name}’s read of {character}.',
+    'You’ll be cutting this reel into the awards campaign. {name} owns {character} completely.',
+    'Effortless. {name} made {character} look like the only role they were ever born to play.',
+    'The tape doesn’t do it justice, and the tape is extraordinary. {name} is your {character}.',
+    'Silence, then genuine applause. {name} took {character} somewhere nobody in the room expected.',
+    'Stop the search. {name} walked in and settled {character} in a single take.',
   ],
   strong: [
     '{name} gave an assured, controlled read — a real {character} takes shape.',
-    'A confident screen test. {name} clearly understands {character} and can carry it.',
+    'A confident screen test. {name} clearly understands {character} and can carry the part.',
+    '{name} came in prepared and it showed — {character} is in safe hands.',
+    'No notes to speak of. {name} has a firm, convincing grip on {character}.',
+    'The chemistry read clicked — {name} slots into {character} without a seam.',
+    '{name} nailed the big beat and made the quiet ones land too. A strong {character}.',
+    'Polished and specific. {name} knows exactly who {character} is.',
+    'A pro’s read — {name} won’t give you a bad take as {character}.',
+    '{name} found the spine of {character} fast and held it all the way through.',
+    'Solid, watchable, true. {name} makes a persuasive {character}.',
   ],
   good: [
     'A solid, professional read from {name} — they can play {character}, with a little shaping.',
     '{name} handled {character} capably. Not a revelation, but dependable.',
+    '{name} gets the broad strokes of {character}; the finer shading will come with direction.',
+    'Competent and coachable — {name} would grow into {character} on set.',
+    '{name} is a sound choice for {character}: no fireworks, and no worries either.',
+    'The read was fine — {name} plays {character} straight down the middle.',
+    '{name} has the range for {character}, if not yet the nuance.',
+    'Reliable work. {name} won’t elevate {character}, but won’t let the part down.',
+    '{name} found {character}’s surface cleanly; the depth is a directing job.',
+    'A safe pair of hands — {name} covers {character} without surprises.',
   ],
   shaky: [
     'An uneven read — flashes of {character} from {name}, but it never quite settled.',
     '{name} struggled to find {character}. Some moments landed; plenty didn’t.',
+    'The pieces were there but never came together — {name} kept reaching for {character}.',
+    '{name} pushed hard at {character}, and it read as effort rather than truth.',
+    'A frustrating test — one good take of {character} from {name}, buried under several that missed.',
+    '{name} and {character} never met in the middle. You’d be directing uphill.',
+    'The instincts are off — {name} played {character} against the grain of the scene.',
+    'It flickered to life once, then went flat. {name} isn’t comfortable as {character} yet.',
+    '{name} seemed to be guessing at {character} — watchable, but not convincing.',
+    'Half a performance. {name} has the look for {character}, not yet the read.',
   ],
   poor: [
     'The read fell flat. {name} isn’t the {character} this film needs.',
     'It didn’t come together — {name} and {character} pull in different directions.',
+    'Painful to sit through. {name} has no handle on {character} at all.',
+    'Wrong from the first line — {name} fights {character} the whole way.',
+    'The room went quiet for the wrong reasons. {name} can’t find {character}.',
+    'A misfire. Nothing about {name}’s read says {character}.',
+    '{name} was lost — {character} never showed up on the tape.',
+    'No chemistry, no instinct, no {character}. This one’s a pass on {name}.',
+    'Every choice {name} made took the read further from {character}.',
+    'It simply isn’t there. {name} and {character} are a mismatch.',
   ],
 };
 
@@ -435,7 +481,7 @@ function stableVariant(key: string, count: number): number {
   return Math.abs(hash) % count;
 }
 
-/** The producer's-voice report on a completed screen test - graded by the (now revealed) true character fit, one of two stable variants per grade. `fitScore` is the true 0-100 character compatibility the audition exposes. */
+/** The producer's-voice report on a completed screen test - graded by the (now revealed) true character fit, one of several stable variants per grade (the pick is a stable hash of who read for what, so it never rerolls). `fitScore` is the true 0-100 character compatibility the audition exposes. */
 export function describeAuditionResult(personName: string, characterName: string, personId: string, fitScore: number): string {
   const variants = AUDITION_REPORT[auditionTier(fitScore)];
   const line = variants[stableVariant(`${personId}:${characterName}`, variants.length)];
