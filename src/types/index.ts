@@ -825,16 +825,24 @@ export interface Script {
 // concept - the compiler rejects it. Neither alias restructures Script (its
 // fields stay flat, so every existing consumer is unaffected) - they only name
 // the partition already latent in it.
+//
+// `originality` is a Concept field, not a craft one (docs/SIMULATION_PHILOSOPHY.md
+// Principle 9, docs/DESIGN_REVIEW_source_generation_and_determinants.md): it is
+// the quality of the *idea*, set when the screenplay is conceived and fought over
+// at acquisition - not something a rewrite can manufacture. Development converges
+// on the writer's competence (structure/characters/dialogue); it does not conjure
+// a more original premise. Categorical identity (genre/archetype/...) and the
+// idea's originality are therefore *both* immutable; only execution craft moves.
 
-/** The stable creative concept - what the film fundamentally is. A rewrite must never change these. */
-export type ScriptConcept = Pick<Script, 'genre' | 'archetype' | 'storyType' | 'primarySetting' | 'scale'>;
+/** The stable creative concept - what the film fundamentally is, including how original the idea is. A rewrite must never change these. */
+export type ScriptConcept = Pick<Script, 'genre' | 'archetype' | 'storyType' | 'primarySetting' | 'scale' | 'originality'>;
 
 /** The mutable execution - the craft a rewrite is allowed to improve. */
-export type ScriptCraft = Pick<Script, 'originality' | 'structure' | 'characters' | 'dialogue' | 'complexity' | 'toneProfile'>;
+export type ScriptCraft = Pick<Script, 'structure' | 'characters' | 'dialogue' | 'complexity' | 'toneProfile'>;
 
 /** Runtime companions to the two aliases above, for iteration/validation/tests. Kept in lockstep with them by construction. */
-export const SCRIPT_CONCEPT_KEYS = ['genre', 'archetype', 'storyType', 'primarySetting', 'scale'] as const;
-export const SCRIPT_CRAFT_KEYS = ['originality', 'structure', 'characters', 'dialogue', 'complexity', 'toneProfile'] as const;
+export const SCRIPT_CONCEPT_KEYS = ['genre', 'archetype', 'storyType', 'primarySetting', 'scale', 'originality'] as const;
+export const SCRIPT_CRAFT_KEYS = ['structure', 'characters', 'dialogue', 'complexity', 'toneProfile'] as const;
 
 // Every production dial is continuous rather than a fixed tier: the four
 // spend dials are plain currency amounts (interpreted on a log scale - see

@@ -30,9 +30,9 @@ function sampleDialogue(writer: WriterCreativeProfile, script: Script, kind: 're
 }
 
 describe('computeRewriteOutcome', () => {
-  it('only ever touches the four craft axes - never the concept, complexity, or tone', () => {
+  it('only ever touches the three craft axes - never the concept (incl. originality), complexity, or tone', () => {
     const out = computeRewriteOutcome(profile(), scriptWith({}), 'rewrite', createRng(3));
-    expect(Object.keys(out).sort()).toEqual(['characters', 'dialogue', 'originality', 'structure']);
+    expect(Object.keys(out).sort()).toEqual(['characters', 'dialogue', 'structure']);
   });
 
   it('a strong writer with room reliably lifts a weak script', () => {
@@ -72,11 +72,12 @@ describe('fee, duration, room', () => {
     expect(rewriteDurationDays('rewrite', scriptWith({ complexity: 100 }))).toBeGreaterThan(rewriteDurationDays('rewrite', scriptWith({ complexity: 0 })));
   });
 
-  it('rewriteAxisRoom is positive only where the writer out-levels the script', () => {
+  it('rewriteAxisRoom is positive only where the writer out-levels the script (execution craft only - originality is not an axis)', () => {
     const room = rewriteAxisRoom(profile({ craft: { originality: 90, structure: 40, characters: 80, dialogue: 60 } }), scriptWith({ originality: 50, structure: 50, characters: 50, dialogue: 60 }));
-    expect(room.originality).toBe(40);
+    expect(room.characters).toBe(30); // writer out-levels the script here
     expect(room.structure).toBe(0); // writer weaker here
     expect(room.dialogue).toBe(0); // equal
+    expect('originality' in room).toBe(false); // originality is Concept - never a rewrite axis
   });
 });
 

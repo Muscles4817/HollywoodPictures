@@ -93,8 +93,12 @@ const NOTABLE_ROOM = 8;
  * a guaranteed result (the pass is a gamble - see engine/rewrite.ts).
  */
 export function describeRewriteProjection(writer: WriterCreativeProfile, script: Script, kind: RewriteKind): string {
+  // Room is keyed by the rewrite's own (execution-only) craft axes, which are a
+  // subset of WriterCraft - originality is Concept now and can't be rewritten, so
+  // a projection never names it. Key off `room` itself rather than keyof
+  // WriterCraft so this stays in lockstep with engine/rewrite.ts:CRAFT_AXES.
   const room = rewriteAxisRoom(writer, script);
-  const ranked = (Object.keys(room) as (keyof WriterCraft)[])
+  const ranked = (Object.keys(room) as (keyof typeof room)[])
     .filter((axis) => room[axis] >= NOTABLE_ROOM)
     .sort((a, b) => room[b] - room[a]);
 
