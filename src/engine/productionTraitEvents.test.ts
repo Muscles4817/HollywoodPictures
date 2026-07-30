@@ -45,6 +45,16 @@ describe('trait-event eligibility gating', () => {
     expect(eligibleTraitTemplates(withoutMentor).map((t) => t.id)).not.toContain('trait-mentor-steadies-the-cast');
   });
 
+  it('one of the new traits (ConsummateProfessional) gates its own on-set event', () => {
+    // professionalism + reliability + even temper reads as ConsummateProfessional.
+    const PRO = { personality: { professionalism: 92, temperament: 82, ego: 40 }, reputation: { reliability: 90 } };
+    const withPro = [assign('Director', person('dir')), assign('Lead Actor', person('pro', PRO))];
+    const withoutPro = [assign('Director', person('dir')), assign('Lead Actor', person('star'))];
+    expect(deriveTraits(person('pro', PRO))).toContain('ConsummateProfessional');
+    expect(eligibleTraitTemplates(withPro).map((t) => t.id)).toContain('trait-professional-steadies-the-day');
+    expect(eligibleTraitTemplates(withoutPro).map((t) => t.id)).not.toContain('trait-professional-steadies-the-day');
+  });
+
   it('the difficult-lead event resolves onto the actor who actually has the trait, never the agreeable one', () => {
     // Two leads: only one is Difficult. Whenever the standoff fires, it must name the Difficult one.
     const difficult = person('difficult-star', DIFFICULT);

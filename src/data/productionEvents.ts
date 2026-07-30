@@ -2866,6 +2866,47 @@ export const TRAIT_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     impact: 'performances',
     costRange: [0, 0], qualityRange: [-5, -2], buzzRange: [-6, -1], delayDaysRange: [0, 1],
   },
+  // ConsummateProfessional - a bad day that quietly doesn't derail, because
+  // someone dependable held it together.
+  {
+    id: 'trait-professional-steadies-the-day',
+    description: 'A rough day - a balky rig, a scene that wouldn’t gel - and one unflappable professional on the cast kept everyone steady until it came together. The shoot barely lost a beat.',
+    polarity: 'positive',
+    severity: 'low',
+    requiresTrait: 'ConsummateProfessional',
+    impact: 'coverage',
+    costRange: [0, 0], qualityRange: [1, 4], buzzRange: [0, 0], delayDaysRange: [0, 0],
+  },
+  // SteadyUnderPressure - a crunch week that a cool head keeps from unravelling.
+  {
+    id: 'trait-steady-holds-the-crunch',
+    description: 'The schedule tightened hard this week, and a cool head in the cast kept the set calm under it - no panic, no wasted takes. A day that looked lost held.',
+    polarity: 'positive',
+    severity: 'low',
+    requiresTrait: 'SteadyUnderPressure',
+    impact: 'coverage',
+    costRange: [0, 0], qualityRange: [1, 3], buzzRange: [0, 0], delayDaysRange: [0, 0],
+  },
+  // Versatile - an adaptable performer rescues a scene that wasn't working.
+  {
+    id: 'trait-versatile-rescues-a-scene',
+    description: 'A scene stubbornly wasn’t working - until one adaptable performer reshaped their take on the fly, and the whole thing clicked.',
+    polarity: 'positive',
+    severity: 'low',
+    requiresTrait: 'Versatile',
+    impact: 'performances',
+    costRange: [0, 0], qualityRange: [2, 5], buzzRange: [0, 0], delayDaysRange: [0, 0],
+  },
+  // LoyalCollaborator - here for the work, and it shows in the coverage.
+  {
+    id: 'trait-loyal-goes-the-extra-mile',
+    description: 'A cast member here for the work, not the billing, quietly gave more than the call sheet asked - extra coverage, a generous read for a co-star’s close-up. It shows on screen.',
+    polarity: 'positive',
+    severity: 'low',
+    requiresTrait: 'LoyalCollaborator',
+    impact: 'performances',
+    costRange: [0, 0], qualityRange: [1, 4], buzzRange: [0, 0], delayDaysRange: [0, 0],
+  },
 ];
 
 // --- Pre-production events --------------------------------------------------
