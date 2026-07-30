@@ -1,6 +1,6 @@
 // Workstream II, Addition #1 — per-specialty crew technical capability.
 import { describe, it, expect } from 'vitest';
-import { crewSpecialtyCapability, specialtyWeightedCapability, SPECIALTY_LABEL, isSpecialtyDepartment } from './crewSpecialty';
+import { crewSpecialtyCapability, specialtyWeightedCapability, SPECIALTY_LABEL, isSpecialtyDepartment, specialtyDepartmentForRole, describeStandoutSpecialty } from './crewSpecialty';
 import type { Person } from '../types';
 import type { WorkloadContribution } from './departmentWorkload';
 
@@ -67,5 +67,27 @@ describe('isSpecialtyDepartment', () => {
     expect(isSpecialtyDepartment('productionDesign')).toBe(true);
     expect(isSpecialtyDepartment('vfx')).toBe(true);
     expect(isSpecialtyDepartment('stunts')).toBe(false);
+  });
+});
+
+describe('specialtyDepartmentForRole', () => {
+  it('maps PD and VFX heads to their departments and everyone else to null', () => {
+    expect(specialtyDepartmentForRole('Production Designer')).toBe('productionDesign');
+    expect(specialtyDepartmentForRole('VFX Supervisor')).toBe('vfx');
+    expect(specialtyDepartmentForRole('Editor')).toBeNull();
+    expect(specialtyDepartmentForRole('Cinematographer')).toBeNull();
+  });
+});
+
+describe('describeStandoutSpecialty', () => {
+  it('names a clear standout and a real weak spot', () => {
+    const head = vfxHead('spec-head', 60, { creatureAnimation: 95, compositing: 30, digitalEnvironments: 62, digitalDoubles: 58 });
+    const line = describeStandoutSpecialty(head, 'VFX Supervisor');
+    expect(line).toMatch(/specialist in creature animation/i);
+    expect(line).toMatch(/weaker on compositing/i);
+  });
+
+  it('returns null for a role with no specialties', () => {
+    expect(describeStandoutSpecialty(vfxHead('h', 60), 'Editor')).toBeNull();
   });
 });

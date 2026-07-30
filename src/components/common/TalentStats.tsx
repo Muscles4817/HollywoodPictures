@@ -6,6 +6,8 @@ import {
 } from '../../engine/compatibility';
 import { dominantLean } from '../../engine/recommendation';
 import { describeActorCraft, describeSignatureGift, describeFameCraftContrast, describeDirectorTouch, describeDirectorActorPairing, describeCastAffinity, castAffinityTone } from '../../engine/castingPresentation';
+import { describeCrewPhilosophy } from '../../engine/crewPhilosophy';
+import { describeStandoutSpecialty } from '../../engine/crewSpecialty';
 import type { CastAffinity } from '../../engine/pairHistory';
 import { deriveFitReason, deriveFitRead, deriveFitReadAssist, deriveFitConfidence, deriveRiskRead, qualitativeMagnitude, isStarDraw, gateKnownAxes, knownAxisCoverage } from '../../engine/talentCardPresentation';
 import { describeRelationshipStanding, type RelationshipStanding } from '../../engine/relationships';
@@ -199,8 +201,15 @@ export function TalentStats({ person, role, category, script, character = null, 
   // person to choose between, not just a match score to sort by.
   const isActor = category === 'actor';
   const isDirector = category === 'director';
+  const isCrew = category === 'crew';
   const signatureLine = isActor ? (describeSignatureGift(person) ?? describeActorCraft(person)) : null;
   const contrastLine = isActor ? describeFameCraftContrast(person) : null;
+  // Crew identity, mirroring the director's style line: their creative leanings
+  // (PD/VFX/Cinematographer) and, for the two specialty departments, what they're
+  // known for - so a crew head reads as a distinct craftsperson, not just a skill
+  // bar. Both null for roles that carry no such data (Composer/Editor/Writer/...).
+  const crewPhilosophyLine = isCrew ? describeCrewPhilosophy(person, role) : null;
+  const crewSpecialtyLine = isCrew ? describeStandoutSpecialty(person, role) : null;
 
   const verb = isActor ? 'cast' : 'hire';
   const disclosureLabel = roleFit ? `${roleFit.title}, industry & working style` : 'Industry & working style';
@@ -239,6 +248,8 @@ export function TalentStats({ person, role, category, script, character = null, 
           <p className="talent-identity-line talent-identity-line--muted">{describeDirectorTouch(person)}</p>
         </>
       )}
+      {crewPhilosophyLine && <p className="talent-identity-line">{crewPhilosophyLine}</p>}
+      {crewSpecialtyLine && <p className="talent-identity-line talent-identity-line--muted">{crewSpecialtyLine}</p>}
 
       {/* THE FIT HERO - the card's anchor. A hedged read over a band (how sure
           the read is), never an exact number - for crew (a competence "hire"
