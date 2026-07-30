@@ -312,14 +312,14 @@ describe('computeProjectSpendSoFar', () => {
   it('includes the script acquisition cost even before anything else is chosen', () => {
     const { result: draft } = withRng(120, (rng) => buildReadyDraft(rng));
     const bareDraft = { ...draft, talent: [], productionChoices: null, photography: null, postProductionChoices: null, marketingChoices: null };
-    const asset = { id: bareDraft.assetId, script: bareDraft.script!, source: 'Studio Original' as const, acquisitionCost: 42_000, acquiredOnDay: 1 };
+    const asset = { id: bareDraft.assetId, script: bareDraft.script!, provenance: 'Founding' as const, acquisitionCost: 42_000, acquiredOnDay: 1 };
     expect(computeProjectSpendSoFar(playerDraftToProject(bareDraft), [asset])).toBe(42_000);
   });
 
   it('grows as talent is hired and production/post/marketing choices are made, on top of the script cost', () => {
     const { result: draft } = withRng(121, (rng) => buildReadyDraft(rng));
     const bareDraft = { ...draft, productionChoices: null, photography: null, postProductionChoices: null, marketingChoices: null };
-    const asset = { id: bareDraft.assetId, script: bareDraft.script!, source: 'Studio Original' as const, acquisitionCost: 10_000, acquiredOnDay: 1 };
+    const asset = { id: bareDraft.assetId, script: bareDraft.script!, provenance: 'Founding' as const, acquisitionCost: 10_000, acquiredOnDay: 1 };
 
     const withTalentOnly = computeProjectSpendSoFar(playerDraftToProject(bareDraft), [asset]);
     const withProductionPlan = computeProjectSpendSoFar(playerDraftToProject({ ...bareDraft, productionChoices: draft.productionChoices }), [asset]);
@@ -345,7 +345,7 @@ describe('computeProjectSpendSoFar', () => {
   // silently disappearing the way the old zeroed-costDelta design required.
   it("includes a resolved post-production intervention's cost, on top of everything else", () => {
     const { result: draft } = withRng(123, (rng) => buildReadyDraft(rng));
-    const asset = { id: draft.assetId, script: draft.script!, source: 'Studio Original' as const, acquisitionCost: 10_000, acquiredOnDay: 1 };
+    const asset = { id: draft.assetId, script: draft.script!, provenance: 'Founding' as const, acquisitionCost: 10_000, acquiredOnDay: 1 };
     const before = computeProjectSpendSoFar(playerDraftToProject(draft), [asset]);
 
     const withIntervention = {

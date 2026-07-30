@@ -4,7 +4,7 @@
 // engine/scriptGenerator.ts so that generator stays decoupled from Person, and
 // out of engine/opportunities.ts so the "which writer, given the source"
 // judgement lives in one named place a future commissions system can reuse.
-import type { Genre, OpportunitySource, Person, WriterCreativeProfile, WriterGenreAffinity } from '../types';
+import type { Genre, MarketSource, Person, WriterCreativeProfile, WriterGenreAffinity } from '../types';
 import { GENRES } from '../data/genres';
 import { getWriterCareer } from './person';
 import { clamp, weightedPick, type RandomFn } from './random';
@@ -34,22 +34,21 @@ function peakAt(x: number, at: number): number {
  *   Spec Screenplay  -> emerging/unknown writers (favours LOW standing)
  *   Agent Package    -> established, agency-repped writers (peaks mid-high)
  *   Publisher Rights -> proven names attached to known material (peaks mid-high)
- *   Studio Original  -> commissioned elites (favours HIGH standing)
  * Always strictly positive, so any writer *can* appear via any source, just
- * rarely against type - probabilistic bias, never a hard gate.
+ * rarely against type - probabilistic bias, never a hard gate. (Commissioned
+ * elites are no longer a market source - the player picks that writer directly.)
  */
-export function sourceStandingWeight(source: OpportunitySource, standing: number): number {
+export function sourceStandingWeight(source: MarketSource, standing: number): number {
   const s = standing / 100;
   switch (source) {
     case 'Spec Screenplay': return 0.15 + (1 - s) * 1.6;
     case 'Agent Package': return 0.2 + Math.max(0, peakAt(s, 0.65)) * 1.3;
     case 'Publisher Rights': return 0.2 + Math.max(0, peakAt(s, 0.7)) * 1.3;
-    case 'Studio Original': return 0.15 + s * 1.6;
   }
 }
 
 /** Selects a writer from the pool, weighted by how well their standing fits the opportunity's source. Returns null only for an empty pool. */
-export function selectWriterForSource(writers: Person[], source: OpportunitySource, rng: RandomFn): Person | null {
+export function selectWriterForSource(writers: Person[], source: MarketSource, rng: RandomFn): Person | null {
   if (writers.length === 0) return null;
   const weights: Record<string, number> = {};
   for (const w of writers) weights[w.id] = Math.max(0.01, sourceStandingWeight(source, writerStanding(w)));

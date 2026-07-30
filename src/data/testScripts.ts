@@ -45,10 +45,10 @@ function testAsset(s: Script): Asset {
   return {
     id: s.id,
     script: s,
-    source: 'Studio Original',
+    provenance: 'Founding',
     acquisitionCost: 0,
     acquiredOnDay: 1,
-    developmentHistory: [acquisitionEvent(1, 'Studio Original', 0)],
+    developmentHistory: [acquisitionEvent(1, undefined, 0)],
   };
 }
 

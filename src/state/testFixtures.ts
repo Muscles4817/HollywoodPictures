@@ -77,7 +77,7 @@ export function defaultMarketingChoices(overrides: Partial<MarketingChoices> = {
  */
 export function buildReadyAsset(rng: RandomFn): Asset {
   const script = generateScriptOptions('Action', rng, 1)[0];
-  return { id: `asset-${script.id}`, script, source: 'Studio Original', acquisitionCost: script.cost, acquiredOnDay: 1 };
+  return { id: `asset-${script.id}`, script, provenance: 'Founding', acquisitionCost: script.cost, acquiredOnDay: 1 };
 }
 
 /**
@@ -131,7 +131,7 @@ export function buildStateWithReadyDraft(seed: number, marketingOverrides: Parti
     // distributes (keeping the standard box-office share these box-office
     // fixtures are calibrated against), rather than taking the rented cut a
     // studio with no arm would - see engine/distribution.ts.
-    studio: { ...result.studio, distributionArm: { tier: 3, internationalTier: 3 }, assets: [{ id: result.draft.assetId, script: result.draft.script!, source: 'Studio Original', acquisitionCost: result.draft.script!.cost, acquiredOnDay: 1 }] },
+    studio: { ...result.studio, distributionArm: { tier: 3, internationalTier: 3 }, assets: [{ id: result.draft.assetId, script: result.draft.script!, provenance: 'Founding', acquisitionCost: result.draft.script!.cost, acquiredOnDay: 1 }] },
     screen: 'marketing',
     projects: [playerDraftToProject(result.draft)],
     focusedProjectId: result.draft.id,

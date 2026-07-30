@@ -16,7 +16,7 @@ function studio(overrides: Partial<Studio> = {}): Studio {
 
 function draftFor(seed: number): FilmDraft {
   const { result: script } = withRng(seed, (rng) => generateScriptOptions('Drama', rng, 1)[0]);
-  const asset: Asset = { id: `asset-${seed}`, script, source: 'Studio Original', acquisitionCost: 0, acquiredOnDay: 1 };
+  const asset: Asset = { id: `asset-${seed}`, script, provenance: 'Founding', acquisitionCost: 0, acquiredOnDay: 1 };
   return createDraftFromAsset(asset, {});
 }
 

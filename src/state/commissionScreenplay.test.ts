@@ -49,7 +49,7 @@ describe('COMMISSION_SCREENPLAY', () => {
     expect(s.studio.pendingCommissions ?? []).toHaveLength(0);
     const delivered = s.studio.assets.find((a) => a.id === commission.id);
     expect(delivered).toBeDefined();
-    expect(delivered!.source).toBe('Studio Original');
+    expect(delivered!.provenance).toBe('Commissioned');
     expect(delivered!.script.genre).toBe('Sci-Fi');
     expect(delivered!.writerIds).toContain(writer.id);
     // Net asset growth includes the delivered commission (plus any market batch,

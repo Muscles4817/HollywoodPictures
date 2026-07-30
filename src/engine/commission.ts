@@ -85,7 +85,8 @@ export interface CommissionSettlementResult {
 
 /**
  * Delivers every commission whose readyOnDay has arrived - wrapping its
- * already-generated script as a new owned Asset (source 'Studio Original',
+ * already-generated script as a new owned Asset (provenance 'Commissioned' - the
+ * studio created it, it never appeared on the market, so it has no marketSource;
  * acquisitionCost = the fee already paid, credited to the writer) - and leaves
  * the rest in flight. The delivered Asset is indistinguishable downstream from
  * an acquired one, so the "script cost is charged once, at acquisition"
@@ -103,7 +104,7 @@ export function settlePendingCommissions(pending: PendingCommission[], totalDays
     delivered.push({
       id: commission.id,
       script: commission.script,
-      source: 'Studio Original',
+      provenance: 'Commissioned',
       acquisitionCost: commission.fee,
       acquiredOnDay: commission.readyOnDay,
       writerIds: [commission.writerId],

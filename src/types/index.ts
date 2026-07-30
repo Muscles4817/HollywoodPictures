@@ -1721,7 +1721,16 @@ export interface IpViabilityAssessment {
 // be started from. Source is mostly flavor riding on three real levers
 // (acquisition cost, expiry window, and - via those - how urgently it's
 // worth acting on), not eight parallel generation systems.
-export type OpportunitySource = 'Spec Screenplay' | 'Agent Package' | 'Publisher Rights' | 'Studio Original';
+// Two distinct axes that used to be conflated onto one `OpportunitySource` enum
+// (docs/DESIGN_REVIEW_acquisition_provenance_and_pipeline.md). They answer
+// different questions and must never share a value again:
+//   MarketSource     - WHERE an external opportunity came from (a listing type).
+//   AssetProvenance  - HOW the studio came to own a screenplay.
+// A commissioned or founding screenplay never appeared on the market, so it has
+// a provenance but no market source - which is exactly why 'Studio Original' (a
+// commission) no longer belongs in the market's source set.
+export type MarketSource = 'Spec Screenplay' | 'Agent Package' | 'Publisher Rights';
+export type AssetProvenance = 'Acquired' | 'Commissioned' | 'Founding';
 
 /**
  * Something the studio does not yet own - visible to the player and every
@@ -1733,7 +1742,7 @@ export type OpportunitySource = 'Spec Screenplay' | 'Agent Package' | 'Publisher
  */
 export interface Opportunity {
   id: string;
-  source: OpportunitySource;
+  source: MarketSource;
   script: Script;
   /** The instant-buy price while uncontested (`bids` empty) - also the floor the first bid on a contested opportunity must clear. */
   acquisitionCost: number;
@@ -1850,7 +1859,10 @@ export interface Asset {
    * `revisions` below (engine/screenplay.ts:reviseScript).
    */
   script: Script;
-  source: OpportunitySource;
+  /** How the studio came to own this screenplay: bought from the market ('Acquired'), commissioned from a writer ('Commissioned'), or seeded at game start ('Founding'). Distinct from `marketSource` - see MarketSource/AssetProvenance. */
+  provenance: AssetProvenance;
+  /** For an 'Acquired' asset only: which market listing it was bought from, kept for its library lineage/display. Absent for commissioned or founding screenplays, which never appeared on the market. */
+  marketSource?: MarketSource;
   acquisitionCost: number;
   /** GameState.totalDays this was acquired on - display only (Asset Library "owned since"). */
   acquiredOnDay: number;

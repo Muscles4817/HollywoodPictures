@@ -13,7 +13,7 @@ function assetFrom(script: Script): Asset {
   return {
     id: `asset-${script.id}`,
     script,
-    source: 'Spec Screenplay',
+    provenance: 'Acquired', marketSource: 'Spec Screenplay',
     acquisitionCost: script.cost,
     acquiredOnDay: 5,
     developmentHistory: [acquisitionEvent(5, 'Spec Screenplay', script.cost)],
@@ -54,7 +54,7 @@ describe('acquisitionEvent', () => {
   });
 
   it('records no cash movement for a free founding script', () => {
-    const e = acquisitionEvent(1, 'Studio Original', 0);
+    const e = acquisitionEvent(1, undefined, 0);
     expect(e.kind).toBe('acquired');
     expect(e.costDelta).toBeUndefined();
   });

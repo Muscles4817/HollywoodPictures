@@ -4,15 +4,15 @@
 // objects: no function mutates its input, each returns a new object. This is
 // the seam a future Development Department plugs into; nothing here is wired to
 // a screen or action yet.
-import type { Asset, DevelopmentEvent, DevelopmentEventKind, GameDay, Money, OpportunitySource, PersonId, Script, ScriptCraft } from '../types';
+import type { Asset, DevelopmentEvent, DevelopmentEventKind, GameDay, MarketSource, Money, PersonId, Script, ScriptCraft } from '../types';
 import { estimateScriptCost, newScriptId } from './scriptGenerator';
 
-/** The founding development event every Asset is born with - the moment it entered the library (bought as an Opportunity, or seeded as a founding test script when `cost` is 0). */
-export function acquisitionEvent(day: GameDay, source: OpportunitySource, cost: Money): DevelopmentEvent {
+/** The founding development event every Asset is born with - the moment it entered the library: bought from a market listing (`marketSource` set, cost > 0), or seeded as a founding test script (no market source, cost 0). */
+export function acquisitionEvent(day: GameDay, marketSource: MarketSource | undefined, cost: Money): DevelopmentEvent {
   return {
     day,
     kind: 'acquired',
-    summary: cost > 0 ? `Acquired as a ${source}` : `Founding script (${source})`,
+    summary: cost > 0 && marketSource ? `Acquired as a ${marketSource}` : 'Founding script',
     // Only record a cash movement when there was one - a free founding script moved none.
     costDelta: cost > 0 ? -cost : undefined,
   };

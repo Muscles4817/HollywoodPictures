@@ -85,7 +85,7 @@ describe('settleAssetRewrites', () => {
   function assetWithPending(readyOnDay: number): Asset {
     const head = scriptWith({ dialogue: 40 });
     return {
-      id: 'a1', script: head, source: 'Spec Screenplay', acquisitionCost: 100, acquiredOnDay: 1,
+      id: 'a1', script: head, provenance: 'Acquired', marketSource: 'Spec Screenplay', acquisitionCost: 100, acquiredOnDay: 1,
       writerIds: ['author-1'],
       pendingRewrite: makePendingRewrite('rewriter-9', 'rewrite', 1, readyOnDay, { dialogue: 88 }, 500),
     };
@@ -110,7 +110,7 @@ describe('settleAssetRewrites', () => {
   });
 
   it('ignores assets with no pending pass', () => {
-    const plain: Asset = { id: 'a2', script: scriptWith({}), source: 'Studio Original', acquisitionCost: 0, acquiredOnDay: 1 };
+    const plain: Asset = { id: 'a2', script: scriptWith({}), provenance: 'Founding', acquisitionCost: 0, acquiredOnDay: 1 };
     const [after] = settleAssetRewrites([plain], 999);
     expect(after).toBe(plain);
   });
