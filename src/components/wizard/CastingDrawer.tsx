@@ -6,9 +6,9 @@ import { ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
 import { logAmount } from '../../engine/interpolate';
 import { directApproachFameFloor } from '../../engine/talentFilter';
 import { actorMeetsCharacterGender, personMeetsCharacterAge } from '../../engine/casting';
-import { computeActorAppeal, countActorsFreedByDelay } from '../../engine/castingAppeal';
+import { computeActorAppeal, countActorsFreedByDelay, computeSalaryFit, overallWithSalaryFit } from '../../engine/castingAppeal';
 import { estimateDeal } from '../../engine/castingEstimate';
-import { deriveFitReadAssist, deriveFitRead, deriveFitReason, deriveRiskRead } from '../../engine/talentCardPresentation';
+import { deriveFitReadAssist, deriveFitRead, deriveFitReason, deriveFitConfidence, deriveRiskRead, gateKnownAxes, knownAxisCoverage } from '../../engine/talentCardPresentation';
 import { deriveCastingDirectorTake, describeCastingDirectorTake, type CastingDirectorTake } from '../../engine/castingDirectorAdvice';
 import { candidateStrengthSignals, describeOfferRejection, describeCounterOffer, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast, type CandidateSignal } from '../../engine/castingPresentation';
 import { forecastOpenCasting } from '../../engine/castingCalls';
@@ -23,7 +23,7 @@ import { TalentStats, deriveOverallScore, deriveRoleFitBreakdown } from '../comm
 import { TalentComparison, type CompareSlot } from '../common/TalentComparison';
 import { useComparePins, MAX_PINNED } from '../common/useComparePins';
 import { CheckboxToggle } from '../common/CheckboxToggle';
-import { isAvailableImmediately, getTypicalSalaryForRole, getCrewCareer } from '../../engine/person';
+import { isAvailableImmediately, getTypicalSalaryForRole, getCrewCareer, getActorCareer } from '../../engine/person';
 import { getPersonAge } from '../../types';
 import { gameDateFromTotalDays } from '../../engine/calendar';
 import type { CastingChannel, Person, RoleNegotiation, Script, ScriptCharacter } from '../../types';
@@ -237,6 +237,21 @@ function CandidateCard({
   const belowFloor = overall ? offer < overall.effectiveMinimum : false;
   const offerBlocked = !available;
 
+  // `overall` is computed once at the role's ADVERTISED salary. Every read that
+  // depends on the money the player is actually offering THIS candidate must use
+  // the live per-candidate `offer` instead, or the card contradicts itself -
+  // "Happy with the pay" while the slider sits below their floor, an odds chip
+  // that never budges as you drag. salaryFit is the only offer-dependent appeal
+  // factor, so recompute just that and fold it back into `overall` (a cheap,
+  // exact re-derivation - overallWithSalaryFit is linear in salaryFit).
+  const liveAppeal = overall
+    ? (() => {
+        const typicalSalary = getActorCareer(person)?.typicalSalary ?? offer;
+        const salaryFit = computeSalaryFit(offer, overall.effectiveMinimum, typicalSalary);
+        return { ...overall, salaryFit, overall: overallWithSalaryFit(overall, salaryFit) };
+      })()
+    : null;
+
   // The candidate's reasoning, both directions, as scannable chips: the
   // strengths the appeal math already found, plus a direct-interest draw and the
   // decision-critical blockers/warnings - the same reads that otherwise only
@@ -246,7 +261,7 @@ function CandidateCard({
   const signals: CandidateSignal[] = [];
   if (channel === 'InterestedTalent') signals.push({ label: 'Sought you out', tone: 'positive' });
   if (audited) signals.push({ label: '✓ Auditioned', tone: 'positive' });
-  if (overall) signals.push(...candidateStrengthSignals(overall, directorName));
+  if (liveAppeal) signals.push(...candidateStrengthSignals(liveAppeal, directorName));
   if (belowFloor && !negotiation) signals.push({ label: 'Below their floor', tone: 'blocked' });
 
   const blockedTitle = !available ? 'Booked elsewhere - wait for them (below) to push your shoot, or pick someone free now.' : undefined;
@@ -260,7 +275,7 @@ function CandidateCard({
   // (deriveFitReadAssist). Hidden once a negotiation is live - by then you have
   // their real counter, not a guess. Updates as the salary slider moves.
   const assist = deriveFitReadAssist(castingDirectorSkill, relationship, true, audited);
-  const deal = overall ? estimateDeal(overall, person, offer, assist, relationship) : null;
+  const deal = liveAppeal ? estimateDeal(liveAppeal, person, offer, assist, relationship) : null;
   const estimate = deal && !negotiation ? deal : null; // the pre-offer read is hidden once a negotiation is live
   const oddsSignal = estimate ? describeAcceptanceOdds(estimate.odds) : null;
 
@@ -590,9 +605,14 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
     const deal = estimateDeal(appeal, person, advertisedSalary, assist, relationship);
     const fitScore = deriveOverallScore(person, role, 'actor', draft.script, character);
     if (fitScore === null || !deal) return null;
-    const fitRead = deriveFitRead(fitScore, person, assist);
     const fitBreakdown = deriveRoleFitBreakdown(person, role, 'actor', draft.script, character);
-    const fitReason = fitBreakdown ? deriveFitReason(fitBreakdown.rows.map((r) => ({ label: r.label, matchScore: r.matchScore })), fitBreakdown.noun) : null;
+    // Read the fit exactly as the card does - through the same coverage veil - so
+    // the casting director's take never claims more certainty than the card shows.
+    const readTier = deriveFitConfidence(person, assist).tier;
+    const gated = fitBreakdown ? gateKnownAxes(fitBreakdown.rows, readTier) : null;
+    const coverage = gated ? knownAxisCoverage(gated) : 1;
+    const fitRead = deriveFitRead(fitScore, person, assist, coverage);
+    const fitReason = gated ? deriveFitReason(gated.filter((r) => r.known), fitBreakdown!.noun) : null;
     return deriveCastingDirectorTake({
       castingDirectorSkill,
       fit: fitRead,

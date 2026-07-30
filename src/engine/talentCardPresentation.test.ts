@@ -207,6 +207,45 @@ describe('deriveFitRead', () => {
   });
 });
 
+describe('deriveFitRead under partial coverage', () => {
+  // A well-known, reliable name so the *person* is readable - isolating coverage
+  // as the only thing holding the read back (no read-bias: fame/craft agree).
+  const [base] = generateTalentCandidates('Actor', createRng(70), 1);
+  const readable: Person = { ...base, reputation: { ...base.reputation, fame: 80, industryRespect: 70, currentHeat: 60, reliability: 85 } };
+
+  it('regresses a dazzling true fit toward neutral when little of the role is known', () => {
+    const full = deriveFitRead(95, readable, NO_ASSIST, 1);
+    const sparse = deriveFitRead(95, readable, NO_ASSIST, 0.4);
+    expect(sparse.perceived).toBeLessThan(full.perceived);
+    // 95 seen only two-fifths of the way should not still headline "excellent".
+    expect(sparse.verdict).not.toMatch(/excellent/i);
+    expect(full.verdict).toMatch(/excellent/i);
+  });
+
+  it('caps overall confidence by coverage even for a readable person', () => {
+    const sparse = deriveFitRead(95, readable, NO_ASSIST, 0.4);
+    expect(sparse.confidence).toBe('low');
+    // and it names the fixable reason - part of the role is still unseen.
+    expect(sparse.uncertaintyCause).toMatch(/vouch for part of what this role needs/i);
+  });
+
+  it('snaps back toward the true fit as coverage rises (what an audition buys)', () => {
+    const half = deriveFitRead(95, readable, NO_ASSIST, 0.5).perceived;
+    const most = deriveFitRead(95, readable, NO_ASSIST, 0.9).perceived;
+    expect(most).toBeGreaterThan(half);
+    // Full coverage returns the honest, unregressed read (bias aside).
+    expect(deriveFitRead(95, readable, NO_ASSIST, 1).perceived).toBeCloseTo(95, 5);
+  });
+
+  it('a completed audition both reveals the axes (coverage 1) and reads confidently', () => {
+    const audited = deriveFitReadAssist(0, history(0), true, true);
+    const read = deriveFitRead(95, readable, audited, 1);
+    expect(read.confidence).toBe('high');
+    expect(read.verdict).toMatch(/excellent/i);
+    expect(read.assistNote).toMatch(/read for the part/i);
+  });
+});
+
 describe('deriveFitReadAssist', () => {
   it('reads a hired casting director as the assist for an actor', () => {
     const assist = deriveFitReadAssist(80, history(0), true);

@@ -334,8 +334,37 @@ export function perceivedFitBias(person: Person): number {
   }
 }
 
+// How much of what THIS role actually needs you can currently vouch for, 0..1 -
+// the fraction of the per-axis fit breakdown that reads as "known" rather than
+// "Unknown" (engine gateKnownAxes). A read built on two known axes out of five
+// is not the same confident thing as one where you can see all five, however
+// good those two look - so the overall verdict must regress toward a neutral
+// prior for the part you cannot see, and its confidence must be capped by it.
+// This is exactly what a screen test (or a casting director / working history)
+// buys back: it reveals the axes, lifting coverage toward 1.
+const NEUTRAL_FIT_PRIOR = 50; // a coin-flip fit - what an entirely-unread axis is worth assuming
+const FULL_COVERAGE = 0.8; // knowing ~4 of 5 axes is enough to read the whole part confidently
+const HALF_COVERAGE = 0.5; // knowing about half caps you at a hedged "fairly sure"
+
+/** The confidence ceiling imposed by how much of the role you can actually read - independent of how readable the *person* is. */
+function coverageTier(coverage: number): FitConfidence {
+  if (coverage >= FULL_COVERAGE) return 'high';
+  if (coverage >= HALF_COVERAGE) return 'medium';
+  return 'low';
+}
+
+/** The lower (more cautious) of two confidence tiers. */
+function lowerTier(a: FitConfidence, b: FitConfidence): FitConfidence {
+  return TIER_ORDER[Math.min(TIER_ORDER.indexOf(a), TIER_ORDER.indexOf(b))];
+}
+
+// The residual doubt to name when it's *coverage* holding the read back rather
+// than the person - you simply haven't seen enough of what this part demands.
+// Points straight at the fix (a screen test reveals the rest).
+const COVERAGE_CAUSE = 'you can only vouch for part of what this role needs';
+
 export interface FitRead {
-  /** Player-facing centre of the read: the true fit shifted by reputation bias. Deterministic, still 0-100, but NOT the raw engine number when a bias applies. */
+  /** Player-facing centre of the read: the true fit shifted by reputation bias, and regressed toward a neutral prior for the part of the role you can't yet read. Deterministic, still 0-100, but NOT the raw engine number. */
   perceived: number;
   confidence: FitConfidence;
   /** Band edges around `perceived`, wider the harder the person is to read - what the meter fills as a range instead of a point. */
@@ -384,10 +413,36 @@ const ASSIST_NOTE: Record<'casting-director' | 'history' | 'audition', string> =
  * becomes "here's my read, how sure I am, and why." `trueScore` is the untouched
  * 0-100 fit; everything derived here is deterministic.
  */
-export function deriveFitRead(trueScore: number, person: Person, assist: FitReadAssist = NO_ASSIST): FitRead {
+export function deriveFitRead(trueScore: number, person: Person, assist: FitReadAssist = NO_ASSIST, coverage = 1): FitRead {
+  const cov = clamp(coverage, 0, 1);
   const bias = perceivedFitBias(person) * (1 - assist.level * BIAS_SHAVE);
-  const perceived = clamp(trueScore + bias, 0, 100);
-  const { tier, halfWidth, label, cause } = deriveFitConfidence(person, assist);
+  // Regress the true fit toward a neutral prior for the part of the role you
+  // can't read yet - a dazzling read on two axes out of five is dragged back
+  // toward "who knows" rather than headlined as an excellent overall fit. A
+  // screen test / casting director / history reveals the axes (cov -> 1), and
+  // the read snaps back to the true score it was hiding.
+  const regressed = trueScore * cov + NEUTRAL_FIT_PRIOR * (1 - cov);
+  const perceived = clamp(regressed + bias, 0, 100);
+
+  // The *person's* readability sets one ceiling (deriveFitConfidence); how much
+  // of the role you can see sets another (coverageTier). The read is only as
+  // confident as the weaker of the two, and the band widens to match.
+  const readConf = deriveFitConfidence(person, assist);
+  const covTier = coverageTier(cov);
+  const tier = lowerTier(readConf.tier, covTier);
+  const halfWidth = BAND_HALF_WIDTH[tier] * (1 - assist.level * WITHIN_TIER_SHAVE);
+
+  // Name whichever doubt is actually binding: if coverage is the (equal-or-
+  // lower) constraint and there's genuinely something unseen, say so - it points
+  // the player at the screen test that fixes it - otherwise fall back to the
+  // person-intrinsic reason.
+  const cause =
+    tier === 'high'
+      ? null
+      : TIER_ORDER.indexOf(covTier) <= TIER_ORDER.indexOf(readConf.tier) && cov < 1
+        ? COVERAGE_CAUSE
+        : residualCause(person);
+
   const word = fitQualityWord(perceived);
   const phrase = `${word === 'excellent' ? 'an' : 'a'} ${word} fit`;
   return {
@@ -396,7 +451,7 @@ export function deriveFitRead(trueScore: number, person: Person, assist: FitRead
     low: clamp(perceived - halfWidth, 0, 100),
     high: clamp(perceived + halfWidth, 0, 100),
     verdict: HEDGE[tier](phrase),
-    confidenceLabel: label,
+    confidenceLabel: CONFIDENCE_LABEL[tier],
     uncertaintyCause: cause,
     assistNote: assist.source && assist.level >= ASSIST_NOTABLE ? ASSIST_NOTE[assist.source] : null,
   };
@@ -445,6 +500,17 @@ export function gateKnownAxes(
     gated[topIdx] = { ...gated[topIdx], known: true };
   }
   return gated;
+}
+
+/**
+ * The fraction of a role's fit axes you can actually vouch for (0..1) - how many
+ * of the gated rows read as "known" rather than "Unknown". Feeds deriveFitRead's
+ * coverage regression so the overall verdict never claims more certainty than the
+ * revealed axes support. 1 (fully readable) when there are no axes to gate.
+ */
+export function knownAxisCoverage(gated: GatedAxis[]): number {
+  if (gated.length === 0) return 1;
+  return gated.filter((r) => r.known).length / gated.length;
 }
 
 // --- Head-to-head comparison verdict ---------------------------------------

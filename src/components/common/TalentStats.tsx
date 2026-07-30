@@ -7,7 +7,7 @@ import {
 import { dominantLean } from '../../engine/recommendation';
 import { describeActorCraft, describeSignatureGift, describeFameCraftContrast, describeDirectorTouch, describeDirectorActorPairing, describeCastAffinity, castAffinityTone } from '../../engine/castingPresentation';
 import type { CastAffinity } from '../../engine/pairHistory';
-import { deriveFitReason, deriveFitRead, deriveFitReadAssist, deriveRiskRead, qualitativeMagnitude, isStarDraw, gateKnownAxes } from '../../engine/talentCardPresentation';
+import { deriveFitReason, deriveFitRead, deriveFitReadAssist, deriveFitConfidence, deriveRiskRead, qualitativeMagnitude, isStarDraw, gateKnownAxes, knownAxisCoverage } from '../../engine/talentCardPresentation';
 import type { RelationshipStanding } from '../../engine/relationships';
 import { getCareerForRole, deriveBookedUntil } from '../../engine/person';
 import { describeAgeFit } from '../../engine/casting';
@@ -156,11 +156,19 @@ export function TalentStats({ person, role, category, script, character = null, 
   // (Phase 4), the production's casting director (actors only), and history with
   // this person (deriveFitReadAssist).
   const fitAssist = deriveFitReadAssist(castingDirectorSkill, relationship ?? undefined, category === 'actor', audited);
-  const fitRead = overallScore !== null && roleFit ? deriveFitRead(overallScore, person, fitAssist) : null;
-  // Only the axes you'd actually know are shown in full; the rest are veiled as
-  // "Unknown" the less of a known quantity they are. The "why" line reasons over
-  // the known axes only, so it never cites a dimension the breakdown hides.
-  const gatedRows = roleFit ? gateKnownAxes(roleFit.rows, fitRead?.confidence ?? 'high') : null;
+  // Which axes you can read depends on how readable the *person* is (their
+  // establishment, plus any casting-director/audition/history assist) - compute
+  // that tier first and gate on it. Only the axes you'd actually know are shown
+  // in full; the rest are veiled as "Unknown". The "why" line reasons over the
+  // known axes only, so it never cites a dimension the breakdown hides.
+  const readTier = roleFit ? deriveFitConfidence(person, fitAssist).tier : 'high';
+  const gatedRows = roleFit ? gateKnownAxes(roleFit.rows, readTier) : null;
+  // How much of the role you can vouch for then caps the OVERALL verdict's
+  // confidence and pulls its centre toward neutral - so two dazzling axes out of
+  // five no longer read as "an excellent fit" until a screen test reveals the
+  // rest (deriveFitRead's coverage regression).
+  const coverage = gatedRows ? knownAxisCoverage(gatedRows) : 1;
+  const fitRead = overallScore !== null && roleFit ? deriveFitRead(overallScore, person, fitAssist, coverage) : null;
   const fitReason = gatedRows ? deriveFitReason(gatedRows.filter((r) => r.known), roleFit!.noun) : null;
 
   // Both optional (see PersonIdentity's own comment, types/index.ts) - real,
