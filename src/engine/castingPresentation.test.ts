@@ -328,18 +328,41 @@ describe('describeOpenCastingForecast (Phase 5)', () => {
 });
 
 describe('describeAuditionResult', () => {
-  it('grades a great read differently from a poor one, naming the actor and the character', () => {
+  it('names the actor and character, and grades a great read differently from a poor one', () => {
     const great = describeAuditionResult('Ava Stone', 'Celine', 'p1', 95);
     const poor = describeAuditionResult('Ava Stone', 'Celine', 'p1', 20);
     expect(great).toMatch(/Ava Stone/);
     expect(great).toMatch(/Celine/);
     expect(great).not.toBe(poor);
-    // The good read reads positive; the poor one reads negative.
-    expect(great).toMatch(/electric|goosebumps|became/i);
-    expect(poor).toMatch(/flat|didn.t|apart|different directions/i);
+  });
+
+  it('every variant of every grade interpolates both the actor and the character', () => {
+    // 200 ids spread the stable hash across the whole pool of each grade, so this
+    // effectively checks every line carries both tokens (no bare/ungrounded copy).
+    for (const score of [95, 80, 65, 50, 20]) {
+      for (let i = 0; i < 200; i++) {
+        const line = describeAuditionResult('Nova Vale', 'Marlowe', `id-${i}`, score);
+        expect(line).toMatch(/Nova Vale/);
+        expect(line).toMatch(/Marlowe/);
+      }
+    }
   });
 
   it('is deterministic for the same read (no RNG)', () => {
     expect(describeAuditionResult('Ava Stone', 'Celine', 'p1', 80)).toBe(describeAuditionResult('Ava Stone', 'Celine', 'p1', 80));
+  });
+
+  it('draws excellent and poor reads from separate, non-overlapping pools', () => {
+    const ids = Array.from({ length: 200 }, (_, i) => `p${i}`);
+    const excellent = new Set(ids.map((id) => describeAuditionResult('Actor', 'Role', id, 95)));
+    const poor = new Set(ids.map((id) => describeAuditionResult('Actor', 'Role', id, 20)));
+    for (const line of excellent) expect(poor.has(line)).toBe(false);
+  });
+
+  it('offers a wide, varied pool of phrasings within a grade', () => {
+    const ids = Array.from({ length: 300 }, (_, i) => `person-${i}`);
+    const distinct = new Set(ids.map((id) => describeAuditionResult('Actor', 'Role', id, 95)));
+    // ~10 variants per grade; the hash should surface most of them across 300 ids.
+    expect(distinct.size).toBeGreaterThanOrEqual(8);
   });
 });
