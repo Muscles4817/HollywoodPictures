@@ -24,7 +24,7 @@
 import type { GameDay, Money, Person, ProductionRole, Script, ScriptCharacter, Studio, TalentAssignment } from '../types';
 import { computeActorCharacterCompatibility } from './compatibility';
 import { computeScriptScore } from './scoring';
-import { getActorCareer, deriveBookedUntil } from './person';
+import { getActorCareer, getCrewCareer, deriveBookedUntil } from './person';
 import { clamp } from './random';
 import { deriveTraits } from './personTraits';
 import {
@@ -178,6 +178,32 @@ const PRESTIGE_FOCUSED_DISCOUNT_MULTIPLIER = 1.5;
 // prestige-lean-scaled studio/script signal.
 const DIRECTOR_DRAW_WEIGHT = 0.5;
 
+// A hired Casting Director's real casting edge (casting QOL work): their whole
+// job is landing talent well, so a skilled one negotiates a genuinely better
+// deal - shaving up to this fraction off the effective salary floor at the top
+// of their skill. This is what makes hiring a Casting Director worth the money
+// beyond sharper on-screen estimates. Applied as a final multiplier ORTHOGONAL
+// to the prestige/director discount (it's about who's doing the negotiating, not
+// the project's pull), so it stacks and lands even on a PaychequeDriven actor.
+// Modest and tunable. CRUCIALLY this is read from the talent attached at the
+// moment appeal is computed - i.e. captured onto the signing's agreedSalary at
+// cast time - so it cannot be gamed by attaching a Casting Director only for the
+// greenlight cost tally (see GREENLIGHT_PROJECT: it sums the locked agreedSalary,
+// never recomputing a discount).
+const MAX_CASTING_DIRECTOR_DISCOUNT = 0.15;
+
+/** The salary-floor multiplier a hired Casting Director's skill (0-100) earns - 1.0 with none, down to (1 - MAX_CASTING_DIRECTOR_DISCOUNT) at the top of their skill. */
+export function castingDirectorSalaryMultiplier(castingDirectorSkill: number | null | undefined): number {
+  const t = clamp((castingDirectorSkill ?? 0) / 100, 0, 1);
+  return 1 - t * MAX_CASTING_DIRECTOR_DISCOUNT;
+}
+
+/** The skill of the Casting Director attached to this talent set, or null if none - the single place casting math reads "is there a CD helping, and how good." Kept here (not in a UI/data helper) so every appeal call derives it identically from the talent it was given. */
+export function castingDirectorSkillOf(talent: TalentAssignment[]): number | null {
+  const cd = talent.find((a) => a.role === 'Casting Director');
+  return cd ? getCrewCareer(cd.person, 'Casting Director')?.skill ?? null : null;
+}
+
 /**
  * The salary floor a specific offer is actually judged against - not always
  * the person's raw career minimumSalary. Reuses engine/personTraits.ts's
@@ -206,10 +232,16 @@ export function computeEffectiveMinimumSalary(
   // person, who otherwise never discounts. Optional/neutral-by-default, so every
   // existing call site and the whole test suite is unchanged for strangers.
   relationship: RelationshipStanding = NO_RELATIONSHIP,
+  // A hired Casting Director's negotiating edge (casting QOL work) - lowers the
+  // floor a little in proportion to their skill, orthogonally to everything
+  // above (it's about who's negotiating, not the project). Optional/neutral by
+  // default, so directorAppeal.ts and every existing call site are unchanged.
+  castingDirectorSkill: number | null | undefined = null,
 ): Money {
   const traits = deriveTraits(person);
   const relationshipMultiplier = relationshipSalaryMultiplier(relationship);
-  if (traits.includes('PaychequeDriven')) return Math.round(minimumSalary * relationshipMultiplier);
+  const cdMultiplier = castingDirectorSalaryMultiplier(castingDirectorSkill);
+  if (traits.includes('PaychequeDriven')) return Math.round(minimumSalary * relationshipMultiplier * cdMultiplier);
 
   const lean = prestigeLean(person);
   const drawSignal = clamp(prestigeSignal * lean + directorDraw * DIRECTOR_DRAW_WEIGHT, 0, 100);
@@ -218,7 +250,7 @@ export function computeEffectiveMinimumSalary(
     ? clamp(baseDiscountFraction * PRESTIGE_FOCUSED_DISCOUNT_MULTIPLIER, 0, MAX_SALARY_DISCOUNT)
     : baseDiscountFraction;
 
-  return Math.round(minimumSalary * (1 - discountFraction) * relationshipMultiplier);
+  return Math.round(minimumSalary * (1 - discountFraction) * relationshipMultiplier * cdMultiplier);
 }
 
 /**
@@ -309,7 +341,13 @@ export function computeActorAppeal(
   const lean = prestigeLean(person);
   const prestigeSignal = computePrestigeSignal(studio, script, director);
   const directorDraw = director ? personMomentumScore(director) : 0;
-  const effectiveMinimum = computeEffectiveMinimumSalary(person, career.minimumSalary, prestigeSignal, directorDraw, relationship);
+  // The Casting Director in this talent set gets the actor a better floor
+  // (castingDirectorSalaryMultiplier). Derived from currentTalent so the same
+  // discount lands wherever appeal is computed - the card, open casting, and the
+  // offer reducer alike - and is captured onto the signed agreedSalary at cast
+  // time, not conjured at greenlight.
+  const castingDirectorSkill = castingDirectorSkillOf(currentTalent);
+  const effectiveMinimum = computeEffectiveMinimumSalary(person, career.minimumSalary, prestigeSignal, directorDraw, relationship, castingDirectorSkill);
 
   const factors: ActorAppealFactors = {
     suitability: computeActorCharacterCompatibility(person, character) ?? 50,

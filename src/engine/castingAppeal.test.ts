@@ -261,6 +261,57 @@ describe('computeEffectiveMinimumSalary (Casting Appeal Rework)', () => {
     const withDirectorDraw = computeEffectiveMinimumSalary(neutral, 1_000_000, 0, 90);
     expect(withDirectorDraw).toBeLessThan(noDraw);
   });
+
+  it('a hired casting director shaves the floor, and does so even for a PaychequeDriven actor', () => {
+    const neutral = actorPerson('cd-neutral');
+    const paycheckDriven = actorPerson('cd-pd', { personality: { ambition: 90, loyalty: 10 } });
+    // Neutral: CD stacks on top of whatever prestige discount applied.
+    expect(computeEffectiveMinimumSalary(neutral, 1_000_000, 0, 0, undefined, 100))
+      .toBeLessThan(computeEffectiveMinimumSalary(neutral, 1_000_000, 0, 0, undefined, 0));
+    // PaychequeDriven never takes a prestige discount, but a CD's negotiating
+    // still lands them a better floor (orthogonal to their paycheque focus).
+    const pdNoCd = computeEffectiveMinimumSalary(paycheckDriven, 1_000_000, 100, 100, undefined, 0);
+    const pdWithCd = computeEffectiveMinimumSalary(paycheckDriven, 1_000_000, 100, 100, undefined, 100);
+    expect(pdNoCd).toBe(1_000_000);
+    expect(pdWithCd).toBeLessThan(1_000_000);
+  });
+});
+
+describe('casting director casting benefit (greenlight-locked)', () => {
+  function castingDirectorPerson(id: string, skill: number): Person {
+    return {
+      id,
+      identity: { name: id, appearanceTags: [] },
+      personality: { professionalism: 50, ambition: 50, loyalty: 50, ego: 50, temperament: 50, pressureHandling: 50, controversy: 50, adaptability: 50 },
+      reputation: { fame: 50, prestige: 50, industryRespect: 50, reliability: 50, currentHeat: 50 },
+      availability: { commitments: [] },
+      traits: [],
+      primaryRole: 'Casting Director',
+      careers: {
+        castingDirector: { role: 'Casting Director', active: true, experience: 50, roleReputation: 50, minimumSalary: 50_000, typicalSalary: 200_000, skill },
+      },
+    };
+  }
+
+  it('lowers the effective floor an actor is judged against when a skilled CD is attached', () => {
+    const script = scriptFor(60);
+    const actor = actorPerson('cd-actor', { minimumSalary: 1_000_000, typicalSalary: 3_000_000 });
+    const noCd = computeActorAppeal(actor, character(), script, studio(), undefined, [], 2_000_000, 1)!;
+    const withCd = computeActorAppeal(
+      actor, character(), script, studio(), undefined,
+      [{ role: 'Casting Director', person: castingDirectorPerson('cd1', 100) }],
+      2_000_000, 1,
+    )!;
+    expect(withCd.effectiveMinimum).toBeLessThan(noCd.effectiveMinimum);
+  });
+
+  it('a weak CD helps less than a strong one', () => {
+    const script = scriptFor(61);
+    const actor = actorPerson('cd-actor2', { minimumSalary: 1_000_000, typicalSalary: 3_000_000 });
+    const withWeak = computeActorAppeal(actor, character(), script, studio(), undefined, [{ role: 'Casting Director', person: castingDirectorPerson('weak', 20) }], 2_000_000, 1)!;
+    const withStrong = computeActorAppeal(actor, character(), script, studio(), undefined, [{ role: 'Casting Director', person: castingDirectorPerson('strong', 95) }], 2_000_000, 1)!;
+    expect(withStrong.effectiveMinimum).toBeLessThan(withWeak.effectiveMinimum);
+  });
 });
 
 // The exact reported bug: a mid-prestige studio's $500k casting call

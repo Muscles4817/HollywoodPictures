@@ -9,7 +9,7 @@ import { withRng } from '../engine/random';
 import { generateTalentPool } from '../engine/talentGenerator';
 import { findProject, asPlayerDraft } from '../engine/project';
 import { computeTalentCost } from '../engine/cost';
-import type { ActingStyle, Person, RoleNegotiation, ScriptCharacter } from '../types';
+import type { ActingStyle, Person, RoleNegotiation, ScriptCharacter, TalentAssignment } from '../types';
 
 function buildActor(
   id: string,
@@ -75,6 +75,30 @@ function withNegotiations(s: GameState, negotiations: RoleNegotiation[]): GameSt
   };
 }
 
+function withDraftTalent(s: GameState, talent: TalentAssignment[]): GameState {
+  return {
+    ...s,
+    projects: s.projects.map((p) =>
+      p.kind === 'player-in-progress' && p.draft.id === s.focusedProjectId ? { ...p, draft: { ...p.draft, talent } } : p,
+    ),
+  };
+}
+
+function castingDirector(id: string, skill: number): Person {
+  return {
+    id,
+    identity: { name: id, appearanceTags: [], gender: 'Female', dateOfBirth: undefined },
+    personality: { professionalism: 50, ambition: 50, loyalty: 50, ego: 50, temperament: 50, pressureHandling: 50, controversy: 50, adaptability: 50 },
+    reputation: { fame: 50, prestige: 50, industryRespect: 50, reliability: 50, currentHeat: 50 },
+    availability: { commitments: [] },
+    traits: [],
+    primaryRole: 'Casting Director',
+    careers: {
+      castingDirector: { role: 'Casting Director', active: true, experience: 50, roleReputation: 50, minimumSalary: 50_000, typicalSalary: 200_000, skill },
+    },
+  };
+}
+
 describe('MAKE_OFFER', () => {
   it('a clearly generous offer signs the actor at that fee, and it is the fee charged (not typicalSalary)', () => {
     const { state, lead } = uncastState(11);
@@ -118,6 +142,50 @@ describe('MAKE_OFFER', () => {
     const rec2 = (draftOf(second).negotiations ?? []).find((n) => n.personId === actor.id);
     expect(rec2!.askingPrice).toBe(rec1!.askingPrice); // stable target to negotiate against
     expect(second.rngSeed).toBe(first.rngSeed); // reusing an open negotiation rolls nothing new
+  });
+});
+
+describe('casting director benefit is captured at cast time (greenlight-locked)', () => {
+  it('a hired CD gets the actor to quote a lower asking price for the same deal', () => {
+    // Same actor, same seed - so the asking-price wobble is identical - and the
+    // only difference is whether a skilled casting director is attached. A
+    // below-ask offer draws a negotiation whose stored askingPrice we can read.
+    const build = () => {
+      const { state, lead } = uncastState(55);
+      const actor = buildActor('cd-vs-nocd', matchingGender(lead), { min: 2_000_000, typical: 6_000_000, personality: { ego: 40, ambition: 40 }, reputation: { fame: 40, currentHeat: 40 } });
+      return { state, lead, actor };
+    };
+    const offer = 2_500_000;
+
+    const noCd = build();
+    const noCdAfter = studioReducer(noCd.state, { type: 'MAKE_OFFER', characterId: noCd.lead.id, role: 'Lead Actor', person: noCd.actor, offeredSalary: offer });
+    const noCdAsk = (draftOf(noCdAfter).negotiations ?? []).find((n) => n.personId === noCd.actor.id)!.askingPrice;
+
+    const withCd = build();
+    const cdState = withDraftTalent(withCd.state, [{ role: 'Casting Director', person: castingDirector('cd-x', 100) }]);
+    const cdAfter = studioReducer(cdState, { type: 'MAKE_OFFER', characterId: withCd.lead.id, role: 'Lead Actor', person: withCd.actor, offeredSalary: offer });
+    const cdAsk = (draftOf(cdAfter).negotiations ?? []).find((n) => n.personId === withCd.actor.id)!.askingPrice;
+
+    expect(cdAsk).toBeLessThan(noCdAsk);
+  });
+
+  it('locks the signed fee at cast time: removing the CD before greenlight does not change it', () => {
+    const { state, lead } = uncastState(56);
+    const actor = buildActor('cd-locked', matchingGender(lead), { min: 2_000_000, typical: 6_000_000 });
+    const cd = castingDirector('cd-remove', 100);
+    const cdState = withDraftTalent(state, [{ role: 'Casting Director', person: cd }]);
+
+    // Sign at a clearly-generous fee so acceptance is certain.
+    const signed = studioReducer(cdState, { type: 'MAKE_OFFER', characterId: lead.id, role: 'Lead Actor', person: actor, offeredSalary: 6_000_000 });
+    const lockedFee = draftOf(signed).talent.find((a) => a.person.id === actor.id)!.agreedSalary!;
+    expect(lockedFee).toBe(6_000_000);
+
+    // Remove the casting director, as the feared exploit would - the signed fee
+    // is stored on the assignment, so it is unchanged, and the greenlight cost
+    // tally (computeTalentCost sums agreedSalary) cannot be recomputed cheaper.
+    const cdRemoved = withDraftTalent(signed, draftOf(signed).talent.filter((a) => a.person.id !== cd.id));
+    const feeAfter = draftOf(cdRemoved).talent.find((a) => a.person.id === actor.id)!.agreedSalary!;
+    expect(feeAfter).toBe(lockedFee);
   });
 });
 
