@@ -6,11 +6,11 @@ import { ROLE_GENERATION_PROFILES } from '../../data/talentGeneration';
 import { logAmount } from '../../engine/interpolate';
 import { directApproachFameFloor } from '../../engine/talentFilter';
 import { actorMeetsCharacterGender, personMeetsCharacterAge } from '../../engine/casting';
-import { computeActorAppeal, countActorsFreedByDelay } from '../../engine/castingAppeal';
+import { computeActorAppeal, countActorsFreedByDelay, computeSalaryFit, overallWithSalaryFit } from '../../engine/castingAppeal';
 import { estimateDeal } from '../../engine/castingEstimate';
-import { deriveFitReadAssist, deriveFitRead, deriveFitReason, deriveRiskRead } from '../../engine/talentCardPresentation';
+import { deriveFitReadAssist, deriveFitRead, deriveFitReason, deriveFitConfidence, deriveRiskRead, gateKnownAxes, knownAxisCoverage } from '../../engine/talentCardPresentation';
 import { deriveCastingDirectorTake, describeCastingDirectorTake, type CastingDirectorTake } from '../../engine/castingDirectorAdvice';
-import { candidateStrengthSignals, describeOfferRejection, describeCounterOffer, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast, type CandidateSignal } from '../../engine/castingPresentation';
+import { candidateStrengthSignals, describeOfferRejection, describeCounterOffer, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast, describeAuditionResult, type CandidateSignal } from '../../engine/castingPresentation';
 import { forecastOpenCasting } from '../../engine/castingCalls';
 import { playerRelationshipWith, type RelationshipStanding } from '../../engine/relationships';
 import { notableCastAffinity, type CastAffinity } from '../../engine/pairHistory';
@@ -23,27 +23,30 @@ import { TalentStats, deriveOverallScore, deriveRoleFitBreakdown } from '../comm
 import { TalentComparison, type CompareSlot } from '../common/TalentComparison';
 import { useComparePins, MAX_PINNED } from '../common/useComparePins';
 import { CheckboxToggle } from '../common/CheckboxToggle';
-import { isAvailableImmediately, getTypicalSalaryForRole, getCrewCareer } from '../../engine/person';
+import { isAvailableImmediately, getTypicalSalaryForRole, getCrewCareer, getActorCareer } from '../../engine/person';
 import { getPersonAge } from '../../types';
 import { gameDateFromTotalDays } from '../../engine/calendar';
 import type { CastingChannel, Person, RoleNegotiation, Script, ScriptCharacter } from '../../types';
 
 type CastingTab = 'open-casting' | 'direct-approach' | 'shortlist';
 
-// Discovery controls (docs/DESIGN_REVIEW_casting_ux.md) - the player browses by
-// intent ("best available I can afford", "highest appeal", "best value"),
-// so the fixed, invisible sort becomes a visible, switchable one.
-type SortKey = 'appeal' | 'value' | 'price' | 'fame';
-const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: 'appeal', label: 'Appeal' },
-  { key: 'value', label: 'Value' },
-  { key: 'price', label: 'Price' },
-  { key: 'fame', label: 'Fame' },
+// Discovery controls (docs/DESIGN_REVIEW_casting_ux.md, casting QOL) - the
+// player browses by intent, so the sort is visible, switchable, and DESCRIBED
+// in a producer's terms (the bare "Appeal"/"Value" labels read as jargon). Each
+// option carries a plain-English description and a sensible default direction;
+// the player can flip the direction independently.
+type SortDir = 'asc' | 'desc';
+type SortKey = 'fit' | 'value' | 'fee' | 'fame';
+const SORT_OPTIONS: { key: SortKey; label: string; description: string; defaultDir: SortDir }[] = [
+  { key: 'fit', label: 'Best fit', description: 'How strong a pick they are — role fit, interest, and price together.', defaultDir: 'desc' },
+  { key: 'value', label: 'Value for money', description: 'The most fit per pound — strong picks you can afford.', defaultDir: 'desc' },
+  { key: 'fee', label: 'Fee', description: 'Their typical salary for this role.', defaultDir: 'asc' },
+  { key: 'fame', label: 'Fame', description: 'Box-office draw — the biggest names first.', defaultDir: 'desc' },
 ];
-// Direct Approach can now surface the whole scoutable pool, so cap how many
-// cards render at once; the honest overflow count tells the player to narrow
-// with filters rather than silently hiding the rest.
-const DIRECT_DISPLAY_LIMIT = 40;
+const SORT_LABELS = new Map(SORT_OPTIONS.map((o) => [o.key, o] as const));
+// Direct Approach can surface the whole scoutable pool, so it paginates rather
+// than dumping every card (or silently capping the list). Tunable page size.
+const DIRECT_PAGE_SIZE = 24;
 
 // Casting Redesign, Phase 5 - Direct Approach becomes a proper search tool, not
 // a sort-only list: filter the eligible pool by the facets a producer actually
@@ -237,6 +240,21 @@ function CandidateCard({
   const belowFloor = overall ? offer < overall.effectiveMinimum : false;
   const offerBlocked = !available;
 
+  // `overall` is computed once at the role's ADVERTISED salary. Every read that
+  // depends on the money the player is actually offering THIS candidate must use
+  // the live per-candidate `offer` instead, or the card contradicts itself -
+  // "Happy with the pay" while the slider sits below their floor, an odds chip
+  // that never budges as you drag. salaryFit is the only offer-dependent appeal
+  // factor, so recompute just that and fold it back into `overall` (a cheap,
+  // exact re-derivation - overallWithSalaryFit is linear in salaryFit).
+  const liveAppeal = overall
+    ? (() => {
+        const typicalSalary = getActorCareer(person)?.typicalSalary ?? offer;
+        const salaryFit = computeSalaryFit(offer, overall.effectiveMinimum, typicalSalary);
+        return { ...overall, salaryFit, overall: overallWithSalaryFit(overall, salaryFit) };
+      })()
+    : null;
+
   // The candidate's reasoning, both directions, as scannable chips: the
   // strengths the appeal math already found, plus a direct-interest draw and the
   // decision-critical blockers/warnings - the same reads that otherwise only
@@ -246,7 +264,7 @@ function CandidateCard({
   const signals: CandidateSignal[] = [];
   if (channel === 'InterestedTalent') signals.push({ label: 'Sought you out', tone: 'positive' });
   if (audited) signals.push({ label: '✓ Auditioned', tone: 'positive' });
-  if (overall) signals.push(...candidateStrengthSignals(overall, directorName));
+  if (liveAppeal) signals.push(...candidateStrengthSignals(liveAppeal, directorName));
   if (belowFloor && !negotiation) signals.push({ label: 'Below their floor', tone: 'blocked' });
 
   const blockedTitle = !available ? 'Booked elsewhere - wait for them (below) to push your shoot, or pick someone free now.' : undefined;
@@ -260,7 +278,7 @@ function CandidateCard({
   // (deriveFitReadAssist). Hidden once a negotiation is live - by then you have
   // their real counter, not a guess. Updates as the salary slider moves.
   const assist = deriveFitReadAssist(castingDirectorSkill, relationship, true, audited);
-  const deal = overall ? estimateDeal(overall, person, offer, assist, relationship) : null;
+  const deal = liveAppeal ? estimateDeal(liveAppeal, person, offer, assist, relationship) : null;
   const estimate = deal && !negotiation ? deal : null; // the pre-offer read is hidden once a negotiation is live
   const oddsSignal = estimate ? describeAcceptanceOdds(estimate.odds) : null;
 
@@ -269,9 +287,25 @@ function CandidateCard({
   // hired (deriveCastingDirectorTake returns null otherwise) and only as sharp as
   // their skill. Computed once by the drawer (castingDirectorTakeFor) and passed
   // in, so the card and the compare view show the exact same take.
+  // The screen-test report (casting QOL): when the audition has come back, lead
+  // the card with the diegetic "here's how they read" beat, graded by the true
+  // character fit the test now reveals - the payoff for arranging it.
+  const auditionReport = audited && script
+    ? (() => {
+        const fitScore = deriveOverallScore(person, role, 'actor', script, character);
+        return fitScore !== null ? describeAuditionResult(person.identity.name, character.name, person.id, fitScore) : null;
+      })()
+    : null;
+
   return (
     <Card>
       <div className="card-title">{person.identity.name}</div>
+      {auditionReport && (
+        <div className="audition-report">
+          <span className="audition-report__eyebrow">🎬 Screen test</span>
+          <p className="audition-report__body">{auditionReport}</p>
+        </div>
+      )}
       {/* TalentStats' own Availability section already covers "available
           now" vs "busy until X" - no need to repeat it here. */}
       <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} affordable={affordable} castingDirectorSkill={castingDirectorSkill} relationship={relationship} castAffinity={castAffinity} audited={audited} />
@@ -406,7 +440,15 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   const [tab, setTab] = useState<CastingTab>('open-casting');
   const [availableOnly, setAvailableOnly] = useState(false);
   const [affordableOnly, setAffordableOnly] = useState(false);
-  const [sortBy, setSortBy] = useState<SortKey>('appeal');
+  const [sortBy, setSortBy] = useState<SortKey>('fit');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [directPage, setDirectPage] = useState(0);
+  // Picking a new sort snaps direction back to that sort's sensible default
+  // (cheapest-first for Fee, best-first for the rest); the toggle then flips it.
+  const chooseSort = (key: SortKey) => {
+    setSortBy(key);
+    setSortDir(SORT_LABELS.get(key)!.defaultDir);
+  };
   const [search, setSearch] = useState('');
   // Phase 5 - Direct Approach facet filters (all default to 'any' = no-op).
   const [genderPick, setGenderPick] = useState<GenderPick>('any');
@@ -434,6 +476,24 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
       window.removeEventListener('keydown', handleKey);
     };
   }, [onClose]);
+
+  // Opening this character's drawer IS the player seeing their completed screen
+  // tests, so acknowledge any that have come back - that clears the "audition
+  // came back" Inbox beat/badge for this character and stops it re-pinging. Only
+  // fires when there's actually an unacknowledged, ready audition here, so it's a
+  // no-op in the common case (the reducer also guards, returning the same state).
+  const hasUnseenAudition = (draft.auditions ?? []).some(
+    (a) => a.characterId === character.id && state.totalDays >= a.readyOnDay && !a.acknowledged,
+  );
+  useEffect(() => {
+    if (hasUnseenAudition) dispatch({ type: 'ACKNOWLEDGE_AUDITIONS', characterId: character.id });
+  }, [hasUnseenAudition, character.id, dispatch]);
+
+  // Any change to what's shown or how it's ordered resets Direct Approach to the
+  // first page - otherwise a stale page index lands the player on an empty grid.
+  useEffect(() => {
+    setDirectPage(0);
+  }, [sortBy, sortDir, search, genderPick, agePick, famePick, availableOnly, affordableOnly, tab]);
 
   const call = draft.castingCalls.find((c) => c.characterId === character.id) ?? null;
   const director = findAssignedPerson(draft.talent, 'Director');
@@ -590,9 +650,14 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
     const deal = estimateDeal(appeal, person, advertisedSalary, assist, relationship);
     const fitScore = deriveOverallScore(person, role, 'actor', draft.script, character);
     if (fitScore === null || !deal) return null;
-    const fitRead = deriveFitRead(fitScore, person, assist);
     const fitBreakdown = deriveRoleFitBreakdown(person, role, 'actor', draft.script, character);
-    const fitReason = fitBreakdown ? deriveFitReason(fitBreakdown.rows.map((r) => ({ label: r.label, matchScore: r.matchScore })), fitBreakdown.noun) : null;
+    // Read the fit exactly as the card does - through the same coverage veil - so
+    // the casting director's take never claims more certainty than the card shows.
+    const readTier = deriveFitConfidence(person, assist).tier;
+    const gated = fitBreakdown ? gateKnownAxes(fitBreakdown.rows, readTier) : null;
+    const coverage = gated ? knownAxisCoverage(gated) : 1;
+    const fitRead = deriveFitRead(fitScore, person, assist, coverage);
+    const fitReason = gated ? deriveFitReason(gated.filter((r) => r.known), fitBreakdown!.noun) : null;
     return deriveCastingDirectorTake({
       castingDirectorSkill,
       fit: fitRead,
@@ -626,27 +691,37 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
     return true;
   };
 
-  // Sort by the player's chosen intent. Appeal/Value read the same appeal the
-  // acceptance math uses; Value is appeal per pound; Price is cheapest-first.
+  // Sort by the player's chosen intent, in the raw metric - the direction toggle
+  // (sortDir) decides ascending/descending, so e.g. Fee can go cheapest- or
+  // priciest-first without a separate sort key. "Best fit" reads the same appeal
+  // the acceptance math uses; Value is appeal per pound; Fee is their salary.
   const sortValue = (person: Person): number => {
     const salary = getTypicalSalaryForRole(person, role);
     switch (sortBy) {
       case 'value': return salary > 0 ? appealOverall(person) / salary : appealOverall(person);
-      case 'price': return -salary;
+      case 'fee': return salary;
       case 'fame': return person.reputation.fame;
       default: return appealOverall(person);
     }
   };
-  const bySort = (a: Person, b: Person) => sortValue(b) - sortValue(a);
+  const bySort = (a: Person, b: Person) => {
+    const diff = sortValue(a) - sortValue(b);
+    return sortDir === 'asc' ? diff : -diff;
+  };
 
   const shownApplicants = pinnedFirst(
     (call?.applicants ?? []).filter((a) => passesFilters(a.person)).sort((a, b) => bySort(a.person, b.person)),
     (a) => a.person.id,
     pins.isPinned,
   );
-  const directMatches = directSourcePool.filter(passesFilters).sort(bySort);
-  const shownDirectCandidates = pinnedFirst(directMatches, (p) => p.id, pins.isPinned).slice(0, DIRECT_DISPLAY_LIMIT);
-  const directOverflowCount = directMatches.length - shownDirectCandidates.length;
+  const directMatches = pinnedFirst(directSourcePool.filter(passesFilters).sort(bySort), (p) => p.id, pins.isPinned);
+  // Pagination (casting QOL): a real page window over the whole scoutable pool,
+  // not a silent 40-card cap. Clamp the page in case the result set shrank under
+  // a new filter (a stale page index would otherwise show an empty grid).
+  const directPageCount = Math.max(1, Math.ceil(directMatches.length / DIRECT_PAGE_SIZE));
+  const directPageClamped = Math.min(directPage, directPageCount - 1);
+  const directPageStart = directPageClamped * DIRECT_PAGE_SIZE;
+  const shownDirectCandidates = directMatches.slice(directPageStart, directPageStart + DIRECT_PAGE_SIZE);
 
   // Pin to Compare wiring. Only a booked actor can't be offered today (the
   // schedule gate is the one hard rejection no offer clears); a below-floor
@@ -812,11 +887,22 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
             />
             <label className="casting-sort">
               <span>Sort</span>
-              <select aria-label="Sort candidates" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortKey)}>
-                {SORT_OPTIONS.map((option) => (
-                  <option key={option.key} value={option.key}>{option.label}</option>
-                ))}
-              </select>
+              <div className="casting-sort__row">
+                <select aria-label="Sort candidates" value={sortBy} onChange={(e) => chooseSort(e.target.value as SortKey)}>
+                  {SORT_OPTIONS.map((option) => (
+                    <option key={option.key} value={option.key}>{option.label}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="casting-sort__dir"
+                  aria-label={sortDir === 'desc' ? 'Sorting high to low - switch to low to high' : 'Sorting low to high - switch to high to low'}
+                  title={sortDir === 'desc' ? 'High to low' : 'Low to high'}
+                  onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
+                >
+                  {sortDir === 'desc' ? '↓' : '↑'}
+                </button>
+              </div>
             </label>
             <label className="casting-sort">
               <span>Gender</span>
@@ -843,6 +929,9 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
               hint={availableOnly && availabilityHiddenCount > 0 ? `${availabilityHiddenCount} hidden` : ''}
             />
             <CheckboxToggle checked={affordableOnly} onChange={setAffordableOnly} label="Affordable only" />
+            <p className="casting-sort__hint">
+              Sorted by <strong>{SORT_LABELS.get(sortBy)!.label}</strong> ({sortDir === 'desc' ? 'high to low' : 'low to high'}) — {SORT_LABELS.get(sortBy)!.description}
+            </p>
           </div>
         )}
 
@@ -925,10 +1014,28 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
                 <div className="grid grid-wide">
                   {shownDirectCandidates.map((person) => renderCandidate(person))}
                 </div>
-                {directOverflowCount > 0 && (
-                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
-                    Showing {DIRECT_DISPLAY_LIMIT} of {directMatches.length} - narrow with the filters to see the rest.
-                  </p>
+                {directPageCount > 1 && (
+                  <div className="casting-pager">
+                    <Button
+                      variant="secondary"
+                      className="btn-sm"
+                      disabled={directPageClamped === 0}
+                      onClick={() => setDirectPage(directPageClamped - 1)}
+                    >
+                      ‹ Prev
+                    </Button>
+                    <span className="casting-pager__status">
+                      Page {directPageClamped + 1} of {directPageCount} · {directMatches.length} actor{directMatches.length === 1 ? '' : 's'}
+                    </span>
+                    <Button
+                      variant="secondary"
+                      className="btn-sm"
+                      disabled={directPageClamped >= directPageCount - 1}
+                      onClick={() => setDirectPage(directPageClamped + 1)}
+                    >
+                      Next ›
+                    </Button>
+                  </div>
                 )}
               </>
             )}

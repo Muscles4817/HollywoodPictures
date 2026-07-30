@@ -1,4 +1,4 @@
-import type { Asset, CastingCall, Film, FilmDraft, Project, RivalProductionInProgress } from '../types';
+import type { Asset, AuditionRecord, CastingCall, Film, FilmDraft, Project, RivalProductionInProgress } from '../types';
 import { castingCallsAwaitingReview } from './castingCalls';
 
 /**
@@ -119,6 +119,8 @@ export interface InboxItems {
   wrapped: FilmDraft[];
   parked: FilmDraft[];
   casting: Array<{ production: FilmDraft; calls: CastingCall[] }>;
+  /** Drafts with completed-but-unacknowledged screen tests - the "an audition came back" beat. Completion is derived from the day (readyOnDay vs. totalDays); acknowledged clears it once the player has seen the result. Empty unless deriveInboxItems is given the current totalDays. */
+  auditionsReady: Array<{ production: FilmDraft; auditions: AuditionRecord[] }>;
   /** Scheduled (not-yet-released) films with a fired-but-unanswered press-tour incident awaiting a response (the interactive layer). Sourced from 'scheduled' projects, which backgroundedPlayerDrafts deliberately excludes. */
   pressTourIncidents: FilmDraft[];
   /** The player's own films that have opened but whose Premiere Reveal the player hasn't watched yet (Film.boxOfficeRun.premiereSeen === false) - a background-settled scheduled release never lands on the results screen, so this is where the "now playing, watch the premiere" moment surfaces instead. */
@@ -142,7 +144,7 @@ export function isParkedActionable(p: FilmDraft): boolean {
   return p.testScreeningResolved && p.postProductionEditingUntilDay == null;
 }
 
-export function deriveInboxItems(projects: Project[], excludeId: string | null): InboxItems {
+export function deriveInboxItems(projects: Project[], excludeId: string | null, totalDays: number = Number.NEGATIVE_INFINITY): InboxItems {
   const productions = backgroundedPlayerDrafts(projects, excludeId);
   return {
     // Post-Production Redesign, Phase B - a pending test screening surfaces
@@ -158,6 +160,13 @@ export function deriveInboxItems(projects: Project[], excludeId: string | null):
       .filter((p) => !p.photography)
       .map((p) => ({ production: p, calls: castingCallsAwaitingReview(p) }))
       .filter((c) => c.calls.length > 0),
+    // Screen tests that have come back but the player hasn't looked at yet. Only
+    // ever populated once the caller passes the current day (the default sentinel
+    // means "nothing is ready" for the many callers that don't care about time).
+    auditionsReady: productions
+      .filter((p) => !p.photography)
+      .map((p) => ({ production: p, auditions: (p.auditions ?? []).filter((a) => totalDays >= a.readyOnDay && !a.acknowledged) }))
+      .filter((c) => c.auditions.length > 0),
     pressTourIncidents: scheduledPlayerReleases(projects)
       .map((s) => s.draft)
       .filter((d) => d.pressTourIncident),
@@ -177,13 +186,14 @@ export function deriveInboxItems(projects: Project[], excludeId: string | null):
 }
 
 /** The Inbox badge count (components/common/Header.tsx) - the sum of every category deriveInboxItems groups that the player still needs to see. Mostly ACTIONABLE items; parked films still waiting on their test screening (or mid-recut) are deliberately excluded (they render an informational Inbox card but there is nothing the player can do, so they must not keep the badge lit). boxOfficeFinished is the one purely-informational category counted here: an unreviewed finished run is a "you missed a result" signal that should keep the badge lit until the player opens its dossier, the same way an unwatched premiere (nowPlaying) does. Awards highlights are counted separately in Header.tsx since they need the awards/acknowledgement state deriveInboxItems doesn't take. */
-export function inboxBadgeCount(projects: Project[], excludeId: string | null): number {
-  const items = deriveInboxItems(projects, excludeId);
+export function inboxBadgeCount(projects: Project[], excludeId: string | null, totalDays: number = Number.NEGATIVE_INFINITY): number {
+  const items = deriveInboxItems(projects, excludeId, totalDays);
   return (
     items.awaitingChoice.length +
     items.wrapped.length +
     items.parked.filter(isParkedActionable).length +
     items.casting.length +
+    items.auditionsReady.length +
     items.pressTourIncidents.length +
     items.nowPlaying.length +
     items.boxOfficeFinished.length

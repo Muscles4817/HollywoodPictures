@@ -1610,8 +1610,42 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         readyOnDay: state.totalDays + auditionDurationDays(cdSkill),
       };
       const auditionSubject = focusedDraft.script?.cast.find((c) => c.id === action.characterId)?.name ?? action.role;
-      const loggedAudition = appendStaffingEvent({ ...focusedDraft, auditions: [...auditions, record] }, { day: state.totalDays, kind: 'audition', subject: auditionSubject, personName: action.personName });
+      // Auto-shortlist the auditionee: a screen test is a clear signal of
+      // interest, and without this the people you've sent to read are impossible
+      // to find again amongst the whole pool (casting QOL). Idempotent - never a
+      // duplicate entry.
+      const shortlist = focusedDraft.shortlist ?? [];
+      const alreadyShortlisted = shortlist.some((s) => s.characterId === action.characterId && s.personId === action.personId);
+      const nextShortlist = alreadyShortlisted
+        ? shortlist
+        : [...shortlist, { characterId: action.characterId, personId: action.personId, role: action.role }];
+      const loggedAudition = appendStaffingEvent(
+        { ...focusedDraft, auditions: [...auditions, record], shortlist: nextShortlist },
+        { day: state.totalDays, kind: 'audition', subject: auditionSubject, personName: action.personName },
+      );
       return { ...state, projects: replaceDraft(state.projects, loggedAudition) };
+    }
+
+    // Casting QOL - the player has now seen the completed screen test(s), so the
+    // "audition came back" Inbox beat stops pinging for them. Marks ready (and
+    // only ready) auditions acknowledged; a still-pending one is left alone so it
+    // pings when it does complete. No characterId = acknowledge across the draft.
+    case 'ACKNOWLEDGE_AUDITIONS': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const auditions = focusedDraft.auditions ?? [];
+      let changed = false;
+      const next = auditions.map((a) => {
+        const ready = state.totalDays >= a.readyOnDay;
+        const matchesCharacter = action.characterId == null || a.characterId === action.characterId;
+        if (ready && matchesCharacter && !a.acknowledged) {
+          changed = true;
+          return { ...a, acknowledged: true };
+        }
+        return a;
+      });
+      if (!changed) return state;
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, auditions: next }) };
     }
 
     // Casting Redesign, Phase 6 - push (or reset) the planned shoot start so a

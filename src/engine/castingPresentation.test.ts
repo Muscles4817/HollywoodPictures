@@ -179,7 +179,7 @@ describe('describeDirectorRejection', () => {
 // categorization itself is tested in actingModel.test.ts, so these check the
 // null passthrough, stability, and that different gifts read differently.
 import type { ActingStyle, Person } from '../types';
-import { describeSignatureGift, describeFameCraftContrast, describeCounterOffer, describeCounterReason, describeDealClosed, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast } from './castingPresentation';
+import { describeSignatureGift, describeFameCraftContrast, describeCounterOffer, describeCounterReason, describeDealClosed, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast, describeAuditionResult } from './castingPresentation';
 
 function actor(id: string, style: Partial<ActingStyle>, over: { fame?: number; craftFloor?: number; craftHeadroom?: number } = {}): Person {
   return {
@@ -324,5 +324,22 @@ describe('describeOpenCastingForecast (Phase 5)', () => {
     const high = describeOpenCastingForecast({ weeklyLow: 1, weeklyHigh: 5, quality: 'thin', confidence: 'high' });
     expect(high.confidence).toMatch(/confident/i);
     expect(high.estimate).toMatch(/thin field/i);
+  });
+});
+
+describe('describeAuditionResult', () => {
+  it('grades a great read differently from a poor one, naming the actor and the character', () => {
+    const great = describeAuditionResult('Ava Stone', 'Celine', 'p1', 95);
+    const poor = describeAuditionResult('Ava Stone', 'Celine', 'p1', 20);
+    expect(great).toMatch(/Ava Stone/);
+    expect(great).toMatch(/Celine/);
+    expect(great).not.toBe(poor);
+    // The good read reads positive; the poor one reads negative.
+    expect(great).toMatch(/electric|goosebumps|became/i);
+    expect(poor).toMatch(/flat|didn.t|apart|different directions/i);
+  });
+
+  it('is deterministic for the same read (no RNG)', () => {
+    expect(describeAuditionResult('Ava Stone', 'Celine', 'p1', 80)).toBe(describeAuditionResult('Ava Stone', 'Celine', 'p1', 80));
   });
 });

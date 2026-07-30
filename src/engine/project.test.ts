@@ -122,6 +122,32 @@ describe('deriveInboxItems / inboxBadgeCount', () => {
     expect(inboxBadgeCount(projects, draft.id)).toBe(0);
   });
 
+  function draftWithAudition(seed: number, id: string, opts: { readyOnDay?: number; acknowledged?: boolean } = {}): FilmDraft {
+    const asset = withRng(seed, (rng) => buildReadyAsset(rng)).result;
+    const base = withRng(seed, (rng) => buildReadyDraft(rng)).result;
+    const lead = asset.script.cast.find((c) => c.prominence === 'Lead')!;
+    const audition = { characterId: lead.id, personId: 'aud-person', role: 'Lead Actor' as const, requestedOnDay: 1, readyOnDay: opts.readyOnDay ?? 10, acknowledged: opts.acknowledged };
+    return { ...base, id, script: asset.script, talent: [], photography: null, auditions: [audition] };
+  }
+
+  it('surfaces a completed, unacknowledged screen test once the day has passed its readyOnDay', () => {
+    const projects = [playerDraftToProject(draftWithAudition(5, 'draft-aud'))];
+    // Not ready yet (or no day given) -> nothing.
+    expect(deriveInboxItems(projects, null).auditionsReady).toEqual([]);
+    expect(deriveInboxItems(projects, null, 5).auditionsReady).toEqual([]);
+    // Ready -> surfaced and counted.
+    const ready = deriveInboxItems(projects, null, 15);
+    expect(ready.auditionsReady).toHaveLength(1);
+    expect(ready.auditionsReady[0].auditions).toHaveLength(1);
+    expect(inboxBadgeCount(projects, null, 15)).toBe(1);
+  });
+
+  it('does not surface an already-acknowledged screen test', () => {
+    const projects = [playerDraftToProject(draftWithAudition(6, 'draft-aud-ack', { acknowledged: true }))];
+    expect(deriveInboxItems(projects, null, 15).auditionsReady).toEqual([]);
+    expect(inboxBadgeCount(projects, null, 15)).toBe(0);
+  });
+
   it('inboxBadgeCount sums the actionable categories - actionable parked, plus nowPlaying, never the non-actionable waiting parked', () => {
     const projects = [playerDraftToProject(draftWithPendingCastingApplicant(3, 'draft-a')), playerDraftToProject(sampleDraft())];
     const items = deriveInboxItems(projects, null);

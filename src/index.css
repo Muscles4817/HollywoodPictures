@@ -1155,6 +1155,47 @@ textarea, input, select {
   font-size: 0.95em;
 }
 
+/* Sort control: the select paired with a direction toggle (casting QOL). */
+.casting-sort__row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.casting-sort__dir {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: inherit;
+  font: inherit;
+  font-size: 0.95em;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.casting-sort__dir:hover { border-color: var(--primary); color: var(--primary); }
+/* The plain-English "what this sort means" line - spans the whole control row. */
+.casting-sort__hint {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.82em;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+/* Direct Approach pagination (casting QOL) - a real page window, not a cap. */
+.casting-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 4px;
+}
+.casting-pager__status {
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
 /* Candidate reasoning chips (docs/DESIGN_REVIEW_casting_ux.md) - why the sim
    rates a candidate (positive draws) and the decision-critical
    warnings/blockers, surfaced before the offer rather than after it. */
@@ -1232,6 +1273,31 @@ textarea, input, select {
 .cd-take--worth-it { border-left-color: var(--green); }
 .cd-take--reach { border-left-color: var(--amber, #b8860b); }
 .cd-take--pass { border-left-color: var(--red); }
+
+/* Casting QOL - the screen-test report callout that leads a candidate card once
+   their audition has come back. Deliberately loud (a real beat, not a stat). */
+.audition-report {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 6px 0 2px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border-left: 3px solid var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+.audition-report__eyebrow {
+  font-size: 0.72em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--primary);
+}
+.audition-report__body {
+  margin: 0;
+  font-size: 0.9em;
+  font-style: italic;
+}
 
 /* Casting Redesign, Phase 6 - the wait-for-a-booked-actor strip on a card, and
    the production-level "shoot delayed" banner. */

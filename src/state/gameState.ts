@@ -361,6 +361,11 @@ export type GameAction =
   // completes it reads as the strongest possible fit. No-op if one's already
   // been arranged for this pair.
   | { type: 'REQUEST_AUDITION'; characterId: string; role: 'Lead Actor' | 'Supporting Actor'; personId: string; personName?: string }
+  // Casting QOL - mark the completed screen tests the player has now SEEN as
+  // acknowledged (fired when the character's casting drawer opens), so the "an
+  // audition came back" Inbox beat pings exactly once. Omit characterId to
+  // acknowledge every ready audition on the focused draft.
+  | { type: 'ACKNOWLEDGE_AUDITIONS'; characterId?: string }
   // Casting Redesign, Phase 6 - push (or reset) the focused draft's planned
   // shoot start, so a booked actor can be waited for. offsetDays is measured
   // from today; clamped to >= 0. Waiting for someone sets it to free them up.

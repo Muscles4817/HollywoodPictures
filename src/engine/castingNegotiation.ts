@@ -158,6 +158,17 @@ export type NegotiationOutcome =
 // and gives the player the feedback to come back seriously.
 const INSULT_FLOOR_RATIO = 0.6;
 
+// How close to their asking price an offer has to land to close WITHOUT a
+// counter - meet ~90% of their number and they take it; short of that and,
+// interested or not, they hold out for more. This is what makes salary actually
+// matter: strong non-salary appeal makes an actor *interested* (it clears the
+// "would they do the film at all" gate below), but it no longer lets a lowball
+// slip through as an outright yes. "Landing someone below their usual quote"
+// still happens - but through a genuinely LOW ask (a prestige/loyalty-discounted
+// effective floor, computeEffectiveMinimumSalary), not by underpaying their ask.
+// Tunable; 0.9 is the "moderate" setting.
+const ACCEPT_ASK_FRACTION = 0.9;
+
 // How far an actor moves off their asking price toward the player's offer when
 // they counter - the lower bound (a humble actor meets you closer to the
 // middle) and the span added by selectiveness (a big ego barely budges, holding
@@ -194,9 +205,15 @@ function computeCounterSalary(offeredSalary: Money, askingPrice: Money, person: 
  *   1. schedule / relationship hard gates            -> rejected
  *   2. even paying their full ask wouldn't clear their bar
  *      (the role/studio itself doesn't sell them)    -> rejected (real reason)
- *   3. the current offer already clears their bar     -> accepted, at the offer
- *   4. offer insultingly below their floor            -> rejected (salary)
+ *   3. offer insultingly below their floor            -> rejected (salary)
+ *   4. offer meets ~their asking number               -> accepted, at the offer
  *   5. otherwise - interested, money's the only gap   -> countered
+ *
+ * Note the money gates (3-5) come AFTER the "would they do it at all" gate but
+ * are otherwise decided on salary alone: being sold on the project makes an
+ * actor negotiate, it does not make them accept a lowball (that was the old
+ * behaviour, where strong non-salary appeal let almost any in-range offer
+ * through as an instant yes).
  */
 export function resolveNegotiation(
   appeal: ActorAppealResult,
@@ -220,15 +237,16 @@ export function resolveNegotiation(
     return { status: 'rejected', reason: offerBlameReason(appeal) };
   }
 
-  // They'd say yes for the right money. Is the current offer already enough?
-  if (appeal.overall >= threshold) {
-    return { status: 'accepted', agreedSalary: offeredSalary };
-  }
-
-  // Interested, but the money isn't there yet. An insulting lowball is a walk;
-  // anything in real negotiating range gets a counter.
+  // They're interested - the role/studio itself clears their bar at the right
+  // money. From here the decision turns on the MONEY, not on how much they like
+  // the project: a strong non-salary appeal can't buy them cheap. An insulting
+  // lowball is a walk; an offer that meets ~their number closes; anything in
+  // between is a counter, because they know they can get more.
   if (offeredSalary < appeal.effectiveMinimum * INSULT_FLOOR_RATIO) {
     return { status: 'rejected', reason: 'salary' };
+  }
+  if (offeredSalary >= askingPrice * ACCEPT_ASK_FRACTION) {
+    return { status: 'accepted', agreedSalary: offeredSalary };
   }
   const counterSalary = computeCounterSalary(offeredSalary, askingPrice, person, appeal.effectiveMinimum);
   if (counterSalary <= offeredSalary) {

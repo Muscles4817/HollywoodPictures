@@ -200,7 +200,7 @@ describe('CastingDrawer - discovery controls', () => {
     expect(screen.queryByText('Costly Cora')).not.toBeInTheDocument();
   });
 
-  it('sorts by price, cheapest first, when the player picks the Price sort', () => {
+  it('sorts by fee, cheapest first, when the player picks the Fee sort', () => {
     const state = withRng(6, (rng) => {
       const studio = createInitialStudio(50_000_000);
       const talentPool = generateTalentPool(rng);
@@ -211,10 +211,35 @@ describe('CastingDrawer - discovery controls', () => {
     renderDrawer(state);
 
     fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
-    fireEvent.change(screen.getByLabelText('Sort candidates'), { target: { value: 'price' } });
+    // Fee defaults to ascending (cheapest first).
+    fireEvent.change(screen.getByLabelText('Sort candidates'), { target: { value: 'fee' } });
     const order = screen.getAllByText(/(Dearer Dana|Budget Beth)/).map((el) => el.textContent);
     expect(order[0]).toBe('Budget Beth'); // cheapest first
     expect(order[1]).toBe('Dearer Dana');
+
+    // Flipping the direction toggle reverses it - priciest first.
+    fireEvent.click(screen.getByRole('button', { name: /switch to high to low/i }));
+    const reversed = screen.getAllByText(/(Dearer Dana|Budget Beth)/).map((el) => el.textContent);
+    expect(reversed[0]).toBe('Dearer Dana');
+    expect(reversed[1]).toBe('Budget Beth');
+  });
+
+  it('paginates the Direct Approach pool instead of dumping or capping it', () => {
+    const state = withRng(7, (rng) => {
+      const studio = createInitialStudio(500_000_000);
+      const talentPool = generateTalentPool(rng);
+      const base = generateTalentCandidates('Actor', rng, 1)[0];
+      // 30 scoutable actors -> more than one page of 24.
+      talentPool.Actor = Array.from({ length: 30 }, (_, i) => femaleActor(base, `Actor Number ${i}`, 1_000_000));
+      return wrapState(studio, talentPool, draftWithActors(rng, 1_000_000));
+    }).result;
+    renderDrawer(state);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+    expect(screen.getByText(/Page 1 of 2 · 30 actors/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Next/ }));
+    expect(screen.getByText(/Page 2 of 2 · 30 actors/)).toBeInTheDocument();
   });
 });
 

@@ -386,6 +386,62 @@ export function describeDealClosed(belowQuote: boolean): string {
     : 'Deal - terms agreed.';
 }
 
+// --- Screen test report (casting QOL) ---------------------------------------
+// The payoff of a completed audition, in a producer's voice - the moment you
+// "saw them read for the part". The mechanical result (a now-confident, fully-
+// revealed fit read) already lands on the card; this is the diegetic beat on top
+// of it, graded by how the read actually went (the true character fit an
+// audition reveals) so a screen test feels like an event, not a silent stat
+// nudge. Deterministic: the variant is picked by a stable hash of who read for
+// what, so the same test always reports the same way (no RNG, house style).
+type AuditionTier = 'excellent' | 'strong' | 'good' | 'shaky' | 'poor';
+
+function auditionTier(fitScore: number): AuditionTier {
+  if (fitScore >= 90) return 'excellent';
+  if (fitScore >= 75) return 'strong';
+  if (fitScore >= 60) return 'good';
+  if (fitScore >= 40) return 'shaky';
+  return 'poor';
+}
+
+// {name} / {character} are filled from the specific read. Two variants per tier
+// so a slate of screen tests doesn't read as copy-paste.
+const AUDITION_REPORT: Record<AuditionTier, string[]> = {
+  excellent: [
+    'The read was electric — {name} simply became {character}. You could shoot it tomorrow.',
+    'Goosebumps in the room. {name} found things in {character} that weren’t even on the page.',
+  ],
+  strong: [
+    '{name} gave an assured, controlled read — a real {character} takes shape.',
+    'A confident screen test. {name} clearly understands {character} and can carry it.',
+  ],
+  good: [
+    'A solid, professional read from {name} — they can play {character}, with a little shaping.',
+    '{name} handled {character} capably. Not a revelation, but dependable.',
+  ],
+  shaky: [
+    'An uneven read — flashes of {character} from {name}, but it never quite settled.',
+    '{name} struggled to find {character}. Some moments landed; plenty didn’t.',
+  ],
+  poor: [
+    'The read fell flat. {name} isn’t the {character} this film needs.',
+    'It didn’t come together — {name} and {character} pull in different directions.',
+  ],
+};
+
+function stableVariant(key: string, count: number): number {
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  return Math.abs(hash) % count;
+}
+
+/** The producer's-voice report on a completed screen test - graded by the (now revealed) true character fit, one of two stable variants per grade. `fitScore` is the true 0-100 character compatibility the audition exposes. */
+export function describeAuditionResult(personName: string, characterName: string, personId: string, fitScore: number): string {
+  const variants = AUDITION_REPORT[auditionTier(fitScore)];
+  const line = variants[stableVariant(`${personId}:${characterName}`, variants.length)];
+  return line.replaceAll('{name}', personName).replaceAll('{character}', characterName);
+}
+
 const DIRECTOR_POSITIVE_LABELS: Record<keyof DirectorAppealFactors, string> = {
   scriptFit: 'genuinely excited by this script',
   brandFit: "drawn to the studio's commercial reach",

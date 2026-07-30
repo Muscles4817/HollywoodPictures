@@ -73,7 +73,7 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
   // (ProductionRun.tsx/MarketingRelease.tsx) is where it belongs, not the
   // Inbox. The exact same derivation Header.tsx's badge count reads
   // (engine/project.ts:inboxBadgeCount), so the two can never drift apart.
-  const { awaitingChoice, wrapped, parked, casting, pressTourIncidents, nowPlaying, boxOfficeFinished } = deriveInboxItems(state.projects, state.focusedProjectId);
+  const { awaitingChoice, wrapped, parked, casting, auditionsReady, pressTourIncidents, nowPlaying, boxOfficeFinished } = deriveInboxItems(state.projects, state.focusedProjectId, state.totalDays);
   // Recently-resolved award ceremonies the player hasn't clicked through yet
   // (state/selectors.ts) - awards settle silently in the background tick, so
   // this is the Inbox's "Awards night" catch-up beat.
@@ -117,7 +117,7 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
   // test-screening / press-tour cards stay bespoke (they resolve in place);
   // everything else routes to its system-of-record via a shared ActivityCard.
   const needsYouCount =
-    awaitingChoice.length + pressTourIncidents.length + wrapped.length + parked.length + casting.length + nowPlaying.length + attentionBids.length;
+    awaitingChoice.length + pressTourIncidents.length + wrapped.length + parked.length + casting.length + auditionsReady.length + nowPlaying.length + attentionBids.length;
   const updatesCount = boxOfficeFinished.length + awardHighlights.length + updateBids.length;
   const nothingAtAll = needsYouCount === 0 && updatesCount === 0;
 
@@ -276,6 +276,38 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
                     detail,
                   }}
                   action={resumeAction(production, 'Continue Casting')}
+                />
+              );
+            })}
+
+            {auditionsReady.map(({ production, auditions }) => {
+              // "Your screen tests came back." Named by character, and by actor
+              // when it's just one or two - a concrete, diegetic beat rather than
+              // a silent card update the player would only find by reopening the
+              // drawer (casting QOL). Resolving it routes back into casting; the
+              // read is acknowledged when the character's drawer opens.
+              const names = auditions
+                .map((a) => {
+                  const character = production.script?.cast.find((c) => c.id === a.characterId)?.name ?? 'a role';
+                  const actor = production.talent.find((t) => t.person.id === a.personId)?.person.identity.name
+                    ?? [...state.talentPool.Actor].find((p) => p.id === a.personId)?.identity.name;
+                  return actor ? `${actor} (${character})` : character;
+                });
+              const detail = auditions.length === 1
+                ? `The screen test is in — ${names[0]}. You've now got a confident read on the part.`
+                : `${auditions.length} screen tests are in — ${names.join(', ')}. You've now got a confident read on each.`;
+              return (
+                <ActivityCard
+                  key={`${production.id}-auditions`}
+                  activity={{
+                    id: `${production.id}-auditions`,
+                    tone: 'positive',
+                    category: 'attention',
+                    eyebrow: 'Screen test',
+                    title: production.title || 'Untitled Film',
+                    detail,
+                  }}
+                  action={resumeAction(production, 'See the Read')}
                 />
               );
             })}
