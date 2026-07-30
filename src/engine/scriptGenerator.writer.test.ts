@@ -11,7 +11,7 @@ const FLAT_TONE: ToneProfile = { action: 50, comedy: 50, romance: 50, suspense: 
 function profile(overrides: Partial<WriterCreativeProfile> = {}): WriterCreativeProfile {
   return {
     skill: 70,
-    craft: { originality: 50, structure: 50, characters: 50, dialogue: 50 },
+    conceptAmbition: 50, craft: { structure: 50, characters: 50, dialogue: 50 },
     toneProfile: { ...FLAT_TONE },
     genreAffinity: { ...FLAT_GENRE },
     commercialLean: 50,
@@ -26,8 +26,8 @@ const share = (scripts: { archetype: ScriptArchetype }[], set: ScriptArchetype[]
 
 describe('writer influence on screenplay generation', () => {
   it('a strong-dialogue writer produces higher-dialogue scripts than a weak-dialogue one, on average', () => {
-    const strong = generateScriptOptions('Drama', createRng(1), 60, profile({ craft: { originality: 50, structure: 50, characters: 50, dialogue: 95 } }));
-    const weak = generateScriptOptions('Drama', createRng(1), 60, profile({ craft: { originality: 50, structure: 50, characters: 50, dialogue: 15 } }));
+    const strong = generateScriptOptions('Drama', createRng(1), 60, profile({ conceptAmbition: 50, craft: { structure: 50, characters: 50, dialogue: 95 } }));
+    const weak = generateScriptOptions('Drama', createRng(1), 60, profile({ conceptAmbition: 50, craft: { structure: 50, characters: 50, dialogue: 15 } }));
     expect(avg(strong.map((s) => s.dialogue))).toBeGreaterThan(avg(weak.map((s) => s.dialogue)) + 10);
   });
 

@@ -6,7 +6,11 @@ import type { Genre, Person, Script } from '../types';
 
 const FLAT_GENRE: Record<Genre, number> = { Action: 50, Comedy: 50, Drama: 50, Horror: 50, Romance: 50, 'Sci-Fi': 50, Fantasy: 50, Thriller: 50 };
 
-function writerPerson(id: string, craft: { originality: number; structure: number; characters: number; dialogue: number }, skill = 80): Person {
+// Accepts the old four-value shape for call-site convenience, then splits it:
+// `originality` becomes the writer's conceptAmbition (Concept axis), the rest is
+// their execution craft (docs/SIMULATION_PHILOSOPHY.md Principle 9).
+function writerPerson(id: string, craftInput: { originality: number; structure: number; characters: number; dialogue: number }, skill = 80): Person {
+  const { originality, ...craft } = craftInput;
   return {
     id,
     identity: { name: `Writer ${id}`, appearanceTags: [] },
@@ -16,7 +20,7 @@ function writerPerson(id: string, craft: { originality: number; structure: numbe
     careers: {
       writer: {
         role: 'Writer', active: true, experience: skill, roleReputation: 40, minimumSalary: 100_000, typicalSalary: 200_000, skill,
-        craft, toneProfile: { action: 50, comedy: 50, romance: 50, suspense: 50, drama: 50, spectacle: 50 },
+        conceptAmbition: originality, craft, toneProfile: { action: 50, comedy: 50, romance: 50, suspense: 50, drama: 50, spectacle: 50 },
         genreAffinity: { ...FLAT_GENRE }, commercialLean: 50, consistency: 70,
       },
     },
@@ -76,14 +80,15 @@ describe('settlePendingCommissions', () => {
     expect(result.pendingCommissions).toEqual([commission]);
   });
 
-  it('delivers a completed commission as an owned Studio-Original Asset credited to the writer', () => {
+  it('delivers a completed commission as an owned Commissioned Asset credited to the writer', () => {
     const { commission, script } = pendingFor(30);
     const result = settlePendingCommissions([commission], 30);
     expect(result.pendingCommissions).toEqual([]);
     expect(result.delivered).toHaveLength(1);
     const asset = result.delivered[0];
     expect(asset.script).toBe(script);
-    expect(asset.source).toBe('Studio Original');
+    expect(asset.provenance).toBe('Commissioned');
+    expect(asset.marketSource).toBeUndefined(); // created, not bought - no market listing
     expect(asset.acquisitionCost).toBe(250_000);
     expect(asset.writerIds).toEqual([commission.writerId]);
     expect(asset.developmentHistory?.[0].kind).toBe('commissioned');
@@ -111,7 +116,7 @@ describe('commission UX helpers', () => {
   it('commissionedOnDay reads the delivery event, and is null for a non-commissioned asset', () => {
     const delivered = settlePendingCommissions([commission], 20).delivered[0];
     expect(commissionedOnDay(delivered)).toBe(20);
-    const acquired: Asset = { id: 'x', script, source: 'Spec Screenplay', acquisitionCost: 0, acquiredOnDay: 1, developmentHistory: [] };
+    const acquired: Asset = { id: 'x', script, provenance: 'Acquired', marketSource: 'Spec Screenplay', acquisitionCost: 0, acquiredOnDay: 1, developmentHistory: [] };
     expect(commissionedOnDay(acquired)).toBeNull();
   });
 

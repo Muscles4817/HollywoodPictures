@@ -97,7 +97,7 @@ function assetMatchesControls(
   if (statusFilter !== 'all' && status.status !== statusFilter) return false;
 
   if (!filters.genres.has(String(asset.script.genre))) return false;
-  if (!filters.sources.has(String(asset.source))) return false;
+  if (!filters.sources.has(String((asset.marketSource ?? asset.provenance)))) return false;
   if (!filters.audiences.has(String(asset.script.intendedAudience))) return false;
   if (!filters.scales.has(String(asset.script.scale))) return false;
 
@@ -111,7 +111,7 @@ function assetMatchesControls(
     asset.script.primarySetting,
     asset.script.scale,
     asset.script.intendedAudience,
-    asset.source,
+    (asset.marketSource ?? asset.provenance),
   ]
     .join(' ')
     .toLocaleLowerCase();
@@ -495,7 +495,7 @@ function AssetCard({
                 {status.status === 'in-development' && 'In Development'}
                 {status.status === 'used' && 'Previously Used'}
               </span>
-              <span className="badge">{asset.source}</span>
+              <span className="badge">{(asset.marketSource ?? asset.provenance)}</span>
               {isRecentlyCommissioned(asset, totalDays) ? (
                 <span className="badge" style={{ background: 'var(--accent, #4a90d9)', color: '#fff' }}>Just delivered</span>
               ) : commissionedOnDay(asset) !== null ? (
@@ -735,7 +735,7 @@ export function AssetLibrary() {
   const sourceOptions = useMemo(
     () =>
       toFilterOptions(
-        filterableAssets.map(({ asset }) => String(asset.source)),
+        filterableAssets.map(({ asset }) => String((asset.marketSource ?? asset.provenance))),
       ),
     [filterableAssets],
   );

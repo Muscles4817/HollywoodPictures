@@ -43,8 +43,11 @@ const TONE_ADJECTIVE: Record<Tone, string> = {
   spectacle: 'spectacle-heavy',
 };
 
+// Execution-craft adjectives only. A writer's *concept* boldness is described
+// separately from conceptAmbition (see writerSignatureAdjective) - "boldly
+// original" is no longer a craft descriptor because originality is Concept, not
+// craft (docs/SIMULATION_PHILOSOPHY.md Principle 9).
 const CRAFT_ADJECTIVE: Record<keyof WriterCraft, string> = {
-  originality: 'boldly original',
   structure: 'tightly plotted',
   characters: 'character-driven',
   dialogue: 'dialogue-driven',
@@ -53,6 +56,19 @@ const CRAFT_ADJECTIVE: Record<keyof WriterCraft, string> = {
 function argMax<K extends string>(record: Record<K, number>): K {
   const keys = Object.keys(record) as K[];
   return keys.reduce((best, k) => (record[k] > record[best] ? k : best), keys[0]);
+}
+
+// The single most distinctive thing about a writer's output: their bold ideas
+// (conceptAmbition) when that leads, otherwise their standout execution craft.
+// Keeps "boldly original" in the writer's identity now that originality lives on
+// the Concept side rather than in `craft`.
+const BOLD_CONCEPT_THRESHOLD = 72;
+function writerSignatureAdjective(profile: Pick<WriterCreativeProfile, 'conceptAmbition' | 'craft'>): string {
+  const topCraft = argMax(profile.craft);
+  if (profile.conceptAmbition >= BOLD_CONCEPT_THRESHOLD && profile.conceptAmbition >= profile.craft[topCraft]) {
+    return 'boldly original';
+  }
+  return CRAFT_ADJECTIVE[topCraft];
 }
 
 export interface WriterDescription {
@@ -70,13 +86,12 @@ export function describeWriter(person: Person): WriterDescription | null {
   const tier = `${writerTierLabel(writerStanding(person))} writer`;
   const genre = argMax<Genre>(career.genreAffinity);
   const toneAdj = TONE_ADJECTIVE[argMax<Tone>(career.toneProfile as ToneProfile)];
-  const craftAdj = CRAFT_ADJECTIVE[argMax(career.craft) as keyof WriterCraft];
+  const signatureAdj = writerSignatureAdjective(career);
 
-  return { tier, knownFor: `known for ${toneAdj}, ${craftAdj} ${GENRE_NOUN[genre]}` };
+  return { tier, knownFor: `known for ${toneAdj}, ${signatureAdj} ${GENRE_NOUN[genre]}` };
 }
 
 const CRAFT_AXIS_NOUN: Record<keyof WriterCraft, string> = {
-  originality: 'originality',
   structure: 'structure',
   characters: 'the characters',
   dialogue: 'the dialogue',
@@ -93,8 +108,12 @@ const NOTABLE_ROOM = 8;
  * a guaranteed result (the pass is a gamble - see engine/rewrite.ts).
  */
 export function describeRewriteProjection(writer: WriterCreativeProfile, script: Script, kind: RewriteKind): string {
+  // Room is keyed by the rewrite's own (execution-only) craft axes, which are a
+  // subset of WriterCraft - originality is Concept now and can't be rewritten, so
+  // a projection never names it. Key off `room` itself rather than keyof
+  // WriterCraft so this stays in lockstep with engine/rewrite.ts:CRAFT_AXES.
   const room = rewriteAxisRoom(writer, script);
-  const ranked = (Object.keys(room) as (keyof WriterCraft)[])
+  const ranked = (Object.keys(room) as (keyof typeof room)[])
     .filter((axis) => room[axis] >= NOTABLE_ROOM)
     .sort((a, b) => room[b] - room[a]);
 
@@ -115,8 +134,8 @@ export function describeRewriteProjection(writer: WriterCreativeProfile, script:
  */
 export function describeCommissionProjection(writer: WriterCreativeProfile, genre: Genre): string {
   const toneAdj = TONE_ADJECTIVE[argMax<Tone>(writer.toneProfile)];
-  const craftAdj = CRAFT_ADJECTIVE[argMax(writer.craft) as keyof WriterCraft];
-  const base = `Expect a ${toneAdj}, ${craftAdj} ${GENRE_NOUN[genre]} in their voice`;
+  const signatureAdj = writerSignatureAdjective(writer);
+  const base = `Expect a ${toneAdj}, ${signatureAdj} ${GENRE_NOUN[genre]} in their voice`;
   // Commissioning is a big up-front bet, so surface the writer's reliability the
   // same way the rewrite projection does - a low-consistency auteur can deliver
   // anything from a dud to a gem.

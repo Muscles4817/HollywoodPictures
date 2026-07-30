@@ -13,7 +13,7 @@ function assetFrom(script: Script): Asset {
   return {
     id: `asset-${script.id}`,
     script,
-    source: 'Spec Screenplay',
+    provenance: 'Acquired', marketSource: 'Spec Screenplay',
     acquisitionCost: script.cost,
     acquiredOnDay: 5,
     developmentHistory: [acquisitionEvent(5, 'Spec Screenplay', script.cost)],
@@ -42,8 +42,8 @@ describe('the concept/execution partition', () => {
     const concept = new Set<string>(SCRIPT_CONCEPT_KEYS);
     const craft = new Set<string>(SCRIPT_CRAFT_KEYS);
     for (const k of craft) expect(concept.has(k)).toBe(false);
-    expect([...concept].sort()).toEqual(['archetype', 'genre', 'primarySetting', 'scale', 'storyType']);
-    expect([...craft].sort()).toEqual(['characters', 'complexity', 'dialogue', 'originality', 'structure', 'toneProfile']);
+    expect([...concept].sort()).toEqual(['archetype', 'emotionalPremise', 'franchisePotential', 'genre', 'hook', 'originality', 'primarySetting', 'scale', 'storyType']);
+    expect([...craft].sort()).toEqual(['characters', 'complexity', 'dialogue', 'structure', 'toneProfile']);
   });
 });
 
@@ -54,7 +54,7 @@ describe('acquisitionEvent', () => {
   });
 
   it('records no cash movement for a free founding script', () => {
-    const e = acquisitionEvent(1, 'Studio Original', 0);
+    const e = acquisitionEvent(1, undefined, 0);
     expect(e.kind).toBe('acquired');
     expect(e.costDelta).toBeUndefined();
   });
@@ -76,9 +76,10 @@ describe('reviseScript', () => {
     const original = assetFrom(sampleScript());
     const head = original.script;
 
-    const revised = reviseScript(original, { dialogue: 99, structure: 99, originality: 99, characters: 99 }, { day: 30, kind: 'rewrite' });
+    const revised = reviseScript(original, { dialogue: 99, structure: 99, characters: 99 }, { day: 30, kind: 'rewrite' });
 
-    // Concept survives verbatim.
+    // Concept survives verbatim - including originality, which is Concept, not
+    // craft, and so cannot even be passed to reviseScript (Partial<ScriptCraft>).
     for (const key of SCRIPT_CONCEPT_KEYS) {
       expect(revised.script[key]).toEqual(head[key]);
     }

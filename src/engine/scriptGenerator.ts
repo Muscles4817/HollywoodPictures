@@ -503,7 +503,27 @@ function randIntRange(rng: RandomFn, range: QualityRange[keyof QualityRange]): n
  * different archetype/story-type/scale/setting tags, not because their
  * stat rolls happened to differ.
  */
-function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses: Set<string>, author?: WriterCreativeProfile): Script {
+/**
+ * How an acquisition source shapes the screenplay it produces, on top of the
+ * archetype bands and the author (docs/DESIGN_REVIEW_source_generation_and_
+ * determinants.md - "source as a generation profile"). Two levers:
+ *  - conceptSpread: extra symmetric variance on every *concept-quality* axis
+ *    (originality/hook/emotional/franchise). This is the market's lottery - a
+ *    Spec's wide spread is what occasionally surfaces a powerhouse concept you
+ *    could never reliably commission; a neutral profile (commission) leaves the
+ *    concept exactly at its archetype band, so commissioning is the reliable
+ *    floor and the market is the ceiling you can only *find*.
+ *  - executionShift: a flat shift to the *execution craft* axes (structure/
+ *    characters/dialogue) - a Spec reads messy/undeveloped, an Agent Package
+ *    professionally polished.
+ */
+export interface GenerationProfile {
+  conceptSpread: number;
+  executionShift: number;
+}
+export const NEUTRAL_GENERATION: GenerationProfile = { conceptSpread: 0, executionShift: 0 };
+
+function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses: Set<string>, author?: WriterCreativeProfile, profile: GenerationProfile = NEUTRAL_GENERATION): Script {
   // Minted up front (outside the rng stream) so the cast can derive stable,
   // globally-unique ids from it - see newScriptId/generateCast.
   const id = newScriptId();
@@ -520,10 +540,18 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   // Craft rolls are biased toward the author's own craft shape (and spread by
   // their consistency), but anchored on the archetype's band. Complexity has no
   // writer axis, so it stays a plain band roll.
-  const originality = rollCraftStat(rng, archetypeProfile.qualityRange.originality, author?.craft.originality, author?.consistency);
-  const structure = rollCraftStat(rng, archetypeProfile.qualityRange.structure, author?.craft.structure, author?.consistency);
-  const characters = rollCraftStat(rng, archetypeProfile.qualityRange.characters, author?.craft.characters, author?.consistency);
-  const dialogue = rollCraftStat(rng, archetypeProfile.qualityRange.dialogue, author?.craft.dialogue, author?.consistency);
+  // Originality is Concept, not craft: it's biased by the author's conceptAmbition
+  // (how bold their ideas run), not their execution craft (SIMULATION_PHILOSOPHY
+  // Principle 9). Still anchored on the archetype's own originality band; the
+  // source profile's concept spread is applied to it (with the other concept
+  // axes) at the end. `originalityBase` is that pre-spread roll.
+  const originalityBase = rollCraftStat(rng, archetypeProfile.qualityRange.originality, author?.conceptAmbition, author?.consistency);
+  // Execution craft carries the source's executionShift (a flat +/- add, no rng),
+  // so an Agent Package reads polished and a Spec undeveloped. Shift 0 (neutral /
+  // commission) leaves the authored roll exactly as-is.
+  const structure = clamp(rollCraftStat(rng, archetypeProfile.qualityRange.structure, author?.craft.structure, author?.consistency) + profile.executionShift, 1, 100);
+  const characters = clamp(rollCraftStat(rng, archetypeProfile.qualityRange.characters, author?.craft.characters, author?.consistency) + profile.executionShift, 1, 100);
+  const dialogue = clamp(rollCraftStat(rng, archetypeProfile.qualityRange.dialogue, author?.craft.dialogue, author?.consistency) + profile.executionShift, 1, 100);
   const complexity = randIntRange(rng, archetypeProfile.qualityRange.complexity);
 
   const storyType = weightedPick(rng, STORY_TYPES, archetypeProfile.storyTypeAffinity);
@@ -560,6 +588,28 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   ]);
   const intendedAudience = weightedPick(rng, TARGET_AUDIENCES, audienceWeights);
 
+  // Concept-quality inputs (immutable; feed the derived ConceptStrength). Rolled
+  // from the archetype's own bands - the archetype owns "what kind of concept
+  // this is" (a Spectacle hooks hard and franchises well; a Prestige piece trades
+  // that for emotional depth). Not writer-biased beyond originality: hook/
+  // emotional/franchise are properties of the concept, not the author's craft.
+  // Drawn last, so the rest of the script (including its cast) is byte-identical
+  // to before these fields existed - only the trailing rng position advances.
+  const hookBase = randIntRange(rng, archetypeProfile.qualityRange.hook);
+  const emotionalBase = randIntRange(rng, archetypeProfile.qualityRange.emotionalPremise);
+  const franchiseBase = randIntRange(rng, archetypeProfile.qualityRange.franchisePotential);
+  // The source's concept spread widens every concept axis symmetrically - the
+  // market's lottery. Only draws (and only differs from the base) when there IS
+  // spread, so neutral/commissioned generation stays byte-identical to the base
+  // rolls above. A wide spread (Spec) raises the ceiling AND lowers the floor:
+  // most specs are unremarkable, a rare one is a powerhouse you couldn't commission.
+  const spread = profile.conceptSpread;
+  const jitter = (base: number) => (spread > 0 ? clamp(Math.round(base + randFloat(rng, -spread, spread)), 1, 100) : base);
+  const originality = jitter(originalityBase);
+  const hook = jitter(hookBase);
+  const emotionalPremise = jitter(emotionalBase);
+  const franchisePotential = jitter(franchiseBase);
+
   return {
     id,
     title,
@@ -569,6 +619,9 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
     primarySetting,
     scale,
     originality,
+    hook,
+    emotionalPremise,
+    franchisePotential,
     structure,
     characters,
     dialogue,
@@ -588,9 +641,9 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   };
 }
 
-/** Generates a slate of script options for the player to choose from. When `author` is supplied every script in the slate is shaped by that writer (Phase 2); omitted, generation is exactly as before. */
-export function generateScriptOptions(genre: Genre, rng: RandomFn, count = 12, author?: WriterCreativeProfile): Script[] {
+/** Generates a slate of script options for the player to choose from. When `author` is supplied every script in the slate is shaped by that writer (Phase 2); omitted, generation is exactly as before. `profile` biases the concept/execution distributions per acquisition source (Phase 3b); omitted, it's neutral (the reliable commission/baseline shape). */
+export function generateScriptOptions(genre: Genre, rng: RandomFn, count = 12, author?: WriterCreativeProfile, profile: GenerationProfile = NEUTRAL_GENERATION): Script[] {
   const usedTitles = new Set<string>();
   const usedSynopses = new Set<string>();
-  return Array.from({ length: count }, () => generateScript(genre, rng, uniqueTitle(genre, rng, usedTitles), usedSynopses, author));
+  return Array.from({ length: count }, () => generateScript(genre, rng, uniqueTitle(genre, rng, usedTitles), usedSynopses, author, profile));
 }

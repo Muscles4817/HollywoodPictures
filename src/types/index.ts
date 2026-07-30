@@ -399,9 +399,8 @@ export interface CrewPhilosophy {
 // (keeping generation decoupled), and so a future collaboration system can
 // blend two writers' profiles into one.
 
-/** A writer's relative craft *shape* - what they're better/worse at, on the same four axes a Script's own craft uses. Generated around (not instead of) their overall skill: a spiky elite has a high dialogue/structure and merely-average originality yet a high overall skill. */
+/** A writer's relative *execution* craft shape - what they're better/worse at, on the same three mutable craft axes a Script's own execution uses (structure/characters/dialogue). Generated around (not instead of) their overall skill: a spiky elite has high dialogue/structure yet merely-average characters, at a high overall skill. Originality is NOT here - it belongs to the writer's `conceptAmbition` (how bold their *ideas* are), a Concept axis, not execution craft (docs/SIMULATION_PHILOSOPHY.md Principle 9). */
 export interface WriterCraft {
-  originality: number; // 1-100
   structure: number; // 1-100
   characters: number; // 1-100
   dialogue: number; // 1-100
@@ -414,14 +413,23 @@ export type WriterGenreAffinity = Record<Genre, number>;
  * Everything screenplay generation reads from a writer - deliberately a plain
  * value object, not a Person, so engine/scriptGenerator.ts never imports the
  * talent model. `skill` is included because generation uses it as the overall
- * level anchor; the four `craft` axes tilt which stats come out relatively
- * strongest; `toneProfile` pulls the script's tone toward the writer's
- * signature; `commercialLean` biases archetype selection (prestige<->crowd-
- * pleaser); `consistency` controls variance (low = an inconsistent auteur
- * whose scripts range from dud to masterpiece, high = a dependable craftsman).
+ * level anchor; `conceptAmbition` biases how original/bold their ideas run; the
+ * three `craft` axes tilt which execution stats come out relatively strongest;
+ * `toneProfile` pulls the script's tone toward the writer's signature;
+ * `commercialLean` biases archetype selection (prestige<->crowd-pleaser);
+ * `consistency` controls variance (low = an inconsistent auteur whose scripts
+ * range from dud to masterpiece, high = a dependable craftsman).
  */
 export interface WriterCreativeProfile {
   skill: number; // 1-100 overall execution level - independent of craft shape, NOT their average
+  // How bold/high-concept a writer's *ideas* run - the Concept-side counterpart
+  // of `craft` (docs/SIMULATION_PHILOSOPHY.md Principle 9). Biases the originality
+  // of the screenplay they author (engine/scriptGenerator.ts), and is deliberately
+  // decoupled from skill: a low-skill writer can have wild ideas, a polished
+  // craftsman can be conventional. A Nolan is high here; a dependable
+  // TV-procedural writer is low. `consistency` scales how widely it swings, the
+  // same as it does for craft.
+  conceptAmbition: number; // 1-100
   craft: WriterCraft;
   toneProfile: ToneProfile;
   genreAffinity: WriterGenreAffinity;
@@ -747,16 +755,29 @@ export interface Script {
   storyType: StoryType;
   primarySetting: SettingArchetype;
   scale: ScriptScale;
-  // The five intrinsic screenplay-craft attributes - deliberately kept
-  // small, and each with exactly one job (docs/DESIGN.md): what the
-  // screenplay itself *is*, not how commercially attractive it is (see
-  // engine/commercialProfile.ts for that, computed from the fields above
-  // rather than stored as its own rolled stat).
-  originality: number; // 1-100
-  structure: number; // 1-100
-  characters: number; // 1-100 - depth/arcs, distinct from Dialogue's craft
-  dialogue: number; // 1-100
-  complexity: number; // 1-100, drives production difficulty/risk
+  // The intrinsic screenplay attributes - deliberately kept small, each with
+  // exactly one job (docs/DESIGN.md): what the screenplay itself *is*, not how
+  // commercially attractive it is (see engine/commercialProfile.ts for that,
+  // computed from these rather than stored as its own rolled stat).
+  //
+  // Two immutable partitions live in here, flat (see ScriptConcept/ScriptCraft):
+  //  - CONCEPT-QUALITY (originality/hook/emotionalPremise/franchisePotential):
+  //    how strong the *idea* is - set at conception, fought over at acquisition,
+  //    and never touched by a rewrite. These feed the derived ConceptStrength
+  //    (engine/conceptStrength.ts), the same "derive, don't store" pattern
+  //    commercialProfile uses. See docs/SIMULATION_PHILOSOPHY.md Principle 8-9.
+  //  - EXECUTION-CRAFT (structure/characters/dialogue): how well it's *written* -
+  //    the only axes a rewrite may improve.
+  // complexity is neither: it is production scope (how demanding a production the
+  // screenplay implies), immutable post-generation.
+  originality: number; // 1-100 - concept quality: how novel the underlying idea is
+  hook: number; // 1-100 - concept quality: how grabby/high-concept the premise is
+  emotionalPremise: number; // 1-100 - concept quality: the emotional stakes the idea promises
+  franchisePotential: number; // 1-100 - concept quality: sequel/universe/brand headroom
+  structure: number; // 1-100 - execution craft
+  characters: number; // 1-100 - execution craft: depth/arcs, distinct from Dialogue's craft
+  dialogue: number; // 1-100 - execution craft
+  complexity: number; // 1-100, drives production difficulty/risk (production scope, not quality)
   cost: number;
   toneProfile: ToneProfile;
   // The screenplay's own implied production approach - not a requirement,
@@ -825,16 +846,24 @@ export interface Script {
 // concept - the compiler rejects it. Neither alias restructures Script (its
 // fields stay flat, so every existing consumer is unaffected) - they only name
 // the partition already latent in it.
+//
+// `originality` is a Concept field, not a craft one (docs/SIMULATION_PHILOSOPHY.md
+// Principle 9, docs/DESIGN_REVIEW_source_generation_and_determinants.md): it is
+// the quality of the *idea*, set when the screenplay is conceived and fought over
+// at acquisition - not something a rewrite can manufacture. Development converges
+// on the writer's competence (structure/characters/dialogue); it does not conjure
+// a more original premise. Categorical identity (genre/archetype/...) and the
+// idea's originality are therefore *both* immutable; only execution craft moves.
 
-/** The stable creative concept - what the film fundamentally is. A rewrite must never change these. */
-export type ScriptConcept = Pick<Script, 'genre' | 'archetype' | 'storyType' | 'primarySetting' | 'scale'>;
+/** The stable creative concept - what the film fundamentally is, including how strong the idea is (originality/hook/emotional/franchise). A rewrite must never change these. */
+export type ScriptConcept = Pick<Script, 'genre' | 'archetype' | 'storyType' | 'primarySetting' | 'scale' | 'originality' | 'hook' | 'emotionalPremise' | 'franchisePotential'>;
 
 /** The mutable execution - the craft a rewrite is allowed to improve. */
-export type ScriptCraft = Pick<Script, 'originality' | 'structure' | 'characters' | 'dialogue' | 'complexity' | 'toneProfile'>;
+export type ScriptCraft = Pick<Script, 'structure' | 'characters' | 'dialogue' | 'complexity' | 'toneProfile'>;
 
 /** Runtime companions to the two aliases above, for iteration/validation/tests. Kept in lockstep with them by construction. */
-export const SCRIPT_CONCEPT_KEYS = ['genre', 'archetype', 'storyType', 'primarySetting', 'scale'] as const;
-export const SCRIPT_CRAFT_KEYS = ['originality', 'structure', 'characters', 'dialogue', 'complexity', 'toneProfile'] as const;
+export const SCRIPT_CONCEPT_KEYS = ['genre', 'archetype', 'storyType', 'primarySetting', 'scale', 'originality', 'hook', 'emotionalPremise', 'franchisePotential'] as const;
+export const SCRIPT_CRAFT_KEYS = ['structure', 'characters', 'dialogue', 'complexity', 'toneProfile'] as const;
 
 // Every production dial is continuous rather than a fixed tier: the four
 // spend dials are plain currency amounts (interpreted on a log scale - see
@@ -1692,7 +1721,16 @@ export interface IpViabilityAssessment {
 // be started from. Source is mostly flavor riding on three real levers
 // (acquisition cost, expiry window, and - via those - how urgently it's
 // worth acting on), not eight parallel generation systems.
-export type OpportunitySource = 'Spec Screenplay' | 'Agent Package' | 'Publisher Rights' | 'Studio Original';
+// Two distinct axes that used to be conflated onto one `OpportunitySource` enum
+// (docs/DESIGN_REVIEW_acquisition_provenance_and_pipeline.md). They answer
+// different questions and must never share a value again:
+//   MarketSource     - WHERE an external opportunity came from (a listing type).
+//   AssetProvenance  - HOW the studio came to own a screenplay.
+// A commissioned or founding screenplay never appeared on the market, so it has
+// a provenance but no market source - which is exactly why 'Studio Original' (a
+// commission) no longer belongs in the market's source set.
+export type MarketSource = 'Spec Screenplay' | 'Agent Package' | 'Publisher Rights';
+export type AssetProvenance = 'Acquired' | 'Commissioned' | 'Founding';
 
 /**
  * Something the studio does not yet own - visible to the player and every
@@ -1704,7 +1742,7 @@ export type OpportunitySource = 'Spec Screenplay' | 'Agent Package' | 'Publisher
  */
 export interface Opportunity {
   id: string;
-  source: OpportunitySource;
+  source: MarketSource;
   script: Script;
   /** The instant-buy price while uncontested (`bids` empty) - also the floor the first bid on a contested opportunity must clear. */
   acquisitionCost: number;
@@ -1821,7 +1859,10 @@ export interface Asset {
    * `revisions` below (engine/screenplay.ts:reviseScript).
    */
   script: Script;
-  source: OpportunitySource;
+  /** How the studio came to own this screenplay: bought from the market ('Acquired'), commissioned from a writer ('Commissioned'), or seeded at game start ('Founding'). Distinct from `marketSource` - see MarketSource/AssetProvenance. */
+  provenance: AssetProvenance;
+  /** For an 'Acquired' asset only: which market listing it was bought from, kept for its library lineage/display. Absent for commissioned or founding screenplays, which never appeared on the market. */
+  marketSource?: MarketSource;
   acquisitionCost: number;
   /** GameState.totalDays this was acquired on - display only (Asset Library "owned since"). */
   acquiredOnDay: number;

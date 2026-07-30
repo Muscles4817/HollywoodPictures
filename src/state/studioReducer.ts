@@ -174,7 +174,8 @@ function applyOpportunityWins(
     const asset: Asset = {
       id: resolved.opportunity.id,
       script: resolved.opportunity.script,
-      source: resolved.opportunity.source,
+      provenance: 'Acquired',
+      marketSource: resolved.opportunity.source,
       acquisitionCost: resolved.amount,
       acquiredOnDay: totalDays,
       writerIds: resolved.opportunity.writerIds,
@@ -909,7 +910,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const asset: Asset = {
         id: opportunity.id,
         script: opportunity.script,
-        source: opportunity.source,
+        provenance: 'Acquired',
+        marketSource: opportunity.source,
         acquisitionCost: opportunity.acquisitionCost,
         acquiredOnDay: state.totalDays,
         writerIds: opportunity.writerIds,

@@ -1,30 +1,45 @@
-import type { Opportunity, OpportunityBid, OpportunitySource, Person, ProductionScale, Script } from '../types';
+import type { Opportunity, OpportunityBid, MarketSource, Person, ProductionScale, Script } from '../types';
 import { GENRES } from '../data/genres';
-import { generateScriptOptions } from './scriptGenerator';
+import { generateScriptOptions, type GenerationProfile } from './scriptGenerator';
 import { pickGenreForAffinity, selectWriterForSource, writerProfileFromPerson } from './writers';
 import { pick, randInt, type RandomFn } from './random';
 
-// docs/DESIGN_REVIEW_development_pipeline.md - source is mostly flavor
-// riding on two real levers (how much it costs, how long it stays
-// available), not a parallel generation system per source. Sequel/Director-
-// pitch/Actor-passion-project sources are deliberately not modeled yet -
-// out of scope for this MVP (no franchises, no talent pre-attachment).
-const OPPORTUNITY_SOURCES: OpportunitySource[] = ['Spec Screenplay', 'Agent Package', 'Publisher Rights', 'Studio Original'];
+// The three external market listings. 'Studio Original' is gone: a commissioned
+// original is something the studio *creates*, not an opportunity it acquires, so
+// it now lives as an AssetProvenance ('Commissioned'), never a market source
+// (docs/DESIGN_REVIEW_acquisition_provenance_and_pipeline.md). Source is still
+// mostly flavor riding on the two real levers below (cost, expiry) - richer
+// per-source generation profiles are Phase 3b.
+const OPPORTUNITY_SOURCES: MarketSource[] = ['Spec Screenplay', 'Agent Package', 'Publisher Rights'];
 
 /** acquisitionCost = script.cost * this multiplier - script.cost is still what engine/scriptGenerator.ts rolls, this just prices *access* to it differently per source. */
-const SOURCE_COST_MULTIPLIER: Record<OpportunitySource, number> = {
+const SOURCE_COST_MULTIPLIER: Record<MarketSource, number> = {
   'Spec Screenplay': 0.4,
   'Agent Package': 0.9,
   'Publisher Rights': 1.1,
-  'Studio Original': 0.1,
 };
 
 /** How many days from generation until the opportunity expires, if never acquired. */
-const SOURCE_EXPIRY_DAYS: Record<OpportunitySource, [number, number]> = {
+const SOURCE_EXPIRY_DAYS: Record<MarketSource, [number, number]> = {
   'Spec Screenplay': [15, 30],
   'Agent Package': [10, 20],
   'Publisher Rights': [30, 60],
-  'Studio Original': [45, 90],
+};
+
+/**
+ * How each source shapes what it generates (Phase 3b - source as a generation
+ * profile). This is what makes shopping the market tangibly different from
+ * commissioning: a Spec's wide concept spread is the lottery that occasionally
+ * turns up a powerhouse concept nobody could commission, at the cost of messy,
+ * undeveloped execution you then pay to fix; an Agent Package trades that upside
+ * for a reliably polished, professionally-developed draft. Commissioning uses the
+ * neutral profile (engine/scriptGenerator.ts:NEUTRAL_GENERATION) - the reliable
+ * floor, no lottery. See docs/DESIGN_REVIEW_source_generation_and_determinants.md.
+ */
+const SOURCE_GENERATION_PROFILE: Record<MarketSource, GenerationProfile> = {
+  'Spec Screenplay': { conceptSpread: 16, executionShift: -10 }, // wild concept, undeveloped execution
+  'Agent Package': { conceptSpread: 3, executionShift: 10 }, // reliable concept, polished execution
+  'Publisher Rights': { conceptSpread: 6, executionShift: 0 }, // proven-ish concept, execution comes at adaptation (Phase 4)
 };
 
 /**
@@ -42,7 +57,7 @@ export const WEEK_LENGTH_DAYS = 7;
 const BATCH_SIZE: [number, number] = [3, 6];
 
 /** Assembles the final Opportunity from an already-generated source/script/author - shared by both the legacy and authored paths so the id/cost/expiry rng draws happen in exactly one place, in the same order. */
-function finishOpportunity(totalDays: number, rng: RandomFn, source: OpportunitySource, script: Script, writerId: string | undefined): Opportunity {
+function finishOpportunity(totalDays: number, rng: RandomFn, source: MarketSource, script: Script, writerId: string | undefined): Opportunity {
   return {
     id: `opportunity-${totalDays}-${randInt(rng, 0, 999_999)}`,
     source,
@@ -76,7 +91,10 @@ function generateOpportunity(totalDays: number, rng: RandomFn, writers: Person[]
   const writer = selectWriterForSource(writers, source, rng);
   const profile = writer ? writerProfileFromPerson(writer) : null;
   const genre = profile ? pickGenreForAffinity(rng, profile.genreAffinity) : pick(rng, GENRES);
-  const script = generateScriptOptions(genre, rng, 1, profile ?? undefined)[0];
+  // The source's generation profile biases the concept/execution distributions on
+  // top of the author - this is what makes a Spec a lottery and an Agent Package a
+  // safe, polished buy (Phase 3b).
+  const script = generateScriptOptions(genre, rng, 1, profile ?? undefined, SOURCE_GENERATION_PROFILE[source])[0];
   return finishOpportunity(totalDays, rng, source, script, writer?.id);
 }
 

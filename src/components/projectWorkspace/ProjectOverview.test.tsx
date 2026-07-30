@@ -36,7 +36,7 @@ function stateWithFocusedAssetDraft(seed: number, genre: Genre): GameState {
     talentPool: generateTalentPool(rng),
     script: generateScriptOptions(genre, rng, 1)[0],
   }));
-  const asset: Asset = { id: `asset-${result.script.id}`, script: result.script, source: 'Studio Original', acquisitionCost: result.script.cost, acquiredOnDay: 1 };
+  const asset: Asset = { id: `asset-${result.script.id}`, script: result.script, provenance: 'Founding', acquisitionCost: result.script.cost, acquiredOnDay: 1 };
   const state: GameState = {
     studio: { ...createInitialStudio(10_000_000), assets: [asset] },
     screen: 'dashboard',

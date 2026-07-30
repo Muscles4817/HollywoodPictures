@@ -11,10 +11,13 @@ import { clamp, randFloat, type RandomFn } from './random';
 
 export type RewriteKind = 'rewrite' | 'polish';
 
-// The four craft axes a pass can touch (originality/structure/characters/
-// dialogue). Complexity and tone are deliberately left alone in the MVP - a
-// rewrite improves the writing, not the production ambition or the concept.
-const CRAFT_AXES = ['originality', 'structure', 'characters', 'dialogue'] as const;
+// The craft axes a pass can touch (structure/characters/dialogue). Originality
+// is a Concept field now, not craft (docs/SIMULATION_PHILOSOPHY.md Principle 9):
+// a rewrite refines the writing, it cannot manufacture a more original idea - the
+// Partial<ScriptCraft> seam in reviseScript makes that a compile-time guarantee.
+// Complexity and tone are likewise deliberately left alone - a rewrite improves
+// the writing, not the production ambition or the concept.
+const CRAFT_AXES = ['structure', 'characters', 'dialogue'] as const;
 
 // How much of the gap toward the writer's own level a pass closes. A full
 // rewrite closes twice as much as a polish.

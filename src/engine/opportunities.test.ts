@@ -41,7 +41,7 @@ describe('settleOpportunities - roadmap development-pipeline doc', () => {
   it('keeps an opportunity that has not expired yet, untouched, while waiting for the next generation batch', () => {
     const fresh: Opportunity = {
       id: 'fresh-1',
-      source: 'Studio Original',
+      source: 'Publisher Rights',
       script: withRng(5, (rng) => settleOpportunities([], 1, 1, rng)).result.opportunities[0].script,
       acquisitionCost: 50,
       expiresOnDay: 100,
@@ -60,7 +60,7 @@ describe('settleOpportunities - roadmap development-pipeline doc', () => {
   it('an uncontested (zero-bid) opportunity is completely untouched by weekly resolution - it just keeps sitting there, instant-buy-available', () => {
     const fresh: Opportunity = {
       id: 'uncontested-1',
-      source: 'Studio Original',
+      source: 'Publisher Rights',
       script: withRng(9, (rng) => settleOpportunities([], 1, 1, rng)).result.opportunities[0].script,
       acquisitionCost: 50,
       expiresOnDay: 100,
@@ -76,7 +76,7 @@ describe('settleOpportunities - roadmap development-pipeline doc', () => {
     const script = withRng(11, (rng) => settleOpportunities([], 1, 1, rng)).result.opportunities[0].script;
     const contested: Opportunity = {
       id: 'contested-1',
-      source: 'Studio Original',
+      source: 'Publisher Rights',
       script,
       acquisitionCost: 50_000,
       expiresOnDay: 100,
@@ -96,7 +96,7 @@ describe('settleOpportunities - roadmap development-pipeline doc', () => {
     const script = withRng(13, (rng) => settleOpportunities([], 1, 1, rng)).result.opportunities[0].script;
     const contested: Opportunity = {
       id: 'tied-1',
-      source: 'Studio Original',
+      source: 'Publisher Rights',
       script,
       acquisitionCost: 50_000,
       expiresOnDay: 100,
@@ -114,7 +114,7 @@ describe('settleOpportunities - roadmap development-pipeline doc', () => {
 describe('placeBid', () => {
   const baseOpportunity: Opportunity = {
     id: 'opp-1',
-    source: 'Studio Original',
+    source: 'Publisher Rights',
     script: withRng(20, (rng) => settleOpportunities([], 1, 1, rng)).result.opportunities[0].script,
     acquisitionCost: 50_000,
     expiresOnDay: 100,
@@ -144,7 +144,7 @@ describe('placeBid', () => {
 describe('highestBid', () => {
   it('returns null for an uncontested opportunity', () => {
     const opp: Opportunity = {
-      id: 'opp-1', source: 'Studio Original',
+      id: 'opp-1', source: 'Publisher Rights',
       script: withRng(21, (rng) => settleOpportunities([], 1, 1, rng)).result.opportunities[0].script,
       acquisitionCost: 50_000, expiresOnDay: 100, postedOnDay: 1, bids: [],
     };
@@ -153,7 +153,7 @@ describe('highestBid', () => {
 
   it('returns the highest amount, ties going to whichever was placed first', () => {
     const opp: Opportunity = {
-      id: 'opp-1', source: 'Studio Original',
+      id: 'opp-1', source: 'Publisher Rights',
       script: withRng(22, (rng) => settleOpportunities([], 1, 1, rng)).result.opportunities[0].script,
       acquisitionCost: 50_000, expiresOnDay: 100, postedOnDay: 1,
       bids: [
@@ -169,7 +169,7 @@ describe('highestBid', () => {
 describe('reopenForfeitedOpportunity', () => {
   it('re-adds the original opportunity with bids cleared', () => {
     const won: Opportunity = {
-      id: 'opp-1', source: 'Studio Original',
+      id: 'opp-1', source: 'Publisher Rights',
       script: withRng(23, (rng) => settleOpportunities([], 1, 1, rng)).result.opportunities[0].script,
       acquisitionCost: 50_000, expiresOnDay: 100, postedOnDay: 1,
       bids: [{ bidderId: 'rival-studio-0', bidderName: 'Northbridge Pictures', amount: 60_000 }],

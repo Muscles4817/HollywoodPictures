@@ -35,7 +35,7 @@ function makeScript(over: Partial<Script>): Script {
   return {
     id: 'fx', title: 'Fixture', genre: 'Horror', archetype: 'GenreFormula', storyType: 'Original',
     primarySetting: 'RuralWilderness', scale: 'Medium',
-    originality: 60, structure: 60, characters: 60, dialogue: 60, complexity: 55, cost: 10_000_000,
+    originality: 60, hook: 50, emotionalPremise: 50, franchisePotential: 50, structure: 60, characters: 60, dialogue: 60, complexity: 55, cost: 10_000_000,
     toneProfile: { ...FLAT_TONE, suspense: 85, spectacle: 45 },
     environmentStrategy: { studio: 0.34, location: 0.33, digital: 0.33 }, environmentAmbition: 0.4,
     effectsStrategy: { practical: 0.5, digital: 0.5 }, effectsAmbition: 0.5,

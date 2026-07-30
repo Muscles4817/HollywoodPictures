@@ -381,7 +381,14 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 // v68 -> v69 (Phase 1b - budgeting): FilmDraft gained lockedRoleBudgets (roles
 //   whose allocation is pinned against the auto-split). Additive; same policy.
 // v69 -> v70 (Phase 2b - staffing activity feed): FilmDraft gained staffingLog.
-const SAVE_KEY = 'hollywood-pictures-save-v71';
+// v71 -> v72 (Concept model, Phase 2b): Script gained required concept-quality
+//   inputs hook/emotionalPremise/franchisePotential (immutable, feed the derived
+//   ConceptStrength). Old saves' embedded Scripts lack them; same pre-launch policy.
+// v72 -> v73 (Acquisition provenance, Phase 3a): the OpportunitySource enum split
+//   into MarketSource (Opportunity.source) and AssetProvenance (Asset.provenance);
+//   Asset.source became provenance + optional marketSource. Old Assets carry the
+//   removed `source` field and no provenance - same pre-launch policy, no migration.
+const SAVE_KEY = 'hollywood-pictures-save-v73';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

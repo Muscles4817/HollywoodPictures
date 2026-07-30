@@ -5,7 +5,7 @@ import { getWriterCareer } from './person';
 import { pickGenreForAffinity, selectWriterForSource, sourceStandingWeight, writerProfileFromPerson, writerStanding } from './writers';
 import type { Genre, WriterGenreAffinity } from '../types';
 
-const CRAFT_AXES = ['originality', 'structure', 'characters', 'dialogue'] as const;
+const CRAFT_AXES = ['structure', 'characters', 'dialogue'] as const;
 const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
 describe('generated writer creative profiles', () => {
@@ -18,6 +18,8 @@ describe('generated writer creative profiles', () => {
         expect(c.craft[axis]).toBeGreaterThanOrEqual(1);
         expect(c.craft[axis]).toBeLessThanOrEqual(100);
       }
+      expect(c.conceptAmbition).toBeGreaterThanOrEqual(1);
+      expect(c.conceptAmbition).toBeLessThanOrEqual(100);
       expect(c.commercialLean).toBeGreaterThanOrEqual(1);
       expect(c.consistency).toBeGreaterThanOrEqual(1);
       expect(Object.keys(c.genreAffinity)).toHaveLength(8);
@@ -36,27 +38,27 @@ describe('generated writer creative profiles', () => {
 });
 
 describe('source-appropriate writer selection', () => {
-  it('sourceStandingWeight favours unknowns for spec scripts and elites for studio commissions', () => {
+  it('sourceStandingWeight favours unknowns for spec scripts and established names for publisher rights', () => {
     expect(sourceStandingWeight('Spec Screenplay', 10)).toBeGreaterThan(sourceStandingWeight('Spec Screenplay', 90));
-    expect(sourceStandingWeight('Studio Original', 90)).toBeGreaterThan(sourceStandingWeight('Studio Original', 10));
+    expect(sourceStandingWeight('Publisher Rights', 90)).toBeGreaterThan(sourceStandingWeight('Publisher Rights', 10));
   });
 
-  it('spec screenplays are authored by lower-standing writers than studio commissions, on average', () => {
+  it('spec screenplays are authored by lower-standing writers than publisher-rights adaptations, on average', () => {
     const writers = withRng(3, (rng) => generateTalentPool(rng)).result.Writer;
     const spec: number[] = [];
-    const studio: number[] = [];
+    const publisher: number[] = [];
     withRng(4, (rng) => {
       for (let i = 0; i < 500; i++) spec.push(writerStanding(selectWriterForSource(writers, 'Spec Screenplay', rng)!));
-      for (let i = 0; i < 500; i++) studio.push(writerStanding(selectWriterForSource(writers, 'Studio Original', rng)!));
+      for (let i = 0; i < 500; i++) publisher.push(writerStanding(selectWriterForSource(writers, 'Publisher Rights', rng)!));
       return null;
     });
-    // Studio commissions still skew to higher-standing writers than spec
-    // scripts. The margin is smaller than it once was: the writer pool is now
-    // fully hand-authored (real working screenwriters, skill floored ~70), so
-    // there are no skill-single-digit unknowns for spec selection to bottom
-    // out on the way the old procedural pool produced - the two averages sit
-    // closer together while the ordering holds firmly.
-    expect(avg(studio)).toBeGreaterThan(avg(spec) + 3);
+    // Publisher-rights adaptations skew to higher-standing writers than spec
+    // scripts (a proven name on known material vs an unknown shopping a spec).
+    // The margin is modest: the writer pool is fully hand-authored (real working
+    // screenwriters, skill floored ~70), so there are no skill-single-digit
+    // unknowns for spec selection to bottom out on the way the old procedural
+    // pool produced - the two averages sit closer together while the ordering holds.
+    expect(avg(publisher)).toBeGreaterThan(avg(spec) + 3);
   });
 
   it('selectWriterForSource returns null only for an empty pool', () => {

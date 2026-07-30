@@ -3,6 +3,7 @@ import { useStudio } from '../state/StudioContext';
 import { formatGameDateWithMonth } from '../engine/calendar';
 import { WEEK_LENGTH_DAYS, highestBid } from '../engine/opportunities';
 import { describeWriter } from '../engine/writerPresentation';
+import { describeOpportunityProvenance } from '../engine/opportunityPresentation';
 import { Card } from './common/Card';
 import { Button } from './common/Button';
 import { Money } from './common/Money';
@@ -518,6 +519,10 @@ export function OpportunityMarket() {
                   <div className="card-title">
                     {opportunity.script.title}
                   </div>
+
+                  <p style={{ margin: '2px 0 6px', fontSize: '0.82em', fontStyle: 'italic', color: 'var(--text-muted)' }}>
+                    {describeOpportunityProvenance(opportunity.source, { writerName: author?.identity.name })}
+                  </p>
 
                   {author && authorDescription && (
                     <div style={{ margin: '2px 0 6px' }}>
