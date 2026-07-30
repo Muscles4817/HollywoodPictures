@@ -283,7 +283,11 @@ export function TalentStats({ person, role, category, script, character = null, 
       {/* Everything deeper is one click away, so the default card stays short
           and bounded as more systems are added (user request). */}
       <details className="talent-more">
-        <summary className="talent-more-toggle">
+        {/* Stop the toggle click from bubbling: some callers (RoleHiringDrawer's
+            crew/director cards) wrap this whole card in a selectable Card whose
+            onClick registers a hire, so without this, expanding the disclosure
+            would also cast/hire the person as the click propagates up. */}
+        <summary className="talent-more-toggle" onClick={(e) => e.stopPropagation()}>
           <span className="talent-more-chevron" aria-hidden="true">›</span>
           {disclosureLabel}
         </summary>

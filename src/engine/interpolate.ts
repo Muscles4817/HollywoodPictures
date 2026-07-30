@@ -17,16 +17,34 @@ export interface ScaleAnchor<K extends string> {
   description: string;
 }
 
-/** Maps a 0-1 slider position onto a value that spans orders of magnitude (e.g. £100k - £40M). */
-export function logAmount(t: number, range: Range): number {
-  const clampedT = Math.max(0, Math.min(1, t));
-  return range.min * Math.pow(range.max / range.min, clampedT);
+// A pure geometric (log) mapping is undefined when the low end is 0 (or
+// negative): log(x / 0) is Infinity, and the ratio of two such logs is NaN -
+// exactly the failure a Contingency Reserve slider hit, whose floor is a
+// legitimate £0 "no buffer". For a zero/negative floor we shift the whole range
+// by a small positive offset so the log is well-defined and the floor still maps
+// cleanly to t = 0. The offset is a small fraction of the span, so the curve
+// stays log-like across the bulk of the range (a cheap end still gets generous
+// resolution) while remaining finite right down to the floor. Ranges with a
+// positive floor are untouched - they take the exact geometric path as before.
+const LOG_ZERO_OFFSET_FRACTION = 0.02;
+function logZeroOffset(range: Range): number {
+  return (range.max - range.min) * LOG_ZERO_OFFSET_FRACTION;
 }
 
-/** Inverse of logAmount: given an amount, what slider position (0-1) produced it. */
+/** Maps a 0-1 slider position onto a value that spans orders of magnitude (e.g. £100k - £40M). A floor of 0 is supported (see logZeroOffset). */
+export function logAmount(t: number, range: Range): number {
+  const clampedT = Math.max(0, Math.min(1, t));
+  if (range.min > 0) return range.min * Math.pow(range.max / range.min, clampedT);
+  const off = logZeroOffset(range);
+  return (range.min + off) * Math.pow((range.max + off) / (range.min + off), clampedT) - off;
+}
+
+/** Inverse of logAmount: given an amount, what slider position (0-1) produced it. A floor of 0 is supported (see logZeroOffset). */
 export function logT(amount: number, range: Range): number {
   const clampedAmount = Math.max(range.min, Math.min(range.max, amount));
-  return Math.log(clampedAmount / range.min) / Math.log(range.max / range.min);
+  if (range.min > 0) return Math.log(clampedAmount / range.min) / Math.log(range.max / range.min);
+  const off = logZeroOffset(range);
+  return Math.log((clampedAmount + off) / (range.min + off)) / Math.log((range.max + off) / (range.min + off));
 }
 
 /** Piecewise-linear interpolation of one named value across a sorted set of anchors. */
