@@ -27,7 +27,7 @@ import {
   runtimeMarketabilityDelta,
   marketingBuzzContribution,
 } from './productionDials';
-import { EDIT_STYLE_PROFILES, FINAL_CUT_FOCUS_PROFILES, MUSIC_FOCUS_PROFILES } from '../data/postProduction';
+import { briefFromChoices, briefQualityContribution, briefCriticEditScore, briefAudienceEditScore, briefBuzzContribution } from './postProductionBrief';
 import { computeQualityWeights } from './genreWeights';
 import { computeExecutionProfile, type ExecutionProfile } from './productionExecution';
 import { computeRealizedPerformance } from './actingModel';
@@ -282,9 +282,10 @@ export function computeEventsScore(events: ProductionEvent[]): number {
  */
 export function computePostProductionScore(choices: PostProductionChoices): number {
   const base = 55;
-  const music = MUSIC_FOCUS_PROFILES[choices.musicFocus].qualityDelta;
-  const balancedBonus = choices.editStyle === 'Balanced' ? 5 : 0;
-  return clamp(base + music + balancedBonus, 0, 100);
+  // The brief's current DIRECT quality contribution (engine/postProductionBrief.ts).
+  // At the coverage-unification cutover this becomes the Composer's/Editor's
+  // realisation of the score/edit brief rather than a flat menu delta.
+  return clamp(base + briefQualityContribution(briefFromChoices(choices)), 0, 100);
 }
 
 /** How well the whole package (script, key talent, budget) suits the chosen genre. */
@@ -502,11 +503,7 @@ export function computeCriticScore(
   script: Script,
   postProductionChoices: PostProductionChoices,
 ): number {
-  const criticalEditScore = clamp(
-    50 + EDIT_STYLE_PROFILES[postProductionChoices.editStyle].criticDelta * 5,
-    0,
-    100,
-  );
+  const criticalEditScore = briefCriticEditScore(briefFromChoices(postProductionChoices));
 
   const score =
     quality.qualityScore * 0.78 +
@@ -538,15 +535,7 @@ export function computeAudienceScore(
     productionChoices,
   );
 
-  const audienceEditingScore = clamp(
-    50 +
-      EDIT_STYLE_PROFILES[postProductionChoices.editStyle].audienceDelta * 5 +
-      FINAL_CUT_FOCUS_PROFILES[
-        postProductionChoices.finalCutFocus
-      ].audienceDelta * 5,
-    0,
-    100,
-  );
+  const audienceEditingScore = briefAudienceEditScore(briefFromChoices(postProductionChoices));
 
   const score =
     quality.qualityScore * 0.50 +
@@ -619,14 +608,15 @@ export function computeBuzzScore(
   const fameAvg = average(buzzworthyFame) ?? 30;
 
   const eventsBuzz = events.reduce((sum, e) => sum + e.buzzDelta, 0);
-  const musicBuzz = MUSIC_FOCUS_PROFILES[postProductionChoices.musicFocus].buzzDelta;
-  const finalCutBuzz = FINAL_CUT_FOCUS_PROFILES[postProductionChoices.finalCutFocus].buzzDelta;
+  // The brief's current DIRECT buzz contribution (score + final-cut deltas); at
+  // the cutover it becomes how buzz-worthy the realised score/cut actually is.
+  const briefBuzz = briefBuzzContribution(briefFromChoices(postProductionChoices));
   const scriptBuzz = (deriveCommercialProfile(script).hookStrength - 50) * SCRIPT_BUZZ_WEIGHT;
 
   // Non-purchasable anticipation core: who's involved, how established the studio
   // is, the concept's hook, and production moments. What audiences already want.
   const anticipation =
-    BUZZ_BASE + (fameAvg - 50) * FAME_BUZZ_WEIGHT + (studioBrand - 50) * BRAND_BUZZ_WEIGHT + scriptBuzz + eventsBuzz + musicBuzz + finalCutBuzz;
+    BUZZ_BASE + (fameAvg - 50) * FAME_BUZZ_WEIGHT + (studioBrand - 50) * BRAND_BUZZ_WEIGHT + scriptBuzz + eventsBuzz + briefBuzz;
 
   // Marketing amplifies that core, gated by star/brand power - an unknown package
   // gives marketing little to amplify, so spend alone can't reach the top bands.

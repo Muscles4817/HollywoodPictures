@@ -603,11 +603,37 @@ reach/scale (the "acclaim doesn't buy mass-market scale" lock stands).
     `editFacet.test.ts` (ambition separates archetypes, the head's skill is the
     axis, unhired falls back to the floor, forecast = base at neutral skill).
 
-Not yet built (rest of the programme): the creative-brief conversion of the
-`musicFocus`/`editStyle` menus, and the gated scoring cutover that wires all four
-craft facets (incl. cinematography's new dimension) into scoring and calibrates
-once; plus the workload hub section and the `destructionMethod`/`actionMethod`
-axes (awaiting the finer-taxonomy split).
+- **Slice 3 — creative-brief seam: SHIPPED (behaviour-preserving).**
+  Reframes the `musicFocus`/`editStyle`/`finalCutFocus` menus as the director's
+  BRIEF (intended approach handed to the Composer/Editor) rather than a quality
+  dial, and — the substantive part — routes the four scattered menu→delta reads in
+  `scoring.ts` through one seam, `postProductionBrief.ts`:
+  - `CreativeBrief` (a view over the persisted `PostProductionChoices`; the menu
+    fields stay the state) + `briefFromChoices`.
+  - Four interpretation accessors — `briefQualityContribution` (post-production
+    quality), `briefCriticEditScore`, `briefAudienceEditScore`, `briefBuzzContribution`
+    — each returning EXACTLY the value scoring.ts computed inline before.
+    `computePostProductionScore`/`computeCriticScore`/`computeAudienceScore`/
+    `computeBuzzScore` now call these instead of indexing the profiles directly.
+  - `describeBriefIntent` — the brief as qualitative intent ("a bold, memorable
+    score"; "a fast, crowd-pleasing cut"), distinct from the profiles' effect
+    language; additive, not yet surfaced.
+  - **Byte-identical:** the entire normal suite passes unchanged and the §6-ratified
+    buzz gate stays green with identical fixture numbers — the seam is transparent.
+  - **Why it matters:** the cutover now changes these four accessors ALONE — each
+    stops returning a flat menu delta and instead returns the hired Composer's/
+    Editor's realisation of the brief (scoreFacet.ts / editFacet.ts) — with the
+    rest of scoring untouched. The intent stays a real player decision; the
+    quality becomes person-driven (Revision 2's "brief, not a dial").
+  - Tests: `postProductionBrief.test.ts` (mapping, per-combination byte-identity
+    against the raw profile arithmetic, digit-free intent prose).
+
+**All safe scaffolding is now in place.** Remaining: the single gated scoring
+cutover — wire the four craft facets (Sets already live; Cinematography's brand-new
+dimension; Score/Edit replacing their menu-dials via the brief seam) into
+`computeProductionScore`/`computePostProductionScore`, re-centred aggregate-neutral,
+and calibrated once against the gates. Plus the workload hub section and the
+`destructionMethod`/`actionMethod` axes (awaiting the finer-taxonomy split).
 
 ## Script-model depth — an open roadmap question (raised, not yet scoped)
 
