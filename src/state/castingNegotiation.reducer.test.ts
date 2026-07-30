@@ -286,6 +286,38 @@ describe('REQUEST_AUDITION', () => {
     const again = studioReducer(after, { type: 'REQUEST_AUDITION', characterId: lead.id, role: 'Lead Actor', personId: actor.id });
     expect((draftOf(again).auditions ?? []).filter((a) => a.personId === actor.id)).toHaveLength(1);
   });
+
+  it('auto-shortlists the auditionee so they can be found again', () => {
+    const { state, lead } = uncastState(31);
+    const actor = buildActor('audition-shortlist', matchingGender(lead));
+    const after = studioReducer(state, { type: 'REQUEST_AUDITION', characterId: lead.id, role: 'Lead Actor', personId: actor.id });
+    expect((draftOf(after).shortlist ?? []).some((s) => s.characterId === lead.id && s.personId === actor.id)).toBe(true);
+  });
+});
+
+describe('ACKNOWLEDGE_AUDITIONS', () => {
+  function atDay(s: GameState, day: number): GameState {
+    return { ...s, totalDays: day };
+  }
+
+  it('marks a ready audition acknowledged but leaves a still-pending one alone', () => {
+    const { state, lead } = uncastState(32);
+    const actor = buildActor('ack', matchingGender(lead));
+    const requested = studioReducer(state, { type: 'REQUEST_AUDITION', characterId: lead.id, role: 'Lead Actor', personId: actor.id });
+    const readyOnDay = (draftOf(requested).auditions ?? [])[0].readyOnDay;
+
+    // Before it completes, acknowledging does nothing (no-op -> same reference).
+    const early = studioReducer(requested, { type: 'ACKNOWLEDGE_AUDITIONS' });
+    expect(early).toBe(requested);
+
+    // Once the clock passes readyOnDay, acknowledging marks it seen.
+    const later = atDay(requested, readyOnDay + 1);
+    const acked = studioReducer(later, { type: 'ACKNOWLEDGE_AUDITIONS', characterId: lead.id });
+    expect((draftOf(acked).auditions ?? [])[0].acknowledged).toBe(true);
+
+    // And a second acknowledge is a no-op.
+    expect(studioReducer(acked, { type: 'ACKNOWLEDGE_AUDITIONS', characterId: lead.id })).toBe(acked);
+  });
 });
 
 describe('SET_SHOOT_DELAY', () => {

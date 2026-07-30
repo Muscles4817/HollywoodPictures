@@ -52,7 +52,7 @@ export function Header({
   // (state/selectors.ts) - all live in the same Inbox overlay, so they share one
   // count here.
   const badgeCount =
-    inboxBadgeCount(state.projects, state.focusedProjectId) +
+    inboxBadgeCount(state.projects, state.focusedProjectId, state.totalDays) +
     unreadBidCount(state.bidNotifications ?? []) +
     unacknowledgedAwardHighlights(state).length;
 

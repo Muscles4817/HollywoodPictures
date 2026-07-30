@@ -1233,6 +1233,31 @@ textarea, input, select {
 .cd-take--reach { border-left-color: var(--amber, #b8860b); }
 .cd-take--pass { border-left-color: var(--red); }
 
+/* Casting QOL - the screen-test report callout that leads a candidate card once
+   their audition has come back. Deliberately loud (a real beat, not a stat). */
+.audition-report {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 6px 0 2px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border-left: 3px solid var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+.audition-report__eyebrow {
+  font-size: 0.72em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--primary);
+}
+.audition-report__body {
+  margin: 0;
+  font-size: 0.9em;
+  font-style: italic;
+}
+
 /* Casting Redesign, Phase 6 - the wait-for-a-booked-actor strip on a card, and
    the production-level "shoot delayed" banner. */
 .candidate-schedule {

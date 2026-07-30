@@ -10,7 +10,7 @@ import { computeActorAppeal, countActorsFreedByDelay, computeSalaryFit, overallW
 import { estimateDeal } from '../../engine/castingEstimate';
 import { deriveFitReadAssist, deriveFitRead, deriveFitReason, deriveFitConfidence, deriveRiskRead, gateKnownAxes, knownAxisCoverage } from '../../engine/talentCardPresentation';
 import { deriveCastingDirectorTake, describeCastingDirectorTake, type CastingDirectorTake } from '../../engine/castingDirectorAdvice';
-import { candidateStrengthSignals, describeOfferRejection, describeCounterOffer, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast, type CandidateSignal } from '../../engine/castingPresentation';
+import { candidateStrengthSignals, describeOfferRejection, describeCounterOffer, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast, describeAuditionResult, type CandidateSignal } from '../../engine/castingPresentation';
 import { forecastOpenCasting } from '../../engine/castingCalls';
 import { playerRelationshipWith, type RelationshipStanding } from '../../engine/relationships';
 import { notableCastAffinity, type CastAffinity } from '../../engine/pairHistory';
@@ -284,9 +284,25 @@ function CandidateCard({
   // hired (deriveCastingDirectorTake returns null otherwise) and only as sharp as
   // their skill. Computed once by the drawer (castingDirectorTakeFor) and passed
   // in, so the card and the compare view show the exact same take.
+  // The screen-test report (casting QOL): when the audition has come back, lead
+  // the card with the diegetic "here's how they read" beat, graded by the true
+  // character fit the test now reveals - the payoff for arranging it.
+  const auditionReport = audited && script
+    ? (() => {
+        const fitScore = deriveOverallScore(person, role, 'actor', script, character);
+        return fitScore !== null ? describeAuditionResult(person.identity.name, character.name, person.id, fitScore) : null;
+      })()
+    : null;
+
   return (
     <Card>
       <div className="card-title">{person.identity.name}</div>
+      {auditionReport && (
+        <div className="audition-report">
+          <span className="audition-report__eyebrow">🎬 Screen test</span>
+          <p className="audition-report__body">{auditionReport}</p>
+        </div>
+      )}
       {/* TalentStats' own Availability section already covers "available
           now" vs "busy until X" - no need to repeat it here. */}
       <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} affordable={affordable} castingDirectorSkill={castingDirectorSkill} relationship={relationship} castAffinity={castAffinity} audited={audited} />
@@ -449,6 +465,18 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
       window.removeEventListener('keydown', handleKey);
     };
   }, [onClose]);
+
+  // Opening this character's drawer IS the player seeing their completed screen
+  // tests, so acknowledge any that have come back - that clears the "audition
+  // came back" Inbox beat/badge for this character and stops it re-pinging. Only
+  // fires when there's actually an unacknowledged, ready audition here, so it's a
+  // no-op in the common case (the reducer also guards, returning the same state).
+  const hasUnseenAudition = (draft.auditions ?? []).some(
+    (a) => a.characterId === character.id && state.totalDays >= a.readyOnDay && !a.acknowledged,
+  );
+  useEffect(() => {
+    if (hasUnseenAudition) dispatch({ type: 'ACKNOWLEDGE_AUDITIONS', characterId: character.id });
+  }, [hasUnseenAudition, character.id, dispatch]);
 
   const call = draft.castingCalls.find((c) => c.characterId === character.id) ?? null;
   const director = findAssignedPerson(draft.talent, 'Director');

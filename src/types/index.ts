@@ -2155,6 +2155,14 @@ export interface AuditionRecord {
   requestedOnDay: GameDay;
   /** The day the audition completes; on/after it, the read is confident. */
   readyOnDay: GameDay;
+  /**
+   * Whether the player has actually SEEN the completed result (opened the
+   * character's casting drawer since it came back). Completion itself is still
+   * derived from the clock (readyOnDay vs. today); this only tracks whether the
+   * "it's ready" beat has been surfaced, so the Inbox pings exactly once and the
+   * badge clears when the player looks. Absent/false until acknowledged.
+   */
+  acknowledged?: boolean;
 }
 
 // Phase 2b - one meaningful staffing event for the Cast & Crew activity feed.
