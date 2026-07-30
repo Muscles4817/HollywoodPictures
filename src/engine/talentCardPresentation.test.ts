@@ -246,6 +246,27 @@ describe('deriveFitRead under partial coverage', () => {
   });
 });
 
+describe('deriveFitRead for crew (a "hire" read, history-sharpened)', () => {
+  const [base] = generateTalentCandidates('Actor', createRng(80), 1);
+
+  it('phrases the verdict as a hire, not a fit', () => {
+    const read = deriveFitRead(80, base, NO_ASSIST, 1, 'hire');
+    expect(read.verdict).toMatch(/hire/);
+    expect(read.verdict).not.toMatch(/fit/);
+  });
+
+  it('reads an obscure head as a wide-band punt, and prior films together tighten it', () => {
+    const obscure: Person = { ...base, reputation: { ...base.reputation, fame: 12, industryRespect: 15, currentHeat: 10, reliability: 70 } };
+    const cold = deriveFitRead(70, obscure, NO_ASSIST, 1, 'hire');
+    // isActor=false: no casting-director assist for crew, but a working history
+    // (familiarity) still sharpens the read.
+    const known = deriveFitRead(70, obscure, deriveFitReadAssist(null, history(3), false), 1, 'hire');
+    expect(cold.confidence).toBe('low');
+    expect(known.high - known.low).toBeLessThan(cold.high - cold.low);
+    expect(known.assistNote).toMatch(/worked together/i);
+  });
+});
+
 describe('deriveFitReadAssist', () => {
   it('reads a hired casting director as the assist for an actor', () => {
     const assist = deriveFitReadAssist(80, history(0), true);

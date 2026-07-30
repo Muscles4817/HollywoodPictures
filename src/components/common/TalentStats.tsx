@@ -20,7 +20,6 @@ import { CHARACTER_ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
 import type { RoleCategory } from '../../data/talentPresentation';
 import { Money } from './Money';
 import { MatchBreakdown } from './MatchBreakdown';
-import { deriveHiringVerdict } from '../../utils/StarRatingConversion';
 import { getPersonAge } from '../../types';
 import type { DirectorCareer, Person, ProductionRole, Script, ScriptCharacter } from '../../types';
 
@@ -149,12 +148,14 @@ export function TalentStats({ person, role, category, script, character = null, 
   const career = getCareerForRole(person, role);
   const overallScore = deriveOverallScore(person, role, category, script, character);
   const roleFit = deriveRoleFitBreakdown(person, role, category, script, character);
-  // A fit (actor/director) is a judgment made under uncertainty, so it reads as a
-  // hedged band, not an exact number. Crew "fit" is really their skill - a known
-  // résumé figure - so it keeps a precise read (but no raw digit either). Three
-  // studio-side things sharpen an actor/director read: a completed audition
-  // (Phase 4), the production's casting director (actors only), and history with
-  // this person (deriveFitReadAssist).
+  // Every hire is a judgment made under uncertainty, so it reads as a hedged band,
+  // not an exact number - for crew as much as actors. A crew head's "fit" is their
+  // skill, but how confidently you can read that skill still depends on how known
+  // a quantity they are: an established, respected name is a safe read; an obscure
+  // or unproven one is a genuine punt until you've worked with them. What sharpens
+  // the read differs by role - a completed audition and the production's casting
+  // director sharpen ACTORS (deriveFitReadAssist gates those on isActor); working
+  // history sharpens anyone, crew included.
   const fitAssist = deriveFitReadAssist(castingDirectorSkill, relationship ?? undefined, category === 'actor', audited);
   // Which axes you can read depends on how readable the *person* is (their
   // establishment, plus any casting-director/audition/history assist) - compute
@@ -168,7 +169,10 @@ export function TalentStats({ person, role, category, script, character = null, 
   // five no longer read as "an excellent fit" until a screen test reveals the
   // rest (deriveFitRead's coverage regression).
   const coverage = gatedRows ? knownAxisCoverage(gatedRows) : 1;
-  const fitRead = overallScore !== null && roleFit ? deriveFitRead(overallScore, person, fitAssist, coverage) : null;
+  // Crew have no per-axis role-fit to veil (coverage stays 1), but they still get
+  // the person-readability band and history sharpening - read for how good a
+  // "hire" they are, not how well they "fit" a part. Actors/directors read "fit".
+  const fitRead = overallScore !== null ? deriveFitRead(overallScore, person, fitAssist, coverage, roleFit ? 'fit' : 'hire') : null;
   const fitReason = gatedRows ? deriveFitReason(gatedRows.filter((r) => r.known), roleFit!.noun) : null;
 
   // Both optional (see PersonIdentity's own comment, types/index.ts) - real,
@@ -236,11 +240,11 @@ export function TalentStats({ person, role, category, script, character = null, 
         </>
       )}
 
-      {/* THE FIT HERO - the card's anchor. For an actor/director this is a
-          hedged read over a band (how sure the casting eye is), not an exact
-          number; for crew it's their known skill. A plain "why" names the
-          strongest/weakest axis and, when the read is shaky, why. */}
-      {fitRead ? (
+      {/* THE FIT HERO - the card's anchor. A hedged read over a band (how sure
+          the read is), never an exact number - for crew (a competence "hire"
+          read) as much as actors/directors (a role "fit" read). A plain "why"
+          names the strongest/weakest axis and, when the read is shaky, why. */}
+      {fitRead && (
         <div className={`talent-fit talent-fit--${fitTier(fitRead.perceived)}`}>
           <div className="talent-fit-top">
             <span className="talent-fit-verdict">{fitRead.verdict}</span>
@@ -260,16 +264,6 @@ export function TalentStats({ person, role, category, script, character = null, 
             </p>
           )}
         </div>
-      ) : (
-        overallScore !== null && (
-          <div className={`talent-fit talent-fit--${fitTier(overallScore)}`}>
-            <div className="talent-fit-top">
-              <span className="talent-fit-verdict">{deriveHiringVerdict(overallScore)}</span>
-              <span className="talent-fit-caption">Match</span>
-            </div>
-            <div className="talent-fit-meter"><span style={{ width: `${Math.round(overallScore)}%` }} /></div>
-          </div>
-        )
       )}
 
       {/* Status, as traffic-lights rather than prose or stars. */}

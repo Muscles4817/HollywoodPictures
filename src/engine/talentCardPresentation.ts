@@ -413,7 +413,13 @@ const ASSIST_NOTE: Record<'casting-director' | 'history' | 'audition', string> =
  * becomes "here's my read, how sure I am, and why." `trueScore` is the untouched
  * 0-100 fit; everything derived here is deterministic.
  */
-export function deriveFitRead(trueScore: number, person: Person, assist: FitReadAssist = NO_ASSIST, coverage = 1): FitRead {
+// The noun the hedged verdict is built around. Actors/directors are read for how
+// well they "fit" the part; a crew head is read for how good a "hire" they are
+// (a competence read, not a role-fit one) - same uncertainty machinery, honest
+// phrasing for each.
+export type FitSubject = 'fit' | 'hire';
+
+export function deriveFitRead(trueScore: number, person: Person, assist: FitReadAssist = NO_ASSIST, coverage = 1, subject: FitSubject = 'fit'): FitRead {
   const cov = clamp(coverage, 0, 1);
   const bias = perceivedFitBias(person) * (1 - assist.level * BIAS_SHAVE);
   // Regress the true fit toward a neutral prior for the part of the role you
@@ -444,7 +450,7 @@ export function deriveFitRead(trueScore: number, person: Person, assist: FitRead
         : residualCause(person);
 
   const word = fitQualityWord(perceived);
-  const phrase = `${word === 'excellent' ? 'an' : 'a'} ${word} fit`;
+  const phrase = `${word === 'excellent' ? 'an' : 'a'} ${word} ${subject}`;
   return {
     perceived,
     confidence: tier,

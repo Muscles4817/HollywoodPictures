@@ -94,11 +94,16 @@ describe('TalentStats - Role-Fit hero', () => {
     expect(container.querySelector('.talent-fit')).toBeNull();
   });
 
-  it("uses the crew member's own skill as the fit score, since crew has no compatibility concept", () => {
+  it("reads a crew member as a banded 'hire' verdict off their own skill (not a precise Match number)", () => {
     const [editor] = generateTalentCandidates('Editor', createRng(13), 1);
     const skilled: Person = { ...editor, careers: { ...editor.careers, editor: { ...editor.careers.editor!, skill: 96 } } };
-    render(<TalentStats person={skilled} role="Editor" category="crew" script={null} totalDays={1} />);
-    expect(screen.getByText('Excellent Match')).toBeInTheDocument();
+    const { container } = render(<TalentStats person={skilled} role="Editor" category="crew" script={null} totalDays={1} />);
+    // Crew now read for how good a HIRE they are, hedged over a confidence band -
+    // not a flat, precise "Match".
+    expect(screen.getByText(/excellent hire/i)).toBeInTheDocument();
+    expect(screen.queryByText('Excellent Match')).not.toBeInTheDocument();
+    expect(container.querySelector('.talent-fit-caption')).not.toBeNull();
+    expect(container.querySelector('.talent-fit-meter--band')).not.toBeNull();
   });
 });
 
