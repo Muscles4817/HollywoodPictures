@@ -16,7 +16,7 @@ import { deriveAudienceSimulationFixedState, type SupportedReleaseType } from '.
 import { campaignAngleEffect, effectiveMarketingReach, NEUTRAL_ANGLE_EFFECT } from './marketing';
 import { CAMPAIGN_ANGLE_PROFILES, LEGS_AUDIENCE_POINTS } from '../data/marketing';
 import type { CampaignAngle } from '../types';
-import { deriveCommercialProfile } from './commercialProfile';
+import { deriveCommercialProfile, deriveMarketability } from './commercialProfile';
 import { advanceOneWeek } from './audienceSimulationStep';
 import { AVERAGE_TICKET_PRICE } from './boxOfficeRun';
 import { computeInternationalAppeal, domesticKeepShareForFilm, feeFractionFromKeepShare, splitBoxOfficeGross } from './distribution';
@@ -324,6 +324,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     scriptAccessibility: commercialProfile.accessibility,
     scriptHookStrength: commercialProfile.hookStrength,
     scriptCrossoverPotential: commercialProfile.crossoverPotential,
+    scriptMarketability: deriveMarketability(input.script),
     scriptSpectacle: input.script.toneProfile.spectacle,
     scriptIntendedAudience: input.script.intendedAudience,
     targetAudience: input.targetAudience,

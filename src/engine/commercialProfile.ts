@@ -118,3 +118,31 @@ export function deriveCommercialProfile(script: CommercialInputs): CommercialPro
 
   return { accessibility, hookStrength, crossoverPotential };
 }
+
+// --- Marketability (the draw vector) ---------------------------------------
+//
+// "How big an audience is *pre-disposed* to show up" - the franchise/IP draw
+// that makes the highest-opening films almost always sequels and franchise
+// entries (docs/DESIGN_REVIEW_originality_vs_marketability.md). Distinct from
+// hookStrength (is the pitch compelling) and accessibility (is the concept
+// broad): marketability is *pre-sold demand*. It feeds the Eligibility stage of
+// the audience simulation convexly, so a true franchise expands the reachable
+// pool dramatically while an ordinary concept barely moves it. Franchise
+// potential dominates; hook is a secondary "is it an event" signal; genre
+// popularity a base. Derived, never stored - the same principle as the profile
+// above.
+type MarketabilityInputs = Pick<Script, 'genre' | 'franchisePotential' | 'hook'>;
+
+const FRANCHISE_MARKETABILITY_WEIGHT = 0.55;
+const HOOK_MARKETABILITY_WEIGHT = 0.25;
+const POPULARITY_MARKETABILITY_WEIGHT = 0.2;
+
+export function deriveMarketability(script: MarketabilityInputs): number {
+  return clamp(
+    script.franchisePotential * FRANCHISE_MARKETABILITY_WEIGHT +
+      script.hook * HOOK_MARKETABILITY_WEIGHT +
+      genrePopularity(script.genre) * POPULARITY_MARKETABILITY_WEIGHT,
+    0,
+    100,
+  );
+}

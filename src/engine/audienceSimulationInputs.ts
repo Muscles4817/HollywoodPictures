@@ -104,6 +104,16 @@ export interface ReleaseSimulationInputs {
   scriptCrossoverPotential: number;
   /** Script.toneProfile.spectacle, 1-100 - "must see this in cinemas" event value, one of crossoverCapacityFraction's inputs (see computeCrossoverCapacityFraction below). A low-spectacle film (a character comedy, a small drama) can still cross over on concept/reception alone, just without spectacle's contribution. */
   scriptSpectacle: number;
+  /**
+   * engine/commercialProfile.ts:deriveMarketability, 0-100 - the franchise/IP
+   * "pre-sold demand" that expands ELIGIBILITY (how many are pre-disposed to want
+   * this at all), convexly (see computeTotalAddressableAudience). This is the
+   * non-purchasable lever that makes the highest-opening films almost always
+   * franchises: marketing buys awareness, but only a franchise expands the
+   * eligible pool. Defaults to 0 for older/rival callers (no effect - the pool is
+   * just its genre/audience base). docs/DESIGN_REVIEW_originality_vs_marketability.md.
+   */
+  scriptMarketability?: number;
   /** What this film was actually written for (Script.intendedAudience) vs. who it's being marketed to (Film.targetAudience, below) - a mismatch narrows genuine taste-fit even if accessibility is otherwise strong. */
   scriptIntendedAudience: TargetAudience;
   targetAudience: TargetAudience;
@@ -174,10 +184,34 @@ export interface ReleaseSimulationInputs {
 // reproduction loop.
 const BASE_ADDRESSABLE_POPULATION = 200_000_000;
 
-function computeTotalAddressableAudience(genre: Genre, targetAudience: TargetAudience): number {
+// Franchise/IP marketability expands the *eligible* pool - the audience already
+// pre-disposed to want this - which is the calibration doc's §1.1 "franchise
+// familiarity" eligibility input, and the reason the highest-opening films are
+// almost always franchises (docs/DESIGN_REVIEW_originality_vs_marketability.md).
+// The intent is a CONVEX, steep lever: at max marketability the eligible pool
+// multiplies several-fold (phenomenon scale), while an ordinary concept is barely
+// moved - the boost reserved for genuine franchises, non-purchasable (marketing
+// buys awareness of the pool, never the pool itself).
+//
+// GAIN is 0 (INERT) for now, on purpose: it can only be calibrated against a
+// *real bimodal* marketability distribution - most films ~0, a rare franchise
+// very high - which needs an actual franchise/IP system (sequels + acquirable
+// IP). Today `franchisePotential` is a stat every script rolls, so a live gain
+// boosts the median as much as the top (verified against the diagnostic). The
+// seam (deriveMarketability -> scriptMarketability -> this multiplier) is wired
+// and ready; the franchise system flips GAIN on and tunes it against
+// boxOfficeDistribution.diagnostic. Until then this is a byte-for-byte no-op.
+const FRANCHISE_ELIGIBILITY_GAIN = 0;
+const FRANCHISE_ELIGIBILITY_CONVEXITY = 5.5;
+
+function franchiseEligibilityMultiplier(marketability: number): number {
+  return 1 + FRANCHISE_ELIGIBILITY_GAIN * Math.pow(clamp(marketability, 0, 100) / 100, FRANCHISE_ELIGIBILITY_CONVEXITY);
+}
+
+function computeTotalAddressableAudience(genre: Genre, targetAudience: TargetAudience, marketability = 0): number {
   const marketSize = AUDIENCE_PROFILES[targetAudience].marketSize;
   const popularity = GENRE_PROFILES[genre].popularity / 100;
-  return BASE_ADDRESSABLE_POPULATION * marketSize * popularity;
+  return BASE_ADDRESSABLE_POPULATION * marketSize * popularity * franchiseEligibilityMultiplier(marketability);
 }
 
 // --- Base interest fraction & crossover capacity ---------------------------
@@ -796,7 +830,7 @@ function computeExternalWeeklyAwarenessRate(marketingEfficiency: number): number
  * called from anywhere in the live game (see module header).
  */
 export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInputs): AudienceSimulationFixedState {
-  const totalAddressableAudience = computeTotalAddressableAudience(inputs.genre, inputs.targetAudience);
+  const totalAddressableAudience = computeTotalAddressableAudience(inputs.genre, inputs.targetAudience, inputs.scriptMarketability ?? 0);
   const baseInterestFraction = computeBaseInterestFraction(inputs.scriptAccessibility, inputs.scriptHookStrength, inputs.targetAudience, inputs.scriptIntendedAudience);
   const crossoverCapacityFraction = computeCrossoverCapacityFraction(
     inputs.scriptCrossoverPotential,
