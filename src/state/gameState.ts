@@ -544,6 +544,12 @@ export type GameAction =
   // persistent components. Never happens automatically; guarded against rival
   // films, unknown ids, and re-promoting a Film that's already an IP source.
   | { type: 'PROMOTE_FILM_TO_IP'; filmId: string; characterIds: string[]; name: string }
+  // Kicks off a new franchise entry from one of the studio's own IPs (Franchise
+  // stage 2). Not instant: it books a timed PendingSequelDevelopment (rights /
+  // legal / greenlight setup) that delivers the sequel screenplay as a new owned
+  // Asset after SEQUEL_DEVELOPMENT_SETUP_DAYS. MVP one-click "open development" -
+  // no writer/brief yet (see docs/DESIGN_REVIEW_development_office_paths.md).
+  | { type: 'DEVELOP_SEQUEL'; ipId: string }
   // Driven by the browser's own Back/Forward buttons (App.tsx), never
   // dispatched directly by the UI - restores an exact prior screen/focus/
   // detour snapshot rather than deriving it from the current one, since

@@ -3,6 +3,8 @@ import { useStudio } from '../state/StudioContext';
 import { playerReleasedFilms } from '../engine/project';
 import { formatGameDateWithMonth } from '../engine/calendar';
 import { SETTING_LABELS, CHARACTER_ARCHETYPE_LABELS } from '../data/scriptTagLabels';
+import { Button } from './common/Button';
+import type { PendingSequelDevelopment } from '../types';
 
 /**
  * The studio's owned Intellectual Property - the persistent creative assets the
@@ -14,8 +16,16 @@ import { SETTING_LABELS, CHARACTER_ARCHETYPE_LABELS } from '../data/scriptTagLab
  * Header handles getting back.
  */
 export function IpLibrary() {
-  const { state } = useStudio();
+  const { state, dispatch } = useStudio();
   const ips = state.studio.intellectualProperties;
+
+  // A franchise entry can be in timed development (Franchise stage 2) - the IP's
+  // own in-flight sequel, keyed by ipId. One at a time per IP.
+  const developmentByIpId = useMemo(() => {
+    const map = new Map<string, PendingSequelDevelopment>();
+    for (const dev of state.studio.pendingSequelDevelopments ?? []) map.set(dev.ipId, dev);
+    return map;
+  }, [state.studio.pendingSequelDevelopments]);
 
   // Source-film titles, looked up by id - the IP only stores the reference, not
   // a copy of the Film (which lives on in the catalogue).
@@ -65,6 +75,25 @@ export function IpLibrary() {
                       </div>
                     ))}
                   </div>
+                )}
+              </div>
+
+              {/* Franchise stage 2 - develop the next entry. The screenplay isn't
+                  instant: it takes real development time before it lands in the
+                  Asset Library, so while one is in flight we show its status
+                  instead of a second button (one development per IP). */}
+              <div className="row-between" style={{ alignItems: 'center', gap: 12 }}>
+                {developmentByIpId.has(ip.id) ? (
+                  <p style={{ margin: 0, fontSize: '0.85em', color: 'var(--text-muted)' }}>
+                    Next entry in development — screenplay expected {formatGameDateWithMonth(developmentByIpId.get(ip.id)!.readyOnDay)}.
+                  </p>
+                ) : (
+                  <>
+                    <p style={{ margin: 0, fontSize: '0.85em', color: 'var(--text-muted)' }}>
+                      Commission the next chapter — it carries the world, cast, and audience, and takes time to develop.
+                    </p>
+                    <Button onClick={() => dispatch({ type: 'DEVELOP_SEQUEL', ipId: ip.id })}>Develop a sequel</Button>
+                  </>
                 )}
               </div>
             </section>

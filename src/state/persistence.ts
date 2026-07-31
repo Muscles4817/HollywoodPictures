@@ -399,7 +399,12 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   postProductionEditingStartedDay: GameDay | null - the day the current
 //   editing window began, so the UI can show honest elapsed/total progress
 //   through the edit rather than only a bare countdown. Additive; no migration.
-const SAVE_KEY = 'hollywood-pictures-save-v78';
+// v78 -> v79 (Sequels & Franchises stage 2 - develop a sequel): Studio gained an
+//   optional pendingSequelDevelopments (a PendingSequelDevelopment[] of franchise
+//   entries in timed development), Asset gained an optional ipId (flywheel link
+//   back to its IP), a new DEVELOP_SEQUEL action, and a 'developed'
+//   DevelopmentEventKind. Additive/optional (read defensively); same policy.
+const SAVE_KEY = 'hollywood-pictures-save-v79';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

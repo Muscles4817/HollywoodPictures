@@ -1945,6 +1945,7 @@ export interface BidNotification {
 export type DevelopmentEventKind =
   | 'acquired' // entered the library (bought as an Opportunity, or a founding test script)
   | 'commissioned' // an original screenplay delivered by a writer the studio commissioned (Phase 4) - the founding event of a commissioned Asset
+  | 'developed' // a sequel screenplay delivered by a franchise development (stage 2) - the founding event of a developed sequel Asset
   | 'rewrite' // a full rewrite pass produced a new head draft
   | 'polish' // a lighter dialogue/polish pass produced a new head draft
   | 'greenlit' // a Project was greenlit from this Asset
@@ -1994,6 +1995,13 @@ export interface Asset {
    * carrying no gameplay effect until that feature exists.
    */
   writerIds?: PersonId[];
+  /**
+   * For a sequel Asset: the IntellectualProperty this screenplay is a new entry
+   * in (its flywheel linkage). Absent for originals. Set when a franchise
+   * development is delivered (engine/sequelDevelopment.ts); read on release to
+   * append the new Film back to the IP and grow its recognition (stage 2b).
+   */
+  ipId?: string;
   /**
    * Prior head snapshots, oldest first - the draft lineage a rewrite builds up.
    * Absent (the common case) means the Asset has never been revised; the full
@@ -2127,6 +2135,45 @@ export interface PendingCommission {
 }
 
 /**
+ * A new franchise entry the studio is developing from one of its IPs (Franchise
+ * stage 2) and waiting on. Kicking off a development is not instant: rights /
+ * legal / greenlight setup takes real time before a screenplay exists. Same
+ * property-in-the-making shape as PendingCommission - the sequel screenplay is
+ * generated once at kickoff (hidden until delivery) and becomes a real owned
+ * Asset on `readyOnDay`, settled lazily off the calendar
+ * (engine/sequelDevelopment.ts:settlePendingSequelDevelopments). The delivered
+ * Asset carries `ipId` back to its IP - the seed of the franchise flywheel.
+ *
+ * The MVP is one-click "open development" (the studio commissions competent
+ * execution; the draw is pre-sold via the inherited franchiseRecognition). The
+ * optional fields below are reserved seams for the richer development-office
+ * paths - see docs/DESIGN_REVIEW_development_office_paths.md - and are absent on
+ * every MVP development; a future path fills them in without reshaping the
+ * record or the settlement machinery.
+ */
+export interface PendingSequelDevelopment {
+  /** Stable id, also used as the delivered Asset's id. */
+  id: string;
+  /** The IntellectualProperty this new entry belongs to (a Studio.intellectualProperties id). Carried onto the delivered Asset as `ipId`. */
+  ipId: string;
+  /** Denormalised for the delivery development-log entry, so settlement needs no IP lookup (same pattern as PendingCommission.writerName). */
+  ipName: string;
+  startedOnDay: GameDay;
+  readyOnDay: GameDay;
+  /** The sequel screenplay, generated once at kickoff (deterministic thereafter) and hidden until delivery. */
+  script: Script;
+  // --- Reserved seams for the development-office paths (absent on the MVP) ---
+  /** Which path produced this development - absent means the MVP one-click open development. */
+  path?: 'open' | 'briefed' | 'pitch';
+  /** The writer engaged (open / briefed / writer-pitch paths). */
+  writerId?: PersonId;
+  /** The player's creative brief (briefed / pitch paths). */
+  brief?: { genre?: Genre; tones?: Partial<ToneProfile>; tags?: string[] };
+  /** The originating creative pitch (pitch path). */
+  pitchId?: string;
+}
+
+/**
  * One notable studio-level cash movement, for the "Recent budget activity" view
  * a player opens from the cash tile. Deliberately NOT a full reconciliation
  * ledger: high-frequency per-film box-office income and marketing spend are
@@ -2220,6 +2267,13 @@ export interface Studio {
    * Optional/absent on saves predating the feature; read as `[]`.
    */
   pendingCommissions?: PendingCommission[];
+  /**
+   * New franchise entries being developed from the studio's IPs and not yet
+   * delivered (Franchise stage 2). Studio-private property-in-the-making, like
+   * `pendingCommissions` - each becomes an owned Asset on its readyOnDay
+   * (engine/sequelDevelopment.ts). Optional/absent before the feature; read as `[]`.
+   */
+  pendingSequelDevelopments?: PendingSequelDevelopment[];
   /** Recent notable cash movements for the "Recent budget activity" view (see CashLedgerEntry). Append-only, capped; optional/absent on older saves, read as `[]`. */
   cashLedger?: CashLedgerEntry[];
   /**
