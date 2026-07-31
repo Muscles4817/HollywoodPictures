@@ -11,10 +11,11 @@ import { FilmDetailModal } from './common/FilmDetailModal';
 import { ReputationHistoryModal } from './common/ReputationHistoryModal';
 import { CashHistoryModal } from './common/CashHistoryModal';
 import { TopGrossingPanel } from './common/TopGrossingPanel';
+import { SlateCashFlowPanel } from './common/SlateCashFlowPanel';
 import { DifficultyPicker } from './common/DifficultyPicker';
 import { ProductionOfficeCard } from './ProductionOfficeCard';
 import { DistributionArmCard } from './DistributionArmCard';
-import { computeTopGrossingFilms, deriveRecentAwardHighlights, deriveReputationHistory, hasDraftProgress, countActivePlayerProjects } from '../state/selectors';
+import { computeTopGrossingFilms, deriveRecentAwardHighlights, deriveReputationHistory, hasDraftProgress, countActivePlayerProjects, selectUpcomingAncillary } from '../state/selectors';
 import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
 import { synthesizeStudioStanding, type StandingFilm } from '../engine/studioStanding';
 import { isRecentlyCommissioned } from '../engine/commission';
@@ -51,6 +52,8 @@ export function Dashboard() {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(studio.name);
   const [collapsedFilmIds, setCollapsedFilmIds] = useState<Set<string>>(new Set());
+
+  const upcomingAncillary = selectUpcomingAncillary(state);
 
   function startEditingName() {
     setNameDraft(studio.name);
@@ -699,6 +702,18 @@ export function Dashboard() {
               onSelectStudio={(studioName) => dispatch({ type: 'VIEW_RIVAL_STUDIO', studioName })}
             />
           </section>
+
+          {upcomingAncillary.total > 0 && (
+            <section className="dashboard-card dashboard-sidebar-card">
+              <div className="dashboard-card-heading dashboard-sidebar-heading">
+                <div>
+                  <span className="dashboard-section-kicker">Coming up</span>
+                  <h2>Post-theatrical income</h2>
+                </div>
+              </div>
+              <SlateCashFlowPanel upcoming={upcomingAncillary} />
+            </section>
+          )}
 
           <ProductionOfficeCard />
 

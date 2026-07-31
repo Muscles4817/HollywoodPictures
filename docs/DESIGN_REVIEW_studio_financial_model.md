@@ -605,9 +605,13 @@ Each stage is independently shippable and testable.
    `FilmMoneyBreakdown` waterfall gains a lifetime-profit "afterlife" section via
    `selectFilmAncillary`. `SAVE_KEY` → v75. Catalogue longevity ships here too (it
    was already in the profile). Player studio only; rival afterlife deferred.
-3. **Windows timeline UI + slate cash-flow panel.** The dedicated planning layer
-   (the waterfall already shows settled-vs-pending; this is the at-a-glance
-   timeline and the cross-slate upcoming-income view).
+3. **✅ LANDED — Windows timeline UI + slate cash-flow panel.** The planning
+   layer. Per-film: a proportional `AncillaryTimeline` strip in the money dossier
+   (theatrical + the four windows, each split solid=received / faded=scheduled,
+   next-payment caption) via `selectFilmAncillary().windows`. Slate-wide: a
+   dashboard `SlateCashFlowPanel` bucketing all scheduled income by in-game year
+   via `selectUpcomingAncillary` — the forward-looking cash-flow view a studio
+   funds a risky slate against.
 4. **Catalogue/awards refinement.** Today the schedule is fixed at run-finish
    from awards-known-then, so a film that wins awards *after* its run doesn't get
    the retroactive licensing/catalogue lift. Re-derive or top-up the
@@ -622,8 +626,9 @@ Each stage is independently shippable and testable.
    magnitudes — e.g. a $750M franchise currently nets ~1.4× its theatrical rentals
    in ancillary, below the 1.8–2.5× target; this stage closes that gap.)
 
-Stages 1–2 (both landed) already fix the headline blockbuster problem; 3–6 add
-the strategic depth.
+Stages 1–3 have landed: 1–2 fix the headline blockbuster problem and 3 adds the
+planning layer; 4–6 add the remaining depth (awards/rival refinement, backend
+participation, calibration).
 
 ---
 

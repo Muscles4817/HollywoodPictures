@@ -1,4 +1,5 @@
-import type { AwardCategory, AwardShowId, AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, PersonId, ProductionRole, ProductionScale, Project, RivalStudio, ScriptScale, StuntTeam, TalentAssignment, WizardStep } from '../types';
+import type { AncillaryWindow, AwardCategory, AwardShowId, AwardsCeremony, Asset, Film, FilmDraft, Genre, Person, PersonId, ProductionRole, ProductionScale, Project, RivalStudio, ScriptScale, StuntTeam, TalentAssignment, WizardStep } from '../types';
+import { yearOf } from '../engine/calendar';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta, computeMarketingCost } from '../engine/cost';
 import { totalAttachedPerFilmFees } from '../engine/producers';
 import { stuntTeamById, stuntTeamFee } from '../engine/stuntTeams';
@@ -114,10 +115,25 @@ export function computeReportedLegs(film: Film): number | null {
   return film.results.totalBoxOffice / film.results.openingWeekend;
 }
 
+/** One post-theatrical window's split of already-received vs still-scheduled income, for the per-film windows timeline. */
+export interface AncillaryWindowBreakdown {
+  window: AncillaryWindow;
+  /** The window's whole lifetime total (settled + pending). */
+  total: number;
+  settled: number;
+  pending: number;
+  /** Earliest still-scheduled payout day for this window, or null if fully paid. */
+  nextDueDay: number | null;
+}
+
+const ANCILLARY_WINDOW_ORDER: AncillaryWindow[] = ['homeEntertainment', 'licensing', 'merchandising', 'catalogue'];
+
 /** A film's post-theatrical afterlife for the money dossier - the derived profile plus how much has already been paid vs is still scheduled, and the lifetime profit it implies. */
 export interface FilmAncillaryView {
   profile: AncillaryProfile;
   outlook: AncillaryOutlook;
+  /** Per-window settled/pending split, in a fixed display order, for the windows timeline. */
+  windows: AncillaryWindowBreakdown[];
   /** Ancillary income already paid into cash (lifetime total minus what's still pending). */
   settled: number;
   /** Ancillary income still scheduled to arrive (the sum of this film's remaining pipeline). */
@@ -142,15 +158,76 @@ export function selectFilmAncillary(state: GameState, film: Film): FilmAncillary
     awards: summariseFilmAwards(state.awards?.history ?? [], film.id),
   });
   const profile = deriveAncillaryProfile(attrs, film.results.totalBoxOffice);
-  const pending = (state.studio.ancillaryPipeline ?? []).filter((p) => p.filmId === film.id).reduce((sum, p) => sum + p.amount, 0);
+  const pipelineForFilm = (state.studio.ancillaryPipeline ?? []).filter((p) => p.filmId === film.id);
+  const pending = pipelineForFilm.reduce((sum, p) => sum + p.amount, 0);
   const settled = Math.max(0, profile.lifetimeTotal - pending);
+
+  const windowTotal: Record<AncillaryWindow, number> = {
+    homeEntertainment: profile.homeEntertainment,
+    licensing: profile.licensing,
+    merchandising: profile.merchandising,
+    catalogue: profile.catalogue.total,
+  };
+  const windows: AncillaryWindowBreakdown[] = ANCILLARY_WINDOW_ORDER.map((window) => {
+    const scheduled = pipelineForFilm.filter((p) => p.window === window);
+    const windowPending = scheduled.reduce((sum, p) => sum + p.amount, 0);
+    const total = windowTotal[window];
+    return {
+      window,
+      total,
+      settled: Math.max(0, total - windowPending),
+      pending: windowPending,
+      nextDueDay: scheduled.length > 0 ? Math.min(...scheduled.map((p) => p.dueDay)) : null,
+    };
+  });
 
   return {
     profile,
     outlook: ancillaryOutlook(profile.multipliers),
+    windows,
     settled,
     pending,
     lifetimeProfit: film.results.profit + profile.lifetimeTotal,
+  };
+}
+
+/** One in-game year's worth of scheduled ancillary income, for the slate cash-flow panel. */
+export interface UpcomingAncillaryBucket {
+  year: number;
+  /** Earliest payout day in the year, for a "Year N · <month>" label. */
+  firstDueDay: number;
+  total: number;
+  byWindow: Record<AncillaryWindow, number>;
+}
+
+/** The studio's whole scheduled post-theatrical income, bucketed by in-game year - the forward-looking planning view across every released film. */
+export interface UpcomingAncillary {
+  /** Every scheduled payout still to come, summed. */
+  total: number;
+  /** The soonest payout day, or null if nothing is scheduled. */
+  nextDueDay: number | null;
+  /** Year buckets, ascending. */
+  buckets: UpcomingAncillaryBucket[];
+}
+
+export function selectUpcomingAncillary(state: GameState): UpcomingAncillary {
+  const pipeline = state.studio.ancillaryPipeline ?? [];
+  const byYear = new Map<number, UpcomingAncillaryBucket>();
+  for (const payout of pipeline) {
+    const year = yearOf(payout.dueDay);
+    let bucket = byYear.get(year);
+    if (!bucket) {
+      bucket = { year, firstDueDay: payout.dueDay, total: 0, byWindow: { homeEntertainment: 0, licensing: 0, merchandising: 0, catalogue: 0 } };
+      byYear.set(year, bucket);
+    }
+    bucket.total += payout.amount;
+    bucket.byWindow[payout.window] += payout.amount;
+    if (payout.dueDay < bucket.firstDueDay) bucket.firstDueDay = payout.dueDay;
+  }
+  return {
+    total: pipeline.reduce((sum, p) => sum + p.amount, 0),
+    nextDueDay: pipeline.length > 0 ? Math.min(...pipeline.map((p) => p.dueDay)) : null,
+    buckets: [...byYear.values()].sort((a, b) => a.year - b.year),
   };
 }
 
