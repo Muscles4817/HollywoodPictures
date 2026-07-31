@@ -29,6 +29,14 @@ function theFilm(state: GameState) {
   return playerReleasedFilms(state.projects)[0];
 }
 
+/** Cumulative post-theatrical (ancillary) income banked so far, read off the cash ledger - the four windows a finished film pays into over time (engine/ancillary.ts). Lets the theatrical-settlement assertions below isolate box-office cash from a film's afterlife. */
+const ANCILLARY_LEDGER_CATEGORIES = new Set(['homeEntertainment', 'licensing', 'merchandising', 'catalogue']);
+function ancillaryLedgerTotal(state: GameState): number {
+  return (state.studio.cashLedger ?? [])
+    .filter((e) => ANCILLARY_LEDGER_CATEGORIES.has(e.category))
+    .reduce((sum, e) => sum + e.amount, 0);
+}
+
 describe('RELEASE_FILM', () => {
   it('produces a coherent Film: week 1 settled immediately, and keeps the exact id the draft carried its whole life', () => {
     const state = buildStateWithReadyDraft(1);
@@ -117,7 +125,10 @@ describe('advancing a calendar jump via repeated ADVANCE_DAY', () => {
     const evenLater = advanceDays(finished, 100);
     expect(theFilm(evenLater).boxOfficeRun).toEqual(film.boxOfficeRun);
     expect(theFilm(evenLater).results).toEqual(film.results);
-    expect(evenLater.studio.cash).toBe(cashAfterFinish); // no further box-office credit once finished
+    // No further BOX-OFFICE credit once finished: the only cash that moves after
+    // the run ends is the film's post-theatrical afterlife (engine/ancillary.ts),
+    // so the delta is exactly the ancillary income drained in these 100 days.
+    expect(evenLater.studio.cash - cashAfterFinish).toBe(ancillaryLedgerTotal(evenLater) - ancillaryLedgerTotal(finished));
   });
 
   it('settlement alone never reduces cash - only ever credits it', () => {
@@ -141,7 +152,10 @@ describe('advancing a calendar jump via repeated ADVANCE_DAY', () => {
     const expectedCredit = film.boxOfficeRun.weeks
       .slice(1)
       .reduce((sum, w) => sum + Math.round(studioCreditFromMarkets(w.domesticGross ?? 0, w.internationalGross ?? 0, keep)), 0);
-    expect(finished.studio.cash - cashAfterRelease).toBe(expectedCredit);
+    // The cash delta also picks up any post-theatrical income that came due while
+    // advancing (a merch installment lands the day the run ends) - net it out so
+    // this stays a pure theatrical-credit assertion.
+    expect(finished.studio.cash - cashAfterRelease - ancillaryLedgerTotal(finished)).toBe(expectedCredit);
   });
 
   it('a second film released mid-run settles alongside the first across further calendar jumps', () => {

@@ -18,6 +18,7 @@ import { ProductionExecutionSummary } from './ProductionExecutionSummary';
 import { getCareerForRole } from '../../engine/person';
 import { useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
+import { selectFilmAncillary } from '../../state/selectors';
 import { ipForSourceFilm } from '../../engine/intellectualProperty';
 import { evaluateIpViability } from '../../engine/ipViability';
 import type { Film, Person, ProductionRole } from '../../types';
@@ -129,10 +130,11 @@ function CastCrewSection({ film }: { film: Film }) {
 }
 
 function FinancialsSection({ film }: { film: Film }) {
+  const { state } = useStudio();
   return (
     <div className="card stack">
       <h3 style={{ margin: 0 }}>Financials</h3>
-      <FilmMoneyBreakdown film={film} />
+      <FilmMoneyBreakdown film={film} ancillary={selectFilmAncillary(state, film)} />
       {film.boxOfficeRun.weeks.length > 0 && <BoxOfficeChart weeks={film.boxOfficeRun.weeks} />}
     </div>
   );

@@ -1,7 +1,8 @@
 import type { Film } from '../../types';
-import { computeReportedLegs } from '../../state/selectors';
+import { computeReportedLegs, type FilmAncillaryView } from '../../state/selectors';
 import { STUDIO_BOX_OFFICE_SHARE, filmMarketBreakdown } from '../../engine/boxOfficeRun';
-import { Money } from './Money';
+import { formatGameMonthYear } from '../../engine/calendar';
+import { Money, formatMoney } from './Money';
 import { StatTile } from './StatTile';
 
 /** Whole-percent of an amount relative to a base, for the split labels - derived from the film's own settled numbers so a label never drifts from the figure beside it. */
@@ -103,7 +104,7 @@ export function FilmPerformance({ film }: { film: Film }) {
  * While the run is still playing, the final split and profit are withheld
  * (they only settle at the run's end) and only the known costs are shown.
  */
-export function FilmFinancials({ film }: { film: Film }) {
+export function FilmFinancials({ film, ancillary }: { film: Film; ancillary?: FilmAncillaryView | null }) {
   const r = film.results;
   const finished =
     film.boxOfficeRun.status !== 'running' && r.totalBoxOffice != null && r.studioRevenue != null && r.profit != null;
@@ -112,7 +113,10 @@ export function FilmFinancials({ film }: { film: Film }) {
     <div className="stack" style={{ gap: 10 }}>
       <DistributionLine film={film} />
       {finished ? (
-        <Waterfall film={film} />
+        <>
+          <Waterfall film={film} />
+          {ancillary && <FilmAfterlife film={film} ancillary={ancillary} />}
+        </>
       ) : (
         <>
           <div className="row">
@@ -140,11 +144,108 @@ export function FilmFinancials({ film }: { film: Film }) {
  * The waterfall is exact against stored FilmResults fields: gross - theatrical
  * split - distributor fee - production - marketing == profit.
  */
-export function FilmMoneyBreakdown({ film }: { film: Film }) {
+export function FilmMoneyBreakdown({ film, ancillary }: { film: Film; ancillary?: FilmAncillaryView | null }) {
   return (
     <div className="stack" style={{ gap: 16 }}>
       <FilmPerformance film={film} />
-      <FilmFinancials film={film} />
+      <FilmFinancials film={film} ancillary={ancillary} />
+    </div>
+  );
+}
+
+/**
+ * A film's post-theatrical afterlife (engine/ancillary.ts) - the four revenue
+ * windows that arrive over the months and years after its run, extending the
+ * theatrical waterfall above into a lifetime figure. Amounts already banked show
+ * plainly; income still to come is noted as arriving over time (it lands in the
+ * cash activity feed as it settles). The prose headline is the qualitative,
+ * number-free read of what this film is built to earn downstream.
+ */
+function FilmAfterlife({ film, ancillary }: { film: Film; ancillary: FilmAncillaryView }) {
+  const { profile, outlook, pending, lifetimeProfit } = ancillary;
+  const { catalogue } = profile;
+  return (
+    <div className="stack" style={{ gap: 0, marginTop: 6 }}>
+      <div style={{ fontWeight: 600, borderTop: '1px solid var(--border)', paddingTop: 8 }}>Post-theatrical afterlife</div>
+      <p className="choice-description" style={{ margin: '2px 0 6px' }}>{outlook.headline}</p>
+      <Line label="Home entertainment & digital" amount={profile.homeEntertainment} kind="gross" />
+      <Line label="TV & streaming licensing" amount={profile.licensing} kind="gross" />
+      <Line label="Merchandising" amount={profile.merchandising} kind="gross" />
+      <Line label={catalogue.years > 0 ? `Catalogue (over ~${catalogue.years} years)` : 'Catalogue'} amount={catalogue.total} kind="gross" />
+      <Line label="Lifetime profit" amount={lifetimeProfit} kind="total" />
+      {pending > 0 && (
+        <p className="choice-description" style={{ margin: '4px 0 0' }}>
+          <Money amount={pending} /> of this is still to come — it arrives over the months and years ahead and appears in
+          your cash activity as each window pays.
+        </p>
+      )}
+      <AncillaryTimeline film={film} ancillary={ancillary} />
+    </div>
+  );
+}
+
+/** Label + colour for each revenue window on the lifetime timeline. Theatrical leads (the anchor); the four ancillary windows follow it in the same order as the afterlife lines above. */
+const TIMELINE_WINDOW_META: Record<string, { label: string; color: string }> = {
+  theatrical: { label: 'Theatrical', color: 'hsl(212 68% 52%)' },
+  homeEntertainment: { label: 'Home ent', color: 'hsl(158 58% 43%)' },
+  licensing: { label: 'TV & streaming', color: 'hsl(276 52% 58%)' },
+  merchandising: { label: 'Merch', color: 'hsl(32 82% 52%)' },
+  catalogue: { label: 'Catalogue', color: 'hsl(220 9% 52%)' },
+};
+
+/**
+ * A proportional strip of a film's whole lifetime revenue, window by window -
+ * theatrical rentals plus the four post-theatrical windows, each segment sized
+ * by its share and split into the portion already received (solid) and the
+ * portion still scheduled (faded). The at-a-glance companion to the afterlife
+ * waterfall above: where a superhero film shows a fat merch block and an Oscar
+ * drama a long faded catalogue tail. Colours double as the legend.
+ */
+function AncillaryTimeline({ film, ancillary }: { film: Film; ancillary: FilmAncillaryView }) {
+  const theatrical = film.results.studioRevenue ?? 0;
+  const segments = [
+    { key: 'theatrical', total: theatrical, settled: theatrical },
+    ...ancillary.windows.map((w) => ({ key: w.window, total: w.total, settled: w.settled })),
+  ].filter((s) => s.total > 0);
+  const grand = segments.reduce((sum, s) => sum + s.total, 0);
+  if (grand <= 0) return null;
+
+  const nextDue = ancillary.windows
+    .map((w) => w.nextDueDay)
+    .filter((d): d is number => d != null)
+    .sort((a, b) => a - b)[0];
+
+  return (
+    <div className="stack" style={{ gap: 6, marginTop: 12 }}>
+      <div style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>Lifetime revenue by window</div>
+      <div style={{ display: 'flex', width: '100%', height: 22, borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border)' }}>
+        {segments.map((s) => {
+          const meta = TIMELINE_WINDOW_META[s.key];
+          const settledPct = s.total > 0 ? (s.settled / s.total) * 100 : 0;
+          const scheduled = s.total - s.settled;
+          const title = `${meta.label}: ${formatMoney(s.total)}${scheduled > 0 ? ` (${formatMoney(scheduled)} still scheduled)` : ''}`;
+          return (
+            <div key={s.key} title={title} style={{ width: `${(s.total / grand) * 100}%`, display: 'flex', minWidth: 2 }}>
+              <div style={{ width: `${settledPct}%`, background: meta.color }} />
+              <div style={{ width: `${100 - settledPct}%`, background: meta.color, opacity: 0.28 }} />
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
+        {segments.map((s) => {
+          const meta = TIMELINE_WINDOW_META[s.key];
+          return (
+            <span key={s.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.78em', color: 'var(--text-muted)' }}>
+              <span style={{ width: 9, height: 9, borderRadius: 2, background: meta.color, display: 'inline-block' }} />
+              {meta.label} <Money amount={s.total} />
+            </span>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: '0.75em', color: 'var(--text-muted)' }}>
+        Solid = received &middot; faded = still to come{nextDue != null ? ` · next payment ${formatGameMonthYear(nextDue)}` : ''}
+      </div>
     </div>
   );
 }
