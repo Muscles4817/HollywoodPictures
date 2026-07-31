@@ -1,4 +1,4 @@
-import type { Asset, AwardShowId, AwardsCeremony, AwardsState, BidNotification, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, RoleNegotiation, StaffingEvent, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
+import type { Asset, AwardShowId, AwardsState, BidNotification, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, RoleNegotiation, StaffingEvent, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
@@ -30,13 +30,11 @@ import {
 import type { PressTourResponseId } from '../data/pressTourMoments';
 import { recordCashChange } from '../engine/cashLedger';
 import {
-  ANCILLARY_LEDGER_CATEGORY,
-  ANCILLARY_LEDGER_LABEL,
-  ancillaryAttributesFromFilm,
-  buildAncillarySchedule,
-  deriveAncillaryProfile,
-  summariseFilmAwards,
-} from '../engine/ancillary';
+  accrueAncillaryAwardsPremium,
+  accrueRivalAncillary,
+  drainAncillaryPipeline,
+  scheduleFinishedFilmAncillary,
+} from './ancillarySettlement';
 import { pressTourCost } from '../engine/pressTour';
 import { adaptRecommendationsToProductionChoices } from '../engine/productionChoicesAdapter';
 import { deriveProjectReadiness } from '../engine/projectReadiness';
@@ -424,64 +422,10 @@ function applyTalentReputationDeltas(pool: Record<TalentProfession, Person[]>, d
   return next;
 }
 
-/**
- * Ancillary revenue, Stage 2 (engine/ancillary.ts). Two settlement-time steps,
- * player studio only for now (rival afterlife is a later stage):
- *
- *  1. SCHEDULE - any player film whose theatrical run has just finished (and
- *     hasn't been scheduled yet) has its derived post-theatrical profile
- *     materialised into a dated payout pipeline. Marked on the run so it happens
- *     exactly once, however many times the finished film is re-seen.
- *  2. DRAIN - any pipeline payout now due is credited to cash THROUGH the ledger
- *     (recordCashChange), so film income finally shows up in the activity view.
- *
- * Awards known at finish time feed the profile; a film that wins awards after its
- * run ends doesn't retroactively lift an already-scheduled payout (an accepted
- * Stage-2 simplification - the awards-sensitive catalogue refinement is Stage 4).
- */
-function scheduleFinishedFilmAncillary(
-  studio: Studio,
-  playerFilms: Film[],
-  awardsHistory: AwardsCeremony[],
-  day: number,
-): { studio: Studio; films: Film[] } {
-  let nextStudio = studio;
-  const films = playerFilms.map((film) => {
-    if (film.boxOfficeRun.status !== 'finished' || film.boxOfficeRun.ancillaryScheduled || film.results.totalBoxOffice == null) {
-      return film;
-    }
-    const attrs = ancillaryAttributesFromFilm(film, {
-      studioPrestige: studio.prestige,
-      awards: summariseFilmAwards(awardsHistory, film.id),
-    });
-    const profile = deriveAncillaryProfile(attrs, film.results.totalBoxOffice);
-    const payouts = buildAncillarySchedule(profile, { filmId: film.id, filmTitle: film.title, anchorDay: day });
-    if (payouts.length > 0) {
-      nextStudio = { ...nextStudio, ancillaryPipeline: [...(nextStudio.ancillaryPipeline ?? []), ...payouts] };
-    }
-    return { ...film, boxOfficeRun: { ...film.boxOfficeRun, ancillaryScheduled: true } };
-  });
-  return { studio: nextStudio, films };
-}
-
-/** Credit every ancillary payout now due into cash through the ledger, and drop it from the pipeline. */
-function drainAncillaryPipeline(studio: Studio, day: number): Studio {
-  const pipeline = studio.ancillaryPipeline ?? [];
-  const due = pipeline.filter((p) => p.dueDay <= day);
-  if (due.length === 0) return studio;
-
-  let next: Studio = { ...studio, ancillaryPipeline: pipeline.filter((p) => p.dueDay > day) };
-  for (const payout of due) {
-    next = recordCashChange(
-      next,
-      day,
-      payout.amount,
-      ANCILLARY_LEDGER_CATEGORY[payout.window],
-      `${ANCILLARY_LEDGER_LABEL[payout.window]} — ${payout.filmTitle}`,
-    );
-  }
-  return next;
-}
+// Ancillary revenue settlement steps live in state/ancillarySettlement.ts
+// (scheduleFinishedFilmAncillary / accrueAncillaryAwardsPremium /
+// drainAncillaryPipeline / accrueRivalAncillary) - pure and unit-tested there;
+// runCalendarSettlement just sequences them into the calendar pass below.
 
 function runCalendarSettlement(
   state: GameState,
@@ -524,19 +468,21 @@ function runCalendarSettlement(
     pendingCommissions: commissionSettlement.pendingCommissions,
   };
 
-  // Ancillary revenue (Stage 2): schedule any film that just finished its run,
-  // then pay out anything now due - both fold into the player studio and its
-  // films before the return below. Rival afterlife is deferred to a later stage.
+  // Ancillary revenue (state/ancillarySettlement.ts): schedule any player film
+  // whose run just finished, top up the awards-sensitive windows for any film
+  // that won an accolade after its schedule was fixed (Stage 4), then pay out
+  // anything now due - all fold into the player studio and its films before the
+  // return below.
+  const awardsHistory = state.awards?.history ?? [];
   const settledPlayerFilms = marketSettlement.settledFilms.filter((f) => f.releasedBy === undefined);
-  const ancillaryScheduling = scheduleFinishedFilmAncillary(
-    studioAfterBoxOffice,
-    settledPlayerFilms,
-    state.awards?.history ?? [],
-    totalDaysAfter,
-  );
-  const studioAfterAncillary = drainAncillaryPipeline(ancillaryScheduling.studio, totalDaysAfter);
-  const playerFilmsAfterAncillary = ancillaryScheduling.films;
+  const ancillaryScheduling = scheduleFinishedFilmAncillary(studioAfterBoxOffice, settledPlayerFilms, awardsHistory, totalDaysAfter);
+  const ancillaryPremium = accrueAncillaryAwardsPremium(ancillaryScheduling.studio, ancillaryScheduling.films, awardsHistory, totalDaysAfter);
+  const studioAfterAncillary = drainAncillaryPipeline(ancillaryPremium.studio, totalDaysAfter);
+  const playerFilmsAfterAncillary = ancillaryPremium.films;
 
+  // Rival afterlife (Stage 4): each rival film's whole ancillary lifetime is
+  // credited as a lump to its studio the pass its run finishes, before the rival
+  // market runs on the updated studios and the flagged films.
   const rivalStudiosAfterBoxOffice = state.rivalStudios.map((rival) => {
     const delta = marketSettlement.rivalDeltas.get(rival.name);
     if (!delta) return rival;
@@ -549,12 +495,17 @@ function runCalendarSettlement(
       lifetimeRevenue: rival.lifetimeRevenue + delta.cashCredit,
     };
   });
+  const rivalAncillary = accrueRivalAncillary(
+    rivalStudiosAfterBoxOffice,
+    marketSettlement.settledFilms.filter((f) => f.releasedBy !== undefined),
+    awardsHistory,
+  );
 
   const rivalMarket = settleRivalMarket(
     {
-      rivalStudios: rivalStudiosAfterBoxOffice,
+      rivalStudios: rivalAncillary.rivals,
       rivalProductionsInProgress: marketSettlement.stillInProgress,
-      rivalFilmsReleased: marketSettlement.settledFilms.filter((f) => f.releasedBy !== undefined),
+      rivalFilmsReleased: rivalAncillary.films,
       talentPool: state.talentPool,
       opportunities: opportunityWins.opportunities,
     },

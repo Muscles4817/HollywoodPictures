@@ -1540,6 +1540,15 @@ export interface BoxOfficeRun {
    * not yet scheduled (a running film, or a save predating ancillary revenue).
    */
   ancillaryScheduled?: boolean;
+  /**
+   * The awards record (wins/nominations) already baked into this film's scheduled
+   * ancillary (state/ancillarySettlement.ts). Stamped when the schedule is
+   * materialised, then compared against the film's *current* awards each pass so a
+   * win that lands AFTER the run finished tops up the awards-sensitive windows
+   * (licensing + catalogue) by exactly the incremental prestige premium - and only
+   * that once. Absent = nothing baked in yet (equivalent to zero wins/noms).
+   */
+  ancillaryAwards?: { wins: number; nominations: number };
 }
 
 // A film record that has been fully cast/produced/released and lives in studio history.
