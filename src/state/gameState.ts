@@ -26,6 +26,7 @@ import type {
   TargetAudience,
   WizardStep,
 } from '../types';
+import type { BackendOffer } from '../engine/backend';
 
 export interface GameState {
   studio: Studio;
@@ -349,6 +350,11 @@ export type GameAction =
   // Accept the actor's standing counter - signs them at counterSalary and
   // clears the negotiation. No-op if there's no live counter for this pair.
   | { type: 'ACCEPT_COUNTER'; characterId: string; person: Person }
+  // Backend participation (engine/backend.ts) - accept one of a bankable star's
+  // structured offers (a reduced guarantee + points, or salary + escalators)
+  // instead of a flat fee. Signs them at the offer's guaranteed fee and stamps
+  // the backend deal onto the assignment; clears any live negotiation.
+  | { type: 'ACCEPT_BACKEND_OFFER'; characterId: string; role: 'Lead Actor' | 'Supporting Actor'; person: Person; offer: BackendOffer }
   // Walk away from a live negotiation - drops the record (its rolled asking
   // price included), so a fresh offer later starts a new negotiation.
   | { type: 'WALK_AWAY_NEGOTIATION'; characterId: string; personId: string }

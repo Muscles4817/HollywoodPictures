@@ -622,18 +622,30 @@ Each stage is independently shippable and testable.
    lifetime as a lump to its studio's cash + `lifetimeRevenue`, so rival economics
    reflect the full business, not just theatrical. Rival awards retroactivity is
    still out of scope.
-5. **Backend participation.** Deal structures in negotiation, the term-sheet UI,
-   liability settlement across all windows. Depends on 1–2 (there must be a
-   revenue tail to share).
+5. **✅ LANDED — Backend participation.** A bankable star (gated by fame/heat/ego
+   in `engine/backend.ts`) offers structured alternatives to a flat fee:
+   `deriveBackendOffers` returns a reduced-guarantee-plus-gross-points deal and a
+   salary-plus-escalators deal, terms scaling with bankability. The player picks
+   one from a term-sheet card in the casting drawer (`ACCEPT_BACKEND_OFFER` →
+   `BackendDeal` stamped on the assignment; the reduced guarantee flows through
+   the existing `agreedSalary` greenlight charge). `buildBackendLiabilities`
+   materialises the participation into phased, negative-signed cash events at
+   run-finish — gross points off theatrical receipts and every ancillary payout,
+   escalator bonuses at crossed gross thresholds — drained through the ledger
+   (`backend` category) as the revenue arrives, and shown as a deduction line in
+   the film's lifetime waterfall. **Net-profit points are typed but deferred**
+   (they need cumulative-recoup tracking). `SAVE_KEY` → v76.
 6. **Calibrate.** Tune `data/ancillary.ts` against `ancillary.diagnostic.test.ts`
    until the §3.7 bands pass and the two worked examples land in range, without
    inflating the median film. (Stages 1–2 assert *shape and ordering*, not tuned
    magnitudes — e.g. a $750M franchise currently nets ~1.4× its theatrical rentals
    in ancillary, below the 1.8–2.5× target; this stage closes that gap.)
 
-Stages 1–4 have landed: 1–2 fix the headline blockbuster problem, 3 adds the
-planning layer, and 4 handles retroactive awards + rival afterlife; 5–6 remain
-(backend participation, calibration).
+Stages 1–5 have landed: 1–2 fix the headline blockbuster problem, 3 adds the
+planning layer, 4 handles retroactive awards + rival afterlife, and 5 delivers
+backend participation — both systems from the brief are now in. Only 6
+(calibration) and the deferred pieces (net-profit points, rival backend/awards)
+remain.
 
 ---
 

@@ -1,4 +1,4 @@
-import type { Asset, AwardShowId, AwardsState, BidNotification, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, RoleNegotiation, StaffingEvent, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
+import type { Asset, AwardShowId, AwardsState, BackendDeal, BidNotification, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, RoleNegotiation, StaffingEvent, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
@@ -28,6 +28,7 @@ import {
   type TalentReputationDelta,
 } from '../engine/pressTourMoments';
 import type { PressTourResponseId } from '../data/pressTourMoments';
+import { backendDealFromOffer } from '../engine/backend';
 import { recordCashChange } from '../engine/cashLedger';
 import {
   accrueAncillaryAwardsPremium,
@@ -640,6 +641,7 @@ function attachActorToRole(
   characterId: string,
   totalDays: number,
   agreedSalary: number,
+  backendDeal?: BackendDeal,
 ): FilmDraft | null {
   const script = draft.script;
   const current = draft.talent.filter((a) => a.role === role);
@@ -650,7 +652,7 @@ function attachActorToRole(
   if (script && !personMeetsCharacterGender(person, targetCharacter)) return null;
   if (script && !personMeetsCharacterAge(person, targetCharacter, totalDays)) return null;
   const ageAtCasting = targetCharacter ? personCastingAge(person, totalDays) : undefined;
-  const newAssignment: TalentAssignment = { role, person, characterId, ageAtCasting, agreedSalary };
+  const newAssignment: TalentAssignment = { role, person, characterId, ageAtCasting, agreedSalary, ...(backendDeal ? { backendDeal } : {}) };
   const existingForCharacter = draft.talent.find((a) => a.role === role && a.characterId === characterId);
   let nextTalent: TalentAssignment[];
   if (existingForCharacter) {
@@ -1599,6 +1601,25 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       const acceptSubject = focusedDraft.script?.cast.find((c) => c.id === neg.characterId)?.name ?? neg.role;
       const loggedSigned = appendStaffingEvent(signed, { day: state.totalDays, kind: 'attached', subject: acceptSubject, personName: action.person.identity.name, amount: neg.counterSalary });
       return { ...state, projects: replaceDraft(state.projects, loggedSigned) };
+    }
+
+    // Backend participation (engine/backend.ts) - sign a bankable star to one of
+    // their structured offers (reduced guarantee + gross points, or salary +
+    // escalators) instead of a flat fee. Deterministic: the star already offered
+    // these terms, so there's no counter - the player either takes one or haggles
+    // a flat salary through MAKE_OFFER instead.
+    case 'ACCEPT_BACKEND_OFFER': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      // Don't let this double-cast someone already hired into a different role.
+      if (focusedDraft.talent.some((a) => a.role !== action.role && a.person.id === action.person.id)) return state;
+      const deal = backendDealFromOffer(action.offer, action.person);
+      const attached = attachActorToRole(focusedDraft, action.role, action.person, action.characterId, state.totalDays, action.offer.guaranteedFee, deal);
+      if (!attached) return state;
+      const negotiations = (focusedDraft.negotiations ?? []).filter((n) => !(n.characterId === action.characterId && n.personId === action.person.id));
+      const subject = focusedDraft.script?.cast.find((c) => c.id === action.characterId)?.name ?? action.role;
+      const logged = appendStaffingEvent({ ...attached, negotiations }, { day: state.totalDays, kind: 'attached', subject, personName: action.person.identity.name, amount: action.offer.guaranteedFee });
+      return { ...state, projects: replaceDraft(state.projects, logged) };
     }
 
     // Casting Redesign, Phase E - walk away from a live negotiation, dropping

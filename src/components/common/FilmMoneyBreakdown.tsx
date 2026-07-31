@@ -162,8 +162,9 @@ export function FilmMoneyBreakdown({ film, ancillary }: { film: Film; ancillary?
  * number-free read of what this film is built to earn downstream.
  */
 function FilmAfterlife({ film, ancillary }: { film: Film; ancillary: FilmAncillaryView }) {
-  const { profile, outlook, pending, lifetimeProfit } = ancillary;
+  const { profile, outlook, pending, backend, backendParticipants, lifetimeProfit } = ancillary;
   const { catalogue } = profile;
+  const backendLabel = backendParticipants.length === 1 ? `Backend — ${backendParticipants[0]}` : 'Backend participation';
   return (
     <div className="stack" style={{ gap: 0, marginTop: 6 }}>
       <div style={{ fontWeight: 600, borderTop: '1px solid var(--border)', paddingTop: 8 }}>Post-theatrical afterlife</div>
@@ -172,6 +173,7 @@ function FilmAfterlife({ film, ancillary }: { film: Film; ancillary: FilmAncilla
       <Line label="TV & streaming licensing" amount={profile.licensing} kind="gross" />
       <Line label="Merchandising" amount={profile.merchandising} kind="gross" />
       <Line label={catalogue.years > 0 ? `Catalogue (over ~${catalogue.years} years)` : 'Catalogue'} amount={catalogue.total} kind="gross" />
+      {backend < 0 && <Line label={backendLabel} amount={backend} kind="deduction" />}
       <Line label="Lifetime profit" amount={lifetimeProfit} kind="total" />
       {pending > 0 && (
         <p className="choice-description" style={{ margin: '4px 0 0' }}>
