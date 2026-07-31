@@ -97,3 +97,15 @@ export const ANCILLARY_TIMING = {
   catalogueFirstYearOffset: 365,
   catalogueYearLength: 365,
 } as const;
+
+/**
+ * When the retroactive awards premium arrives, as day offsets from the ceremony
+ * that granted it (state/ancillarySettlement.ts). A win lands AFTER a film's run
+ * has finished and its ancillary is already scheduled; the incremental licensing
+ * and catalogue value it unlocks is paid as a follow-on, not instantly - a
+ * re-licensing bump, then a lift to the library tail. Tunable.
+ */
+export const AWARDS_PREMIUM_TIMING = {
+  licensingOffset: 120,
+  catalogueOffset: 240,
+} as const;

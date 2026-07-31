@@ -612,11 +612,16 @@ Each stage is independently shippable and testable.
    dashboard `SlateCashFlowPanel` bucketing all scheduled income by in-game year
    via `selectUpcomingAncillary` — the forward-looking cash-flow view a studio
    funds a risky slate against.
-4. **Catalogue/awards refinement.** Today the schedule is fixed at run-finish
-   from awards-known-then, so a film that wins awards *after* its run doesn't get
-   the retroactive licensing/catalogue lift. Re-derive or top-up the
-   awards-sensitive windows at the film's first awards ceremony. Also: rival
-   ancillary into rival finances.
+4. **✅ LANDED — Awards refinement + rival afterlife.** The Stage 2 helpers moved
+   into a pure, unit-tested `state/ancillarySettlement.ts`. Two additions: an
+   **awards premium** — when a film wins/gets nominated *after* its schedule was
+   fixed, `accrueAncillaryAwardsPremium` pays the incremental licensing+catalogue
+   value (isolated from prestige drift) as follow-on payouts, idempotently, using
+   a new `BoxOfficeRun.ancillaryAwards` baseline; and **rival afterlife** —
+   `accrueRivalAncillary` credits each finished rival film's whole ancillary
+   lifetime as a lump to its studio's cash + `lifetimeRevenue`, so rival economics
+   reflect the full business, not just theatrical. Rival awards retroactivity is
+   still out of scope.
 5. **Backend participation.** Deal structures in negotiation, the term-sheet UI,
    liability settlement across all windows. Depends on 1–2 (there must be a
    revenue tail to share).
@@ -626,9 +631,9 @@ Each stage is independently shippable and testable.
    magnitudes — e.g. a $750M franchise currently nets ~1.4× its theatrical rentals
    in ancillary, below the 1.8–2.5× target; this stage closes that gap.)
 
-Stages 1–3 have landed: 1–2 fix the headline blockbuster problem and 3 adds the
-planning layer; 4–6 add the remaining depth (awards/rival refinement, backend
-participation, calibration).
+Stages 1–4 have landed: 1–2 fix the headline blockbuster problem, 3 adds the
+planning layer, and 4 handles retroactive awards + rival afterlife; 5–6 remain
+(backend participation, calibration).
 
 ---
 
