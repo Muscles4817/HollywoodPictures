@@ -3,7 +3,7 @@ import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft } from './testFixtures';
 import { playerReleasedFilms } from '../engine/project';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
-import { accrueAncillaryAwardsPremium, accrueRivalAncillary, scheduleFinishedFilmAncillary } from './ancillarySettlement';
+import { accrueAncillaryAwardsPremium, accrueRivalAncillary, drainBackendLiabilities, scheduleFinishedFilmAncillary } from './ancillarySettlement';
 import { ancillaryAttributesFromFilm, deriveAncillaryProfile } from '../engine/ancillary';
 import { AWARDS_PREMIUM_TIMING } from '../data/ancillary';
 import type { AwardsCeremony, Film, RivalStudio } from '../types';
@@ -76,6 +76,45 @@ describe('accrueAncillaryAwardsPremium — retroactive awards top-up', () => {
   it('does nothing to an unscheduled film', () => {
     const res = accrueAncillaryAwardsPremium(WORLD.studio, [unscheduled(FINISHED_FILM)], [ceremony(FINISHED_FILM.id, 2, 5)], CEREMONY_DAY);
     expect(res.studio.ancillaryPipeline ?? []).toEqual(WORLD.studio.ancillaryPipeline ?? []);
+  });
+});
+
+describe('backend participation — liabilities scheduled at finish and drained', () => {
+  const dealFilm: Film = {
+    ...unscheduled(FINISHED_FILM),
+    talent: [
+      { role: 'Lead Actor', person: { id: 'star', identity: { name: 'Nova Sterling' } }, backendDeal: { personId: 'star', personName: 'Nova Sterling', points: 10, base: 'studioGross' } },
+    ] as unknown as Film['talent'],
+  };
+
+  it('materialises a star\'s gross points against theatrical and every ancillary window', () => {
+    const studio = { ...WORLD.studio, ancillaryPipeline: [], backendLiabilities: [] };
+    const res = scheduleFinishedFilmAncillary(studio, [dealFilm], [], 1000);
+    const liabilities = res.studio.backendLiabilities ?? [];
+
+    expect(liabilities.length).toBeGreaterThan(0);
+    expect(liabilities.every((l) => l.amount < 0 && l.personName === 'Nova Sterling')).toBe(true);
+    // The finish-day liability covers at least the theatrical 10% (the merch
+    // installment that also lands at run-end aggregates onto the same day).
+    const finishDay = liabilities.find((l) => l.dueDay === 1000);
+    expect(-finishDay!.amount).toBeGreaterThanOrEqual(Math.round(0.1 * (dealFilm.results.studioRevenue ?? 0)));
+    // There are also later liabilities riding the ancillary windows.
+    expect(liabilities.some((l) => l.dueDay > 1000)).toBe(true);
+  });
+
+  it('drains due liabilities out of cash through the backend ledger category', () => {
+    const studio = { ...WORLD.studio, ancillaryPipeline: [], backendLiabilities: [] };
+    const scheduled = scheduleFinishedFilmAncillary(studio, [dealFilm], [], 1000);
+    const liabilities = scheduled.studio.backendLiabilities ?? [];
+    const owed = liabilities.reduce((sum, l) => sum + l.amount, 0);
+    const maxDue = Math.max(...liabilities.map((l) => l.dueDay));
+
+    const drained = drainBackendLiabilities(scheduled.studio, maxDue);
+    expect(drained.backendLiabilities ?? []).toHaveLength(0);
+    expect(drained.cash).toBe(scheduled.studio.cash + owed); // owed is negative → cash falls
+    const backendEntries = (drained.cashLedger ?? []).filter((e) => e.category === 'backend');
+    expect(backendEntries.length).toBeGreaterThan(0);
+    expect(backendEntries.every((e) => e.amount < 0 && e.reason.includes('Nova Sterling'))).toBe(true);
   });
 });
 

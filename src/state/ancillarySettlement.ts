@@ -22,10 +22,16 @@ import {
   summariseFilmAwards,
   type AncillaryAwards,
 } from '../engine/ancillary';
+import { buildBackendLiabilities } from '../engine/backend';
 import { recordCashChange } from '../engine/cashLedger';
 import { AWARDS_PREMIUM_TIMING } from '../data/ancillary';
 
 const NO_AWARDS: AncillaryAwards = { wins: 0, nominations: 0 };
+
+/** The backend deals stamped on a film's talent (engine/backend.ts) - present only where a star signed for points instead of full cash. */
+function backendDealsFor(film: Film) {
+  return (film.talent ?? []).map((t) => t.backendDeal).filter((d): d is NonNullable<typeof d> => d != null);
+}
 
 function isFinishedWithGross(film: Film): boolean {
   return film.boxOfficeRun.status === 'finished' && film.results.totalBoxOffice != null;
@@ -55,6 +61,27 @@ export function scheduleFinishedFilmAncillary(
     if (payouts.length > 0) {
       nextStudio = { ...nextStudio, ancillaryPipeline: [...(nextStudio.ancillaryPipeline ?? []), ...payouts] };
     }
+
+    // Backend participation (engine/backend.ts): a star's points/escalators are
+    // materialised into dated liabilities the same moment - theatrical receipts
+    // are known now, and the ancillary payouts just scheduled give the tail its
+    // share rides on. Phased to arrive with that revenue, drained below.
+    const deals = backendDealsFor(film);
+    if (deals.length > 0) {
+      const liabilities = buildBackendLiabilities({
+        filmId: film.id,
+        filmTitle: film.title,
+        deals,
+        theatricalStudioRevenue: film.results.studioRevenue ?? 0,
+        worldwideGross: film.results.totalBoxOffice!,
+        ancillaryPayouts: payouts.map((p) => ({ dueDay: p.dueDay, amount: p.amount })),
+        finishDay: day,
+      });
+      if (liabilities.length > 0) {
+        nextStudio = { ...nextStudio, backendLiabilities: [...(nextStudio.backendLiabilities ?? []), ...liabilities] };
+      }
+    }
+
     return { ...film, boxOfficeRun: { ...film.boxOfficeRun, ancillaryScheduled: true, ancillaryAwards: awards } };
   });
   return { studio: nextStudio, films };
@@ -124,6 +151,19 @@ export function drainAncillaryPipeline(studio: Studio, day: number): Studio {
       ANCILLARY_LEDGER_CATEGORY[payout.window],
       `${ANCILLARY_LEDGER_LABEL[payout.window]} — ${payout.filmTitle}`,
     );
+  }
+  return next;
+}
+
+/** Pay every backend liability now due out of cash through the ledger, and drop it from the list. The amounts are negative (money out to the participant). */
+export function drainBackendLiabilities(studio: Studio, day: number): Studio {
+  const liabilities = studio.backendLiabilities ?? [];
+  const due = liabilities.filter((l) => l.dueDay <= day);
+  if (due.length === 0) return studio;
+
+  let next: Studio = { ...studio, backendLiabilities: liabilities.filter((l) => l.dueDay > day) };
+  for (const liability of due) {
+    next = recordCashChange(next, day, liability.amount, 'backend', `Backend participation — ${liability.personName}: ${liability.filmTitle}`);
   }
   return next;
 }

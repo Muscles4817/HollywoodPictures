@@ -20,6 +20,7 @@ const CATEGORY_LABEL: Record<CashLedgerCategory, string> = {
   licensing: 'TV & streaming',
   merchandising: 'Merchandising',
   catalogue: 'Catalogue',
+  backend: 'Backend deal',
   other: 'Other',
 };
 

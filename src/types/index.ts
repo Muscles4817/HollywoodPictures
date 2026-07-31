@@ -2056,6 +2056,9 @@ export type CashLedgerCategory =
   | 'licensing'
   | 'merchandising'
   | 'catalogue'
+  // Talent backend participation paid out of receipts (engine/backend.ts) - a
+  // money-out charge, unlike the ancillary income categories above.
+  | 'backend'
   | 'other';
 
 export interface CashLedgerEntry {
@@ -2132,6 +2135,14 @@ export interface Studio {
    * into cash; absent/empty until the studio's first film completes its run.
    */
   ancillaryPipeline?: AncillaryPayout[];
+  /**
+   * Backend-participation payments still owed to talent (engine/backend.ts) -
+   * a star's share of receipts, phased to arrive with the revenue it is a share
+   * of and drained from cash as it comes due, the same way ancillaryPipeline
+   * works in reverse. Absent/empty until the studio signs its first backend deal
+   * and that film's run finishes.
+   */
+  backendLiabilities?: BackendLiability[];
   /** Persistent creative assets the studio has deliberately promoted a released Film into (see IntellectualProperty). Empty until the player promotes their first Film; never populated automatically. References Films by id - it doesn't contain them. */
   intellectualProperties: IntellectualProperty[];
   /**
@@ -2211,9 +2222,57 @@ export interface TalentAssignment {
    * negotiation, which fall back to the standing typicalSalary. This is what
    * the studio is charged at Greenlight (engine/person.ts:assignmentCost,
    * engine/cost.ts:computeTalentCost) - the point of negotiating a price is
-   * that the negotiated price is what you pay.
+   * that the negotiated price is what you pay. When a backend deal is signed
+   * (below), this holds the *reduced* guarantee, not the full quote.
    */
   agreedSalary?: Money;
+  /**
+   * A backend-participation deal (engine/backend.ts): a bankable star trades a
+   * reduced guaranteed fee (in agreedSalary above) for a share of the film's
+   * receipts and/or milestone bonuses. Absent for the ordinary flat-fee hire.
+   * Charged nothing extra up front - the guarantee is the whole up-front cost;
+   * the participation is a liability that settles out of the studio's receipts as
+   * they arrive (state/ancillarySettlement.ts). Survives onto Film.talent, so
+   * settlement reads it off the released film.
+   */
+  backendDeal?: BackendDeal;
+}
+
+/** What a backend deal's points are a share of. `studioGross` (first-dollar-ish) pays out of the studio's receipts as they land; `netProfit` (studio-favourable, deferred) is not settled yet. */
+export type BackendBase = 'studioGross' | 'netProfit';
+
+/**
+ * A talent profit-participation deal (engine/backend.ts). The reduced guarantee
+ * lives in TalentAssignment.agreedSalary; this is the upside the talent takes
+ * instead of full cash. Derived from the star's own standing when offered, then
+ * frozen onto the assignment when signed.
+ */
+export interface BackendDeal {
+  personId: PersonId;
+  /** Snapshotted so settlement/ledger labels need no talent lookup. */
+  personName: string;
+  /** Percentage points of the base the talent takes (e.g. 7 = 7%). 0 for a pure-escalator deal. */
+  points: number;
+  base: BackendBase;
+  /** One-time milestone bonuses paid when cumulative worldwide gross crosses each threshold. */
+  escalators?: { grossThreshold: Money; bonus: Money }[];
+}
+
+/**
+ * A scheduled backend payment the studio owes a participant (state/
+ * ancillarySettlement.ts). Materialised when a film's theatrical run finishes -
+ * the point receipts become known - phased to arrive with the revenue it is a
+ * share of (theatrical now, ancillary matched to each window's payout day), then
+ * drained from cash through the ledger as a `backend` charge. Negative-signed:
+ * this is money out. filmTitle/personName snapshotted for the ledger reason.
+ */
+export interface BackendLiability {
+  filmId: string;
+  filmTitle: string;
+  personName: string;
+  dueDay: GameDay;
+  /** Signed negative - money paid out to the participant. */
+  amount: Money;
 }
 
 /**

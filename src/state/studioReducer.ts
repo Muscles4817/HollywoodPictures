@@ -33,6 +33,7 @@ import {
   accrueAncillaryAwardsPremium,
   accrueRivalAncillary,
   drainAncillaryPipeline,
+  drainBackendLiabilities,
   scheduleFinishedFilmAncillary,
 } from './ancillarySettlement';
 import { pressTourCost } from '../engine/pressTour';
@@ -477,7 +478,10 @@ function runCalendarSettlement(
   const settledPlayerFilms = marketSettlement.settledFilms.filter((f) => f.releasedBy === undefined);
   const ancillaryScheduling = scheduleFinishedFilmAncillary(studioAfterBoxOffice, settledPlayerFilms, awardsHistory, totalDaysAfter);
   const ancillaryPremium = accrueAncillaryAwardsPremium(ancillaryScheduling.studio, ancillaryScheduling.films, awardsHistory, totalDaysAfter);
-  const studioAfterAncillary = drainAncillaryPipeline(ancillaryPremium.studio, totalDaysAfter);
+  const studioAfterIncome = drainAncillaryPipeline(ancillaryPremium.studio, totalDaysAfter);
+  // Backend participation (engine/backend.ts): a star's points/escalators, phased
+  // to arrive with the receipts they share, drained out of cash as they come due.
+  const studioAfterAncillary = drainBackendLiabilities(studioAfterIncome, totalDaysAfter);
   const playerFilmsAfterAncillary = ancillaryPremium.films;
 
   // Rival afterlife (Stage 4): each rival film's whole ancillary lifetime is
