@@ -46,10 +46,10 @@ export const GENRE_ANCILLARY: Record<Genre, GenreAncillaryProfile> = {
  * a *per-surviving-year* rate, not a one-shot.
  */
 export const WINDOW_BASE_RATES = {
-  homeEntertainment: 0.1,
-  licensing: 0.13,
-  merchandising: 0.015,
-  catalogueAnnual: 0.006,
+  homeEntertainment: 0.125,
+  licensing: 0.15,
+  merchandising: 0.017,
+  catalogueAnnual: 0.007,
 } as const;
 
 /**
