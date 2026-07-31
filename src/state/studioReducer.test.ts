@@ -813,7 +813,7 @@ describe('FINISH_PHOTOGRAPHY - post-production estimate (Post-Production Redesig
   it('is set to totalDays + computeRecommendedPostProductionDays exactly once photography finishes', () => {
     const greenlit = studioReducer(stateReadyToGreenlight(231), { type: 'GREENLIGHT_PROJECT' });
     const draftBefore = asPlayerDraft(findProject(greenlit.projects, greenlit.focusedProjectId))!;
-    const expectedDays = computeRecommendedPostProductionDays(draftBefore.talent, draftBefore.productionChoices!);
+    const expectedDays = computeRecommendedPostProductionDays(draftBefore.talent, draftBefore.script!, draftBefore.productionChoices!);
     expect(expectedDays).toBeGreaterThan(0);
 
     const finished = shootThroughToFinish(greenlit);

@@ -829,7 +829,7 @@ function startRivalProductionFromWonScript(
   // real releaseDay it ends up on, instead of the two being picked
   // independently - see engine/calendar.ts:deriveReleaseWindowFromDay.
   const recommendedDays = computeRecommendedShootDays(talent, script, productionChoices);
-  const postProductionDays = computeRecommendedPostProductionDays(talent, productionChoices);
+  const postProductionDays = computeRecommendedPostProductionDays(talent, script, productionChoices);
   const naiveReleaseDay = totalDays + recommendedDays + postProductionDays + RIVAL_MARKETING_LEAD_DAYS;
   // Strength-aware scheduling (docs/DESIGN_box_office_calibration_targets.md §8):
   // this production's own pre-release strength (marketing + scale) decides
