@@ -16,6 +16,10 @@ const CATEGORY_LABEL: Record<CashLedgerCategory, string> = {
   producer: 'Producers',
   awards: 'Awards',
   awardsCampaign: 'Awards campaign',
+  homeEntertainment: 'Home entertainment',
+  licensing: 'TV & streaming',
+  merchandising: 'Merchandising',
+  catalogue: 'Catalogue',
   other: 'Other',
 };
 
@@ -39,9 +43,10 @@ export function CashHistoryModal({ entries, onClose }: { entries: CashLedgerEntr
           <h2 style={{ margin: 0 }}>Recent Budget Activity</h2>
         </div>
         <p className="choice-description" style={{ margin: 0 }}>
-          The notable moves in and out of your studio cash - acquisitions, development, production, facilities and awards
-          prize money - most recent first. Weekly box-office earnings aren't itemised here; watch the box-office panel for
-          those.
+          The notable moves in and out of your studio cash - acquisitions, development, production, facilities, awards
+          prize money and your films' post-theatrical income (home entertainment, TV &amp; streaming, merchandising and
+          catalogue) - most recent first. Weekly theatrical box-office earnings aren't itemised here; watch the box-office
+          panel for those.
         </p>
 
         {recentFirst.length === 0 ? (

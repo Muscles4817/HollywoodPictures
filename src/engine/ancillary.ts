@@ -14,8 +14,18 @@
 //    no box office yet) to power the pre-release qualitative outlook.
 //  - The DOLLAR profile layers a reach base (from realised worldwide gross) on
 //    top of the multipliers, for the post-theatrical waterfall/pipeline to come.
-import type { AwardsCeremony, Film, Genre, ReleaseWindow, ScriptCharacter, TargetAudience } from '../types';
-import { GENRE_ANCILLARY, WINDOW_BASE_RATES, CATALOGUE, REACH_BASE } from '../data/ancillary';
+import type {
+  AncillaryPayout,
+  AncillaryWindow,
+  AwardsCeremony,
+  CashLedgerCategory,
+  Film,
+  Genre,
+  ReleaseWindow,
+  ScriptCharacter,
+  TargetAudience,
+} from '../types';
+import { ANCILLARY_TIMING, GENRE_ANCILLARY, WINDOW_BASE_RATES, CATALOGUE, REACH_BASE } from '../data/ancillary';
 import { deriveCommercialProfile } from './commercialProfile';
 import { clamp } from './random';
 
@@ -333,4 +343,75 @@ export function ancillaryAttributesFromFilm(
     releaseWindow: film.marketingChoices.releaseWindow,
     awards: ctx.awards,
   };
+}
+
+// --- Scheduling: materialise a profile into dated future payouts (Stage 2) ---
+//
+// The dollar profile above is derived; these payouts are the recorded FACTS it
+// is materialised into once, when a film's theatrical run finishes, so income
+// arrives over game time and the schedule never drifts if the formula changes.
+
+/** Which cash-ledger category each window's income is booked under. */
+export const ANCILLARY_LEDGER_CATEGORY: Record<AncillaryWindow, CashLedgerCategory> = {
+  homeEntertainment: 'homeEntertainment',
+  licensing: 'licensing',
+  merchandising: 'merchandising',
+  catalogue: 'catalogue',
+};
+
+/** Player-facing label for each window, used in the cash-ledger reason line. */
+export const ANCILLARY_LEDGER_LABEL: Record<AncillaryWindow, string> = {
+  homeEntertainment: 'Home entertainment',
+  licensing: 'TV & streaming licensing',
+  merchandising: 'Merchandising',
+  catalogue: 'Catalogue',
+};
+
+function spreadWindow(
+  window: AncillaryWindow,
+  total: number,
+  installments: ReadonlyArray<{ dayOffset: number; fraction: number }>,
+  filmId: string,
+  filmTitle: string,
+  anchorDay: number,
+): AncillaryPayout[] {
+  return installments
+    .map((i) => ({ filmId, filmTitle, window, dueDay: anchorDay + i.dayOffset, amount: Math.round(total * i.fraction) }))
+    .filter((p) => p.amount > 0);
+}
+
+/**
+ * Turn a film's dollar AncillaryProfile into its dated payout schedule, anchored
+ * to the day its theatrical run finished. Each mainstream window is split into
+ * its installments (data/ancillary.ts:ANCILLARY_TIMING); catalogue pays once a
+ * year for its longevity span, each year decaying. Zero-value payments are
+ * dropped, so a film with no catalogue tail simply schedules none.
+ */
+export function buildAncillarySchedule(
+  profile: AncillaryProfile,
+  opts: { filmId: string; filmTitle: string; anchorDay: number },
+): AncillaryPayout[] {
+  const { filmId, filmTitle, anchorDay } = opts;
+  const payouts: AncillaryPayout[] = [
+    ...spreadWindow('merchandising', profile.merchandising, ANCILLARY_TIMING.merchandising, filmId, filmTitle, anchorDay),
+    ...spreadWindow('homeEntertainment', profile.homeEntertainment, ANCILLARY_TIMING.homeEntertainment, filmId, filmTitle, anchorDay),
+    ...spreadWindow('licensing', profile.licensing, ANCILLARY_TIMING.licensing, filmId, filmTitle, anchorDay),
+  ];
+
+  let annual = profile.catalogue.annualFirstYear;
+  for (let n = 0; n < profile.catalogue.years; n++) {
+    const amount = Math.round(annual);
+    if (amount > 0) {
+      payouts.push({
+        filmId,
+        filmTitle,
+        window: 'catalogue',
+        dueDay: anchorDay + ANCILLARY_TIMING.catalogueFirstYearOffset + n * ANCILLARY_TIMING.catalogueYearLength,
+        amount,
+      });
+    }
+    annual *= CATALOGUE.decay;
+  }
+
+  return payouts;
 }

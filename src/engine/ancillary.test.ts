@@ -8,6 +8,8 @@ import {
   leadMerchandisePotential,
   summariseFilmAwards,
   ancillaryAttributesFromFilm,
+  buildAncillarySchedule,
+  ANCILLARY_LEDGER_CATEGORY,
   type AncillaryAttributes,
 } from './ancillary';
 import { STUDIO_BOX_OFFICE_SHARE } from './boxOfficeRun';
@@ -219,6 +221,47 @@ describe('ancillaryOutlook — qualitative, pre-release', () => {
   it('never leaks a raw number into the headline', () => {
     const o = ancillaryOutlook(deriveAncillaryMultipliers(SUPERHERO));
     expect(o.headline).not.toMatch(/\d/);
+  });
+});
+
+describe('buildAncillarySchedule — materialising dated payouts', () => {
+  const opts = { filmId: 'f1', filmTitle: 'Titan Force', anchorDay: 1000 };
+
+  it('produces nothing pre-release (a zero-dollar profile schedules no payouts)', () => {
+    expect(buildAncillarySchedule(deriveAncillaryProfile(SUPERHERO, 0), opts)).toEqual([]);
+  });
+
+  it('spreads each window into installments that sum to its window total', () => {
+    const profile = deriveAncillaryProfile(SUPERHERO, 750_000_000);
+    const payouts = buildAncillarySchedule(profile, opts);
+    const sumOf = (w: string) => payouts.filter((p) => p.window === w).reduce((s, p) => s + p.amount, 0);
+    // Rounding across installments keeps each within a few dollars of its total.
+    expect(Math.abs(sumOf('homeEntertainment') - profile.homeEntertainment)).toBeLessThan(4);
+    expect(Math.abs(sumOf('merchandising') - profile.merchandising)).toBeLessThan(4);
+    expect(Math.abs(sumOf('licensing') - profile.licensing)).toBeLessThan(4);
+  });
+
+  it('stamps filmId/title and books each window under the right ledger category', () => {
+    const payouts = buildAncillarySchedule(deriveAncillaryProfile(SUPERHERO, 750_000_000), opts);
+    expect(payouts.every((p) => p.filmId === 'f1' && p.filmTitle === 'Titan Force')).toBe(true);
+    for (const p of payouts) {
+      expect(ANCILLARY_LEDGER_CATEGORY[p.window]).toBe(p.window === 'homeEntertainment' ? 'homeEntertainment' : ANCILLARY_LEDGER_CATEGORY[p.window]);
+    }
+    // Merchandising's first installment lands at the anchor day (toys ship with the film).
+    const merch = payouts.filter((p) => p.window === 'merchandising').sort((a, b) => a.dueDay - b.dueDay);
+    expect(merch[0].dueDay).toBe(opts.anchorDay);
+    // Every payout is dated on or after the run's end.
+    expect(payouts.every((p) => p.dueDay >= opts.anchorDay)).toBe(true);
+  });
+
+  it('schedules one catalogue payout per surviving year, a year apart, for a classic', () => {
+    const profile = deriveAncillaryProfile(OSCAR_DRAMA, 60_000_000);
+    const cat = buildAncillarySchedule(profile, opts).filter((p) => p.window === 'catalogue').sort((a, b) => a.dueDay - b.dueDay);
+    expect(cat.length).toBe(profile.catalogue.years);
+    expect(cat[0].dueDay).toBe(opts.anchorDay + 365);
+    expect(cat[1].dueDay).toBe(opts.anchorDay + 730);
+    // The tail decays year on year.
+    expect(cat[1].amount).toBeLessThan(cat[0].amount);
   });
 });
 

@@ -1532,6 +1532,14 @@ export interface BoxOfficeRun {
   // the animation and flips this true. Rivals' runs are created already true -
   // their premiere is never the player's to watch.
   premiereSeen: boolean;
+  /**
+   * Whether this film's post-theatrical ancillary payouts have been scheduled
+   * yet (engine/ancillary.ts) - set true the settlement pass its run crosses
+   * into 'finished', so the pipeline is materialised exactly once and not
+   * re-appended every subsequent pass the finished film is re-seen. Absent =
+   * not yet scheduled (a running film, or a save predating ancillary revenue).
+   */
+  ancillaryScheduled?: boolean;
 }
 
 // A film record that has been fully cast/produced/released and lives in studio history.
@@ -2031,6 +2039,14 @@ export type CashLedgerCategory =
   | 'producer'
   | 'awards'
   | 'awardsCampaign'
+  // Post-theatrical income windows (engine/ancillary.ts, the ancillary-revenue
+  // model). A film's afterlife pays into cash through these categories over the
+  // months/years after its run, so film income is finally visible in the
+  // activity view (theatrical box-office cash still bypasses the ledger).
+  | 'homeEntertainment'
+  | 'licensing'
+  | 'merchandising'
+  | 'catalogue'
   | 'other';
 
 export interface CashLedgerEntry {
@@ -2041,6 +2057,28 @@ export interface CashLedgerEntry {
   category: CashLedgerCategory;
   /** Short player-facing description, e.g. "Commissioned from Aaron Sorkin". */
   reason: string;
+}
+
+/** One of a film's post-theatrical revenue windows (engine/ancillary.ts). */
+export type AncillaryWindow = 'homeEntertainment' | 'licensing' | 'merchandising' | 'catalogue';
+
+/**
+ * A scheduled future ancillary-revenue payment (engine/ancillary.ts). Unlike a
+ * derived "strength", this is a concrete recorded FACT about the future -
+ * materialised once when a film's theatrical run finishes, from the film's
+ * derived AncillaryProfile - so the player can plan cash flow around income that
+ * hasn't arrived yet, and a later formula change never retroactively rewrites
+ * money already promised. The same line the codebase draws between derived
+ * strengths and recorded history (a BoxOfficeWeek, a ScheduledRelease). Drained
+ * on the day it comes due (state/studioReducer.ts) into Studio.cash via the
+ * cash ledger. filmTitle is snapshotted so the ledger reason needs no lookup.
+ */
+export interface AncillaryPayout {
+  filmId: string;
+  filmTitle: string;
+  window: AncillaryWindow;
+  dueDay: GameDay;
+  amount: Money;
 }
 
 export interface Studio {
@@ -2077,6 +2115,14 @@ export interface Studio {
   pendingCommissions?: PendingCommission[];
   /** Recent notable cash movements for the "Recent budget activity" view (see CashLedgerEntry). Append-only, capped; optional/absent on older saves, read as `[]`. */
   cashLedger?: CashLedgerEntry[];
+  /**
+   * Scheduled post-theatrical revenue not yet paid out (engine/ancillary.ts) -
+   * home-entertainment, TV/streaming licensing, merchandising and long-tail
+   * catalogue income that lands over the months and years after a film's
+   * theatrical run. Materialised when each run finishes and drained day by day
+   * into cash; absent/empty until the studio's first film completes its run.
+   */
+  ancillaryPipeline?: AncillaryPayout[];
   /** Persistent creative assets the studio has deliberately promoted a released Film into (see IntellectualProperty). Empty until the player promotes their first Film; never populated automatically. References Films by id - it doesn't contain them. */
   intellectualProperties: IntellectualProperty[];
   /**

@@ -70,3 +70,30 @@ export const REACH_BASE = {
   floor: 0.85,
   audienceLift: 0.3,
 } as const;
+
+/**
+ * When each window's money arrives, as day offsets from the theatrical run's end
+ * (Stage 2 of the design). Each non-catalogue window is split into installments
+ * whose fractions sum to 1; this is what turns ancillary into a cash-flow
+ * planning tool rather than one lump cheque. Merchandising leads (toys ship with
+ * the film), then home entertainment, then the two licensing waves (pay-TV, then
+ * streaming/free-TV). Catalogue pays once a year for its longevity span, starting
+ * a year out. Tunable.
+ */
+export const ANCILLARY_TIMING = {
+  merchandising: [
+    { dayOffset: 0, fraction: 0.4 },
+    { dayOffset: 120, fraction: 0.6 },
+  ],
+  homeEntertainment: [
+    { dayOffset: 90, fraction: 0.5 },
+    { dayOffset: 180, fraction: 0.3 },
+    { dayOffset: 270, fraction: 0.2 },
+  ],
+  licensing: [
+    { dayOffset: 210, fraction: 0.5 },
+    { dayOffset: 480, fraction: 0.5 },
+  ],
+  catalogueFirstYearOffset: 365,
+  catalogueYearLength: 365,
+} as const;

@@ -572,10 +572,13 @@ New, pure, testable (`engine/` stays plain-data-in/plain-data-out):
 - **Types** (`types/index.ts`) — `AncillaryWindow`, `AncillaryPayout`,
   `Studio.ancillaryPipeline?`, `BackendDeal`, `TalentAssignment.backendDeal?`,
   new `CashLedgerCategory` values, backend-liability tracking on the film.
-- **Wiring** — `finishFilm` (`boxOfficeRun.ts:167`) computes the profile and
-  appends payouts when a run ends; `runCalendarSettlement`
-  (`studioReducer.ts:419`) drains due payouts through `recordCashChange` and
-  settles gross/net backend on every theatrical and ancillary credit.
+- **Wiring** — scheduling lives in `runCalendarSettlement` (`studioReducer.ts`),
+  not in the pure `finishFilm` (`boxOfficeRun.ts:167`): the reducer detects a
+  player film whose run has just crossed to `finished`, computes the profile
+  (which needs studio prestige + awards, cross-entity facts `finishFilm` can't
+  see), and appends payouts — marking `BoxOfficeRun.ancillaryScheduled` so it
+  happens once. The same function drains due payouts through `recordCashChange`,
+  and (Stage 5) settles gross/net backend on every theatrical and ancillary credit.
 - **`SAVE_KEY`** bump (`state/persistence.ts:394`), no migration (pre-launch).
 
 The intrinsic/derived split holds throughout: attribute-driven *potential* is
@@ -588,26 +591,39 @@ derived on demand; only the materialised payout schedule and backend liabilities
 
 Each stage is independently shippable and testable.
 
-1. **Ancillary profile, derived + inert.** `data/ancillary.ts` +
-   `deriveAncillaryProfile` + the pre-release qualitative read. No cash yet.
-   Unit-tested against the §3.7 target shapes. Zero economic risk.
-2. **Pipeline + payout, lump at first.** Materialise payouts at `finishFilm`,
-   drain through `recordCashChange`, extend the lifetime waterfall. Land all
-   windows on a single near-term day initially (simplest correct version), then
-   split into the phased offsets. Ancillary income now real and visible.
-3. **Phased timing + windows timeline UI + slate cash-flow panel.** Turn the
-   deferral on; the planning layer.
-4. **Catalogue longevity.** The long tail and its awards dependency; makes
-   prestige pay.
+1. **✅ LANDED — Ancillary profile, derived + inert.** `data/ancillary.ts` +
+   `engine/ancillary.ts` (`deriveAncillaryMultipliers` / `deriveAncillaryProfile`
+   / `ancillaryOutlook`) + the pre-release qualitative read. No cash, no state.
+   Unit-tested against the §3.7 target *shapes*. Zero economic risk.
+2. **✅ LANDED — Pipeline + phased payout, drained through the ledger.**
+   `AncillaryPayout` / `Studio.ancillaryPipeline` / `BoxOfficeRun.ancillaryScheduled`
+   types; `buildAncillarySchedule` materialises the phased offsets directly (the
+   "lump first" interim was skipped — the installment table was cheap enough to
+   ship at once); `runCalendarSettlement` schedules a film's payouts the pass its
+   run finishes and drains due ones through `recordCashChange` (four new ledger
+   categories, so film income is finally visible in the activity feed). The
+   `FilmMoneyBreakdown` waterfall gains a lifetime-profit "afterlife" section via
+   `selectFilmAncillary`. `SAVE_KEY` → v75. Catalogue longevity ships here too (it
+   was already in the profile). Player studio only; rival afterlife deferred.
+3. **Windows timeline UI + slate cash-flow panel.** The dedicated planning layer
+   (the waterfall already shows settled-vs-pending; this is the at-a-glance
+   timeline and the cross-slate upcoming-income view).
+4. **Catalogue/awards refinement.** Today the schedule is fixed at run-finish
+   from awards-known-then, so a film that wins awards *after* its run doesn't get
+   the retroactive licensing/catalogue lift. Re-derive or top-up the
+   awards-sensitive windows at the film's first awards ceremony. Also: rival
+   ancillary into rival finances.
 5. **Backend participation.** Deal structures in negotiation, the term-sheet UI,
    liability settlement across all windows. Depends on 1–2 (there must be a
    revenue tail to share).
 6. **Calibrate.** Tune `data/ancillary.ts` against `ancillary.diagnostic.test.ts`
    until the §3.7 bands pass and the two worked examples land in range, without
-   inflating the median film. Its own PR-worthy step.
+   inflating the median film. (Stages 1–2 assert *shape and ordering*, not tuned
+   magnitudes — e.g. a $750M franchise currently nets ~1.4× its theatrical rentals
+   in ancillary, below the 1.8–2.5× target; this stage closes that gap.)
 
-Stages 1–2 already fix the headline blockbuster problem; 3–6 add the strategic
-depth.
+Stages 1–2 (both landed) already fix the headline blockbuster problem; 3–6 add
+the strategic depth.
 
 ---
 

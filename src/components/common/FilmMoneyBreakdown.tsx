@@ -1,5 +1,5 @@
 import type { Film } from '../../types';
-import { computeReportedLegs } from '../../state/selectors';
+import { computeReportedLegs, type FilmAncillaryView } from '../../state/selectors';
 import { STUDIO_BOX_OFFICE_SHARE, filmMarketBreakdown } from '../../engine/boxOfficeRun';
 import { Money } from './Money';
 import { StatTile } from './StatTile';
@@ -103,7 +103,7 @@ export function FilmPerformance({ film }: { film: Film }) {
  * While the run is still playing, the final split and profit are withheld
  * (they only settle at the run's end) and only the known costs are shown.
  */
-export function FilmFinancials({ film }: { film: Film }) {
+export function FilmFinancials({ film, ancillary }: { film: Film; ancillary?: FilmAncillaryView | null }) {
   const r = film.results;
   const finished =
     film.boxOfficeRun.status !== 'running' && r.totalBoxOffice != null && r.studioRevenue != null && r.profit != null;
@@ -112,7 +112,10 @@ export function FilmFinancials({ film }: { film: Film }) {
     <div className="stack" style={{ gap: 10 }}>
       <DistributionLine film={film} />
       {finished ? (
-        <Waterfall film={film} />
+        <>
+          <Waterfall film={film} />
+          {ancillary && <FilmAfterlife ancillary={ancillary} />}
+        </>
       ) : (
         <>
           <div className="row">
@@ -140,11 +143,41 @@ export function FilmFinancials({ film }: { film: Film }) {
  * The waterfall is exact against stored FilmResults fields: gross - theatrical
  * split - distributor fee - production - marketing == profit.
  */
-export function FilmMoneyBreakdown({ film }: { film: Film }) {
+export function FilmMoneyBreakdown({ film, ancillary }: { film: Film; ancillary?: FilmAncillaryView | null }) {
   return (
     <div className="stack" style={{ gap: 16 }}>
       <FilmPerformance film={film} />
-      <FilmFinancials film={film} />
+      <FilmFinancials film={film} ancillary={ancillary} />
+    </div>
+  );
+}
+
+/**
+ * A film's post-theatrical afterlife (engine/ancillary.ts) - the four revenue
+ * windows that arrive over the months and years after its run, extending the
+ * theatrical waterfall above into a lifetime figure. Amounts already banked show
+ * plainly; income still to come is noted as arriving over time (it lands in the
+ * cash activity feed as it settles). The prose headline is the qualitative,
+ * number-free read of what this film is built to earn downstream.
+ */
+function FilmAfterlife({ ancillary }: { ancillary: FilmAncillaryView }) {
+  const { profile, outlook, pending, lifetimeProfit } = ancillary;
+  const { catalogue } = profile;
+  return (
+    <div className="stack" style={{ gap: 0, marginTop: 6 }}>
+      <div style={{ fontWeight: 600, borderTop: '1px solid var(--border)', paddingTop: 8 }}>Post-theatrical afterlife</div>
+      <p className="choice-description" style={{ margin: '2px 0 6px' }}>{outlook.headline}</p>
+      <Line label="Home entertainment & digital" amount={profile.homeEntertainment} kind="gross" />
+      <Line label="TV & streaming licensing" amount={profile.licensing} kind="gross" />
+      <Line label="Merchandising" amount={profile.merchandising} kind="gross" />
+      <Line label={catalogue.years > 0 ? `Catalogue (over ~${catalogue.years} years)` : 'Catalogue'} amount={catalogue.total} kind="gross" />
+      <Line label="Lifetime profit" amount={lifetimeProfit} kind="total" />
+      {pending > 0 && (
+        <p className="choice-description" style={{ margin: '4px 0 0' }}>
+          <Money amount={pending} /> of this is still to come — it arrives over the months and years ahead and appears in
+          your cash activity as each window pays.
+        </p>
+      )}
     </div>
   );
 }

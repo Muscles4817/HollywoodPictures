@@ -6,6 +6,14 @@ import { computeBoxOfficeBump, computeStudioAwardDeltas } from '../engine/awards
 import { awardShow } from '../data/awardsShows';
 import { explainBrandChange, explainPrestigeChange } from '../engine/reputation';
 import { WEEK_LENGTH_DAYS, filmMarketBreakdown } from '../engine/boxOfficeRun';
+import {
+  ancillaryAttributesFromFilm,
+  ancillaryOutlook,
+  deriveAncillaryProfile,
+  summariseFilmAwards,
+  type AncillaryOutlook,
+  type AncillaryProfile,
+} from '../engine/ancillary';
 import { deriveStudioMilestones, type MilestoneFacts, type StudioMilestone } from '../engine/premiereReport';
 import { GENRE_PROFILES } from '../data/genres';
 import { AWARD_CATEGORY_LABEL } from '../data/awards';
@@ -104,6 +112,46 @@ export function computeCommittedSpend(draft: FilmDraft | null, producerPool: Per
 export function computeReportedLegs(film: Film): number | null {
   if (film.results.totalBoxOffice === null || film.results.openingWeekend <= 0) return null;
   return film.results.totalBoxOffice / film.results.openingWeekend;
+}
+
+/** A film's post-theatrical afterlife for the money dossier - the derived profile plus how much has already been paid vs is still scheduled, and the lifetime profit it implies. */
+export interface FilmAncillaryView {
+  profile: AncillaryProfile;
+  outlook: AncillaryOutlook;
+  /** Ancillary income already paid into cash (lifetime total minus what's still pending). */
+  settled: number;
+  /** Ancillary income still scheduled to arrive (the sum of this film's remaining pipeline). */
+  pending: number;
+  /** Theatrical profit plus the whole ancillary lifetime - what the film ultimately makes. */
+  lifetimeProfit: number;
+}
+
+/**
+ * The ancillary-revenue view for one released player film (engine/ancillary.ts).
+ * Recomputes the derived profile on demand (never stored) and reconciles it
+ * against the studio's live payout pipeline to split settled-so-far from
+ * still-to-come. Returns null for a film with no finished theatrical numbers yet
+ * or a rival's film (rival afterlife isn't modelled at the player-cash layer).
+ */
+export function selectFilmAncillary(state: GameState, film: Film): FilmAncillaryView | null {
+  if (film.releasedBy !== undefined) return null;
+  if (film.boxOfficeRun.status !== 'finished' || film.results.totalBoxOffice == null || film.results.profit == null) return null;
+
+  const attrs = ancillaryAttributesFromFilm(film, {
+    studioPrestige: state.studio.prestige,
+    awards: summariseFilmAwards(state.awards?.history ?? [], film.id),
+  });
+  const profile = deriveAncillaryProfile(attrs, film.results.totalBoxOffice);
+  const pending = (state.studio.ancillaryPipeline ?? []).filter((p) => p.filmId === film.id).reduce((sum, p) => sum + p.amount, 0);
+  const settled = Math.max(0, profile.lifetimeTotal - pending);
+
+  return {
+    profile,
+    outlook: ancillaryOutlook(profile.multipliers),
+    settled,
+    pending,
+    lifetimeProfit: film.results.profit + profile.lifetimeTotal,
+  };
 }
 
 /**
