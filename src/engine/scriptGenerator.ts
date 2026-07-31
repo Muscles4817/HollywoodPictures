@@ -8,10 +8,13 @@ import type {
   EffectsMethodKey,
   EnvironmentMethodKey,
   Genre,
+  IntellectualProperty,
+  IpCharacter,
   NormalizedScalar,
   ProductionRequirements,
   Script,
   ScriptCharacter,
+  SettingArchetype,
   StoryType,
   TargetAudience,
   Tone,
@@ -529,7 +532,21 @@ export interface GenerationProfile {
 }
 export const NEUTRAL_GENERATION: GenerationProfile = { conceptSpread: 0, executionShift: 0, executionSpread: 0 };
 
-function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses: Set<string>, author?: WriterCreativeProfile, profile: GenerationProfile = NEUTRAL_GENERATION): Script {
+/**
+ * What a sequel inherits from its source IP (docs/DESIGN_REVIEW_sequels_and_
+ * franchises.md). A franchise entry keeps the world (setting) and its returning
+ * characters, and carries the IP's proven `recognition` as its franchiseRecognition
+ * (the pre-sold draw). Everything else - concept originality, execution craft - is
+ * rolled fresh: a sequel's audience is inherited, its quality is not.
+ */
+export interface SequelSeed {
+  setting: SettingArchetype;
+  /** The returning cast, as creative-identity snapshots (script-local ids are assigned here). */
+  returningCharacters: Omit<ScriptCharacter, 'id'>[];
+  franchiseRecognition: number;
+}
+
+function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses: Set<string>, author?: WriterCreativeProfile, profile: GenerationProfile = NEUTRAL_GENERATION, sequelSeed?: SequelSeed): Script {
   // Minted up front (outside the rng stream) so the cast can derive stable,
   // globally-unique ids from it - see newScriptId/generateCast.
   const id = newScriptId();
@@ -568,8 +585,11 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   const scale = weightedPick(rng, SCRIPT_SCALES, scaleWeights);
   const scaleProfile = SCRIPT_SCALE_PROFILES[scale];
 
+  // A sequel keeps its IP's world; an original rolls a fresh setting. Everything
+  // downstream (productionRequirements, ambitions) reads settingProfile, so the
+  // inherited setting flows through consistently.
   const settingWeights = combineWeights(SETTING_ARCHETYPES, [GENRE_SETTING_AFFINITY[genre], storyProfile.settingAffinity]);
-  const primarySetting = weightedPick(rng, SETTING_ARCHETYPES, settingWeights);
+  const primarySetting = sequelSeed ? sequelSeed.setting : weightedPick(rng, SETTING_ARCHETYPES, settingWeights);
   const settingProfile = SETTING_ARCHETYPE_PROFILES[primarySetting];
 
   const { profile: baseTone, flavorTones } = generateToneProfile(genre, rng);
@@ -583,10 +603,23 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   const effectsStrategy = generateEffectsStrategy(productionRequirements, rng);
   const effectsAmbition = generateEffectsAmbition(productionRequirements, complexity, rng);
 
-  const castMultiplier = storyProfile.castSizeMultiplier * scaleProfile.castMultiplier;
-  const requiredLeads = Math.max(1, Math.round(pick(rng, LEAD_COUNT_WEIGHTS) * castMultiplier));
-  const requiredSupporting = Math.max(0, Math.round(pick(rng, SUPPORTING_COUNT_WEIGHTS) * castMultiplier));
-  const cast = generateCast(id, genre, storyType, requiredLeads, requiredSupporting, rng);
+  // A sequel stars its returning characters - inherit the cast rather than roll a
+  // fresh one (script-local ids assigned from this script's id, per the cast-id
+  // convention). Falls back to a generated cast if the IP lifted no Lead.
+  const returning = sequelSeed?.returningCharacters ?? [];
+  let requiredLeads: number;
+  let requiredSupporting: number;
+  let cast: ScriptCharacter[];
+  if (returning.length > 0 && returning.some((c) => c.prominence === 'Lead')) {
+    cast = returning.map((c, i) => ({ ...c, id: `${id}-c${i}` }));
+    requiredLeads = cast.filter((c) => c.prominence === 'Lead').length;
+    requiredSupporting = cast.filter((c) => c.prominence === 'Supporting').length;
+  } else {
+    const castMultiplier = storyProfile.castSizeMultiplier * scaleProfile.castMultiplier;
+    requiredLeads = Math.max(1, Math.round(pick(rng, LEAD_COUNT_WEIGHTS) * castMultiplier));
+    requiredSupporting = Math.max(0, Math.round(pick(rng, SUPPORTING_COUNT_WEIGHTS) * castMultiplier));
+    cast = generateCast(id, genre, storyType, requiredLeads, requiredSupporting, rng);
+  }
 
   const audienceWeights = combineWeights(TARGET_AUDIENCES, [
     storyProfile.targetAudienceWeights,
@@ -654,6 +687,7 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
     requiredLeads,
     requiredSupporting,
     intendedAudience,
+    franchiseRecognition: sequelSeed?.franchiseRecognition,
     cast,
   };
 }
@@ -663,4 +697,41 @@ export function generateScriptOptions(genre: Genre, rng: RandomFn, count = 12, a
   const usedTitles = new Set<string>();
   const usedSynopses = new Set<string>();
   return Array.from({ length: count }, () => generateScript(genre, rng, uniqueTitle(genre, rng, usedTitles), usedSynopses, author, profile));
+}
+
+/** A returning IP character as a creative-identity snapshot for the next film - drops evolving standing and provenance; the sequel's generator assigns a fresh script-local id. */
+function ipCharacterToScriptCharacter(c: IpCharacter): Omit<ScriptCharacter, 'id'> {
+  return {
+    name: c.name,
+    archetype: c.archetype,
+    prominence: c.prominence,
+    castingGender: c.castingGender,
+    castingAgeBand: c.castingAgeBand,
+    traits: c.traits,
+  };
+}
+
+/** "{IP} {n}" - the nth entry in the franchise (source film is 1, so the first sequel is 2). */
+function sequelTitle(ipName: string, entryNumber: number): string {
+  return `${ipName} ${entryNumber}`;
+}
+
+/**
+ * Generates the screenplay for a new franchise entry (a sequel) from an owned IP
+ * (docs/DESIGN_REVIEW_sequels_and_franchises.md). It inherits the IP's world
+ * (setting) and returning characters, and carries the IP's proven `recognition`
+ * as `franchiseRecognition` - the pre-sold draw that makes a franchise open big.
+ * Everything else (concept originality, execution craft) is rolled fresh on the
+ * NEUTRAL profile: a sequel's audience is inherited, its quality is not - you can
+ * absolutely make a bad one. `genre` comes from the source film (an IP doesn't
+ * store it). The nth entry is titled "{IP} {n}".
+ */
+export function generateSequelScript(ip: IntellectualProperty, genre: Genre, rng: RandomFn): Script {
+  const seed: SequelSeed = {
+    setting: ip.setting.archetype,
+    returningCharacters: ip.characters.map(ipCharacterToScriptCharacter),
+    franchiseRecognition: ip.recognition,
+  };
+  const title = sequelTitle(ip.name, ip.filmIds.length + 1);
+  return generateScript(genre, rng, title, new Set<string>(), undefined, NEUTRAL_GENERATION, seed);
 }
