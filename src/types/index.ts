@@ -1681,6 +1681,8 @@ export interface Film {
   // from before it existed. Lets the Asset Library tell "used" assets apart
   // from ones with no released history yet (engine/project.ts:deriveAssetStatus).
   assetId?: string;
+  /** For a rival franchise sequel: the rival franchise this film is an entry in (engine/rivalFranchise.ts), carried from its production. Lets the rival flywheel fold a finished entry back into its franchise - the rival analogue of the player's Asset.ipId link. Absent for originals and all player films (which link via assetId -> Asset.ipId instead). */
+  franchiseId?: string;
 }
 
 // --- Intellectual Property (first IP-layer milestone) --------------------
@@ -1770,6 +1772,8 @@ export interface IntellectualProperty {
   recognition: number;
   /** Critical standing the IP starts with, 0-100 - inherited at promotion from the source Film's critical/quality reception. */
   prestige: number;
+  /** The franchise's home genre - the source Film's genre, snapshotted at promotion. Lets a sequel default to the franchise's established genre without a source-Film lookup (engine/rivalFranchise.ts; the player's DEVELOP_SEQUEL resolves it from the source Film directly). Optional/absent on IPs predating the field. */
+  genre?: Genre;
 }
 
 // --- IP Viability Assessment (the "is this worth a franchise?" decision layer) --
@@ -2075,6 +2079,14 @@ export interface RivalStudio {
   lifetimeRevenue: number;
   /** Cumulative amount this studio has ever committed to starting productions - debugging/display only, same as lifetimeRevenue. */
   lifetimeExpenditure: number;
+  /**
+   * The franchises this rival owns and builds sequels from (Sequels & Franchises
+   * stage 3, engine/rivalFranchise.ts) - the rival analogue of the player's
+   * Studio.intellectualProperties. Established automatically from the rival's own
+   * hits and grown by each released entry, exactly like the player's flywheel.
+   * Absent for a rival that has never had a franchise-worthy hit; read as `[]`.
+   */
+  franchises?: IntellectualProperty[];
 }
 
 /**
@@ -2098,6 +2110,8 @@ export interface RivalProductionInProgress {
   releaseDay: number;
   /** The rival's identity in this production's genre (engine/studioIdentity.ts), 0-100, snapshotted when the production started - lets its on-brand presence read as stronger on the shared calendar (the competitor-territory effect), without re-looking-up the studio. Absent (pre-identity productions) reads as 0. */
   genreIdentity?: number;
+  /** For a franchise sequel: the rival franchise (a RivalStudio.franchises id) this entry belongs to - carried onto the released Film so the flywheel can fold it back (engine/rivalFranchise.ts). Absent for an original. */
+  franchiseId?: string;
 }
 
 // Architecture roadmap Phase 5: filmsReleased/productionsInProgress moved to

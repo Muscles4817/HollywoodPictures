@@ -106,6 +106,7 @@ export function promoteFilmToIp(film: Film, characterIds: string[], name: string
     // Inherited from the Film's preserved historical success - never invented.
     recognition,
     prestige,
+    genre: film.script.genre,
   };
 }
 

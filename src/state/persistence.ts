@@ -404,7 +404,12 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   entries in timed development), Asset gained an optional ipId (flywheel link
 //   back to its IP), a new DEVELOP_SEQUEL action, and a 'developed'
 //   DevelopmentEventKind. Additive/optional (read defensively); same policy.
-const SAVE_KEY = 'hollywood-pictures-save-v79';
+// v79 -> v80 (Sequels & Franchises stage 3 - rivals franchise): RivalStudio gained
+//   an optional franchises (IntellectualProperty[] a rival owns and sequelises),
+//   RivalProductionInProgress and Film gained an optional franchiseId (the rival
+//   flywheel link), and IntellectualProperty gained an optional genre (the
+//   franchise's home genre). Additive/optional; same pre-launch policy.
+const SAVE_KEY = 'hollywood-pictures-save-v80';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
