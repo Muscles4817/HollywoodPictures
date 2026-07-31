@@ -805,6 +805,15 @@ export interface Script {
   // The audience this script was written for - pre-fills Target Audience
   // when the script is picked, but stays fully overridable.
   intendedAudience: TargetAudience;
+  // Franchise provenance, not a rolled stat: the pre-sold audience recognition
+  // this screenplay inherits from a source IP (engine/intellectualProperty.ts).
+  // 0/absent for an original; a franchise ENTRY (a sequel) inherits its IP's
+  // `recognition` here. This is the bimodal draw signal - most films 0, a rare
+  // few high - that dominates deriveMarketability and, through it, the box
+  // office's franchise-eligibility lever (docs/DESIGN_REVIEW_sequels_and_
+  // franchises.md). Not concept-quality and not craft: it never rolls and a
+  // rewrite can't change it (it's the franchise, not the writing).
+  franchiseRecognition?: number; // 0-100, absent = 0 (an original)
   // Exactly requiredLeads Lead-prominence characters followed by exactly
   // requiredSupporting Supporting-prominence ones (plus, occasionally, a
   // handful of Minor ones) - see ScriptCharacter's own header comment.

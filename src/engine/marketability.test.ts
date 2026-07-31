@@ -2,29 +2,38 @@ import { describe, it, expect } from 'vitest';
 import { deriveMarketability } from './commercialProfile';
 import type { Script } from '../types';
 
-// deriveMarketability is the "draw" vector - franchise/IP pre-sold demand, the
-// thing that makes the highest-opening films almost always franchises. Franchise
-// potential dominates; hook is secondary; genre popularity a base. (Wired to the
-// audience-sim Eligibility stage but held inert until the franchise system gives
-// it a real bimodal input - see audienceSimulationInputs.ts.)
-type Inputs = Pick<Script, 'genre' | 'franchisePotential' | 'hook'>;
-const base: Inputs = { genre: 'Action', franchisePotential: 40, hook: 40 };
+// deriveMarketability is the "draw" vector - the pre-sold demand that makes the
+// highest-opening films almost always franchise entries. It is DOMINATED by
+// franchiseRecognition (the proven audience a sequel inherits from its IP), so
+// the signal is cleanly bimodal: originals low, franchise entries high. The
+// rolled concept terms (franchisePotential/hook) are a minor component.
+// (Wired to the audience-sim Eligibility stage but held inert until the franchise
+// system + calibration - see audienceSimulationInputs.ts.)
+type Inputs = Pick<Script, 'franchisePotential' | 'hook'> & { franchiseRecognition?: number };
+const original: Inputs = { franchisePotential: 40, hook: 40 };
 
 describe('deriveMarketability', () => {
-  it('is dominated by franchise potential (the pre-sold audience)', () => {
-    const franchiseSwing = deriveMarketability({ ...base, franchisePotential: 90 }) - deriveMarketability({ ...base, franchisePotential: 10 });
-    const hookSwing = deriveMarketability({ ...base, hook: 90 }) - deriveMarketability({ ...base, hook: 10 });
-    expect(franchiseSwing).toBeGreaterThan(hookSwing);
+  it('a franchise entry (proven recognition) reads far more marketable than any original', () => {
+    // The whole point: even a high-concept original can't out-draw a real
+    // franchise, because recognition dominates and an original's is 0.
+    const sequel = deriveMarketability({ franchisePotential: 55, hook: 60, franchiseRecognition: 85 });
+    const bigOriginal = deriveMarketability({ franchisePotential: 95, hook: 90 }); // no recognition
+    expect(sequel).toBeGreaterThan(bigOriginal + 20);
   });
 
-  it('a franchise entry reads far more marketable than an original', () => {
-    const franchise = deriveMarketability({ ...base, franchisePotential: 95, hook: 85 });
-    const original = deriveMarketability({ ...base, franchisePotential: 10, hook: 45 });
-    expect(franchise).toBeGreaterThan(original + 30);
+  it('originals are bimodally low - even a maxed-concept original stays modest', () => {
+    const maxedOriginal = deriveMarketability({ franchisePotential: 100, hook: 100 });
+    expect(maxedOriginal).toBeLessThan(35); // concept-only, no proven audience
   });
 
-  it('stays within 0-100', () => {
-    expect(deriveMarketability({ genre: 'Action', franchisePotential: 100, hook: 100 })).toBeLessThanOrEqual(100);
-    expect(deriveMarketability({ genre: 'Drama', franchisePotential: 1, hook: 1 })).toBeGreaterThanOrEqual(0);
+  it('rises monotonically with the inherited recognition', () => {
+    expect(deriveMarketability({ ...original, franchiseRecognition: 90 }))
+      .toBeGreaterThan(deriveMarketability({ ...original, franchiseRecognition: 30 }));
+  });
+
+  it('stays within 0-100 and treats absent recognition as 0 (an original)', () => {
+    expect(deriveMarketability({ franchisePotential: 100, hook: 100, franchiseRecognition: 100 })).toBeLessThanOrEqual(100);
+    expect(deriveMarketability({ franchisePotential: 1, hook: 1 })).toBeGreaterThanOrEqual(0);
+    expect(deriveMarketability({ franchisePotential: 50, hook: 50 })).toBe(deriveMarketability({ franchisePotential: 50, hook: 50, franchiseRecognition: 0 }));
   });
 });

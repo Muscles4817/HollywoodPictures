@@ -123,25 +123,30 @@ export function deriveCommercialProfile(script: CommercialInputs): CommercialPro
 //
 // "How big an audience is *pre-disposed* to show up" - the franchise/IP draw
 // that makes the highest-opening films almost always sequels and franchise
-// entries (docs/DESIGN_REVIEW_originality_vs_marketability.md). Distinct from
+// entries (docs/DESIGN_REVIEW_sequels_and_franchises.md). Distinct from
 // hookStrength (is the pitch compelling) and accessibility (is the concept
-// broad): marketability is *pre-sold demand*. It feeds the Eligibility stage of
-// the audience simulation convexly, so a true franchise expands the reachable
-// pool dramatically while an ordinary concept barely moves it. Franchise
-// potential dominates; hook is a secondary "is it an event" signal; genre
-// popularity a base. Derived, never stored - the same principle as the profile
-// above.
-type MarketabilityInputs = Pick<Script, 'genre' | 'franchisePotential' | 'hook'>;
+// broad): marketability is *pre-sold demand*.
+//
+// DOMINATED by franchiseRecognition - the proven audience a franchise ENTRY
+// inherits from its source IP - so the signal is cleanly BIMODAL: an original
+// (recognition 0) reads low, on its concept alone; a sequel reads high, on its
+// proven recognition. The rolled concept terms (franchisePotential/hook) are a
+// deliberately minor component, so a big original spectacle can look somewhat
+// marketable but never rides a rolled stat up to phenomenon draw - only a real,
+// proven franchise does. This bimodality is what lets the box office's convex
+// franchise-eligibility lever produce rare phenomena without lifting the median.
+// Derived, never stored.
+type MarketabilityInputs = Pick<Script, 'franchisePotential' | 'hook'> & { franchiseRecognition?: number };
 
-const FRANCHISE_MARKETABILITY_WEIGHT = 0.55;
-const HOOK_MARKETABILITY_WEIGHT = 0.25;
-const POPULARITY_MARKETABILITY_WEIGHT = 0.2;
+const RECOGNITION_MARKETABILITY_WEIGHT = 0.7;
+const FRANCHISE_POTENTIAL_MARKETABILITY_WEIGHT = 0.18;
+const HOOK_MARKETABILITY_WEIGHT = 0.12;
 
 export function deriveMarketability(script: MarketabilityInputs): number {
   return clamp(
-    script.franchisePotential * FRANCHISE_MARKETABILITY_WEIGHT +
-      script.hook * HOOK_MARKETABILITY_WEIGHT +
-      genrePopularity(script.genre) * POPULARITY_MARKETABILITY_WEIGHT,
+    (script.franchiseRecognition ?? 0) * RECOGNITION_MARKETABILITY_WEIGHT +
+      script.franchisePotential * FRANCHISE_POTENTIAL_MARKETABILITY_WEIGHT +
+      script.hook * HOOK_MARKETABILITY_WEIGHT,
     0,
     100,
   );
