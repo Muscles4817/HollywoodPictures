@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft } from './testFixtures';
-import { playerReleasedFilms } from '../engine/project';
+import { playerReleasedFilms, filmToProject } from '../engine/project';
 import { SEQUEL_DEVELOPMENT_SETUP_DAYS } from '../engine/sequelDevelopment';
 import type { GameState } from './gameState';
 
@@ -58,5 +58,43 @@ describe('DEVELOP_SEQUEL', () => {
     const twice = studioReducer(once, { type: 'DEVELOP_SEQUEL', ipId });
     expect(twice).toBe(once);
     expect(twice.studio.pendingSequelDevelopments).toHaveLength(1);
+  });
+
+  // Stage 2b - the franchise flywheel end to end, through the real ADVANCE_DAY
+  // settlement: a released sequel entry folds back into its IP and compounds its
+  // recognition (so the next sequel would inherit a stronger pre-sold draw).
+  it('folds a released sequel entry back into its IP and grows its recognition', () => {
+    const { state, ipId } = ipState(4);
+    // Develop a sequel and let the development deliver as an owned Asset.
+    let s = studioReducer(state, { type: 'DEVELOP_SEQUEL', ipId });
+    const dev = s.studio.pendingSequelDevelopments![0];
+    for (let day = s.totalDays; day <= dev.readyOnDay + 1; day++) s = studioReducer(s, { type: 'ADVANCE_DAY' });
+    const sequelAsset = s.studio.assets.find((a) => a.id === dev.id)!;
+    expect(sequelAsset.ipId).toBe(ipId);
+
+    // Stand in a finished released sequel film (a real Film shape, cloned from the
+    // studio's own released source film) whose source Asset is that sequel Asset -
+    // the exact assetId -> ipId link a greenlit-then-released sequel produces.
+    const sourceFilm = playerReleasedFilms(s.projects)[0];
+    const sequelFilm = {
+      ...sourceFilm,
+      id: 'sequel-film-1',
+      assetId: sequelAsset.id,
+      boxOfficeRun: { ...sourceFilm.boxOfficeRun, status: 'finished' as const },
+    };
+    s = { ...s, projects: [...s.projects, filmToProject(sequelFilm)] };
+
+    const ipBefore = s.studio.intellectualProperties.find((i) => i.id === ipId)!;
+    s = studioReducer(s, { type: 'ADVANCE_DAY' });
+    const ipAfter = s.studio.intellectualProperties.find((i) => i.id === ipId)!;
+
+    expect(ipAfter.filmIds).toContain('sequel-film-1'); // the entry joined the franchise
+    expect(ipAfter.recognition).toBeGreaterThan(ipBefore.recognition); // and compounded it
+
+    // Idempotent: seeing the finished entry again next pass never double-counts.
+    const twice = studioReducer(s, { type: 'ADVANCE_DAY' });
+    const ipTwice = twice.studio.intellectualProperties.find((i) => i.id === ipId)!;
+    expect(ipTwice.filmIds.filter((id) => id === 'sequel-film-1')).toHaveLength(1);
+    expect(ipTwice.recognition).toBe(ipAfter.recognition);
   });
 });

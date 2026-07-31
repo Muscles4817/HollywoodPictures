@@ -62,6 +62,7 @@ export function IpLibrary() {
               </div>
               <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
                 From <strong>{filmTitleById.get(ip.sourceFilmId) ?? 'a released film'}</strong> · Setting: {SETTING_LABELS[ip.setting.archetype]}
+                {ip.filmIds.length > 1 && <> · <strong>{ip.filmIds.length} films</strong> in the franchise</>}
               </p>
               <div>
                 <div className="stat-label">Characters</div>

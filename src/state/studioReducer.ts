@@ -11,7 +11,7 @@ import { personMeetsCharacterGender, personMeetsCharacterAge, personCastingAge }
 import { applyPrepRiskDelta, computePrepRiskDelta, computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeShootEscalation, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, rollPreProductionDayEvent, resolveEventChoice } from '../engine/production';
 import { computeExecutionResilience } from '../engine/productionExecution';
 import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
-import { promoteFilmToIp, ipForSourceFilm } from '../engine/intellectualProperty';
+import { promoteFilmToIp, ipForSourceFilm, recordFranchiseEntries } from '../engine/intellectualProperty';
 import { generateSequelScript } from '../engine/scriptGenerator';
 import { SEQUEL_DEVELOPMENT_SETUP_DAYS, makePendingSequelDevelopment, settlePendingSequelDevelopments } from '../engine/sequelDevelopment';
 import { computeDailyShootBurn, computeDailyPrepBurn, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../engine/cost';
@@ -471,15 +471,21 @@ function runCalendarSettlement(
   const rewrittenAssets = settleAssetRewrites(opportunityWins.studio.assets, totalDaysAfter);
   const commissionSettlement = settlePendingCommissions(opportunityWins.studio.pendingCommissions ?? [], totalDaysAfter);
   const sequelSettlement = settlePendingSequelDevelopments(opportunityWins.studio.pendingSequelDevelopments ?? [], totalDaysAfter);
+  const assetsAfterSettlement = [...rewrittenAssets, ...commissionSettlement.delivered, ...sequelSettlement.delivered];
+  // The franchise flywheel (stage 2b): a finished franchise entry joins its IP
+  // (via its source Asset's ipId) and grows the IP's recognition - so the next
+  // sequel inherits a stronger pre-sold draw. Idempotent over the run's passes.
+  const playerReleases = marketSettlement.settledFilms.filter((f) => f.releasedBy === undefined);
   const studioAfterBoxOffice: Studio = {
     ...opportunityWins.studio,
     cash: opportunityWins.studio.cash + marketSettlement.playerCashCredit - marketSettlement.playerCostCharged,
     brand: applyStatChange(opportunityWins.studio.brand, marketSettlement.playerBrandDelta),
     prestige: applyStatChange(opportunityWins.studio.prestige, marketSettlement.playerPrestigeDelta),
     genreIdentity: applyGenreIdentityDeltas(opportunityWins.studio.genreIdentity, marketSettlement.playerGenreIdentityDeltas),
-    assets: [...rewrittenAssets, ...commissionSettlement.delivered, ...sequelSettlement.delivered],
+    assets: assetsAfterSettlement,
     pendingCommissions: commissionSettlement.pendingCommissions,
     pendingSequelDevelopments: sequelSettlement.pendingSequelDevelopments,
+    intellectualProperties: recordFranchiseEntries(opportunityWins.studio.intellectualProperties, playerReleases, assetsAfterSettlement),
   };
 
   // Ancillary revenue (state/ancillarySettlement.ts): schedule any player film

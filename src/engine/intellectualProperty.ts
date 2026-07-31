@@ -2,7 +2,7 @@
 // a released Film into a persistent IP on demand - it lifts the player's chosen
 // Characters and the Film's Setting out into globally-identified components and
 // references the source Film by id, never copying or wrapping the Film itself.
-import type { Film, GameDay, IntellectualProperty, IpCharacter, IpCharacterStanding, ScriptCharacter, Studio } from '../types';
+import type { Asset, Film, GameDay, IntellectualProperty, IpCharacter, IpCharacterStanding, ScriptCharacter, Studio } from '../types';
 import { clamp } from './random';
 
 /** The IP the studio has already promoted from this Film, if any - drives both the re-promotion guard (reducer) and the "already an IP" readout (Film dossier). A Film is the source of at most one IP. */
@@ -107,4 +107,68 @@ export function promoteFilmToIp(film: Film, characterIds: string[], name: string
     recognition,
     prestige,
   };
+}
+
+// --- Franchise flywheel (Sequels & Franchises stage 2b) ----------------------
+//
+// A released franchise entry feeds back into its IP: the Film joins the IP's
+// filmIds and the IP's recognition grows by the entry's own reach. This is what
+// makes a franchise *compound* - each successful entry makes the next draw
+// harder, because the next sequel inherits the grown recognition as its
+// franchiseRecognition (the pre-sold draw deriveMarketability is dominated by).
+// An entry is linked to its IP through its source Asset: a sequel Asset carries
+// `ipId` (set when the development delivers), and the greenlit Film carries that
+// Asset's id (Film.assetId).
+
+/**
+ * How strongly a finished franchise entry grows its IP's recognition. The entry
+ * lifts awareness a fraction of the remaining gap to saturation (100), scaled by
+ * the entry's own reach - a blockbuster sequel builds the brand hard, a quiet
+ * one barely moves it, and a franchise near saturation gains little from one
+ * more entry. Monotonic up: a weak entry never erodes the franchise (erosion is
+ * a later refinement, not this stage). A tunable lever for stage-4 calibration.
+ */
+export const FRANCHISE_RECOGNITION_GAIN = 0.5;
+
+/** Recognition after folding in a finished entry of the given reach (0-100). Never decreases; never exceeds 100. */
+export function grownFranchiseRecognition(current: number, entryReach: number): number {
+  const lift = FRANCHISE_RECOGNITION_GAIN * (entryReach / 100) * (100 - current);
+  return clamp(Math.max(current, current + lift), 0, 100);
+}
+
+/**
+ * The franchise flywheel: fold every newly-*finished* player film that belongs
+ * to an IP back into that IP - appending the Film to `filmIds` and growing
+ * `recognition` by the entry's reach (deriveFilmRecognition). A film is matched
+ * to its IP through its source Asset's `ipId`. Idempotent: a film already in an
+ * IP's filmIds is skipped, so re-seeing a finished entry every settlement pass
+ * never double-counts it (the same membership guard
+ * recordPlayerFilmCollaborations uses), and the IP's own source film - seeded
+ * into filmIds at promotion - is a no-op here too. Only 'finished' runs are
+ * folded, so recognition reads a settled box office, not a partial mid-run
+ * gross. Returns the same array reference when nothing changed.
+ */
+export function recordFranchiseEntries(ips: IntellectualProperty[], playerFilms: Film[], assets: Asset[]): IntellectualProperty[] {
+  if (ips.length === 0) return ips;
+  const ipIdByAssetId = new Map<string, string>();
+  for (const asset of assets) if (asset.ipId) ipIdByAssetId.set(asset.id, asset.ipId);
+  if (ipIdByAssetId.size === 0) return ips;
+
+  let changed = false;
+  const next = ips.map((ip) => {
+    const owned = new Set(ip.filmIds);
+    const entries = playerFilms.filter(
+      (f) => f.boxOfficeRun.status === 'finished' && f.assetId !== undefined && ipIdByAssetId.get(f.assetId) === ip.id && !owned.has(f.id),
+    );
+    if (entries.length === 0) return ip;
+    changed = true;
+    let recognition = ip.recognition;
+    const filmIds = [...ip.filmIds];
+    for (const film of entries) {
+      filmIds.push(film.id);
+      recognition = grownFranchiseRecognition(recognition, deriveFilmRecognition(film));
+    }
+    return { ...ip, filmIds, recognition };
+  });
+  return changed ? next : ips;
 }

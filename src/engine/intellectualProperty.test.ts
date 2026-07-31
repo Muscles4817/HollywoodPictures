@@ -1,9 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { promoteFilmToIp, ipForSourceFilm, ipIdForFilm } from './intellectualProperty';
+import {
+  promoteFilmToIp,
+  ipForSourceFilm,
+  ipIdForFilm,
+  recordFranchiseEntries,
+  grownFranchiseRecognition,
+} from './intellectualProperty';
 import { generateScriptOptions } from './scriptGenerator';
 import { createRng } from './random';
 import { createInitialStudio } from '../state/gameState';
-import type { Film, Script } from '../types';
+import type { Asset, Film, IntellectualProperty, Script } from '../types';
 
 // promoteFilmToIp reads the script (cast + setting) plus the film's historical
 // results/box office (recognition/prestige are inherited from them), so the
@@ -106,5 +112,83 @@ describe('ipForSourceFilm', () => {
     const studio = { ...createInitialStudio(1_000_000), intellectualProperties: [ip] };
     expect(ipForSourceFilm(studio, 'film-5')).toBe(ip);
     expect(ipForSourceFilm(studio, 'film-nope')).toBeUndefined();
+  });
+});
+
+// --- The franchise flywheel (stage 2b): a released entry grows its IP ---------
+
+function entryFilm(id: string, assetId: string, status: 'running' | 'finished', reach: number): Film {
+  return {
+    id,
+    title: `The ${id}`,
+    script: actionScript(),
+    assetId,
+    releasedOnDay: 200,
+    results: { audienceScore: reach, criticScore: 60, buzzScore: reach, qualityScore: 60, profit: 0, totalCost: 0, totalBoxOffice: 300_000_000, openingWeekend: 50_000_000 },
+    boxOfficeRun: { status, cumulativeGross: 300_000_000 },
+  } as unknown as Film;
+}
+
+function franchiseIp(recognition: number): IntellectualProperty {
+  return {
+    id: 'ip-1', name: 'Saga', createdOnDay: 100, sourceFilmId: 'film-src',
+    filmIds: ['film-src'], characters: [],
+    setting: { id: 's-1', sourceFilmId: 'film-src', archetype: 'AlienWorld' },
+    recognition, prestige: 50,
+  };
+}
+
+function sequelAsset(id: string, ipId: string): Asset {
+  return { id, script: actionScript(), provenance: 'Commissioned', acquisitionCost: 0, acquiredOnDay: 200, ipId } as unknown as Asset;
+}
+
+describe('grownFranchiseRecognition', () => {
+  it('never decreases and never exceeds 100', () => {
+    expect(grownFranchiseRecognition(60, 0)).toBe(60); // a zero-reach entry adds nothing
+    expect(grownFranchiseRecognition(99, 100)).toBeLessThanOrEqual(100);
+    expect(grownFranchiseRecognition(60, 80)).toBeGreaterThan(60);
+  });
+
+  it('a bigger entry lifts more, and a near-saturated franchise gains little', () => {
+    const bigLift = grownFranchiseRecognition(50, 90) - 50;
+    const smallLift = grownFranchiseRecognition(50, 30) - 50;
+    expect(bigLift).toBeGreaterThan(smallLift);
+    const lowSaturation = grownFranchiseRecognition(20, 80) - 20;
+    const highSaturation = grownFranchiseRecognition(90, 80) - 90;
+    expect(highSaturation).toBeLessThan(lowSaturation); // diminishing returns near 100
+  });
+});
+
+describe('recordFranchiseEntries', () => {
+  it('folds a finished franchise entry into its IP - appends the film and grows recognition', () => {
+    const ip = franchiseIp(60);
+    const [next] = recordFranchiseEntries([ip], [entryFilm('film-2', 'asset-2', 'finished', 80)], [sequelAsset('asset-2', 'ip-1')]);
+    expect(next.filmIds).toEqual(['film-src', 'film-2']);
+    expect(next.recognition).toBeGreaterThan(60); // the entry built the brand
+  });
+
+  it('is idempotent - an entry already in the IP never double-counts', () => {
+    const ip = { ...franchiseIp(60), filmIds: ['film-src', 'film-2'] };
+    const result = recordFranchiseEntries([ip], [entryFilm('film-2', 'asset-2', 'finished', 80)], [sequelAsset('asset-2', 'ip-1')]);
+    expect(result[0]).toBe(ip); // untouched
+  });
+
+  it('ignores a still-running entry - recognition reads a settled box office, not a partial gross', () => {
+    const ip = franchiseIp(60);
+    const result = recordFranchiseEntries([ip], [entryFilm('film-2', 'asset-2', 'running', 80)], [sequelAsset('asset-2', 'ip-1')]);
+    expect(result[0]).toBe(ip);
+  });
+
+  it('ignores an original - a film whose source Asset carries no ipId is not a franchise entry', () => {
+    const ip = franchiseIp(60);
+    const original = { id: 'asset-x', script: actionScript(), provenance: 'Acquired', acquisitionCost: 1, acquiredOnDay: 10 } as unknown as Asset;
+    const result = recordFranchiseEntries([ip], [entryFilm('film-9', 'asset-x', 'finished', 80)], [original]);
+    expect(result[0]).toBe(ip);
+  });
+
+  it('returns the same array reference when nothing changed', () => {
+    const ips = [franchiseIp(60)];
+    expect(recordFranchiseEntries(ips, [], [])).toBe(ips);
+    expect(recordFranchiseEntries([], [entryFilm('f', 'a', 'finished', 80)], [sequelAsset('a', 'ip-1')])).toEqual([]);
   });
 });
