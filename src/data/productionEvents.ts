@@ -13,6 +13,20 @@ import type { ChemistryDimension, Genre, EventChoiceTemplate, EventSeverity, Per
 // to make local news, trade-press chatter about a departure or financing
 // trouble. See docs/DESIGN.md 5.x for the full reasoning.
 //
+// MAGNITUDE: buzzDelta sums point-for-point (and UNGATED by star/brand power)
+// into computeBuzzScore's anticipation core (engine/scoring.ts:eventsBuzz), on
+// the same 0-100 buzz scale whose bands are ratified in
+// docs/DESIGN_box_office_calibration_targets.md §6: ordinary studio film ~48-58,
+// "clearly anticipated" 60-75, blockbuster 75-90. The whole ordinary->tentpole
+// gap is only ~30 points, and fame 50->100 (a nobody to the biggest star alive)
+// is worth just +25. So a single on-set beat should be a SMALL slice of that: a
+// niche/local moment (a local-news crew, a blog leak) is low single digits; only
+// a genuinely spectacular, deliberately-promotional, widely-seen beat (a
+// trailer-defining stunt, a press day) reaches ~+8, and nothing on set alone
+// should manufacture blockbuster-tier anticipation - that has to be earned by
+// stars/brand/marketing, not bought with one lucky day. Keep magnitudes anchored
+// to those bands, not to how exciting the moment feels in prose.
+//
 // `delayDaysRange` is a real, consumed mechanic (see
 // engine/production.ts:rollDayEvent and state/studioReducer.ts) - extra
 // shoot days this event actually costs, on top of the day it happened on.
@@ -164,7 +178,7 @@ export const POSITIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     severity: 'low',
     costRange: [0, 0],
     qualityRange: [0, 0],
-    buzzRange: [6, 14], // genuinely public - press coverage
+    buzzRange: [1, 4], // local-only coverage: real, but nowhere near national anticipation (bands: ordinary 40-60)
     delayDaysRange: [0, 0],
   },
   {
@@ -298,7 +312,7 @@ export const NEGATIVE_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     severity: 'medium',
     costRange: [50_000, 300_000],
     qualityRange: [-8, -2],
-    buzzRange: [-8, -2], // exactly the kind of thing tabloids run with
+    buzzRange: [-4, -1], // tabloids run with it, but on-set drama dents anticipation only modestly
     delayDaysRange: [0, 1],
   },
   {
@@ -494,7 +508,7 @@ const RAW_GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplate[]
       severity: 'medium',
       costRange: [0, 0],
       qualityRange: [5, 10],
-      buzzRange: [8, 15], // explicitly trailer-bound, public-facing footage
+      buzzRange: [4, 9], // trailer-defining spectacle: the biggest on-set buzz driver, still short of a marquee star's pull
       delayDaysRange: [0, 0],
     },
     {
@@ -641,7 +655,7 @@ const RAW_GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplate[]
       severity: 'low',
       costRange: [0, 0],
       qualityRange: [0, 2],
-      buzzRange: [4, 8], // deliberately public - a posted clip
+      buzzRange: [2, 5], // a posted clip going viral helps, but modestly
       delayDaysRange: [0, 0],
     },
     {
@@ -925,7 +939,7 @@ const RAW_GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplate[]
       severity: 'low',
       costRange: [0, 0],
       qualityRange: [3, 7],
-      buzzRange: [5, 10], // explicitly a leak
+      buzzRange: [2, 6], // a niche-blog leak: real for genre fans, small in absolute terms
       delayDaysRange: [0, 0],
     },
     {
@@ -1263,7 +1277,7 @@ const RAW_GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplate[]
           description: "A slick teaser reel makes the rounds - pure publicity, no change to the film.",
           costRange: [0, 0],
           qualityRange: [0, 0],
-          buzzRange: [6, 12],
+          buzzRange: [3, 7], // a promo reel is real marketing, but one beat can't manufacture blockbuster anticipation
           delayDaysRange: [0, 0],
         },
       ],
@@ -1313,7 +1327,7 @@ const RAW_GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplate[]
       severity: 'low',
       costRange: [0, 0],
       qualityRange: [3, 7],
-      buzzRange: [6, 12], // explicitly a leak
+      buzzRange: [3, 7], // a design leak stirs fan interest, but it's one beat, not a campaign
       delayDaysRange: [0, 0],
     },
     {
@@ -1399,7 +1413,7 @@ const RAW_GENRE_EVENT_TEMPLATES: Partial<Record<Genre, ProductionEventTemplate[]
           description: 'Show off the craftsmanship for a splashy story - a day of access eats into shooting.',
           costRange: [0, 0],
           qualityRange: [0, 0],
-          buzzRange: [6, 12],
+          buzzRange: [3, 7], // a set-visit story is genuine publicity, but modest
           delayDaysRange: [0, 1],
         },
       ],
@@ -1840,7 +1854,7 @@ const RAW_RISK_DIMENSION_EVENT_TEMPLATES: Record<
         severity: 'medium',
         costRange: [50_000, 250_000],
         qualityRange: [-8, -3],
-        buzzRange: [-6, -2],
+        buzzRange: [-3, -1], // set-shutdown gossip travels, but is a small dent to public anticipation
         delayDaysRange: [0, 1],
       },
       {
@@ -1860,7 +1874,7 @@ const RAW_RISK_DIMENSION_EVENT_TEMPLATES: Record<
         severity: 'medium',
         costRange: [0, 100_000],
         qualityRange: [-6, -2],
-        buzzRange: [-8, -3],
+        buzzRange: [-4, -1], // a very public blowup is the worst on-set buzz hit, but still bounded
         delayDaysRange: [0, 1],
       },
       {
@@ -1887,7 +1901,7 @@ const RAW_RISK_DIMENSION_EVENT_TEMPLATES: Record<
             description: 'No intervention - it gets out anyway.',
             costRange: [0, 0],
             qualityRange: [0, 0],
-            buzzRange: [-6, -2],
+            buzzRange: [-4, -1], // it gets out, but a set spat only modestly dents anticipation
             delayDaysRange: [0, 0],
           },
           {
@@ -2046,7 +2060,7 @@ const RAW_RISK_DIMENSION_EVENT_TEMPLATES: Record<
             description: "Great publicity, but a day of press access eats into the shooting day itself.",
             costRange: [0, 0],
             qualityRange: [0, 0],
-            buzzRange: [8, 15],
+            buzzRange: [4, 8], // a feel-good set story is strong publicity, but still one beat
             delayDaysRange: [0, 1],
           },
           {
@@ -2186,7 +2200,7 @@ const RAW_RISK_DIMENSION_EVENT_TEMPLATES: Record<
         severity: 'medium',
         costRange: [0, 100_000],
         qualityRange: [6, 11],
-        buzzRange: [6, 12],
+        buzzRange: [3, 7], // a real-stunt story travels, but modestly
         delayDaysRange: [0, 0],
       },
       {
@@ -2447,7 +2461,7 @@ const RAW_RISK_DIMENSION_EVENT_TEMPLATES: Record<
             description: 'A work-in-progress reel makes the rounds - pure publicity, no effect on the film.',
             costRange: [0, 0],
             qualityRange: [0, 0],
-            buzzRange: [6, 12],
+            buzzRange: [3, 7], // a WIP reel travels among fans, but modestly
             delayDaysRange: [0, 0],
           },
         ],
@@ -2605,7 +2619,7 @@ const RAW_RISK_DIMENSION_EVENT_TEMPLATES: Record<
             description: 'Spend part of the cushion on getting people talking instead.',
             costRange: [30_000, 100_000],
             qualityRange: [0, 0],
-            buzzRange: [6, 12],
+            buzzRange: [3, 7], // a funded PR stunt buys awareness, but anticipation stays earned, not bought
             delayDaysRange: [0, 0],
           },
         ],
@@ -2864,7 +2878,7 @@ export const TRAIT_EVENT_TEMPLATES: ProductionEventTemplate[] = [
     severity: 'medium',
     requiresTrait: 'ScandalProne',
     impact: 'performances',
-    costRange: [0, 0], qualityRange: [-5, -2], buzzRange: [-6, -1], delayDaysRange: [0, 1],
+    costRange: [0, 0], qualityRange: [-5, -2], buzzRange: [-4, -1], delayDaysRange: [0, 1],
   },
   // ConsummateProfessional - a bad day that quietly doesn't derail, because
   // someone dependable held it together.
