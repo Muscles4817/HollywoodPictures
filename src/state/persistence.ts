@@ -388,7 +388,10 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   into MarketSource (Opportunity.source) and AssetProvenance (Asset.provenance);
 //   Asset.source became provenance + optional marketSource. Old Assets carry the
 //   removed `source` field and no provenance - same pre-launch policy, no migration.
-const SAVE_KEY = 'hollywood-pictures-save-v73';
+// v73 -> v74 (Sequels & Franchises foundation): Script gained optional
+//   franchiseRecognition (the pre-sold draw a franchise entry inherits from its
+//   source IP; absent = 0, an original). Additive; same pre-launch policy.
+const SAVE_KEY = 'hollywood-pictures-save-v74';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

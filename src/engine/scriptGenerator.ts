@@ -514,14 +514,20 @@ function randIntRange(rng: RandomFn, range: QualityRange[keyof QualityRange]): n
  *    concept exactly at its archetype band, so commissioning is the reliable
  *    floor and the market is the ceiling you can only *find*.
  *  - executionShift: a flat shift to the *execution craft* axes (structure/
- *    characters/dialogue) - a Spec reads messy/undeveloped, an Agent Package
- *    professionally polished.
+ *    characters/dialogue) - how developed the draft reads overall.
+ *  - executionSpread: per-axis symmetric variance on those same craft axes,
+ *    rolled INDEPENDENTLY per axis - this is what makes a raw Spec read *uneven*
+ *    (a sharp ear for dialogue but a mess of a structure) rather than uniformly
+ *    mediocre. A polished Agent draft has near-zero spread (consistent), a Spec a
+ *    wide one (spiky). The point of a Spec is that something is special but it's
+ *    too rough around the edges to shoot as-is.
  */
 export interface GenerationProfile {
   conceptSpread: number;
   executionShift: number;
+  executionSpread: number;
 }
-export const NEUTRAL_GENERATION: GenerationProfile = { conceptSpread: 0, executionShift: 0 };
+export const NEUTRAL_GENERATION: GenerationProfile = { conceptSpread: 0, executionShift: 0, executionSpread: 0 };
 
 function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses: Set<string>, author?: WriterCreativeProfile, profile: GenerationProfile = NEUTRAL_GENERATION): Script {
   // Minted up front (outside the rng stream) so the cast can derive stable,
@@ -546,12 +552,13 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   // source profile's concept spread is applied to it (with the other concept
   // axes) at the end. `originalityBase` is that pre-spread roll.
   const originalityBase = rollCraftStat(rng, archetypeProfile.qualityRange.originality, author?.conceptAmbition, author?.consistency);
-  // Execution craft carries the source's executionShift (a flat +/- add, no rng),
-  // so an Agent Package reads polished and a Spec undeveloped. Shift 0 (neutral /
-  // commission) leaves the authored roll exactly as-is.
-  const structure = clamp(rollCraftStat(rng, archetypeProfile.qualityRange.structure, author?.craft.structure, author?.consistency) + profile.executionShift, 1, 100);
-  const characters = clamp(rollCraftStat(rng, archetypeProfile.qualityRange.characters, author?.craft.characters, author?.consistency) + profile.executionShift, 1, 100);
-  const dialogue = clamp(rollCraftStat(rng, archetypeProfile.qualityRange.dialogue, author?.craft.dialogue, author?.consistency) + profile.executionShift, 1, 100);
+  // Execution craft is rolled here (authored) but FINALISED at the end, where the
+  // source profile's executionShift + per-axis executionSpread apply - so a raw
+  // Spec reads rough and uneven, an Agent draft polished and consistent. These are
+  // the pre-profile rolls.
+  const structureBase = rollCraftStat(rng, archetypeProfile.qualityRange.structure, author?.craft.structure, author?.consistency);
+  const charactersBase = rollCraftStat(rng, archetypeProfile.qualityRange.characters, author?.craft.characters, author?.consistency);
+  const dialogueBase = rollCraftStat(rng, archetypeProfile.qualityRange.dialogue, author?.craft.dialogue, author?.consistency);
   const complexity = randIntRange(rng, archetypeProfile.qualityRange.complexity);
 
   const storyType = weightedPick(rng, STORY_TYPES, archetypeProfile.storyTypeAffinity);
@@ -609,6 +616,16 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   const hook = jitter(hookBase);
   const emotionalPremise = jitter(emotionalBase);
   const franchisePotential = jitter(franchiseBase);
+  // Finalise execution craft: the flat shift (how developed overall) plus an
+  // INDEPENDENT per-axis spread (how uneven). A raw Spec's wide spread is what
+  // makes it spiky - sharp in one craft, a mess in another - the "special but too
+  // rough to shoot" draft. Neutral (0/0) draws nothing and leaves the base intact.
+  const execSpread = profile.executionSpread;
+  const finishCraft = (base: number) =>
+    clamp(Math.round(base + profile.executionShift + (execSpread > 0 ? randFloat(rng, -execSpread, execSpread) : 0)), 1, 100);
+  const structure = finishCraft(structureBase);
+  const characters = finishCraft(charactersBase);
+  const dialogue = finishCraft(dialogueBase);
 
   return {
     id,
