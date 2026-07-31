@@ -24,6 +24,7 @@ import { TalentComparison, type CompareSlot } from '../common/TalentComparison';
 import { useComparePins, MAX_PINNED } from '../common/useComparePins';
 import { CheckboxToggle } from '../common/CheckboxToggle';
 import { isAvailableImmediately, getTypicalSalaryForRole, getCrewCareer, getActorCareer } from '../../engine/person';
+import { deriveBackendOffers, type BackendOffer } from '../../engine/backend';
 import { getPersonAge } from '../../types';
 import { gameDateFromTotalDays } from '../../engine/calendar';
 import type { CastingChannel, Person, RoleNegotiation, Script, ScriptCharacter } from '../../types';
@@ -100,6 +101,34 @@ function pinnedFirst<T>(items: T[], idOf: (t: T) => string, isPinned: (id: strin
 // own AUTO_CLOSE_DELAY_MS uses.
 const AUTO_CLOSE_DELAY_MS = 500;
 
+/** One term-sheet card for a backend offer a star will accept in place of a full fee (engine/backend.ts) - a number-legible framing of the trade-off, no hidden formula. */
+function BackendOfferCard({ offer, onSign }: { offer: BackendOffer; onSign: () => void }) {
+  const isPoints = offer.structure === 'grossPoints';
+  return (
+    <div className="card" style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div className="row-between">
+        <strong style={{ fontSize: '0.9em' }}>{isPoints ? 'Reduced fee + gross points' : 'Salary + escalators'}</strong>
+        <Button variant="secondary" className="btn-sm" onClick={onSign}>Sign this deal</Button>
+      </div>
+      <div style={{ fontSize: '0.9em' }}>
+        {formatMoney(offer.guaranteedFee)} guaranteed{isPoints ? ` + ${offer.points}% of studio gross` : ''}
+      </div>
+      {!isPoints && offer.escalators && (
+        <ul style={{ margin: 0, paddingLeft: 18, fontSize: '0.85em' }}>
+          {offer.escalators.map((e) => (
+            <li key={e.grossThreshold}>+{formatMoney(e.bonus)} at {formatMoney(e.grossThreshold)} worldwide</li>
+          ))}
+        </ul>
+      )}
+      <div style={{ fontSize: '0.78em', color: 'var(--text-muted)' }}>
+        {isPoints
+          ? 'Lower cash now; they share the upside — and the downside — of every window, paid out of receipts before you see a profit.'
+          : 'A smaller cut of cash now; the bonuses only pay if the film is a genuine hit.'}
+      </div>
+    </div>
+  );
+}
+
 interface CastingDrawerProps {
   character: ScriptCharacter;
   role: 'Lead Actor' | 'Supporting Actor';
@@ -146,6 +175,7 @@ function CandidateCard({
   negotiation,
   onAcceptCounter,
   onWalkAway,
+  onAcceptBackendOffer,
   shortlisted,
   onToggleShortlist,
   audited,
@@ -199,6 +229,8 @@ function CandidateCard({
   negotiation?: RoleNegotiation | null;
   onAcceptCounter?: () => void;
   onWalkAway?: () => void;
+  /** Backend participation (engine/backend.ts) - sign this star to one of their structured offers instead of a flat fee. Absent where backend doesn't apply. */
+  onAcceptBackendOffer?: (offer: BackendOffer) => void;
   /** Casting Redesign, Phase 3 - whether this candidate is on the character's shortlist, and the toggle. Absent on cards where shortlisting doesn't apply. */
   shortlisted?: boolean;
   onToggleShortlist?: () => void;
@@ -282,6 +314,12 @@ function CandidateCard({
   const estimate = deal && !negotiation ? deal : null; // the pre-offer read is hidden once a negotiation is live
   const oddsSignal = estimate ? describeAcceptanceOdds(estimate.odds) : null;
 
+  // Backend participation (engine/backend.ts): a bankable star's structured
+  // alternatives to a flat fee - take-it-or-leave-it terms they offer against the
+  // standing quote their fame commands. Hidden once a flat negotiation is live.
+  const backendQuote = getActorCareer(person)?.typicalSalary ?? salaryRange.max;
+  const backendOffers = onAcceptBackendOffer && !offerBlocked && !negotiation ? deriveBackendOffers(person, backendQuote) : [];
+
   // Casting Director's take (Phase 7): the CD's single, consolidated read on this
   // candidate - a recommendation and why, only present when a Casting Director is
   // hired (deriveCastingDirectorTake returns null otherwise) and only as sharp as
@@ -359,6 +397,16 @@ function CandidateCard({
           {oddsSignal && (
             <span className={`candidate-signal candidate-signal--${oddsSignal.tone}`}>{oddsSignal.label}</span>
           )}
+        </div>
+      )}
+      {backendOffers.length > 0 && (
+        <div className="stack" style={{ gap: 8, marginTop: 10 }}>
+          <div style={{ fontSize: '0.82em', color: 'var(--text-muted)' }}>
+            Or {person.identity.name.split(' ')[0]} will take points instead of a full fee:
+          </div>
+          {backendOffers.map((o) => (
+            <BackendOfferCard key={o.structure} offer={o} onSign={() => onAcceptBackendOffer!(o)} />
+          ))}
         </div>
       )}
       {countered && (
@@ -785,6 +833,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         negotiation={negotiationFor(person)}
         onAcceptCounter={() => acceptCounter(person)}
         onWalkAway={() => walkAway(person)}
+        onAcceptBackendOffer={(offer) => dispatch({ type: 'ACCEPT_BACKEND_OFFER', characterId: character.id, role, person, offer })}
         shortlisted={isShortlisted(person.id)}
         onToggleShortlist={() => toggleShortlist(person)}
         audited={audited}

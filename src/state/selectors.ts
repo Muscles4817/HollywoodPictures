@@ -15,6 +15,7 @@ import {
   type AncillaryOutlook,
   type AncillaryProfile,
 } from '../engine/ancillary';
+import { totalBackendForFilm } from '../engine/backend';
 import { deriveStudioMilestones, type MilestoneFacts, type StudioMilestone } from '../engine/premiereReport';
 import { GENRE_PROFILES } from '../data/genres';
 import { AWARD_CATEGORY_LABEL } from '../data/awards';
@@ -138,7 +139,11 @@ export interface FilmAncillaryView {
   settled: number;
   /** Ancillary income still scheduled to arrive (the sum of this film's remaining pipeline). */
   pending: number;
-  /** Theatrical profit plus the whole ancillary lifetime - what the film ultimately makes. */
+  /** Total backend participation the film's talent deals imply over its life (negative, or 0 when there are no deals). */
+  backend: number;
+  /** Names of the participants taking backend on this film, for the deduction label. */
+  backendParticipants: string[];
+  /** Theatrical profit plus the whole ancillary lifetime, less any backend - what the film ultimately makes. */
   lifetimeProfit: number;
 }
 
@@ -181,13 +186,30 @@ export function selectFilmAncillary(state: GameState, film: Film): FilmAncillary
     };
   });
 
+  // Backend participation the film owes over its life (engine/backend.ts) - a
+  // percentage of theatrical + ancillary receipts, plus any escalators earned.
+  const deals = (film.talent ?? []).map((t) => t.backendDeal).filter((d): d is NonNullable<typeof d> => d != null);
+  const backend = deals.length
+    ? totalBackendForFilm({
+        filmId: film.id,
+        filmTitle: film.title,
+        deals,
+        theatricalStudioRevenue: film.results.studioRevenue ?? 0,
+        worldwideGross: film.results.totalBoxOffice,
+        ancillaryPayouts: [{ dueDay: 0, amount: profile.lifetimeTotal }],
+        finishDay: 0,
+      })
+    : 0;
+
   return {
     profile,
     outlook: ancillaryOutlook(profile.multipliers),
     windows,
     settled,
     pending,
-    lifetimeProfit: film.results.profit + profile.lifetimeTotal,
+    backend,
+    backendParticipants: [...new Set(deals.map((d) => d.personName))],
+    lifetimeProfit: film.results.profit + profile.lifetimeTotal + backend,
   };
 }
 
