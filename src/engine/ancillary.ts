@@ -48,8 +48,8 @@ const CULT = { originalityFloor: 70, accessibilityCeiling: 45, audienceFloor: 65
 // Multiplier clamps - keep the mainstream windows in a believable band; merch is
 // allowed to run much higher because a true franchise toy line dwarfs an adult
 // drama's (near-zero) merch by design.
-const MULT_CLAMP = { min: 0.3, max: 2.2 } as const;
-const MERCH_CLAMP = { min: 0, max: 12 } as const;
+const MULT_CLAMP = { min: 0.25, max: 2.8 } as const;
+const MERCH_CLAMP = { min: 0, max: 18 } as const;
 
 // --- Inputs (plain data in) ------------------------------------------------
 
@@ -155,14 +155,14 @@ export function deriveAncillaryMultipliers(a: AncillaryAttributes): AncillaryMul
   const lift = awardsLift(a.awards);
 
   const homeEntertainment = clamp(
-    genre.homeEnt * (0.7 + 0.6 * aud) * (0.9 + 0.4 * famTeen) * (0.9 + 0.3 * fr),
+    genre.homeEnt * (0.4 + 1.0 * aud) * (0.9 + 0.4 * famTeen) * (0.9 + 0.35 * fr),
     MULT_CLAMP.min,
     MULT_CLAMP.max,
   );
 
   const licensing = clamp(
     (0.5 + 0.7 * access) *
-      (0.75 + 0.5 * aud) *
+      (0.55 + 0.8 * aud) *
       (0.85 + 0.3 * crit) *
       (0.9 + 0.3 * fr) *
       (1 + lift) *
