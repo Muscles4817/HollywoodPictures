@@ -668,16 +668,31 @@ export function computeBuzzScore(
   const briefBuzz = briefBuzzContribution(briefFromChoices(postProductionChoices));
   const scriptBuzz = (deriveCommercialProfile(script).hookStrength - 50) * SCRIPT_BUZZ_WEIGHT;
 
-  // Non-purchasable anticipation core: who's involved, how established the studio
-  // is, the concept's hook, and production moments. What audiences already want.
+  // Non-purchasable anticipation core: intrinsic latent demand - who's involved,
+  // how established the studio is, the concept's own hook, and the buzz-worthiness
+  // of the finished cut. What audiences already want, before any public signal
+  // has to travel to reach them.
   const anticipation =
-    BUZZ_BASE + (fameAvg - 50) * FAME_BUZZ_WEIGHT + (studioBrand - 50) * BRAND_BUZZ_WEIGHT + scriptBuzz + eventsBuzz + briefBuzz;
+    BUZZ_BASE + (fameAvg - 50) * FAME_BUZZ_WEIGHT + (studioBrand - 50) * BRAND_BUZZ_WEIGHT + scriptBuzz + briefBuzz;
 
-  // Marketing amplifies that core, gated by star/brand power - an unknown package
-  // gives marketing little to amplify, so spend alone can't reach the top bands.
+  // Amplification gate: how much latent audience there is for a public signal to
+  // reach. An unknown package (no stars, no brand) gives a signal little to carry;
+  // an established one amplifies it. Floored so some organic reach always exists.
   const starPower = clamp((fameAvg + studioBrand) / 200, 0, 1);
-  const marketingGate = MARKETING_GATE_FLOOR + (1 - MARKETING_GATE_FLOOR) * starPower;
-  const marketingBuzz = marketingBuzzContribution(marketingReach) * MARKETING_BUZZ_WEIGHT * marketingGate;
+  const amplificationGate = MARKETING_GATE_FLOOR + (1 - MARKETING_GATE_FLOOR) * starPower;
 
-  return softCeilBuzz(anticipation + marketingBuzz);
+  // Marketing spend amplifies the core, gated - so spend alone can't reach the top
+  // bands.
+  const marketingBuzz = marketingBuzzContribution(marketingReach) * MARKETING_BUZZ_WEIGHT * amplificationGate;
+
+  // Production-moment buzz (a trailer-defining stunt, a leak, an on-set scandal)
+  // reaches only as far as there's an audience primed to care - a tentpole's every
+  // set beat is amplified; an unknown's lucky (or unlucky) day barely travels. Gated
+  // on the SAME latent-demand axis as marketing rather than added raw into the core,
+  // so on-set buzz can no longer bypass non-purchasability and manufacture top-band
+  // anticipation for a no-name film. Sign is preserved (eventsBuzz can be net
+  // negative), so a scandal on a famous package still bites hardest.
+  const eventsBuzzAmplified = eventsBuzz * amplificationGate;
+
+  return softCeilBuzz(anticipation + marketingBuzz + eventsBuzzAmplified);
 }

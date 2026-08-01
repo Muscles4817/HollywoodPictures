@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { computeScriptScore, computeGenreFitScore, computeMarketabilityScore, computeBuzzScore, computeActingScore } from './scoring';
 import { generateScriptOptions } from './scriptGenerator';
 import { createRng } from './random';
-import type { ActingStyle, CharacterTraitProfile, Person, ProductionChoices, PostProductionChoices, MarketingChoices, Script, ScriptCharacter, TalentAssignment } from '../types';
+import type { ActingStyle, CharacterTraitProfile, Person, ProductionChoices, PostProductionChoices, MarketingChoices, ProductionEvent, Script, ScriptCharacter, TalentAssignment } from '../types';
 
 function scriptFor(genre: Parameters<typeof generateScriptOptions>[0], seed: number): Script {
   return generateScriptOptions(genre, createRng(seed), 1)[0];
@@ -169,5 +169,40 @@ describe('computeActingScore - character-specific casting', () => {
     ];
     expect(() => computeActingScore(talent, scriptWithCharacter)).not.toThrow();
     expect(computeActingScore(talent, scriptWithCharacter)).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('computeBuzzScore - production-event buzz is gated by latent audience (non-purchasability)', () => {
+  const style: ActingStyle = { characterTransformation: 60, emotionalPerformance: 60, charisma: 60, comedy: 60, physicalPerformance: 60 };
+  // A single Lead Actor at a chosen fame; studioBrand is passed to match, so both
+  // sides of the amplification gate (fame + brand) move together.
+  function leadAt(fame: number): TalentAssignment {
+    const p = actorPerson('lead', style);
+    return { role: 'Lead Actor', person: { ...p, reputation: { ...p.reputation, fame } } };
+  }
+  function ev(buzzDelta: number): ProductionEvent {
+    return { id: 'genre-action-pos-stunt-gag', description: 'x', severity: 'medium', costDelta: 0, qualityDelta: 0, buzzDelta, delayDaysDelta: 0 };
+  }
+  const script = scriptFor('Action', 11);
+  // Minimal marketing keeps both packages in the linear middle of the buzz curve,
+  // away from the 0 floor and the soft ceiling, so the assertions isolate the gate.
+  const LOW_MARKETING = 100_000;
+  const buzz = (fame: number, events: ProductionEvent[]) =>
+    computeBuzzScore(script, [leadAt(fame)], events, postProductionChoices, LOW_MARKETING, fame);
+
+  it('a +buzz on-set moment lifts an established package (famous cast, strong brand) more than an unknown one', () => {
+    const unknownGain = buzz(40, [ev(8)]) - buzz(40, []);
+    const famousGain = buzz(80, [ev(8)]) - buzz(80, []);
+    // The same stunt travels further when there is a latent audience to carry it.
+    expect(famousGain).toBeGreaterThan(unknownGain);
+    // ...but an unknown package still gets some organic reach - the gate is floored, not zero.
+    expect(unknownGain).toBeGreaterThan(0);
+  });
+
+  it('a -buzz on-set scandal costs an established package more than an unknown one (sign preserved through the gate)', () => {
+    const unknownDrop = buzz(40, []) - buzz(40, [ev(-8)]);
+    const famousDrop = buzz(80, []) - buzz(80, [ev(-8)]);
+    expect(famousDrop).toBeGreaterThan(unknownDrop);
+    expect(unknownDrop).toBeGreaterThan(0);
   });
 });
