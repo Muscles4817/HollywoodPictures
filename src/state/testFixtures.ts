@@ -95,7 +95,7 @@ export function buildReadyDraft(rng: RandomFn, marketingOverrides: Partial<Marke
   const support = generateTalentCandidates('Actor', rng, 1)[0];
 
   return {
-    ...createDraftFromAsset(asset, {}),
+    ...createDraftFromAsset(asset, {}, 1),
     targetAudience: 'Mass Market',
     talent: [
       { role: 'Director', person: director },

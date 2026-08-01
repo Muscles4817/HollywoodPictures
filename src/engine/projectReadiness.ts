@@ -36,6 +36,17 @@ export interface SectionReadiness {
   detail: string;
 }
 
+/**
+ * A single qualitative reading of how far a project is from greenlight, for
+ * the development-phase gauge (docs/DESIGN_REVIEW_development_and_financing.md
+ * §3). A summarisation of the same blockers/sections below - never a second
+ * source of truth - so the gauge can never disagree with the Greenlight button.
+ * The bands deliberately foreshadow later phases: `packaged` = creatively
+ * assembled but the money isn't closed yet, which becomes the financing gate
+ * once Phase 3 replaces "can the studio afford it" with a real financing stack.
+ */
+export type DevelopmentReadinessBand = 'stalled' | 'warming' | 'packaged' | 'greenlightable';
+
 export interface ProjectReadiness {
   ready: boolean;
   blockers: ProjectReadinessIssue[];
@@ -45,6 +56,8 @@ export interface ProjectReadiness {
     production: SectionReadiness;
     finance: SectionReadiness;
   };
+  /** The qualitative development-phase gauge (see DevelopmentReadinessBand) - a summary of the sections/blockers, not an independent computation. */
+  band: DevelopmentReadinessBand;
   /** Where to send the player next to make the most progress toward Greenlight - null once ready. */
   recommendedNextSection: ProjectWorkspaceSection | null;
 }
@@ -201,11 +214,27 @@ export function deriveProjectReadiness(draft: FilmDraft, studioCash: number): Pr
   else if (!hasProductionPlan) recommendedNextSection = 'production';
   else if (!canAfford) recommendedNextSection = 'finance';
 
+  // The qualitative gauge, summarised from the same components above (never a
+  // second computation): no blockers -> greenlightable; a finished package with
+  // only the money outstanding -> packaged (the future financing gate); any
+  // creative progress at all -> warming; a bare, freshly-created draft -> stalled.
+  const ready = blockers.length === 0;
+  const packaged = castAndCrewComplete && hasProductionPlan; // only finance can still block here
+  const hasAnyProgress = hasDirector || hasProductionPlan || draft.talent.length > 0;
+  const band: DevelopmentReadinessBand = ready
+    ? 'greenlightable'
+    : packaged
+      ? 'packaged'
+      : hasAnyProgress
+        ? 'warming'
+        : 'stalled';
+
   return {
-    ready: blockers.length === 0,
+    ready,
     blockers,
     warnings,
     sections: { castAndCrew, production, finance },
+    band,
     recommendedNextSection,
   };
 }

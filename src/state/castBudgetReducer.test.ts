@@ -39,7 +39,7 @@ function pricedActor(id: string, typicalSalary: number): Person {
 }
 
 function focusedState(): GameState {
-  const draft = createDraftFromAsset(inceptionAsset, {});
+  const draft = createDraftFromAsset(inceptionAsset, {}, 1);
   const talentPool = withRng(1, (rng) => generateTalentPool(rng)).result;
   return {
     studio: createInitialStudio(400_000_000),

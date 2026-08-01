@@ -98,7 +98,7 @@ function assetFor(scriptId: string) {
 function buildRecreationState(seed: number, spec: FilmRecreation, foundingCash: number, talent: TalentAssignment[]): GameState {
   const asset = assetFor(spec.scriptId);
   const draft: FilmDraft = {
-    ...createDraftFromAsset(asset, {}),
+    ...createDraftFromAsset(asset, {}, 1),
     targetAudience: asset.script.intendedAudience,
     talent,
     productionChoices: BLOCKBUSTER_PRODUCTION_CHOICES,

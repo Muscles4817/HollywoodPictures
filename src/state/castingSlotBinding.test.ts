@@ -45,7 +45,7 @@ function mkActor(id: string, gender: 'Male' | 'Female', style: Partial<ActingSty
 
 /** A GameState with an Inception draft focused and empty-cast, ready to dispatch TOGGLE_TALENT_FOR_ROLE against. */
 function stateWithInceptionDraft(): GameState {
-  const draft = createDraftFromAsset(inceptionAsset, {});
+  const draft = createDraftFromAsset(inceptionAsset, {}, 1);
   const talentPool = withRng(1, (rng) => generateTalentPool(rng)).result;
   return {
     studio: createInitialStudio(400_000_000),

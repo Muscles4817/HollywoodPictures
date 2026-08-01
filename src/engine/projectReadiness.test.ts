@@ -22,7 +22,7 @@ const CHEAP_CHOICES: ProductionChoices = {
 /** A fresh, empty draft (an owned Asset, no hires, no plan) - the starting point for every test below. */
 function emptyDraft(seed: number): FilmDraft {
   const { result: asset } = withRng(seed, (rng) => buildReadyAsset(rng));
-  return createDraftFromAsset(asset, {});
+  return createDraftFromAsset(asset, {}, 1);
 }
 
 /** Hires enough distinct candidates to satisfy every MANDATORY_TALENT_ROLES slot's own effectiveRoleCapacity.min. */
@@ -62,6 +62,35 @@ describe('deriveProjectReadiness - the core ready/not-ready split', () => {
     expect(codes).toContain('missing-mandatory-crew');
     expect(codes).toContain('production-plan-incomplete');
     expect(readiness.recommendedNextSection).toBe('cast-and-crew');
+  });
+});
+
+describe('deriveProjectReadiness - the development-phase gauge (band)', () => {
+  it('a bare, freshly-created draft reads as stalled', () => {
+    const draft = emptyDraft(101);
+    expect(deriveProjectReadiness(draft, 50_000_000).band).toBe('stalled');
+  });
+
+  it('a draft with some hires but no finished package reads as warming', () => {
+    const draft = emptyDraft(102);
+    const withDirector = { ...draft, talent: draft.talent.concat(fullCast(102, draft).filter((a) => a.role === 'Director')) };
+    // A director is attached but the package (full cast + plan) is not complete.
+    const readiness = deriveProjectReadiness(withDirector, 50_000_000);
+    expect(readiness.ready).toBe(false);
+    expect(readiness.band).toBe('warming');
+  });
+
+  it('a fully-cast, fully-planned draft the studio cannot afford reads as packaged (financing outstanding)', () => {
+    const draft = readyDraft(103);
+    const readiness = deriveProjectReadiness(draft, 0); // everything assembled, but no cash
+    expect(readiness.ready).toBe(false);
+    expect(readiness.blockers.map((b) => b.code)).toEqual(['cannot-afford-greenlight']);
+    expect(readiness.band).toBe('packaged');
+  });
+
+  it('a ready draft reads as greenlightable', () => {
+    const draft = readyDraft(104);
+    expect(deriveProjectReadiness(draft, 50_000_000).band).toBe('greenlightable');
   });
 });
 
