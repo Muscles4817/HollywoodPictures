@@ -304,10 +304,34 @@ export interface DirectorProductionStyle {
   effectsStrategy: Distribution<EffectsMethodKey>;
 }
 
+// Domain aptitudes (docs/DESIGN_REVIEW_development_and_financing.md §5a) - HOW
+// GOOD a creative is at each of four distinct crafts, distinct from `skill` =
+// how good they are overall. The gap between domains is the whole point: a
+// brilliant visual director can be a genuinely weak story mind (the "Snyder
+// principle"), which is what makes accepting a creative demand a judgement call
+// rather than a rubber stamp. Optional/additive, exactly like DirectorCareer.handsOn
+// and CrewCareer.philosophy: an authored vector (marquee directors with a real
+// reputation) overrides; absent, it's a STABLE per-person derivation centred on
+// `skill` (engine/creativeAptitudes.ts:deriveDirectorAptitudes) - never rng, never
+// a live dial.
+export interface DomainAptitudes {
+  /** Script/story judgement: structure, character, dialogue instincts. */
+  story: number; // 0-100
+  /** Visual command: cinematography, production design, spectacle. */
+  visual: number; // 0-100
+  /** Directing actors: drawing out performance. */
+  performance: number; // 0-100
+  /** Post/assembly craft: edit, pacing, musical sensibility. */
+  craft: number; // 0-100
+}
+
 export interface DirectorCareer extends RoleCareerCommon<'Director'> {
   skill: number; // 1-100
   toneProfile: ToneProfile;
   productionStyle: DirectorProductionStyle;
+  // Per-domain aptitudes (see DomainAptitudes). Optional authored override for
+  // marquee directors; absent means a stable per-person derivation from `skill`.
+  aptitudes?: DomainAptitudes;
   // How forcefully this director shapes actor performances - "lets you cook"
   // (low) vs "drags a specific performance out of you" (high). LEVERAGE on the
   // director<->actor match, not a quality dial: a hands-on director unlocks a

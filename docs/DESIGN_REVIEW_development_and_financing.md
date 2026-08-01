@@ -225,6 +225,72 @@ and controllable — that quietly forfeits greatness. Exactly the intended tensi
 
 ---
 
+## 5a. Phase 2 concrete design (locked decisions)
+
+Phase 2 builds §4–§5. Decisions taken:
+
+1. **Aptitude granularity: 4 domains** — `Story / Visual / Performance / Craft`.
+   Coarse enough to read qualitatively, expressive enough for the Snyder shape.
+2. **Only directors raise demands in the first slice.** Lead stars and producers
+   are added in a later slice, to keep the first cut legible.
+3. **Aptitudes are partially revealed, and relationship sharpens the read.** A
+   reputation-level tag is always visible; a stronger working relationship
+   (collaboration history) resolves a sharper per-domain read. Never raw numbers.
+
+### Domain aptitudes — derive-when-absent (mirrors `handsOn`/`philosophy`)
+
+```ts
+interface DomainAptitudes { story: number; visual: number; performance: number; craft: number; } // 0–100
+// DirectorCareer.aptitudes?: DomainAptitudes   (authored override for marquee directors)
+```
+`deriveAptitudes(person)`: authored value if present; else a **stable per-person**
+derivation (via `actingModel.stableUnit`, not rng — same discipline as
+`crewPhilosophy`/`directorHandsOn`) **centred on the director's overall `skill`
+with an independent per-domain spread**, so overall competence is preserved while
+domains genuinely diverge. Dramatic "great visual / weak story" cases come from
+*authored* marquee aptitudes; the derived default supplies moderate texture.
+
+| Aptitude | Governs (reads/moves) |
+|---|---|
+| Story | script craft (structure/characters/dialogue/originality) |
+| Visual | `cinematographyFacet`, `setsFacet`, spectacle |
+| Performance | directing actors (`handsOn` + `actingModel`) |
+| Craft | `editFacet`, `scoreFacet`, pacing |
+
+### Partial reveal
+
+`describeDirectorAptitudes(person, relationship?)` → a **qualitative** read whose
+resolution scales with relationship familiarity (`collaborations`): at arm's
+length, only the standout strength and standout weakness are named, coarsely; a
+close relationship resolves a per-domain band (exceptional/strong/solid/shaky).
+Never numbers (house rule 3).
+
+### Demand resolution (the Snyder bet), concretely
+
+`accept`: `Δquality ≈ strength · f(aptitude[governor])` (f(50)=0, f(100)=+max,
+f(0)=−max) `± variance` widened by volatility/ego; plus side-effects (book a
+preferred collaborator → cost + availability window gating the shoot start;
+trigger a rewrite via `reviseScript`; raise Scale → budget). `negotiate`: partial
+Δ + partial side-effect + small tension. `refuse`: no Δ, `tension↑`, walk-risk
+roll, and the upside is forgone.
+
+Demand count is derived per director: `round(propensity(ego, visionStrength) ·
+clash(vision, script))`, capped at 10; a low-ego, low-vision director on an
+aligned script raises ~0.
+
+### Phase 2 sub-phasing (ship in thirds)
+
+- **2a — domain aptitudes + partial-reveal read.** `DomainAptitudes` type,
+  `deriveAptitudes` (derive-when-absent), `describeDirectorAptitudes`
+  (relationship-scaled). *Data foundation; no behaviour change.* ← build first.
+- **2b — vision + demand generation + accept/refuse quality deltas.** The
+  Snyder bet, surfaced via the existing `PendingEventChoice` flow on
+  `DevelopmentState`.
+- **2c — side-effects (collaborator booking → shoot-start gate, rewrite trigger,
+  scale bump), walk risk, and the blandness-lift wiring into outcome variance.**
+
+---
+
 ## 6. Financing as a stack
 
 Replace "studio funds 100%." A development Project has a **budget** (negative cost
@@ -370,13 +436,13 @@ interface FinancingSource { kind: 'studio' | 'producer' | 'presale' | 'cofinance
 
 ## 14. Phasing (each shippable; pre-launch, schema free)
 
-1. **Development state + readiness gauge.** Split the pre-greenlight Project out
-   of pre-production; add `status: 'development'`, `DevelopmentState`, derive
-   `readiness`, gate greenlight. No new content yet — the skeleton the rest hangs
-   on. **← build next.**
-2. **Attachments + domain aptitudes + the demand loop.** Director/star visions,
-   the 0–10 demand queue, competence-driven resolution (the Snyder principle),
-   availability-gated delays, walk-risk, the blandness floor.
+1. **Development state + readiness gauge.** ✅ **Shipped.** Pre-greenlight
+   `DevelopmentState` phase sub-type on `FilmDraft`, derived `readiness` band,
+   greenlight gate. (Built as a phase sub-type, not a `Project` kind — see §2.)
+2. **Attachments + domain aptitudes + the demand loop.** Director visions, the
+   0–10 demand queue, competence-driven resolution (the Snyder principle),
+   availability-gated delays, walk-risk, the blandness floor. **Locked design +
+   sub-phasing (2a/2b/2c) in §5a; building 2a next.**
 3. **Financing stack + waterfall.** Sources, terms, the greenlight-must-close
    gate, recoupment at release.
 4. **Producers as bridge + turnaround market.** Wire specialties to
