@@ -176,20 +176,34 @@ tunable — rebalance by editing them, not the logic.
 
 ## 5. Playability note
 
-Pre-production and photography are advanced **day-by-day** by the player, so a
-big tentpole now implies ~200 clicks through those phases before its (passive)
-post wait. That is deliberate — the recalibration pushes the dramatic length
-into **post-production, which is a passive wait**, and keeps the clicked phases
-capped near ~4 months each. If the day-by-day phases start to feel like a chore
-at the top end, the right follow-up is a UI "advance N days / skip to end of
-phase" control, not shrinking the timeline model back down. That is out of scope
-here and left as a follow-up.
+**Every phase is a passive, real-time wait — there is no day-by-day clicking.**
+The game runs a real-time clock (`App.tsx`: an `ADVANCE_DAY` `setInterval` at a
+player-controlled speed, pausable, auto-paused on planning screens). Time passes
+on its own while the player does whatever they like — developing scripts,
+casting, managing other films.
+
+- **Pre-production and photography**, when the player is watching that
+  production's screen, auto-tick on a fast local timer (~500 ms/day) with a
+  **Fast Forward** button to jump to the end and a single "keep shooting past
+  the recommended schedule?" decision point. When the player is *off doing
+  something else*, the production advances in the background via the shared
+  calendar tick (`settleProductionsInProgress`) — so it progresses whether or
+  not anyone's looking.
+- **Post-production** is fully passive: it advances via the global clock toward
+  `postProductionScreeningReadyDay`, with no dedicated screen.
+
+So the practical cost of a longer timeline is **more real-time on the global
+clock, which the player spends running other studio activity** — exactly the
+intended loop, and the reason a year-plus tentpole post is a feature (a big film
+ties up a slot for a long time) rather than a chore. The speed multiplier,
+pause, and Fast Forward all keep the wall-clock in the player's hands. No
+"advance N days" control is needed — that framing was based on a misreading of
+the shoot loop and does not apply.
 
 ## 6. Not done / follow-ups
 
 - No development-hell / financing gestation on the critical path (still instant
   to buy a script). Modeling long, uncertain development would be the next step
   toward true multi-year timelines but is a larger feature, not a constant tweak.
-- No "advance multiple days" control for the day-by-day phases (see §5).
 - Cost model is unaffected: daily shoot burn is `shootingBudget / recommendedDays`,
   so total shoot spend is invariant to these length changes.
