@@ -543,6 +543,32 @@ function stateReadyToGreenlight(seed: number, startingCash = 50_000_000): GameSt
   return s;
 }
 
+describe('Development phase lifecycle (Development & Financing, Phase 1)', () => {
+  it('CREATE_PROJECT_FROM_ASSET opens a development phase stamped with the current day', () => {
+    const { result: asset } = withRng(700, (rng) => buildReadyAsset(rng));
+    let s = freshWorkspaceState(700, 50_000_000);
+    s = { ...s, studio: { ...s.studio, assets: [asset] } };
+    const startDay = s.totalDays;
+    s = studioReducer(s, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
+
+    const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
+    expect(draft.development).toEqual({ status: 'in-development', startedOnDay: startDay });
+    expect(draft.greenlitOnDay).toBeNull(); // still pre-greenlight
+  });
+
+  it('GREENLIGHT_PROJECT ends development (development -> null) as the package freezes and prep begins', () => {
+    const ready = stateReadyToGreenlight(701);
+    const before = asPlayerDraft(findProject(ready.projects, ready.focusedProjectId))!;
+    expect(before.development?.status).toBe('in-development'); // sanity - still developing
+
+    const greenlit = studioReducer(ready, { type: 'GREENLIGHT_PROJECT' });
+    const after = asPlayerDraft(findProject(greenlit.projects, greenlit.focusedProjectId))!;
+    expect(after.development).toBeNull();
+    expect(after.greenlitOnDay).not.toBeNull();
+    expect(after.preProduction).not.toBeNull(); // handed off to prep
+  });
+});
+
 describe('gender enforcement when casting (engine/casting.ts)', () => {
   // Build a workspace state whose focused draft's first Lead character is
   // written for `leadGender`, then return the state plus that draft's script.

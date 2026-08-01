@@ -46,7 +46,7 @@ function practicalDirector() {
 }
 
 function stateWithInceptionDraft(withDirector = false): GameState {
-  const draft = createDraftFromAsset(inceptionAsset, {});
+  const draft = createDraftFromAsset(inceptionAsset, {}, 1);
   if (withDirector) {
     // A practical director + a digital-leaning PD -> a Director↔PD philosophy clash.
     const digitalPD = {

@@ -1094,6 +1094,28 @@ export interface PreProductionState {
   pendingChoice: PendingEventChoice | null;
 }
 
+// Development phase (docs/DESIGN_REVIEW_development_and_financing.md) - the
+// pre-greenlight span in which a project's package (attachments, creative
+// demands) and financing assemble. Modelled as a self-contained phase
+// sub-type held on FilmDraft (`development` below), exactly like
+// PreProductionState/PhotographyState hold the prep and shoot phases - NOT as
+// a new Project `kind` (that union distinguishes entities: player draft vs
+// rival vs released vs scheduled; a player draft's own lifecycle phases are
+// deliberately read from field presence - see FilmDraft.greenlitOnDay's note).
+// Present while pre-greenlight, null once greenlit (the package is frozen and
+// the project hands off to PreProductionState). Phase 1 is the skeleton: the
+// state exists and is lifecycle-wired, so later phases (attachments, the 0-10
+// creative-demand queue, the financing stack) attach here without touching the
+// greenlight plumbing again.
+export interface DevelopmentState {
+  // Room to grow (e.g. 'stalled' | 'packaging' later) - a status field from the
+  // start, mirroring the other phase sub-types, so a richer development lifecycle
+  // never needs a shape change here.
+  status: 'in-development';
+  /** GameState.totalDays the project entered development (created from its Asset) - anchors "time in development" and, later, the option/carry clock. */
+  startedOnDay: GameDay;
+}
+
 export type EditStyle = 'Commercial' | 'Artistic' | 'Balanced';
 export type MusicFocus = 'Minimal' | 'Standard' | 'Heavy';
 export type FinalCutFocus = 'Trailer-focused' | 'Critic-focused' | 'Star-focused' | 'Mystery-focused';
@@ -2493,6 +2515,13 @@ export interface FilmDraft {
   // means prep is underway; 'finished' means it's the persisted record the shoot
   // and finished film read from (see PreProductionState). Distinguishes the prep
   // phase from filming, which `photography` tracks.
+  // The pre-greenlight development phase (package + financing assembling), or
+  // absent/null once greenlit - the project's package is frozen at Greenlight
+  // and it hands off to `preProduction` below. Additive, defensively-read seam
+  // (matching Asset's own development seams): set by createDraftFromAsset,
+  // cleared to null by GREENLIGHT_PROJECT; older/test-built drafts simply omit
+  // it. See DevelopmentState.
+  development?: DevelopmentState | null;
   preProduction: PreProductionState | null;
   photography: PhotographyState | null;
   // Index into the wizard's canonical step order (state/studioReducer.ts:WIZARD_STEP_ORDER)

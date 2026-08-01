@@ -13,6 +13,7 @@ import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { ScriptDetails } from '../common/ScriptDetails';
 import { GreenlightConfirmation } from './GreenlightConfirmation';
+import type { DevelopmentReadinessBand } from '../../engine/projectReadiness';
 import type { ProjectWorkspaceSection } from '../../types';
 
 const AUDIENCE_DESCRIPTIONS = pluckDescriptions(AUDIENCE_PROFILES);
@@ -23,6 +24,14 @@ const SECTION_LABELS: Record<ProjectWorkspaceSection, string> = {
   production: 'Production',
   producers: 'Producers',
   finance: 'Finance',
+};
+
+// The qualitative development-phase gauge (engine/projectReadiness.ts:DevelopmentReadinessBand).
+const BAND_LABELS: Record<DevelopmentReadinessBand, string> = {
+  stalled: 'Stalled',
+  warming: 'Warming up',
+  packaged: 'Packaged - financing outstanding',
+  greenlightable: 'Ready to greenlight',
 };
 
 /**
@@ -43,6 +52,7 @@ export function ProjectOverview() {
 
   const readiness = deriveProjectReadiness(draft, state.studio.cash);
   const commitment = deriveGreenlightCommitment(draft, state.studio.cash);
+  const daysInDevelopment = draft.development ? state.totalDays - draft.development.startedOnDay : null;
 
   const director = findAssignedPerson(draft.talent, 'Director');
   const directorCareer = director && getDirectorCareer(director);
@@ -98,6 +108,14 @@ export function ProjectOverview() {
 
       <div className="card stack">
         <h3 style={{ margin: 0 }}>Greenlight Readiness</h3>
+        <div className="row-between">
+          <span style={{ fontWeight: 600 }}>{BAND_LABELS[readiness.band]}</span>
+          {daysInDevelopment !== null && (
+            <span style={{ color: 'var(--text-muted)' }}>
+              In development {daysInDevelopment} {daysInDevelopment === 1 ? 'day' : 'days'}
+            </span>
+          )}
+        </div>
         {readiness.ready ? (
           <p style={{ margin: 0, color: 'var(--green)' }}>Everything's in place - ready to greenlight.</p>
         ) : (
