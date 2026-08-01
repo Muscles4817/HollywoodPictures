@@ -211,7 +211,7 @@ function wrapPhotography(draft: FilmDraft, wrapDay: number): { draft: FilmDraft;
   const productionChoices = draft.productionChoices!;
   const committed = productionChoices.shootingBudgetAmount + (productionChoices.contingencyReserveAmount ?? 0);
   const contingencySettlement = committed - photography.runningCost;
-  const postProductionScreeningReadyDay = wrapDay + computeRecommendedPostProductionDays(draft.talent, productionChoices);
+  const postProductionScreeningReadyDay = wrapDay + computeRecommendedPostProductionDays(draft.talent, draft.script!, productionChoices);
   return {
     draft: { ...draft, photography: { ...photography, status: 'finished' }, postProductionScreeningReadyDay },
     contingencySettlement,

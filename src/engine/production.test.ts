@@ -104,76 +104,93 @@ describe('computeRecommendedPreProductionDays', () => {
 describe('computeRecommendedPostProductionDays', () => {
   it('is always a positive whole number of days', () => {
     const talent = [...assignmentsOfSize(20, 6), editorWithSkill(20, 50)];
-    const days = computeRecommendedPostProductionDays(talent, baseChoices());
+    const days = computeRecommendedPostProductionDays(talent, baseScript(20), baseChoices());
     expect(days).toBeGreaterThan(0);
     expect(Number.isInteger(days)).toBe(true);
   });
 
   it('a Long-intensity film needs more post-production than a Short one, all else equal', () => {
     const talent = [...assignmentsOfSize(21, 6), editorWithSkill(21, 50)];
-    const shortDays = computeRecommendedPostProductionDays(talent, baseChoices({ runtimeIntensity: 0 }));
-    const longDays = computeRecommendedPostProductionDays(talent, baseChoices({ runtimeIntensity: 1 }));
+    const script = baseScript(21);
+    const shortDays = computeRecommendedPostProductionDays(talent, script, baseChoices({ runtimeIntensity: 0 }));
+    const longDays = computeRecommendedPostProductionDays(talent, script, baseChoices({ runtimeIntensity: 1 }));
     expect(longDays).toBeGreaterThan(shortDays);
+  });
+
+  it('a more complex film needs more post-production than a simpler one, all else equal', () => {
+    const talent = [...assignmentsOfSize(21, 6), editorWithSkill(21, 50)];
+    const choices = baseChoices();
+    const simpleDays = computeRecommendedPostProductionDays(talent, baseScript(21, { complexity: 10 }), choices);
+    const complexDays = computeRecommendedPostProductionDays(talent, baseScript(21, { complexity: 90 }), choices);
+    expect(complexDays).toBeGreaterThan(simpleDays);
   });
 
   it('heavier VFX ambition needs more post-production than minimal VFX spend, all else equal', () => {
     const talent = [...assignmentsOfSize(22, 6), editorWithSkill(22, 50)];
-    const minimalVfxDays = computeRecommendedPostProductionDays(talent, baseChoices({ vfxAmount: VFX_RANGE.min }));
-    const heavyVfxDays = computeRecommendedPostProductionDays(talent, baseChoices({ vfxAmount: VFX_RANGE.max }));
+    const script = baseScript(22);
+    const minimalVfxDays = computeRecommendedPostProductionDays(talent, script, baseChoices({ vfxAmount: VFX_RANGE.min }));
+    const heavyVfxDays = computeRecommendedPostProductionDays(talent, script, baseChoices({ vfxAmount: VFX_RANGE.max }));
     expect(heavyVfxDays).toBeGreaterThan(minimalVfxDays);
   });
 
   it('does not read practicalEffectsAmount at all - only vfxAmount drives the VFX component', () => {
     const talent = [...assignmentsOfSize(23, 6), editorWithSkill(23, 50)];
-    const minimalPractical = computeRecommendedPostProductionDays(talent, baseChoices({ practicalEffectsAmount: PRACTICAL_EFFECTS_RANGE.min }));
-    const heavyPractical = computeRecommendedPostProductionDays(talent, baseChoices({ practicalEffectsAmount: PRACTICAL_EFFECTS_RANGE.max }));
+    const script = baseScript(23);
+    const minimalPractical = computeRecommendedPostProductionDays(talent, script, baseChoices({ practicalEffectsAmount: PRACTICAL_EFFECTS_RANGE.min }));
+    const heavyPractical = computeRecommendedPostProductionDays(talent, script, baseChoices({ practicalEffectsAmount: PRACTICAL_EFFECTS_RANGE.max }));
     expect(heavyPractical).toBe(minimalPractical);
   });
 
   it('a stronger Editor produces a shorter estimate than a weaker one, all else equal', () => {
     const choices = baseChoices({ runtimeIntensity: 1 });
+    const script = baseScript(24);
     const base = assignmentsOfSize(24, 6);
-    const weakEditorDays = computeRecommendedPostProductionDays([...base, editorWithSkill(24, 0)], choices);
-    const strongEditorDays = computeRecommendedPostProductionDays([...base, editorWithSkill(24, 100)], choices);
+    const weakEditorDays = computeRecommendedPostProductionDays([...base, editorWithSkill(24, 0)], script, choices);
+    const strongEditorDays = computeRecommendedPostProductionDays([...base, editorWithSkill(24, 100)], script, choices);
     expect(strongEditorDays).toBeLessThan(weakEditorDays);
   });
 
   it('a stronger VFX Supervisor produces a shorter estimate than a weaker one, when VFX ambition is high', () => {
     const choices = baseChoices({ vfxAmount: VFX_RANGE.max });
+    const script = baseScript(25);
     const base = [...assignmentsOfSize(25, 6), editorWithSkill(25, 50)];
-    const weakVfxSupDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(25, 0)], choices);
-    const strongVfxSupDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(25, 100)], choices);
+    const weakVfxSupDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(25, 0)], script, choices);
+    const strongVfxSupDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(25, 100)], script, choices);
     expect(strongVfxSupDays).toBeLessThan(weakVfxSupDays);
   });
 
   it('VFX Supervisor skill barely moves the estimate when VFX ambition is minimal - the term it scales is already close to zero', () => {
     const choices = baseChoices({ vfxAmount: VFX_RANGE.min });
+    const script = baseScript(26);
     const base = [...assignmentsOfSize(26, 6), editorWithSkill(26, 50)];
-    const weakVfxSupDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(26, 0)], choices);
-    const strongVfxSupDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(26, 100)], choices);
+    const weakVfxSupDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(26, 0)], script, choices);
+    const strongVfxSupDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(26, 100)], script, choices);
     expect(weakVfxSupDays - strongVfxSupDays).toBeLessThanOrEqual(2);
   });
 
   it('works correctly with no VFX Supervisor hired - lands strictly between a weak (skill 0) and a neutral (skill 50) hired one', () => {
     const choices = baseChoices({ vfxAmount: VFX_RANGE.max });
+    const script = baseScript(27);
     const base = [...assignmentsOfSize(27, 6), editorWithSkill(27, 50)];
-    const noSupervisorDays = computeRecommendedPostProductionDays(base, choices);
-    const weakSupervisorDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(27, 0)], choices);
-    const neutralSupervisorDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(27, 50)], choices);
+    const noSupervisorDays = computeRecommendedPostProductionDays(base, script, choices);
+    const weakSupervisorDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(27, 0)], script, choices);
+    const neutralSupervisorDays = computeRecommendedPostProductionDays([...base, vfxSupervisorWithSkill(27, 50)], script, choices);
     expect(noSupervisorDays).toBeLessThan(weakSupervisorDays);
     expect(noSupervisorDays).toBeGreaterThan(neutralSupervisorDays);
   });
 
   it('never compresses below, or stretches beyond, the documented bounds across extreme combinations', () => {
     const weakestCrew = [...assignmentsOfSize(28, 6), editorWithSkill(28, 100)];
+    const simplestFilm = baseScript(28, { complexity: 0 });
     const cheapestFilm = baseChoices({ runtimeIntensity: 0, vfxAmount: VFX_RANGE.min });
-    const floor = computeRecommendedPostProductionDays(weakestCrew, cheapestFilm);
-    expect(floor).toBeGreaterThanOrEqual(14);
+    const floor = computeRecommendedPostProductionDays(weakestCrew, simplestFilm, cheapestFilm);
+    expect(floor).toBeGreaterThanOrEqual(20);
 
     const strongestDemandNoSupervisor = [...assignmentsOfSize(29, 6), editorWithSkill(29, 0)];
+    const densestFilm = baseScript(29, { complexity: 100 });
     const mostAmbitiousFilm = baseChoices({ runtimeIntensity: 1, vfxAmount: VFX_RANGE.max });
-    const ceiling = computeRecommendedPostProductionDays(strongestDemandNoSupervisor, mostAmbitiousFilm);
-    expect(ceiling).toBeLessThanOrEqual(95);
+    const ceiling = computeRecommendedPostProductionDays(strongestDemandNoSupervisor, densestFilm, mostAmbitiousFilm);
+    expect(ceiling).toBeLessThanOrEqual(525);
   });
 });
 

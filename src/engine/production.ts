@@ -38,13 +38,26 @@ import { getCareerForRole, getCrewCareer, getTypicalSalaryForRole } from './pers
 import { classifyEventImpact } from './productionExecution';
 import { clamp, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn } from './random';
 
-const BASE_SHOOT_DAYS = 18;
-const MAX_COMPLEXITY_DAYS = 35;
-const MAX_CAST_SIZE_DAYS = 12;
-const MAX_RUNTIME_DAYS = 12;
-const MAX_EFFECTS_DAYS = 15;
-const MAX_SETTING_DAYS = 12;
+// --- Stage durations (Timeline Recalibration) ---------------------------
+// Every stage below is built to reflect the *particulars of that specific
+// film* - its filming complexity, cast size, planned runtime, effects
+// ambition, scale and setting - so a contained two-hander and an
+// effects-led epic land at genuinely different points on the calendar
+// instead of clustering in the same narrow band. The constants are sized so
+// a small, simple film finishes in a few in-game months while a large,
+// effects-heavy tentpole runs well over a year start to finish (with post
+// carrying most of that, mirroring where real VFX schedules actually go).
+// See docs/DESIGN_production_timeline_audit.md for the audit these numbers
+// came out of and the target timelines they encode. First-draft, tunable
+// constants like every other number in this simulation.
+const BASE_SHOOT_DAYS = 20;
+const MAX_COMPLEXITY_DAYS = 34; // filming complexity is the single biggest shoot-length driver
+const MAX_CAST_SIZE_DAYS = 18; // a large ensemble is far slower to schedule and shoot than a two-hander
+const MAX_RUNTIME_DAYS = 22; // a three-hour epic photographs far more material than a lean 90-minute film
+const MAX_EFFECTS_DAYS = 22; // practical rigs, stunts and effects units slow the shoot down on the day
+const MAX_SETTING_DAYS = 16; // a travel-heavy, many-location shoot loses days moving; a single interior loses none
 const CAST_SIZE_BASELINE = 6; // roughly the mandatory-roles floor before any multi-hire roles kick in
+const SHOOT_CAST_DAYS_PER_MEMBER = 2; // extra shoot days each cast member beyond the baseline adds, before the cap
 
 /**
  * How many days of principal photography this film calls for - shown to
@@ -61,7 +74,7 @@ const CAST_SIZE_BASELINE = 6; // roughly the mandatory-roles floor before any mu
  */
 export function computeRecommendedShootDays(talent: TalentAssignment[], script: Script, choices: ProductionChoices): number {
   const complexityDays = (script.complexity / 100) * MAX_COMPLEXITY_DAYS;
-  const castDays = clamp((talent.length - CAST_SIZE_BASELINE) * 1.5, 0, MAX_CAST_SIZE_DAYS);
+  const castDays = clamp((talent.length - CAST_SIZE_BASELINE) * SHOOT_CAST_DAYS_PER_MEMBER, 0, MAX_CAST_SIZE_DAYS);
   const runtimeDays = choices.runtimeIntensity * MAX_RUNTIME_DAYS;
   const effectsDays = (practicalEffectsT(choices.practicalEffectsAmount) + vfxT(choices.vfxAmount)) * (MAX_EFFECTS_DAYS / 2);
   const settingProfile = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
@@ -90,48 +103,68 @@ export function footageUpperBound(recommendedDays: number): number {
   return Math.round(recommendedDays * FOOTAGE_UPPER_RATIO);
 }
 
-const BASE_PREPRODUCTION_DAYS = 14;
-const MAX_SCALE_PREPRODUCTION_DAYS = 18;
-const MAX_CAST_SIZE_PREPRODUCTION_DAYS = 10;
-const MAX_AMBITION_PREPRODUCTION_DAYS = 14;
+const BASE_PREPRODUCTION_DAYS = 21;
+const MAX_SCALE_PREPRODUCTION_DAYS = 32;
+const MAX_CAST_SIZE_PREPRODUCTION_DAYS = 16;
+const MAX_AMBITION_PREPRODUCTION_DAYS = 28;
+const MAX_SETTING_PREPRODUCTION_DAYS = 18; // scouting locations and building sets before a frame is shot
+const PERIOD_SETTING_PREPRODUCTION_DAYS = 10; // recreating a real historical era adds research, costume and design lead time
+const PREPRODUCTION_CAST_DAYS_PER_MEMBER = 2.5; // extra prep days each cast member beyond the baseline adds, before the cap
 const SCALE_PREPRODUCTION_FRACTION: Record<Script['scale'], number> = { Intimate: 0, Medium: 0.5, Epic: 1 };
 
 /**
  * How many days of pre-production this film calls for - locking cast/crew
  * deals, scouting/building sets, previs for anything effects-heavy, before
- * a single day of Principal Photography. Charged once, in full, at
- * Greenlight (state/studioReducer.ts:GREENLIGHT_PROJECT) - the Producer
- * Workspace's free navigation between sections (PRODUCER_WORKSPACE_DESIGN.md)
- * has no fixed forward order left to charge calendar time against
- * incrementally the way the old wizard's STAGE_DURATIONS did, so this
- * replaces that entirely with one scaled lump sum instead of a flat total
- * for every film. Same three inputs computeRecommendedShootDays already
- * reads (bigger cast, bigger scale, heavier effects ambition all mean more
- * to lock down before shooting can start), calibrated so a typical
- * mid-scope project lands near the old flat total (~26 days) while small/
- * simple and large/ambitious projects diverge from there - first-draft,
+ * a single day of Principal Photography. This is the *length* of the
+ * pre-production phase, which the reducer then burns down day-by-day
+ * (state/studioReducer.ts:ADVANCE_PREPRODUCTION_DAY, off the recommendedDays
+ * this returns) - it is NOT a lump sum charged at Greenlight; Greenlight
+ * only books talent and cash, and the phase's real prep window can be
+ * stretched further still by a Production Designer's granted prep time
+ * (studioReducer.ts:GREENLIGHT_PROJECT takes max(this, designPrepDays)).
+ *
+ * Driven by the particulars of this specific film: bigger scale, bigger
+ * cast and heavier effects ambition all mean more to lock down, and - added
+ * in the Timeline Recalibration - a build-heavy or hard-to-scout setting,
+ * plus a period piece's extra research/costume lead time, push prep out
+ * further still. Ranges from ~3 weeks for a small contained film to roughly
+ * four months for a large, effects-heavy, period tentpole - first-draft,
  * tunable constants like every other numeric constant in this simulation.
  */
 export function computeRecommendedPreProductionDays(talent: TalentAssignment[], script: Script, choices: ProductionChoices): number {
   const scaleDays = SCALE_PREPRODUCTION_FRACTION[script.scale] * MAX_SCALE_PREPRODUCTION_DAYS;
-  const castDays = clamp((talent.length - CAST_SIZE_BASELINE) * 1.2, 0, MAX_CAST_SIZE_PREPRODUCTION_DAYS);
+  const castDays = clamp((talent.length - CAST_SIZE_BASELINE) * PREPRODUCTION_CAST_DAYS_PER_MEMBER, 0, MAX_CAST_SIZE_PREPRODUCTION_DAYS);
   const ambitionDays = ((practicalEffectsT(choices.practicalEffectsAmount) + vfxT(choices.vfxAmount)) / 2) * MAX_AMBITION_PREPRODUCTION_DAYS;
-  return Math.round(BASE_PREPRODUCTION_DAYS + scaleDays + castDays + ambitionDays);
+  // Building the world before the shoot: heavy set construction and hard-to-scout
+  // locations both stretch prep, and a period piece adds its own research/costume
+  // lead time on top. A Single Interior Location sits near zero here; a
+  // Medieval Kingdom or Global Multi-Location shoot adds real weeks.
+  const settingProfile = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
+  const settingDays =
+    (settingProfile.setConstructionDemand * 0.6 + settingProfile.locationComplexity * 0.4) * MAX_SETTING_PREPRODUCTION_DAYS;
+  const periodDays = settingProfile.periodSetting ? PERIOD_SETTING_PREPRODUCTION_DAYS : 0;
+  return Math.round(BASE_PREPRODUCTION_DAYS + scaleDays + castDays + ambitionDays + settingDays + periodDays);
 }
 
 // Post-Production Redesign, Phase A (docs/DESIGN_REVIEW_post_production_redesign.md
 // section 1) - editorial and VFX are two independent components, not
 // blended into one pool, so a great Editor speeds up the edit specifically
 // without also (nonsensically) speeding up VFX rendering nobody skilled is
-// touching, and vice versa. Deliberately reads only the four signals the
-// design review specified (runtime, Editor skill, VFX ambition, VFX
-// Supervisor skill) - no script.complexity/cast-size/setting term the way
-// the shoot-day and pre-production siblings above have: those would
-// double-count complexity that runtime intensity and VFX ambition already
-// stand in for here.
-const BASE_EDITORIAL_DAYS = 20; // baseline edit/sound/color pass every film needs, even a short, effects-free one
-const MAX_RUNTIME_EDITORIAL_DAYS = 18; // a Long-intensity film has meaningfully more footage to assemble than a Short one
-const MAX_VFX_DAYS = 35; // VFX compositing/rendering is the single biggest post-production time sink in real filmmaking - deliberately the largest individual term here
+// touching, and vice versa. Editorial reads runtime, script complexity and
+// Editor skill (a denser or longer film is genuinely slower to cut, score
+// and mix); VFX reads VFX ambition and VFX Supervisor skill. Cast size and
+// setting stay out of post deliberately - those are shoot/prep pressures
+// that runtime intensity and VFX ambition already stand in for here.
+const BASE_EDITORIAL_DAYS = 30; // baseline edit/sound/color pass every film needs, even a short, effects-free one
+const MAX_RUNTIME_EDITORIAL_DAYS = 45; // a Long-intensity film has far more footage to assemble, score and mix than a Short one
+const MAX_COMPLEXITY_EDITORIAL_DAYS = 22; // a denser, more intricate film takes longer to cut, sound-design and finish
+// VFX post scales SUPER-linearly with ambition (exponent above 1): a
+// near-zero-VFX drama is barely touched, while an effects-led tentpole's
+// post balloons - which is exactly what makes such a film take a year-plus
+// start to finish, and what separates a Sci-Fi/Fantasy epic's timeline from
+// a contained drama's more than any other single term in the model.
+const VFX_POST_EXPONENT = 2;
+const MAX_VFX_DAYS = 340; // a fully effects-driven film's post is dominated by compositing/rendering - by far the largest individual term here
 
 // Skill compresses or stretches its own department's days by up to 30%
 // either way (skill 100 -> 0.7x, skill 0 -> 1.3x, skill 50 -> neutral
@@ -169,41 +202,44 @@ const NO_VFX_SUPERVISOR_MULTIPLIER = 1.15;
  * the design review's own explicit pushback against that).
  *
  * Editorial and VFX are summed as two independent components. Editorial
- * (baseline + runtime) is always present and always scaled by the Editor's
- * own skill - Editor is a mandatory role (data/talentGeneration.ts:MANDATORY_TALENT_ROLES),
- * guaranteed hired by the time a film reaches FINISH_PHOTOGRAPHY, so this
- * never needs an "unhired" fallback the way VFX does; a defensive `?? 50`
- * default is kept anyway, matching how every other career-stat lookup in
- * this codebase (e.g. computeDirectionScore) stays honest under an
- * impossible-in-practice missing-hire case rather than assuming it can't
- * happen. VFX scales with vfxT(choices.vfxAmount) - already a 0-1 ambition
- * reading (the same one computeRecommendedShootDays/computeProductionScore
- * both already read) - so a Drama with near-zero VFX spend is barely
- * affected by VFX Supervisor skill, or the lack of one, either way: vfxDays
- * itself is already close to zero regardless of the multiplier applied to it.
+ * (baseline + runtime + complexity) is always present and always scaled by
+ * the Editor's own skill - Editor is a mandatory role
+ * (data/talentGeneration.ts:MANDATORY_TALENT_ROLES), guaranteed hired by the
+ * time a film reaches FINISH_PHOTOGRAPHY, so this never needs an "unhired"
+ * fallback the way VFX does; a defensive `?? 50` default is kept anyway,
+ * matching how every other career-stat lookup in this codebase (e.g.
+ * computeDirectionScore) stays honest under an impossible-in-practice
+ * missing-hire case. VFX scales SUPER-linearly with vfxT(choices.vfxAmount)
+ * (raised to VFX_POST_EXPONENT) - so a Drama with near-zero VFX spend is
+ * barely touched (vfxDays is close to zero regardless of the multiplier),
+ * while an effects-led tentpole's post dominates its whole schedule.
  *
  * Documented bounds: editorial alone ranges
- * [BASE_EDITORIAL_DAYS * 0.7, (BASE_EDITORIAL_DAYS + MAX_RUNTIME_EDITORIAL_DAYS) * 1.3]
- * = [14, 49.4]; VFX alone ranges [0, MAX_VFX_DAYS * 1.3] = [0, 45.5] (0
- * whenever vfxAmount sits at VFX_RANGE's own minimum). Combined, the
- * realistic total spans roughly 14 days (a short, VFX-free film with a
- * strong Editor) to roughly 90-95 days (a long, VFX-heavy tentpole with a
- * weak Editor and either a weak or absent VFX Supervisor) - comparable in
- * scale to computeRecommendedShootDays' own ~18-89 day range, which is
- * intentional: post shouldn't structurally dwarf or trivialize the shoot it
- * follows.
+ * [BASE_EDITORIAL_DAYS * 0.7, (BASE_EDITORIAL_DAYS + MAX_RUNTIME_EDITORIAL_DAYS + MAX_COMPLEXITY_EDITORIAL_DAYS) * 1.3]
+ * = [21, ~126]; VFX alone ranges [0, MAX_VFX_DAYS * 1.3] = [0, 442] (0
+ * whenever vfxAmount sits at VFX_RANGE's own minimum, and - because of the
+ * exponent - still small for anything short of a genuinely effects-led
+ * film). Combined, the realistic total spans roughly 25 days (a short,
+ * simple, VFX-free film with a strong Editor) to well over a year for a
+ * long, complex, fully effects-driven tentpole with a weak Editor and a weak
+ * or absent VFX Supervisor. This is deliberately allowed to dwarf the shoot
+ * for effects tentpoles - that is where a real VFX film's calendar goes -
+ * while staying modest and shoot-comparable for everything else.
  */
-export function computeRecommendedPostProductionDays(talent: TalentAssignment[], choices: ProductionChoices): number {
+export function computeRecommendedPostProductionDays(talent: TalentAssignment[], script: Script, choices: ProductionChoices): number {
   const editor = findAssignedPerson(talent, 'Editor');
   const editorSkill = (editor && getCrewCareer(editor, 'Editor')?.skill) ?? 50;
   const editorialDays =
-    (BASE_EDITORIAL_DAYS + choices.runtimeIntensity * MAX_RUNTIME_EDITORIAL_DAYS) * postProductionSkillMultiplier(editorSkill);
+    (BASE_EDITORIAL_DAYS +
+      choices.runtimeIntensity * MAX_RUNTIME_EDITORIAL_DAYS +
+      (script.complexity / 100) * MAX_COMPLEXITY_EDITORIAL_DAYS) *
+    postProductionSkillMultiplier(editorSkill);
 
   const vfxSupervisor = findAssignedPerson(talent, 'VFX Supervisor');
   const vfxSupervisorSkill = vfxSupervisor ? getCrewCareer(vfxSupervisor, 'VFX Supervisor')?.skill : undefined;
   const vfxMultiplier =
     vfxSupervisorSkill !== undefined ? postProductionSkillMultiplier(vfxSupervisorSkill) : NO_VFX_SUPERVISOR_MULTIPLIER;
-  const vfxDays = vfxT(choices.vfxAmount) * MAX_VFX_DAYS * vfxMultiplier;
+  const vfxDays = Math.pow(vfxT(choices.vfxAmount), VFX_POST_EXPONENT) * MAX_VFX_DAYS * vfxMultiplier;
 
   return Math.round(editorialDays + vfxDays);
 }

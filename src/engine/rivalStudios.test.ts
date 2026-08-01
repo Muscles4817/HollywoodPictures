@@ -183,7 +183,7 @@ describe('settleRivalMarket - shared-calendar awareness (roadmap Phase 7.4)', ()
     expect(production).toBeDefined();
 
     const shootDays = computeRecommendedShootDays(production!.talent, production!.script, production!.productionChoices);
-    const postProductionDays = computeRecommendedPostProductionDays(production!.talent, production!.productionChoices);
+    const postProductionDays = computeRecommendedPostProductionDays(production!.talent, production!.script, production!.productionChoices);
     expect(postProductionDays).toBeGreaterThan(0); // sanity - a real, non-zero estimate
 
     // avoidCrowdedReleaseDay only ever nudges the naive day later (never
