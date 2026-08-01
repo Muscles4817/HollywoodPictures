@@ -9,6 +9,7 @@ import type {
   EnvironmentMethodKey,
   ExecutionStrategy,
   FilmDraft,
+  GameDay,
   Genre,
   MarketingChoices,
   NormalizedScalar,
@@ -186,10 +187,15 @@ function generateDraftId(): string {
  * used to pre-fill them from a freshly-picked script, since here that
  * "pick" already happened back at Opportunity acquisition.
  */
-export function createDraftFromAsset(asset: Asset, talentTargetPriceByRole: Partial<Record<ProductionRole, number>>): FilmDraft {
+export function createDraftFromAsset(
+  asset: Asset,
+  talentTargetPriceByRole: Partial<Record<ProductionRole, number>>,
+  startedOnDay: GameDay,
+): FilmDraft {
   return {
     id: generateDraftId(),
     assetId: asset.id,
+    development: { status: 'in-development', startedOnDay },
     title: asset.script.title,
     genre: asset.script.genre,
     targetAudience: asset.script.intendedAudience,

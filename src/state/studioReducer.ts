@@ -997,7 +997,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // Can't start a Project while a Rewrite/Polish is mid-flight - the head
       // Script would shift under the draft when the pass lands (Phase 3).
       if (asset.pendingRewrite) return state;
-      const draft = createDraftFromAsset(asset, defaultTalentTargetPrices());
+      const draft = createDraftFromAsset(asset, defaultTalentTargetPrices(), state.totalDays);
       return {
         ...state,
         screen: 'workspace',
@@ -1907,6 +1907,9 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
 
       const greenlitDraft: FilmDraft = {
         ...focusedDraft,
+        // Development is over: the package is frozen and the project hands off
+        // to the live pre-production run (see DevelopmentState / PreProductionState).
+        development: null,
         greenlitOnDay: state.totalDays,
         shootStartsOnDay: deferred ? shootStartsOnDay : undefined,
         preProduction: { status: deferred ? 'scheduled' : 'in-progress', recommendedDays: preProductionDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
