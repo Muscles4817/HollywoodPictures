@@ -8,6 +8,7 @@ import { directApproachFameFloor } from '../../engine/talentFilter';
 import { actorMeetsCharacterGender, personMeetsCharacterAge } from '../../engine/casting';
 import { computeActorAppeal, countActorsFreedByDelay, computeSalaryFit, overallWithSalaryFit } from '../../engine/castingAppeal';
 import { estimateDeal } from '../../engine/castingEstimate';
+import { askingPriceCentre } from '../../engine/castingNegotiation';
 import { deriveFitReadAssist, deriveFitRead, deriveFitReason, deriveFitConfidence, deriveRiskRead, gateKnownAxes, knownAxisCoverage } from '../../engine/talentCardPresentation';
 import { deriveCastingDirectorTake, describeCastingDirectorTake, type CastingDirectorTake } from '../../engine/castingDirectorAdvice';
 import { candidateStrengthSignals, describeOfferRejection, describeCounterOffer, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast, describeAuditionResult, type CandidateSignal } from '../../engine/castingPresentation';
@@ -255,13 +256,25 @@ function CandidateCard({
   // clears the gate. The appeal's schedule is computed at plannedStartDay, so
   // read it straight from there; fall back to today only when there's no appeal.
   // Phase 1a: this candidate's own offer. The top slider sets the role's
-  // ADVERTISED salary (shapes Open Casting, the default here); the actual fee you
-  // put to THIS actor is set per-candidate, so two shortlisted contenders can
-  // carry different offers. Defaults to their live counter if they've countered
-  // (so a re-offer starts at the ask), else the advertised salary; re-baselines
-  // when either changes.
+  // ADVERTISED salary (shapes Open Casting); the actual fee you put to THIS actor
+  // is set per-candidate, so two shortlisted contenders can carry different
+  // offers. The default is deliberately ACTOR-SPECIFIC, not the whole advertised
+  // budget: anchor it to this actor's own expected asking centre (engine/
+  // castingNegotiation.ts:askingPriceCentre - the number the real roll lands
+  // within ±10% of, so offering it reliably lands them at a fair price), capped
+  // at the advertised budget so a pricey name still starts at your ceiling and
+  // clamped to the slider's floor. This stops the drawer pre-loading millions
+  // onto a cheap actor who'd take a fraction of it - the old advertised-salary
+  // default made it far too easy to accidentally offer (and overpay) someone who
+  // would have accepted a fraction. A live counter still wins as the default, so
+  // a re-offer starts at their ask. Re-baselines when any of these change.
   const counterSalary = negotiation?.status === 'countered' ? negotiation.counterSalary : undefined;
-  const defaultOffer = counterSalary ?? advertisedSalary;
+  const careerTypical = getActorCareer(person)?.typicalSalary;
+  const priceCentre = overall && careerTypical != null
+    ? askingPriceCentre(person, overall.effectiveMinimum, careerTypical)
+    : advertisedSalary;
+  const fairOffer = Math.min(advertisedSalary, Math.max(salaryRange.min, Math.round(priceCentre)));
+  const defaultOffer = counterSalary ?? fairOffer;
   const [offer, setOffer] = useState(defaultOffer);
   useEffect(() => { setOffer(defaultOffer); }, [defaultOffer]);
 
@@ -385,7 +398,7 @@ function CandidateCard({
             value={offer}
             onChange={setOffer}
             formatValue={formatMoney}
-            description="What you'll put to this actor - independent of other candidates."
+            description="What you'll put to this actor - pre-set to a fair price for them (capped at your advertised budget), not the whole role budget. Raise or lower it as you like."
           />
         </div>
       )}
@@ -900,7 +913,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
           value={advertisedSalary}
           onChange={(price) => dispatch({ type: 'SET_TALENT_TARGET_PRICE', role, price })}
           formatValue={formatMoney}
-          description="The budget you're advertising for this role - it shapes who applies to Open Casting and sets the default for each candidate's offer. It is not the fee: you set (and can vary) the actual offer per candidate below, and the amount you finally agree is what you pay."
+          description="The budget you're advertising for this role - it shapes who applies to Open Casting and caps each candidate's starting offer. It is not the fee: each candidate's offer is pre-set to a fair price for them (never above this budget), and you can vary it per candidate below - the amount you finally agree is what you pay."
           lowLabel="Cheap"
           highLabel="Star Power"
         />

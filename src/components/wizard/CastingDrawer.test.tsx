@@ -781,4 +781,49 @@ describe('CastingDrawer - per-candidate offers (Phase 1a)', () => {
     fireEvent.change(alphaOffer, { target: { value: alphaOffer.max } });
     expect(offerButton(alpha).textContent).not.toBe(offerButton(beta).textContent);
   });
+
+  it("anchors each candidate's default offer to their own price, not the advertised budget", () => {
+    const ADVERTISED = 20_000_000;
+    const state = withRng(7, (rng) => {
+      const studio = createInitialStudio(200_000_000);
+      const talentPool = generateTalentPool(rng);
+      const base = generateTalentCandidates('Actor', rng, 1)[0];
+      // A cheap actor and a pricey one under the SAME high advertised budget.
+      talentPool.Actor = [femaleActor(base, 'Cheap Actor', 500_000), femaleActor(base, 'Pricey Actor', 20_000_000)];
+      return wrapState(studio, talentPool, draftWithActors(rng, ADVERTISED));
+    }).result;
+    renderDrawer(state);
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+
+    const offerAmount = (card: HTMLElement) =>
+      Number((within(card).getByRole('button', { name: /Make Offer/ }).textContent ?? '').replace(/[^0-9]/g, ''));
+    const cheap = screen.getByText('Cheap Actor').closest('.card') as HTMLElement;
+    const pricey = screen.getByText('Pricey Actor').closest('.card') as HTMLElement;
+
+    // The cheap actor's pre-set offer sits near their own low price, nowhere near
+    // the £20m advertised budget - so you can't accidentally offer them millions.
+    expect(offerAmount(cheap)).toBeLessThan(3_000_000);
+    // The default scales with the actor, and neither starts above the budget.
+    expect(offerAmount(cheap)).toBeLessThan(offerAmount(pricey));
+    expect(offerAmount(pricey)).toBeLessThanOrEqual(ADVERTISED);
+  });
+
+  it('never pre-sets an offer above the advertised budget, even for a pricey actor', () => {
+    const ADVERTISED = 1_000_000;
+    const state = withRng(7, (rng) => {
+      const studio = createInitialStudio(200_000_000);
+      const talentPool = generateTalentPool(rng);
+      const base = generateTalentCandidates('Actor', rng, 1)[0];
+      // A £20m actor advertised at only £1m: their fair price is well above the
+      // budget, so the default must cap at the budget rather than pre-load £20m.
+      talentPool.Actor = [femaleActor(base, 'Pricey Actor', 20_000_000)];
+      return wrapState(studio, talentPool, draftWithActors(rng, ADVERTISED));
+    }).result;
+    renderDrawer(state);
+    fireEvent.click(screen.getByRole('button', { name: 'Direct Approach' }));
+
+    const pricey = screen.getByText('Pricey Actor').closest('.card') as HTMLElement;
+    const offer = Number((within(pricey).getByRole('button', { name: /Make Offer/ }).textContent ?? '').replace(/[^0-9]/g, ''));
+    expect(offer).toBe(ADVERTISED);
+  });
 });
