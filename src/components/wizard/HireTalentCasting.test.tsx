@@ -16,6 +16,8 @@ import { generateTalentPool } from '../../engine/talentGenerator';
 import { withRng } from '../../engine/random';
 import { playerDraftToProject } from '../../engine/project';
 import { TEST_SCRIPT_ASSETS } from '../../data/testScripts';
+import { getTypicalSalaryForRole } from '../../engine/person';
+import { formatMoney } from '../common/Money';
 
 beforeEach(() => {
   localStorage.clear();
@@ -104,6 +106,35 @@ describe('HireTalent - slot-bound casting has no in-order gate', () => {
     // Five leads/supporting are uncast (six characters, none hired) - each
     // shows the plain uncast state, none a blocked one.
     expect(screen.getAllByText('Not yet cast').length).toBe(6);
+  });
+});
+
+describe('HireTalent - cast card shows the negotiated fee, not the standard quote', () => {
+  it('displays a hired actor\'s agreedSalary on their character card, not their typicalSalary', () => {
+    const seeded = stateWithInceptionDraft();
+    const project = seeded.projects[0];
+    // Pick a real pool actor whose standard quote differs from what we sign
+    // them for, so the two figures can't accidentally coincide.
+    const star = seeded.talentPool.Actor.find((p) => getTypicalSalaryForRole(p, 'Lead Actor') !== 3_000_000)!;
+    const typical = getTypicalSalaryForRole(star, 'Lead Actor');
+    if (project.kind === 'player-in-progress') {
+      const domCobb = project.draft.script!.cast.find((c) => c.name === 'Dom Cobb')!;
+      project.draft.talent = [
+        ...project.draft.talent,
+        { role: 'Lead Actor', person: star, characterId: domCobb.id, agreedSalary: 3_000_000 } as typeof project.draft.talent[number],
+      ];
+    }
+    saveState(seeded);
+    render(
+      <StudioProvider>
+        <HireTalent />
+      </StudioProvider>,
+    );
+
+    // The Dom Cobb card reads the negotiated fee, never the actor's standard quote.
+    const domCard = screen.getByText(star.identity.name).closest('.card') as HTMLElement;
+    expect(within(domCard).getByText(/£3,000,000/)).toBeInTheDocument();
+    expect(within(domCard).queryByText(formatMoney(typical))).not.toBeInTheDocument();
   });
 });
 

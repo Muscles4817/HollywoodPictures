@@ -22,7 +22,7 @@ import { CompatibilityBadge } from '../common/CompatibilityBadge';
 import { RoleHiringDrawer } from './RoleHiringDrawer';
 import { CastingDrawer } from './CastingDrawer';
 import { findAssignedPerson } from '../../data/helpers';
-import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole } from '../../engine/person';
+import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole, assignmentCost } from '../../engine/person';
 import { deriveStaffingBoard, STAFFING_STAGE_LABELS, type StaffingRow } from '../../state/staffingBoard';
 import { deriveDefaultStrategy, relevantStrategyAxes, STRATEGY_AXIS_META, type ExecutionStrategy } from '../../engine/executionStrategy';
 import { deriveDirectorApproachFit, deriveCrewCollaborationReads } from '../../engine/collaborationEdges';
@@ -361,7 +361,8 @@ function CharacterCastingRow({
   // Slot-bound casting (docs/DESIGN_REVIEW_casting_slot_binding.md): every
   // Character is independently castable in any order, so this row just reflects
   // whoever's bound to it (if anyone) - no "wait your turn" state any more.
-  const cast = draft.talent.find((a) => a.role === role && a.characterId === character.id)?.person ?? null;
+  const assignment = draft.talent.find((a) => a.role === role && a.characterId === character.id) ?? null;
+  const cast = assignment?.person ?? null;
 
   return (
     <Card selectable onClick={onOpen}>
@@ -382,11 +383,11 @@ function CharacterCastingRow({
         </div>
       </div>
       <p style={{ color: 'var(--text-muted)', margin: '4px 0 8px', fontSize: '0.85em' }}>{describeCharacterDemands(character)}</p>
-      {cast ? (
+      {cast && assignment ? (
         <div style={{ fontSize: '0.85em' }}>
           <div className="card-title" style={{ fontSize: '1em', marginBottom: 2 }}>{cast.identity.name}</div>
           <div style={{ color: 'var(--text-muted)' }}>
-            Fame {cast.reputation.fame} &middot; <Money amount={getTypicalSalaryForRole(cast, role)} />
+            Fame {cast.reputation.fame} &middot; <Money amount={assignmentCost(assignment)} />
           </div>
         </div>
       ) : (
