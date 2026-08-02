@@ -11,6 +11,7 @@ import { describeStandoutSpecialty } from '../../engine/crewSpecialty';
 import type { CastAffinity } from '../../engine/pairHistory';
 import { deriveFitReason, deriveFitRead, deriveFitReadAssist, deriveFitConfidence, deriveRiskRead, qualitativeMagnitude, isStarDraw, gateKnownAxes, knownAxisCoverage } from '../../engine/talentCardPresentation';
 import { describeRelationshipStanding, type RelationshipStanding } from '../../engine/relationships';
+import { AFFORDABILITY_LABEL, type AffordabilityTier } from '../../engine/affordability';
 import { getCareerForRole, deriveBookedUntil } from '../../engine/person';
 import { describeAgeFit } from '../../engine/casting';
 import { deriveTraits, TRAIT_LABELS, TRAIT_DESCRIPTIONS, TRAIT_EFFECTS } from '../../engine/personTraits';
@@ -31,6 +32,13 @@ import type { DirectorCareer, Person, ProductionRole, Script, ScriptCharacter } 
 // already makes for appeal factors (APPEAL_MAX_NOTES). Order in
 // deriveTraits isn't meaningful, so this is just "first N", not "top N."
 const MAX_DISPLAYED_TRAITS = 3;
+
+/** Budget-tier -> the traffic-light dot's colour class (green/amber/red). */
+const AFFORD_CLASS: Record<AffordabilityTier, 'ok' | 'warn' | 'bad'> = {
+  comfortable: 'ok',
+  tight: 'warn',
+  unaffordable: 'bad',
+};
 
 /** A director's own production leanings, compact enough for a candidate card - "Leans location, practical effects." See engine/recommendation.ts:dominantLean, the same math Plan Production's cards use. */
 export function describeProductionStyle(director: DirectorCareer): string {
@@ -142,11 +150,14 @@ function BarRow({ label, value }: { label: string; value: number }) {
  * candidate is being evaluated to play, when the slot resolves to one - drives
  * the character-specific "Role fit" reading above the whole-script "Tone fit"
  * one. null for every non-actor role and for a script with no matching
- * character at that slot. `affordable` drives the salary block's traffic-light
- * dot when the caller knows the studio's budget (the hiring drawers do; the
- * on-set decision card doesn't, and passes nothing).
+ * character at that slot. `budget` drives the salary block's traffic-light
+ * dot when the caller knows the studio's means - a reserve-aware read
+ * (engine/affordability.ts), so a hire the balance can technically cover but
+ * that would drain the studio's cushion reads amber ("Stretches your cash"),
+ * not a clean green. The hiring drawers pass it; the on-set decision card
+ * doesn't know the budget, and passes nothing.
  */
-export function TalentStats({ person, role, category, script, character = null, totalDays, availabilityMode = 'delay', pairedDirector = null, affordable = null, castingDirectorSkill = null, relationship = null, castAffinity = null, audited = false }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number; availabilityMode?: 'delay' | 'blocked'; pairedDirector?: Person | null; affordable?: boolean | null; castingDirectorSkill?: number | null; relationship?: RelationshipStanding | null; castAffinity?: CastAffinity | null; audited?: boolean }) {
+export function TalentStats({ person, role, category, script, character = null, totalDays, availabilityMode = 'delay', pairedDirector = null, budget = null, castingDirectorSkill = null, relationship = null, castAffinity = null, audited = false }: { person: Person; role: ProductionRole; category: RoleCategory; script: Script | null; character?: ScriptCharacter | null; totalDays: number; availabilityMode?: 'delay' | 'blocked'; pairedDirector?: Person | null; budget?: AffordabilityTier | null; castingDirectorSkill?: number | null; relationship?: RelationshipStanding | null; castAffinity?: CastAffinity | null; audited?: boolean }) {
   const career = getCareerForRole(person, role);
   const overallScore = deriveOverallScore(person, role, category, script, character);
   const roleFit = deriveRoleFitBreakdown(person, role, category, script, character);
@@ -228,10 +239,10 @@ export function TalentStats({ person, role, category, script, character = null, 
         </div>
         <div className="talent-salary">
           <span className="talent-salary-amount"><Money amount={career?.typicalSalary ?? 0} /></span>
-          {affordable !== null && (
-            <span className={`talent-afford talent-afford--${affordable ? 'ok' : 'bad'}`}>
+          {budget !== null && (
+            <span className={`talent-afford talent-afford--${AFFORD_CLASS[budget]}`}>
               <span className="talent-dot" />
-              {affordable ? 'Within budget' : 'Over budget'}
+              {AFFORDABILITY_LABEL[budget]}
             </span>
           )}
         </div>

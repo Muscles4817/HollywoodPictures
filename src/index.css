@@ -1556,6 +1556,7 @@ textarea, input, select {
 }
 
 .talent-afford--ok { color: var(--green); }
+.talent-afford--warn { color: var(--amber); }
 .talent-afford--bad { color: var(--red); }
 
 .talent-dot {
@@ -1934,6 +1935,7 @@ textarea, input, select {
 }
 
 .talent-cmp-note--ok { color: var(--green); }
+.talent-cmp-note--warn { color: var(--amber); }
 .talent-cmp-note--bad { color: var(--red); }
 
 .talent-cmp-win-tag {

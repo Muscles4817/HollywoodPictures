@@ -14,12 +14,20 @@ import {
 import { deriveHiringVerdict } from '../../utils/StarRatingConversion';
 import { describeCastingDirectorTake, type CastingDirectorTake, type CDRecommendation } from '../../engine/castingDirectorAdvice';
 import type { RelationshipStanding } from '../../engine/relationships';
+import { AFFORDABILITY_LABEL, type AffordabilityTier } from '../../engine/affordability';
 import { getTypicalSalaryForRole, isAvailableImmediately, deriveBookedUntil } from '../../engine/person';
 import { formatGameDateWithMonth } from '../../engine/calendar';
 import { fitTier } from './TalentStats';
 import type { ReactNode } from 'react';
 import type { RoleCategory } from '../../data/talentPresentation';
 import type { Person, ProductionRole, Script, ScriptCharacter } from '../../types';
+
+/** Budget-tier -> the salary note's colour class (green/amber/red), matching TalentStats' dot. */
+const CMP_AFFORD_CLASS: Record<AffordabilityTier, 'ok' | 'warn' | 'bad'> = {
+  comfortable: 'ok',
+  tight: 'warn',
+  unaffordable: 'bad',
+};
 
 /** One pinned candidate plus everything the comparison needs to score and act on them. */
 export interface CompareSlot {
@@ -28,7 +36,8 @@ export interface CompareSlot {
   category: RoleCategory;
   script: Script | null;
   character: ScriptCharacter | null;
-  affordable: boolean;
+  /** Reserve-aware budget read for this pick (engine/affordability.ts), or null when the budget isn't known. Drives the salary row's traffic-light note. */
+  budget: AffordabilityTier | null;
   actionLabel: string;
   actionDisabled: boolean;
   onAct: () => void;
@@ -284,14 +293,18 @@ export function TalentComparison({ a, b, totalDays }: { a: CompareSlot; b: Compa
         left={
           <>
             <span className="talent-cmp-big"><Money amount={da.salary} /></span>
-            <span className={`talent-cmp-note talent-cmp-note--${a.affordable ? 'ok' : 'bad'}`}>{a.affordable ? 'Within budget' : 'Over budget'}</span>
+            {a.budget !== null && (
+              <span className={`talent-cmp-note talent-cmp-note--${CMP_AFFORD_CLASS[a.budget]}`}>{AFFORDABILITY_LABEL[a.budget]}</span>
+            )}
             {salaryWinner === 'a' && <span className="talent-cmp-note">Cheaper by <Money amount={salaryGap} /></span>}
           </>
         }
         right={
           <>
             <span className="talent-cmp-big"><Money amount={db.salary} /></span>
-            <span className={`talent-cmp-note talent-cmp-note--${b.affordable ? 'ok' : 'bad'}`}>{b.affordable ? 'Within budget' : 'Over budget'}</span>
+            {b.budget !== null && (
+              <span className={`talent-cmp-note talent-cmp-note--${CMP_AFFORD_CLASS[b.budget]}`}>{AFFORDABILITY_LABEL[b.budget]}</span>
+            )}
             {salaryWinner === 'b' && <span className="talent-cmp-note">Cheaper by <Money amount={salaryGap} /></span>}
           </>
         }

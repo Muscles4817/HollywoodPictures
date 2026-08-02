@@ -41,11 +41,13 @@ describe('TalentStats - age/gender identity line', () => {
 });
 
 describe('TalentStats - salary', () => {
-  it('shows a traffic-light affordability read when the caller passes a budget verdict, and none when it does not', () => {
+  it('shows a reserve-aware traffic-light budget read when the caller passes a verdict, and none when it does not', () => {
     const [person] = generateTalentCandidates('Actor', createRng(30), 1);
-    const { rerender, container } = render(<TalentStats person={person} role="Lead Actor" category="actor" script={null} totalDays={1} affordable={false} />);
+    const { rerender, container } = render(<TalentStats person={person} role="Lead Actor" category="actor" script={null} totalDays={1} budget="unaffordable" />);
     expect(screen.getByText('Over budget')).toBeInTheDocument();
-    rerender(<TalentStats person={person} role="Lead Actor" category="actor" script={null} totalDays={1} affordable={true} />);
+    rerender(<TalentStats person={person} role="Lead Actor" category="actor" script={null} totalDays={1} budget="tight" />);
+    expect(screen.getByText('Stretches your cash')).toBeInTheDocument();
+    rerender(<TalentStats person={person} role="Lead Actor" category="actor" script={null} totalDays={1} budget="comfortable" />);
     expect(screen.getByText('Within budget')).toBeInTheDocument();
     rerender(<TalentStats person={person} role="Lead Actor" category="actor" script={null} totalDays={1} />);
     expect(container.querySelector('.talent-afford')).toBeNull();

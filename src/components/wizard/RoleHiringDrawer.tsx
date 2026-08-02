@@ -9,6 +9,7 @@ import { deriveOverallScore } from '../common/TalentStats';
 import { deriveBookedUntil, getTypicalSalaryForRole, isAvailableImmediately, getCrewCareer } from '../../engine/person';
 import { computeDirectorAppeal, resolveDirectorOfferResponse, type DirectorOfferResponse } from '../../engine/directorAppeal';
 import { playerRelationshipWith, type RelationshipStanding } from '../../engine/relationships';
+import { affordabilityTier, type AffordabilityTier } from '../../engine/affordability';
 import { notableCastAffinity, type CastAffinity } from '../../engine/pairHistory';
 import { describeDirectorRejection, directorStrengthSignals, type CandidateSignal } from '../../engine/castingPresentation';
 import { deriveFocusedDraft, computeCommittedSpend } from '../../state/selectors';
@@ -22,9 +23,10 @@ import { CheckboxToggle } from '../common/CheckboxToggle';
 import type { Person, ProductionRole, Script, ScriptCharacter } from '../../types';
 
 const VFX_RECOMMENDED_GENRES = new Set(['Action', 'Sci-Fi', 'Fantasy']);
-// Phase 1c - the hiring drawer is a search tool now; cap how many candidates
-// render at once, with an honest overflow count telling the player to narrow.
-const HIRE_DISPLAY_LIMIT = 24;
+// The hiring drawer is a search tool: it paginates the whole eligible pool
+// rather than dumping every card (or silently capping the list). Tunable page
+// size, matching CastingDrawer's DIRECT_PAGE_SIZE.
+const HIRE_PAGE_SIZE = 24;
 type HireSort = 'fit' | 'value' | 'fee';
 const HIRE_SORT_OPTIONS: { key: HireSort; label: string }[] = [
   { key: 'fit', label: 'Fit' },
@@ -48,7 +50,8 @@ interface CandidateCardProps {
   booked: boolean;
   pinned: boolean;
   pinCapped: boolean;
-  affordable: boolean;
+  /** Reserve-aware budget read for this candidate (engine/affordability.ts) - a coverable-but-draining fee reads amber, not green. */
+  budget: AffordabilityTier;
   /** Candidate reasoning chips (docs/DESIGN_REVIEW_casting_ux.md) - a director's standout draws and any blocker/warning (prestige gate, below salary floor). Empty for roles with no appeal model (most crew). */
   signals: CandidateSignal[];
   /** The production's attached casting director skill (actors only) - sharpens the fit read (engine/talentCardPresentation.ts). */
@@ -61,7 +64,7 @@ interface CandidateCardProps {
   onTogglePin: () => void;
 }
 
-function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, affordable, signals, castingDirectorSkill, relationship, castAffinity, onSelect, onTogglePin }: CandidateCardProps) {
+function CandidateCard({ person, role, category, script, character, totalDays, selected, disabled, booked, pinned, pinCapped, budget, signals, castingDirectorSkill, relationship, castAffinity, onSelect, onTogglePin }: CandidateCardProps) {
   const isActor = category === 'actor';
   return (
     <Card selectable selected={selected} disabled={disabled} onClick={onSelect}>
@@ -70,7 +73,7 @@ function CandidateCard({ person, role, category, script, character, totalDays, s
           the drawer only needs to add its own casting-flow state on top
           (Cast/Hired, or Fully cast once the role's at capacity), not repeat
           the calendar read a second time. */}
-      <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} availabilityMode="blocked" affordable={affordable} castingDirectorSkill={castingDirectorSkill} relationship={relationship} castAffinity={castAffinity} />
+      <TalentStats person={person} role={role} category={category} script={script} character={character} totalDays={totalDays} availabilityMode="blocked" budget={budget} castingDirectorSkill={castingDirectorSkill} relationship={relationship} castAffinity={castAffinity} />
       {signals.length > 0 && (
         <div className="candidate-signals">
           {signals.map((signal) => (
@@ -116,6 +119,9 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   const pins = useComparePins();
   const [availableOnly, setAvailableOnly] = useState(false);
   const [affordableOnly, setAffordableOnly] = useState(false);
+  const [hideWontWork, setHideWontWork] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
   const [sortBy, setSortBy] = useState<HireSort>('fit');
 
   // Body scroll lock + Escape-to-close, same conventions any overlay needs.
@@ -131,6 +137,12 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
       window.removeEventListener('keydown', handleKey);
     };
   }, [onClose]);
+
+  // Any change to what's shown or how it's ordered resets to the first page -
+  // otherwise a stale page index lands the player on an empty grid.
+  useEffect(() => {
+    setPage(0);
+  }, [sortBy, search, availableOnly, affordableOnly, hideWontWork]);
 
   const profile = TALENT_PRESENTATION[role];
   const range = ROLE_GENERATION_PROFILES[professionForProductionRole(role)].salaryRange;
@@ -186,34 +198,47 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   const displayList = [...hiredNotInPool, ...[...candidates].sort((a, b) => sortValue(b) - sortValue(a))];
   const onThisDraftIds = new Set(draft.talent.map((a) => a.person.id));
 
+  // Talent Relationship History (engine/relationships.ts) - a director's
+  // persistent standing with the studio, read into their interest score and
+  // accept/decline so a loyal filmmaker is easier (and cheaper) to bring back.
+  // Defined up here (ahead of the filters) because the "won't work with me"
+  // filter and the director-appeal read both lean on it.
+  const relationshipFor = (person: Person) => playerRelationshipWith(state.collaborations ?? [], person);
+  const castAffinityFor = (person: Person) => notableCastAffinity(person, role, draft.talent, state.talentPairings ?? []);
+  // The production's attached casting director sharpens actor fit reads (TalentStats
+  // gates it to actors; harmless to pass for a director/crew hire). undefined with none.
+  const attachedCastingDirector = findAssignedPerson(draft.talent, 'Casting Director');
+  const castingDirectorSkill = attachedCastingDirector ? getCrewCareer(attachedCastingDirector, 'Casting Director')?.skill ?? null : null;
+
   // Affordability (a soft warning - talent salary is charged at greenlight, not
-  // here): a candidate reads "over budget" if hiring them would put committed
-  // spend past cash. A single-slot role currently filled frees that salary on
-  // replacement; already-hired people are always affordable.
+  // here): a reserve-aware budget read (engine/affordability.ts). A candidate is
+  // only "Within budget" if their fee fits what's left for this film AND leaves
+  // the studio's operating reserve intact, not merely because the balance could
+  // cover it. A single-slot role currently filled frees that salary on
+  // replacement; already-hired people are no new outlay, so always comfortable.
   const committedSpend = computeCommittedSpend(draft, state.producerPool ?? [], state.stuntTeamPool ?? []);
   const slotFreedSalary = capacity.max === 1 && hired[0] ? getTypicalSalaryForRole(hired[0], role) : 0;
   const remainingBudget = state.studio.cash - committedSpend + slotFreedSalary;
-  const isAffordable = (person: Person) =>
-    hired.some((h) => h.id === person.id) || getTypicalSalaryForRole(person, role) <= remainingBudget;
+  const budgetFor = (person: Person): AffordabilityTier =>
+    hired.some((h) => h.id === person.id)
+      ? 'comfortable'
+      : affordabilityTier({ cost: getTypicalSalaryForRole(person, role), available: remainingBudget, cash: state.studio.cash });
 
-  // Filters (Phase 1c): "Available now only" hides booked candidates (a booked
-  // hire is disabled anyway); "Affordable only" hides picks that'd put the film
-  // over budget. Anyone already on this production is never hidden. The list is
-  // capped for display with an honest overflow count.
-  const filteredList = displayList.filter((person) => {
-    if (onThisDraftIds.has(person.id)) return true;
-    if (availableOnly && !isAvailableImmediately(person, state.totalDays)) return false;
-    if (affordableOnly && !isAffordable(person)) return false;
-    return true;
-  });
-  const shownList = filteredList.slice(0, HIRE_DISPLAY_LIMIT);
-  const overflowCount = filteredList.length - shownList.length;
+  // The director appeal read for everyone in the pool (not just the shown page),
+  // computed once - the "won't work with me" filter runs BEFORE pagination, so it
+  // needs each candidate's hard-gate state up front. Empty for every non-director
+  // role (crew hire instantly, with no interest step to gate on).
+  const directorAppealByPersonId = new Map(
+    isDirectorRole && draft.script
+      ? displayList.map((person) => [person.id, computeDirectorAppeal(person, draft.script!, state.studio, targetPrice, state.totalDays, relationshipFor(person))] as const)
+      : [],
+  );
 
   // Candidate reasoning chips. The Director is the one role with a real appeal
   // model (engine/directorAppeal.ts) - its strengths and hard gates (prestige,
   // salary floor) surface as chips, the director-drawer counterpart of the actor
-  // card. Every role gets the over-budget warning. Returns the chips plus whether
-  // a hard gate should also disable the hire (a doomed offer, like a booked one).
+  // card. Returns the chips plus whether a hard gate should also disable the hire
+  // (a doomed offer, like a booked one).
   function candidateReasoning(person: Person): { signals: CandidateSignal[]; hardBlocked: boolean } {
     const signals: CandidateSignal[] = [];
     const appeal = directorAppealByPersonId.get(person.id);
@@ -232,29 +257,38 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
     // Card UX Redesign), so it's no longer duplicated as a chip here.
     return { signals, hardBlocked };
   }
+  // Whoever won't take this job at any offer we could plausibly make right now -
+  // the director's prestige gate / salary-floor refusal (the crew roles that hire
+  // instantly never trip it). The "hide who won't work with me" filter drops them.
+  const wontWork = (person: Person): boolean => candidateReasoning(person).hardBlocked;
+
+  // Filters. "Available now only" hides booked candidates (a booked hire is
+  // disabled anyway); "Affordable only" keeps only picks you can COMFORTABLY
+  // afford (fee leaves an operating reserve, not merely coverable); "Hide who
+  // won't work with me" drops the hard-gated (a prestige-gated director). A name
+  // search narrows by name. Anyone already on this production is never hidden.
+  const query = search.trim().toLowerCase();
+  const filteredList = displayList.filter((person) => {
+    if (onThisDraftIds.has(person.id)) return true;
+    if (query && !person.identity.name.toLowerCase().includes(query)) return false;
+    if (availableOnly && !isAvailableImmediately(person, state.totalDays)) return false;
+    if (affordableOnly && budgetFor(person) !== 'comfortable') return false;
+    if (hideWontWork && wontWork(person)) return false;
+    return true;
+  });
+
+  // Pagination (casting QOL): a real page window over the whole filtered pool,
+  // not a silent cap with a "narrow to see the rest" nudge. Clamp the page in
+  // case the result set shrank under a new filter (a stale index would show an
+  // empty grid).
+  const pageCount = Math.max(1, Math.ceil(filteredList.length / HIRE_PAGE_SIZE));
+  const pageClamped = Math.min(page, pageCount - 1);
+  const pageStart = pageClamped * HIRE_PAGE_SIZE;
+  const shownList = filteredList.slice(pageStart, pageStart + HIRE_PAGE_SIZE);
 
   const allTalent = Object.values(state.talentPool).flat();
   const pinnedTalent = pins.pinnedIds.map((id) => allTalent.find((t) => t.id === id)).filter((t): t is Person => t !== undefined);
   const comparing = pinnedTalent.length >= MAX_PINNED;
-
-  // Casting Appeal Rework - computed once per candidate shown, not
-  // re-derived per render pass, so the prestige-gate hint below and
-  // selectPerson's own resolution never disagree on the same person.
-  // Talent Relationship History (engine/relationships.ts) - a director's
-  // persistent standing with the studio, read into their interest score and
-  // accept/decline so a loyal filmmaker is easier (and cheaper) to bring back.
-  const relationshipFor = (person: Person) => playerRelationshipWith(state.collaborations ?? [], person);
-  const castAffinityFor = (person: Person) => notableCastAffinity(person, role, draft.talent, state.talentPairings ?? []);
-  // The production's attached casting director sharpens actor fit reads (TalentStats
-  // gates it to actors; harmless to pass for a director/crew hire). undefined with none.
-  const attachedCastingDirector = findAssignedPerson(draft.talent, 'Casting Director');
-  const castingDirectorSkill = attachedCastingDirector ? getCrewCareer(attachedCastingDirector, 'Casting Director')?.skill ?? null : null;
-
-  const directorAppealByPersonId = new Map(
-    isDirectorRole && draft.script
-      ? shownList.map((person) => [person.id, computeDirectorAppeal(person, draft.script!, state.studio, targetPrice, state.totalDays, relationshipFor(person))] as const)
-      : [],
-  );
 
   // Which specific script.cast Character a candidate is being sized up
   // against - an already-hired person keeps the slot they actually filled,
@@ -314,7 +348,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
         category: profile.category,
         script: draft.script,
         character: characterForCandidate(person),
-        affordable: isAffordable(person),
+        budget: budgetFor(person),
         actionLabel: isActor ? 'Cast' : 'Hire',
         actionDisabled: slotBlocked(person),
         onAct: () => selectPerson(person),
@@ -359,6 +393,14 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
         </span>
         {displayList.length > 0 && (
           <div className="casting-controls">
+            <input
+              type="search"
+              className="casting-search"
+              placeholder="Search by name"
+              aria-label="Search candidates by name"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
             <label className="casting-sort">
               <span>Sort</span>
               <select aria-label="Sort candidates" value={sortBy} onChange={(e) => setSortBy(e.target.value as HireSort)}>
@@ -366,7 +408,10 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
               </select>
             </label>
             <CheckboxToggle checked={availableOnly} onChange={setAvailableOnly} label="Available now only" />
-            <CheckboxToggle checked={affordableOnly} onChange={setAffordableOnly} label="Affordable only" />
+            <CheckboxToggle checked={affordableOnly} onChange={setAffordableOnly} label="Affordable only" hint="fee leaves a reserve" />
+            {isDirectorRole && (
+              <CheckboxToggle checked={hideWontWork} onChange={setHideWontWork} label="Hide who won't work with me" />
+            )}
           </div>
         )}
         {showVfxHint && <p style={{ margin: 0 }}>This genre benefits strongly from VFX - consider hiring a supervisor.</p>}
@@ -414,7 +459,7 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
                   booked={booked}
                   pinned={pins.isPinned(person.id)}
                   pinCapped={pins.isFull}
-                  affordable={isAffordable(person)}
+                  budget={budgetFor(person)}
                   signals={signals}
                   castingDirectorSkill={castingDirectorSkill}
                   relationship={relationshipFor(person)}
@@ -427,10 +472,28 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
           </div>
         )}
 
-        {!comparing && overflowCount > 0 && (
-          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>
-            Showing {HIRE_DISPLAY_LIMIT} of {shownList.length + overflowCount} - narrow with the controls to see the rest.
-          </p>
+        {!comparing && pageCount > 1 && (
+          <div className="casting-pager">
+            <Button
+              variant="secondary"
+              className="btn-sm"
+              disabled={pageClamped === 0}
+              onClick={() => setPage(pageClamped - 1)}
+            >
+              ‹ Prev
+            </Button>
+            <span className="casting-pager__status">
+              Page {pageClamped + 1} of {pageCount} · {filteredList.length} candidate{filteredList.length === 1 ? '' : 's'}
+            </span>
+            <Button
+              variant="secondary"
+              className="btn-sm"
+              disabled={pageClamped >= pageCount - 1}
+              onClick={() => setPage(pageClamped + 1)}
+            >
+              Next ›
+            </Button>
+          </div>
         )}
 
         {capacity.max > 1 && (
