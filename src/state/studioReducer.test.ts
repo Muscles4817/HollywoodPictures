@@ -541,11 +541,13 @@ function stateReadyToGreenlight(seed: number, startingCash = 50_000_000): GameSt
     runtimeIntensity: 0.5,
   });
   // Settle any creative demands the attached director raised (Phase 2b) - a state
-  // that is genuinely "ready to greenlight" has these resolved. Refused here
-  // (neutral: no quality swing) so these greenlight-flow fixtures stay unchanged.
+  // that is genuinely "ready to greenlight" has these resolved. ACCEPTED here:
+  // accepting never risks a walk (Phase 2c), so these greenlight-flow fixtures
+  // keep their director. (The small quality swing this freezes only affects the
+  // finished film's Quality at release, which none of these flow tests assert.)
   const withDemands = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
   for (const demand of withDemands.development?.demands ?? []) {
-    s = studioReducer(s, { type: 'RESOLVE_CREATIVE_DEMAND', demandId: demand.id, accept: false });
+    s = studioReducer(s, { type: 'RESOLVE_CREATIVE_DEMAND', demandId: demand.id, accept: true });
   }
   return s;
 }
@@ -616,6 +618,39 @@ describe('Creative demands (Development & Financing, Phase 2b)', () => {
     expect(gd.greenlitOnDay).not.toBeNull();
     expect(gd.development).toBeNull();
     expect(gd.developmentQualityDelta).toBe(resolved.qualityDelta);
+  });
+});
+
+describe('Director walk-risk (Development & Financing, Phase 2c)', () => {
+  function devDraftWithDirector(seed: number, ego: number, loyalty: number) {
+    const { result: asset } = withRng(seed, (rng) => buildReadyAsset(rng));
+    let s = freshWorkspaceState(seed, 50_000_000);
+    s = { ...s, studio: { ...s.studio, assets: [asset] } };
+    s = studioReducer(s, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
+    const { result: raw } = withRng(seed + 1, (rng) => generateTalentCandidates('Director', rng, 1)[0]);
+    const dir = { ...raw, personality: { ...raw.personality, ego, loyalty } };
+    s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role: 'Director', person: dir });
+    // Inject a single strong blocking demand for this director (deterministic).
+    const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
+    const injected = { ...draft, development: { ...draft.development!, demands: [{ id: 'walk-me', demanderId: dir.id, domain: 'Script' as const, strength: 0.95, blocking: true }] } };
+    s = { ...s, projects: s.projects.map((p) => (p.kind === 'player-in-progress' && p.draft.id === injected.id ? { kind: 'player-in-progress' as const, draft: injected } : p)) };
+    return s;
+  }
+
+  it('refusing past a proud stranger\'s patience makes them walk off the project (director removed, demands cleared)', () => {
+    const s = devDraftWithDirector(730, 100, 0);
+    const after = studioReducer(s, { type: 'RESOLVE_CREATIVE_DEMAND', demandId: 'walk-me', accept: false });
+    const draft = asPlayerDraft(findProject(after.projects, after.focusedProjectId))!;
+    expect(draft.talent.some((a) => a.role === 'Director')).toBe(false);
+    expect(draft.development?.demands ?? []).toEqual([]);
+  });
+
+  it('a loyal director tolerates the same refusal and stays, the demand simply recorded refused', () => {
+    const s = devDraftWithDirector(732, 20, 100);
+    const after = studioReducer(s, { type: 'RESOLVE_CREATIVE_DEMAND', demandId: 'walk-me', accept: false });
+    const draft = asPlayerDraft(findProject(after.projects, after.focusedProjectId))!;
+    expect(draft.talent.some((a) => a.role === 'Director')).toBe(true);
+    expect(draft.development!.demands!.find((d) => d.id === 'walk-me')!.resolution).toBe('refused');
   });
 });
 

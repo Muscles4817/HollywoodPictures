@@ -13,7 +13,7 @@ import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { ScriptDetails } from '../common/ScriptDetails';
 import { GreenlightConfirmation } from './GreenlightConfirmation';
-import { describeCreativeDemand, describeDemandCompetence } from '../../engine/creativeDemands';
+import { describeCreativeDemand, describeDemandCompetence, describeDirectorPatience } from '../../engine/creativeDemands';
 import { computeRelationship, NO_RELATIONSHIP, PLAYER_STUDIO_ID } from '../../engine/relationships';
 import type { DevelopmentReadinessBand } from '../../engine/projectReadiness';
 import type { ProjectWorkspaceSection } from '../../types';
@@ -61,6 +61,7 @@ export function ProjectOverview() {
   // Director creative demands (Phase 2b) - shown only while still in development.
   const relationship = director ? computeRelationship(state.collaborations ?? [], PLAYER_STUDIO_ID, director.id) : NO_RELATIONSHIP;
   const pendingDemands = (draft.development?.demands ?? []).filter((d) => !d.resolution);
+  const patience = director ? describeDirectorPatience(draft.development?.demands, director, relationship) : null;
   const identity =
     directorCareer && script
       ? synthesizeProductionIdentity(script, explainEnvironmentStrategy(script, directorCareer), explainEffectsStrategy(script, directorCareer))
@@ -118,6 +119,11 @@ export function ProjectOverview() {
             {director.identity.name} wants control over parts of the film. Cede a craft they command and it lifts the
             picture; cede one they're weak at and it can drag it down. Settle each before greenlighting.
           </p>
+          {patience && patience.band !== 'content' && (
+            <p style={{ margin: 0, color: patience.band === 'on-the-brink' ? 'var(--red)' : 'var(--amber, var(--text-muted))' }}>
+              {patience.text}
+            </p>
+          )}
           {pendingDemands.map((demand) => {
             const read = describeDemandCompetence(director, demand, relationship);
             return (

@@ -292,9 +292,20 @@ aligned script raises ~0.
   Greenlight and folded into final Quality; demands panel in the Producer
   Workspace using 2a's relationship-gated read. (Vision stayed implicit — demand
   generation reads aptitudes + ego + tone-clash directly.)
-- **2c — side-effects (collaborator booking → shoot-start gate, rewrite trigger,
-  scale bump), walk risk, and the blandness-lift wiring into outcome variance.**
-  ← next.
+- **2c — walk-risk & tension.** ✅ **Shipped.** Refusing a demand spends the
+  director's patience (deterministic; ego-weighted, raised by loyalty and a real
+  working history); exhaust it and they **walk off the project** (removed from the
+  package, demands cleared, readiness back to "no director"). A qualitative
+  patience read warns before the walk, so it's never a blind surprise. This is
+  the "refusing isn't free" teeth — and it makes a *known, loyal* director safer
+  to push back on.
+- **2c (remaining) — blandness & accept-side-effects.** Still to do:
+  - **Blandness → outcome variance.** Deferred deliberately: it's a *global*
+    balance lever (every vision-free film, plus rivals, plus the box-office
+    calibration diagnostics) and needs its own calibration pass, not a bolt-on.
+  - **Accept side-effects:** a demanded collaborator's booking gating the shoot
+    start, a Script demand triggering a real rewrite, a Scale demand bumping the
+    budget. Plumbing-heavy (casting/script/plan); a focused follow-up slice.
 
 ---
 

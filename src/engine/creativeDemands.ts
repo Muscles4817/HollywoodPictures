@@ -218,5 +218,79 @@ export function describeDemandCompetence(
   return { band, text: `Their ${noun} is ${BAND_JUDGEMENT[band]}.` };
 }
 
+// --- Tension & walk-risk (Phase 2c) -----------------------------------------
+//
+// Refusing a director's demands is no longer free. Each refusal spends the
+// director's patience - a proud auteur resents being overruled far more than an
+// easygoing pro - and when it runs out they walk off the project (the reducer
+// removes them, and readiness collapses back to "no director"). Patience is
+// DETERMINISTIC and rises with loyalty and how much you've worked together, so a
+// director you know and who likes you tolerates a lot of "no", while a high-ego
+// stranger tolerates almost none. No rng: the player watches the frustration
+// build and can always back off (accept the next one) before the walk.
+
+const BASE_PATIENCE = 0.8;
+const PATIENCE_LOYALTY_WEIGHT = 1.0;
+const PATIENCE_FAMILIARITY_WEIGHT = 1.2;
+const PATIENCE_EGO_WEIGHT = 0.9;
+const MIN_PATIENCE = 0.25;
+const FULL_FAMILIARITY_COLLABS = 3; // films worked together at/above which familiarity is maxed
+
+function egoUnit(person: Person): number {
+  return clamp((person.personality?.ego ?? 50) / 100, 0, 1);
+}
+
+/** What refusing one demand costs the director's patience - ego-weighted, since a proud director resents being overruled far more. */
+function refusalCost(demand: CreativeDemand, ego: number): number {
+  return demand.strength * (0.4 + 0.6 * ego);
+}
+
+/** How much "no" a director will tolerate before walking - higher with loyalty and a real working history, lower with ego. */
+export function directorPatience(director: Person, relationship: RelationshipStanding = NO_RELATIONSHIP): number {
+  const ego = egoUnit(director);
+  const loyalty = clamp((director.personality?.loyalty ?? 50) / 100, 0, 1);
+  const familiarity = clamp(relationship.collaborations / FULL_FAMILIARITY_COLLABS, 0, 1);
+  return Math.max(
+    MIN_PATIENCE,
+    BASE_PATIENCE + loyalty * PATIENCE_LOYALTY_WEIGHT + familiarity * PATIENCE_FAMILIARITY_WEIGHT - ego * PATIENCE_EGO_WEIGHT,
+  );
+}
+
+/** Patience spent so far - the sum of the cost of every demand the player has refused. */
+export function refusalTension(demands: CreativeDemand[] | undefined, director: Person): number {
+  if (!demands) return 0;
+  const ego = egoUnit(director);
+  return demands.reduce((sum, d) => sum + (d.resolution === 'refused' ? refusalCost(d, ego) : 0), 0);
+}
+
+/** Whether the director has been refused past their patience and walks off the project. */
+export function directorWouldWalk(
+  demands: CreativeDemand[] | undefined,
+  director: Person,
+  relationship: RelationshipStanding = NO_RELATIONSHIP,
+): boolean {
+  return refusalTension(demands, director) > directorPatience(director, relationship);
+}
+
+export type PatienceBand = 'content' | 'frustrated' | 'on-the-brink';
+
+export interface DirectorPatienceRead {
+  band: PatienceBand;
+  text: string;
+}
+
+/** A qualitative warning of how close the director is to walking - shown so a refusal is never a blind surprise. */
+export function describeDirectorPatience(
+  demands: CreativeDemand[] | undefined,
+  director: Person,
+  relationship: RelationshipStanding = NO_RELATIONSHIP,
+): DirectorPatienceRead {
+  const patience = directorPatience(director, relationship);
+  const ratio = patience > 0 ? refusalTension(demands, director) / patience : 1;
+  if (ratio < 0.5) return { band: 'content', text: 'Your director is happy with how the collaboration is going.' };
+  if (ratio < 0.85) return { band: 'frustrated', text: 'Your director is getting frustrated at being overruled.' };
+  return { band: 'on-the-brink', text: 'Your director is on the verge of walking - refuse them again and they may leave.' };
+}
+
 // Re-export for callers that want the raw band mapping alongside the demand helpers.
 export { bandFor };

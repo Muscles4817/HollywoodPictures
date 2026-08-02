@@ -7,6 +7,10 @@ import {
   hasUnresolvedBlockingDemand,
   describeDemandCompetence,
   describeCreativeDemand,
+  directorPatience,
+  directorWouldWalk,
+  refusalTension,
+  describeDirectorPatience,
 } from './creativeDemands';
 import { generateTalentCandidates } from './talentGenerator';
 import { generateScriptOptions } from './scriptGenerator';
@@ -138,5 +142,46 @@ describe('describeDemandCompetence - relationship gates the read', () => {
   it('describeCreativeDemand is diegetic prose with no numbers', () => {
     expect(describeCreativeDemand(demand('x', 'Script'))).toMatch(/screenplay/i);
     expect(describeCreativeDemand(demand('x', 'Script'))).not.toMatch(/[0-9]/);
+  });
+});
+
+describe('tension & walk-risk (Phase 2c)', () => {
+  function persona(seed: number, ego: number, loyalty: number): Person {
+    const base = baseDirector(seed);
+    return { ...base, personality: { ...base.personality, ego, loyalty } };
+  }
+
+  it('a loyal director you have a history with tolerates far more "no" than a proud stranger', () => {
+    const proudStranger = persona(20, 100, 0);
+    const loyalPartner = persona(21, 30, 100);
+    expect(directorPatience(loyalPartner, rel(3))).toBeGreaterThan(directorPatience(proudStranger, rel(0)));
+  });
+
+  it('a proud stranger walks after a single strong refusal; a loyal partner does not', () => {
+    const strongRefused = [demand('r', 'Script', { strength: 0.95, resolution: 'refused' })];
+    expect(directorWouldWalk(strongRefused, persona(22, 100, 0), rel(0))).toBe(true);
+    expect(directorWouldWalk(strongRefused, persona(23, 25, 100), rel(3))).toBe(false);
+  });
+
+  it('only refused demands build tension - accepted and pending contribute nothing', () => {
+    const dir = persona(24, 60, 40);
+    const mixed = [
+      demand('a', 'Script', { strength: 0.8, resolution: 'refused' }),
+      demand('b', 'Edit', { strength: 0.8, resolution: 'accepted', qualityDelta: 5 }),
+      demand('c', 'Score', { strength: 0.8 }),
+    ];
+    const onlyRefused = [demand('a', 'Script', { strength: 0.8, resolution: 'refused' })];
+    expect(refusalTension(mixed, dir)).toBeCloseTo(refusalTension(onlyRefused, dir));
+  });
+
+  it('the patience read escalates content -> on-the-brink as refusals mount', () => {
+    const dir = persona(25, 90, 0); // low patience
+    expect(describeDirectorPatience([], dir, rel(0)).band).toBe('content');
+    const overruled = [
+      demand('a', 'Script', { strength: 0.9, resolution: 'refused' }),
+      demand('b', 'Cinematography', { strength: 0.9, resolution: 'refused' }),
+    ];
+    expect(describeDirectorPatience(overruled, dir, rel(0)).band).toBe('on-the-brink');
+    expect(describeDirectorPatience(overruled, dir, rel(0)).text).not.toMatch(/[0-9]/);
   });
 });

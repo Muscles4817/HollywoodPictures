@@ -21,7 +21,7 @@ import { auditionDurationDays } from '../engine/talentCardPresentation';
 import { writerProfileFromPerson } from '../engine/writers';
 import { computeRewriteOutcome, makePendingRewrite, rewriteDurationDays, rewriteFee, settleAssetRewrites } from '../engine/rewrite';
 import { commissionDurationDays, commissionFee, generateCommissionedScript, makePendingCommission, settlePendingCommissions } from '../engine/commission';
-import { generateCreativeDemands, resolveDemandQualityDelta, acceptedDemandQualityDelta } from '../engine/creativeDemands';
+import { generateCreativeDemands, resolveDemandQualityDelta, acceptedDemandQualityDelta, directorWouldWalk } from '../engine/creativeDemands';
 import {
   momentPolarity,
   resolvePressTourIncident,
@@ -1044,6 +1044,28 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         : { ...demand, resolution: 'refused' as const };
       const demands = focusedDraft.development.demands.map((d) => (d.id === demand.id ? resolved : d));
       const nextDraft: FilmDraft = { ...focusedDraft, development: { ...focusedDraft.development, demands } };
+
+      // Refusing spends the director's patience (Phase 2c); overrule a proud
+      // director past their limit and they walk off the project - removed from
+      // the package, their demands cleared (via withRebalancedTargets), readiness
+      // back to "no director". A loyal director you've worked with tolerates far
+      // more; the patience read in the workspace warns before this happens.
+      if (!action.accept) {
+        const relationship = computeRelationship(state.collaborations ?? [], PLAYER_STUDIO_ID, director.id);
+        if (directorWouldWalk(demands, director, relationship)) {
+          const withoutDirector = withRebalancedTargets(
+            nextDraft,
+            nextDraft.talent.filter((a) => !(a.role === 'Director' && a.person.id === director.id)),
+          );
+          const logged = appendStaffingEvent(withoutDirector, {
+            day: state.totalDays,
+            kind: 'dropped',
+            subject: 'Director',
+            personName: director.identity.name,
+          });
+          return { ...state, projects: replaceDraft(state.projects, logged) };
+        }
+      }
       return { ...state, projects: replaceDraft(state.projects, nextDraft) };
     }
 
