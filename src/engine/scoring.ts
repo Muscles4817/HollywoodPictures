@@ -625,7 +625,14 @@ export function computeAudienceScore(
 // recognition has little for its marketing pound to work on, so it cannot buy
 // its way past the mid bands however much it spends (buzzCalibration.diagnostic
 // .test.ts's non-purchasability probes).
-const BUZZ_BASE = 10;
+// Baseline anticipation every release starts with, before latent-demand terms and
+// gated signals. Nudged 10->11 when the finished-cut buzz (briefBuzz) moved from an
+// ungated flat contributor into the gated production/post-signal term below: a
+// normal cut used to add its buzz to every film ungated, so a small baseline lift
+// keeps an ordinary release in its ratified §6 band once that finishing buzz is
+// gated (with the gentler BRIEF_GATE_FLOOR), while unknown packages stay far below
+// the top bands. Re-check the buzz-calibration diagnostic if you retune it.
+const BUZZ_BASE = 11;
 const FAME_BUZZ_WEIGHT = 0.5;
 const BRAND_BUZZ_WEIGHT = 0.55;
 const SCRIPT_BUZZ_WEIGHT = 0.15;
@@ -635,6 +642,17 @@ const SCRIPT_BUZZ_WEIGHT = 0.15;
 // unlocked by fame + brand.
 const MARKETING_BUZZ_WEIGHT = 0.68;
 const MARKETING_GATE_FLOOR = 0.3;
+// Finishing-buzz (briefBuzz) gate floor. Higher than marketing's/on-set's 0.3: a
+// genuinely bold, memorable cut or score has more ORGANIC breakout reach than a
+// paid ad buy or a random on-set moment - a great trailer travels somewhat on its
+// own even for a smaller package (the sleeper-hit path). So finishing buzz is
+// gated by latent audience too, but retains more of itself for an unknown film -
+// enough that it can't be zeroed, not enough to manufacture top-band anticipation
+// (a Mystery+Heavy cut on total unknowns lands mid-band, not blockbuster). Chosen
+// with BUZZ_BASE so the change is ~buzz-neutral in aggregate (buzz is a sensitive
+// pacing lever near this operating point) and both the buzz §6 and box-office
+// distribution diagnostics stay green.
+const BRIEF_GATE_FLOOR = 0.65;
 // Soft ceiling: the raw score approaches 100 asymptotically above the knee
 // rather than hard-clamping, so the top three bands (blockbuster / cultural
 // event / phenomenon) stay distinguishable instead of all pinning to 100.
@@ -669,30 +687,34 @@ export function computeBuzzScore(
   const scriptBuzz = (deriveCommercialProfile(script).hookStrength - 50) * SCRIPT_BUZZ_WEIGHT;
 
   // Non-purchasable anticipation core: intrinsic latent demand - who's involved,
-  // how established the studio is, the concept's own hook, and the buzz-worthiness
-  // of the finished cut. What audiences already want, before any public signal
-  // has to travel to reach them.
+  // how established the studio is, and the concept's own hook. What audiences would
+  // already want, before any public signal has to travel to reach them.
   const anticipation =
-    BUZZ_BASE + (fameAvg - 50) * FAME_BUZZ_WEIGHT + (studioBrand - 50) * BRAND_BUZZ_WEIGHT + scriptBuzz + briefBuzz;
+    BUZZ_BASE + (fameAvg - 50) * FAME_BUZZ_WEIGHT + (studioBrand - 50) * BRAND_BUZZ_WEIGHT + scriptBuzz;
 
   // Amplification gate: how much latent audience there is for a public signal to
   // reach. An unknown package (no stars, no brand) gives a signal little to carry;
   // an established one amplifies it. Floored so some organic reach always exists.
   const starPower = clamp((fameAvg + studioBrand) / 200, 0, 1);
   const amplificationGate = MARKETING_GATE_FLOOR + (1 - MARKETING_GATE_FLOOR) * starPower;
+  // Finishing buzz rides a gentler floor - a great cut/trailer breaks out more on
+  // its own than a raw ad buy or an on-set moment (see BRIEF_GATE_FLOOR).
+  const briefGate = BRIEF_GATE_FLOOR + (1 - BRIEF_GATE_FLOOR) * starPower;
 
   // Marketing spend amplifies the core, gated - so spend alone can't reach the top
   // bands.
   const marketingBuzz = marketingBuzzContribution(marketingReach) * MARKETING_BUZZ_WEIGHT * amplificationGate;
 
-  // Production-moment buzz (a trailer-defining stunt, a leak, an on-set scandal)
-  // reaches only as far as there's an audience primed to care - a tentpole's every
-  // set beat is amplified; an unknown's lucky (or unlucky) day barely travels. Gated
-  // on the SAME latent-demand axis as marketing rather than added raw into the core,
-  // so on-set buzz can no longer bypass non-purchasability and manufacture top-band
-  // anticipation for a no-name film. Sign is preserved (eventsBuzz can be net
-  // negative), so a scandal on a famous package still bites hardest.
-  const eventsBuzzAmplified = eventsBuzz * amplificationGate;
+  // Production & post signals are public signals whose reach scales with the latent
+  // audience, rather than raw additions to the core - so neither on-set luck nor a
+  // finishing choice can bypass non-purchasability and manufacture top-band
+  // anticipation for a no-name film. On-set moments (a trailer-defining stunt, a
+  // leak, a scandal) ride the same low-floored gate as marketing - a tentpole's
+  // every beat is amplified, an unknown's lucky (or unlucky) day barely travels.
+  // Finishing buzz (a marketing-oriented cut, a bold talked-about score) rides the
+  // gentler briefGate. Sign is preserved on both (either can be net negative), so a
+  // scandal - or a buzz-killing Minimal score - on a famous package still bites hardest.
+  const productionSignalBuzz = eventsBuzz * amplificationGate + briefBuzz * briefGate;
 
-  return softCeilBuzz(anticipation + marketingBuzz + eventsBuzzAmplified);
+  return softCeilBuzz(anticipation + marketingBuzz + productionSignalBuzz);
 }

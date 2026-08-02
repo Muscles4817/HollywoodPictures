@@ -498,6 +498,22 @@ quality should emerge during production).
 
 ## 10. Change log (calibration history)
 
+- **2026-08-02** — Buzz non-purchasability tightened (event-realism audit).
+  `computeBuzzScore` (`scoring.ts`) previously summed production-event buzz AND
+  finished-cut buzz (`briefBuzz`) **raw and ungated** into the anticipation core,
+  letting on-set luck or a mystery-box cut manufacture top-band anticipation for a
+  no-name package — bypassing the same star/brand gate that already caps marketing.
+  Both now ride the amplification gate: events on marketing's `0.3` floor, finishing
+  buzz on a gentler `BRIEF_GATE_FLOOR=0.65` (a great cut/trailer has more organic
+  breakout reach than a raw ad buy). `BUZZ_BASE` 10→11 keeps the change ~buzz-neutral
+  in aggregate — **deliberately**, because buzz is a *very* sensitive pacing lever
+  here (a +3 `BUZZ_BASE` bump alone swung wide median gross ~+24% via WOM
+  compounding, flipping `over100Pct` out of band; the gentler brief floor let a
+  ~+1 bump restore the §6 ordinary-film fixture instead). Result: buzz §6 diagnostic
+  fully green (fixtures + non-purchasability), and the whole-year distribution
+  diagnostic has **no PASS→FAIL flip** — median 92→96, mean 153→158 (toward target),
+  opening multiple / run weeks / bomb% stable. The standing Root-A/B failures
+  (mean-gross floor, unprofitable/flop tail, over-$1B & top-10 share) are untouched.
 - **2026-07-28** — Root-cause investigation (this doc created). Verified pacing
   (Root A, WOM) and variance/flop-tail (Root B, upstream scoring) are
   independent roots; drain & awareness-ramp levers saturate ~3.5× opening

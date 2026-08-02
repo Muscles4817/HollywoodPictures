@@ -205,4 +205,17 @@ describe('computeBuzzScore - production-event buzz is gated by latent audience (
     expect(famousDrop).toBeGreaterThan(unknownDrop);
     expect(unknownDrop).toBeGreaterThan(0);
   });
+
+  it('a buzz-seeking finishing cut (bold score + mystery-box) lifts an established package more than an unknown one', () => {
+    // briefBuzz is a public finishing signal, gated like the rest - so an unknown
+    // studio cannot buy its way into blockbuster anticipation with a mystery-box cut.
+    const loud: PostProductionChoices = { editStyle: 'Balanced', musicFocus: 'Heavy', finalCutFocus: 'Mystery-focused' };
+    const plain: PostProductionChoices = { editStyle: 'Balanced', musicFocus: 'Standard', finalCutFocus: 'Critic-focused' };
+    const b = (fame: number, post: PostProductionChoices) => computeBuzzScore(script, [leadAt(fame)], [], post, LOW_MARKETING, fame);
+    const unknownGain = b(40, loud) - b(40, plain);
+    const famousGain = b(80, loud) - b(80, plain);
+    expect(famousGain).toBeGreaterThan(unknownGain);
+    // The gentler finishing-buzz floor still leaves an unknown real organic reach.
+    expect(unknownGain).toBeGreaterThan(0);
+  });
 });
