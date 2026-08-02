@@ -280,14 +280,21 @@ aligned script raises ~0.
 
 ### Phase 2 sub-phasing (ship in thirds)
 
-- **2a — domain aptitudes + partial-reveal read.** `DomainAptitudes` type,
-  `deriveAptitudes` (derive-when-absent), `describeDirectorAptitudes`
-  (relationship-scaled). *Data foundation; no behaviour change.* ← build first.
-- **2b — vision + demand generation + accept/refuse quality deltas.** The
-  Snyder bet, surfaced via the existing `PendingEventChoice` flow on
-  `DevelopmentState`.
+- **2a — domain aptitudes + partial-reveal read.** ✅ **Shipped.**
+  `DomainAptitudes` type, `deriveDirectorAptitudes` (derive-when-absent),
+  `describeDirectorAptitudes` (relationship-scaled). Data foundation.
+- **2b — demand generation + accept/refuse quality deltas.** ✅ **Shipped.**
+  `CreativeDemand` on `DevelopmentState`; `deriveDemandLoad` /
+  `generateCreativeDemands` (regenerated on director attach, seeded per
+  director+script); `resolveDemandQualityDelta` (the Snyder bet); a
+  `RESOLVE_CREATIVE_DEMAND` action; blocking demands gate Greenlight; accepted
+  demands' net swing frozen onto `FilmDraft.developmentQualityDelta` at
+  Greenlight and folded into final Quality; demands panel in the Producer
+  Workspace using 2a's relationship-gated read. (Vision stayed implicit — demand
+  generation reads aptitudes + ego + tone-clash directly.)
 - **2c — side-effects (collaborator booking → shoot-start gate, rewrite trigger,
   scale bump), walk risk, and the blandness-lift wiring into outcome variance.**
+  ← next.
 
 ---
 
@@ -442,7 +449,7 @@ interface FinancingSource { kind: 'studio' | 'producer' | 'presale' | 'cofinance
 2. **Attachments + domain aptitudes + the demand loop.** Director visions, the
    0–10 demand queue, competence-driven resolution (the Snyder principle),
    availability-gated delays, walk-risk, the blandness floor. **Locked design +
-   sub-phasing (2a/2b/2c) in §5a; building 2a next.**
+   sub-phasing (2a/2b/2c) in §5a. **2a and 2b shipped; 2c next.**
 3. **Financing stack + waterfall.** Sources, terms, the greenlight-must-close
    gate, recoupment at release.
 4. **Producers as bridge + turnaround market.** Wire specialties to

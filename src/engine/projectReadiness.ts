@@ -7,6 +7,7 @@ import { getDirectorCareer } from './person';
 import { effectiveRoleCapacity } from './castRequirements';
 import { computeTalentCost, computeProductionBudgetCost } from './cost';
 import { computeStaticProductionRisk } from './production';
+import { hasUnresolvedBlockingDemand } from './creativeDemands';
 import { overallSpendT } from './productionDials';
 import { explainEffectsStrategy, explainEnvironmentStrategy } from './recommendation';
 
@@ -16,6 +17,7 @@ export type ProjectReadinessIssueCode =
   | 'missing-supporting-cast'
   | 'missing-mandatory-crew'
   | 'production-plan-incomplete'
+  | 'unresolved-creative-demand'
   | 'cannot-afford-greenlight';
 
 export type ProjectReadinessWarningCode =
@@ -149,6 +151,13 @@ export function deriveProjectReadiness(draft: FilmDraft, studioCash: number): Pr
     blockers.push({ code: 'production-plan-incomplete', message: 'Set your production plan.' });
   }
 
+  // The director's high-conviction creative demands (Phase 2b) must each be
+  // settled - accepted or refused - before the package can be greenlit.
+  const unresolvedDemand = hasUnresolvedBlockingDemand(draft.development?.demands);
+  if (unresolvedDemand) {
+    blockers.push({ code: 'unresolved-creative-demand', message: "Settle your director's creative demands." });
+  }
+
   const talentCost = computeTalentCost(draft.talent);
   const productionCost = hasProductionPlan ? computeProductionBudgetCost(draft.productionChoices!) : 0;
   const contingency = hasProductionPlan ? draft.productionChoices!.shootingBudgetAmount : 0;
@@ -219,7 +228,7 @@ export function deriveProjectReadiness(draft: FilmDraft, studioCash: number): Pr
   // only the money outstanding -> packaged (the future financing gate); any
   // creative progress at all -> warming; a bare, freshly-created draft -> stalled.
   const ready = blockers.length === 0;
-  const packaged = castAndCrewComplete && hasProductionPlan; // only finance can still block here
+  const packaged = castAndCrewComplete && hasProductionPlan && !unresolvedDemand; // creative package settled; only finance can still block
   const hasAnyProgress = hasDirector || hasProductionPlan || draft.talent.length > 0;
   const band: DevelopmentReadinessBand = ready
     ? 'greenlightable'

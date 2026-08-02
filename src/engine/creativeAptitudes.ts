@@ -78,7 +78,7 @@ export interface DirectorAptitudeRead {
 // domains). One or two films is a "familiar" read (strongest + weakest only).
 const INTIMATE_COLLABS = 3;
 
-function bandFor(value: number): AptitudeBand {
+export function bandFor(value: number): AptitudeBand {
   if (value >= 85) return 'exceptional';
   if (value >= 70) return 'strong';
   if (value >= 50) return 'solid';
@@ -86,12 +86,13 @@ function bandFor(value: number): AptitudeBand {
   return 'weak';
 }
 
-const DOMAIN_NOUN: Record<AptitudeDomain, string> = {
+export const APTITUDE_DOMAIN_NOUN: Record<AptitudeDomain, string> = {
   story: 'story and script',
   visual: 'visual craft',
   performance: 'directing performances',
   craft: 'editorial craft',
 };
+const DOMAIN_NOUN = APTITUDE_DOMAIN_NOUN;
 
 const BAND_ADJECTIVE: Record<AptitudeBand, string> = {
   exceptional: 'a commanding',

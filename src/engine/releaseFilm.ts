@@ -110,6 +110,13 @@ export interface ReleaseComputationInput {
    */
   personDrivenCraft?: boolean;
   /**
+   * The net quality swing from creative demands the player accepted during
+   * development (Phase 2b - engine/creativeDemands.ts), frozen onto the draft at
+   * Greenlight. Folded, unamplified, into Quality. Optional/absent (→ 0) for
+   * rivals and pre-2b drafts, so they're unaffected.
+   */
+  developmentQualityDelta?: number;
+  /**
    * A resolved press-tour moment (engine/pressTourMoments.ts), rolled at
    * settlement (resolvePlayerRelease) and passed in as plain data so this
    * function stays pure and deterministic. Its buzzDelta lifts/saps Buzz and its
@@ -188,6 +195,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     executionProfile,
     input.stuntTeamSkill, // the Practical facet's skill axis (undefined → fallback)
     input.personDrivenCraft ?? false, // player films realise DP/Composer/Editor craft; rivals keep the flat model
+    input.developmentQualityDelta ?? 0, // accepted creative demands' net swing (Phase 2b)
   );
   const criticScore = computeCriticScore(quality, input.script, input.postProductionChoices);
   const audienceScore = computeAudienceScore(

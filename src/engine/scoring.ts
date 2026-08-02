@@ -464,6 +464,12 @@ export function computeQualityBreakdown(
   // funnel/scale recalibration. Sets/VFX/Practical are person-driven for everyone
   // regardless (unchanged by this flag).
   personDrivenCraft = false,
+  // The net quality swing from creative demands the player accepted during
+  // development (Phase 2b - engine/creativeDemands.ts), frozen onto
+  // FilmDraft.developmentQualityDelta at Greenlight. A flat, unamplified nudge to
+  // the final Quality in the same small +/-10 scale an event's qualityDelta uses.
+  // Defaults to 0, so every existing caller (and every rival) is unaffected.
+  developmentQualityDelta = 0,
 ): QualityBreakdown {
   const execution = executionProfile ?? computeExecutionProfile({ events, shootingRatio, talent, productionChoices });
 
@@ -544,7 +550,8 @@ export function computeQualityBreakdown(
     executedScript * weights.script +
       effDirection * weights.direction +
       effActing * weights.acting +
-      effPostProduction * weights.postProduction,
+      effPostProduction * weights.postProduction +
+      developmentQualityDelta,
     0,
     100,
   );

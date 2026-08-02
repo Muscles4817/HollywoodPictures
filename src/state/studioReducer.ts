@@ -21,6 +21,7 @@ import { auditionDurationDays } from '../engine/talentCardPresentation';
 import { writerProfileFromPerson } from '../engine/writers';
 import { computeRewriteOutcome, makePendingRewrite, rewriteDurationDays, rewriteFee, settleAssetRewrites } from '../engine/rewrite';
 import { commissionDurationDays, commissionFee, generateCommissionedScript, makePendingCommission, settlePendingCommissions } from '../engine/commission';
+import { generateCreativeDemands, resolveDemandQualityDelta, acceptedDemandQualityDelta } from '../engine/creativeDemands';
 import {
   momentPolarity,
   resolvePressTourIncident,
@@ -612,7 +613,7 @@ function replaceDraft(projects: Project[], draft: FilmDraft): Project[] {
  * set the per-role dials stay fully manual: only the talent list changes.
  */
 function withRebalancedTargets(draft: FilmDraft, nextTalent: TalentAssignment[]): FilmDraft {
-  if (draft.castCrewBudget == null) return { ...draft, talent: nextTalent };
+  if (draft.castCrewBudget == null) return syncDirectorDemands({ ...draft, talent: nextTalent });
   const talentTargetPriceByRole = splitCastBudgetByImportance({
     totalBudget: draft.castCrewBudget,
     talent: nextTalent,
@@ -620,7 +621,27 @@ function withRebalancedTargets(draft: FilmDraft, nextTalent: TalentAssignment[])
     current: draft.talentTargetPriceByRole,
     locked: draft.lockedRoleBudgets,
   });
-  return { ...draft, talent: nextTalent, talentTargetPriceByRole };
+  return syncDirectorDemands({ ...draft, talent: nextTalent, talentTargetPriceByRole });
+}
+
+/**
+ * Keeps a development-phase draft's director creative demands (Phase 2b) in step
+ * with who's actually attached to direct. Routed through withRebalancedTargets so
+ * every talent-change path re-syncs; a no-op once greenlit (development is null)
+ * or with no script. Regenerates only when the attached director actually changes
+ * - the same director keeps their existing, already-resolved demands; removing
+ * the director clears them; a new director brings their own fresh set (which may
+ * be empty for a low-ego, aligned "yes-man").
+ */
+function syncDirectorDemands(draft: FilmDraft): FilmDraft {
+  if (!draft.development || !draft.script) return draft;
+  const director = findAssignedPerson(draft.talent, 'Director');
+  if (!director) {
+    if (!draft.development.demands || draft.development.demands.length === 0) return draft;
+    return { ...draft, development: { ...draft.development, demands: [] } };
+  }
+  if (draft.development.demands?.[0]?.demanderId === director.id) return draft; // unchanged director - preserve resolutions
+  return { ...draft, development: { ...draft.development, demands: generateCreativeDemands(director, draft.script) } };
 }
 
 /**
@@ -1006,6 +1027,24 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         focusedProjectId: draft.id,
         ...clearTransientView(),
       };
+    }
+
+    case 'RESOLVE_CREATIVE_DEMAND': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft?.development?.demands) return state;
+      const demand = focusedDraft.development.demands.find((d) => d.id === action.demandId);
+      if (!demand || demand.resolution) return state; // gone, or already resolved
+      const director = findAssignedPerson(focusedDraft.talent, 'Director');
+      if (!director) return state;
+      // Accepting cedes the domain: roll the quality outcome once (deterministic
+      // per demand id), keyed to the director's aptitude there. Refusing keeps
+      // control - no quality change in 2b (tension/walk-risk are 2c).
+      const resolved = action.accept
+        ? { ...demand, resolution: 'accepted' as const, qualityDelta: resolveDemandQualityDelta(demand, director) }
+        : { ...demand, resolution: 'refused' as const };
+      const demands = focusedDraft.development.demands.map((d) => (d.id === demand.id ? resolved : d));
+      const nextDraft: FilmDraft = { ...focusedDraft, development: { ...focusedDraft.development, demands } };
+      return { ...state, projects: replaceDraft(state.projects, nextDraft) };
     }
 
     // Development Department MVP (docs/DESIGN_REVIEW_writer_authors.md, Phase 3).
@@ -1909,6 +1948,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         ...focusedDraft,
         // Development is over: the package is frozen and the project hands off
         // to the live pre-production run (see DevelopmentState / PreProductionState).
+        // Freeze the net quality swing from the director's accepted creative
+        // demands (Phase 2b) onto the draft as the package locks - it's folded
+        // into the finished film's Quality at release.
+        developmentQualityDelta: acceptedDemandQualityDelta(focusedDraft.development?.demands),
         development: null,
         greenlitOnDay: state.totalDays,
         shootStartsOnDay: deferred ? shootStartsOnDay : undefined,
