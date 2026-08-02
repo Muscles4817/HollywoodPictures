@@ -416,6 +416,10 @@ export type GameAction =
   // state/studioReducer.ts. Fails safely (returns state unchanged) if the
   // studio can't afford the full commitment right now.
   | { type: 'GREENLIGHT_PROJECT' }
+  // Resolve one of the attached director's creative demands (Phase 2b) on the
+  // focused development-phase draft: accept (cede the domain - a quality bet keyed
+  // to the director's aptitude there) or refuse (keep control).
+  | { type: 'RESOLVE_CREATIVE_DEMAND'; demandId: string; accept: boolean }
   // Pre-production day-by-day phase (types/index.ts:PreProductionState), the
   // mirror of ADVANCE_SHOOTING_DAY/RESOLVE_EVENT_CHOICE for the prep run.
   // ADVANCE always drives the focused project's prep; RESOLVE names the draft

@@ -540,6 +540,15 @@ function stateReadyToGreenlight(seed: number, startingCash = 50_000_000): GameSt
     shootingBudgetAmount: 500_000,
     runtimeIntensity: 0.5,
   });
+  // Settle any creative demands the attached director raised (Phase 2b) - a state
+  // that is genuinely "ready to greenlight" has these resolved. ACCEPTED here:
+  // accepting never risks a walk (Phase 2c), so these greenlight-flow fixtures
+  // keep their director. (The small quality swing this freezes only affects the
+  // finished film's Quality at release, which none of these flow tests assert.)
+  const withDemands = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
+  for (const demand of withDemands.development?.demands ?? []) {
+    s = studioReducer(s, { type: 'RESOLVE_CREATIVE_DEMAND', demandId: demand.id, accept: true });
+  }
   return s;
 }
 
@@ -566,6 +575,82 @@ describe('Development phase lifecycle (Development & Financing, Phase 1)', () =>
     expect(after.development).toBeNull();
     expect(after.greenlitOnDay).not.toBeNull();
     expect(after.preProduction).not.toBeNull(); // handed off to prep
+  });
+});
+
+describe('Creative demands (Development & Financing, Phase 2b)', () => {
+  it('attaching a director to a development draft populates their creative demands', () => {
+    const { result: asset } = withRng(720, (rng) => buildReadyAsset(rng));
+    let s = freshWorkspaceState(720, 50_000_000);
+    s = { ...s, studio: { ...s.studio, assets: [asset] } };
+    s = studioReducer(s, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
+    const { result: dir } = withRng(721, (rng) => generateTalentCandidates('Director', rng, 1)[0]);
+    s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role: 'Director', person: dir });
+
+    const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
+    expect(Array.isArray(draft.development?.demands)).toBe(true);
+    for (const d of draft.development!.demands!) expect(d.demanderId).toBe(dir.id);
+  });
+
+  it('a blocking demand gates Greenlight; accepting it unblocks and freezes its quality swing onto the draft', () => {
+    let s = stateReadyToGreenlight(722);
+    const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
+    const dirId = draft.talent.find((a) => a.role === 'Director')!.person.id;
+    const injected = {
+      ...draft,
+      development: { ...draft.development!, demands: [{ id: 'inj', demanderId: dirId, domain: 'Cinematography' as const, strength: 0.9, blocking: true }] },
+    };
+    s = { ...s, projects: s.projects.map((p) => (p.kind === 'player-in-progress' && p.draft.id === injected.id ? { kind: 'player-in-progress' as const, draft: injected } : p)) };
+
+    // Greenlight is refused while the blocking demand is unresolved.
+    const blocked = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });
+    expect(asPlayerDraft(findProject(blocked.projects, blocked.focusedProjectId))!.greenlitOnDay).toBeNull();
+
+    // Accept it - it's resolved with a rolled quality outcome...
+    const accepted = studioReducer(s, { type: 'RESOLVE_CREATIVE_DEMAND', demandId: 'inj', accept: true });
+    const resolved = asPlayerDraft(findProject(accepted.projects, accepted.focusedProjectId))!.development!.demands!.find((d) => d.id === 'inj')!;
+    expect(resolved.resolution).toBe('accepted');
+    expect(typeof resolved.qualityDelta).toBe('number');
+
+    // ...and now Greenlight succeeds, freezing that swing onto the draft as development ends.
+    const greenlit = studioReducer(accepted, { type: 'GREENLIGHT_PROJECT' });
+    const gd = asPlayerDraft(findProject(greenlit.projects, greenlit.focusedProjectId))!;
+    expect(gd.greenlitOnDay).not.toBeNull();
+    expect(gd.development).toBeNull();
+    expect(gd.developmentQualityDelta).toBe(resolved.qualityDelta);
+  });
+});
+
+describe('Director walk-risk (Development & Financing, Phase 2c)', () => {
+  function devDraftWithDirector(seed: number, ego: number, loyalty: number) {
+    const { result: asset } = withRng(seed, (rng) => buildReadyAsset(rng));
+    let s = freshWorkspaceState(seed, 50_000_000);
+    s = { ...s, studio: { ...s.studio, assets: [asset] } };
+    s = studioReducer(s, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
+    const { result: raw } = withRng(seed + 1, (rng) => generateTalentCandidates('Director', rng, 1)[0]);
+    const dir = { ...raw, personality: { ...raw.personality, ego, loyalty } };
+    s = studioReducer(s, { type: 'TOGGLE_TALENT_FOR_ROLE', role: 'Director', person: dir });
+    // Inject a single strong blocking demand for this director (deterministic).
+    const draft = asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
+    const injected = { ...draft, development: { ...draft.development!, demands: [{ id: 'walk-me', demanderId: dir.id, domain: 'Script' as const, strength: 0.95, blocking: true }] } };
+    s = { ...s, projects: s.projects.map((p) => (p.kind === 'player-in-progress' && p.draft.id === injected.id ? { kind: 'player-in-progress' as const, draft: injected } : p)) };
+    return s;
+  }
+
+  it('refusing past a proud stranger\'s patience makes them walk off the project (director removed, demands cleared)', () => {
+    const s = devDraftWithDirector(730, 100, 0);
+    const after = studioReducer(s, { type: 'RESOLVE_CREATIVE_DEMAND', demandId: 'walk-me', accept: false });
+    const draft = asPlayerDraft(findProject(after.projects, after.focusedProjectId))!;
+    expect(draft.talent.some((a) => a.role === 'Director')).toBe(false);
+    expect(draft.development?.demands ?? []).toEqual([]);
+  });
+
+  it('a loyal director tolerates the same refusal and stays, the demand simply recorded refused', () => {
+    const s = devDraftWithDirector(732, 20, 100);
+    const after = studioReducer(s, { type: 'RESOLVE_CREATIVE_DEMAND', demandId: 'walk-me', accept: false });
+    const draft = asPlayerDraft(findProject(after.projects, after.focusedProjectId))!;
+    expect(draft.talent.some((a) => a.role === 'Director')).toBe(true);
+    expect(draft.development!.demands!.find((d) => d.id === 'walk-me')!.resolution).toBe('refused');
   });
 });
 

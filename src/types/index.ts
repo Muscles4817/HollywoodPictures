@@ -304,10 +304,34 @@ export interface DirectorProductionStyle {
   effectsStrategy: Distribution<EffectsMethodKey>;
 }
 
+// Domain aptitudes (docs/DESIGN_REVIEW_development_and_financing.md §5a) - HOW
+// GOOD a creative is at each of four distinct crafts, distinct from `skill` =
+// how good they are overall. The gap between domains is the whole point: a
+// brilliant visual director can be a genuinely weak story mind (the "Snyder
+// principle"), which is what makes accepting a creative demand a judgement call
+// rather than a rubber stamp. Optional/additive, exactly like DirectorCareer.handsOn
+// and CrewCareer.philosophy: an authored vector (marquee directors with a real
+// reputation) overrides; absent, it's a STABLE per-person derivation centred on
+// `skill` (engine/creativeAptitudes.ts:deriveDirectorAptitudes) - never rng, never
+// a live dial.
+export interface DomainAptitudes {
+  /** Script/story judgement: structure, character, dialogue instincts. */
+  story: number; // 0-100
+  /** Visual command: cinematography, production design, spectacle. */
+  visual: number; // 0-100
+  /** Directing actors: drawing out performance. */
+  performance: number; // 0-100
+  /** Post/assembly craft: edit, pacing, musical sensibility. */
+  craft: number; // 0-100
+}
+
 export interface DirectorCareer extends RoleCareerCommon<'Director'> {
   skill: number; // 1-100
   toneProfile: ToneProfile;
   productionStyle: DirectorProductionStyle;
+  // Per-domain aptitudes (see DomainAptitudes). Optional authored override for
+  // marquee directors; absent means a stable per-person derivation from `skill`.
+  aptitudes?: DomainAptitudes;
   // How forcefully this director shapes actor performances - "lets you cook"
   // (low) vs "drags a specific performance out of you" (high). LEVERAGE on the
   // director<->actor match, not a quality dial: a hands-on director unlocks a
@@ -1114,6 +1138,55 @@ export interface DevelopmentState {
   status: 'in-development';
   /** GameState.totalDays the project entered development (created from its Asset) - anchors "time in development" and, later, the option/carry clock. */
   startedOnDay: GameDay;
+  /**
+   * The attached director's creative demands (Phase 2b - the creative-disagreement
+   * engine, docs/DESIGN_REVIEW_development_and_financing.md §5/§5a). Regenerated
+   * deterministically whenever the attached director changes; absent/empty means
+   * no director attached, or a director who simply does as they're told. Each is
+   * resolved (accepted/refused) by the player; the accepted ones' quality outcome
+   * is frozen onto FilmDraft.developmentQualityDelta at Greenlight (the package is
+   * locked) and folded into the finished film.
+   */
+  demands?: CreativeDemand[];
+}
+
+// The craft a creative wants control over in a demand. Governed by exactly one
+// DomainAptitudes axis (engine/creativeDemands.ts:DEMAND_GOVERNOR), which is what
+// decides whether ceding it helps or hurts - the "Snyder principle" (a great
+// visual director is often a poor writer). 'Scale' is typed for later (a budget/
+// scope demand) but not generated until Phase 2c wires its side-effects.
+export type CreativeDemandDomain =
+  | 'Script'
+  | 'Casting'
+  | 'Cinematography'
+  | 'ProductionDesign'
+  | 'Edit'
+  | 'Score'
+  | 'VFX'
+  | 'Practical'
+  | 'Scale';
+
+/**
+ * One creative demand a director makes during development (Phase 2b). Accepting
+ * cedes the domain to them - a bet whose expected value is keyed to their
+ * aptitude in *that* domain (engine/creativeDemands.ts:resolveDemandQualityDelta);
+ * refusing keeps control (no quality change in 2b - tension/walk-risk arrive in
+ * 2c). `resolution` and `qualityDelta` are absent until the player resolves it.
+ */
+export interface CreativeDemand {
+  /** Stable, deterministic per (director, script, domain) so re-syncing the same director never duplicates or reshuffles. */
+  id: string;
+  /** The director making the demand (a Person id). */
+  demanderId: PersonId;
+  domain: CreativeDemandDomain;
+  /** How hard they push, 0-1 - drives conviction and whether the demand blocks Greenlight. */
+  strength: number;
+  /** A high-conviction demand the player must resolve before Greenlight (feeds project readiness). */
+  blocking: boolean;
+  /** How the player resolved it - absent while still pending. */
+  resolution?: 'accepted' | 'refused';
+  /** The rolled quality outcome of ACCEPTING (the Snyder bet), set once at resolution. Absent while pending or if refused. */
+  qualityDelta?: number;
 }
 
 export type EditStyle = 'Commercial' | 'Artistic' | 'Balanced';
@@ -2522,6 +2595,13 @@ export interface FilmDraft {
   // cleared to null by GREENLIGHT_PROJECT; older/test-built drafts simply omit
   // it. See DevelopmentState.
   development?: DevelopmentState | null;
+  // The net quality swing from creative demands the player ACCEPTED during
+  // development (Phase 2b) - the sum of their rolled qualityDeltas, frozen here
+  // at Greenlight as the package locks (development itself becomes null), then
+  // folded into the finished film's Quality at release exactly like a
+  // production event's qualityDelta. Absent/0 = no accepted demands (or a
+  // pre-2b draft). See engine/creativeDemands.ts.
+  developmentQualityDelta?: number;
   preProduction: PreProductionState | null;
   photography: PhotographyState | null;
   // Index into the wizard's canonical step order (state/studioReducer.ts:WIZARD_STEP_ORDER)

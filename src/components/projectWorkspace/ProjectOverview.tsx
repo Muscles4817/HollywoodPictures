@@ -13,6 +13,8 @@ import { Button } from '../common/Button';
 import { Money } from '../common/Money';
 import { ScriptDetails } from '../common/ScriptDetails';
 import { GreenlightConfirmation } from './GreenlightConfirmation';
+import { describeCreativeDemand, describeDemandCompetence, describeDirectorPatience } from '../../engine/creativeDemands';
+import { computeRelationship, NO_RELATIONSHIP, PLAYER_STUDIO_ID } from '../../engine/relationships';
 import type { DevelopmentReadinessBand } from '../../engine/projectReadiness';
 import type { ProjectWorkspaceSection } from '../../types';
 
@@ -56,6 +58,10 @@ export function ProjectOverview() {
 
   const director = findAssignedPerson(draft.talent, 'Director');
   const directorCareer = director && getDirectorCareer(director);
+  // Director creative demands (Phase 2b) - shown only while still in development.
+  const relationship = director ? computeRelationship(state.collaborations ?? [], PLAYER_STUDIO_ID, director.id) : NO_RELATIONSHIP;
+  const pendingDemands = (draft.development?.demands ?? []).filter((d) => !d.resolution);
+  const patience = director ? describeDirectorPatience(draft.development?.demands, director, relationship) : null;
   const identity =
     directorCareer && script
       ? synthesizeProductionIdentity(script, explainEnvironmentStrategy(script, directorCareer), explainEffectsStrategy(script, directorCareer))
@@ -105,6 +111,38 @@ export function ProjectOverview() {
           <Money amount={commitment.cashAfter} signColor />
         </div>
       </div>
+
+      {director && pendingDemands.length > 0 && (
+        <div className="card stack">
+          <h3 style={{ margin: 0 }}>Director's Creative Demands</h3>
+          <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+            {director.identity.name} wants control over parts of the film. Cede a craft they command and it lifts the
+            picture; cede one they're weak at and it can drag it down. Settle each before greenlighting.
+          </p>
+          {patience && patience.band !== 'content' && (
+            <p style={{ margin: 0, color: patience.band === 'on-the-brink' ? 'var(--red)' : 'var(--amber, var(--text-muted))' }}>
+              {patience.text}
+            </p>
+          )}
+          {pendingDemands.map((demand) => {
+            const read = describeDemandCompetence(director, demand, relationship);
+            return (
+              <div key={demand.id} className="card stack" style={{ gap: 6 }}>
+                <div style={{ fontWeight: 600 }}>{describeCreativeDemand(demand)}</div>
+                <div style={{ color: 'var(--text-muted)' }}>{read.text}</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Button onClick={() => dispatch({ type: 'RESOLVE_CREATIVE_DEMAND', demandId: demand.id, accept: true })}>
+                    Give them control
+                  </Button>
+                  <Button onClick={() => dispatch({ type: 'RESOLVE_CREATIVE_DEMAND', demandId: demand.id, accept: false })}>
+                    Keep control
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="card stack">
         <h3 style={{ margin: 0 }}>Greenlight Readiness</h3>
