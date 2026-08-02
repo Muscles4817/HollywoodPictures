@@ -2569,6 +2569,16 @@ export interface FilmDraft {
   // whenever no recut is underway - before the first screening, while a
   // screening decision is pending, and once a cut is finally locked.
   postProductionEditingUntilDay: GameDay | null;
+  // The day the CURRENT editing window began, so the UI can show honest
+  // elapsed/total progress ("editing, ~60% of the way to the test screening")
+  // rather than only a bare countdown. Set to the wrap day at FINISH_PHOTOGRAPHY
+  // (the initial cut window: startedDay -> postProductionScreeningReadyDay) and
+  // reset to the resolution day at each recut (startedDay ->
+  // postProductionEditingUntilDay). Nulled the moment a cut is locked. Kept as a
+  // stored milestone alongside the other post-production dates because the wrap
+  // day isn't otherwise recoverable, and deriving it from the recut delay would
+  // break the instant a cut is reverted (postProductionEvents is emptied).
+  postProductionEditingStartedDay: GameDay | null;
   // Post-Production Redesign, Phase B (docs/DESIGN_REVIEW_post_production_redesign.md
   // section 2) - set once totalDays reaches postProductionScreeningReadyDay
   // (runCalendarSettlement, state/studioReducer.ts), the same

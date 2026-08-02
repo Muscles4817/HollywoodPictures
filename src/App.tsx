@@ -27,7 +27,8 @@ import { IpLibrary } from './components/IpLibrary';
 import type { ProjectWorkspaceSection, Screen } from './types';
 import { DAY_TICK_MS, type TickSpeedMultiplier } from './constants';
 import { timeCriticalUnreadBidCount } from './engine/bidNotifications';
-import { asFilm, findProject } from './engine/project';
+import { asFilm, asPlayerDraft, findProject } from './engine/project';
+import { derivePostProductionStatus, isPostProductionAdvancing } from './engine/postProductionStatus';
 import { FilmDetailModal } from './components/common/FilmDetailModal';
 import { Button } from './components/common/Button';
 
@@ -79,9 +80,19 @@ export function computeTicking(
   viewingProductionId: string | null,
   paused: boolean,
   inboxOpen: boolean,
+  postProductionEditingActive: boolean = false,
 ): boolean {
   const backgroundProductionViewed = isViewingBackgroundProduction(screen, viewingProductionId);
-  return (!PLANNING_SCREENS.has(screen) || backgroundProductionViewed) && !paused && !inboxOpen;
+  // The Post-Production screen is normally a planning screen (paused), but while
+  // an editing window is actively running (the initial cut or a recut heading
+  // to its next test screening) the calendar advances there too - so the edit
+  // visibly progresses on its own screen, the same way Principal Photography
+  // does, instead of the player being told to leave and wait on the Dashboard.
+  // Reuses the shared tick (honouring the pause button, the speed control, and
+  // the inbox pause); it stops the instant the screening surfaces, since the
+  // status is no longer "advancing" then.
+  const postProductionAdvancing = screen === 'post-production' && postProductionEditingActive;
+  return (!PLANNING_SCREENS.has(screen) || backgroundProductionViewed || postProductionAdvancing) && !paused && !inboxOpen;
 }
 
 /**
@@ -296,7 +307,16 @@ function AppShell() {
     if (!isPauseExemptDetour) setPaused(false);
   }, [state.screen]);
 
-  const ticking = computeTicking(state.screen, state.viewingProductionId, paused, inboxOpen);
+  // While the player sits on the Post-Production screen of a film whose edit is
+  // still running, let the shared clock tick so the progress bar fills and the
+  // test screening surfaces in place (see computeTicking). Only the focused
+  // draft's own post-production drives this; a locked cut or a pending decision
+  // reads as not-advancing and the screen falls back to paused.
+  const focusedForTick = state.screen === 'post-production' ? asPlayerDraft(findProject(state.projects, state.focusedProjectId)) : null;
+  const postProductionEditingActive = focusedForTick
+    ? isPostProductionAdvancing(derivePostProductionStatus(focusedForTick, state.totalDays))
+    : false;
+  const ticking = computeTicking(state.screen, state.viewingProductionId, paused, inboxOpen, postProductionEditingActive);
   // The film whose dossier the Inbox routed to, if any (resolved defensively -
   // a stale id just renders nothing, same tolerance as RESTORE_NAVIGATION).
   const dossierFilm = dossierFilmId ? asFilm(findProject(state.projects, dossierFilmId)) : null;

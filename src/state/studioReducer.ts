@@ -213,7 +213,14 @@ function wrapPhotography(draft: FilmDraft, wrapDay: number): { draft: FilmDraft;
   const contingencySettlement = committed - photography.runningCost;
   const postProductionScreeningReadyDay = wrapDay + computeRecommendedPostProductionDays(draft.talent, draft.script!, productionChoices);
   return {
-    draft: { ...draft, photography: { ...photography, status: 'finished' }, postProductionScreeningReadyDay },
+    draft: {
+      ...draft,
+      photography: { ...photography, status: 'finished' },
+      postProductionScreeningReadyDay,
+      // The initial-cut editing window runs from the wrap day to the screening-
+      // ready day, so progress reads honestly from the moment the shoot wraps.
+      postProductionEditingStartedDay: wrapDay,
+    },
     contingencySettlement,
   };
 }
@@ -2416,6 +2423,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             postProductionEvents: [],
             postProductionFinalReadyDay: state.totalDays,
             postProductionEditingUntilDay: null,
+            postProductionEditingStartedDay: null,
             testScreeningPendingChoice: null,
             testScreeningResolved: true,
           }),
@@ -2432,6 +2440,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
             ...target,
             postProductionFinalReadyDay: state.totalDays,
             postProductionEditingUntilDay: null,
+            postProductionEditingStartedDay: null,
             testScreeningPendingChoice: null,
             testScreeningResolved: true,
           }),
@@ -2455,6 +2464,8 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
           ...target,
           postProductionEvents: [...target.postProductionEvents, rolled],
           postProductionEditingUntilDay: state.totalDays + rolled.delayDaysDelta,
+          // This recut window runs from today to the day it finishes.
+          postProductionEditingStartedDay: state.totalDays,
           testScreeningPendingChoice: null,
         }),
       };

@@ -57,8 +57,8 @@ function stateOnPostProductionScreen(overrides: Partial<FilmDraft>): { state: Ga
   return { state, draft };
 }
 
-describe('PostProduction - the provisional post-production forecast', () => {
-  it('shows the screening-ready forecast once FINISH_PHOTOGRAPHY has computed one', () => {
+describe('PostProduction - the live edit-bay progress read', () => {
+  it('shows the edit bay with a progress bar and screening countdown once FINISH_PHOTOGRAPHY has computed a date', () => {
     const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: 45 });
     saveState(state);
     render(
@@ -66,11 +66,26 @@ describe('PostProduction - the provisional post-production forecast', () => {
         <PostProduction />
       </StudioProvider>,
     );
-    expect(screen.getByText('Test Screening (preview)')).toBeInTheDocument();
-    expect(screen.getByText(`Ready around ${formatGameDateWithMonth(45)}`)).toBeInTheDocument();
+    expect(screen.getByText(/In the edit/)).toBeInTheDocument();
+    // readyDay 45, totalDays 1 -> ~44 days to the first screening.
+    expect(screen.getByText(/first test screening in ~44 days/)).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toBeInTheDocument();
   });
 
-  it('never describes the estimate as the film being ready for release - it is explicitly the test screening', () => {
+  it('reflects real elapsed/total progress on the bar when an editing start day is set', () => {
+    const { state } = stateOnPostProductionScreen({ postProductionEditingStartedDay: 1, postProductionScreeningReadyDay: 21 });
+    // Halfway through a 20-day edit window (day 11 of a 1->21 window).
+    saveState({ ...state, totalDays: 11 });
+    render(
+      <StudioProvider>
+        <PostProduction />
+      </StudioProvider>,
+    );
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
+    expect(screen.getByText(/first test screening in ~10 days/)).toBeInTheDocument();
+  });
+
+  it('never describes the edit as the film being ready for release - it is explicitly heading to a test screening', () => {
     const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: 45 });
     saveState(state);
     render(
@@ -79,10 +94,10 @@ describe('PostProduction - the provisional post-production forecast', () => {
       </StudioProvider>,
     );
     expect(screen.queryByText(/ready for release/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/a test screening will surface here/)).toBeInTheDocument();
+    expect(screen.getByText(/a test screening surfaces here/i)).toBeInTheDocument();
   });
 
-  it('reassures the player that post-production runs in the background and they can leave, with a Dashboard shortcut', () => {
+  it('reassures the player they can leave and keep running the studio, with a Dashboard shortcut', () => {
     const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: 45 });
     saveState(state);
     render(
@@ -90,14 +105,11 @@ describe('PostProduction - the provisional post-production forecast', () => {
         <PostProduction />
       </StudioProvider>,
     );
-    // Tells the player this is normal and they don't need to sit and wait...
-    expect(screen.getByText(/post-production runs in the background/i)).toBeInTheDocument();
-    expect(screen.getByText(/in your Inbox, and on the\s+Dashboard/i)).toBeInTheDocument();
-    // ...and gives them an explicit way to leave right here.
+    expect(screen.getByText(/step back to the Dashboard and\s+keep running the studio/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Back to the Dashboard' })).toBeInTheDocument();
   });
 
-  it('surfaces the same background-process reassurance and Dashboard shortcut while a recut is underway', () => {
+  it('surfaces the same live progress read and Dashboard shortcut while a recut is underway', () => {
     const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: 45, postProductionEditingUntilDay: 60 });
     saveState(state);
     render(
@@ -105,7 +117,8 @@ describe('PostProduction - the provisional post-production forecast', () => {
         <PostProduction />
       </StudioProvider>,
     );
-    expect(screen.getByText(/working through your notes in the background/i)).toBeInTheDocument();
+    expect(screen.getByText(/Re-cut in progress/)).toBeInTheDocument();
+    expect(screen.getByText(/next test screening in ~59 days/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Back to the Dashboard' })).toBeInTheDocument();
   });
 
@@ -188,7 +201,7 @@ describe('PostProduction - the test-screening decision', () => {
 });
 
 describe('PostProduction - a recut in progress', () => {
-  it('shows the recut-in-progress card (with the next-screening estimate) and no decision card', () => {
+  it('shows the recut edit bay (with its next-screening countdown) and no decision card', () => {
     const { state } = stateOnPostProductionScreen({ postProductionScreeningReadyDay: 45, postProductionEditingUntilDay: 60 });
     saveState(state);
     render(
@@ -196,16 +209,14 @@ describe('PostProduction - a recut in progress', () => {
         <PostProduction />
       </StudioProvider>,
     );
-    expect(screen.getByText('Re-cut in progress')).toBeInTheDocument();
-    expect(screen.getByText(`Next screening around ${formatGameDateWithMonth(60)}`)).toBeInTheDocument();
+    expect(screen.getByText(/Re-cut in progress/)).toBeInTheDocument();
+    expect(screen.getByText(/next test screening in ~59 days/)).toBeInTheDocument();
     expect(screen.queryByText('A Decision Is Needed')).not.toBeInTheDocument();
-    // The pre-first-screening forecast card is gone once a recut is underway.
-    expect(screen.queryByText('Test Screening (preview)')).not.toBeInTheDocument();
   });
 });
 
 describe('PostProduction - post-production complete', () => {
-  it('shows a completion card (not a wait) once the screening is resolved, with the wrap date and a Dashboard shortcut', () => {
+  it('shows a completion panel (not a wait) once the screening is resolved, with the wrap date and a Dashboard shortcut', () => {
     const { state } = stateOnPostProductionScreen({
       testScreeningResolved: true,
       postProductionFinalReadyDay: 50,
@@ -216,15 +227,13 @@ describe('PostProduction - post-production complete', () => {
         <PostProduction />
       </StudioProvider>,
     );
-    expect(screen.getByText('Post-Production complete')).toBeInTheDocument();
-    expect(screen.getByText('Final cut locked')).toBeInTheDocument();
-    expect(screen.getByText(`wrapped ${formatGameDateWithMonth(50)}`)).toBeInTheDocument();
+    expect(screen.getByText(/Post-production complete/)).toBeInTheDocument();
+    const locked = screen.getByText(/Final cut locked/);
+    expect(locked.textContent).toContain(formatGameDateWithMonth(50));
     // It frames the film as ready for market, not something still being waited on...
     expect(screen.getByText(/ready to take to market/i)).toBeInTheDocument();
-    expect(screen.getByText(/nothing left to\s+wait on here/i)).toBeInTheDocument();
+    expect(screen.getByText(/nothing left to wait on/i)).toBeInTheDocument();
     // ...and still offers the in-context way out.
     expect(screen.getByRole('button', { name: 'Back to the Dashboard' })).toBeInTheDocument();
-    // The pre-screening forecast card is not shown in this state.
-    expect(screen.queryByText('Test Screening (preview)')).not.toBeInTheDocument();
   });
 });

@@ -20,6 +20,7 @@ import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
 import { synthesizeStudioStanding, type StandingFilm } from '../engine/studioStanding';
 import { isRecentlyCommissioned } from '../engine/commission';
 import { campaignRolloutProgress } from '../engine/marketing';
+import { derivePostProductionStatus, postProductionPillLabel, describePostProductionWait } from '../engine/postProductionStatus';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
 import { ActivityCard } from './common/ActivityCard';
@@ -196,16 +197,22 @@ export function Dashboard() {
           action: open,
         });
       } else if (status === 'finished') {
+        const pp = derivePostProductionStatus(production, state.totalDays);
+        // A film still in the edit/recut is progressing on its own - a passive
+        // status line ("in the edit, screening in ~9 days"), not something
+        // demanding a decision. Only a locked final cut is an action (schedule
+        // its release). The pending-screening decision is handled above.
+        const complete = pp.phase === 'complete';
         items.push({
           activity: {
-            id: `${production.id}-wrapped`,
-            tone: 'warning',
-            category: 'attention',
-            eyebrow: production.postProductionChoices ? 'Release preparation' : 'Post-production ready',
+            id: `${production.id}-postprod`,
+            tone: complete ? 'warning' : 'neutral',
+            category: complete ? 'attention' : 'status',
+            eyebrow: complete ? 'Ready for release' : 'In post-production',
             title,
-            detail: production.postProductionChoices
-              ? 'The film is complete and waiting for its release day.'
-              : 'Principal photography has wrapped and the film is ready for post-production.',
+            detail: complete
+              ? 'The final cut is locked — schedule its release whenever you are ready.'
+              : describePostProductionWait(pp),
           },
           action: open,
         });
@@ -495,14 +502,24 @@ export function Dashboard() {
                   const photography = production.photography;
                   if (!photography) return null;
 
+                  // Post-production (photography finished) reads its phase,
+                  // countdown and progress from the shared selector, so the row
+                  // matches the Inbox and the Post-Production screen. Editing is
+                  // a live, timed phase now - not a static "ready for
+                  // post-production" pill sitting on a frozen filming day count.
+                  const pp = photography.status === 'finished' ? derivePostProductionStatus(production, state.totalDays) : null;
+                  const advancing = pp !== null && (pp.phase === 'editing' || pp.phase === 'recutting');
+
                   const statusLabel = photography.status === 'awaiting-choice' || production.testScreeningPendingChoice
                     ? 'Decision required'
-                    : photography.status === 'finished'
-                      ? production.postProductionChoices
-                        ? 'Awaiting release'
-                        : 'Ready for post-production'
+                    : pp
+                      ? postProductionPillLabel(pp)
                       : 'Principal photography';
-                  const statusClass = production.testScreeningPendingChoice ? 'awaiting-choice' : photography.status;
+                  const statusClass = production.testScreeningPendingChoice
+                    ? 'awaiting-choice'
+                    : advancing
+                      ? 'post-production'
+                      : photography.status;
 
                   return (
                     <article className="dashboard-project-row" key={production.id}>
@@ -511,9 +528,20 @@ export function Dashboard() {
                           {statusLabel}
                         </span>
                         <strong>{production.title || 'Untitled Film'}</strong>
-                        <span className="dashboard-project-meta">
-                          Day {photography.daysElapsed} of ~{photography.recommendedDays} · <Money amount={photography.runningCost} /> spent
-                        </span>
+                        {pp ? (
+                          <>
+                            <span className="dashboard-project-meta">{describePostProductionWait(pp)}</span>
+                            {advancing && (
+                              <div className="dashboard-meter dashboard-postprod-meter" aria-hidden="true">
+                                <span style={{ width: `${Math.round(pp.progress.fraction * 100)}%` }} />
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="dashboard-project-meta">
+                            Day {photography.daysElapsed} of ~{photography.recommendedDays} · <Money amount={photography.runningCost} /> spent
+                          </span>
+                        )}
                       </div>
                       <div className="dashboard-project-actions">
                         <Button className="btn-sm" onClick={() => dispatch({ type: 'VIEW_PRODUCTION', productionId: production.id })}>

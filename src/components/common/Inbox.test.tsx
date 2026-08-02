@@ -29,6 +29,7 @@ function stateWith(draft: FilmDraft): GameState {
   return {
     projects: [playerDraftToProject(draft)],
     focusedProjectId: null,
+    totalDays: 1,
     talentPool: {},
     opportunities: [],
     bidNotifications: [],
@@ -39,7 +40,7 @@ describe('Inbox - parked film messaging', () => {
   it('explains the film is still awaiting its test screening when it has not resolved', () => {
     mockState = stateWith(parkedDraft(false));
     render(<Inbox open onClose={() => {}} />);
-    expect(screen.getByText(/still wrapping up/i)).toBeInTheDocument();
+    expect(screen.getByText(/can't lock a release date until the test screening is in/i)).toBeInTheDocument();
     expect(screen.queryByText(/just needs a release day/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Check on it' })).toBeInTheDocument();
   });

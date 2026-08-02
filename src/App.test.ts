@@ -55,6 +55,23 @@ describe('computeTicking - the background ADVANCE_DAY tick', () => {
     expect(computeTicking('production', 'prod-1', false, true)).toBe(false);
     expect(computeTicking('dashboard', null, false, true)).toBe(false);
   });
+
+  it('ticks on the post-production screen while an editing window is actively advancing, so the edit visibly progresses', () => {
+    expect(computeTicking('post-production', null, false, false, true)).toBe(true);
+    // ...but stays paused there when nothing is advancing (a pending screening decision, or a locked cut).
+    expect(computeTicking('post-production', null, false, false, false)).toBe(false);
+  });
+
+  it('the editing-active flag only lifts the pause on the post-production screen itself', () => {
+    // A stray "editing active" on another planning screen never makes it tick.
+    expect(computeTicking('marketing', null, false, false, true)).toBe(false);
+    expect(computeTicking('workspace', null, false, false, true)).toBe(false);
+  });
+
+  it('a manual pause and an open Inbox still win over an advancing edit', () => {
+    expect(computeTicking('post-production', null, true, false, true)).toBe(false);
+    expect(computeTicking('post-production', null, false, true, true)).toBe(false);
+  });
 });
 
 describe('shouldConfirmResume - the bid-inbox resume-guard', () => {

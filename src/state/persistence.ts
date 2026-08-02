@@ -395,7 +395,11 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   `development` phase sub-type (present pre-greenlight, null after), the home
 //   later phases' packaging/financing state attaches to. Additive; same
 //   pre-launch policy, no migration.
-const SAVE_KEY = 'hollywood-pictures-save-v77';
+// v77 -> v78 (Post-production progress UX): FilmDraft gained
+//   postProductionEditingStartedDay: GameDay | null - the day the current
+//   editing window began, so the UI can show honest elapsed/total progress
+//   through the edit rather than only a bare countdown. Additive; no migration.
+const SAVE_KEY = 'hollywood-pictures-save-v78';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

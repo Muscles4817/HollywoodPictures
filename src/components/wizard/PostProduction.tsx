@@ -9,6 +9,7 @@ import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { deriveFocusedDraft } from '../../state/selectors';
 import { formatGameDateWithMonth } from '../../engine/calendar';
+import { derivePostProductionStatus, describePostProductionWait, type PostProductionStatus } from '../../engine/postProductionStatus';
 import type { EditStyle, FinalCutFocus, MusicFocus, PostProductionChoices } from '../../types';
 
 const EDIT_STYLES = Object.keys(EDIT_STYLE_PROFILES) as EditStyle[];
@@ -18,6 +19,47 @@ const FINAL_CUT_FOCUSES = Object.keys(FINAL_CUT_FOCUS_PROFILES) as FinalCutFocus
 const EDIT_STYLE_DESCRIPTIONS = pluckDescriptions(EDIT_STYLE_PROFILES);
 const MUSIC_FOCUS_DESCRIPTIONS = pluckDescriptions(MUSIC_FOCUS_PROFILES);
 const FINAL_CUT_FOCUS_DESCRIPTIONS = pluckDescriptions(FINAL_CUT_FOCUS_PROFILES);
+
+/**
+ * The live "edit bay" status for a film whose cut is still being assembled - the
+ * initial edit or a recut heading to its next test screening. Unlike the old
+ * bounce-to-Dashboard card, this is a real progress read: a bar that fills
+ * toward the screening as days pass. Time genuinely advances while this screen
+ * is open (App.tsx:computeTicking lets the shared clock tick through an active
+ * editing window), so the bar moves on its own here the same way Principal
+ * Photography's does - the player can watch it, or step back to the Dashboard
+ * and keep running the studio while it finishes.
+ */
+function EditBayPanel({ status, onLeave }: { status: Extract<PostProductionStatus, { phase: 'editing' | 'recutting' }>; onLeave: () => void }) {
+  const { progress } = status;
+  const pct = Math.round(progress.fraction * 100);
+  const recut = status.phase === 'recutting';
+  return (
+    <div className={`edit-bay card edit-bay--${status.phase}`}>
+      <div className="edit-bay__head">
+        <span className="edit-bay__eyebrow">🎬 {recut ? 'Re-cut in progress' : 'In the edit'}</span>
+        <span className="edit-bay__countdown">{describePostProductionWait(status)}</span>
+      </div>
+      <div className="edit-bay__bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Editing progress">
+        <span style={{ width: `${pct}%` }} />
+      </div>
+      <div className="edit-bay__meta">
+        Day {progress.daysElapsed} of ~{progress.daysTotal} · the calendar is running while the {recut ? 're-cut' : 'cut'} comes together
+      </div>
+      <p className="edit-bay__note">
+        When the {recut ? 're-cut' : 'cut'} is ready, a test screening surfaces here and in your Inbox with real
+        audience reactions and your next decision. No need to wait on this screen - step back to the Dashboard and
+        keep running the studio; it'll finish either way, and you'll be notified the moment it's in.
+      </p>
+      <p className="edit-bay__forecast">
+        Timing is a forecast from this film's runtime, VFX ambition, and your Editor / VFX Supervisor's skill.
+      </p>
+      <div className="row" style={{ marginTop: '10px' }}>
+        <Button variant="secondary" onClick={onLeave}>Back to the Dashboard</Button>
+      </div>
+    </div>
+  );
+}
 
 export function PostProduction() {
   const { state, dispatch } = useStudio();
@@ -36,6 +78,7 @@ export function PostProduction() {
   }
 
   const pendingScreeningChoice = draft.testScreeningPendingChoice;
+  const status = derivePostProductionStatus(draft, state.totalDays);
 
   return (
     <div className="stack">
@@ -43,72 +86,26 @@ export function PostProduction() {
       <h1>Post-Production</h1>
       {draft.script && <ScriptSummaryCard script={draft.script} />}
 
-      {draft.postProductionScreeningReadyDay !== null && !draft.testScreeningResolved && !pendingScreeningChoice && draft.postProductionEditingUntilDay === null && (
-        <div className="card" style={{ borderColor: 'var(--primary)' }}>
-          <div className="stat-label">Test Screening (preview)</div>
-          <div className="stat-value">Ready around {formatGameDateWithMonth(draft.postProductionScreeningReadyDay)}</div>
-          {draft.postProductionScreeningReadyDay > state.totalDays && (
-            <div style={{ fontSize: '0.8em', fontWeight: 600, color: 'var(--text-muted)' }}>
-              about {draft.postProductionScreeningReadyDay - state.totalDays} days out
-            </div>
-          )}
-          <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
-            This is the normal flow - post-production runs in the background, and you don't need to wait on this
-            screen (the calendar only moves once you're back out running the studio). Head to the Dashboard and
-            carry on; when the cut is ready, a test screening will surface here, in your Inbox, and on the
-            Dashboard, with real audience feedback and a decision on how to respond. No rush to come back - just
-            answer it before the film can be scheduled for release.
-          </p>
-          <p style={{ margin: '4px 0 0', fontSize: '0.78em', color: 'var(--text-muted)' }}>
-            Timing is a forecast based on this film's runtime, VFX ambition, and your Editor/VFX Supervisor's skill.
-          </p>
-          <div className="row" style={{ marginTop: '10px' }}>
-            <Button variant="primary" onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>
-              Back to the Dashboard
-            </Button>
-          </div>
-        </div>
+      {!pendingScreeningChoice && (status.phase === 'editing' || status.phase === 'recutting') && (
+        <EditBayPanel status={status} onLeave={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })} />
       )}
 
-      {draft.postProductionEditingUntilDay !== null && !pendingScreeningChoice && (
-        <div className="card" style={{ borderColor: 'var(--primary)' }}>
-          <div className="stat-label">Re-cut in progress</div>
-          <div className="stat-value">Next screening around {formatGameDateWithMonth(draft.postProductionEditingUntilDay)}</div>
-          {draft.postProductionEditingUntilDay > state.totalDays && (
-            <div style={{ fontSize: '0.8em', fontWeight: 600, color: 'var(--text-muted)' }}>
-              about {draft.postProductionEditingUntilDay - state.totalDays} days out
-            </div>
-          )}
-          <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
-            The editing bay is working through your notes in the background - no need to wait here, and the
-            calendar only moves once you're back out running the studio. When the re-cut is done, a fresh test
-            screening will surface here, in your Inbox, and on the Dashboard, with the new reactions and another
-            decision.
+      {status.phase === 'complete' && (
+        <div className="edit-bay edit-bay--complete card">
+          <div className="edit-bay__head">
+            <span className="edit-bay__eyebrow">✓ Post-production complete</span>
+            {status.finalReadyDay !== null && (
+              <span className="edit-bay__countdown">Final cut locked {formatGameDateWithMonth(status.finalReadyDay)}</span>
+            )}
+          </div>
+          <div className="edit-bay__bar" aria-hidden="true"><span style={{ width: '100%' }} /></div>
+          <p className="edit-bay__note">
+            The screening's been answered and every editing round has played out - there's nothing left to wait on
+            here. The film is ready to take to market whenever you are: continue to Marketing below, or head back to
+            the Dashboard and pick it up later.
           </p>
           <div className="row" style={{ marginTop: '10px' }}>
-            <Button variant="primary" onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>
-              Back to the Dashboard
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {draft.testScreeningResolved && draft.postProductionFinalReadyDay !== null && (
-        <div className="card" style={{ borderColor: 'var(--primary)' }}>
-          <div className="stat-label">Post-Production complete</div>
-          <div className="stat-value">Final cut locked</div>
-          <div style={{ fontSize: '0.8em', fontWeight: 600, color: 'var(--text-muted)' }}>
-            wrapped {formatGameDateWithMonth(draft.postProductionFinalReadyDay)}
-          </div>
-          <p style={{ margin: '6px 0 0', fontSize: '0.85em', color: 'var(--text-muted)' }}>
-            The screening's been answered and every editing round has already played out - there's nothing left to
-            wait on here. The film is ready to take to market whenever you are: continue to Marketing below, or head
-            back to the Dashboard and pick it up later - it'll be waiting in your projects.
-          </p>
-          <div className="row" style={{ marginTop: '10px' }}>
-            <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>
-              Back to the Dashboard
-            </Button>
+            <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Back to the Dashboard</Button>
           </div>
         </div>
       )}

@@ -4,6 +4,7 @@ import { formatMoney } from './Money';
 import { ActivityCard } from './ActivityCard';
 import { OnSetDecisionCard } from './OnSetDecisionCard';
 import { backgroundedPlayerDrafts, deriveInboxItems, isParkedActionable } from '../../engine/project';
+import { derivePostProductionStatus, describePostProductionWait } from '../../engine/postProductionStatus';
 import { highestBid } from '../../engine/opportunities';
 import { responsesForPolarity } from '../../engine/pressTourMoments';
 import { unacknowledgedAwardHighlights } from '../../state/selectors';
@@ -208,20 +209,28 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
               );
             })}
 
-            {wrapped.map((production) => (
-              <ActivityCard
-                key={production.id}
-                activity={{
-                  id: `${production.id}-wrapped`,
-                  tone: 'warning',
-                  category: 'attention',
-                  eyebrow: 'Post-production ready',
-                  title: production.title || 'Untitled Film',
-                  detail: `Principal photography wrapped${production.photography ? ` at ${formatMoney(production.photography.runningCost)} spent` : ''} — ready for post-production.`,
-                }}
-                action={resumeAction(production, 'Continue to Post-Production')}
-              />
-            ))}
+            {wrapped.map((production) => {
+              // Photography has wrapped and the edit is already underway - frame
+              // it as the live, timed phase it is (with its screening countdown),
+              // not a static "ready for post-production" to-do. Setting the
+              // edit/music/final-cut approach is optional polish you can do any
+              // time before release, so this reads as a status, not a demand.
+              const pp = derivePostProductionStatus(production, state.totalDays);
+              return (
+                <ActivityCard
+                  key={production.id}
+                  activity={{
+                    id: `${production.id}-wrapped`,
+                    tone: 'neutral',
+                    category: 'status',
+                    eyebrow: 'In post-production',
+                    title: production.title || 'Untitled Film',
+                    detail: `${describePostProductionWait(pp)}. Photography wrapped${production.photography ? ` at ${formatMoney(production.photography.runningCost)} spent` : ''} — set this film's edit, music and final-cut approach whenever you like.`,
+                  }}
+                  action={resumeAction(production, 'Open the edit bay')}
+                />
+              );
+            })}
 
             {parked.map((production) => {
               // A parked film has its post-production choices locked in, but its
@@ -232,11 +241,12 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
               const recutInProgress = production.postProductionEditingUntilDay !== null;
               const awaitingScreening = !production.testScreeningResolved;
               const actionable = isParkedActionable(production);
+              const pp = derivePostProductionStatus(production, state.totalDays);
               const detail = recutInProgress
-                ? "A re-cut is underway in the editing bay. You can't lock a release date until it's done and you've seen the next test screening - you'll be notified here the moment it's in."
+                ? `${describePostProductionWait(pp)}. You can't lock a release date until the re-cut is done and you've seen the next screening — you'll be notified here the moment it's in.`
                 : awaitingScreening
-                  ? "Post-production is still wrapping up - its test screening isn't in yet. You can't lock a release date until you've seen it and responded; you'll be notified here the moment it's ready."
-                  : 'Post-production is done - this film just needs a release day.';
+                  ? `${describePostProductionWait(pp)}. You can't lock a release date until the test screening is in and you've responded — you'll be notified here the moment it's ready.`
+                  : 'Post-production is done — this film just needs a release day.';
               return (
                 <ActivityCard
                   key={production.id}
