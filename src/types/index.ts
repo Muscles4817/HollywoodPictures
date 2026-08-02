@@ -1681,6 +1681,8 @@ export interface Film {
   // from before it existed. Lets the Asset Library tell "used" assets apart
   // from ones with no released history yet (engine/project.ts:deriveAssetStatus).
   assetId?: string;
+  /** For a rival franchise sequel: the rival franchise this film is an entry in (engine/rivalFranchise.ts), carried from its production. Lets the rival flywheel fold a finished entry back into its franchise - the rival analogue of the player's Asset.ipId link. Absent for originals and all player films (which link via assetId -> Asset.ipId instead). */
+  franchiseId?: string;
 }
 
 // --- Intellectual Property (first IP-layer milestone) --------------------
@@ -1770,6 +1772,8 @@ export interface IntellectualProperty {
   recognition: number;
   /** Critical standing the IP starts with, 0-100 - inherited at promotion from the source Film's critical/quality reception. */
   prestige: number;
+  /** The franchise's home genre - the source Film's genre, snapshotted at promotion. Lets a sequel default to the franchise's established genre without a source-Film lookup (engine/rivalFranchise.ts; the player's DEVELOP_SEQUEL resolves it from the source Film directly). Optional/absent on IPs predating the field. */
+  genre?: Genre;
 }
 
 // --- IP Viability Assessment (the "is this worth a franchise?" decision layer) --
@@ -1945,6 +1949,7 @@ export interface BidNotification {
 export type DevelopmentEventKind =
   | 'acquired' // entered the library (bought as an Opportunity, or a founding test script)
   | 'commissioned' // an original screenplay delivered by a writer the studio commissioned (Phase 4) - the founding event of a commissioned Asset
+  | 'developed' // a sequel screenplay delivered by a franchise development (stage 2) - the founding event of a developed sequel Asset
   | 'rewrite' // a full rewrite pass produced a new head draft
   | 'polish' // a lighter dialogue/polish pass produced a new head draft
   | 'greenlit' // a Project was greenlit from this Asset
@@ -1994,6 +1999,13 @@ export interface Asset {
    * carrying no gameplay effect until that feature exists.
    */
   writerIds?: PersonId[];
+  /**
+   * For a sequel Asset: the IntellectualProperty this screenplay is a new entry
+   * in (its flywheel linkage). Absent for originals. Set when a franchise
+   * development is delivered (engine/sequelDevelopment.ts); read on release to
+   * append the new Film back to the IP and grow its recognition (stage 2b).
+   */
+  ipId?: string;
   /**
    * Prior head snapshots, oldest first - the draft lineage a rewrite builds up.
    * Absent (the common case) means the Asset has never been revised; the full
@@ -2067,6 +2079,14 @@ export interface RivalStudio {
   lifetimeRevenue: number;
   /** Cumulative amount this studio has ever committed to starting productions - debugging/display only, same as lifetimeRevenue. */
   lifetimeExpenditure: number;
+  /**
+   * The franchises this rival owns and builds sequels from (Sequels & Franchises
+   * stage 3, engine/rivalFranchise.ts) - the rival analogue of the player's
+   * Studio.intellectualProperties. Established automatically from the rival's own
+   * hits and grown by each released entry, exactly like the player's flywheel.
+   * Absent for a rival that has never had a franchise-worthy hit; read as `[]`.
+   */
+  franchises?: IntellectualProperty[];
 }
 
 /**
@@ -2090,6 +2110,8 @@ export interface RivalProductionInProgress {
   releaseDay: number;
   /** The rival's identity in this production's genre (engine/studioIdentity.ts), 0-100, snapshotted when the production started - lets its on-brand presence read as stronger on the shared calendar (the competitor-territory effect), without re-looking-up the studio. Absent (pre-identity productions) reads as 0. */
   genreIdentity?: number;
+  /** For a franchise sequel: the rival franchise (a RivalStudio.franchises id) this entry belongs to - carried onto the released Film so the flywheel can fold it back (engine/rivalFranchise.ts). Absent for an original. */
+  franchiseId?: string;
 }
 
 // Architecture roadmap Phase 5: filmsReleased/productionsInProgress moved to
@@ -2124,6 +2146,45 @@ export interface PendingCommission {
   script: Script;
   /** The fee already charged at commission - recorded for the delivery log entry, not re-charged; also the delivered Asset's acquisitionCost. */
   fee: Money;
+}
+
+/**
+ * A new franchise entry the studio is developing from one of its IPs (Franchise
+ * stage 2) and waiting on. Kicking off a development is not instant: rights /
+ * legal / greenlight setup takes real time before a screenplay exists. Same
+ * property-in-the-making shape as PendingCommission - the sequel screenplay is
+ * generated once at kickoff (hidden until delivery) and becomes a real owned
+ * Asset on `readyOnDay`, settled lazily off the calendar
+ * (engine/sequelDevelopment.ts:settlePendingSequelDevelopments). The delivered
+ * Asset carries `ipId` back to its IP - the seed of the franchise flywheel.
+ *
+ * The MVP is one-click "open development" (the studio commissions competent
+ * execution; the draw is pre-sold via the inherited franchiseRecognition). The
+ * optional fields below are reserved seams for the richer development-office
+ * paths - see docs/DESIGN_REVIEW_development_office_paths.md - and are absent on
+ * every MVP development; a future path fills them in without reshaping the
+ * record or the settlement machinery.
+ */
+export interface PendingSequelDevelopment {
+  /** Stable id, also used as the delivered Asset's id. */
+  id: string;
+  /** The IntellectualProperty this new entry belongs to (a Studio.intellectualProperties id). Carried onto the delivered Asset as `ipId`. */
+  ipId: string;
+  /** Denormalised for the delivery development-log entry, so settlement needs no IP lookup (same pattern as PendingCommission.writerName). */
+  ipName: string;
+  startedOnDay: GameDay;
+  readyOnDay: GameDay;
+  /** The sequel screenplay, generated once at kickoff (deterministic thereafter) and hidden until delivery. */
+  script: Script;
+  // --- Reserved seams for the development-office paths (absent on the MVP) ---
+  /** Which path produced this development - absent means the MVP one-click open development. */
+  path?: 'open' | 'briefed' | 'pitch';
+  /** The writer engaged (open / briefed / writer-pitch paths). */
+  writerId?: PersonId;
+  /** The player's creative brief (briefed / pitch paths). */
+  brief?: { genre?: Genre; tones?: Partial<ToneProfile>; tags?: string[] };
+  /** The originating creative pitch (pitch path). */
+  pitchId?: string;
 }
 
 /**
@@ -2220,6 +2281,13 @@ export interface Studio {
    * Optional/absent on saves predating the feature; read as `[]`.
    */
   pendingCommissions?: PendingCommission[];
+  /**
+   * New franchise entries being developed from the studio's IPs and not yet
+   * delivered (Franchise stage 2). Studio-private property-in-the-making, like
+   * `pendingCommissions` - each becomes an owned Asset on its readyOnDay
+   * (engine/sequelDevelopment.ts). Optional/absent before the feature; read as `[]`.
+   */
+  pendingSequelDevelopments?: PendingSequelDevelopment[];
   /** Recent notable cash movements for the "Recent budget activity" view (see CashLedgerEntry). Append-only, capped; optional/absent on older saves, read as `[]`. */
   cashLedger?: CashLedgerEntry[];
   /**

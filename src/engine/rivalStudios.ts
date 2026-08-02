@@ -36,6 +36,8 @@ import { clamp, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn 
 import { deriveReleaseWindowFromDay } from './calendar';
 import { computeCompetitiveCrowding, computeRivalReleaseStrength, type UpcomingRelease } from './releaseCrowding';
 import { genreIdentityFor } from './studioIdentity';
+import { generateSequelScript } from './scriptGenerator';
+import { establishRivalFranchises, growRivalFranchises, chooseRivalFranchiseToSequelize } from './rivalFranchise';
 
 const EDIT_STYLES = Object.keys(EDIT_STYLE_PROFILES) as PostProductionChoices['editStyle'][];
 const MUSIC_FOCI = Object.keys(MUSIC_FOCUS_PROFILES) as PostProductionChoices['musicFocus'][];
@@ -752,6 +754,10 @@ function startRivalProductionFromWonScript(
   talentPool: Record<TalentProfession, Person[]>,
   knownUpcoming: UpcomingRelease[],
   rng: RandomFn,
+  // For a franchise sequel (stage 3): the rival franchise this entry belongs to,
+  // carried onto the production so the flywheel can fold the finished film back
+  // in (engine/rivalFranchise.ts). Absent for an ordinary won-from-market script.
+  franchiseId?: string,
 ): { production: RivalProductionInProgress; talentPool: Record<TalentProfession, Person[]>; cost: number } | null {
   // Assigned up front (not just at the return, the way this used to build
   // its id) so it's available to tag each hire's own commitment with below.
@@ -902,6 +908,7 @@ function startRivalProductionFromWonScript(
       targetAudience: script.intendedAudience,
       releaseDay,
       genreIdentity: productionGenreIdentity,
+      franchiseId,
     },
     talentPool: updatedPool,
     cost,
@@ -986,6 +993,7 @@ export function resolveRivalProduction(
     },
     releasedOnDay: production.releaseDay,
     releasedBy: rivalStudioName,
+    franchiseId: production.franchiseId,
   };
 }
 
@@ -1075,6 +1083,15 @@ export function settleRivalMarket(
     );
   }
 
+  // Rival franchising (stage 3): a finished rival hit becomes a franchise, and a
+  // finished franchise entry grows it - the rival analogue of the player's
+  // promote + flywheel (engine/rivalFranchise.ts), run off the same finished-films
+  // input the box-office diagnostic harness also drives this function with, so
+  // both the live game and the harness see franchise entries on the rival side.
+  // Both steps are deterministic and rng-free, so they never disturb the stream.
+  const finishedRivalFilms = current.rivalFilmsReleased.filter((f) => f.boxOfficeRun.status === 'finished');
+  rivalStudiosAfterWins = growRivalFranchises(establishRivalFranchises(rivalStudiosAfterWins, finishedRivalFilms, totalDays), finishedRivalFilms);
+
   const rivalStudios = rivalStudiosAfterWins.map((rival) => {
     if (rival.nextSpawnCheckDay > totalDays) return rival;
     const nextSpawnCheckDay = totalDays + randInt(rng, ...SPAWN_CHECK_INTERVAL_DAYS[rival.tier]);
@@ -1082,6 +1099,25 @@ export function settleRivalMarket(
     const scales = startableScales(rival.tier, currentForThisStudio);
     if (scales.length === 0) return { ...rival, nextSpawnCheckDay };
     const scale = pick(rng, scales);
+
+    // A rival with a franchise may spend this slot on a sequel rather than bidding
+    // - developed in-house, so it skips the Opportunity Market entirely, exactly
+    // as the player's DEVELOP_SEQUEL does. chooseRivalFranchiseToSequelize only
+    // draws rng when the rival actually owns a franchise, so the franchise-less
+    // majority that dominates early play leaves the shared stream untouched.
+    const franchise = chooseRivalFranchiseToSequelize(rival, rng);
+    if (franchise && franchise.genre) {
+      const knownUpcoming = [...playerScheduled, ...productionsInProgress.map(rivalAsUpcomingRelease)];
+      const sequelScript = generateSequelScript(franchise, franchise.genre, rng);
+      const started = startRivalProductionFromWonScript(rival, scale, sequelScript, 0, totalDays, talentPool, knownUpcoming, rng, franchise.id);
+      if (started) {
+        productionsInProgress = [...productionsInProgress, started.production];
+        talentPool = started.talentPool;
+        return { ...rival, nextSpawnCheckDay, cash: rival.cash - started.cost, lifetimeExpenditure: rival.lifetimeExpenditure + started.cost };
+      }
+      // Couldn't afford/staff the sequel this pass - fall through to normal bidding.
+    }
+
     const bid = considerBiddingOnOpportunity(rival, scale, opportunities, totalDays, rng);
     if (!bid) return { ...rival, nextSpawnCheckDay };
     opportunities = placeBid(opportunities, bid.opportunityId, { bidderId: rival.id, bidderName: rival.name, amount: bid.amount, scale });

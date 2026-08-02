@@ -399,7 +399,17 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   postProductionEditingStartedDay: GameDay | null - the day the current
 //   editing window began, so the UI can show honest elapsed/total progress
 //   through the edit rather than only a bare countdown. Additive; no migration.
-const SAVE_KEY = 'hollywood-pictures-save-v78';
+// v78 -> v79 (Sequels & Franchises stage 2 - develop a sequel): Studio gained an
+//   optional pendingSequelDevelopments (a PendingSequelDevelopment[] of franchise
+//   entries in timed development), Asset gained an optional ipId (flywheel link
+//   back to its IP), a new DEVELOP_SEQUEL action, and a 'developed'
+//   DevelopmentEventKind. Additive/optional (read defensively); same policy.
+// v79 -> v80 (Sequels & Franchises stage 3 - rivals franchise): RivalStudio gained
+//   an optional franchises (IntellectualProperty[] a rival owns and sequelises),
+//   RivalProductionInProgress and Film gained an optional franchiseId (the rival
+//   flywheel link), and IntellectualProperty gained an optional genre (the
+//   franchise's home genre). Additive/optional; same pre-launch policy.
+const SAVE_KEY = 'hollywood-pictures-save-v80';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
