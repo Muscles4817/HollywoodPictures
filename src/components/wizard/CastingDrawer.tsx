@@ -23,7 +23,7 @@ import { TalentStats, deriveOverallScore, deriveRoleFitBreakdown } from '../comm
 import { TalentComparison, type CompareSlot } from '../common/TalentComparison';
 import { useComparePins, MAX_PINNED } from '../common/useComparePins';
 import { CheckboxToggle } from '../common/CheckboxToggle';
-import { isAvailableImmediately, getTypicalSalaryForRole, getCrewCareer, getActorCareer } from '../../engine/person';
+import { isAvailableImmediately, getTypicalSalaryForRole, getCrewCareer, getActorCareer, assignmentCost } from '../../engine/person';
 import { deriveBackendOffers, type BackendOffer } from '../../engine/backend';
 import { getPersonAge } from '../../types';
 import { gameDateFromTotalDays } from '../../engine/calendar';
@@ -560,15 +560,19 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   // Character can be cast in any order, and casting it again recasts it. Who
   // (if anyone) currently plays it comes straight from the binding, not from
   // this row's position in the cast list.
-  const castHere = draft.talent.find((a) => a.role === role && a.characterId === character.id)?.person ?? null;
+  const castHereAssignment = draft.talent.find((a) => a.role === role && a.characterId === character.id) ?? null;
+  const castHere = castHereAssignment?.person ?? null;
 
   // Affordability (a soft warning - talent salary is charged at greenlight, not
   // at casting): a candidate reads "over budget" if hiring them would put the
   // draft's committed spend past the studio's cash. Recasting frees the current
   // occupant's salary, so add that back into what's available before comparing.
+  // Free their actually-committed fee (agreedSalary via assignmentCost), the
+  // same figure computeCommittedSpend charged for them - not their standard
+  // quote, which would mis-state the budget whenever they were negotiated off it.
   const directorName = director?.identity.name;
   const committedSpend = computeCommittedSpend(draft, state.producerPool ?? [], state.stuntTeamPool ?? []);
-  const slotFreedSalary = castHere ? getTypicalSalaryForRole(castHere, role) : 0;
+  const slotFreedSalary = castHereAssignment ? assignmentCost(castHereAssignment) : 0;
   const remainingBudget = state.studio.cash - committedSpend + slotFreedSalary;
   const isAffordable = (person: Person) => getTypicalSalaryForRole(person, role) <= remainingBudget;
 
