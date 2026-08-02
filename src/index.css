@@ -2374,6 +2374,22 @@ textarea, input, select {
 .crew-collab__edge--aligned .crew-collab__badge { color: var(--green); background: color-mix(in srgb, var(--green) 18%, transparent); }
 .crew-collab__edge--mixed .crew-collab__badge { color: var(--amber); background: color-mix(in srgb, var(--amber) 20%, transparent); }
 .crew-collab__edge--friction .crew-collab__badge { color: var(--red); background: color-mix(in srgb, var(--red) 18%, transparent); }
+
+/* The Post-Production "edit bay" - a live progress read for a cut being
+   assembled (initial edit or a recut), filling toward its next test screening
+   as days pass. The bar animates on its own because the calendar ticks while
+   this screen is open on an active editing window (App.tsx:computeTicking). */
+.edit-bay { display: flex; flex-direction: column; gap: 8px; border-left: 4px solid var(--primary, #4f7cff); }
+.edit-bay--complete { border-left-color: var(--green); }
+.edit-bay__head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.edit-bay__eyebrow { font-weight: 700; font-size: 1.02em; color: var(--text); }
+.edit-bay__countdown { color: var(--text-muted); font-size: 0.9em; font-weight: 600; }
+.edit-bay__bar { height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--text) 12%, transparent); overflow: hidden; }
+.edit-bay__bar > span { display: block; height: 100%; border-radius: 999px; background: var(--primary, #4f7cff); transition: width 0.4s ease; }
+.edit-bay--complete .edit-bay__bar > span { background: var(--green); }
+.edit-bay__meta { font-size: 0.82em; color: var(--text-muted); font-weight: 600; }
+.edit-bay__note { margin: 2px 0 0; font-size: 0.85em; color: var(--text-muted); line-height: 1.45; }
+.edit-bay__forecast { margin: 0; font-size: 0.78em; color: var(--text-muted); }
 .staffing-feed { margin: 8px 0 4px; font-size: 0.88em; }
 .staffing-feed__head { color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
 .staffing-feed ul { list-style: none; margin: 0; padding: 0; }

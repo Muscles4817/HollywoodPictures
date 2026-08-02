@@ -217,6 +217,7 @@ export function createDraftFromAsset(
     postProductionScreeningReadyDay: null,
     postProductionFinalReadyDay: null,
     postProductionEditingUntilDay: null,
+    postProductionEditingStartedDay: null,
     testScreeningPendingChoice: null,
     testScreeningResolved: false,
     postProductionEvents: [],
