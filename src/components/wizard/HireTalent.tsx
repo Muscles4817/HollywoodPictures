@@ -142,16 +142,33 @@ function ProductionApproachPanel({ draft, dispatch }: { draft: FilmDraft; dispat
 // attached creative heads (Director, Production Designer, VFX Supervisor),
 // derived from their creative-philosophy vectors. A relationship story, not a
 // modifier; only edges whose both heads are hired appear.
+// A leading icon + a colour-coded status pill per edge so the read reads at a
+// glance rather than as a buried grey line - a clash is a decision the player
+// should notice, not a footnote.
+const COLLAB_ICON: Record<'aligned' | 'mixed' | 'friction', string> = {
+  aligned: '🤝', mixed: '⚖️', friction: '⚡',
+};
+const COLLAB_STATUS: Record<'aligned' | 'mixed' | 'friction', string> = {
+  aligned: 'In sync', mixed: 'Some friction', friction: 'Clashing',
+};
 function CrewCollaborationPanel({ draft }: { draft: FilmDraft }) {
   const reads = deriveCrewCollaborationReads(draft);
   if (reads.length === 0) return null;
   return (
     <div className="crew-collab">
-      <div className="crew-collab__head">Creative collaboration</div>
+      <div className="crew-collab__head">
+        <span className="crew-collab__head-icon" aria-hidden="true">🎬</span>
+        <span className="crew-collab__head-label">Creative collaboration</span>
+      </div>
       <ul>
         {reads.map((r) => (
-          <li key={r.pair} className={`crew-collab__edge crew-collab__edge--${r.alignment}`} title={r.detail}>
-            <strong>{r.headline}.</strong> {r.detail}
+          <li key={r.pair} className={`crew-collab__edge crew-collab__edge--${r.alignment}`}>
+            <span className="crew-collab__icon" aria-hidden="true">{COLLAB_ICON[r.alignment]}</span>
+            <div className="crew-collab__body">
+              <div className="crew-collab__headline">{r.headline}</div>
+              <div className="crew-collab__detail">{r.detail}</div>
+            </div>
+            <span className="crew-collab__badge">{COLLAB_STATUS[r.alignment]}</span>
           </li>
         ))}
       </ul>
