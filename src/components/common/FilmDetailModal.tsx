@@ -15,7 +15,7 @@ import { BoxOfficeChart } from './BoxOfficeChart';
 import { SeverityBadge } from './SeverityBadge';
 import { FilmMoneyBreakdown } from './FilmMoneyBreakdown';
 import { ProductionExecutionSummary } from './ProductionExecutionSummary';
-import { getCareerForRole } from '../../engine/person';
+import { getCareerForRole, assignmentCost } from '../../engine/person';
 import { useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { selectFilmAncillary } from '../../state/selectors';
@@ -106,18 +106,18 @@ function CastCrewSection({ film }: { film: Film }) {
     <div className="card stack">
       <h3 style={{ margin: 0 }}>Cast &amp; Crew</h3>
       {ALL_TALENT_ROLES.map((role) => {
-        const hired = film.talent.filter((a) => a.role === role).map((a) => a.person);
+        const hired = film.talent.filter((a) => a.role === role);
         if (hired.length === 0) return null;
         return (
           <div key={role}>
             <div className="stat-label">{role}{hired.length > 1 ? 's' : ''}</div>
-            {hired.map((p) => {
-              const career = getCareerForRole(p, role);
+            {hired.map((a) => {
+              const p = a.person;
               return (
                 <div className="row-between" key={p.id}>
                   <span>{p.identity.name}</span>
                   <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
-                    {talentStatLine(p, role, film.script)} &middot; Fame {p.reputation.fame} &middot; Reliability {p.reputation.reliability} &middot; Ego {p.personality.ego} &middot; <Money amount={career?.typicalSalary ?? 0} />
+                    {talentStatLine(p, role, film.script)} &middot; Fame {p.reputation.fame} &middot; Reliability {p.reputation.reliability} &middot; Ego {p.personality.ego} &middot; <Money amount={assignmentCost(a)} />
                   </span>
                 </div>
               );

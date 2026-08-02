@@ -22,7 +22,7 @@ import { CompatibilityBadge } from '../common/CompatibilityBadge';
 import { RoleHiringDrawer } from './RoleHiringDrawer';
 import { CastingDrawer } from './CastingDrawer';
 import { findAssignedPerson } from '../../data/helpers';
-import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole } from '../../engine/person';
+import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole, assignmentCost } from '../../engine/person';
 import { deriveStaffingBoard, STAFFING_STAGE_LABELS, type StaffingRow } from '../../state/staffingBoard';
 import { deriveDefaultStrategy, relevantStrategyAxes, STRATEGY_AXIS_META, type ExecutionStrategy } from '../../engine/executionStrategy';
 import { deriveDirectorApproachFit, deriveCrewCollaborationReads } from '../../engine/collaborationEdges';
@@ -142,16 +142,33 @@ function ProductionApproachPanel({ draft, dispatch }: { draft: FilmDraft; dispat
 // attached creative heads (Director, Production Designer, VFX Supervisor),
 // derived from their creative-philosophy vectors. A relationship story, not a
 // modifier; only edges whose both heads are hired appear.
+// A leading icon + a colour-coded status pill per edge so the read reads at a
+// glance rather than as a buried grey line - a clash is a decision the player
+// should notice, not a footnote.
+const COLLAB_ICON: Record<'aligned' | 'mixed' | 'friction', string> = {
+  aligned: '🤝', mixed: '⚖️', friction: '⚡',
+};
+const COLLAB_STATUS: Record<'aligned' | 'mixed' | 'friction', string> = {
+  aligned: 'In sync', mixed: 'Some friction', friction: 'Clashing',
+};
 function CrewCollaborationPanel({ draft }: { draft: FilmDraft }) {
   const reads = deriveCrewCollaborationReads(draft);
   if (reads.length === 0) return null;
   return (
     <div className="crew-collab">
-      <div className="crew-collab__head">Creative collaboration</div>
+      <div className="crew-collab__head">
+        <span className="crew-collab__head-icon" aria-hidden="true">🎬</span>
+        <span className="crew-collab__head-label">Creative collaboration</span>
+      </div>
       <ul>
         {reads.map((r) => (
-          <li key={r.pair} className={`crew-collab__edge crew-collab__edge--${r.alignment}`} title={r.detail}>
-            <strong>{r.headline}.</strong> {r.detail}
+          <li key={r.pair} className={`crew-collab__edge crew-collab__edge--${r.alignment}`}>
+            <span className="crew-collab__icon" aria-hidden="true">{COLLAB_ICON[r.alignment]}</span>
+            <div className="crew-collab__body">
+              <div className="crew-collab__headline">{r.headline}</div>
+              <div className="crew-collab__detail">{r.detail}</div>
+            </div>
+            <span className="crew-collab__badge">{COLLAB_STATUS[r.alignment]}</span>
           </li>
         ))}
       </ul>
@@ -361,7 +378,8 @@ function CharacterCastingRow({
   // Slot-bound casting (docs/DESIGN_REVIEW_casting_slot_binding.md): every
   // Character is independently castable in any order, so this row just reflects
   // whoever's bound to it (if anyone) - no "wait your turn" state any more.
-  const cast = draft.talent.find((a) => a.role === role && a.characterId === character.id)?.person ?? null;
+  const assignment = draft.talent.find((a) => a.role === role && a.characterId === character.id) ?? null;
+  const cast = assignment?.person ?? null;
 
   return (
     <Card selectable onClick={onOpen}>
@@ -382,11 +400,11 @@ function CharacterCastingRow({
         </div>
       </div>
       <p style={{ color: 'var(--text-muted)', margin: '4px 0 8px', fontSize: '0.85em' }}>{describeCharacterDemands(character)}</p>
-      {cast ? (
+      {cast && assignment ? (
         <div style={{ fontSize: '0.85em' }}>
           <div className="card-title" style={{ fontSize: '1em', marginBottom: 2 }}>{cast.identity.name}</div>
           <div style={{ color: 'var(--text-muted)' }}>
-            Fame {cast.reputation.fame} &middot; <Money amount={getTypicalSalaryForRole(cast, role)} />
+            Fame {cast.reputation.fame} &middot; <Money amount={assignmentCost(assignment)} />
           </div>
         </div>
       ) : (

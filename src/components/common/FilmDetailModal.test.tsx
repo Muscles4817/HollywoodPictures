@@ -15,6 +15,8 @@ import { studioReducer } from '../../state/studioReducer';
 import { buildStateWithReadyDraft } from '../../state/testFixtures';
 import { saveState } from '../../state/persistence';
 import { playerReleasedFilms } from '../../engine/project';
+import { getCareerForRole } from '../../engine/person';
+import { formatMoney } from './Money';
 import { ARCHETYPE_LABELS } from '../../data/scriptTagLabels';
 import type { Film } from '../../types';
 
@@ -50,6 +52,22 @@ function buildFilm(): Film {
     releasedOnDay: 100,
   };
 }
+
+describe('FilmDetailModal - Cast & Crew pay', () => {
+  it('shows what an actor was actually paid (agreedSalary), not their standard quote', () => {
+    const film = buildFilm();
+    const actor = generateTalentCandidates('Actor', createRng(3), 1)[0];
+    const typical = getCareerForRole(actor, 'Lead Actor')!.typicalSalary;
+    const negotiated = Math.round(typical / 2) + 12_345; // clearly distinct from the standard quote
+    film.talent = [...film.talent, { role: 'Lead Actor', person: actor, characterId: film.script.cast[0]?.id ?? 'c1', agreedSalary: negotiated }];
+
+    render(<StudioProvider><FilmDetailModal film={film} onClose={() => {}} /></StudioProvider>);
+
+    const actorRow = screen.getByText(actor.identity.name).closest('.row-between') as HTMLElement;
+    expect(within(actorRow).getByText(new RegExp(formatMoney(negotiated).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))).toBeInTheDocument();
+    expect(actorRow.textContent).not.toContain(formatMoney(typical));
+  });
+});
 
 describe('FilmDetailModal - Screenplay section', () => {
   it("shows the film's script - title, concept badges, quality stats, production tags and tone profile", () => {
