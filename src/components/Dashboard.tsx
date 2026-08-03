@@ -20,6 +20,7 @@ import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
 import { synthesizeStudioStanding, type StandingFilm } from '../engine/studioStanding';
 import { isRecentlyCommissioned } from '../engine/commission';
 import { campaignRolloutProgress } from '../engine/marketing';
+import { sequelDevelopmentProgress } from '../engine/sequelDevelopment';
 import { derivePostProductionStatus, postProductionPillLabel, describePostProductionWait } from '../engine/postProductionStatus';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
@@ -106,6 +107,18 @@ export function Dashboard() {
     (production) => production.photography?.status === 'in-progress',
   );
 
+  // Films actively in pre-production (greenlit, prepping, pre-shoot). These used
+  // to fall into the generic "Staffing" bucket below - indistinguishable from a
+  // draft still being cast - so prep had no visible status of its own on the
+  // Dashboard. A prep 'awaiting-choice' is a paused decision, surfaced as its own
+  // attention item (prepDecisionDrafts) exactly like an on-set decision.
+  const preProductionDrafts = backgroundedDrafts.filter(
+    (production) =>
+      !production.photography &&
+      (production.preProduction?.status === 'in-progress' || production.preProduction?.status === 'awaiting-choice'),
+  );
+  const prepDecisionDrafts = preProductionDrafts.filter((production) => production.preProduction?.status === 'awaiting-choice');
+
   // A backgrounded draft the player has started staffing (a hire, a
   // casting call, or a production plan) but hasn't greenlit yet - these
   // used to be entirely invisible here (the row list below only ever
@@ -118,8 +131,11 @@ export function Dashboard() {
   const developmentHoldDrafts = backgroundedDrafts.filter(
     (production) => production.preProduction?.status === 'scheduled',
   );
+  // Pre-greenlight drafts the player has started staffing but not greenlit -
+  // no preProduction record exists yet (that's created at greenlight), which is
+  // what tells them apart from the pre-production bucket above.
   const staffingDrafts = backgroundedDrafts.filter(
-    (production) => !production.photography && production.preProduction?.status !== 'scheduled' && hasDraftProgress(production),
+    (production) => !production.photography && !production.preProduction && hasDraftProgress(production),
   );
 
   // The player's own active slate - films in development/production plus ones
@@ -161,6 +177,11 @@ export function Dashboard() {
   // just silently appear in the library weeks later. Memoized so they stay
   // referentially stable for the activity-feed useMemo below.
   const pendingCommissions = useMemo(() => studio.pendingCommissions ?? [], [studio.pendingCommissions]);
+  // Sequels in the works - a franchise entry's screenplay being developed from an
+  // owned IP (state/studioReducer.ts:DEVELOP_SEQUEL). Previously only visible in
+  // the IP Library; surfaced here so "a script is on the way for this franchise"
+  // reads on the Dashboard the same way a commissioned original does.
+  const pendingSequelDevelopments = useMemo(() => studio.pendingSequelDevelopments ?? [], [studio.pendingSequelDevelopments]);
   const justDeliveredCommissions = useMemo(
     () => studio.assets.filter((asset) => isRecentlyCommissioned(asset, state.totalDays)),
     [studio.assets, state.totalDays],
@@ -217,6 +238,13 @@ export function Dashboard() {
           action: open,
         });
       }
+    });
+
+    prepDecisionDrafts.forEach((production) => {
+      items.push({
+        activity: { id: `${production.id}-prep-decision`, tone: 'urgent', category: 'attention', eyebrow: 'Decision required', title: production.title || 'Untitled Film', detail: 'Pre-production is paused until you resolve the latest prep decision.' },
+        action: { label: 'Open project', onClick: () => dispatch({ type: 'RESUME_PROJECT', projectId: production.id }) },
+      });
     });
 
     recentAwardHighlights.forEach((highlight) => {
@@ -281,6 +309,14 @@ export function Dashboard() {
       });
     });
 
+    pendingSequelDevelopments.forEach((development) => {
+      const pct = Math.round(sequelDevelopmentProgress(development, state.totalDays) * 100);
+      items.push({
+        activity: { id: `${development.id}-sequel-pending`, tone: 'neutral', category: 'status', eyebrow: 'Sequel in development', title: development.ipName, detail: `Screenplay for the next ${development.ipName} entry is in the works (${pct}%) — expected ${formatGameMonthYear(development.readyOnDay)}.` },
+        action: { label: 'Open IP', onClick: () => dispatch({ type: 'VIEW_IP_LIBRARY' }) },
+      });
+    });
+
     if (items.length === 0) {
       const emptyKind = commandCentreEmptyState(hasActiveWork, hasReleasedFilms);
       if (emptyKind === 'caught-up') {
@@ -306,7 +342,7 @@ export function Dashboard() {
     }
 
     return items.slice(0, 5);
-  }, [attentionDrafts, dispatch, nextRelease, runningFilms, hasActiveWork, hasReleasedFilms, pendingCommissions, justDeliveredCommissions, recentAwardHighlights, state.talentPool.Writer]);
+  }, [attentionDrafts, prepDecisionDrafts, dispatch, nextRelease, runningFilms, hasActiveWork, hasReleasedFilms, pendingCommissions, pendingSequelDevelopments, justDeliveredCommissions, recentAwardHighlights, state.talentPool.Writer, state.totalDays]);
 
   const studioTier = playerReleasedFilms.length >= 10
     ? 'Major studio'
@@ -458,8 +494,8 @@ export function Dashboard() {
                 <span className="dashboard-section-kicker">Command centre</span>
                 <h2>What’s happening</h2>
               </div>
-              {attentionDrafts.length > 0 && (
-                <span className="dashboard-attention-count">{attentionDrafts.length} need attention</span>
+              {attentionDrafts.length + prepDecisionDrafts.length > 0 && (
+                <span className="dashboard-attention-count">{attentionDrafts.length + prepDecisionDrafts.length} need attention</span>
               )}
             </div>
 
@@ -483,8 +519,9 @@ export function Dashboard() {
               <div className="dashboard-pipeline-summary">
                 <PipelineStat label="Staffing" value={staffingDrafts.length} />
                 {developmentHoldDrafts.length > 0 && <PipelineStat label="In development" value={developmentHoldDrafts.length} />}
+                {preProductionDrafts.length > 0 && <PipelineStat label="Pre-production" value={preProductionDrafts.length} />}
                 <PipelineStat label="Filming" value={activeShoots.length} />
-                <PipelineStat label="Needs attention" value={attentionDrafts.length} emphasis={attentionDrafts.length > 0} />
+                <PipelineStat label="Needs attention" value={attentionDrafts.length + prepDecisionDrafts.length} emphasis={attentionDrafts.length + prepDecisionDrafts.length > 0} />
                 <PipelineStat label="Scheduled" value={scheduledReleases.length} />
                 <PipelineStat label="In theatres" value={runningFilms.length} />
               </div>
@@ -496,6 +533,10 @@ export function Dashboard() {
 
                 {staffingDrafts.map((production) => (
                   <StaffingProjectRow key={production.id} production={production} onOpen={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })} />
+                ))}
+
+                {preProductionDrafts.map((production) => (
+                  <PreProductionRow key={production.id} production={production} onOpen={() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })} />
                 ))}
 
                 {backgroundedDrafts.map((production) => {
@@ -842,6 +883,34 @@ function StaffingProjectRow({ production, onOpen }: { production: FilmDraft; onO
         <span className="dashboard-project-meta">
           {filledMandatoryCount}/{MANDATORY_TALENT_ROLES.length} roles filled
         </span>
+      </div>
+      <div className="dashboard-project-actions">
+        <Button className="btn-sm" onClick={onOpen}>Open</Button>
+      </div>
+    </article>
+  );
+}
+
+/** One row for a film in active pre-production (greenlit, prepping, pre-shoot). Mirrors the shoot rows - a status pill, title, a prep-day/spend meta line and a progress meter - so prep reads as a live, timed phase on the Dashboard instead of hiding inside "Staffing". An 'awaiting-choice' prep reads as a decision, the prep analogue of a paused shoot. */
+function PreProductionRow({ production, onOpen }: { production: FilmDraft; onOpen: () => void }) {
+  const prep = production.preProduction!;
+  const pct = prep.recommendedDays > 0 ? Math.min(100, Math.round((prep.daysElapsed / prep.recommendedDays) * 100)) : 0;
+  const awaiting = prep.status === 'awaiting-choice';
+  return (
+    <article className="dashboard-project-row">
+      <div className="dashboard-project-main">
+        <span className={`dashboard-status-pill dashboard-status-${awaiting ? 'awaiting-choice' : 'in-progress'}`}>
+          {awaiting ? 'Decision required' : 'Pre-production'}
+        </span>
+        <strong>{production.title || 'Untitled Film'}</strong>
+        <span className="dashboard-project-meta">
+          Prep day {prep.daysElapsed} of ~{prep.recommendedDays} · <Money amount={prep.runningCost} /> spent
+        </span>
+        {!awaiting && (
+          <div className="dashboard-meter dashboard-postprod-meter" aria-hidden="true">
+            <span style={{ width: `${pct}%` }} />
+          </div>
+        )}
       </div>
       <div className="dashboard-project-actions">
         <Button className="btn-sm" onClick={onOpen}>Open</Button>

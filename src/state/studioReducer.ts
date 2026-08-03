@@ -8,7 +8,7 @@ import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequi
 import { splitCastBudgetByImportance } from '../engine/castBudget';
 import { appendStaffingEvent } from './staffingBoard';
 import { personMeetsCharacterGender, personMeetsCharacterAge, personCastingAge } from '../engine/casting';
-import { applyPrepRiskDelta, computePrepRiskDelta, computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeShootEscalation, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, rollPreProductionDayEvent, resolveEventChoice } from '../engine/production';
+import { applyPrepRiskDelta, beginPhotographyFromPrep, computePrepRiskDelta, computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeShootEscalation, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, rollPreProductionDayEvent, resolveEventChoice } from '../engine/production';
 import { computeExecutionResilience } from '../engine/productionExecution';
 import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
 import { promoteFilmToIp, ipForSourceFilm, recordFranchiseEntries } from '../engine/intellectualProperty';
@@ -48,7 +48,7 @@ import { settleTheatricalMarket } from '../engine/marketSettlement';
 import { computeRelationship, recordPlayerFilmCollaborations, PLAYER_STUDIO_ID } from '../engine/relationships';
 import { recordPlayerFilmPairings } from '../engine/pairHistory';
 import { settleRivalMarket, generateRivalStudios } from '../engine/rivalStudios';
-import { settleProductionsInProgress } from '../engine/productionsInProgress';
+import { settlePreProductionsInProgress, settleProductionsInProgress, type PreProductionCharge } from '../engine/productionsInProgress';
 import { asUpcomingRelease, type ScheduledRelease } from '../engine/scheduledReleases';
 import { deriveReleaseWindowFromDay, DAYS_PER_YEAR, firstDayOfYear, yearOf } from '../engine/calendar';
 import { accrueMomentum, computeBoxOfficeBump, computeCeremony, computeStudioAwardDeltas, filmsForAwardsYear } from '../engine/awards';
@@ -225,22 +225,6 @@ function wrapPhotography(draft: FilmDraft, wrapDay: number): { draft: FilmDraft;
       postProductionEditingStartedDay: wrapDay,
     },
     contingencySettlement,
-  };
-}
-
-/**
- * Pre-production is over - open Principal Photography. Leaves the finished
- * preProduction record in place (the shoot and finished film still read its
- * risk delta and quality events), and creates a fresh in-progress
- * PhotographyState, mirroring what Greenlight used to do inline before prep
- * became its own day-by-day phase. Prep event costs were already charged to
- * cash as they fired, so nothing settles here.
- */
-function beginPhotographyFromPrep(draft: FilmDraft): FilmDraft {
-  const recommendedDays = computeRecommendedShootDays(draft.talent, draft.script!, draft.productionChoices!);
-  return {
-    ...draft,
-    photography: { status: 'in-progress', recommendedDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
   };
 }
 
@@ -797,6 +781,20 @@ function resolveChoiceOnDraft(
  * milestones - it's testScreeningResolved and the pending/editing flags, not
  * the dates, that stop this re-firing on every later tick.
  */
+/**
+ * Fold the prep overhead a backgrounded pre-production accrued this calendar pass
+ * (engine/productionsInProgress.ts:settlePreProductionsInProgress) into studio
+ * cash and the ledger - the backgrounded mirror of the recordCashChange the
+ * focused ADVANCE_PREPRODUCTION_DAY makes each prep day, so prep costs the same
+ * whether the player watches it or not. One ledger entry per advanced draft.
+ */
+function chargePreProduction(studio: Studio, day: number, charges: readonly PreProductionCharge[]): Studio {
+  return charges.reduce(
+    (s, c) => recordCashChange(s, day, -c.amount, 'production', `Pre-production on "${c.title}"`),
+    studio,
+  );
+}
+
 function checkTestScreeningReadiness(draft: FilmDraft, totalDaysAfter: number, rng: RandomFn): FilmDraft {
   if (
     !draft.photography ||
@@ -914,7 +912,19 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         // per-tour draw never shifts box office, casting, screening, or awards
         // on this tick.
         const scheduledWithIncidents = rollScheduledPressTourIncidents(settlement.stillScheduled, rng);
-        return { settlement, awardsResult, productionsInProgress: tickedProductionsInProgress, focusedDraft: tickedFocusedDraft, scheduledWithIncidents };
+        // Pre-production advances on the calendar, exactly like a backgrounded
+        // shoot (engine/productionsInProgress.ts) - so prep no longer freezes the
+        // moment the player leaves the Pre-Production screen. Applied to the
+        // focused draft too: navigating to the Dashboard doesn't clear
+        // focusedProjectId, so a just-greenlit film is still "focused" while it
+        // preps in the background. Rolls dead last (after awards / press-tour) so
+        // its per-day event draws never shift anything else on this tick.
+        const prepSettled = settlePreProductionsInProgress(
+          [...(tickedFocusedDraft ? [tickedFocusedDraft] : []), ...tickedProductionsInProgress],
+          1,
+          rng,
+        );
+        return { settlement, awardsResult, playerDrafts: prepSettled.drafts, prepCharges: prepSettled.charges, scheduledWithIncidents };
       });
       return {
         ...state,
@@ -927,10 +937,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         bidNotifications: result.settlement.bidNotifications,
         collaborations: result.settlement.collaborations,
         talentPairings: result.settlement.talentPairings,
-        studio: result.awardsResult.studio,
+        studio: chargePreProduction(result.awardsResult.studio, totalDaysAfter, result.prepCharges),
         awards: result.awardsResult.awards,
         projects: assembleProjects({
-          playerDrafts: [...(result.focusedDraft ? [result.focusedDraft] : []), ...result.productionsInProgress],
+          playerDrafts: result.playerDrafts,
           scheduled: result.scheduledWithIncidents,
           rivalProductions: result.settlement.rivalProductionsInProgress,
           playerFilms: result.settlement.playerFilms,
@@ -2013,9 +2023,11 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // cash as it happens, advances the calendar (with every backgrounded shoot,
     // rival and scheduled release settling in lockstep), and - once the
     // recommended prep days are met - opens Principal Photography and hands off
-    // to the shoot. Always the focused project; a backgrounded prep simply waits
-    // until it's focused again. An interactive prep event pauses on
-    // 'awaiting-choice' exactly as the shoot does.
+    // to the shoot. This drives the focused project only; a backgrounded (or
+    // simply un-watched) prep advances on the global ADVANCE_DAY tick instead
+    // (engine/productionsInProgress.ts:settlePreProductionsInProgress), so prep
+    // no longer freezes when the player leaves this screen. An interactive prep
+    // event pauses on 'awaiting-choice' exactly as the shoot does.
     // Deferred Start: leave the development hold and begin prep. Jumps the world
     // to the film's shootStartsOnDay (settling every intervening day in one go,
     // the same span-settlement ADVANCE_PREPRODUCTION_DAY uses for a multi-day
