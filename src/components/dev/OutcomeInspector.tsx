@@ -13,6 +13,8 @@ import { runtimeCostMultiplier } from '../../engine/productionDials';
 import { MARKETING_CHANNELS, MARKETING_CHANNEL_LABEL } from '../../data/marketing';
 import { deriveCommercialProfile } from '../../engine/commercialProfile';
 import { computeTalentCompatibility, computeTalentCompatibilityBreakdown } from '../../engine/compatibility';
+import { explainCastPerformances } from '../../engine/castPerformance';
+import { castBandLabel } from '../../engine/castPerformancePresentation';
 import { advanceToWeek, MAX_SIMULATION_WEEKS } from '../../engine/audienceSimulationStep';
 import { inferStudioBrandFromMarketingEfficiency } from '../../engine/audienceSimulationInputs';
 import { AVERAGE_TICKET_PRICE, STUDIO_BOX_OFFICE_SHARE } from '../../engine/boxOfficeRun';
@@ -785,6 +787,58 @@ export function OutcomeInspector() {
         ) : (
           <p style={{ margin: 0, color: 'var(--text-muted)' }}>No script loaded.</p>
         )}
+      </div>
+
+      <div className="card stack">
+        <h2 style={{ margin: 0 }}>Realized Performance (per actor)</h2>
+        <p className="choice-description" style={{ margin: 0 }}>
+          Exactly how well each cast member performed and why (engine/actingModel.ts:explainRealizedPerformance).
+          Role-fit gates the floor (partially) and the headroom (fully); the director's push × the signed, adaptability-reshaped
+          aim sets the unlock added on top. performance = effFloor + unlock. Leads are weighted 0.7, supporting 0.3 into the
+          film-wide Acting score. Recomputes live as you tweak the sliders above.
+        </p>
+        {(() => {
+          const details = explainCastPerformances(talent, script);
+          if (details.length === 0) return <p style={{ margin: 0, color: 'var(--text-muted)' }}>No actors hired on this film.</p>;
+          return (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}>Actor</th>
+                    <th>Role</th><th>Fit</th><th>Floor</th><th>Head</th><th>effFloor</th><th>availHead</th>
+                    <th>Push</th><th>Aim</th><th>adaptAim</th><th>Unlock</th><th>Perf</th>
+                    <th style={{ textAlign: 'left' }}>Archetype</th><th style={{ textAlign: 'left' }}>Pairing</th><th style={{ textAlign: 'left' }}>Read</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {details.map((d) => {
+                    const b = d.breakdown;
+                    return (
+                      <tr key={d.personId}>
+                        <td style={{ textAlign: 'left' }}>{d.name}</td>
+                        <td>{d.role === 'Lead Actor' ? 'Lead' : 'Supp'}</td>
+                        <td>{Math.round(d.roleFit)}</td>
+                        <td>{Math.round(b.floor)}</td>
+                        <td>{Math.round(b.headroom)}</td>
+                        <td>{Math.round(b.effFloor)}</td>
+                        <td>{b.availHeadroom.toFixed(1)}</td>
+                        <td>{b.push.toFixed(2)}</td>
+                        <td>{b.aim.toFixed(2)}</td>
+                        <td>{b.adaptedAim.toFixed(2)}</td>
+                        <td>{`${b.unlock >= 0 ? '+' : ''}${b.unlock.toFixed(1)}`}</td>
+                        <td><strong>{Math.round(b.performance)}</strong></td>
+                        <td style={{ textAlign: 'left' }}>{d.archetype}</td>
+                        <td style={{ textAlign: 'left' }}>{d.pairing}{d.directorTouch ? ` / ${d.directorTouch}` : ''}</td>
+                        <td style={{ textAlign: 'left' }}>{castBandLabel(d.read.band)} · {d.read.cause}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
       </div>
 
       <div className="card stack">

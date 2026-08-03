@@ -147,6 +147,43 @@ function characterForAssignment(assignment: TalentAssignment, indexWithinRole: n
   return characterForRoleSlot(script, role, indexWithinRole);
 }
 
+/** An acting role that carries a performance (crew have no ActingStyle to realise). */
+type ActingRole = 'Lead Actor' | 'Supporting Actor';
+
+/**
+ * One cast member's realised contribution to a film - the per-actor read behind
+ * computeActingScore, kept as its own value so callers (post-release surfacing,
+ * dossiers) can answer "was casting *this* person good?" from the SAME numbers
+ * that actually scored the film, never a parallel re-derivation that could drift.
+ * `roleFit` is the style<->script<->character suitability that gated the
+ * performance; `performance` is what they actually delivered
+ * (engine/actingModel.ts:computeRealizedPerformance).
+ */
+export interface CastMemberPerformance {
+  assignment: TalentAssignment;
+  role: ActingRole;
+  roleFit: number; // 0-100, the fit that gated floor (partially) and headroom (fully)
+  performance: number; // 0-100, the realised on-screen performance
+}
+
+/**
+ * Every cast member's realised performance on this film, leads first then
+ * supporting - the shared source of truth computeActingScore averages and the
+ * qualitative post-release read (engine/castPerformance.ts) bands. Pure: a
+ * deterministic read of who was cast, who directed, and the script, so it can be
+ * recomputed on demand at render time without storing anything per-actor.
+ */
+export function computeCastPerformances(talent: TalentAssignment[], script: Script): CastMemberPerformance[] {
+  const director = getDirector(talent);
+  const build = (a: TalentAssignment, i: number, role: ActingRole): CastMemberPerformance => {
+    const roleFit = actorFitScore(a.person, role, characterForAssignment(a, i, role, script), script, a.ageAtCasting);
+    return { assignment: a, role, roleFit, performance: computeRealizedPerformance(a.person, director, roleFit) };
+  };
+  const leads = talent.filter((a) => a.role === 'Lead Actor').map((a, i) => build(a, i, 'Lead Actor'));
+  const supports = talent.filter((a) => a.role === 'Supporting Actor').map((a, i) => build(a, i, 'Supporting Actor'));
+  return [...leads, ...supports];
+}
+
 /**
  * Combined lead + supporting acting quality, weighted toward the leads. Each
  * performer's contribution is the performance they actually DELIVER on this film
@@ -160,17 +197,9 @@ function characterForAssignment(assignment: TalentAssignment, indexWithinRole: n
  * not summed.
  */
 export function computeActingScore(talent: TalentAssignment[], script: Script): number {
-  const director = getDirector(talent);
-  const leads = talent.filter((a) => a.role === 'Lead Actor');
-  const supports = talent.filter((a) => a.role === 'Supporting Actor');
-
-  const performance = (a: TalentAssignment, i: number, role: 'Lead Actor' | 'Supporting Actor'): number => {
-    const roleFit = actorFitScore(a.person, role, characterForAssignment(a, i, role, script), script, a.ageAtCasting);
-    return computeRealizedPerformance(a.person, director, roleFit);
-  };
-
-  const leadScoreAvg = average(leads.map((a, i) => performance(a, i, 'Lead Actor')));
-  const supportScoreAvg = average(supports.map((a, i) => performance(a, i, 'Supporting Actor')));
+  const performances = computeCastPerformances(talent, script);
+  const leadScoreAvg = average(performances.filter((p) => p.role === 'Lead Actor').map((p) => p.performance));
+  const supportScoreAvg = average(performances.filter((p) => p.role === 'Supporting Actor').map((p) => p.performance));
 
   return (leadScoreAvg ?? 30) * 0.7 + (supportScoreAvg ?? 30) * 0.3;
 }

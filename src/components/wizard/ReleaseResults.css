@@ -217,3 +217,99 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* The Performances card - a per-actor casting verdict (CastPerformances). Each
+   line is a tone-coloured marker + name/role/band chip + a named-cause note. */
+.cast-perf-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cast-perf {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.cast-perf__marker {
+  flex: 0 0 auto;
+  font-size: 0.8em;
+}
+
+.cast-perf--good .cast-perf__marker { color: var(--green); }
+.cast-perf--bad .cast-perf__marker { color: var(--red); }
+.cast-perf--neutral .cast-perf__marker { color: var(--text-muted); }
+
+.cast-perf__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cast-perf__head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.cast-perf__name {
+  font-weight: 600;
+}
+
+.cast-perf__role {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cast-perf__chip {
+  font-size: 0.75em;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.cast-perf--good .cast-perf__chip { color: var(--green); border-color: var(--green); }
+.cast-perf--bad .cast-perf__chip { color: var(--red); border-color: var(--red); }
+
+.cast-perf__note {
+  color: var(--text-muted);
+}
+
+/* Per-Actor Performance dev table (CastPerformanceDevTable) - raw balancing
+   numbers, dev panel only. Compact and monospaced so columns line up. */
+.dev-perf-table {
+  border-collapse: collapse;
+  font-size: 0.78em;
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+}
+.dev-perf-table th,
+.dev-perf-table td {
+  padding: 3px 8px;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+.dev-perf-table th:first-child,
+.dev-perf-table td:first-child,
+.dev-perf-table th:nth-child(2),
+.dev-perf-table td:nth-child(2),
+.dev-perf-table td:last-child,
+.dev-perf-table th:last-child {
+  text-align: left;
+}
+.dev-perf-table th {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.dev-perf-table td:last-child {
+  color: var(--text-muted);
+}

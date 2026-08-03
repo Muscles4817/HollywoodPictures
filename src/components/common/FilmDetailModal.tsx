@@ -4,6 +4,8 @@ import { ALL_TALENT_ROLES } from '../../data/talentGeneration';
 import { toneProfileBreakdown } from '../../data/tones';
 import { ARCHETYPE_LABELS, CHARACTER_ARCHETYPE_LABELS, STORY_TYPE_LABELS, SETTING_LABELS, SCALE_LABELS } from '../../data/scriptTagLabels';
 import { productionRequirementTags, describeSettingImplication, describeCharacterDemands } from '../../engine/scriptPresentation';
+import { readCastPerformances } from '../../engine/castPerformance';
+import { describeCastPerformance, castBandLabel, castPerformanceMarker } from '../../engine/castPerformancePresentation';
 import { Button } from './Button';
 import { Money } from './Money';
 import { ScoreBar } from './ScoreBar';
@@ -101,7 +103,22 @@ function talentStatLine(person: Person, role: ProductionRole, script: Film['scri
   return compat === null ? '' : `Compatibility ${Math.round(compat)}`;
 }
 
+const PERF_TONE_COLOR: Record<'good' | 'neutral' | 'bad', string> = {
+  good: 'var(--green)',
+  neutral: 'var(--text-muted)',
+  bad: 'var(--red)',
+};
+
 function CastCrewSection({ film }: { film: Film }) {
+  // How each cast member actually performed on this film - recomputed on demand
+  // from the same talent + script that scored it (engine/castPerformance.ts), so
+  // the dossier answers "was casting them a good call?" for any past film.
+  const perfByPerson = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof readCastPerformances>[number]>();
+    for (const read of readCastPerformances(film.talent, film.script)) map.set(read.personId, read);
+    return map;
+  }, [film.talent, film.script]);
+
   return (
     <div className="card stack">
       <h3 style={{ margin: 0 }}>Cast &amp; Crew</h3>
@@ -113,12 +130,23 @@ function CastCrewSection({ film }: { film: Film }) {
             <div className="stat-label">{role}{hired.length > 1 ? 's' : ''}</div>
             {hired.map((a) => {
               const p = a.person;
+              const perf = perfByPerson.get(p.id);
               return (
-                <div className="row-between" key={p.id}>
-                  <span>{p.identity.name}</span>
-                  <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
-                    {talentStatLine(p, role, film.script)} &middot; Fame {p.reputation.fame} &middot; Reliability {p.reputation.reliability} &middot; Ego {p.personality.ego} &middot; <Money amount={assignmentCost(a)} />
-                  </span>
+                <div key={p.id} style={{ marginBottom: perf ? 6 : 0 }}>
+                  <div className="row-between">
+                    <span>{p.identity.name}</span>
+                    <span style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+                      {talentStatLine(p, role, film.script)} &middot; Fame {p.reputation.fame} &middot; Reliability {p.reputation.reliability} &middot; Ego {p.personality.ego} &middot; <Money amount={assignmentCost(a)} />
+                    </span>
+                  </div>
+                  {perf && (
+                    <div style={{ fontSize: '0.85em', color: 'var(--text-muted)', marginTop: 1 }}>
+                      <span style={{ color: PERF_TONE_COLOR[perf.tone], fontWeight: 600 }}>
+                        {castPerformanceMarker(perf.tone)} {castBandLabel(perf.band)}.
+                      </span>{' '}
+                      {describeCastPerformance(perf)}
+                    </div>
+                  )}
                 </div>
               );
             })}

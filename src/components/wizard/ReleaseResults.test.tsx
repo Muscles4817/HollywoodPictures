@@ -118,6 +118,27 @@ describe('ReleaseResults - story-ordered redesign moves raw numbers into a dev p
     expect(screen.getByText('Studio Impact')).toBeInTheDocument();
   });
 
+  it('surfaces a per-actor casting verdict for each cast member', () => {
+    const released = studioReducer(buildStateWithReadyDraft(7), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
+    const finished = advanceDays(released, MAX_SIMULATION_WEEKS * 7 + 7);
+    const film = playerReleasedFilms(finished.projects)[0];
+    const actors = film.talent.filter((a) => a.role === 'Lead Actor' || a.role === 'Supporting Actor');
+    expect(actors.length).toBeGreaterThan(0); // the fixture actually casts someone
+    saveState(finished);
+    render(
+      <StudioProvider>
+        <ReleaseResults />
+      </StudioProvider>,
+    );
+
+    // The Performances card exists and names every cast member the player cast.
+    expect(screen.getByText('The Performances')).toBeInTheDocument();
+    const perfCard = screen.getByText('The Performances').closest('.card') as HTMLElement;
+    for (const a of actors) {
+      expect(within(perfCard).getByText(a.person.identity.name)).toBeInTheDocument();
+    }
+  });
+
   it('keeps quality/buzz/department numbers out of the main page and inside the collapsed dev panel', () => {
     const released = studioReducer(buildStateWithReadyDraft(8), { type: 'SCHEDULE_RELEASE', releaseDay: 1 });
     const finished = advanceDays(released, MAX_SIMULATION_WEEKS * 7 + 7);

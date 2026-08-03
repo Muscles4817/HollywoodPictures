@@ -10,6 +10,8 @@ import {
   type Achievement,
   type FilmInsights,
 } from '../../engine/premiereReport';
+import { readCastPerformances, explainCastPerformances } from '../../engine/castPerformance';
+import { describeCastPerformance, castBandLabel, castPerformanceMarker } from '../../engine/castPerformancePresentation';
 import type { Film, FilmResults, Genre } from '../../types';
 import { Money } from '../common/Money';
 import { ScoreBar } from '../common/ScoreBar';
@@ -121,6 +123,39 @@ function WhyItLanded({ results, genre }: { results: FilmResults; genre: Genre })
   );
 }
 
+/**
+ * "Was casting them a good call?" - a per-actor read of how each cast member
+ * actually performed, the post-release feedback the game never gave before (the
+ * engine computed each performance to score the film, then discarded it). Reads
+ * are recomputed on demand from the film's own talent + script
+ * (engine/castPerformance.ts), so nothing per-actor is stored. Qualitative
+ * throughout - a band chip and a named-cause sentence, never the raw number.
+ */
+function CastPerformances({ film }: { film: Film }) {
+  const reads = readCastPerformances(film.talent, film.script);
+  if (reads.length === 0) return null;
+  return (
+    <div className="card stack">
+      <SectionHead eyebrow="How the cast delivered" title="The Performances" />
+      <ul className="cast-perf-list">
+        {reads.map((r) => (
+          <li key={r.personId} className={`cast-perf cast-perf--${r.tone}`}>
+            <span className="cast-perf__marker" aria-hidden="true">{castPerformanceMarker(r.tone)}</span>
+            <span className="cast-perf__body">
+              <span className="cast-perf__head">
+                <span className="cast-perf__name">{r.name}</span>
+                <span className="cast-perf__role">{r.role === 'Lead Actor' ? 'Lead' : 'Supporting'}</span>
+                <span className="cast-perf__chip">{castBandLabel(r.band)}</span>
+              </span>
+              <span className="cast-perf__note">{describeCastPerformance(r)}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function StudioImpact({ film, finished }: { film: Film; finished: boolean }) {
   const { state } = useStudio();
   const results = film.results;
@@ -212,6 +247,8 @@ function DevPanel({ film, finished }: { film: Film; finished: boolean }) {
           <ScoreBar label="Events" value={r.eventsScore} />
         </div>
 
+        <CastPerformanceDevTable film={film} />
+
         {mods && (
           <div className="dev-panel__group">
             <h4>Production Execution Modifiers</h4>
@@ -240,6 +277,57 @@ function DevPanel({ film, finished }: { film: Film; finished: boolean }) {
         </div>
       </div>
     </details>
+  );
+}
+
+/**
+ * The full per-actor decomposition behind the film-wide Acting baseline - the
+ * dev-only "exactly how well did each actor do, and why" view
+ * (engine/castPerformance.ts:explainCastPerformances). Every term the model used
+ * to build each performance: fit-gated floor, the director's push, the signed
+ * aim, the net unlock on top of the floor, the final realised number, and the
+ * qualitative read the player is shown. Balancing tool, never player-facing.
+ */
+function CastPerformanceDevTable({ film }: { film: Film }) {
+  const details = explainCastPerformances(film.talent, film.script);
+  if (details.length === 0) return null;
+  const n2 = (v: number) => v.toFixed(2);
+  const signed = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}`;
+  return (
+    <div className="dev-panel__group">
+      <h4>Per-Actor Performance</h4>
+      <p className="dev-panel__note choice-description" style={{ marginTop: 0 }}>
+        performance = effFloor + unlock, where unlock = availHeadroom × push × adaptedAim
+        (engine/actingModel.ts:explainRealizedPerformance). Leads weighted 0.7, supporting 0.3 into the Acting baseline above.
+      </p>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="dev-perf-table">
+          <thead>
+            <tr>
+              <th>Actor</th><th>Role</th><th>Fit</th><th>Floor</th><th>Head</th>
+              <th>effFloor</th><th>Push</th><th>Aim</th><th>Unlock</th><th>Perf</th><th>Read</th>
+            </tr>
+          </thead>
+          <tbody>
+            {details.map((d) => (
+              <tr key={d.personId}>
+                <td>{d.name}</td>
+                <td>{d.role === 'Lead Actor' ? 'Lead' : 'Supp'}</td>
+                <td>{Math.round(d.roleFit)}</td>
+                <td>{Math.round(d.breakdown.floor)}</td>
+                <td>{Math.round(d.breakdown.headroom)}</td>
+                <td>{Math.round(d.breakdown.effFloor)}</td>
+                <td>{n2(d.breakdown.push)}</td>
+                <td>{n2(d.breakdown.aim)}</td>
+                <td>{signed(d.breakdown.unlock)}</td>
+                <td><strong>{Math.round(d.breakdown.performance)}</strong></td>
+                <td>{castBandLabel(d.read.band)} · {d.read.cause}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -304,6 +392,9 @@ export function ReleaseResults() {
 
       {/* 3. Why did it succeed or fail? */}
       <WhyItLanded results={results} genre={film.genre} />
+
+      {/* 3b. Who delivered — the per-actor casting verdict. */}
+      <CastPerformances film={film} />
 
       {/* 4. What happened during production? */}
       {results.productionExecution && <ProductionExecutionSummary outcome={results.productionExecution} />}
