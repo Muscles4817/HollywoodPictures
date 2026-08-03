@@ -3,7 +3,8 @@
 // member's realised performance to score a film; these read it back out as a
 // qualitative band + named cause, and the presentation turns that into prose.
 import { describe, it, expect } from 'vitest';
-import { readCastMemberPerformance, readCastPerformances } from './castPerformance';
+import { readCastMemberPerformance, readCastPerformances, explainCastPerformances } from './castPerformance';
+import { computeRealizedPerformance } from './actingModel';
 import type { CastMemberPerformance } from './scoring';
 import { deriveToneFromActingStyle } from './compatibility';
 import { describeCastPerformance, castBandLabel, castPerformanceMarker } from './castPerformancePresentation';
@@ -213,5 +214,40 @@ describe('readCastPerformances (whole cast)', () => {
     const reads = readCastPerformances(talent, script);
     expect(reads.map((r) => r.personId)).toEqual(['lead', 'supp']);
     expect(reads.every((r) => r.role === 'Lead Actor' || r.role === 'Supporting Actor')).toBe(true);
+  });
+});
+
+// --- dev decomposition ------------------------------------------------------
+
+describe('explainCastPerformances (dev-only raw breakdown)', () => {
+  const lead = actor('lead', ROUNDED);
+  const dir = director('dir', deriveToneFromActingStyle(ROUNDED));
+  const script = { toneProfile: deriveToneFromActingStyle(ROUNDED), requiredLeads: 1, requiredSupporting: 0, cast: [] } as never;
+  const talent = [
+    { role: 'Director' as const, person: dir },
+    { role: 'Lead Actor' as const, person: lead },
+  ];
+
+  it('is internally consistent: performance = effFloor + unlock, and matches computeRealizedPerformance', () => {
+    const [detail] = explainCastPerformances(talent, script);
+    const b = detail.breakdown;
+    expect(b.effFloor + b.unlock).toBeCloseTo(b.performance, 6);
+    // The exposed decomposition must equal the number that actually scores the film.
+    expect(b.performance).toBeCloseTo(computeRealizedPerformance(lead, dir, detail.roleFit), 6);
+  });
+
+  it('carries the same band + cause the player-facing read shows (dev and player never disagree)', () => {
+    const [detail] = explainCastPerformances(talent, script);
+    const [read] = readCastPerformances(talent, script);
+    expect(detail.read).toEqual(read);
+  });
+
+  it('exposes fit gating, the director push, and the actor archetype', () => {
+    const [detail] = explainCastPerformances(talent, script);
+    const b = detail.breakdown;
+    expect(b.fit).toBeCloseTo(detail.roleFit / 100, 6);
+    expect(b.availHeadroom).toBeCloseTo(b.headroom * b.fit, 6); // headroom fully gated by fit
+    expect(b.push).toBeGreaterThan(0);
+    expect(['dependable', 'director-dependent', 'all-rounder']).toContain(detail.archetype);
   });
 });

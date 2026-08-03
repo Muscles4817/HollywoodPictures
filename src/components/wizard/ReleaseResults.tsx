@@ -10,7 +10,7 @@ import {
   type Achievement,
   type FilmInsights,
 } from '../../engine/premiereReport';
-import { readCastPerformances } from '../../engine/castPerformance';
+import { readCastPerformances, explainCastPerformances } from '../../engine/castPerformance';
 import { describeCastPerformance, castBandLabel, castPerformanceMarker } from '../../engine/castPerformancePresentation';
 import type { Film, FilmResults, Genre } from '../../types';
 import { Money } from '../common/Money';
@@ -247,6 +247,8 @@ function DevPanel({ film, finished }: { film: Film; finished: boolean }) {
           <ScoreBar label="Events" value={r.eventsScore} />
         </div>
 
+        <CastPerformanceDevTable film={film} />
+
         {mods && (
           <div className="dev-panel__group">
             <h4>Production Execution Modifiers</h4>
@@ -275,6 +277,57 @@ function DevPanel({ film, finished }: { film: Film; finished: boolean }) {
         </div>
       </div>
     </details>
+  );
+}
+
+/**
+ * The full per-actor decomposition behind the film-wide Acting baseline - the
+ * dev-only "exactly how well did each actor do, and why" view
+ * (engine/castPerformance.ts:explainCastPerformances). Every term the model used
+ * to build each performance: fit-gated floor, the director's push, the signed
+ * aim, the net unlock on top of the floor, the final realised number, and the
+ * qualitative read the player is shown. Balancing tool, never player-facing.
+ */
+function CastPerformanceDevTable({ film }: { film: Film }) {
+  const details = explainCastPerformances(film.talent, film.script);
+  if (details.length === 0) return null;
+  const n2 = (v: number) => v.toFixed(2);
+  const signed = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}`;
+  return (
+    <div className="dev-panel__group">
+      <h4>Per-Actor Performance</h4>
+      <p className="dev-panel__note choice-description" style={{ marginTop: 0 }}>
+        performance = effFloor + unlock, where unlock = availHeadroom × push × adaptedAim
+        (engine/actingModel.ts:explainRealizedPerformance). Leads weighted 0.7, supporting 0.3 into the Acting baseline above.
+      </p>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="dev-perf-table">
+          <thead>
+            <tr>
+              <th>Actor</th><th>Role</th><th>Fit</th><th>Floor</th><th>Head</th>
+              <th>effFloor</th><th>Push</th><th>Aim</th><th>Unlock</th><th>Perf</th><th>Read</th>
+            </tr>
+          </thead>
+          <tbody>
+            {details.map((d) => (
+              <tr key={d.personId}>
+                <td>{d.name}</td>
+                <td>{d.role === 'Lead Actor' ? 'Lead' : 'Supp'}</td>
+                <td>{Math.round(d.roleFit)}</td>
+                <td>{Math.round(d.breakdown.floor)}</td>
+                <td>{Math.round(d.breakdown.headroom)}</td>
+                <td>{Math.round(d.breakdown.effFloor)}</td>
+                <td>{n2(d.breakdown.push)}</td>
+                <td>{n2(d.breakdown.aim)}</td>
+                <td>{signed(d.breakdown.unlock)}</td>
+                <td><strong>{Math.round(d.breakdown.performance)}</strong></td>
+                <td>{castBandLabel(d.read.band)} · {d.read.cause}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 

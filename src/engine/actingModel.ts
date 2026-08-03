@@ -309,20 +309,53 @@ function adaptSignedAim(actor: Person, signedAim: number): number {
  * the floor in part, so a brilliant actor badly miscast still underdelivers.
  */
 export function computeRealizedPerformance(actor: Person, director: Person | undefined, roleFit: number): number {
+  return explainRealizedPerformance(actor, director, roleFit).performance;
+}
+
+/**
+ * Every intermediate term behind computeRealizedPerformance, for the dev
+ * inspectors - so a developer can read *exactly* how an actor's number was
+ * built (fit-gated floor, available headroom, the director's push, the signed &
+ * adaptability-reshaped aim, and the net unlock on top of the floor), not just
+ * the final score. Never shown to a player (house style keeps their side
+ * qualitative); `computeRealizedPerformance` is the thin wrapper over it.
+ */
+export interface RealizedPerformanceBreakdown {
+  floor: number; // craft floor (self-directed baseline)
+  headroom: number; // craft headroom (director-unlockable ceiling)
+  fit: number; // roleFit / 100
+  effFloor: number; // floor after the fit gate (FIT_FLOOR_GATE..1)
+  availHeadroom: number; // headroom after the fit gate (fully gated)
+  directorSkill: number; // 0-100, 50 when no director
+  handsOn: number; // 0-1 director hands-on-ness (0.5 when no director)
+  push: number; // (BASE_INFLUENCE + handsOn*(1-BASE_INFLUENCE)) * skill/100
+  aim: number; // raw tonal aim, [-1, 1]
+  signedAim: number; // aim after the mismatch-penalty scale on the negative side
+  adaptedAim: number; // signedAim after the actor's adaptability reshaping
+  unlock: number; // availHeadroom * push * adaptedAim - the +/- added to effFloor
+  performance: number; // clamp(effFloor + unlock, 0, 100)
+}
+
+export function explainRealizedPerformance(actor: Person, director: Person | undefined, roleFit: number): RealizedPerformanceBreakdown {
   const { floor, headroom } = actorCraft(actor);
   const fit = clamp(roleFit / 100, 0, 1);
 
   const effFloor = floor * (FIT_FLOOR_GATE + (1 - FIT_FLOOR_GATE) * fit);
   const availHeadroom = headroom * fit;
 
-  const skill = (director && getDirectorCareer(director)?.skill) ?? 50;
+  const directorSkill = (director && getDirectorCareer(director)?.skill) ?? 50;
   const handsOn = director ? directorHandsOn(director) : 0.5;
-  const push = (BASE_INFLUENCE + handsOn * (1 - BASE_INFLUENCE)) * (skill / 100);
+  const push = (BASE_INFLUENCE + handsOn * (1 - BASE_INFLUENCE)) * (directorSkill / 100);
 
   const actorStyle = getActorCareer(actor)?.actingStyle;
   const aim = actorStyle ? directorActorAim(director, actorStyle) : 0;
   const signedAim = aim >= 0 ? aim : aim * MISMATCH_PENALTY_SCALE;
   const adaptedAim = adaptSignedAim(actor, signedAim);
 
-  return clamp(effFloor + availHeadroom * push * adaptedAim, 0, 100);
+  const unlock = availHeadroom * push * adaptedAim;
+  return {
+    floor, headroom, fit, effFloor, availHeadroom,
+    directorSkill, handsOn, push, aim, signedAim, adaptedAim,
+    unlock, performance: clamp(effFloor + unlock, 0, 100),
+  };
 }

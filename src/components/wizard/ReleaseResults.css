@@ -282,3 +282,34 @@
 .cast-perf__note {
   color: var(--text-muted);
 }
+
+/* Per-Actor Performance dev table (CastPerformanceDevTable) - raw balancing
+   numbers, dev panel only. Compact and monospaced so columns line up. */
+.dev-perf-table {
+  border-collapse: collapse;
+  font-size: 0.78em;
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+}
+.dev-perf-table th,
+.dev-perf-table td {
+  padding: 3px 8px;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+.dev-perf-table th:first-child,
+.dev-perf-table td:first-child,
+.dev-perf-table th:nth-child(2),
+.dev-perf-table td:nth-child(2),
+.dev-perf-table td:last-child,
+.dev-perf-table th:last-child {
+  text-align: left;
+}
+.dev-perf-table th {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.dev-perf-table td:last-child {
+  color: var(--text-muted);
+}

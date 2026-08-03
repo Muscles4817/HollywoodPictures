@@ -16,8 +16,13 @@ import { computeCastPerformances, type CastMemberPerformance } from './scoring';
 import {
   actorArchetype,
   directorActorPairing,
+  explainRealizedPerformance,
   signatureGift,
+  type ActorArchetype,
+  type DirectorTouch,
+  directorTouch,
   type PairingRead,
+  type RealizedPerformanceBreakdown,
 } from './actingModel';
 
 /** How a single cast member's realised performance reads - good, neutral, or bad, in five bands. */
@@ -144,4 +149,48 @@ export function readCastMemberPerformance(member: CastMemberPerformance, directo
 export function readCastPerformances(talent: TalentAssignment[], script: Script): CastPerformanceRead[] {
   const director = findAssignedPerson(talent, 'Director');
   return computeCastPerformances(talent, script).map((m) => readCastMemberPerformance(m, director));
+}
+
+// --- Dev-only decomposition -------------------------------------------------
+// The full numeric story behind each performance, for the dev inspectors
+// (ReleaseResults' balancing panel, OutcomeInspector) - the player only ever
+// sees the qualitative read above; this is where a developer reads *exactly*
+// how well an actor did and why. Raw numbers throughout, by design.
+
+/** One cast member's raw performance decomposition plus the qualitative read the player sees - dev views only. */
+export interface CastPerformanceDetail {
+  personId: string;
+  name: string;
+  role: 'Lead Actor' | 'Supporting Actor';
+  roleFit: number; // 0-100, the fit that gated floor & headroom
+  breakdown: RealizedPerformanceBreakdown; // every term behind the realised number
+  archetype: ActorArchetype; // dependable / director-dependent / all-rounder
+  pairing: PairingRead; // director<->actor tonal match (strong / neutral / risky)
+  directorTouch: DirectorTouch | null; // hands-on / balanced / hands-off (null when no director)
+  giftAxis: keyof ActingStyle | null;
+  read: CastPerformanceRead; // the band + cause the player is shown
+}
+
+/**
+ * Every cast member's full numeric performance breakdown for a film - the raw
+ * dev-inspector view. Pure and deterministic like readCastPerformances, just
+ * without hiding the numbers.
+ */
+export function explainCastPerformances(talent: TalentAssignment[], script: Script): CastPerformanceDetail[] {
+  const director = findAssignedPerson(talent, 'Director');
+  return computeCastPerformances(talent, script).map((m) => {
+    const actor = m.assignment.person;
+    return {
+      personId: actor.id,
+      name: actor.identity.name,
+      role: m.role,
+      roleFit: m.roleFit,
+      breakdown: explainRealizedPerformance(actor, director, m.roleFit),
+      archetype: actorArchetype(actor),
+      pairing: director ? directorActorPairing(director, actor) : 'neutral',
+      directorTouch: director ? directorTouch(director) : null,
+      giftAxis: signatureGift(actor)?.axis ?? null,
+      read: readCastMemberPerformance(m, director),
+    };
+  });
 }
