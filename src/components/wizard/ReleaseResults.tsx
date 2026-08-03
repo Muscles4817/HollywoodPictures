@@ -10,6 +10,8 @@ import {
   type Achievement,
   type FilmInsights,
 } from '../../engine/premiereReport';
+import { readCastPerformances } from '../../engine/castPerformance';
+import { describeCastPerformance, castBandLabel, castPerformanceMarker } from '../../engine/castPerformancePresentation';
 import type { Film, FilmResults, Genre } from '../../types';
 import { Money } from '../common/Money';
 import { ScoreBar } from '../common/ScoreBar';
@@ -117,6 +119,39 @@ function WhyItLanded({ results, genre }: { results: FilmResults; genre: Genre })
           <InsightGroup kind="weakness" insights={weaknesses} />
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * "Was casting them a good call?" - a per-actor read of how each cast member
+ * actually performed, the post-release feedback the game never gave before (the
+ * engine computed each performance to score the film, then discarded it). Reads
+ * are recomputed on demand from the film's own talent + script
+ * (engine/castPerformance.ts), so nothing per-actor is stored. Qualitative
+ * throughout - a band chip and a named-cause sentence, never the raw number.
+ */
+function CastPerformances({ film }: { film: Film }) {
+  const reads = readCastPerformances(film.talent, film.script);
+  if (reads.length === 0) return null;
+  return (
+    <div className="card stack">
+      <SectionHead eyebrow="How the cast delivered" title="The Performances" />
+      <ul className="cast-perf-list">
+        {reads.map((r) => (
+          <li key={r.personId} className={`cast-perf cast-perf--${r.tone}`}>
+            <span className="cast-perf__marker" aria-hidden="true">{castPerformanceMarker(r.tone)}</span>
+            <span className="cast-perf__body">
+              <span className="cast-perf__head">
+                <span className="cast-perf__name">{r.name}</span>
+                <span className="cast-perf__role">{r.role === 'Lead Actor' ? 'Lead' : 'Supporting'}</span>
+                <span className="cast-perf__chip">{castBandLabel(r.band)}</span>
+              </span>
+              <span className="cast-perf__note">{describeCastPerformance(r)}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -304,6 +339,9 @@ export function ReleaseResults() {
 
       {/* 3. Why did it succeed or fail? */}
       <WhyItLanded results={results} genre={film.genre} />
+
+      {/* 3b. Who delivered — the per-actor casting verdict. */}
+      <CastPerformances film={film} />
 
       {/* 4. What happened during production? */}
       {results.productionExecution && <ProductionExecutionSummary outcome={results.productionExecution} />}
