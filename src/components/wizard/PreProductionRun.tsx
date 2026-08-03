@@ -14,10 +14,12 @@ import { formatGameDateWithMonth } from '../../engine/calendar';
 const TICK_INTERVAL_MS = 500;
 
 // The live day-by-day pre-production phase (types/index.ts:PreProductionState) -
-// the prep analogue of ProductionRun. Always the focused project (a backgrounded
-// prep simply waits until it's focused again), so there's no viewingProductionId
-// path here. When prep finishes the reducer flips the screen to 'production', so
-// this component unmounts on its own.
+// the prep analogue of ProductionRun, for the focused project the player is
+// actively watching. Leaving this screen no longer freezes prep: it keeps
+// advancing on the global ADVANCE_DAY tick in the background
+// (engine/productionsInProgress.ts:settlePreProductionsInProgress). When prep
+// finishes the reducer flips the screen to 'production', so this component
+// unmounts on its own.
 export function PreProductionRun() {
   const { state, dispatch } = useStudio();
   const draft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));

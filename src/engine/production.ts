@@ -2,6 +2,7 @@ import type {
   ChemistryDimension,
   EventChoiceTemplate,
   EventSeverity,
+  FilmDraft,
   Genre,
   PendingEventChoice,
   Person,
@@ -80,6 +81,25 @@ export function computeRecommendedShootDays(talent: TalentAssignment[], script: 
   const settingProfile = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
   const settingDays = (settingProfile.travelDemand * 0.6 + settingProfile.locationComplexity * 0.4) * MAX_SETTING_DAYS;
   return Math.round(BASE_SHOOT_DAYS + complexityDays + castDays + runtimeDays + effectsDays + settingDays);
+}
+
+/**
+ * Pre-production is over - open Principal Photography. Leaves the finished
+ * preProduction record in place (the shoot and finished film still read its
+ * risk delta and quality events), and creates a fresh in-progress
+ * PhotographyState, mirroring what Greenlight used to do inline before prep
+ * became its own day-by-day phase. Prep event costs were already charged to
+ * cash as they fired, so nothing settles here. Lives in the engine (not the
+ * reducer) so both the focused prep ticker and the backgrounded-prep
+ * settlement (engine/productionsInProgress.ts) hand off to the shoot the same
+ * way.
+ */
+export function beginPhotographyFromPrep(draft: FilmDraft): FilmDraft {
+  const recommendedDays = computeRecommendedShootDays(draft.talent, draft.script!, draft.productionChoices!);
+  return {
+    ...draft,
+    photography: { status: 'in-progress', recommendedDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
+  };
 }
 
 /**
