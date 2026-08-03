@@ -230,8 +230,10 @@ export function candidateStrengthSignals(factors: ActorAppealFactors, directorNa
 }
 
 // Director-side strength chips - the same idea as candidateStrengthSignals over
-// DirectorAppealFactors. scriptFit is "how good the material reads to them," the
-// director's own version of an actor's role fit.
+// DirectorAppealFactors. scriptFit is their personal *appetite* for this film
+// (computeDirectorAppetite: taste, craft fit, production method, and how much
+// they care about the material) - the director's own version of an actor's role
+// fit, so the "Loves the script" chip now reads true rather than aspirational.
 const DIRECTOR_STRENGTH_LABELS: Record<keyof DirectorAppealFactors, string> = {
   scriptFit: 'Loves the script',
   salaryFit: 'Happy with the pay',
