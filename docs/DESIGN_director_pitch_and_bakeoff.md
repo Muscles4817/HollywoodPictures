@@ -154,6 +154,36 @@ the existing `DirectorOfferRejectionReason` vocabulary, extended:
 **Phase A is shippable on its own** and is the recommended first PR — it is the
 smallest change that fixes the reported feel, and everything below reuses it.
 
+### 2.5 Status — shipped
+
+Implemented in `engine/directorAppeal.ts`:
+
+- **`computeDirectorAppetite(director, script)`** replaces the flat
+  `scriptFit: computeScriptScore(script)` factor. It blends four derived
+  sub-signals (tunable weights at the top of the module): **tone** affinity
+  (`computeCompatibility`, ego-widened — see below), **craft** fit (the
+  director's `deriveDirectorAptitudes` weighted by the craft demand the script's
+  tone implies), **method** affinity (histogram intersection of the director's
+  `productionStyle` against the script's own `environmentStrategy`/`effectsStrategy`),
+  and **material** quality (`computeScriptScore`, pulled from neutral toward the
+  script's actual quality in proportion to the director's `prestigeLean`, so a
+  commercial director is indifferent to prestige quality rather than dragged down
+  by it). The same script now draws a *different* appetite from each director.
+- **`computeDirectorTasteFit`** — tone compatibility widened around neutral by
+  ego (`EGO_TONE_SENSITIVITY`): a proud auteur loves their kind of film more and
+  recoils from off-type material harder.
+- **The taste veto (`belowTasteFloor` / `TASTE_FLOOR`).** The decisive realization:
+  weighting appetite at 0.4 against reputation (0.35) + salary (0.25) still let a
+  rich, prestigious studio *outvote* a low appetite — i.e. money could still buy
+  past a creative misfit, the exact wrong we set out to remove. So a genuine,
+  ego-amplified taste mismatch is now a **hard gate**, resolved ahead of the soft
+  `overall` comparison exactly like the salary floor: a director who finds the
+  material distasteful won't be bought onto it at any fee. Tuned low so it only
+  bites on real misfits; lukewarm directors still weigh the whole offer. The
+  existing `'script-fit'` rejection reason and its prose (*"isn't excited enough
+  by this script"*) carry it, and the `scriptFit` factor's chip prose (*"Loves
+  the script"*) now reads true rather than aspirational.
+
 ---
 
 ## 3. Phase B — The bake-off (working directors compete for the slot)
@@ -324,8 +354,8 @@ current schema, write no migrations.
 
 ## 7. Sequencing
 
-1. **Phase A — personal appetite in the offer model** (§2). Standalone; fixes the
-   reported "vending-machine A-lister" feel. Smallest, highest-value PR. No new UI
+1. **Phase A — personal appetite in the offer model** (§2). ✅ **Shipped** (§2.5).
+   Standalone; fixes the reported "vending-machine A-lister" feel. No new UI
    surface beyond a richer read.
 2. **Phase B1 — the `DirectorPitch` object + `describePitch`** (§4), behind the
    scenes, unit-tested, not yet wired to a bake-off UI.
