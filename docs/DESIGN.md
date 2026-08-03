@@ -4795,8 +4795,8 @@ the tick `PLANNING_SCREENS` had just suspended. Fixed with a new
 through fragile fake-timer component tests, `App.test.ts`): the background
 tick now stays active whenever `screen === 'production'` *and*
 `viewingProductionId` is set, exactly the same "pure read-only detour
-shouldn't silently cost or freeze time" principle
-`PAUSE_PERSISTING_SCREENS` already establishes for `rival-studio`/`stats`.
+shouldn't silently cost or freeze time" principle applied to read-only
+detour screens such as `rival-studio`/`stats`.
 Running your own live draft's shoot (`viewingProductionId === null`) is
 unaffected - still paused there, still driven by `ProductionRun.tsx`'s own
 faster tick.
