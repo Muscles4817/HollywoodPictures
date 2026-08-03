@@ -18,6 +18,7 @@ import { writerProfileFromPerson } from '../engine/writers';
 import { describeWriter, describeRewriteProjection, describeCommissionProjection } from '../engine/writerPresentation';
 import { rewriteDurationDays, rewriteFee, type RewriteKind } from '../engine/rewrite';
 import { commissionDurationBounds, commissionFee, commissionProgress, commissionedOnDay, isRecentlyCommissioned } from '../engine/commission';
+import { canComfortablyAfford } from '../engine/affordability';
 import { GENRES } from '../data/genres';
 
 const TEST_SCRIPT_ID_PREFIX = 'test-script-';
@@ -308,12 +309,18 @@ function CommissionPanel({ writers, totalDays, cash, dispatch, onClose }: Commis
           skill: career.skill,
           fee,
           available,
+          // `affordable` is the hard gate: can we literally pay the fee (drives
+          // whether the row is selectable). `comfortable` is the reserve-aware
+          // read (engine/affordability.ts) the "Within budget" filter uses - a
+          // fee you can cover but that would drain your cushion isn't "within
+          // budget," so the filter can hide it while the row stays selectable.
           affordable: cash >= fee,
+          comfortable: canComfortablyAfford({ cost: fee, available: cash }),
           bookedUntil: available ? null : deriveBookedUntil(person.availability.commitments) ?? null,
         }];
       })
       .filter((entry) => (query ? entry.person.identity.name.toLowerCase().includes(query) : true))
-      .filter((entry) => (budgetOnly ? entry.affordable : true))
+      .filter((entry) => (budgetOnly ? entry.comfortable : true))
       // Selectable (available + affordable) writers first, then by skill.
       .sort((a, b) => (a.available && a.affordable ? 0 : 1) - (b.available && b.affordable ? 0 : 1) || b.skill - a.skill);
   }, [writers, totalDays, cash, search, budgetOnly]);
@@ -387,6 +394,9 @@ function CommissionPanel({ writers, totalDays, cash, dispatch, onClose }: Commis
                 )}
                 {entry.available && !entry.affordable && (
                   <div className="commission-writer-row__note commission-writer-row__note--over">Over budget</div>
+                )}
+                {entry.available && entry.affordable && !entry.comfortable && (
+                  <div className="commission-writer-row__note commission-writer-row__note--tight">Stretches your cash</div>
                 )}
               </button>
             );

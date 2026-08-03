@@ -13,7 +13,8 @@ import { deriveFitReadAssist, deriveFitRead, deriveFitReason, deriveFitConfidenc
 import { deriveCastingDirectorTake, describeCastingDirectorTake, type CastingDirectorTake } from '../../engine/castingDirectorAdvice';
 import { candidateStrengthSignals, describeOfferRejection, describeCounterOffer, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast, describeAuditionResult, type CandidateSignal } from '../../engine/castingPresentation';
 import { forecastOpenCasting } from '../../engine/castingCalls';
-import { playerRelationshipWith, type RelationshipStanding } from '../../engine/relationships';
+import { playerRelationshipWith, relationshipRefuses, type RelationshipStanding } from '../../engine/relationships';
+import { affordabilityTier, type AffordabilityTier } from '../../engine/affordability';
 import { notableCastAffinity, type CastAffinity } from '../../engine/pairHistory';
 import { formatMoney } from '../common/Money';
 import { CastingRoleBrief } from './CastingRoleBrief';
@@ -166,7 +167,7 @@ function CandidateCard({
   channel,
   directorName,
   director,
-  affordable,
+  budget,
   actionLabel,
   onMakeOffer,
   pinned,
@@ -205,8 +206,8 @@ function CandidateCard({
   directorName?: string;
   /** The attached director (if any), so the card can surface the director<->lead pairing read (engine/actingModel.ts). */
   director?: Person | null;
-  /** Whether hiring this person keeps the film within the studio's cash (a soft warning - salary is charged at greenlight, not now). */
-  affordable: boolean;
+  /** How hiring this person sits against the studio's means - a reserve-aware read (engine/affordability.ts), so a coverable-but-draining fee reads amber, not green. A soft warning; salary is charged at greenlight, not now. */
+  budget: AffordabilityTier;
   /** The production's attached casting director skill (if any) - sharpens the fit read (engine/talentCardPresentation.ts). */
   castingDirectorSkill: number | null;
   /** The studio's standing with this actor - history sharpens the fit read the same way. */
@@ -306,10 +307,16 @@ function CandidateCard({
   // surface as a rejection after the click.
   // Over-budget now reads off TalentStats' salary affordability dot, so it's no
   // longer duplicated as a chip here (Talent Card UX Redesign).
+  // A deep-grudge actor won't take the job at any offer (engine/relationships.ts:
+  // relationshipRefuses) - the actor-side counterpart of the director's prestige
+  // gate. Surface it as a blocked chip so the "hide who won't work with me"
+  // filter has a visible reason on the card, not a silent rejection after a click.
+  const refuses = relationshipRefuses(relationship);
   const signals: CandidateSignal[] = [];
   if (channel === 'InterestedTalent') signals.push({ label: 'Sought you out', tone: 'positive' });
   if (audited) signals.push({ label: '✓ Auditioned', tone: 'positive' });
   if (liveAppeal) signals.push(...candidateStrengthSignals(liveAppeal, directorName));
+  if (refuses) signals.push({ label: "Won't work with you", tone: 'blocked' });
   if (belowFloor && !negotiation) signals.push({ label: 'Below their floor', tone: 'blocked' });
 
   const blockedTitle = !available ? 'Booked elsewhere - wait for them (below) to push your shoot, or pick someone free now.' : undefined;
@@ -359,7 +366,7 @@ function CandidateCard({
       )}
       {/* TalentStats' own Availability section already covers "available
           now" vs "busy until X" - no need to repeat it here. */}
-      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} affordable={affordable} castingDirectorSkill={castingDirectorSkill} relationship={relationship} castAffinity={castAffinity} audited={audited} />
+      <TalentStats person={person} role={role} category="actor" script={script} character={character} totalDays={totalDays} availabilityMode="blocked" pairedDirector={director ?? null} budget={budget} castingDirectorSkill={castingDirectorSkill} relationship={relationship} castAffinity={castAffinity} audited={audited} />
       {castingDirectorTake && (
         <div className={`cd-take cd-take--${castingDirectorTake.recommendation}`}>
           <span className="cd-take__label">Casting director&rsquo;s take</span>
@@ -501,6 +508,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   const [tab, setTab] = useState<CastingTab>('open-casting');
   const [availableOnly, setAvailableOnly] = useState(false);
   const [affordableOnly, setAffordableOnly] = useState(false);
+  const [hideWontWork, setHideWontWork] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>('fit');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [directPage, setDirectPage] = useState(0);
@@ -554,7 +562,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   // first page - otherwise a stale page index lands the player on an empty grid.
   useEffect(() => {
     setDirectPage(0);
-  }, [sortBy, sortDir, search, genderPick, agePick, famePick, availableOnly, affordableOnly, tab]);
+  }, [sortBy, sortDir, search, genderPick, agePick, famePick, availableOnly, affordableOnly, hideWontWork, tab]);
 
   const call = draft.castingCalls.find((c) => c.characterId === character.id) ?? null;
   const director = findAssignedPerson(draft.talent, 'Director');
@@ -587,7 +595,14 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
   const committedSpend = computeCommittedSpend(draft, state.producerPool ?? [], state.stuntTeamPool ?? []);
   const slotFreedSalary = castHereAssignment ? assignmentCost(castHereAssignment) : 0;
   const remainingBudget = state.studio.cash - committedSpend + slotFreedSalary;
-  const isAffordable = (person: Person) => getTypicalSalaryForRole(person, role) <= remainingBudget;
+  // Reserve-aware budget read (engine/affordability.ts): a candidate is only
+  // "Within budget" if their fee fits what's left for this film AND leaves the
+  // studio's operating reserve intact - not merely because the balance can
+  // cover it. Someone already on this draft is no new outlay, so always comfortable.
+  const budgetFor = (person: Person): AffordabilityTier =>
+    onThisDraftIds.has(person.id)
+      ? 'comfortable'
+      : affordabilityTier({ cost: getTypicalSalaryForRole(person, role), available: remainingBudget, cash: state.studio.cash });
 
   const range = ROLE_GENERATION_PROFILES[professionForProductionRole(role)].salaryRange;
   const advertisedSalary = draft.talentTargetPriceByRole[role] ?? logAmount(0.5, range);
@@ -728,7 +743,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
       fit: fitRead,
       odds: deal.odds,
       risk: deriveRiskRead(person).tier,
-      affordable: isAffordable(person),
+      affordable: budgetFor(person) !== 'unaffordable',
       strengths: fitReason?.strengths ?? null,
       caveat: fitReason?.caveat ?? null,
     });
@@ -736,10 +751,13 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
 
   // Filters. "Available now only": a booked actor can't be cast today (the offer
   // is hard-rejected on the schedule gate), so hiding them cuts the list to
-  // people an offer could land. "Affordable only": hides picks that would put
-  // the film over budget. A name search narrows by name. Anyone already on this
-  // production is never hidden. All default off/empty, so the full roster is the
-  // baseline (isAvailableImmediately matches the card's own "Available now" read).
+  // people an offer could land. "Affordable only": keeps only picks you can
+  // COMFORTABLY afford (engine/affordability.ts) - fees that fit while leaving an
+  // operating reserve, not merely ones the balance can technically cover. "Hide
+  // who won't work with me": drops actors whose grudge is a hard refusal
+  // (relationshipRefuses) - a doomed offer no money clears. A name search narrows
+  // by name. Anyone already on this production is never hidden. All default
+  // off/empty, so the full roster is the baseline.
   const matchesQuery = (person: Person) => !query || person.identity.name.toLowerCase().includes(query);
   const today = gameDateFromTotalDays(state.totalDays);
   const passesFilters = (person: Person) => {
@@ -749,7 +767,8 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
     // be able to see (and recast) who you've picked.
     if (onDraft) return true;
     if (availableOnly && !isAvailableImmediately(person, plannedStartDay)) return false;
-    if (affordableOnly && !isAffordable(person)) return false;
+    if (affordableOnly && budgetFor(person) !== 'comfortable') return false;
+    if (hideWontWork && relationshipRefuses(relationshipFor(person))) return false;
     if (genderPick !== 'any' && person.identity.gender !== genderPick) return false;
     if (!fameInBand(person.reputation.fame, famePick)) return false;
     if (!ageInGroup(getPersonAge(person.identity.dateOfBirth, today), agePick)) return false;
@@ -801,7 +820,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         category: 'actor' as const,
         script: draft.script,
         character,
-        affordable: isAffordable(person),
+        budget: budgetFor(person),
         actionLabel: 'Make Offer',
         actionDisabled: offerBlockedFor(person),
         onAct: () => makeOffer(person, advertisedSalary),
@@ -844,7 +863,7 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
         channel={opts.channel}
         directorName={directorName}
         director={director}
-        affordable={isAffordable(person)}
+        budget={budgetFor(person)}
         actionLabel="Make Offer"
         onMakeOffer={(amount) => makeOffer(person, amount)}
         negotiation={negotiationFor(person)}
@@ -997,7 +1016,8 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
               label="Available now only"
               hint={availableOnly && availabilityHiddenCount > 0 ? `${availabilityHiddenCount} hidden` : ''}
             />
-            <CheckboxToggle checked={affordableOnly} onChange={setAffordableOnly} label="Affordable only" />
+            <CheckboxToggle checked={affordableOnly} onChange={setAffordableOnly} label="Affordable only" hint="fee leaves a reserve" />
+            <CheckboxToggle checked={hideWontWork} onChange={setHideWontWork} label="Hide who won't work with me" />
             <p className="casting-sort__hint">
               Sorted by <strong>{SORT_LABELS.get(sortBy)!.label}</strong> ({sortDir === 'desc' ? 'high to low' : 'low to high'}) — {SORT_LABELS.get(sortBy)!.description}
             </p>

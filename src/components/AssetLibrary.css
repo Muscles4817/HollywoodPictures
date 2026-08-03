@@ -478,6 +478,9 @@
 .commission-writer-row__note--over {
   color: var(--red, #d9534f);
 }
+.commission-writer-row__note--tight {
+  color: var(--amber, #b8860b);
+}
 
 /* Commission — in-progress progress bar */
 .commission-progress {

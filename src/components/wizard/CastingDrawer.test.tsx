@@ -173,12 +173,14 @@ describe('CastingDrawer - discovery controls', () => {
 
   it('flags an over-budget candidate and hides it under the "Affordable only" filter', () => {
     const state = withRng(5, (rng) => {
-      const studio = createInitialStudio(5_500_000);
+      const studio = createInitialStudio(8_000_000);
       const talentPool = generateTalentPool(rng);
       const base = generateTalentCandidates('Actor', rng, 1)[0];
       talentPool.Actor = [femaleActor(base, 'Cheap Cathy', 3_000_000), femaleActor(base, 'Costly Cora', 9_000_000)];
       // Zero out production + marketing so committed spend is ~0 and only the
-      // candidate's own salary decides affordability against the £5.5M cash.
+      // candidate's own salary decides affordability against the £8M cash: the
+      // £3M pick sits comfortably within the operating reserve, the £9M one can't
+      // even be covered (engine/affordability.ts).
       const draft = draftWithActors(rng, 5_000_000, {
         productionChoices: { shootingBudgetAmount: 0, setQualityAmount: 0, practicalEffectsAmount: 0, vfxAmount: 0, runtimeIntensity: 0 },
       });
@@ -195,7 +197,7 @@ describe('CastingDrawer - discovery controls', () => {
     expect(within(cheapCard).queryByText('Over budget')).not.toBeInTheDocument();
 
     // The filter hides the over-budget pick, keeps the affordable one.
-    fireEvent.click(screen.getByLabelText('Affordable only'));
+    fireEvent.click(screen.getByLabelText(/Affordable only/));
     expect(screen.getByText('Cheap Cathy')).toBeInTheDocument();
     expect(screen.queryByText('Costly Cora')).not.toBeInTheDocument();
   });
