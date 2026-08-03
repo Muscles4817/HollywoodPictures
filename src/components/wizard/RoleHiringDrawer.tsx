@@ -13,6 +13,8 @@ import { affordabilityTier, type AffordabilityTier } from '../../engine/affordab
 import { notableCastAffinity, type CastAffinity } from '../../engine/pairHistory';
 import { describeDirectorRejection, directorStrengthSignals, type CandidateSignal } from '../../engine/castingPresentation';
 import { deriveFocusedDraft, computeCommittedSpend } from '../../state/selectors';
+import { findDraftFranchiseIp, deriveFranchiseTalentHistory } from '../../engine/franchiseTalent';
+import { asFilm } from '../../engine/project';
 import { professionForProductionRole, findAssignedPerson } from '../../data/helpers';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
@@ -117,6 +119,16 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   const { state, dispatch } = useStudio();
   const draft = deriveFocusedDraft(state)!;
   const pins = useComparePins();
+  // Sequels & Franchises - if this draft is a new entry in an owned IP, flag its
+  // returning cast & crew so the player doesn't have to remember who played the
+  // lead last time (engine/franchiseTalent.ts). null for an original film.
+  const franchiseIp = findDraftFranchiseIp(draft, state.studio);
+  const franchiseHistory = franchiseIp
+    ? deriveFranchiseTalentHistory(franchiseIp, state.projects.flatMap((p) => {
+        const film = asFilm(p);
+        return film && film.releasedBy === undefined ? [film] : [];
+      }))
+    : null;
   const [availableOnly, setAvailableOnly] = useState(false);
   const [affordableOnly, setAffordableOnly] = useState(false);
   const [hideWontWork, setHideWontWork] = useState(false);
@@ -159,6 +171,10 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   // candidate below - a hard block, so an ineligible actor never shows up
   // for a role they can't play (matches the reducer's own assignment guard).
   const nextCharacter = draft.script && !atCap ? characterForRoleSlot(draft.script, role, hired.length) : null;
+  // The actor who last played the character now being cast, if this is a sequel
+  // and that role is returning - the one-line "who was in this before" callout.
+  const slotReprisal = franchiseHistory && nextCharacter ? franchiseHistory.reprisalByCharacterName.get(nextCharacter.name) : undefined;
+  const slotReprisalAlreadyCast = slotReprisal ? draft.talent.some((a) => a.person.id === slotReprisal.personId) : false;
   const candidates = state.talentPool[professionForProductionRole(role)].filter(
     (t) =>
       !hiredElsewhereIds.has(t.id) &&
@@ -195,7 +211,23 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
         ? (salaryOf(person) > 0 ? fitOf(person) / salaryOf(person) : fitOf(person))
         : fitOf(person);
   const hiredNotInPool = hired.filter((h) => !candidates.some((c) => c.id === h.id));
-  const displayList = [...hiredNotInPool, ...[...candidates].sort((a, b) => sortValue(b) - sortValue(a))];
+  // Franchise returners sort to the very top of the candidate list (below anyone
+  // already hired): the actor who played this exact role first, then any prior
+  // entry's cast/crew, then everyone else by the chosen sort.
+  const franchiseRank = (person: Person): number => {
+    if (!franchiseHistory) return 2;
+    const reprisal = nextCharacter ? franchiseHistory.reprisalByCharacterName.get(nextCharacter.name) : undefined;
+    if (reprisal?.personId === person.id) return 0;
+    if (franchiseHistory.byPersonId.has(person.id)) return 1;
+    return 2;
+  };
+  const displayList = [
+    ...hiredNotInPool,
+    ...[...candidates].sort((a, b) => {
+      const byFranchise = franchiseRank(a) - franchiseRank(b);
+      return byFranchise !== 0 ? byFranchise : sortValue(b) - sortValue(a);
+    }),
+  ];
   const onThisDraftIds = new Set(draft.talent.map((a) => a.person.id));
 
   // Talent Relationship History (engine/relationships.ts) - a director's
@@ -241,6 +273,18 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   // (a doomed offer, like a booked one).
   function candidateReasoning(person: Person): { signals: CandidateSignal[]; hardBlocked: boolean } {
     const signals: CandidateSignal[] = [];
+    // Franchise continuity chips lead - they're why this drawer looks different
+    // for a sequel. The actor reprising this exact role first; otherwise a
+    // general "returning to the franchise" flag for anyone who worked on a prior
+    // entry in any role.
+    if (franchiseHistory) {
+      const reprisal = nextCharacter ? franchiseHistory.reprisalByCharacterName.get(nextCharacter.name) : undefined;
+      if (reprisal?.personId === person.id) {
+        signals.push({ label: `Reprises ${nextCharacter!.name}`, tone: 'positive' });
+      } else if (franchiseHistory.byPersonId.has(person.id)) {
+        signals.push({ label: 'Franchise veteran', tone: 'positive' });
+      }
+    }
     const appeal = directorAppealByPersonId.get(person.id);
     let hardBlocked = false;
     if (appeal === 'prestige-gate') {
@@ -383,6 +427,11 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
               </p>
             )}
             <p style={{ margin: '4px 0 0', color: 'var(--text-muted)' }}>{profile.blurb}</p>
+            {franchiseHistory && (
+              <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '0.85em' }}>
+                Part of the <strong>{franchiseHistory.ipName}</strong> franchise — returning cast &amp; crew are flagged and sorted to the top.
+              </p>
+            )}
           </div>
           <Button onClick={onClose}>Close</Button>
         </div>
@@ -391,6 +440,11 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
           Browse the roster and narrow it with the controls - the target fee for this role is set on the Cast &amp; Crew budget table; each hire is paid their own quoted salary, shown on their card.
           {capacity.max > 1 && ` Hire up to ${capacity.max} for this role.`}
         </span>
+        {slotReprisal && !slotReprisalAlreadyCast && (
+          <div className="card" style={{ margin: 0 }}>
+            <strong>{slotReprisal.personName}</strong> played {nextCharacter!.name} in <em>{slotReprisal.filmTitle}</em>. They're flagged and sorted to the top below — cast them to bring the role back, or recast it with someone new.
+          </div>
+        )}
         {displayList.length > 0 && (
           <div className="casting-controls">
             <input
