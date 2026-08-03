@@ -41,14 +41,6 @@ import { Button } from './components/common/Button';
 // pre-shoot risk profile.
 const PLANNING_SCREENS = new Set<Screen>(['workspace', 'pre-production', 'production', 'post-production', 'marketing']);
 
-// Screens that are a pure read-only detour from the Dashboard - entering or
-// leaving them costs no calendar time of its own (VIEW_RIVAL_STUDIO/
-// VIEW_STATS/VIEW_RELEASE_CALENDAR are plain screen changes, see
-// studioReducer.ts), so a pause the player set intentionally shouldn't
-// silently lift just because they ducked in to check a rival's page, the
-// stats table, or the release calendar.
-const PAUSE_PERSISTING_SCREENS = new Set<Screen>(['rival-studio', 'stats', 'release-calendar', 'opportunity-market', 'asset-library', 'projects', 'awards', 'talent-database', 'ip-library']);
-
 /**
  * Whether the background ADVANCE_DAY tick should be running right now - a
  * pure function (not inlined in Screens() below) specifically so this can
@@ -62,11 +54,10 @@ const PAUSE_PERSISTING_SCREENS = new Set<Screen>(['rival-studio', 'stats', 'rele
  * to start when viewingProductionId is set - it only ever advances the live
  * draft), so it only ever progresses via this background tick. Without this
  * carve-out, simply opening the page to check on a background shoot froze
- * its day count for as long as the player stayed there - the same "pure
- * read-only detour" bug PAUSE_PERSISTING_SCREENS already prevents for
- * rival-studio/stats, just missed here because 'production' is normally
- * excluded for the opposite reason (own-draft filming already ticks fast
- * enough on its own). Viewing your own live draft's shoot
+ * its day count for as long as the player stayed there - a "pure read-only
+ * detour" that should cost no calendar time, missed here because
+ * 'production' is normally excluded for the opposite reason (own-draft
+ * filming already ticks fast enough on its own). Viewing your own live draft's shoot
  * (viewingProductionId === null on 'production') is unaffected -
  * PLANNING_SCREENS still pauses this background tick there, exactly as
  * before.
@@ -136,9 +127,13 @@ function navigationSnapshotOf(state: NavigationSnapshot): NavigationSnapshot {
 function AppShell() {
   const { state, dispatch } = useStudio();
   // A manual pause on the background day-tick (Header's pause button) -
-  // deliberately not persisted anywhere and reset on every screen change
-  // (below), so it can never silently leave time stuck paused on a screen
-  // the player has since moved away from and forgotten about.
+  // deliberately not persisted anywhere. It stays engaged until the player
+  // explicitly resumes (the header button, spacebar, or the resume-confirm
+  // dialog); navigation never forces it off. That's safe because the pause
+  // control and its "Paused" indicator live in the global header, visible on
+  // every screen, so a pause can't silently strand the clock on a screen the
+  // player has moved away from - the old fear that justified resetting it on
+  // every screen change, back when the control was screen-scoped.
   const [paused, setPaused] = useState(false);
   // Bumped every real tick so the tick-progress bar (Header) can restart
   // its CSS animation in sync with the actual interval, instead of running
@@ -287,25 +282,6 @@ function AppShell() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, [dispatch]);
-
-  // A screen change clears any manual pause - see `paused` above. Most
-  // time-costing player actions (GO_TO_STEP, RELEASE_FILM) are themselves
-  // screen transitions, so this is what makes pausing "toggle off if the
-  // player does something that requires time to pass" true in practice.
-  // PAUSE_PERSISTING_SCREENS are the exception: entering or leaving one is a
-  // pure read-only detour (VIEW_RIVAL_STUDIO/VIEW_STATS don't touch the
-  // calendar, see studioReducer.ts) with no time cost of its own, same as
-  // opening a modal - without this, ducking in to check a rival's page or
-  // the stats table would silently resume a pause the player set
-  // intentionally, resuming for real once they returned to whatever screen
-  // they paused it on.
-  const prevScreenRef = useRef(state.screen);
-  useEffect(() => {
-    const prevScreen = prevScreenRef.current;
-    prevScreenRef.current = state.screen;
-    const isPauseExemptDetour = PAUSE_PERSISTING_SCREENS.has(prevScreen) || PAUSE_PERSISTING_SCREENS.has(state.screen);
-    if (!isPauseExemptDetour) setPaused(false);
-  }, [state.screen]);
 
   // While the player sits on the Post-Production screen of a film whose edit is
   // still running, let the shared clock tick so the progress bar fills and the
