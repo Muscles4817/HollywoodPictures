@@ -454,6 +454,26 @@ export function loadState(): GameState {
   }
 }
 
+/**
+ * Whether a persisted save already exists under the current key. Read once at
+ * startup (App.tsx) to tell a genuine first launch - where the player should be
+ * offered the same starting-stature choice a Reset gives them - apart from a
+ * returning session. Must be consulted before the auto-save effect writes the
+ * freshly-loaded state back (StudioContext.tsx), which is why it reads
+ * localStorage directly rather than inferring "fresh" from loadState's result
+ * (loadState can't distinguish a brand-new studio it just generated from a
+ * loaded one, and by the time an effect could look, the save is already there).
+ */
+export function hasSavedGame(): boolean {
+  try {
+    return localStorage.getItem(SAVE_KEY) !== null;
+  } catch {
+    // Storage unavailable (private mode, etc.) - treat as no save, same
+    // graceful fallback as loadState/saveState.
+    return false;
+  }
+}
+
 export function saveState(state: GameState): void {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(state));

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { loadState, saveState, clearSavedState } from './persistence';
+import { loadState, saveState, clearSavedState, hasSavedGame } from './persistence';
 import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft } from './testFixtures';
 import { MAX_SIMULATION_WEEKS } from '../engine/audienceSimulationStep';
@@ -581,5 +581,33 @@ describe('old saves migrate safely', () => {
     clearSavedState();
     const state = loadState();
     expect(state.projects).toEqual([]);
+  });
+});
+
+describe('hasSavedGame - first-launch detection (App.tsx offers the starting-stature picker)', () => {
+  it('is false on a genuinely fresh browser with no save under the current key', () => {
+    // loadState() would happily generate a default studio here, but that's
+    // exactly the case the first-launch picker exists for - hasSavedGame must
+    // report "nothing saved yet" so App.tsx knows to offer the choice.
+    expect(hasSavedGame()).toBe(false);
+  });
+
+  it('is true once a save has actually been written under the current key', () => {
+    saveState(loadState());
+    expect(hasSavedGame()).toBe(true);
+  });
+
+  it('goes back to false after clearSavedState - a reset returns to the first-launch state', () => {
+    saveState(loadState());
+    clearSavedState();
+    expect(hasSavedGame()).toBe(false);
+  });
+
+  it('ignores a save under an old, incompatible key - a stale-key-only browser still counts as a first launch', () => {
+    // Same reasoning as loadState's own old-key handling: a save that only
+    // exists under a superseded key isn't a save of the current game, so the
+    // player should still be offered the starting-stature choice.
+    globalThis.localStorage.setItem('hollywood-pictures-save-v18', JSON.stringify({ studio: { cash: 1 } }));
+    expect(hasSavedGame()).toBe(false);
   });
 });
