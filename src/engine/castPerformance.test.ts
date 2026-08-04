@@ -330,4 +330,46 @@ describe('describeCastingProjection', () => {
     expect(copy.headline).toBe('Projects strong');
     expect(copy.detail).toMatch(/best this part will draw out/i);
   });
+
+  it('defaults to a confident (committed) read when no confidence is passed', () => {
+    const copy = describeCastingProjection({ baseline: 'solid', ceiling: 'inspired', projected: null, leverage: 'pivotal', tone: 'neutral' });
+    expect(copy.headline).toBe('Solid, up to inspired');
+  });
+});
+
+// A performance is downstream of fit: the projection must never sound more
+// certain than the role-fit read it depends on. When the fit is a guess, the
+// projection refuses to commit to a band and points at the screen test instead.
+describe('describeCastingProjection - confidence capping (downstream of fit)', () => {
+  const magnet = { baseline: 'solid', ceiling: 'inspired', projected: null, leverage: 'pivotal', tone: 'neutral' } as const;
+
+  it('at LOW confidence, refuses to assert a band - reads "Hard to call", stays tone-neutral, and points at a screen test', () => {
+    const copy = describeCastingProjection(magnet, 'low');
+    expect(copy.headline).toBe('Hard to call');
+    expect(copy.headline).not.toMatch(/inspired|solid|strong/i); // no committed band
+    expect(copy.tone).toBe('neutral'); // we don't claim they'll be bad, only that we can't say
+    expect(copy.detail).toMatch(/screen test/i);
+    expect(copy.detail).toMatch(/unproven/i);
+  });
+
+  it('at LOW confidence, still names the disposition (director-leverage), which is knowable from who the actor is', () => {
+    expect(describeCastingProjection(magnet, 'low').detail).toMatch(/swing it hard|wide range/i);
+    const steady = describeCastingProjection({ baseline: 'strong', ceiling: 'strong', projected: null, leverage: 'minimal', tone: 'good' }, 'low');
+    expect(steady.detail).toMatch(/direction won’t change it much/i);
+  });
+
+  it('at MEDIUM confidence, hedges a single band ("Likely strong") rather than committing', () => {
+    const copy = describeCastingProjection({ baseline: 'strong', ceiling: 'strong', projected: null, leverage: 'minimal', tone: 'good' }, 'medium');
+    expect(copy.headline).toBe('Likely strong');
+  });
+
+  it('at MEDIUM confidence, hedges an attached director\'s projected band ("Likely" not "Projects")', () => {
+    const copy = describeCastingProjection({ baseline: 'solid', ceiling: 'inspired', projected: 'strong', leverage: 'pivotal', tone: 'neutral' }, 'medium');
+    expect(copy.headline).toBe('Likely strong');
+  });
+
+  it('at HIGH confidence, commits to the band (a known, readable actor earns the firm read)', () => {
+    expect(describeCastingProjection({ baseline: 'strong', ceiling: 'strong', projected: null, leverage: 'minimal', tone: 'good' }, 'high').headline).toBe('Strong');
+    expect(describeCastingProjection(magnet, 'high').headline).toBe('Solid, up to inspired');
+  });
 });

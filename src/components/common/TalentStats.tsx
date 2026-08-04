@@ -228,8 +228,13 @@ export function TalentStats({ person, role, category, script, character = null, 
   // choice swings them) read as prominently as fit, not as a buried afterthought.
   // Uses overallScore as the actor<->role fit the performance model gates on, and
   // sharpens to the attached director when there is one (headroom made concrete).
-  const projection = isActor && overallScore !== null
-    ? describeCastingProjection(projectCastingPerformance(person, overallScore, pairedDirector ?? undefined))
+  // Crucially, it's told at no more confidence than the fit read it sits
+  // downstream of (fitRead.confidence): a performance you can't yet judge the FIT
+  // of is a bigger unknown still, so an uncertain fit softens the projection from
+  // a committed band to "Hard to call" - and the same screen test / casting
+  // director / history that sharpens the fit read firms this up too.
+  const projection = isActor && overallScore !== null && fitRead
+    ? describeCastingProjection(projectCastingPerformance(person, overallScore, pairedDirector ?? undefined), fitRead.confidence)
     : null;
   // Crew identity, mirroring the director's style line: their creative leanings
   // (PD/VFX/Cinematographer) and, for the two specialty departments, what they're
