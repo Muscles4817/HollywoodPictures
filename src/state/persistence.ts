@@ -409,7 +409,11 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   RivalProductionInProgress and Film gained an optional franchiseId (the rival
 //   flywheel link), and IntellectualProperty gained an optional genre (the
 //   franchise's home genre). Additive/optional; same pre-launch policy.
-const SAVE_KEY = 'hollywood-pictures-save-v80';
+// v80 -> v81 (Director bake-off, Phase B2 - docs/DESIGN_director_pitch_and_bakeoff.md):
+//   FilmDraft gained an optional directorPitches (an open pitch round) and
+//   selectedDirectorPitch (the winning pitch, frozen for downstream bets), and a
+//   new DirectorPitch/DirectorPitchProcess shape. Additive/optional; same policy.
+const SAVE_KEY = 'hollywood-pictures-save-v81';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

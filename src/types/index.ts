@@ -1218,6 +1218,28 @@ export interface DirectorPitch {
   conviction: number;
 }
 
+/** A director scheduled to submit a pitch on a future day - the "arrives on a due-day" model auditions already use (Phase B2). */
+export interface ScheduledPitch {
+  directorId: PersonId;
+  dueDay: GameDay;
+}
+
+/**
+ * The player's open director bake-off for a draft (Phase B2): the advertised
+ * fee, the directors still preparing pitches (with the day each lands), and the
+ * pitches received so far and awaiting the player's pick. Deterministic - who
+ * pitches and when is fixed when the round opens. Cleared when the player selects
+ * a pitch or passes on the round.
+ */
+export interface DirectorPitchProcess {
+  openedOnDay: GameDay;
+  advertisedFee: Money;
+  /** Directors who will pitch, not yet due - each surfaces on its dueDay. */
+  pending: ScheduledPitch[];
+  /** Pitches received, awaiting the player's decision. */
+  submitted: DirectorPitch[];
+}
+
 export type EditStyle = 'Commercial' | 'Artistic' | 'Balanced';
 export type MusicFocus = 'Minimal' | 'Standard' | 'Heavy';
 export type FinalCutFocus = 'Trailer-focused' | 'Critic-focused' | 'Star-focused' | 'Mystery-focused';
@@ -2654,6 +2676,10 @@ export interface FilmDraft {
   shortlist?: ShortlistEntry[];
   /** Casting Redesign, Phase 4 - screen tests the studio has arranged for candidates on this draft's characters, at most one per (character, actor). Each takes calendar time to complete (AuditionRecord.readyOnDay) and then reads as a confident fit. Read as `[]` when absent (older drafts). */
   auditions?: AuditionRecord[];
+  /** Director bake-off (Phase B2) - an open pitch round for the Director role: directors preparing pitches and the pitches received, awaiting the player's pick. Absent when no round is open (the default; a director can still be hired directly via the offer path). Cleared on select/pass. */
+  directorPitches?: DirectorPitchProcess;
+  /** Director bake-off (Phase B2) - the pitch the player selected when hiring this draft's director, frozen for the downstream production bets it promises (tonal take, production approach) to read in Phase B3. Absent when the director was hired via the direct offer path rather than a pitch. */
+  selectedDirectorPitch?: DirectorPitch;
   /** Casting Redesign, Phase 6 - how many days the planned shoot start is pushed out from today, so a booked actor can be waited for (their schedule frees up) at the cost of a later start. 0/absent means "start as soon as cast". Drives the schedule gate's plannedStartDay; never negative. */
   plannedStartOffsetDays?: number;
   // The player's own Strategy/Ambition choices from the redesigned Plan

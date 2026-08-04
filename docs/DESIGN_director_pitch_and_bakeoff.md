@@ -366,8 +366,28 @@ current schema, write no migrations.
    demand competence reads). Pure engine, unit-tested, not yet wired to a bake-off
    UI. A pitch-framed `describeDemandAmbition` was added to `creativeDemands.ts` so
    the demand-domain wording stays single-sourced.
-3. **Phase B2 — the bake-off flow** (§3): slot mode, timed pitch submission on the
-   day tick, the pitch-review surface, select/pass, loser consequences.
+3. **Phase B2 — the bake-off flow** (§3). ✅ **Shipped.** `engine/directorPitches.ts`
+   (`openDirectorPitches` fixes the field of interested directors + staggers their
+   due days; `tickDirectorPitches` lands pitches on the `ADVANCE_DAY` beat, gated
+   behind each stored due-day, deterministic no-rng); reducer actions
+   `OPEN_DIRECTOR_PITCHES` / `SELECT_DIRECTOR_PITCH` / `PASS_ON_PITCHES` (select
+   attaches the director through `withRebalancedTargets`, so demands sync exactly
+   as a direct hire's would, and freezes `selectedDirectorPitch` for B3); a
+   `Seek pitches` mode toggle on `RoleHiringDrawer` + the `DirectorPitchPanel`
+   review surface. `FilmDraft` gained `directorPitches?` / `selectedDirectorPitch?`
+   (save `v81`).
+   - **Two-tier willingness** is realised in `pitchInclination(fame)`: working
+     directors are eager, marquee names rarely deign to pitch (they expect to be
+     offered). Interested = clears the offer path's hard gates at a *relieved* bar.
+   - **Loser consequence — scoped to time, ding deferred.** The design's
+     relationship-ding for passed-over directors is **not** built: the relationship
+     model is derived purely from *released films* (`Collaboration` needs a
+     `filmId`/reception), with no non-film sentiment path, so a ding would need a
+     core model change beyond B2. The realised cost is the **calendar time** spent
+     waiting for pitches (real under the game clock) plus determinism (a round
+     can't be re-rolled for a better pitch). A relationship ding for being passed
+     over is a documented follow-up, gated on the relationship model admitting
+     non-film sentiment.
 4. **Phase B3 — pitched bets resolve downstream** (§4.3): wire the tonal shift and
    production approach into the realized-tone / production-risk reads (may pigg-back
    on existing execution-strategy plumbing).
