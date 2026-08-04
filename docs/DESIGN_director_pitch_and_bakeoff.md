@@ -388,9 +388,40 @@ current schema, write no migrations.
      can't be re-rolled for a better pitch). A relationship ding for being passed
      over is a documented follow-up, gated on the relationship model admitting
      non-film sentiment.
-4. **Phase B3 — pitched bets resolve downstream** (§4.3): wire the tonal shift and
-   production approach into the realized-tone / production-risk reads (may pigg-back
-   on existing execution-strategy plumbing).
+4. **Phase B3 — pitched bets resolve downstream** (§4.3). ✅ **Shipped (the tonal
+   take); production-risk amplification deferred.**
+   - **Realized tone → reception (shipped).** `computeReleaseResults`
+     (`engine/releaseFilm.ts`) now judges a pitched film in its *realized* tone -
+     the script's tone plus the winning pitch's `toneShift`
+     (`engine/directorPitch.ts:applyDirectorToneShift`), threaded from the draft
+     exactly like `developmentQualityDelta`. Only `toneProfile` changes; concept
+     and execution craft are untouched (Principle 9). Every tone-dependent read
+     (genre fit → audience, spectacle → crossover/box office, the suspense
+     marketing angle, and the craft facets in `computeQualityBreakdown`) sees the
+     realized tone, so the film the audience gets is the one the director pitched.
+     A bolder take moves reception further from the script's baseline - the market
+     bet, endogenous and legible, never a release-time roll. Genre fit is
+     distance-based, so the take helps when it moves the film *toward* what the
+     genre wants and hurts when it moves away: a real, directional bet. Gated on
+     `selectedDirectorPitch`, so rivals, directly-hired directors, and every
+     box-office/variance calibration gate stay byte-identical.
+   - **Production approach → outcome variance (deferred).** Making a bold pitch
+     widen *execution* variance (via the static-risk profile, the way creative
+     tension already feeds `moraleRisk`) is the natural second channel, but it has
+     to be applied consistently across both the foreground shoot
+     (`ADVANCE_SHOOTING_DAY`) and the backgrounded-shoot settler
+     (`productionsInProgress.ts`) on the sim's most calibration-sensitive
+     subsystem (active recalibration gates). Deferred as **B3b** rather than
+     rushed. Note the tonal take already delivers the design's core "bold widens
+     the distribution" promise through the *reception* channel; B3b adds the
+     *production* channel on top.
+
+   A note on determinism surfaced here: whether a given director bothers to pitch
+   is a stable per-(director, script) draw keyed on `script.id` (like
+   `generateCreativeDemands`). That is deterministic *within* a game session (a
+   script's id is fixed once created), which is what gameplay needs; tests that
+   regenerate scripts per process must pin the id or use `fame: 0` (inclination 1)
+   to avoid the draw.
 5. **Later** — development-exec hire (sharpens pitch reads, §3.2); the origination
    pitch feed (Path 3) sharing the `Pitch` shape.
 

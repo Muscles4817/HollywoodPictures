@@ -21,6 +21,7 @@ import type {
   Person,
   Script,
   Tone,
+  ToneProfile,
 } from '../types';
 import { TONES, TONE_LABELS } from '../data/tones';
 import { getDirectorCareer } from './person';
@@ -93,6 +94,20 @@ const FULL_DEMAND_LOAD = 6;
 const BOLDNESS_WEIGHTS = { shift: 0.45, conviction: 0.3, demands: 0.25 };
 const FAITHFUL_BELOW = 0.33;
 const BOLD_AT = 0.62;
+
+/**
+ * Apply a pitch's tonal take to a tone profile: the director's signed per-axis
+ * nudges (toneShift), clamped 0-100. This is the *realized* tone the finished
+ * film is made in and judged on (Phase B3, engine/releaseFilm.ts) - the concept
+ * and execution craft are untouched, only the tonal emphasis moves, so the pitch
+ * reinterprets the material rather than rewriting it (Principle 9). A deferential
+ * director's near-zero shift returns the tone essentially unchanged.
+ */
+export function applyDirectorToneShift(tone: ToneProfile, shift: Record<Tone, number>): ToneProfile {
+  const out = {} as ToneProfile;
+  for (const tone_ of TONES) out[tone_] = clamp(tone[tone_] + (shift[tone_] ?? 0), 0, 100);
+  return out;
+}
 
 /** The 0-1 boldness of a pitch - the size of the bet it represents. */
 export function pitchBoldness(pitch: DirectorPitch): number {

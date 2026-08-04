@@ -3,7 +3,7 @@ import { generateDirectorPitch, pitchRiskPosture, pitchBoldness, describePitch }
 import { generateCreativeDemands } from './creativeDemands';
 import { generateScriptOptions } from './scriptGenerator';
 import { createRng } from './random';
-import type { DomainAptitudes, Genre, Person, Script, ToneProfile } from '../types';
+import type { DirectorPitch, DomainAptitudes, Genre, Person, Script, ToneProfile } from '../types';
 
 function scriptOfGenre(genre: Genre, seed: number): Script {
   return generateScriptOptions(genre, createRng(seed), 1)[0];
@@ -131,11 +131,20 @@ describe('describePitch', () => {
   });
 
   it("gates a demand's competence read on the relationship: a stranger can't judge it", () => {
-    const director = pitchDirector('gated', { ego: 95, handsOn: 0.95, aptitudes: { story: 95, visual: 5, performance: 92, craft: 10 }, toneProfile: { action: 0, comedy: 95, romance: 90, suspense: 10, drama: 20, spectacle: 0 } });
-    const script = scriptOfGenre('Action', 50);
-    const read = describePitch(generateDirectorPitch(director, script), director); // NO_RELATIONSHIP
-    expect(read.demands.length).toBeGreaterThan(0);
-    // With a stranger, at least one competence read is the "can't judge yet" line.
+    // A stranger (reputation resolution) only reads the director's strongest and,
+    // if pronounced, weakest aptitude - here story (95) and visual (5). A demand
+    // governed by an UNrevealed domain (Casting → performance) must read as
+    // unknown. Hand-built so it doesn't depend on which demands generation rolls.
+    const director = pitchDirector('gated', { aptitudes: { story: 95, visual: 5, performance: 92, craft: 10 } });
+    const pitch: DirectorPitch = {
+      directorId: director.id,
+      scriptId: 'fixed',
+      toneShift: { action: 0, comedy: 0, romance: 0, suspense: 0, drama: 0, spectacle: 0 },
+      productionStyle: { environmentStrategy: { studio: 0.34, location: 0.33, digital: 0.33 }, effectsStrategy: { practical: 0.5, digital: 0.5 } },
+      previewedDemands: [{ id: 'd1', demanderId: director.id, domain: 'Casting', strength: 0.5, blocking: false }],
+      conviction: 0.5,
+    };
+    const read = describePitch(pitch, director); // NO_RELATIONSHIP
     expect(read.demands.some((line) => line.includes("don't yet know"))).toBe(true);
   });
 

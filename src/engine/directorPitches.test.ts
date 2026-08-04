@@ -53,8 +53,8 @@ describe('willingPitchers', () => {
   it('includes eager working directors and excludes booked ones', () => {
     const script = scriptOfGenre('Drama', 60);
     const pool = [
-      director('free-working', { fame: 25 }),
-      director('booked-working', { fame: 25, bookedUntil: 10_000 }),
+      director('free-working', { fame: 0 }),
+      director('booked-working', { fame: 0, bookedUntil: 10_000 }),
     ];
     const names = willingPitchers(script, studio(), pool, 1_000_000, 1).map((d) => d.id);
     expect(names).toContain('free-working');
@@ -63,7 +63,7 @@ describe('willingPitchers', () => {
 
   it('caps the field at a handful, not the whole pool', () => {
     const script = scriptOfGenre('Drama', 61);
-    const pool = Array.from({ length: 30 }, (_, i) => director(`d${i}`, { fame: 20 }));
+    const pool = Array.from({ length: 30 }, (_, i) => director(`d${i}`, { fame: 0 }));
     expect(willingPitchers(script, studio(), pool, 1_000_000, 1).length).toBeLessThanOrEqual(6);
   });
 
@@ -73,7 +73,7 @@ describe('willingPitchers', () => {
     // that blocks the offer also blocks pitching.
     const opp = (v: number) => (v > 50 ? 0 : 100);
     const opposed: ToneProfile = { action: opp(script.toneProfile.action), comedy: opp(script.toneProfile.comedy), romance: opp(script.toneProfile.romance), suspense: opp(script.toneProfile.suspense), drama: opp(script.toneProfile.drama), spectacle: opp(script.toneProfile.spectacle) };
-    const pool = [director('distaste', { fame: 20, ego: 95, toneProfile: opposed })];
+    const pool = [director('distaste', { fame: 0, ego: 95, toneProfile: opposed })];
     expect(willingPitchers(script, studio(), pool, 1_000_000, 1).map((d) => d.id)).not.toContain('distaste');
   });
 });
@@ -81,7 +81,7 @@ describe('willingPitchers', () => {
 describe('openDirectorPitches', () => {
   it('schedules each pitcher a staggered future due-day and starts with no submissions', () => {
     const script = scriptOfGenre('Drama', 63);
-    const pool = [director('a', { fame: 20 }), director('b', { fame: 30 })];
+    const pool = [director('a', { fame: 0 }), director('b', { fame: 0 })];
     const process = openDirectorPitches(script, studio(), pool, 1_000_000, 100);
     expect(process.submitted).toEqual([]);
     expect(process.pending.length).toBeGreaterThan(0);
@@ -90,7 +90,7 @@ describe('openDirectorPitches', () => {
 
   it('is deterministic - the same round opens the same field', () => {
     const script = scriptOfGenre('Drama', 64);
-    const pool = [director('a', { fame: 20 }), director('b', { fame: 30 })];
+    const pool = [director('a', { fame: 0 }), director('b', { fame: 0 })];
     expect(openDirectorPitches(script, studio(), pool, 1_000_000, 1)).toEqual(openDirectorPitches(script, studio(), pool, 1_000_000, 1));
   });
 });
@@ -98,7 +98,7 @@ describe('openDirectorPitches', () => {
 describe('tickDirectorPitches', () => {
   it('is a no-op before any pitch is due, and lands them once their day arrives', () => {
     const script = scriptOfGenre('Drama', 65);
-    const pool = [director('a', { fame: 20 }), director('b', { fame: 30 })];
+    const pool = [director('a', { fame: 0 }), director('b', { fame: 0 })];
     const process = openDirectorPitches(script, studio(), pool, 1_000_000, 100);
     const firstDue = Math.min(...process.pending.map((p) => p.dueDay));
 
@@ -112,7 +112,7 @@ describe('tickDirectorPitches', () => {
 
   it('lands every pitch once the calendar passes the last due-day', () => {
     const script = scriptOfGenre('Drama', 66);
-    const pool = [director('a', { fame: 20 }), director('b', { fame: 30 }), director('c', { fame: 25 })];
+    const pool = [director('a', { fame: 0 }), director('b', { fame: 0 }), director('c', { fame: 0 })];
     const process = openDirectorPitches(script, studio(), pool, 1_000_000, 100);
     const lastDue = Math.max(...process.pending.map((p) => p.dueDay));
     const after = tickDirectorPitches(draftWith(script, process), lastDue, pool);

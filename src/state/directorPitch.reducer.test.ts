@@ -17,7 +17,7 @@ function workingDirector(id: string): Person {
     id,
     identity: { name: id, appearanceTags: [] },
     personality: { professionalism: 50, ambition: 40, loyalty: 50, ego: 40, temperament: 50, pressureHandling: 50, controversy: 50, adaptability: 50 },
-    reputation: { fame: 20, prestige: 45, industryRespect: 45, reliability: 50, currentHeat: 20 },
+    reputation: { fame: 0, prestige: 45, industryRespect: 45, reliability: 50, currentHeat: 20 },
     availability: { commitments: [] },
     traits: [],
     primaryRole: 'Director',
