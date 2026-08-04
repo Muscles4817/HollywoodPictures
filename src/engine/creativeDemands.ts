@@ -181,6 +181,27 @@ export function describeCreativeDemand(demand: CreativeDemand): string {
   return `Your director ${DEMAND_TEXT[demand.domain]}.`;
 }
 
+// Pitch-framed phrasing of the same domains (Phase B): a director previewing a
+// demand as an *ambition* before they're hired, not making it as your director
+// after. Noun phrases so they read naturally after "They want" - one source of
+// truth for the domain wording, kept beside DEMAND_TEXT.
+const DEMAND_AMBITION_TEXT: Record<CreativeDemandDomain, string> = {
+  Script: 'their own pass at the screenplay',
+  Casting: 'to recast a key role their way',
+  Cinematography: 'their own cinematographer and visual approach',
+  ProductionDesign: 'to overhaul the production design',
+  Edit: 'final say in the edit',
+  Score: 'their own composer and sound',
+  VFX: 'to direct the effects approach',
+  Practical: 'to stage the action and stunts their way',
+  Scale: 'to push the scale and budget up',
+};
+
+/** A one-line, diegetic description of what a director's pitch proposes to take control of (pre-hire framing). */
+export function describeDemandAmbition(demand: CreativeDemand): string {
+  return `They want ${DEMAND_AMBITION_TEXT[demand.domain]}.`;
+}
+
 const BAND_JUDGEMENT: Record<AptitudeBand, string> = {
   exceptional: 'a commanding strength of theirs',
   strong: 'a real strength of theirs',

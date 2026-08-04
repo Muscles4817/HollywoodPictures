@@ -8,7 +8,9 @@ import type {
   Script,
   TalentAssignment,
   TargetAudience,
+  Tone,
 } from '../types';
+import { applyDirectorToneShift } from './directorPitch';
 import { computeAudienceScore, computeBuzzScore, computeCriticScore, computeQualityBreakdown, combineProductionEvents } from './scoring';
 import { computeExecutionProfile, summarizeExecution } from './productionExecution';
 import { computeEventsCostDelta, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
@@ -117,6 +119,17 @@ export interface ReleaseComputationInput {
    */
   developmentQualityDelta?: number;
   /**
+   * The tonal take from the director's selected pitch (Phase B3 -
+   * docs/DESIGN_director_pitch_and_bakeoff.md): a signed per-axis nudge applied
+   * to the script's tone to get the *realized* tone the finished film is made in
+   * and judged on. A bigger (bolder) shift is a bigger market bet - it moves
+   * reception further from the script's baseline, for better or worse.
+   * Optional/absent (→ no shift) for rivals, directly-hired directors, and pre-B3
+   * saves, which read the script's own tone exactly as before. See
+   * engine/directorPitch.ts:applyDirectorToneShift.
+   */
+  directorToneShift?: Record<Tone, number>;
+  /**
    * A resolved press-tour moment (engine/pressTourMoments.ts), rolled at
    * settlement (resolvePlayerRelease) and passed in as plain data so this
    * function stays pure and deterministic. Its buzzDelta lifts/saps Buzz and its
@@ -167,6 +180,17 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   const producerEffects = input.producerEffects ?? NEUTRAL_PRODUCER_EFFECTS;
   const producerFees = input.producerFees ?? 0;
 
+  // Phase B3 - the finished film is made in its *realized* tone: the script's
+  // own tone shifted by the director's pitched take. Only toneProfile changes
+  // (concept and execution craft are untouched - the pitch reinterprets the
+  // material, it doesn't rewrite it), and every tone-dependent read below uses
+  // this realized `script` so critic, audience, buzz, marketing and box office
+  // all judge the film that was actually made. Absent shift (rivals, direct
+  // hires, pre-B3 saves) leaves this identical to script.
+  const script = input.directorToneShift
+    ? { ...input.script, toneProfile: applyDirectorToneShift(input.script.toneProfile, input.directorToneShift) }
+    : input.script;
+
   const allEvents = combineProductionEvents(input.events, input.postProductionEvents);
   // Fixer softens the quality damage from bad events only (costs are settled
   // elsewhere - see mitigateEventQualityImpact). Buzz keeps reading the raw
@@ -184,7 +208,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     productionChoices: input.productionChoices,
   });
   const quality = computeQualityBreakdown(
-    input.script,
+    script,
     input.talent,
     input.genre,
     input.productionChoices,
@@ -197,10 +221,10 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     input.personDrivenCraft ?? false, // player films realise DP/Composer/Editor craft; rivals keep the flat model
     input.developmentQualityDelta ?? 0, // accepted creative demands' net swing (Phase 2b)
   );
-  const criticScore = computeCriticScore(quality, input.script, input.postProductionChoices);
+  const criticScore = computeCriticScore(quality, script, input.postProductionChoices);
   const audienceScore = computeAudienceScore(
     quality,
-    input.script,
+    script,
     input.talent,
     input.genre,
     input.productionChoices,
@@ -226,7 +250,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   const angleEffect = angle
     ? campaignAngleEffect(
         angle,
-        deliveredScoreForAngle(angle, quality.productionScore, quality.scriptScore, input.script.toneProfile.suspense, averageFame(input.talent, 'Lead Actor')),
+        deliveredScoreForAngle(angle, quality.productionScore, quality.scriptScore, script.toneProfile.suspense, averageFame(input.talent, 'Lead Actor')),
       )
     : NEUTRAL_ANGLE_EFFECT;
   // The legs penalty saps the sim's word-of-mouth (audience) score only; the
@@ -236,7 +260,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // Executive adds flat Buzz (the marketing-efficiency half is applied to the
   // sim's marketing spend below).
   const rawBuzz = computeBuzzScore(
-    input.script,
+    script,
     input.talent,
     allEvents,
     input.postProductionChoices,
@@ -317,7 +341,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // removed as a release option (types/index.ts:ReleaseType) specifically
   // so marketingChoices.releaseType is always a SupportedReleaseType here,
   // no runtime check needed.
-  const commercialProfile = deriveCommercialProfile(input.script);
+  const commercialProfile = deriveCommercialProfile(script);
   const fixed = deriveAudienceSimulationFixedState({
     buzzScore,
     // Effective reach (audience-weighted channel mix), lifted by the campaign
@@ -332,9 +356,9 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     scriptAccessibility: commercialProfile.accessibility,
     scriptHookStrength: commercialProfile.hookStrength,
     scriptCrossoverPotential: commercialProfile.crossoverPotential,
-    scriptMarketability: deriveMarketability(input.script),
-    scriptSpectacle: input.script.toneProfile.spectacle,
-    scriptIntendedAudience: input.script.intendedAudience,
+    scriptMarketability: deriveMarketability(script),
+    scriptSpectacle: script.toneProfile.spectacle,
+    scriptIntendedAudience: script.intendedAudience,
     targetAudience: input.targetAudience,
     genre: input.genre,
     releaseWindow: input.marketingChoices.releaseWindow,

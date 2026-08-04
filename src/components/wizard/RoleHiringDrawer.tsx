@@ -22,6 +22,7 @@ import { TalentStats } from '../common/TalentStats';
 import { TalentComparison, type CompareSlot } from '../common/TalentComparison';
 import { useComparePins, MAX_PINNED } from '../common/useComparePins';
 import { CheckboxToggle } from '../common/CheckboxToggle';
+import { DirectorPitchPanel } from './DirectorPitchPanel';
 import type { Person, ProductionRole, Script, ScriptCharacter } from '../../types';
 
 const VFX_RECOMMENDED_GENRES = new Set(['Action', 'Sci-Fi', 'Fantasy']);
@@ -190,6 +191,13 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
   // without one there's nothing to gate on, so hiring stays instant.
   const isDirectorRole = profile.category === 'director';
   const [lastDirectorResponse, setLastDirectorResponse] = useState<{ personName: string; response: DirectorOfferResponse } | null>(null);
+  // Director bake-off (Phase B2): a single-slot director can be hired two ways -
+  // approach a name (the grid below) or seek pitches (DirectorPitchPanel). Default
+  // to the pitches view when a round is already open, so reopening the drawer
+  // lands the player back on it. Only offered before a director is attached.
+  const [directorMode, setDirectorMode] = useState<'approach' | 'pitches'>(draft.directorPitches ? 'pitches' : 'approach');
+  const showDirectorModes = isDirectorRole && capacity.max === 1 && hired.length === 0;
+  const pitchMode = showDirectorModes && directorMode === 'pitches';
   // Which specific Character the *next* hire would fill - same slot-index
   // contract as characterForCandidate below, surfaced once in the drawer's
   // own header rather than only per-candidate-card, so opening "Cast
@@ -445,7 +453,15 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
             <strong>{slotReprisal.personName}</strong> played {nextCharacter!.name} in <em>{slotReprisal.filmTitle}</em>. They're flagged and sorted to the top below — cast them to bring the role back, or recast it with someone new.
           </div>
         )}
-        {displayList.length > 0 && (
+        {showDirectorModes && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button variant={directorMode === 'approach' ? 'primary' : 'secondary'} className="btn-sm" onClick={() => setDirectorMode('approach')}>Approach a name</Button>
+            <Button variant={directorMode === 'pitches' ? 'primary' : 'secondary'} className="btn-sm" onClick={() => setDirectorMode('pitches')}>Seek pitches</Button>
+          </div>
+        )}
+        {pitchMode && <DirectorPitchPanel advertisedFee={targetPrice} />}
+
+        {!pitchMode && displayList.length > 0 && (
           <div className="casting-controls">
             <input
               type="search"
@@ -478,13 +494,13 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
           </div>
         )}
 
-        {shownList.length === 0 && displayList.length > 0 && (
+        {!pitchMode && shownList.length === 0 && displayList.length > 0 && (
           <p style={{ margin: 0, color: 'var(--text-muted)' }}>
             No candidates match your filters - clear them to see the rest.
           </p>
         )}
 
-        {comparing ? (
+        {!pitchMode && (comparing ? (
           compareSlots.length === MAX_PINNED && (
             <div className="stack">
               <h3 style={{ margin: 0 }}>Comparing two candidates</h3>
@@ -524,9 +540,9 @@ export function RoleHiringDrawer({ role, onClose }: RoleHiringDrawerProps) {
               );
             })}
           </div>
-        )}
+        ))}
 
-        {!comparing && pageCount > 1 && (
+        {!pitchMode && !comparing && pageCount > 1 && (
           <div className="casting-pager">
             <Button
               variant="secondary"

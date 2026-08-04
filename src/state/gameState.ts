@@ -383,6 +383,19 @@ export type GameAction =
   // shoot start, so a booked actor can be waited for. offsetDays is measured
   // from today; clamped to >= 0. Waiting for someone sets it to free them up.
   | { type: 'SET_SHOOT_DELAY'; offsetDays: number }
+  // Director bake-off (Phase B2 - docs/DESIGN_director_pitch_and_bakeoff.md) -
+  // open the Director slot for pitches at an advertised fee. The reducer fixes
+  // the field of interested directors and staggers their submissions
+  // (engine/directorPitches.ts:openDirectorPitches); pitches then land on the
+  // day tick. No-op if a director is already attached or a round is already open.
+  | { type: 'OPEN_DIRECTOR_PITCHES'; advertisedFee: number }
+  // Pick one submitted pitch: attach that director (at the advertised fee),
+  // freeze the winning pitch on the draft for the downstream bets it promises,
+  // and close the round. No-op if the round or that pitch is gone.
+  | { type: 'SELECT_DIRECTOR_PITCH'; directorId: string }
+  // Pass on the whole round - close it without hiring. The directors keep their
+  // time; the studio keeps looking.
+  | { type: 'PASS_ON_PITCHES' }
   // Replaces the old SET_PRODUCTION_CHOICES - the player now edits Strategy/
   // Ambition values directly (Plan Production, docs/DESIGN.md), and the
   // reducer derives ProductionChoices from them via

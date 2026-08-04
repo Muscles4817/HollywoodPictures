@@ -357,13 +357,71 @@ current schema, write no migrations.
 1. **Phase A — personal appetite in the offer model** (§2). ✅ **Shipped** (§2.5).
    Standalone; fixes the reported "vending-machine A-lister" feel. No new UI
    surface beyond a richer read.
-2. **Phase B1 — the `DirectorPitch` object + `describePitch`** (§4), behind the
-   scenes, unit-tested, not yet wired to a bake-off UI.
-3. **Phase B2 — the bake-off flow** (§3): slot mode, timed pitch submission on the
-   day tick, the pitch-review surface, select/pass, loser consequences.
-4. **Phase B3 — pitched bets resolve downstream** (§4.3): wire the tonal shift and
-   production approach into the realized-tone / production-risk reads (may pigg-back
-   on existing execution-strategy plumbing).
+2. **Phase B1 — the `DirectorPitch` object + `describePitch`** (§4). ✅ **Shipped**
+   (`engine/directorPitch.ts`): `generateDirectorPitch` (deterministic per
+   director × script — a tonal-shift take scaled by ego + hands-on-ness, the
+   director's production style, the previewed `generateCreativeDemands`, and a
+   conviction), `pitchRiskPosture` / `pitchBoldness` (faithful | balanced | bold,
+   the bet the player weighs), and `describePitch` (qualitative, relationship-gated
+   demand competence reads). Pure engine, unit-tested, not yet wired to a bake-off
+   UI. A pitch-framed `describeDemandAmbition` was added to `creativeDemands.ts` so
+   the demand-domain wording stays single-sourced.
+3. **Phase B2 — the bake-off flow** (§3). ✅ **Shipped.** `engine/directorPitches.ts`
+   (`openDirectorPitches` fixes the field of interested directors + staggers their
+   due days; `tickDirectorPitches` lands pitches on the `ADVANCE_DAY` beat, gated
+   behind each stored due-day, deterministic no-rng); reducer actions
+   `OPEN_DIRECTOR_PITCHES` / `SELECT_DIRECTOR_PITCH` / `PASS_ON_PITCHES` (select
+   attaches the director through `withRebalancedTargets`, so demands sync exactly
+   as a direct hire's would, and freezes `selectedDirectorPitch` for B3); a
+   `Seek pitches` mode toggle on `RoleHiringDrawer` + the `DirectorPitchPanel`
+   review surface. `FilmDraft` gained `directorPitches?` / `selectedDirectorPitch?`
+   (save `v81`).
+   - **Two-tier willingness** is realised in `pitchInclination(fame)`: working
+     directors are eager, marquee names rarely deign to pitch (they expect to be
+     offered). Interested = clears the offer path's hard gates at a *relieved* bar.
+   - **Loser consequence — scoped to time, ding deferred.** The design's
+     relationship-ding for passed-over directors is **not** built: the relationship
+     model is derived purely from *released films* (`Collaboration` needs a
+     `filmId`/reception), with no non-film sentiment path, so a ding would need a
+     core model change beyond B2. The realised cost is the **calendar time** spent
+     waiting for pitches (real under the game clock) plus determinism (a round
+     can't be re-rolled for a better pitch). A relationship ding for being passed
+     over is a documented follow-up, gated on the relationship model admitting
+     non-film sentiment.
+4. **Phase B3 — pitched bets resolve downstream** (§4.3). ✅ **Shipped (the tonal
+   take); production-risk amplification deferred.**
+   - **Realized tone → reception (shipped).** `computeReleaseResults`
+     (`engine/releaseFilm.ts`) now judges a pitched film in its *realized* tone -
+     the script's tone plus the winning pitch's `toneShift`
+     (`engine/directorPitch.ts:applyDirectorToneShift`), threaded from the draft
+     exactly like `developmentQualityDelta`. Only `toneProfile` changes; concept
+     and execution craft are untouched (Principle 9). Every tone-dependent read
+     (genre fit → audience, spectacle → crossover/box office, the suspense
+     marketing angle, and the craft facets in `computeQualityBreakdown`) sees the
+     realized tone, so the film the audience gets is the one the director pitched.
+     A bolder take moves reception further from the script's baseline - the market
+     bet, endogenous and legible, never a release-time roll. Genre fit is
+     distance-based, so the take helps when it moves the film *toward* what the
+     genre wants and hurts when it moves away: a real, directional bet. Gated on
+     `selectedDirectorPitch`, so rivals, directly-hired directors, and every
+     box-office/variance calibration gate stay byte-identical.
+   - **Production approach → outcome variance (deferred).** Making a bold pitch
+     widen *execution* variance (via the static-risk profile, the way creative
+     tension already feeds `moraleRisk`) is the natural second channel, but it has
+     to be applied consistently across both the foreground shoot
+     (`ADVANCE_SHOOTING_DAY`) and the backgrounded-shoot settler
+     (`productionsInProgress.ts`) on the sim's most calibration-sensitive
+     subsystem (active recalibration gates). Deferred as **B3b** rather than
+     rushed. Note the tonal take already delivers the design's core "bold widens
+     the distribution" promise through the *reception* channel; B3b adds the
+     *production* channel on top.
+
+   A note on determinism surfaced here: whether a given director bothers to pitch
+   is a stable per-(director, script) draw keyed on `script.id` (like
+   `generateCreativeDemands`). That is deterministic *within* a game session (a
+   script's id is fixed once created), which is what gameplay needs; tests that
+   regenerate scripts per process must pin the id or use `fame: 0` (inclination 1)
+   to avoid the draw.
 5. **Later** — development-exec hire (sharpens pitch reads, §3.2); the origination
    pitch feed (Path 3) sharing the `Pitch` shape.
 

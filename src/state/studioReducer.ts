@@ -24,6 +24,7 @@ import { writerProfileFromPerson } from '../engine/writers';
 import { computeRewriteOutcome, makePendingRewrite, rewriteDurationDays, rewriteFee, settleAssetRewrites } from '../engine/rewrite';
 import { commissionDurationDays, commissionFee, generateCommissionedScript, makePendingCommission, settlePendingCommissions } from '../engine/commission';
 import { generateCreativeDemands, resolveDemandQualityDelta, acceptedDemandQualityDelta, directorWouldWalk } from '../engine/creativeDemands';
+import { openDirectorPitches, tickDirectorPitches } from '../engine/directorPitches';
 import {
   momentPolarity,
   resolvePressTourIncident,
@@ -884,16 +885,27 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         // dominant, continuous path a still-being-cast draft actually
         // experiences time through, unlike the occasional multi-day jumps
         // GREENLIGHT_PROJECT/SCHEDULE_RELEASE/etc cause.
+        // Director bake-off (Phase B2) - pitches land on the same daily beat as
+        // casting calls, gated behind each pending pitch's stored due-day.
+        // Deterministic (no rng), and a no-op unless a round is open.
         const tickedFocusedDraft = focusedDraft
           ? checkTestScreeningReadiness(
-              tickCastingCalls(focusedDraft, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng, relationshipOf),
+              tickDirectorPitches(
+                tickCastingCalls(focusedDraft, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng, relationshipOf),
+                totalDaysAfter,
+                settlement.talentPool.Director,
+              ),
               totalDaysAfter,
               rng,
             )
           : null;
         const tickedProductionsInProgress = productionsInProgress.map((d) =>
           checkTestScreeningReadiness(
-            tickCastingCalls(d, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng, relationshipOf),
+            tickDirectorPitches(
+              tickCastingCalls(d, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng, relationshipOf),
+              totalDaysAfter,
+              settlement.talentPool.Director,
+            ),
             totalDaysAfter,
             rng,
           ),
@@ -1460,6 +1472,48 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         ? appendStaffingEvent(withTalent, { day: state.totalDays, kind: 'attached', subject: action.role, personName: action.person.identity.name })
         : withTalent;
       return { ...state, projects: replaceDraft(state.projects, hireLogged) };
+    }
+
+    // Director bake-off (Phase B2 - docs/DESIGN_director_pitch_and_bakeoff.md) -
+    // open the Director slot for pitches. Fixes the field of interested directors
+    // and staggers their due days (engine/directorPitches.ts); the pitches then
+    // land on the ADVANCE_DAY tick. No-op if a director is already attached or a
+    // round is already open (a stale double-click).
+    case 'OPEN_DIRECTOR_PITCHES': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft || !focusedDraft.script) return state;
+      if (focusedDraft.directorPitches || findAssignedPerson(focusedDraft.talent, 'Director')) return state;
+      const relationshipOf = (personId: string) => computeRelationship(state.collaborations ?? [], PLAYER_STUDIO_ID, personId);
+      const process = openDirectorPitches(focusedDraft.script, state.studio, state.talentPool.Director, action.advertisedFee, state.totalDays, relationshipOf);
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, directorPitches: process }) };
+    }
+
+    // Pick one submitted pitch: attach that director at the advertised fee
+    // (through withRebalancedTargets, so their creative demands sync exactly as a
+    // direct hire's would), freeze the winning pitch for its downstream bets
+    // (Phase B3), and close the round. No-op if the round or that pitch is gone.
+    case 'SELECT_DIRECTOR_PITCH': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft?.directorPitches) return state;
+      const pitch = focusedDraft.directorPitches.submitted.find((p) => p.directorId === action.directorId);
+      const director = state.talentPool.Director.find((d) => d.id === action.directorId);
+      if (!pitch || !director) return state;
+      const nextTalent: TalentAssignment[] = [
+        ...focusedDraft.talent.filter((a) => a.role !== 'Director'),
+        { role: 'Director', person: director, agreedSalary: focusedDraft.directorPitches.advertisedFee },
+      ];
+      const attached = withRebalancedTargets(focusedDraft, nextTalent);
+      const withPitch: FilmDraft = { ...attached, selectedDirectorPitch: pitch, directorPitches: undefined };
+      const logged = appendStaffingEvent(withPitch, { day: state.totalDays, kind: 'attached', subject: 'Director', personName: director.identity.name });
+      return { ...state, projects: replaceDraft(state.projects, logged) };
+    }
+
+    // Pass on the whole round - close it without hiring, and log the pass.
+    case 'PASS_ON_PITCHES': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft?.directorPitches) return state;
+      const logged = appendStaffingEvent({ ...focusedDraft, directorPitches: undefined }, { day: state.totalDays, kind: 'dropped', subject: 'Director', note: 'Passed on the director pitches' });
+      return { ...state, projects: replaceDraft(state.projects, logged) };
     }
 
     // For roles that can hold more than one person (Lead Actor and
