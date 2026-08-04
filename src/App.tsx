@@ -30,7 +30,9 @@ import { timeCriticalUnreadBidCount } from './engine/bidNotifications';
 import { asFilm, asPlayerDraft, findProject } from './engine/project';
 import { derivePostProductionStatus, isPostProductionAdvancing } from './engine/postProductionStatus';
 import { FilmDetailModal } from './components/common/FilmDetailModal';
+import { DifficultyPicker } from './components/common/DifficultyPicker';
 import { Button } from './components/common/Button';
+import { hasSavedGame } from './state/persistence';
 
 // Every wizard screen where the player is setting choices with no clock
 // pressure of its own - paused here so a slow decision never costs real
@@ -168,6 +170,15 @@ function AppShell() {
   // Recommendation/Outcome Inspector don't touch it at all), never
   // persisted, reachable from any screen via the header.
   const [devTool, setDevTool] = useState<DevTool>('none');
+  // On a genuine first launch (no save existed when the app mounted) offer the
+  // same starting-stature choice a Reset gives, so a new player begins how they
+  // want instead of silently landing on the legacy default studio. Read once,
+  // lazily, so it captures whether a save existed *before* StudioContext's
+  // auto-save effect writes the freshly-generated default back (which happens
+  // right after this first render commits). Session-only UI state - never
+  // persisted, and it stays dismissed for the rest of the session once the
+  // player picks a tier or skips.
+  const [showStartPicker, setShowStartPicker] = useState(() => !hasSavedGame());
 
   // How many unread bid "emails" are still time-critical - an active outbid the
   // player can still respond to before the weekly close. This (not the raw
@@ -383,6 +394,17 @@ function AppShell() {
         }}
       />
       {dossierFilm && <FilmDetailModal film={dossierFilm} onClose={() => setDossierFilmId(null)} />}
+      {showStartPicker && (
+        <DifficultyPicker
+          firstRun
+          studioName={state.studio.name}
+          onCancel={() => setShowStartPicker(false)}
+          onConfirm={({ startingCash, brand, prestige }) => {
+            dispatch({ type: 'RESET_SAVE', startingCash, brand, prestige });
+            setShowStartPicker(false);
+          }}
+        />
+      )}
       {resumeConfirmOpen && (
         <div className="modal-overlay" onClick={() => setResumeConfirmOpen(false)}>
           <div className="modal-content stack" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>

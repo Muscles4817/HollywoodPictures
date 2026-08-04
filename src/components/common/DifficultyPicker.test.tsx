@@ -33,4 +33,27 @@ describe('DifficultyPicker', () => {
 
     expect(onConfirm).toHaveBeenCalledWith({ startingCash: 200_000_000, brand: 72, prestige: 60 });
   });
+
+  it('reset (default) mode warns the choice wipes existing progress and is irreversible', () => {
+    render(<DifficultyPicker studioName="Silver Reel" onConfirm={() => {}} onCancel={() => {}} />);
+    expect(screen.getByRole('heading', { name: 'Reset Silver Reel?' })).toBeInTheDocument();
+    expect(screen.getByText(/wipes all cash/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start New Studio' })).toBeInTheDocument();
+  });
+
+  it('first-run mode offers the same tier choice but drops the misleading "wipes everything" warning', () => {
+    // A brand-new studio has no cash/Brand/Prestige/history to wipe yet, so the
+    // reset warning would be false - the first-launch copy welcomes instead.
+    const onConfirm = vi.fn();
+    render(<DifficultyPicker firstRun studioName="Silver Reel" onConfirm={onConfirm} onCancel={() => {}} />);
+
+    expect(screen.getByRole('heading', { name: 'Welcome to Silver Reel' })).toBeInTheDocument();
+    expect(screen.queryByText(/wipes all cash/i)).not.toBeInTheDocument();
+
+    // The same tiers, and confirming still hands back the full chosen stature.
+    fireEvent.click(screen.getByText('Major Studio'));
+    fireEvent.click(screen.getByRole('button', { name: 'Start Studio' }));
+    expect(onConfirm).toHaveBeenCalledWith({ startingCash: 200_000_000, brand: 72, prestige: 60 });
+  });
 });

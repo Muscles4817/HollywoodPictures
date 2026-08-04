@@ -47,20 +47,29 @@ interface DifficultyPickerProps {
   studioName: string;
   onConfirm: (choice: DifficultyChoice) => void;
   onCancel: () => void;
+  /**
+   * A brand-new launch rather than a mid-game reset. Same tier choice either
+   * way (that's the point - the player picks their start on day one just as a
+   * Reset lets them), but the surrounding copy adapts: there's no cash, Brand,
+   * Prestige, or film history to wipe yet, so the reset warning would be
+   * misleading. Defaults to false so every existing Reset caller is unchanged.
+   */
+  firstRun?: boolean;
 }
 
-/** Shown before RESET_SAVE actually fires - lets the player pick a starting stature (cash + the Brand/Prestige that stature implies) instead of always getting the same default (see docs/DESIGN.md). */
-export function DifficultyPicker({ studioName, onConfirm, onCancel }: DifficultyPickerProps) {
+/** Shown before RESET_SAVE actually fires - lets the player pick a starting stature (cash + the Brand/Prestige that stature implies) instead of always getting the same default (see docs/DESIGN.md). Also offered on first launch (App.tsx) so a new player starts how they want. */
+export function DifficultyPicker({ studioName, onConfirm, onCancel, firstRun = false }: DifficultyPickerProps) {
   const [selectedId, setSelectedId] = useState(DEFAULT_TIER_ID);
   const selected = DIFFICULTY_TIERS.find((t) => t.id === selectedId)!;
 
   return (
     <div className="modal-overlay">
       <div className="modal-content stack">
-        <h2 style={{ margin: 0 }}>Reset {studioName}?</h2>
+        <h2 style={{ margin: 0 }}>{firstRun ? `Welcome to ${studioName}` : `Reset ${studioName}?`}</h2>
         <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-          This wipes all cash, Brand, Prestige, and film history and starts a brand new studio. This can't be undone.
-          Pick where your studio starts - a bigger name opens with deeper pockets and more standing:
+          {firstRun
+            ? 'Pick where your studio starts - a bigger name opens with deeper pockets and more standing:'
+            : "This wipes all cash, Brand, Prestige, and film history and starts a brand new studio. This can't be undone. Pick where your studio starts - a bigger name opens with deeper pockets and more standing:"}
         </p>
         <div className="grid">
           {DIFFICULTY_TIERS.map((tier) => (
@@ -75,12 +84,12 @@ export function DifficultyPicker({ studioName, onConfirm, onCancel }: Difficulty
           ))}
         </div>
         <div className="row-between">
-          <Button onClick={onCancel}>Cancel</Button>
+          <Button onClick={onCancel}>{firstRun ? 'Skip' : 'Cancel'}</Button>
           <Button
             variant="primary"
             onClick={() => onConfirm({ startingCash: selected.cash, brand: selected.brand, prestige: selected.prestige })}
           >
-            Start New Studio
+            {firstRun ? 'Start Studio' : 'Start New Studio'}
           </Button>
         </div>
       </div>
