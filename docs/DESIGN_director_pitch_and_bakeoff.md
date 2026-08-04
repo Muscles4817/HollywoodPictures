@@ -357,8 +357,15 @@ current schema, write no migrations.
 1. **Phase A — personal appetite in the offer model** (§2). ✅ **Shipped** (§2.5).
    Standalone; fixes the reported "vending-machine A-lister" feel. No new UI
    surface beyond a richer read.
-2. **Phase B1 — the `DirectorPitch` object + `describePitch`** (§4), behind the
-   scenes, unit-tested, not yet wired to a bake-off UI.
+2. **Phase B1 — the `DirectorPitch` object + `describePitch`** (§4). ✅ **Shipped**
+   (`engine/directorPitch.ts`): `generateDirectorPitch` (deterministic per
+   director × script — a tonal-shift take scaled by ego + hands-on-ness, the
+   director's production style, the previewed `generateCreativeDemands`, and a
+   conviction), `pitchRiskPosture` / `pitchBoldness` (faithful | balanced | bold,
+   the bet the player weighs), and `describePitch` (qualitative, relationship-gated
+   demand competence reads). Pure engine, unit-tested, not yet wired to a bake-off
+   UI. A pitch-framed `describeDemandAmbition` was added to `creativeDemands.ts` so
+   the demand-domain wording stays single-sourced.
 3. **Phase B2 — the bake-off flow** (§3): slot mode, timed pitch submission on the
    day tick, the pitch-review surface, select/pass, loser consequences.
 4. **Phase B3 — pitched bets resolve downstream** (§4.3): wire the tonal shift and

@@ -1189,6 +1189,35 @@ export interface CreativeDemand {
   qualityDelta?: number;
 }
 
+/**
+ * A director's proposed vision for a specific script - the pre-hire counterpart
+ * of the post-hire creative demands (Phase B of
+ * docs/DESIGN_director_pitch_and_bakeoff.md). Deterministic per (director,
+ * script). Its promises are BETS that reshape the film's outcome distribution:
+ * they don't resolve into a number when the player picks the pitch, they resolve
+ * downstream in production (Phase B3). Frozen onto the draft when a pitch wins
+ * the bake-off.
+ */
+export interface DirectorPitch {
+  /** The pitching director (a Person id). */
+  directorId: PersonId;
+  /** The script this pitch is for. */
+  scriptId: string;
+  /**
+   * The take: a signed per-axis nudge of the film's realized tone toward the
+   * director's own taste (the gap to their toneProfile, scaled by hands-on-ness
+   * and ego). A bet - can sharpen the material or fight it. Applied downstream in
+   * Phase B3, not at selection.
+   */
+  toneShift: Record<Tone, number>;
+  /** The production approach the director brings - their own productionStyle as the film's method. */
+  productionStyle: DirectorProductionStyle;
+  /** The creative demands this director will bring, previewed up front - the same set generateCreativeDemands would produce post-hire, surfaced before the player commits. */
+  previewedDemands: CreativeDemand[];
+  /** How hard the director backs their vision, 0-1 (ego and hands-on-ness). High conviction on a good fit is a high ceiling; on a bad fit, a low floor. */
+  conviction: number;
+}
+
 export type EditStyle = 'Commercial' | 'Artistic' | 'Balanced';
 export type MusicFocus = 'Minimal' | 'Standard' | 'Heavy';
 export type FinalCutFocus = 'Trailer-focused' | 'Critic-focused' | 'Star-focused' | 'Mystery-focused';
