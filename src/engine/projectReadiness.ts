@@ -6,7 +6,8 @@ import { findAssignedPerson } from '../data/helpers';
 import { getDirectorCareer } from './person';
 import { effectiveRoleCapacity } from './castRequirements';
 import { computeTalentCost, computeProductionBudgetCost } from './cost';
-import { computeStaticProductionRisk } from './production';
+import { applyPrepRiskDelta, computeStaticProductionRisk } from './production';
+import { computePitchExecutionRiskDelta } from './directorPitch';
 import { hasUnresolvedBlockingDemand } from './creativeDemands';
 import { overallSpendT } from './productionDials';
 import { explainEffectsStrategy, explainEnvironmentStrategy } from './recommendation';
@@ -176,7 +177,13 @@ export function deriveProjectReadiness(draft: FilmDraft, studioCash: number): Pr
   }
 
   if (draft.script && draft.genre && hasProductionPlan) {
-    const risk = computeStaticProductionRisk(draft.talent, draft.script, draft.productionChoices!, draft.genre);
+    // A bold director pitch raises the shoot's starting risk (Phase B3b); fold it
+    // in here too so the pre-greenlight risk read matches what the shoot will run,
+    // and the player sees the bold bet before committing.
+    const risk = applyPrepRiskDelta(
+      computeStaticProductionRisk(draft.talent, draft.script, draft.productionChoices!, draft.genre),
+      computePitchExecutionRiskDelta(draft.selectedDirectorPitch),
+    );
     const avgRisk = (risk.moraleRisk + risk.safetyRisk + risk.technicalComplexity + risk.budgetRisk) / 4;
     if (avgRisk >= HIGH_PRODUCTION_RISK_THRESHOLD) {
       warnings.push({ code: 'high-production-risk', message: 'This plan carries substantial production risk - review the risk profile before greenlighting.' });

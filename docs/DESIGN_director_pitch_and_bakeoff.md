@@ -388,8 +388,8 @@ current schema, write no migrations.
      can't be re-rolled for a better pitch). A relationship ding for being passed
      over is a documented follow-up, gated on the relationship model admitting
      non-film sentiment.
-4. **Phase B3 — pitched bets resolve downstream** (§4.3). ✅ **Shipped (the tonal
-   take); production-risk amplification deferred.**
+4. **Phase B3 — pitched bets resolve downstream** (§4.3). ✅ **Shipped (both the
+   tonal take and the production-risk channel).**
    - **Realized tone → reception (shipped).** `computeReleaseResults`
      (`engine/releaseFilm.ts`) now judges a pitched film in its *realized* tone -
      the script's tone plus the winning pitch's `toneShift`
@@ -405,16 +405,26 @@ current schema, write no migrations.
      genre wants and hurts when it moves away: a real, directional bet. Gated on
      `selectedDirectorPitch`, so rivals, directly-hired directors, and every
      box-office/variance calibration gate stay byte-identical.
-   - **Production approach → outcome variance (deferred).** Making a bold pitch
-     widen *execution* variance (via the static-risk profile, the way creative
-     tension already feeds `moraleRisk`) is the natural second channel, but it has
-     to be applied consistently across both the foreground shoot
-     (`ADVANCE_SHOOTING_DAY`) and the backgrounded-shoot settler
-     (`productionsInProgress.ts`) on the sim's most calibration-sensitive
-     subsystem (active recalibration gates). Deferred as **B3b** rather than
-     rushed. Note the tonal take already delivers the design's core "bold widens
-     the distribution" promise through the *reception* channel; B3b adds the
-     *production* channel on top.
+   - **Bold pitch → execution variance (B3b, shipped).**
+     `computePitchExecutionRiskDelta(pitch)` (`engine/directorPitch.ts`) turns a
+     pitch's boldness into a starting-risk scalar - 0 for no pitch (a direct hire,
+     a rival) and for a faithful/balanced pitch, positive for a bold one - composed
+     into the *same* `applyPrepRiskDelta` call every shoot path already uses:
+     `ADVANCE_SHOOTING_DAY` (foreground) and `productionsInProgress.ts`
+     (backgrounded player shoots), plus `deriveProjectReadiness` so the raised risk
+     is legible *before* greenlight (P3). The elevated risk plays out through the
+     existing on-set event → `computeExecutionProfile` pipeline, whose asymmetric
+     conversion (negatives bite harder, floors sit further from 1 than ceilings)
+     turns it into a wider outcome distribution - higher ceiling, lower floor -
+     never a release-time roll (P1/P2/P5, the "creative disagreement as a risk
+     amplifier" pattern). Only above-neutral boldness adds risk; a faithful pitch
+     is neutral (same as a direct hire), so the "faithful narrows" side stays
+     carried by its smaller reception swing rather than by making the shoot *safer*
+     than baseline. Gated on `selectedDirectorPitch`, so rivals (`rivalExecution.ts`)
+     and the production/box-office calibration gates stay byte-identical.
+     Now the two bet channels compose: a bold pitch shifts *what film gets made*
+     (realized tone → reception) **and** *how riskily it gets made* (execution
+     variance).
 
    A note on determinism surfaced here: whether a given director bothers to pitch
    is a stable per-(director, script) draw keyed on `script.id` (like
