@@ -109,6 +109,31 @@ describe('TalentStats - Role-Fit hero', () => {
   });
 });
 
+// The on-screen performance projection - a co-equal peer to the role-fit hero,
+// so craft and headroom (what an actor actually delivers, and how much the
+// director choice swings them) read as prominently as fit.
+describe('TalentStats - performance projection', () => {
+  it('renders an "On screen" projection with a band headline for an actor evaluated against a Character', () => {
+    const [actor] = generateTalentCandidates('Actor', createRng(40), 1);
+    const script = generateScriptOptions('Action', createRng(41), 1)[0];
+    const character = script.cast.find((c) => c.prominence === 'Lead')!;
+    const { container } = render(
+      <TalentStats person={actor} role="Lead Actor" category="actor" script={script} character={character} totalDays={1} />,
+    );
+    expect(container.querySelector('.talent-projection')).not.toBeNull();
+    expect(container.querySelector('.talent-projection-headline')).not.toBeNull();
+    expect(screen.getByText('On screen')).toBeInTheDocument();
+  });
+
+  it('shows no projection for crew (there is no acting performance to project)', () => {
+    const [editor] = generateTalentCandidates('Editor', createRng(42), 1);
+    const script = generateScriptOptions('Action', createRng(43), 1)[0];
+    const { container } = render(<TalentStats person={editor} role="Editor" category="crew" script={script} totalDays={1} />);
+    expect(container.querySelector('.talent-projection')).toBeNull();
+    expect(screen.queryByText('On screen')).not.toBeInTheDocument();
+  });
+});
+
 describe('TalentStats - Availability', () => {
   it('reads as immediately available (a single badge) when there are no commitments at all', () => {
     const [person] = generateTalentCandidates('Actor', createRng(14), 1);

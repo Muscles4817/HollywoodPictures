@@ -5,7 +5,7 @@
 // picks among phrasings so a slate of cast reads never looks copy-pasted, but
 // the same actor always reads the same way (no RNG at render time).
 import type { ActingStyle } from '../types';
-import type { CastPerformanceRead, PerformanceBand, PerformanceCause, PerformanceTone } from './castPerformance';
+import type { CastingPerformanceProjection, CastPerformanceRead, PerformanceBand, PerformanceCause, PerformanceTone } from './castPerformance';
 
 // The actor's signature axis as a natural-language noun phrase - "their comic
 // timing", "their physical commitment" - so a gift can be named in a sentence
@@ -111,6 +111,71 @@ export function describeCastPerformance(read: CastPerformanceRead): string {
     sentence += ` ${tail.charAt(0).toUpperCase()}${tail.slice(1)}`;
   }
   return sentence;
+}
+
+// --- Pre-cast performance projection prose ----------------------------------
+// The words for engine/castPerformance.ts:projectCastingPerformance - what an
+// actor will deliver in a role before the shoot. A bare quality word per band
+// (so it composes into "a solid turn, up to inspired"), distinct from the
+// outcome-framed BAND_LABEL above ("Inspired casting" / "Miscast"), which reads
+// as a verdict on a finished film rather than a forecast.
+const BAND_ADJECTIVE: Record<PerformanceBand, string> = {
+  inspired: 'inspired',
+  strong: 'strong',
+  solid: 'solid',
+  weak: 'underwhelming',
+  poor: 'flat',
+};
+
+const BAND_RANK: Record<PerformanceBand, number> = { poor: 0, weak: 1, solid: 2, strong: 3, inspired: 4 };
+
+function capitalize(s: string): string {
+  return s.length === 0 ? s : `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
+}
+
+// The director-leverage sentence when NO director is attached yet - the whole
+// point being to make an actor's director-dependence legible before you pair
+// them, not only after.
+const LEVERAGE_UNPAIRED: Record<CastingPerformanceProjection['leverage'], string> = {
+  pivotal: 'The director makes or breaks this one — a great match soars, a poor one drags them down.',
+  meaningful: 'The right director lifts this; a weak match leaves it flat.',
+  minimal: 'Steady in almost any hands — the director barely moves the needle.',
+};
+
+/** The player-facing projection: a scannable headline (the band range) plus a one-line director-leverage read. Bands only, never the numbers behind them. */
+export interface CastingProjectionCopy {
+  /** The band-range headline, e.g. "Solid, up to inspired" or, with a director attached, "Projects strong". */
+  headline: string;
+  /** The director-leverage context - how much the pairing matters, or where an attached director lands them. */
+  detail: string;
+  /** good / neutral / bad, keyed off the baseline the headline is anchored on. */
+  tone: PerformanceTone;
+}
+
+/**
+ * Turn a CastingPerformanceProjection into card copy. With no director attached,
+ * it reads as a range - the self-directed baseline and, when a director could
+ * unlock more, the ceiling - plus how pivotal the director choice is. With a
+ * director attached, it leads with where THAT pairing lands them and flags any
+ * ceiling left on the table.
+ */
+export function describeCastingProjection(projection: CastingPerformanceProjection): CastingProjectionCopy {
+  const { baseline, ceiling, projected, leverage, tone } = projection;
+  const liftsAboveBaseline = BAND_RANK[ceiling] > BAND_RANK[baseline] && leverage !== 'minimal';
+
+  if (projected !== null) {
+    // A specific director is attached - lead with where they actually land.
+    const untapped = BAND_RANK[ceiling] > BAND_RANK[projected] && leverage !== 'minimal';
+    const detail = untapped
+      ? `There's more in them — a stronger match could reach ${BAND_ADJECTIVE[ceiling]}.`
+      : 'About the best this part will draw out of them.';
+    return { headline: capitalize(`Projects ${BAND_ADJECTIVE[projected]}`), detail, tone };
+  }
+
+  const headline = liftsAboveBaseline
+    ? `${capitalize(BAND_ADJECTIVE[baseline])}, up to ${BAND_ADJECTIVE[ceiling]}`
+    : capitalize(BAND_ADJECTIVE[baseline]);
+  return { headline, detail: LEVERAGE_UNPAIRED[leverage], tone };
 }
 
 /** The tone marker a card uses to colour a performance line - a small glyph for good / neutral / bad. */

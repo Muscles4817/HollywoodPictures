@@ -6,6 +6,8 @@ import {
 } from '../../engine/compatibility';
 import { dominantLean } from '../../engine/recommendation';
 import { describeActorCraft, describeSignatureGift, describeFameCraftContrast, describeDirectorTouch, describeDirectorActorPairing, describeCastAffinity, castAffinityTone, actorArchetypeTag } from '../../engine/castingPresentation';
+import { projectCastingPerformance } from '../../engine/castPerformance';
+import { describeCastingProjection } from '../../engine/castPerformancePresentation';
 import { describeCrewPhilosophy } from '../../engine/crewPhilosophy';
 import { describeStandoutSpecialty } from '../../engine/crewSpecialty';
 import type { CastAffinity } from '../../engine/pairHistory';
@@ -221,6 +223,14 @@ export function TalentStats({ person, role, category, script, character = null, 
   // full "what it means" sentence on hover.
   const archetypeTag = isActor ? actorArchetypeTag(person) : null;
   const contrastLine = isActor ? describeFameCraftContrast(person) : null;
+  // The on-screen performance projection - a co-equal peer to the role-fit hero,
+  // so craft (what they actually deliver) and headroom (how much the director
+  // choice swings them) read as prominently as fit, not as a buried afterthought.
+  // Uses overallScore as the actor<->role fit the performance model gates on, and
+  // sharpens to the attached director when there is one (headroom made concrete).
+  const projection = isActor && overallScore !== null
+    ? describeCastingProjection(projectCastingPerformance(person, overallScore, pairedDirector ?? undefined))
+    : null;
   // Crew identity, mirroring the director's style line: their creative leanings
   // (PD/VFX/Cinematographer) and, for the two specialty departments, what they're
   // known for - so a crew head reads as a distinct craftsperson, not just a skill
@@ -279,6 +289,10 @@ export function TalentStats({ person, role, category, script, character = null, 
           names the strongest/weakest axis and, when the read is shaky, why. */}
       {fitRead && (
         <div className={`talent-fit talent-fit--${fitTier(fitRead.perceived)}`}>
+          {/* An eyebrow pairs this read with the "On screen" projection below -
+              two questions (right for the part? / how will they play it?) given
+              parallel billing, so craft reads as co-equal with fit. */}
+          {isActor && <span className="talent-read-eyebrow">Right for the part?</span>}
           <div className="talent-fit-top">
             <span className="talent-fit-verdict">{fitRead.verdict}</span>
             <span className={`talent-fit-caption talent-fit-caption--${fitRead.confidence}`}>{fitRead.confidenceLabel}</span>
@@ -296,6 +310,20 @@ export function TalentStats({ person, role, category, script, character = null, 
               {fitRead.assistNote && <span className="talent-fit-assist"> {fitRead.assistNote.charAt(0).toUpperCase()}{fitRead.assistNote.slice(1)}.</span>}
             </p>
           )}
+        </div>
+      )}
+
+      {/* THE PERFORMANCE PROJECTION - a co-equal peer to the fit hero. Fit says
+          "right for the part?"; this says "how will they actually play it?" -
+          the self-directed baseline, the ceiling the right director could
+          unlock, and how much that director choice swings them. Makes craft and
+          headroom read as prominently as fit, the thing that most distinguishes
+          two performers. */}
+      {projection && (
+        <div className={`talent-projection talent-projection--${projection.tone}`}>
+          <span className="talent-read-eyebrow">On screen</span>
+          <span className="talent-projection-headline">{projection.headline}</span>
+          <p className="talent-projection-detail">{projection.detail}</p>
         </div>
       )}
 

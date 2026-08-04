@@ -3,11 +3,12 @@
 // member's realised performance to score a film; these read it back out as a
 // qualitative band + named cause, and the presentation turns that into prose.
 import { describe, it, expect } from 'vitest';
-import { readCastMemberPerformance, readCastPerformances, explainCastPerformances } from './castPerformance';
+import { readCastMemberPerformance, readCastPerformances, explainCastPerformances, projectCastingPerformance } from './castPerformance';
+import type { PerformanceBand } from './castPerformance';
 import { computeRealizedPerformance } from './actingModel';
 import type { CastMemberPerformance } from './scoring';
 import { deriveToneFromActingStyle } from './compatibility';
-import { describeCastPerformance, castBandLabel, castPerformanceMarker } from './castPerformancePresentation';
+import { describeCastPerformance, castBandLabel, castPerformanceMarker, describeCastingProjection } from './castPerformancePresentation';
 import type { ActingStyle, Person, ToneProfile } from '../types';
 
 // --- builders (mirrors engine/actingModel.test.ts) --------------------------
@@ -249,5 +250,84 @@ describe('explainCastPerformances (dev-only raw breakdown)', () => {
     expect(b.availHeadroom).toBeCloseTo(b.headroom * b.fit, 6); // headroom fully gated by fit
     expect(b.push).toBeGreaterThan(0);
     expect(['dependable', 'director-dependent', 'all-rounder']).toContain(detail.archetype);
+  });
+});
+
+// --- pre-cast performance projection ---------------------------------------
+
+const RANK: Record<PerformanceBand, number> = { poor: 0, weak: 1, solid: 2, strong: 3, inspired: 4 };
+
+describe('projectCastingPerformance', () => {
+  it('reads a high-headroom magnet as director-pivotal, with a ceiling well above the self-directed floor', () => {
+    const magnet = actor('magnet', SPIKY, { craftFloor: 60, craftHeadroom: 40 });
+    const p = projectCastingPerformance(magnet, 100);
+    expect(p.leverage).toBe('pivotal');
+    expect(RANK[p.ceiling]).toBeGreaterThan(RANK[p.baseline]);
+    expect(p.projected).toBeNull(); // no director supplied
+  });
+
+  it('reads a dependable pro as director-minimal, delivering the same band in any hands', () => {
+    const pro = actor('pro', ROUNDED, { craftFloor: 72, craftHeadroom: 6 });
+    const p = projectCastingPerformance(pro, 100);
+    expect(p.leverage).toBe('minimal');
+    expect(p.baseline).toBe(p.ceiling);
+  });
+
+  it('gates the director leverage away when the actor is miscast - fit caps the headroom a director can unlock', () => {
+    const magnet = actor('magnet', SPIKY, { craftFloor: 60, craftHeadroom: 40 });
+    expect(projectCastingPerformance(magnet, 100).leverage).toBe('pivotal');
+    // Same actor, badly wrong role: the headroom is gated away, so no director can save it.
+    expect(projectCastingPerformance(magnet, 20).leverage).toBe('minimal');
+  });
+
+  it('projects a specific attached director - a matched one lifts, a mismatched one drags, relative to the self-directed baseline', () => {
+    const magnet = actor('magnet', SPIKY, { craftFloor: 55, craftHeadroom: 40 });
+    const base = projectCastingPerformance(magnet, 100).baseline;
+    const matched = projectCastingPerformance(magnet, 100, matchedDirector(SPIKY)).projected!;
+    const mismatched = projectCastingPerformance(magnet, 100, mismatchedDirector(SPIKY)).projected!;
+    expect(RANK[matched]).toBeGreaterThanOrEqual(RANK[base]);
+    expect(RANK[mismatched]).toBeLessThanOrEqual(RANK[base]);
+  });
+
+  it('colours the read by the baseline (what you can bank on), not the optimistic ceiling', () => {
+    const magnet = actor('magnet', SPIKY, { craftFloor: 45, craftHeadroom: 40 });
+    const p = projectCastingPerformance(magnet, 100);
+    // Floor lands in a bad band even though the ceiling is high - tone follows the floor.
+    expect(p.tone).toBe('bad');
+    expect(RANK[p.ceiling]).toBeGreaterThan(RANK[p.baseline]);
+  });
+});
+
+describe('describeCastingProjection', () => {
+  it('shows a baseline→ceiling range and a pivotal leverage line when a director could unlock more', () => {
+    const copy = describeCastingProjection({ baseline: 'solid', ceiling: 'inspired', projected: null, leverage: 'pivotal', tone: 'neutral' });
+    expect(copy.headline).toBe('Solid, up to inspired');
+    expect(copy.detail).toMatch(/makes or breaks/i);
+    expect(copy.tone).toBe('neutral');
+  });
+
+  it('shows a single band (no range) when the director barely matters', () => {
+    const copy = describeCastingProjection({ baseline: 'strong', ceiling: 'strong', projected: null, leverage: 'minimal', tone: 'good' });
+    expect(copy.headline).toBe('Strong');
+    expect(copy.headline).not.toMatch(/up to/);
+    expect(copy.detail).toMatch(/almost any hands/i);
+  });
+
+  it('does not promise an "up to" lift the leverage cannot deliver, even if the ceiling band is nominally higher', () => {
+    const copy = describeCastingProjection({ baseline: 'strong', ceiling: 'inspired', projected: null, leverage: 'minimal', tone: 'good' });
+    expect(copy.headline).toBe('Strong');
+    expect(copy.headline).not.toMatch(/up to/);
+  });
+
+  it('leads with the attached director\'s projected band, and flags a ceiling still left on the table', () => {
+    const copy = describeCastingProjection({ baseline: 'solid', ceiling: 'inspired', projected: 'strong', leverage: 'pivotal', tone: 'neutral' });
+    expect(copy.headline).toBe('Projects strong');
+    expect(copy.detail).toMatch(/could reach inspired/i);
+  });
+
+  it('tells the player when an attached director already draws out about the best in the part', () => {
+    const copy = describeCastingProjection({ baseline: 'solid', ceiling: 'strong', projected: 'strong', leverage: 'pivotal', tone: 'good' });
+    expect(copy.headline).toBe('Projects strong');
+    expect(copy.detail).toMatch(/best this part will draw out/i);
   });
 });

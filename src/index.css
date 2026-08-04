@@ -1682,6 +1682,52 @@ textarea, input, select {
 /* Why you can trust the read more than usual - a casting director or history. */
 .talent-fit-assist { color: var(--green); }
 
+/* A small eyebrow that labels a read (role fit vs. on-screen performance) so the
+   two sit as a parallel pair rather than a hero and a buried afterthought. */
+.talent-read-eyebrow {
+  display: block;
+  font-size: 0.66em;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+}
+
+/* THE PERFORMANCE PROJECTION - a peer to the fit hero (fit = "right for the
+   part?"; this = "how will they play it?"). An outlined box with a tone-coloured
+   left accent - deliberately un-tinted so it reads as a co-equal sibling, not a
+   second copy of the fit hero. Headline is the band range; the detail line is
+   the director-leverage read. */
+.talent-projection {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: transparent;
+}
+.talent-projection--good { border-left-color: var(--green); }
+.talent-projection--neutral { border-left-color: var(--text-muted); }
+.talent-projection--bad { border-left-color: var(--amber); }
+
+.talent-projection-headline {
+  display: block;
+  font-weight: 800;
+  font-size: 1em;
+  letter-spacing: -0.01em;
+}
+.talent-projection--good .talent-projection-headline { color: var(--green); }
+.talent-projection--neutral .talent-projection-headline { color: var(--text); }
+.talent-projection--bad .talent-projection-headline { color: var(--amber); }
+
+.talent-projection-detail {
+  margin: 6px 0 0;
+  font-size: 0.82em;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
 /* Status, as traffic-light badges. */
 .talent-badges {
   display: flex;
