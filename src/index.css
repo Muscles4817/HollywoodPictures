@@ -1567,6 +1567,21 @@ textarea, input, select {
   display: inline-block;
 }
 
+/* Craft archetype chip - the always-shown categorical read of an actor's
+   performance ceiling (how much a director matters to them). A quiet neutral
+   pill; the full "what it means" sentence is the hover title. */
+.talent-archetype {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.72em;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--track-bg);
+  color: var(--text-muted);
+  cursor: default;
+}
+
 /* A one-line "who they are" read - prose, not a stat. */
 .talent-identity-line {
   margin: 8px 0 0;

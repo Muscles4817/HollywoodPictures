@@ -5,7 +5,7 @@ import {
   computeCharacterCompatibilityBreakdown,
 } from '../../engine/compatibility';
 import { dominantLean } from '../../engine/recommendation';
-import { describeActorCraft, describeSignatureGift, describeFameCraftContrast, describeDirectorTouch, describeDirectorActorPairing, describeCastAffinity, castAffinityTone } from '../../engine/castingPresentation';
+import { describeActorCraft, describeSignatureGift, describeFameCraftContrast, describeDirectorTouch, describeDirectorActorPairing, describeCastAffinity, castAffinityTone, actorArchetypeTag } from '../../engine/castingPresentation';
 import { describeCrewPhilosophy } from '../../engine/crewPhilosophy';
 import { describeStandoutSpecialty } from '../../engine/crewSpecialty';
 import type { CastAffinity } from '../../engine/pairHistory';
@@ -214,6 +214,12 @@ export function TalentStats({ person, role, category, script, character = null, 
   const isDirector = category === 'director';
   const isCrew = category === 'crew';
   const signatureLine = isActor ? (describeSignatureGift(person) ?? describeActorCraft(person)) : null;
+  // The craft archetype as an always-shown chip - the card leads with an actor's
+  // signature GIFT when they have one (most do), which left the archetype (the
+  // biggest thing that makes two performers unequal - how much a director
+  // matters to them) invisible. This surfaces it alongside the gift, with the
+  // full "what it means" sentence on hover.
+  const archetypeTag = isActor ? actorArchetypeTag(person) : null;
   const contrastLine = isActor ? describeFameCraftContrast(person) : null;
   // Crew identity, mirroring the director's style line: their creative leanings
   // (PD/VFX/Cinematographer) and, for the two specialty departments, what they're
@@ -247,6 +253,11 @@ export function TalentStats({ person, role, category, script, character = null, 
           )}
         </div>
       </div>
+
+      {/* Craft archetype - the always-visible categorical read of how much a
+          director matters to this performer, so it's never hidden behind the
+          gift line. Full meaning on hover. */}
+      {archetypeTag && <span className="talent-archetype" title={describeActorCraft(person)}>{archetypeTag}</span>}
 
       {/* One-line identity read - who they are, not a stat. */}
       {signatureLine && <p className="talent-identity-line">{signatureLine}</p>}

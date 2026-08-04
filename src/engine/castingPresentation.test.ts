@@ -179,7 +179,7 @@ describe('describeDirectorRejection', () => {
 // categorization itself is tested in actingModel.test.ts, so these check the
 // null passthrough, stability, and that different gifts read differently.
 import type { ActingStyle, Person } from '../types';
-import { describeSignatureGift, describeFameCraftContrast, describeCounterOffer, describeCounterReason, describeDealClosed, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast, describeAuditionResult } from './castingPresentation';
+import { describeSignatureGift, describeFameCraftContrast, describeCounterOffer, describeCounterReason, describeDealClosed, describeAskingEstimate, describeAcceptanceOdds, describeOpenCastingForecast, describeAuditionResult, actorArchetypeTag } from './castingPresentation';
 
 function actor(id: string, style: Partial<ActingStyle>, over: { fame?: number; craftFloor?: number; craftHeadroom?: number } = {}): Person {
   return {
@@ -218,6 +218,26 @@ describe('describeSignatureGift', () => {
     const comic = describeSignatureGift(actor('a', { comedy: 90 }));
     const physical = describeSignatureGift(actor('b', { physicalPerformance: 90 }));
     expect(comic).not.toBe(physical);
+  });
+});
+
+describe('actorArchetypeTag', () => {
+  it('labels each craft archetype distinctly', () => {
+    const magnet = actorArchetypeTag(actor('a', {}, { craftFloor: 55, craftHeadroom: 40 }));
+    const pro = actorArchetypeTag(actor('b', {}, { craftFloor: 72, craftHeadroom: 8 }));
+    const rounded = actorArchetypeTag(actor('c', {}, { craftFloor: 50, craftHeadroom: 18 }));
+    expect(magnet).toBe('Director-dependent');
+    expect(pro).toBe('Consistent performer');
+    expect(rounded).toBe('All-rounder');
+    expect(new Set([magnet, pro, rounded]).size).toBe(3);
+  });
+
+  it('is surfaced even for an actor with a standout gift (the archetype is no longer hidden behind the gift line)', () => {
+    // A director-dependent magnet who is also a defining comic - the card used to
+    // show only the gift, hiding that they need the right filmmaker. Both now read.
+    const giftedMagnet = actor('gifted-magnet', { comedy: 90 }, { craftFloor: 55, craftHeadroom: 40 });
+    expect(describeSignatureGift(giftedMagnet)).toBeTruthy();
+    expect(actorArchetypeTag(giftedMagnet)).toBe('Director-dependent');
   });
 });
 
