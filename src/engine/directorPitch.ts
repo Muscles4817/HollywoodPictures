@@ -130,6 +130,31 @@ export function pitchRiskPosture(pitch: DirectorPitch): PitchPosture {
   return 'balanced';
 }
 
+// --- Phase B3b: a bold pitch widens execution variance -----------------------
+// The second bet channel (the first is the realized-tone reception bet, B3). A
+// bold, high-conviction creative vision makes the shoot itself riskier - more
+// creative friction from an insistent director, a technically harder
+// reinterpretation, more strain on the same budget for a bigger ambition - which
+// plays out through the existing on-set event -> execution pipeline (higher
+// ceiling, lower floor), never a release-time roll (SIMULATION_PHILOSOPHY 1/2/5,
+// the "creative disagreement as a risk amplifier" pattern). Only above-neutral
+// boldness adds risk; a faithful/balanced pitch is neutral (0), the same as a
+// directly-hired director - the "faithful narrows" side is already carried by its
+// smaller reception swing, so there's no need to make it safer than baseline.
+const PITCH_RISK_FLOOR = 0.4; // boldness at/below this (faithful/balanced) adds no execution risk
+const PITCH_RISK_SCALE = 25; // a maximal-boldness pitch adds ~15 points of starting risk
+
+/**
+ * The starting-risk delta a selected pitch adds to the shoot - a scalar in the
+ * same shape as computePrepRiskDelta, composed into the same applyPrepRiskDelta
+ * call at both shoot paths. 0 for no pitch (a direct hire, a rival) and for a
+ * faithful/balanced pitch, positive for a bold one.
+ */
+export function computePitchExecutionRiskDelta(pitch: DirectorPitch | undefined): number {
+  if (!pitch) return 0;
+  return Math.round(Math.max(0, pitchBoldness(pitch) - PITCH_RISK_FLOOR) * PITCH_RISK_SCALE);
+}
+
 // --- Player-facing read (qualitative only, relationship-gated) ---------------
 
 export interface PitchRead {

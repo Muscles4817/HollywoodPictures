@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateDirectorPitch, pitchRiskPosture, pitchBoldness, describePitch } from './directorPitch';
+import { generateDirectorPitch, pitchRiskPosture, pitchBoldness, describePitch, computePitchExecutionRiskDelta } from './directorPitch';
 import { generateCreativeDemands } from './creativeDemands';
 import { generateScriptOptions } from './scriptGenerator';
 import { createRng } from './random';
@@ -153,5 +153,41 @@ describe('describePitch', () => {
     const read = describePitch(generateDirectorPitch(pitchDirector('sum'), script), pitchDirector('sum'));
     expect(read.postureSummary.length).toBeGreaterThan(0);
     expect(['faithful', 'balanced', 'bold']).toContain(read.posture);
+  });
+});
+
+describe('computePitchExecutionRiskDelta (Phase B3b - a bold pitch widens execution variance)', () => {
+  const zeroShift = { action: 0, comedy: 0, romance: 0, suspense: 0, drama: 0, spectacle: 0 };
+  const style = { environmentStrategy: { studio: 0.34, location: 0.33, digital: 0.33 }, effectsStrategy: { practical: 0.5, digital: 0.5 } };
+  function pitchOf(shiftMag: number, conviction: number, demandCount: number): DirectorPitch {
+    return {
+      directorId: 'd', scriptId: 's',
+      toneShift: { ...zeroShift, action: shiftMag, drama: -shiftMag },
+      productionStyle: style,
+      previewedDemands: Array.from({ length: demandCount }, (_, i) => ({ id: `d${i}`, demanderId: 'd', domain: 'Script' as const, strength: 0.7, blocking: false })),
+      conviction,
+    };
+  }
+
+  it('is 0 for no pitch (a direct hire or a rival)', () => {
+    expect(computePitchExecutionRiskDelta(undefined)).toBe(0);
+  });
+
+  it('is 0 for a faithful, low-conviction pitch (no added risk over baseline)', () => {
+    const faithful = pitchOf(0, 0.1, 0);
+    expect(pitchBoldness(faithful)).toBeLessThan(0.33); // precondition: reads as faithful
+    expect(computePitchExecutionRiskDelta(faithful)).toBe(0);
+  });
+
+  it('is positive for a bold, high-conviction pitch', () => {
+    const bold = pitchOf(50, 0.95, 6);
+    expect(pitchBoldness(bold)).toBeGreaterThanOrEqual(0.62); // precondition: reads as bold
+    expect(computePitchExecutionRiskDelta(bold)).toBeGreaterThan(0);
+  });
+
+  it('rises monotonically with boldness', () => {
+    const mild = pitchOf(20, 0.5, 2);
+    const bold = pitchOf(50, 0.95, 6);
+    expect(computePitchExecutionRiskDelta(bold)).toBeGreaterThanOrEqual(computePitchExecutionRiskDelta(mild));
   });
 });

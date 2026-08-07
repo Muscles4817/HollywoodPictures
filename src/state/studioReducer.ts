@@ -25,6 +25,7 @@ import { computeRewriteOutcome, makePendingRewrite, rewriteDurationDays, rewrite
 import { commissionDurationDays, commissionFee, generateCommissionedScript, makePendingCommission, settlePendingCommissions } from '../engine/commission';
 import { generateCreativeDemands, resolveDemandQualityDelta, acceptedDemandQualityDelta, directorWouldWalk } from '../engine/creativeDemands';
 import { openDirectorPitches, tickDirectorPitches } from '../engine/directorPitches';
+import { computePitchExecutionRiskDelta } from '../engine/directorPitch';
 import {
   momentPolarity,
   resolvePressTourIncident,
@@ -2315,9 +2316,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       }
       // Pre-production sets the shoot's STARTING risk: good prep lowers every
       // dimension, bad prep raises it (engine/production.ts:computePrepRiskDelta).
+      // A bold director pitch raises it too (Phase B3b) - the ambitious creative
+      // bet makes the shoot riskier, widening the outcome distribution through the
+      // event pipeline. 0 for a direct hire or a faithful pitch.
       const staticRisk = applyPrepRiskDelta(
         computeStaticProductionRisk(d.talent, d.script, d.productionChoices, d.genre),
-        computePrepRiskDelta(d.preProduction),
+        computePrepRiskDelta(d.preProduction) + computePitchExecutionRiskDelta(d.selectedDirectorPitch),
       );
       const usedIds = new Set(d.photography.events.map((e) => e.id));
       const backgrounded = backgroundedPlayerDrafts(state.projects, state.focusedProjectId);
