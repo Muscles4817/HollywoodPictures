@@ -15,6 +15,7 @@ import { findAssignedPerson } from '../data/helpers';
 import { computeCastPerformances, type CastMemberPerformance } from './scoring';
 import {
   actorArchetype,
+  computeRealizedPerformance,
   directorActorPairing,
   explainRealizedPerformance,
   signatureGift,
@@ -70,7 +71,7 @@ const STRONG = 66;
 const SOLID = 52;
 const WEAK = 40;
 
-function bandFor(performance: number): PerformanceBand {
+export function bandFor(performance: number): PerformanceBand {
   if (performance >= INSPIRED) return 'inspired';
   if (performance >= STRONG) return 'strong';
   if (performance >= SOLID) return 'solid';
@@ -85,6 +86,11 @@ const BAND_TONE: Record<PerformanceBand, PerformanceTone> = {
   weak: 'bad',
   poor: 'bad',
 };
+
+/** The good / neutral / bad colour a performance band carries - shared by the post-release read and the pre-cast projection. */
+export function bandTone(band: PerformanceBand): PerformanceTone {
+  return BAND_TONE[band];
+}
 
 // Role-fit tiers used to tell "miscast" (a fit failure) apart from "limited"
 // (fit was fine, the craft just wasn't there). Aligned with the fit reads the
@@ -149,6 +155,64 @@ export function readCastMemberPerformance(member: CastMemberPerformance, directo
 export function readCastPerformances(talent: TalentAssignment[], script: Script): CastPerformanceRead[] {
   const director = findAssignedPerson(talent, 'Director');
   return computeCastPerformances(talent, script).map((m) => readCastMemberPerformance(m, director));
+}
+
+// --- Pre-cast performance projection ----------------------------------------
+// The casting card leads with ROLE FIT - a per-role compatibility read. But fit
+// is only one input to what an actor actually delivers on screen; craft (their
+// self-directed floor) and the headroom a director can unlock matter just as
+// much, and two actors with identical fit can perform very differently. This
+// projects, BEFORE the shoot, the same realised-performance model the film is
+// ultimately scored on: what the actor delivers self-directed, the ceiling the
+// right director could unlock, and - the whole "director-dependent" story made
+// legible pre-attachment - how much the director choice actually swings them.
+
+/** How much the director CHOICE moves this actor's performance - the fit-gated headroom made qualitative. */
+export type DirectorLeverage = 'pivotal' | 'meaningful' | 'minimal';
+
+/** A pre-cast read of what an actor will deliver in a role - bands only, never the raw performance numbers behind them (CLAUDE.md house style). */
+export interface CastingPerformanceProjection {
+  /** What they deliver self-directed - the floor you can count on regardless of who directs. */
+  baseline: PerformanceBand;
+  /** The most an ideal, well-matched director could unlock on top of that floor. */
+  ceiling: PerformanceBand;
+  /** Where they land under a SPECIFIC attached director, when one is given - else null. */
+  projected: PerformanceBand | null;
+  /** How much the director choice swings them (driven by the fit-gated headroom). */
+  leverage: DirectorLeverage;
+  /** The colour to carry, keyed off the baseline (what you can bank on, not the optimistic ceiling). */
+  tone: PerformanceTone;
+}
+
+// Fit-gated headroom (0..~45) cut into how much the director matters. A magnet
+// at good fit clears pivotal; a dependable pro, or anyone badly miscast (fit
+// gates the headroom away - a director can't save the wrong role), reads
+// minimal. Tunable, like every cutoff here.
+const LEVERAGE_PIVOTAL = 20;
+const LEVERAGE_MEANINGFUL = 9;
+
+/**
+ * Project an actor's on-screen performance for a role before the shoot, from the
+ * same model the film is scored on (engine/actingModel.ts). `roleFit` is the
+ * 0-100 actor<->role suitability the card already computes; `director`, when
+ * given, sharpens the read to that specific pairing. Pure and deterministic.
+ */
+export function projectCastingPerformance(actor: Person, roleFit: number, director?: Person): CastingPerformanceProjection {
+  // Self-directed: no director => zero aim => zero unlock, so performance == the
+  // fit-gated floor. The same breakdown hands us the unlockable headroom, so one
+  // call yields both the baseline and the ceiling.
+  const b = explainRealizedPerformance(actor, undefined, roleFit);
+  const ceilingPerf = Math.min(100, b.effFloor + b.availHeadroom);
+  const baseline = bandFor(b.performance);
+  const leverage: DirectorLeverage =
+    b.availHeadroom >= LEVERAGE_PIVOTAL ? 'pivotal' : b.availHeadroom >= LEVERAGE_MEANINGFUL ? 'meaningful' : 'minimal';
+  return {
+    baseline,
+    ceiling: bandFor(ceilingPerf),
+    projected: director ? bandFor(computeRealizedPerformance(actor, director, roleFit)) : null,
+    leverage,
+    tone: BAND_TONE[baseline],
+  };
 }
 
 // --- Dev-only decomposition -------------------------------------------------

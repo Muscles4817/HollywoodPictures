@@ -9,7 +9,7 @@ import type { ActorAppealFactors, ActorScheduleAssessment, OfferRejectionReason 
 import type { DirectorAppealFactors, DirectorOfferRejectionReason } from './directorAppeal';
 import type { AcceptanceOdds } from './castingEstimate';
 import type { FitConfidence } from './talentCardPresentation';
-import { actorArchetype, directorTouch, directorActorPairing, signatureGift, fameCraftContrast, type FameCraftContrast } from './actingModel';
+import { actorArchetype, directorTouch, directorActorPairing, signatureGift, fameCraftContrast, type ActorArchetype, type FameCraftContrast } from './actingModel';
 import type { RelationshipStanding } from './relationships';
 import type { CastAffinity } from './pairHistory';
 import type { ActingStyle, Person, ProductionRole } from '../types';
@@ -33,6 +33,27 @@ export function describeActorCraft(person: Person): string {
     case 'all-rounder':
       return 'A capable all-rounder - a good director still lifts them.';
   }
+}
+
+/**
+ * The craft archetype as a compact chip label - the ALWAYS-shown categorical
+ * read of an actor's performance ceiling (how much a director matters to them),
+ * distinct from describeActorCraft's evocative sentence. The card leads with an
+ * actor's signature gift when they have one, which meant the archetype - the
+ * single biggest thing that makes two performers unequal - was invisible for the
+ * majority of actors (spiky by construction, so they usually HAVE a gift). This
+ * label rides alongside the gift line so "director-dependent vs dependable" is
+ * never hidden; describeActorCraft supplies the full "what it means" on hover.
+ */
+export const ACTOR_ARCHETYPE_TAGS: Record<ActorArchetype, string> = {
+  dependable: 'Consistent performer',
+  'director-dependent': 'Director-dependent',
+  'all-rounder': 'All-rounder',
+};
+
+/** The actor's craft archetype as a short chip label (see ACTOR_ARCHETYPE_TAGS). */
+export function actorArchetypeTag(person: Person): string {
+  return ACTOR_ARCHETYPE_TAGS[actorArchetype(person)];
 }
 
 // A stable index into a phrasing bank from a person id - the same person always
