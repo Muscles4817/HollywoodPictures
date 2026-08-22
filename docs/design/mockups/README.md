@@ -12,6 +12,7 @@ link.
 |---|---|---|---|
 | 01 | **Paper document.** Warm bond stock under a lamp on a dark desk. Printed form / typed content split (Archivo + Courier Prime). Above-the-line / below-the-line columns. Drawer slides up. | `take-01-production-sheet.html` | https://claude.ai/code/artifact/46ef77f7-9ce4-43e4-b525-ceb3c3e4983b |
 | 02 | **Studio terminal.** Amber-phosphor CRT, full-bleed, F-key rail, scanlines. Marquee neon (cyan/magenta) used strictly as slot state coding. IBM Plex Mono + Plex Sans Condensed. TUI overlay window. | `take-02-studio-terminal.html` | https://claude.ai/code/artifact/410cf7cb-fb65-4f12-987b-2eb43bd85a88 |
+| 07 | **Systematic (the control).** No metaphor at all — the era carried by typeface, palette, density and rule weight rather than by imitating an object. Anybody + Schibsted Grotesk. KPI row, validated readiness meter, state pills, persistent rail, side panels. The only take with light **and** dark themes. | `take-07-systematic.html` | https://claude.ai/code/artifact/3be4c2b1-580c-49d0-9dc7-44bd7ad564c6 |
 | 06 | **Packaging board.** The package as a *relationship web*: index cards pinned to cork, joined by thread — green for fit or proven history, red for friction, dashed blue for untested. Chivo + Special Elite. Hovering a card isolates its threads; a tension report reads the web in words. | `take-06-packaging-board.html` | https://claude.ai/code/artifact/3d0b845f-60b2-475a-acf5-0e6d5ddb4c06 |
 | 05 | **One-sheet proof.** The package as the film's own poster billing block, on a marked-up advertising proof: black teaser artwork on light mount board, chrome title, red hand-written proof notes in the margin. Big Shoulders Display + Saira Extra Condensed + Caveat. The only take where DESK and SPECTACLE occupy one object. | `take-05-one-sheet-proof.html` | https://claude.ai/code/artifact/5845b912-c3ed-4693-93a2-43c05e76e766 |
 | 04 | **Trade paper.** A 1987 front page: Bodoni nameplate, spot red, justified two-column newsprint with a drop cap, and the production record carried as the paper's own *production chart*. Bodoni Moda + Fira Sans Condensed + Libre Baskerville. Gives the game a narrating voice. | `take-04-trade-paper.html` | https://claude.ai/code/artifact/1988435c-555c-4ce2-a678-df5f13584749 |
@@ -25,6 +26,15 @@ link.
 - **02** — Does it work as a *screen*? Tests §5.3's "darkened office" option,
   and whether colour-coding slot state (something paper cannot do) earns its
   place against §2.3's ornament discipline.
+- **07** — The control, and the question the other six cannot answer: does the
+  DESK register work as a **system** rather than an object? Metaphor does not
+  scale to fourteen screens — there is no physical artifact that is the Talent
+  Database, the Release Calendar or the Milestones page, so a per-screen
+  metaphor means fourteen art directions and every new feature becomes an art
+  problem before it can be a code problem. This take applies type, palette,
+  density and rule weight uniformly instead, leaving metaphor to be deployed
+  selectively where it earns its keep. It is also the only take that can carry a
+  dark theme: a sheet of paper does not have one.
 - **06** — Should this screen show **relationships instead of a list**? Takes
   01-05 all render the package as an ordered set of names and throw every
   relationship away — yet `compatibility.ts`, `pairHistory.ts`,
@@ -58,7 +68,7 @@ Both test §4 principles 1–3 (one screen, visible holes, persistent edge nav) 
 
 ## Candidate directions not yet built
 
-Six built so far. The next move is a **hybrid** assembled
+All seven built. The next move is a **hybrid** assembled
 from the individual moves marked Keep below, rather than a fifth fresh
 direction.
 
@@ -76,3 +86,4 @@ individual moves worth keeping._
 | 04 | | |
 | 05 | | |
 | 06 | | |
+| 07 | | |
