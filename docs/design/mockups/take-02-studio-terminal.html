@@ -1,0 +1,622 @@
+<title>Meridian Studio Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&display=swap">
+
+<style>
+  :root {
+    /* A CRT in a dark room, 1987. Amber phosphor — not the clichéd green —
+       with the marquee's neon used strictly as state coding, never decoration. */
+    --crt:        #0A0C11;
+    --crt-lift:   #12161F;
+    --crt-panel:  #161B26;
+    --amber:      #F2AE44;
+    --amber-dim:  #9A7331;
+    --amber-deep: #5E4620;
+    --cyan:       #3FD3E0;
+    --magenta:    #FF57A6;
+    --green:      #57DE8B;
+    --grid:       #1F2734;
+    --grid-soft:  #171D28;
+
+    --t-0: 0.7rem;
+    --t-1: 0.8rem;
+    --t-2: 0.92rem;
+    --t-3: 1.5rem;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--crt);
+    color: var(--amber);
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    font-size: var(--t-1);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .screen {
+    min-height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    position: relative;
+    background:
+      radial-gradient(ellipse 120% 90% at 50% 40%, #10141C 0%, var(--crt) 72%);
+  }
+
+  /* Scanlines + phosphor bloom. Faint enough to never fight the text. */
+  .screen::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 30;
+    background: repeating-linear-gradient(
+      180deg,
+      rgba(0,0,0,0.16) 0px,
+      rgba(0,0,0,0.16) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  }
+
+  /* ---- Top status bar ---------------------------------------------- */
+  .statusbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    background: var(--amber);
+    color: var(--crt);
+    padding: 5px 14px;
+    font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', sans-serif;
+    font-weight: 700;
+    font-size: var(--t-0);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .statusbar span { white-space: nowrap; }
+  .statusbar .cash { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+
+  /* ---- Body: rail + pane ------------------------------------------- */
+  .body {
+    display: grid;
+    grid-template-columns: 176px 1fr;
+    min-height: 0;
+  }
+
+  /* Persistent global nav on one edge — ART_DIRECTION §4 principle 3,
+     rendered as the function keys a 1987 machine actually had. */
+  .rail {
+    border-right: 1px solid var(--grid);
+    padding: 12px 0;
+    background: var(--crt-lift);
+  }
+  .fkey {
+    display: flex;
+    gap: 9px;
+    align-items: baseline;
+    width: 100%;
+    background: none;
+    border: 0;
+    border-left: 3px solid transparent;
+    color: var(--amber-dim);
+    font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', sans-serif;
+    font-weight: 600;
+    font-size: var(--t-1);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 7px 14px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .fkey b {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--amber-deep);
+    font-weight: 600;
+    font-size: var(--t-0);
+    min-width: 22px;
+  }
+  .fkey:hover { color: var(--amber); background: rgba(242,174,68,0.05); }
+  .fkey:focus-visible { outline: 1px solid var(--cyan); outline-offset: -2px; }
+  .fkey[aria-current="true"] {
+    color: var(--cyan);
+    border-left-color: var(--cyan);
+    background: rgba(63,211,224,0.07);
+  }
+  .fkey[aria-current="true"] b { color: var(--cyan); }
+
+  .pane { padding: 18px 22px 26px; min-width: 0; }
+
+  /* ---- Record header ----------------------------------------------- */
+  .rec-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 20px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--grid);
+    padding-bottom: 12px;
+  }
+  .rec-eyebrow {
+    font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-0);
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--amber-dim);
+    margin: 0 0 6px;
+  }
+  .rec-title {
+    font-size: var(--t-3);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    margin: 0;
+    color: var(--amber);
+    text-shadow: 0 0 14px rgba(242,174,68,0.28);
+    text-wrap: balance;
+  }
+  .rec-facts {
+    display: flex;
+    gap: 22px;
+    font-size: var(--t-1);
+    color: var(--amber-dim);
+  }
+  .rec-facts b {
+    color: var(--amber);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  /* ---- Section bands ------------------------------------------------ */
+  .band {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--amber-dim);
+    margin: 20px 0 4px;
+  }
+  .band::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--grid);
+  }
+
+  /* ---- Slot rows ---------------------------------------------------- */
+  .row {
+    display: grid;
+    grid-template-columns: 18px 168px 1fr auto;
+    align-items: baseline;
+    gap: 12px;
+    width: 100%;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--grid-soft);
+    color: var(--amber);
+    font: inherit;
+    padding: 7px 6px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .row:hover { background: rgba(242,174,68,0.055); }
+  .row:focus-visible { outline: 1px solid var(--cyan); outline-offset: -1px; }
+
+  .row-flag { font-size: var(--t-0); line-height: 1; }
+  .row-role {
+    font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-1);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--amber-dim);
+  }
+  .row-name { font-weight: 500; letter-spacing: 0.02em; }
+  .row-fee {
+    font-variant-numeric: tabular-nums;
+    color: var(--amber-dim);
+    font-size: var(--t-1);
+  }
+  .row-note {
+    grid-column: 3 / -1;
+    font-size: var(--t-0);
+    color: var(--amber-deep);
+    margin-top: 3px;
+    letter-spacing: 0.02em;
+  }
+
+  .row--ok .row-flag { color: var(--green); }
+  .row--warn .row-flag { color: var(--cyan); }
+  .row--warn .row-note { color: var(--cyan); opacity: 0.72; }
+
+  /* Unfilled: the hole is loud, and it is a different colour from "bad". */
+  .row--empty .row-flag { color: var(--magenta); }
+  .row--empty .row-name { color: var(--magenta); opacity: 0.82; }
+  .row--empty .row-note { color: var(--magenta); opacity: 0.6; }
+
+  /* ---- Lower blocks -------------------------------------------------- */
+  .lower {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 26px;
+    margin-top: 22px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .lower { grid-template-columns: 1fr; } }
+
+  .sched {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+    gap: 14px;
+  }
+  .sched-label {
+    display: block;
+    font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-0);
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--amber-deep);
+    margin-bottom: 3px;
+  }
+  .sched-value { font-size: var(--t-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .money { border: 1px solid var(--grid); background: var(--crt-panel); }
+  .money-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 8px 13px;
+    border-bottom: 1px solid var(--grid-soft);
+    font-size: var(--t-1);
+  }
+  .money-row:last-child { border-bottom: 0; }
+  .money-row span:first-child {
+    font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--amber-dim);
+  }
+  .money-row b { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .money-row--total {
+    background: rgba(242,174,68,0.09);
+    border-top: 1px solid var(--amber-deep);
+  }
+  .money-row--total b { font-size: var(--t-2); color: var(--amber); }
+
+  .readiness {
+    margin-top: 18px;
+    border-left: 3px solid var(--magenta);
+    padding: 9px 0 9px 13px;
+    font-size: var(--t-1);
+    line-height: 1.65;
+    color: var(--amber-dim);
+    max-width: 72ch;
+  }
+  .readiness b {
+    display: block;
+    font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--magenta);
+    font-size: var(--t-0);
+    margin-bottom: 4px;
+  }
+
+  /* ---- Bottom command bar -------------------------------------------- */
+  .cmdbar {
+    display: flex;
+    gap: 22px;
+    flex-wrap: wrap;
+    border-top: 1px solid var(--grid);
+    background: var(--crt-lift);
+    padding: 7px 14px;
+    font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-0);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--amber-deep);
+  }
+  .cmdbar b { color: var(--amber); font-family: 'IBM Plex Mono', monospace; }
+
+  /* ---- TUI overlay window --------------------------------------------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(5,7,10,0.72);
+  }
+  .overlay[data-open="true"] { display: flex; }
+  .win {
+    width: min(680px, 100%);
+    background: var(--crt-panel);
+    border: 1px solid var(--cyan);
+    box-shadow: 0 0 0 1px rgba(63,211,224,0.2), 0 24px 60px rgba(0,0,0,0.7);
+  }
+  .win-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+    background: var(--cyan);
+    color: var(--crt);
+    padding: 5px 12px;
+    font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', sans-serif;
+    font-weight: 700;
+    font-size: var(--t-0);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .win-body {
+    padding: 16px 18px 18px;
+    font-size: var(--t-1);
+    line-height: 1.75;
+    color: var(--amber);
+    max-width: 68ch;
+  }
+  .win-close {
+    font: inherit;
+    font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    background: var(--crt);
+    border: 1px solid var(--cyan);
+    color: var(--cyan);
+    padding: 4px 11px;
+    cursor: pointer;
+  }
+  .win-close:hover { background: var(--cyan); color: var(--crt); }
+  .win-close:focus-visible { outline: 1px solid var(--amber); outline-offset: 2px; }
+
+  @media (max-width: 760px) {
+    .body { grid-template-columns: 1fr; }
+    .rail {
+      border-right: 0;
+      border-bottom: 1px solid var(--grid);
+      display: flex;
+      overflow-x: auto;
+      padding: 6px;
+    }
+    .fkey {
+      border-left: 0;
+      border-bottom: 3px solid transparent;
+      white-space: nowrap;
+      width: auto;
+    }
+    .fkey[aria-current="true"] { border-left-color: transparent; border-bottom-color: var(--cyan); }
+    .row { grid-template-columns: 18px 1fr auto; }
+    .row-role { grid-column: 2 / -1; }
+    .pane { padding: 14px; }
+  }
+</style>
+
+<div class="screen">
+
+  <div class="statusbar">
+    <span>Meridian Pictures Corp</span>
+    <span>Studio Sys 4.2</span>
+    <span>Mon 14 Sept 1987</span>
+    <span class="cash">Cash £41,880,000</span>
+  </div>
+
+  <div class="body">
+
+    <nav class="rail" aria-label="Main">
+      <button class="fkey" type="button"><b>F1</b> Dashboard</button>
+      <button class="fkey" type="button" aria-current="true"><b>F2</b> Projects</button>
+      <button class="fkey" type="button"><b>F3</b> Talent</button>
+      <button class="fkey" type="button"><b>F4</b> Calendar</button>
+      <button class="fkey" type="button"><b>F5</b> Market</button>
+      <button class="fkey" type="button"><b>F6</b> Finance</button>
+      <button class="fkey" type="button"><b>F7</b> Rivals</button>
+      <button class="fkey" type="button"><b>F8</b> Awards</button>
+      <button class="fkey" type="button"><b>F9</b> Stats</button>
+      <button class="fkey" type="button"><b>F10</b> Milestones</button>
+    </nav>
+
+    <main class="pane">
+
+      <div class="rec-head">
+        <div>
+          <p class="rec-eyebrow">Production Record MP-0114 &middot; Rev 3</p>
+          <h1 class="rec-title">THUNDER COUNTY</h1>
+        </div>
+        <div class="rec-facts">
+          <span>GENRE <b>ACTION</b></span>
+          <span>SCALE <b>MEDIUM</b></span>
+          <span>AUDIENCE <b>WIDE</b></span>
+        </div>
+      </div>
+
+      <p class="band">Above the Line</p>
+
+      <button class="row row--ok" type="button" data-role="Producer"
+        data-detail="Attached from the studio's own production office. Three pictures with this studio, two profitable. Pushes hard for schedule discipline; will resist a runaway shoot.">
+        <span class="row-flag">&#9679;</span>
+        <span class="row-role">Producer</span>
+        <span class="row-name">MARCHETTI, ESTELLE</span>
+        <span class="row-fee">salaried</span>
+      </button>
+
+      <button class="row row--warn" type="button" data-role="Director"
+        data-detail="Won a three-way bake-off. Pitched a lean, grounded take against the script's spectacle leanings — a bold read that widens execution variance in both directions. Reads the material personally; wants final cut on the second act.">
+        <span class="row-flag">&#9679;</span>
+        <span class="row-role">Director</span>
+        <span class="row-name">ROURKE, DALE</span>
+        <span class="row-fee">2,400,000</span>
+        <span class="row-note">bold pitch &middot; grounded take &middot; variance widened</span>
+      </button>
+
+      <button class="row row--ok" type="button" data-role="Writer"
+        data-detail="Original screenplay, third draft delivered. Strong on structure, weaker on dialogue polish — a pass from a second writer would lift the script's ceiling but costs three weeks.">
+        <span class="row-flag">&#9679;</span>
+        <span class="row-role">Writer</span>
+        <span class="row-name">BELL, JUNIUS</span>
+        <span class="row-fee">450,000</span>
+      </button>
+
+      <button class="row row--ok" type="button" data-role="Lead Actor"
+        data-detail="Reads the sheriff as weary rather than heroic. Excellent role fit, and her craft archetype suits the director's grounded pitch. Chemistry with the supporting slot is untested — no shared history.">
+        <span class="row-flag">&#9679;</span>
+        <span class="row-role">Lead Actor</span>
+        <span class="row-name">VANCE, MARGUERITE</span>
+        <span class="row-fee">3,100,000</span>
+        <span class="row-note">strong role fit &middot; chemistry untested</span>
+      </button>
+
+      <button class="row row--empty" type="button" data-role="Supporting Actor"
+        data-detail="Two names have read for the part and both are within budget. One carries returning-franchise history with the lead; the other tests better on the tonal axis. Neither has been offered.">
+        <span class="row-flag">&#9675;</span>
+        <span class="row-role">Supporting Actor</span>
+        <span class="row-name">&mdash; UNFILLED &mdash;</span>
+        <span class="row-fee">&mdash;</span>
+        <span class="row-note">2 candidates read &middot; no offer made</span>
+      </button>
+
+      <p class="band">Below the Line</p>
+
+      <button class="row row--ok" type="button" data-role="Cinematographer"
+        data-detail="Hard directional light, deep blacks, minimal diffusion. Aligns cleanly with the director's grounded pitch — the two have shot together once before, to good effect.">
+        <span class="row-flag">&#9679;</span>
+        <span class="row-role">Cinematographer</span>
+        <span class="row-name">NYQUIST, HALVARD</span>
+        <span class="row-fee">380,000</span>
+      </button>
+
+      <button class="row row--warn" type="button" data-role="Production Designer"
+        data-detail="Set ambition currently set to Standard. Her head-of-department recommendation is for eleven build days; the plan allows nine, which starves the facet slightly.">
+        <span class="row-flag">&#9679;</span>
+        <span class="row-role">Production Designer</span>
+        <span class="row-name">OKONJO, RUTH</span>
+        <span class="row-fee">295,000</span>
+        <span class="row-note">recommends 11 build days &middot; plan allows 9</span>
+      </button>
+
+      <button class="row row--ok" type="button" data-role="Editor"
+        data-detail="Not required until post. Attached early to lock her availability against a competing production at a rival studio.">
+        <span class="row-flag">&#9679;</span>
+        <span class="row-role">Editor</span>
+        <span class="row-name">BAYE, CONSTANCE</span>
+        <span class="row-fee">210,000</span>
+      </button>
+
+      <button class="row row--empty" type="button" data-role="Composer"
+        data-detail="Nothing is needed here until post-production, but attaching now costs less than attaching late. Three composers are available at this budget; one is coming off an award-nominated picture and has priced accordingly.">
+        <span class="row-flag">&#9675;</span>
+        <span class="row-role">Composer</span>
+        <span class="row-name">&mdash; UNFILLED &mdash;</span>
+        <span class="row-fee">&mdash;</span>
+      </button>
+
+      <button class="row row--empty" type="button" data-role="VFX Supervisor"
+        data-detail="This genre's VFX importance is moderate and the practical-effects dial is set high, so the picture can ship without a VFX supervisor — at a quality cost on the spectacle facet. Leaving this empty is a legitimate choice, not an oversight.">
+        <span class="row-flag">&#9675;</span>
+        <span class="row-role">VFX Supervisor</span>
+        <span class="row-name">&mdash; OPTIONAL &mdash;</span>
+        <span class="row-fee">&mdash;</span>
+        <span class="row-note">practical FX high &middot; VFX importance moderate</span>
+      </button>
+
+      <button class="row row--ok" type="button" data-role="Casting Director"
+        data-detail="Widens the candidate pool and sharpens every fit read presented in the casting window. Already responsible for surfacing the two supporting-actor candidates above.">
+        <span class="row-flag">&#9679;</span>
+        <span class="row-role">Casting Director</span>
+        <span class="row-name">PRYOR, WENDELL</span>
+        <span class="row-fee">120,000</span>
+      </button>
+
+      <div class="lower">
+        <div>
+          <p class="band">Production Plan</p>
+          <div class="sched">
+            <div><span class="sched-label">Photography</span><span class="sched-value">02 NOV 87</span></div>
+            <div><span class="sched-label">Shoot Days</span><span class="sched-value">46</span></div>
+            <div><span class="sched-label">Runtime</span><span class="sched-value">108 min</span></div>
+            <div><span class="sched-label">Set Quality</span><span class="sched-value">Standard</span></div>
+            <div><span class="sched-label">Practical FX</span><span class="sched-value">High</span></div>
+          </div>
+
+          <div class="readiness">
+            <b>Greenlight Readiness</b>
+            One principal role uncast. Set build is nine days against a recommended eleven.
+            The picture can be greenlit as it stands.
+          </div>
+        </div>
+
+        <div class="money">
+          <div class="money-row"><span>Production Budget</span><b>£18,400,000</b></div>
+          <div class="money-row"><span>Contingency</span><b>£1,840,000</b></div>
+          <div class="money-row money-row--total"><span>Total Commitment</span><b>£20,240,000</b></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <div class="cmdbar">
+    <span><b>ENTER</b> Open role</span>
+    <span><b>ESC</b> Back</span>
+    <span><b>G</b> Greenlight</span>
+    <span><b>F2</b> Project list</span>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" data-open="false" role="dialog" aria-modal="true" aria-labelledby="win-title">
+  <div class="win">
+    <div class="win-bar">
+      <span id="win-title">Role</span>
+      <button class="win-close" type="button" id="win-close">Esc &mdash; Close</button>
+    </div>
+    <p class="win-body" id="win-body"></p>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var overlay = document.getElementById('overlay');
+    var titleEl = document.getElementById('win-title');
+    var bodyEl = document.getElementById('win-body');
+    var closeBtn = document.getElementById('win-close');
+    var lastFocused = null;
+
+    function open(btn) {
+      lastFocused = btn;
+      var nameEl = btn.querySelector('.row-name');
+      titleEl.textContent = btn.getAttribute('data-role') + ' — ' + nameEl.textContent.trim();
+      bodyEl.textContent = btn.getAttribute('data-detail');
+      overlay.setAttribute('data-open', 'true');
+      closeBtn.focus();
+    }
+
+    function close() {
+      overlay.setAttribute('data-open', 'false');
+      if (lastFocused) lastFocused.focus();
+    }
+
+    Array.prototype.forEach.call(document.querySelectorAll('.row'), function (btn) {
+      btn.addEventListener('click', function () { open(btn); });
+    });
+    closeBtn.addEventListener('click', close);
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) close();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') close();
+    });
+  })();
+</script>
