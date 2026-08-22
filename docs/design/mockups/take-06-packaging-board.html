@@ -1,0 +1,654 @@
+<title>Thunder County Packaging Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;600;700;900&family=Special+Elite&display=swap">
+
+<style>
+  :root {
+    /* An agency packaging board, 1987 — the era that invented packaging.
+       Cards are pinned; thread encodes the relationship, which is the whole
+       point: this is the only view that shows how the pieces feel about
+       each other rather than merely listing them. */
+    --cork:        #6A5539;
+    --cork-dark:   #52422C;
+    --frame:       #33261A;
+    --frame-edge:  #4C3A28;
+
+    --card:        #EFE7D4;
+    --card-edge:   #CFC3A6;
+    --card-ink:    #292520;
+    --card-soft:   #6E6656;
+
+    --pin-brass:   #C9A227;
+    --pin-red:     #B33A2E;
+
+    --thread-good: #3E8E5A;
+    --thread-bad:  #C0392B;
+    --thread-unk:  #8FA9C4;
+
+    --panel:       #241A11;
+    --panel-txt:   #E4DCCB;
+    --panel-soft:  #A2957E;
+    --panel-edge:  #45341F;
+
+    --t-0: 0.64rem;
+    --t-1: 0.74rem;
+    --t-2: 0.84rem;
+    --t-3: 0.97rem;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: #17110B;
+    color: var(--panel-txt);
+    font-family: 'Chivo', 'Helvetica Neue', Arial, sans-serif;
+    font-size: var(--t-2);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .room {
+    min-height: 100vh;
+    padding: 28px 18px 50px;
+    background: radial-gradient(ellipse 95% 60% at 50% 8%, #241A11 0%, #17110B 72%);
+  }
+
+  .wrap { max-width: 1400px; margin: 0 auto; }
+
+  .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 20px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--panel-edge);
+    padding-bottom: 12px;
+    margin-bottom: 18px;
+  }
+  .head h1 {
+    font-size: var(--t-3);
+    font-weight: 900;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .head p {
+    font-size: var(--t-1);
+    font-weight: 400;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--panel-soft);
+    margin: 5px 0 0;
+  }
+  .head-meta {
+    font-size: var(--t-1);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--panel-soft);
+    text-align: right;
+    line-height: 1.7;
+    white-space: nowrap;
+  }
+  .head-meta b { color: var(--panel-txt); font-weight: 700; }
+
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 1080px) { .split { grid-template-columns: 1fr; } }
+
+  /* ---- The board ----------------------------------------------------- */
+  .boardframe {
+    background: var(--frame);
+    border: 1px solid var(--frame-edge);
+    padding: 12px;
+    box-shadow: 0 22px 55px rgba(0,0,0,0.65);
+    overflow-x: auto;
+  }
+  .board {
+    position: relative;
+    width: 1020px;
+    height: 580px;
+    background:
+      radial-gradient(ellipse 80% 60% at 45% 35%, rgba(255,225,170,0.10) 0%, transparent 65%),
+      repeating-linear-gradient(38deg, rgba(0,0,0,0.045) 0 2px, transparent 2px 5px),
+      repeating-linear-gradient(-38deg, rgba(255,255,255,0.028) 0 2px, transparent 2px 6px),
+      var(--cork);
+    box-shadow: inset 0 0 70px rgba(0,0,0,0.5);
+  }
+
+  .threads {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .threads line {
+    transition: opacity 140ms linear, stroke-width 140ms linear;
+  }
+  .threads line.dim { opacity: 0.13; }
+  .threads line.hot { stroke-width: 5; }
+
+  /* ---- Cards --------------------------------------------------------- */
+  .card {
+    position: absolute;
+    width: 178px;
+    background: var(--card);
+    color: var(--card-ink);
+    border: 1px solid var(--card-edge);
+    font: inherit;
+    text-align: left;
+    padding: 12px 12px 11px;
+    cursor: pointer;
+    box-shadow: 2px 4px 9px rgba(0,0,0,0.42);
+    transition: transform 140ms ease, box-shadow 140ms ease;
+  }
+  .card:hover, .card:focus-visible {
+    transform: translateY(-3px) rotate(-0.4deg);
+    box-shadow: 3px 8px 16px rgba(0,0,0,0.5);
+  }
+  .card:focus-visible { outline: 2px solid var(--pin-brass); outline-offset: 2px; }
+
+  /* The pin. Brass for a settled card, red for one that still needs work. */
+  .card::before {
+    content: "";
+    position: absolute;
+    top: -7px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 32%, #FFE9A8 0%, var(--pin-brass) 55%, #7A5F10 100%);
+    box-shadow: 0 2px 3px rgba(0,0,0,0.5);
+  }
+  .card--open::before {
+    background: radial-gradient(circle at 35% 32%, #FF9B8C 0%, var(--pin-red) 55%, #6B1B13 100%);
+  }
+
+  .card-head {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  /* Portrait solution per ART_DIRECTION §9.1 — a monogram in a hard frame,
+     not a missing photograph. */
+  .mono {
+    flex: 0 0 auto;
+    width: 38px;
+    height: 44px;
+    border: 1px solid var(--card-ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Special Elite', 'Courier New', monospace;
+    font-size: var(--t-3);
+    letter-spacing: 0.02em;
+    background: repeating-linear-gradient(135deg, rgba(0,0,0,0.05) 0 3px, transparent 3px 6px);
+  }
+  .card--open .mono { color: var(--pin-red); border-color: var(--pin-red); border-style: dashed; }
+
+  .card-role {
+    display: block;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--card-soft);
+    margin-bottom: 3px;
+  }
+  .card-name {
+    display: block;
+    font-family: 'Special Elite', 'Courier New', monospace;
+    font-size: var(--t-2);
+    line-height: 1.2;
+    color: var(--card-ink);
+  }
+  .card--open .card-name { color: var(--pin-red); }
+  .card-note {
+    display: block;
+    font-size: var(--t-0);
+    color: var(--card-soft);
+    letter-spacing: 0.05em;
+    margin-top: 8px;
+    padding-top: 7px;
+    border-top: 1px solid var(--card-edge);
+    line-height: 1.4;
+  }
+
+  /* The script is the thing everything else is measured against, so it is
+     a different object: a brad-bound cover, not an index card. */
+  .card--script {
+    background: #D8C9A4;
+    border-color: #B7A47C;
+  }
+  .card--script .mono {
+    font-family: 'Chivo', sans-serif;
+    font-weight: 900;
+    font-size: var(--t-1);
+    letter-spacing: 0.08em;
+  }
+
+  /* ---- Tension report ------------------------------------------------- */
+  .report {
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    padding: 16px 16px 18px;
+  }
+  .report h2 {
+    font-size: var(--t-0);
+    font-weight: 900;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    margin: 0 0 4px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--panel-edge);
+  }
+  .report .sub {
+    font-size: var(--t-0);
+    color: var(--panel-soft);
+    letter-spacing: 0.06em;
+    margin: 8px 0 12px;
+    line-height: 1.5;
+  }
+  .link {
+    display: grid;
+    grid-template-columns: 22px 1fr;
+    gap: 9px;
+    align-items: start;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .link:last-of-type { border-bottom: 0; }
+  .swatch {
+    height: 3px;
+    margin-top: 7px;
+    border-radius: 2px;
+  }
+  .swatch--good { background: var(--thread-good); }
+  .swatch--bad  { background: var(--thread-bad); }
+  .swatch--unk  { background: var(--thread-unk); opacity: 0.75; }
+  .link-pair {
+    display: block;
+    font-size: var(--t-1);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .link-read {
+    display: block;
+    font-size: var(--t-1);
+    color: var(--panel-soft);
+    line-height: 1.5;
+    margin-top: 2px;
+  }
+  .link--bad .link-pair { color: #F0A197; }
+  .link--unk .link-pair { color: #BBD0E4; }
+  .link--good .link-pair { color: #98D6B0; }
+
+  .verdict {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--panel-edge);
+    font-size: var(--t-1);
+    line-height: 1.6;
+    color: var(--panel-soft);
+  }
+  .verdict b {
+    display: block;
+    font-size: var(--t-0);
+    font-weight: 900;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--panel-txt);
+    margin-bottom: 5px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--panel-soft);
+  }
+  .legend i {
+    display: inline-block;
+    width: 22px;
+    height: 3px;
+    margin-right: 7px;
+    vertical-align: middle;
+    border-radius: 2px;
+  }
+
+  /* ---- Overlay --------------------------------------------------------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(12,9,6,0.8);
+  }
+  .overlay[data-open="true"] { display: flex; }
+  .win {
+    width: min(620px, 100%);
+    background: var(--card);
+    color: var(--card-ink);
+    border: 1px solid var(--card-edge);
+    box-shadow: 0 24px 60px rgba(0,0,0,0.72);
+    padding: 18px 22px 22px;
+  }
+  .win-role {
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--card-soft);
+    margin: 0 0 3px;
+  }
+  .win-name {
+    font-family: 'Special Elite', 'Courier New', monospace;
+    font-size: 1.5rem;
+    margin: 0 0 11px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--card-edge);
+    line-height: 1.1;
+  }
+  .win-body { font-size: var(--t-3); line-height: 1.65; margin: 0 0 16px; max-width: 60ch; }
+  .win-close {
+    font-family: 'Chivo', sans-serif;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    background: var(--card-ink);
+    border: 1px solid var(--card-ink);
+    color: var(--card);
+    padding: 7px 15px;
+    cursor: pointer;
+  }
+  .win-close:hover { background: transparent; color: var(--card-ink); }
+  .win-close:focus-visible { outline: 2px solid var(--pin-red); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card, .threads line { transition: none; }
+    .card:hover, .card:focus-visible { transform: none; }
+  }
+</style>
+
+<div class="room">
+  <div class="wrap">
+
+    <div class="head">
+      <div>
+        <h1>Packaging Board &mdash; Thunder County</h1>
+        <p>Meridian Pictures &middot; MP-0114 &middot; assembled by the production office</p>
+      </div>
+      <div class="head-meta">
+        Action &middot; Medium &middot; Wide<br>
+        Photography <b>02 Nov 87</b> &middot; <b>46</b> days<br>
+        Total commitment <b>£20,240,000</b>
+      </div>
+    </div>
+
+    <div class="split">
+
+      <div class="boardframe">
+        <div class="board">
+
+          <svg class="threads" viewBox="0 0 1020 580" preserveAspectRatio="none" aria-hidden="true">
+            <!-- script <-> director : the bold pitch runs against the material -->
+            <line data-a="script" data-b="director" x1="130" y1="250" x2="415" y2="135"
+                  stroke="#C0392B" stroke-width="3.5" />
+            <!-- script <-> lead : excellent role fit -->
+            <line data-a="script" data-b="lead" x1="130" y1="250" x2="730" y2="105"
+                  stroke="#3E8E5A" stroke-width="3" />
+            <!-- director <-> lead : archetype suits the pitch -->
+            <line data-a="director" data-b="lead" x1="415" y1="135" x2="730" y2="105"
+                  stroke="#3E8E5A" stroke-width="3.5" />
+            <!-- director <-> dp : shot together before -->
+            <line data-a="director" data-b="dp" x1="415" y1="135" x2="400" y2="425"
+                  stroke="#3E8E5A" stroke-width="5" />
+            <!-- script <-> dp : light, serviceable -->
+            <line data-a="script" data-b="dp" x1="130" y1="250" x2="400" y2="425"
+                  stroke="#3E8E5A" stroke-width="1.6" />
+            <!-- director <-> producer : discipline vs a bold read -->
+            <line data-a="director" data-b="producer" x1="415" y1="135" x2="125" y2="505"
+                  stroke="#C0392B" stroke-width="3" />
+            <!-- lead <-> second : unknowable until cast -->
+            <line data-a="lead" data-b="second" x1="730" y1="105" x2="745" y2="405"
+                  stroke="#8FA9C4" stroke-width="3" stroke-dasharray="7 7" opacity="0.85" />
+            <!-- director <-> second : unknowable until cast -->
+            <line data-a="director" data-b="second" x1="415" y1="135" x2="745" y2="405"
+                  stroke="#8FA9C4" stroke-width="2.4" stroke-dasharray="7 7" opacity="0.85" />
+          </svg>
+
+          <button class="card card--script" type="button" data-node="script"
+            data-role="Screenplay" data-name="THUNDER COUNTY"
+            data-detail="Original screenplay by Junius Bell, third draft delivered. Spectacle-leaning on the tonal axes; strong on structure, weaker on dialogue polish. Everything else on this board is measured against it — which is why it sits at the centre and not in a list.">
+            <span class="card-head">
+              <span class="mono">3rd</span>
+              <span>
+                <span class="card-role">Screenplay</span>
+                <span class="card-name">Bell, J. &mdash; draft 3</span>
+              </span>
+            </span>
+            <span class="card-note">Spectacle-leaning &middot; structure strong</span>
+          </button>
+
+          <button class="card" type="button" data-node="director"
+            data-role="Director" data-name="Dale Rourke"
+            data-detail="Won a three-way bake-off. Pitched a lean, grounded take against the script's spectacle leanings — a bold read that widens execution variance in both directions. High ego, high professionalism. He is the hub of this board: both red threads run through him.">
+            <span class="card-head">
+              <span class="mono">DR</span>
+              <span>
+                <span class="card-role">Director</span>
+                <span class="card-name">Rourke, Dale</span>
+              </span>
+            </span>
+            <span class="card-note">Bold pitch &middot; 2 points of friction</span>
+          </button>
+
+          <button class="card" type="button" data-node="lead"
+            data-role="Lead Actor" data-name="Marguerite Vance"
+            data-detail="Reads the sheriff as weary rather than heroic. Excellent role fit, and her craft archetype suits the director's grounded pitch — the strongest pairing on the board. Above-the-title billing per contract.">
+            <span class="card-head">
+              <span class="mono">MV</span>
+              <span>
+                <span class="card-role">Lead Actor</span>
+                <span class="card-name">Vance, Marguerite</span>
+              </span>
+            </span>
+            <span class="card-note">Fit strong &middot; aligned with director</span>
+          </button>
+
+          <button class="card card--open" type="button" data-node="second"
+            data-role="Supporting Actor" data-name="not yet cast"
+            data-detail="Two names have read; neither has been offered. Until one is pinned, two relationships on this board cannot be read at all — chemistry with the lead, and fit with the director's take. This is not one empty slot. It is a hole with two unknown edges running out of it.">
+            <span class="card-head">
+              <span class="mono">??</span>
+              <span>
+                <span class="card-role">Supporting Actor</span>
+                <span class="card-name">&mdash; open &mdash;</span>
+              </span>
+            </span>
+            <span class="card-note">2 read &middot; 2 relationships unknown</span>
+          </button>
+
+          <button class="card" type="button" data-node="dp"
+            data-role="Cinematographer" data-name="Halvard Nyquist"
+            data-detail="Hard directional light, deep blacks, minimal diffusion. He and Rourke have shot together once before to good effect — the thickest thread on the board, and the one piece of proven history in the package.">
+            <span class="card-head">
+              <span class="mono">HN</span>
+              <span>
+                <span class="card-role">Cinematographer</span>
+                <span class="card-name">Nyquist, Halvard</span>
+              </span>
+            </span>
+            <span class="card-note">Proven with director &middot; 1 picture</span>
+          </button>
+
+          <button class="card" type="button" data-node="producer"
+            data-role="Producer" data-name="Estelle Marchetti"
+            data-detail="Three pictures with this studio, two profitable. Pushes hard for schedule discipline and will resist a runaway shoot — which is precisely where she and Rourke's bold, variance-widening read collide. Productive friction, if it is managed.">
+            <span class="card-head">
+              <span class="mono">EM</span>
+              <span>
+                <span class="card-role">Producer</span>
+                <span class="card-name">Marchetti, Estelle</span>
+              </span>
+            </span>
+            <span class="card-note">Schedule discipline &middot; will push back</span>
+          </button>
+
+        </div>
+      </div>
+
+      <aside class="report">
+        <h2>Tension Report</h2>
+        <p class="sub">Eight relationships in the package. Hover a card to isolate its threads.</p>
+
+        <div class="link link--bad">
+          <span class="swatch swatch--bad"></span>
+          <span>
+            <span class="link-pair">Script &harr; Director</span>
+            <span class="link-read">His grounded read cuts against the material's spectacle leanings. Deliberate, and the reason variance is wide in both directions.</span>
+          </span>
+        </div>
+
+        <div class="link link--bad">
+          <span class="swatch swatch--bad"></span>
+          <span>
+            <span class="link-pair">Director &harr; Producer</span>
+            <span class="link-read">A bold shoot meets a producer who guards the schedule. Expect friction on the floor.</span>
+          </span>
+        </div>
+
+        <div class="link link--good">
+          <span class="swatch swatch--good"></span>
+          <span>
+            <span class="link-pair">Director &harr; Cinematographer</span>
+            <span class="link-read">One picture together, to good effect. The strongest thread here, and the only proven history in the package.</span>
+          </span>
+        </div>
+
+        <div class="link link--good">
+          <span class="swatch swatch--good"></span>
+          <span>
+            <span class="link-pair">Director &harr; Lead</span>
+            <span class="link-read">Her craft archetype suits his grounded take. No shared history, but the read is clean.</span>
+          </span>
+        </div>
+
+        <div class="link link--good">
+          <span class="swatch swatch--good"></span>
+          <span>
+            <span class="link-pair">Script &harr; Lead</span>
+            <span class="link-read">Excellent role fit. She plays the sheriff weary rather than heroic, which the part rewards.</span>
+          </span>
+        </div>
+
+        <div class="link link--unk">
+          <span class="swatch swatch--unk"></span>
+          <span>
+            <span class="link-pair">Lead &harr; Supporting</span>
+            <span class="link-read">Cannot be read. One candidate carries franchise history with her; the other does not.</span>
+          </span>
+        </div>
+
+        <div class="link link--unk">
+          <span class="swatch swatch--unk"></span>
+          <span>
+            <span class="link-pair">Director &harr; Supporting</span>
+            <span class="link-read">Cannot be read until the part is cast.</span>
+          </span>
+        </div>
+
+        <div class="verdict">
+          <b>The desk's reading</b>
+          Rourke is the hub &mdash; both points of friction run through him, and so does the
+          only proven pairing. The package is coherent on the right-hand side and
+          unknowable at the bottom. Casting the second lead does not fill one hole; it
+          resolves two open edges at once.
+        </div>
+
+        <div class="legend">
+          <span><i style="background:#3E8E5A"></i>Fit / history</span>
+          <span><i style="background:#C0392B"></i>Friction</span>
+          <span><i style="background:#8FA9C4"></i>Untested</span>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" data-open="false" role="dialog" aria-modal="true" aria-labelledby="win-name">
+  <div class="win">
+    <p class="win-role" id="win-role">Role</p>
+    <h3 class="win-name" id="win-name">Name</h3>
+    <p class="win-body" id="win-body"></p>
+    <button class="win-close" type="button" id="win-close">Close</button>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var overlay = document.getElementById('overlay');
+    var roleEl = document.getElementById('win-role');
+    var nameEl = document.getElementById('win-name');
+    var bodyEl = document.getElementById('win-body');
+    var closeBtn = document.getElementById('win-close');
+    var lines = Array.prototype.slice.call(document.querySelectorAll('.threads line'));
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.card'));
+    var lastFocused = null;
+
+    function isolate(node) {
+      lines.forEach(function (ln) {
+        var touches = ln.getAttribute('data-a') === node || ln.getAttribute('data-b') === node;
+        ln.classList.toggle('hot', touches);
+        ln.classList.toggle('dim', !touches);
+      });
+    }
+
+    function clear() {
+      lines.forEach(function (ln) { ln.classList.remove('hot', 'dim'); });
+    }
+
+    function open(btn) {
+      lastFocused = btn;
+      roleEl.textContent = btn.getAttribute('data-role');
+      nameEl.textContent = btn.getAttribute('data-name');
+      bodyEl.textContent = btn.getAttribute('data-detail');
+      overlay.setAttribute('data-open', 'true');
+      closeBtn.focus();
+    }
+
+    function close() {
+      overlay.setAttribute('data-open', 'false');
+      if (lastFocused) lastFocused.focus();
+    }
+
+    cards.forEach(function (btn) {
+      var node = btn.getAttribute('data-node');
+      btn.addEventListener('mouseenter', function () { isolate(node); });
+      btn.addEventListener('mouseleave', clear);
+      btn.addEventListener('focus', function () { isolate(node); });
+      btn.addEventListener('blur', clear);
+      btn.addEventListener('click', function () { open(btn); });
+    });
+
+    closeBtn.addEventListener('click', close);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+  })();
+</script>
