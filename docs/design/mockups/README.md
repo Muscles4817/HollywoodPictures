@@ -12,11 +12,30 @@ link.
 |---|---|---|---|
 | 01 | **Paper document.** Warm bond stock under a lamp on a dark desk. Printed form / typed content split (Archivo + Courier Prime). Above-the-line / below-the-line columns. Drawer slides up. | `take-01-production-sheet.html` | https://claude.ai/code/artifact/46ef77f7-9ce4-43e4-b525-ceb3c3e4983b |
 | 02 | **Studio terminal.** Amber-phosphor CRT, full-bleed, F-key rail, scanlines. Marquee neon (cyan/magenta) used strictly as slot state coding. IBM Plex Mono + Plex Sans Condensed. TUI overlay window. | `take-02-studio-terminal.html` | https://claude.ai/code/artifact/410cf7cb-fb65-4f12-987b-2eb43bd85a88 |
+| **08** | **THE HYBRID.** Take 07's system carrying the best move from each earlier take: 01's printed-form/typed-content type split and warm palette, 02's colour-coded state and edge nav, 03's "what does this block", 04's voice rationed to one line, 05's deadline on an absence, and 06 as a **toggleable lens** rather than its own screen. Anybody + Schibsted Grotesk + Courier Prime. | `take-08-hybrid.html` | https://claude.ai/code/artifact/d97b8a4e-1f24-47dd-b904-7c41b6f2d65c |
 | 07 | **Systematic (the control).** No metaphor at all — the era carried by typeface, palette, density and rule weight rather than by imitating an object. Anybody + Schibsted Grotesk. KPI row, validated readiness meter, state pills, persistent rail, side panels. The only take with light **and** dark themes. | `take-07-systematic.html` | https://claude.ai/code/artifact/3be4c2b1-580c-49d0-9dc7-44bd7ad564c6 |
 | 06 | **Packaging board.** The package as a *relationship web*: index cards pinned to cork, joined by thread — green for fit or proven history, red for friction, dashed blue for untested. Chivo + Special Elite. Hovering a card isolates its threads; a tension report reads the web in words. | `take-06-packaging-board.html` | https://claude.ai/code/artifact/3d0b845f-60b2-475a-acf5-0e6d5ddb4c06 |
 | 05 | **One-sheet proof.** The package as the film's own poster billing block, on a marked-up advertising proof: black teaser artwork on light mount board, chrome title, red hand-written proof notes in the margin. Big Shoulders Display + Saira Extra Condensed + Caveat. The only take where DESK and SPECTACLE occupy one object. | `take-05-one-sheet-proof.html` | https://claude.ai/code/artifact/5845b912-c3ed-4693-93a2-43c05e76e766 |
 | 04 | **Trade paper.** A 1987 front page: Bodoni nameplate, spot red, justified two-column newsprint with a drop cap, and the production record carried as the paper's own *production chart*. Bodoni Moda + Fira Sans Condensed + Libre Baskerville. Gives the game a narrating voice. | `take-04-trade-paper.html` | https://claude.ai/code/artifact/1988435c-555c-4ce2-a678-df5f13584749 |
 | 03 | **Strip board.** The real production-scheduling artifact: steel frame, vertical card strips in the industry colour convention, numbered cast key, black day breaks. Barlow Condensed + Bitter. Adds the schedule to the record, so an uncast role visibly blocks strips. | `take-03-strip-board.html` | https://claude.ai/code/artifact/18fd30f6-7430-41cc-9323-b0c10855551e |
+
+## The synthesis (take 08)
+
+Assembled from the reading in §Verdicts rather than from filled-in Keep/Reject
+rows — revise it as those rows get filled.
+
+| From | Move kept |
+|---|---|
+| 07 | The whole chassis: tokens, both themes, rail, KPI row, readiness meter, drawer, density |
+| 01 | The **printed form / typed content** type split — the game's structure wears the grotesque, the player's decisions wear the typewriter. The discipline, not the paper texture. Plus the warm bone palette. |
+| 02 | Slot state carried by colour *as well as* form; persistent edge nav |
+| 03 | An open slot states **what it blocks** — in words, so no scene-level scheduler is needed |
+| 04 | The voice, rationed to **one line**: "the desk's read", narrating the simulation |
+| 05 | An absence with a **deadline** on it, not just a gap |
+| 06 | The relationship web as a **lens you toggle**, inside the same chassis — not a screen of its own |
+
+The uncast supporting role now carries all three readings at once: *blocks 3
+shooting days · 2 relationships unreadable · offer needed by 30 Sept.*
 
 ## What each take is testing
 
@@ -68,7 +87,8 @@ Both test §4 principles 1–3 (one screen, visible holes, persistent edge nav) 
 
 ## Candidate directions not yet built
 
-All seven built. The next move is a **hybrid** assembled
+All seven explorations built, plus the hybrid (08) that synthesises them.
+Further work should iterate on 08 rather than adding a ninth direction. The next move is a **hybrid** assembled
 from the individual moves marked Keep below, rather than a fifth fresh
 direction.
 
@@ -87,3 +107,4 @@ individual moves worth keeping._
 | 05 | | |
 | 06 | | |
 | 07 | | |
+| 08 | | |
