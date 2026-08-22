@@ -12,6 +12,7 @@ link.
 |---|---|---|---|
 | 01 | **Paper document.** Warm bond stock under a lamp on a dark desk. Printed form / typed content split (Archivo + Courier Prime). Above-the-line / below-the-line columns. Drawer slides up. | `take-01-production-sheet.html` | https://claude.ai/code/artifact/46ef77f7-9ce4-43e4-b525-ceb3c3e4983b |
 | 02 | **Studio terminal.** Amber-phosphor CRT, full-bleed, F-key rail, scanlines. Marquee neon (cyan/magenta) used strictly as slot state coding. IBM Plex Mono + Plex Sans Condensed. TUI overlay window. | `take-02-studio-terminal.html` | https://claude.ai/code/artifact/410cf7cb-fb65-4f12-987b-2eb43bd85a88 |
+| 03 | **Strip board.** The real production-scheduling artifact: steel frame, vertical card strips in the industry colour convention, numbered cast key, black day breaks. Barlow Condensed + Bitter. Adds the schedule to the record, so an uncast role visibly blocks strips. | `take-03-strip-board.html` | https://claude.ai/code/artifact/18fd30f6-7430-41cc-9323-b0c10855551e |
 
 ## What each take is testing
 
@@ -21,15 +22,18 @@ link.
 - **02** — Does it work as a *screen*? Tests §5.3's "darkened office" option,
   and whether colour-coding slot state (something paper cannot do) earns its
   place against §2.3's ornament discipline.
+- **03** — Does the register work as a *domain-specific instrument* rather than
+  a generic document or screen? This is the only take whose information
+  architecture differs rather than its skin: by carrying the shoot schedule
+  alongside the package, an unfilled slot stops being a hole in a list and
+  becomes three blocked shooting days. Tests whether consequence-made-visible
+  is worth the legibility cost of vertical strips.
 
 Both test §4 principles 1–3 (one screen, visible holes, persistent edge nav) and
 §8.4 (the sheet is the map, the drawer is the depth).
 
 ## Candidate directions not yet built
 
-- **03 — The strip board.** Real production scheduling used coloured cardboard
-  strips in a wooden frame, one per element. Horizontal, colour-forward, and
-  almost unknown outside the industry — the most *ownable* of the three.
 - **04 — The trade paper.** The record rendered as editorial: *Variety* front
   page, headlines and columns rather than a form.
 
@@ -43,3 +47,4 @@ individual moves worth keeping._
 |---|---|---|
 | 01 | | |
 | 02 | | |
+| 03 | | |

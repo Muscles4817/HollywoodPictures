@@ -1,0 +1,778 @@
+<title>Thunder County Strip Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Bitter:wght@500;600;700&display=swap">
+
+<style>
+  :root {
+    /* A steel production board in a production office. Strip colours are the
+       real industry convention — muted card stock, never neon:
+       white = INT DAY, yellow = EXT DAY, blue = INT NIGHT, green = EXT NIGHT. */
+    --steel:        #23272E;
+    --steel-dark:   #171A1F;
+    --steel-light:  #333942;
+    --steel-edge:   #454C57;
+    --plate:        #B29A63;
+    --plate-ink:    #1A1712;
+
+    --card-white:   #EDEAE0;
+    --card-yellow:  #E6CE80;
+    --card-blue:    #A2BAD6;
+    --card-green:   #A9C79C;
+    --card-ink:     #22201B;
+    --card-ink-dim: #5C574C;
+    --card-edge:    rgba(0,0,0,0.22);
+
+    --daybreak:     #101216;
+    --alert:        #C0332F;
+    --alert-soft:   #E8756C;
+    --paper-txt:    #D8D4C8;
+    --muted:        #8A8F99;
+
+    --t-0: 0.66rem;
+    --t-1: 0.76rem;
+    --t-2: 0.88rem;
+    --t-3: 1.5rem;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--steel-dark);
+    color: var(--paper-txt);
+    font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-2);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .office {
+    min-height: 100vh;
+    padding: 26px 20px 40px;
+    background:
+      radial-gradient(ellipse 110% 70% at 50% 0%, #2A2F37 0%, var(--steel-dark) 70%);
+  }
+
+  .board {
+    max-width: 1240px;
+    margin: 0 auto;
+    background: var(--steel);
+    border: 1px solid var(--steel-edge);
+    box-shadow: 0 24px 60px rgba(0,0,0,0.62);
+  }
+
+  /* ---- Brass title plate -------------------------------------------- */
+  .plate {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    background: linear-gradient(180deg, #C4AC73 0%, var(--plate) 55%, #96803F 100%);
+    color: var(--plate-ink);
+    padding: 9px 18px;
+  }
+  .plate-title {
+    font-family: 'Bitter', Georgia, serif;
+    font-weight: 700;
+    font-size: var(--t-2);
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .plate-meta {
+    font-weight: 600;
+    font-size: var(--t-1);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- Picture header ------------------------------------------------ */
+  .pic {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+    flex-wrap: wrap;
+    padding: 16px 18px 14px;
+    border-bottom: 1px solid var(--steel-edge);
+  }
+  .pic-title {
+    font-family: 'Bitter', Georgia, serif;
+    font-size: var(--t-3);
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    margin: 0;
+    color: #F0EDE4;
+    text-wrap: balance;
+  }
+  .pic-sub {
+    font-size: var(--t-1);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 5px 0 0;
+    font-weight: 600;
+  }
+  .pic-facts { display: flex; gap: 24px; }
+  .fct { text-align: right; }
+  .fct-l {
+    display: block;
+    font-size: var(--t-0);
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .fct-v {
+    font-family: 'Bitter', Georgia, serif;
+    font-size: var(--t-2);
+    font-weight: 600;
+    color: #EFECE3;
+  }
+
+  /* ---- Two panes: personnel key | the board ------------------------- */
+  .panes {
+    display: grid;
+    grid-template-columns: 330px 1fr;
+    align-items: stretch;
+  }
+  @media (max-width: 940px) { .panes { grid-template-columns: 1fr; } }
+
+  .keypane {
+    border-right: 1px solid var(--steel-edge);
+    padding: 14px 0 18px;
+    background: var(--steel-light);
+  }
+  .sect {
+    font-family: 'Bitter', Georgia, serif;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 0 16px;
+    margin: 0 0 7px;
+  }
+  .sect + .sect { margin-top: 20px; }
+
+  /* Numbered cast — the real board's own device. The number on a strip is
+     how the schedule knows who it needs that day. */
+  .cast {
+    display: grid;
+    grid-template-columns: 26px 1fr auto;
+    align-items: baseline;
+    gap: 10px;
+    width: 100%;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    color: var(--paper-txt);
+    font: inherit;
+    text-align: left;
+    padding: 7px 16px;
+    cursor: pointer;
+  }
+  .cast:hover { background: rgba(255,255,255,0.045); }
+  .cast:focus-visible { outline: 1px solid var(--plate); outline-offset: -2px; }
+  .cast-no {
+    font-family: 'Bitter', Georgia, serif;
+    font-weight: 700;
+    font-size: var(--t-1);
+    color: var(--plate);
+    font-variant-numeric: tabular-nums;
+  }
+  .cast-char {
+    display: block;
+    font-size: var(--t-0);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .cast-actor { font-weight: 600; letter-spacing: 0.03em; color: #EDEAE1; }
+  .cast-fee {
+    font-size: var(--t-1);
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .cast--uncast .cast-no { color: var(--alert); }
+  .cast--uncast .cast-actor { color: var(--alert-soft); }
+
+  /* Crew ride the header block, as they do on a real board — they are
+     there every day, so they carry no strip number. */
+  .crew {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    width: 100%;
+    background: none;
+    border: 0;
+    color: var(--paper-txt);
+    font: inherit;
+    text-align: left;
+    padding: 5px 16px;
+    cursor: pointer;
+  }
+  .crew:hover { background: rgba(255,255,255,0.045); }
+  .crew:focus-visible { outline: 1px solid var(--plate); outline-offset: -2px; }
+  .crew-role {
+    font-size: var(--t-0);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .crew-name { font-weight: 600; color: #EDEAE1; letter-spacing: 0.03em; }
+  .crew--empty .crew-name { color: var(--alert-soft); }
+  .crew--optional .crew-name { color: var(--muted); font-style: italic; }
+
+  /* ---- The board itself: strips in a frame -------------------------- */
+  .rack {
+    padding: 16px 0 18px 16px;
+    overflow-x: auto;
+    background:
+      linear-gradient(180deg, rgba(0,0,0,0.34) 0%, transparent 8%, transparent 92%, rgba(0,0,0,0.34) 100%),
+      var(--steel);
+  }
+  .strips {
+    display: flex;
+    gap: 3px;
+    align-items: stretch;
+    min-height: 372px;
+    padding-right: 16px;
+  }
+
+  .strip {
+    flex: 0 0 auto;
+    width: 40px;
+    background: var(--card-white);
+    color: var(--card-ink);
+    border: 0;
+    border-right: 1px solid var(--card-edge);
+    font: inherit;
+    cursor: pointer;
+    padding: 9px 3px;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    text-align: left;
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+    align-items: flex-start;
+    box-shadow: 1px 0 2px rgba(0,0,0,0.28);
+    position: relative;
+  }
+  .strip:hover { filter: brightness(1.06); }
+  .strip:focus-visible { outline: 2px solid var(--plate); outline-offset: 1px; }
+
+  .strip--extday  { background: var(--card-yellow); }
+  .strip--intnite { background: var(--card-blue); }
+  .strip--extnite { background: var(--card-green); }
+
+  .strip-scene {
+    font-family: 'Bitter', Georgia, serif;
+    font-weight: 700;
+    font-size: var(--t-1);
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+  }
+  .strip-set {
+    font-weight: 600;
+    font-size: var(--t-1);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    flex: 1;
+  }
+  .strip-meta {
+    font-size: var(--t-0);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--card-ink-dim);
+    font-variant-numeric: tabular-nums;
+  }
+  .strip-cast {
+    font-family: 'Bitter', Georgia, serif;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The move this take exists to prove: an unfilled slot is not just a hole
+     in a list — you can see which shooting days it blocks. */
+  .strip--blocked {
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(192,51,47,0.19) 0 7px,
+      transparent 7px 14px
+    );
+  }
+  .strip--blocked::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 2px solid var(--alert);
+    pointer-events: none;
+  }
+  .strip-flag {
+    background: var(--alert);
+    color: #FFF3F1;
+    font-family: 'Bitter', Georgia, serif;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    padding: 4px 2px;
+    text-transform: uppercase;
+  }
+
+  /* Day break — a black strip, exactly as on the real thing. */
+  .daybreak {
+    flex: 0 0 auto;
+    width: 26px;
+    background: var(--daybreak);
+    color: var(--plate);
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Bitter', Georgia, serif;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    padding: 8px 0;
+    box-shadow: 1px 0 3px rgba(0,0,0,0.5);
+  }
+
+  /* ---- Bottom plate: schedule + money ------------------------------- */
+  .footplate {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 22px;
+    flex-wrap: wrap;
+    border-top: 1px solid var(--steel-edge);
+    background: var(--steel-light);
+    padding: 12px 18px;
+  }
+  .foot-facts { display: flex; gap: 26px; flex-wrap: wrap; }
+  .money-total { text-align: right; }
+  .money-total .fct-v {
+    font-size: 1.15rem;
+    color: var(--plate);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .readiness {
+    border-left: 3px solid var(--alert);
+    padding: 8px 0 8px 12px;
+    font-size: var(--t-2);
+    line-height: 1.6;
+    color: var(--muted);
+    max-width: 60ch;
+  }
+  .readiness b {
+    display: block;
+    font-family: 'Bitter', Georgia, serif;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--alert-soft);
+    margin-bottom: 3px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    max-width: 1240px;
+    margin: 14px auto 0;
+    padding: 0 2px;
+    font-size: var(--t-0);
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .swatch {
+    display: inline-block;
+    width: 22px;
+    height: 10px;
+    margin-right: 6px;
+    vertical-align: middle;
+    border: 1px solid rgba(0,0,0,0.4);
+  }
+
+  /* ---- Overlay ------------------------------------------------------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(8,10,13,0.76);
+  }
+  .overlay[data-open="true"] { display: flex; }
+  .win {
+    width: min(660px, 100%);
+    background: var(--card-white);
+    color: var(--card-ink);
+    border: 1px solid var(--plate);
+    box-shadow: 0 26px 60px rgba(0,0,0,0.7);
+  }
+  .win-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    background: var(--plate);
+    color: var(--plate-ink);
+    padding: 7px 14px;
+    font-family: 'Bitter', Georgia, serif;
+    font-weight: 700;
+    font-size: var(--t-1);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  .win-body {
+    padding: 16px 18px 20px;
+    font-size: var(--t-2);
+    line-height: 1.7;
+    max-width: 66ch;
+  }
+  .win-close {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: var(--t-1);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    background: var(--plate-ink);
+    border: 1px solid var(--plate-ink);
+    color: var(--plate);
+    padding: 4px 12px;
+    cursor: pointer;
+  }
+  .win-close:hover { background: transparent; color: var(--plate-ink); }
+  .win-close:focus-visible { outline: 2px solid var(--alert); outline-offset: 2px; }
+
+  .hint {
+    max-width: 1240px;
+    margin: 16px auto 0;
+    text-align: center;
+    font-size: var(--t-0);
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #6E747E;
+  }
+</style>
+
+<div class="office">
+  <div class="board">
+
+    <div class="plate">
+      <p class="plate-title">Meridian Pictures &middot; Production Board</p>
+      <span class="plate-meta">MP-0114 &middot; Rev 3 &middot; 14 Sept 1987</span>
+    </div>
+
+    <div class="pic">
+      <div>
+        <h1 class="pic-title">THUNDER COUNTY</h1>
+        <p class="pic-sub">Action &middot; Medium Scale &middot; Wide Audience</p>
+      </div>
+      <div class="pic-facts">
+        <div class="fct"><span class="fct-l">First Day</span><span class="fct-v">02 Nov 87</span></div>
+        <div class="fct"><span class="fct-l">Shoot Days</span><span class="fct-v">46</span></div>
+        <div class="fct"><span class="fct-l">Runtime</span><span class="fct-v">108 min</span></div>
+      </div>
+    </div>
+
+    <div class="panes">
+
+      <div class="keypane">
+        <p class="sect">Cast &mdash; Numbered</p>
+
+        <button class="cast" type="button" data-title="1 — Sheriff Annie Cole"
+          data-detail="VANCE, MARGUERITE. Reads the sheriff as weary rather than heroic. Excellent role fit, and her craft archetype suits the director's grounded pitch. Chemistry with No. 2 is untested — no shared history. Called on 11 of the first 12 strips.">
+          <span class="cast-no">1</span>
+          <span>
+            <span class="cast-char">Sheriff Annie Cole &middot; Lead</span>
+            <span class="cast-actor">VANCE, MARGUERITE</span>
+          </span>
+          <span class="cast-fee">3,100,000</span>
+        </button>
+
+        <button class="cast cast--uncast" type="button" data-title="2 — Wade Cole (UNCAST)"
+          data-detail="Two names have read for the part and both are within budget. One carries returning-franchise history with No. 1; the other tests better on the tonal axis. Neither has been offered — and the part is called on three strips in the first four shooting days.">
+          <span class="cast-no">2</span>
+          <span>
+            <span class="cast-char">Wade Cole &middot; Supporting</span>
+            <span class="cast-actor">&mdash; UNCAST &mdash;</span>
+          </span>
+          <span class="cast-fee">&mdash;</span>
+        </button>
+
+        <button class="cast" type="button" data-title="3 — Mayor Delacroix"
+          data-detail="Featured day player. Filled from the general pool rather than cast by the player — the board numbers every part the schedule has to call, whether or not it was a decision.">
+          <span class="cast-no">3</span>
+          <span>
+            <span class="cast-char">Mayor Delacroix &middot; Featured</span>
+            <span class="cast-actor">LOMBARD, ARTHUR</span>
+          </span>
+          <span class="cast-fee">64,000</span>
+        </button>
+
+        <button class="cast" type="button" data-title="4 — Deputy Harlan"
+          data-detail="Featured day player, called for the quarry sequence and the Main Street finale.">
+          <span class="cast-no">4</span>
+          <span>
+            <span class="cast-char">Deputy Harlan &middot; Featured</span>
+            <span class="cast-actor">ESQUIVEL, RAY</span>
+          </span>
+          <span class="cast-fee">41,000</span>
+        </button>
+
+        <p class="sect">Crew &mdash; Every Day</p>
+
+        <button class="crew" type="button" data-title="Director"
+          data-detail="ROURKE, DALE. Won a three-way bake-off. Pitched a lean, grounded take against the script's spectacle leanings — a bold read that widens execution variance in both directions. Wants final cut on the second act.">
+          <span><span class="crew-role">Director</span><br><span class="crew-name">ROURKE, DALE</span></span>
+          <span class="cast-fee">2,400,000</span>
+        </button>
+
+        <button class="crew" type="button" data-title="Producer"
+          data-detail="MARCHETTI, ESTELLE. Attached from the studio's own production office. Three pictures with this studio, two profitable. Pushes hard for schedule discipline; will resist a runaway shoot.">
+          <span><span class="crew-role">Producer</span><br><span class="crew-name">MARCHETTI, ESTELLE</span></span>
+          <span class="cast-fee">salaried</span>
+        </button>
+
+        <button class="crew" type="button" data-title="Writer"
+          data-detail="BELL, JUNIUS. Original screenplay, third draft delivered. Strong on structure, weaker on dialogue polish — a pass from a second writer would lift the ceiling but costs three weeks.">
+          <span><span class="crew-role">Writer</span><br><span class="crew-name">BELL, JUNIUS</span></span>
+          <span class="cast-fee">450,000</span>
+        </button>
+
+        <button class="crew" type="button" data-title="Cinematographer"
+          data-detail="NYQUIST, HALVARD. Hard directional light, deep blacks, minimal diffusion. Aligns cleanly with the director's grounded pitch — the two have shot together once before, to good effect.">
+          <span><span class="crew-role">Cinematographer</span><br><span class="crew-name">NYQUIST, HALVARD</span></span>
+          <span class="cast-fee">380,000</span>
+        </button>
+
+        <button class="crew" type="button" data-title="Production Designer"
+          data-detail="OKONJO, RUTH. Set ambition set to Standard. Her head-of-department recommendation is eleven build days; the plan allows nine, which starves the facet slightly.">
+          <span><span class="crew-role">Production Designer</span><br><span class="crew-name">OKONJO, RUTH</span></span>
+          <span class="cast-fee">295,000</span>
+        </button>
+
+        <button class="crew" type="button" data-title="Editor"
+          data-detail="BAYE, CONSTANCE. Not required until post. Attached early to lock her availability against a competing production at a rival studio.">
+          <span><span class="crew-role">Editor</span><br><span class="crew-name">BAYE, CONSTANCE</span></span>
+          <span class="cast-fee">210,000</span>
+        </button>
+
+        <button class="crew" type="button" data-title="Casting Director"
+          data-detail="PRYOR, WENDELL. Widens the candidate pool and sharpens every fit read. Already responsible for surfacing the two candidates who read for No. 2.">
+          <span><span class="crew-role">Casting Director</span><br><span class="crew-name">PRYOR, WENDELL</span></span>
+          <span class="cast-fee">120,000</span>
+        </button>
+
+        <button class="crew crew--empty" type="button" data-title="Composer — unfilled"
+          data-detail="Nothing is needed here until post-production, but attaching now costs less than attaching late. Three composers are available at this budget; one is coming off an award-nominated picture and has priced accordingly.">
+          <span><span class="crew-role">Composer</span><br><span class="crew-name">&mdash; UNFILLED &mdash;</span></span>
+          <span class="cast-fee">&mdash;</span>
+        </button>
+
+        <button class="crew crew--optional" type="button" data-title="VFX Supervisor — optional"
+          data-detail="This genre's VFX importance is moderate and the practical-effects dial is set high, so the picture can ship without a VFX supervisor — at a quality cost on the spectacle facet. Leaving this empty is a legitimate choice, not an oversight.">
+          <span><span class="crew-role">VFX Supervisor</span><br><span class="crew-name">not required</span></span>
+          <span class="cast-fee">&mdash;</span>
+        </button>
+      </div>
+
+      <div class="rack">
+        <div class="strips">
+
+          <div class="daybreak">Day 1 &middot; 02 Nov</div>
+
+          <button class="strip strip--extday" type="button" data-title="Sc. 14 — Valley Road"
+            data-detail="EXT. VALLEY ROAD — DAY. 2 2/8 pages. Cast 1, 3. The sheriff's return to the valley; first sight of the ridge. Yellow strip: exterior day.">
+            <span class="strip-scene">14</span>
+            <span class="strip-set">Valley Road</span>
+            <span class="strip-meta">Ext/Day &middot; 2 2/8</span>
+            <span class="strip-cast">1,3</span>
+          </button>
+
+          <button class="strip strip--extday" type="button" data-title="Sc. 15 — Valley Road"
+            data-detail="EXT. VALLEY ROAD — DAY. 5/8 page. Cast 1. A short pickup shot scheduled onto the same set-up to save a company move.">
+            <span class="strip-scene">15</span>
+            <span class="strip-set">Valley Road</span>
+            <span class="strip-meta">Ext/Day &middot; 5/8</span>
+            <span class="strip-cast">1</span>
+          </button>
+
+          <button class="strip strip--extnite strip--blocked" type="button" data-title="Sc. 22 — River Crossing (BLOCKED)"
+            data-detail="EXT. RIVER CROSSING — NIGHT. 1 4/8 pages. Cast 1, 2. Cannot be scheduled: No. 2 (Wade Cole) is uncast. This strip is one of three the empty supporting slot currently blocks.">
+            <span class="strip-flag">Blocked &mdash; 2 uncast</span>
+            <span class="strip-scene">22</span>
+            <span class="strip-set">River Crossing</span>
+            <span class="strip-meta">Ext/Night &middot; 1 4/8</span>
+            <span class="strip-cast">1,2</span>
+          </button>
+
+          <div class="daybreak">Day 2 &middot; 03 Nov</div>
+
+          <button class="strip" type="button" data-title="Sc. 3 — Sheriff's Office"
+            data-detail="INT. SHERIFF'S OFFICE — DAY. 3 2/8 pages. Cast 1, 3. The longest dialogue scene on the board. White strip: interior day.">
+            <span class="strip-scene">3</span>
+            <span class="strip-set">Sheriff Office</span>
+            <span class="strip-meta">Int/Day &middot; 3 2/8</span>
+            <span class="strip-cast">1,3</span>
+          </button>
+
+          <button class="strip strip--blocked" type="button" data-title="Sc. 4 — Sheriff's Office (BLOCKED)"
+            data-detail="INT. SHERIFF'S OFFICE — DAY. 1 1/8 pages. Cast 1, 2, 3. Blocked on No. 2. Because it shares a set with Sc. 3, leaving the part uncast risks a second company move later in the schedule.">
+            <span class="strip-flag">Blocked &mdash; 2 uncast</span>
+            <span class="strip-scene">4</span>
+            <span class="strip-set">Sheriff Office</span>
+            <span class="strip-meta">Int/Day &middot; 1 1/8</span>
+            <span class="strip-cast">1,2,3</span>
+          </button>
+
+          <button class="strip strip--intnite" type="button" data-title="Sc. 31 — Sheriff's Office"
+            data-detail="INT. SHERIFF'S OFFICE — NIGHT. 2 pages. Cast 1. Blue strip: interior night. Same set, relit — scheduled last on the day for that reason.">
+            <span class="strip-scene">31</span>
+            <span class="strip-set">Sheriff Office</span>
+            <span class="strip-meta">Int/Night &middot; 2</span>
+            <span class="strip-cast">1</span>
+          </button>
+
+          <div class="daybreak">Day 3 &middot; 04 Nov</div>
+
+          <button class="strip strip--extday" type="button" data-title="Sc. 47 — The Quarry"
+            data-detail="EXT. QUARRY — DAY. 4 pages. Cast 1, 4. The largest practical-effects set-up on the board — the reason the practical FX dial is set High.">
+            <span class="strip-scene">47</span>
+            <span class="strip-set">The Quarry</span>
+            <span class="strip-meta">Ext/Day &middot; 4</span>
+            <span class="strip-cast">1,4</span>
+          </button>
+
+          <button class="strip strip--extday" type="button" data-title="Sc. 48 — The Quarry"
+            data-detail="EXT. QUARRY — DAY. 2 3/8 pages. Cast 1, 4. Continues the sequence; the unit stays on the quarry floor.">
+            <span class="strip-scene">48</span>
+            <span class="strip-set">The Quarry</span>
+            <span class="strip-meta">Ext/Day &middot; 2 3/8</span>
+            <span class="strip-cast">1,4</span>
+          </button>
+
+          <button class="strip strip--extnite" type="button" data-title="Sc. 49 — The Quarry"
+            data-detail="EXT. QUARRY — NIGHT. 1 6/8 pages. Cast 1. Green strip: exterior night — the most expensive light on the board.">
+            <span class="strip-scene">49</span>
+            <span class="strip-set">The Quarry</span>
+            <span class="strip-meta">Ext/Night &middot; 1 6/8</span>
+            <span class="strip-cast">1</span>
+          </button>
+
+          <div class="daybreak">Day 4 &middot; 05 Nov</div>
+
+          <button class="strip" type="button" data-title="Sc. 62 — Courthouse"
+            data-detail="INT. COURTHOUSE — DAY. 2 pages. Cast 1, 3. The Production Designer's build recommendation of eleven days is driven by this set; the plan allows nine.">
+            <span class="strip-scene">62</span>
+            <span class="strip-set">Courthouse</span>
+            <span class="strip-meta">Int/Day &middot; 2</span>
+            <span class="strip-cast">1,3</span>
+          </button>
+
+          <button class="strip strip--intnite strip--blocked" type="button" data-title="Sc. 63 — Courthouse (BLOCKED)"
+            data-detail="INT. COURTHOUSE — NIGHT. 3 1/8 pages. Cast 1, 2. The third and last strip blocked by the uncast supporting role — and the one that carries the picture's turning point.">
+            <span class="strip-flag">Blocked &mdash; 2 uncast</span>
+            <span class="strip-scene">63</span>
+            <span class="strip-set">Courthouse</span>
+            <span class="strip-meta">Int/Night &middot; 3 1/8</span>
+            <span class="strip-cast">1,2</span>
+          </button>
+
+          <button class="strip strip--extnite" type="button" data-title="Sc. 70 — Main Street"
+            data-detail="EXT. MAIN STREET — NIGHT. 5 pages. Cast 1, 3, 4. The finale, and the single biggest day on the board. Scheduled early in the shoot deliberately, so a weather loss can be recovered.">
+            <span class="strip-scene">70</span>
+            <span class="strip-set">Main Street</span>
+            <span class="strip-meta">Ext/Night &middot; 5</span>
+            <span class="strip-cast">1,3,4</span>
+          </button>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="footplate">
+      <div class="readiness">
+        <b>Greenlight Readiness</b>
+        No. 2 uncast &mdash; blocking three strips across the first four days. Set build
+        nine days against a recommended eleven. The picture can be greenlit as it stands.
+      </div>
+      <div class="foot-facts">
+        <div class="fct"><span class="fct-l">Budget</span><span class="fct-v">£18,400,000</span></div>
+        <div class="fct"><span class="fct-l">Contingency</span><span class="fct-v">£1,840,000</span></div>
+        <div class="fct money-total"><span class="fct-l">Total Commitment</span><span class="fct-v">£20,240,000</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="legend">
+    <span><i class="swatch" style="background:#EDEAE0"></i>Int / Day</span>
+    <span><i class="swatch" style="background:#E6CE80"></i>Ext / Day</span>
+    <span><i class="swatch" style="background:#A2BAD6"></i>Int / Night</span>
+    <span><i class="swatch" style="background:#A9C79C"></i>Ext / Night</span>
+    <span><i class="swatch" style="background:#101216"></i>Day Break</span>
+  </div>
+
+  <p class="hint">Click any strip or any name &mdash; the board is the map, the window is the depth</p>
+</div>
+
+<div class="overlay" id="overlay" data-open="false" role="dialog" aria-modal="true" aria-labelledby="win-title">
+  <div class="win">
+    <div class="win-bar">
+      <span id="win-title">Detail</span>
+      <button class="win-close" type="button" id="win-close">Close</button>
+    </div>
+    <p class="win-body" id="win-body"></p>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var overlay = document.getElementById('overlay');
+    var titleEl = document.getElementById('win-title');
+    var bodyEl = document.getElementById('win-body');
+    var closeBtn = document.getElementById('win-close');
+    var lastFocused = null;
+
+    function open(btn) {
+      lastFocused = btn;
+      titleEl.textContent = btn.getAttribute('data-title');
+      bodyEl.textContent = btn.getAttribute('data-detail');
+      overlay.setAttribute('data-open', 'true');
+      closeBtn.focus();
+    }
+
+    function close() {
+      overlay.setAttribute('data-open', 'false');
+      if (lastFocused) lastFocused.focus();
+    }
+
+    Array.prototype.forEach.call(
+      document.querySelectorAll('.strip, .cast, .crew'),
+      function (btn) { btn.addEventListener('click', function () { open(btn); }); }
+    );
+    closeBtn.addEventListener('click', close);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+  })();
+</script>
