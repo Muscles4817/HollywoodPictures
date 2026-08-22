@@ -1,0 +1,689 @@
+<title>The Hollywood Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,600;6..96,700;6..96,900&family=Fira+Sans+Condensed:wght@400;500;600;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap">
+
+<style>
+  :root {
+    /* Newsprint — cooler and cheaper than take 01's warm bond stock, which is
+       the point: this is a paper that gets thrown away, not a document that
+       gets filed. One spot colour, as a trade paper of the period could afford. */
+    --news:       #E3E0D6;
+    --news-dim:   #D6D2C5;
+    --news-deep:  #C8C3B4;
+    --ink:        #161513;
+    --ink-mid:    #45423B;
+    --ink-soft:   #757064;
+    --rule:       #A7A296;
+    --rule-faint: #C0BBAD;
+    --spot:       #9C1B22;
+    --desk:       #12110F;
+
+    --t-0: 0.68rem;
+    --t-1: 0.78rem;
+    --t-2: 0.88rem;
+    --t-3: 1.05rem;
+    --t-4: 2.1rem;
+    --t-5: 4.2rem;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--desk);
+    color: var(--ink);
+    font-family: 'Libre Baskerville', Georgia, serif;
+    font-size: var(--t-2);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .stand {
+    min-height: 100vh;
+    padding: 34px 18px 60px;
+    display: flex;
+    justify-content: center;
+    background: radial-gradient(ellipse 90% 55% at 50% 12%, #1E1C18 0%, var(--desk) 72%);
+  }
+
+  .paper {
+    width: 100%;
+    max-width: 1080px;
+    background: var(--news);
+    padding: 26px 34px 34px;
+    box-shadow: 0 22px 60px rgba(0,0,0,0.62);
+    background-image:
+      repeating-linear-gradient(0deg, rgba(90,84,68,0.022) 0 1px, transparent 1px 4px);
+  }
+
+  /* ---- Nameplate ---------------------------------------------------- */
+  .nameplate {
+    text-align: center;
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: 10px;
+  }
+  .nameplate h1 {
+    font-family: 'Bodoni Moda', Didot, Georgia, serif;
+    font-weight: 900;
+    font-size: var(--t-5);
+    line-height: 0.94;
+    letter-spacing: 0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .nameplate .motto {
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-0);
+    font-weight: 600;
+    letter-spacing: 0.42em;
+    text-transform: uppercase;
+    color: var(--ink-mid);
+    margin: 9px 0 0;
+  }
+  .dateline {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    border-top: 3px double var(--ink);
+    border-bottom: 1px solid var(--ink);
+    margin-top: 9px;
+    padding: 5px 2px;
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-0);
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-mid);
+  }
+
+  /* ---- Page body: story + rail --------------------------------------- */
+  .page {
+    display: grid;
+    grid-template-columns: 1fr 268px;
+    gap: 0 28px;
+    margin-top: 20px;
+  }
+  @media (max-width: 900px) { .page { grid-template-columns: 1fr; } }
+
+  .story { min-width: 0; }
+
+  .kicker {
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--spot);
+    margin: 0 0 6px;
+  }
+  .headline {
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-weight: 700;
+    font-size: var(--t-4);
+    line-height: 1.02;
+    letter-spacing: -0.005em;
+    text-transform: uppercase;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .deck {
+    font-family: 'Libre Baskerville', Georgia, serif;
+    font-style: italic;
+    font-size: var(--t-3);
+    line-height: 1.45;
+    color: var(--ink-mid);
+    margin: 10px 0 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--rule);
+    max-width: 60ch;
+  }
+  .byline {
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin: 11px 0 12px;
+  }
+
+  .lede {
+    columns: 2;
+    column-gap: 26px;
+    column-rule: 1px solid var(--rule-faint);
+    font-size: var(--t-1);
+    line-height: 1.68;
+    text-align: justify;
+    hyphens: auto;
+  }
+  .lede p { margin: 0 0 0.85em; }
+  .lede p:first-child::first-letter {
+    font-family: 'Bodoni Moda', Didot, Georgia, serif;
+    font-weight: 900;
+    font-size: 3.1em;
+    float: left;
+    line-height: 0.82;
+    padding: 0.06em 0.09em 0 0;
+  }
+  @media (max-width: 620px) { .lede { columns: 1; } }
+
+  /* ---- The production chart: the trade's own tabular feature --------- */
+  .chart-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 26px 0 0;
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+  }
+  .chart-head::after { content: ""; flex: 1; height: 3px; border-top: 3px double var(--ink); }
+
+  .chart {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-1);
+    margin-top: 8px;
+  }
+  .chart caption {
+    caption-side: top;
+    text-align: left;
+    font-size: var(--t-0);
+    font-style: italic;
+    color: var(--ink-soft);
+    padding-bottom: 7px;
+  }
+  .chart th {
+    text-align: left;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-mid);
+    border-bottom: 1px solid var(--ink);
+    padding: 5px 8px 5px 0;
+  }
+  .chart th.num, .chart td.num { text-align: right; padding-right: 0; font-variant-numeric: tabular-nums; }
+  .chart td {
+    border-bottom: 1px solid var(--rule-faint);
+    padding: 0;
+  }
+  .chart tr.grp th {
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-0);
+    letter-spacing: 0.26em;
+    color: var(--spot);
+    border-bottom: 1px solid var(--rule);
+    padding-top: 13px;
+  }
+
+  .cell {
+    display: grid;
+    grid-template-columns: 158px 1fr auto;
+    gap: 10px;
+    align-items: baseline;
+    width: 100%;
+    background: none;
+    border: 0;
+    font: inherit;
+    color: var(--ink);
+    text-align: left;
+    padding: 6px 0 6px 8px;
+    cursor: pointer;
+  }
+  .cell:hover { background: rgba(156,27,34,0.06); }
+  .cell:focus-visible { outline: 2px solid var(--spot); outline-offset: -2px; }
+  .cell-role {
+    font-size: var(--t-0);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .cell-name { font-weight: 600; letter-spacing: 0.02em; }
+  .cell-terms {
+    font-size: var(--t-1);
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+    padding-right: 8px;
+  }
+  .cell-note {
+    grid-column: 2 / -1;
+    font-family: 'Libre Baskerville', Georgia, serif;
+    font-style: italic;
+    font-size: var(--t-0);
+    color: var(--ink-soft);
+    margin-top: 2px;
+  }
+  /* The trade reports an unfilled part in words, not with an empty box. */
+  .cell--open .cell-name { color: var(--spot); font-style: italic; }
+  .cell--open .cell-note { color: var(--spot); opacity: 0.8; }
+
+  /* ---- Boxed budget -------------------------------------------------- */
+  .boxed {
+    border: 3px double var(--ink);
+    margin-top: 20px;
+    padding: 12px 16px 14px;
+    background: var(--news-dim);
+  }
+  .boxed h3 {
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    margin: 0 0 9px;
+  }
+  .fig {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-1);
+    padding: 4px 0;
+    border-bottom: 1px solid var(--rule-faint);
+  }
+  .fig:last-child { border-bottom: 0; border-top: 1px solid var(--ink); margin-top: 4px; padding-top: 7px; }
+  .fig b { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .fig:last-child b { font-size: var(--t-3); }
+
+  /* ---- Right rail ---------------------------------------------------- */
+  .rail {
+    border-left: 1px solid var(--rule);
+    padding-left: 26px;
+    min-width: 0;
+  }
+  @media (max-width: 900px) {
+    .rail { border-left: 0; padding-left: 0; border-top: 3px double var(--ink); padding-top: 18px; margin-top: 24px; }
+  }
+  .rail h2 {
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    border-bottom: 3px double var(--ink);
+    padding-bottom: 5px;
+    margin: 0 0 9px;
+  }
+  .rail h2 + p.sub {
+    font-size: var(--t-0);
+    font-style: italic;
+    color: var(--ink-soft);
+    margin: -4px 0 9px;
+  }
+  .gross {
+    display: grid;
+    grid-template-columns: 16px 1fr auto;
+    gap: 8px;
+    align-items: baseline;
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-1);
+    padding: 5px 0;
+    border-bottom: 1px solid var(--rule-faint);
+  }
+  .gross-rank { font-weight: 700; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .gross-title { font-weight: 600; }
+  .gross-studio {
+    display: block;
+    font-size: var(--t-0);
+    font-weight: 400;
+    color: var(--ink-soft);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .gross-take { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .gross--ours { background: rgba(156,27,34,0.09); }
+  .gross--ours .gross-title { color: var(--spot); }
+
+  .inprod {
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-1);
+    padding: 6px 0;
+    border-bottom: 1px solid var(--rule-faint);
+    line-height: 1.4;
+  }
+  .inprod b { font-weight: 600; }
+  .inprod span {
+    display: block;
+    font-size: var(--t-0);
+    color: var(--ink-soft);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .colophon {
+    border-top: 3px double var(--ink);
+    margin-top: 28px;
+    padding-top: 9px;
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-0);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  /* ---- Overlay -------------------------------------------------------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(10,9,8,0.74);
+  }
+  .overlay[data-open="true"] { display: flex; }
+  .win {
+    width: min(640px, 100%);
+    background: var(--news);
+    border: 3px double var(--ink);
+    box-shadow: 0 24px 60px rgba(0,0,0,0.7);
+    padding: 18px 22px 22px;
+  }
+  .win-kicker {
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--spot);
+    margin: 0 0 5px;
+  }
+  .win-head {
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-3);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    margin: 0 0 10px;
+    padding-bottom: 9px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .win-body {
+    font-size: var(--t-1);
+    line-height: 1.72;
+    margin: 0 0 16px;
+    max-width: 62ch;
+  }
+  .win-close {
+    font-family: 'Fira Sans Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    background: var(--ink);
+    border: 1px solid var(--ink);
+    color: var(--news);
+    padding: 6px 15px;
+    cursor: pointer;
+  }
+  .win-close:hover { background: transparent; color: var(--ink); }
+  .win-close:focus-visible { outline: 2px solid var(--spot); outline-offset: 2px; }
+</style>
+
+<div class="stand">
+  <div class="paper">
+
+    <header class="nameplate">
+      <h1>The Hollywood Ledger</h1>
+      <p class="motto">The Daily Paper of the Motion Picture Trade</p>
+      <div class="dateline">
+        <span>Vol. LIV &mdash; No. 187</span>
+        <span>Los Angeles &middot; Monday, 14 September 1987</span>
+        <span>Seventy-Five Cents</span>
+      </div>
+    </header>
+
+    <div class="page">
+
+      <main class="story">
+        <p class="kicker">Production &middot; Meridian</p>
+        <h2 class="headline">Meridian Sets &lsquo;Thunder County&rsquo; For November Start</h2>
+        <p class="deck">Rourke to helm £20.2 million actioner; Vance toplines, but the
+          second lead is still open with cameras nine weeks out.</p>
+        <p class="byline">By the Production Desk</p>
+
+        <div class="lede">
+          <p>Meridian Pictures has dated its fall actioner <i>Thunder County</i> for a
+            2 November start, with a 46-day board and principal photography split
+            between the valley locations and the studio's own stages.</p>
+          <p>Dale Rourke helms from an original by Junius Bell. Rourke took the
+            assignment after a three-way bake-off, pitching a lean, grounded read
+            against the script's more spectacular leanings &mdash; a bold call that
+            widens the picture's range in both directions.</p>
+          <p>Marguerite Vance toplines as the sheriff, playing the part weary rather
+            than heroic. Halvard Nyquist lenses. Estelle Marchetti produces.</p>
+          <p>The second lead remains uncast. Two names are said to have read, one
+            carrying franchise history with Vance, the other testing stronger on tone.
+            No offer has gone out, and the part is called on three strips inside the
+            first four shooting days.</p>
+        </div>
+
+        <p class="chart-head">Production Chart</p>
+        <table class="chart">
+          <caption>Meridian Pictures &middot; MP-0114 &middot; Rev. 3 &mdash; click any line for the desk's full note</caption>
+          <thead>
+            <tr>
+              <th scope="col">Credit</th>
+              <th scope="col">Name</th>
+              <th scope="col" class="num">Terms</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="grp"><th colspan="3" scope="colgroup">Above the Line</th></tr>
+
+            <tr><td colspan="3">
+              <button class="cell" type="button" data-kicker="Above the Line" data-head="Producer — Estelle Marchetti"
+                data-detail="Attached from the studio's own production office. Three pictures with this studio, two profitable. Pushes hard for schedule discipline and will resist a runaway shoot.">
+                <span class="cell-role">Producer</span>
+                <span class="cell-name">Estelle Marchetti</span>
+                <span class="cell-terms">salaried</span>
+              </button>
+            </td></tr>
+
+            <tr><td colspan="3">
+              <button class="cell" type="button" data-kicker="Above the Line" data-head="Director — Dale Rourke"
+                data-detail="Won a three-way bake-off. Pitched a lean, grounded take against the script's spectacle leanings — a bold read that widens execution variance in both directions. Reads the material personally; wants final cut on the second act.">
+                <span class="cell-role">Director</span>
+                <span class="cell-name">Dale Rourke</span>
+                <span class="cell-terms">£2,400,000</span>
+                <span class="cell-note">Bold pitch, grounded take &mdash; range widened both ways.</span>
+              </button>
+            </td></tr>
+
+            <tr><td colspan="3">
+              <button class="cell" type="button" data-kicker="Above the Line" data-head="Screenplay — Junius Bell"
+                data-detail="Original screenplay, third draft delivered. Strong on structure, weaker on dialogue polish — a pass from a second writer would lift the ceiling but costs three weeks.">
+                <span class="cell-role">Screenplay</span>
+                <span class="cell-name">Junius Bell</span>
+                <span class="cell-terms">£450,000</span>
+              </button>
+            </td></tr>
+
+            <tr><td colspan="3">
+              <button class="cell" type="button" data-kicker="Above the Line" data-head="Topline — Marguerite Vance"
+                data-detail="Reads the sheriff as weary rather than heroic. Excellent role fit, and her craft archetype suits the director's grounded pitch. Chemistry with the second lead is untested — no shared history.">
+                <span class="cell-role">Topline</span>
+                <span class="cell-name">Marguerite Vance</span>
+                <span class="cell-terms">£3,100,000</span>
+                <span class="cell-note">Strong role fit; chemistry with second lead untested.</span>
+              </button>
+            </td></tr>
+
+            <tr><td colspan="3">
+              <button class="cell cell--open" type="button" data-kicker="Still Open" data-head="Second Lead — no offer out"
+                data-detail="Two names have read for the part and both are within budget. One carries returning-franchise history with the topline; the other tests better on the tonal axis. Neither has been offered, and the part is called on three strips inside the first four shooting days.">
+                <span class="cell-role">Second Lead</span>
+                <span class="cell-name">still open</span>
+                <span class="cell-terms">&mdash;</span>
+                <span class="cell-note">Two read; no offer out. Called day one, two and four.</span>
+              </button>
+            </td></tr>
+
+            <tr class="grp"><th colspan="3" scope="colgroup">Below the Line</th></tr>
+
+            <tr><td colspan="3">
+              <button class="cell" type="button" data-kicker="Below the Line" data-head="Lenser — Halvard Nyquist"
+                data-detail="Hard directional light, deep blacks, minimal diffusion. Aligns cleanly with the director's grounded pitch — the two have shot together once before, to good effect.">
+                <span class="cell-role">Lenser</span>
+                <span class="cell-name">Halvard Nyquist</span>
+                <span class="cell-terms">£380,000</span>
+              </button>
+            </td></tr>
+
+            <tr><td colspan="3">
+              <button class="cell" type="button" data-kicker="Below the Line" data-head="Production Design — Ruth Okonjo"
+                data-detail="Set ambition currently set to Standard. Her head-of-department recommendation is eleven build days; the plan allows nine, which starves the facet slightly.">
+                <span class="cell-role">Production Design</span>
+                <span class="cell-name">Ruth Okonjo</span>
+                <span class="cell-terms">£295,000</span>
+                <span class="cell-note">Asks eleven build days; the board allows nine.</span>
+              </button>
+            </td></tr>
+
+            <tr><td colspan="3">
+              <button class="cell" type="button" data-kicker="Below the Line" data-head="Cutter — Constance Baye"
+                data-detail="Not required until post. Attached early to lock her availability against a competing production at a rival studio.">
+                <span class="cell-role">Cutter</span>
+                <span class="cell-name">Constance Baye</span>
+                <span class="cell-terms">£210,000</span>
+              </button>
+            </td></tr>
+
+            <tr><td colspan="3">
+              <button class="cell cell--open" type="button" data-kicker="Still Open" data-head="Score — unset"
+                data-detail="Nothing is needed here until post-production, but attaching now costs less than attaching late. Three composers are available at this budget; one is coming off an award-nominated picture and has priced accordingly.">
+                <span class="cell-role">Score</span>
+                <span class="cell-name">unset</span>
+                <span class="cell-terms">&mdash;</span>
+              </button>
+            </td></tr>
+
+            <tr><td colspan="3">
+              <button class="cell" type="button" data-kicker="Below the Line" data-head="Optical &amp; Visual Effects — none engaged"
+                data-detail="This genre's VFX importance is moderate and the practical-effects dial is set high, so the picture can ship without a VFX supervisor — at a quality cost on the spectacle facet. Leaving it unengaged is a legitimate choice, not an oversight.">
+                <span class="cell-role">Optical &amp; VFX</span>
+                <span class="cell-name">none engaged</span>
+                <span class="cell-terms">&mdash;</span>
+                <span class="cell-note">Practicals carry the picture; no supervisor sought.</span>
+              </button>
+            </td></tr>
+
+            <tr><td colspan="3">
+              <button class="cell" type="button" data-kicker="Below the Line" data-head="Casting — Wendell Pryor"
+                data-detail="Widens the candidate pool and sharpens every fit read. Already responsible for surfacing the two names who read for the second lead.">
+                <span class="cell-role">Casting</span>
+                <span class="cell-name">Wendell Pryor</span>
+                <span class="cell-terms">£120,000</span>
+              </button>
+            </td></tr>
+          </tbody>
+        </table>
+
+        <div class="boxed">
+          <h3>The Numbers</h3>
+          <div class="fig"><span>Negative Cost</span><b>£18,400,000</b></div>
+          <div class="fig"><span>Contingency</span><b>£1,840,000</b></div>
+          <div class="fig"><span>Shoot Days / Runtime</span><b>46 &middot; 108 min</b></div>
+          <div class="fig"><span>Total Commitment</span><b>£20,240,000</b></div>
+        </div>
+      </main>
+
+      <aside class="rail">
+        <h2>Weekend Grosses</h2>
+        <p class="sub">Domestic, week ending 13 Sept</p>
+
+        <div class="gross">
+          <span class="gross-rank">1</span>
+          <span><span class="gross-title">Steel Harbour</span><span class="gross-studio">Calloway Bros.</span></span>
+          <span class="gross-take">£8.4m</span>
+        </div>
+        <div class="gross">
+          <span class="gross-rank">2</span>
+          <span><span class="gross-title">The Long Weekend</span><span class="gross-studio">Pemberton</span></span>
+          <span class="gross-take">£5.1m</span>
+        </div>
+        <div class="gross gross--ours">
+          <span class="gross-rank">3</span>
+          <span><span class="gross-title">Salt Flats</span><span class="gross-studio">Meridian &mdash; ours</span></span>
+          <span class="gross-take">£4.7m</span>
+        </div>
+        <div class="gross">
+          <span class="gross-rank">4</span>
+          <span><span class="gross-title">Nine Lives Later</span><span class="gross-studio">Ardent</span></span>
+          <span class="gross-take">£3.2m</span>
+        </div>
+        <div class="gross">
+          <span class="gross-rank">5</span>
+          <span><span class="gross-title">Cold Reading</span><span class="gross-studio">Pemberton</span></span>
+          <span class="gross-take">£2.6m</span>
+        </div>
+
+        <h2 style="margin-top:22px">Also Shooting</h2>
+        <div class="inprod"><b>The Gantry</b><span>Calloway Bros. &middot; Day 19 of 60</span></div>
+        <div class="inprod"><b>Marguerite&rsquo;s War</b><span>Ardent &middot; Wraps 30 Sept</span></div>
+        <div class="inprod"><b>Untitled Pemberton Pic</b><span>Pemberton &middot; Starts 12 Oct</span></div>
+        <div class="inprod"><b>Thunder County</b><span>Meridian &middot; Starts 2 Nov</span></div>
+
+        <h2 style="margin-top:22px">On the Desk</h2>
+        <div class="inprod"><b>Greenlight pending</b><span>One part open &middot; build short by two days &middot; the picture can go as it stands</span></div>
+      </aside>
+    </div>
+
+    <div class="colophon">
+      <span>The Hollywood Ledger &middot; Established 1933</span>
+      <span>Page One</span>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" data-open="false" role="dialog" aria-modal="true" aria-labelledby="win-head">
+  <div class="win">
+    <p class="win-kicker" id="win-kicker">Note</p>
+    <h3 class="win-head" id="win-head">Detail</h3>
+    <p class="win-body" id="win-body"></p>
+    <button class="win-close" type="button" id="win-close">Close</button>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var overlay = document.getElementById('overlay');
+    var kickerEl = document.getElementById('win-kicker');
+    var headEl = document.getElementById('win-head');
+    var bodyEl = document.getElementById('win-body');
+    var closeBtn = document.getElementById('win-close');
+    var lastFocused = null;
+
+    function open(btn) {
+      lastFocused = btn;
+      kickerEl.textContent = btn.getAttribute('data-kicker');
+      headEl.textContent = btn.getAttribute('data-head');
+      bodyEl.textContent = btn.getAttribute('data-detail');
+      overlay.setAttribute('data-open', 'true');
+      closeBtn.focus();
+    }
+
+    function close() {
+      overlay.setAttribute('data-open', 'false');
+      if (lastFocused) lastFocused.focus();
+    }
+
+    Array.prototype.forEach.call(document.querySelectorAll('.cell'), function (btn) {
+      btn.addEventListener('click', function () { open(btn); });
+    });
+    closeBtn.addEventListener('click', close);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+  })();
+</script>
