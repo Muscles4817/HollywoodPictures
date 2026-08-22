@@ -211,9 +211,82 @@ animating hands.
 
 ## 8. Package assembly vs. temporal phases [PROPOSED]
 
-See the discussion in §11 Open Questions. Short version: the game's structure is not
-"wizard vs. one sheet" — it is **assembly** (which wants to be one sheet) versus
-**execution** (which is a chronology and must stay sequential).
+The question "should the wizard become one sheet?" is the wrong question. The game
+already contains two structurally different things wearing the same UI clothing.
+
+### 8.1 Assembly has no inherent order
+
+Pre-greenlight — script, title, genre, the ten `ProductionRole` slots, producers,
+budget, schedule, financing — has **no causal ordering**. A player might cast the
+lead before attaching a director, or lock the budget last. Order is the player's
+business, not the game's.
+
+This is already acknowledged in the code. `ProjectWorkspaceSection` is documented in
+`src/types/` as "freely navigable via `OPEN_PROJECT_WORKSPACE_SECTION` — not a fixed
+forward sequence like `WizardStep`." The Producer Workspace redesign did the hard
+half of this work already.
+
+What remains is that those five sections are still presented as **tabs**
+(`ProjectWorkspace.tsx` wraps a `Nav`), and tabs still violate §4's principles 1 and
+2: the player cannot see every slot at once, so they can neither read the shape of
+the decision nor see where the holes are.
+
+**Assembly should become one sheet.**
+
+### 8.2 Execution is a chronology, not a form
+
+`WizardStep = 'production' | 'post-production' | 'marketing' | 'results'` is not a
+sequence of form steps — it is time passing. A film cannot be marketed before it is
+shot. That is causality, and no amount of layout flattens it.
+
+Hollywood Pictures 2 agrees: its one-sheet carries *Dreharbeiten* (shoot start, shoot
+days, end date) as a **plan** — a set of dates on the assembly sheet — while the
+shoot itself happened elsewhere. HP2's one-sheet is the *package*, not the film's
+whole life.
+
+**Execution stays sequential.**
+
+### 8.3 Complexity is depth, not breadth
+
+The worry that this game is "too complex for one sheet" does not survive counting.
+
+- HP2's sheet: title, genre, epoch, 11 attribute sliders, cast slots, director,
+  co-producer, supporting actors, stunt team, FX team, music, camera, make-up, three
+  shoot dates. **20+ slots.**
+- This game: script, title/genre/tone, ten production roles, producers, budget tier,
+  schedule, financing. **16–18 slots.**
+
+Fewer slots, not more. The difference is **depth per slot**: HP2's director slot is
+"pick a name from a list"; this game's is a bake-off with pitches, a personal
+reaction to the script, a fit read, a confidence-capped performance projection and a
+negotiation.
+
+### 8.4 The resolution [PROPOSED]
+
+> **The sheet is the map. The drawer is the depth.**
+
+One sheet shows every slot and its state — empty, filled, who occupies it, what it
+cost. Clicking a slot opens a drawer over the sheet for the deep decision. Closing it
+returns to the sheet, one line richer.
+
+**The drawers already exist.** `CastingDrawer.tsx` (1,156 lines) and
+`RoleHiringDrawer.tsx` (578) are precisely this pattern. The missing piece is the
+sheet behind them, currently a tab bar.
+
+This also converges with the strongest idea from the design conversation — *"a new
+folder is opened for the production sheet and it fills in as you build your cast and
+crew, writing their names in."* That idea **is** the one-sheet: a production sheet on
+studio letterhead, blank ruled lines where a role is unfilled, names appearing as
+they are hired. It is §4's principles 1 and 2, the existing drawers, and the DESK
+register at full strength, all at once.
+
+### 8.5 Known risks
+
+- 16–18 slots on one screen is genuinely dense. That is the genre (the Football
+  Manager squad screen), not a failure — but it only works if §2.3's legibility
+  discipline holds absolutely.
+- It will fight the 640px breakpoint. The sheet needs a **stacked** fallback, not a
+  scaled-down one.
 
 ---
 
@@ -317,3 +390,4 @@ Stated as flatly as `SIMULATION_PHILOSOPHY.md` states its own.
 | 2026-08-22 | Six structural principles inherited from Hollywood Pictures 2. |
 | 2026-08-22 | Cost tiering adopted; Tier 3 rejected by default. |
 | 2026-08-22 | Hollywood Sign and Walk of Fame star ruled out on trademark grounds. |
+| 2026-08-22 | Assembly/execution split (§8): assembly becomes one sheet, execution stays a chronology. |
