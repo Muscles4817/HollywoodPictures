@@ -39,7 +39,7 @@ Rules of thumb practitioners use:
 - **The bump is multiplicative on what exists.** A film nobody has heard of
   gets a smaller absolute lift than a film with existing awareness, which is
   why campaigns and P&A are run together and not sequentially
-  (`09-marketing-and-distribution.md` §6.2).
+  (`09-marketing-and-distribution.md` §7.2).
 - The modern ceremony date (early March, sometimes late February) and the
   compressed theatrical window have **shrunk the post-win bump** substantially
   versus the 1990s, when a March win could add tens of millions to a film still
@@ -332,7 +332,7 @@ Consequences that fall out of the calendar:
 
 - **Prestige films release in Q4** so they are fresh in voters' minds, and
   platform-expand through the season on nomination momentum
-  (`09-marketing-and-distribution.md` §6.2).
+  (`09-marketing-and-distribution.md` §7.2).
 - **December is the crush.** Every contender is screening, every voter is
   invited to everything, and the marginal screening is worth much less than the
   same screening in October. Well-run campaigns front-load.

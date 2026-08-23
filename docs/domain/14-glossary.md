@@ -87,7 +87,7 @@ catering. `05` §15
 
 **Dailies / rushes** — The previous day's footage, viewed same-day. `06` §9
 
-**Day-and-date** — Theatrical and home release simultaneously. `09` §6.2
+**Day-and-date** — Theatrical and home release simultaneously. `09` §7.2
 
 **Day out of days (DOOD)** — The grid of which cast work which days. `04` §3.2
 
@@ -131,7 +131,7 @@ catering. `05` §15
 
 **Four-quadrant** — A film appealing to all four demographic quadrants. `09` §5
 
-**Four-wall** — Renting a screen outright and keeping the gross. `09` §6.2
+**Four-wall** — Renting a screen outright and keeping the gross. `09` §7.2
 
 **Fringes** — Payroll taxes and union benefits loaded onto labour, 20–35%.
 `03` §9
@@ -164,7 +164,7 @@ catering. `05` §15
 **Hold** — (1) Paid non-working day for an actor `04` §3.2;
 (2) Reserved dates on a talent's calendar `03` §2.
 
-**Holdover** — Retaining a film on screens for further weeks. `09` §6.3
+**Holdover** — Retaining a film on screens for further weeks. `09` §7.3
 
 ## I
 
@@ -257,7 +257,7 @@ positive. `11` §2.1
 
 **Pickups** — Small missing shots gathered after the main shoot. `06` §10
 
-**Platform release** — Opening small and expanding on strength. `09` §6.2
+**Platform release** — Opening small and expanding on strength. `09` §7.2
 
 **Postvis** — Temporary VFX cut into the edit for evaluation. `08` §1.2
 
@@ -361,6 +361,6 @@ category. `04` §8
 
 **Walla** — Crowd background voices, recorded as group ADR. `07` §3
 
-**Window** — The exclusive period for one distribution channel. `09` §6.4
+**Window** — The exclusive period for one distribution channel. `09` §7.4
 
 **Wrap** — The end of a shooting day, or of the shoot. `06` §12
