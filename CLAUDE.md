@@ -63,6 +63,15 @@ BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/buzzCalibration.diagnostic.tes
 BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeVariance.diagnostic.test.ts --disable-console-intercept      # §4 endogenous outcome variance
 ```
 
+Observational (not an assertion suite) — dumps two simulated in-game years of
+the theatrical market as JSON, the source data behind `docs/BOX_OFFICE_BRIEFING.md`:
+
+```bash
+BOX_OFFICE_TRACE=1 npx vitest run src/engine/boxOfficeBriefingTrace.diagnostic.test.ts \
+  --disable-console-intercept 2>&1 \
+  | sed -n '/BEGIN_TRACE_JSON/,/END_TRACE_JSON/p' | sed '1d;$d' > trace.json
+```
+
 ## Conventions worth keeping
 
 - `engine/` functions are pure (plain data in, plain data out) — no React, no
