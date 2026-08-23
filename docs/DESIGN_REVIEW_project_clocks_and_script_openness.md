@@ -483,7 +483,12 @@ test is waiting on, not an equal option among the rest:
   unresolved third act, unless availability or locations force shooting out of
   narrative order.
 - Dailies and production discovery, with deliberately imperfect findings.
-- Emergency writers; pickups and limited reshoots.
+- Emergency writers; pickups and limited reshoots. The cost model for these is
+  already grounded - see `docs/REFERENCE_post_production_economics.md`, which
+  documents the real-world economics and notes that a recut's price is set by how
+  much finished downstream work it invalidates. That is section 3.6's integration
+  debt in another department, and it is the closest thing to a worked example of
+  the principle the codebase currently has.
 
 ## 6. Long-term north star
 

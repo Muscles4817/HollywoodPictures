@@ -6,6 +6,10 @@ state/reducer in `src/state/`, UI in `src/components/`. See `README.md` and
 `docs/DESIGN.md` for the full picture, and `docs/SIMULATION_PHILOSOPHY.md` for
 the design principles the simulation is being grown toward.
 
+`docs/REFERENCE_*.md` files are domain references rather than design documents -
+how a corner of the real industry actually works, written down so the simulation
+can be checked against it instead of against intuition.
+
 ## Product stage: PRE-LAUNCH — save compatibility is out of scope
 
 This game is **pre-launch**. There is a single playtester who restarts for each
