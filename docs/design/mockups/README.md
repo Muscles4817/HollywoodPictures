@@ -12,12 +12,39 @@ link.
 |---|---|---|---|
 | 01 | **Paper document.** Warm bond stock under a lamp on a dark desk. Printed form / typed content split (Archivo + Courier Prime). Above-the-line / below-the-line columns. Drawer slides up. | `take-01-production-sheet.html` | https://claude.ai/code/artifact/46ef77f7-9ce4-43e4-b525-ceb3c3e4983b |
 | 02 | **Studio terminal.** Amber-phosphor CRT, full-bleed, F-key rail, scanlines. Marquee neon (cyan/magenta) used strictly as slot state coding. IBM Plex Mono + Plex Sans Condensed. TUI overlay window. | `take-02-studio-terminal.html` | https://claude.ai/code/artifact/410cf7cb-fb65-4f12-987b-2eb43bd85a88 |
+| **09** | **THE CHASSIS.** The *frame*, not the screen. Time as the spine (clock, transport, and an attention queue where a time-critical item physically guards Play); studio destinations and the film slate as two separate registers; a working command palette on Ctrl-K. Take 08's tokens, unchanged. | `take-09-chassis.html` | https://claude.ai/code/artifact/5c091ba3-7591-4ed2-b2e9-1e680bb7dbcd |
 | **08** | **THE HYBRID.** Take 07's system carrying the best move from each earlier take: 01's printed-form/typed-content type split and warm palette, 02's colour-coded state and edge nav, 03's "what does this block", 04's voice rationed to one line, 05's deadline on an absence, and 06 as a **toggleable lens** rather than its own screen. Anybody + Schibsted Grotesk + Courier Prime. | `take-08-hybrid.html` | https://claude.ai/code/artifact/d97b8a4e-1f24-47dd-b904-7c41b6f2d65c |
 | 07 | **Systematic (the control).** No metaphor at all — the era carried by typeface, palette, density and rule weight rather than by imitating an object. Anybody + Schibsted Grotesk. KPI row, validated readiness meter, state pills, persistent rail, side panels. The only take with light **and** dark themes. | `take-07-systematic.html` | https://claude.ai/code/artifact/3be4c2b1-580c-49d0-9dc7-44bd7ad564c6 |
 | 06 | **Packaging board.** The package as a *relationship web*: index cards pinned to cork, joined by thread — green for fit or proven history, red for friction, dashed blue for untested. Chivo + Special Elite. Hovering a card isolates its threads; a tension report reads the web in words. | `take-06-packaging-board.html` | https://claude.ai/code/artifact/3d0b845f-60b2-475a-acf5-0e6d5ddb4c06 |
 | 05 | **One-sheet proof.** The package as the film's own poster billing block, on a marked-up advertising proof: black teaser artwork on light mount board, chrome title, red hand-written proof notes in the margin. Big Shoulders Display + Saira Extra Condensed + Caveat. The only take where DESK and SPECTACLE occupy one object. | `take-05-one-sheet-proof.html` | https://claude.ai/code/artifact/5845b912-c3ed-4693-93a2-43c05e76e766 |
 | 04 | **Trade paper.** A 1987 front page: Bodoni nameplate, spot red, justified two-column newsprint with a drop cap, and the production record carried as the paper's own *production chart*. Bodoni Moda + Fira Sans Condensed + Libre Baskerville. Gives the game a narrating voice. | `take-04-trade-paper.html` | https://claude.ai/code/artifact/1988435c-555c-4ce2-a678-df5f13584749 |
 | 03 | **Strip board.** The real production-scheduling artifact: steel frame, vertical card strips in the industry colour convention, numbered cast key, black day breaks. Barlow Condensed + Bitter. Adds the schedule to the record, so an uncast role visibly blocks strips. | `take-03-strip-board.html` | https://claude.ai/code/artifact/18fd30f6-7430-41cc-9323-b0c10855551e |
+
+## The chassis (take 09)
+
+Takes 01-08 all answered "what does *a screen* look like". 09 answers the prior
+question: **what frame do all fourteen screens sit in?**
+
+A page list handles only one of the four things this game's navigation must hold:
+
+| Needs a home | In the code | A left page-list gives it |
+|---|---|---|
+| Places | `Screen` — 14 values | ✅ the list |
+| Project contexts | `projects: Project[]` | ✗ flattened to one link |
+| Time | `TICK_SPEED_MULTIPLIERS`, `paused`, `computeTicking` | ✗ nowhere |
+| Attention | `timeCriticalUnreadBidCount()` | ✗ nowhere |
+
+09's answer:
+
+- **Time is the spine.** The clock, transport and speed are permanent and
+  prominent, and the attention queue lives beside them. Critically, a
+  time-critical item *guards Play* — this is `shouldConfirmResume` made visible
+  rather than buried in a modal.
+- **Two axes.** Studio destinations are one register; the films in flight are
+  another, each showing the one fact that matters about it. A project is a
+  **context**, not a peer of "Dashboard". The slate hides on non-project screens.
+- **A command palette** (Ctrl-K), because 1,487 talents is past the point where
+  any menu reaches most of the game.
 
 ## The synthesis (take 08)
 
@@ -108,3 +135,4 @@ individual moves worth keeping._
 | 06 | | |
 | 07 | | |
 | 08 | | |
+| 09 | | |

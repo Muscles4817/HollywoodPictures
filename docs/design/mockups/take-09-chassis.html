@@ -1,0 +1,618 @@
+<title>Meridian Studio Chassis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anybody:wght@700;800&family=Schibsted+Grotesk:wght@400;500;600;700&family=Courier+Prime:wght@400;700&display=swap">
+
+<style>
+  /* CHASSIS — the frame, not the screen.
+     A. Time is the spine: the clock, the transport and the attention queue
+        are permanent, and a time-critical item physically guards Play.
+     B. Two axes: studio destinations are one register, the films in flight
+        are another. A project is a context, not a peer of "Dashboard".
+     C. A command palette over the top, because 1,487 talents is past the
+        point where any menu reaches most of the game.
+     Tokens are take 08's, unchanged — this is the same design system.    */
+  :root {
+    --bg: #EFEDE7; --surface: #F7F5F0; --surface-2: #E5E2DA;
+    --ink: #191713; --ink-2: #57534A; --ink-3: #8A8478;
+    --line: #D6D2C7; --line-hard: #191713;
+    --accent: #1F5FD0; --open: #C2185B; --warn: #9A6A12; --good: #2E7D4F;
+    --spine: #211F1A; --spine-ink: #EDE9DF; --spine-ink-2: #A49C8B; --spine-line: #3A3630;
+    --t-0: .66rem; --t-1: .78rem; --t-2: .875rem; --t-3: 1rem; --t-4: 1.7rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16151A; --surface: #1D1C22; --surface-2: #26252C;
+      --ink: #EDEAE2; --ink-2: #A7A296; --ink-3: #78736A;
+      --line: #33313A; --line-hard: #55525C;
+      --accent: #6BA6FF; --open: #FF5FA2; --warn: #E0A93D; --good: #5FD08A;
+      --spine: #0E0D11; --spine-ink: #EDEAE2; --spine-ink-2: #8B8578; --spine-line: #2A2830;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16151A; --surface: #1D1C22; --surface-2: #26252C;
+    --ink: #EDEAE2; --ink-2: #A7A296; --ink-3: #78736A;
+    --line: #33313A; --line-hard: #55525C;
+    --accent: #6BA6FF; --open: #FF5FA2; --warn: #E0A93D; --good: #5FD08A;
+    --spine: #0E0D11; --spine-ink: #EDEAE2; --spine-ink-2: #8B8578; --spine-line: #2A2830;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: 'Schibsted Grotesk', 'Helvetica Neue', Arial, sans-serif;
+    font-size: var(--t-2); -webkit-font-smoothing: antialiased;
+  }
+  .typed { font-family: 'Courier Prime', 'Courier New', monospace; font-weight: 700; letter-spacing: -.01em; }
+
+  /* ============ A. THE TIME SPINE ============ */
+  .spine {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--spine); color: var(--spine-ink);
+    border-bottom: 1px solid var(--spine-line);
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    padding: 8px 14px;
+  }
+  .spine-brand {
+    font-family: 'Anybody', 'Arial Narrow', sans-serif; font-weight: 800;
+    font-size: var(--t-1); letter-spacing: .22em; text-transform: uppercase; margin: 0;
+  }
+  .clock {
+    display: flex; align-items: baseline; gap: 10px;
+    padding-left: 16px; border-left: 1px solid var(--spine-line);
+  }
+  .clock-date { font-family: 'Courier Prime', monospace; font-weight: 700; font-size: var(--t-3); letter-spacing: .02em; }
+  .clock-note { font-size: var(--t-0); color: var(--spine-ink-2); letter-spacing: .12em; text-transform: uppercase; }
+
+  .transport { display: flex; gap: 3px; align-items: center; }
+  .tbtn {
+    background: none; border: 1px solid var(--spine-line); color: var(--spine-ink-2);
+    font: inherit; font-size: var(--t-1); font-weight: 700;
+    min-width: 30px; height: 26px; padding: 0 8px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .tbtn:hover { color: var(--spine-ink); border-color: var(--spine-ink-2); }
+  .tbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .tbtn[aria-pressed="true"] { background: var(--spine-ink); color: var(--spine); border-color: var(--spine-ink); }
+  .tbtn--guarded { border-color: var(--open); color: var(--open); }
+
+  .spine-cash { margin-left: auto; font-size: var(--t-1); color: var(--spine-ink-2); letter-spacing: .1em; text-transform: uppercase; }
+  .spine-cash b { color: var(--spine-ink); font-family: 'Courier Prime', monospace; font-variant-numeric: tabular-nums; }
+
+  .palette-btn {
+    background: none; border: 1px solid var(--spine-line); color: var(--spine-ink-2);
+    font: inherit; font-size: var(--t-1); padding: 4px 10px; cursor: pointer;
+    display: flex; align-items: center; gap: 9px;
+  }
+  .palette-btn:hover { color: var(--spine-ink); border-color: var(--spine-ink-2); }
+  .palette-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .palette-btn kbd {
+    font-family: 'Courier Prime', monospace; font-size: var(--t-0);
+    border: 1px solid var(--spine-line); padding: 1px 5px; color: var(--spine-ink-2);
+  }
+
+  /* The attention queue — the part a page list has nowhere to put. */
+  .attn-wrap { position: relative; }
+  .attn {
+    background: none; border: 1px solid var(--open); color: var(--open);
+    font: inherit; font-size: var(--t-0); font-weight: 700;
+    letter-spacing: .14em; text-transform: uppercase;
+    padding: 5px 11px; cursor: pointer; display: flex; align-items: center; gap: 7px;
+  }
+  .attn:hover { background: var(--open); color: var(--spine); }
+  .attn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .attn-pop {
+    position: absolute; right: 0; top: calc(100% + 7px); width: 340px;
+    background: var(--surface); color: var(--ink);
+    border: 1px solid var(--line-hard); box-shadow: 0 14px 40px rgba(0,0,0,.4);
+    padding: 12px 14px 14px; display: none;
+  }
+  .attn-pop[data-open="true"] { display: block; }
+  .attn-pop h3 {
+    font-size: var(--t-0); font-weight: 700; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--ink-3); margin: 0 0 9px; padding-bottom: 7px; border-bottom: 1px solid var(--line);
+  }
+  .attn-item {
+    display: block; width: 100%; text-align: left; background: none;
+    border: 0; border-left: 3px solid var(--warn);
+    color: var(--ink); font: inherit; padding: 7px 0 7px 10px;
+    margin-bottom: 8px; cursor: pointer;
+  }
+  .attn-item:hover { background: var(--surface-2); }
+  .attn-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .attn-item--critical { border-left-color: var(--open); }
+  .attn-what { display: block; font-size: var(--t-1); font-weight: 600; }
+  .attn-why { display: block; font-size: var(--t-0); color: var(--ink-3); margin-top: 2px; line-height: 1.45; }
+  .attn-item--critical .attn-why { color: var(--open); }
+
+  .guard {
+    display: none; align-items: flex-start; gap: 9px;
+    background: var(--surface); color: var(--ink);
+    border-top: 2px solid var(--open); padding: 9px 14px;
+    font-size: var(--t-1); line-height: 1.5;
+  }
+  .guard[data-open="true"] { display: flex; }
+  .guard b { color: var(--open); }
+  .guard button {
+    margin-left: auto; flex-shrink: 0;
+    font: inherit; font-size: var(--t-0); font-weight: 700;
+    letter-spacing: .14em; text-transform: uppercase;
+    background: none; border: 1px solid var(--line-hard); color: var(--ink);
+    padding: 5px 11px; cursor: pointer;
+  }
+  .guard button:hover { background: var(--ink); color: var(--bg); }
+
+  /* ============ B. TWO AXES ============ */
+  .dests {
+    display: flex; gap: 0; flex-wrap: wrap;
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 0 10px;
+  }
+  .dest {
+    background: none; border: 0; border-bottom: 3px solid transparent;
+    color: var(--ink-3); font: inherit; font-size: var(--t-1); font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase;
+    padding: 9px 13px; cursor: pointer;
+  }
+  .dest:hover { color: var(--ink); }
+  .dest:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .dest[aria-current="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+
+  .slate {
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+    padding: 10px 14px;
+  }
+  .slate-label {
+    font-size: var(--t-0); font-weight: 700; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--ink-3); align-self: center; margin-right: 4px;
+  }
+  .proj {
+    background: var(--surface); border: 1px solid var(--line);
+    border-top: 3px solid var(--line);
+    color: var(--ink); font: inherit; text-align: left;
+    padding: 7px 12px 8px; cursor: pointer; min-width: 172px;
+  }
+  .proj:hover { background: var(--surface-2); }
+  .proj:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .proj[aria-current="true"] { border-color: var(--line-hard); border-top-color: var(--accent); background: var(--surface-2); }
+  .proj-stage {
+    display: block; font-size: var(--t-0); font-weight: 700;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .proj-title { display: block; font-size: var(--t-1); margin: 2px 0 3px; }
+  .proj-state { display: block; font-size: var(--t-0); color: var(--ink-3); }
+  .proj-state b { color: var(--open); font-weight: 700; }
+  .proj-state i { color: var(--good); font-style: normal; font-weight: 700; }
+  .proj--add {
+    border-style: dashed; color: var(--ink-3); min-width: 0;
+    display: flex; align-items: center; font-size: var(--t-1);
+  }
+
+  /* ============ CONTENT ============ */
+  .main { padding: 20px 22px 44px; }
+  .prj { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap;
+         border-bottom: 2px solid var(--line-hard); padding-bottom: 12px; }
+  .prj-eyebrow { font-size: var(--t-0); font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 4px; }
+  .prj h2 { font-family: 'Anybody', 'Arial Narrow', sans-serif; font-weight: 800; font-size: var(--t-4);
+            text-transform: uppercase; margin: 0; line-height: 1; text-wrap: balance; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { font-size: var(--t-0); font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+          border: 1px solid var(--line); color: var(--ink-2); padding: 4px 9px; }
+
+  .read { border-left: 3px solid var(--accent); padding: 9px 0 9px 13px; margin-top: 14px;
+          font-size: var(--t-3); line-height: 1.55; color: var(--ink-2); max-width: 84ch; }
+  .read b { color: var(--ink); font-weight: 600; }
+  .read-by { display: block; font-size: var(--t-0); font-weight: 700; letter-spacing: .2em;
+             text-transform: uppercase; color: var(--ink-3); margin-top: 6px; }
+
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+          gap: 1px; background: var(--line); border: 1px solid var(--line); margin-top: 16px; }
+  .kpi { background: var(--surface); padding: 12px 14px 13px; }
+  .kpi-label { display: block; font-size: var(--t-0); font-weight: 700; letter-spacing: .16em;
+               text-transform: uppercase; color: var(--ink-3); margin-bottom: 5px; }
+  .kpi-value { display: block; font-family: 'Anybody', sans-serif; font-weight: 700;
+               font-size: 1.4rem; line-height: 1; font-variant-numeric: tabular-nums; }
+  .kpi-sub { display: block; font-size: var(--t-0); color: var(--ink-3); margin-top: 5px; }
+  .kpi--open .kpi-value { color: var(--open); }
+
+  .sect { display: flex; align-items: center; gap: 10px; font-size: var(--t-0); font-weight: 700;
+          letter-spacing: .22em; text-transform: uppercase; color: var(--ink-3); margin: 22px 0 2px; }
+  .sect::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .row { display: grid; grid-template-columns: 168px 1fr 100px 104px; align-items: baseline; gap: 12px;
+         width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line);
+         border-left: 3px solid transparent; color: var(--ink); font: inherit; text-align: left;
+         padding: 8px 8px 8px 11px; }
+  .row--open { border-left-color: var(--open); }
+  .row-role { font-size: var(--t-0); font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-3); }
+  .row--open .row-name { color: var(--open); }
+  .row-fee { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: var(--t-1); }
+  .pill { justify-self: start; font-size: var(--t-0); font-weight: 700; letter-spacing: .12em;
+          text-transform: uppercase; border: 1px solid var(--line); color: var(--ink-2); padding: 2px 7px; }
+  .pill--open { border-color: var(--open); color: var(--open); }
+  .pill--opt { border-style: dashed; color: var(--ink-3); }
+
+  .stub {
+    border: 1px dashed var(--line-hard); background: var(--surface);
+    padding: 26px 22px; margin-top: 20px; max-width: 70ch;
+  }
+  .stub h3 { font-family: 'Anybody', sans-serif; font-weight: 800; font-size: var(--t-4);
+             text-transform: uppercase; margin: 0 0 8px; line-height: 1; }
+  .stub p { font-size: var(--t-2); line-height: 1.6; color: var(--ink-2); margin: 0; }
+
+  /* ============ C. COMMAND PALETTE ============ */
+  .pal-scrim { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.5); display: none; }
+  .pal-scrim[data-open="true"] { display: block; }
+  .pal {
+    position: fixed; z-index: 41; left: 50%; top: 12vh; transform: translateX(-50%);
+    width: min(560px, calc(100% - 32px));
+    background: var(--surface); border: 1px solid var(--line-hard);
+    box-shadow: 0 24px 60px rgba(0,0,0,.55); display: none;
+  }
+  .pal[data-open="true"] { display: block; }
+  .pal input {
+    width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line);
+    color: var(--ink); font-family: 'Courier Prime', monospace; font-size: 1.05rem;
+    padding: 14px 16px; outline: none;
+  }
+  .pal input::placeholder { color: var(--ink-3); }
+  .pal-list { max-height: 340px; overflow-y: auto; padding: 6px 0 8px; }
+  .pal-item {
+    display: grid; grid-template-columns: 88px 1fr; gap: 12px; align-items: baseline;
+    width: 100%; background: none; border: 0; color: var(--ink); font: inherit;
+    text-align: left; padding: 7px 16px; cursor: pointer;
+  }
+  .pal-item:hover, .pal-item:focus-visible { background: var(--surface-2); outline: none; }
+  .pal-kind { font-size: var(--t-0); font-weight: 700; letter-spacing: .16em;
+              text-transform: uppercase; color: var(--ink-3); }
+  .pal-name { font-family: 'Courier Prime', monospace; font-weight: 700; }
+  .pal-meta { font-size: var(--t-0); color: var(--ink-3); }
+  .pal-empty { padding: 18px 16px; color: var(--ink-3); font-size: var(--t-1); }
+
+  @media (max-width: 720px) {
+    .spine { gap: 10px; }
+    .clock { padding-left: 0; border-left: 0; }
+    .spine-cash { margin-left: 0; }
+    .row { grid-template-columns: 1fr auto; }
+    .row-role { grid-column: 1 / -1; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<!-- ============ A. TIME SPINE ============ -->
+<header class="spine">
+  <h1 class="spine-brand">Meridian</h1>
+
+  <div class="clock">
+    <span class="clock-date" id="clock-date">Mon 14 Sept 1987</span>
+    <span class="clock-note" id="clock-note">Paused</span>
+  </div>
+
+  <div class="transport" role="group" aria-label="Time">
+    <button class="tbtn" type="button" id="btn-pause" aria-pressed="true" title="Pause">&#10073;&#10073;</button>
+    <button class="tbtn tbtn--guarded" type="button" id="btn-play" aria-pressed="false" title="Advance time">&#9654;</button>
+    <button class="tbtn" type="button" data-speed="1" aria-pressed="true">1&times;</button>
+    <button class="tbtn" type="button" data-speed="2" aria-pressed="false">2&times;</button>
+    <button class="tbtn" type="button" data-speed="4" aria-pressed="false">4&times;</button>
+  </div>
+
+  <button class="palette-btn" type="button" id="btn-pal">
+    <span>Find anything&hellip;</span><kbd>Ctrl K</kbd>
+  </button>
+
+  <span class="spine-cash">Cash <b id="cash">£41,880,000</b></span>
+
+  <div class="attn-wrap">
+    <button class="attn" type="button" id="btn-attn" aria-expanded="false">
+      <span>&#9679;</span> 2 need you
+    </button>
+    <div class="attn-pop" id="attn-pop" data-open="false">
+      <h3>Waiting on you</h3>
+      <button class="attn-item attn-item--critical" type="button">
+        <span class="attn-what">Outbid on &ldquo;Cold Harbour&rdquo;</span>
+        <span class="attn-why">Pemberton raised to £310,000 &middot; 2 days to respond &mdash; blocks the clock</span>
+      </button>
+      <button class="attn-item" type="button">
+        <span class="attn-what">Thunder County &mdash; supporting role open</span>
+        <span class="attn-why">Offer needed by 30 Sept to hold the teaser date</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="guard" id="guard" data-open="false">
+  <span>
+    <b>The clock is held.</b> You are outbid on &ldquo;Cold Harbour&rdquo; with two days left to
+    respond. Advancing past it forfeits the script.
+  </span>
+  <button type="button" id="guard-ok">Advance anyway</button>
+</div>
+
+<!-- ============ B. TWO AXES ============ -->
+<nav class="dests" aria-label="Studio">
+  <button class="dest" type="button" data-dest="dashboard">Dashboard</button>
+  <button class="dest" type="button" data-dest="projects" aria-current="true">Projects</button>
+  <button class="dest" type="button" data-dest="talent">Talent</button>
+  <button class="dest" type="button" data-dest="calendar">Calendar</button>
+  <button class="dest" type="button" data-dest="market">Market</button>
+  <button class="dest" type="button" data-dest="rivals">Rivals</button>
+  <button class="dest" type="button" data-dest="awards">Awards</button>
+  <button class="dest" type="button" data-dest="stats">Stats</button>
+</nav>
+
+<div class="slate" id="slate">
+  <span class="slate-label">Slate</span>
+
+  <button class="proj" type="button" data-proj="thunder" aria-current="true">
+    <span class="proj-stage">Pre-Greenlight</span>
+    <span class="proj-title typed">Thunder County</span>
+    <span class="proj-state"><b>2 roles open</b> &middot; 49d to shoot</span>
+  </button>
+
+  <button class="proj" type="button" data-proj="harbour">
+    <span class="proj-stage">Development</span>
+    <span class="proj-title typed">Cold Harbour</span>
+    <span class="proj-state"><b>Outbid</b> &middot; 2d to respond</span>
+  </button>
+
+  <button class="proj" type="button" data-proj="salt">
+    <span class="proj-stage">In Release</span>
+    <span class="proj-title typed">Salt Flats</span>
+    <span class="proj-state"><i>Week 3</i> &middot; £4.7m weekend</span>
+  </button>
+
+  <span class="proj proj--add">+ Develop a new picture</span>
+</div>
+
+<!-- ============ CONTENT ============ -->
+<main class="main" id="main"></main>
+
+<!-- ============ C. PALETTE ============ -->
+<div class="pal-scrim" id="pal-scrim" data-open="false"></div>
+<div class="pal" id="pal" data-open="false" role="dialog" aria-modal="true" aria-label="Find anything">
+  <input type="text" id="pal-input" placeholder="Type a name, a picture, a place&hellip;" autocomplete="off">
+  <div class="pal-list" id="pal-list"></div>
+</div>
+
+<script>
+(function () {
+  // ---------- Time ----------
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','June','July','Aug','Sept','Oct','Nov','Dec'];
+  var DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var day = 0;                 // days since 14 Sept 1987
+  var speed = 1, playing = false, timer = null, guardCleared = false;
+
+  var dateEl = document.getElementById('clock-date');
+  var noteEl = document.getElementById('clock-note');
+  var guard = document.getElementById('guard');
+  var btnPlay = document.getElementById('btn-play');
+  var btnPause = document.getElementById('btn-pause');
+
+  function stamp(offset) {
+    var d = new Date(1987, 8, 14 + offset);
+    return DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+  }
+  function paint() {
+    dateEl.textContent = stamp(day);
+    noteEl.textContent = playing ? ('Running ' + speed + '×') : 'Paused';
+    var toShoot = 49 - day;
+    var t = document.getElementById('kpi-toshoot');
+    if (t) t.textContent = (toShoot > 0 ? toShoot + ' days' : 'Shooting');
+    var s = document.querySelector('[data-proj="thunder"] .proj-state');
+    if (s) s.innerHTML = '<b>2 roles open</b> &middot; ' + (toShoot > 0 ? toShoot + 'd to shoot' : 'shooting');
+  }
+  function stop() {
+    playing = false; if (timer) { clearInterval(timer); timer = null; }
+    btnPlay.setAttribute('aria-pressed', 'false');
+    btnPause.setAttribute('aria-pressed', 'true');
+    paint();
+  }
+  function start() {
+    playing = true;
+    btnPlay.setAttribute('aria-pressed', 'true');
+    btnPause.setAttribute('aria-pressed', 'false');
+    if (timer) clearInterval(timer);
+    timer = setInterval(function () { day += 1; paint(); }, 1100 / speed);
+    paint();
+  }
+
+  // The guard: a time-critical item physically holds the clock.
+  btnPlay.addEventListener('click', function () {
+    if (!guardCleared) { guard.setAttribute('data-open', 'true'); return; }
+    start();
+  });
+  btnPause.addEventListener('click', stop);
+  document.getElementById('guard-ok').addEventListener('click', function () {
+    guardCleared = true;
+    guard.setAttribute('data-open', 'false');
+    btnPlay.classList.remove('tbtn--guarded');
+    document.getElementById('btn-attn').innerHTML = '<span>&#9679;</span> 1 needs you';
+    start();
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-speed]'), function (b) {
+    b.addEventListener('click', function () {
+      speed = Number(b.getAttribute('data-speed'));
+      document.querySelectorAll('[data-speed]').forEach(function (o) {
+        o.setAttribute('aria-pressed', String(o === b));
+      });
+      if (playing) start(); else paint();
+    });
+  });
+
+  // ---------- Attention ----------
+  var attn = document.getElementById('btn-attn'), pop = document.getElementById('attn-pop');
+  attn.addEventListener('click', function () {
+    var open = pop.getAttribute('data-open') !== 'true';
+    pop.setAttribute('data-open', String(open));
+    attn.setAttribute('aria-expanded', String(open));
+  });
+
+  // ---------- Content ----------
+  var PROJECTS = {
+    thunder: {
+      eyebrow: 'Project MP-0114 · Pre-Greenlight', title: 'Thunder County',
+      chips: ['Action', 'Medium Scale', 'Wide Audience'],
+      read: 'The package is coherent everywhere except the bottom right. Rourke is the hub — <b>both points of friction run through him</b>, and so does the only proven pairing.',
+      kpis: [['Total Commitment', '£20.24m', 'Budget £18.4m + reserve'],
+             ['To Photography', '49 days', 'First day 02 Nov 87', 'kpi-toshoot'],
+             ['Roles Open', '2', '1 principal, 1 post-only', null, true],
+             ['Greenlight', 'Ready', 'Can proceed as it stands']],
+      roster: [['Director', 'Dale Rourke', 'Set', '£2,400,000'],
+               ['Lead Actor', 'Marguerite Vance', 'Set', '£3,100,000'],
+               ['Supporting Actor', 'Not cast', 'Open', '—'],
+               ['Cinematographer', 'Halvard Nyquist', 'Set', '£380,000'],
+               ['Composer', 'Not attached', 'Open', '—'],
+               ['VFX Supervisor', 'Not required', 'Optional', '—']]
+    },
+    harbour: {
+      eyebrow: 'Project MP-0117 · Development', title: 'Cold Harbour',
+      chips: ['Thriller', 'Small Scale', 'Limited'],
+      read: 'Pemberton wants this script too, and has just raised. <b>Two days to respond</b> — after that the material is theirs and the slot on next autumn’s slate is empty.',
+      kpis: [['Your Bid', '£280,000', 'Placed 11 Sept'],
+             ['Standing Bid', '£310,000', 'Pemberton Pictures', null, true],
+             ['Time Left', '2 days', 'Auction closes 16 Sept', null, true],
+             ['Status', 'Outbid', 'No counter placed']],
+      roster: [['Writer', 'Original spec — unattached', 'Open', '—'],
+               ['Director', 'Not approached', 'Open', '—'],
+               ['Producer', 'Estelle Marchetti', 'Set', 'salaried']]
+    },
+    salt: {
+      eyebrow: 'Project MP-0109 · In Release', title: 'Salt Flats',
+      chips: ['Drama', 'Small Scale', 'Wide'],
+      read: 'Opened narrow and held. <b>Word of mouth is still spreading awareness</b> in week three — it is now reaching people the campaign never touched.',
+      kpis: [['Weekend', '£4.7m', 'Third weekend, 3rd place'],
+             ['Cumulative', '£19.2m', 'Against £11.4m committed'],
+             ['Screens', '1,840', 'Up 6% on last week'],
+             ['Legs', '2.9×', 'Holding well above the band']],
+      roster: [['Director', 'Ines Kovač', 'Set', '£900,000'],
+               ['Lead Actor', 'Dermot Hale', 'Set', '£1,200,000'],
+               ['Composer', 'Louis Abara', 'Set', '£140,000']]
+    }
+  };
+
+  var main = document.getElementById('main');
+
+  function renderProject(key) {
+    var p = PROJECTS[key];
+    var html = '<div class="prj"><div><p class="prj-eyebrow">' + p.eyebrow + '</p><h2>' + p.title + '</h2></div>' +
+      '<div class="chips">' + p.chips.map(function (c) { return '<span class="chip">' + c + '</span>'; }).join('') + '</div></div>' +
+      '<p class="read">' + p.read + '<span class="read-by">The production office</span></p><div class="kpis">' +
+      p.kpis.map(function (k) {
+        return '<div class="kpi' + (k[4] ? ' kpi--open' : '') + '"><span class="kpi-label">' + k[0] +
+          '</span><span class="kpi-value"' + (k[3] ? ' id="' + k[3] + '"' : '') + '>' + k[1] +
+          '</span><span class="kpi-sub">' + k[2] + '</span></div>';
+      }).join('') + '</div><p class="sect">Package</p>' +
+      p.roster.map(function (r) {
+        var open = r[2] === 'Open', opt = r[2] === 'Optional';
+        return '<div class="row' + (open ? ' row--open' : '') + '"><span class="row-role">' + r[0] +
+          '</span><span class="row-name typed">' + r[1] + '</span><span class="pill' +
+          (open ? ' pill--open' : opt ? ' pill--opt' : '') + '">' + r[2] + '</span><span class="row-fee">' + r[3] + '</span></div>';
+      }).join('');
+    main.innerHTML = html;
+    paint();
+  }
+
+  function renderStub(name, blurb) {
+    main.innerHTML = '<div class="stub"><h3>' + name + '</h3><p>' + blurb + '</p></div>';
+  }
+
+  var STUBS = {
+    dashboard: ['Dashboard', 'The studio at a glance. Not built here — the point of this mockup is the frame around it, and that the frame does not change when the screen does.'],
+    talent: ['Talent', '1,487 people, filterable and comparable. This is the screen that makes the command palette necessary rather than decorative — no menu reaches 1,487 entities.'],
+    calendar: ['Release Calendar', 'Your slate and every rival’s, on one grid of weekends. Crowding is visible before you commit to a date.'],
+    market: ['Opportunity Market', 'Scripts and IP at auction. The Cold Harbour bid in the attention queue lives here.'],
+    rivals: ['Rival Studios', 'Four AI studios with their own cash, slates and intentions. They bid against you and open against you.'],
+    awards: ['Awards', 'The season, the nominations, and what your catalogue has won.'],
+    stats: ['Statistics', 'Every picture you have released, and what the market did with it.']
+  };
+
+  Array.prototype.forEach.call(document.querySelectorAll('.dest'), function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.dest').forEach(function (o) {
+        if (o === b) o.setAttribute('aria-current', 'true'); else o.removeAttribute('aria-current');
+      });
+      var d = b.getAttribute('data-dest');
+      // The slate is a project-context register — it belongs to project screens only.
+      document.getElementById('slate').style.display = (d === 'projects') ? '' : 'none';
+      if (d === 'projects') {
+        var cur = document.querySelector('.proj[aria-current="true"]');
+        renderProject(cur ? cur.getAttribute('data-proj') : 'thunder');
+      } else {
+        renderStub(STUBS[d][0], STUBS[d][1]);
+      }
+    });
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('.proj[data-proj]'), function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.proj[data-proj]').forEach(function (o) {
+        if (o === b) o.setAttribute('aria-current', 'true'); else o.removeAttribute('aria-current');
+      });
+      renderProject(b.getAttribute('data-proj'));
+    });
+  });
+
+  // ---------- Command palette ----------
+  var ENTITIES = [
+    { kind: 'Actor', name: 'Marguerite Vance', meta: 'Lead — Thunder County · £3,100,000' },
+    { kind: 'Actor', name: 'Dermot Hale', meta: 'Lead — Salt Flats' },
+    { kind: 'Director', name: 'Dale Rourke', meta: 'Thunder County · bold pitch' },
+    { kind: 'Director', name: 'Ines Kovač', meta: 'Salt Flats · in release' },
+    { kind: 'Crew', name: 'Halvard Nyquist', meta: 'Cinematographer · proven with Rourke' },
+    { kind: 'Crew', name: 'Ruth Okonjo', meta: 'Production Designer · asks 11 build days' },
+    { kind: 'Picture', name: 'Thunder County', meta: 'Pre-greenlight · 2 roles open' },
+    { kind: 'Picture', name: 'Cold Harbour', meta: 'Development · outbid' },
+    { kind: 'Picture', name: 'Salt Flats', meta: 'In release · week 3' },
+    { kind: 'Rival', name: 'Pemberton Pictures', meta: 'Bidding against you on Cold Harbour' },
+    { kind: 'Rival', name: 'Calloway Bros.', meta: 'Steel Harbour — £8.4m weekend' },
+    { kind: 'Place', name: 'Release Calendar', meta: 'Go to' },
+    { kind: 'Place', name: 'Opportunity Market', meta: 'Go to' },
+    { kind: 'Place', name: 'Awards', meta: 'Go to' }
+  ];
+
+  var pal = document.getElementById('pal'), palScrim = document.getElementById('pal-scrim');
+  var palInput = document.getElementById('pal-input'), palList = document.getElementById('pal-list');
+
+  function palRender(q) {
+    var needle = q.trim().toLowerCase();
+    var hits = ENTITIES.filter(function (e) {
+      return !needle || e.name.toLowerCase().indexOf(needle) > -1 || e.kind.toLowerCase().indexOf(needle) > -1;
+    }).slice(0, 8);
+    palList.innerHTML = hits.length
+      ? hits.map(function (e) {
+          return '<button class="pal-item" type="button"><span class="pal-kind">' + e.kind +
+            '</span><span><span class="pal-name">' + e.name + '</span><br><span class="pal-meta">' + e.meta + '</span></span></button>';
+        }).join('')
+      : '<p class="pal-empty">Nothing matches &ldquo;' + q + '&rdquo;.</p>';
+  }
+  function palOpen() {
+    pal.setAttribute('data-open', 'true'); palScrim.setAttribute('data-open', 'true');
+    palInput.value = ''; palRender(''); palInput.focus();
+  }
+  function palClose() {
+    pal.setAttribute('data-open', 'false'); palScrim.setAttribute('data-open', 'false');
+  }
+  document.getElementById('btn-pal').addEventListener('click', palOpen);
+  palScrim.addEventListener('click', palClose);
+  palInput.addEventListener('input', function () { palRender(palInput.value); });
+
+  // A palette hit is navigation: picking a picture switches the slate context.
+  palList.addEventListener('click', function (e) {
+    var item = e.target.closest('.pal-item');
+    if (!item) return;
+    var name = item.querySelector('.pal-name').textContent.trim();
+    var key = { 'Thunder County': 'thunder', 'Cold Harbour': 'harbour', 'Salt Flats': 'salt' }[name];
+    palClose();
+    if (!key) return;
+    document.querySelector('.dest[data-dest="projects"]').click();
+    var target = document.querySelector('.proj[data-proj="' + key + '"]');
+    if (target) target.click();
+  });
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); palOpen(); }
+    if (e.key === 'Escape') { palClose(); pop.setAttribute('data-open', 'false'); attn.setAttribute('aria-expanded', 'false'); }
+  });
+
+  renderProject('thunder');
+})();
+</script>
