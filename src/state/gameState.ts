@@ -1,4 +1,5 @@
 import type {
+  TalentDatabase,
   Asset,
   AwardsState,
   BidNotification,
@@ -495,7 +496,13 @@ export type GameAction =
   | { type: 'VIEW_PREMIERE'; filmId: string }
   | { type: 'RETURN_TO_DASHBOARD' }
   | { type: 'RENAME_STUDIO'; name: string }
-  | { type: 'RESET_SAVE'; startingCash: number; brand?: number; prestige?: number; talentDatabaseId?: string }
+  /**
+   * `talentDatabase` carries the resolved roster rather than an id, because an
+   * id could not name a database the player just imported from a file
+   * (engine/talentDatabaseFile.ts) - the reducer is pure and cannot look one
+   * up. GameState keeps the id afterwards as provenance.
+   */
+  | { type: 'RESET_SAVE'; startingCash: number; brand?: number; prestige?: number; talentDatabase?: TalentDatabase }
   | { type: 'VIEW_RIVAL_STUDIO'; studioName: string }
   // Dashboard's Shooting card -> "view" a specific backgrounded production
   // on the 'production' screen without disturbing the focused one (which is

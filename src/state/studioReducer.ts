@@ -60,7 +60,7 @@ import { acquisitionEvent } from '../engine/screenplay';
 import { collectBidNotifications, markAllBidNotificationsRead, dismissBidNotification } from '../engine/bidNotifications';
 import { openCastingCall, tickCastingCalls } from '../engine/castingCalls';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
-import { talentDatabaseOrDefault } from '../data/talentDatabases';
+import { GENERATED_TALENT_DB } from '../data/talentDatabases';
 import { generateStuntTeamPool, stuntTeamById } from '../engine/stuntTeams';
 import {
   benchCapacity,
@@ -2918,7 +2918,7 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // Opportunities exist yet either - the next calendar-advancing action
       // generates the first batch immediately (nextOpportunityCheckDay: 1
       // is already due at totalDays: 1).
-      const database = talentDatabaseOrDefault(action.talentDatabaseId);
+      const database = action.talentDatabase ?? GENERATED_TALENT_DB;
       const { result, nextSeed } = withRng(randomSeed(), (rng) => ({
         talentPool: generateTalentPool(rng, database),
         rivalStudios: generateRivalStudios(rng),
