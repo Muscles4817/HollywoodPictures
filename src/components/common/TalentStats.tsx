@@ -99,14 +99,18 @@ export function deriveRoleFitBreakdown(
   category: RoleCategory,
   script: Script | null,
   character: ScriptCharacter | null,
-): { title: string; noun: 'fit' | 'tone'; rows: Array<{ label: string; matchScore: number; strength: number }> } | null {
+): { title: string; noun: 'fit' | 'tone'; rows: Array<{ label: string; matchScore: number; strength: number; demandWeight?: number }> } | null {
   if (category === 'actor' && character) {
     const actorCareer = person.careers.actor;
     if (!actorCareer) return null;
     const breakdown = computeCharacterCompatibilityBreakdown(actorCareer.actingStyle, character.traits);
     // strength = the actor's OWN value on the axis (what they're known for), which
     // drives whether the read on this dimension is a known quantity - see gateKnownAxes.
-    return { title: 'Role fit', noun: 'fit', rows: breakdown.map((a) => ({ label: ACTING_STYLE_LABELS[a.axis], matchScore: a.matchScore, strength: a.actorValue })) };
+    return {
+      title: 'Role fit',
+      noun: 'fit',
+      rows: breakdown.map((a) => ({ label: ACTING_STYLE_LABELS[a.axis], matchScore: a.matchScore, strength: a.actorValue, demandWeight: a.demandWeight })),
+    };
   }
   if (script && (category === 'actor' || category === 'director')) {
     const breakdown = computeTalentCompatibilityBreakdown(person, role, script);

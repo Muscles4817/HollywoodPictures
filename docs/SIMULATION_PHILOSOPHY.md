@@ -5,7 +5,9 @@ principles the simulation should follow as it grows. Algorithms, weights, and
 even whole modules will change over time; these principles should outlast them.
 
 It exists because two related failures were diagnosed in the simulation (see
-`docs/DESIGN_REVIEW_ai_studio_awards_analysis.md`):
+`docs/DESIGN_REVIEW_ai_studio_awards_analysis.md`, and
+`docs/DESIGN_REVIEW_reception_model.md` for the later measured account of where
+in the scoring pipeline both of them actually originate):
 
 1. **The finished film is nearly deterministic.** Quality, critic, and audience
    scores are pure functions of the pre-production inputs. Pick a good script,

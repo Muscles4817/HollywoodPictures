@@ -32,6 +32,8 @@ import { CHARACTER_ARCHETYPES, CHARACTER_ARCHETYPE_PROFILES } from '../data/char
 import { SCRIPT_SCALES, SCRIPT_SCALE_PROFILES, type ScriptScaleProfile } from '../data/scale';
 import { drawCoherentName } from './nameGenerator';
 import { generatePremise } from './premiseGenerator';
+import { deriveCommercialProfile, type CommercialInputs, type CommercialProfile } from './commercialProfile';
+import { scriptShapedCast } from './characterDemands';
 import { type RandomFn, clamp, combineWeights, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick } from './random';
 
 // Script ids must be unique across the whole save's lifetime - an Asset, its
@@ -405,25 +407,68 @@ function generateCast(scriptId: string, genre: Genre, storyType: StoryType, requ
 const LEAD_COUNT_WEIGHTS = [1, 1, 1, 1, 1, 2, 2, 2, 3];
 const SUPPORTING_COUNT_WEIGHTS = [1, 2, 2, 3, 3, 3, 4];
 
+// --- Screenplay acquisition cost -------------------------------------------
+//
+// A screenplay's price is what the MARKET will pay for it, and a market pays
+// for upside. So cost is built ceiling-first: what could this concept plausibly
+// earn (engine/commercialProfile.ts), then how well is that concept executed
+// (craft), then how demanding a shoot it implies (complexity).
+//
+// It used to be effort-first - craft average x Production Scale x complexity,
+// with commercial reach never consulted at all - which priced a screenplay by
+// how good it was rather than by what it could return. That inverted the real
+// economics and broke the prestige lane as a strategy: a contained, superbly
+// written, narrow-audience piece was charged a premium for the very quality
+// (small, intimate, critic-facing) that caps its revenue, so it was strictly
+// dominated by a cheaper, broader, worse-written script. The screenplay card
+// said both halves out loud in adjacent lines - "Priced for exceptional craft"
+// over "Commercially: a narrow, dedicated audience" - and the player was
+// correct to decline every time.
+//
+// Now the two lanes are genuinely different bets: a Prestige Intimate piece is
+// the CHEAPEST thing on the market even at the highest craft in the game, and
+// buys awards, Brand and Prestige; a Spectacle Epic is the most expensive and
+// buys box office. Production Scale still reaches cost, but honestly - through
+// its own commercial reach (data/scale.ts:reach feeding accessibility), not
+// through a second, separate "big things cost more" multiplier that
+// double-counted it.
+const BASE_COST = 10_000;
+const CEILING_COST_RANGE = 1_300_000;
+// Convex on purpose (a market bids hardest for the rare wide-open concept), and
+// the single most important number here: it's what puts a masterpiece chamber
+// drama an order of magnitude below a tentpole rather than alongside it.
+const CEILING_COST_EXPONENT = 2.8;
+// accessibility ("how many people is this even for") dominates; hookStrength
+// ("can it be sold in a trailer") is the minority partner. crossoverPotential
+// is deliberately absent - it's upside a buyer can't bank on at acquisition.
+const CEILING_ACCESSIBILITY_SHARE = 0.7;
+// Craft is a premium ON the ceiling, never the ceiling itself: a superb draft
+// of a small idea is still a small idea. Neutral at craft 50.
+const CRAFT_COST_FLOOR = 0.6;
+const CRAFT_COST_SPAN = 0.8;
+const COMPLEXITY_COST_SHARE = 0.3;
+
+/** "How big could this plausibly get" as one 0-100 number - the accessibility/hook blend the acquisition price is built on. */
+export function commercialCeiling(profile: CommercialProfile): number {
+  return profile.accessibility * CEILING_ACCESSIBILITY_SHARE + profile.hookStrength * (1 - CEILING_ACCESSIBILITY_SHARE);
+}
+
+export type ScriptCostInputs = CommercialInputs & Pick<Script, 'dialogue' | 'complexity'>;
+
 /**
- * Cost scales with the average of the script's craft attributes - a
- * well-structured, well-characterized, original, well-written script costs
- * more to acquire - then scales further with how big a production it
- * implies (Production Scale) and how demanding it is to actually shoot
- * (Complexity), so "why is this script expensive" always has a legible
- * answer: either it's exceptionally well-crafted, or it's an ambitious,
- * complex, large-scale concept, or both. Exported so hand-authored
- * reference scripts (data/dev/referenceScripts.ts) can derive a consistent
- * cost from the same formula instead of a guessed number that could drift
- * from it.
+ * What the market charges for this screenplay. Ceiling first (what it could
+ * earn), then craft (how well the concept is executed), then complexity (how
+ * demanding it is to shoot). Exported so hand-authored reference scripts
+ * (data/dev/referenceScripts.ts, data/testScripts.ts) derive a consistent cost
+ * from the same formula instead of a guessed number that could drift from it.
  */
-export function estimateScriptCost(script: Pick<Script, 'originality' | 'structure' | 'dialogue' | 'characters' | 'scale' | 'complexity'>): number {
-  const avgQuality = (script.originality + script.structure + script.dialogue + script.characters) / 4;
-  const baseCost = 50_000;
-  const scaledCost = avgQuality * 6_000; // up to ~600k for a top-tier spec script, before scale/complexity
-  const scaleMultiplier = SCRIPT_SCALE_PROFILES[script.scale].costMultiplier;
-  const complexityMultiplier = 1 + (script.complexity / 100) * 0.3;
-  return Math.round(((baseCost + scaledCost) * scaleMultiplier * complexityMultiplier) / 1000) * 1000;
+export function estimateScriptCost(script: ScriptCostInputs): number {
+  const ceiling = commercialCeiling(deriveCommercialProfile(script)) / 100;
+  const conceptValue = BASE_COST + CEILING_COST_RANGE * Math.pow(ceiling, CEILING_COST_EXPONENT);
+  const avgCraft = (script.originality + script.structure + script.dialogue + script.characters) / 4;
+  const craftMultiplier = CRAFT_COST_FLOOR + (avgCraft / 100) * CRAFT_COST_SPAN;
+  const complexityMultiplier = 1 + (script.complexity / 100) * COMPLEXITY_COST_SHARE;
+  return Math.round((conceptValue * craftMultiplier * complexityMultiplier) / 1000) * 1000;
 }
 
 // --- Writer influence (Phase 2: writer-driven screenplay generation) ------
@@ -620,6 +665,14 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   let requiredSupporting: number;
   let cast: ScriptCharacter[];
   if (returning.length > 0 && returning.some((c) => c.prominence === 'Lead')) {
+    // Inherited verbatim, INCLUDING their demand rows: these came off the source
+    // film's own script (engine/ip.ts:promoteFilmToIp copies script.cast traits),
+    // so they have already been read against a screenplay. Re-running the
+    // script-shaped post-pass over them would apply it twice - and it isn't
+    // idempotent, so a returning role would drift a little further from its
+    // archetype with every sequel until it pinned at the clamp. Leaving them
+    // alone also keeps a sequel's role brief agreeing with the one the IP screen
+    // shows for the same character.
     cast = returning.map((c, i) => ({ ...c, id: `${id}-c${i}` }));
     requiredLeads = cast.filter((c) => c.prominence === 'Lead').length;
     requiredSupporting = cast.filter((c) => c.prominence === 'Supporting').length;
@@ -627,7 +680,15 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
     const castMultiplier = storyProfile.castSizeMultiplier * scaleProfile.castMultiplier;
     requiredLeads = Math.max(1, Math.round(pick(rng, LEAD_COUNT_WEIGHTS) * castMultiplier));
     requiredSupporting = Math.max(0, Math.round(pick(rng, SUPPORTING_COUNT_WEIGHTS) * castMultiplier));
-    cast = generateCast(id, genre, storyType, requiredLeads, requiredSupporting, rng);
+    // Re-read every fresh role's performance demands against the screenplay it's
+    // actually in, rather than leaving it on its character archetype's fixed
+    // baseTraits row (engine/characterDemands.ts). Deliberately rng-free, so a
+    // seeded slate is byte-identical to before this existed apart from the three
+    // modulated demand axes themselves.
+    cast = scriptShapedCast(
+      generateCast(id, genre, storyType, requiredLeads, requiredSupporting, rng),
+      { toneProfile, productionRequirements },
+    );
   }
 
   const audienceWeights = combineWeights(TARGET_AUDIENCES, [
@@ -685,7 +746,10 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
     characters,
     dialogue,
     complexity,
-    cost: estimateScriptCost({ originality, structure, dialogue, characters, scale, complexity }),
+    cost: estimateScriptCost({
+      originality, structure, dialogue, characters, complexity,
+      genre, archetype, storyType, scale, primarySetting, cast,
+    }),
     toneProfile,
     environmentStrategy,
     environmentAmbition,

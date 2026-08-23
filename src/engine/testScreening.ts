@@ -64,7 +64,7 @@ const REVERT_TO_ORIGINAL_CHOICE: EventChoiceTemplate = {
 };
 
 // --- What a recut actually costs -------------------------------------------
-// See docs/REFERENCE_post_production_economics.md for the real-world model this
+// See docs/domain/07-postproduction.md for how post money really behaves; this
 // follows. In short, a re-edit is priced as two things, and neither of them is
 // a share of the shooting budget:
 //

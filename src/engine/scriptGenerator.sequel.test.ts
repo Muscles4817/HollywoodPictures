@@ -39,6 +39,31 @@ describe('generateSequelScript', () => {
     for (const c of sequel.cast) expect(c.id.startsWith(`${sequel.id}-c`)).toBe(true);
   });
 
+  it('inherits a returning role\'s demand row verbatim, rather than re-shaping an already-shaped row', () => {
+    // engine/characterDemands.ts:scriptShapedCast is NOT idempotent - it scales a
+    // demand toward how much of that thing the script contains. IP characters
+    // carry traits copied off the source film's script, which were already shaped
+    // there, so re-shaping them here would compound once per sequel and eventually
+    // pin at the clamp. A returning character's brief must match the one the IP
+    // screen shows for them.
+    const sequel = generateSequelScript(ip(82), 'Sci-Fi', createRng(1));
+    for (const c of sequel.cast) {
+      expect(c.traits.physicalDemand).toBe(traits.physicalDemand);
+      expect(c.traits.comedyDemand).toBe(traits.comedyDemand);
+      expect(c.traits.emotionalDemand).toBe(traits.emotionalDemand);
+    }
+  });
+
+  it('does not drift a returning role further from itself with each successive sequel', () => {
+    const first = generateSequelScript(ip(82, 1), 'Sci-Fi', createRng(1));
+    const asIp = { ...ip(82, 2), characters: ip().characters.map((c, i) => ({ ...c, traits: first.cast[i].traits })) };
+    const second = generateSequelScript(asIp, 'Sci-Fi', createRng(2));
+    for (const [i, c] of second.cast.entries()) {
+      expect(c.traits.physicalDemand).toBe(first.cast[i].traits.physicalDemand);
+      expect(c.traits.emotionalDemand).toBe(first.cast[i].traits.emotionalDemand);
+    }
+  });
+
   it('titles the nth entry "{IP} {n}"', () => {
     expect(generateSequelScript(ip(80, 1), 'Sci-Fi', createRng(2)).title).toBe('Nightfall 2');
     expect(generateSequelScript(ip(80, 2), 'Sci-Fi', createRng(2)).title).toBe('Nightfall 3');

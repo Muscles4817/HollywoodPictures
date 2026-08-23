@@ -9,6 +9,7 @@ import {
   type CheckboxFilterOption,
 } from './common/CheckboxFilterDropdown';
 import { assetAcceptsDevelopmentPass, deriveAssetStatus, type AssetStatus } from '../engine/project';
+import { describeProductionComplexity } from '../engine/scriptPresentation';
 import type { GameAction } from '../state/gameState';
 import type { Asset, Genre, Person } from '../types';
 import './AssetLibrary.css';
@@ -65,11 +66,15 @@ function getWritingScore(script: {
   return average([script.dialogue, script.characters, script.structure]);
 }
 
+// Concept quality only. Complexity is deliberately NOT averaged in here any
+// more - it's how hard the script is to SHOOT, not how good it is, and folding
+// it into a quality star punished contained scripts for being cheap to make
+// (engine/scriptPresentation.ts:describeProductionComplexity). Complexity is
+// still sortable in its own right below.
 function getCreativeScore(script: {
   originality: number;
-  complexity: number;
 }): number {
-  return average([script.originality, script.complexity]);
+  return script.originality;
 }
 
 function scoreToStars(value: number, max = 100): number {
@@ -573,7 +578,7 @@ function AssetCard({
                 <CompactStarRating value={writingScore} />
               </div>
               <div>
-                <span>Creative</span>
+                <span>Concept</span>
                 <CompactStarRating value={creativeScore} />
               </div>
               <div>
@@ -589,6 +594,10 @@ function AssetCard({
                 </strong>
               </div>
             </div>
+
+            <p className="asset-library-card__status-copy">
+              {describeProductionComplexity(asset.script)}
+            </p>
 
             <div className="asset-library-card__cost-row">
               <span>Screenplay cost</span>
@@ -969,7 +978,7 @@ export function AssetLibrary() {
                   <option value="title">Title</option>
                   <option value="cost-desc">Screenplay cost</option>
                   <option value="writing-desc">Writing quality</option>
-                  <option value="creative-desc">Creative quality</option>
+                  <option value="creative-desc">Concept quality</option>
                   <option value="complexity-desc">Complexity</option>
                 </select>
               </label>

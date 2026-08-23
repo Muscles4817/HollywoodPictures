@@ -6,10 +6,11 @@ state/reducer in `src/state/`, UI in `src/components/`. See `README.md` and
 `docs/DESIGN.md` for the full picture, and `docs/SIMULATION_PHILOSOPHY.md` for
 the design principles the simulation is being grown toward.
 
-`docs/REFERENCE_*.md` files are domain references rather than design documents -
-how a corner of the real industry actually works, written down so the simulation
-can be checked against it instead of against intuition.
-
+`docs/domain/` is a separate, standing reference on **how the real film
+industry works** — the pipeline, the crafts, the money, the careers. It
+deliberately says nothing about this game (except `15-game-mapping.md`, which
+maps the two). Read it instead of re-researching filmmaking each session; do
+not put game-design arguments in it.
 ## Product stage: PRE-LAUNCH — save compatibility is out of scope
 
 This game is **pre-launch**. There is a single playtester who restarts for each
@@ -73,6 +74,15 @@ recalibration work lands — that is their purpose). One shared flag:
 BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeDistribution.diagnostic.test.ts --disable-console-intercept  # §2/§3/§5 whole-year distribution & profitability
 BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/buzzCalibration.diagnostic.test.ts --disable-console-intercept        # §6 buzz bands, fixtures, non-purchasability
 BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeVariance.diagnostic.test.ts --disable-console-intercept      # §4 endogenous outcome variance
+```
+
+Observational (not an assertion suite) — dumps two simulated in-game years of
+the theatrical market as JSON, the source data behind `docs/BOX_OFFICE_BRIEFING.md`:
+
+```bash
+BOX_OFFICE_TRACE=1 npx vitest run src/engine/boxOfficeBriefingTrace.diagnostic.test.ts \
+  --disable-console-intercept 2>&1 \
+  | sed -n '/BEGIN_TRACE_JSON/,/END_TRACE_JSON/p' | sed '1d;$d' > trace.json
 ```
 
 ## Conventions worth keeping

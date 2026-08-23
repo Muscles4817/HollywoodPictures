@@ -107,8 +107,8 @@ describe('reshootAvailability', () => {
     expect(reshootAvailability(draft, soon, TODAY, 'major-reshoots')!.available).toBe(false);
   });
 
-  // Buying a principal out (REFERENCE_post_production_economics.md section 5,
-  // option 2). The ceiling is the point: if money always worked, refusal would
+  // Buying a principal out (docs/domain/07-postproduction.md on reshoots).
+  // The ceiling is the point: if money always worked, refusal would
   // collapse into a price and time would be buyable again.
   describe('buying a principal out', () => {
     it('offers a buy-out when the other job is nearly done, and prices it off their fee', () => {

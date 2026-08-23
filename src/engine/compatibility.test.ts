@@ -190,6 +190,33 @@ describe('computeCharacterCompatibility', () => {
     expect(low).toBe(high);
   });
 
+  // The two properties that let the generator's deliberate specialists
+  // (data/talentGeneration.ts rolls 1-2 signature axes high and the rest low)
+  // read as strong casting when they are cast to their strength.
+  it('weights each axis by how much the ROLE demands it, so an unasked axis cannot drag a well-cast actor down', () => {
+    // A comic specialist: brilliant at comedy, deliberately unremarkable elsewhere.
+    const comic: ActingStyle = { characterTransformation: 25, emotionalPerformance: 22, charisma: 80, comedy: 92, physicalPerformance: 30 };
+    const comicRole = traits({ transformationDemand: 15, emotionalDemand: 15, charismaDemand: 70, comedyDemand: 90, physicalDemand: 15 });
+    const dramaticRole = traits({ transformationDemand: 90, emotionalDemand: 88, charismaDemand: 30, comedyDemand: 10, physicalDemand: 20 });
+
+    expect(computeCharacterCompatibility(comic, comicRole)).toBeGreaterThan(95);
+    expect(computeCharacterCompatibility(comic, dramaticRole)).toBeLessThan(60);
+  });
+
+  it('charges only for falling SHORT of a demand - exceeding it is free', () => {
+    const modest: ActingStyle = { characterTransformation: 40, emotionalPerformance: 40, charisma: 40, comedy: 40, physicalPerformance: 40 };
+    const gifted: ActingStyle = { ...modest, comedy: 95 };
+    const role = traits({ transformationDemand: 40, emotionalDemand: 40, charismaDemand: 40, comedyDemand: 40, physicalDemand: 40 });
+    // Both meet the part; the far funnier actor is not penalised for the surplus.
+    expect(computeCharacterCompatibility(gifted, role)).toBe(computeCharacterCompatibility(modest, role));
+  });
+
+  it('scores 100 when the role demands nothing on any shared axis - there is no shortfall to charge for', () => {
+    const acting: ActingStyle = { characterTransformation: 10, emotionalPerformance: 10, charisma: 10, comedy: 10, physicalPerformance: 10 };
+    const undemanding = traits({ transformationDemand: 0, emotionalDemand: 0, charismaDemand: 0, comedyDemand: 0, physicalDemand: 0 });
+    expect(computeCharacterCompatibility(acting, undemanding)).toBe(100);
+  });
+
   it('never leaves [0, 100] even at the most extreme possible mismatch', () => {
     const acting: ActingStyle = { characterTransformation: 1, emotionalPerformance: 1, charisma: 1, comedy: 1, physicalPerformance: 1 };
     const score = computeCharacterCompatibility(acting, traits({
@@ -212,14 +239,33 @@ describe('computeCharacterCompatibilityBreakdown', () => {
     );
   });
 
-  it('matchScore is exactly 100 - gap for each axis, clamped to [0, 100]', () => {
+  it('charges nothing for exceeding what an axis demands - gap is a shortfall, not a distance', () => {
     const acting: ActingStyle = { characterTransformation: 90, emotionalPerformance: 50, charisma: 50, comedy: 50, physicalPerformance: 50 };
     const rows = computeCharacterCompatibilityBreakdown(acting, traits({ transformationDemand: 20 }));
     const row = rows.find((r) => r.axis === 'characterTransformation')!;
     expect(row.actorValue).toBe(90);
     expect(row.characterValue).toBe(20);
+    // Being far MORE transformative than the part asks for is not a casting error.
+    expect(row.gap).toBe(0);
+    expect(row.matchScore).toBe(100);
+  });
+
+  it('gap is the shortfall when the actor falls short of the demand', () => {
+    const acting: ActingStyle = { characterTransformation: 20, emotionalPerformance: 50, charisma: 50, comedy: 50, physicalPerformance: 50 };
+    const rows = computeCharacterCompatibilityBreakdown(acting, traits({ transformationDemand: 90 }));
+    const row = rows.find((r) => r.axis === 'characterTransformation')!;
     expect(row.gap).toBe(70);
     expect(row.matchScore).toBe(30);
+  });
+
+  it('demandWeight is each axis\'s share of the role\'s total demand, summing to 1', () => {
+    const acting: ActingStyle = { characterTransformation: 50, emotionalPerformance: 50, charisma: 50, comedy: 50, physicalPerformance: 50 };
+    const rows = computeCharacterCompatibilityBreakdown(
+      acting,
+      traits({ transformationDemand: 80, emotionalDemand: 20, charismaDemand: 20, comedyDemand: 20, physicalDemand: 20 }),
+    );
+    expect(rows.reduce((sum, r) => sum + r.demandWeight, 0)).toBeCloseTo(1, 6);
+    expect(rows.find((r) => r.axis === 'characterTransformation')!.demandWeight).toBeCloseTo(0.5, 6);
   });
 
   it('a perfect match on an axis scores 100 (5 stars), a maximal mismatch scores 0', () => {
@@ -229,12 +275,12 @@ describe('computeCharacterCompatibilityBreakdown', () => {
     expect(rows.find((r) => r.axis === 'emotionalPerformance')!.matchScore).toBe(1);
   });
 
-  it('averaging every row\'s matchScore reconstructs computeCharacterCompatibility\'s own aggregate exactly', () => {
+  it('the demand-WEIGHTED average of every row\'s matchScore reconstructs computeCharacterCompatibility exactly', () => {
     const acting: ActingStyle = { characterTransformation: 65, emotionalPerformance: 40, charisma: 75, comedy: 30, physicalPerformance: 55 };
     const demands = traits({ transformationDemand: 70, emotionalDemand: 20, charismaDemand: 60, comedyDemand: 90, physicalDemand: 10 });
     const rows = computeCharacterCompatibilityBreakdown(acting, demands);
-    const avgMatchScore = rows.reduce((sum, r) => sum + r.matchScore, 0) / rows.length;
-    expect(avgMatchScore).toBeCloseTo(computeCharacterCompatibility(acting, demands), 6);
+    const weighted = rows.reduce((sum, r) => sum + r.matchScore * r.demandWeight, 0);
+    expect(weighted).toBeCloseTo(computeCharacterCompatibility(acting, demands), 6);
   });
 });
 

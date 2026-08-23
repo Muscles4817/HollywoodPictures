@@ -140,18 +140,37 @@ export const ACTING_STYLE_TO_CHARACTER_TRAIT: Record<keyof ActingStyle, keyof Ch
 };
 
 /**
- * How well an actor's own ActingStyle suits a *specific* Character's trait
- * demands - a direct, unweighted 1-100 comparison across the five
- * dimensions the two vocabularies share, deliberately simpler than
- * computeCompatibility's tone-weighted formula (this is explicitly a
- * first-pass calculation, see the design doc). A high-comedy actor reads as
- * a strong fit for a high-comedyDemand character regardless of what either
- * number says about drama or physicality.
+ * How well an actor's own ActingStyle meets a *specific* Character's trait
+ * demands, 0-100. Two properties, both deliberate and both changes from the
+ * original unweighted symmetric mean-of-gaps:
+ *
+ *  - **Demand-weighted.** Each axis counts in proportion to how much the ROLE
+ *    asks for it. A part written around comedy is a comedy question; how the
+ *    actor rates on physicality is close to irrelevant to whether they can play
+ *    it. Averaging all five equally let axes the role never asks about drag a
+ *    well-cast actor's score down, which is what stopped the generator's
+ *    deliberate specialists (data/talentGeneration.ts rolls 1-2 signature axes
+ *    high and the rest low) from ever reading as strong casting.
+ *  - **Asymmetric.** Only a SHORTFALL costs anything; exceeding what the part
+ *    demands is free. Being funnier than the role needs is not a casting error.
+ *    Whether a broadly comic presence suits a bleak film at all is a
+ *    whole-film tone question, and computeCompatibility above already answers
+ *    it - this function only ever asks "can they meet what the part asks for."
+ *
+ * A role that demands nothing on any of the five shared axes returns 100:
+ * there is no demand to fall short of.
  */
 export function computeCharacterCompatibility(actingStyle: ActingStyle, traits: CharacterTraitProfile): number {
   const axes = Object.keys(ACTING_STYLE_TO_CHARACTER_TRAIT) as Array<keyof ActingStyle>;
-  const totalGap = axes.reduce((sum, axis) => sum + Math.abs(actingStyle[axis] - traits[ACTING_STYLE_TO_CHARACTER_TRAIT[axis]]), 0);
-  return clamp(100 - totalGap / axes.length, 0, 100);
+  let totalDemand = 0;
+  let weightedShortfall = 0;
+  for (const axis of axes) {
+    const demand = traits[ACTING_STYLE_TO_CHARACTER_TRAIT[axis]];
+    totalDemand += demand;
+    weightedShortfall += demand * Math.max(0, demand - actingStyle[axis]);
+  }
+  if (totalDemand <= 0) return 100;
+  return clamp(100 - weightedShortfall / totalDemand, 0, 100);
 }
 
 /** Person-level wrapper - null if this person has no Actor career at all (mirrors computeTalentCompatibility's own null-for-not-applicable convention). */
@@ -165,10 +184,12 @@ export interface CharacterCompatibilityAxis {
   axis: keyof ActingStyle;
   actorValue: number;
   characterValue: number;
-  /** Absolute mismatch between the two, unweighted - same gap computeCharacterCompatibility averages across all five axes. */
+  /** How far the actor falls SHORT of what this axis demands, 0 when they meet or exceed it - the same one-sided quantity computeCharacterCompatibility charges for. */
   gap: number;
   /** 100 - gap, clamped - "how well does the actor's own value on this one axis suit what the character demands," the per-axis reading a casting UI actually wants (Talent Card UX Redesign) rather than two raw numbers side by side. */
   matchScore: number;
+  /** This axis's share of the role's total demand, 0-1 - how much this dimension actually matters for THIS part. A presentation layer should lead with the axes the role actually asks for; an axis at ~0 weight scoring 100 means "the part never asks", not "they are excellent at it". */
+  demandWeight: number;
 }
 
 /**
@@ -184,10 +205,18 @@ export interface CharacterCompatibilityAxis {
  */
 export function computeCharacterCompatibilityBreakdown(actingStyle: ActingStyle, traits: CharacterTraitProfile): CharacterCompatibilityAxis[] {
   const axes = Object.keys(ACTING_STYLE_TO_CHARACTER_TRAIT) as Array<keyof ActingStyle>;
+  const totalDemand = axes.reduce((sum, axis) => sum + traits[ACTING_STYLE_TO_CHARACTER_TRAIT[axis]], 0);
   return axes.map((axis) => {
     const actorValue = actingStyle[axis];
     const characterValue = traits[ACTING_STYLE_TO_CHARACTER_TRAIT[axis]];
-    const gap = Math.abs(actorValue - characterValue);
-    return { axis, actorValue, characterValue, gap, matchScore: clamp(100 - gap, 0, 100) };
+    const gap = Math.max(0, characterValue - actorValue);
+    return {
+      axis,
+      actorValue,
+      characterValue,
+      gap,
+      matchScore: clamp(100 - gap, 0, 100),
+      demandWeight: totalDemand > 0 ? characterValue / totalDemand : 0,
+    };
   });
 }

@@ -82,6 +82,29 @@ describe('deriveRiskRead', () => {
 });
 
 describe('deriveFitReason', () => {
+  it('never names an axis the role barely asks for as a strength', () => {
+    // A part written entirely around comedy. The actor is unremarkable
+    // physically, but the part demands nothing physical, so that axis scores
+    // 100 by default - it must not be described as a strength.
+    const reason = deriveFitReason(
+      [
+        { label: 'Comedy', matchScore: 96, demandWeight: 0.6 },
+        { label: 'Charisma', matchScore: 88, demandWeight: 0.3 },
+        { label: 'Physicality', matchScore: 100, demandWeight: 0.02 },
+      ],
+      'fit',
+    );
+    expect(reason).not.toBeNull();
+    expect(reason!.strengths.toLowerCase()).not.toContain('physicality');
+    expect(reason!.strengths.toLowerCase()).toContain('comedy');
+  });
+
+  it('falls back to describing every axis when the caller supplies no demand weights (whole-script tone read)', () => {
+    const reason = deriveFitReason([{ label: 'Drama', matchScore: 92 }, { label: 'Comedy', matchScore: 40 }], 'tone');
+    expect(reason).not.toBeNull();
+    expect(reason!.strengths.toLowerCase()).toContain('drama');
+  });
+
   it('names the strongest axes and flags the weakest as a caveat', () => {
     const reason = deriveFitReason([
       { label: 'Emotional Performance', matchScore: 96 },

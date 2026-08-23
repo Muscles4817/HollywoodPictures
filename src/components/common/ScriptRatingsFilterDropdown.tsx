@@ -10,9 +10,11 @@ export type WritingRatingField =
   | 'characters'
   | 'structure';
 
+// Concept quality only - Complexity is a production attribute, not a creative
+// one, so it isn't offered as a "minimum creative rating" any more (a contained
+// script isn't a worse script). AssetLibrary still sorts by it directly.
 export type CreativeRatingField =
-  | 'originality'
-  | 'complexity';
+  | 'originality';
 
 export type ToneRatingField =
   | 'action'
@@ -69,10 +71,6 @@ const CREATIVE_FIELDS: RatingFieldOption<CreativeRatingField>[] = [
   {
     id: 'originality',
     label: 'Originality',
-  },
-  {
-    id: 'complexity',
-    label: 'Complexity',
   },
 ];
 
@@ -372,7 +370,7 @@ export function ScriptRatingsFilterDropdown({
           </RatingSection>
 
           <RatingSection
-            title="Creative"
+            title="Concept"
             activeCount={creativeFilterCount}
             isOpen={openSections.creative}
             onToggle={() => toggleSection('creative')}

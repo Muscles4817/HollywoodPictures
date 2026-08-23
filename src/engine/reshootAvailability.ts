@@ -1,5 +1,6 @@
-// Can the cast actually come back? (docs/REFERENCE_post_production_economics.md
-// section 5, "Cast availability and recall premiums".)
+// Can the cast actually come back? (docs/domain/07-postproduction.md - note its
+// own §2.9, where a reshoot decision slipping past actor availability is listed
+// as an editorial failure mode.)
 //
 // Additional photography was priced but never REFUSED: a reshoot could always
 // be bought, given enough cash. Real productions frequently cannot buy one at
@@ -76,7 +77,7 @@ export interface ReshootAvailability {
 }
 
 // --- Buying a principal out ------------------------------------------------
-// (docs/REFERENCE_post_production_economics.md section 5, option 2.)
+// (docs/domain/07-postproduction.md, and §12 there on reshoots.)
 //
 // A studio can sometimes pay the other production to release someone for a
 // fortnight. What it is really paying for is that production's DISRUPTION - its

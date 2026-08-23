@@ -1,5 +1,6 @@
 import type { CharacterArchetype, CharacterProminence, Script, ScriptCharacter } from '../../types';
 import { estimateScriptCost } from '../../engine/scriptGenerator';
+import { scriptShapedCast } from '../../engine/characterDemands';
 import { CHARACTER_ARCHETYPE_PROFILES } from '../characterArchetypes';
 
 // Ten real films, hand-authored rather than procedurally generated - for
@@ -21,7 +22,12 @@ import { CHARACTER_ARCHETYPE_PROFILES } from '../characterArchetypes';
 // Concept-quality inputs default to a neutral 50 unless overridden - these dev
 // reference scripts predate the field and can be hand-authored later.
 function script(fields: Omit<Script, 'id' | 'cost' | 'hook' | 'emotionalPremise' | 'franchisePotential'> & { id: string; hook?: number; emotionalPremise?: number; franchisePotential?: number }): Script {
-  const full = { hook: 50, emotionalPremise: 50, franchisePotential: 50, ...fields };
+  const base = { hook: 50, emotionalPremise: 50, franchisePotential: 50, ...fields };
+  // Same script-shaped demand post-pass real generation runs
+  // (engine/scriptGenerator.ts) - a hand-authored cast is written as archetype
+  // baseTraits verbatim, so without this its roles would still brief for
+  // physicality a contained drama never asks for.
+  const full = { ...base, cast: scriptShapedCast(base.cast, base) };
   return { ...full, cost: estimateScriptCost(full) };
 }
 

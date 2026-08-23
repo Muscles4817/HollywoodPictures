@@ -6,7 +6,9 @@ and marketing decisions, then see it live or die at the box office.
 
 This is a **playable MVP**: one film at a time, start to finish, with a
 deterministic-ish simulation underneath. See [`docs/DESIGN.md`](docs/DESIGN.md)
-for the full design brief and how the simulation actually works.
+for the full design brief and how the simulation actually works, and
+[`docs/domain/`](docs/domain/README.md) for a reference library on how the real
+film industry works, which the simulation is checked against.
 
 ## Running it
 

@@ -3,7 +3,7 @@ import { computeTalentCompatibility } from '../../engine/compatibility';
 import { ALL_TALENT_ROLES } from '../../data/talentGeneration';
 import { toneProfileBreakdown } from '../../data/tones';
 import { ARCHETYPE_LABELS, CHARACTER_ARCHETYPE_LABELS, STORY_TYPE_LABELS, SETTING_LABELS, SCALE_LABELS } from '../../data/scriptTagLabels';
-import { productionRequirementTags, describeSettingImplication, describeCharacterDemands } from '../../engine/scriptPresentation';
+import { productionRequirementTags, describeProductionComplexity, describeSettingImplication, describeCharacterDemands } from '../../engine/scriptPresentation';
 import { readCastPerformances } from '../../engine/castPerformance';
 import { describeCastPerformance, castBandLabel, castPerformanceMarker } from '../../engine/castPerformancePresentation';
 import { Button } from './Button';
@@ -57,10 +57,9 @@ function ScriptSection({ film }: { film: Film }) {
           ]}
         />
         <StatGroup
-          title="Creative"
+          title="Concept"
           stats={[
             { label: 'Originality', value: script.originality },
-            { label: 'Complexity', value: script.complexity },
           ]}
         />
       </div>
@@ -69,6 +68,7 @@ function ScriptSection({ film }: { film: Film }) {
           <span className="badge" key={tag}>{tag}</span>
         ))}
       </div>
+      <p style={{ margin: '0 0 6px', fontSize: '0.85em', color: 'var(--text-muted)' }}>{describeProductionComplexity(script)}</p>
       <CompatibilityBadge breakdown={toneProfileBreakdown(script.toneProfile)} />
 
       <div>

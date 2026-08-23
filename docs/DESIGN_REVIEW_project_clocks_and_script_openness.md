@@ -481,11 +481,27 @@ test is waiting on, not an equal option among the rest:
   narrative order.
 - Dailies and production discovery, with deliberately imperfect findings.
 - Emergency writers; pickups and limited reshoots. The cost model for these is
-  already grounded - see `docs/REFERENCE_post_production_economics.md`, which
-  documents the real-world economics and notes that a recut's price is set by how
-  much finished downstream work it invalidates. That is section 3.6's integration
-  debt in another department, and it is the closest thing to a worked example of
-  the principle the codebase currently has.
+  already grounded - see `docs/domain/07-postproduction.md` for how post money
+  really behaves. A recut's price is set by how much finished downstream work it
+  invalidates, which is section 3.6's integration debt in another department and
+  the closest thing to a worked example of the principle the codebase has.
+
+  As built (`engine/testScreening.ts`): a re-edit costs the cutting room -
+  anchored on the Editor's own fee, since the room's cost is the people in it -
+  plus a share of the VFX budget for what the new cut puts back in play, growing
+  with each screening round as more of the finish locks. Pickups and reshoots add
+  photography *on top of* that, because new footage still has to be cut in, which
+  makes `re-edit < pickups < reshoots` hold at every budget by construction
+  rather than by tuning.
+
+  Cast availability can refuse additional photography outright
+  (`engine/reshootAvailability.ts`), and a principal can be bought out of their
+  other job - but only while that job is near its end. Past that ceiling no money
+  moves them, which is deliberate: if a buy-out always worked, refusal would
+  collapse back into a price and time would be buyable with cash again. Not
+  modelled: waiting for a principal to free up, shooting around them, and the
+  fact that a buy-out here does not alter the other production's commitment (you
+  buy a window, not a contract), so a later round negotiates again.
 
 ## 6. Long-term north star
 

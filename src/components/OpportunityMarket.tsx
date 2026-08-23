@@ -113,7 +113,6 @@ function getScriptRatingValues(
 
     creative: {
       originality: script.originality,
-      complexity: script.complexity,
     },
 
     tone: {
