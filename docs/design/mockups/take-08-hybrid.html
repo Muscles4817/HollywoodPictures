@@ -1,0 +1,785 @@
+<title>Thunder County Workspace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anybody:wght@700;800&family=Schibsted+Grotesk:wght@400;500;600;700&family=Courier+Prime:wght@400;700&display=swap">
+
+<style>
+  /* HYBRID — take 07's system, carrying the moves worth keeping from 01-06.
+     01: the printed-form / typed-content type split, and a paper-derived
+         warm palette (the discipline, not the texture)
+     02: state carried by colour as well as form; persistent edge nav
+     03: an open slot states what it blocks
+     04: one editorial line — the desk's read — not four paragraphs
+     05: an absence with a deadline on it
+     06: relationships as a lens you toggle, not a separate screen        */
+  :root {
+    --bg:         #EFEDE7;
+    --surface:    #F7F5F0;
+    --surface-2:  #E5E2DA;
+    --ink:        #191713;
+    --ink-2:      #57534A;
+    --ink-3:      #8A8478;
+    --line:       #D6D2C7;
+    --line-hard:  #191713;
+
+    --accent:     #1F5FD0;
+    --open:       #C2185B;
+    --warn:       #9A6A12;
+
+    --meter-set:  #3D3A33;
+    --meter-open: #C2185B;
+    --meter-opt:  #C9C4B8;
+
+    /* Validated: CVD separation and normal-vision floor pass in both themes. */
+    --tie-fit:    #0F7A73;
+    --tie-fric:   #A85F0C;
+    --tie-unk:    #7E8894;
+
+    --t-0: 0.66rem;
+    --t-1: 0.78rem;
+    --t-2: 0.875rem;
+    --t-3: 1rem;
+    --t-4: 1.7rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:         #16151A;
+      --surface:    #1D1C22;
+      --surface-2:  #26252C;
+      --ink:        #EDEAE2;
+      --ink-2:      #A7A296;
+      --ink-3:      #78736A;
+      --line:       #33313A;
+      --line-hard:  #55525C;
+
+      --accent:     #6BA6FF;
+      --open:       #FF5FA2;
+      --warn:       #E0A93D;
+
+      --meter-set:  #7A756A;
+      --meter-open: #FF5FA2;
+      --meter-opt:  #383530;
+
+      --tie-fit:    #45BFB1;
+      --tie-fric:   #E0913D;
+      --tie-unk:    #8A94A2;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg:         #16151A;
+    --surface:    #1D1C22;
+    --surface-2:  #26252C;
+    --ink:        #EDEAE2;
+    --ink-2:      #A7A296;
+    --ink-3:      #78736A;
+    --line:       #33313A;
+    --line-hard:  #55525C;
+
+    --accent:     #6BA6FF;
+    --open:       #FF5FA2;
+    --warn:       #E0A93D;
+
+    --meter-set:  #7A756A;
+    --meter-open: #FF5FA2;
+    --meter-opt:  #383530;
+
+    --tie-fit:    #45BFB1;
+    --tie-fric:   #E0913D;
+    --tie-unk:    #8A94A2;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Schibsted Grotesk', 'Helvetica Neue', Arial, sans-serif;
+    font-size: var(--t-2);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* THE TYPE RULE (from 01, systematised): the form is printed, the content
+     is typed. Anything the game structures wears the grotesque; anything the
+     player chose wears the typewriter. Encodes structure vs. decision. */
+  .typed {
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .app { min-height: 100vh; display: grid; grid-template-rows: auto 1fr; }
+
+  .topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 10px; flex-wrap: wrap;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 16px;
+  }
+  .brand {
+    font-family: 'Anybody', 'Arial Narrow', sans-serif;
+    font-weight: 800; font-size: var(--t-2);
+    letter-spacing: 0.2em; text-transform: uppercase; margin: 0;
+  }
+  .topbar-facts { display: flex; gap: 22px; font-size: var(--t-1); color: var(--ink-2); flex-wrap: wrap; }
+  .topbar-facts b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  .shell { display: grid; grid-template-columns: 190px 1fr; min-height: 0; }
+  @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } }
+
+  .rail { border-right: 1px solid var(--line); background: var(--surface); padding: 12px 0; }
+  .rail-group {
+    font-size: var(--t-0); font-weight: 700; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--ink-3); padding: 12px 16px 5px;
+  }
+  .nav {
+    display: block; width: 100%; background: none; border: 0;
+    border-left: 3px solid transparent; color: var(--ink-2);
+    font: inherit; font-size: var(--t-1); font-weight: 500;
+    text-align: left; padding: 6px 16px; cursor: pointer;
+  }
+  .nav:hover { color: var(--ink); background: var(--surface-2); }
+  .nav:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .nav[aria-current="true"] {
+    color: var(--ink); font-weight: 700;
+    border-left-color: var(--accent); background: var(--surface-2);
+  }
+  @media (max-width: 900px) {
+    .rail { border-right: 0; border-bottom: 1px solid var(--line); display: flex; overflow-x: auto; padding: 6px; }
+    .rail-group { display: none; }
+    .nav { width: auto; white-space: nowrap; border-left: 0; border-bottom: 3px solid transparent; }
+    .nav[aria-current="true"] { border-left-color: transparent; border-bottom-color: var(--accent); }
+  }
+
+  .main { padding: 20px 22px 40px; min-width: 0; }
+
+  .prj {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 20px; flex-wrap: wrap;
+    border-bottom: 2px solid var(--line-hard); padding-bottom: 12px;
+  }
+  .prj-eyebrow {
+    font-size: var(--t-0); font-weight: 700; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--ink-3); margin: 0 0 4px;
+  }
+  .prj h2 {
+    font-family: 'Anybody', 'Arial Narrow', sans-serif;
+    font-weight: 800; font-size: var(--t-4); letter-spacing: 0.01em;
+    text-transform: uppercase; margin: 0; line-height: 1; text-wrap: balance;
+  }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    font-size: var(--t-0); font-weight: 600; letter-spacing: 0.12em;
+    text-transform: uppercase; border: 1px solid var(--line);
+    color: var(--ink-2); padding: 4px 9px;
+  }
+
+  /* 04's voice, rationed to one line: the simulation, narrated. */
+  .read {
+    border-left: 3px solid var(--accent);
+    padding: 9px 0 9px 13px;
+    margin-top: 14px;
+    font-size: var(--t-3);
+    line-height: 1.55;
+    color: var(--ink-2);
+    max-width: 84ch;
+  }
+  .read b { color: var(--ink); font-weight: 600; }
+  .read-by {
+    display: block; font-size: var(--t-0); font-weight: 700;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--ink-3); margin-top: 6px;
+  }
+
+  .kpis {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+    gap: 1px; background: var(--line); border: 1px solid var(--line); margin-top: 16px;
+  }
+  .kpi { background: var(--surface); padding: 12px 14px 13px; }
+  .kpi-label {
+    display: block; font-size: var(--t-0); font-weight: 700;
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 5px;
+  }
+  .kpi-value {
+    display: block; font-family: 'Anybody', 'Arial Narrow', sans-serif;
+    font-weight: 700; font-size: 1.4rem; line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi-sub { display: block; font-size: var(--t-0); color: var(--ink-3); margin-top: 5px; }
+  .kpi--open .kpi-value { color: var(--open); }
+
+  .meter-block {
+    margin-top: 16px; border: 1px solid var(--line);
+    background: var(--surface); padding: 13px 14px 14px;
+  }
+  .meter-top {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 14px; flex-wrap: wrap; margin-bottom: 9px;
+  }
+  .meter-title {
+    font-size: var(--t-0); font-weight: 700; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  .meter-read { font-size: var(--t-1); color: var(--ink-2); }
+  .meter-read b { color: var(--ink); }
+  .meter { display: flex; gap: 2px; height: 14px; }
+  .seg--set { background: var(--meter-set); }
+  .seg--open { background: var(--meter-open); }
+  .seg--opt {
+    background: repeating-linear-gradient(135deg, var(--meter-opt) 0 4px, transparent 4px 8px);
+    border: 1px solid var(--meter-opt);
+  }
+  .meter-key {
+    display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px;
+    font-size: var(--t-0); font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--ink-2);
+  }
+  .meter-key i { display: inline-block; width: 12px; height: 8px; margin-right: 6px; vertical-align: middle; }
+  .meter-key i.k-set { background: var(--meter-set); }
+  .meter-key i.k-open { background: var(--meter-open); }
+  .meter-key i.k-opt {
+    background: repeating-linear-gradient(135deg, var(--meter-opt) 0 3px, transparent 3px 6px);
+    border: 1px solid var(--meter-opt);
+  }
+
+  /* 06 as a lens rather than a screen. */
+  .lens {
+    display: flex; gap: 0; margin-top: 20px;
+    border-bottom: 2px solid var(--line-hard);
+  }
+  .lens button {
+    background: none; border: 0; border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    font: inherit; font-size: var(--t-1); font-weight: 600;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-3); padding: 7px 14px; cursor: pointer;
+  }
+  .lens button:hover { color: var(--ink); }
+  .lens button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .lens button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+
+  .cols { display: grid; grid-template-columns: 1fr 268px; gap: 22px; margin-top: 16px; align-items: start; }
+  @media (max-width: 1040px) { .cols { grid-template-columns: 1fr; } }
+
+  .view[hidden] { display: none; }
+
+  .sect {
+    display: flex; align-items: center; gap: 10px;
+    font-size: var(--t-0); font-weight: 700; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--ink-3); margin: 0 0 2px;
+  }
+  .sect::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .sect + .sect { margin-top: 20px; }
+
+  .row {
+    display: grid; grid-template-columns: 168px 1fr 100px 104px;
+    align-items: baseline; gap: 12px; width: 100%;
+    background: none; border: 0; border-bottom: 1px solid var(--line);
+    border-left: 3px solid transparent;
+    color: var(--ink); font: inherit; text-align: left;
+    padding: 8px 8px 8px 11px; cursor: pointer;
+  }
+  .row:hover { background: var(--surface); }
+  .row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .row--open { border-left-color: var(--open); }
+  .row--warn { border-left-color: var(--warn); }
+  .row-role {
+    font-size: var(--t-0); font-weight: 700; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  .row--open .row-name { color: var(--open); }
+  .row-fee { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: var(--t-1); }
+  .row-note {
+    grid-column: 2 / -1; font-size: var(--t-0); color: var(--ink-3);
+    margin-top: 4px; line-height: 1.5;
+  }
+  /* 03 + 05, in words rather than a scheduler: what it blocks, and by when. */
+  .row-note b { color: var(--open); font-weight: 700; }
+  .row-note em { color: var(--ink-2); font-style: normal; }
+
+  .pill {
+    justify-self: start; display: inline-flex; align-items: center; gap: 5px;
+    font-size: var(--t-0); font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; border: 1px solid var(--line);
+    color: var(--ink-2); padding: 2px 7px; white-space: nowrap;
+  }
+  .pill--open { border-color: var(--open); color: var(--open); }
+  .pill--warn { border-color: var(--warn); color: var(--warn); }
+  .pill--opt { border-style: dashed; color: var(--ink-3); }
+
+  /* ---- Relationship lens ---------------------------------------------- */
+  .webwrap { overflow-x: auto; border: 1px solid var(--line); background: var(--surface); }
+  .web { position: relative; width: 760px; height: 470px; }
+  .ties { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .ties line { transition: opacity 140ms linear, stroke-width 140ms linear; }
+  .ties line.t-fit  { stroke: var(--tie-fit); }
+  .ties line.t-fric { stroke: var(--tie-fric); }
+  .ties line.t-unk  { stroke: var(--tie-unk); }
+  .ties line.dim { opacity: 0.14; }
+  .ties line.hot { stroke-width: 5; }
+
+  .node {
+    position: absolute; width: 152px;
+    background: var(--bg); color: var(--ink);
+    border: 1px solid var(--line-hard);
+    font: inherit; text-align: left; padding: 8px 10px 9px; cursor: pointer;
+  }
+  .node:hover { background: var(--surface-2); }
+  .node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .node--open { border-color: var(--open); border-style: dashed; }
+  .node-role {
+    display: block; font-size: var(--t-0); font-weight: 700;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .node-name { display: block; font-size: var(--t-1); margin-top: 2px; }
+  .node--open .node-name { color: var(--open); }
+
+  .tie-list { margin-top: 14px; }
+  .tie {
+    display: grid; grid-template-columns: 22px 1fr; gap: 10px;
+    align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line);
+  }
+  .tie:last-child { border-bottom: 0; }
+  .tie i { height: 3px; margin-top: 7px; border-radius: 2px; }
+  .tie i.t-fit  { background: var(--tie-fit); }
+  .tie i.t-fric { background: var(--tie-fric); }
+  .tie i.t-unk  {
+    background: repeating-linear-gradient(90deg, var(--tie-unk) 0 5px, transparent 5px 9px);
+  }
+  .tie-pair {
+    display: block; font-size: var(--t-1); font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .tie-read { display: block; font-size: var(--t-1); color: var(--ink-2); line-height: 1.5; margin-top: 2px; }
+
+  .panel { border: 1px solid var(--line); background: var(--surface); padding: 12px 14px 14px; }
+  .panel + .panel { margin-top: 16px; }
+  .panel h3 {
+    font-size: var(--t-0); font-weight: 700; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--ink-3);
+    margin: 0 0 9px; padding-bottom: 7px; border-bottom: 1px solid var(--line);
+  }
+  .pr { display: flex; justify-content: space-between; gap: 12px; font-size: var(--t-1); padding: 5px 0; border-bottom: 1px solid var(--line); }
+  .pr:last-child { border-bottom: 0; }
+  .pr span { color: var(--ink-2); }
+  .pr b { font-variant-numeric: tabular-nums; }
+  .pr--total { border-top: 2px solid var(--line-hard); border-bottom: 0; margin-top: 5px; padding-top: 8px; }
+  .pr--total b { font-size: var(--t-3); }
+  .verdict { font-size: var(--t-1); line-height: 1.6; color: var(--ink-2); margin: 0; }
+  .verdict b { color: var(--ink); font-weight: 600; }
+
+  .scrim { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,0.42); display: none; }
+  .scrim[data-open="true"] { display: block; }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(430px, 100%);
+    background: var(--surface); border-left: 1px solid var(--line-hard);
+    z-index: 31; transform: translateX(101%);
+    transition: transform 200ms cubic-bezier(0.2, 0.8, 0.3, 1);
+    padding: 18px 20px 22px; overflow-y: auto;
+  }
+  .drawer[data-open="true"] { transform: translateX(0); }
+  .drawer-role {
+    font-size: var(--t-0); font-weight: 700; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--ink-3); margin: 0 0 4px;
+  }
+  .drawer-name {
+    font-family: 'Courier Prime', monospace; font-weight: 700;
+    font-size: 1.25rem; margin: 0 0 12px; padding-bottom: 10px;
+    border-bottom: 2px solid var(--line-hard); line-height: 1.15;
+  }
+  .drawer-body { font-size: var(--t-2); line-height: 1.65; margin: 0 0 18px; }
+  .drawer-close {
+    font: inherit; font-size: var(--t-0); font-weight: 700;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    background: var(--ink); color: var(--bg); border: 1px solid var(--ink);
+    padding: 7px 15px; cursor: pointer;
+  }
+  .drawer-close:hover { background: transparent; color: var(--ink); }
+  .drawer-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) { .drawer, .ties line { transition: none; } }
+</style>
+
+<div class="app">
+
+  <div class="topbar">
+    <h1 class="brand">Meridian Pictures</h1>
+    <div class="topbar-facts">
+      <span>Mon <b>14 Sept 1987</b></span>
+      <span>Cash <b>£41,880,000</b></span>
+      <span>Projects <b>3</b></span>
+    </div>
+  </div>
+
+  <div class="shell">
+
+    <nav class="rail" aria-label="Main">
+      <p class="rail-group">Studio</p>
+      <button class="nav" type="button">Dashboard</button>
+      <button class="nav" type="button" aria-current="true">Projects</button>
+      <button class="nav" type="button">Talent</button>
+      <button class="nav" type="button">IP Library</button>
+      <p class="rail-group">Market</p>
+      <button class="nav" type="button">Opportunities</button>
+      <button class="nav" type="button">Release Calendar</button>
+      <button class="nav" type="button">Rival Studios</button>
+      <p class="rail-group">Record</p>
+      <button class="nav" type="button">Awards</button>
+      <button class="nav" type="button">Statistics</button>
+      <button class="nav" type="button">Milestones</button>
+    </nav>
+
+    <main class="main">
+
+      <div class="prj">
+        <div>
+          <p class="prj-eyebrow">Project MP-0114 &middot; Pre-Greenlight</p>
+          <h2>Thunder County</h2>
+        </div>
+        <div class="chips">
+          <span class="chip">Action</span>
+          <span class="chip">Medium Scale</span>
+          <span class="chip">Wide Audience</span>
+        </div>
+      </div>
+
+      <p class="read">
+        The package is coherent everywhere except the bottom right. Rourke is the hub &mdash;
+        <b>both points of friction run through him</b>, and so does the only proven pairing on
+        the picture. One principal part is still open, and until it is filled two
+        relationships cannot be read at all.
+        <span class="read-by">The production office</span>
+      </p>
+
+      <div class="kpis">
+        <div class="kpi">
+          <span class="kpi-label">Total Commitment</span>
+          <span class="kpi-value">£20.24m</span>
+          <span class="kpi-sub">Budget £18.4m + 10% reserve</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">To Photography</span>
+          <span class="kpi-value">49 days</span>
+          <span class="kpi-sub">First day 02 Nov 87</span>
+        </div>
+        <div class="kpi kpi--open">
+          <span class="kpi-label">Roles Open</span>
+          <span class="kpi-value">2</span>
+          <span class="kpi-sub">1 principal, 1 post-only</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Greenlight</span>
+          <span class="kpi-value">Ready</span>
+          <span class="kpi-sub">Can proceed as it stands</span>
+        </div>
+      </div>
+
+      <div class="meter-block">
+        <div class="meter-top">
+          <span class="meter-title">Package Readiness</span>
+          <span class="meter-read"><b>8 of 11</b> positions set &middot; 2 open &middot; 1 not required</span>
+        </div>
+        <div class="meter" role="img" aria-label="8 positions set, 2 open, 1 not required, of 11">
+          <div class="seg seg--set" style="flex:8"></div>
+          <div class="seg seg--open" style="flex:2"></div>
+          <div class="seg seg--opt" style="flex:1"></div>
+        </div>
+        <div class="meter-key">
+          <span><i class="k-set"></i>8 Set</span>
+          <span><i class="k-open"></i>2 Open</span>
+          <span><i class="k-opt"></i>1 Not required</span>
+        </div>
+      </div>
+
+      <div class="lens" role="tablist" aria-label="View">
+        <button type="button" role="tab" aria-selected="true" data-view="roster">Roster</button>
+        <button type="button" role="tab" aria-selected="false" data-view="web">Relationships</button>
+      </div>
+
+      <div class="cols">
+        <div>
+
+          <div class="view" id="view-roster">
+            <p class="sect">Above the Line</p>
+
+            <button class="row" type="button" data-role="Producer" data-name="Estelle Marchetti"
+              data-detail="Attached from the studio's own production office. Three pictures with this studio, two profitable. Pushes hard for schedule discipline and will resist a runaway shoot.">
+              <span class="row-role">Producer</span>
+              <span class="row-name typed">Estelle Marchetti</span>
+              <span class="pill">Set</span>
+              <span class="row-fee">salaried</span>
+            </button>
+
+            <button class="row row--warn" type="button" data-role="Director" data-name="Dale Rourke"
+              data-detail="Won a three-way bake-off. Pitched a lean, grounded take against the script's spectacle leanings — a bold read that widens execution variance in both directions. Wants final cut on the second act.">
+              <span class="row-role">Director</span>
+              <span class="row-name typed">Dale Rourke</span>
+              <span class="pill pill--warn">&#9650; Note</span>
+              <span class="row-fee">£2,400,000</span>
+              <span class="row-note">Bold pitch runs against the material. <em>Variance widened both ways.</em></span>
+            </button>
+
+            <button class="row" type="button" data-role="Writer" data-name="Junius Bell"
+              data-detail="Original screenplay, third draft delivered. Strong on structure, weaker on dialogue polish — a pass from a second writer would lift the ceiling but costs three weeks.">
+              <span class="row-role">Writer</span>
+              <span class="row-name typed">Junius Bell</span>
+              <span class="pill">Set</span>
+              <span class="row-fee">£450,000</span>
+            </button>
+
+            <button class="row" type="button" data-role="Lead Actor" data-name="Marguerite Vance"
+              data-detail="Reads the sheriff as weary rather than heroic. Excellent role fit, and her craft archetype suits the director's grounded pitch. Above-the-title billing per contract.">
+              <span class="row-role">Lead Actor</span>
+              <span class="row-name typed">Marguerite Vance</span>
+              <span class="pill">Set</span>
+              <span class="row-fee">£3,100,000</span>
+              <span class="row-note">Strong role fit. <em>Above-the-title billing.</em></span>
+            </button>
+
+            <button class="row row--open" type="button" data-role="Supporting Actor" data-name="Not cast"
+              data-detail="Two names have read for the part and both are within budget. One carries returning-franchise history with the lead; the other tests better on the tonal axis. Neither has been offered.">
+              <span class="row-role">Supporting Actor</span>
+              <span class="row-name typed">Not cast</span>
+              <span class="pill pill--open">&#9675; Open</span>
+              <span class="row-fee">&mdash;</span>
+              <span class="row-note">
+                <b>Blocks 3 shooting days &middot; 2 relationships unreadable &middot; offer needed by 30 Sept</b>
+                <br><em>2 candidates read, no offer made.</em>
+              </span>
+            </button>
+
+            <p class="sect">Below the Line</p>
+
+            <button class="row" type="button" data-role="Cinematographer" data-name="Halvard Nyquist"
+              data-detail="Hard directional light, deep blacks, minimal diffusion. He and Rourke have shot together once before to good effect — the only proven pairing in the package.">
+              <span class="row-role">Cinematographer</span>
+              <span class="row-name typed">Halvard Nyquist</span>
+              <span class="pill">Set</span>
+              <span class="row-fee">£380,000</span>
+              <span class="row-note"><em>Proven with the director &mdash; 1 picture.</em></span>
+            </button>
+
+            <button class="row row--warn" type="button" data-role="Production Designer" data-name="Ruth Okonjo"
+              data-detail="Set ambition currently Standard. Her head-of-department recommendation is eleven build days; the plan allows nine, which starves the facet slightly.">
+              <span class="row-role">Production Designer</span>
+              <span class="row-name typed">Ruth Okonjo</span>
+              <span class="pill pill--warn">&#9650; Note</span>
+              <span class="row-fee">£295,000</span>
+              <span class="row-note">Recommends 11 build days; <em>plan allows 9.</em></span>
+            </button>
+
+            <button class="row" type="button" data-role="Editor" data-name="Constance Baye"
+              data-detail="Not required until post. Attached early to lock her availability against a competing production at a rival studio.">
+              <span class="row-role">Editor</span>
+              <span class="row-name typed">Constance Baye</span>
+              <span class="pill">Set</span>
+              <span class="row-fee">£210,000</span>
+            </button>
+
+            <button class="row row--open" type="button" data-role="Composer" data-name="Not attached"
+              data-detail="Nothing is needed until post-production, but attaching now costs less than attaching late. Three composers are available at this budget; one is coming off an award-nominated picture and has priced accordingly.">
+              <span class="row-role">Composer</span>
+              <span class="row-name typed">Not attached</span>
+              <span class="pill pill--open">&#9675; Open</span>
+              <span class="row-fee">&mdash;</span>
+              <span class="row-note">Blocks nothing yet. <em>Attaching after the shoot costs more.</em></span>
+            </button>
+
+            <button class="row" type="button" data-role="VFX Supervisor" data-name="Not required"
+              data-detail="This genre's VFX importance is moderate and the practical-effects dial is set high, so the picture can ship without a VFX supervisor — at a quality cost on the spectacle facet. Leaving this empty is a legitimate choice, not an oversight.">
+              <span class="row-role">VFX Supervisor</span>
+              <span class="row-name typed">Not required</span>
+              <span class="pill pill--opt">Optional</span>
+              <span class="row-fee">&mdash;</span>
+              <span class="row-note"><em>Practicals carry the picture; VFX importance moderate.</em></span>
+            </button>
+
+            <button class="row" type="button" data-role="Casting Director" data-name="Wendell Pryor"
+              data-detail="Widens the candidate pool and sharpens every fit read. Already responsible for surfacing the two supporting-actor candidates.">
+              <span class="row-role">Casting Director</span>
+              <span class="row-name typed">Wendell Pryor</span>
+              <span class="pill">Set</span>
+              <span class="row-fee">£120,000</span>
+            </button>
+          </div>
+
+          <div class="view" id="view-web" hidden>
+            <div class="webwrap">
+              <div class="web">
+                <svg class="ties" viewBox="0 0 760 470" preserveAspectRatio="none" aria-hidden="true">
+                  <line data-a="script" data-b="director" x1="100" y1="215" x2="320" y2="95"  stroke-width="3.5"class="t-fric"/>
+                  <line data-a="script" data-b="lead"     x1="100" y1="215" x2="570" y2="75"  stroke-width="3"class="t-fit"/>
+                  <line data-a="director" data-b="lead"   x1="320" y1="95"  x2="570" y2="75"  stroke-width="3.5"class="t-fit"/>
+                  <line data-a="director" data-b="dp"     x1="320" y1="95"  x2="310" y2="335" stroke-width="5"class="t-fit"/>
+                  <line data-a="script" data-b="dp"       x1="100" y1="215" x2="310" y2="335" stroke-width="1.6"class="t-fit"/>
+                  <line data-a="director" data-b="producer" x1="320" y1="95" x2="95" y2="400" stroke-width="3"class="t-fric"/>
+                  <line data-a="lead" data-b="second"     x1="570" y1="75"  x2="590" y2="335" stroke-width="3" stroke-dasharray="7 7"class="t-unk"/>
+                  <line data-a="director" data-b="second" x1="320" y1="95"  x2="590" y2="335" stroke-width="2.4" stroke-dasharray="7 7"class="t-unk"/>
+                </svg>
+
+                <button class="node" type="button" data-node="script" style="left:24px; top:186px"
+                  data-role="Screenplay" data-name="Bell, J. — draft 3"
+                  data-detail="Spectacle-leaning on the tonal axes; strong on structure, weaker on dialogue polish. Everything else is measured against it.">
+                  <span class="node-role">Screenplay</span><span class="node-name typed">Bell &mdash; draft 3</span>
+                </button>
+
+                <button class="node" type="button" data-node="director" style="left:244px; top:66px"
+                  data-role="Director" data-name="Dale Rourke"
+                  data-detail="The hub of this package: both points of friction run through him, and so does the only proven pairing. High ego, high professionalism.">
+                  <span class="node-role">Director</span><span class="node-name typed">Dale Rourke</span>
+                </button>
+
+                <button class="node" type="button" data-node="lead" style="left:494px; top:46px"
+                  data-role="Lead Actor" data-name="Marguerite Vance"
+                  data-detail="Excellent role fit; her craft archetype suits the director's grounded pitch. The strongest pairing on the board.">
+                  <span class="node-role">Lead Actor</span><span class="node-name typed">M. Vance</span>
+                </button>
+
+                <button class="node node--open" type="button" data-node="second" style="left:514px; top:306px"
+                  data-role="Supporting Actor" data-name="Not cast"
+                  data-detail="Two dashed ties run out of this node into nothing. Casting the part does not fill one hole — it resolves two relationships at once.">
+                  <span class="node-role">Supporting</span><span class="node-name typed">&mdash; open &mdash;</span>
+                </button>
+
+                <button class="node" type="button" data-node="dp" style="left:234px; top:306px"
+                  data-role="Cinematographer" data-name="Halvard Nyquist"
+                  data-detail="One picture with Rourke, to good effect — the thickest tie here, and the package's only proven history.">
+                  <span class="node-role">Cinematographer</span><span class="node-name typed">H. Nyquist</span>
+                </button>
+
+                <button class="node" type="button" data-node="producer" style="left:19px; top:371px"
+                  data-role="Producer" data-name="Estelle Marchetti"
+                  data-detail="Guards the schedule, which is exactly where she and Rourke's variance-widening read collide. Productive friction, if managed.">
+                  <span class="node-role">Producer</span><span class="node-name typed">E. Marchetti</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="tie-list">
+              <div class="tie"><i class="t-fric"></i><span>
+                <span class="tie-pair">Script &harr; Director</span>
+                <span class="tie-read">His grounded read cuts against the material. Deliberate — and why variance is wide in both directions.</span>
+              </span></div>
+              <div class="tie"><i class="t-fric"></i><span>
+                <span class="tie-pair">Director &harr; Producer</span>
+                <span class="tie-read">A bold shoot meets a producer who guards the schedule. Expect friction on the floor.</span>
+              </span></div>
+              <div class="tie"><i class="t-fit"></i><span>
+                <span class="tie-pair">Director &harr; Cinematographer</span>
+                <span class="tie-read">One picture together, to good effect. The only proven history in the package.</span>
+              </span></div>
+              <div class="tie"><i class="t-fit"></i><span>
+                <span class="tie-pair">Director &harr; Lead</span>
+                <span class="tie-read">Her craft archetype suits his grounded take. No shared history, but the read is clean.</span>
+              </span></div>
+              <div class="tie"><i class="t-unk"></i><span>
+                <span class="tie-pair">Lead &harr; Supporting &middot; Director &harr; Supporting</span>
+                <span class="tie-read">Neither can be read until the part is cast. One candidate carries franchise history with the lead; the other does not.</span>
+              </span></div>
+            </div>
+          </div>
+
+        </div>
+
+        <aside>
+          <div class="panel">
+            <h3>Production Plan</h3>
+            <div class="pr"><span>Photography</span><b class="typed">02 Nov 87</b></div>
+            <div class="pr"><span>Shoot days</span><b class="typed">46</b></div>
+            <div class="pr"><span>Runtime target</span><b class="typed">108 min</b></div>
+            <div class="pr"><span>Set quality</span><b class="typed">Standard</b></div>
+            <div class="pr"><span>Practical effects</span><b class="typed">High</b></div>
+          </div>
+          <div class="panel">
+            <h3>Finance</h3>
+            <div class="pr"><span>Production budget</span><b class="typed">£18,400,000</b></div>
+            <div class="pr"><span>Contingency reserve</span><b class="typed">£1,840,000</b></div>
+            <div class="pr pr--total"><span>Total commitment</span><b class="typed">£20,240,000</b></div>
+          </div>
+          <div class="panel">
+            <h3>Greenlight Readiness</h3>
+            <p class="verdict">
+              One principal role uncast, blocking <b>three shooting days</b>. Set build is nine
+              days against a recommended eleven. The picture <b>can be greenlit as it stands</b>.
+            </p>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" data-open="false"></div>
+<aside class="drawer" id="drawer" data-open="false" role="dialog" aria-modal="true" aria-labelledby="drawer-name">
+  <p class="drawer-role" id="drawer-role">Role</p>
+  <h3 class="drawer-name" id="drawer-name">Name</h3>
+  <p class="drawer-body" id="drawer-body"></p>
+  <button class="drawer-close" type="button" id="drawer-close">Back to project</button>
+</aside>
+
+<script>
+  (function () {
+    var drawer = document.getElementById('drawer');
+    var scrim = document.getElementById('scrim');
+    var roleEl = document.getElementById('drawer-role');
+    var nameEl = document.getElementById('drawer-name');
+    var bodyEl = document.getElementById('drawer-body');
+    var closeBtn = document.getElementById('drawer-close');
+    var ties = Array.prototype.slice.call(document.querySelectorAll('.ties line'));
+    var lastFocused = null;
+
+    function open(btn) {
+      lastFocused = btn;
+      roleEl.textContent = btn.getAttribute('data-role');
+      nameEl.textContent = btn.getAttribute('data-name');
+      bodyEl.textContent = btn.getAttribute('data-detail');
+      drawer.setAttribute('data-open', 'true');
+      scrim.setAttribute('data-open', 'true');
+      closeBtn.focus();
+    }
+    function close() {
+      drawer.setAttribute('data-open', 'false');
+      scrim.setAttribute('data-open', 'false');
+      if (lastFocused) lastFocused.focus();
+    }
+
+    Array.prototype.forEach.call(document.querySelectorAll('.row, .node'), function (btn) {
+      btn.addEventListener('click', function () { open(btn); });
+    });
+    closeBtn.addEventListener('click', close);
+    scrim.addEventListener('click', close);
+
+    // Lens toggle
+    var tabs = Array.prototype.slice.call(document.querySelectorAll('.lens button'));
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        tabs.forEach(function (t) { t.setAttribute('aria-selected', String(t === tab)); });
+        document.getElementById('view-roster').hidden = tab.getAttribute('data-view') !== 'roster';
+        document.getElementById('view-web').hidden = tab.getAttribute('data-view') !== 'web';
+      });
+    });
+
+    // Isolate a node's ties on hover/focus
+    function isolate(node) {
+      ties.forEach(function (ln) {
+        var touches = ln.getAttribute('data-a') === node || ln.getAttribute('data-b') === node;
+        ln.classList.toggle('hot', touches);
+        ln.classList.toggle('dim', !touches);
+      });
+    }
+    function clearTies() { ties.forEach(function (ln) { ln.classList.remove('hot', 'dim'); }); }
+
+    Array.prototype.forEach.call(document.querySelectorAll('.node'), function (n) {
+      var id = n.getAttribute('data-node');
+      n.addEventListener('mouseenter', function () { isolate(id); });
+      n.addEventListener('mouseleave', clearTies);
+      n.addEventListener('focus', function () { isolate(id); });
+      n.addEventListener('blur', clearTies);
+    });
+
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+  })();
+</script>

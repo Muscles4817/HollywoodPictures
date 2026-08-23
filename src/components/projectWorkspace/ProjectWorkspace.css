@@ -9,7 +9,7 @@
 }
 
 .workspace-nav-status-warning {
-  color: #b3822b;
+  color: var(--star);
 }
 
 .workspace-nav-status-incomplete {

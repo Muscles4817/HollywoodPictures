@@ -161,9 +161,9 @@
 }
 .td-bar-label { display: inline-flex; align-items: center; gap: 4px; font-size: 0.9em; min-width: 0; }
 .td-bar-track { height: 7px; border-radius: 99px; background: var(--track-bg); overflow: hidden; min-width: 0; }
-.td-bar-fill { display: block; height: 100%; border-radius: 99px; background: var(--primary); }
+.td-bar-fill { display: block; height: 100%; border-radius: 99px; background: var(--bar); }
 .td-bar-fill--hi { background: var(--green); }
-.td-bar-fill--mid { background: var(--primary); }
+.td-bar-fill--mid { background: var(--bar); }
 .td-bar-fill--lo { background: var(--amber); }
 .td-bar-readout { display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 8px; white-space: nowrap; }
 .td-bar-qual { font-size: 0.8em; color: var(--text-muted); }

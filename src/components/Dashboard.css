@@ -1,8 +1,8 @@
 .dashboard-page {
-  --dashboard-border: color-mix(in srgb, var(--border, #343b49) 78%, transparent);
-  --dashboard-panel: color-mix(in srgb, var(--surface, #1c2029) 94%, transparent);
-  --dashboard-panel-raised: color-mix(in srgb, var(--surface, #1c2029) 80%, white 3%);
-  --dashboard-text-soft: var(--text-muted, #9ca7ba);
+  --dashboard-border: color-mix(in srgb, var(--border, var(--border)) 78%, transparent);
+  --dashboard-panel: color-mix(in srgb, var(--surface, var(--panel)) 94%, transparent);
+  --dashboard-panel-raised: color-mix(in srgb, var(--surface, var(--panel)) 80%, white 3%);
+  --dashboard-text-soft: var(--text-muted, var(--text-muted));
   display: grid;
   gap: 16px;
   padding-bottom: 32px;
@@ -116,7 +116,7 @@
 }
 
 .dashboard-subnav .dashboard-danger-link:hover {
-  color: #ff8b8b;
+  color: var(--red);
 }
 
 .dashboard-metrics {
@@ -142,7 +142,7 @@
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: var(--metric-accent, #6d8cff);
+  background: var(--metric-accent, var(--primary));
 }
 
 .dashboard-standing {
@@ -151,7 +151,7 @@
   margin-top: 12px;
   padding: 16px 18px;
   border: 1px solid var(--dashboard-border);
-  border-left: 3px solid #6d8cff;
+  border-left: 3px solid var(--primary);
   border-radius: 11px;
   background: var(--dashboard-panel);
 }
@@ -168,13 +168,13 @@
   margin: 0;
   font-size: 0.95rem;
   line-height: 1.5;
-  color: var(--text, #e6e9f0);
+  color: var(--text, var(--text));
 }
 
-.dashboard-metric-money { --metric-accent: #2bd981; }
-.dashboard-metric-brand { --metric-accent: #5d8cff; }
-.dashboard-metric-prestige { --metric-accent: #b47cff; }
-.dashboard-metric-revenue { --metric-accent: #e3b23c; }
+.dashboard-metric-money { --metric-accent: var(--green); }
+.dashboard-metric-brand { --metric-accent: var(--primary); }
+.dashboard-metric-prestige { --metric-accent: var(--tint-violet-ink); }
+.dashboard-metric-revenue { --metric-accent: var(--star); }
 
 .dashboard-metric-clickable {
   font: inherit;
@@ -186,7 +186,7 @@
 
 .dashboard-metric-clickable:hover,
 .dashboard-metric-clickable:focus-visible {
-  border-color: var(--metric-accent, #6d8cff);
+  border-color: var(--metric-accent, var(--primary));
 }
 
 .dashboard-metric strong {
@@ -258,9 +258,9 @@
 }
 
 .dashboard-attention-card {
-  border-color: color-mix(in srgb, #5d8cff 36%, var(--dashboard-border));
+  border-color: color-mix(in srgb, var(--primary) 36%, var(--dashboard-border));
   background:
-    linear-gradient(135deg, color-mix(in srgb, #5d8cff 8%, transparent), transparent 42%),
+    linear-gradient(135deg, color-mix(in srgb, var(--primary) 8%, transparent), transparent 42%),
     var(--dashboard-panel);
 }
 
@@ -270,7 +270,7 @@
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  border-color: color-mix(in srgb, #d4af37 45%, var(--dashboard-border));
+  border-color: color-mix(in srgb, var(--star) 45%, var(--dashboard-border));
 }
 
 .dashboard-awards-banner p {
@@ -280,10 +280,10 @@
 
 .dashboard-attention-count {
   padding: 5px 8px;
-  border: 1px solid color-mix(in srgb, #ffb256 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, #ffb256 10%, transparent);
-  color: #ffc477;
+  background: color-mix(in srgb, var(--amber) 10%, transparent);
+  color: var(--tint-warm-ink);
   font-size: 0.74rem;
   font-weight: 700;
 }
@@ -313,14 +313,14 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #7f8ba0;
-  box-shadow: 0 0 0 4px color-mix(in srgb, #7f8ba0 14%, transparent);
+  background: var(--text-faint);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--text-faint) 14%, transparent);
 }
 
-.dashboard-activity-urgent .dashboard-activity-dot { background: #ff6b6b; box-shadow: 0 0 0 4px color-mix(in srgb, #ff6b6b 14%, transparent); }
-.dashboard-activity-warning .dashboard-activity-dot { background: #ffb256; box-shadow: 0 0 0 4px color-mix(in srgb, #ffb256 14%, transparent); }
-.dashboard-activity-positive .dashboard-activity-dot { background: #2bd981; box-shadow: 0 0 0 4px color-mix(in srgb, #2bd981 14%, transparent); }
-.dashboard-activity-neutral .dashboard-activity-dot { background: #5d8cff; box-shadow: 0 0 0 4px color-mix(in srgb, #5d8cff 14%, transparent); }
+.dashboard-activity-urgent .dashboard-activity-dot { background: var(--red); box-shadow: 0 0 0 4px color-mix(in srgb, var(--red) 14%, transparent); }
+.dashboard-activity-warning .dashboard-activity-dot { background: var(--amber); box-shadow: 0 0 0 4px color-mix(in srgb, var(--amber) 14%, transparent); }
+.dashboard-activity-positive .dashboard-activity-dot { background: var(--green); box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 14%, transparent); }
+.dashboard-activity-neutral .dashboard-activity-dot { background: var(--primary); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 14%, transparent); }
 
 .dashboard-activity-copy {
   min-width: 0;
@@ -377,8 +377,8 @@
 }
 
 .dashboard-pipeline-stat-emphasis {
-  border-color: color-mix(in srgb, #ffb256 45%, var(--dashboard-border));
-  background: color-mix(in srgb, #ffb256 8%, var(--dashboard-panel));
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--dashboard-border));
+  background: color-mix(in srgb, var(--amber) 8%, var(--dashboard-panel));
 }
 
 .dashboard-project-row {
@@ -406,7 +406,7 @@
 }
 
 .dashboard-campaign-meter span {
-  background: var(--dashboard-accent, var(--primary, #4f7cff));
+  background: var(--dashboard-accent, var(--primary, var(--primary)));
 }
 
 .dashboard-project-main strong {
@@ -425,20 +425,20 @@
   width: fit-content;
   padding: 3px 7px;
   border-radius: 999px;
-  background: color-mix(in srgb, #7f8ba0 13%, transparent);
-  color: #b6c0d2;
+  background: color-mix(in srgb, var(--text-faint) 13%, transparent);
+  color: var(--text-muted);
   font-size: 0.66rem !important;
   font-weight: 750;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.dashboard-status-awaiting-choice { background: color-mix(in srgb, #ff6b6b 14%, transparent); color: #ff9a9a; }
-.dashboard-status-finished { background: color-mix(in srgb, #ffb256 14%, transparent); color: #ffc477; }
-.dashboard-status-in-progress { background: color-mix(in srgb, #5d8cff 14%, transparent); color: #8eaaff; }
-.dashboard-status-scheduled { background: color-mix(in srgb, #b47cff 14%, transparent); color: #c89cff; }
-.dashboard-status-staffing { background: color-mix(in srgb, #4cc9a0 16%, transparent); color: #6fdcb8; }
-.dashboard-status-post-production { background: color-mix(in srgb, #35c2d6 16%, transparent); color: #74dbe9; }
+.dashboard-status-awaiting-choice { background: var(--tint-red-bg); color: var(--tint-red-ink); }
+.dashboard-status-finished { background: var(--tint-warm-bg); color: var(--tint-warm-ink); }
+.dashboard-status-in-progress { background: var(--tint-blue-bg); color: var(--tint-blue-ink); }
+.dashboard-status-scheduled { background: var(--tint-violet-bg); color: var(--tint-violet-ink); }
+.dashboard-status-staffing { background: var(--tint-green-bg); color: var(--tint-green-ink); }
+.dashboard-status-post-production { background: var(--tint-cool-bg); color: var(--tint-cool-ink); }
 
 /* Editing-progress meter under a film in post-production - the edit is a live,
    timed phase, shown filling toward its next test screening the same way a
@@ -448,11 +448,11 @@
   margin: 4px 0 2px;
 }
 .dashboard-postprod-meter span {
-  background: #35c2d6;
+  background: var(--tint-cool-ink);
 }
 
 .dashboard-box-office-card {
-  border-color: color-mix(in srgb, #e3b23c 34%, var(--dashboard-border));
+  border-color: color-mix(in srgb, var(--star) 34%, var(--dashboard-border));
 }
 
 .dashboard-film-metrics {
@@ -480,8 +480,8 @@
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: color-mix(in srgb, #5d8cff 14%, transparent);
-  color: #7fa0ff;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--tint-blue-ink);
 }
 
 .dashboard-empty-state h3 {
@@ -512,7 +512,7 @@
 }
 
 .dashboard-box-office-sidebar {
-  border-color: color-mix(in srgb, #e3b23c 28%, var(--dashboard-border));
+  border-color: color-mix(in srgb, var(--star) 28%, var(--dashboard-border));
 }
 
 .dashboard-box-office-sidebar > .card,
@@ -549,7 +549,7 @@
 
 .dashboard-upcoming-row:hover strong,
 .dashboard-rival-row:hover strong {
-  color: #8eabff;
+  color: var(--tint-blue-ink);
 }
 
 .dashboard-upcoming-row span,
