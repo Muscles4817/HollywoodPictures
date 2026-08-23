@@ -83,7 +83,7 @@ describe('FilmDetailModal - Screenplay section', () => {
     expect(within(section).getAllByText(ARCHETYPE_LABELS[film.script.archetype]).length).toBeGreaterThanOrEqual(1);
     expect(within(section).getByText(film.script.synopsis)).toBeInTheDocument();
     expect(within(section).getByText('Writing')).toBeInTheDocument();
-    expect(within(section).getByText('Creative')).toBeInTheDocument();
+    expect(within(section).getByText('Concept')).toBeInTheDocument();
   });
 
   it('renders the Screenplay section before Cast & Crew, Reception and Financials - a deliberate narrative order', () => {

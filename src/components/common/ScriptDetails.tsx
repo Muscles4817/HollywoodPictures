@@ -10,6 +10,7 @@ import {
   productionRequirementTags,
   describeCommercialAppeal,
   describeCostDrivers,
+  describeProductionComplexity,
   describeSettingImplication,
   describeCharacterDemands,
 } from '../../engine/scriptPresentation';
@@ -50,6 +51,7 @@ export function ScriptDetails({ script }: { script: Script }) {
           <span className="badge" key={tag}>{tag}</span>
         ))}
       </div>
+      <p style={{ margin: '0 0 6px', fontSize: '0.85em', color: 'var(--text-muted)' }}>{describeProductionComplexity(script)}</p>
       <div className="row" style={{ gap: 16, flexWrap: 'wrap', margin: '0 0 6px' }}>
         <StatGroup
           title="Writing"
@@ -60,10 +62,9 @@ export function ScriptDetails({ script }: { script: Script }) {
           ]}
         />
         <StatGroup
-          title="Creative"
+          title="Concept"
           stats={[
             { label: 'Originality', value: script.originality },
-            { label: 'Complexity', value: script.complexity },
           ]}
         />
       </div>
