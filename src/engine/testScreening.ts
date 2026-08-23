@@ -7,7 +7,7 @@
 // state/studioReducer.ts:RESOLVE_TEST_SCREENING_CHOICE and
 // components/common/OnSetDecisionCard.tsx need no test-screening-specific
 // branching at all.
-import type { EventChoiceTemplate, EventSeverity, FilmDraft, PendingEventChoice } from '../types';
+import type { EventChoiceTemplate, EventSeverity, FilmDraft, PendingEventChoice, ProductionRole } from '../types';
 import { computeQualityBreakdown, combineProductionEvents } from './scoring';
 import { pickDepartmentBlurb } from './reviews';
 import { DEFAULT_POST_PRODUCTION_CHOICES } from '../data/postProduction';
@@ -15,6 +15,7 @@ import { findAssignedPerson, filterAssignedPeople } from '../data/helpers';
 import { getTypicalSalaryForRole } from './person';
 import { computeDailyShootBurn } from './cost';
 import { talentSkillScore, prepareChoicesForInvolvedTalent } from './production';
+import { RESHOOT_REQUIREMENTS } from './reshootAvailability';
 import type { RandomFn } from './random';
 
 // Mirrors engine/reviews.ts's own CRITICISM_THRESHOLD - "the weakest
@@ -146,11 +147,16 @@ function reEditChoice(draft: FilmDraft, round: number): EventChoiceTemplate {
 // longer stretch - so major reshoots cost decisively more, both in shoot days and
 // in the far bigger recall. Rates are the fraction of a person's per-film salary
 // their short-notice recall costs.
-const PICKUPS = { filmingDays: 4, recallRate: 0.1, roles: ['Lead Actor'] as const };
-const MAJOR_RESHOOTS = { filmingDays: 16, recallRate: 0.25, roles: ['Lead Actor', 'Supporting Actor', 'Director'] as const };
+// Roles and filming days come from RESHOOT_REQUIREMENTS so the option that
+// PRICES a reshoot and the check for whether the cast can actually turn up for
+// one can never disagree about what it involves (engine/reshootAvailability.ts).
+// `recallRate` is the fraction of a person's per-film salary their short-notice
+// recall costs, and lives here because it is purely a cost concern.
+const PICKUPS = { ...RESHOOT_REQUIREMENTS.pickups, recallRate: 0.1 };
+const MAJOR_RESHOOTS = { ...RESHOOT_REQUIREMENTS['major-reshoots'], recallRate: 0.25 };
 
 /** The cost of recalling the given roles' principals for a reshoot - a rush-premium fraction of their per-film salaries. */
-function talentRecallCost(draft: FilmDraft, roles: readonly ('Lead Actor' | 'Supporting Actor' | 'Director')[], rate: number): number {
+function talentRecallCost(draft: FilmDraft, roles: readonly ProductionRole[], rate: number): number {
   return roles
     .flatMap((role) => filterAssignedPeople(draft.talent, role).map((p) => getTypicalSalaryForRole(p, role)))
     .reduce((sum, salary) => sum + salary * rate, 0);

@@ -15,6 +15,7 @@ import { Money, formatMoney } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
+import { blockedReshootChoices } from '../../engine/reshootAvailability';
 import { deriveFocusedDraft, deriveUpcomingReleaseEntries } from '../../state/selectors';
 import {
   CAMPAIGN_ANGLE_LABEL,
@@ -474,6 +475,7 @@ export function MarketingRelease() {
             totalDays={state.totalDays}
             pausedMessage="You can't schedule a release until you respond to the test screening."
             showChoiceCosts
+            blockedChoices={blockedReshootChoices(draft, state.talentPool, state.totalDays)}
             onChoose={(choiceId) => dispatch({ type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId, productionId: draft.id })}
           />
         </div>

@@ -11,6 +11,7 @@ import { personMeetsCharacterGender, personMeetsCharacterAge, personCastingAge }
 import { applyPrepRiskDelta, beginPhotographyFromPrep, computePrepRiskDelta, computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeShootEscalation, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, rollPreProductionDayEvent, resolveEventChoice } from '../engine/production';
 import { computeExecutionResilience } from '../engine/productionExecution';
 import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
+import { reshootAvailability } from '../engine/reshootAvailability';
 import { promoteFilmToIp, ipForSourceFilm, recordFranchiseEntries } from '../engine/intellectualProperty';
 import { generateSequelScript } from '../engine/scriptGenerator';
 import { SEQUEL_DEVELOPMENT_SETUP_DAYS, makePendingSequelDevelopment, settlePendingSequelDevelopments } from '../engine/sequelDevelopment';
@@ -2657,6 +2658,18 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       // unlocked (testScreeningResolved false) and a follow-up screening
       // surfaces once postProductionEditingUntilDay is reached
       // (checkTestScreeningReadiness), giving the player another decision.
+      // Can the cast actually come back? Additional photography needs the
+      // principals physically present, and by post-production they have long
+      // since contracted elsewhere - rivals book from the same pool. The
+      // authoritative guard (engine/reshootAvailability.ts); the decision card
+      // disables the option and names who is unavailable, but as everywhere
+      // else in this reducer the UI is only the first line of defence. Read
+      // against the LIVE pool and today, not the snapshot taken when the
+      // screening was generated, because who is free moves while the player
+      // deliberates.
+      const castAvailability = reshootAvailability(target, state.talentPool, state.totalDays, action.choiceId);
+      if (castAvailability && !castAvailability.available) return state;
+
       const { result: rolled, nextSeed } = withRng(state.rngSeed, (rng) => resolveEventChoice(pendingChoice, action.choiceId, rng));
 
       if (state.studio.cash < rolled.costDelta) return state;

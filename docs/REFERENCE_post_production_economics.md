@@ -136,10 +136,26 @@ principals. Major reshoots add many days, the director, the full principal cast,
 often the original crew and locations — and on a tentpole they routinely run into
 eight figures.
 
-Two further real costs the simulation does not currently model:
-- **Cast availability and recall premiums.** Actors have moved on to other
-  contracted work. Getting them back means paying a premium, or shooting around
-  them, or waiting months.
+### Cast availability — the constraint that decides most of these arguments
+
+The reason a studio fixes a bad preview in the edit is frequently not that the
+edit is the better idea. It is that **the cast is gone.** Principals contract
+their next job around this film's wrap date, and by the time a preview screens
+they are on someone else's set, in someone else's continuity, under someone
+else's schedule. There are only four ways round it, and three of them are bad:
+
+1. **Wait.** Push the reshoot until they are free, and push the release with it.
+2. **Buy them out.** Pay the other production's costs to release them for a
+   fortnight. Expensive, and needs that production's cooperation.
+3. **Shoot around them.** Doubles, over-shoulders, rewrites that avoid the face.
+   This is why some reshoots look the way they do.
+4. **Don't reshoot.** Fix it in the edit and release the film you have.
+
+Option 4 is by far the most common, and it is why the edit carries so much of the
+repair burden in practice. A reshoot is not something a studio can simply buy at
+a price — it is something the calendar can refuse outright.
+
+One further real cost the simulation does not model:
 - **Continuity drift.** Hair, physique, ageing. Reshoots months later are visibly
   reshoots if not managed.
 
@@ -200,10 +216,36 @@ Recorded so nobody assumes these are oversights:
 - Music, sound and DI as separate re-work terms. They are folded into the single
   VFX-driven exposure term, which is defensible only because VFX genuinely
   dominates on the films where re-work matters at all.
-- Cast availability for reshoots. Recall is priced but never *refused*, so a
-  reshoot can always be bought. Real productions frequently cannot.
 - Continuity drift over a long gap.
 - Marketing materials cut from removed footage.
+- The three *workarounds* for an unavailable cast (§5): waiting, buying them out,
+  or shooting around them. The simulation models only the fourth option -
+  refusal - so an unavailable principal closes photography off entirely rather
+  than opening a costlier route to it. Buying a principal out is the most
+  natural of the three to add, and would be a genuine money-for-time trade
+  rather than a new subsystem.
 
-The first and third are the two most likely to be worth adding, and both would
-fit the existing project-clocks work rather than needing anything new.
+Picture lock is the one most likely to be worth adding, and it would fit the
+existing project-clocks work rather than needing anything new.
+
+### What IS modelled: availability refusing a reshoot
+
+`engine/reshootAvailability.ts`. Additional photography needs the principals
+physically present - pickups need the leads, major reshoots need the leads,
+supporting cast and director. Each is checked against the **live** talent pool
+(not the snapshot taken when they were hired, which predates everything since,
+including this film's own greenlight booking), for the window that option
+actually needs. Rivals book from the same pool, so an unavailable star is a real
+consequence of a real market rather than a die roll.
+
+A blocked option stays visible, disabled, and names who is unavailable and until
+when - a refusal the player can reason about, not one they merely suffer
+(`SIMULATION_PHILOSOPHY.md` Principle 3). The re-edit is never blocked, because
+it needs nobody back: when photography is closed, the edit is the whole of what
+is left, which is exactly the real dynamic above.
+
+This is the same perishable-commitment idea as
+`docs/DESIGN_REVIEW_project_clocks_and_script_openness.md` §3.1, landing one
+phase later: the package the film assembled at greenlight has since dispersed,
+and what the studio can still do about a bad screening depends on who it can get
+back.

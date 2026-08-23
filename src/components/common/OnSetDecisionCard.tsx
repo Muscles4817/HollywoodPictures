@@ -54,6 +54,13 @@ interface OnSetDecisionCardProps {
   // When set, each regular choice shows its cost and time up front (the
   // test-screening decision, where those trade-offs are the whole point).
   showChoiceCosts?: boolean;
+  // Choice id -> why it cannot be taken right now. A blocked choice stays
+  // VISIBLE and disabled with its reason shown, rather than vanishing: the
+  // player needs to understand that a reshoot is off the table and why, which
+  // is the whole point of the constraint (SIMULATION_PHILOSOPHY.md Principle 3).
+  // Computed by the caller, which knows the draft - see
+  // engine/reshootAvailability.ts.
+  blockedChoices?: Record<string, string>;
 }
 
 /**
@@ -75,7 +82,7 @@ interface OnSetDecisionCardProps {
  * three full profiles on a small screen is still one full card at a time
  * rather than illegibly shrunk text.
  */
-export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, totalDays, onChoose, pausedMessage, showChoiceCosts }: OnSetDecisionCardProps) {
+export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, totalDays, onChoose, pausedMessage, showChoiceCosts, blockedChoices }: OnSetDecisionCardProps) {
   const involvedTalent = pendingChoice.involvedTalentId ? talent.find((t) => t.id === pendingChoice.involvedTalentId) : undefined;
   const involvedCategory = pendingChoice.involvedRole ? TALENT_PRESENTATION[pendingChoice.involvedRole].category : null;
 
@@ -105,15 +112,26 @@ export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, t
       <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85em' }}>{pausedMessage ?? 'Filming is paused until you pick.'}</p>
 
       <div className="stack">
-        {regularChoices.map((choice) => (
-          <button key={choice.id} className="event-choice-button" onClick={() => onChoose(choice.id)}>
-            <span className="event-choice-label-row">
-              <span className="event-choice-label">{choice.label}</span>
-            </span>
-            <span className="event-choice-description">{choice.description}</span>
-            {showChoiceCosts && <ChoiceCostMeta choice={choice} />}
-          </button>
-        ))}
+        {regularChoices.map((choice) => {
+          const blockedReason = blockedChoices?.[choice.id];
+          return (
+            <button
+              key={choice.id}
+              className={`event-choice-button${blockedReason ? ' event-choice-button--blocked' : ''}`}
+              disabled={Boolean(blockedReason)}
+              title={blockedReason}
+              onClick={() => onChoose(choice.id)}
+            >
+              <span className="event-choice-label-row">
+                <span className="event-choice-label">{choice.label}</span>
+                {blockedReason && <span className="event-choice-blocked-badge">Unavailable</span>}
+              </span>
+              <span className="event-choice-description">{choice.description}</span>
+              {blockedReason && <span className="event-choice-blocked-reason">{blockedReason}</span>}
+              {showChoiceCosts && !blockedReason && <ChoiceCostMeta choice={choice} />}
+            </button>
+          );
+        })}
       </div>
 
       {replacementChoices.length > 0 && (

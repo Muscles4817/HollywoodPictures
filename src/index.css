@@ -674,9 +674,37 @@ button {
   transition: border-color 0.12s, box-shadow 0.12s;
 }
 
-.event-choice-button:hover {
+.event-choice-button:hover:not(:disabled) {
   border-color: var(--primary);
   box-shadow: 0 0 0 2px rgba(36, 81, 201, 0.15);
+}
+
+/* An option the film genuinely cannot take right now - a reshoot whose cast is
+   already on someone else's set (engine/reshootAvailability.ts). Deliberately
+   still shown and still readable rather than hidden: the player needs to see
+   that it is off the table, and why. */
+.event-choice-button--blocked {
+  cursor: not-allowed;
+  opacity: 0.65;
+  background: var(--bg-muted, var(--bg));
+}
+
+.event-choice-blocked-badge {
+  font-size: 0.7em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.event-choice-blocked-reason {
+  font-size: 0.8em;
+  font-style: italic;
+  color: var(--text-muted);
 }
 
 .event-choice-label-row {
