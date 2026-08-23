@@ -658,6 +658,13 @@ BOX_OFFICE_TRACE=1 npx vitest run src/engine/boxOfficeBriefingTrace.diagnostic.t
   | sed -n '/BEGIN_TRACE_JSON/,/END_TRACE_JSON/p' | sed '1d;$d' > trace.json
 ```
 
+§8.4 is the mechanism-level layer beneath the §10 acceptance metrics: where each
+band of the distribution loses its audience, which constraint was actually
+binding each week, how runs terminated, and what separates the biggest films from
+the field. It is derived by replaying every finished film — the simulation is
+deterministic and each settled week stored the `competitivePressure` it was
+settled with, so the full per-week diagnostics can be recovered exactly.
+
 Two seeds: **4001** and **7302**. Every film in these runs is an AI studio's —
 the harness has no player — but rival and player films go through an identical
 pipeline (§6), so the distributions are the same ones a player competes inside.
@@ -1019,7 +1026,87 @@ Twenty most crowded weeks of this run:
 | 54 | 11 | 0.0212 | 0.0747 | 12.2 |
 | 60 | 11 | 0.0374 | 0.0739 | 112.6 |
 
-### 8.4 Structural observations from the trace data
+### 8.4 Funnel, ceiling and shape diagnostics
+
+#### Tail reachability decomposition
+
+Where each band of the distribution actually loses its audience. `% aware` and
+everything right of it are fractions of that film's own TAA, so the columns read
+as one funnel. Means within each band.
+
+| Band | n | Median gross $M | TAA M | Peak aware % of TAA | Interest ceiling realised | Natural ceiling realised | Crossover ceiling realised | Tickets % of TAA |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| Top 5% by gross | 3 | 494.8 | 141 | 50.4% | 70.3% | 61.6% | 82.4% | 34.0% |
+| Next 20% | 14 | 229.8 | 106 | 43.2% | 48.5% | 51.1% | 42.2% | 19.3% |
+| Middle 50% | 34 | 26.2 | 88 | 20.9% | 13.1% | 22.6% | 3.1% | 3.4% |
+| Bottom 25% | 18 | 8.2 | 81 | 7.5% | 4.4% | 7.5% | 0.0% | 0.9% |
+
+#### Ceiling-hit and binding-constraint diagnostics
+
+Two different questions, split apart because conflating them hides the answer:
+what stopped people attending, and what stopped more people wanting to.
+
+What limited **attendance**:
+
+| Constraint | Film-weeks | Share |
+|---|--:|--:|
+| `exhibition` — capacity clipped demand | 103 | 11.9% |
+| `demand` — capacity never reached | 759 | 88.1% |
+| **Total** | **862** | |
+
+What limited **interest growth** — the term that decides whether a film can grow
+beyond its opening at all:
+
+| Limiter | Film-weeks | Share |
+|---|--:|--:|
+| `womStrength` — word of mouth generating <1% growth | 744 | 86.3% |
+| `ceiling` — headroom under the interest ceilings is the smaller pool | 65 | 7.5% |
+| `awarePool` — aware-but-uninterested pool is the smaller one | 53 | 6.1% |
+
+| Ceiling / limit | Films affected | Detail |
+|---|--:|---|
+| `conversionPacingBaseline` clamped at 1.0 | 20 of 69 | no pacing model at all for those films |
+| Natural interest ceiling ≥90% realised | 0 of 69 | mean realisation 26.1% |
+| Crossover ceiling ≥90% realised | 0 of 69 | mean realisation 13.7% |
+| Any week at availability floor (0.02) | 8 of 69 | |
+| Any week at availability ceiling (1.0) | 0 of 69 | |
+| Post-release awareness growth | — | mean 4.3% of TAA, max 4.9% |
+| Word-of-mouth-generated awareness | 0 of 69 | `newlyAwareFromWom` is 0 in every week of every film |
+
+#### Termination cause by release strategy
+
+A safety cap should be almost invisible. It is not.
+
+| Release type | n | Organic | Safety cap (20 weeks) | Mean run weeks |
+|---|--:|--:|--:|--:|
+| Wide | 39 | 39 (100.0%) | 0 (0.0%) | 6.7 |
+| Limited | 11 | 0 (0.0%) | 11 (100.0%) | 20.0 |
+| Festival First | 19 | 0 (0.0%) | 19 (100.0%) | 20.0 |
+
+#### Weekly shape distributions
+
+What a mean opening multiple hides. Drops are week-on-week declines; a negative
+drop means the film grew that week.
+
+| Release type | Opening share of total | Week-2 drop | Week-3 drop | Peak gross week | Peak availability week | Weeks of positive expansion | Legs (median) |
+|---|--:|--:|--:|--:|--:|--:|--:|
+| Wide | 48.9% | 48.4% | 34.5% | 1.2 | 1.0 | 0.0 | 2.1x |
+| Limited | 8.3% | -3.0% | 2.1% | 1.7 | 1.0 | 0.0 | 11.9x |
+| Festival First | 4.8% | -36.2% | -18.5% | 4.2 | 3.3 | 2.3 | 21.2x |
+
+#### Tail composition
+
+What separates the biggest films from the field. Means per band — the question is
+whether blockbuster status requires several exceptional factors at once, or one.
+
+| Band | n | Marketability | Accessibility | Hook | Crossover potential | Spectacle | Studio brand | Critic | Audience | Buzz | Marketing $M | Initial availability |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| Top 5% by gross | 3 | 16.7 | 71.0 | 73.5 | 60.4 | 81.0 | 75.0 | 54 | 70 | 94 | 39.07 | 0.702 |
+| Next 20% | 14 | 17.3 | 64.3 | 70.6 | 58.6 | 80.3 | 72.2 | 52 | 66 | 74 | 30.45 | 0.541 |
+| Middle 50% | 34 | 11.6 | 45.7 | 57.6 | 65.6 | 49.2 | 50.8 | 58 | 63 | 46 | 7.71 | 0.268 |
+| Bottom 25% | 18 | 12.2 | 42.1 | 54.5 | 52.1 | 33.6 | 28.8 | 53 | 57 | 11 | 0.19 | 0.194 |
+
+### 8.5 Structural observations from the trace data
 
 Measured over all 69 films / 862 settled film-weeks in both runs:
 
@@ -1033,6 +1120,11 @@ Measured over all 69 films / 862 settled film-weeks in both runs:
 | **Reception has a narrow range.** AI-produced films almost never score above the mid-70s, which caps the fourth-power reception term and flattens outcome variance. | critic 37–71 (median 56), audience 42–72 (median 63) |
 | **International reach is uniform.** Every rival studio has full reach, so the domestic/international split is a flat per-genre percentage with no variance. | reach = 1.0 for all 69 |
 | **Word of mouth creates zero awareness.** `newlyAwareFromWom` is hardcoded 0; awareness comes only from the release-day seed and a trickle decaying at `0.55^(week-1)`. | by construction |
+| **Word of mouth generates almost no interest, almost all the time.** In the overwhelming majority of film-weeks the natural-interest growth fraction is under 1% — headroom is not the constraint, the word-of-mouth response itself is. | 86.3% of 862 film-weeks |
+| **Post-release awareness is capped at ~5% of TAA by construction.** The external trickle is a share of the *unaware*, summing to `rate x 1/(1-0.55)` — so it adds most to films that opened small and least to the large films that would need it to reach the tail. | mean 4.3% of TAA, max 4.9% |
+| **Exhibition capacity rarely binds.** Demand reached serviceable capacity in a minority of film-weeks; the rest were limited by nothing external at all. | 11.9% of film-weeks |
+| **Limited releases never expand.** A platform release opens at 0.10 availability and only ever contracts from there — it peaks in week 1 and has zero weeks of positive expansion. Festival First does expand. So "platform releasing" currently does not platform. | 0 of 11 Limited films expanded in any week |
+| **Critic score does not separate the tail.** Across the four gross bands (top 5% → bottom 25%) mean critic score is essentially flat, and audience score separates only mildly. Reception is not what distinguishes a big film from a small one; scale, spectacle and marketing are. | critic 54 / 52 / 58 / 53 · audience 70 / 66 / 63 / 57 |
 
 ---
 
@@ -1550,7 +1642,7 @@ mean are both below target and **the top tail is missing entirely** — no film 
 rather than 40–50%. The failure side has the mirror problem: too many mid-range
 losses (43.2% vs 25–35%), too few major hits (8.1% vs 10–20%) and almost no
 studio-changing blockbusters (0.9%). Note `limitedRunWeeks` "passes" at exactly
-20.0 only because every limited run hits the hard cap (§8.4).
+20.0 only because every limited run hits the hard cap (§8.5).
 
 #### Buzz bands and non-purchasability — **PASS**
 
@@ -1652,13 +1744,25 @@ should serve both theatrical settlement and AI scheduling.
 
 Not a request for a tuning pass — a request for structural criticism. Concretely:
 
-1. **The missing top tail.** No film in 1,167 crossed $1B, and only 2.8% crossed
-   $500M, and the whole distribution sits below its targets. Which term in the funnel is capping
-   the top? Candidates we can see: the `CROSSOVER_CAPACITY_CEILING = 0.3` hard
-   cap; the disabled franchise multiplier; `MAX_WEEKLY_THROUGHPUT_FRACTION = 0.5`
-   and the availability anchor; the 20-week run cap; the narrow reception range
-   AI films produce. Which matters most, and is any of it the wrong *shape*
-   rather than the wrong *number*?
+1. **The missing top tail.** No film in 1,167 crossed $1B, only 2.8% crossed
+   $500M, and the whole distribution sits below its targets. The §8.4
+   diagnostics narrow this considerably, and the hard ceiling below narrows it
+   further — so the open question is which of the remaining candidates to change
+   and in what order, and whether any is the wrong *shape* rather than the wrong
+   *number*: the `CROSSOVER_CAPACITY_CEILING = 0.3` hard cap (82% realised in the
+   top band, so it does bind where it matters); the disabled franchise
+   multiplier; the word-of-mouth response, which produces under 1% interest
+   growth in 86% of film-weeks; the ~5%-of-TAA cap on post-release awareness.
+
+   **A hard arithmetic ceiling sits above all of this.** A maximal film — every
+   input at 100, $150M marketing, zero competition, Action/Mass Market/Wide —
+   produces TAA 150.0M, an interest ceiling of 126.0M, and settles at **116.9M
+   admissions = $1.286B over 4 weeks**. That is the model's absolute maximum. So
+   the $1B target is reachable only by near-perfection, and the ratified
+   $2.5B phenomenon target is **unreachable by roughly 2×** — a structural
+   contradiction rather than a calibration gap. Reaching $2.5B needs ~227M
+   admissions, which at the measured 0.78 admissions per unit of TAA implies a
+   maximal TAA near 292M against today's 150M.
 
 2. **Deterministic outcomes** (coefficient of variation 0.010 — 240 of 240 resolutions inside ±15%). Given the
    hard constraint that variance must be endogenous and identical inputs must
@@ -1671,9 +1775,12 @@ Not a request for a tuning pass — a request for structural criticism. Concrete
 
 3. **Inert competition.** Mean attention pressure of 0.031 across 862 film-weeks.
    Is the crowding formula's shape wrong (proximity × genre overlap × strength,
-   summed and clamped), the weights too small, or is the real problem that
-   exhibition capacity can never fall below demand so screens never actually
-   become scarce?
+   summed and clamped), the weights too small, or is the real problem that every
+   film simulates a private population, so films never contest a genuinely
+   scarce shared resource and competition can only ever be applied as a scalar
+   penalty? Note from §8.4 that exhibition capacity did clip demand in 11.9% of
+   film-weeks, so screens are not entirely inert — but each film's capacity is
+   computed from its own anchor, not from anything shared.
 
 4. **Awareness.** Word of mouth creates no awareness at all, and external
    awareness decays at `0.55^(week-1)` — effectively dead by week 4. Is
@@ -1686,9 +1793,13 @@ Not a request for a tuning pass — a request for structural criticism. Concrete
    multiplicative chain the wrong composition?
 
 6. **The tests themselves.** Are the ratified targets in §10 the right things to
-   measure? Is `limitedRunWeeks` passing at exactly the cap a sign the metric is
-   badly chosen? What would you add — per-genre distributions, seasonality,
-   opening-weekend share, week-2 drop, anything the current harnesses miss?
+   measure? Several currently-green metrics look contaminated: `limitedRunWeeks`
+   passes at exactly the 20-week cap that 100% of limited runs hit;
+   `wideOpeningMultiple` passes while half the wide field has its pacing clamped
+   at 1.0, which structurally maximises front-loading. What else in §10 is
+   measuring an artifact rather than behaviour, and what would you add? The
+   §8.4 diagnostics are the first pass at a mechanism-level layer beneath the
+   §10 acceptance metrics — what is still missing from it?
 
 7. **Anything structurally missing.** Repeat viewing, per-market audiences,
    screen counts as a real scarce resource, premium formats, day-and-date
