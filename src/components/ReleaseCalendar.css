@@ -318,9 +318,8 @@
   text-transform: uppercase;
   padding: 2px 7px;
   border-radius: 4px;
-  background: var(--primary);
-  /* --panel, not #fff: --primary is light in dark mode. */
-  color: var(--panel);
+  background: var(--text);
+  color: var(--bg);
 }
 
 /* --- Expanded detail (click-to-open) ---------------------------------- */

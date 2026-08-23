@@ -31,8 +31,15 @@
   --text-muted: #57534a;
   --text-faint: #8a8478;
 
-  --primary: #1f5fd0;
-  --primary-hover: #17489e;
+  /* The accent is *rationed*: it marks state (focus, the active step, a link),
+     and never fills a surface. Filling every primary button with it is what
+     made the first pass of this palette shout. */
+  --primary: #2a5cb8;
+  --primary-hover: #1e4691;
+  --on-accent: #f7f5f0;
+  /* Bars and meters show a value, and a value needs no hue - same principle
+     as the package-readiness meter's "set" segment. */
+  --bar: #3d3a33;
 
   /* ---- Semantic state ------------------------------------------------
      `--open` is "needs a decision", which is a different thing from
@@ -118,8 +125,10 @@
   --text-muted: #a7a296;
   --text-faint: #78736a;
 
-  --primary: #6ba6ff;
-  --primary-hover: #93beff;
+  --primary: #7fb0f5;
+  --primary-hover: #a6c9ff;
+  --on-accent: #16151a;
+  --bar: #8b8578;
 
   --open: #ff5fa2;
   --danger: #ff6b60;
@@ -355,15 +364,17 @@ button {
 }
 
 .btn-primary {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: white;
+  /* Ink, not accent - confident without shouting, and it inverts correctly
+     in dark mode where --text is light and --bg is dark. */
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
   font-weight: 600;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover);
-  border-color: var(--primary-hover);
+  background: var(--text-muted);
+  border-color: var(--text-muted);
 }
 
 .btn-text {
@@ -587,7 +598,7 @@ button {
 .score-bar-fill {
   display: block;
   height: 100%;
-  background: var(--primary);
+  background: var(--bar);
   border-radius: 4px;
 }
 
@@ -621,7 +632,7 @@ button {
 .box-office-chart-bar {
   width: 100%;
   min-width: 14px;
-  background: var(--primary);
+  background: var(--bar);
   border-radius: 3px 3px 0 0;
 }
 
@@ -674,7 +685,7 @@ button {
 .time-tick-bar-fill {
   height: 100%;
   width: 0%;
-  background: var(--primary);
+  background: var(--bar);
   border-radius: 4px;
   animation-name: time-tick-fill;
   animation-timing-function: linear;
@@ -855,7 +866,7 @@ button {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: var(--primary);
+  background: var(--bar);
   border: 3px solid white;
   box-shadow: 0 0 0 1px var(--primary);
   cursor: pointer;
@@ -865,7 +876,7 @@ button {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: var(--primary);
+  background: var(--bar);
   border: 3px solid white;
   box-shadow: 0 0 0 1px var(--primary);
   cursor: pointer;
@@ -1773,7 +1784,7 @@ textarea, input, select {
 }
 
 .talent-fit--strong .talent-fit-meter > span { background: var(--green); }
-.talent-fit--good .talent-fit-meter > span { background: var(--primary); }
+.talent-fit--good .talent-fit-meter > span { background: var(--bar); }
 .talent-fit--risky .talent-fit-meter > span { background: var(--amber); }
 .talent-fit--poor .talent-fit-meter > span { background: var(--red); }
 
@@ -1933,11 +1944,11 @@ textarea, input, select {
   display: block;
   height: 100%;
   border-radius: 99px;
-  background: var(--primary);
+  background: var(--bar);
 }
 
 .talent-bar-fill--hi { background: var(--green); }
-.talent-bar-fill--mid { background: var(--primary); }
+.talent-bar-fill--mid { background: var(--bar); }
 .talent-bar-fill--lo { background: var(--amber); }
 
 .talent-bar-value {
@@ -2128,7 +2139,7 @@ textarea, input, select {
   display: block;
   height: 100%;
   border-radius: 99px;
-  background: var(--primary);
+  background: var(--bar);
 }
 
 .talent-cmp-cell--win .talent-cmp-bar-fill { background: var(--green); }
@@ -2552,7 +2563,7 @@ textarea, input, select {
 .edit-bay__eyebrow { font-weight: 700; font-size: 1.02em; color: var(--text); }
 .edit-bay__countdown { color: var(--text-muted); font-size: 0.9em; font-weight: 600; }
 .edit-bay__bar { height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--text) 12%, transparent); overflow: hidden; }
-.edit-bay__bar > span { display: block; height: 100%; border-radius: 999px; background: var(--primary); transition: width 0.4s ease; }
+.edit-bay__bar > span { display: block; height: 100%; border-radius: 999px; background: var(--bar); transition: width 0.4s ease; }
 .edit-bay--complete .edit-bay__bar > span { background: var(--green); }
 .edit-bay__meta { font-size: 0.82em; color: var(--text-muted); font-weight: 600; }
 .edit-bay__note { margin: 2px 0 0; font-size: 0.85em; color: var(--text-muted); line-height: 1.45; }
