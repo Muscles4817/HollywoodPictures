@@ -9,6 +9,7 @@ import {
   type CheckboxFilterOption,
 } from './common/CheckboxFilterDropdown';
 import { deriveAssetStatus, type AssetStatus } from '../engine/project';
+import { describeProductionComplexity } from '../engine/scriptPresentation';
 import type { GameAction } from '../state/gameState';
 import type { Asset, Genre, Person } from '../types';
 import './AssetLibrary.css';
@@ -561,6 +562,10 @@ function AssetCard({
                 </strong>
               </div>
             </div>
+
+            <p className="asset-library-card__status-copy">
+              {describeProductionComplexity(asset.script)}
+            </p>
 
             <div className="asset-library-card__cost-row">
               <span>Screenplay cost</span>

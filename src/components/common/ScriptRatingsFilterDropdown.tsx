@@ -370,7 +370,7 @@ export function ScriptRatingsFilterDropdown({
           </RatingSection>
 
           <RatingSection
-            title="Creative"
+            title="Concept"
             activeCount={creativeFilterCount}
             isOpen={openSections.creative}
             onToggle={() => toggleSection('creative')}

@@ -656,6 +656,14 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   let requiredSupporting: number;
   let cast: ScriptCharacter[];
   if (returning.length > 0 && returning.some((c) => c.prominence === 'Lead')) {
+    // Inherited verbatim, INCLUDING their demand rows: these came off the source
+    // film's own script (engine/ip.ts:promoteFilmToIp copies script.cast traits),
+    // so they have already been read against a screenplay. Re-running the
+    // script-shaped post-pass over them would apply it twice - and it isn't
+    // idempotent, so a returning role would drift a little further from its
+    // archetype with every sequel until it pinned at the clamp. Leaving them
+    // alone also keeps a sequel's role brief agreeing with the one the IP screen
+    // shows for the same character.
     cast = returning.map((c, i) => ({ ...c, id: `${id}-c${i}` }));
     requiredLeads = cast.filter((c) => c.prominence === 'Lead').length;
     requiredSupporting = cast.filter((c) => c.prominence === 'Supporting').length;
@@ -663,7 +671,15 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
     const castMultiplier = storyProfile.castSizeMultiplier * scaleProfile.castMultiplier;
     requiredLeads = Math.max(1, Math.round(pick(rng, LEAD_COUNT_WEIGHTS) * castMultiplier));
     requiredSupporting = Math.max(0, Math.round(pick(rng, SUPPORTING_COUNT_WEIGHTS) * castMultiplier));
-    cast = generateCast(id, genre, storyType, requiredLeads, requiredSupporting, rng);
+    // Re-read every fresh role's performance demands against the screenplay it's
+    // actually in, rather than leaving it on its character archetype's fixed
+    // baseTraits row (engine/characterDemands.ts). Deliberately rng-free, so a
+    // seeded slate is byte-identical to before this existed apart from the three
+    // modulated demand axes themselves.
+    cast = scriptShapedCast(
+      generateCast(id, genre, storyType, requiredLeads, requiredSupporting, rng),
+      { toneProfile, productionRequirements },
+    );
   }
 
   const audienceWeights = combineWeights(TARGET_AUDIENCES, [
@@ -672,13 +688,6 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
     genreTypicalAudienceBonus(genre),
   ]);
   const intendedAudience = weightedPick(rng, TARGET_AUDIENCES, audienceWeights);
-
-  // Re-read every role's performance demands against the screenplay they're
-  // actually in, rather than leaving them at their character archetype's fixed
-  // baseTraits row (engine/characterDemands.ts). Deliberately a post-pass and
-  // deliberately rng-free, so a seeded slate is byte-identical to before this
-  // existed apart from the three modulated demand axes themselves.
-  const shapedCast = scriptShapedCast(cast, { toneProfile, productionRequirements });
 
   // Concept-quality inputs (immutable; feed the derived ConceptStrength). Rolled
   // from the archetype's own bands - the archetype owns "what kind of concept
@@ -730,7 +739,7 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
     complexity,
     cost: estimateScriptCost({
       originality, structure, dialogue, characters, complexity,
-      genre, archetype, storyType, scale, primarySetting, cast: shapedCast,
+      genre, archetype, storyType, scale, primarySetting, cast,
     }),
     toneProfile,
     environmentStrategy,
@@ -743,7 +752,7 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
     requiredSupporting,
     intendedAudience,
     franchiseRecognition: sequelSeed?.franchiseRecognition,
-    cast: shapedCast,
+    cast,
   };
 }
 
