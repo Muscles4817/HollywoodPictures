@@ -6,7 +6,7 @@ import { rollPressTourMoments, pressTourReputationDeltas, windowOutcomeToMoments
 import { computeProducerEffects, producersByIds, totalAttachedPerFilmFees } from './producers';
 import { stuntTeamById, stuntTeamEffectiveSkill, stuntTeamFee } from './stuntTeams';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta } from './cost';
-import { computeCompetitiveCrowding, runningFilmAsUpcomingRelease, type UpcomingRelease } from './releaseCrowding';
+import { computeCompetitiveCrowding, runningFilmAsUpcomingRelease, type UpcomingRelease, computePlayerReleaseStrength } from './releaseCrowding';
 import { marketingRolloutMultiplier } from './marketing';
 import { resolveRivalProduction, rivalAsUpcomingRelease } from './rivalStudios';
 import { nextDueFilm, advanceEarliestDueFilmByOneWeek } from './boxOfficeRun';
@@ -105,7 +105,29 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
   const photographyEvents = [...prepQualityEvents(draft.preProduction), ...draft.photography!.events];
   const postProductionEvents = draft.postProductionEvents;
   const shootingRatio = draft.photography!.recommendedDays > 0 ? draft.photography!.daysElapsed / draft.photography!.recommendedDays : 1;
-  const competitiveCrowding = computeCompetitiveCrowding({ releaseDay, genre: draft.genre!, targetAudience: draft.targetAudience! }, known);
+  // The player's own strength in the matchup. Without this third argument
+  // computeCompetitiveCrowding falls back to its candidate-blind weight of 1, so
+  // a 200m tentpole felt exactly the same crowding as a 5m indie opening the
+  // same day - matchupWeight's whole "am I doing the pushing or being pushed"
+  // primitive was live for rivals (engine/rivalStudios.ts:chooseReleaseDay) and
+  // inert for the player. See docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
+  // section 9.2.
+  //
+  // Deliberately the SAME expression engine/scheduledReleases.ts:asUpcomingRelease
+  // uses to present this film to rivals, including its frozen genre-identity
+  // snapshot rather than the live reading: the strength a film resists a
+  // collision with must equal the strength rivals steered around when they
+  // picked their day, or the two sides of the same matchup disagree.
+  const ownStrength = computePlayerReleaseStrength(
+    draft.marketingChoices!.marketingSpend,
+    computeProductionBudgetCost(draft.productionChoices!),
+    draft.marketingChoices!.studioGenreIdentity ?? studioGenreIdentity,
+  );
+  const competitiveCrowding = computeCompetitiveCrowding(
+    { releaseDay, genre: draft.genre!, targetAudience: draft.targetAudience! },
+    known,
+    ownStrength,
+  );
 
   // Attached producers were locked in pre-greenlight; resolve them against the
   // world pool now to apply their combined boost and fold in their fees.

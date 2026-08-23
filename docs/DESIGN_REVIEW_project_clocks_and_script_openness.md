@@ -635,16 +635,56 @@ spent pointing at that date.**
 In dependency order. The first two are prerequisites the measurement exposed and
 are worth doing even if the rest slips.
 
-1. **Wire the player into `matchupWeight`.** Pass the player's own release
-   strength at `marketSettlement.ts:108`. Without it a strong film cannot shrug
-   off a collision and the entire who-blinks dynamic is inert for the player.
-   Small, self-contained, and it makes the existing model behave as designed.
-2. **Give the upper range resolution.** Median 0.607 / p90 1.000 means most bad
-   days are indistinguishable. Either soften the clamp or rescale the weights so
-   "contested" and "ruinous" read differently. Measure against the diagnostic.
+1. ~~**Wire the player into `matchupWeight`.**~~ **Done.** `marketSettlement.ts`
+   now passes the player's own `computePlayerReleaseStrength` - deliberately the
+   same expression `asUpcomingRelease` uses to present the film to rivals,
+   frozen genre-identity snapshot included, so the strength a film resists a
+   collision with equals the strength rivals steered around.
+2. ~~**Give the upper range resolution.**~~ **Done.** `computeCompetitiveCrowding`
+   splits into `computeCrowdingPressure` (raw, unbounded) and
+   `crowdingFromPressure` (the response curve). Pressure below a soft knee of
+   0.7 passes through untouched, so the ordinary range keeps its exact previous
+   calibration; above it, crowding approaches total loss asymptotically instead
+   of clamping. Strictly monotonic, so no two pressures collapse to one crowding.
 3. **Announce the date before greenlight**, and let rivals see it.
 4. **Commit marketing against it early**, as a real sunk cost.
 5. **Allow moving, priced at the campaign write-off.**
+
+### 9.5a Measured result of steps 1-2
+
+Same harness, after both changes. Head-on collisions, by the player's own
+release strength:
+
+```text
+                    BEFORE                    AFTER
+strength 0.20   crowding 0.963  92% saturated   raw 1.68 -> 0.938   10% saturated
+strength 0.40   crowding 0.942  81% saturated   raw 1.35 -> 0.902    3% saturated
+strength 0.60   crowding 0.907  64% saturated   raw 1.12 -> 0.856    0% saturated
+strength 0.80   crowding 0.856  49% saturated   raw 0.97 -> 0.803    0% saturated
+strength 0.95   crowding 0.813  32% saturated   raw 0.87 -> 0.762    0% saturated
+
+availability kept, weakest -> strongest:  51.9%-59.4%  ->  53.1%-61.9%
+```
+
+**Saturation is gone** (92% to 10% at the weak end, 0% everywhere else), and the
+raw pressures show the model was always discriminating properly - a weak film
+feels 1.68 of pressure where a strong one feels 0.87, roughly double. The hard
+clamp was throwing that away.
+
+**The remaining spread is modest and deliberately left alone.** A worthless film
+and a maximal tentpole now differ by 8.8 points of opening availability on a
+head-on collision, up from 7.5. Widening that further means raising
+`CROWDING_PENALTY_WEIGHT` (currently 0.5), which is not a resolution problem but
+a **magnitude** change to a calibrated box-office input, belonging to
+`docs/DESIGN_box_office_calibration_targets.md` and its own gates. Doing it here
+would be recalibrating the box office under cover of a crowding fix. Left for
+that work, deliberately.
+
+Re-running `developmentDominance.diagnostic` after these two changes moves
+nothing (7% of waits cost a target, against 10% before - noise). **That is the
+expected result, not a failure:** steps 1-2 sharpen how a collision is *felt*,
+while what makes the date matter to a production decision is steps 3-5, which
+commit something early enough to lose. The re-run in §9.6 is the one that counts.
 
 ### 9.6 Acceptance test
 

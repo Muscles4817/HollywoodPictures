@@ -19,7 +19,7 @@ import { generateRivalStudios, settleRivalMarket, rivalAsUpcomingRelease, type R
 import { settleTheatricalMarket } from './marketSettlement';
 import { settleOpportunities } from './opportunities';
 import { generateTalentPool } from './talentGenerator';
-import { computeCompetitiveCrowding, type UpcomingRelease } from './releaseCrowding';
+import { computeCompetitiveCrowding, computeCrowdingPressure, type UpcomingRelease } from './releaseCrowding';
 import type { Film, RivalProductionInProgress, RivalStudio } from '../types';
 
 const HORIZON = 1400;
@@ -110,6 +110,26 @@ describe.skipIf(!diagnosticEnabled)('release crowding diagnostic', () => {
   console.log(`\narbitrary days sampled: ${arbitrary.length}`);
   console.log(`  crowding  mean ${amean.toFixed(3)}  median ${aq(0.5).toFixed(3)}  p90 ${aq(0.9).toFixed(3)}  max ${aq(1).toFixed(3)}`);
   console.log(`  best-vs-worst day availability spread: ${((1 - 0.5 * aq(0)) * 100).toFixed(1)}% vs ${((1 - 0.5 * aq(1)) * 100).toFixed(1)}%`);
+
+  // Does the player's OWN strength change what they feel? matchupWeight is what
+  // lets a tentpole shrug off a collision a small film cannot survive; until the
+  // player's settlement passed its own strength (section 9.5 step 1) this was flat.
+  console.log(`\nsame days, by the player's own release strength:`);
+  for (const strength of [0.2, 0.4, 0.6, 0.8, 0.95]) {
+    const vals: number[] = [];
+    const raw: number[] = [];
+    for (const snapshot of snapshots) {
+      for (const u of snapshot) {
+        const c = { releaseDay: u.releaseDay, genre: u.genre, targetAudience: u.targetAudience };
+        vals.push(computeCompetitiveCrowding(c, snapshot, strength));
+        raw.push(computeCrowdingPressure(c, snapshot, strength));
+      }
+    }
+    const m = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const rm = raw.reduce((a, b) => a + b, 0) / raw.length;
+    const atClamp = vals.filter((v) => v >= 0.999).length / vals.length;
+    console.log(`  strength ${strength.toFixed(2)}:  raw ${rm.toFixed(2)}  ->  crowding ${m.toFixed(3)}   availability kept ${((1 - 0.5 * m) * 100).toFixed(1)}%   saturated ${(atClamp * 100).toFixed(0)}%`);
+  }
 
   headOn.sort((a, b) => a - b);
   const q = (p: number) => (headOn.length ? headOn[Math.floor((headOn.length - 1) * p)] : 0);
