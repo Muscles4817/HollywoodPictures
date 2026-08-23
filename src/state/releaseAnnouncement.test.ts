@@ -118,7 +118,7 @@ describe('an announcement actually deters', () => {
 
     const strong = shift({ releaseDay: base, genre: 'Action', targetAudience: 'Mass Market', strength: 0.9 });
     const weak = shift({ releaseDay: base, genre: 'Action', targetAudience: 'Mass Market', strength: 0.1 });
-    const counterprogrammed = shift({ releaseDay: base, genre: 'Romance', targetAudience: 'Adult', strength: 0.9 });
+    const counterprogrammed = shift({ releaseDay: base, genre: 'Romance', targetAudience: 'Adults', strength: 0.9 });
     expect(weak).toBe(strong);
     expect(counterprogrammed).toBe(strong);
   });
