@@ -6,6 +6,7 @@
 // logic - kept here, not in a component file, since neither function
 // touches JSX.
 import { deriveCommercialProfile } from './commercialProfile';
+import { commercialCeiling } from './scriptGenerator';
 import { SETTING_ARCHETYPE_PROFILES, type SettingProfile } from '../data/settings';
 import { ACTING_STYLE_LABELS } from '../data/actingStyle';
 import type { ActingStyle, CharacterTraitProfile, Script, ScriptCharacter, SettingArchetype } from '../types';
@@ -64,15 +65,55 @@ export function describeCommercialAppeal(script: Script): string {
   return `Commercially: ${traits.join(', ')}.`;
 }
 
-/** "Why is this script expensive" - the concrete drivers behind Screenplay Cost, rather than leaving the number to speak for itself. */
+// Bands over engine/scriptGenerator.ts:commercialCeiling, the accessibility/hook
+// blend the acquisition price is actually built on.
+const CEILING_BROAD = 65;
+const CEILING_NARROW = 45;
+const DEMANDING_COMPLEXITY = 65;
+const EXCEPTIONAL_CRAFT = 70;
+
+/**
+ * "Why does this screenplay cost what it costs" - the concrete drivers behind
+ * Screenplay Cost, rather than leaving the number to speak for itself.
+ *
+ * Leads with the commercial ceiling because that's what the price is now
+ * primarily built from (engine/scriptGenerator.ts:estimateScriptCost), and says
+ * so in BOTH directions: a narrow concept being cheap is a fact the player
+ * needs in order to see the prestige lane as a lane at all, not just an absence
+ * of expensive-ness. Craft comes second and is explicitly framed as a premium
+ * on top, since that's exactly how it enters the formula.
+ */
 export function describeCostDrivers(script: Script): string {
-  const drivers: string[] = [];
-  if (script.scale === 'Epic') drivers.push('its epic scale');
-  if (script.complexity >= 65) drivers.push('a demanding production');
+  const ceiling = commercialCeiling(deriveCommercialProfile(script));
   const avgCraft = (script.originality + script.structure + script.characters + script.dialogue) / 4;
-  if (avgCraft >= 70) drivers.push('exceptional craft');
-  if (drivers.length === 0) return 'A modest, straightforward production.';
-  return `Priced for ${drivers.join(' and ')}.`;
+  const premiums: string[] = [];
+  if (avgCraft >= EXCEPTIONAL_CRAFT) premiums.push('exceptional craft');
+  if (script.complexity >= DEMANDING_COMPLEXITY) premiums.push('a demanding production');
+  const premium = premiums.length > 0 ? `, with a premium for ${premiums.join(' and ')}` : '';
+
+  if (ceiling >= CEILING_BROAD) return `Priced on broad commercial potential${premium}.`;
+  if (ceiling <= CEILING_NARROW) return `A narrow commercial ceiling keeps the price down${premium}.`;
+  return `Priced on moderate commercial potential${premium}.`;
+}
+
+/**
+ * "How hard is this to actually shoot" - Complexity as a production fact, in
+ * prose.
+ *
+ * Complexity used to be averaged into a displayed "Creative" star rating
+ * alongside Originality, which read it as a quality axis and quietly punished
+ * exactly the scripts whose contained-ness is their virtue: a single-location
+ * chamber piece with flawless structure and dialogue displayed as a two-star
+ * creative script, one line under a badge calling it "Contained, straightforward
+ * production" as a selling point. Being cheap and simple to make is not a
+ * creative failing, so it no longer touches a quality star - it lives down here
+ * with the production requirements it belongs to.
+ */
+export function describeProductionComplexity(script: Script): string {
+  if (script.complexity >= 75) return 'A genuinely difficult shoot - this one will fight you.';
+  if (script.complexity >= DEMANDING_COMPLEXITY) return 'A demanding shoot with real moving parts.';
+  if (script.complexity >= 35) return 'A manageable shoot with the usual complications.';
+  return 'A simple shoot - little here can go expensively wrong.';
 }
 
 const SETTING_IMPLICATION_HEAVY = 0.55;

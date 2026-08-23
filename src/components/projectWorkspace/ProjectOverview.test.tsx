@@ -65,7 +65,7 @@ describe('ProjectOverview - the redesigned screenplay card renders without crash
           <ProjectOverview />
         </StudioProvider>,
       );
-      expect(screen.getAllByText(/Priced for|A modest, straightforward production\./).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText(/commercial potential|commercial ceiling keeps the price down/).length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText(/Commercially:|Middling, unremarkable commercial potential\./).length).toBeGreaterThanOrEqual(1);
       unmount();
     }
@@ -84,7 +84,7 @@ describe('ProjectOverview - the redesigned screenplay card renders without crash
 });
 
 describe('ProjectOverview - presentation polish pass (docs/DESIGN.md)', () => {
-  it('groups the five quality stats under "Writing"/"Creative" headings, and shows "Intended Audience"/"Screenplay Cost" instead of the old "Written For"/"Cost" wording', () => {
+  it('groups the quality stats under "Writing"/"Concept" headings, and shows "Intended Audience"/"Screenplay Cost" instead of the old "Written For"/"Cost" wording', () => {
     const state = stateWithFocusedAssetDraft(3, 'Action');
     saveState(state);
     render(
@@ -93,7 +93,7 @@ describe('ProjectOverview - presentation polish pass (docs/DESIGN.md)', () => {
       </StudioProvider>,
     );
     expect(screen.getAllByText('Writing').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Creative').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Concept').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Intended Audience:', { exact: false }).length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText('Written For:', { exact: false })).not.toBeInTheDocument();
     expect(screen.getAllByText('Screenplay Cost:', { exact: false }).length).toBeGreaterThanOrEqual(1);
@@ -111,7 +111,7 @@ describe('ProjectOverview - presentation polish pass (docs/DESIGN.md)', () => {
     expect(screen.queryByText(/Production Style:/)).not.toBeInTheDocument();
   });
 
-  it('shows every quality stat as a star rating, not a bare number, within the Writing/Creative groups', () => {
+  it('shows every quality stat as a star rating, not a bare number, within the Writing/Concept groups', () => {
     const state = stateWithFocusedAssetDraft(5, 'Action');
     saveState(state);
     render(

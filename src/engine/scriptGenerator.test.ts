@@ -248,15 +248,19 @@ describe('generateScriptOptions - genre-weighted Setting and Character generatio
 });
 
 describe('estimateScriptCost', () => {
-  const base = { originality: 50, structure: 50, dialogue: 50, characters: 50, scale: 'Medium' as const, complexity: 50 };
+  const base = {
+    originality: 50, structure: 50, dialogue: 50, characters: 50, complexity: 50,
+    genre: 'Drama' as const, archetype: 'CrowdPleaser' as const, storyType: 'Original' as const,
+    scale: 'Medium' as const, primarySetting: 'SmallTown' as const, cast: [],
+  };
 
-  it('increases with average craft quality, holding scale/complexity fixed', () => {
+  it('increases with average craft quality, holding everything else fixed', () => {
     const low = estimateScriptCost({ ...base, originality: 20, structure: 20, dialogue: 20, characters: 20 });
     const high = estimateScriptCost({ ...base, originality: 90, structure: 90, dialogue: 90, characters: 90 });
     expect(high).toBeGreaterThan(low);
   });
 
-  it('increases with scale, holding craft/complexity fixed', () => {
+  it('increases with scale - but only through the commercial reach a bigger concept has', () => {
     const intimate = estimateScriptCost({ ...base, scale: 'Intimate' });
     const epic = estimateScriptCost({ ...base, scale: 'Epic' });
     expect(epic).toBeGreaterThan(intimate);
@@ -266,5 +270,23 @@ describe('estimateScriptCost', () => {
     const low = estimateScriptCost({ ...base, complexity: 10 });
     const high = estimateScriptCost({ ...base, complexity: 100 });
     expect(high).toBeGreaterThan(low);
+  });
+
+  it('charges far more for a broad concept than a narrow one at identical craft', () => {
+    const narrow = estimateScriptCost({ ...base, archetype: 'Prestige', scale: 'Intimate' });
+    const broad = estimateScriptCost({ ...base, archetype: 'Spectacle', scale: 'Epic' });
+    expect(broad).toBeGreaterThan(narrow * 3);
+  });
+
+  it('prices a superbly written narrow piece below a poorly written broad one - the whole point of pricing off the ceiling', () => {
+    const brilliantAndNarrow = estimateScriptCost({
+      ...base, archetype: 'Prestige', scale: 'Intimate', primarySetting: 'SingleInteriorLocation',
+      originality: 95, structure: 95, dialogue: 95, characters: 95,
+    });
+    const roughAndBroad = estimateScriptCost({
+      ...base, archetype: 'Spectacle', scale: 'Epic',
+      originality: 30, structure: 30, dialogue: 30, characters: 30,
+    });
+    expect(brilliantAndNarrow).toBeLessThan(roughAndBroad);
   });
 });

@@ -29,7 +29,7 @@ export interface CommercialProfile {
   crossoverPotential: number; // 0-100
 }
 
-type CommercialInputs = Pick<
+export type CommercialInputs = Pick<
   Script,
   'genre' | 'archetype' | 'storyType' | 'scale' | 'structure' | 'characters' | 'originality' | 'primarySetting' | 'cast'
 >;

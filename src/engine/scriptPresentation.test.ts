@@ -3,7 +3,8 @@
 // share the same derivations; this is the first direct (non-component)
 // test coverage for them.
 import { describe, it, expect } from 'vitest';
-import { productionRequirementTags, describeCommercialAppeal, describeCostDrivers, roleDemandProfile } from './scriptPresentation';
+import { productionRequirementTags, describeCommercialAppeal, describeCostDrivers,
+  describeProductionComplexity, roleDemandProfile } from './scriptPresentation';
 import { generateScriptOptions } from './scriptGenerator';
 import { createRng } from './random';
 import type { Script, ScriptCharacter } from '../types';
@@ -73,16 +74,39 @@ describe('describeCostDrivers', () => {
     }
   });
 
-  it('cites epic scale as a cost driver for an Epic-scale script', () => {
+  it('leads on broad commercial potential for a wide-open Spectacle/Epic concept', () => {
     const base = scriptFor('Action', 7);
-    const epic: Script = { ...base, scale: 'Epic', complexity: 10, originality: 10, structure: 10, characters: 10, dialogue: 10 };
-    expect(describeCostDrivers(epic)).toContain('epic scale');
+    const broad: Script = { ...base, archetype: 'Spectacle', scale: 'Epic', genre: 'Action', complexity: 10, originality: 10, structure: 10, characters: 10, dialogue: 10 };
+    expect(describeCostDrivers(broad)).toContain('broad commercial potential');
   });
 
-  it('falls back to "a modest, straightforward production" when nothing stands out', () => {
+  it('tells the player a narrow concept is CHEAP, rather than only saying what it lacks', () => {
     const base = scriptFor('Drama', 8);
-    const modest: Script = { ...base, scale: 'Intimate', complexity: 10, originality: 10, structure: 10, characters: 10, dialogue: 10 };
-    expect(describeCostDrivers(modest)).toBe('A modest, straightforward production.');
+    const narrow: Script = { ...base, archetype: 'Prestige', scale: 'Intimate', primarySetting: 'SingleInteriorLocation', complexity: 10, originality: 10, structure: 10, characters: 10, dialogue: 10 };
+    expect(describeCostDrivers(narrow)).toContain('narrow commercial ceiling keeps the price down');
+  });
+
+  it('names craft as a premium ON the ceiling, never as the headline reason for the price', () => {
+    const base = scriptFor('Drama', 9);
+    const brilliantButNarrow: Script = { ...base, archetype: 'Prestige', scale: 'Intimate', primarySetting: 'SingleInteriorLocation', complexity: 10, originality: 95, structure: 95, characters: 95, dialogue: 95 };
+    const sentence = describeCostDrivers(brilliantButNarrow);
+    // Craft is always the subordinate clause - the sentence opens on what the
+    // concept could earn, because that is what the price is actually built from.
+    expect(sentence).toContain('with a premium for exceptional craft');
+    expect(sentence.startsWith('Priced for')).toBe(false);
+  });
+});
+
+describe('describeProductionComplexity', () => {
+  it('reads a contained script as a simple shoot, never as a creative shortcoming', () => {
+    const base = scriptFor('Drama', 10);
+    expect(describeProductionComplexity({ ...base, complexity: 8 })).toBe('A simple shoot - little here can go expensively wrong.');
+  });
+
+  it('escalates with complexity', () => {
+    const base = scriptFor('Action', 11);
+    expect(describeProductionComplexity({ ...base, complexity: 90 })).toContain('difficult shoot');
+    expect(describeProductionComplexity({ ...base, complexity: 50 })).toContain('manageable shoot');
   });
 });
 
