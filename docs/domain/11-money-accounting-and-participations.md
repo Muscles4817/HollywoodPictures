@@ -1153,28 +1153,33 @@ Take a fund putting up 30% of a 12-picture slate resembling §5.4, at a 12%
 studio distribution fee, funding 30% of both negative cost and P&A.
 
 ```
-Fund's share of negative cost                 30% × $1.10B = $330M
-Fund's share of P&A                           30% × $1.10B = $330M
-Total capital deployed                                       $660M
+CAPITAL DEPLOYED
+  Fund's share of negative cost           30% × $1.10B  =  $330M
+  Fund's share of P&A                     30% × $1.10B  =  $330M
+                                                          -------
+                                                            $660M
 
-Slate's total gross receipts (rentals + all
-  post-theatrical, all 12 pictures)                          $4.05B
-Fund's 30% share                                             $1.215B
-Less studio distribution fee @ 12%                          −$146M
-Less fund's share of other distribution expenses            −$110M
-Less fund's share of P&A (already deployed above)            (n/a)
-                                                          ---------
-Returned to the fund over ~10 years                          $629M
+RETURNED
+  Slate's total gross receipts (rentals + all
+    post-theatrical + consumer products, 12 pictures)      $2.80B
+  Fund's 30% share                                          $840M
+  Less studio distribution fee @ 12% of receipts           −$101M
+  Less fund's 30% share of other distribution
+    expenses (residuals, versioning, taxes, checking)       −$75M
+                                                          -------
+  Returned to the fund over ~10 years                       $664M
 
-Gross multiple on invested capital                             0.95×
+  Gross multiple on invested capital                         1.01×
 ```
 
-Before leverage, before fund fees, before the manager's carry, and before ten
-years of the time value of money. Add a 2%-and-20% fee structure and senior
-debt that must be repaid first, and the equity's outcome is meaningfully
-negative. Change the distribution fee to 8% and add two carve-out franchises
-back in, and the same slate returns 1.2–1.3× — which is a mediocre absolute
-return for a decade of illiquid, uncorrelated risk, but not a disaster.
+That is *before* leverage, before the fund's management fee, before the
+manager's carry, and before ten years of the time value of money. Add a
+2%-and-20% structure and senior debt that must be repaid first, and the
+equity's outcome is meaningfully negative on a slate that was, for the studio,
+a normal year. Cut the distribution fee to 8% and the same slate returns about
+1.06×; add two carved-out franchise titles back into the pool and it reaches
+**1.2–1.3×** — a mediocre absolute return for a decade of illiquid risk, but
+not a disaster.
 
 That sensitivity is the whole story: **the fee rate and the carve-out list
 determine the outcome, and both are set before a single film is made.**
@@ -1418,3 +1423,286 @@ the number of companies that can release films wide worldwide is single digits.
 | Ultimate revenue estimation window | ~10 years from release |
 
 ---
+
+## 10. The finance function: who does this and what makes them good
+
+Everything above is executed by people, and the quality of that execution is a
+real variable in a studio's results. The roles are laid out in §1.1; this
+section is about the skill axis for each of the three that matter most.
+
+### 10.1 The production accountant
+
+**When** — first day of prep to 3–9 months after wrap. Reports to the UPM and
+to studio production finance.
+
+**What separates good from bad:**
+
+1. **The cost report tells the truth early.** A good accountant's
+   estimate-to-complete moves in small increments and is right at week four. A
+   bad one's is flat for eight weeks and then jumps $3M, which is the same
+   information delivered too late to act on.
+2. **They know the difference between an overage and a timing difference.** Not
+   every big week is a problem, and calling every one a problem destroys the
+   report's signal value.
+3. **Fluency in union rules and incentive qualification.** Meal penalties,
+   turnaround, forced calls, and — separately — whether a given spend qualifies
+   for the incentive. Mis-coding qualifying spend can cost more than the entire
+   accounting department.
+4. **They are trusted by the UPM and by the studio simultaneously**, which is
+   structurally difficult, because those two want different news.
+5. **Purchase-order discipline before commitment.** An accounts office that
+   discovers costs when invoices arrive is reporting history, not managing.
+6. **The wrap is clean.** Final cost, asset disposal, incentive filing package,
+   and closing the books without a tail of unrecorded liabilities.
+
+**Failure looks like**: a cost report that is contradicted by the bank balance;
+an incentive claim rejected at audit; a bond claim triggered by an overage
+nobody saw coming; unpaid vendors surfacing months after wrap.
+
+### 10.2 The participations and residuals department
+
+**When** — from the first contract signature, forever.
+
+**What separates good from bad:**
+
+1. **The definition is coded correctly the first time.** A mis-coded
+   participant produces years of wrong statements and a guaranteed audit.
+2. **Statements go out on time.** Late statements are the single most reliable
+   trigger of a dispute, independent of the numbers.
+3. **Allocations are defensible.** When a package deal is split across titles,
+   the method is written down, applied consistently, and survives a question.
+4. **Accruals are trued up.** Residual reserves that never reconcile to actual
+   payments are the easiest audit finding in the business.
+5. **They flag the film that is about to break through** so business affairs
+   knows a bonus is coming before the talent's lawyer calls.
+
+### 10.3 The greenlight modeller
+
+**When** — 4–10 weeks before each greenlight; quarterly thereafter forever.
+
+**What separates good from bad:**
+
+1. **Honest comps.** The temptation is to comp a film to its best-performing
+   relative. The discipline is comping to the *median* of everything that
+   resembles it, including the ones nobody remembers.
+2. **Correlated downside cases.** A downside where the opening is bad but
+   international holds up is not a downside case, it is a fantasy.
+3. **Willingness to present a number the room does not want.** The modeller
+   works for a chair who has often already decided. A finance function that
+   only produces supporting arithmetic is worthless.
+4. **Prompt ultimates revision** (§5.3), including on films the company is
+   emotionally invested in.
+5. **Knowing which assumption the answer hangs on**, and saying so, rather than
+   presenting fifty inputs of equal apparent weight.
+
+---
+
+## 11. What separates a well-run studio financially from a badly-run one
+
+Two studios releasing similar slates in the same year can produce very
+different results, and only part of that is luck. The differences are
+observable.
+
+### 11.1 The practices
+
+1. **Cost discipline set at greenlight, not on set.** The budget is fixed by
+   deciding what the film is, before a director has been promised anything.
+   Studios that greenlight ambitious scripts at optimistic numbers and then
+   negotiate downward mid-production pay for it twice.
+2. **P&A allocated against expected return, not against sunk cost.** The
+   commonest expensive error in the business is spending more marketing on a
+   film that has tested badly, because the negative cost is already spent. A
+   well-run studio will cut P&A on a picture it no longer believes in and
+   accept the smaller loss.
+3. **Honest ultimates, revised promptly** (§5.3). Small frequent write-downs,
+   not one annual catastrophe.
+4. **A slate with a deliberate risk shape.** Two or three big swings, a spine
+   of mid-budget genre films with real margins, and at least one cheap
+   high-return category (horror, faith, documentary, low-cost comedy). Studios
+   that abandon the low end lose the only reliable return-on-capital on the
+   slate and the pipeline that produces new filmmakers.
+5. **A release calendar planned 18–30 months out and defended.** Dating is
+   nearly free to get right and enormously expensive to get wrong
+   (`09-marketing-and-distribution.md` §7.1).
+6. **Participation exposure that scales with success.** Bonuses and
+   break-even-defined points cost nothing on a flop. Fixed cash and
+   first-dollar gross cost the same on a flop as on a hit.
+7. **Downside protection bought before it is needed** — co-financing,
+   pre-sales, incentives, and insurance arranged at greenlight rather than
+   scrambled for after a budget overrun.
+8. **A library that is actively exploited** (§12) rather than treated as an
+   archive.
+9. **Relationships priced as assets.** Filmmakers, agencies, and co-financiers
+   who have been treated well over a decade deliver material and capital that
+   cannot be bought at market.
+10. **Overhead proportionate to the slate.** A studio releasing eight films a
+    year cannot carry the infrastructure of one releasing twenty-five.
+
+### 11.2 The signatures of a badly-run one
+
+| Signature | What it indicates |
+|---|---|
+| Repeated large single-quarter write-downs | Ultimates were not being revised honestly |
+| Films released long after they were completed | Capital tied up, interest accruing, and a dating problem nobody solved |
+| Budgets that rise 20%+ between greenlight and wrap | The greenlight number was aspirational |
+| P&A that scales up on weak testing | Sunk-cost decision-making |
+| A slate consisting only of tentpoles | No return-on-capital floor; every year is a coin flip |
+| Chronic first-dollar and fixed-cash talent deals | Costs that do not fall when the film fails |
+| Executive turnover mid-slate | Films inherited by people with no stake in them get orphaned in marketing |
+| Films shelved or sold for a tax write-off | Capital destroyed to stop a worse outcome — a symptom, not a strategy |
+| Library licensed on long exclusive terms for near-term cash | Selling the durable asset to fund the volatile one |
+| Development spend rising while production volume falls | Money going into a pipeline that does not empty |
+| Participation disputes with the same filmmakers repeatedly | A definition problem that is now a relationship problem |
+
+### 11.3 The uncomfortable truth about skill
+
+Selection skill in greenlighting is real but weak: the best studios are
+demonstrably better than the worst over a decade, and neither can reliably
+pick a hit. What separates them is mostly the **management of outcomes they
+did not choose** — how fast a mistake is recognised, how cheaply a failure is
+allowed to fail, how completely a success is exploited across windows and
+sequels, and how much of the downside was contractually placed with someone
+else *before* anyone knew which films would work.
+
+---
+
+## 12. The library: how the durable asset is valued and traded
+
+The library is the only reliably profitable part of a studio, and the least
+discussed. It is worth treating properly, because most of the industry's
+corporate history — every studio acquisition, every streamer's content spend —
+is a fight over libraries.
+
+### 12.1 What a library actually is
+
+Not just films. A library is:
+
+- **The copyrights** in a set of completed pictures, plus the underlying
+  rights the studio controls in each.
+- **The rights that are actually available** — which is always fewer than the
+  titles, because territories, media, formats, and terms were sold off
+  historically and some have not reverted.
+- **The physical and digital assets** — negatives, masters, mixes, textless
+  elements, subtitles and dubs, artwork, trailers, and the metadata that makes
+  a title findable and licensable.
+- **The obligations that travel with it** — residuals, participations,
+  music licences with finite terms, and any encumbrance a lender has placed on
+  it.
+- **The sequel, remake, and derivative rights** — often worth more than the
+  films themselves.
+
+### 12.2 How it is valued
+
+**Who** — corporate development at the buyer, an investment bank on each side,
+and specialist library valuers who model title-by-title. **When** — in an M&A
+process, in a refinancing, or when a private equity owner is preparing an exit.
+
+Two methods, always run together:
+
+1. **A multiple of trailing cash flow.** The library's last 12–36 months of
+   licensing revenue net of direct costs, times a multiple. Commonly **6–12×**,
+   with the multiple set by the durability of the cash flow: recognisable
+   titles, a franchise or two, and a diversified customer base command the top
+   of the range; a library whose revenue is concentrated in one expiring
+   contract commands the bottom.
+2. **A discounted cash flow over a decay curve.** Library revenue decays
+   predictably in the absence of events: **5–15% a year** for ordinary
+   catalogue, much slower for durable titles, and it *steps up* on a remake, a
+   sequel, an anniversary, a restoration, a death, or a cultural revival. The
+   DCF is where the buyer's view of streaming demand and its own distribution
+   plans get expressed.
+
+Adjustments that move the price materially:
+
+| Factor | Effect |
+|---|---|
+| Franchise and sequel rights held clean | Large premium — this is often the whole reason for the deal |
+| Rights fragmented by territory or medium | Discount; some titles are unlicensable as a package |
+| Residual and participation obligations | Direct deduction; quantified in diligence |
+| Music rights expiring or limited to original media | Discount; re-clearing a score can be prohibitive |
+| Asset condition (no 4K master, damaged elements) | Restoration costs **$50k–$500k+ per title** |
+| Chain of title defects | Deal-breaking on individual titles; insurable at a price |
+| Metadata quality | Sounds trivial, gates every automated licensing deal |
+| Titles with talent whose reputation has changed | Real, awkward, and priced |
+
+### 12.3 How libraries are traded
+
+- **Corporate M&A** — the library comes with the company. Most of the famous
+  studio acquisitions were library acquisitions with an operating business
+  attached.
+- **Outright catalogue sale** — a defined set of titles sold, usually by a
+  distressed owner or a private-equity holder exiting.
+- **Long-term exclusive licence** — the library placed with one platform for
+  5–10 years for a large fee. Economically similar to a sale for the term, and
+  the most common way a mid-size owner monetises. Dangerous, because the
+  library is idle to everyone else for a decade and comes back with its
+  customer relationships cold.
+- **Securitisation** — bonds issued against the library's projected cash
+  flows. Attractive when rates are low; it turns a slow asset into cash and
+  leaves the obligations behind.
+- **Sale-and-licence-back** — the owner sells and retains distribution.
+
+### 12.4 The two mechanics outsiders always miss
+
+- **Residuals travel with the picture.** Any buyer must sign a guild
+  **assumption agreement** accepting the residual obligations, and the guilds
+  hold security interests in the copyrights to enforce it. A library bought
+  without assumption cannot be exploited: the guilds can block it. This makes
+  residual liability a real, quantified line in every library valuation (§4.1).
+- **Chain of title is the whole diligence.** Every option, every writer
+  agreement, every music licence, every co-production contract in a film's
+  history has to establish an unbroken transfer of rights. Older independent
+  libraries routinely contain titles that cannot be licensed because a
+  document from 1978 is missing. Title insurance exists precisely for this.
+
+### 12.5 What makes a library good
+
+1. **Recognisable titles**, because licensing is a name-recognition business
+   at the point of sale.
+2. **Franchise potential** — the derivative rights are the option value, and
+   a single revived franchise can be worth more than the rest of the catalogue.
+3. **Rights held whole**, worldwide, all media, in perpetuity.
+4. **Volume in a coherent genre**, which can become a channel.
+5. **Assets in modern condition** with clean metadata.
+6. **Diversified licensees**, so no single expiring contract sets the value.
+7. **Active management** — a library sold, re-cut, re-released, restored, and
+   promoted earns multiples of the same library left in a vault.
+
+---
+
+## 13. The specific ways films lose money that are not "it flopped"
+
+Public discussion of film finance has one failure mode: not enough people
+came. That is the most visible cause and far from the only one. Each of the
+following has, on its own, converted films that performed acceptably into
+losses.
+
+| Mechanism | How it happens | Typical damage |
+|---|---|---|
+| **Overhead charge** | 10–15% of negative added regardless of outcome, and levied whether or not the studio did anything for it | $5–30M on a picture |
+| **Capitalised interest** | Accrues on the negative from the first dollar spent, before any revenue, and continues through any delay | 5–10% of negative on a film with a long tail; more if shelved |
+| **The shelf** | A completed film held 12–30 months for a date, a re-cut, a legal issue, or a corporate reorganisation. Interest accrues, cast availability for reshoots lapses, marketing must be rebuilt, and the film reads as damaged goods before release | Several $M plus a permanently worse opening |
+| **Cross-collateralisation** | Another picture's or another territory's shortfall netted against this one's overage, where the contract allows it | Can erase a participation entirely |
+| **A bad date** | Opening against a bigger film for the same audience, or in a corridor with no audience, or moving late and losing the P&A already flighted (`09` §7.1) | 20–40% of the achievable gross |
+| **P&A overspend on a film that will not respond** | Sunk-cost escalation after weak testing; a profitable small film turned into a loss by its own campaign | The difference between a $30M and an $80M campaign |
+| **Reshoots and post overruns** | 2–6 weeks of additional photography at full unit cost, plus the VFX that must be redone, plus the delay | $5–40M |
+| **VFX scope creep** | Shot count rising through post while vendors are already booked (`08-vfx-and-specialty.md`) | 10–30% over the VFX budget |
+| **Gross participations paid on a losing film** | A first-dollar or low-threshold participant is paid out of receipts that never covered the cost | Millions, paid precisely when the film can least afford it |
+| **Escalators triggered by success that is not enough** | Bonuses keyed to a gross the film reaches, on a picture that still loses money at that gross | Adds cost exactly at the margin |
+| **Unrecouped or disallowed incentives** | Spend that did not qualify, a cultural test failed, a cap reached before the application, a slow-paying jurisdiction, or a queue; plus the discount on monetising the credit early | 15–35% of the budget was in the model and 0% arrives |
+| **Currency** | International rentals earned in weakening currencies; blocked funds that cannot be repatriated; a strengthening dollar converting a good foreign year into a flat one | 5–15% of international revenue in a bad cycle |
+| **Financing cost on an independent picture** | Gap at 10–15%, credit loans, bond fee, legal, and CAMA fees, all stacked before equity | 8–15% of the budget consumed by the act of raising it |
+| **A collapsed window** | The post-theatrical value indexed to a theatrical run that was cut short, or a day-and-date release that removed the exclusivity the downstream price was based on | Post-theatrical revenue falls with the theatrical number, twice |
+| **A licensee or distributor failing** | Territory sold, film delivered, distributor insolvent. The rights are tied up and the money never comes | The whole territory |
+| **Music and underlying rights with short terms** | A licence cleared for theatrical and home video only, or for a term that expires, making a later window impossible without re-clearing | Blocks a window or costs six figures to fix |
+| **Litigation and credit disputes** | Rights claims, credit arbitration outcomes, on-set incidents | Legal cost plus delay plus, occasionally, an injunction |
+| **A rating that does not match the film's audience** | An R on a film built for teenagers, or cuts that damage the film to get a PG-13 (`07-postproduction.md`) | 20–40% of the audience |
+| **Insurance events** | A cast member's illness or death, a weather loss, a location destroyed. Insured, but the deductible, the schedule damage, and the uninsurable consequences are real | Weeks of schedule; occasionally the picture |
+| **Corporate reallocation** | The film assigned to feed a sister streaming service at an internal price; the picture's own P&L is decided by a transfer-pricing memo | Determines the outcome without reference to the audience |
+
+The pattern across all of these: **a film's financial result is largely
+determined before the audience is consulted.** By the time the opening weekend
+number arrives, the budget, the participation load, the incentive assumption,
+the release date, the P&A commitment, the window structure, and the financing
+cost are all fixed. The weekend decides how far along a curve the film lands.
+It does not decide the shape of the curve.

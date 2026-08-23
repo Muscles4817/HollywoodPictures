@@ -451,7 +451,7 @@ price structure across an entire slate**.
 3. **Drafting.** The deal memo, then the long-form, then the amendments.
 4. **Guild compliance.** Minimums, credits rules, residual obligations,
    pension-and-health contributions, and the specific requirements of DGA, WGA
-   and SAG-AFTRA agreements (`12-talent-labor-and-careers.md` §5).
+   and SAG-AFTRA agreements (`12-talent-labor-and-careers.md` §7).
 5. **Clearance gating.** No deal closes without medical clearance for
    insurance (§8.2), immigration/visa feasibility, and confirmation the talent
    is not conflicted by a first-position hold elsewhere.
@@ -514,7 +514,7 @@ so rarely.
   is yours.
 - **Delivery obligations** — running time, rating, and specification. A
   director who cannot deliver the contracted rating has breached, and this is
-  the lever studios actually use (`07-postproduction.md` §7).
+  the lever studios actually use (`07-postproduction.md` §8).
 - **Pay** is typically a DGA-minimum-plus structure: a fee for prep, shoot and
   post (often split 20/60/20 or similar), plus backend, plus box office
   bonuses.
@@ -749,7 +749,7 @@ Broad contents:
   specification, textless backgrounds, all versions (theatrical, airline,
   broadcast), and the **M&E** (music and effects) track without which the film
   cannot be dubbed. Missing or defective M&E is the single most common delivery
-  failure (`07-postproduction.md` §4).
+  failure (`07-postproduction.md` §7).
 - **Audio stems**, dialogue/music/effects split, plus the 5.1 and stereo
   mixes.
 - **Textless and localisation materials**, subtitle files, dubbing scripts,
@@ -762,8 +762,8 @@ Broad contents:
   distributor named, MPA rating certificate or local certificate.
 - **Technical QC report** from an approved facility.
 
-Delivery costs real money — commonly **$50K–$250K** on an independent — and is
-routinely under-budgeted because it happens after everyone has left. It is
+Delivery costs real money — commonly **$50K–$250K** on an independent — and
+is routinely under-budgeted because it happens after everyone has left. It is
 also the producer's last exposure: the bank is repaid from delivery payments,
 so a delivery that stalls turns into default interest.
 
@@ -1011,8 +1011,8 @@ The thresholds are contractual and specific. Common ones:
   final cost exceeds budget plus contingency, the guarantor is on risk.
 - **Change of key personnel** without consent.
 - **Material script change** that increases scope.
-- **Failure to deliver required reports** — which the guarantor reads, correctly,
-  as concealment.
+- **Failure to deliver required reports** — which the guarantor reads,
+  correctly, as concealment.
 
 The escalation ladder:
 
@@ -1151,7 +1151,7 @@ Cast cover is underwritten person by person. For each **essential element**:
 - **Activity restrictions** flow back into the talent's contract: no private
   aircraft, no motorcycles, no skiing, no scuba, and often a requirement to
   use a double for anything above a defined risk level
-  (`08-vfx-and-specialty.md` §4).
+  (`08-vfx-and-specialty.md` §3).
 
 The medical is also a scheduling item. It requires the talent's time in a
 specific city, and a star on location elsewhere can delay a financing close by
@@ -1326,7 +1326,7 @@ The four levers that actually move a budget, in descending order of power:
 | **Shooting days** | The most powerful single lever; a day costs the entire crew, equipment, and location for a day. Cutting days cuts everything at once |
 | **Cast cost** | One quote can consume the entire supporting ensemble and half the schedule flexibility |
 | **Locations vs stage, and number of locations** | Company moves, travel and living, and build costs all key off this (`04-preproduction.md` §5.5) |
-| **VFX shot count** | The only line that can grow after photography ends (`08-vfx-and-specialty.md` §2) |
+| **VFX shot count** | The only line that can grow after photography ends (`08-vfx-and-specialty.md` §1) |
 
 ### 9.3 Fringes, properly
 
@@ -1594,7 +1594,7 @@ final cost report.
    on money sitting idle.
 5. **Payroll and guild compliance.** Correct rates, overtime, turnaround,
    meal penalties, and fringe contributions — errors here generate guild claims
-   and back-payments long after wrap (`12-talent-labor-and-careers.md` §5).
+   and back-payments long after wrap (`12-talent-labor-and-careers.md` §7).
 6. **Audit-readiness from day one.** Filing as though an auditor will read
    everything, because on any incentivised film one will.
 7. **Independence.** The accountant is quietly the financiers' person on the
@@ -1634,7 +1634,7 @@ knows what to look at.
 | 9 | **Cast illness or unavailability** | Shoot | 2nd AD | 1–5% | Insurable, but with a deductible and a cash-flow gap (§8.4) |
 | 10 | **Added scenes / reshoots during the shoot** | Shoot | Line producer | 2–10% | No |
 | 11 | **Additional photography after wrap** | Post | Editor and director, then the studio | 2–15% | No; and the crew and cast have to be re-hired at new rates |
-| 12 | **VFX shot count growth** | Post | VFX producer | 5–40% on a VFX-heavy film | No — the biggest post-side mechanism (`08-vfx-and-specialty.md` §2) |
+| 12 | **VFX shot count growth** | Post | VFX producer | 5–40% on a VFX-heavy film | No — the biggest post-side mechanism (`08-vfx-and-specialty.md` §1) |
 | 13 | **Music clearance discovered late** | Post | Music supervisor | $50K–$2M+ | Partly, by replacing tracks |
 | 14 | **Delivery items unbudgeted** | Delivery | Post supervisor | $50K–$250K | No (§5.1) |
 | 15 | **Incentive shortfall at audit** | 6–18 months post-wrap | Production accountant | 2–15% of the claim | No (§6.5) |
@@ -1712,7 +1712,7 @@ above.
 | **Death or serious illness of a lead** | Mid-shoot | Insured (§8), then either recast and reshoot, rewrite around the absence, or abandon |
 | **Scandal involving a principal** | A story breaks; distributors and financiers get nervous | Suspension, then recast-and-reshoot or shelving; morals clauses are the contractual mechanism |
 | **Force majeure** | Pandemic, war, natural disaster, fire, a location made unusable | Suspension; insurance response varies enormously and pandemic cover largely disappeared after 2020 |
-| **Industry-wide strike** | Guild action stops writers or performers working (`12-talent-labor-and-careers.md` §5) | Suspension for the duration; unstruck work sometimes continues |
+| **Industry-wide strike** | Guild action stops writers or performers working (`12-talent-labor-and-careers.md` §7) | Suspension for the duration; unstruck work sometimes continues |
 | **Completion bond withdrawal or takeover** | Following the escalation in §7.3 | The film is finished, but not as intended |
 | **Studio regime change** | New leadership kills an inherited project, occasionally after the start | Abandonment, written off in the quarter |
 | **Legal injunction** | A rights dispute, an unsigned co-writer, a competing claim to underlying material | Suspension until resolved, which can take years |
@@ -1814,12 +1814,12 @@ State/foreign incentives (net, retained)       $9,000,000    5%
 - No bond (self-bonded), no bank, no CAM, no interparty agreement.
 - The studio charges the film an **overhead fee** of 10–15% and **interest** on
   the advanced money, both of which sit in the negative cost the participations
-  are computed against (`11-money-accounting-and-participations.md` §3).
+  are computed against (`11-money-accounting-and-participations.md` §5).
 - P&A of **$100M–$150M** on top, spent by a different department against a
   different budget (`09-marketing-and-distribution.md` §1).
 - **Where it fails:** not in financing — the money is never in doubt. It fails
   in the cost report (§13) and at the box office
-  (`10-theatrical-release-and-box-office.md` §7).
+  (`10-theatrical-release-and-box-office.md` §11).
 
 ### 15.4 What the three have in common
 

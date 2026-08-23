@@ -1345,10 +1345,10 @@ a film that is working rather than clearing it for the next opener.
 
 Bad, and what it costs:
 
-| Failure | Consequence |
-|---|---|
-| **Over-asking then under-delivering** | The distributor pushed for 4,000 locations on a film that plays to 2,200; per-screen collapses, and the buyer discounts the next ask |
-| **Dumping** | Releasing a film the distributor has given up on with no spend | Exhibitors lose money on committed screens and remember |
+| Failure | What it is | Consequence |
+|---|---|---|
+| **Over-asking then under-delivering** | Pushing for 4,000 locations on a film that plays to 2,200 | Per-screen collapses; the buyer discounts the next ask |
+| **Dumping** | Releasing a film the distributor has given up on, with no spend | Exhibitors lose money on committed screens, and remember |
 | **Unilateral window shortening** | Announcing a 17-day window after terms were struck on a 45-day assumption | Circuits retaliate on screen counts; in the extreme, a boycott |
 | **Inflated house nut** | Exhibitor pads the allowance under a 90/10 | Distributor audits, relationships sour, terms move to firm percentages |
 | **Under-playing** | Booking a title into the smallest house at bad times to favour another | Distributor's checkers spot it; terms tighten next time |
@@ -1363,3 +1363,541 @@ are ultimately about **admissions**, not gross, and why they resist anything
 that reduces footfall through the lobby.
 
 ---
+
+## 9. International
+
+Roughly **60–70%** of a major studio film's theatrical gross now comes from
+outside North America, though the split varies wildly by genre (broad action
+and animation travel; comedy and dialogue-driven drama often do not).
+
+Two models for getting there:
+
+- **Studio-direct** — the major's own international offices distribute.
+- **Territory sales** — rights are sold country-by-country to local
+  distributors, usually via sales agents at markets (**AFM**, **EFM** at
+  Berlin, **Marché du Film** at Cannes). This is how most independent films
+  are financed and distributed.
+
+**Output deals** commit a territory's distributor to take a studio's whole
+slate for a term.
+
+China deserves separate mention: quota-limited imports, a revenue share for
+foreign films far below the domestic norm (historically ~25%), and censorship
+approval that can alter or block a release.
+
+### 9.1 How studio-direct international actually operates
+
+A major runs a **President of International Distribution** in Los Angeles or
+London, with **managing directors** in perhaps 15–30 territory offices and
+**sub-distributors** (local companies acting on commission) in the smaller
+markets. The division of authority is consistent:
+
+| Decision | Where it is made |
+|---|---|
+| Global release date and the *shape* of the rollout | Centrally, by the distribution president with the chairman |
+| Territory dates within that frame | Territory MD, negotiated centrally — school holidays, local festivals, Ramadan, national competitors, and World Cup fixtures all move dates |
+| Local marketing budget | Centrally set as a percentage of forecast gross; spent locally |
+| Local creative | Adapted locally from central assets, with approval; some territories cut their own trailers and shoot their own key art |
+| Localisation (dubbing, subtitling, title translation) | Centrally managed, executed by local vendors, **8–16 weeks** before release |
+| Ratings/censorship submission | Local, per territory, each with its own board and lead time |
+| Booking and terms | Local, with the territory's own exhibitor relationships |
+
+**Day-and-date vs staggered.** Piracy has pushed most tentpoles to near-
+simultaneous global release; smaller films still stagger to reuse talent for
+press tours and to let word of mouth from an early territory build. A common
+pattern is a lead territory (occasionally an international market *ahead* of
+the US, to seed reviews and buzz) and then a two-to-six-week rollout.
+
+**Localisation is a real production.** A dub is cast, directed, and recorded
+per language — 8–20 languages for a tentpole, each requiring a casting session,
+a director, a studio, and mixing; plus subtitle files for another 20–40. The
+schedule dependency is hard: a late picture lock (`07` §1) compresses dubbing
+and is one of the most common causes of a territory date slipping.
+
+### 9.2 Territory sales: how the independent model actually works
+
+For a film without a studio, rights are sliced by **territory × media × term ×
+language** and sold as separate assets. The chain:
+
+1. The producer signs with a **sales agent** (also called an international
+   sales company) — typically for **10–25 years**, worldwide excluding
+   whatever the producer has already sold, with a commission of **10–20%** of
+   gross receipts plus **recoupable market expenses** (commonly capped at
+   **$75–250K** per film: market fees, travel, poster and promo reel, trailer,
+   subtitling, screenings, deliverables).
+2. The agent produces the **estimates** — a territory-by-territory grid of
+   "ask" and "take" prices. These estimates are the film's actual financial
+   foundation: they support the **pre-sales** that fund it (`03` §4) and the
+   **gap loan** that bridges what is unsold. A bank will typically lend gap of
+   **10–15%** of budget against unsold estimates with **2× coverage**.
+3. Buyers commit **minimum guarantees (MGs)** — an advance against the
+   territory's revenue — usually **10–20%** on signature and the balance **on
+   delivery**. The MG is the money that actually funds the picture; the
+   overage above it is frequently never seen.
+4. Money is paid into a **collection account** administered by a neutral third
+   party under a **CAMA** (collection account management agreement), which
+   pays the waterfall in the agreed order so the sales agent is not both
+   collector and beneficiary.
+5. **Delivery** is a specific, brutal, contractual list — masters, audio stems,
+   M&E track, textless materials, chain of title, E&O certificate, music cue
+   sheet, credits, artwork, dubbing scripts. Non-delivery of a single item can
+   delay payment of the whole MG for months, and delivery disputes are the most
+   common way a financed independent film still fails to pay its investors
+   (`07` §7).
+
+### 9.3 What a sales agent does day to day
+
+- **Acquiring product.** Reading scripts and packages, deciding what is
+  saleable, and competing with rival agents to represent it. The agent's own
+  reputation is a component of the estimates: the same package carries higher
+  estimates with a top-tier agent because buyers trust their delivery record.
+- **Setting and defending estimates.** Too high and the gap loan is
+  under-collateralised and the film cannot close; too low and the producer
+  cannot finance it. Estimates are the agent's core professional judgement and
+  their reputation is destroyed by systematically missing them.
+- **Building materials.** A one-sheet, a promo reel or first-footage teaser, a
+  sales script, and a lookbook — often before a frame is shot.
+- **Working the markets.** Sixty to a hundred half-hour meetings across a
+  five-day market, plus screenings, plus dinners.
+- **Papering.** Deal memos at the market, long-form afterwards; chasing
+  signature and the first payment.
+- **Delivering and collecting.** The unglamorous majority of the job.
+- **Managing the festival strategy** with the producer, because a premiere slot
+  at Cannes, Berlin, Venice, Toronto, or Sundance is itself a sales event
+  (`09` §11).
+
+What separates a good sales agent from a bad one:
+
+1. **Estimates that come true.** Everything else follows from this, because it
+   is what banks lend against.
+2. **A buyer list that answers the phone** — genuine relationships with the
+   30–60 companies that matter, and knowledge of which are currently solvent.
+3. **Knowing what a territory will actually pay for.** German buyers, Japanese
+   buyers, and Latin American buyers want different things; a good agent
+   shapes the *package* — this cast, this genre, this rating — to the demand.
+4. **Honesty with the producer about what the film is.** The agent who inflates
+   estimates to win the film and then cannot deliver has destroyed the
+   financing.
+5. **Delivery competence.** Getting the MG collected requires operational
+   grind that many agents are bad at.
+6. **Not over-selling to a buyer who then cannot pay** — buyer insolvency
+   leaves a territory dead and the rights entangled.
+
+### 9.4 Markets as events
+
+A film market is a trade fair, not a festival, and the two frequently occupy
+the same city in the same week.
+
+| Market | When / where | Character |
+|---|---|---|
+| **EFM** (European Film Market) | February, Berlin, alongside the Berlinale | The year's first real market; sets the tone for spring. Strong European buyers |
+| **Marché du Film** | May, Cannes, alongside the festival | The largest. Booths in the Palais, offices along the Croisette, 12,000+ attendees. Packages sell on a poster and a name |
+| **AFM** (American Film Market) | November, Santa Monica historically, relocated in the mid-2020s | US-centric, deal-focused, the last chance to close before year end |
+| **TIFF** | September, Toronto | Not formally a market but the biggest North American acquisitions event for finished films |
+| **Sundance** | January, Park City | The US indie acquisition market; bidding wars for finished films happen here, overnight and in person |
+| **Others** | Hong Kong FILMART (March), Ventana Sur (December, Latin America), Busan/APM (October), the Rotterdam and Berlin co-production markets | Regional and specialist |
+
+The rhythm inside a market:
+
+- **Pre-market.** Announcements are placed in the trades (§12) in the two weeks
+  before — "X attaches to star in Y, which Z is selling in Cannes" — because an
+  announcement *is* the sales collateral.
+- **Screenings.** Buyer screenings are scheduled to the half hour; a title that
+  sells out its first screening becomes the market's hot title within a day.
+- **Meetings.** Half-hour slots, back to back, in a suite or a booth. Agents
+  run a grid; producers hover.
+- **The hot title.** One or two packages sell most major territories inside 48
+  hours, at prices above estimate. Everything else grinds.
+- **The pass.** "We'll look at it in the cut" is a market's polite no, and it
+  is the most common answer.
+- **Closing.** Deal memos signed on site; the trades report totals; the
+  producer's financing either closes or does not.
+
+Cash timing note: MGs are collected on delivery, which is often **12–24
+months** after the market. Markets create financing, not cash.
+
+### 9.5 Which territories are worth what
+
+Directionally, for an English-language independent film, the international
+(non-US) minimum guarantee pool splits roughly:
+
+| Territory | Rough share of foreign MG |
+|---|---|
+| Germany/Austria | 8–13% |
+| UK/Ireland | 8–12% |
+| France | 7–11% |
+| Japan | 5–10% |
+| Italy | 4–7% |
+| Spain | 4–6% |
+| Latin America (as a bloc) | 5–9% |
+| Australia/NZ | 3–5% |
+| Korea | 3–5% |
+| Scandinavia, Benelux, CEE, Middle East, rest | the remainder |
+
+These shares are genre-sensitive to an extreme degree: horror over-indexes in
+Latin America and Southeast Asia; action and sci-fi in Korea, Japan, and CEE;
+literary drama in France and Italy; comedy travels almost nowhere. A film's
+international estimate is therefore mostly a statement about its genre and its
+cast's foreign recognition, not its quality.
+
+**Output deals** — a local distributor commits to take a studio's whole slate
+for a term at agreed terms — used to underpin the independent and mini-major
+business and have thinned considerably as local buyers became more selective
+and streamers absorbed the middle of the market.
+
+### 9.6 China, in more detail
+
+- **Quota.** Foreign films enter either under a revenue-sharing quota (a
+  limited number a year, historically 34) or as **flat-fee buyouts** with no
+  upside. Import is handled through state-controlled importers/distributors.
+- **Share.** The foreign rights-holder's share of Chinese box office has
+  historically been around **25%**, against 50%+ domestically elsewhere — so a
+  $200M Chinese gross is worth roughly what a $100M gross is in most markets.
+- **Approval.** Content review can require cuts, changes, or refuse a release
+  entirely, with no appeal and no timetable.
+- **Dating.** Release dates are often confirmed only **2–6 weeks** ahead, and
+  **blackout periods** protect domestic titles around major holidays. This is
+  incompatible with the way a global campaign is normally planned.
+- **Co-production status** — a qualifying China co-production takes a much
+  larger share (historically ~43%) and is exempt from quota, at the cost of
+  content requirements, local cast, and local shooting.
+- **Trend.** The share of the Chinese market taken by imported films fell
+  sharply from the late 2010s as domestic production improved; planning a
+  film's break-even on a large Chinese gross is now a materially riskier
+  assumption than it was (`10` §6).
+
+Other territories with distinctive structures worth knowing: **India** (a huge
+admissions market with low ticket prices, dominated by domestic-language
+production, and requiring dubbing into 3–5 languages to matter), **Japan**
+(distributor-led, slow release patterns, long runs, high ticket prices, and a
+strong preference for local dubbing and local marketing), **Korea** (fast,
+front-loaded, screen-concentrated, with a screen quota), and the **Gulf**
+(fast-growing, censorship-sensitive).
+
+---
+
+## 10. What this means for a simulation
+
+The structural facts most often missed:
+
+1. **A studio is a distributor first.** Its durable advantage is the pipe and
+   the library, not the crew.
+2. **Most participants are temporary.** Per-picture hiring means relationships,
+   availability, and reputation are the persistent state, not employment.
+3. **Screens are asked for, not bought.** Exhibitors are a counterparty with
+   their own interests.
+4. **Guild rules are hard constraints**, and they bind schedule and cost far
+   more tightly than any creative decision.
+5. **The rating is a market-size decision** disguised as a compliance step.
+6. **Financing shape determines control.** Who put the money in determines who
+   wins the argument about the cut.
+7. **Nothing moves without a champion.** Projects do not advance on merit;
+   they advance because a specific person with a specific job title spends
+   credibility on them, and they stop the moment that person leaves (§2.2.6).
+8. **The scarce resource is dates, not money.** A studio year has 30–40 usable
+   weekends and they are allocated years ahead (§2.2.7).
+9. **Information is an asset and it moves informally.** The tracking network
+   (§5.3, §12) is faster and more accurate than any published source.
+10. **Institutions have memories.** Every counterparty in this document —
+    agent, exhibitor, financier, sales agent, guild — is a repeat player. A
+    win extracted at the cost of a relationship is usually a bad trade.
+11. **Lags are long and asymmetric.** Money is committed years before it is
+    returned, and the people who made the decision are frequently gone before
+    the result is known (§1.2).
+
+---
+
+## 11. How a film is owned and traded as an asset
+
+A film is not primarily a cultural object in this system; it is a bundle of
+copyrights with a documented history. Almost every dispute in the business is
+ultimately about who owns which slice.
+
+### 11.1 The bundle
+
+Rights are sliced along four axes simultaneously, and any combination can be
+sold separately:
+
+- **Territory** — country by country, sometimes by language group.
+- **Media** — theatrical, non-theatrical (planes, ships, military, campuses),
+  pay TV, free TV, SVOD, AVOD, TVOD/EST, physical, in-flight, hotel.
+- **Term** — a licence of 7, 12, 15, or 25 years, or an outright assignment in
+  perpetuity.
+- **Language** — dubbed and subtitled versions, sometimes licensed separately.
+
+Plus the derivative rights that are negotiated separately and are often worth
+more than the film: **sequel, prequel, remake, and television** rights;
+**merchandising and consumer products**; **music publishing** and soundtrack;
+**stage** rights; **interactive/game** rights; and, increasingly, **AI and
+digital replica** rights over performances and likenesses.
+
+The key legal distinction: a **licence** grants use for a term and reverts; an
+**assignment** transfers the copyright. Studios assign to themselves; sales
+agents license to territories. A film with a clean assignment to a single
+entity is far more tradeable than one held together by twenty licences.
+
+### 11.2 Chain of title
+
+The **chain of title** is the documentary trail proving the producing entity
+owns what it claims to own. It is assembled during development and audited
+before anyone will finance, insure, or distribute. It contains:
+
+- The option and purchase agreement for any underlying material, and its
+  own chain back to the original author (`02` §3).
+- Every writer's agreement, each with a **work-for-hire** clause vesting
+  copyright in the company — under US law, a screenplay written by an employee
+  or under a valid work-for-hire agreement is authored by the company.
+- Certificates of authorship from every writer, including uncredited ones.
+- Director and producer agreements.
+- Music licences: **synchronisation** (the composition) and **master use**
+  (the recording), separately, for every needle-drop, plus the composer's
+  agreement and the AFM paperwork.
+- Clearances: locations, artwork visible on screen, trademarks, real people
+  depicted, archival footage, stills.
+- The **title report** and title clearance.
+- Copyright registration and any security interests recorded against it.
+- The **E&O (errors and omissions) insurance** policy, which no distributor
+  will release without.
+
+A break in the chain — an unsigned certificate of authorship from a writer who
+did a two-week polish in 2011, a song used without a master licence — can stop
+a release outright, and it surfaces at the worst possible moment, during
+delivery.
+
+### 11.3 How films change hands
+
+| Transaction | What moves | Typical context |
+|---|---|---|
+| **Turnaround** | A studio sells its accumulated development cost (plus interest, plus sometimes a passive backend) to another buyer | A project the studio no longer wants; the classic route by which famous films escape the studio that developed them (`02` §9) |
+| **Negative pickup** | A distributor contracts to buy the finished film on delivery for a fixed price; the producer borrows against that contract to make it | Independent financing (`03` §5) |
+| **Acquisition** | A finished film's rights are bought, often at a festival, for a territory or the world | Sundance, Toronto, Cannes |
+| **Library sale** | Hundreds or thousands of titles sold as a portfolio | Corporate M&A; the reason studio ownership changes hands |
+| **Rights reversion** | Rights return to the producer or author at the end of a licence term, or on a distributor's insolvency | The reason old films become unavailable and then reappear |
+| **Copyright termination** | Under US law, authors or their heirs may terminate a grant after a statutory period | Periodically upends the ownership of famous underlying works |
+
+**Library valuation**, directionally: a catalogue is valued on trailing
+cash flow — commonly a multiple in the region of **7–12×** annual net library
+receipts, adjusted for concentration (a library with one franchise is riskier
+than one with two hundred steady titles), the residual liability attached
+(§6.5), the condition of the physical and digital elements, and whether the
+underlying rights are clean and perpetual. This is why the library, not the
+slate, is usually what a corporate buyer is actually buying.
+
+### 11.4 What goes wrong
+
+| Failure | What it is | Consequence |
+|---|---|---|
+| **Unclear chain of title** | A missing signature, certificate, or assignment | No E&O, no distribution, no financing until every past participant is found |
+| **Unlicensed music** | A cue used without sync or master rights | Songs replaced in post at cost, or unreleasable in some media |
+| **Expired option** | Underlying rights lapse mid-development | Must be re-bought, sometimes competitively (`02` §3) |
+| **Overlapping grants** | The same territory sold twice by different parties | Litigation, and a dead territory in the meantime |
+| **Distributor insolvency** | The licensee fails holding the rights | Rights frozen in an estate for years; the film cannot be re-licensed |
+| **Missing elements** | The negative, the M&E track, or textless materials are lost | No re-versioning or remaster; restoration costs six figures |
+| **Undocumented derivative rights** | Sequel/remake rights never cleanly allocated | Nobody can make the sequel; three parties each believe they control it |
+
+---
+
+## 12. The trade press and how information actually moves
+
+The industry runs on information asymmetry, and understanding *where
+information comes from* explains a great deal of otherwise inexplicable
+behaviour.
+
+### 12.1 The outlets
+
+| Outlet | Role |
+|---|---|
+| **Deadline** | Speed. Breaks deals, attachments, and hirings, often within hours. The industry's default first read |
+| **Variety** / **The Hollywood Reporter** | The two legacy trades: breaking news plus reviews, features, and the awards-season economy |
+| **The Wrap**, **IndieWire** | Reporting plus criticism; IndieWire strong on independent and festival |
+| **Puck**, **The Ankler** | Subscription newsletters aimed at insiders; analysis and gossip rather than announcements |
+| **Screen International**, **Deadline International** | The international and market beat — essential during EFM/Cannes/AFM |
+| **Comscore**, **Box Office Mojo**, **The Numbers** | Box office data. Comscore is the industry's actual measurement service; the public sites are the visible surface |
+| **Nielsen**, **Samba, Luminate, Antenna** | Third-party estimates of streaming viewership, in the absence of disclosure |
+
+### 12.2 How a story actually gets out
+
+Almost nothing in the trades is discovered by investigation. The typical
+mechanisms, roughly in order of frequency:
+
+1. **The planted announcement.** A studio, agency, or PR firm gives an outlet
+   an exclusive. Both sides benefit: the outlet gets the story first, the
+   source controls the framing.
+2. **The agency leak to set a market.** A spec is going out Monday; a Friday
+   story that four studios are circling makes the auction real.
+3. **The pre-emptive confirmation.** A deal is leaking anyway, so the party
+   with the most to lose confirms first, on its own terms.
+4. **The competitive spoiler.** Announcing your dinosaur film to deter someone
+   else's dinosaur film, or staking a release date publicly so rivals move.
+5. **The disgruntled source.** A fired executive, a passed-over producer, an
+   agent who lost a client. This is where the genuinely damaging stories come
+   from.
+6. **The assistant network.** Deals, dates, and gossip circulate horizontally
+   through assistants before they reach any principal.
+
+Read trade language accordingly. **"In talks"** means no deal. **"Attached to
+star"** means a deal memo at best and often only an agent's confirmation of
+interest. **"In negotiations to direct"** frequently means the studio is trying
+to force a decision by making the offer public. **"Creative differences"**
+means a firing. **"Postponed for scheduling reasons"** usually means a
+financing or script problem.
+
+### 12.3 The weekend box office ritual
+
+A weekly, load-bearing information event (`10` §7):
+
+| When | What |
+|---|---|
+| Thursday evening | Previews begin; distributors and Comscore track hourly |
+| Friday morning | Thursday preview figures reported; the first public signal |
+| Friday night | Friday actuals inform a revised weekend projection |
+| Saturday | The shape of the weekend becomes clear from Friday-to-Saturday movement |
+| Sunday morning | **Studio estimates** issued — a projection of the three-day, produced by the distributor itself and mildly self-serving |
+| Monday | **Actuals** published. The gap between Sunday estimate and Monday actual is itself scrutinised |
+| Monday/Tuesday | Exhibitors reallocate screens for Friday (§8.2) |
+
+### 12.4 The informal system, which matters more
+
+- **Tracking boards and grids.** Agencies, studios, and pods maintain shared
+  internal lists of every project in the market: title, writer, agency,
+  buyers, status. Junior staff maintain them and trade updates with peers at
+  rival companies. This is the real-time map of the business and it is not
+  published anywhere.
+- **Tracking (audience research)** is separate and is leaked constantly — a
+  distributor's confidential four-week-out awareness numbers reliably reach
+  competitors and the trades (`09` §8).
+- **Test screening results** leak, and a leaked bad test is itself a news
+  event that can damage a film months before release.
+- **The town is small.** Roughly a few thousand people make the decisions
+  described in this document, most of them within a few square miles, many of
+  them trained in the same mailrooms. Reputation propagates in days.
+
+Why this matters structurally: **announcements are moves, not reports**. A
+studio dating a film three years out, a producer announcing an attachment, an
+agency confirming a signing — each is an action taken to change someone else's
+behaviour, and reading them as neutral information is the single most common
+mistake outsiders make about this industry.
+
+---
+
+## 13. The physical infrastructure, and who owns it
+
+Films are made in buildings owned by somebody, with equipment rented from
+somebody. This layer is invisible in most descriptions of the industry and is a
+hard constraint on how many films can be made at once.
+
+### 13.1 Studio lots and stages
+
+A "studio" in the real-estate sense is a walled site with **sound stages**,
+production offices, workshops, a backlot, and post facilities. The major
+historic lots — Warner Bros. Burbank, Sony (the old MGM lot) in Culver City,
+Paramount on Melrose, Universal, the Fox lot in Century City — are owned by the
+studios whose names they carry or, increasingly, by real-estate companies who
+lease them back. A great deal of stage space worldwide is now owned by
+property investors and specialist operators rather than by film companies.
+
+Outside Los Angeles: **Pinewood, Shepperton, Leavesden, Elstree, Longcross,
+Cardington** and the newer Hertfordshire and Yorkshire builds in the UK;
+**Trilith** and the Georgia complexes; **Cinespace** in Toronto and Chicago;
+**Origo** and the Budapest stages; **Babelsberg** near Berlin; growing capacity
+in Spain, the Czech Republic, Australia, and the Gulf.
+
+Stage economics, directionally:
+
+- A large stage is **15,000–40,000 sq ft** with a clear height of 35–50 ft.
+- Stage rent runs roughly **$0.60–1.50 per sq ft per week** in major hubs, so a
+  20,000 sq ft stage is broadly **$12,000–30,000 a week**, before power,
+  utilities, cleaning, and security.
+- A tentpole occupies **4–10 stages** for **6–12 months** including build and
+  strike, which is why capacity is measured in stage-weeks.
+- Lots also charge for **office space, workshops, parking, mill and paint
+  shops, backlot, and post services**, and a studio shooting on its own lot
+  charges these to the picture — a real cost to the film and revenue to the
+  facility.
+
+**Capacity is a genuine constraint.** The 2021–22 production surge produced a
+worldwide stage shortage in which productions took whatever space existed at
+whatever price, and the 2023 strikes produced the opposite. Stage availability
+in a hub, along with crew depth and tax incentives (`03` §6), is one of the
+three factors that actually decides where a film shoots.
+
+### 13.2 Rental houses
+
+Almost no production owns equipment. It rents.
+
+| Category | Typical suppliers | How it is priced |
+|---|---|---|
+| **Camera** | Panavision, ARRI Rental, Keslow, regional houses | Weekly package rate, heavily discounted from list. A "camera package" for a studio feature runs **$25–75K/week** at list and far less net |
+| **Lighting and grip** | Cinelease, MBS Equipment, Quixote, regional | Weekly, plus consumables and generators |
+| **Trucks and transportation** | Studio transport departments, Teamster-supplied | Weekly per unit plus drivers |
+| **Post equipment and edit suites** | Post houses, or rented and installed on site | Weekly per suite |
+
+The pricing convention that surprises outsiders is the **deal week**: rentals
+are quoted weekly but negotiated as a "long-term" rate — a 20-week shoot is
+priced at something like 8–12 weeks' worth. The rental house's business is
+utilisation, and the negotiation is really about how much of the year the film
+occupies the kit.
+
+### 13.3 Post houses and services
+
+Picture and sound post are supplied by facility companies, most of which have
+been consolidated into a small number of groups:
+
+- **Picture finishing and DI**: Company 3, Picture Shop, Harbor, Goldcrest,
+  Technicolor's successors, plus regional facilities.
+- **Sound post**: Skywalker Sound, Formosa, Warner Post, Goldcrest, plus
+  independent mix stages. A dub stage rents by the day (`07` §3).
+- **VFX**: a globally distributed vendor industry, discussed in `08`.
+- **Localisation and versioning**: dubbing studios and subtitle houses in every
+  major territory (§9.1).
+- **Mastering, QC, and delivery**: the unglamorous companies that produce the
+  hundreds of deliverable files each distributor and platform demands
+  (`07` §7).
+
+Two structural facts: **film laboratories have almost entirely disappeared**,
+so the photochemical path is now a specialist service rather than the default;
+and much of the facility sector is owned by private-equity roll-ups, which
+means capacity, pricing, and even a project's vendor choice can change because
+of a transaction that has nothing to do with any film.
+
+### 13.4 Why the infrastructure layer matters
+
+1. **It caps throughput.** The number of films that can shoot simultaneously in
+   a hub is set by stages, crew depth, and kit — not by demand.
+2. **It concentrates production geographically**, which is why incentives work:
+   a territory that builds stages and trains crew can capture production, and
+   one that offers only a rebate cannot.
+3. **It is a fixed cost that behaves like a commodity market.** Stage rates,
+   crew rates, and kit rates all rise in a boom and collapse in a strike,
+   which means the same film costs materially different amounts depending on
+   when it shoots.
+4. **It is owned by people with no stake in any film's success.** Facility
+   owners are paid whether the picture works or not, which makes them the most
+   stable and least visible part of the value chain.
+
+---
+
+## 14. A project through the whole structure
+
+One ordered pass, to show how the institutions in this document hand off to
+each other. Timings are for a studio film that does not stall; most do.
+
+| Stage | Institutions involved | Typical elapsed |
+|---|---|---|
+| Material originates — spec, book, article, IP | Writer, agent (§5), pod (§3) | — |
+| Submission and coverage | Agency → studio creative exec (§2.2.2) | Days |
+| Purchase or option, writer hired | Business affairs, agent, lawyer | 4–16 weeks |
+| Development: 2–5 drafts | Pod, creative exec, writer | 9–30 months |
+| Attachment of a director, then cast | Agency, pod, casting (`04` §8) | 3–12 months |
+| Budget and schedule built | Physical production, line producer (`04` §3–4) | 4–8 weeks |
+| Greenlight: model, marketing read, date | Chairman, finance, marketing, distribution (§2.2.7) | Weeks |
+| Financing closed; co-financier attaches; incentives applied | Finance, co-financiers (§4), tax counsel | 4–16 weeks |
+| Guild agreements signed; SPV formed | Legal, guilds (§6.1) | Weeks |
+| Prep, shoot, post | Crew, facilities, vendors (§13), guilds | 12–30 months |
+| Marketing campaign built | Studio marketing, trailer and art houses (`09` §2) | 6–12 months, overlapping post |
+| Bookings negotiated | Distribution ↔ exhibitor film buyers (§8.2) | 6–12 weeks before release |
+| International dating, localisation, censorship | International division, territory MDs (§9.1) | 3–9 months before release |
+| Release, weekly re-booking, settlement | Exhibitors, distribution, trades (§12.3) | 6–16 weeks |
+| Windows: PVOD, EST, SVOD, TV | Home entertainment, licensing (`11` §3) | Months 1–36 |
+| Participations, residuals, audits | Accounting, guilds, participants (`11`) | Quarterly, for decades |
+| Library | Studio or rights-holder (§11.3) | Perpetual |

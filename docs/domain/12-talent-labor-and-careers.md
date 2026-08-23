@@ -1314,3 +1314,421 @@ audience.
    Agents create opportunities, hold calendars, and refuse deals.
 10. **Assuming behaviour is cosmetic.** "Good on set" is priced by producers
     and bond companies and materially changes who gets hired (§11.6).
+
+---
+
+## 11. What actors actually do — the craft
+
+Everything above is about the market. This section is about the job, which the
+market only imperfectly rewards.
+
+**Who** — the performer, working with the **director** (the only person whose
+notes they must take), the **DP** (frame and lens, which dictate scale), the
+**1st AD** (whose clock they are inside), **hair, makeup and costume** (who
+have them for hours a day and often know them best), the **script supervisor**
+(who holds continuity of action and eyeline), and **dialect, movement, fight,
+intimacy, and dialogue coaches** as the role requires.
+
+**When** — preparation begins on signature, intensifies 4–12 weeks out,
+peaks in the two weeks before the first day, and then the actual work is
+distributed across a shoot in which the actor is on set for perhaps 40–70% of
+the days and working for a fraction of the hours they are present.
+
+### 11.1 Preparation
+
+What the weeks before a shoot actually contain:
+
+| Work | Typical timing | What it involves |
+|---|---|---|
+| **Script analysis** | From signature | Breaking the script into scenes and beats and answering, per scene: what does the character want, what is in the way, what am I *doing* to get it. The last question is the operative one — playable actions, not adjectives |
+| **The through-line** | 4–8 weeks out | Mapping the character's state at every point in the story, because the film will be shot out of order and nobody else will track it for them |
+| **Research** | 4–12 weeks out | Reading, interviews with people who do the job, spending time in the world. Its function is to generate specific behaviour, not information |
+| **Physical transformation** | 8–24 weeks out | Weight gain or loss, training. Requires production scheduling support, a trainer, and sometimes medical supervision; a schedule change can invalidate months of it |
+| **Skills** | 4–12 weeks out | Riding, driving, fighting, dancing, instruments, weapons handling, surgery, sign language. Usually 3–8 weeks of several sessions a week, and the production pays |
+| **Dialect** | 6–12 weeks out, continuing on set | With a coach, who then stays through the shoot to catch drift in the moment |
+| **Rehearsal** | 1–3 weeks before, if at all | Increasingly rare on studio films; more common in the UK and on character-driven work. Often replaced by a single sit-down with the director |
+| **Fittings and camera tests** | 2–6 weeks out | Costume, hair, makeup, prosthetics. Where the character's exterior gets decided — and often where the actor first physically finds them |
+| **Lines** | Continuously, and the night before | Memorisation is assumed, unremarked, and entirely the actor's own problem |
+
+The governing rule is **the homework is done at home**. Set time is the most
+expensive time in the industry (`06-…` §1); an actor arriving without their
+choices made is spending it.
+
+### 11.2 The shooting day, from the actor's side
+
+| Stage | What happens |
+|---|---|
+| **Call** | Often 5–7am. Pick-up, then straight into the trailer |
+| **Hair, makeup, costume** | 45 minutes to 4+ hours depending on prosthetics. The most time the actor spends with anyone all day |
+| **Blocking rehearsal** | The first rehearsal on set, with the director, DP, 1st AD, script supervisor and key crew watching. Positions and moves are agreed; the crew watches to learn what they must light and shoot |
+| **Marks** | Camera and floor mark positions taped. From here the actor's movement is precise, repeatable, and non-negotiable |
+| **Stand-ins** | The actor leaves; stand-ins hold positions for 30–120 minutes of lighting |
+| **First team** | The actor returns, warm, and is expected to be *at the same place* they were at blocking, emotionally |
+| **Rehearsal for camera** | One or two, for focus, camera moves, and sound |
+| **Takes** | 2–15 per setup. The take that works may be the second or the eleventh |
+| **Coverage** | The same scene again from each new angle (`06-…` §4), 3–8 times, over hours. The performance must match on action and eyeline while staying alive |
+| **Off-camera** | The actor plays the scene again, out of frame, for the other actor's coverage. Nothing they do is recorded and it matters enormously |
+| **Wrap** | Costume out, makeup off. Then lines for tomorrow |
+
+The structural fact that defines screen acting: **the performance is delivered
+in fragments of 20–90 seconds, out of order, across weeks, with an hour of
+technical work between each, and assembled later by someone else.**
+
+### 11.3 What separates a great screen performance from a bad one
+
+The skill axis. Almost none of it is about emotional intensity.
+
+1. **Behaving rather than indicating.** The camera reads thought. An actor who
+   *shows* the emotion — a face arranged into sadness — reads as false at any
+   distance under a medium shot. The great ones do the thing and let the lens
+   find it. This is the single most common failure and the hardest to fix.
+2. **Listening.** Most of screen acting is being acted upon. The reaction shot
+   is where a film's emotion actually lives, and an actor who is waiting for
+   their line rather than hearing the other one is visibly dead in the cut.
+3. **Scale calibration.** The correct size of a performance is a function of
+   lens and frame. What plays in a wide two-shot is grotesque in a 100mm
+   close-up. Great screen actors adjust without being told, having clocked the
+   lens on the way in.
+4. **Repeatability with life.** Hitting the same mark, the same gesture on the
+   same word, the same eyeline, take after take — so the material cuts — while
+   the performance stays spontaneous. Doing either alone is easy; both is the
+   job.
+5. **Specificity.** A specific choice reads and a general one does not. "Angry"
+   is unplayable; "trying to leave the room without letting him see my hands
+   shake" is a performance.
+6. **Taking an adjustment.** The director asks for something different — faster,
+   colder, as if you already know — and the actor plays it *immediately*, fully,
+   without arguing and without abandoning what was working. Casting directors
+   test for exactly this in the room (`04-…` §8.1) because it predicts whether
+   the shooting day will function.
+7. **Holding the through-line unaided.** On day 31 of an out-of-order schedule,
+   knowing precisely how much the character knows in this scene, and playing
+   the right amount of it. The script supervisor tracks continuity of
+   *action*; nobody but the actor tracks continuity of *interior state*.
+8. **Giving the editor options.** Playing the beat two or three legitimately
+   different ways across takes, so the cut has choices. Actors who deliver one
+   fixed reading are harder to edit and are quietly less valued in post.
+9. **Stamina and consistency.** The fourteenth hour of the sixth night. The
+   ability to deliver the same quality at 4am that was delivered at 9am is not
+   a temperament trait; it is the difference between a usable day and a lost one.
+10. **Generosity off camera.** Giving a full performance for someone else's
+    coverage. It improves the film, it is noticed by everyone on the floor, and
+    it is the single most reliable driver of an actor's reputation among
+    directors.
+11. **Technical literacy.** Knowing where the light is, not crossing an eyeline,
+    not shadowing another actor, knowing when the camera is moving and how fast.
+    A performance that cannot be shot is not a performance.
+
+### 11.4 Screen versus stage
+
+They are different crafts with a shared vocabulary, and the transition in
+either direction is genuinely hard.
+
+| | **Stage** | **Screen** |
+|---|---|---|
+| **Size** | Calibrated to the back row | Calibrated to the lens; often almost nothing |
+| **Chronology** | The story in order, every night | Out of order, weeks apart |
+| **Continuity** | Whole arc in one sitting | Fragments; the arc exists only in the actor's head and the edit |
+| **Rehearsal** | 3–6 weeks, standard | Often none |
+| **Feedback** | A live audience, immediately | A monitor, a director, and silence |
+| **Ownership** | The actor controls the performance nightly | The editor controls it; the actor supplies material |
+| **Repetition** | Same performance, 8 shows a week, improving | Same 40 seconds, 12 times in a row, then never again |
+| **Second chance** | Tomorrow night | The cut is permanent |
+| **Physical demand** | Vocal and sustained | Waiting, then precision under time pressure |
+
+Stage actors moving to screen typically over-play and struggle with the
+stop-start rhythm. Screen actors moving to stage typically under-project and
+are unprepared for the sheer sustained physical demand of eight shows a week.
+
+### 11.5 How an actor works with a director
+
+The relationship is not what it looks like from outside. On a studio film,
+most direction of actors is **thirty seconds, quietly, between takes**, because
+the director has a crew of 150 and a clock.
+
+**Before the shoot:** one or more conversations about who the character is and
+what the film is doing with them. This is where the real directing of the
+performance happens, and it is the conversation an actor should insist on.
+
+**On the floor:** the vocabulary that works is **actions and adjustments** —
+"this time you're trying to reassure her", "she already knows, play it after
+that" — because they are playable. The vocabulary that does not work is
+**result direction** — "be sadder", "more energy", "funnier" — which tells the
+actor the destination and nothing about the route, and which reliably produces
+indicating (§11.3).
+
+Other mechanics that matter:
+
+- **Private notes.** A note given in front of sixty crew is a different note.
+  Good directors walk the actor away. Bad ones give the note across the set,
+  over the radio, or through the 1st AD.
+- **Protection.** The director's most valuable gift is a room where the actor
+  can be bad for a take. That means managing the crew's impatience, the clock,
+  and the video village audience — including, sometimes, clearing it.
+- **Knowing when they have it.** An actor doing take 14 of something that
+  worked on take 3 loses confidence in the director and then in the scene. The
+  reverse — moving on before it is there — is worse and is unfixable in post.
+- **Asking.** A professional actor asks precisely: "where am I coming from?",
+  "how much does she know?", "do you want the whole thing or just the end of
+  it?" — and can work without an answer if the director doesn't have one.
+- **Lines that shouldn't be crossed.** An actor does not direct other actors,
+  does not give notes on someone else's performance, and takes disagreements to
+  the director rather than to the studio. Breaching any of these is a
+  reputational event.
+
+### 11.6 What "good on set" actually means
+
+This is behavioural, it is priced, and it is reported. The 1st AD, the UPM, and
+the line producer all form a view within a week, and they talk to their peers
+(§8.4). Concretely, a "good" actor:
+
+- Knows the lines, including the rewrite that arrived last night.
+- Is on time and out of makeup on schedule — because the whole unit's day is
+  built around it.
+- Hits marks, so the focus puller can do their job.
+- Doesn't hold the crew — is at the door when first team is called.
+- Doesn't renegotiate on the day.
+- Is the same person in hour twelve as in hour one.
+- Treats the crew as colleagues and learns their names.
+- Is honest about what they can't do — the stunt, the accent, the horse — early
+  enough for the production to solve it.
+- Gives the off-camera performance (§11.3).
+- Turns up for ADR, reshoots, and the contracted press days without a fight.
+
+The commercial consequence is direct: reliability is a component of bankability
+(§3.3), it is priced by completion bond companies (`03-…` §7), and among
+producers it outweighs a surprising amount of talent. The industry's phrase for
+the alternative — "not worth the trouble" — is a hiring decision, not a
+complaint.
+
+### 11.7 What a bad performance costs
+
+| Failure | Consequence |
+|---|---|
+| **Miscast lead** | Unfixable. No editing, scoring, or reshooting repairs it (`04-…` §8.3) |
+| **Indicating** | Every close-up is unusable; the film retreats to wides and the intimacy is lost |
+| **No continuity of state** | The character's arc is incoherent in the cut, and post spends weeks papering over it |
+| **Poor matching across coverage** | Whole angles are unusable; the editor is locked into one master and the scene is flat |
+| **One reading only** | No options in the edit; a scene that could be tuned is fixed |
+| **Line trouble** | Takes multiply; a day's page count is missed and the schedule pays for it (`06-…` §5) |
+| **Can't take an adjustment** | The director stops directing them, which is the quietest and most damaging outcome of all |
+| **Behavioural problems** | Days lost, crew morale, a report to the bond company, and no re-hire |
+| **Refusing ADR or press** | The film is delivered late or marketed without its lead (`09-…` §12.2) |
+
+---
+
+## 12. Directors as a career and a craft
+
+The director is the only person present for the whole film, and the job is
+different in each of its three phases.
+
+**Who they work with** — in development, the writer, producer, and executives;
+in prep, every HOD plus the CD, 1st AD, and UPM; on the floor, the DP, 1st AD,
+and cast above all; in post, the editor, then sound, music, and VFX
+supervisors; at release, marketing and publicity. **Who they answer to** — the
+producer and the financier, with the extent of that authority set entirely by
+the deal (§12.7).
+
+### 12.1 What a director actually does, phase by phase
+
+| Phase | Duration | What the job is |
+|---|---|---|
+| **Development** | 6 months–5 years | Finding or being offered material; developing a **take** (a specific, arguable interpretation) and selling it in a room; working with the writer through drafts; assembling attachments to make the film financeable (`02-…`, `03-…` §2) |
+| **Prep** | 8–16 weeks (studio), 4–8 (low budget) | Hiring HODs; casting (`04-…` §8); location scouting and the tech scout (`04-…` §5.2); design approvals — sets, costumes, palette, props; the shot plan, storyboards, previs; agreeing the schedule with the 1st AD; a rolling stream of several hundred decisions a week, most of them small and unglamorous |
+| **Photography** | 25–100+ days | Per day: block the scene, agree the coverage, direct the performances, decide when it's there, decide what to cut when the day runs short, watch dailies (`06-…` §9), and answer questions continuously |
+| **Post** | 6–18 months | The assembly; the **director's cut** (DGA-guaranteed, commonly around 10 weeks on a feature); the studio cut; test screenings (`07-…` §9); reshoots; sound, music, VFX and the DI; delivery (`07-…`) |
+| **Release** | 2–6 months | Press, festivals, awards campaigning (`13-…` §5), and the long public argument about what the film is |
+
+### 12.2 What the job actually is
+
+Two things, under everything else:
+
+1. **Answering questions.** Several hundred a day in prep and on the floor:
+   which watch, which door, how fast does she walk in, do we see the body, is
+   the wall blue. Most are individually trivial; collectively they *are* the
+   film. The director's throughput on this is a real constraint and is the main
+   thing a regular team relieves (§5.2).
+2. **Holding the intent stable** across 18 months, 300 people, and thousands of
+   compromises, so that the thing delivered is recognisably the thing intended.
+   Nobody else in the process has this job, and no document can do it.
+
+### 12.3 What separates a great director from a competent one
+
+1. **Knowing what the film is** — in one sentence, and being able to apply that
+   sentence to a costume swatch, a lens choice, and a line reading. A director
+   who cannot answer "what is this film" produces a set where 300 people each
+   make a reasonable guess.
+2. **Casting.** The single largest lever available, and mostly what a
+   director's "taste" turns out to be in practice (`04-…` §8). A great cast
+   forgives an enormous amount; a miscast lead forgives nothing.
+3. **Reading a performance in the moment** — knowing when they have it. This
+   is what keeps the day and is the difference between finishing at 7pm and
+   losing the last two setups.
+4. **Coverage judgement.** Deciding what to shoot and, crucially, what not to.
+   Over-covering is how a schedule is lost; under-covering is how a scene
+   becomes uncuttable. Both errors are made in the same five-minute decision.
+5. **Shooting for the cut.** Visualising the assembled scene while standing on
+   a set and shooting only what it needs. Directors who cannot do this shoot
+   beautiful, unusable material.
+6. **Treating the clock as a creative instrument.** The day has ten hours in
+   it; choosing to spend four on the scene that matters and forty minutes on
+   the one that doesn't is a taste decision disguised as a logistics decision.
+7. **Leading.** The tone of a set comes from the director and nowhere else. A
+   calm set is faster, safer, and more inventive; a frightened one produces
+   people who stop volunteering solutions, which is a measurable loss.
+8. **Working with actors** — objectives and adjustments rather than results,
+   and protection (§11.5).
+9. **Collaborating without abdicating.** Getting the best out of a great DP or
+   designer while still making the final call, and doing it without the
+   department feeling overruled.
+10. **Surviving post.** The self-honesty to recut their own work, the
+    resilience to sit through a bad test screening (`07-…` §9) and separate the
+    useful signal from the noise, and the stamina for a year of it.
+11. **Choosing which battles to fight** with the studio, and losing the others
+    gracefully enough to still be there for the ones that matter.
+12. **Choosing the next project.** Over a career this outweighs everything
+    else on this list.
+
+### 12.4 How directorial reputation is built
+
+The ladder is real and quite rigid, because financiers are underwriting risk:
+
+```
+Shorts / commercials / music videos / TV episodes
+   └─► first feature (micro-budget or festival-financed)
+         └─► festival premiere = the calling card
+               └─► second feature ($5–20M, specialty or studio-adjacent)
+                     └─► $30–80M studio film
+                           └─► $100M+ tentpole
+```
+
+Mechanics worth naming:
+
+- **The calling card.** A first feature's function is not to make money; it is
+  to prove a director can finish something with a point of view. A festival
+  premiere puts it in front of exactly the people who decide.
+- **The second-film problem.** The hardest film in a career. The first was made
+  on nothing with total freedom; the second has money, notes, and expectations,
+  and the failure rate is high and well known.
+- **The take.** The literal mechanism by which directors are hired for material
+  they didn't originate: a meeting, and often a written or visual document — a
+  **take document** or **lookbook** — describing what *this* director's version
+  of the film would be. Studios meet 5–15 directors this way for a big
+  assignment.
+- **The commercials and episodic route.** Directing commercials or streaming
+  episodes is a paid apprenticeship in scale and speed, and studios read it as
+  evidence a director can handle a unit — increasingly the standard bridge to a
+  big budget.
+- **Parallel ladders.** The commercial ladder buys budget. The **prestige**
+  ladder — awards standing, critical reputation, festival standing — buys
+  *control*: final cut, casting approval, and the freedom to make an odd film.
+  They are only loosely correlated, and directors choose which to climb.
+- **The step-down.** A director who has made a $150M film can usually still get
+  a $10M one made. The ladder is easier to descend than to ascend, and doing so
+  deliberately after a failure is a standard recovery move.
+
+### 12.5 How directorial reputation is lost
+
+The order here is not what outsiders expect. **Cost, not quality, is the
+reliable career killer.**
+
+| Cause | Mechanism |
+|---|---|
+| **Overrun blamed on the director** | The bond company and the studio both keep records. A director who has cost a picture days is a specific, quantified risk on the next finance plan (`03-…` §7). This ends more careers than any flop |
+| **Two attributable flops** | The financing conversation stops. "Development" becomes indefinite — a decade is not unusual |
+| **Being fired** | Rare, and near-permanent in effect. The DGA one-director rule makes it a formal, public event |
+| **The film taken away and recut** | Damaging even when the recut version fails, because the perception is that the director couldn't deliver |
+| **A safety incident** | The most serious of all, with legal as well as career consequences |
+| **Undeliverable rating** | A director who cannot or will not deliver the contracted rating (`07-…` §7) breaches the deal outright |
+| **Uninsurable** | Health, conduct, or claims history; ends the career at the level where bonds are required |
+| **A reputation for slowness** | Whispered, unprovable, permanent. Line producers are asked about it on every hiring call |
+| **Nothing at all** | The most common: projects fall apart repeatedly, no film gets made, and the career ends without an event |
+
+### 12.6 What good and bad look like on the floor
+
+**Good:** the day's work is finished; the crew knows what the film is and
+volunteers ideas that are actually useful; the actors are protected and are
+doing their best work; the coverage cuts; the department heads are arguing
+about the right things; and when something goes wrong the director changes the
+plan without changing the intent.
+
+**Bad:**
+
+| Failure | Consequence |
+|---|---|
+| **No clear intent** | Every department guesses. The film is internally inconsistent and no cut fixes it |
+| **Indecision on the floor** | The unit waits. 150 people at full rate, doing nothing (`06-…` §5) |
+| **Over-covering** | Setups multiply, the day is lost, and the last scenes of the day are shot badly |
+| **Under-covering** | The scene cannot be cut; reshoots or a compromised edit |
+| **Directing by monitor only** | The actors are alone. Performances flatten and the set's centre of gravity moves to video village |
+| **Result direction** | Indicated performances (§11.3) |
+| **Losing the crew** | Ideas stop coming; people do exactly what is asked and nothing more, which on a film is a serious loss |
+| **Fighting every note** | The studio stops arguing and starts planning the recut |
+| **Not watching the clock** | Overtime, turnaround breaches, penalties, and a schedule that eats the third act (`06-…` §7) |
+
+### 12.7 Authority is contractual, not natural
+
+"The director's vision" is a term of art whose real content is written into the
+deal, and the spectrum is wide:
+
+- **Final cut** — a small number of filmmakers. The studio may argue; the
+  director decides.
+- **Director's cut, then studio cut** — the DGA baseline and by far the most
+  common arrangement (`07-…` §1).
+- **Approval rights** — over cast, key crew, marketing materials, the title.
+  Negotiated individually and frequently traded away by a first-timer.
+- **Preview and consultation only** — the weakest position: the director is
+  shown things and heard.
+- **Replaced** — the studio's ultimate remedy, constrained by the DGA's
+  procedures and the one-director credit rule.
+
+Which of these a director has is a function of their standing at the moment the
+deal was signed — which, given §4.4's lag, is a function of results from two
+films ago.
+
+---
+
+## 13. The working year
+
+Careers are lived as calendars, and the calendar is the thing most often
+omitted from an account of the industry.
+
+### 13.1 An actor's year
+
+- **Availability is the asset.** A lead on a studio film is committed for
+  roughly: 4–8 weeks of prep and training, 8–16 weeks of photography, then a
+  scattering of reshoot days 6–12 months later, ADR, and 5–15 contracted press
+  days around release — a commitment spanning **18–24 months** from a shoot
+  that lasted three.
+- **Awards season eats a winter.** A lead on a contending film is effectively
+  employed from October to March on campaigning (`13-…` §3), largely unpaid.
+- **Casting seasons.** US television's pilot season historically concentrated
+  hiring into January–April; streaming has spread it across the year without
+  entirely dissolving it. Features cast continuously, gated by financing.
+- **Gaps are the norm, not the exception.** Even busy actors work a few months
+  a year. The unstructured time is the hard part of the job, and it is when
+  the bad decisions get made.
+
+### 13.2 A crew year
+
+- **Seasonality.** Shooting concentrates by climate and by studio slate
+  planning; in most markets there is a pronounced lull in the weeks after the
+  new year and a crunch in spring and late summer.
+- **The overlap problem.** Jobs are offered 2–8 weeks out and shows run 8–20
+  weeks, so a crew member is almost always choosing between a firm offer now
+  and a better possible offer later, with imperfect information about both.
+- **Geography.** The work is where the incentives are (`03-…` §6), which means
+  a career decision about whether to be local to one market, travel
+  continuously, or relocate as the map changes.
+- **The counted year.** 150–220 paid days is a good year; the number of days
+  also determines health coverage qualification (§7.2), which makes the last
+  few weeks of a qualifying period disproportionately important.
+
+### 13.3 What everyone is doing when not working
+
+The industry's invisible labour: reading, taking generals (meetings with no
+specific job attached, which is how most future work is actually seeded),
+maintaining the network, developing material, training, and — for a large
+fraction of working actors and crew — doing something else for money. This is
+not a footnote to the careers described above. For most of the people in them,
+it is the majority of the year.

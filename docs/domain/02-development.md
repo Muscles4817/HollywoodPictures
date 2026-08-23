@@ -1444,3 +1444,393 @@ person (§8.3).
 | Time, acquisition → principal photography | 2–5 years |
 | Time, delivery of a draft → notes call | 1–4 weeks (frequently much longer) |
 | Credit arbitration, notice → determination | 4–8 weeks |
+
+---
+
+## 12. What makes a screenplay good
+
+The screenplay is the single largest quality input in filmmaking and the
+cheapest to change. Everything downstream — casting, design, shooting,
+editing, marketing — either serves it or compensates for it, and compensation
+is expensive and rarely complete. It is worth setting out what practitioners
+are actually assessing, because "good script" is otherwise a black box.
+
+Two framing facts. First, a screenplay is not literature; it is a **set of
+instructions and a persuasive document at the same time**. It must specify a
+film precisely enough for two hundred professionals to build it, and it must
+be exciting enough that financiers, directors and actors say yes after one
+read. Second, **one page is roughly one minute of screen time**, so form is
+constrained: a feature runs **95–120 pages** in studio practice, longer for
+epics, shorter for comedy and horror.
+
+### 12.1 Premise
+
+Everything begins here, and premise problems are the ones that cannot be
+fixed later.
+
+- **Legibility.** The film can be described in one sentence that contains a
+  protagonist, a situation, and a conflict — and the sentence makes someone
+  want to see it. This is not a marketing afterthought: a film that needs a
+  paragraph is structurally hard to sell (`09` §12.1) and that difficulty is
+  knowable at development stage.
+- **Inherent conflict.** The premise generates story on its own. "A man
+  grieves" does not; "a man has one day to stop his own funeral" does.
+- **A promise of scenes.** A good premise makes the reader imagine three
+  scenes before they've read any. Executives literally test this: if they
+  can't picture the trailer, the premise is thin.
+- **Freshness against familiarity.** The commercial sweet spot is a
+  recognisable form with one genuine twist — familiar enough to sell,
+  different enough to be worth making.
+
+### 12.2 Structure
+
+Structure is not a template; it is the management of **causality, escalation
+and information**. The commonly taught three-act shape (setup to roughly page
+25–30, confrontation, resolution from roughly page 85–90, with a midpoint
+reversal and a low point before the climax) is a description of what usually
+works, not a rule — but a script that departs from it must supply its own
+engine, and most that depart do not.
+
+What is actually being assessed:
+
+1. **Causality.** Scenes connect with *therefore* and *but*, not *and then*.
+   An episodic script — a series of things that happen to the protagonist —
+   is the most common structural failure and reads as "flat" or "slow" long
+   before anyone can name why.
+2. **Escalation.** Each sequence costs the protagonist more than the last.
+   When a script "loses energy in act two," the usual cause is that the
+   obstacles stopped growing.
+3. **A clock or a container.** Pressure comes from a deadline, a confined
+   space, a countdown, a pursuit, or a rule that cannot be broken. Scripts
+   without one drift.
+4. **Information management.** The audience should always know *what they are
+   waiting for*. Suspense is created by giving information away, not by
+   withholding it; confusion is not tension, and readers who report being
+   "confused" are usually reporting an information failure two acts earlier.
+5. **The turn on the ending.** The climax must be caused by the protagonist's
+   choice, and that choice should be the one the whole film has been setting
+   up. An ending resolved by a coincidence, a rescue, or a character who has
+   not changed reads as unearned no matter how well staged.
+6. **Runtime discipline.** Structure is also arithmetic: a 140-page script for
+   a $30M drama is a budget problem as well as a pacing problem.
+
+### 12.3 Character
+
+1. **Want and need.** A conscious, active, *specific* goal that drives
+   behaviour, and an underlying lack the story is really about. When they
+   conflict, you have a film; when there is only a want, you have a plot; when
+   there is only a need, you have a mood piece.
+2. **Agency.** The protagonist makes decisions with costs. Passive
+   protagonists — characters things happen to — are the second most common
+   fatal note in development, and they are the reason a competent script can
+   still feel inert.
+3. **Contradiction.** Interesting characters want two incompatible things.
+   Consistency without contradiction reads as a function, not a person.
+4. **Differentiation.** Cover the character names on the dialogue and the
+   speakers should still be identifiable. If they are not, the script has one
+   voice — usually the writer's.
+5. **The antagonist has a case.** The opposing force should be right about
+   something, and stronger than the protagonist for most of the running time.
+6. **Wanting in every scene.** Every character in a scene wants something from
+   the other, including the ones who are only there to deliver information.
+7. **Castability.** A well-written role gives an actor something to *play*: a
+   change, a secret, a decision under pressure. This is a craft property, not
+   a marketing one, and it is why some scripts attract stars and others with
+   the same premise do not (`04` §8).
+
+### 12.4 Scene craft and economy
+
+The scene is the unit of screenwriting and the level at which the difference
+between competent and excellent is most visible.
+
+- **Every scene turns.** Something changes between the first line and the
+  last: a relationship, an intention, the audience's understanding. A scene
+  that ends in the same state it began is cuttable, and it will be cut — in
+  the edit, at a cost (`07` §2).
+- **Enter late, leave early.** Start after the greeting, end before the
+  goodbye. The most reliable single improvement to an amateur script is to
+  cut the first and last quarter-page of every scene.
+- **Conflict carries information.** Exposition delivered by two people who
+  agree is dead; the same information delivered by two people arguing is
+  invisible.
+- **One scene, three jobs.** Economy is the mark of a professional: a single
+  scene advances the plot, reveals character, and plants something that pays
+  later. Amateur scripts use three scenes to do it.
+- **Scene count and rhythm.** A feature typically has **60–120 scenes**;
+  varying their length deliberately is what "pace" actually consists of.
+- **Visual thinking.** Information conveyed by behaviour and image rather than
+  statement. The test is whether a scene would still play with the sound off.
+
+### 12.5 Dialogue
+
+1. **Subtext.** Characters rarely say what they want; the scene is the gap
+   between what is said and what is meant. "On the nose" dialogue — people
+   announcing their feelings and intentions — is the most common surface
+   failure and often signals a structural problem underneath.
+2. **Compression.** Real speech is redundant; screen dialogue is speech with
+   the redundancy removed but the rhythm kept. Fewer words, sharper.
+3. **Voice.** Vocabulary, syntax and rhythm differ by character. This is
+   partly research and partly ear, and it is not teachable past a point.
+4. **Lines actors want to say.** A small number of speeches in any good script
+   are the reason an actor takes the part.
+5. **No speeches unless earned.** A monologue must be a character *doing*
+   something to someone, not the writer explaining the theme.
+6. **The theme is never stated.** A character who articulates the film's
+   meaning aloud usually indicates the writer does not trust the story to
+   carry it.
+
+### 12.6 Tone
+
+The most under-discussed and most frequently fatal property.
+
+- **Tone is a contract with the audience**, and it is set in the first five to
+  ten pages: how funny is this, how real, how violent, are we safe. Breaking
+  it later without preparing the break destroys trust.
+- **Blended tones are the hardest thing in the craft.** Comedy-drama, horror-
+  comedy and action-satire scripts fail more often on tone than on structure,
+  and the failure is invisible to a reader who is only checking plot.
+- **Genre rules are load-bearing.** Each genre has a promise — a horror film
+  must scare, a thriller must have a ticking problem, a romance must make the
+  audience *want* the couple together — and satisfying it is not formula, it
+  is the reason the audience came.
+- **Tone is a director's problem too**, which is why "tone" is the word that
+  appears most often when a good script becomes a bad film.
+
+### 12.7 Executability
+
+The property that distinguishes a good screenplay from a good *screenplay to
+shoot*, and the one non-practitioners consistently miss.
+
+| Question | Why it decides things |
+|---|---|
+| **What does it cost?** Night exteriors, water, crowds, children, animals, period, snow, and VFX shot counts are all written on the page | A script is a budget document; a writer who can't price their own pages loses control of the film (`04` §3) |
+| **Can the action be staged?** "They fight through the market" vs beats a stunt coordinator can build | Vague action gets invented on set, expensively, by someone else |
+| **How many locations and how many company moves?** | The schedule's biggest waste (`06` §5) |
+| **How many speaking parts?** | Every one is a casting session, a deal, and a day |
+| **Is the third act shootable at all?** | Third acts written as spectacle without geography become the reshoot |
+| **What's the rating?** | A single scene can move a film from PG-13 to R and halve its audience (`09` §7) |
+| **Does it travel?** | Dialogue-driven comedy and culturally specific idiom cost the international number (`10` §7) |
+| **Can it be cut down?** | Scripts with no removable scenes are dangerous; scripts that are all removable scenes are worse |
+
+### 12.8 Readability
+
+A screenplay is read before it is filmed, by people who read constantly and
+under time pressure. Craft on this axis is real and measurable:
+
+- **White space.** Action described in blocks of one to four lines. Dense
+  paragraphs get skimmed, and a skimmed script is a passed script.
+- **Momentum.** Professional readers form a judgement in the first ten pages
+  and confirm it by thirty. This is unjust and universal; scripts are written
+  accordingly.
+- **Character introductions that land.** Two lines that make a person vivid.
+- **Precision without direction.** Describing what is seen and heard, not
+  camera moves and lens choices — directing on the page antagonises the
+  people whose job that is.
+- **The script is fun to read.** The professional consensus is that a script
+  which is a pleasure to read gets made; one that is merely correct does not.
+
+### 12.9 Emotion, which is the point
+
+All of the above is machinery in service of one thing: whether the reader
+*feels* something and whether the audience will. It is the only criterion that
+matters and the only one that cannot be checked from a list. A script can be
+structurally immaculate and emotionally inert, and the industry has a specific
+phrase for it — "well-built, doesn't move me" — which is a pass.
+
+### 12.10 How screenplays fail
+
+| Failure | How it reads | What it costs downstream |
+|---|---|---|
+| **Passive protagonist** | "I didn't care about him" | Unfixable in the edit; a star will decline the part |
+| **Episodic structure** | "It's slow", "it sags in the middle" | Reshoots, or twenty minutes cut out of act two |
+| **Premise that can't be stated** | "What is this movie?" | Marketing cannot build a campaign (`09` §12.2) |
+| **On-the-nose dialogue** | "Everyone says exactly what they mean" | Actors rewrite it on set; scenes play false |
+| **Tonal wobble** | "I didn't know how to feel" | The film tests badly and cannot be recut into coherence |
+| **Theme stated, not dramatised** | "It's preachy" | Bad reviews specifically (`16-critics-reviews-and-word-of-mouth.md`) |
+| **Too many characters** | "I lost track of who's who" | Cast cost, and scenes cut that were carrying plot |
+| **Unearned ending** | "It just stops" / "deus ex machina" | Poor word of mouth and a collapsed second-weekend multiple |
+| **Unshootable at the number** | Budget comes in 40% over | Rewrite in prep, or the greenlight is withdrawn (§8) |
+| **No role a star wants** | Package won't close | The film doesn't get financed at all |
+| **Great scenes, no spine** | "There's a lot to like here" | Endless development; the classic hell candidate (§9.4) |
+
+---
+
+## 13. The pitch
+
+Pitching is a distinct professional skill, exercised constantly and taught
+nowhere. Writers pitch to win assignments (§4.1), writers and producers pitch
+to sell originals, executives pitch upward to get a project approved, and
+producers pitch to attach directors and stars. The mechanics below apply to
+all of them.
+
+### 13.1 The kinds of pitch
+
+| Kind | Purpose | Length |
+|---|---|---|
+| **The general** | A meet-and-greet; no project. The point is to be memorable and to leave with the room's mandate | 30 min |
+| **The take** | Winning an assignment on material the buyer controls | 20–45 min |
+| **The original pitch** | Selling a story the writer/producer owns | 15–30 min |
+| **The room pitch to a director or star** | Attaching an element | 20–40 min |
+| **The internal pitch** | An executive selling upward, often in 3 minutes in a hallway | 3–10 min |
+| **The elevator / logline** | The one-sentence version everyone must be able to give | 15 sec |
+
+### 13.2 Who is in the room and what they are doing
+
+For a studio pitch: the **creative executive** who took the meeting (and who
+will have to re-pitch it upstairs), sometimes their **boss**, the
+**producer(s)** who set the meeting, and an **assistant** taking notes. Four
+to six people. The producer's job is to frame at the start and close at the
+end; the writer performs the middle. On a competitive go-out, the same pitch
+is delivered **five to ten times in one to two weeks**, in a scheduled sweep,
+and it improves noticeably by the third.
+
+### 13.3 The anatomy of a pitch
+
+1. **Small talk** (3–5 minutes). Not decorative — this is where the room
+   decides whether they'd like to work with you for two years.
+2. **The personal in** ("why me"). One short, true reason this story matters
+   to you. It converts a transaction into a collaboration and it is the part
+   most often skipped and most often missed.
+3. **The logline.** One or two sentences. Then stop talking and let it land.
+4. **The tone comp.** "It's *X* meets *Y*", or "it's *X* if it were made by
+   *Y*." Cliché and indispensable: it tells the buyer what shelf the film sits
+   on, what it costs, and who buys a ticket.
+5. **The world and the rules.** Especially for genre and science fiction: what
+   is possible here and what is not.
+6. **The characters.** Two or three, by want, in a line each.
+7. **The story, told in present tense**, in acts, hitting the four or five
+   big scenes — the ones the trailer would use — with enough texture that the
+   room can see them. Fifteen minutes maximum. Do not narrate every plot turn:
+   a pitch is not a synopsis, and detail past a point actively loses the room.
+8. **The ending.** *Always tell them the ending.* Withholding it to preserve
+   the surprise is the most common amateur error; buyers must know the film
+   has one, and a good ending is often what closes the sale.
+9. **The theme**, in one sentence: what it's about underneath.
+10. **The case.** Why now, who the audience is, what it costs, sometimes the
+    franchise or sequel logic.
+11. **Questions.** The room's questions are the actual test — this is where
+    they find out whether the writer has thought about it or only prepared it.
+12. **The leave-behind.** A one-page document, or increasingly a designed
+    deck or "look book" with images and references. It exists so the exec can
+    re-pitch it accurately in a meeting the writer will never attend.
+
+### 13.4 What separates a good pitch from a bad one
+
+1. **It is rehearsed and it does not sound rehearsed.** Professionals run it
+   aloud a dozen times and never read from paper. Notes on a card for the beat
+   order are acceptable; reading is fatal.
+2. **It is the right length.** The most common failure is a pitch that runs
+   forty minutes because the writer refuses to cut plot. Buyers stop absorbing
+   at twenty.
+3. **It reads the room and adapts live.** If the buyer leans in at the
+   antagonist, expand; if they check their phone at the world-building, cut to
+   act three. This is the difference between a performer and a reciter.
+4. **It has a spine, not a plot.** The room should be able to repeat what the
+   movie is *about* an hour later. They will not remember the plot.
+5. **It answers the obvious objection before it is raised** — cost, rating,
+   similarity to a recent flop, the second-act problem inherent to the
+   premise. Pre-empting the objection is the single strongest move available.
+6. **Energy.** The buyer is estimating whether this person can sustain
+   enthusiasm through two years of notes. Flat delivery of a good idea loses
+   to lively delivery of an equal one, consistently.
+7. **It ends decisively**, with the ending and then silence, rather than
+   trailing off into "so, yeah, that's kind of it."
+
+### 13.5 Reading the response
+
+| What they say | What it usually means |
+|---|---|
+| "We love it — let us discuss internally" | Pass, in most cases |
+| "Can you come back and tell it to *my boss*?" | Genuine interest; this is the real signal |
+| Detailed questions about budget, casting or date | They are modelling it, which means they are serious |
+| "What else have you got?" | Pass on this, interest in the writer |
+| Silence for two weeks | Pass |
+| A call to the agent within 24–72 hours | Offer |
+
+A pitch sale closes fast or not at all. If it sells, the buyer pays for the
+pitch and hires the writer to write the screenplay; if the pitch is bought
+from a producer with a writer attached, the writer's deal closes alongside.
+If it does not sell anywhere, the common fallback is for the writer to write
+it as a spec (§2.1) and try the same buyers again with pages — which
+frequently works, because a pitch and a script are judged by different people
+in different moods.
+
+---
+
+## 14. The development executive as a job
+
+Development is staffed by a profession that is invisible in the credits and
+decisive in what gets made.
+
+### 14.1 The ladder
+
+| Rung | Typical tenure | What the job actually is |
+|---|---|---|
+| **Assistant** | 1–3 years | Rolling calls, scheduling, reading everything, writing coverage after hours. The apprenticeship, and it is brutal |
+| **Story editor / creative assistant** | 1–2 years | Reading, tracking, first-pass notes |
+| **Creative executive** | 2–4 years | Finding material, hiring writers, giving notes, running projects day to day |
+| **Director of Development / VP** | 3–5 years | A slate; authority to recommend purchases |
+| **SVP / EVP Production** | Variable | A genre band; presents at greenlight |
+| **President of Production** | 3–5 years, often less | The slate; hires and fires the executives below |
+
+Careers move sideways as much as up — studio to production company to
+streamer — and the whole structure turns over on a **three-to-five-year**
+cycle, which is the single most important fact about how projects survive
+(§9.4).
+
+### 14.2 What separates a good executive from a bad one
+
+1. **Taste that can be defended.** Not "I liked it" but a reasoned position on
+   what a piece of material could become, held consistently enough that
+   writers and agents learn to read it.
+2. **Notes writers can use.** The skill in §6.3 — diagnosing rather than
+   prescribing, and prioritising. Writers talk to each other, and an executive
+   with a reputation for good notes gets first look at material.
+3. **Relationships that return calls.** The concrete asset. An executive is
+   substantially the sum of the agents, managers, producers and writers who
+   will pick up the phone.
+4. **Being early.** Getting to the manuscript, the article or the writer
+   before the auction. Everything found in an open auction is expensive.
+5. **Selling upward.** A project only advances if the executive can re-pitch
+   it convincingly to their boss and then to a room (§13.2). Executives who
+   cannot pitch cannot get anything made regardless of taste.
+6. **Protecting a project through regimes** — keeping it alive, cheap and
+   quiet until the moment is right.
+7. **Knowing when to stop.** Recommending the write-off of a project they
+   bought. Rare, valuable, and rewarded by nobody.
+
+They are ultimately judged on one number, on a **three-to-five-year lag**:
+what got made, and how it did.
+
+---
+
+## 15. Where projects actually die
+
+A consolidated view, because the failure modes are distributed across every
+section above and the shape only becomes visible when they are put together.
+
+| Stage | Typical cause of death | Money already spent | Recoverable? |
+|---|---|---|---|
+| **Submission** | Coverage PASS; nobody with power read it | ~$75 | Yes — resubmit later, retitled, with an attachment |
+| **Acquisition** | Outbid; rights encumbered; author refused | Legal time | Sometimes — options lapse (§2.2) |
+| **First draft** | The draft did not solve the hard problem | $200K–$500K | Yes, with a new writer |
+| **Notes cycle** | Contradictory notes; no decision-maker; drift | $500K–$2M | Rarely, without a new champion |
+| **Second/third writer** | Accumulated compromise; the material lost its point | $1M–$4M | Occasionally, by reverting to an early draft |
+| **Packaging** | Director passed; star's window moved; list exhausted | $1M–$5M | Yes — packages re-form |
+| **Budget** | Comes in far over the number the film can support | $2M–$6M | Yes, with a rewrite for cost (§4.5) |
+| **Greenlight meeting** | Marketing can't sell it; model doesn't clear; no date | $2M–$10M | Turnaround (§9.1) |
+| **Soft greenlight / prep** | Abandoned in prep after crew hired and sets designed | $5M–$25M | Rarely; the write-off is taken |
+| **Post pay-or-play** | Almost never — the economics now favour making it | Cast and director fees | The film gets made regardless of merit (§8.5) |
+
+The two things worth carrying away:
+
+1. **The system is designed to kill projects**, and the deaths are not
+   failures of the system. A studio that made everything it developed would be
+   insolvent within two years. The cost of development is the price paid for
+   optionality.
+2. **The expensive deaths are the late ones**, and the late deaths are almost
+   always caused by problems that were visible and cheap to fix at the outline
+   stage. Every practice in this document — the kick-off meeting, the approved
+   outline, the response memo, the annotated script, the tech-scout equivalent
+   of a script breakdown — exists to move a decision earlier, where it is
+   still nearly free.

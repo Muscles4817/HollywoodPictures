@@ -27,17 +27,17 @@ Each instrument runs on its own clock, and confusing them is the most common
 analytical error in reception:
 
 ```
-  months out        2 wks      Thu     Fri        Sat/Sun    Wk2      Wk3+     Years
-  ─────────────────────────────────────────────────────────────────────────────────
-  festival reviews  ▓▓▓▓
-  tracking          ░░░░░░░░░░░░░░░░░░░░░░░░
-  fan sentiment     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░
-  review embargo               ▓▓▓▓▓▓▓▓▓
-  previews/presales                    ▓▓▓
-  CinemaScore/PostTrak                        ▓▓▓
-  word of mouth                               ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░
-  awards standing                                          ░░░░░░▓▓▓▓▓▓▓▓
-  reappraisal                                                          ▓▓▓▓▓▓▓▓
+months out        2 wks      Thu     Fri        Sat/Sun    Wk2      Wk3+   Yrs
+─────────────────────────────────────────────────────────────────────────────
+festival reviews  ▓▓▓▓
+tracking          ░░░░░░░░░░░░░░░░░░░░░░░░
+fan sentiment     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░
+review embargo               ▓▓▓▓▓▓▓▓▓
+previews/presales                    ▓▓▓
+CinemaScore/PostTrak                        ▓▓▓
+word of mouth                               ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░
+awards standing                                          ░░░░░░▓▓▓▓▓▓▓▓
+reappraisal                                                          ▓▓▓▓▓▓▓▓
 ```
 
 Practical consequences of the offsets:
@@ -259,7 +259,24 @@ months out (long-lead) to the night before release.
 | **Aggregation** | Scores are collected into the RT/Metacritic number within hours | Aggregator staff |
 | **Pull-quote harvest** | Marketing mines the reviews for advertising copy the same day | Creative advertising, publicity |
 
-### 3.1 What a press screening is actually like
+### 3.1 The embargo as a signal
+
+The embargo date is a message the industry knows how to read:
+
+| Embargo timing | Reads as |
+|---|---|
+| Weeks early (from a festival) | Confidence; the studio wants the reviews working for the campaign |
+| ~1–2 weeks out | Normal |
+| Reactions-only early, reviews late | Managed: enthusiasm harvested, judgement deferred |
+| Day of release, or opening-night | Low confidence |
+| No press screenings at all | The studio expects to be savaged — and the *absence* becomes its own negative news story |
+
+Withholding a film from critics rarely protects it. It reliably produces
+coverage about the withholding, and trade and consumer press both write the
+"not screened for critics" story, which reaches more people than the reviews
+would have.
+
+### 3.2 What a press screening is actually like
 
 Mechanics matter because they shape the verdict.
 
@@ -292,7 +309,7 @@ Mechanics matter because they shape the verdict.
   screening with the director present and applause at the end is a *promo*
   screening and critics attending one are expected to disclose it.
 
-### 3.2 Long-lead versus short-lead
+### 3.3 Long-lead versus short-lead
 
 Two different press populations on two different clocks, and campaigns are
 built around the distinction.
@@ -310,7 +327,7 @@ project", "the troubled production" — and by the time short-lead critics see
 the film, they have read that narrative too. Publicists spend real effort
 placing long-lead features precisely to shape the frame the reviews arrive in.
 
-### 3.3 How embargoes are negotiated and policed
+### 3.4 How embargoes are negotiated and policed
 
 An embargo is a **condition of access**, not a contract most outlets sign. It
 is enforced socially and economically.
@@ -341,23 +358,6 @@ is enforced socially and economically.
 - **Asymmetry.** Positive breaks are quietly tolerated. Negative breaks are
   punished. Everyone knows this, which is itself a small upward bias in early
   coverage.
-
-### 3.4 The embargo as a signal
-
-The embargo date is a message the industry knows how to read:
-
-| Embargo timing | Reads as |
-|---|---|
-| Weeks early (from a festival) | Confidence; the studio wants the reviews working for the campaign |
-| ~1–2 weeks out | Normal |
-| Reactions-only early, reviews late | Managed: enthusiasm harvested, judgement deferred |
-| Day of release, or opening-night | Low confidence |
-| No press screenings at all | The studio expects to be savaged — and the *absence* becomes its own negative news story |
-
-Withholding a film from critics rarely protects it. It reliably produces
-coverage about the withholding, and trade and consumer press both write the
-"not screened for critics" story, which reaches more people than the reviews
-would have.
 
 ### 3.5 Publicity failure modes around reviews
 
@@ -530,9 +530,9 @@ Nobody buys a score. The levers are all upstream of it.
 2. **When they see it.** A festival-first strategy loads the sample with
    critics predisposed to that kind of film; a Wednesday-night strategy loads
    it with whoever is available.
-3. **Where they see it.** Room, format, audience mix, and time of day (§3.1).
+3. **Where they see it.** Room, format, audience mix, and time of day (§3.2).
 4. **The frame.** Long-lead features and interviews set the narrative the
-   review arrives inside (§3.2).
+   review arrives inside (§3.3).
 5. **The tiered embargo.** Harvest social reactions early, hold full reviews —
    so the first public sentiment is enthusiasm, not judgement.
 6. **Chasing designations.** Publicists do ask critics and aggregators to
@@ -946,14 +946,15 @@ follows.
 Think of it as three populations and a transmission rate.
 
 ```
-   ┌──────────────┐   marketing   ┌──────────────┐  transmission  ┌──────────────┐
-   │  AWARE, NOT  │ ────────────▶ │  ATTENDED    │ ─────────────▶ │  PERSUADED   │
-   │  DECIDED     │   converts    │  (seeded)    │   r > 1 grows  │  (arrive     │
-   └──────────────┘               └──────────────┘   r < 1 decays │   later)     │
-          ▲                              │                        └──────────────┘
-          │                              │ negative transmission          │
-          └──────────────────────────────┴────────────────────────────────┘
-                          "wait for streaming" / "don't bother"
+┌──────────────┐   marketing   ┌──────────────┐  transmission  ┌──────────────┐
+│  AWARE, NOT  │ ────────────▶ │  ATTENDED    │ ─────────────▶ │  PERSUADED   │
+│  DECIDED     │   converts    │  (seeded)    │  r > 1 grows   │  (arrive     │
+│              │               │              │  r < 1 decays  │   later)     │
+└──────────────┘               └──────────────┘                └──────────────┘
+       ▲                              │                               │
+       │                              │  negative transmission        │
+       └──────────────────────────────┴───────────────────────────────┘
+                    "wait for streaming" / "don't bother"
 ```
 
 - **Marketing sets the seed size.** It buys the opening audience and nothing
@@ -1109,7 +1110,7 @@ Platform-specific behaviours that distributors actually track:
 - **Reddit and forums** are where the durable arguments live, and where the
   post-opening reappraisal of tentpoles happens.
 - **X/Twitter and Threads** set the first-24-hours narrative, which is why the
-  reaction embargo (§3.3) exists.
+  reaction embargo (§3.4) exists.
 - **YouTube** review and reaction channels have larger audiences than most
   newspapers and behave as a hybrid of criticism and fandom (§12).
 - **Group chats** are invisible and probably the largest single channel; none
@@ -1137,3 +1138,363 @@ It acts on the audience the marketing already delivered, it compounds
 week over week, and its sign is set by the gap between expectation and
 delivery — not by quality in the abstract.
 
+---
+
+## 9. The reception matrix
+
+The combinations that actually occur, and what each means:
+
+| Critics | Audience | Outcome |
+|---|---|---|
+| High | High | The best case. Legs, awards, and a long ancillary life |
+| High | Low | Critical darling, commercial failure. Common for difficult prestige films; still valuable for reputation and library |
+| Low | High | The crowd-pleaser. Horror, broad comedy, franchise. Profitable, no awards, and the critics' verdict ages irrelevant |
+| Low | Low | Total failure. The only case with no recoverable value |
+| Divisive (split) | Divisive | Often the most commercially interesting: argument is propagation, and controversy sells better than indifference |
+
+Note the asymmetry a simulation should preserve: **a mediocre reception is
+commercially worse than a divisive one**, because indifference generates no
+word of mouth in either direction.
+
+### 9.1 The nine-cell version, with consequences
+
+Adding the middle band makes the useful distinctions visible. Read the columns
+as the *audience* verdict (exit grade plus definite recommend) and the rows as
+the *critical* verdict.
+
+| | **Audience high** | **Audience middling** | **Audience low** |
+|---|---|---|---|
+| **Critics high** | Awards run, long legs, strong library, careers made | The respectable underperformer: good reviews, polite audience, no legs. Very common for adult drama | The alienating art film. Reviews are the whole asset; the exit grade may be an F and it may still be a permanent title (§11) |
+| **Critics middling** | The professional crowd-pleaser. No awards, real money, sequels commissioned | **The dead zone.** Nothing to say in either direction; dies quietly and is the worst outcome per pound spent | Bad word of mouth with no critical defence; collapses in week two |
+| **Critics low** | The critic-proof hit: horror, broad comedy, faith-based, franchise. Reviews are simply not consulted by this audience | Opens on marketing, drops hard, breaks even on ancillary if the budget was disciplined | Total failure; write-down, franchise stopped, executive consequences |
+
+### 9.2 Consequences beyond the box office
+
+Reception outcomes propagate into decisions that outlast the release.
+
+| Cell | Awards | Sequel / franchise | Talent effect | Library value |
+|---|---|---|---|---|
+| Critics high / audience high | Strong contender (`13-…` §1) | Commissioned immediately, usually too fast | Everyone's quote rises (`12-talent-labor-and-careers.md` §3) | Highest — durable, re-releasable, licensable forever (`11-…` §3) |
+| Critics high / audience low | Very possible; the classic nominee that nobody saw | No | Directors and actors gain standing even as the film loses money | Good and slow-building; reappraisal likely (§11) |
+| Critics low / audience high | Essentially none, occasionally craft categories | Yes, and quickly | Bankability rises; critical standing does not | Solid but flat; sells on familiarity, not reputation |
+| Divisive / divisive | Splits voting bodies; often nominated in craft, rarely wins top prizes | Contested internally; depends on the number, not the argument | Polarising talent become more, not less, employable | Frequently the highest long-run growth — arguments keep a film alive |
+| Middling / middling | None | No | Neutral to negative; nobody's reel improves | Lowest — nothing to re-package, nothing to re-release |
+| Low / low | None | Franchise terminated, and the failure is attached to whoever greenlit it | Real career damage, particularly for a director on their second film | Near zero |
+
+### 9.3 The archetypes, in the terms practitioners use
+
+- **The four-quadrant hit** — B+ reviews, A CinemaScore, huge multiple. The
+  most profitable outcome in the business and the hardest to engineer.
+- **The critic-proof franchise entry** — 35% Tomatometer, A− grade, enormous
+  opening, steep but survivable drop. Everyone involved has priced the
+  reviews in.
+- **The prestige underperformer** — 90% Tomatometer, high Metascore, small
+  opening, respectable multiple, awards nominations, loses money theatrically
+  and earns it back over years.
+- **The front-loaded disappointment** — big previews, poor Saturday, 65–70%
+  second-weekend drop. Diagnostic of an anticipation/advocacy mismatch (§8.3).
+- **The sleeper** — modest opening, tiny drops, weeks in the top five, a
+  multiple of 4× or better. Almost always positive word of mouth on a film
+  nobody was told to expect much from.
+- **The ambush** — decent reviews, catastrophic exit grade. A film that
+  betrayed the promise of its own marketing; the F-grade pattern (§7.2).
+- **The cult in waiting** — poor reviews, poor grosses, an intense minority
+  advocacy that becomes the film's whole future (§11.3).
+
+---
+
+## 10. Common misconceptions
+
+1. **"Rotten Tomatoes score = quality."** It's a consensus percentage, and its
+   distribution is nothing like a quality distribution.
+2. **"Bad reviews kill films."** They kill *adult dramas*. They barely dent a
+   pre-sold franchise opening, and they show up a week later instead.
+3. **"Critics and audiences are opposed."** They agree more than they disagree;
+   the disagreement is genre-structured and predictable.
+4. **"Word of mouth is just quality."** It's the gap between what was promised
+   and what was delivered — which is why a good film sold wrong underperforms a
+   modest film sold honestly.
+5. **"Reception is fixed at release."** Critical standing moves over years;
+   a film's reputation and its opening weekend are only loosely related, and
+   library value follows reputation (§11).
+6. **"A B+ CinemaScore is good."** It is a mediocre result on a compressed
+   scale, and it is routinely reported as a success (§7.2).
+7. **"Online sentiment is audience sentiment."** The visible online population
+   is small, self-selected, and systematically unrepresentative of ticket
+   buyers (§12).
+8. **"Studios can buy a good score."** They can shape the sample, the timing,
+   and the framing. They cannot buy the verdict, and every attempt to do so
+   directly has ended as a scandal (§3.6).
+9. **"Reviews and word of mouth are the same signal."** They measure different
+   populations at different times and diverge most exactly where the money is
+   — genre film.
+
+---
+
+## 11. Reputation over time
+
+Reception at release is a snapshot of one week's opinion held by one
+population. A film's *standing* is a much slower variable, it moves in both
+directions, and it is what determines the long-run value of a library
+(`11-money-accounting-and-participations.md` §3).
+
+### 11.1 Why standing moves at all
+
+| Force | Effect |
+|---|---|
+| **Context disappears** | The hype, the backlash, the troubled-production story, and the competing releases all evaporate within a few years, leaving only the film |
+| **The audience changes** | A film made for one generation gets re-judged by the next, with different assumptions about what is normal, funny, or offensive |
+| **Access changes** | Home video, television syndication, and then streaming deliver audiences vastly larger than the theatrical one, and with no ticket price to risk |
+| **Influence becomes visible** | A film that was called derivative gets re-read as originary once its imitators arrive |
+| **Craft is re-evaluated** | Effects and techniques that looked cheap at release can look brave in retrospect, and vice versa: nothing ages worse than state-of-the-art digital work |
+| **Critical fashion moves** | Genres previously beneath serious attention — horror, melodrama, action, animation — have each been institutionally rehabilitated over the last forty years |
+| **The canon is maintained** | Decennial critics' polls, restorations, boutique physical-media labels, retrospectives, and academic syllabi all actively curate |
+
+### 11.2 The typical trajectories
+
+| Trajectory | Shape | Typical case |
+|---|---|---|
+| **Contemporary consensus holds** | Flat | Most films. Standing at release is standing forever |
+| **Rehabilitation** | Poor-to-mixed at release, canonical within 15–30 years | Ambitious genre films savaged on arrival, particularly science fiction and horror of the late 1970s and 1980s |
+| **Slow burn to ubiquity** | Modest theatrical, then television and home video build an enormous audience | Films whose reputation was made almost entirely after their theatrical run |
+| **Decline** | Praised and awarded at release, embarrassing within 20 years | Prestige films whose politics or sentiment date; Best Picture winners are unusually exposed to this |
+| **Cult formation** | Commercial failure, intense minority advocacy, permanent afterlife | Films with a distinctive voice and a small, evangelical audience (§11.3) |
+| **Re-release value** | Standing converts back into theatrical revenue at anniversaries | 25th/30th/40th anniversary runs, restorations, and format upgrades |
+
+Rough clock: the first serious reappraisal window opens at **5–10 years**
+(when a film reaches a new audience on a new format), the canon question is
+settled between **20 and 30 years**, and the awards-vs-standing gap is usually
+obvious by then. A Best Picture winner and the film that lost to it can trade
+places entirely within a decade, and frequently do (`13-…` §8).
+
+### 11.3 How a cult actually forms
+
+Cult status is not just "eventually liked". It has requirements:
+
+1. **A distinctive, non-replicable voice.** Nobody develops a cult around
+   competence.
+2. **Initial rejection.** The rejection is load-bearing — belonging to the
+   minority that likes it is part of the appeal.
+3. **Repeat viewing.** Cults form around films people watch many times, which
+   means density of detail, quotability, or ritual.
+4. **A channel of transmission.** Late-night television, video rental,
+   midnight screenings, a physical-media boutique release, or a streaming
+   recommendation engine.
+5. **A community.** Conventions, quote culture, fan production, and eventually
+   an anniversary re-release with the surviving cast.
+
+The commercial consequence is real: a cult title generates modest but
+extraordinarily durable revenue — repeated licensing, physical-media reissues,
+merchandise, and eventually remake or sequel value decades later, sometimes
+exceeding what the original earned theatrically.
+
+### 11.4 Why this matters commercially
+
+- **Library valuation follows durable reputation, not opening weekend.** When
+  a catalogue is bought, sold, or licensed to a streamer, the titles that
+  command a premium are the ones people still ask for.
+- **Re-releases and restorations** are near-pure margin: no negative cost, low
+  P&A, and a built-in audience.
+- **Remake, sequel, and adaptation rights** are priced off recognition, which
+  is reputation with a long tail.
+- **Talent reputation compounds separately.** A director whose commercial
+  failures are later canonised accrues real financing power from it
+  (`12-…` §4).
+- **Awards standing decays; critical standing does not.** "Academy Award
+  winner" is a permanent line on the packaging, but what keeps a film in
+  circulation is that people still want to watch it.
+
+---
+
+## 12. Fan communities and pre-release sentiment
+
+A distinct third population, separate from both critics and general audiences,
+with its own mechanics. It is small, loud, early, and permanently mistaken for
+the market.
+
+### 12.1 What makes it different
+
+| | Critics | **Fandom** | General audience |
+|---|---|---|---|
+| **Size** | Hundreds | Thousands to low millions per property | Tens of millions |
+| **Timing** | 1–14 days pre-release | **Months to years** pre-release | Release week |
+| **Basis of opinion** | The film | The property, the casting, the trailer, the discourse | The film, and what friends said |
+| **Visibility** | Published, indexed, aggregated | Extremely high per capita — dominates social measurement | Almost invisible until they buy tickets |
+| **What it moves** | Prestige, specialty grosses | Presales, previews, first-weekend intensity, and the narrative everyone else reads | Everything after weekend one |
+| **Reliability as a forecast** | Fair for prestige | **Poor for gross, good for opening-night intensity** | The actual answer |
+
+### 12.2 The pre-release sentiment timeline
+
+| Moment | What is being judged | Typical fan response and its meaning |
+|---|---|---|
+| **Announcement / IP acquisition** | The idea, and whether it should exist | Loud but low-information; the "why does this exist" cycle |
+| **Casting** | Fidelity to the property, and identity politics around it | The most reliably explosive moment in the whole cycle |
+| **First-look image** | Design, costume, tone | High-signal for design problems; a genuinely useful early warning |
+| **Teaser** | Tone and scale | View counts and like ratios are tracked; comment sentiment is read closely |
+| **Full trailer** | The pitch | The last cheap moment to change positioning (`09-…` §4) |
+| **Reactions embargo lift** | The first-hand verdict of people who have seen it | Deliberately structured to be enthusiastic (§3.4) |
+| **Reviews** | The film | Fans discount critics if the verdict conflicts with anticipation |
+| **Opening weekend** | Delivery | Fandom converts either to advocacy or to the loudest possible negative |
+
+Studios do respond to this. A visible, unanimous negative reaction to a
+character design or a look has, more than once, produced an expensive redesign
+and a release-date move — a multi-million-dollar VFX bill and months of delay,
+taken because the alternative was a poisoned campaign.
+
+### 12.3 What fandom actually predicts, and what it doesn't
+
+**Predicts well:** presales and Thursday previews; the intensity of the first
+48 hours of conversation; merchandising and premium-format uptake; whether a
+property can support a spin-off.
+
+**Predicts badly:** total gross; multiples; the reaction of the audience that
+was never on social media in the first place. Highly online enthusiasm
+routinely produces a big preview number and a poor Saturday (§8.3), and
+sustained online hostility routinely fails to dent a film that the general
+audience has no argument with.
+
+**Inverts occasionally:** a property with a hostile fandom can perform
+perfectly well because the hostility is itself free awareness, and because
+angry fans buy tickets to be angry accurately.
+
+### 12.4 Review bombing and score manipulation
+
+Coordinated rating campaigns against — or occasionally for — a film, usually
+motivated by a political or fandom dispute rather than the film.
+
+- **Where it lands.** Audience score fields on aggregators, retail store
+  ratings, and rating apps. It does not touch the Tomatometer or Metascore,
+  which only accept approved critics.
+- **Tells.** Volume spiking *before* release; a bimodal 1-and-10 distribution
+  with nothing in the middle; a large mismatch with the exit grade of the
+  people who actually bought tickets.
+- **Countermeasures.** Verified ratings tied to a confirmed ticket purchase;
+  disabling pre-release audience commenting; delaying audience scores until
+  release. These substantially reduced the phenomenon without ending it.
+- **The commercial reality.** Review bombing rarely moves grosses. Its damage
+  is narrative: it produces "audiences hate it, critics love it" coverage,
+  which is a story that then reaches people who never saw the score.
+- **The legitimate mirror image.** Studios put enthusiastic audiences in front
+  of a film early — fan screenings, loyalty-programme events, opening-night
+  fan campaigns — for exactly the same effect by permitted means (§4.5).
+
+### 12.5 Managing a fandom
+
+The skill axis for the marketing and social teams who do this
+(`09-…` §2):
+
+1. **Knowing which population you are reading.** Confusing social volume with
+   demand is the standard, expensive mistake.
+2. **Feeding the fandom without being captured by it.** Fans are a small
+   fraction of the gross for a mass-market property; designing the film for
+   them shrinks the audience.
+3. **Timing disclosure.** Releasing a design or a casting decision when there
+   is enough context around it to survive first contact.
+4. **Absorbing a negative cycle without over-reacting.** Most sentiment spikes
+   decay within a fortnight; the ones that do not are design problems, not PR
+   problems.
+5. **Spoiler management.** For films whose value depends on a surprise, the
+   plan starts at the first screening and includes the trailer cut, the
+   embargo terms, and the talent's press-tour answers.
+6. **Never arguing.** Studios and filmmakers who publicly fight a fandom lose
+   the news cycle and hand the story a second week of life.
+
+---
+
+## 13. How reception differs by territory
+
+Reception is not a global constant. The instruments, the gatekeepers, and even
+the direction of the critic/audience gap vary by market — which matters
+because international is typically **50–70%** of a big film's theatrical gross
+(`10-…` §9).
+
+### 13.1 What travels and what doesn't
+
+| Travels well | Travels badly |
+|---|---|
+| Spectacle, action, and scale — legible without language | Comedy, above all. Wordplay, cultural reference, and timing do not survive dubbing or subtitles |
+| Animation and family — dubbed natively, and children don't read reviews | Dialogue-driven drama without a star |
+| Horror — a genre with near-universal grammar | Anything depending on domestic political or historical context |
+| Franchises with existing local recognition | Sports films about sports the territory does not play |
+| Star-driven vehicles, where the star is known locally | Regional accents and vernacular humour |
+
+### 13.2 Territory instruments
+
+| Market | Dominant reception instrument | Behaviour worth knowing |
+|---|---|---|
+| **US / Canada** | RT/Metacritic, CinemaScore, PostTrak | The system described above; the default in most discussion |
+| **UK / Ireland** | National press critics, monthly film magazines, RT | A stronger and more centralised press-critic culture than the US retains; a broadsheet rave still moves specialty attendance |
+| **France** | Press-versus-public split published side by side by the dominant local ticketing site | Critical culture is genuinely influential and treats genre auteurs seriously; American films can be canonised in France before they are at home |
+| **China** | Local ticketing-platform scores and a cinephile rating site; social messaging | **Showtimes are reallocated daily on measured word of mouth**, so a poor opening-day score compresses a film's screens within 48 hours — the fastest word-of-mouth feedback loop in the world |
+| **Japan** | Word of mouth over a long run; local review portals | Films play far longer; a slow build is normal rather than a failure, and domestic animation dominates |
+| **South Korea** | Portal ratings and exhibitor-run audience indices | Highly engaged rating culture; audience scores are consulted before booking as a matter of routine |
+| **Latin America** | Family and event attendance, social video | Comedy and family travel better than in most markets; premium formats over-index |
+| **India** | Opening-day audience verdict, star-driven; local trade reviews | Verdicts are declared publicly and fast, and the first day's audience reaction is decisive |
+
+### 13.3 Practical consequences
+
+- **The critic/audience gap has a different sign in different places.** A film
+  dismissed as disposable genre at home can be treated as authored work
+  elsewhere, with real consequences for its long-run standing (§11).
+- **Dating and word of mouth interact.** A staggered international rollout
+  means every later territory opens into an existing global verdict; a
+  day-and-date global release denies bad word of mouth the time to arrive
+  first, which is exactly why event films now open worldwide in the same week
+  (`09-…` §7.1).
+- **Local reception instruments need local handling.** Territory marketing
+  teams run their own screenings, their own critic relationships, and their
+  own influencer programmes; a campaign translated rather than rebuilt reads
+  as foreign and under-performs.
+- **Awards standing is a US export.** Nomination and win announcements move
+  international attendance, sometimes months after a film has finished its
+  domestic run (`13-…` §1).
+
+---
+
+## 14. Who manages reception, and what separates good from bad
+
+Reception is not weather; a department is accountable for it.
+
+**Who** — the distributor's **publicity** and **research** functions, working
+to the President of Marketing (`09-…` §2), with an **outside PR firm** on
+specialty and awards titles, an **awards consultant** from autumn onward
+(`13-…` §5), the **international marketing** heads per territory, and a
+**social/community team** covering fandom (§12).
+
+**When** — the plan is drafted with the release date (6–12 months out), the
+screening and embargo strategy is fixed 8–12 weeks out, the reaction and review
+events fall in the final fortnight, and exit data arrives on opening night.
+
+### 14.1 The skill axis
+
+1. **Choosing the right room and the right audience for the film.** A comedy
+   screened cold at 10am and a horror film screened without a crowd are
+   self-inflicted wounds (§3.2).
+2. **Reading confidence honestly.** Knowing whether the film is a
+   screen-it-early film or a hold-it-back film, and being right, is the whole
+   job. Both errors are visible from outside.
+3. **Sequencing.** Long-lead narrative, then reactions, then reviews, then exit
+   data — each set up so the next lands into a frame that helps.
+4. **Relationships that survive a bad review.** The publicists who last are the
+   ones critics will still take a call from after a savaging.
+5. **Knowing which numbers matter.** Definite recommend over exit grade; the
+   genre-relative grade over the absolute one; weekday holds over weekend
+   headlines (§8.8).
+6. **Not fighting.** Never arguing publicly with a critic, an aggregator, or a
+   fandom (§4.5, §12.5).
+7. **Telling the truth internally, early.** A research department that softens
+   bad tracking or a bad test result to keep the room calm costs the studio far
+   more than the bad news would have.
+
+### 14.2 Failure table
+
+| Failure | Consequence |
+|---|---|
+| Screening strategy mismatched to the film | Reviews systematically worse than the film deserves |
+| Embargo mistimed | Either no benefit from good reviews, or two weeks of bad narrative |
+| Reaction embargo used on a film that can't survive scrutiny | Enthusiastic reactions followed by savage reviews reads as a con, and the gap becomes the story |
+| Fandom mistaken for the market | Big previews, collapsing Saturday, a franchise plan built on a number that was never real |
+| Exit data misread | Wrong spend decision on Saturday morning, and a wrong hold/expand call on Monday |
+| Bad news suppressed internally | Marketing spends into a film that research already knew was in trouble |
+| Aggregator score treated as quality | Wrong lesson learned, wrong film greenlit next (`02-development.md` §8) |
+| Reputation left unmanaged after release | A library title quietly loses the standing that would have supported a re-release, a remake, or a licensing premium (§11.4) |
