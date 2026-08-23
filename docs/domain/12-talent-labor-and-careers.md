@@ -253,6 +253,7 @@ happens in that gap.
 
 ### 2.3 The manoeuvres used to protect a quote
 
+A quote **ratchets up** with success and is very hard to lower publicly.
 Talent will do almost anything rather than accept a lower headline number,
 because next year's floor is this year's number. The standard moves:
 
@@ -1188,8 +1189,9 @@ writing the greenlight memo that puts their name on a $100M decision.
 
 **The currency:** relationships plus a hit they can plausibly claim. Executives
 are hired for taste and relationships and fired on regime change. A new head of
-production frequently abandons the predecessor's slate, because inheriting
-someone else's films means owning their failures and sharing their successes.
+production frequently abandons the predecessor's slate
+(`02-development.md` §9), because inheriting someone else's films means owning
+their failures and sharing their successes.
 
 **What separates a good executive from a bad one:**
 
