@@ -144,9 +144,10 @@ framings and no cross-reference.
 - Add to `14-glossary.md` whenever a new term enters a document, with the
   cross-reference.
 - Cross-references are `` `NN` §X `` and point at numbered sections, so
-  **do not renumber an existing section** — append new ones instead. A
-  reference checker lives in the session scratchpad; regenerate it by parsing
-  every `` `NN` §X `` and asserting the target document has that heading.
+  **do not renumber an existing section** — append new ones instead. This is
+  enforced: `npm run check:docs` (`scripts/checkDomainRefs.mjs`) asserts every
+  reference resolves to a heading that exists, and CI runs it as a gate. It
+  checks that a section is *real*, not that it is the *right* one.
 - Documents carry craft profiles (see above). When you add a process, add all
   four parts — a process described without its skill axis is the thing this
   library exists to avoid.
