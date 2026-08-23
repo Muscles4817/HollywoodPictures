@@ -66,6 +66,21 @@ that dominate scheduling.
 
 ## 3. Scheduling
 
+**Who** — the **1st AD** builds the board, in continuous negotiation with the
+**UPM/line producer** (who prices every version of it) and the **director**
+(who has to be able to shoot it). The **2nd AD** maintains it day to day once
+shooting starts.
+
+**When** — a first pass exists as soon as there's a breakdown, and is rebuilt
+repeatedly through prep as cast, locations, and budget move. It is never
+finished: the board is revised nightly during the shoot as days are lost,
+scenes are cut, and weather intervenes.
+
+**What separates a good 1st AD** — the ability to hold the whole film's
+dependency graph in mind and see, three weeks ahead, that a decision being made
+today about a location will strand an actor's schedule. A good board looks
+obvious in hindsight; a bad one is only discovered when it fails.
+
 ### 3.1 The board
 
 Each scene becomes a **strip** on a **stripboard** (historically physical
@@ -162,21 +177,95 @@ reduce a set piece. "Taking a pass for budget" is a standard script step.
 
 ## 5. Locations
 
-- **Scouting** — the location manager and scouts photograph options against
-  the script's needs; the director and DP choose.
-- **Tech scout / recce** — all department heads visit the chosen locations
-  with the director and 1st AD, and walk the day: where camera goes, where
-  the sun is, where the trucks park, where the crew eats, where power comes
-  from. This is the single most important prep event for the shoot's
-  efficiency.
-- **Permits and agreements** — filming permits, location agreements, road
-  closures, aviation clearance, marine coordination, neighbour notification.
-- **Unit base** — where the trucks, trailers, and catering live; distance from
-  set determines lost time.
-- **Practical location vs stage.** A stage build gives control (weather,
-  sound, wild walls, lighting rigs, time) at the cost of construction money.
-  A location gives production value cheaply at the cost of control. Most films
-  mix, and the split is a defining budget decision.
+**Who** — the **Location Manager** (Teamsters in the US), with **scouts**, an
+**assistant location manager**, and **location assistants**. They report to the
+UPM on money and to the director/DP on suitability. On a big film there are
+several location managers running in parallel, one per block.
+
+**When** — begins in the first week of prep and never really stops; a location
+lost in week six of a shoot has to be replaced in days.
+
+### 5.1 The sequence
+
+| Stage | What happens | Who |
+|---|---|---|
+| **Brief** | The location manager reads the script and takes the director's and PD's intent — not "a diner", but *this kind* of diner, this feeling, this period | LM, director, PD |
+| **Photo scout** | Scouts photograph options and return a package per location: wide, all four walls, approaches, parking, power | Scouts |
+| **Director's scout** | The director, PD, DP, and producer visit the shortlist and choose | Director, PD, DP, producer, LM |
+| **Feasibility** | Can it actually be shot? Access, power, sound, permits, cost, neighbours, hours | LM, UPM, 1st AD |
+| **Negotiation** | Location fee, dates, prep/wrap days, restoration, insurance certificates | LM, UPM |
+| **Tech scout / recce** | All HODs walk the location with the director and 1st AD | Everyone |
+| **Prep and wrap** | Rigging days before, restoration after | LM, construction, rigging |
+
+### 5.2 The tech scout is the important one
+
+Every department walks the location together and answers, out loud, in front
+of the others: where does camera go, where does the sun come from at 4pm, where
+does the light get rigged, where do 90 trucks park, where does the crew eat,
+where's the nearest hospital, where does the sound come from that will ruin
+the take, where do the public get held, and can the actors get from base to set
+without being photographed.
+
+Its function is **surfacing disagreement while it's still free**. A production
+that skips or rushes the tech scout discovers those answers on the shooting
+day, at $200,000 a day.
+
+### 5.3 What a location manager is actually judged on
+
+This is the skill axis, and it is not "finding pretty places":
+
+1. **Reading the director's intent** from a description, so the shortlist is
+   right on the first pass rather than the fourth.
+2. **Logistics literacy** — knowing before the director falls in love that a
+   location has no power, no parking within a mile, a flight path overhead, or
+   a 6pm noise curfew.
+3. **Negotiation and relationships** — securing a location at a fee the film
+   can afford, and being able to go back next time. Location managers work the
+   same region for decades; a production that trashes a property poisons it for
+   everyone.
+4. **Permitting fluency** — knowing which authority, which lead time, which
+   restrictions, and which official to talk to.
+5. **Neighbour and community management** — the single most common cause of a
+   location being lost mid-shoot is the people who live next to it.
+6. **Contingency** — having a second option for every location, and a wet-weather
+   cover set within reach.
+
+### 5.4 What good and bad look like
+
+**Good**: the unit arrives, parks, and shoots. The location matches what the
+director imagined, the light does what the DP was promised, and nobody spends
+the morning negotiating with a caretaker. Nearby options cluster so the
+schedule can group days without company moves.
+
+**Bad**, in rough order of cost:
+
+| Failure | Consequence |
+|---|---|
+| Location lost late (owner withdraws, permit refused) | Rewrite, rebuild, or reschedule — days and money |
+| Unusable sound (flight path, motorway, building site) | Every line becomes ADR (`07-postproduction.md` §3) |
+| No power or access | Generators, long cable runs, hand-carrying kit; hours lost daily |
+| Base too far from set | 20–40 minutes lost each way, every unit move, all day |
+| Neighbours not managed | Complaints, curfews, and losing the location mid-block |
+| Restoration underestimated | Damage claims and a burned relationship |
+| Scattered locations | Company moves — the schedule's biggest single waste (`06-…` §5) |
+
+### 5.5 Location vs stage
+
+A defining budget decision, made in prep and hard to reverse.
+
+| | Practical location | Stage build |
+|---|---|---|
+| **Production value** | High, cheap — the world already exists | Costs what you pay for |
+| **Control** | Low — weather, sound, light, public, hours | Total |
+| **Lighting** | Constrained by what's there and where the sun is | Rigged overhead, any time of day, any weather |
+| **Camera** | Real walls: limited angles, cramped | **Wild walls** fly out; any angle |
+| **Cost shape** | Fees, permits, travel, logistics | Construction and stage rent |
+| **Schedule** | Weather risk, curfews, availability windows | Predictable, but gated by build |
+
+Most films mix: exteriors and establishing on location, matching interiors on
+stage. Getting the match right is the PD's and DP's problem, and the audience
+notices when it fails.
+
 
 ---
 
@@ -215,27 +304,121 @@ and of a set being shot before it is finished.
 
 ## 8. Casting
 
-Casting runs through prep and often starts in development.
+**Who** — the **Casting Director (CD)**, with an **associate** and
+**assistant**, plus a separate **extras/background casting** company. The CD is
+contracted per film for a flat fee (roughly **$30K–$150K** for a feature) and
+is not a departmental head in the crew sense — they work through prep and are
+largely gone by the shoot.
 
-1. **Breakdown** issued to agents and managers (via services such as Breakdown
-   Express) listing roles, dates, and rates.
-2. **Submissions** come back in volume; the casting director filters.
-3. **Auditions / self-tapes** — self-tape is now the default first round.
-4. **Callbacks** with the director; **chemistry reads** for paired roles.
-5. **Screen test** for major roles — on camera, in costume, sometimes in
-   competition, often a contractual **test option deal** signed *before* the
-   test so the studio isn't negotiating from a weak position.
-6. **Studio and financier approvals** — most cast lists require sign-off.
-7. **Offers** — via business affairs; quote, dates, perks, credit, approvals.
-8. **Deal memo**, then long-form contract.
+**When** — leads are often cast during development or financing, because the
+package needs them (`03-financing-and-dealmaking.md` §2). Supporting roles are
+cast through prep. Day players are cast weeks or days ahead, and background is
+booked days ahead.
 
-**Roles by tier**: leads → supporting → **day players** (a few lines) →
-**under-fives** (fewer than five lines, a specific SAG category) →
-**background/extras** (non-speaking) → **stand-ins** (for lighting) →
-**photo doubles** and **stunt doubles**.
+### 8.1 How actors are actually found
 
-**Casting director** is contracted for the film and paid a flat fee; they do
-not appear in the crew departments (`05-departments-and-crew.md`) day-to-day.
+There are **two entirely different tracks**, and conflating them is the most
+common misunderstanding of casting:
+
+**Offer-only talent** (stars, and most established actors) do not audition.
+The process is:
+
+1. The CD, director, and producer build a **list** — ranked names per role,
+   usually 10–30 deep, annotated with availability, quote, and likelihood.
+2. **Availability check** — the CD calls the agent informally: is the client
+   free in this window, would they read it. No offer yet; this is the
+   temperature test.
+3. **The script goes out** to the agent, sometimes with a director's letter
+   explaining the vision — for a wanted actor this letter matters enormously.
+4. **Meeting** — the actor and director meet. This is where most star casting
+   is actually decided, and it is a mutual audition.
+5. **Offer** through business affairs; negotiation on fee, dates, credit,
+   approvals (`12-talent-labor-and-careers.md` §6).
+6. Down the list if it's a pass — and lists exhaust, which is why films end up
+   with their fifth choice more often than anyone admits.
+
+**Audition talent** (everyone else) goes through the traditional pipeline:
+
+1. **Breakdown** issued to agents and managers via a service (Breakdown
+   Express and equivalents), describing each role, dates, and rate.
+2. **Submissions** — hundreds to thousands per role, electronically.
+3. **CD filters** to a manageable list from knowledge, tape, and prior work.
+4. **Self-tape** — now the default first round; the actor records at home to
+   a provided scene ("**sides**").
+5. **Callback / session** — in the room or on video with the CD, then with the
+   director. Often improvised or redirected to see if the actor can *take an
+   adjustment*, which is the real test.
+6. **Chemistry read** — paired candidates read together; the decision for
+   couples and duos is made here and cannot be made any other way.
+7. **Screen test** — on camera, in costume and makeup, sometimes competitively.
+   The **test option deal** is signed *before* the test so the studio isn't
+   negotiating against a winner.
+8. **Studio and financier approval**, then offer.
+
+**Background** is cast separately by an extras casting agency on the basis of
+look, size, availability, and special skills (period-correct, drivers, riders,
+military experience, dancers).
+
+### 8.2 What separates a good casting director from a bad one
+
+The skill axis, and it is much more than a big contacts list:
+
+1. **Breadth of knowledge** — knowing 200 actors who could play the part,
+   including 150 the director has never heard of. The CD's real product is the
+   name nobody else would have thought of.
+2. **Reading a script for what a role needs** — not the description on the
+   page but the function in the story, which is often different.
+3. **Taste in the room** — recognising that a mediocre audition contains a
+   great performance badly directed, and being able to tell.
+4. **Chemistry judgement** — predicting which pairings will work before the
+   read, which saves the process weeks.
+5. **Agent relationships** — getting the call returned, getting the client to
+   read it, getting an honest answer about availability rather than a stall.
+6. **Political skill** — managing a director's fixation on an unavailable
+   actor, a studio's insistence on a name, and a producer's budget, without
+   the process stalling.
+7. **Discovering people** — a career is made on the unknown lead who becomes a
+   star, and casting directors are hired on that record.
+
+### 8.3 What good and bad casting look like
+
+**Good**: the ensemble is *balanced* — the actors are plausible together, their
+energies contrast usefully, and each is playing to their strength rather than
+against it. A well-cast supporting role makes a thin part feel written. Good
+casting is invisible and is routinely credited to the director.
+
+**Bad**:
+
+| Failure | Consequence |
+|---|---|
+| **Miscast lead** | Unfixable. No amount of editing, scoring, or reshooting repairs it |
+| **No chemistry** | The central relationship doesn't land; the film has no engine |
+| **Star cast for finance, not fit** | The performance fights the material; a common consequence of pre-sales (`03-…` §4) |
+| **Homogeneous ensemble** | Everyone playing the same note; scenes have no friction |
+| **Late casting** | No rehearsal, no fittings, no prep, and the actor arrives cold |
+| **Casting to the list, not the role** | The fifth choice on a bad list is worse than the first choice on a good one |
+| **Ignoring the read on temperament** | An actor who is wrong for a hard shoot — see `12-…` §3 on reliability |
+
+### 8.4 The constraints casting works under
+
+- **Availability** is the binding constraint far more often than money or
+  interest. The right actor is usually shooting something else.
+- **Approval chains** — studio, financiers, and sometimes the lead actor have
+  approval over co-stars.
+- **Budget shape** — cast cost is a top-sheet line, and one star can consume
+  the money for the entire supporting ensemble.
+- **Insurance** — a principal must be insurable (`03-…` §8).
+- **Pre-sale value** — on independents, the financier may effectively choose
+  the cast by refusing to fund without a specific name.
+
+### 8.5 Role tiers
+
+**Leads** → **supporting** → **day players** (a few lines) → **under-fives**
+(fewer than five lines, a specific SAG category) → **background/extras**
+(non-speaking) → **stand-ins** (for lighting) → **photo doubles** and **stunt
+doubles** (matched for build and colouring). Each tier has its own rate
+structure, contract form, and casting route.
+
 
 ---
 

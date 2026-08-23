@@ -112,25 +112,29 @@ distributors have historically spent close to a film's production budget.
 
 ---
 
-## 6. Critics and aggregate scores
+## 6. Critics and awards
 
-- **Reviews** are embargoed and released strategically
-  (`09-marketing-and-distribution.md` §8).
-- **Rotten Tomatoes** reports the **percentage of reviews that are positive** —
-  not quality. A film that is uniformly mildly liked scores higher than a
-  divisive masterpiece, and this is widely misread by audiences.
-- **Metacritic** applies a weighted average of scores, which tracks critical
-  esteem more faithfully.
-- **Impact on box office**: strong for adult dramas, prestige, and specialty;
-  weak for pre-sold franchise openings — though poor reviews reliably show up
-  in week-two drops even for those.
-- **CinemaScore** and **PostTrak** measure the *audience*, not critics, and
-  predict legs far better than reviews do
-  (`10-theatrical-release-and-box-office.md` §3).
+Full treatment of critics, reviews, aggregate scores, and word of mouth is in
+[`16-critics-reviews-and-word-of-mouth.md`](16-critics-reviews-and-word-of-mouth.md).
+What matters *for awards* specifically:
 
-Critics and audiences diverge systematically on genre: horror and broad comedy
-are consistently reviewed below their audience scores; prestige drama is
-consistently reviewed above.
+- **Critical consensus is the entry ticket.** A film with poor reviews does not
+  enter the awards conversation, almost regardless of campaign spend. Reviews
+  function as the qualifying round.
+- **But consensus doesn't win.** Once inside the conversation, outcomes are
+  driven by branch voting, narrative, campaign exposure, and the preferential
+  ballot (§2, §5) — not by who reviewed best.
+- **Critics' groups vote in December**, ahead of the guilds, and shape which
+  films are "in the conversation" without predicting the Academy well (§4).
+- **Festival reception is the first and most durable verdict** for awards
+  films, arriving months before release (`09-marketing-and-distribution.md`
+  §10) and setting the frame the whole campaign then works within.
+- **Metacritic tracks awards viability better than Rotten Tomatoes**, because
+  the Academy responds to intensity of esteem rather than breadth of mild
+  approval.
+- **Audience instruments are near-irrelevant to awards.** CinemaScore predicts
+  money, not Oscars, and the two diverge sharply — the genres that score best
+  with audiences are the ones the Academy systematically overlooks (§8).
 
 ---
 

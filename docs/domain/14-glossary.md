@@ -46,6 +46,8 @@ hard = signed. `03` §2
 
 ## C
 
+**Certified Fresh** — Rotten Tomatoes' threshold badge, used in advertising. `16` §4
+
 **Call sheet** — The next day's shooting instructions. `06` §2
 
 **CARA** — The MPA's ratings board (G/PG/PG-13/R/NC-17). `01` §8.1
@@ -80,6 +82,8 @@ written assessment of a script `02` §5. Two unrelated meanings.
 catering. `05` §15
 
 ## D
+
+**Definite recommend** — The exit-poll measure of whether a viewer will propagate the film. `16` §7
 
 **Dailies / rushes** — The previous day's footage, viewed same-day. `06` §9
 
@@ -219,6 +223,8 @@ positive. `11` §2.1
 
 ## O
 
+**Offer-only** — Talent who do not audition; cast through lists, meetings, and offers. `04` §8.1
+
 **Oner** — A scene covered in one continuous take. `06` §4
 
 **One-liner** — The condensed shooting schedule. `04` §3.3
@@ -238,6 +244,8 @@ positive. `11` §2.1
 `11` §2.1
 
 ## P
+
+**Photo scout** — Photographic survey of candidate locations. `04` §5.1
 
 **P&A** — Prints and Advertising; the marketing budget. `09` §1
 
@@ -280,6 +288,8 @@ cost. `06` §2
 
 ## S
 
+**Sides** — The scene pages an actor is given to audition with. `04` §8.1
+
 **Scale** — A guild's minimum rate. `12` §7
 
 **Script supervisor** — Guardian of continuity and the editorial record.
@@ -305,6 +315,10 @@ cost. `06` §2
 **Sync licence** — Permission to use a composition against picture. `07` §4.2
 
 ## T
+
+**Tomatometer** — Percentage of reviews that are positive; a consensus measure, not a quality one. `16` §4
+
+**Trailer house** — Outside specialist that cuts trailers, often competitively. `09` §2
 
 **Techvis** — Previs converted into camera and rig specifications. `08` §1.2
 
@@ -342,6 +356,8 @@ category. `04` §8
 `08` §1.4
 
 ## W
+
+**Wild wall** — A removable set wall, allowing camera positions a real room won't. `04` §5.5
 
 **Walla** — Crowd background voices, recorded as group ADR. `07` §3
 

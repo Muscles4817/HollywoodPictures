@@ -199,6 +199,19 @@ come back here to see whether the game already has a place to put the answer.
 | Bankability as genre- and territory-specific | **Abstracted** | Appeal exists (`engine/castingAppeal.ts`, `directorAppeal.ts`); it is not per-territory |
 | Below-the-line careers | **Omitted** | Follows from having no departments |
 
+### Critics, reviews and word of mouth (`16`)
+
+| Real thing | Status | Note |
+|---|---|---|
+| Critical reception producing reviews | **Modelled** | `engine/reviews.ts`, `data/reviewBlurbs.ts` |
+| Word of mouth driving the run | **Modelled** | The audience simulation is built on it |
+| Buzz as emergent and non-purchasable | **Modelled** | `DESIGN_box_office_calibration_targets.md` §6 |
+| Critics vs audience divergence by genre | **Abstracted** | Critic and audience scores both exist; the systematic genre gap is not an explicit model |
+| Aggregate scores (Tomatometer vs Metascore) | **Omitted** | No consensus-vs-esteem distinction |
+| Embargo timing as a signal | **Omitted** | |
+| Exit polling (CinemaScore / definite recommend) | **Omitted** | The best real predictor of legs has no in-game instrument |
+| Divisive reception outperforming indifference | **Omitted** | A genuinely interesting gap given the positioning |
+
 ### Awards (`13`)
 
 | Real thing | Status | Note |
@@ -232,6 +245,9 @@ Ranked by how much they'd change the game, not by effort:
    ancillary term, when it is the actual business.
 7. **Coverage philosophy** (`06` §4) — a director-level decision with real
    consequences in post that the sim has no place for.
+8. **Indifference vs division** (`16` §9) — the real market punishes a film
+   nobody argues about more than one people disagree over. A scored-quality
+   model gets this exactly backwards.
 
 Each of these is a real-industry mechanism first; whether it earns a place in
 the game is a separate design question, and belongs in a `DESIGN_*` doc rather

@@ -28,13 +28,14 @@ mechanics, they stop being useful as a baseline. The single exception is
 | 10 | [`10-theatrical-release-and-box-office.md`](10-theatrical-release-and-box-office.md) | Run shapes, drops and multiples, seasonality, break-even, international, reporting, failure signatures |
 | 11 | [`11-money-accounting-and-participations.md`](11-money-accounting-and-participations.md) | The waterfall, participation definitions, revenue windows, residuals, studio P&L, cash flow |
 | 12 | [`12-talent-labor-and-careers.md`](12-talent-labor-and-careers.md) | Representation, quotes, bankability, career arcs, contracts, guild protections, below-the-line careers |
-| 13 | [`13-awards-and-critical-reception.md`](13-awards-and-critical-reception.md) | The Academy, season calendar, precursors, campaigning, critics and aggregate scores |
+| 13 | [`13-awards-and-critical-reception.md`](13-awards-and-critical-reception.md) | The Academy, season calendar, precursors, campaigning, how critical standing gates awards |
+| 16 | [`16-critics-reviews-and-word-of-mouth.md`](16-critics-reviews-and-word-of-mouth.md) | Who critics are, embargoes, aggregate-score maths, exit polling, how word of mouth propagates and what sets its sign |
 | 14 | [`14-glossary.md`](14-glossary.md) | A–Z of terminology, cross-referenced to the document that explains it |
 | 15 | [`15-game-mapping.md`](15-game-mapping.md) | **The bridge.** What Hollywood Pictures models, abstracts, and omits, area by area |
 
 **Reading order.** 01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 follows a film's own
 chronology and reads as a continuous narrative. 09 → 10 → 11 covers what
-happens after it's finished. 12 and 13 are cross-cutting. 14 and 15 are
+happens after it's finished. 12, 13, and 16 are cross-cutting. 14 and 15 are
 lookup.
 
 ---
@@ -53,6 +54,18 @@ meaningfully — crew nomenclature, certification, co-productions, incentives.
 **Currency.** USD unless stated. The game uses £; conversion is left to
 whoever is doing the balancing, because the *ratios* are what transfer, not
 the absolute figures.
+
+**Craft profiles.** Where a document covers a *craft* — something a person is
+good or bad at — it answers four questions in the same order, so the docs can
+be compared against each other:
+
+> **Who** does it · **When** it happens in the timeline · **What separates
+> good from bad** (the skill axis) · **What success and failure look like**,
+> with consequences.
+
+The third is the one worth reading twice: it's what a "skill" actually means
+for that role, and it is the least documented thing about filmmaking anywhere
+else.
 
 **Figures are directional.** Every number here is a rule of thumb with a wide
 real-world spread. They are good enough to sanity-check a model and not good
