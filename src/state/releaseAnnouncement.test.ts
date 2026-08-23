@@ -101,26 +101,28 @@ describe('an announcement actually deters', () => {
     expect(deterred - undeterred).toBeGreaterThan(45);
   });
 
-  // MEASURED LIMITATION, not an assertion of intent. chooseReleaseDay maximises
-  // seasonalDesirability - 0.6 * crowding, and seasonal desirability is nearly
-  // flat across neighbouring weeks, so ANY non-zero crowding is enough to tip a
-  // rival out of the entire window - by the same distance whether the claim is
-  // strong or weak, matching or counterprogrammed. Two consequences the design
-  // depends on and does not yet have: counterprogramming never happens, and a
-  // rival will essentially never collide with a player's date, so section 9.4's
-  // "hold or move" dilemma cannot arise. Locked in as a test so the day rival
-  // scheduling is recalibrated, the change is visible rather than silent.
-  it('currently flees by the same distance however small the threat - see section 9.5b', () => {
+  it('scales its response to the threat, rather than fleeing any competitor alike', () => {
+    // This is what the delay cost bought (engine/rivalStudios.ts:
+    // SCHEDULING_DELAY_COST_PER_DAY). Previously the score was seasonal
+    // desirability minus crowding with nothing charged for waiting, so any
+    // non-zero crowding made stepping forward strictly better and every rival
+    // fled the whole 45-day window by an identical distance - which meant
+    // counterprogramming never happened and a rival never collided with anyone.
     const claimedDay = 300;
     const candidate = { genre: 'Action' as const, targetAudience: 'Mass Market' as const };
     const base = chooseReleaseDay(claimedDay, candidate, [], 0.5);
     const shift = (other: UpcomingRelease) => chooseReleaseDay(claimedDay, candidate, [other], 0.5) - base;
+    const versus = (genre: string, audience: string, strength: number) =>
+      shift({ releaseDay: base, genre: genre as never, targetAudience: audience as never, strength });
 
-    const strong = shift({ releaseDay: base, genre: 'Action', targetAudience: 'Mass Market', strength: 0.9 });
-    const weak = shift({ releaseDay: base, genre: 'Action', targetAudience: 'Mass Market', strength: 0.1 });
-    const counterprogrammed = shift({ releaseDay: base, genre: 'Romance', targetAudience: 'Adults', strength: 0.9 });
-    expect(weak).toBe(strong);
-    expect(counterprogrammed).toBe(strong);
+    // A genuine same-audience threat still clears the window entirely.
+    expect(versus('Action', 'Mass Market', 0.9)).toBeGreaterThan(45);
+    // A weak claim is not worth delaying for - the rival opens against it.
+    expect(versus('Action', 'Mass Market', 0.1)).toBe(0);
+    // Nor is a film chasing a different audience: counterprogramming is fine,
+    // and the 0.15 genre-mismatch weight now survives into the day choice
+    // instead of being flattened by a free delay.
+    expect(versus('Romance', 'Adults', 0.9)).toBe(0);
   });
 });
 

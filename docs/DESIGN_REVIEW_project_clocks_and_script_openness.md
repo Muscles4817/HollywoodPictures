@@ -664,10 +664,9 @@ are worth doing even if the rest slips.
    of clamping. Strictly monotonic, so no two pressures collapse to one crowding.
 3. ~~**Announce the date before greenlight**, and let rivals see it.~~ **Done** -
    see §9.5b, including the rival-scheduling limitation it exposed.
-4. **Recalibrate rival release scheduling** so a film weighs sitting in a
-   contested prime window against fleeing it, instead of vacating on any
-   non-zero crowding. **Promoted ahead of the rest by §9.5b:** until this lands,
-   rivals never collide with the player and steps 5-6 have no dilemma to price.
+4. ~~**Recalibrate rival release scheduling**~~ **Done** - see §9.5c. Delay is
+   now priced, so a film weighs a better window against the cost of reaching it
+   instead of vacating on any non-zero crowding.
 5. **Commit marketing against the date early**, as a real sunk cost.
 6. **Allow moving, priced at the campaign write-off.**
 
@@ -745,13 +744,56 @@ clear window**, because a rival that steps aside leaves the whole 45 days. That
 is a real and worthwhile mechanic on its own, and it is why announcing is worth
 doing at all.
 
-Getting the risk half requires a rival-scheduling calibration - the tolerance for
-sitting in a contested prime window rather than fleeing it - which is AI release
-strategy and belongs with `docs/DESIGN_REVIEW_ai_studio_behavior.md` rather than
-being changed silently inside an announcement feature. It is a prerequisite for
-steps 4-5 to mean anything, and should be done before them. The behaviour is
-pinned by a test (`releaseAnnouncement.test.ts`) so the day it changes, the
-change is visible rather than accidental.
+Getting the risk half required a rival-scheduling calibration - see §9.5c, now
+done.
+
+### 9.5c Rival scheduling: delay was free (fixed)
+
+The cause of §9.5b was not the crowding weight. It was that **the score charged
+nothing for waiting**:
+
+```text
+score = seasonalDesirability(day) - 0.6 * crowding
+```
+
+Seasonal desirability is nearly flat from one week to the next, so any non-zero
+crowding made stepping forward strictly better, and the cheapest way to shed
+crowding entirely is one step past `CROWDING_WINDOW_DAYS`. Hence ~49 days, every
+time, whatever the threat.
+
+A production cannot actually wait for nothing: capital is tied up, the negative
+accrues interest, crew and facilities are on hold, and marketing lead-times have
+been bought against a date. `SCHEDULING_DELAY_COST_PER_DAY` prices that, so the
+search weighs a better window against the cost of reaching it rather than taking
+any improvement however small. Calibrated against the crowding term: shedding a
+full crowd justifies ~150 days, a half crowd ~75, and a counterprogrammed rival's
+0.15-weighted nudge ~10 - under the weekly step, so a mismatched rival stays put.
+
+Measured, same harness:
+
+```text
+                          BEFORE            AFTER
+same-audience, strong     +49 days          +49 days   (still clears the window)
+same-audience, weak       +49 days           +0 days   (opens against it)
+counterprogrammed         +49 days           +0 days   (shares the weekend)
+
+rival response to a player claim, 483 matchups:
+  holds the contested window     0%  ->  70%
+  flees clear                  100%  ->  30%
+  holds its exact date           0%  ->  34%
+```
+
+Both consequences §9.5b named are now present: **counterprogramming happens**,
+and **rivals collide with the player**, so §9.4's hold-or-move dilemma can
+finally arise. Calendar density is unchanged (20-25 rival releases over ~400
+days), so the slate did not thin out as a side effect.
+
+**What this did NOT move:** `developmentDominance.diagnostic` still reports 0-10%
+of waits costing a wanted actor - no better than before, and inside the noise of
+a rare event counted over 60 runs on a shifted stream. That is the expected
+result. This step fixes how a rival RESPONDS to a claim; what makes the date
+matter to a *production* decision is steps 5-6, which commit something early
+enough to lose. Nothing here touches talent windows.
 
 ### 9.6 Acceptance test
 
