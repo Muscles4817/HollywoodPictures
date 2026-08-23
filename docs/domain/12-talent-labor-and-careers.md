@@ -575,8 +575,8 @@ Under-performance ─► attribution ("nobody came for him")
                   └─► international estimates soften territory by territory
                         └─► the name becomes a "value element": helps the sale,
                             costs little, cannot carry the film
-                              └─► the pool of directors who want the actor shrinks
-                                    to those who need the name rather than the actor
+                              └─► the directors who want the actor shrink to
+                                  those who need the name, not the actor
 ```
 
 Each step takes 12–24 months, which is why decline is usually visible to the

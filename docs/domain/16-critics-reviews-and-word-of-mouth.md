@@ -89,6 +89,10 @@ do materially different jobs, and only some of them move anything.
   positions have been cut heavily over two decades.
 - **Online and specialist critics** are the largest population by number,
   ranging from serious criticism to aggregation fodder.
+- **Broadcast, video and social critics** reach the broadest audience of any
+  tier and do consumer advice more than criticism — a verdict, a runtime, a
+  recommendation for who should go. Their influence on young audiences is now
+  larger than any newspaper's.
 - **Aggregator-approved critics** — Rotten Tomatoes and Metacritic each
   maintain an approved list, and admission to it is what makes a critic count
   toward the score. This is a real gatekeeping power (§2.4).
