@@ -229,10 +229,8 @@ averages of the same average.
 Ordered by leverage per unit of cost and by dependency. Steps 1–2 are the
 prerequisites; without them the later steps amplify a signal that is not there.
 
-1. **Per-axis actor read.** Replace the mean-of-five with a read of the axis the
-   role demands. ~40 lines, no new data, no generator change. Unlocks the 32.5%
-   of the talent pool that is currently invisible and makes casting-to-strength
-   mean something.
+1. **Per-axis actor read.** ✅ **Done.** See §4.1 for what shipped and what it
+   measured — including an important correction to the diagnosis in §2.1.
 2. **Ambition vs delivery gap.** Give a finished film *realised* properties
    distinct from its screenplay's *potential* ones, and scale execution's effect
    by how far the plan reached. This is the determinism fix. One analysis
@@ -258,7 +256,70 @@ the most elegant proposal and the most authored numbers (~290) for the least
 marginal spread once 1–3 land. Revisit when the departments have real material to
 disagree about.
 
-### 4.1 Target correlation
+### 4.1 Step 1 as built, and a correction to §2.1
+
+**Correction.** §2.1 measures `computeActorAbility`, and it is accurate about
+that function — but tracing the call graph shows it is **not** on the scoring
+path for generated actors. `talentGenerator.ts:425` gives every generated actor
+a `craftFloor`/`craftHeadroom` from `deriveCraftSeeded`, hashed from the acting
+style as an *entropy source* rather than derived from it as a *function* (the
+comment there explains why: style spikiness is uniformly high and would saturate
+headroom). `computeActorAbility` therefore drives the Talent Database display
+and handcrafted-actor craft only.
+
+So for the ~900 generated actors in a pool, the entire path from acting style to
+performance runs through **role fit**: `actorFitScore` blends whole-script tone
+compatibility (60%) with `computeCharacterCompatibility` (40%). The specialism
+was failing to reach performance, but through that route, not through the mean.
+
+**What shipped.** `computeCharacterCompatibility` was an unweighted mean of
+*absolute* per-axis gaps. Two defects:
+
+- **Symmetric** — exceeding a role's demand was penalised exactly as much as
+  falling short. An actor with `comedy: 88` in a role demanding 50 scored the
+  same as one with `comedy: 12`.
+- **Unweighted** — all five axes counted equally, so axes the part never asks
+  about dragged a well-cast actor down. A two-axis specialist was penalised for
+  their *second* strength.
+
+It is now demand-weighted (each axis counts in proportion to what the role asks)
+and asymmetric (only a shortfall is charged; surplus is free). Whether a broadly
+comic presence suits a bleak film at all is a whole-film tone question, which
+`computeCompatibility` already answers — so character fit now only ever asks
+"can they meet what the part asks for."
+
+`computeCharacterCompatibilityBreakdown` gained a `demandWeight` per axis, and
+the casting card's fit prose uses it: an axis the role barely demands scores ~100
+by default, and describing that as "excellent physicality fit" for a role with no
+physicality in it would be a lie.
+
+**Measured, over 1,800 generated actors cast in a role demanding their best axis
+versus their worst:**
+
+| | before | after |
+|---|--:|--:|
+| role fit, cast to strength | 83.6 (max 98) | **95.4 (max 100)** |
+| role fit, cast against strength | 61.4 | 65.8 |
+| performance delta (to strength − against) | **4.1** | **5.5** |
+
+**And over 397 films from four 4-year market runs:**
+
+| | before | after |
+|---|--:|--:|
+| `actingScore` SD / range | 5.8 / 40–84 | 5.9 / **41–87** |
+| `qualityScore` SD | 6.4 | 6.6 |
+| `criticScore` SD / range | 7.4 / 35–72 | 7.7 / **31–72** |
+| `audienceScore` SD | 6.6 | 6.5 |
+
+**The aggregate distribution is essentially unmoved, and that is the expected
+result.** Casting to strength now pays 34% more and the fit signal is correctly
+shaped, but `actingScore` is still averaged into `qualityScore` and thence into
+reception. This step makes the *decision* meaningful; steps 3 and 4 are what
+convert a wider input into a wider output. It is a prerequisite, not a fix, and
+the measurement above is the evidence for that claim rather than an assertion of
+it.
+
+### 4.2 Target correlation
 
 The four analyses predicted critic–audience correlations of 0.48, 0.64, 0.73 and
 0.78. Real-world is ≈0.70–0.75. Treat **0.70–0.75** as the target and note that

@@ -95,6 +95,8 @@ function matchWord(score: number): string {
 const STRONG_AXIS = 60; // a genuine strength worth naming
 const WEAK_AXIS = 45; // a real soft spot worth flagging as a caveat
 const MAX_STRENGTHS = 2;
+/** An axis carrying less than this share of a role's total demand isn't really part of the role, so the fit line never describes it. An even five-way split would be 0.20. */
+const RELEVANT_DEMAND_SHARE = 0.12;
 
 /**
  * The reason line for a role-fit verdict, from the per-axis breakdown rows the
@@ -105,11 +107,21 @@ const MAX_STRENGTHS = 2;
  * ("tone") so both a character read and a whole-script read stay grammatical.
  */
 export function deriveFitReason(
-  rows: Array<{ label: string; matchScore: number }>,
+  rows: Array<{ label: string; matchScore: number; demandWeight?: number }>,
   noun: 'fit' | 'tone' = 'fit',
 ): FitReason | null {
   if (rows.length === 0) return null;
-  const sorted = [...rows].sort((a, b) => b.matchScore - a.matchScore);
+  // An axis the part barely asks about scores ~100 by default (there is no
+  // demand to fall short of - see engine/compatibility.ts). Naming that as a
+  // strength would tell the player "excellent physicality fit" about a role
+  // with no physicality in it. So when the caller supplies demand weights,
+  // only axes the role genuinely asks for are eligible to be described.
+  // Callers without weights (the whole-script tone read) are unaffected.
+  const relevant = rows.some((r) => r.demandWeight != null)
+    ? rows.filter((r) => (r.demandWeight ?? 0) >= RELEVANT_DEMAND_SHARE)
+    : rows;
+  const described = relevant.length > 0 ? relevant : rows;
+  const sorted = [...described].sort((a, b) => b.matchScore - a.matchScore);
   const tops = sorted.filter((r) => r.matchScore >= STRONG_AXIS).slice(0, MAX_STRENGTHS);
 
   let strengths: string;
@@ -484,6 +496,8 @@ export interface GatedAxis {
   strength: number;
   /** false when the actor isn't known enough on this axis to vouch for the fit - the breakdown veils it as "Unknown". */
   known: boolean;
+  /** Carried through from the role-fit breakdown (engine/compatibility.ts) so deriveFitReason can avoid describing an axis the part never asks for. Absent for a whole-script tone read, which has no per-axis demand. */
+  demandWeight?: number;
 }
 
 /**
@@ -494,7 +508,7 @@ export interface GatedAxis {
  * mark," not a blank.
  */
 export function gateKnownAxes(
-  rows: Array<{ label: string; matchScore: number; strength: number }>,
+  rows: Array<{ label: string; matchScore: number; strength: number; demandWeight?: number }>,
   confidence: FitConfidence,
 ): GatedAxis[] {
   if (rows.length === 0) return [];
