@@ -469,13 +469,10 @@ Recorded, deliberately not foundational to the slice. **§4.8's measurement
 promotes the first item here to the next slice** - it is what the acceptance
 test is waiting on, not an equal option among the rest:
 
-- Release strategies and corridors — undated development, target season,
-  reserved corridor, hard franchise date, opportunistic. **Not every film should
-  reserve a hard date:** a $12m original drama should not behave like the fourth
-  instalment of a franchise, though it may have its own clock (an actor's
-  window, awards eligibility, financing expiry, a seasonal location).
-  `engine/releaseCrowding.ts` already scores corridors by contest; the work is
-  moving the *claim* earlier than `SCHEDULE_RELEASE`'s current gate.
+- **The release-date clock — now specified in full at §9.** The earlier sketch
+  of this called it "reserving a corridor", which was wrong: nothing in the real
+  industry allocates dates, and the engine's crowding model was already closer to
+  the truth than that framing. See §9.
 - Prep payroll burn while delaying.
 - Financing, rights and rebate expiry.
 - Rewrite delivery and approval rounds replacing the drawn range (§4.2).
@@ -528,3 +525,136 @@ depends on Phase 1 (production execution — shipped) for typed consequences and
 on Phase 3 (acting model) for the capability axis. It is independent of Phase 4
 (studio identity), though a studio's risk appetite is the natural driver of
 openness policy once both exist.
+
+---
+
+## 9. The release-date clock (next slice)
+
+### 9.1 Correcting the earlier framing — nobody reserves a date
+
+An earlier sketch of this work described "reserving a release corridor", as
+though a claimed date were a booked resource. **That is not how the industry
+works and it is not how this engine already models it.** No authority allocates
+release dates. Star Wars opening on the 4th of July does not prevent Jurassic
+Park from opening the same day.
+
+What is actually true:
+
+- **A date announcement is a territorial claim, not a booking.** Studios announce
+  years ahead precisely so everyone else reads it and steers. It works by
+  deterrence, not by rule.
+- **Weaker films blink.** A big date is claimed, others cluster, and as it nears
+  the ones who would lose the matchup publicly move.
+- **Collisions are frequently harmless.** Two tentpoles chasing different
+  audiences can share a weekend and both do well. Same-audience collisions are
+  the damaging ones.
+- **The genuinely rivalrous resource is screens and showtimes**, not the date.
+  A multiplex has finite screens; three same-audience tentpoles on one weekend
+  means somebody gets fewer.
+
+`engine/releaseCrowding.ts` already encodes all of this. A genre mismatch weighs
+`0.15` against a match's `1.0` (counterprogramming), an audience match adds
+`0.3`, `matchupWeight` decides who is pushing and who is being pushed, and the
+saturation clamp's own comment says it outright: *"crowding is a fraction of
+screen access lost."* **The substrate is right. The proposal was wrong.**
+
+### 9.2 What the measurement says
+
+`src/engine/releaseCrowding.diagnostic.test.ts` drives the real rival market for
+~4 in-game years and measures what a player film would actually face. Result:
+
+```text
+~26 rival releases spread over ~380 days (about one a fortnight)
+
+Arbitrary day, own genre:   mean 0.589   median 0.607   p90 1.000
+Head-on, same audience:     mean 0.907   median 1.000   p90 1.000
+
+Opening availability: best day 100%  ->  worst day 50%
+```
+
+**Crowding is not weak — it is strong and blunt.** Three readings:
+
+1. **The magnitude is already large.** A typical day in your own genre costs
+   roughly 30% of opening availability; the worst days cost the full 50%. Best
+   day against worst day is a **2x lever on opening availability**. Anyone
+   assuming the date barely matters is wrong about the maths.
+2. **The top of the range is saturated.** Median 0.607 with p90 at the 1.000
+   clamp means a large share of bad days read *identically*. There is a real
+   gradient in the lower half and none in the upper, so "contested" and
+   "suicidal" are indistinguishable to the player.
+3. **The player is outside the matchup model.** `matchupWeight` exists and rivals
+   pass their own strength to it (`rivalStudios.ts:445`), but the player's
+   settlement does not (`marketSettlement.ts:108` omits the third argument). So a
+   player's £200m tentpole feels exactly the same crowding as their £5m indie on
+   the same day. The "am I doing the pushing or being pushed" primitive - the
+   whole basis of who-blinks - **does not apply to the player at all.** The
+   module's own comment flags this as a deliberate not-yet ("callers that haven't
+   yet been given a candidate strength keep exactly their current numbers until
+   they opt in"), so it is a known seam rather than a bug.
+
+### 9.3 Why it still fails to bite
+
+Given a 2x lever, why does the date feel free? Because of **when** it is chosen.
+
+`SCHEDULE_RELEASE` gates on `testScreeningResolved`, and `SET_MARKETING_CHOICES`
+sits on the same late screen. The player therefore picks a date **after the film
+is finished**, with perfect information about every rival already on the
+calendar, and with nothing committed against any date. Under those conditions the
+rational move is trivially to scan for an empty day and take it - and since the
+median day already carries 0.607 crowding while the best carries 0, that scan is
+worth a great deal and costs nothing.
+
+The lever is real. It is simply free to optimise. That is the same shape as
+§4.8's finding one phase earlier: the mechanism works, the pressure does not
+bite, and the cause is that nothing is committed early enough to be lost.
+
+### 9.4 The model
+
+Not a reservation. **A commitment, and a sunk campaign.**
+
+| Concept | What it is |
+| --- | --- |
+| **Announced date** | Claimed before greenlight. Public, so rivals can see and steer around it. Binding on nobody. |
+| **Committed campaign** | Marketing spend allocated against that date, and *spent* whether or not the date holds. |
+| **Collision** | A rival announces onto or near your date. Already fully modelled by crowding. |
+| **Moving** | Always allowed. Writes off the committed campaign to date and forfeits partner lead times. |
+
+The decision stops being *"the slot is taken"* and becomes the real one:
+
+> A rival has just parked a same-audience tentpole three days from your date.
+> Your campaign is bought. Do you hold and split the screens, or move and eat
+> the write-off?
+
+That is incommensurable in exactly the way §2 requires - sunk marketing against
+box office against schedule - and none of it requires pretending a weekend can be
+reserved. What cannot be substituted is not the date. **It is the money already
+spent pointing at that date.**
+
+### 9.5 Slice
+
+In dependency order. The first two are prerequisites the measurement exposed and
+are worth doing even if the rest slips.
+
+1. **Wire the player into `matchupWeight`.** Pass the player's own release
+   strength at `marketSettlement.ts:108`. Without it a strong film cannot shrug
+   off a collision and the entire who-blinks dynamic is inert for the player.
+   Small, self-contained, and it makes the existing model behave as designed.
+2. **Give the upper range resolution.** Median 0.607 / p90 1.000 means most bad
+   days are indistinguishable. Either soften the clamp or rescale the weights so
+   "contested" and "ruinous" read differently. Measure against the diagnostic.
+3. **Announce the date before greenlight**, and let rivals see it.
+4. **Commit marketing against it early**, as a real sunk cost.
+5. **Allow moving, priced at the campaign write-off.**
+
+### 9.6 Acceptance test
+
+As in §4.7, the bar is disagreement rather than punishment:
+
+> Can two rational players, holding the same finished film and facing the same
+> rival announcement on their date, reasonably disagree about whether to hold or
+> move?
+
+And the §4.7 test should be re-run afterwards: the release clock is what §4.8
+predicted would finally make "one more rewrite" a genuine bet, so
+`developmentDominance.diagnostic` should move too. If it does not, the diagnosis
+in §4.8 was wrong and needs revisiting rather than patching.

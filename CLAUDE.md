@@ -58,6 +58,13 @@ Phase 5 acceptance-test harness (docs/DESIGN_REVIEW_project_clocks_and_script_op
 DEV_DOMINANCE_DIAGNOSTIC=1 npx vitest run src/engine/developmentDominance.diagnostic.test.ts --disable-console-intercept
 ```
 
+Release-calendar harness (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
+§9.2 — does the release date actually matter?):
+
+```bash
+CROWDING_DIAGNOSTIC=1 npx vitest run src/engine/releaseCrowding.diagnostic.test.ts --disable-console-intercept
+```
+
 Box-office calibration gates (encode the targets in
 `docs/DESIGN_box_office_calibration_targets.md`; **expected to fail** until the
 recalibration work lands — that is their purpose). One shared flag:
