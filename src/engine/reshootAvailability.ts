@@ -21,9 +21,9 @@
 // guard call this, so they can never disagree.
 //
 // Pure: plain data in, plain data out.
-import type { FilmDraft, GameDay, Person, ProductionRole, TalentProfession } from '../types';
+import type { FilmDraft, GameDay, Money, Person, ProductionRole, TalentProfession } from '../types';
 import { filterAssignedPeople, professionForProductionRole } from '../data/helpers';
-import { isPersonAvailableForCommitment } from './person';
+import { getTypicalSalaryForRole, isPersonAvailableForCommitment } from './person';
 
 /** Which principals an editing option needs back in front of a camera, and for how long. */
 export interface ReshootRequirement {
@@ -48,6 +48,17 @@ export interface ReshootBlocker {
   role: ProductionRole;
   /** The first day they are clear of the work holding them up. */
   freeFromDay: GameDay;
+  /** Days of their other commitment still to run. Drives whether, and at what price, they can be released. */
+  remainingDays: number;
+  /** What the other production would want to release them - null when they cannot be moved at any price. */
+  buyOutCost: Money | null;
+}
+
+/** Releasing every blocked principal - available only when each of them individually can be. */
+export interface ReshootBuyOut {
+  /** Cash on top of the option's own cost. */
+  cost: Money;
+  names: string[];
 }
 
 export interface ReshootAvailability {
@@ -56,6 +67,48 @@ export interface ReshootAvailability {
   blockers: ReshootBlocker[];
   /** The earliest day the whole required group could actually start - `from` when they are all free now. */
   earliestStartDay: GameDay;
+  /**
+   * Buying every blocked principal out of their other job, or null when at
+   * least one of them cannot be moved at any price. Null when nothing is
+   * blocked, too - there is nothing to buy.
+   */
+  buyOut: ReshootBuyOut | null;
+}
+
+// --- Buying a principal out ------------------------------------------------
+// (docs/REFERENCE_post_production_economics.md section 5, option 2.)
+//
+// A studio can sometimes pay the other production to release someone for a
+// fortnight. What it is really paying for is that production's DISRUPTION - its
+// idle crew days, its schedule rework - so the price tracks how much of their
+// commitment is still to run, and past a point no money is enough, because the
+// ask stops being "let them go early" and becomes "shut your film down".
+//
+// That ceiling is the whole design. If a buy-out always worked, refusal would
+// collapse back into a price and time would be buyable with cash again - which
+// is exactly the failure the project-clocks work exists to avoid
+// (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md section 2,
+// "incommensurable scarcity"). Sometimes the answer has to be no.
+
+/** Past this many days still to run on their other job, no money moves them - you would be shutting that production down. */
+const MAX_BUY_OUT_REMAINING_DAYS = 30;
+/** Share of their per-film fee to release someone who is nearly finished elsewhere... */
+const BUY_OUT_MIN_RATE = 0.15;
+/** ...and to release someone right at the ceiling, with a month still to run. */
+const BUY_OUT_MAX_RATE = 0.75;
+
+/**
+ * What the other production wants to let this person go, or null when the
+ * disruption is too deep to buy. Scales from BUY_OUT_MIN_RATE to
+ * BUY_OUT_MAX_RATE of their own fee across how much of their commitment remains -
+ * so buying out someone who wraps next week is a formality, and someone with a
+ * month left is ruinous.
+ */
+function buyOutCostFor(person: Person, role: ProductionRole, remainingDays: number): Money | null {
+  if (remainingDays > MAX_BUY_OUT_REMAINING_DAYS) return null;
+  const depth = Math.min(1, Math.max(0, remainingDays / MAX_BUY_OUT_REMAINING_DAYS));
+  const rate = BUY_OUT_MIN_RATE + (BUY_OUT_MAX_RATE - BUY_OUT_MIN_RATE) * depth;
+  return Math.round(getTypicalSalaryForRole(person, role) * rate);
 }
 
 /**
@@ -95,42 +148,94 @@ export function reshootAvailability(
       const clashingEnd = person.availability.commitments
         .filter((c) => c.projectId !== draft.id && c.startDay <= proposed.endDay && c.endDay >= proposed.startDay)
         .reduce((latest, c) => Math.max(latest, c.endDay), from);
-      blockers.push({ personId: person.id, name: person.identity.name, role, freeFromDay: clashingEnd + 1 });
+      const remainingDays = Math.max(0, clashingEnd - from + 1);
+      blockers.push({
+        personId: person.id,
+        name: person.identity.name,
+        role,
+        freeFromDay: clashingEnd + 1,
+        remainingDays,
+        buyOutCost: buyOutCostFor(person, role, remainingDays),
+      });
     }
   }
 
+  // All or nothing: one principal who cannot be moved closes photography off
+  // however affordable everyone else is, because you cannot shoot the scene
+  // without them.
+  const everyoneMovable = blockers.length > 0 && blockers.every((b) => b.buyOutCost !== null);
   return {
     available: blockers.length === 0,
     blockers,
     earliestStartDay: blockers.reduce((latest, b) => Math.max(latest, b.freeFromDay), from),
+    buyOut: everyoneMovable
+      ? {
+          cost: blockers.reduce((sum, b) => sum + (b.buyOutCost ?? 0), 0),
+          names: blockers.map((b) => b.name),
+        }
+      : null,
   };
 }
 
-/** A one-line, player-facing account of why a reshoot cannot happen - named causes, never a bare refusal. */
+/** A one-line, player-facing account of why a reshoot cannot happen as planned - named causes, never a bare refusal. */
 export function describeReshootBlockers(availability: ReshootAvailability): string {
   const names = availability.blockers.map((b) => `${b.name} (${b.role})`);
   const who =
     names.length === 1 ? names[0]
     : names.length === 2 ? `${names[0]} and ${names[1]}`
     : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-  return `${who} ${availability.blockers.length === 1 ? 'is' : 'are'} shooting elsewhere — not free until day ${availability.earliestStartDay}.`;
+  const are = availability.blockers.length === 1 ? 'is' : 'are';
+  const base = `${who} ${are} shooting elsewhere — not free until day ${availability.earliestStartDay}.`;
+  return availability.buyOut
+    ? `${base} Their production would release ${availability.blockers.length === 1 ? 'them' : 'them all'} for a price.`
+    : `${base} ${availability.blockers.length === 1 ? 'That production' : 'Those productions'} cannot let ${availability.blockers.length === 1 ? 'them' : 'them'} go at any price.`;
 }
 
 /**
- * Every currently-blocked editing option, as `choiceId -> player-facing reason` -
- * the shape components/common/OnSetDecisionCard.tsx renders directly. An empty
- * object means nothing is blocked. Recomputed on each render rather than stored,
- * so the card always reflects who is free TODAY.
+ * What stands in the way of each editing option right now, keyed by choice id -
+ * the shape components/common/OnSetDecisionCard.tsx renders directly.
+ *
+ * A constraint is either a hard refusal (`blocked`) or a surcharge the option
+ * can still be taken at (`surcharge`), never both. Recomputed on each render
+ * rather than stored, so the card always reflects who is free TODAY.
  */
-export function blockedReshootChoices(
+export interface ReshootConstraint {
+  /** True when the option cannot be taken at all right now. */
+  blocked: boolean;
+  /** Cash on top of the option's own cost, when it can be taken by buying people out. */
+  surcharge?: Money;
+  /** The player-facing explanation, shown either way. */
+  note: string;
+}
+
+export function reshootChoiceConstraints(
   draft: FilmDraft,
   talentPool: Record<TalentProfession, Person[]>,
   from: GameDay,
-): Record<string, string> {
-  const blocked: Record<string, string> = {};
+): Record<string, ReshootConstraint> {
+  const constraints: Record<string, ReshootConstraint> = {};
   for (const choiceId of Object.keys(RESHOOT_REQUIREMENTS)) {
     const availability = reshootAvailability(draft, talentPool, from, choiceId);
-    if (availability && !availability.available) blocked[choiceId] = describeReshootBlockers(availability);
+    if (!availability || availability.available) continue;
+    constraints[choiceId] = availability.buyOut
+      ? { blocked: false, surcharge: availability.buyOut.cost, note: describeReshootBlockers(availability) }
+      : { blocked: true, note: describeReshootBlockers(availability) };
   }
-  return blocked;
+  return constraints;
+}
+
+/**
+ * The buy-out cash this option needs on top of its own rolled cost - 0 when
+ * nobody is blocked. Returns null when the option cannot be taken at all, which
+ * the reducer treats as a refusal.
+ */
+export function reshootSurcharge(
+  draft: FilmDraft,
+  talentPool: Record<TalentProfession, Person[]>,
+  from: GameDay,
+  choiceId: string,
+): Money | null {
+  const availability = reshootAvailability(draft, talentPool, from, choiceId);
+  if (!availability || availability.available) return 0;
+  return availability.buyOut ? availability.buyOut.cost : null;
 }

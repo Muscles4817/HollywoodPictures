@@ -11,7 +11,7 @@ import { personMeetsCharacterGender, personMeetsCharacterAge, personCastingAge }
 import { applyPrepRiskDelta, beginPhotographyFromPrep, computePrepRiskDelta, computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeShootEscalation, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, rollPreProductionDayEvent, resolveEventChoice } from '../engine/production';
 import { computeExecutionResilience } from '../engine/productionExecution';
 import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
-import { reshootAvailability } from '../engine/reshootAvailability';
+import { reshootSurcharge } from '../engine/reshootAvailability';
 import { promoteFilmToIp, ipForSourceFilm, recordFranchiseEntries } from '../engine/intellectualProperty';
 import { generateSequelScript } from '../engine/scriptGenerator';
 import { SEQUEL_DEVELOPMENT_SETUP_DAYS, makePendingSequelDevelopment, settlePendingSequelDevelopments } from '../engine/sequelDevelopment';
@@ -2667,20 +2667,40 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       // against the LIVE pool and today, not the snapshot taken when the
       // screening was generated, because who is free moves while the player
       // deliberates.
-      const castAvailability = reshootAvailability(target, state.talentPool, state.totalDays, action.choiceId);
-      if (castAvailability && !castAvailability.available) return state;
+      // A null surcharge means at least one required principal cannot be moved
+      // at any price - the option is refused outright. A positive one is the
+      // cost of buying everyone out of their other job, charged on top of the
+      // option's own rolled cost. Read against the LIVE pool and today, not the
+      // snapshot taken when the screening was generated, because who is free
+      // moves while the player deliberates.
+      const buyOutCost = reshootSurcharge(target, state.talentPool, state.totalDays, action.choiceId);
+      if (buyOutCost === null) return state;
 
       const { result: rolled, nextSeed } = withRng(state.rngSeed, (rng) => resolveEventChoice(pendingChoice, action.choiceId, rng));
 
-      if (state.studio.cash < rolled.costDelta) return state;
+      const totalCost = rolled.costDelta + buyOutCost;
+      if (state.studio.cash < totalCost) return state;
 
       return {
         ...state,
         rngSeed: nextSeed,
-        studio: recordCashChange(state.studio, state.totalDays, -rolled.costDelta, 'production', `Post-production editing — "${target.title}"`),
+        studio: recordCashChange(
+          state.studio,
+          state.totalDays,
+          -totalCost,
+          'production',
+          buyOutCost > 0
+            ? `Post-production editing — "${target.title}" (incl. cast buy-out)`
+            : `Post-production editing — "${target.title}"`,
+        ),
         projects: replaceDraft(state.projects, {
           ...target,
-          postProductionEvents: [...target.postProductionEvents, rolled],
+          // The buy-out is folded into the recorded event's own costDelta, not
+          // just the cash ledger: engine/releaseFilm.ts sums these into the
+          // film's postProductionInterventionCost, so leaving it out would make
+          // the finished film's reported total cost understate what was
+          // actually spent on it.
+          postProductionEvents: [...target.postProductionEvents, { ...rolled, costDelta: totalCost }],
           postProductionEditingUntilDay: state.totalDays + rolled.delayDaysDelta,
           // This recut window runs from today to the day it finishes.
           postProductionEditingStartedDay: state.totalDays,

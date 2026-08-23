@@ -17,6 +17,7 @@ import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
 import type { GameState } from './gameState';
 import type { Person } from '../types';
+import { reshootSurcharge } from '../engine/reshootAvailability';
 
 /** Dispatches ADVANCE_DAY n times, threading state through - the same real-time background tick App.tsx fires, just driven directly instead of through a timer. */
 function advanceDays(state: GameState, n: number): GameState {
@@ -1115,6 +1116,44 @@ describe('Test Screening (Post-Production Redesign, Phase C - iterative screenin
     const recut = studioReducer(booked, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 're-edit', productionId: booked.focusedProjectId! });
     expect(recut).not.toBe(booked);
     expect(asPlayerDraft(findProject(recut.projects, recut.focusedProjectId))!.postProductionEvents).toHaveLength(1);
+  });
+
+  it('buys a nearly-free principal out, charging the premium on top and recording it on the film', () => {
+    const { state, readyDay } = stateJustFinishedPhotography(322);
+    const atReadyDay = advanceDays(state, readyDay - state.totalDays);
+    const draft = asPlayerDraft(findProject(atReadyDay.projects, atReadyDay.focusedProjectId))!;
+    const lead = draft.talent.find((a) => a.role === 'Lead Actor')!.person;
+
+    // A few days left on the other job - close enough to buy out.
+    const nearlyFree = withLeadBooked(atReadyDay, lead, atReadyDay.totalDays - 40, atReadyDay.totalDays + 4);
+    const surcharge = reshootSurcharge(draft, nearlyFree.talentPool, nearlyFree.totalDays, 'pickups');
+    expect(surcharge).not.toBeNull();
+    expect(surcharge!).toBeGreaterThan(0);
+
+    const after = studioReducer(nearlyFree, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'pickups', productionId: nearlyFree.focusedProjectId! });
+    expect(after).not.toBe(nearlyFree);
+
+    const event = asPlayerDraft(findProject(after.projects, after.focusedProjectId))!.postProductionEvents[0];
+    // The buy-out rides on the event's own costDelta, not just the ledger -
+    // engine/releaseFilm.ts sums these into the film's total cost, so leaving it
+    // off would understate what the film actually cost.
+    expect(event.costDelta).toBeGreaterThanOrEqual(surcharge!);
+    expect(nearlyFree.studio.cash - after.studio.cash).toBe(event.costDelta);
+  });
+
+  it('will not buy out a principal whose other production is too deep to move', () => {
+    const { state, readyDay } = stateJustFinishedPhotography(323);
+    const atReadyDay = advanceDays(state, readyDay - state.totalDays);
+    const draft = asPlayerDraft(findProject(atReadyDay.projects, atReadyDay.focusedProjectId))!;
+    const lead = draft.talent.find((a) => a.role === 'Lead Actor')!.person;
+
+    // Months still to run - no amount of money moves them, so the refusal
+    // stands however rich the studio is. This is what stops the constraint
+    // collapsing back into a price.
+    const deep = withLeadBooked(atReadyDay, lead, atReadyDay.totalDays - 5, atReadyDay.totalDays + 150);
+    const rich: GameState = { ...deep, studio: { ...deep.studio, cash: 5_000_000_000 } };
+    expect(reshootSurcharge(draft, rich.talentPool, rich.totalDays, 'pickups')).toBeNull();
+    expect(studioReducer(rich, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'pickups', productionId: rich.focusedProjectId! })).toBe(rich);
   });
 
   it('allows the same reshoot once that other job has finished', () => {

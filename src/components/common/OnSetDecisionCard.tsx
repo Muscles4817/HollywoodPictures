@@ -5,6 +5,7 @@ import { Money } from './Money';
 import { SeverityBadge } from './SeverityBadge';
 import { professionForProductionRole } from '../../data/helpers';
 import type { EventChoiceTemplate, PendingEventChoice, Person, Script, TalentProfession } from '../../types';
+import type { ReshootConstraint } from '../../engine/reshootAvailability';
 
 /**
  * The cost and time an option will take, shown up front so the player can weigh
@@ -12,8 +13,10 @@ import type { EventChoiceTemplate, PendingEventChoice, Person, Script, TalentPro
  * components/wizard/PostProduction.tsx). Both are ranges, since the outcome is
  * rolled; a zero-ranged option (accept the cut, revert) reads as free/instant.
  */
-function ChoiceCostMeta({ choice }: { choice: EventChoiceTemplate }) {
-  const [costMin, costMax] = choice.costRange;
+function ChoiceCostMeta({ choice, surcharge = 0 }: { choice: EventChoiceTemplate; surcharge?: number }) {
+  // The buy-out is quoted INSIDE the total rather than beside it - the player is
+  // choosing between whole prices, not doing arithmetic.
+  const [costMin, costMax] = [choice.costRange[0] + surcharge, choice.costRange[1] + surcharge];
   const dMin = Math.max(0, Math.round(choice.delayDaysRange[0]));
   const dMax = Math.max(0, Math.round(choice.delayDaysRange[1]));
   return (
@@ -30,6 +33,9 @@ function ChoiceCostMeta({ choice }: { choice: EventChoiceTemplate }) {
       <span className="event-choice-meta__item">
         {dMax <= 0 ? 'No delay' : `Time: ${dMin === dMax ? dMax : `${dMin}–${dMax}`} day${dMax === 1 ? '' : 's'}`}
       </span>
+      {surcharge > 0 && (
+        <span className="event-choice-meta__item">including <Money amount={surcharge} /> to release the cast</span>
+      )}
     </span>
   );
 }
@@ -54,13 +60,13 @@ interface OnSetDecisionCardProps {
   // When set, each regular choice shows its cost and time up front (the
   // test-screening decision, where those trade-offs are the whole point).
   showChoiceCosts?: boolean;
-  // Choice id -> why it cannot be taken right now. A blocked choice stays
-  // VISIBLE and disabled with its reason shown, rather than vanishing: the
-  // player needs to understand that a reshoot is off the table and why, which
-  // is the whole point of the constraint (SIMULATION_PHILOSOPHY.md Principle 3).
-  // Computed by the caller, which knows the draft - see
-  // engine/reshootAvailability.ts.
-  blockedChoices?: Record<string, string>;
+  // Choice id -> what stands in its way right now: either a hard refusal or a
+  // surcharge it can still be taken at (engine/reshootAvailability.ts). Either
+  // way the choice stays VISIBLE with its reason shown rather than vanishing -
+  // the player needs to understand that a reshoot is off the table, or newly
+  // expensive, and why (SIMULATION_PHILOSOPHY.md Principle 3). Computed by the
+  // caller, which knows the draft.
+  choiceConstraints?: Record<string, ReshootConstraint>;
 }
 
 /**
@@ -82,7 +88,7 @@ interface OnSetDecisionCardProps {
  * three full profiles on a small screen is still one full card at a time
  * rather than illegibly shrunk text.
  */
-export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, totalDays, onChoose, pausedMessage, showChoiceCosts, blockedChoices }: OnSetDecisionCardProps) {
+export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, totalDays, onChoose, pausedMessage, showChoiceCosts, choiceConstraints }: OnSetDecisionCardProps) {
   const involvedTalent = pendingChoice.involvedTalentId ? talent.find((t) => t.id === pendingChoice.involvedTalentId) : undefined;
   const involvedCategory = pendingChoice.involvedRole ? TALENT_PRESENTATION[pendingChoice.involvedRole].category : null;
 
@@ -113,22 +119,24 @@ export function OnSetDecisionCard({ pendingChoice, talent, talentPool, script, t
 
       <div className="stack">
         {regularChoices.map((choice) => {
-          const blockedReason = blockedChoices?.[choice.id];
+          const constraint = choiceConstraints?.[choice.id];
+          const blocked = constraint?.blocked === true;
           return (
             <button
               key={choice.id}
-              className={`event-choice-button${blockedReason ? ' event-choice-button--blocked' : ''}`}
-              disabled={Boolean(blockedReason)}
-              title={blockedReason}
+              className={`event-choice-button${blocked ? ' event-choice-button--blocked' : ''}`}
+              disabled={blocked}
+              title={constraint?.note}
               onClick={() => onChoose(choice.id)}
             >
               <span className="event-choice-label-row">
                 <span className="event-choice-label">{choice.label}</span>
-                {blockedReason && <span className="event-choice-blocked-badge">Unavailable</span>}
+                {blocked && <span className="event-choice-blocked-badge">Unavailable</span>}
+                {constraint?.surcharge !== undefined && <span className="event-choice-surcharge-badge">Buy-out required</span>}
               </span>
               <span className="event-choice-description">{choice.description}</span>
-              {blockedReason && <span className="event-choice-blocked-reason">{blockedReason}</span>}
-              {showChoiceCosts && !blockedReason && <ChoiceCostMeta choice={choice} />}
+              {constraint && <span className="event-choice-blocked-reason">{constraint.note}</span>}
+              {showChoiceCosts && !blocked && <ChoiceCostMeta choice={choice} surcharge={constraint?.surcharge} />}
             </button>
           );
         })}

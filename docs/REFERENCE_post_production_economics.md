@@ -218,12 +218,16 @@ Recorded so nobody assumes these are oversights:
   dominates on the films where re-work matters at all.
 - Continuity drift over a long gap.
 - Marketing materials cut from removed footage.
-- The three *workarounds* for an unavailable cast (§5): waiting, buying them out,
-  or shooting around them. The simulation models only the fourth option -
-  refusal - so an unavailable principal closes photography off entirely rather
-  than opening a costlier route to it. Buying a principal out is the most
-  natural of the three to add, and would be a genuine money-for-time trade
-  rather than a new subsystem.
+- Waiting for a principal to free up, and shooting around them (§5, options 1
+  and 3). Only refusal and the buy-out are modelled, so an unavailable principal
+  either costs money or closes photography off - there is no "delay the release
+  until they are free" route, which is the one most likely to be worth adding
+  once release corridors exist to make the delay hurt.
+- A buy-out releasing someone only for the WINDOW bought. The simulation charges
+  the premium but does not alter their other commitment at all, so they still
+  read as booked afterwards and a later screening round would negotiate again.
+  That is closer to the truth than a permanent release would be, but it does
+  mean the pool never reflects the deal.
 
 Picture lock is the one most likely to be worth adding, and it would fit the
 existing project-clocks work rather than needing anything new.
@@ -249,3 +253,24 @@ This is the same perishable-commitment idea as
 phase later: the package the film assembled at greenlight has since dispersed,
 and what the studio can still do about a bad screening depends on who it can get
 back.
+
+### And what it costs to buy someone back
+
+`buyOutCostFor`. What a studio pays for is the other production's **disruption**,
+so the price tracks how much of that commitment is still to run: a share of the
+person's own fee, rising from `BUY_OUT_MIN_RATE` when they are nearly wrapped to
+`BUY_OUT_MAX_RATE` at the ceiling. Past `MAX_BUY_OUT_REMAINING_DAYS` there is no
+price at all, because the ask has stopped being "let them go early" and become
+"shut your film down".
+
+**That ceiling is the whole design, not a rough edge.** If a buy-out always
+worked, the refusal above would collapse back into a price and time would be
+buyable with cash again — precisely the failure the project-clocks work exists to
+avoid (§2 of that document, *incommensurable scarcity*). Some things have to be
+unavailable at any price, or there is no real decision, only an invoice.
+
+It is also **all-or-nothing**: one principal who cannot be moved closes the
+option however affordable everyone else is, because the scene cannot be shot
+without them. And the premium is folded into the recorded event's own cost, not
+merely the cash ledger, so the finished film's reported total cost reflects what
+was genuinely spent getting it made.

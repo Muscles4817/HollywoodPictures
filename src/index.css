@@ -701,6 +701,18 @@ button {
   white-space: nowrap;
 }
 
+.event-choice-surcharge-badge {
+  font-size: 0.7em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--warning, #b8860b);
+  color: var(--warning, #b8860b);
+  white-space: nowrap;
+}
+
 .event-choice-blocked-reason {
   font-size: 0.8em;
   font-style: italic;

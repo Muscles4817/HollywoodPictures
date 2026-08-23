@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { withRng } from './random';
 import { buildReadyDraft } from '../state/testFixtures';
 import { generateTalentPool } from './talentGenerator';
-import { blockedReshootChoices, describeReshootBlockers, reshootAvailability } from './reshootAvailability';
+import { describeReshootBlockers, reshootAvailability, reshootChoiceConstraints, reshootSurcharge } from './reshootAvailability';
 import type { FilmDraft, Person, ProductionRole, TalentProfession } from '../types';
 import { professionForProductionRole } from '../data/helpers';
 
@@ -13,19 +13,25 @@ function setup() {
   return result;
 }
 
-/** Put this film's cast into the live pool, optionally booking one of them elsewhere. */
+type Booking = { role: ProductionRole; startDay: number; endDay: number; projectId?: string };
+
+/**
+ * Put this film's cast into the live pool, with whatever other work is holding
+ * them up. Takes ALL bookings at once rather than being called repeatedly:
+ * every call rebuilds each cast member from their draft snapshot, so a second
+ * call would silently wipe the first call's booking.
+ */
 function poolWithCast(
   draft: FilmDraft,
   talentPool: Record<TalentProfession, Person[]>,
-  booking?: { role: ProductionRole; startDay: number; endDay: number; projectId?: string },
+  ...bookings: Booking[]
 ): Record<TalentProfession, Person[]> {
   const next = { ...talentPool };
   for (const assignment of draft.talent) {
     const profession = professionForProductionRole(assignment.role);
-    const commitments =
-      booking && booking.role === assignment.role
-        ? [{ projectId: booking.projectId ?? 'rival-film', role: assignment.role, startDay: booking.startDay, endDay: booking.endDay }]
-        : [];
+    const commitments = bookings
+      .filter((b) => b.role === assignment.role)
+      .map((b) => ({ projectId: b.projectId ?? 'rival-film', role: assignment.role, startDay: b.startDay, endDay: b.endDay }));
     const live: Person = { ...assignment.person, availability: { commitments } };
     next[profession] = [live, ...next[profession].filter((p) => p.id !== live.id)];
   }
@@ -48,7 +54,7 @@ describe('reshootAvailability', () => {
     for (const id of ['pickups', 'major-reshoots']) {
       expect(reshootAvailability(draft, pool, TODAY, id)!.available).toBe(true);
     }
-    expect(blockedReshootChoices(draft, pool, TODAY)).toEqual({});
+    expect(reshootChoiceConstraints(draft, pool, TODAY)).toEqual({});
   });
 
   it('refuses a reshoot when a required principal is shooting elsewhere, and names them', () => {
@@ -69,7 +75,7 @@ describe('reshootAvailability', () => {
   it('leaves the edit open when photography is closed - the real studio response', () => {
     const { draft, talentPool } = setup();
     const pool = poolWithCast(draft, talentPool, { role: 'Lead Actor', startDay: TODAY - 20, endDay: TODAY + 90 });
-    const blocked = blockedReshootChoices(draft, pool, TODAY);
+    const blocked = reshootChoiceConstraints(draft, pool, TODAY);
     expect(Object.keys(blocked).sort()).toEqual(['major-reshoots', 'pickups']);
     expect(blocked['re-edit']).toBeUndefined();
   });
@@ -99,6 +105,72 @@ describe('reshootAvailability', () => {
     const soon = poolWithCast(draft, talentPool, { role: 'Lead Actor', startDay: TODAY + 10, endDay: TODAY + 200 });
     expect(reshootAvailability(draft, soon, TODAY, 'pickups')!.available).toBe(true);
     expect(reshootAvailability(draft, soon, TODAY, 'major-reshoots')!.available).toBe(false);
+  });
+
+  // Buying a principal out (REFERENCE_post_production_economics.md section 5,
+  // option 2). The ceiling is the point: if money always worked, refusal would
+  // collapse into a price and time would be buyable again.
+  describe('buying a principal out', () => {
+    it('offers a buy-out when the other job is nearly done, and prices it off their fee', () => {
+      const { draft, talentPool } = setup();
+      const pool = poolWithCast(draft, talentPool, { role: 'Lead Actor', startDay: TODAY - 40, endDay: TODAY + 5 });
+      const pickups = reshootAvailability(draft, pool, TODAY, 'pickups')!;
+
+      expect(pickups.available).toBe(false); // still not simply free
+      expect(pickups.buyOut).not.toBeNull();
+      expect(pickups.buyOut!.cost).toBeGreaterThan(0);
+      expect(pickups.buyOut!.names).toEqual(pickups.blockers.map((b) => b.name));
+      // Not a refusal any more - the option is takeable, at a price.
+      expect(reshootChoiceConstraints(draft, pool, TODAY).pickups).toEqual({
+        blocked: false,
+        surcharge: pickups.buyOut!.cost,
+        note: expect.stringContaining('release'),
+      });
+    });
+
+    it('refuses at any price when the other production is too deep in its schedule', () => {
+      const { draft, talentPool } = setup();
+      // Well past MAX_BUY_OUT_REMAINING_DAYS - the ask stops being "let them go
+      // early" and becomes "shut your film down".
+      const pool = poolWithCast(draft, talentPool, { role: 'Lead Actor', startDay: TODAY - 5, endDay: TODAY + 120 });
+      const pickups = reshootAvailability(draft, pool, TODAY, 'pickups')!;
+      expect(pickups.buyOut).toBeNull();
+      expect(reshootChoiceConstraints(draft, pool, TODAY).pickups.blocked).toBe(true);
+      expect(describeReshootBlockers(pickups)).toContain('at any price');
+      expect(reshootSurcharge(draft, pool, TODAY, 'pickups')).toBeNull();
+    });
+
+    it('costs more the deeper into their other commitment you reach', () => {
+      const { draft, talentPool } = setup();
+      const costAt = (endOffset: number) =>
+        reshootAvailability(draft, poolWithCast(draft, talentPool, { role: 'Lead Actor', startDay: TODAY - 5, endDay: TODAY + endOffset }), TODAY, 'pickups')!
+          .buyOut!.cost;
+      // Nearly wrapped is close to a formality; a month out is ruinous.
+      expect(costAt(2)).toBeLessThan(costAt(14));
+      expect(costAt(14)).toBeLessThan(costAt(28));
+    });
+
+    it('is all-or-nothing - one immovable principal closes the option however cheap the rest are', () => {
+      const { draft, talentPool } = setup();
+      // The lead could be released; the director cannot. You cannot shoot the
+      // scene without either of them, so the option is still refused.
+      const pool = poolWithCast(
+        draft,
+        talentPool,
+        { role: 'Lead Actor', startDay: TODAY - 5, endDay: TODAY + 3 },
+        { role: 'Director', startDay: TODAY - 5, endDay: TODAY + 150 },
+      );
+      const reshoots = reshootAvailability(draft, pool, TODAY, 'major-reshoots')!;
+      expect(reshoots.blockers.some((b) => b.buyOutCost !== null)).toBe(true);
+      expect(reshoots.blockers.some((b) => b.buyOutCost === null)).toBe(true);
+      expect(reshoots.buyOut).toBeNull();
+    });
+
+    it('charges nothing extra when nobody is blocked', () => {
+      const { draft, talentPool } = setup();
+      expect(reshootSurcharge(draft, poolWithCast(draft, talentPool), TODAY, 'pickups')).toBe(0);
+      expect(reshootSurcharge(draft, talentPool, TODAY, 're-edit')).toBe(0);
+    });
   });
 
   it('blocks major reshoots on the director too, not just the cast', () => {
