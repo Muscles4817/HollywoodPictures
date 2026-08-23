@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { studioReducer } from './studioReducer';
 import { buildStateWithReadyDraft, buildReadyAsset } from './testFixtures';
 import { createRng } from '../engine/random';
-import { deriveAssetStatus } from '../engine/project';
+import { assetAcceptsDevelopmentPass, deriveAssetStatus } from '../engine/project';
 import type { GameState } from './gameState';
-import type { Asset } from '../types';
+import type { Asset, Script } from '../types';
 
 /** A state with one genuinely available (un-projected) Asset added, and a large cash reserve. */
 function stateWithAvailableAsset(seed: number): { state: GameState; asset: Asset } {
@@ -53,11 +53,42 @@ describe('REWRITE_ASSET', () => {
     expect(twice).toBe(once); // already pending
   });
 
-  it('blocks starting a Project while a rewrite is mid-flight', () => {
+  // The coexistence contract (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
+  // section 1.1). A pass and a project's commitments used to be mutually
+  // exclusive, which put development in the one phase of the game where nothing
+  // could be lost - the reason waiting was strictly dominant.
+  it('allows starting a Project while a pass is mid-flight, and lands the new head on the draft', () => {
     const { state, asset } = stateWithAvailableAsset(4);
-    const rewriting = studioReducer(state, { type: 'REWRITE_ASSET', assetId: asset.id, kind: 'polish', writerId: state.talentPool.Writer[0].id });
-    const attempt = studioReducer(rewriting, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
-    expect(attempt).toBe(rewriting);
+    const rewriting = studioReducer(state, { type: 'REWRITE_ASSET', assetId: asset.id, kind: 'rewrite', writerId: state.talentPool.Writer[0].id });
+
+    const withProject = studioReducer(rewriting, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
+    expect(withProject).not.toBe(rewriting); // no longer a no-op
+    const projectId = withProject.focusedProjectId!;
+    const draftOf = (s: GameState) =>
+      s.projects.find((p) => p.kind === 'player-in-progress' && p.draft.id === projectId) as { draft: { script: Script | null } };
+    expect(draftOf(withProject).draft.script!.id).toBe(asset.script.id);
+
+    const readyOnDay = withProject.studio.assets.find((a) => a.id === asset.id)!.pendingRewrite!.readyOnDay;
+    let s = withProject;
+    for (let day = s.totalDays; day <= readyOnDay + 1; day++) s = studioReducer(s, { type: 'ADVANCE_DAY' });
+
+    // The pass landed on the Asset AND flowed through to the live draft, which
+    // is still pre-photography - it is not holding the stale head it was
+    // created from (engine/rewrite.ts:draftAtAssetHead).
+    const head = s.studio.assets.find((a) => a.id === asset.id)!.script;
+    expect(head.id).not.toBe(asset.script.id);
+    expect(draftOf(s).draft.script!.id).toBe(head.id);
+  });
+
+  it('refuses a pass once photography has begun - the screenplay is frozen', () => {
+    const { state } = stateWithAvailableAsset(6);
+    // The fixture's own draft is release-ready (photography finished), so its
+    // Asset is past the point a pass can touch it.
+    const shotAssetId = (state.projects[0] as { draft: { assetId: string } }).draft.assetId;
+    expect(assetAcceptsDevelopmentPass(state.studio.assets.find((a) => a.id === shotAssetId)!, state.projects)).toBe(false);
+
+    const attempt = studioReducer(state, { type: 'REWRITE_ASSET', assetId: shotAssetId, kind: 'polish', writerId: state.talentPool.Writer[0].id });
+    expect(attempt).toBe(state);
   });
 
   it('lands the new head Script when the pass completes, via the calendar', () => {

@@ -8,7 +8,7 @@ import {
   CheckboxFilterDropdown,
   type CheckboxFilterOption,
 } from './common/CheckboxFilterDropdown';
-import { deriveAssetStatus, type AssetStatus } from '../engine/project';
+import { assetAcceptsDevelopmentPass, deriveAssetStatus, type AssetStatus } from '../engine/project';
 import type { GameAction } from '../state/gameState';
 import type { Asset, Genre, Person } from '../types';
 import './AssetLibrary.css';
@@ -76,7 +76,7 @@ function scoreToStars(value: number, max = 100): number {
   return Math.max(0, Math.min(5, Math.round((value / max) * 10) / 2));
 }
 
-type AssetWithStatus = { asset: Asset; status: AssetStatus };
+type AssetWithStatus = { asset: Asset; status: AssetStatus; acceptsPass: boolean };
 
 interface AssetControls {
   statusFilter: AssetStatusFilter;
@@ -460,6 +460,8 @@ function CommissionPanel({ writers, totalDays, cash, dispatch, onClose }: Commis
 interface AssetCardProps {
   asset: Asset;
   status: AssetStatus;
+  /** engine/project.ts:assetAcceptsDevelopmentPass - a project in development or prep no longer bars a pass, only photography does. */
+  acceptsPass: boolean;
   isExpanded: boolean;
   onToggleExpanded: () => void;
   somethingElseFocused: boolean;
@@ -472,6 +474,7 @@ interface AssetCardProps {
 function AssetCard({
   asset,
   status,
+  acceptsPass,
   isExpanded,
   onToggleExpanded,
   somethingElseFocused,
@@ -485,7 +488,7 @@ function AssetCard({
   const [showRewrite, setShowRewrite] = useState(false);
   const pending = asset.pendingRewrite;
   const pendingWriter = pending ? writers.find((writer) => writer.id === pending.writerId) : undefined;
-  const canDevelopScript = status.status === 'available' && !pending;
+  const canDevelopScript = acceptsPass;
 
   return (
     <div className="asset-library-card-shell">
@@ -604,8 +607,6 @@ function AssetCard({
             {status.status === 'available' && (
               <Button
                 variant="primary"
-                disabled={Boolean(pending)}
-                title={pending ? 'A rewrite is in progress on this script.' : undefined}
                 onClick={() =>
                   dispatch({
                     type: 'CREATE_PROJECT_FROM_ASSET',
@@ -706,6 +707,7 @@ export function AssetLibrary() {
         .map((asset) => ({
           asset,
           status: deriveAssetStatus(asset, state.projects),
+          acceptsPass: assetAcceptsDevelopmentPass(asset, state.projects),
         })),
     [state.projects, state.studio.assets],
   );
@@ -717,6 +719,7 @@ export function AssetLibrary() {
         .map((asset) => ({
           asset,
           status: deriveAssetStatus(asset, state.projects),
+          acceptsPass: assetAcceptsDevelopmentPass(asset, state.projects),
         }))
         .sort((left, right) =>
           left.asset.script.title.localeCompare(right.asset.script.title),
@@ -1069,11 +1072,12 @@ export function AssetLibrary() {
                 </div>
               ) : (
                 <div className="asset-library-grid">
-                  {visibleAssets.map(({ asset, status }) => (
+                  {visibleAssets.map(({ asset, status, acceptsPass }) => (
                     <AssetCard
                       key={asset.id}
                       asset={asset}
                       status={status}
+                      acceptsPass={acceptsPass}
                       isExpanded={expandedAssetId === asset.id}
                       onToggleExpanded={() => toggleExpandedAsset(asset.id)}
                       somethingElseFocused={somethingElseFocused}
@@ -1144,11 +1148,12 @@ export function AssetLibrary() {
                     </div>
                   ) : (
                     <div className="asset-library-grid">
-                      {visibleTestScripts.map(({ asset, status }) => (
+                      {visibleTestScripts.map(({ asset, status, acceptsPass }) => (
                         <AssetCard
                           key={asset.id}
                           asset={asset}
                           status={status}
+                          acceptsPass={acceptsPass}
                           isExpanded={expandedAssetId === asset.id}
                           onToggleExpanded={() => toggleExpandedAsset(asset.id)}
                           somethingElseFocused={somethingElseFocused}

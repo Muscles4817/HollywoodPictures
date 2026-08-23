@@ -235,6 +235,34 @@ export type AssetStatus =
  * nothing is currently active - the asset generated one or more films and
  * is free to try again.
  */
+/**
+ * Can a development pass (Rewrite/Polish) still be commissioned against this
+ * Asset? Only two things close the door:
+ *
+ *  - a pass is already running (one at a time, unchanged), or
+ *  - the screenplay has been FROZEN by a project that is past the point of
+ *    changing it - photography has begun, the film is scheduled, or it has
+ *    already been released.
+ *
+ * Note what is deliberately NOT disqualifying: an active project that hasn't
+ * started shooting. A project in development or in prep is still working from
+ * its Asset's current head draft, so a pass may run against it and land on it
+ * (engine/rewrite.ts:draftAtAssetHead). That coexistence is the point - see
+ * docs/DESIGN_REVIEW_project_clocks_and_script_openness.md section 1.1: while
+ * the rewrite lever and the commitment machinery lived in disjoint phases,
+ * development happened in the one phase where nothing could be lost, and so
+ * waiting was strictly dominant.
+ *
+ * Changing a screenplay once the camera is rolling is Script Openness (that
+ * doc, section 3.4) and is deliberately out of scope here.
+ */
+export function assetAcceptsDevelopmentPass(asset: Asset, projects: Project[]): boolean {
+  if (asset.pendingRewrite) return false;
+  return projects
+    .filter((p) => assetIdOfProject(p) === asset.id)
+    .every((p) => p.kind === 'player-in-progress' && p.draft.photography === null);
+}
+
 export function deriveAssetStatus(asset: Asset, projects: Project[]): AssetStatus {
   const own = projects.filter((p) => assetIdOfProject(p) === asset.id);
   const active = own.find((p) => p.kind === 'player-in-progress' || p.kind === 'scheduled');

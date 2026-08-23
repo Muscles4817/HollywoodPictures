@@ -21,7 +21,7 @@ import { computeActorAppeal } from '../engine/castingAppeal';
 import { computeAskingPrice, resolveNegotiation } from '../engine/castingNegotiation';
 import { auditionDurationDays } from '../engine/talentCardPresentation';
 import { writerProfileFromPerson } from '../engine/writers';
-import { computeRewriteOutcome, makePendingRewrite, rewriteDurationDays, rewriteFee, settleAssetRewrites } from '../engine/rewrite';
+import { computeRewriteOutcome, draftAtAssetHead, makePendingRewrite, rewriteDurationDays, rewriteFee, settleAssetRewrites } from '../engine/rewrite';
 import { commissionDurationDays, commissionFee, generateCommissionedScript, makePendingCommission, settlePendingCommissions } from '../engine/commission';
 import { generateCreativeDemands, resolveDemandQualityDelta, acceptedDemandQualityDelta, directorWouldWalk } from '../engine/creativeDemands';
 import { openDirectorPitches, tickDirectorPitches } from '../engine/directorPitches';
@@ -106,6 +106,7 @@ import {
   backgroundedPlayerDrafts,
   scheduledPlayerReleases,
   deriveAssetStatus,
+  assetAcceptsDevelopmentPass,
 } from '../engine/project';
 
 // The canonical forward order of what's left of the wizard, post-greenlight
@@ -857,7 +858,36 @@ function rollScheduledPressTourIncidents(scheduled: ScheduledRelease[], rng: Ran
 // then. Box office revenue is the one thing that now lands gradually
 // instead, credited week by week as a film's run actually plays out (see
 // runCalendarSettlement above and docs/DESIGN.md 5.19).
+/**
+ * Holds the pre-photography invariant after every action: a project that hasn't
+ * started shooting sits at its Asset's CURRENT head screenplay, so a development
+ * pass that lands mid-project reaches the draft that was created from an older
+ * head (engine/rewrite.ts:draftAtAssetHead).
+ *
+ * Applied here, once, rather than at each of the ~10 assembleProjects call sites
+ * a settled pass could surface through - the invariant is a property of the
+ * state, not of any one action, and doing it in one place means no future
+ * calendar-advancing case can forget it. Idempotent and reference-preserving, so
+ * an action that moved no script returns the identical state object.
+ */
+function withDraftsAtAssetHead(state: GameState): GameState {
+  const assets = state.studio.assets;
+  let moved = false;
+  const projects = state.projects.map((project) => {
+    if (project.kind !== 'player-in-progress') return project;
+    const draft = draftAtAssetHead(project.draft, assets);
+    if (draft === project.draft) return project;
+    moved = true;
+    return { ...project, draft };
+  });
+  return moved ? { ...state, projects } : state;
+}
+
 export function studioReducer(state: GameState, action: GameAction): GameState {
+  return withDraftsAtAssetHead(applyGameAction(state, action));
+}
+
+function applyGameAction(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     // A real-time background tick (App.tsx), separate from every other
     // calendar advance - those are all tied to a specific player action
@@ -1055,9 +1085,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'CREATE_PROJECT_FROM_ASSET': {
       const asset = state.studio.assets.find((a) => a.id === action.assetId);
       if (!asset || deriveAssetStatus(asset, state.projects).status === 'in-development') return state;
-      // Can't start a Project while a Rewrite/Polish is mid-flight - the head
-      // Script would shift under the draft when the pass lands (Phase 3).
-      if (asset.pendingRewrite) return state;
+      // A Rewrite/Polish mid-flight no longer bars this. The head Script DOES
+      // shift under the draft when the pass lands - that is now the intended
+      // behaviour, not the hazard it was read as (draftAtAssetHead syncs it, and
+      // the reducer wrapper below applies that every action). Letting a project's
+      // commitments and a moving script coexist is the whole point: see
+      // docs/DESIGN_REVIEW_project_clocks_and_script_openness.md section 1.1.
       const draft = createDraftFromAsset(asset, defaultTalentTargetPrices(), state.totalDays);
       return {
         ...state,
@@ -1119,8 +1152,10 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'REWRITE_ASSET': {
       const asset = state.studio.assets.find((a) => a.id === action.assetId);
       if (!asset) return state;
-      if (deriveAssetStatus(asset, state.projects).status === 'in-development') return state;
-      if (asset.pendingRewrite) return state; // one pass at a time
+      // Both the "one pass at a time" rule and the (now much narrower) project
+      // bar live in one predicate: only photography freezes the screenplay, so a
+      // project still in development or in prep can take a pass.
+      if (!assetAcceptsDevelopmentPass(asset, state.projects)) return state;
       const writer = state.talentPool.Writer.find((w) => w.id === action.writerId);
       const profile = writer ? writerProfileFromPerson(writer) : null;
       const career = writer ? getWriterCareer(writer) : null;
@@ -2059,6 +2094,11 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         development: null,
         greenlitOnDay: state.totalDays,
         shootStartsOnDay: deferred ? shootStartsOnDay : undefined,
+        // The date the studio is now committed to (types/index.ts:committedStartDay):
+        // prep begins at shootStartsOnDay and photography follows it. Frozen here
+        // deliberately - it is the promise cast, crew and facilities lock around,
+        // so it must NOT track the real start as prep events push that about.
+        committedStartDay: shootStartsOnDay + preProductionDays,
         preProduction: { status: deferred ? 'scheduled' : 'in-progress', recommendedDays: preProductionDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
       };
 

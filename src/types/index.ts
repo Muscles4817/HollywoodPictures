@@ -2075,7 +2075,14 @@ export interface Asset {
    * and stored here so completion is deterministic - the pass lands on
    * `readyOnDay`, settled lazily off the calendar (engine/rewrite.ts:settleAssetRewrites),
    * the same "finishes on day N" shape FilmDraft.postProductionEditingUntilDay
-   * already uses. While set, the Asset can't start a Project or a second pass.
+   * already uses. While set, the Asset can't take a SECOND pass.
+   *
+   * It CAN, however, have a live Project against it: a pass and a project's
+   * commitments deliberately coexist now, up until photography begins
+   * (engine/project.ts:assetAcceptsDevelopmentPass). That coexistence is the
+   * whole point - development used to happen only in the one phase of the game
+   * where nothing could be lost, which is why waiting was strictly dominant.
+   * See docs/DESIGN_REVIEW_project_clocks_and_script_openness.md section 1.1.
    */
   pendingRewrite?: PendingRewrite;
 }
@@ -2706,6 +2713,21 @@ export interface FilmDraft {
   // is held in development until this day; absent/equal to greenlitOnDay means it
   // started immediately (the common case).
   shootStartsOnDay?: number;
+  // The day principal photography was COMMITTED to begin, frozen at Greenlight
+  // (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md section 3.1) -
+  // `shootStartsOnDay` (or greenlight day) plus the prep run's recommended
+  // length. This is the studio's *promise*, not a live estimate: cast, crew and
+  // facilities lock around it, so it deliberately does NOT move when prep events
+  // push the real start about. The gap between it and what actually happens is
+  // the pressure the phase exists to create - a development pass still running
+  // as it approaches is the decision the player has to make.
+  //
+  // Stored rather than derived (an exception to Principle 8 that proves it): a
+  // commitment is an intrinsic fact about the project - a date that was promised -
+  // not a strength computed from other values, and the whole point is that
+  // reality can diverge from it. Absent before greenlight; the pre-greenlight
+  // intent is the freely-movable target start (`plannedStartOffsetDays`).
+  committedStartDay?: GameDay;
   // The live pre-production run (Greenlight -> Principal Photography), or null
   // before greenlight. Non-null with status 'in-progress'/'awaiting-choice'
   // means prep is underway; 'finished' means it's the persisted record the shoot

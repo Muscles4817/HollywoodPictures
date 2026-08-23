@@ -5,7 +5,7 @@
 // work reliably lifts a script, while a weak or inconsistent one on an
 // already-good script is a net-negative risk. Same "increase probabilities, not
 // certainty" philosophy as Phase 2's writer-driven generation.
-import type { Asset, GameDay, Money, PendingRewrite, Script, ScriptCraft, WriterCreativeProfile } from '../types';
+import type { Asset, FilmDraft, GameDay, Money, PendingRewrite, Script, ScriptCraft, WriterCreativeProfile } from '../types';
 import { reviseScript } from './screenplay';
 import { clamp, randFloat, type RandomFn } from './random';
 
@@ -104,6 +104,33 @@ export function settleAssetRewrites(assets: Asset[], totalDays: GameDay): Asset[
     });
     return { ...revised, pendingRewrite: undefined };
   });
+}
+
+/**
+ * The pre-photography invariant: a project that hasn't started shooting is still
+ * working from its Asset's CURRENT head draft, so a pass that lands mid-project
+ * flows straight through to it. This is the other half of lifting the old "an
+ * Asset with a pass in flight can't start a Project" restriction - without it a
+ * draft would keep a stale copy of the script it was created from
+ * (state/gameState.ts:createDraftFromAsset copies the head in by value).
+ *
+ * Once photography begins the draft's script is FROZEN: what's on the page is
+ * what gets shot. Changing that is Script Openness
+ * (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md section 3.4),
+ * deliberately out of scope.
+ *
+ * Pure and idempotent - a draft already at its Asset's head is returned by
+ * reference, so the caller can cheaply detect "nothing moved". An orphaned
+ * draft (no matching Asset) is likewise returned untouched.
+ */
+export function draftAtAssetHead(draft: FilmDraft, assets: Asset[]): FilmDraft {
+  if (draft.photography !== null) return draft;
+  const asset = assets.find((a) => a.id === draft.assetId);
+  if (!asset || asset.script.id === draft.script?.id) return draft;
+  // Only the screenplay moves - a rewrite never touches the title (reviseScript
+  // carries it over from the previous head), and the draft's own title is the
+  // player's to hold.
+  return { ...draft, script: asset.script };
 }
 
 /** Assembles the PendingRewrite record from an already-rolled outcome - the reducer's single source for the shape. */

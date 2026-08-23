@@ -754,6 +754,23 @@ describe('GREENLIGHT_PROJECT - enters the live pre-production phase', () => {
     expect(draftAfter.preProduction?.daysElapsed).toBe(0);
     expect(draftAfter.preProduction?.recommendedDays).toBe(expectedPrepDays);
     expect(draftAfter.shootStartsOnDay).toBeUndefined(); // free cast -> starts immediately
+    // The committed photography start (Phase 5, docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
+    // section 3.1): prep begins today, photography follows it.
+    expect(draftAfter.committedStartDay).toBe(s.totalDays + expectedPrepDays);
+  });
+
+  it('freezes the committed start rather than tracking the real one as prep runs long', () => {
+    const s = stateReadyToGreenlight(214);
+    const greenlit = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });
+    const committed = asPlayerDraft(findProject(greenlit.projects, greenlit.focusedProjectId))!.committedStartDay;
+    expect(committed).toBeDefined();
+
+    // Whatever prep does to the real schedule, the promise the package locked
+    // around does not move - the gap between them is the pressure this phase
+    // exists to create, so it must stay measurable.
+    let after = greenlit;
+    for (let i = 0; i < 5; i++) after = studioReducer(after, { type: 'ADVANCE_PREPRODUCTION_DAY' });
+    expect(asPlayerDraft(findProject(after.projects, after.focusedProjectId))!.committedStartDay).toBe(committed);
   });
 
   // Deferred Start: inject an OTHER-project booking on one cast member of a
