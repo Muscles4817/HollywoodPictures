@@ -238,16 +238,6 @@ export type AssetStatus =
   | { status: 'used'; projectIds: string[] };
 
 /**
- * Derived purely from whether any Project currently references this Asset -
- * Asset itself carries no status flag, same "derive, don't duplicate"
- * discipline this file already uses for everything else (deriveProjectsView's
- * old job, playerReleasedFilms, etc.). "in-development" beats "used": a
- * second attempt from an asset that already produced one released film
- * still counts as in-development while it's active. "used" only shows once
- * nothing is currently active - the asset generated one or more films and
- * is free to try again.
- */
-/**
  * Can a development pass (Rewrite/Polish) still be commissioned against this
  * Asset? Only two things close the door:
  *
@@ -275,6 +265,16 @@ export function assetAcceptsDevelopmentPass(asset: Asset, projects: Project[]): 
     .every((p) => p.kind === 'player-in-progress' && p.draft.photography === null);
 }
 
+/**
+ * Derived purely from whether any Project currently references this Asset -
+ * Asset itself carries no status flag, same "derive, don't duplicate"
+ * discipline this file already uses for everything else (deriveProjectsView's
+ * old job, playerReleasedFilms, etc.). "in-development" beats "used": a
+ * second attempt from an asset that already produced one released film
+ * still counts as in-development while it's active. "used" only shows once
+ * nothing is currently active - the asset generated one or more films and
+ * is free to try again.
+ */
 export function deriveAssetStatus(asset: Asset, projects: Project[]): AssetStatus {
   const own = projects.filter((p) => assetIdOfProject(p) === asset.id);
   const active = own.find((p) => p.kind === 'player-in-progress' || p.kind === 'scheduled');

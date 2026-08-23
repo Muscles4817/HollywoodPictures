@@ -13,7 +13,7 @@ import type { GameAction } from '../state/gameState';
 import type { Asset, Genre, Person } from '../types';
 import './AssetLibrary.css';
 import { StarRating } from './common/StarRating';
-import { deriveBookedUntil, getWriterCareer, isPersonAvailableOnDay } from '../engine/person';
+import { deriveBookedUntil, getWriterCareer, isPersonAvailableForCommitment, isPersonAvailableOnDay } from '../engine/person';
 import { writerProfileFromPerson } from '../engine/writers';
 import { describeWriter, describeRewriteProjection, describeCommissionProjection } from '../engine/writerPresentation';
 import { estimateRewriteDuration, rewriteFee, type RewriteKind } from '../engine/rewrite';
@@ -180,12 +180,27 @@ function RewritePanel({ asset, writers, totalDays, cash, dispatch, onClose }: Re
   const [kind, setKind] = useState<RewriteKind>('polish');
   const [writerId, setWriterId] = useState<string>('');
 
+  // Offer only writers who could actually see the pass through - free for its
+  // whole WORST-CASE length, not merely free today. REWRITE_ASSET books them for
+  // the duration it rolls, so filtering on today alone offered writers whose
+  // commission then silently no-opped; and because bailing out leaves the seed
+  // untouched, retrying re-rolled the same overrun and failed identically. The
+  // reducer stays the authoritative guard - this just stops the UI promising
+  // something it cannot deliver.
   const available = useMemo(
     () =>
       writers
-        .filter((writer) => isPersonAvailableOnDay(writer, totalDays))
+        .filter((writer) => {
+          const worstCase = estimateRewriteDuration(writer.reputation.reliability, asset.script, kind).high;
+          return isPersonAvailableForCommitment(writer, {
+            projectId: asset.id,
+            role: 'Writer',
+            startDay: totalDays,
+            endDay: totalDays + worstCase,
+          });
+        })
         .sort((left, right) => (getWriterCareer(right)?.skill ?? 0) - (getWriterCareer(left)?.skill ?? 0)),
-    [writers, totalDays],
+    [writers, totalDays, kind, asset.id, asset.script],
   );
 
   const writer = available.find((candidate) => candidate.id === writerId) ?? null;

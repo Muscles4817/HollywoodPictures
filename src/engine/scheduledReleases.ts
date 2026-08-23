@@ -1,6 +1,6 @@
-import type { FilmDraft, Genre } from '../types';
+import type { FilmDraft, Genre, ProductionScale, ScriptScale } from '../types';
 import { computeProductionBudgetCost } from './cost';
-import { computePlayerReleaseStrength, type UpcomingRelease } from './releaseCrowding';
+import { computePlayerReleaseStrength, computeRivalReleaseStrength, type UpcomingRelease } from './releaseCrowding';
 
 export interface ScheduledRelease {
   draft: FilmDraft;
@@ -54,17 +54,50 @@ export function asUpcomingRelease(s: ScheduledRelease): UpcomingRelease {
  * decision rather than bookkeeping.
  */
 export function announcedAsUpcomingRelease(draft: FilmDraft, genreIdentity: number): UpcomingRelease | null {
-  if (draft.announcedReleaseDay === undefined || !draft.genre || !draft.targetAudience || !draft.productionChoices) return null;
+  if (draft.announcedReleaseDay === undefined || !draft.genre || !draft.targetAudience) return null;
   return {
     releaseDay: draft.announcedReleaseDay,
     genre: draft.genre,
     targetAudience: draft.targetAudience,
-    strength: computePlayerReleaseStrength(
-      draft.marketingChoices?.marketingSpend ?? 0,
-      computeProductionBudgetCost(draft.productionChoices),
-      genreIdentity,
-    ),
+    strength: announcedReleaseStrength(draft, genreIdentity),
   };
+}
+
+/**
+ * How strong an announced film looks to a rival reading the calendar.
+ *
+ * Deliberately tolerant of an unplanned project. A date is announced BEFORE
+ * greenlight - that is the whole point of the feature - and `productionChoices`
+ * is null until Production Planning, so requiring it made every announcement
+ * made in the window this exists for invisible to rivals. (It was: the tests
+ * missed it because their fixture draft is fully planned.)
+ *
+ * So the reading falls back to what is actually knowable at each stage:
+ *  - planned:   the real production budget, as a scheduled release is read.
+ *  - unplanned: the screenplay's own SCALE, which is what a trade announcement
+ *               conveys before a budget exists ("an epic", "a small drama").
+ *
+ * No marketing term either way until a campaign is actually committed - a
+ * studio that has merely named a date has not bought one, and rivals can only
+ * weigh what is visible.
+ */
+function announcedReleaseStrength(draft: FilmDraft, genreIdentity: number): number {
+  const marketingSpend = draft.marketingChoices?.marketingSpend ?? 0;
+  if (draft.productionChoices) {
+    return computePlayerReleaseStrength(marketingSpend, computeProductionBudgetCost(draft.productionChoices), genreIdentity);
+  }
+  return computeRivalReleaseStrength(marketingSpend, productionScaleForScript(draft.script), genreIdentity);
+}
+
+/** The nearest ProductionScale to a screenplay's own ambition - what an announcement conveys before a budget exists. */
+const SCRIPT_SCALE_AS_PRODUCTION: Record<ScriptScale, ProductionScale> = {
+  Intimate: 'Small',
+  Medium: 'Medium',
+  Epic: 'Big',
+};
+
+function productionScaleForScript(script: FilmDraft['script']): ProductionScale {
+  return script ? SCRIPT_SCALE_AS_PRODUCTION[script.scale] : 'Medium';
 }
 
 /**

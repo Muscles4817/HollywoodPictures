@@ -123,3 +123,41 @@ describe('an announcement actually deters', () => {
     expect(counterprogrammed).toBe(strong);
   });
 });
+
+describe('an announcement made before the project is planned', () => {
+  it('is still visible to rivals - the window the feature exists for', () => {
+    // Regression: announcedAsUpcomingRelease used to bail on a null
+    // productionChoices, which is null until Production Planning. Every
+    // announcement made pre-greenlight - the whole point of announcing - was
+    // therefore invisible on rivals' calendars. The original tests missed it
+    // because buildStateWithReadyDraft is a fully-planned draft.
+    const base = buildStateWithReadyDraft(6);
+    const focusedDraft = focused(base);
+    const unplanned: GameState = {
+      ...base,
+      projects: base.projects.map((p) =>
+        p.kind === 'player-in-progress' && p.draft.id === focusedDraft.id
+          ? { ...p, draft: { ...p.draft, productionChoices: null, marketingChoices: null, greenlitOnDay: null } }
+          : p,
+      ),
+    };
+    const day = unplanned.totalDays + 300;
+    const announced = studioReducer(unplanned, { type: 'ANNOUNCE_RELEASE_DATE', releaseDay: day });
+
+    const presence = playerCalendarPresence([], announcedPlayerDrafts(announced.projects), () => 0);
+    expect(presence).toHaveLength(1);
+    expect(presence[0].releaseDay).toBe(day);
+    expect(presence[0].strength).toBeGreaterThan(0);
+  });
+
+  it('reads an epic as a stronger claim than an intimate one, before any budget exists', () => {
+    // With no production budget to read, the screenplay's own scale is what a
+    // trade announcement conveys.
+    const base = buildStateWithReadyDraft(7);
+    const draft = focused(base);
+    const unplanned = { ...draft, productionChoices: null, marketingChoices: null, announcedReleaseDay: base.totalDays + 200 };
+    const epic = announcedAsUpcomingRelease({ ...unplanned, script: { ...draft.script!, scale: 'Epic' } }, 0)!;
+    const intimate = announcedAsUpcomingRelease({ ...unplanned, script: { ...draft.script!, scale: 'Intimate' } }, 0)!;
+    expect(epic.strength).toBeGreaterThan(intimate.strength);
+  });
+});

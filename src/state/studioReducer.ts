@@ -3,7 +3,7 @@ import { type GameAction, type GameState, createDraftFromAsset, createInitialStu
 import { randomSeed, withRng, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
 import { ALL_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
-import { professionForProductionRole, findAssignedPerson } from '../data/helpers';
+import { professionForProductionRole, findAssignedPerson, filterAssignedPeople } from '../data/helpers';
 import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequirements';
 import { splitCastBudgetByImportance } from '../engine/castBudget';
 import { appendStaffingEvent } from './staffingBoard';
@@ -11,7 +11,7 @@ import { personMeetsCharacterGender, personMeetsCharacterAge, personCastingAge }
 import { applyPrepRiskDelta, beginPhotographyFromPrep, computePrepRiskDelta, computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeShootEscalation, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, rollPreProductionDayEvent, resolveEventChoice } from '../engine/production';
 import { computeExecutionResilience } from '../engine/productionExecution';
 import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
-import { reshootSurcharge } from '../engine/reshootAvailability';
+import { RESHOOT_REQUIREMENTS, reshootSurcharge } from '../engine/reshootAvailability';
 import { promoteFilmToIp, ipForSourceFilm, recordFranchiseEntries } from '../engine/intellectualProperty';
 import { generateSequelScript } from '../engine/scriptGenerator';
 import { SEQUEL_DEVELOPMENT_SETUP_DAYS, makePendingSequelDevelopment, settlePendingSequelDevelopments } from '../engine/sequelDevelopment';
@@ -2689,9 +2689,36 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       const totalCost = rolled.costDelta + buyOutCost;
       if (state.studio.cash < totalCost) return state;
 
+      // Additional photography OCCUPIES the principals it recalls. Without this
+      // they were charged for and then left free in the pool, so a rival could
+      // book them the following day while they were supposedly on this film's
+      // set. Booked for the option's own filming window, on this project.
+      const recall = RESHOOT_REQUIREMENTS[action.choiceId];
+      let poolAfterRecall = state.talentPool;
+      if (recall) {
+        for (const role of recall.roles) {
+          const profession = professionForProductionRole(role);
+          const ids = new Set(filterAssignedPeople(target.talent, role).map((p) => p.id));
+          poolAfterRecall = {
+            ...poolAfterRecall,
+            [profession]: poolAfterRecall[profession].map((person) =>
+              ids.has(person.id)
+                ? withCommitment(person, {
+                    projectId: target.id,
+                    role,
+                    startDay: state.totalDays,
+                    endDay: state.totalDays + recall.filmingDays,
+                  })
+                : person,
+            ),
+          };
+        }
+      }
+
       return {
         ...state,
         rngSeed: nextSeed,
+        talentPool: poolAfterRecall,
         studio: recordCashChange(
           state.studio,
           state.totalDays,

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { withRng } from './random';
 import { buildReadyDraft } from '../state/testFixtures';
 import { generateTalentPool } from './talentGenerator';
-import { describeReshootBlockers, reshootAvailability, reshootChoiceConstraints, reshootSurcharge } from './reshootAvailability';
+import { RESHOOT_REQUIREMENTS, describeReshootBlockers, reshootAvailability, reshootChoiceConstraints, reshootSurcharge } from './reshootAvailability';
 import type { FilmDraft, Person, ProductionRole, TalentProfession } from '../types';
 import { professionForProductionRole } from '../data/helpers';
 
@@ -181,5 +181,30 @@ describe('reshootAvailability', () => {
     const reshoots = reshootAvailability(draft, pool, TODAY, 'major-reshoots')!;
     expect(reshoots.available).toBe(false);
     expect(reshoots.blockers[0].role).toBe('Director');
+  });
+});
+
+describe('a recalled principal is occupied by the reshoot', () => {
+  it('books the required roles for the filming window', () => {
+    // Review finding: the recall was charged for and then the principals were
+    // left free in the pool, so a rival could book them the next day while they
+    // were supposedly on this film's set.
+    const { draft, talentPool } = setup();
+    const pool = poolWithCast(draft, talentPool);
+    expect(reshootAvailability(draft, pool, TODAY, 'pickups')!.available).toBe(true);
+
+    // Simulate the reducer's own booking, then re-read.
+    const filmingDays = RESHOOT_REQUIREMENTS.pickups.filmingDays;
+    const occupied = {
+      ...pool,
+      Actor: pool.Actor.map((p) =>
+        draft.talent.some((a) => a.role === 'Lead Actor' && a.person.id === p.id)
+          ? { ...p, availability: { commitments: [{ projectId: 'another-film', role: 'Lead Actor' as const, startDay: TODAY, endDay: TODAY + filmingDays }] } }
+          : p,
+      ),
+    };
+    // Someone genuinely on a set cannot also be on another - which is the state
+    // the reducer now puts them in, rather than leaving them advertised as free.
+    expect(reshootAvailability(draft, occupied, TODAY, 'pickups')!.available).toBe(false);
   });
 });

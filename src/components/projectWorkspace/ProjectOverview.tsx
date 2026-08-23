@@ -21,7 +21,7 @@ import { announcedAsUpcomingRelease, asUpcomingRelease } from '../../engine/sche
 import { announcedPlayerDrafts, rivalProductionsInProgress, scheduledPlayerReleases } from '../../engine/project';
 import { rivalAsUpcomingRelease } from '../../engine/rivalStudios';
 import { genreIdentityFor } from '../../engine/studioIdentity';
-import { formatGameMonthYear, monthYearOf, totalDaysForMonth } from '../../engine/calendar';
+import { formatGameDateWithMonth, formatGameMonthYear, monthYearOf, totalDaysForMonth } from '../../engine/calendar';
 import type { ProjectWorkspaceSection } from '../../types';
 
 const AUDIENCE_DESCRIPTIONS = pluckDescriptions(AUDIENCE_PROFILES);
@@ -80,10 +80,21 @@ function ReleaseAnnouncementCard() {
     [state.projects, state.studio.genreIdentity, draft.id],
   );
 
-  const ownStrength = useMemo(
-    () => (draft.genre ? announcedAsUpcomingRelease(draft, genreIdentityFor(state.studio.genreIdentity, draft.genre))?.strength : undefined),
-    [draft, state.studio.genreIdentity],
-  );
+  // This film's own strength in the matchup. It must never be undefined: that
+  // falls back to matchupWeight's candidate-blind weight of 1, while settlement
+  // uses the real matchup - and since a weak film feels MORE than neutral
+  // crowding, the grid would read "Some competition" for a day that settles as
+  // "Crowded". Reading it off the same announced-release conversion rivals see
+  // keeps the card and the settlement in step, including before the project is
+  // planned (see announcedReleaseStrength).
+  const ownStrength = useMemo(() => {
+    if (!draft.genre) return undefined;
+    const identity = genreIdentityFor(state.studio.genreIdentity, draft.genre);
+    // Read against a placeholder day so a project that has not announced yet
+    // still gets a strength - the reading is independent of the day.
+    const asUpcoming = announcedAsUpcomingRelease({ ...draft, announcedReleaseDay: draft.announcedReleaseDay ?? 1 }, identity);
+    return asUpcoming?.strength;
+  }, [draft, state.studio.genreIdentity]);
 
   // A year of months from next month on - a claim on a past or current month is
   // not a claim anyone can believe.
@@ -110,6 +121,15 @@ function ReleaseAnnouncementCard() {
         against you — but it puts the date where they can see it, and the stronger your picture looks,
         the more likely they are to move.
       </p>
+
+      {draft.committedStartDay !== undefined && (
+        <p style={{ margin: 0, fontSize: '0.85em' }}>
+          Photography committed to begin <strong>{formatGameDateWithMonth(draft.committedStartDay)}</strong>
+          {announced !== undefined && (
+            <> — <strong>{Math.max(0, announced - draft.committedStartDay)}</strong> days between the camera rolling and the date you have claimed.</>
+          )}
+        </p>
+      )}
 
       {announced !== undefined ? (
         <div className="row-between">
