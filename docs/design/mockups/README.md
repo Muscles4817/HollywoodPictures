@@ -12,13 +12,30 @@ link.
 |---|---|---|---|
 | 01 | **Paper document.** Warm bond stock under a lamp on a dark desk. Printed form / typed content split (Archivo + Courier Prime). Above-the-line / below-the-line columns. Drawer slides up. | `take-01-production-sheet.html` | https://claude.ai/code/artifact/46ef77f7-9ce4-43e4-b525-ceb3c3e4983b |
 | 02 | **Studio terminal.** Amber-phosphor CRT, full-bleed, F-key rail, scanlines. Marquee neon (cyan/magenta) used strictly as slot state coding. IBM Plex Mono + Plex Sans Condensed. TUI overlay window. | `take-02-studio-terminal.html` | https://claude.ai/code/artifact/410cf7cb-fb65-4f12-987b-2eb43bd85a88 |
-| **09** | **THE CHASSIS.** The *frame*, not the screen. Time as the spine (clock, transport, and an attention queue where a time-critical item physically guards Play); studio destinations and the film slate as two separate registers; a working command palette on Ctrl-K. Take 08's tokens, unchanged. | `take-09-chassis.html` | https://claude.ai/code/artifact/5c091ba3-7591-4ed2-b2e9-1e680bb7dbcd |
+| **09** | **THE CHASSIS.** The *frame*, not the screen. Time as the spine (clock, transport, and an attention queue where a time-critical item physically guards Play); studio destinations and the film slate as two separate registers; a working command palette on Ctrl-K. Carries a full project page: readiness meter, per-person notes, side panels and the stamp. Take 08's tokens, unchanged. | `take-09-chassis.html` | https://claude.ai/code/artifact/5c091ba3-7591-4ed2-b2e9-1e680bb7dbcd |
 | **08** | **THE HYBRID.** Take 07's system carrying the best move from each earlier take: 01's printed-form/typed-content type split and warm palette, 02's colour-coded state and edge nav, 03's "what does this block", 04's voice rationed to one line, 05's deadline on an absence, and 06 as a **toggleable lens** rather than its own screen. Anybody + Schibsted Grotesk + Courier Prime. | `take-08-hybrid.html` | https://claude.ai/code/artifact/d97b8a4e-1f24-47dd-b904-7c41b6f2d65c |
 | 07 | **Systematic (the control).** No metaphor at all — the era carried by typeface, palette, density and rule weight rather than by imitating an object. Anybody + Schibsted Grotesk. KPI row, validated readiness meter, state pills, persistent rail, side panels. The only take with light **and** dark themes. | `take-07-systematic.html` | https://claude.ai/code/artifact/3be4c2b1-580c-49d0-9dc7-44bd7ad564c6 |
 | 06 | **Packaging board.** The package as a *relationship web*: index cards pinned to cork, joined by thread — green for fit or proven history, red for friction, dashed blue for untested. Chivo + Special Elite. Hovering a card isolates its threads; a tension report reads the web in words. | `take-06-packaging-board.html` | https://claude.ai/code/artifact/3d0b845f-60b2-475a-acf5-0e6d5ddb4c06 |
 | 05 | **One-sheet proof.** The package as the film's own poster billing block, on a marked-up advertising proof: black teaser artwork on light mount board, chrome title, red hand-written proof notes in the margin. Big Shoulders Display + Saira Extra Condensed + Caveat. The only take where DESK and SPECTACLE occupy one object. | `take-05-one-sheet-proof.html` | https://claude.ai/code/artifact/5845b912-c3ed-4693-93a2-43c05e76e766 |
 | 04 | **Trade paper.** A 1987 front page: Bodoni nameplate, spot red, justified two-column newsprint with a drop cap, and the production record carried as the paper's own *production chart*. Bodoni Moda + Fira Sans Condensed + Libre Baskerville. Gives the game a narrating voice. | `take-04-trade-paper.html` | https://claude.ai/code/artifact/1988435c-555c-4ce2-a678-df5f13584749 |
 | 03 | **Strip board.** The real production-scheduling artifact: steel frame, vertical card strips in the industry colour convention, numbered cast key, black day breaks. Barlow Condensed + Bitter. Adds the schedule to the record, so an uncast role visibly blocks strips. | `take-03-strip-board.html` | https://claude.ai/code/artifact/18fd30f6-7430-41cc-9323-b0c10855551e |
+
+## Verdicts so far
+
+Recorded from review of takes 08 and 09.
+
+**Keep** — the Package Readiness meter (reads distance-to-done at a glance);
+take 08's right-hand side panels (better use of horizontal space, more
+informative than a bare roster); per-person notes on each roster row; take 01's
+rubber stamp. The chassis itself: time spine, two axes, command palette.
+
+**Fixed in 09** — the first cut of the chassis stripped the page down to show the
+frame and in doing so wasted horizontal space and dropped the sidebar, the
+notes and the meter. All three are back, the content grid now runs
+`minmax(0,1fr) 320px` inside a 1560px wrap, and each of the three slate projects
+carries its own meter, panels, verdict and stamp.
+
+**Still open** — per-page details beyond the project screen.
 
 ## The chassis (take 09)
 
