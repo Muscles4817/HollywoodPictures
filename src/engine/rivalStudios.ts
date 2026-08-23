@@ -427,8 +427,13 @@ function seasonalDesirability(day: number, genre: Genre): number {
  * has always been. `candidateStrength` (pre-release, engine/releaseCrowding.ts:
  * computeRivalReleaseStrength) is what makes a strong film willing to sit in a
  * crowded prime window and a weak one flee it - see the block comment above.
+ *
+ * Exported for tests: the crowding-nudge property belongs to THIS function, and
+ * asserting it through two full market settlements is unsound - adding a player
+ * release perturbs the whole rival rng stream, so the "same seed, one variable"
+ * premise such a test needs does not actually hold.
  */
-function chooseReleaseDay(
+export function chooseReleaseDay(
   naiveDay: number,
   candidate: Omit<UpcomingRelease, 'strength' | 'releaseDay'>,
   known: UpcomingRelease[],

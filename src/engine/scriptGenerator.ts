@@ -30,7 +30,7 @@ import { STORY_TYPES, STORY_TYPE_PROFILES, type StoryTypeProfile } from '../data
 import { SETTING_ARCHETYPES, SETTING_ARCHETYPE_PROFILES, type SettingProfile } from '../data/settings';
 import { CHARACTER_ARCHETYPES, CHARACTER_ARCHETYPE_PROFILES } from '../data/characterArchetypes';
 import { SCRIPT_SCALES, SCRIPT_SCALE_PROFILES, type ScriptScaleProfile } from '../data/scale';
-import { TALENT_FIRST_NAMES, TALENT_LAST_NAMES } from '../data/talentNames';
+import { generateFullName } from './nameGenerator';
 import { generatePremise } from './premiseGenerator';
 import { type RandomFn, clamp, combineWeights, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick } from './random';
 
@@ -353,7 +353,7 @@ function generateCharacter(id: string, prominence: CharacterProminence, genre: G
     characterArchetypeWeightsForProminence(prominence),
   ]);
   const archetype = weightedPick(rng, CHARACTER_ARCHETYPES, weights);
-  const name = `${pick(rng, TALENT_FIRST_NAMES)} ${pick(rng, TALENT_LAST_NAMES)}`;
+  const name = generateFullName(rng).name;
   return {
     id,
     name,

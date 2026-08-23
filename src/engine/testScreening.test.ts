@@ -37,7 +37,16 @@ describe('generateTestScreeningPendingChoice', () => {
   });
 
   it('Major Reshoots costs and can delay more than Pickups, which costs and can delay more than Re-edit', () => {
-    const draft = draftWithEditor(5, 50);
+    // The shooting budget is pinned rather than taken from the seeded fixture.
+    // Re-edit is a FLAT 150k-350k while Pickups/Reshoots scale off the film's
+    // own shoot-day burn (engine/testScreening.ts:reshootCostRange), so this
+    // cost ordering only holds above a budget threshold - on a small enough
+    // film the "cheap option" is genuinely the dearest. That interaction is a
+    // real balance question; this test is about the ordering for a normal
+    // studio picture, so it should state its own premise instead of inheriting
+    // it from an rng stream.
+    const base = draftWithEditor(5, 50);
+    const draft = { ...base, productionChoices: { ...base.productionChoices!, shootingBudgetAmount: 20_000_000 } };
     const pending = withRng(6, (rng) => generateTestScreeningPendingChoice(draft, rng)).result;
     const reEdit = pending.choices.find((c) => c.id === 're-edit')!;
     const pickups = pending.choices.find((c) => c.id === 'pickups')!;

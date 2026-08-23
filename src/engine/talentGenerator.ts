@@ -24,7 +24,7 @@ import {
 } from '../data/producers';
 import { HANDCRAFTED_TALENTS_BY_ROLE } from '../data/handcraftedTalents';
 import { MARQUEE_PERSONALITIES } from '../data/marqueePersonalities';
-import { TALENT_FIRST_NAMES, TALENT_LAST_NAMES } from '../data/talentNames';
+import { generateFullName, nameOriginWeightsForRole } from './nameGenerator';
 import { TONES } from '../data/tones';
 import { ACTING_STYLE_AXES } from '../data/actingStyle';
 import { CREW_CAREER_KEY } from './person';
@@ -35,8 +35,14 @@ import { clamp, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPi
 
 let nextTalentId = 1;
 
-function randomName(rng: RandomFn): string {
-  return `${pick(rng, TALENT_FIRST_NAMES)} ${pick(rng, TALENT_LAST_NAMES)}`;
+/**
+ * A coherent name for a person in this role, plus the nationality it implies
+ * (engine/nameGenerator.ts). The origin mix is per-role because the real
+ * industry's is: the further from the camera, the less Anglo the name reads -
+ * see data/talentNames.ts for the survey the weights are anchored to.
+ */
+function randomName(rng: RandomFn, role?: TalentProfession) {
+  return generateFullName(rng, nameOriginWeightsForRole(role));
 }
 
 const GENDERS: readonly Gender[] = ['Male', 'Female', 'NonBinary'];
@@ -390,14 +396,15 @@ function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Perso
   // per-person seed are available to buildPersonality below. buildPersonality is
   // a pure HASH derivation that consumes no rng, so the generation stream stays
   // byte-identical - the sharp edge from docs/DESIGN_REVIEW_acting_model.md §15.
-  const name = randomName(rng);
+  const drawnName = randomName(rng, role);
+  const name = drawnName.name;
   const gender = generateGender(rng);
   const dateOfBirth = generateDateOfBirth(rng);
   const personalitySeed = `${role}:${fame}:${reliability}:${ego}:${salary}:${dateOfBirth.year}.${dateOfBirth.month}.${dateOfBirth.day}`;
 
   return {
     id: `talent-${nextTalentId++}`,
-    identity: { name, gender, dateOfBirth, appearanceTags: [] },
+    identity: { name, gender, dateOfBirth, nationality: drawnName.nationality, appearanceTags: [] },
     // The six formerly-flat axes now cohere into a real archetype (see
     // engine/personality.ts) so engine/personTraits.ts can actually fire;
     // professionalism (= reliability) and ego are carried through unchanged.
@@ -530,14 +537,15 @@ function generateProducer(rng: RandomFn, t: number): Person {
 
   // Hoisted for the same reason as generateTalent: a stable seed + age for the
   // no-rng archetype derivation, draw order unchanged.
-  const name = randomName(rng);
+  const drawnName = randomName(rng);
+  const name = drawnName.name;
   const gender = generateGender(rng);
   const dateOfBirth = generateDateOfBirth(rng);
   const personalitySeed = `Producer:${fame}:${reliability}:${ego}:${salary}:${dateOfBirth.year}.${dateOfBirth.month}.${dateOfBirth.day}`;
 
   return {
     id: `producer-${nextTalentId++}`,
-    identity: { name, gender, dateOfBirth, appearanceTags: [] },
+    identity: { name, gender, dateOfBirth, nationality: drawnName.nationality, appearanceTags: [] },
     personality: buildPersonality(
       {
         professionalism: reliability,

@@ -37,9 +37,12 @@ describe('source generation profiles', () => {
     // The point of a spec: something is special but it's too rough around the
     // edges. Uneven execution is what "rough around the edges" means mechanically -
     // and it's the per-axis executionSpread, not a flat shift, that produces it.
-    const specLike = generateScriptOptions('Drama', createRng(7), 150, undefined, SPEC);
-    const agentLike = generateScriptOptions('Drama', createRng(7), 150, undefined, AGENT);
-    expect(avg(specLike.map(execSpread))).toBeGreaterThan(avg(agentLike.map(execSpread)) + 10);
+    // 400 samples and a margin of 8, not 150 and 10: the true gap is ~10.4 and
+    // stable to ±0.5 at this sample size, but at 150 it swings by ±3, so the
+    // old threshold sat exactly on the mean and depended on a lucky rng stream.
+    const specLike = generateScriptOptions('Drama', createRng(7), 400, undefined, SPEC);
+    const agentLike = generateScriptOptions('Drama', createRng(7), 400, undefined, AGENT);
+    expect(avg(specLike.map(execSpread))).toBeGreaterThan(avg(agentLike.map(execSpread)) + 8);
   });
 
   it('the neutral profile leaves generated stats identical to no profile at all', () => {

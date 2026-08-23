@@ -85,7 +85,11 @@ describe('reckless production is genuinely dangerous', () => {
     const perfHit = computeExecutionProfile({ events: [ev(-16, 'performances')], shootingRatio: 1, talent: withReliability(talent(), 20), productionChoices: choices });
     expect(perfHit.performanceCapture).toBeLessThan(0.85);
     expect(perfHit.postExecution).toBe(1); // untouched - typed routing
-    const drop = quality([]) - quality(CATASTROPHIC, { talent: withReliability(talent(), 20) });
+    // Script craft is pinned rather than taken from the seeded fixture, the
+    // same way test (8) below pins it: this is measuring how much a catastrophic
+    // SHOOT sheds, so it should not also be hostage to whatever script the
+    // fixture's rng stream happened to produce.
+    const drop = quality([], { scriptCraft: 70 }) - quality(CATASTROPHIC, { scriptCraft: 70, talent: withReliability(talent(), 20) });
     expect(drop).toBeGreaterThan(10); // a catastrophic shoot sheds real quality
   });
 
