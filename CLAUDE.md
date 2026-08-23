@@ -6,6 +6,12 @@ state/reducer in `src/state/`, UI in `src/components/`. See `README.md` and
 `docs/DESIGN.md` for the full picture, and `docs/SIMULATION_PHILOSOPHY.md` for
 the design principles the simulation is being grown toward.
 
+`docs/domain/` is a separate, standing reference on **how the real film
+industry works** — the pipeline, the crafts, the money, the careers. It
+deliberately says nothing about this game (except `15-game-mapping.md`, which
+maps the two). Read it instead of re-researching filmmaking each session; do
+not put game-design arguments in it.
+
 ## Product stage: PRE-LAUNCH — save compatibility is out of scope
 
 This game is **pre-launch**. There is a single playtester who restarts for each
