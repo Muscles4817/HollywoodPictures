@@ -1,4 +1,5 @@
 import type {
+  TalentDatabase,
   Asset,
   AwardsState,
   BidNotification,
@@ -62,6 +63,16 @@ export interface GameState {
   rivalStudios: RivalStudio[];
   /** The whole hireable roster, generated once at game start - world-level (shared by the player and every rival's own casting, see engine/rivalStudios.ts) rather than nested inside the player's own Studio. */
   talentPool: Record<TalentProfession, Person[]>;
+  /**
+   * Which roster `talentPool` was built from (data/talentDatabases.ts). Stored
+   * as the id rather than the database itself: the people are already in
+   * `talentPool`, so this is provenance, not a second copy of the roster.
+   *
+   * Absent on saves from before databases existed; read through
+   * talentDatabaseOrDefault, which degrades to the generated roster rather than
+   * guessing at a real-people one.
+   */
+  talentDatabaseId?: string;
   /**
    * The hireable Producer roster (docs/DESIGN_REVIEW_production_office.md) -
    * kept separate from `talentPool` (which is profession-keyed and feeds
@@ -485,7 +496,13 @@ export type GameAction =
   | { type: 'VIEW_PREMIERE'; filmId: string }
   | { type: 'RETURN_TO_DASHBOARD' }
   | { type: 'RENAME_STUDIO'; name: string }
-  | { type: 'RESET_SAVE'; startingCash: number; brand?: number; prestige?: number }
+  /**
+   * `talentDatabase` carries the resolved roster rather than an id, because an
+   * id could not name a database the player just imported from a file
+   * (engine/talentDatabaseFile.ts) - the reducer is pure and cannot look one
+   * up. GameState keeps the id afterwards as provenance.
+   */
+  | { type: 'RESET_SAVE'; startingCash: number; brand?: number; prestige?: number; talentDatabase?: TalentDatabase }
   | { type: 'VIEW_RIVAL_STUDIO'; studioName: string }
   // Dashboard's Shooting card -> "view" a specific backgrounded production
   // on the 'production' screen without disturbing the focused one (which is

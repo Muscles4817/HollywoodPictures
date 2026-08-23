@@ -333,11 +333,19 @@ Hard boundaries. These are not stylistic preferences.
 - **The Walk of Fame star** — the specific star configuration and the name are also
   Chamber trademarks. **Do not reproduce.** A generic brass five-pointed star motif
   is fine; the Walk of Fame star is not.
-- **Real people.** The current `src/data/handcraftedTalents.ts` roster of 1,487 named
-  real public figures is a commercial blocker (right of publicity) and must be
-  replaced with generated fictional talent before the game is sold. Tracked
-  separately from this document, but it constrains any portrait or headshot work —
-  do not build art around real identities.
+- **Real people.** `src/data/handcraftedTalents.ts` names ~1,500 real, mostly
+  living public figures and assigns them invented personality values — a
+  publicity-rights problem for a game that is sold.
+
+  **Resolved structurally rather than by deletion.** The roster a game draws from
+  is now selectable (`types/index.ts:TalentDatabase`,
+  `data/talentDatabases.ts`). The shipped default generates everybody; the
+  real-world roster is one database among others, reachable only by explicit
+  choice, flagged `containsRealPeople`, and never used as a fallback. The
+  remaining work is quality of the generated roster, not removal of the real one.
+
+  It still constrains portrait and headshot work: do not build art around real
+  identities.
 - **Fonts.** Desktop and web licences do not cover embedding in a distributed game
   binary. Every face must be licensed for commercial software distribution, in the
   studio's name, in writing. Google Fonts sidesteps this entirely.
@@ -391,3 +399,4 @@ Stated as flatly as `SIMULATION_PHILOSOPHY.md` states its own.
 | 2026-08-22 | Cost tiering adopted; Tier 3 rejected by default. |
 | 2026-08-22 | Hollywood Sign and Walk of Fame star ruled out on trademark grounds. |
 | 2026-08-22 | Assembly/execution split (§8): assembly becomes one sheet, execution stays a chronology. |
+| 2026-08-23 | §10's real-people blocker resolved structurally: the roster is selectable, the default generates everybody, and a real-people roster can only be reached by explicit choice. |
