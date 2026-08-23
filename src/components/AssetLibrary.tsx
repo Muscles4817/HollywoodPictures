@@ -16,7 +16,7 @@ import { StarRating } from './common/StarRating';
 import { deriveBookedUntil, getWriterCareer, isPersonAvailableOnDay } from '../engine/person';
 import { writerProfileFromPerson } from '../engine/writers';
 import { describeWriter, describeRewriteProjection, describeCommissionProjection } from '../engine/writerPresentation';
-import { rewriteDurationDays, rewriteFee, type RewriteKind } from '../engine/rewrite';
+import { estimateRewriteDuration, rewriteFee, type RewriteKind } from '../engine/rewrite';
 import { commissionDurationBounds, commissionFee, commissionProgress, commissionedOnDay, isRecentlyCommissioned } from '../engine/commission';
 import { canComfortablyAfford } from '../engine/affordability';
 import { GENRES } from '../data/genres';
@@ -192,7 +192,11 @@ function RewritePanel({ asset, writers, totalDays, cash, dispatch, onClose }: Re
   const career = writer ? getWriterCareer(writer) : null;
   const profile = writer ? writerProfileFromPerson(writer) : null;
   const fee = career ? rewriteFee(career.typicalSalary, kind) : 0;
-  const days = rewriteDurationDays(kind, asset.script);
+  // A range, not a number - and one that widens with the writer's own
+  // unreliability, so "who" is part of "how long" (section 4.4 of
+  // docs/DESIGN_REVIEW_project_clocks_and_script_openness.md). Before a writer is
+  // picked, show the scheduled length alone rather than a fake range.
+  const estimate = writer ? estimateRewriteDuration(writer.reputation.reliability, asset.script, kind) : null;
   const description = writer ? describeWriter(writer) : null;
   const projection = profile ? describeRewriteProjection(profile, asset.script, kind) : null;
   const canCommission = writer !== null && cash >= fee;
@@ -240,8 +244,18 @@ function RewritePanel({ asset, writers, totalDays, cash, dispatch, onClose }: Re
       </div>
       <div className="row-between" style={{ fontSize: '0.85em' }}>
         <span className="stat-label">Time</span>
-        <strong>~{days} days</strong>
+        <strong>{estimate ? `${estimate.low}–${estimate.high} days` : 'Choose a writer'}</strong>
       </div>
+      {estimate && (
+        <ul className="stack" style={{ gap: 2, margin: 0, paddingLeft: 16, fontSize: '0.8em', color: 'var(--text-muted)' }}>
+          {estimate.factors.map((factor) => (
+            <li key={factor.label}>
+              {factor.label}
+              {factor.days > 0 && factor.label !== 'Scheduled pass' ? ` — up to +${factor.days} days` : ` — ${factor.days} days`}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="row" style={{ gap: 8 }}>
         <Button

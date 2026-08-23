@@ -21,7 +21,7 @@ import { computeActorAppeal } from '../engine/castingAppeal';
 import { computeAskingPrice, resolveNegotiation } from '../engine/castingNegotiation';
 import { auditionDurationDays } from '../engine/talentCardPresentation';
 import { writerProfileFromPerson } from '../engine/writers';
-import { computeRewriteOutcome, draftAtAssetHead, makePendingRewrite, rewriteDurationDays, rewriteFee, settleAssetRewrites } from '../engine/rewrite';
+import { computeRewriteOutcome, draftAtAssetHead, estimateRewriteDuration, makePendingRewrite, resolveRewriteDuration, rewriteFee, settleAssetRewrites } from '../engine/rewrite';
 import { commissionDurationDays, commissionFee, generateCommissionedScript, makePendingCommission, settlePendingCommissions } from '../engine/commission';
 import { generateCreativeDemands, resolveDemandQualityDelta, acceptedDemandQualityDelta, directorWouldWalk } from '../engine/creativeDemands';
 import { openDirectorPitches, tickDirectorPitches } from '../engine/directorPitches';
@@ -1161,13 +1161,28 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       const career = writer ? getWriterCareer(writer) : null;
       if (!writer || !profile || !career) return state;
 
-      const readyOnDay = state.totalDays + rewriteDurationDays(action.kind, asset.script);
+      // Both rolls happen here, once, and are stored: the craft outcome as
+      // before, and now how long the pass ACTUALLY takes. Development time used
+      // to be exactly knowable, which is most of why waiting was free - you
+      // could time a pass to the day and slot it between commitments. The
+      // player sees the range (estimateRewriteDuration) before choosing; this
+      // resolves it with its named causes, and reloading cannot re-roll it.
+      // Bailing out below leaves state - and so the seed - untouched, so a
+      // retry resolves identically.
+      const { result: rolled, nextSeed } = withRng(state.rngSeed, (rng) => ({
+        craftChanges: computeRewriteOutcome(profile, asset.script, action.kind, rng),
+        duration: resolveRewriteDuration(writer.reputation.reliability, writer.identity.name, asset.script, action.kind, rng),
+      }));
+      const { craftChanges } = rolled;
+
+      // The writer is booked for the pass's real length, not its scheduled one -
+      // an overrunning pass holds them (and the studio's plans) longer.
+      const readyOnDay = state.totalDays + rolled.duration.days;
       const commitment = { projectId: asset.id, role: 'Writer' as const, startDay: state.totalDays, endDay: readyOnDay };
       if (!isPersonAvailableForCommitment(writer, commitment)) return state;
       const fee = rewriteFee(career.typicalSalary, action.kind);
       if (state.studio.cash < fee) return state;
-
-      const { result: craftChanges, nextSeed } = withRng(state.rngSeed, (rng) => computeRewriteOutcome(profile, asset.script, action.kind, rng));
+      const estimate = estimateRewriteDuration(writer.reputation.reliability, asset.script, action.kind);
       const commissionedEvent: DevelopmentEvent = {
         day: state.totalDays,
         kind: action.kind,
@@ -1176,7 +1191,12 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       };
       const updatedAsset: Asset = {
         ...asset,
-        pendingRewrite: makePendingRewrite(writer.id, action.kind, state.totalDays, readyOnDay, craftChanges, fee),
+        pendingRewrite: makePendingRewrite(writer.id, action.kind, state.totalDays, readyOnDay, craftChanges, fee, {
+          // Just the range - the factor breakdown is a presentation concern,
+          // recomputed on demand rather than stored (Principle 8).
+          estimatedDays: { low: estimate.low, high: estimate.high },
+          summary: rolled.duration.summary,
+        }),
         developmentHistory: [...(asset.developmentHistory ?? []), commissionedEvent],
       };
       return {

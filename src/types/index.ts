@@ -2104,6 +2104,21 @@ export interface PendingRewrite {
   craftChanges: Partial<ScriptCraft>;
   /** The fee already charged at commission - recorded for the completion development-log entry, not re-charged. */
   fee: Money;
+  /**
+   * The range the player was shown when they committed
+   * (engine/rewrite.ts:estimateRewriteDuration). Kept so the completion log can
+   * set what was promised against what happened, and so a pass in flight can
+   * still be reasoned about. Absent on a pass commissioned before estimates
+   * existed - display reads it defensively.
+   */
+  estimatedDays?: { low: GameDay; high: GameDay };
+  /**
+   * Why the pass landed on `readyOnDay` - the named causes of any overrun,
+   * resolved once at commission (engine/rewrite.ts:resolveRewriteDuration) and
+   * recorded so an overrun is never an invisible dice roll. Reads "delivered on
+   * schedule" when nothing went long.
+   */
+  durationSummary?: string;
 }
 
 // A rival studio's overall scale - governs both how big the films it makes

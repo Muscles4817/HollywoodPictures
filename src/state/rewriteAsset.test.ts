@@ -91,6 +91,30 @@ describe('REWRITE_ASSET', () => {
     expect(attempt).toBe(state);
   });
 
+  // Section 4.2: the duration is resolved once, at commission, and stored with
+  // its cause - so it survives a reload and an overrun is never invisible.
+  it('stores the resolved duration, its estimate, and why it landed there', () => {
+    const { state, asset } = stateWithAvailableAsset(7);
+    const writer = state.talentPool.Writer[0];
+    const after = studioReducer(state, { type: 'REWRITE_ASSET', assetId: asset.id, kind: 'rewrite', writerId: writer.id });
+    const pending = after.studio.assets.find((a) => a.id === asset.id)!.pendingRewrite!;
+
+    const actualDays = pending.readyOnDay - state.totalDays;
+    expect(pending.estimatedDays).toBeDefined();
+    expect(actualDays).toBeGreaterThanOrEqual(pending.estimatedDays!.low);
+    expect(actualDays).toBeLessThanOrEqual(pending.estimatedDays!.high);
+    expect(pending.durationSummary).toBeTruthy();
+
+    // The writer is held for the pass's REAL length, so an overrun holds up
+    // whatever else the studio wanted them for.
+    const booked = after.talentPool.Writer.find((w) => w.id === writer.id)!;
+    expect(booked.availability.commitments.at(-1)!.endDay).toBe(pending.readyOnDay);
+
+    // Same seed, same result - reloading cannot shop for a shorter pass.
+    expect(studioReducer(state, { type: 'REWRITE_ASSET', assetId: asset.id, kind: 'rewrite', writerId: writer.id })
+      .studio.assets.find((a) => a.id === asset.id)!.pendingRewrite!.readyOnDay).toBe(pending.readyOnDay);
+  });
+
   it('lands the new head Script when the pass completes, via the calendar', () => {
     const { state, asset } = stateWithAvailableAsset(5);
     const writer = state.talentPool.Writer[0];
