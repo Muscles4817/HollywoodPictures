@@ -206,12 +206,12 @@
 
 .asset-status-badge--available {
   background: rgba(92, 136, 255, 0.17);
-  color: #9bb8ff;
+  color: var(--tint-blue-ink);
 }
 
 .asset-status-badge--in-development {
   background: rgba(47, 196, 105, 0.15);
-  color: var(--green, #4ee181);
+  color: var(--green);
 }
 
 .asset-status-badge--used {
@@ -314,7 +314,7 @@
 }
 
 .asset-library-card__status-copy--active {
-  color: var(--green, #4ee181);
+  color: var(--green);
 }
 
 .asset-library-card__details {
@@ -458,7 +458,7 @@
   background: rgba(127, 127, 127, 0.10);
 }
 .commission-writer-row.is-selected {
-  border-color: var(--accent, #4a90d9);
+  border-color: var(--accent);
   background: rgba(74, 144, 217, 0.14);
 }
 .commission-writer-row:disabled {
@@ -476,10 +476,10 @@
   color: var(--text-muted);
 }
 .commission-writer-row__note--over {
-  color: var(--red, #d9534f);
+  color: var(--red);
 }
 .commission-writer-row__note--tight {
-  color: var(--amber, #b8860b);
+  color: var(--amber);
 }
 
 /* Commission — in-progress progress bar */
@@ -491,6 +491,6 @@
 }
 .commission-progress__fill {
   height: 100%;
-  background: var(--accent, #4a90d9);
+  background: var(--accent);
   transition: width 0.3s ease;
 }

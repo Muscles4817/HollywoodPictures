@@ -319,7 +319,8 @@
   padding: 2px 7px;
   border-radius: 4px;
   background: var(--primary);
-  color: #fff;
+  /* --panel, not #fff: --primary is light in dark mode. */
+  color: var(--panel);
 }
 
 /* --- Expanded detail (click-to-open) ---------------------------------- */
