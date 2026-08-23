@@ -24,13 +24,15 @@ import { AssetLibrary } from './components/AssetLibrary';
 import { ProjectsPage } from './components/ProjectsPage';
 import { MilestonesPage } from './components/MilestonesPage';
 import { IpLibrary } from './components/IpLibrary';
-import type { ProjectWorkspaceSection, Screen } from './types';
+// Aliased: `TalentDatabase` is already the name of the screen component above.
+import type { ProjectWorkspaceSection, Screen, TalentDatabase as TalentRoster } from './types';
 import { DAY_TICK_MS, type TickSpeedMultiplier } from './constants';
 import { timeCriticalUnreadBidCount } from './engine/bidNotifications';
 import { asFilm, asPlayerDraft, findProject } from './engine/project';
 import { derivePostProductionStatus, isPostProductionAdvancing } from './engine/postProductionStatus';
 import { FilmDetailModal } from './components/common/FilmDetailModal';
 import { DifficultyPicker } from './components/common/DifficultyPicker';
+import { MainMenu } from './components/MainMenu';
 import { Button } from './components/common/Button';
 import { hasSavedGame } from './state/persistence';
 
@@ -178,7 +180,12 @@ function AppShell() {
   // right after this first render commits). Session-only UI state - never
   // persisted, and it stays dismissed for the rest of the session once the
   // player picks a tier or skips.
-  const [showStartPicker, setShowStartPicker] = useState(() => !hasSavedGame());
+  // Two steps on a fresh launch: the main menu (which roster?) then the tier
+  // picker (which studio?). `pendingDatabase` carries the first answer into the
+  // second, since RESET_SAVE needs both at once.
+  const [showMainMenu, setShowMainMenu] = useState(() => !hasSavedGame());
+  const [pendingDatabase, setPendingDatabase] = useState<TalentRoster | null>(null);
+  const showStartPicker = pendingDatabase !== null;
 
   // How many unread bid "emails" are still time-critical - an active outbid the
   // player can still respond to before the weekly close. This (not the raw
@@ -372,6 +379,22 @@ function AppShell() {
     }
   }
 
+  // The menu stands in front of the game rather than floating over it: on a
+  // fresh launch there is a studio the player has not chosen yet, and showing
+  // it behind a modal was always a small lie about what had happened.
+  if (showMainMenu) {
+    return (
+      <MainMenu
+        hasSave={hasSavedGame()}
+        onContinue={() => setShowMainMenu(false)}
+        onNewGame={(database) => {
+          setPendingDatabase(database);
+          setShowMainMenu(false);
+        }}
+      />
+    );
+  }
+
   return (
     <>
       <Header
@@ -398,10 +421,10 @@ function AppShell() {
         <DifficultyPicker
           firstRun
           studioName={state.studio.name}
-          onCancel={() => setShowStartPicker(false)}
+          onCancel={() => setPendingDatabase(null)}
           onConfirm={({ startingCash, brand, prestige }) => {
-            dispatch({ type: 'RESET_SAVE', startingCash, brand, prestige });
-            setShowStartPicker(false);
+            dispatch({ type: 'RESET_SAVE', startingCash, brand, prestige, talentDatabase: pendingDatabase ?? undefined });
+            setPendingDatabase(null);
           }}
         />
       )}

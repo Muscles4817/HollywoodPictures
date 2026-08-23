@@ -1,0 +1,638 @@
+<title>Thunder County Production Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Courier+Prime:wght@400;700&display=swap">
+
+<style>
+  :root {
+    /* DESK register — one committed world: warm bond stock under a lamp,
+       on a dark walnut desk. Neutrals biased warm, not defaulted grey. */
+    --desk:        #17120E;
+    --desk-lit:    #2A211A;
+    --paper:       #EFE9DA;
+    --paper-edge:  #DCD3BE;
+    --ink:         #1F1C17;
+    --ink-soft:    #6E6656;
+    --rule:        #B9AF97;
+    --rule-faint:  #D3CAB4;
+    --stamp:       #A81F2D;
+    --ledger:      #CFD9C4;
+    --ledger-rule: #AFC0A2;
+
+    --sheet-w: 940px;
+    --step-0: 0.72rem;
+    --step-1: 0.82rem;
+    --step-2: 0.95rem;
+    --step-3: 1.35rem;
+    --step-4: 2.6rem;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--desk);
+    color: var(--ink);
+    font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* The desk: lamp pooled over the sheet, falling off to shadow. Backdrop
+     only — nothing here is clickable, nothing is traversed. */
+  .desk {
+    min-height: 100vh;
+    padding: 48px 20px 140px;
+    display: flex;
+    justify-content: center;
+    background:
+      radial-gradient(ellipse 90% 60% at 50% 22%, var(--desk-lit) 0%, var(--desk) 68%);
+  }
+
+  .sheet {
+    width: 100%;
+    max-width: var(--sheet-w);
+    background: var(--paper);
+    color: var(--ink);
+    padding: 40px 44px 34px;
+    position: relative;
+    box-shadow:
+      0 1px 0 var(--paper-edge),
+      0 26px 60px rgba(0,0,0,0.62),
+      0 3px 10px rgba(0,0,0,0.4);
+    /* faint paper fibre — never over a reading surface, just the stock */
+    background-image:
+      repeating-linear-gradient(0deg, rgba(120,105,80,0.028) 0 1px, transparent 1px 3px);
+  }
+
+  /* ---- Letterhead: pre-printed. ------------------------------------ */
+  .letterhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 14px;
+  }
+  .studio-name {
+    font-size: var(--step-3);
+    font-weight: 800;
+    letter-spacing: 0.34em;
+    margin: 0;
+    line-height: 1;
+  }
+  .studio-sub {
+    font-size: var(--step-0);
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    color: var(--ink-soft);
+    margin: 7px 0 0;
+    text-transform: uppercase;
+  }
+  .doc-meta {
+    text-align: right;
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: var(--step-0);
+    color: var(--ink-soft);
+    line-height: 1.7;
+    white-space: nowrap;
+  }
+  .doc-meta b { color: var(--ink); font-weight: 700; }
+
+  .doc-title {
+    font-size: var(--step-0);
+    font-weight: 700;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    text-align: center;
+    margin: 16px 0 22px;
+    color: var(--ink-soft);
+  }
+
+  /* ---- The picture block ------------------------------------------- */
+  .picture {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 20px 32px;
+    align-items: end;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 18px;
+  }
+  .film-title {
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: var(--step-4);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin: 0;
+    line-height: 1;
+    text-wrap: balance;
+  }
+  .film-strap {
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: var(--step-1);
+    color: var(--ink-soft);
+    margin: 10px 0 0;
+  }
+  .picture-facts {
+    display: flex;
+    gap: 26px;
+  }
+  .fact-label {
+    display: block;
+    font-size: var(--step-0);
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 4px;
+  }
+  .fact-value {
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: var(--step-2);
+    font-weight: 700;
+  }
+
+  /* ---- Above / below the line: the real industry division ---------- */
+  .crew {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 40px;
+    margin-top: 22px;
+  }
+  .col-head {
+    font-size: var(--step-0);
+    font-weight: 800;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--ink);
+    margin-bottom: 2px;
+  }
+
+  /* A slot. Filled = typed. Empty = a ruled line waiting. */
+  .slot {
+    display: grid;
+    grid-template-columns: 132px 1fr auto;
+    align-items: baseline;
+    gap: 12px;
+    width: 100%;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--rule-faint);
+    padding: 9px 4px 8px 14px;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    position: relative;
+  }
+  .slot:hover { background: rgba(168,31,45,0.045); }
+  .slot:focus-visible {
+    outline: 2px solid var(--stamp);
+    outline-offset: 1px;
+  }
+  .slot-role {
+    font-size: var(--step-0);
+    font-weight: 700;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .slot-name {
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: var(--step-2);
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .slot-fee {
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: var(--step-1);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-soft);
+  }
+
+  /* Unfilled: you can see the hole before you fill it. */
+  .slot--empty .slot-name {
+    color: var(--ink-soft);
+    border-bottom: 1px dashed var(--rule);
+    padding-bottom: 2px;
+    font-weight: 400;
+  }
+  .slot--empty::before {
+    content: "▸";
+    position: absolute;
+    left: 0;
+    top: 9px;
+    color: var(--stamp);
+    font-size: 0.7rem;
+  }
+
+  .slot-note {
+    grid-column: 2 / -1;
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: var(--step-0);
+    color: var(--ink-soft);
+    margin-top: 3px;
+  }
+
+  /* ---- Schedule strip ---------------------------------------------- */
+  .strip {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 18px;
+    margin-top: 26px;
+    padding: 14px 0 16px;
+    border-top: 2px solid var(--ink);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  /* ---- Money: greenbar ledger stock -------------------------------- */
+  .ledger {
+    margin-top: 22px;
+    background: var(--ledger);
+    border: 1px solid var(--ledger-rule);
+  }
+  .ledger-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 9px 18px;
+    border-bottom: 1px solid var(--ledger-rule);
+  }
+  .ledger-row:last-child { border-bottom: 0; }
+  .ledger-row--total {
+    background: rgba(31,28,23,0.07);
+    border-top: 2px solid var(--ink);
+  }
+  .ledger-label {
+    font-size: var(--step-0);
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  .ledger-value {
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: var(--step-2);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .ledger-row--total .ledger-value { font-size: var(--step-3); }
+
+  /* ---- Footer + stamp ---------------------------------------------- */
+  .foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+    margin-top: 26px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+  }
+  .readiness-label {
+    font-size: var(--step-0);
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .readiness-note {
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: var(--step-1);
+    margin-top: 5px;
+    max-width: 46ch;
+    line-height: 1.55;
+  }
+  .stamp {
+    border: 3px double var(--stamp);
+    color: var(--stamp);
+    font-size: var(--step-1);
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 9px 16px;
+    transform: rotate(-4.5deg);
+    opacity: 0.82;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ---- The drawer: the depth behind a slot -------------------------- */
+  .drawer {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    background: var(--paper);
+    border-top: 3px solid var(--ink);
+    box-shadow: 0 -18px 50px rgba(0,0,0,0.6);
+    transform: translateY(110%);
+    transition: transform 260ms cubic-bezier(0.16, 0.84, 0.34, 1);
+    z-index: 20;
+    padding: 20px 28px 26px;
+  }
+  .drawer[data-open="true"] { transform: translateY(0); }
+  .drawer-inner {
+    max-width: var(--sheet-w);
+    margin: 0 auto;
+  }
+  .drawer-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 20px;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 10px;
+  }
+  .drawer-role {
+    font-size: var(--step-0);
+    font-weight: 800;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+  .drawer-body {
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: var(--step-1);
+    line-height: 1.7;
+    margin: 12px 0 0;
+    max-width: 68ch;
+  }
+  .drawer-close {
+    font: inherit;
+    font-size: var(--step-0);
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    background: none;
+    border: 1px solid var(--ink);
+    color: var(--ink);
+    padding: 6px 14px;
+    cursor: pointer;
+  }
+  .drawer-close:hover { background: var(--ink); color: var(--paper); }
+  .drawer-close:focus-visible { outline: 2px solid var(--stamp); outline-offset: 2px; }
+
+  .hint {
+    text-align: center;
+    color: #8C7F68;
+    font-size: var(--step-0);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin: 22px 0 0;
+  }
+
+  @media (max-width: 780px) {
+    /* Stacked fallback, not a scaled-down sheet (ART_DIRECTION §8.5). */
+    .sheet { padding: 26px 20px; }
+    .crew { grid-template-columns: 1fr; gap: 24px; }
+    .picture { grid-template-columns: 1fr; align-items: start; }
+    .strip { grid-template-columns: 1fr 1fr; }
+    .letterhead { flex-direction: column; }
+    .doc-meta { text-align: left; }
+    .film-title { font-size: 1.9rem; }
+    .slot { grid-template-columns: 1fr auto; }
+    .slot-role { grid-column: 1 / -1; }
+    .foot { flex-direction: column; align-items: flex-start; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .drawer { transition: none; }
+  }
+</style>
+
+<div class="desk">
+  <main class="sheet">
+
+    <header class="letterhead">
+      <div>
+        <h1 class="studio-name">MERIDIAN</h1>
+        <p class="studio-sub">Pictures Corporation &middot; Burbank</p>
+      </div>
+      <div class="doc-meta">
+        SHEET NO. <b>MP-0114</b><br>
+        REVISION <b>3</b><br>
+        <b>14 SEPT 1987</b>
+      </div>
+    </header>
+
+    <p class="doc-title">Production Sheet &mdash; Not For Distribution</p>
+
+    <section class="picture">
+      <div>
+        <h2 class="film-title">THUNDER COUNTY</h2>
+        <p class="film-strap">A sheriff returns to the valley that buried his brother.</p>
+      </div>
+      <div class="picture-facts">
+        <div>
+          <span class="fact-label">Genre</span>
+          <span class="fact-value">Action</span>
+        </div>
+        <div>
+          <span class="fact-label">Scale</span>
+          <span class="fact-value">Medium</span>
+        </div>
+        <div>
+          <span class="fact-label">Audience</span>
+          <span class="fact-value">Wide</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="crew">
+      <div>
+        <p class="col-head">Above the Line</p>
+
+        <button class="slot" type="button"
+          data-role="Producer" data-name="Estelle Marchetti"
+          data-detail="Attached from the studio's own production office. Three pictures with this studio, two profitable. Pushes hard for schedule discipline; will resist a runaway shoot.">
+          <span class="slot-role">Producer</span>
+          <span class="slot-name">Estelle Marchetti</span>
+          <span class="slot-fee">salaried</span>
+        </button>
+
+        <button class="slot" type="button"
+          data-role="Director" data-name="Dale Rourke"
+          data-detail="Won a three-way bake-off. Pitched a lean, grounded take against the script's spectacle leanings — a bold read that widens execution variance in both directions. Reads the material personally; wants final cut on the second act.">
+          <span class="slot-role">Director</span>
+          <span class="slot-name">Dale Rourke</span>
+          <span class="slot-fee">£2,400,000</span>
+          <span class="slot-note">bold pitch &mdash; grounded take &middot; strong tonal fit</span>
+        </button>
+
+        <button class="slot" type="button"
+          data-role="Writer" data-name="Junius Bell"
+          data-detail="Original screenplay, third draft delivered. Strong on structure, weaker on dialogue polish — a pass from a second writer would lift the script's ceiling but costs three weeks.">
+          <span class="slot-role">Writer</span>
+          <span class="slot-name">Junius Bell</span>
+          <span class="slot-fee">£450,000</span>
+        </button>
+
+        <button class="slot" type="button"
+          data-role="Lead Actor" data-name="Marguerite Vance"
+          data-detail="Reads the sheriff as weary rather than heroic. Excellent role fit, and her craft archetype suits the director's grounded pitch. Chemistry with the supporting slot is untested — no shared history.">
+          <span class="slot-role">Lead Actor</span>
+          <span class="slot-name">Marguerite Vance</span>
+          <span class="slot-fee">£3,100,000</span>
+          <span class="slot-note">strong role fit &middot; projected performance capped by fit read</span>
+        </button>
+
+        <button class="slot slot--empty" type="button"
+          data-role="Supporting Actor" data-name=""
+          data-detail="Two names have read for the part and both are within budget. One carries returning-franchise history with the lead; the other tests better on the tonal axis. Neither has been offered.">
+          <span class="slot-role">Supporting Actor</span>
+          <span class="slot-name">to be cast</span>
+          <span class="slot-fee">&mdash;</span>
+          <span class="slot-note">2 candidates read &middot; no offer made</span>
+        </button>
+      </div>
+
+      <div>
+        <p class="col-head">Below the Line</p>
+
+        <button class="slot" type="button"
+          data-role="Cinematographer" data-name="Halvard Nyquist"
+          data-detail="Hard directional light, deep blacks, minimal diffusion. Aligns cleanly with the director's grounded pitch — the two have shot together once before, to good effect.">
+          <span class="slot-role">Cinematographer</span>
+          <span class="slot-name">Halvard Nyquist</span>
+          <span class="slot-fee">£380,000</span>
+        </button>
+
+        <button class="slot" type="button"
+          data-role="Production Designer" data-name="Ruth Okonjo"
+          data-detail="Set ambition currently set to Standard. Her head-of-department recommendation is for eleven build days; the plan allows nine, which starves the facet slightly.">
+          <span class="slot-role">Production Designer</span>
+          <span class="slot-name">Ruth Okonjo</span>
+          <span class="slot-fee">£295,000</span>
+          <span class="slot-note">recommends 11 build days &middot; plan allows 9</span>
+        </button>
+
+        <button class="slot" type="button"
+          data-role="Editor" data-name="Constance Baye"
+          data-detail="Not required until post. Attached early to lock her availability against a competing production at a rival studio.">
+          <span class="slot-role">Editor</span>
+          <span class="slot-name">Constance Baye</span>
+          <span class="slot-fee">£210,000</span>
+        </button>
+
+        <button class="slot slot--empty" type="button"
+          data-role="Composer" data-name=""
+          data-detail="Nothing is needed here until post-production, but attaching now costs less than attaching late. Three composers are available at this budget; one is coming off an award-nominated picture and has priced accordingly.">
+          <span class="slot-role">Composer</span>
+          <span class="slot-name">not yet attached</span>
+          <span class="slot-fee">&mdash;</span>
+        </button>
+
+        <button class="slot slot--empty" type="button"
+          data-role="VFX Supervisor" data-name=""
+          data-detail="This genre's VFX importance is moderate and the practical-effects dial is set high, so the picture can ship without a VFX supervisor — at a quality cost on the spectacle facet. Leaving this empty is a legitimate choice, not an oversight.">
+          <span class="slot-role">VFX Supervisor</span>
+          <span class="slot-name">optional for this picture</span>
+          <span class="slot-fee">&mdash;</span>
+          <span class="slot-note">practical effects set high &middot; VFX importance moderate</span>
+        </button>
+
+        <button class="slot" type="button"
+          data-role="Casting Director" data-name="Wendell Pryor"
+          data-detail="Widens the candidate pool and sharpens every fit read presented in the casting drawer. Already responsible for surfacing the two supporting-actor candidates above.">
+          <span class="slot-role">Casting Director</span>
+          <span class="slot-name">Wendell Pryor</span>
+          <span class="slot-fee">£120,000</span>
+        </button>
+      </div>
+    </div>
+
+    <section class="strip">
+      <div>
+        <span class="fact-label">Principal Photography</span>
+        <span class="fact-value">02 NOV 87</span>
+      </div>
+      <div>
+        <span class="fact-label">Shoot Days</span>
+        <span class="fact-value">46</span>
+      </div>
+      <div>
+        <span class="fact-label">Runtime Target</span>
+        <span class="fact-value">108 min</span>
+      </div>
+      <div>
+        <span class="fact-label">Set Quality</span>
+        <span class="fact-value">Standard</span>
+      </div>
+      <div>
+        <span class="fact-label">Practical FX</span>
+        <span class="fact-value">High</span>
+      </div>
+    </section>
+
+    <section class="ledger">
+      <div class="ledger-row">
+        <span class="ledger-label">Production Budget</span>
+        <span class="ledger-value">£18,400,000</span>
+      </div>
+      <div class="ledger-row">
+        <span class="ledger-label">Contingency Reserve</span>
+        <span class="ledger-value">£1,840,000</span>
+      </div>
+      <div class="ledger-row ledger-row--total">
+        <span class="ledger-label">Total Commitment</span>
+        <span class="ledger-value">£20,240,000</span>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <div>
+        <span class="readiness-label">Greenlight Readiness</span>
+        <p class="readiness-note">One principal role uncast. Set build is nine days against a recommended eleven. The picture can be greenlit as it stands.</p>
+      </div>
+      <div class="stamp">Not Yet Greenlit</div>
+    </footer>
+
+  </main>
+</div>
+
+<p class="hint">Click any role &mdash; the sheet is the map, the drawer is the depth</p>
+
+<aside class="drawer" id="drawer" data-open="false" aria-hidden="true">
+  <div class="drawer-inner">
+    <div class="drawer-head">
+      <p class="drawer-role" id="drawer-role">Role</p>
+      <button class="drawer-close" type="button" id="drawer-close">Back to sheet</button>
+    </div>
+    <p class="drawer-body" id="drawer-body"></p>
+  </div>
+</aside>
+
+<script>
+  (function () {
+    var drawer = document.getElementById('drawer');
+    var roleEl = document.getElementById('drawer-role');
+    var bodyEl = document.getElementById('drawer-body');
+    var closeBtn = document.getElementById('drawer-close');
+    var lastFocused = null;
+
+    function open(btn) {
+      lastFocused = btn;
+      var name = btn.getAttribute('data-name');
+      roleEl.textContent = name
+        ? btn.getAttribute('data-role') + ' — ' + name
+        : btn.getAttribute('data-role') + ' — unfilled';
+      bodyEl.textContent = btn.getAttribute('data-detail');
+      drawer.setAttribute('data-open', 'true');
+      drawer.setAttribute('aria-hidden', 'false');
+      closeBtn.focus();
+    }
+
+    function close() {
+      drawer.setAttribute('data-open', 'false');
+      drawer.setAttribute('aria-hidden', 'true');
+      if (lastFocused) lastFocused.focus();
+    }
+
+    Array.prototype.forEach.call(document.querySelectorAll('.slot'), function (btn) {
+      btn.addEventListener('click', function () { open(btn); });
+    });
+    closeBtn.addEventListener('click', close);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') close();
+    });
+  })();
+</script>

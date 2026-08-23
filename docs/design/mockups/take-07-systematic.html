@@ -1,0 +1,764 @@
+<title>Thunder County Project Record</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anybody:wght@700;800&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap">
+
+<style>
+  /* No metaphor. The era is carried by typeface, palette, density and rule
+     weight — not by pretending to be an object. Which is also why this is the
+     only take that can have a dark mode: a sheet of paper doesn't have one. */
+  :root {
+    --bg:         #EFEDE7;
+    --surface:    #F7F5F0;
+    --surface-2:  #E5E2DA;
+    --ink:        #191713;
+    --ink-2:      #57534A;
+    --ink-3:      #8A8478;
+    --line:       #D6D2C7;
+    --line-hard:  #191713;
+
+    --accent:     #1F5FD0;
+    --open:       #C2185B;
+    --good:       #2E7D4F;
+    --warn:       #9A6A12;
+
+    --meter-set:  #3D3A33;
+    --meter-open: #C2185B;
+    --meter-opt:  #C9C4B8;
+
+    --t-0: 0.66rem;
+    --t-1: 0.78rem;
+    --t-2: 0.875rem;
+    --t-3: 1rem;
+    --t-4: 1.7rem;
+
+    --u: 8px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:         #16151A;
+      --surface:    #1D1C22;
+      --surface-2:  #26252C;
+      --ink:        #EDEAE2;
+      --ink-2:      #A7A296;
+      --ink-3:      #78736A;
+      --line:       #33313A;
+      --line-hard:  #55525C;
+
+      --accent:     #6BA6FF;
+      --open:       #FF5FA2;
+      --good:       #5FD08A;
+      --warn:       #E0A93D;
+
+      --meter-set:  #7A756A;
+      --meter-open: #FF5FA2;
+      --meter-opt:  #383530;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg:         #16151A;
+    --surface:    #1D1C22;
+    --surface-2:  #26252C;
+    --ink:        #EDEAE2;
+    --ink-2:      #A7A296;
+    --ink-3:      #78736A;
+    --line:       #33313A;
+    --line-hard:  #55525C;
+
+    --accent:     #6BA6FF;
+    --open:       #FF5FA2;
+    --good:       #5FD08A;
+    --warn:       #E0A93D;
+
+    --meter-set:  #7A756A;
+    --meter-open: #FF5FA2;
+    --meter-opt:  #383530;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Schibsted Grotesk', 'Helvetica Neue', Arial, sans-serif;
+    font-size: var(--t-2);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app {
+    min-height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr;
+  }
+
+  /* ---- Top bar ------------------------------------------------------- */
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--u);
+    flex-wrap: wrap;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 16px;
+  }
+  .brand {
+    font-family: 'Anybody', 'Arial Narrow', sans-serif;
+    font-weight: 800;
+    font-size: var(--t-2);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .topbar-facts {
+    display: flex;
+    gap: 22px;
+    font-size: var(--t-1);
+    color: var(--ink-2);
+  }
+  .topbar-facts b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* ---- Shell: rail + main -------------------------------------------- */
+  .shell {
+    display: grid;
+    grid-template-columns: 190px 1fr;
+    min-height: 0;
+  }
+  @media (max-width: 860px) { .shell { grid-template-columns: 1fr; } }
+
+  .rail {
+    border-right: 1px solid var(--line);
+    background: var(--surface);
+    padding: 12px 0;
+  }
+  .rail-group {
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding: 12px 16px 5px;
+  }
+  .nav {
+    display: block;
+    width: 100%;
+    background: none;
+    border: 0;
+    border-left: 3px solid transparent;
+    color: var(--ink-2);
+    font: inherit;
+    font-size: var(--t-1);
+    font-weight: 500;
+    text-align: left;
+    padding: 6px 16px;
+    cursor: pointer;
+  }
+  .nav:hover { color: var(--ink); background: var(--surface-2); }
+  .nav:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .nav[aria-current="true"] {
+    color: var(--ink);
+    font-weight: 700;
+    border-left-color: var(--accent);
+    background: var(--surface-2);
+  }
+  @media (max-width: 860px) {
+    .rail { border-right: 0; border-bottom: 1px solid var(--line); display: flex; overflow-x: auto; padding: 6px; }
+    .rail-group { display: none; }
+    .nav { width: auto; white-space: nowrap; border-left: 0; border-bottom: 3px solid transparent; }
+    .nav[aria-current="true"] { border-left-color: transparent; border-bottom-color: var(--accent); }
+  }
+
+  .main { padding: 20px 22px 40px; min-width: 0; }
+
+  /* ---- Project header ------------------------------------------------ */
+  .prj {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 20px;
+    flex-wrap: wrap;
+    border-bottom: 2px solid var(--line-hard);
+    padding-bottom: 12px;
+  }
+  .prj-eyebrow {
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 4px;
+  }
+  .prj h2 {
+    font-family: 'Anybody', 'Arial Narrow', sans-serif;
+    font-weight: 800;
+    font-size: var(--t-4);
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+    margin: 0;
+    line-height: 1;
+    text-wrap: balance;
+  }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    font-size: var(--t-0);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+    padding: 4px 9px;
+  }
+
+  /* ---- KPI row -------------------------------------------------------- */
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    margin-top: 18px;
+  }
+  .kpi { background: var(--surface); padding: 12px 14px 13px; }
+  .kpi-label {
+    display: block;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 5px;
+  }
+  .kpi-value {
+    display: block;
+    font-family: 'Anybody', 'Arial Narrow', sans-serif;
+    font-weight: 700;
+    font-size: 1.4rem;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+  }
+  .kpi-sub {
+    display: block;
+    font-size: var(--t-0);
+    color: var(--ink-3);
+    margin-top: 5px;
+  }
+  .kpi--open .kpi-value { color: var(--open); }
+
+  /* ---- Readiness meter -------------------------------------------------
+     Status, not categorical: "set" is neutral because done needs no colour,
+     and the one attention hue is reserved for what is open. Identity never
+     rests on hue — each segment is direct-labelled, separated by a 2px
+     surface gap, and the optional segment is hatched. */
+  .meter-block {
+    margin-top: 18px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    padding: 13px 14px 14px;
+  }
+  .meter-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 9px;
+  }
+  .meter-title {
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .meter-read { font-size: var(--t-1); color: var(--ink-2); }
+  .meter-read b { color: var(--ink); font-weight: 600; }
+
+  .meter {
+    display: flex;
+    gap: 2px;
+    height: 14px;
+  }
+  .seg { height: 100%; }
+  .seg--set { background: var(--meter-set); }
+  .seg--open { background: var(--meter-open); }
+  .seg--opt {
+    background:
+      repeating-linear-gradient(135deg,
+        var(--meter-opt) 0 4px,
+        transparent 4px 8px);
+    border: 1px solid var(--meter-opt);
+  }
+
+  .meter-key {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    font-size: var(--t-0);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  .meter-key i {
+    display: inline-block;
+    width: 12px;
+    height: 8px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .meter-key i.k-set { background: var(--meter-set); }
+  .meter-key i.k-open { background: var(--meter-open); }
+  .meter-key i.k-opt {
+    background: repeating-linear-gradient(135deg, var(--meter-opt) 0 3px, transparent 3px 6px);
+    border: 1px solid var(--meter-opt);
+  }
+
+  /* ---- Layout below --------------------------------------------------- */
+  .cols {
+    display: grid;
+    grid-template-columns: 1fr 268px;
+    gap: 22px;
+    margin-top: 20px;
+    align-items: start;
+  }
+  @media (max-width: 1000px) { .cols { grid-template-columns: 1fr; } }
+
+  .sect {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 2px;
+  }
+  .sect::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .sect + .sect { margin-top: 20px; }
+
+  /* ---- Roster rows ---------------------------------------------------- */
+  .row {
+    display: grid;
+    grid-template-columns: 172px 1fr 96px 108px;
+    align-items: baseline;
+    gap: 12px;
+    width: 100%;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-left: 3px solid transparent;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    padding: 8px 8px 8px 11px;
+    cursor: pointer;
+  }
+  .row:hover { background: var(--surface); }
+  .row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .row--open { border-left-color: var(--open); }
+  .row--warn { border-left-color: var(--warn); }
+
+  .row-role {
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .row-name { font-weight: 600; }
+  .row--open .row-name { color: var(--open); }
+  .row-fee {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+    font-size: var(--t-1);
+  }
+  .row-note {
+    grid-column: 2 / -1;
+    font-size: var(--t-0);
+    color: var(--ink-3);
+    margin-top: 3px;
+    line-height: 1.45;
+  }
+
+  /* State in form, not colour alone: a glyph, a word, and a border style. */
+  .pill {
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+    padding: 2px 7px;
+    white-space: nowrap;
+  }
+  .pill--open { border-color: var(--open); color: var(--open); }
+  .pill--warn { border-color: var(--warn); color: var(--warn); }
+  .pill--opt { border-style: dashed; color: var(--ink-3); }
+
+  /* ---- Side panels ----------------------------------------------------- */
+  .panel {
+    border: 1px solid var(--line);
+    background: var(--surface);
+    padding: 12px 14px 14px;
+  }
+  .panel + .panel { margin-top: 16px; }
+  .panel h3 {
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 9px;
+    padding-bottom: 7px;
+    border-bottom: 1px solid var(--line);
+  }
+  .pr {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: var(--t-1);
+    padding: 5px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .pr:last-child { border-bottom: 0; }
+  .pr span { color: var(--ink-2); }
+  .pr b { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .pr--total {
+    border-top: 2px solid var(--line-hard);
+    border-bottom: 0;
+    margin-top: 5px;
+    padding-top: 8px;
+  }
+  .pr--total b { font-size: var(--t-3); }
+
+  .verdict { font-size: var(--t-1); line-height: 1.6; color: var(--ink-2); margin: 0; }
+  .verdict b { color: var(--ink); font-weight: 600; }
+
+  /* ---- Drawer ---------------------------------------------------------- */
+  .scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgba(0,0,0,0.42);
+    display: none;
+  }
+  .scrim[data-open="true"] { display: block; }
+  .drawer {
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    width: min(430px, 100%);
+    background: var(--surface);
+    border-left: 1px solid var(--line-hard);
+    z-index: 31;
+    transform: translateX(101%);
+    transition: transform 200ms cubic-bezier(0.2, 0.8, 0.3, 1);
+    padding: 18px 20px 22px;
+    overflow-y: auto;
+  }
+  .drawer[data-open="true"] { transform: translateX(0); }
+  .drawer-role {
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 4px;
+  }
+  .drawer-name {
+    font-family: 'Anybody', 'Arial Narrow', sans-serif;
+    font-weight: 800;
+    font-size: 1.35rem;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    margin: 0 0 12px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--line-hard);
+    line-height: 1.05;
+  }
+  .drawer-body { font-size: var(--t-2); line-height: 1.65; margin: 0 0 18px; }
+  .drawer-close {
+    font: inherit;
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    background: var(--ink);
+    color: var(--bg);
+    border: 1px solid var(--ink);
+    padding: 7px 15px;
+    cursor: pointer;
+  }
+  .drawer-close:hover { background: transparent; color: var(--ink); }
+  .drawer-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) { .drawer { transition: none; } }
+</style>
+
+<div class="app">
+
+  <div class="topbar">
+    <h1 class="brand">Meridian Pictures</h1>
+    <div class="topbar-facts">
+      <span>Mon <b>14 Sept 1987</b></span>
+      <span>Cash <b>£41,880,000</b></span>
+      <span>Projects <b>3</b></span>
+    </div>
+  </div>
+
+  <div class="shell">
+
+    <nav class="rail" aria-label="Main">
+      <p class="rail-group">Studio</p>
+      <button class="nav" type="button">Dashboard</button>
+      <button class="nav" type="button" aria-current="true">Projects</button>
+      <button class="nav" type="button">Talent</button>
+      <button class="nav" type="button">IP Library</button>
+      <p class="rail-group">Market</p>
+      <button class="nav" type="button">Opportunities</button>
+      <button class="nav" type="button">Release Calendar</button>
+      <button class="nav" type="button">Rival Studios</button>
+      <p class="rail-group">Record</p>
+      <button class="nav" type="button">Awards</button>
+      <button class="nav" type="button">Statistics</button>
+      <button class="nav" type="button">Milestones</button>
+    </nav>
+
+    <main class="main">
+
+      <div class="prj">
+        <div>
+          <p class="prj-eyebrow">Project MP-0114 &middot; Pre-Greenlight</p>
+          <h2>Thunder County</h2>
+        </div>
+        <div class="chips">
+          <span class="chip">Action</span>
+          <span class="chip">Medium Scale</span>
+          <span class="chip">Wide Audience</span>
+        </div>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi">
+          <span class="kpi-label">Total Commitment</span>
+          <span class="kpi-value">£20.24m</span>
+          <span class="kpi-sub">Budget £18.4m + 10% reserve</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">To Photography</span>
+          <span class="kpi-value">49 days</span>
+          <span class="kpi-sub">First day 02 Nov 87</span>
+        </div>
+        <div class="kpi kpi--open">
+          <span class="kpi-label">Roles Open</span>
+          <span class="kpi-value">2</span>
+          <span class="kpi-sub">1 principal, 1 post-only</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Greenlight</span>
+          <span class="kpi-value">Ready</span>
+          <span class="kpi-sub">Can proceed as it stands</span>
+        </div>
+      </div>
+
+      <div class="meter-block">
+        <div class="meter-top">
+          <span class="meter-title">Package Readiness</span>
+          <span class="meter-read"><b>8 of 11</b> positions set &middot; 2 open &middot; 1 not required</span>
+        </div>
+        <div class="meter" role="img" aria-label="8 positions set, 2 open, 1 not required, of 11 total">
+          <div class="seg seg--set" style="flex: 8"></div>
+          <div class="seg seg--open" style="flex: 2"></div>
+          <div class="seg seg--opt" style="flex: 1"></div>
+        </div>
+        <div class="meter-key">
+          <span><i class="k-set"></i>8 Set</span>
+          <span><i class="k-open"></i>2 Open</span>
+          <span><i class="k-opt"></i>1 Not required</span>
+        </div>
+      </div>
+
+      <div class="cols">
+        <div>
+          <p class="sect">Above the Line</p>
+
+          <button class="row" type="button" data-role="Producer" data-name="Estelle Marchetti"
+            data-detail="Attached from the studio's own production office. Three pictures with this studio, two profitable. Pushes hard for schedule discipline and will resist a runaway shoot.">
+            <span class="row-role">Producer</span>
+            <span class="row-name">Estelle Marchetti</span>
+            <span class="pill">Set</span>
+            <span class="row-fee">salaried</span>
+          </button>
+
+          <button class="row row--warn" type="button" data-role="Director" data-name="Dale Rourke"
+            data-detail="Won a three-way bake-off. Pitched a lean, grounded take against the script's spectacle leanings — a bold read that widens execution variance in both directions. Reads the material personally; wants final cut on the second act.">
+            <span class="row-role">Director</span>
+            <span class="row-name">Dale Rourke</span>
+            <span class="pill pill--warn">&#9650; Note</span>
+            <span class="row-fee">£2,400,000</span>
+            <span class="row-note">Bold pitch runs against the material. Variance widened in both directions.</span>
+          </button>
+
+          <button class="row" type="button" data-role="Writer" data-name="Junius Bell"
+            data-detail="Original screenplay, third draft delivered. Strong on structure, weaker on dialogue polish — a pass from a second writer would lift the script's ceiling but costs three weeks.">
+            <span class="row-role">Writer</span>
+            <span class="row-name">Junius Bell</span>
+            <span class="pill">Set</span>
+            <span class="row-fee">£450,000</span>
+          </button>
+
+          <button class="row" type="button" data-role="Lead Actor" data-name="Marguerite Vance"
+            data-detail="Reads the sheriff as weary rather than heroic. Excellent role fit, and her craft archetype suits the director's grounded pitch. Chemistry with the supporting slot is untested — no shared history. Above-the-title billing per contract.">
+            <span class="row-role">Lead Actor</span>
+            <span class="row-name">Marguerite Vance</span>
+            <span class="pill">Set</span>
+            <span class="row-fee">£3,100,000</span>
+            <span class="row-note">Strong role fit. Chemistry with supporting slot untested.</span>
+          </button>
+
+          <button class="row row--open" type="button" data-role="Supporting Actor" data-name="Not cast"
+            data-detail="Two names have read for the part and both are within budget. One carries returning-franchise history with the lead; the other tests better on the tonal axis. Neither has been offered.">
+            <span class="row-role">Supporting Actor</span>
+            <span class="row-name">Not cast</span>
+            <span class="pill pill--open">&#9675; Open</span>
+            <span class="row-fee">&mdash;</span>
+            <span class="row-note">2 candidates read, no offer made. Blocks 3 shooting days.</span>
+          </button>
+
+          <p class="sect">Below the Line</p>
+
+          <button class="row" type="button" data-role="Cinematographer" data-name="Halvard Nyquist"
+            data-detail="Hard directional light, deep blacks, minimal diffusion. Aligns cleanly with the director's grounded pitch — the two have shot together once before, to good effect.">
+            <span class="row-role">Cinematographer</span>
+            <span class="row-name">Halvard Nyquist</span>
+            <span class="pill">Set</span>
+            <span class="row-fee">£380,000</span>
+          </button>
+
+          <button class="row row--warn" type="button" data-role="Production Designer" data-name="Ruth Okonjo"
+            data-detail="Set ambition currently set to Standard. Her head-of-department recommendation is for eleven build days; the plan allows nine, which starves the facet slightly.">
+            <span class="row-role">Production Designer</span>
+            <span class="row-name">Ruth Okonjo</span>
+            <span class="pill pill--warn">&#9650; Note</span>
+            <span class="row-fee">£295,000</span>
+            <span class="row-note">Recommends 11 build days; plan allows 9.</span>
+          </button>
+
+          <button class="row" type="button" data-role="Editor" data-name="Constance Baye"
+            data-detail="Not required until post. Attached early to lock her availability against a competing production at a rival studio.">
+            <span class="row-role">Editor</span>
+            <span class="row-name">Constance Baye</span>
+            <span class="pill">Set</span>
+            <span class="row-fee">£210,000</span>
+          </button>
+
+          <button class="row row--open" type="button" data-role="Composer" data-name="Not attached"
+            data-detail="Nothing is needed here until post-production, but attaching now costs less than attaching late. Three composers are available at this budget; one is coming off an award-nominated picture and has priced accordingly.">
+            <span class="row-role">Composer</span>
+            <span class="row-name">Not attached</span>
+            <span class="pill pill--open">&#9675; Open</span>
+            <span class="row-fee">&mdash;</span>
+            <span class="row-note">Not needed until post. Attaching late costs more.</span>
+          </button>
+
+          <button class="row" type="button" data-role="VFX Supervisor" data-name="Not required"
+            data-detail="This genre's VFX importance is moderate and the practical-effects dial is set high, so the picture can ship without a VFX supervisor — at a quality cost on the spectacle facet. Leaving this empty is a legitimate choice, not an oversight.">
+            <span class="row-role">VFX Supervisor</span>
+            <span class="row-name">Not required</span>
+            <span class="pill pill--opt">Optional</span>
+            <span class="row-fee">&mdash;</span>
+            <span class="row-note">Practical effects set high; VFX importance moderate.</span>
+          </button>
+
+          <button class="row" type="button" data-role="Casting Director" data-name="Wendell Pryor"
+            data-detail="Widens the candidate pool and sharpens every fit read presented in the casting drawer. Already responsible for surfacing the two supporting-actor candidates.">
+            <span class="row-role">Casting Director</span>
+            <span class="row-name">Wendell Pryor</span>
+            <span class="pill">Set</span>
+            <span class="row-fee">£120,000</span>
+          </button>
+        </div>
+
+        <aside>
+          <div class="panel">
+            <h3>Production Plan</h3>
+            <div class="pr"><span>Photography</span><b>02 Nov 87</b></div>
+            <div class="pr"><span>Shoot days</span><b>46</b></div>
+            <div class="pr"><span>Runtime target</span><b>108 min</b></div>
+            <div class="pr"><span>Set quality</span><b>Standard</b></div>
+            <div class="pr"><span>Practical effects</span><b>High</b></div>
+          </div>
+
+          <div class="panel">
+            <h3>Finance</h3>
+            <div class="pr"><span>Production budget</span><b>£18,400,000</b></div>
+            <div class="pr"><span>Contingency reserve</span><b>£1,840,000</b></div>
+            <div class="pr pr--total"><span>Total commitment</span><b>£20,240,000</b></div>
+          </div>
+
+          <div class="panel">
+            <h3>Greenlight Readiness</h3>
+            <p class="verdict">
+              One principal role uncast, blocking <b>three shooting days</b>. Set build is
+              nine days against a recommended eleven. The picture <b>can be greenlit as it
+              stands</b>.
+            </p>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" data-open="false"></div>
+<aside class="drawer" id="drawer" data-open="false" role="dialog" aria-modal="true" aria-labelledby="drawer-name">
+  <p class="drawer-role" id="drawer-role">Role</p>
+  <h3 class="drawer-name" id="drawer-name">Name</h3>
+  <p class="drawer-body" id="drawer-body"></p>
+  <button class="drawer-close" type="button" id="drawer-close">Back to project</button>
+</aside>
+
+<script>
+  (function () {
+    var drawer = document.getElementById('drawer');
+    var scrim = document.getElementById('scrim');
+    var roleEl = document.getElementById('drawer-role');
+    var nameEl = document.getElementById('drawer-name');
+    var bodyEl = document.getElementById('drawer-body');
+    var closeBtn = document.getElementById('drawer-close');
+    var lastFocused = null;
+
+    function open(btn) {
+      lastFocused = btn;
+      roleEl.textContent = btn.getAttribute('data-role');
+      nameEl.textContent = btn.getAttribute('data-name');
+      bodyEl.textContent = btn.getAttribute('data-detail');
+      drawer.setAttribute('data-open', 'true');
+      scrim.setAttribute('data-open', 'true');
+      closeBtn.focus();
+    }
+
+    function close() {
+      drawer.setAttribute('data-open', 'false');
+      scrim.setAttribute('data-open', 'false');
+      if (lastFocused) lastFocused.focus();
+    }
+
+    Array.prototype.forEach.call(document.querySelectorAll('.row'), function (btn) {
+      btn.addEventListener('click', function () { open(btn); });
+    });
+    closeBtn.addEventListener('click', close);
+    scrim.addEventListener('click', close);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+  })();
+</script>

@@ -61,6 +61,7 @@ import { acquisitionEvent } from '../engine/screenplay';
 import { collectBidNotifications, markAllBidNotificationsRead, dismissBidNotification } from '../engine/bidNotifications';
 import { openCastingCall, tickCastingCalls } from '../engine/castingCalls';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
+import { GENERATED_TALENT_DB } from '../data/talentDatabases';
 import { generateStuntTeamPool, stuntTeamById } from '../engine/stuntTeams';
 import {
   benchCapacity,
@@ -3034,8 +3035,9 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       // Opportunities exist yet either - the next calendar-advancing action
       // generates the first batch immediately (nextOpportunityCheckDay: 1
       // is already due at totalDays: 1).
+      const database = action.talentDatabase ?? GENERATED_TALENT_DB;
       const { result, nextSeed } = withRng(randomSeed(), (rng) => ({
-        talentPool: generateTalentPool(rng),
+        talentPool: generateTalentPool(rng, database),
         rivalStudios: generateRivalStudios(rng),
         producerPool: generateProducerPool(rng),
         stuntTeamPool: generateStuntTeamPool(rng),
@@ -3049,6 +3051,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         rngSeed: nextSeed,
         totalDays: 1,
         talentPool: result.talentPool,
+        talentDatabaseId: database.id,
         rivalStudios: result.rivalStudios,
         producerPool: result.producerPool,
         stuntTeamPool: result.stuntTeamPool,

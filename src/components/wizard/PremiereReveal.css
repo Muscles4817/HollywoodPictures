@@ -132,6 +132,10 @@
   opacity: 0.85;
 }
 
+/* The genre posters are the SPECTACLE register (docs/ART_DIRECTION.md §2.2):
+   deliberately saturated, deliberately outside the DESK token palette. Do not
+   fold these into the desk tints - the contrast with the rest of the app is
+   the point. */
 .premiere-poster[data-genre='action'] { background: linear-gradient(160deg, #b5361f, #2a0f0a); }
 .premiere-poster[data-genre='comedy'] { background: linear-gradient(160deg, #e0a92c, #7a4a12); }
 .premiere-poster[data-genre='drama'] { background: linear-gradient(160deg, #3f5a86, #161d2c); }

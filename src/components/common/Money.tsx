@@ -19,7 +19,12 @@ interface MoneyProps {
 
 export function Money({ amount, signColor, invertColor, showSign }: MoneyProps) {
   const isGood = invertColor ? amount <= 0 : amount >= 0;
-  const className = signColor ? (isGood ? 'money-positive' : 'money-negative') : undefined;
+  // Every currency figure is a value, not a label, so it always wears the
+  // typed register (the `money` class - see the `.typed` rule in index.css).
+  // docs/ART_DIRECTION.md: the game's structure is printed, the player's
+  // numbers are typed.
+  const tone = signColor ? (isGood ? ' money-positive' : ' money-negative') : '';
+  const className = `money${tone}`;
   const prefix = showSign && amount > 0 ? '+' : '';
   return <span className={className}>{prefix}{formatMoney(amount)}</span>;
 }

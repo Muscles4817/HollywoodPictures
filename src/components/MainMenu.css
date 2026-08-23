@@ -1,0 +1,187 @@
+/* The title screen. The one place in the game that runs the SPECTACLE register
+   (docs/ART_DIRECTION.md §2.2): a 1987 multiplex marquee, deliberately loud,
+   because it is rationed to this screen and the box-office reveal. Everything
+   below the marquee drops back into the DESK register the rest of the app uses. */
+
+.main-menu {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 48px 20px 64px;
+  background: var(--bg);
+}
+
+/* ---- Marquee ------------------------------------------------------------ */
+.main-menu__marquee {
+  width: 100%;
+  max-width: 760px;
+  text-align: center;
+  background: var(--spine);
+  color: var(--spine-ink);
+  border: 1px solid var(--spine-line);
+  /* The bulb run along the top and bottom edges of a marquee. */
+  box-shadow:
+    inset 0 3px 0 var(--star),
+    inset 0 -3px 0 var(--star),
+    0 18px 44px rgba(0, 0, 0, 0.35);
+  padding: 34px 28px 30px;
+}
+
+.main-menu__now-showing {
+  margin: 0 0 14px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--star);
+}
+
+.main-menu__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.2rem, 7vw, 4rem);
+  line-height: 0.94;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.main-menu__tagline {
+  margin: 16px 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--spine-ink-2);
+}
+
+/* ---- Panel -------------------------------------------------------------- */
+.main-menu__panel {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.main-menu__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.main-menu__section-title {
+  margin: 0 0 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--border-hard);
+}
+
+.main-menu__section-note {
+  margin: 0 0 14px;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+  max-width: 62ch;
+}
+
+/* ---- Database list ------------------------------------------------------ */
+.main-menu__db-list {
+  display: grid;
+  gap: 8px;
+}
+
+.main-menu__db {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  color: var(--text);
+  font: inherit;
+  padding: 11px 14px 12px;
+  cursor: pointer;
+}
+
+.main-menu__db:hover { background: var(--surface-2); }
+.main-menu__db:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+
+.main-menu__db--selected {
+  border-color: var(--border-hard);
+  border-left-color: var(--primary);
+  background: var(--surface-2);
+}
+
+.main-menu__db-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.main-menu__db-name { font-size: 0.95rem; }
+
+/* A roster of real people is stated on its own card, not only in the warning
+   below - the label has to travel with the thing it describes. */
+.main-menu__db-flag {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border: 1px solid var(--open);
+  color: var(--open);
+  padding: 1px 7px;
+}
+
+.main-menu__db-desc {
+  display: block;
+  margin-top: 5px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* ---- Import / export ---------------------------------------------------- */
+.main-menu__db-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.main-menu__file { display: none; }
+
+.main-menu__warning {
+  margin: 14px 0 0;
+  border-left: 3px solid var(--open);
+  padding: 9px 0 9px 12px;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+  max-width: 66ch;
+}
+
+.main-menu__error,
+.main-menu__note {
+  margin: 12px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  padding: 8px 0 8px 12px;
+  border-left: 3px solid var(--border-hard);
+  max-width: 66ch;
+}
+
+.main-menu__error {
+  border-left-color: var(--danger);
+  color: var(--danger);
+}
+
+.main-menu__note { color: var(--text-muted); }

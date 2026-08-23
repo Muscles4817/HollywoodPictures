@@ -225,7 +225,12 @@ describe('generateCastingApplicants - no-softlock widening', () => {
   it('can produce a larger batch once rejectionCount is high than it ever does at rejectionCount 0, given the same pool', () => {
     const draft = draftFor(10);
     const character = leadCharacter(draft.script!);
-    const pool = actorPool(10, 20);
+    // A pool big enough that widening has somewhere to widen INTO. At 20 the
+    // eligible subset (gender/age matching this Lead) can be small enough that
+    // the batch is capped by the pool rather than by the widening rule, which
+    // makes the test a hostage to which twenty people the seed drew rather than
+    // a check on the behaviour it names.
+    const pool = actorPool(10, 60);
     let maxAtZeroRejections = 0;
     let maxAtManyRejections = 0;
     for (let seed = 1; seed <= 40; seed++) {
@@ -295,7 +300,8 @@ describe('generateCastingApplicants - Casting Director (Phase D)', () => {
   it('a maxed-skill Casting Director can produce a larger batch than is ever possible with none hired, given the same pool', () => {
     const draft = draftFor(14);
     const character = leadCharacter(draft.script!);
-    const pool = actorPool(14, 20);
+    // Sized for the same reason as the widening test above.
+    const pool = actorPool(14, 60);
     let maxWithNone = 0;
     let maxAtMaxSkill = 0;
     for (let seed = 1; seed <= 40; seed++) {
@@ -346,7 +352,7 @@ describe('generateCastingApplicants - Casting Director (Phase D)', () => {
     // batch.
     const draft = draftFor(14);
     const character = leadCharacter(draft.script!);
-    const pool = actorPool(14, 30);
+    const pool = actorPool(14, 60);
     let maxBatchLength = 0;
     for (let seed = 1; seed <= 300; seed++) {
       const rng = createRng(seed);
@@ -359,7 +365,7 @@ describe('generateCastingApplicants - Casting Director (Phase D)', () => {
   it('never discovers with no Casting Director hired, across the same range that reliably discovers at max skill', () => {
     const draft = draftFor(14);
     const character = leadCharacter(draft.script!);
-    const pool = actorPool(14, 30);
+    const pool = actorPool(14, 60);
     let maxBatchLength = 0;
     for (let seed = 1; seed <= 300; seed++) {
       const rng = createRng(seed);

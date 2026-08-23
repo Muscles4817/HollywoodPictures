@@ -30,7 +30,7 @@ import { STORY_TYPES, STORY_TYPE_PROFILES, type StoryTypeProfile } from '../data
 import { SETTING_ARCHETYPES, SETTING_ARCHETYPE_PROFILES, type SettingProfile } from '../data/settings';
 import { CHARACTER_ARCHETYPES, CHARACTER_ARCHETYPE_PROFILES } from '../data/characterArchetypes';
 import { SCRIPT_SCALES, SCRIPT_SCALE_PROFILES, type ScriptScaleProfile } from '../data/scale';
-import { generateFullName } from './nameGenerator';
+import { drawCoherentName } from './nameGenerator';
 import { generatePremise } from './premiseGenerator';
 import { type RandomFn, clamp, combineWeights, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick } from './random';
 
@@ -353,7 +353,16 @@ function generateCharacter(id: string, prominence: CharacterProminence, genre: G
     characterArchetypeWeightsForProminence(prominence),
   ]);
   const archetype = weightedPick(rng, CHARACTER_ARCHETYPES, weights);
-  const name = generateFullName(rng).name;
+  // Coherent, like a person's - a character called "Duke Suzuki" is exactly as
+  // wrong as a person called that. Two draws, as this always took.
+  //
+  // Salted with archetype+prominence, NOT `id`: the id descends from the script
+  // id, which is deliberately minted outside the seeded stream (see newScriptId),
+  // so salting with it made the same seed produce different names on a second
+  // call - which three determinism tests caught. Archetype and prominence are
+  // both themselves drawn from this rng, so they are stable within a seeded run.
+  const drawn = drawCoherentName(rng, `${archetype}|${prominence}`);
+  const name = `${drawn.first} ${drawn.last}`;
   return {
     id,
     name,

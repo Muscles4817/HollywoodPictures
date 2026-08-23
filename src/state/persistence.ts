@@ -2,6 +2,7 @@ import type { GameState } from './gameState';
 import { createInitialStudio } from './gameState';
 import { generateRivalStudios } from '../engine/rivalStudios';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
+import { GENERATED_TALENT_DB } from '../data/talentDatabases';
 import { generateStuntTeamPool } from '../engine/stuntTeams';
 import { randomSeed, withRng } from '../engine/random';
 import { firstDayOfYear } from '../engine/calendar';
@@ -413,7 +414,7 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   FilmDraft gained an optional directorPitches (an open pitch round) and
 //   selectedDirectorPitch (the winning pitch, frozen for downstream bets), and a
 //   new DirectorPitch/DirectorPitchProcess shape. Additive/optional; same policy.
-const SAVE_KEY = 'hollywood-pictures-save-v84';
+const SAVE_KEY = 'hollywood-pictures-save-v85';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
@@ -428,8 +429,10 @@ export function loadState(): GameState {
   } catch {
     // No save (or an incompatible one) - generate a fresh studio, including
     // its talent pool and rival roster, from a genuinely random seed.
+    // The generated roster, never a real-people one: an unreadable save must
+    // not silently opt the player into real names they never chose.
     const { result, nextSeed } = withRng(randomSeed(), (rng) => ({
-      talentPool: generateTalentPool(rng),
+      talentPool: generateTalentPool(rng, GENERATED_TALENT_DB),
       rivalStudios: generateRivalStudios(rng),
       producerPool: generateProducerPool(rng),
       stuntTeamPool: generateStuntTeamPool(rng),
@@ -443,6 +446,7 @@ export function loadState(): GameState {
       rngSeed: nextSeed,
       totalDays: 1,
       talentPool: result.talentPool,
+      talentDatabaseId: GENERATED_TALENT_DB.id,
       rivalStudios: result.rivalStudios,
       producerPool: result.producerPool,
       stuntTeamPool: result.stuntTeamPool,

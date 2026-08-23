@@ -8,6 +8,7 @@ import type {
   Person,
   PersonCareers,
   ProducerCareer,
+  TalentDatabase,
   TalentProfession,
   ToneProfile,
   WriterCraft,
@@ -22,9 +23,10 @@ import {
   PRODUCER_SALARY_RANGE,
   PRODUCER_SPECIALTIES,
 } from '../data/producers';
-import { HANDCRAFTED_TALENTS_BY_ROLE } from '../data/handcraftedTalents';
+import { GENERATED_TALENT_DB } from '../data/talentDatabases';
 import { MARQUEE_PERSONALITIES } from '../data/marqueePersonalities';
-import { generateFullName, nameOriginWeightsForRole } from './nameGenerator';
+import { TALENT_LAST_NAMES } from '../data/talentNames';
+import { drawCoherentName, nameVariant, nationalityFor, regionWeightsForRole } from './nameGenerator';
 import { TONES } from '../data/tones';
 import { ACTING_STYLE_AXES } from '../data/actingStyle';
 import { CREW_CAREER_KEY } from './person';
@@ -35,14 +37,73 @@ import { clamp, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPi
 
 let nextTalentId = 1;
 
-/**
- * A coherent name for a person in this role, plus the nationality it implies
- * (engine/nameGenerator.ts). The origin mix is per-role because the real
- * industry's is: the further from the camera, the less Anglo the name reads -
- * see data/talentNames.ts for the survey the weights are anchored to.
- */
-function randomName(rng: RandomFn, role?: TalentProfession) {
-  return generateFullName(rng, nameOriginWeightsForRole(role));
+// Structural variation on top of the two word banks (data/talentNames.ts).
+// Plain first+last is 690 x 750 = 517,500 combinations - already a 20x widening
+// of the old pool - but a generated-only playthrough draws ~2,500 people and
+// collisions grow with the square of that. Two devices lift the effective space
+// into the millions:
+//
+//   - a middle initial on roughly a fifth of people (x~6.5)
+//   - a double-barrelled surname on roughly one in twenty (x~750 on that slice)
+//
+// Both are ordinary in the professional-credit world this game is set in, so
+// they read as texture rather than as a uniqueness trick.
+//
+// Crucially, NEITHER CONSUMES THE SHARED RNG. They are derived from a hash of
+// the two names already drawn plus the person's own sequence number, so
+// randomName still takes exactly two draws - the same two it always took.
+//
+// That is not a micro-optimisation, it is the difference between a flavour
+// change and a balance change. Every stochastic outcome in the simulation
+// shares one seeded sequence: talent stats, production events, rival
+// behaviour, box office. Spending two extra draws per person here would shift
+// every subsequent value in the game, and seeded fixtures like
+// state/testFixtures.ts:buildReadyDraft would silently produce different
+// people - which is exactly what happened when this was first written against
+// the rng, breaking five unrelated calibration tests. Name flavour must not
+// perturb the simulation.
+const MIDDLE_INITIAL_CHANCE = 0.22;
+const DOUBLE_BARRELLED_CHANCE = 0.05;
+const INITIALS = 'ABCDEFGHIJKLMNOPRSTVW'.split('');
+
+function randomName(rng: RandomFn, salt: string, role?: TalentProfession): string {
+  // Exactly two draws from the shared sequence, as before. Everything below is
+  // derived, not drawn.
+  //
+  // The first draw carries the region (see firstNamePoolFor); the second reads
+  // that region's own surnames rather than the whole pool, so the two halves
+  // agree. Both are still one `pick` each - `pick` costs one rng() call whatever
+  // the array length - so the draw COUNT is untouched and no downstream seeded
+  // sequence shifts. That constraint is the one this file's note above is
+  // emphatic about, and it is deliberately preserved here.
+  const { first, last } = drawCoherentName(rng, salt, regionWeightsForRole(role), role ?? '*');
+
+  // `salt` distinguishes two people who happened to draw the same base name, so
+  // they do not receive identical embellishment - which is what keeps the
+  // embellishment a genuine expansion of the name space rather than a pure
+  // function of the two words.
+  //
+  // It must be deterministic *within a seeded run*: the caller passes the
+  // person's own position on the pay/skill spread, itself drawn from the shared
+  // rng, so the same seed reproduces the same names exactly. An earlier version
+  // salted with the module-level nextTalentId counter, which made names depend
+  // on how many people had been generated before - so the same seed produced
+  // different names on a second call, and three determinism tests caught it.
+  const seed = `${first}|${last}|${salt}`;
+
+  const middle = nameVariant(seed, 1) < MIDDLE_INITIAL_CHANCE
+    ? `${INITIALS[Math.floor(nameVariant(seed, 2) * INITIALS.length)]}. `
+    : '';
+
+  let surname = last;
+  if (nameVariant(seed, 3) < DOUBLE_BARRELLED_CHANCE) {
+    const second = TALENT_LAST_NAMES[Math.floor(nameVariant(seed, 4) * TALENT_LAST_NAMES.length)];
+    // A hyphenated name is two *different* surnames; the same one twice would
+    // read as a bug rather than as a name.
+    if (second !== surname) surname = `${surname}-${second}`;
+  }
+
+  return `${first} ${middle}${surname}`;
 }
 
 const GENDERS: readonly Gender[] = ['Male', 'Female', 'NonBinary'];
@@ -396,15 +457,14 @@ function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Perso
   // per-person seed are available to buildPersonality below. buildPersonality is
   // a pure HASH derivation that consumes no rng, so the generation stream stays
   // byte-identical - the sharp edge from docs/DESIGN_REVIEW_acting_model.md §15.
-  const drawnName = randomName(rng, role);
-  const name = drawnName.name;
+  const name = randomName(rng, `${role}|${t}`, role);
   const gender = generateGender(rng);
   const dateOfBirth = generateDateOfBirth(rng);
   const personalitySeed = `${role}:${fame}:${reliability}:${ego}:${salary}:${dateOfBirth.year}.${dateOfBirth.month}.${dateOfBirth.day}`;
 
   return {
     id: `talent-${nextTalentId++}`,
-    identity: { name, gender, dateOfBirth, nationality: drawnName.nationality, appearanceTags: [] },
+    identity: { name, gender, dateOfBirth, nationality: nationalityFor(name), appearanceTags: [] },
     // The six formerly-flat axes now cohere into a real archetype (see
     // engine/personality.ts) so engine/personTraits.ts can actually fire;
     // professionalism (= reliability) and ego are carried through unchanged.
@@ -456,14 +516,14 @@ export function generateTalentCandidates(role: TalentProfession, rng: RandomFn, 
 }
 
 // Roles whose recognizable talent is fully hand-authored but that still keep a
-// small procedurally-generated "budget tier" of unknowns BELOW the handcrafted
+// small procedurally-generated "budget tier" of unknowns BELOW a seeded
 // roster's own floor. Every named, recognizable hire is real; the procedural
 // fill only ever produces no-name, background/up-and-coming crew a shoestring
 // production would actually staff up with (a $500K film can't afford Deakins,
-// but it can hire an unknown DP). Each `ceiling` is that role's handcrafted
+// but it can hire an unknown DP). Each `ceiling` is that role's seeded
 // floor, so the two tiers meet with no gap and the procedural tier can never
 // mint a "random A-lister" - see the matching `salaryRange.min` in
-// data/talentGeneration.ts, which drops back below the handcrafted floor so
+// data/talentGeneration.ts, which drops back below the seeded floor so
 // the price slider can actually reach these budget hires.
 const BUDGET_TIER: Partial<Record<TalentProfession, { ceiling: number; poolSize: number }>> = {
   'Actor': { ceiling: 300_000, poolSize: 150 }, // background/extras-tier actors
@@ -474,39 +534,60 @@ const BUDGET_TIER: Partial<Record<TalentProfession, { ceiling: number; poolSize:
   Editor: { ceiling: 180_000, poolSize: 80 },
 };
 
-/** A handcrafted person with their personality resolved (marquee override → authored inline → archetype-derived from their own stats), everything else untouched. */
+/** A database person with their personality resolved (marquee override → authored inline → archetype-derived from their own stats), everything else untouched. */
 function withResolvedPersonality(person: Person): Person {
   return { ...person, personality: resolveHandcraftedPersonality(person, MARQUEE_PERSONALITIES[person.id]) };
 }
 
-/** The full studio roster: every role's candidate slate, generated once. */
+/**
+ * The full studio roster: every role's candidate slate, generated once.
+ *
+ * `database` seeds the recognizable tier of whichever professions it supplies
+ * (data/talentDatabases.ts); the generator fills in around it. With no database
+ * - the shipped default - every profession is generated across its whole range.
+ *
+ * The interaction between the two is the load-bearing part. BUDGET_TIER caps
+ * generated talent *below* a seeded roster's floor, precisely so the generator
+ * can never mint a random A-lister alongside a curated one. That cap is
+ * therefore conditional on the database actually supplying that profession: a
+ * role the database leaves empty is generated across its full salary and fame
+ * range, or a generated-only game would contain nobody above the budget tier's
+ * ceiling and the industry would have no stars in it at all.
+ */
 export function generateTalentPool(
   rng: RandomFn,
+  database: TalentDatabase = GENERATED_TALENT_DB,
 ): Record<TalentProfession, Person[]> {
   const pool = {} as Record<TalentProfession, Person[]>;
 
   for (const role of ALL_TALENT_PROFESSIONS) {
-    // The handcrafted roster stores a flat placeholder personality for all but a
-    // few hand-authored marquee names; resolve each to its real archetype-derived
-    // (or authored-override) personality as it enters the pool. A pure, per-person
-    // deterministic read - it never mutates the source data or touches rng.
-    const handcrafted = (HANDCRAFTED_TALENTS_BY_ROLE[role] ?? []).map(withResolvedPersonality);
+    // A database stores a flat placeholder personality for all but a few
+    // hand-authored marquee names; resolve each to its real archetype-derived
+    // (or authored-override) personality as it enters the pool. A pure,
+    // per-person deterministic read - it never mutates the source data or
+    // touches rng.
+    const seeded = (database.peopleByRole[role] ?? []).map(withResolvedPersonality);
     const budget = BUDGET_TIER[role];
 
-    // Handcrafted recognizable roster + a capped procedural budget tier just
-    // below its floor (see BUDGET_TIER above).
-    if (budget) {
+    // Seeded roster + a capped generated budget tier just below its floor -
+    // but only when the roster actually covers this profession. See the doc
+    // comment above for why the condition is on `seeded.length` rather than on
+    // whether a BUDGET_TIER entry happens to exist.
+    if (budget && seeded.length > 0) {
       const budgetTMax = logT(budget.ceiling, ROLE_GENERATION_PROFILES[role].salaryRange);
       pool[role] = [
-        ...handcrafted,
+        ...seeded,
         ...generateTalentCandidates(role, rng, budget.poolSize, [0, budgetTMax]),
       ];
       continue;
     }
 
-    // Roles with no handcrafted roster (VFX Supervisor, Casting Director) are
-    // still fully procedural across their whole range.
-    pool[role] = [...handcrafted, ...generateTalentCandidates(role, rng)];
+    // No seeded roster for this profession - either the database supplies none,
+    // or it is a role no database covers (VFX Supervisor, Casting Director).
+    // Generate the whole range, top to bottom, at this profession's own density
+    // (data/talentGeneration.ts:poolSize - a film industry has many more actors
+    // than composers, so this is deliberately not flat).
+    pool[role] = [...seeded, ...generateTalentCandidates(role, rng, ROLE_GENERATION_PROFILES[role].poolSize)];
   }
 
   return pool;
@@ -537,15 +618,14 @@ function generateProducer(rng: RandomFn, t: number): Person {
 
   // Hoisted for the same reason as generateTalent: a stable seed + age for the
   // no-rng archetype derivation, draw order unchanged.
-  const drawnName = randomName(rng);
-  const name = drawnName.name;
+  const name = randomName(rng, `producer|${t}`);
   const gender = generateGender(rng);
   const dateOfBirth = generateDateOfBirth(rng);
   const personalitySeed = `Producer:${fame}:${reliability}:${ego}:${salary}:${dateOfBirth.year}.${dateOfBirth.month}.${dateOfBirth.day}`;
 
   return {
     id: `producer-${nextTalentId++}`,
-    identity: { name, gender, dateOfBirth, nationality: drawnName.nationality, appearanceTags: [] },
+    identity: { name, gender, dateOfBirth, nationality: nationalityFor(name), appearanceTags: [] },
     personality: buildPersonality(
       {
         professionalism: reliability,

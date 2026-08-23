@@ -571,6 +571,35 @@ export type PersonTrait =
   | 'Versatile'
   | 'LoyalCollaborator';
 
+/**
+ * A named roster the game can draw its people from, alongside (or instead of)
+ * procedurally generated talent - see engine/talentGenerator.ts:generateTalentPool
+ * and data/talentDatabases.ts.
+ *
+ * The default game ships no roster at all: everyone is generated. A database is
+ * strictly *additive* - it seeds the recognizable tier of whichever professions
+ * it supplies, and the generator fills the rest around it.
+ */
+export interface TalentDatabase {
+  /** Stable across saves - GameState.talentDatabaseId stores this, not the object. */
+  id: string;
+  name: string;
+  description: string;
+  /**
+   * Whether this roster names real public figures. Load-bearing rather than
+   * decorative: a roster of real people carries publicity-rights obligations a
+   * fictional one does not, so it can never be the shipped default and the UI
+   * has to be able to say so. See docs/ART_DIRECTION.md §10.
+   */
+  containsRealPeople: boolean;
+  /**
+   * People keyed by the profession they should be offered for. One Person may
+   * appear under several roles (a writer-director carries both careers) - the
+   * pool holds the same object, so identity stays single.
+   */
+  peopleByRole: Partial<Record<TalentProfession, Person[]>>;
+}
+
 export interface Person {
   id: PersonId;
   identity: PersonIdentity;

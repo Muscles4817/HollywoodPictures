@@ -1,0 +1,591 @@
+<title>Thunder County One-Sheet Proof</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Saira+Extra+Condensed:wght@400;500;600;700&family=Caveat:wght@500;600&display=swap">
+
+<style>
+  :root {
+    /* An artwork proof: black teaser one-sheet mounted on light board,
+       marked up in red by the advertising department. The one object in the
+       game that is DESK paperwork and SPECTACLE artwork at the same time. */
+    --board:      #DEDAD0;
+    --board-dim:  #CDC8BB;
+    --board-ink:  #24221D;
+    --board-soft: #6E695C;
+    --board-rule: #A9A395;
+
+    --art:        #08070A;
+    --art-lift:   #131218;
+    --credit:     #D6D4D0;
+    --credit-dim: #8C8A88;
+
+    --chrome-hi:  #FBF3DC;
+    --chrome-mid: #C9AE6B;
+    --chrome-lo:  #7E6428;
+
+    --hot:        #E8563F;
+    --proof:      #C8342E;
+    --desk:       #100F0D;
+
+    --t-0: 0.6rem;
+    --t-1: 0.72rem;
+    --t-2: 0.84rem;
+    --t-3: 1rem;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--desk);
+    color: var(--board-ink);
+    font-family: 'Saira Extra Condensed', 'Arial Narrow', sans-serif;
+    font-size: var(--t-2);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .bench {
+    min-height: 100vh;
+    padding: 32px 18px 56px;
+    display: flex;
+    justify-content: center;
+    background: radial-gradient(ellipse 88% 55% at 50% 14%, #1C1A17 0%, var(--desk) 74%);
+  }
+
+  /* ---- The mount board ---------------------------------------------- */
+  .proofboard {
+    width: 100%;
+    max-width: 1000px;
+    background: var(--board);
+    padding: 20px 22px 24px;
+    box-shadow: 0 22px 60px rgba(0,0,0,0.66);
+  }
+
+  .routing {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    flex-wrap: wrap;
+    border-bottom: 2px solid var(--board-ink);
+    padding-bottom: 9px;
+  }
+  .routing h1 {
+    font-size: var(--t-2);
+    font-weight: 700;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .routing p {
+    font-size: var(--t-1);
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--board-soft);
+    margin: 4px 0 0;
+  }
+  .routing-meta {
+    text-align: right;
+    font-size: var(--t-1);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    line-height: 1.75;
+    color: var(--board-soft);
+    white-space: nowrap;
+  }
+  .routing-meta b { color: var(--board-ink); }
+
+  /* ---- Board layout: artwork + margin ------------------------------- */
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 240px;
+    gap: 22px;
+    margin-top: 18px;
+    align-items: start;
+  }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+
+  /* ---- The artwork -------------------------------------------------- */
+  .art {
+    background:
+      radial-gradient(ellipse 130% 80% at 50% 108%, #241C1A 0%, transparent 60%),
+      var(--art);
+    border: 1px solid #000;
+    padding: 40px 30px 22px;
+    text-align: center;
+    box-shadow: inset 0 0 90px rgba(0,0,0,0.85);
+  }
+
+  .above-title {
+    font-size: var(--t-1);
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--credit);
+    margin: 0 0 18px;
+  }
+  .above-title button {
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+    padding: 2px 4px;
+  }
+  .above-title button:hover { color: #FFF; }
+  .above-title button:focus-visible { outline: 1px solid var(--hot); outline-offset: 2px; }
+
+  .title {
+    font-family: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+    font-weight: 800;
+    font-size: clamp(3rem, 12vw, 7.2rem);
+    line-height: 0.84;
+    letter-spacing: 0.02em;
+    margin: 0;
+    text-transform: uppercase;
+    color: var(--chrome-mid);
+    background: linear-gradient(178deg,
+      var(--chrome-hi) 0%,
+      var(--chrome-mid) 42%,
+      var(--chrome-lo) 52%,
+      var(--chrome-mid) 62%,
+      var(--chrome-hi) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-wrap: balance;
+  }
+
+  .tagline {
+    font-size: var(--t-2);
+    font-weight: 500;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--hot);
+    margin: 16px 0 30px;
+  }
+
+  .release {
+    font-size: var(--t-1);
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--credit);
+    margin: 0 0 22px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(214,212,208,0.18);
+  }
+
+  /* ---- The billing block --------------------------------------------
+     The real artifact: ultra-condensed, all caps, tightly set, order fixed
+     by contract. Role label small above the name — exactly as printed. */
+  .block {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 3px 14px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  .credit {
+    background: none;
+    border: 0;
+    font: inherit;
+    color: var(--credit);
+    cursor: pointer;
+    padding: 3px 2px;
+    text-align: center;
+    line-height: 1.06;
+  }
+  .credit:hover { background: rgba(255,255,255,0.07); }
+  .credit:focus-visible { outline: 1px solid var(--hot); outline-offset: 1px; }
+  .credit-role {
+    display: block;
+    font-size: var(--t-0);
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--credit-dim);
+  }
+  .credit-name {
+    display: block;
+    font-size: var(--t-2);
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+  }
+  .credit--lead .credit-name { font-size: var(--t-3); font-weight: 700; }
+
+  /* The proof is unfinished: an unfilled credit is a typesetter's slug,
+     not an absence. This is what the empty slot looks like in this world. */
+  .credit--tba .credit-name {
+    color: var(--proof);
+    border: 1px dashed var(--proof);
+    padding: 1px 6px;
+  }
+  .credit--tba .credit-role { color: var(--proof); opacity: 0.75; }
+
+  .tags {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 22px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(214,212,208,0.14);
+    font-size: var(--t-0);
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--credit-dim);
+  }
+  .rating {
+    border: 1px solid var(--credit-dim);
+    padding: 2px 7px;
+    letter-spacing: 0.16em;
+  }
+
+  /* ---- Margin: proof notes + spec ------------------------------------ */
+  .margin { min-width: 0; }
+  .margin h2 {
+    font-size: var(--t-1);
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--board-ink);
+    padding-bottom: 5px;
+    margin: 0 0 10px;
+  }
+
+  .note {
+    font-family: 'Caveat', 'Comic Sans MS', cursive;
+    font-size: 1.12rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--proof);
+    border-left: 2px solid var(--proof);
+    padding: 2px 0 2px 10px;
+    margin: 0 0 14px;
+  }
+  .note small {
+    display: block;
+    font-family: 'Saira Extra Condensed', sans-serif;
+    font-size: var(--t-0);
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--board-soft);
+    margin-top: 3px;
+  }
+
+  .spec {
+    background: var(--board-dim);
+    border: 1px solid var(--board-rule);
+    padding: 10px 12px;
+    margin-top: 18px;
+  }
+  .spec-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: var(--t-1);
+    padding: 4px 0;
+    border-bottom: 1px solid var(--board-rule);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .spec-row:last-child { border-bottom: 0; border-top: 2px solid var(--board-ink); margin-top: 3px; padding-top: 6px; }
+  .spec-row span { color: var(--board-soft); font-weight: 500; }
+  .spec-row b { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .spec-row:last-child b { font-size: var(--t-3); }
+
+  .stamp {
+    display: inline-block;
+    margin-top: 18px;
+    border: 3px double var(--proof);
+    color: var(--proof);
+    font-size: var(--t-1);
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 8px 12px;
+    transform: rotate(-3deg);
+    opacity: 0.85;
+    line-height: 1.3;
+    text-align: center;
+  }
+
+  .footrule {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    border-top: 2px solid var(--board-ink);
+    margin-top: 20px;
+    padding-top: 8px;
+    font-size: var(--t-0);
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--board-soft);
+  }
+
+  /* ---- Overlay -------------------------------------------------------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(8,7,10,0.8);
+  }
+  .overlay[data-open="true"] { display: flex; }
+  .win {
+    width: min(620px, 100%);
+    background: var(--board);
+    border: 1px solid var(--board-ink);
+    box-shadow: 0 24px 60px rgba(0,0,0,0.72);
+    padding: 18px 22px 22px;
+  }
+  .win-role {
+    font-size: var(--t-0);
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--proof);
+    margin: 0 0 4px;
+  }
+  .win-name {
+    font-family: 'Big Shoulders Display', sans-serif;
+    font-size: 1.9rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin: 0 0 10px;
+    padding-bottom: 9px;
+    border-bottom: 1px solid var(--board-rule);
+    line-height: 1;
+  }
+  .win-body {
+    font-size: var(--t-3);
+    line-height: 1.62;
+    letter-spacing: 0.01em;
+    margin: 0 0 16px;
+    max-width: 60ch;
+  }
+  .win-close {
+    font-family: 'Saira Extra Condensed', sans-serif;
+    font-size: var(--t-1);
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    background: var(--board-ink);
+    border: 1px solid var(--board-ink);
+    color: var(--board);
+    padding: 6px 15px;
+    cursor: pointer;
+  }
+  .win-close:hover { background: transparent; color: var(--board-ink); }
+  .win-close:focus-visible { outline: 2px solid var(--proof); outline-offset: 2px; }
+</style>
+
+<div class="bench">
+  <div class="proofboard">
+
+    <div class="routing">
+      <div>
+        <h1>Meridian Pictures</h1>
+        <p>Advertising &amp; Publicity &mdash; Artwork Proof</p>
+      </div>
+      <div class="routing-meta">
+        Teaser One-Sheet &middot; <b>27&times;41</b><br>
+        Proof <b>AP-0114/2</b> &middot; MP-0114<br>
+        <b>14 Sept 1987</b>
+      </div>
+    </div>
+
+    <div class="layout">
+
+      <div class="art">
+        <p class="above-title">
+          <button type="button" data-role="Above-the-Title Billing" data-name="Marguerite Vance"
+            data-detail="Above-the-title billing is a contract term, not a layout choice — she carries enough fame to demand it, and winning that point cost the negotiation. Reads the sheriff as weary rather than heroic. Excellent role fit; her craft archetype suits the director's grounded pitch. Chemistry with the second lead is untested.">
+            Marguerite Vance
+          </button>
+        </p>
+
+        <h2 class="title">Thunder County</h2>
+        <p class="tagline">Some debts are buried. Not all of them stay down.</p>
+
+        <p class="release">Coming this November</p>
+
+        <div class="block">
+          <button class="credit" type="button" data-role="Distributor" data-name="Meridian Pictures"
+            data-detail="Meridian distributes its own pictures domestically. The block's order is fixed by convention and contract — distributor first, director last — which is why the studio's own name opens the crawl.">
+            <span class="credit-role">Meridian Pictures Presents</span>
+          </button>
+
+          <button class="credit credit--lead" type="button" data-role="Director" data-name="Dale Rourke"
+            data-detail="Won a three-way bake-off. Pitched a lean, grounded take against the script's spectacle leanings — a bold read that widens execution variance in both directions. Wants final cut on the second act. Fee £2,400,000.">
+            <span class="credit-role">A Film By</span>
+            <span class="credit-name">Dale Rourke</span>
+          </button>
+
+          <button class="credit credit--tba" type="button" data-role="Second Lead" data-name="not yet cast"
+            data-detail="Two names have read and both are within budget. One carries returning-franchise history with the topline; the other tests better on the tonal axis. Neither has been offered — and this slug cannot go to print. Publicity needs the name by 30 September to hold the teaser date.">
+            <span class="credit-role">Co-Starring</span>
+            <span class="credit-name">To Be Announced</span>
+          </button>
+
+          <button class="credit" type="button" data-role="Featured" data-name="Arthur Lombard"
+            data-detail="Featured day player, cast from the general pool. Carries a credit because the part is named in the script.">
+            <span class="credit-role">With</span>
+            <span class="credit-name">Arthur Lombard</span>
+          </button>
+
+          <button class="credit" type="button" data-role="Casting Director" data-name="Wendell Pryor"
+            data-detail="Widens the candidate pool and sharpens every fit read. Responsible for surfacing both names who read for the second lead. Fee £120,000.">
+            <span class="credit-role">Casting By</span>
+            <span class="credit-name">Wendell Pryor</span>
+          </button>
+
+          <button class="credit credit--tba" type="button" data-role="Composer" data-name="not yet attached"
+            data-detail="Nothing is needed until post-production, but attaching now costs less than attaching late. Three composers are available at this budget; one is coming off an award-nominated picture and has priced accordingly.">
+            <span class="credit-role">Music By</span>
+            <span class="credit-name">To Be Announced</span>
+          </button>
+
+          <button class="credit" type="button" data-role="Editor" data-name="Constance Baye"
+            data-detail="Not required until post. Attached early to lock her availability against a competing production at a rival studio. Fee £210,000.">
+            <span class="credit-role">Edited By</span>
+            <span class="credit-name">Constance Baye</span>
+          </button>
+
+          <button class="credit" type="button" data-role="Production Designer" data-name="Ruth Okonjo"
+            data-detail="Set ambition currently Standard. Her recommendation is eleven build days; the plan allows nine, which starves the facet slightly. Fee £295,000.">
+            <span class="credit-role">Production Design By</span>
+            <span class="credit-name">Ruth Okonjo</span>
+          </button>
+
+          <button class="credit" type="button" data-role="Cinematographer" data-name="Halvard Nyquist"
+            data-detail="Hard directional light, deep blacks, minimal diffusion. Aligns cleanly with the director's grounded pitch — the two have shot together once before, to good effect. Fee £380,000.">
+            <span class="credit-role">Director of Photography</span>
+            <span class="credit-name">Halvard Nyquist</span>
+          </button>
+
+          <button class="credit" type="button" data-role="Producer" data-name="Estelle Marchetti"
+            data-detail="Attached from the studio's own production office. Three pictures with this studio, two profitable. Pushes hard for schedule discipline and will resist a runaway shoot. Salaried.">
+            <span class="credit-role">Produced By</span>
+            <span class="credit-name">Estelle Marchetti</span>
+          </button>
+
+          <button class="credit" type="button" data-role="Writer" data-name="Junius Bell"
+            data-detail="Original screenplay, third draft delivered. Strong on structure, weaker on dialogue polish — a pass from a second writer would lift the ceiling but costs three weeks. Fee £450,000.">
+            <span class="credit-role">Written By</span>
+            <span class="credit-name">Junius Bell</span>
+          </button>
+
+          <button class="credit credit--lead" type="button" data-role="Director" data-name="Dale Rourke"
+            data-detail="The director takes the final position in the block — the most valuable slot after above-the-title. Rourke appears twice by convention: once in the possessory credit at the top, once as director at the close.">
+            <span class="credit-role">Directed By</span>
+            <span class="credit-name">Dale Rourke</span>
+          </button>
+        </div>
+
+        <div class="tags">
+          <span class="rating">Cert 15</span>
+          <span>Dolby Stereo</span>
+          <span>Soundtrack pending</span>
+          <span>&copy; MCMLXXXVII Meridian Pictures Corp.</span>
+        </div>
+      </div>
+
+      <aside class="margin">
+        <h2>Proof Notes</h2>
+
+        <p class="note">
+          2 slugs still open &mdash; do NOT send to print
+          <small>Publicity desk</small>
+        </p>
+
+        <p class="note">
+          V. gets above-title per contract. Don&rsquo;t move her.
+          <small>Business affairs</small>
+        </p>
+
+        <p class="note">
+          Need the co-star name by 30/9 or we lose the teaser date
+          <small>Publicity desk</small>
+        </p>
+
+        <h2 style="margin-top:20px">Production Spec</h2>
+        <div class="spec">
+          <div class="spec-row"><span>Photography</span><b>02 Nov 87</b></div>
+          <div class="spec-row"><span>Shoot Days</span><b>46</b></div>
+          <div class="spec-row"><span>Runtime</span><b>108 min</b></div>
+          <div class="spec-row"><span>Negative Cost</span><b>£18,400,000</b></div>
+          <div class="spec-row"><span>Contingency</span><b>£1,840,000</b></div>
+          <div class="spec-row"><span>Total</span><b>£20,240,000</b></div>
+        </div>
+
+        <div class="stamp">
+          Proof Only<br>Not Approved
+        </div>
+      </aside>
+    </div>
+
+    <div class="footrule">
+      <span>Click any credit for the desk&rsquo;s note</span>
+      <span>Greenlight readiness &mdash; one part open, build short by two days, picture can go</span>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" data-open="false" role="dialog" aria-modal="true" aria-labelledby="win-name">
+  <div class="win">
+    <p class="win-role" id="win-role">Credit</p>
+    <h3 class="win-name" id="win-name">Name</h3>
+    <p class="win-body" id="win-body"></p>
+    <button class="win-close" type="button" id="win-close">Close</button>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var overlay = document.getElementById('overlay');
+    var roleEl = document.getElementById('win-role');
+    var nameEl = document.getElementById('win-name');
+    var bodyEl = document.getElementById('win-body');
+    var closeBtn = document.getElementById('win-close');
+    var lastFocused = null;
+
+    function open(btn) {
+      lastFocused = btn;
+      roleEl.textContent = btn.getAttribute('data-role');
+      nameEl.textContent = btn.getAttribute('data-name');
+      bodyEl.textContent = btn.getAttribute('data-detail');
+      overlay.setAttribute('data-open', 'true');
+      closeBtn.focus();
+    }
+
+    function close() {
+      overlay.setAttribute('data-open', 'false');
+      if (lastFocused) lastFocused.focus();
+    }
+
+    Array.prototype.forEach.call(
+      document.querySelectorAll('.credit, .above-title button'),
+      function (btn) { btn.addEventListener('click', function () { open(btn); }); }
+    );
+    closeBtn.addEventListener('click', close);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+  })();
+</script>
