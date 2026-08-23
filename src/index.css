@@ -2512,3 +2512,48 @@ textarea, input, select {
 :root[data-theme='dark'] .staffing-stage--evaluating { background: #2b2150; color: #cbb8ff; }
 :root[data-theme='dark'] .staffing-stage--negotiating { background: #3a2c12; color: #e6c98a; }
 :root[data-theme='dark'] .staffing-stage--attached { background: #163020; color: #7fe0a3; }
+
+/* Pre-greenlight release-date claim (components/projectWorkspace/ProjectOverview.tsx).
+   A claim, not a booking - see docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
+   section 9.1. */
+.release-month-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 6px;
+}
+
+.release-month-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.12s;
+}
+
+.release-month-cell:hover {
+  border-color: var(--primary);
+}
+
+.release-month-cell--claimed {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(36, 81, 201, 0.15);
+}
+
+.release-month-cell__label {
+  font-weight: 600;
+  font-size: 0.85em;
+}
+
+.release-month-cell__crowding {
+  font-size: 0.75em;
+  color: var(--text-muted);
+}
+
+.release-month-cell__crowding--clear { color: var(--success, #2e7d32); }
+.release-month-cell__crowding--moderate { color: var(--warning, #b8860b); }
+.release-month-cell__crowding--high { color: var(--danger, #c0392b); }

@@ -222,3 +222,26 @@ export function runningFilmAsUpcomingRelease(film: Film): UpcomingRelease | null
     strength: computeRunningFilmStrength(fixed, simWeeks, simWeeks.length),
   };
 }
+
+/**
+ * The qualitative reading of a crowding score. Player-facing presentation is
+ * qualitative by house rule (CLAUDE.md), and this lives in the engine so every
+ * screen that shows a window reads it the same way.
+ */
+export type CrowdingBand = 'clear' | 'moderate' | 'high';
+
+export function crowdingBandKey(score: number): CrowdingBand {
+  if (score < 0.15) return 'clear';
+  if (score < 0.4) return 'moderate';
+  return 'high';
+}
+
+const CROWDING_BAND_LABELS: Record<CrowdingBand, string> = {
+  clear: 'Clear window',
+  moderate: 'Some competition',
+  high: 'Crowded',
+};
+
+export function describeCrowdingBand(score: number): string {
+  return CROWDING_BAND_LABELS[crowdingBandKey(score)];
+}

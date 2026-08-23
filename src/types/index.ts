@@ -2743,6 +2743,23 @@ export interface FilmDraft {
   // reality can diverge from it. Absent before greenlight; the pre-greenlight
   // intent is the freely-movable target start (`plannedStartOffsetDays`).
   committedStartDay?: GameDay;
+  /**
+   * The release day this project has been ANNOUNCED for - a public territorial
+   * claim, not a reservation (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
+   * section 9.1). Nothing in the industry allocates dates, and nothing here
+   * prevents a rival opening the same day; what an announcement does is let
+   * everyone else see the claim and decide whether to steer around it.
+   *
+   * Set well before greenlight and freely re-announced (moving is always
+   * allowed - what it costs is the campaign committed against the old date).
+   * Absent means the project has made no claim at all, which is a real and
+   * common choice: an undated film keeps maximum flexibility and simply takes
+   * whatever the calendar leaves it.
+   *
+   * Distinct from a `scheduled` project's own releaseDay, which is the real,
+   * final booking made once the film is finished - see Project's own union.
+   */
+  announcedReleaseDay?: GameDay;
   // The live pre-production run (Greenlight -> Principal Photography), or null
   // before greenlight. Non-null with status 'in-progress'/'awaiting-choice'
   // means prep is underway; 'finished' means it's the persisted record the shoot

@@ -208,6 +208,18 @@ export function scheduledPlayerReleases(projects: Project[]): Array<{ draft: Fil
   });
 }
 
+/**
+ * Every in-progress player draft carrying an outstanding release announcement -
+ * the claims rivals can see. Excludes anything already `scheduled`, whose real
+ * booking is read from the project itself (scheduledPlayerReleases above), so
+ * no film is ever counted on the calendar twice.
+ */
+export function announcedPlayerDrafts(projects: Project[]): FilmDraft[] {
+  return projects.flatMap((p) =>
+    p.kind === 'player-in-progress' && p.draft.announcedReleaseDay !== undefined ? [p.draft] : [],
+  );
+}
+
 // --- Development pipeline (docs/DESIGN_REVIEW_development_pipeline.md) ---
 
 /** Which Asset a Project was developed from, regardless of which kind it's currently in - null for a rival production (rivals don't go through the Asset pipeline in this MVP) or a released film with no recorded asset (an old save, or a rival's). */

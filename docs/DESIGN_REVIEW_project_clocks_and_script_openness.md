@@ -646,9 +646,14 @@ are worth doing even if the rest slips.
    0.7 passes through untouched, so the ordinary range keeps its exact previous
    calibration; above it, crowding approaches total loss asymptotically instead
    of clamping. Strictly monotonic, so no two pressures collapse to one crowding.
-3. **Announce the date before greenlight**, and let rivals see it.
-4. **Commit marketing against it early**, as a real sunk cost.
-5. **Allow moving, priced at the campaign write-off.**
+3. ~~**Announce the date before greenlight**, and let rivals see it.~~ **Done** -
+   see §9.5b, including the rival-scheduling limitation it exposed.
+4. **Recalibrate rival release scheduling** so a film weighs sitting in a
+   contested prime window against fleeing it, instead of vacating on any
+   non-zero crowding. **Promoted ahead of the rest by §9.5b:** until this lands,
+   rivals never collide with the player and steps 5-6 have no dilemma to price.
+5. **Commit marketing against the date early**, as a real sunk cost.
+6. **Allow moving, priced at the campaign write-off.**
 
 ### 9.5a Measured result of steps 1-2
 
@@ -685,6 +690,52 @@ nothing (7% of waits cost a target, against 10% before - noise). **That is the
 expected result, not a failure:** steps 1-2 sharpen how a collision is *felt*,
 while what makes the date matter to a production decision is steps 3-5, which
 commit something early enough to lose. The re-run in §9.6 is the one that counts.
+
+### 9.5b Measured result of step 3, and the calibration it exposed
+
+The announcement machinery works: a project can claim a date well before
+greenlight, rivals read it off the same calendar they read each other from, and
+they respond to it. `announcedAsUpcomingRelease` deliberately carries no
+marketing term, so a bare claim reads weaker than a funded one - which is what
+gives step 4 something real to do rather than bookkeeping.
+
+**But rivals respond by fleeing the entire window, and identically regardless of
+the threat.** Measured on `chooseReleaseDay`:
+
+```text
+naive 300  ->  undisturbed 307
+  matching, strength 0.9   ->  356   (+49 days)
+  matching, strength 0.1   ->  356   (+49 days)
+  counterprogrammed        ->  356   (+49 days)
+```
+
+The cause is in the scoring, not the announcement. `chooseReleaseDay` maximises
+`seasonalDesirability(day) - 0.6 * crowding`, and seasonal desirability is nearly
+flat across neighbouring weeks, so **any** non-zero crowding is enough to tip the
+choice - and the cheapest way to shed crowding entirely is to step just past
+`CROWDING_WINDOW_DAYS` (45). Hence +49 every time.
+
+Two consequences this design depends on and does not yet have:
+
+- **Counterprogramming never happens.** The 0.15 genre-mismatch weight is doing
+  its job inside `computeCompetitiveCrowding`, but the day-choice throws the
+  distinction away: a Romance flees an Action claim exactly as far as another
+  Action would.
+- **§9.4's dilemma cannot arise.** If a rival always vacates, the player never
+  faces "a same-audience tentpole just parked on your date - hold or move?"
+
+What step 3 *does* deliver is the other half: **announcing early genuinely buys a
+clear window**, because a rival that steps aside leaves the whole 45 days. That
+is a real and worthwhile mechanic on its own, and it is why announcing is worth
+doing at all.
+
+Getting the risk half requires a rival-scheduling calibration - the tolerance for
+sitting in a contested prime window rather than fleeing it - which is AI release
+strategy and belongs with `docs/DESIGN_REVIEW_ai_studio_behavior.md` rather than
+being changed silently inside an announcement feature. It is a prerequisite for
+steps 4-5 to mean anything, and should be done before them. The behaviour is
+pinned by a test (`releaseAnnouncement.test.ts`) so the day it changes, the
+change is visible rather than accidental.
 
 ### 9.6 Acceptance test
 

@@ -52,7 +52,7 @@ import { computeRelationship, recordPlayerFilmCollaborations, PLAYER_STUDIO_ID }
 import { recordPlayerFilmPairings } from '../engine/pairHistory';
 import { settleRivalMarket, generateRivalStudios } from '../engine/rivalStudios';
 import { settlePreProductionsInProgress, settleProductionsInProgress, type PreProductionCharge } from '../engine/productionsInProgress';
-import { asUpcomingRelease, type ScheduledRelease } from '../engine/scheduledReleases';
+import { playerCalendarPresence, type ScheduledRelease } from '../engine/scheduledReleases';
 import { deriveReleaseWindowFromDay, DAYS_PER_YEAR, firstDayOfYear, yearOf } from '../engine/calendar';
 import { accrueMomentum, computeBoxOfficeBump, computeCeremony, computeStudioAwardDeltas, filmsForAwardsYear } from '../engine/awards';
 import { AWARD_SHOWS, awardShow } from '../data/awardsShows';
@@ -106,6 +106,7 @@ import {
   rivalProductionsInProgress as rivalProductionsOf,
   backgroundedPlayerDrafts,
   scheduledPlayerReleases,
+  announcedPlayerDrafts,
   deriveAssetStatus,
   assetAcceptsDevelopmentPass,
 } from '../engine/project';
@@ -522,7 +523,13 @@ function runCalendarSettlement(
     },
     opportunitySettlement.resolvedBids.filter((b) => b.winnerId !== 'player'),
     totalDaysAfter,
-    scheduled.map(asUpcomingRelease),
+    // Locked releases AND outstanding announcements: a claim rivals cannot see
+    // deters nobody, which is the entire point of announcing one. Announced
+    // drafts are deliberately NOT in `scheduled` above - that list is what
+    // settlement resolves as due, and an unfinished film must never be settled.
+    playerCalendarPresence(scheduled, announcedPlayerDrafts(state.projects), (genre) =>
+      genreIdentityFor(state.studio.genreIdentity, genre),
+    ),
     rng,
   );
 
@@ -2795,6 +2802,23 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
     // only ever fires/resolves for a still-player-in-progress draft, so
     // releasing before it resolved would silently orphan the pending
     // choice).
+    // A public claim on a date, not a booking - see the action's own note. No
+    // cost and no commitment yet: what will eventually make moving expensive is
+    // the campaign committed against the date (section 9.4), which does not
+    // exist yet. Allowed at any point before the film is actually scheduled,
+    // and freely changed.
+    case 'ANNOUNCE_RELEASE_DATE': {
+      const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!d) return state;
+      // Never in the past, and never before the film could physically exist -
+      // an announcement rivals cannot believe is not worth making.
+      if (action.releaseDay !== null && action.releaseDay <= state.totalDays) return state;
+      return {
+        ...state,
+        projects: replaceDraft(state.projects, { ...d, announcedReleaseDay: action.releaseDay ?? undefined }),
+      };
+    }
+
     case 'SCHEDULE_RELEASE': {
       const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (

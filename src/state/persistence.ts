@@ -413,7 +413,7 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   FilmDraft gained an optional directorPitches (an open pitch round) and
 //   selectedDirectorPitch (the winning pitch, frozen for downstream bets), and a
 //   new DirectorPitch/DirectorPitchProcess shape. Additive/optional; same policy.
-const SAVE_KEY = 'hollywood-pictures-save-v83';
+const SAVE_KEY = 'hollywood-pictures-save-v84';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
