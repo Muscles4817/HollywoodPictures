@@ -15,6 +15,45 @@ what is *missing*, and what data already exists vs. must be added. Traced throug
 
 ---
 
+## ⚠ Status: partly superseded by the coverage-unification cutover
+
+**This document is a Phase A snapshot and three of its headline findings have
+since been fixed in code.** It is kept as the historical record of what the
+audit found and why the workstream exists — but do not act on findings 2, 3
+(quality half), or 4 (Production Designer half) without re-reading this block.
+
+What changed: `engine/cinematographyFacet.ts`, `engine/scoreFacet.ts` and
+`engine/editFacet.ts` now exist, and `engine/scoring.ts` imports all three.
+Cinematography enters `computeProductionScore`; Score and Editing enter the
+post-production term. So the audit's central *"quality-from-choices, not from
+hires"* defect is resolved for those three crafts — the code comment at
+`scoring.ts:240-246` says so explicitly.
+
+Two qualifications that matter, and are easy to miss:
+
+- **Player films only.** All three are gated behind the `personDrivenCraft`
+  flag. Rivals and the base model deliberately keep the flat, choice-driven
+  values.
+- **Deviation, not replacement.** Each craft enters as the facet quality with
+  the actual head *minus* the same facet at the no-head fallback. A film with
+  no Cinematographer, Composer or Editor attached is byte-identical to before
+  the terms existed, which is why existing fixtures did not move.
+
+| Finding | Status |
+|---|---|
+| 1 — three disciplines have real facet models | **Still true**, and now six |
+| 2 — Cinematographer and Composer mechanically inert | **Fixed** (player films) |
+| 3 — editor skill drives schedule, not quality | **Half fixed** — quality is now person-driven; the coverage ceiling (`editCoverageCeiling`) still bounds it, which was always correct behaviour |
+| 4 — coverage mismatched across systems | **Half fixed** — `best-production-design` now exists and reads `FilmResults.productionDesignScore`. Costume / Makeup / Creature / SFX still have neither category nor model |
+| 5 — only the Director has creative compatibility | Unverified since; re-check before acting |
+| 6 — execution-strategy layer collapsed | Unverified since; re-check before acting |
+| 7 — Producer subsystem is the reference pattern | **Still true** |
+
+For the current, code-verified picture of what the simulation does and does
+not model, see `docs/domain/15-game-mapping.md`.
+
+---
+
 ## Headline findings
 
 The crew system is **not** uniformly "flat skill." It is deeply uneven — some
@@ -77,10 +116,10 @@ heads drive real difficulty models, several are mechanically inert:
 | Director | `skill` + tone + productionStyle + handsOn | script tone, actors | `directionScore` (skill·0.6 + compat·0.4); actor realisation | ✅ | — |
 | Writer | `skill` + WriterCreativeProfile | — | `scriptScore` (originality/structure/characters/dialogue) | ✅ (screenplay) | — |
 | Casting Director | `skill` | cast difficulty | discovery/info/audition/forecast (casting redesign) | — | — |
-| Cinematographer | `skill` (inert) | — | **nothing in scoring**; awards, salary, relationships only | ✅ | — |
-| Editor | `skill` | runtime | post **schedule** + realisation ceiling; quality via `editStyle` *choice* | ✅ | — |
-| Composer | `skill` (inert) | — | quality via `musicFocus` *choice*, not skill; awards, relationships | ✅ | — |
-| Production Designer | `skill` | sets-ambition | **sets facet** quality + `designPrepDays` + set events | — | ✅ |
+| Cinematographer | `skill` | genre, script, shootingRatio | **cinematography facet** quality (player films) + awards, salary, relationships | ✅ | ✅ |
+| Editor | `skill` | runtime, genre, script | post **schedule** + realisation ceiling + **edit facet** quality (player films), still capped by coverage | ✅ | ✅ |
+| Composer | `skill` | genre, script | **score facet** quality (player films) on top of the `musicFocus` brief; awards, relationships | ✅ | ✅ |
+| Production Designer | `skill` | sets-ambition | **sets facet** quality + `designPrepDays` + set events | ✅ | ✅ |
 | VFX Supervisor | `skill` | genre, `vfxAmount` | **vfx facet** quality + post schedule + 1.15× if unhired + vfx events | ✅ | ✅ |
 | Stunts (pool) | stunt-team `skill` | `practicalEffectsAmount` | **practical facet** quality + stunt events | — | ✅ |
 | Producer (ref) | `skill` + specialty + genreAffinity | — | one distinct system per specialty | — | n/a |
@@ -115,7 +154,7 @@ heads drive real difficulty models, several are mechanically inert:
   (built in the casting redesign): forecasts, fit-read sharpening, audition
   speed, discovery of lesser-knowns. Included for parity of the "shared frame."
 
-### Cinematographer  ⚠ inert
+### Cinematographer  ✅ real model *(was ⚠ inert — fixed)*
 - **Represents:** cinematography — **but has no mechanical effect.** Absent from
   `scoring.ts` entirely.
 - **Affects:** awards (`best-cinematography`), salary allocation (`castBudget`),
@@ -125,6 +164,11 @@ heads drive real difficulty models, several are mechanically inert:
   lighting/equipment cost, location feasibility, practical/digital integration)
   and a DP↔director aesthetic-fit axis. **Highest-leverage gap** (an award-bearing
   role that does nothing).
+- **⚠ SUPERSEDED.** `engine/cinematographyFacet.ts` now exists and
+  `computeProductionScore` adds a `CINEMATOGRAPHY_PROD_WEIGHT`-scaled deviation
+  from the unhired baseline (`scoring.ts:284-289`), on player films. The
+  aesthetic-fit axis and the shoot-speed / equipment-cost dimensions listed
+  under *Missing* are still genuinely missing.
 
 ### Editor
 - **Represents:** post assembly.
@@ -136,8 +180,13 @@ heads drive real difficulty models, several are mechanically inert:
   salvaging difficult footage) and any link between skill and delivered edit
   quality; "salvage of a troubled shoot" as a real value depending on the shoot's
   own difficulty/events.
+- **⚠ PARTLY SUPERSEDED.** `engine/editFacet.ts` now feeds an
+  `EDIT_POST_WEIGHT`-scaled deviation into the post term
+  (`scoring.ts:530-536`), so skill does drive quality on player films. The
+  coverage ceiling still bounds it — correctly. Editor *specialty* remains
+  unmodelled.
 
-### Composer  ⚠ inert
+### Composer  ✅ real model *(was ⚠ inert — fixed)*
 - **Represents:** the score — **but the person is mechanically irrelevant.**
   Music quality = `MUSIC_FOCUS_PROFILES[musicFocus].qualityDelta`
   (`scoring.ts:285`), a menu choice.
@@ -145,6 +194,10 @@ heads drive real difficulty models, several are mechanically inert:
 - **Missing:** any link between the hired composer and the score; idiom
   specialties (orchestral/electronic/horror/leitmotif/period), recording scale
   cost, audience/awards interaction.
+- **⚠ SUPERSEDED.** `engine/scoreFacet.ts` now feeds a `SCORE_POST_WEIGHT`-scaled
+  deviation into the post term (`scoring.ts:530-536`) on player films, so the
+  hired composer does affect the score. Idiom specialties and recording-scale
+  cost remain unmodelled.
 
 ### Production Designer  ✅ real model
 - **Represents:** sets & physical design — one of the three real facet heads.
@@ -224,7 +277,10 @@ heads drive real difficulty models, several are mechanically inert:
 
 ## Confidence / limitations
 
-Traced against the current `master`. Salary/cost allocation (`castBudget.ts`,
+**Traced against `master` as it stood at the time of the audit — parts have
+since been superseded; see the status block at the top.**
+
+Traced against the then-current `master`. Salary/cost allocation (`castBudget.ts`,
 `cost.ts`) and the on-set event tables (`productionEvents.ts`,
 `productionExecution.ts`) were confirmed at the level of *which roles participate*
 but not exhaustively enumerated per event; Phase B should enumerate the

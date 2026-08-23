@@ -40,3 +40,9 @@ jobs:
       # new lint error should block merge like the build and tests do.
       - name: Lint
         run: npm run lint     # oxlint
+
+      # docs/domain/ cites itself by section number across 17 files. Renumbering
+      # a section silently breaks every inbound reference and nothing else here
+      # would catch it, so this is a gate like the rest.
+      - name: Domain doc cross-references
+        run: npm run check:docs
