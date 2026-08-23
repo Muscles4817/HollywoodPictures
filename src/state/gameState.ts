@@ -63,6 +63,16 @@ export interface GameState {
   /** The whole hireable roster, generated once at game start - world-level (shared by the player and every rival's own casting, see engine/rivalStudios.ts) rather than nested inside the player's own Studio. */
   talentPool: Record<TalentProfession, Person[]>;
   /**
+   * Which roster `talentPool` was built from (data/talentDatabases.ts). Stored
+   * as the id rather than the database itself: the people are already in
+   * `talentPool`, so this is provenance, not a second copy of the roster.
+   *
+   * Absent on saves from before databases existed; read through
+   * talentDatabaseOrDefault, which degrades to the generated roster rather than
+   * guessing at a real-people one.
+   */
+  talentDatabaseId?: string;
+  /**
    * The hireable Producer roster (docs/DESIGN_REVIEW_production_office.md) -
    * kept separate from `talentPool` (which is profession-keyed and feeds
    * casting) so producers can never leak into the Hire Talent wizard.
@@ -485,7 +495,7 @@ export type GameAction =
   | { type: 'VIEW_PREMIERE'; filmId: string }
   | { type: 'RETURN_TO_DASHBOARD' }
   | { type: 'RENAME_STUDIO'; name: string }
-  | { type: 'RESET_SAVE'; startingCash: number; brand?: number; prestige?: number }
+  | { type: 'RESET_SAVE'; startingCash: number; brand?: number; prestige?: number; talentDatabaseId?: string }
   | { type: 'VIEW_RIVAL_STUDIO'; studioName: string }
   // Dashboard's Shooting card -> "view" a specific backgrounded production
   // on the 'production' screen without disturbing the focused one (which is

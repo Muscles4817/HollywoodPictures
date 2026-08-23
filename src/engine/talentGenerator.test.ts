@@ -1,14 +1,16 @@
-// Age/gender generation - no dedicated test coverage existed for this file
-// before now. The handcrafted, real-named roster (data/handcraftedTalents.ts)
-// carries real, hand-entered gender/dateOfBirth for every person now (not
-// fabricated - see that file's own entries) - generateTalentPool must never
-// overwrite or regenerate those, only populate them for the procedurally
-// generated pool sitting alongside the handcrafted one.
+// Age/gender generation. A talent database (data/talentDatabases.ts) carries
+// hand-entered gender/dateOfBirth for every person it supplies -
+// generateTalentPool must never overwrite or regenerate those, only populate
+// them for the generated pool sitting alongside the seeded one.
+//
+// These pass REAL_WORLD_TALENT_DB explicitly. The default pool is generated-only,
+// so a test that wants to check seeded people survive pooling has to supply the
+// roster it expects to find.
 import { describe, it, expect } from 'vitest';
 import { generateTalentCandidates, generateTalentPool } from './talentGenerator';
 import { getPersonAge } from '../types';
 import { createRng } from './random';
-import { HANDCRAFTED_TALENTS_BY_ROLE } from '../data/handcraftedTalents';
+import { REAL_WORLD_TALENT_DB } from '../data/talentDatabases';
 
 describe('generateTalentCandidates - gender/dateOfBirth', () => {
   it('gives every generated candidate a gender and a dateOfBirth', () => {
@@ -37,9 +39,9 @@ describe('generateTalentCandidates - gender/dateOfBirth', () => {
   });
 });
 
-describe('generateTalentPool - every person, handcrafted and generated, carries gender/dateOfBirth', () => {
-  it('every Actor in the pool - handcrafted or generated - has both fields set', () => {
-    const pool = generateTalentPool(createRng(4));
+describe('generateTalentPool - every person, seeded and generated, carries gender/dateOfBirth', () => {
+  it('every Actor in the pool - seeded or generated - has both fields set', () => {
+    const pool = generateTalentPool(createRng(4), REAL_WORLD_TALENT_DB);
     expect(pool.Actor.length).toBeGreaterThan(0);
     for (const person of pool.Actor) {
       expect(person.identity.gender).toBeDefined();
@@ -47,16 +49,25 @@ describe('generateTalentPool - every person, handcrafted and generated, carries 
     }
   });
 
-  it("never overwrites the handcrafted roster's own hand-entered gender/dateOfBirth", () => {
-    const handcrafted = HANDCRAFTED_TALENTS_BY_ROLE.Actor ?? [];
-    expect(handcrafted.length).toBeGreaterThan(0); // sanity - there really is a handcrafted roster to check
-    const pool = generateTalentPool(createRng(5));
+  it("never overwrites a database's own hand-entered gender/dateOfBirth", () => {
+    const seeded = REAL_WORLD_TALENT_DB.peopleByRole.Actor ?? [];
+    expect(seeded.length).toBeGreaterThan(0); // sanity - there really is a roster to check
+    const pool = generateTalentPool(createRng(5), REAL_WORLD_TALENT_DB);
     const byId = new Map(pool.Actor.map((p) => [p.id, p]));
-    for (const original of handcrafted) {
+    for (const original of seeded) {
       const inPool = byId.get(original.id);
       expect(inPool).toBeDefined();
       expect(inPool!.identity.gender).toBe(original.identity.gender);
       expect(inPool!.identity.dateOfBirth).toEqual(original.identity.dateOfBirth);
+    }
+  });
+
+  it('gives every person both fields in the generated-only default pool too', () => {
+    const pool = generateTalentPool(createRng(6));
+    expect(pool.Actor.length).toBeGreaterThan(0);
+    for (const person of pool.Actor) {
+      expect(person.identity.gender).toBeDefined();
+      expect(person.identity.dateOfBirth).toBeDefined();
     }
   });
 });

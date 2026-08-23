@@ -8,6 +8,7 @@ import type {
   Person,
   PersonCareers,
   ProducerCareer,
+  TalentDatabase,
   TalentProfession,
   ToneProfile,
   WriterCraft,
@@ -22,7 +23,7 @@ import {
   PRODUCER_SALARY_RANGE,
   PRODUCER_SPECIALTIES,
 } from '../data/producers';
-import { HANDCRAFTED_TALENTS_BY_ROLE } from '../data/handcraftedTalents';
+import { GENERATED_TALENT_DB } from '../data/talentDatabases';
 import { MARQUEE_PERSONALITIES } from '../data/marqueePersonalities';
 import { TALENT_FIRST_NAMES, TALENT_LAST_NAMES } from '../data/talentNames';
 import { TONES } from '../data/tones';
@@ -449,14 +450,14 @@ export function generateTalentCandidates(role: TalentProfession, rng: RandomFn, 
 }
 
 // Roles whose recognizable talent is fully hand-authored but that still keep a
-// small procedurally-generated "budget tier" of unknowns BELOW the handcrafted
+// small procedurally-generated "budget tier" of unknowns BELOW a seeded
 // roster's own floor. Every named, recognizable hire is real; the procedural
 // fill only ever produces no-name, background/up-and-coming crew a shoestring
 // production would actually staff up with (a $500K film can't afford Deakins,
-// but it can hire an unknown DP). Each `ceiling` is that role's handcrafted
+// but it can hire an unknown DP). Each `ceiling` is that role's seeded
 // floor, so the two tiers meet with no gap and the procedural tier can never
 // mint a "random A-lister" - see the matching `salaryRange.min` in
-// data/talentGeneration.ts, which drops back below the handcrafted floor so
+// data/talentGeneration.ts, which drops back below the seeded floor so
 // the price slider can actually reach these budget hires.
 const BUDGET_TIER: Partial<Record<TalentProfession, { ceiling: number; poolSize: number }>> = {
   'Actor': { ceiling: 300_000, poolSize: 150 }, // background/extras-tier actors
@@ -467,39 +468,58 @@ const BUDGET_TIER: Partial<Record<TalentProfession, { ceiling: number; poolSize:
   Editor: { ceiling: 180_000, poolSize: 80 },
 };
 
-/** A handcrafted person with their personality resolved (marquee override → authored inline → archetype-derived from their own stats), everything else untouched. */
+/** A database person with their personality resolved (marquee override → authored inline → archetype-derived from their own stats), everything else untouched. */
 function withResolvedPersonality(person: Person): Person {
   return { ...person, personality: resolveHandcraftedPersonality(person, MARQUEE_PERSONALITIES[person.id]) };
 }
 
-/** The full studio roster: every role's candidate slate, generated once. */
+/**
+ * The full studio roster: every role's candidate slate, generated once.
+ *
+ * `database` seeds the recognizable tier of whichever professions it supplies
+ * (data/talentDatabases.ts); the generator fills in around it. With no database
+ * - the shipped default - every profession is generated across its whole range.
+ *
+ * The interaction between the two is the load-bearing part. BUDGET_TIER caps
+ * generated talent *below* a seeded roster's floor, precisely so the generator
+ * can never mint a random A-lister alongside a curated one. That cap is
+ * therefore conditional on the database actually supplying that profession: a
+ * role the database leaves empty is generated across its full salary and fame
+ * range, or a generated-only game would contain nobody above the budget tier's
+ * ceiling and the industry would have no stars in it at all.
+ */
 export function generateTalentPool(
   rng: RandomFn,
+  database: TalentDatabase = GENERATED_TALENT_DB,
 ): Record<TalentProfession, Person[]> {
   const pool = {} as Record<TalentProfession, Person[]>;
 
   for (const role of ALL_TALENT_PROFESSIONS) {
-    // The handcrafted roster stores a flat placeholder personality for all but a
-    // few hand-authored marquee names; resolve each to its real archetype-derived
-    // (or authored-override) personality as it enters the pool. A pure, per-person
-    // deterministic read - it never mutates the source data or touches rng.
-    const handcrafted = (HANDCRAFTED_TALENTS_BY_ROLE[role] ?? []).map(withResolvedPersonality);
+    // A database stores a flat placeholder personality for all but a few
+    // hand-authored marquee names; resolve each to its real archetype-derived
+    // (or authored-override) personality as it enters the pool. A pure,
+    // per-person deterministic read - it never mutates the source data or
+    // touches rng.
+    const seeded = (database.peopleByRole[role] ?? []).map(withResolvedPersonality);
     const budget = BUDGET_TIER[role];
 
-    // Handcrafted recognizable roster + a capped procedural budget tier just
-    // below its floor (see BUDGET_TIER above).
-    if (budget) {
+    // Seeded roster + a capped generated budget tier just below its floor -
+    // but only when the roster actually covers this profession. See the doc
+    // comment above for why the condition is on `seeded.length` rather than on
+    // whether a BUDGET_TIER entry happens to exist.
+    if (budget && seeded.length > 0) {
       const budgetTMax = logT(budget.ceiling, ROLE_GENERATION_PROFILES[role].salaryRange);
       pool[role] = [
-        ...handcrafted,
+        ...seeded,
         ...generateTalentCandidates(role, rng, budget.poolSize, [0, budgetTMax]),
       ];
       continue;
     }
 
-    // Roles with no handcrafted roster (VFX Supervisor, Casting Director) are
-    // still fully procedural across their whole range.
-    pool[role] = [...handcrafted, ...generateTalentCandidates(role, rng)];
+    // No seeded roster for this profession - either the database supplies none,
+    // or it is a role no database covers (VFX Supervisor, Casting Director).
+    // Generate the whole range, top to bottom.
+    pool[role] = [...seeded, ...generateTalentCandidates(role, rng)];
   }
 
   return pool;
