@@ -31,6 +31,7 @@ import { GENRE_PROFILES } from '../data/genres';
 import { SETTING_ARCHETYPE_PROFILES } from '../data/settings';
 import { contingencyReserveT, practicalEffectsT, vfxT, overallSpendT, FOOTAGE_LOWER_RATIO, FOOTAGE_UPPER_RATIO } from './productionDials';
 import { computeCreativeTension } from './creativeTension';
+import { deriveScriptExposure, scriptRiskContribution } from './scriptExposure';
 import { computeEffectivePairChemistry } from './pairHistory';
 import { computeTalentCompatibility } from './compatibility';
 import { findCandidatesNearPrice } from './talentFilter';
@@ -306,7 +307,15 @@ export function computeStaticProductionRisk(
   // execution pipeline and can still break either way), never a flat penalty.
   const volatilityRisk = ((50 - avgTemperament) / 50) * MORALE_VOLATILITY_SWING;
   const tensionRisk = (computeCreativeTension(talent) / 100) * MORALE_TENSION_SWING;
-  const moraleRisk = clamp(Math.round(unreliabilityRisk * 0.6 + avgEgo * 0.4 + volatilityRisk + tensionRisk), 0, 100);
+  // The SCREENPLAY's own contribution (engine/scriptExposure.ts, Phase 5). Its
+  // execution craft used to carry no production risk at all - only `complexity`,
+  // which is production scope, not quality - so a structurally broken script and
+  // a brilliant one entered the shoot on identical terms. Typed, not scalar:
+  // thin characters and raw dialogue land as friction on the floor, an
+  // unresolved structure as creative difficulty and coverage inflation. A solid
+  // draft contributes exactly zero, not merely less.
+  const scriptRisk = scriptRiskContribution(deriveScriptExposure(script));
+  const moraleRisk = clamp(Math.round(unreliabilityRisk * 0.6 + avgEgo * 0.4 + volatilityRisk + tensionRisk + scriptRisk.morale), 0, 100);
 
   const settingProfile = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
 
@@ -330,7 +339,7 @@ export function computeStaticProductionRisk(
   const vfxAmbitionT = vfxT(choices.vfxAmount);
   const complexityT = script.complexity / 100;
   const technicalComplexity = clamp(
-    Math.round(15 + vfxAmbitionT * 45 + complexityT * 30 - contingencyMitigation * 15),
+    Math.round(15 + vfxAmbitionT * 45 + complexityT * 30 - contingencyMitigation * 15 + scriptRisk.technical),
     0,
     100,
   );
@@ -351,7 +360,7 @@ export function computeStaticProductionRisk(
     (settingProfile.environmentScale + settingProfile.setConstructionDemand + settingProfile.vfxEnvironmentDemand) / 3;
   const spendT = overallSpendT(choices);
   const budgetRisk = clamp(
-    Math.round(20 + (genreAmbition - spendT) * 40 + (settingAmbition - spendT) * 25 + (complexityT - spendT) * 20),
+    Math.round(20 + (genreAmbition - spendT) * 40 + (settingAmbition - spendT) * 25 + (complexityT - spendT) * 20 + scriptRisk.budget),
     0,
     100,
   );

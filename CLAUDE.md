@@ -47,6 +47,13 @@ PROD_EXEC_DIAGNOSTIC=1 npx vitest run src/engine/productionExecution.diagnostic.
 RIVAL_DIAGNOSTIC=1     npx vitest run src/engine/rivalStudios.diagnostic.test.ts
 ```
 
+Phase 5 acceptance-test harness (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
+§4.7 — is another rewrite still strictly correct?):
+
+```bash
+DEV_DOMINANCE_DIAGNOSTIC=1 npx vitest run src/engine/developmentDominance.diagnostic.test.ts --disable-console-intercept
+```
+
 Box-office calibration gates (encode the targets in
 `docs/DESIGN_box_office_calibration_targets.md`; **expected to fail** until the
 recalibration work lands — that is their purpose). One shared flag:

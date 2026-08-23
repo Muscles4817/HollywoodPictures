@@ -425,11 +425,49 @@ strategy with another and is not finished.
 
 Per `CLAUDE.md`, bump `SAVE_KEY` in `src/state/persistence.ts`; no migration.
 
+### 4.8 Measured result of the slice — the acceptance test does NOT yet pass
+
+`src/engine/developmentDominance.diagnostic.test.ts` measures §4.7 directly.
+Over 60 seeded runs, commissioning a pass on a packaged project with the real
+settlement loop running underneath it:
+
+```text
+Scripts carrying a named concern      83%
+Passes that overran their schedule    83%
+Mean scheduled length                 30.5 days
+Mean overrun (when it overran)        3.6 days
+Actors booked by rivals during a wait 23.2 of ~890 free
+Waits that cost a top-3 target        10%
+```
+
+**The mechanism works; the pressure does not yet bite.** Time is now genuinely
+uncertain (83% of passes overrun) and the coexistence blocker is gone, so a pass
+can run against a project holding real attachments. But the only thing that
+currently *expires* is talent availability, and the talent pool is deep enough
+(~890 free actors) that a month-long wait costs a specific wanted actor just 10%
+of the time. Against a near-certain craft improvement, another pass is still
+close to strictly correct.
+
+This is a finding, not a defect in the three changes — it is what §2's ordering
+predicted. One perishable asset class is not enough to make time expensive,
+because the player can simply pick a different actor. The dilemma needs a
+resource that **cannot be substituted**: a release corridor a rival will take,
+which is §5's second clock. That is now the highest-priority next slice rather
+than one option among several, and the diagnostic above is the instrument to
+measure it against.
+
+Secondary tuning question this surfaced: ~890 free actors makes the talent
+market non-scarce in absolute terms. Whether that is correct is a separate
+balance question from this phase, but it caps how much pressure *any* talent
+clock can ever generate.
+
 ---
 
 ## 5. Near-term extension
 
-Recorded, deliberately not foundational to the slice:
+Recorded, deliberately not foundational to the slice. **§4.8's measurement
+promotes the first item here to the next slice** - it is what the acceptance
+test is waiting on, not an equal option among the rest:
 
 - Release strategies and corridors — undated development, target season,
   reserved corridor, hard franchise date, opportunistic. **Not every film should
