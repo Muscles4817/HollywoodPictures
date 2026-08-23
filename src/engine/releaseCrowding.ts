@@ -58,7 +58,22 @@ export function computeCompetitiveCrowding(
   known: UpcomingRelease[],
   candidateStrength?: number,
 ): number {
-  const total = known.reduce((sum, other) => {
+  return crowdingFromPressure(computeCrowdingPressure(candidate, known, candidateStrength));
+}
+
+/**
+ * The raw, UNBOUNDED competitive pressure on a candidate day - the sum before
+ * it is squashed into a 0-1 fraction of lost screen access. Exported for the
+ * diagnostic harness (engine/releaseCrowding.diagnostic.test.ts), which needs to
+ * see the distribution before saturation to tell a genuinely contested day from
+ * a ruinous one.
+ */
+export function computeCrowdingPressure(
+  candidate: Omit<UpcomingRelease, 'strength'>,
+  known: UpcomingRelease[],
+  candidateStrength?: number,
+): number {
+  return known.reduce((sum, other) => {
     const daysApart = Math.abs(candidate.releaseDay - other.releaseDay);
     const proximity = Math.max(0, 1 - daysApart / CROWDING_WINDOW_DAYS);
     if (proximity === 0) return sum;
@@ -68,11 +83,32 @@ export function computeCompetitiveCrowding(
 
     return sum + proximity * (genreOverlap + audienceBonus) * other.strength * matchupWeight(candidateStrength, other.strength);
   }, 0);
+}
 
-  // Several strong, close, same-genre competitors saturate the penalty
-  // rather than compounding past it - crowding is a fraction of screen
-  // access lost, it can't take away more than all of it.
-  return Math.max(0, Math.min(1, total));
+/** Pressure below this passes through untouched - the ordinary range, left exactly as calibrated. */
+const CROWDING_SOFT_KNEE = 0.7;
+
+/**
+ * Squashes raw pressure into the 0-1 fraction of screen access lost.
+ *
+ * Several strong, close, same-genre competitors saturate rather than compounding
+ * past total - crowding cannot take away more than all of it. But a HARD clamp
+ * at 1 threw away every distinction above it, and measurement showed that
+ * mattered: on head-on collisions 92% of days sat exactly at the clamp for a
+ * weak film and 32% did for a maximal one, so `matchupWeight`'s real differences
+ * were being flattened into the same number and a merely-contested day read
+ * identically to a ruinous one (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
+ * section 9.2).
+ *
+ * So pressure below CROWDING_SOFT_KNEE passes through unchanged - the ordinary
+ * range keeps its existing calibration exactly - and everything above it
+ * approaches 1 asymptotically without reaching it. Strictly monotonic, so no two
+ * different pressures ever collapse to the same crowding again.
+ */
+export function crowdingFromPressure(pressure: number): number {
+  if (pressure <= CROWDING_SOFT_KNEE) return Math.max(0, pressure);
+  const headroom = 1 - CROWDING_SOFT_KNEE;
+  return CROWDING_SOFT_KNEE + headroom * (1 - Math.exp(-(pressure - CROWDING_SOFT_KNEE) / headroom));
 }
 
 // The relative-strength matchup (docs/DESIGN_box_office_calibration_targets.md
@@ -185,4 +221,27 @@ export function runningFilmAsUpcomingRelease(film: Film): UpcomingRelease | null
     targetAudience: film.targetAudience,
     strength: computeRunningFilmStrength(fixed, simWeeks, simWeeks.length),
   };
+}
+
+/**
+ * The qualitative reading of a crowding score. Player-facing presentation is
+ * qualitative by house rule (CLAUDE.md), and this lives in the engine so every
+ * screen that shows a window reads it the same way.
+ */
+export type CrowdingBand = 'clear' | 'moderate' | 'high';
+
+export function crowdingBandKey(score: number): CrowdingBand {
+  if (score < 0.15) return 'clear';
+  if (score < 0.4) return 'moderate';
+  return 'high';
+}
+
+const CROWDING_BAND_LABELS: Record<CrowdingBand, string> = {
+  clear: 'Clear window',
+  moderate: 'Some competition',
+  high: 'Crowded',
+};
+
+export function describeCrowdingBand(score: number): string {
+  return CROWDING_BAND_LABELS[crowdingBandKey(score)];
 }

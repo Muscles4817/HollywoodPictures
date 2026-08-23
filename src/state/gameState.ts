@@ -491,6 +491,12 @@ export type GameAction =
   // transitions to 'scheduled' and, if its own releaseDay is already due by
   // the time that marketing lead time elapses, resolves into 'released'
   // within this same dispatch (see state/studioReducer.ts).
+  // Announce (or re-announce) a release date for the focused pre-release
+  // project - a public claim rivals can see and steer around, never a booking
+  // (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md section 9). Legal
+  // at any point before the film is actually scheduled, including well before
+  // greenlight; `releaseDay: null` withdraws the claim entirely.
+  | { type: 'ANNOUNCE_RELEASE_DATE'; releaseDay: number | null }
   | { type: 'SCHEDULE_RELEASE'; releaseDay: number }
   | { type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS'; filmId: string }
   | { type: 'VIEW_PREMIERE'; filmId: string }

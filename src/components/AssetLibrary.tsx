@@ -8,16 +8,16 @@ import {
   CheckboxFilterDropdown,
   type CheckboxFilterOption,
 } from './common/CheckboxFilterDropdown';
-import { deriveAssetStatus, type AssetStatus } from '../engine/project';
+import { assetAcceptsDevelopmentPass, deriveAssetStatus, type AssetStatus } from '../engine/project';
 import { describeProductionComplexity } from '../engine/scriptPresentation';
 import type { GameAction } from '../state/gameState';
 import type { Asset, Genre, Person } from '../types';
 import './AssetLibrary.css';
 import { StarRating } from './common/StarRating';
-import { deriveBookedUntil, getWriterCareer, isPersonAvailableOnDay } from '../engine/person';
+import { deriveBookedUntil, getWriterCareer, isPersonAvailableForCommitment, isPersonAvailableOnDay } from '../engine/person';
 import { writerProfileFromPerson } from '../engine/writers';
 import { describeWriter, describeRewriteProjection, describeCommissionProjection } from '../engine/writerPresentation';
-import { rewriteDurationDays, rewriteFee, type RewriteKind } from '../engine/rewrite';
+import { estimateRewriteDuration, rewriteFee, type RewriteKind } from '../engine/rewrite';
 import { commissionDurationBounds, commissionFee, commissionProgress, commissionedOnDay, isRecentlyCommissioned } from '../engine/commission';
 import { canComfortablyAfford } from '../engine/affordability';
 import { GENRES } from '../data/genres';
@@ -81,7 +81,7 @@ function scoreToStars(value: number, max = 100): number {
   return Math.max(0, Math.min(5, Math.round((value / max) * 10) / 2));
 }
 
-type AssetWithStatus = { asset: Asset; status: AssetStatus };
+type AssetWithStatus = { asset: Asset; status: AssetStatus; acceptsPass: boolean };
 
 interface AssetControls {
   statusFilter: AssetStatusFilter;
@@ -185,19 +185,38 @@ function RewritePanel({ asset, writers, totalDays, cash, dispatch, onClose }: Re
   const [kind, setKind] = useState<RewriteKind>('polish');
   const [writerId, setWriterId] = useState<string>('');
 
+  // Offer only writers who could actually see the pass through - free for its
+  // whole WORST-CASE length, not merely free today. REWRITE_ASSET books them for
+  // the duration it rolls, so filtering on today alone offered writers whose
+  // commission then silently no-opped; and because bailing out leaves the seed
+  // untouched, retrying re-rolled the same overrun and failed identically. The
+  // reducer stays the authoritative guard - this just stops the UI promising
+  // something it cannot deliver.
   const available = useMemo(
     () =>
       writers
-        .filter((writer) => isPersonAvailableOnDay(writer, totalDays))
+        .filter((writer) => {
+          const worstCase = estimateRewriteDuration(writer.reputation.reliability, asset.script, kind).high;
+          return isPersonAvailableForCommitment(writer, {
+            projectId: asset.id,
+            role: 'Writer',
+            startDay: totalDays,
+            endDay: totalDays + worstCase,
+          });
+        })
         .sort((left, right) => (getWriterCareer(right)?.skill ?? 0) - (getWriterCareer(left)?.skill ?? 0)),
-    [writers, totalDays],
+    [writers, totalDays, kind, asset.id, asset.script],
   );
 
   const writer = available.find((candidate) => candidate.id === writerId) ?? null;
   const career = writer ? getWriterCareer(writer) : null;
   const profile = writer ? writerProfileFromPerson(writer) : null;
   const fee = career ? rewriteFee(career.typicalSalary, kind) : 0;
-  const days = rewriteDurationDays(kind, asset.script);
+  // A range, not a number - and one that widens with the writer's own
+  // unreliability, so "who" is part of "how long" (section 4.4 of
+  // docs/DESIGN_REVIEW_project_clocks_and_script_openness.md). Before a writer is
+  // picked, show the scheduled length alone rather than a fake range.
+  const estimate = writer ? estimateRewriteDuration(writer.reputation.reliability, asset.script, kind) : null;
   const description = writer ? describeWriter(writer) : null;
   const projection = profile ? describeRewriteProjection(profile, asset.script, kind) : null;
   const canCommission = writer !== null && cash >= fee;
@@ -245,8 +264,18 @@ function RewritePanel({ asset, writers, totalDays, cash, dispatch, onClose }: Re
       </div>
       <div className="row-between" style={{ fontSize: '0.85em' }}>
         <span className="stat-label">Time</span>
-        <strong>~{days} days</strong>
+        <strong>{estimate ? `${estimate.low}–${estimate.high} days` : 'Choose a writer'}</strong>
       </div>
+      {estimate && (
+        <ul className="stack" style={{ gap: 2, margin: 0, paddingLeft: 16, fontSize: '0.8em', color: 'var(--text-muted)' }}>
+          {estimate.factors.map((factor) => (
+            <li key={factor.label}>
+              {factor.label}
+              {factor.days > 0 && factor.label !== 'Scheduled pass' ? ` — up to +${factor.days} days` : ` — ${factor.days} days`}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="row" style={{ gap: 8 }}>
         <Button
@@ -465,6 +494,8 @@ function CommissionPanel({ writers, totalDays, cash, dispatch, onClose }: Commis
 interface AssetCardProps {
   asset: Asset;
   status: AssetStatus;
+  /** engine/project.ts:assetAcceptsDevelopmentPass - a project in development or prep no longer bars a pass, only photography does. */
+  acceptsPass: boolean;
   isExpanded: boolean;
   onToggleExpanded: () => void;
   somethingElseFocused: boolean;
@@ -477,6 +508,7 @@ interface AssetCardProps {
 function AssetCard({
   asset,
   status,
+  acceptsPass,
   isExpanded,
   onToggleExpanded,
   somethingElseFocused,
@@ -490,7 +522,7 @@ function AssetCard({
   const [showRewrite, setShowRewrite] = useState(false);
   const pending = asset.pendingRewrite;
   const pendingWriter = pending ? writers.find((writer) => writer.id === pending.writerId) : undefined;
-  const canDevelopScript = status.status === 'available' && !pending;
+  const canDevelopScript = acceptsPass;
 
   return (
     <div className="asset-library-card-shell">
@@ -613,8 +645,6 @@ function AssetCard({
             {status.status === 'available' && (
               <Button
                 variant="primary"
-                disabled={Boolean(pending)}
-                title={pending ? 'A rewrite is in progress on this script.' : undefined}
                 onClick={() =>
                   dispatch({
                     type: 'CREATE_PROJECT_FROM_ASSET',
@@ -715,6 +745,7 @@ export function AssetLibrary() {
         .map((asset) => ({
           asset,
           status: deriveAssetStatus(asset, state.projects),
+          acceptsPass: assetAcceptsDevelopmentPass(asset, state.projects),
         })),
     [state.projects, state.studio.assets],
   );
@@ -726,6 +757,7 @@ export function AssetLibrary() {
         .map((asset) => ({
           asset,
           status: deriveAssetStatus(asset, state.projects),
+          acceptsPass: assetAcceptsDevelopmentPass(asset, state.projects),
         }))
         .sort((left, right) =>
           left.asset.script.title.localeCompare(right.asset.script.title),
@@ -1078,11 +1110,12 @@ export function AssetLibrary() {
                 </div>
               ) : (
                 <div className="asset-library-grid">
-                  {visibleAssets.map(({ asset, status }) => (
+                  {visibleAssets.map(({ asset, status, acceptsPass }) => (
                     <AssetCard
                       key={asset.id}
                       asset={asset}
                       status={status}
+                      acceptsPass={acceptsPass}
                       isExpanded={expandedAssetId === asset.id}
                       onToggleExpanded={() => toggleExpandedAsset(asset.id)}
                       somethingElseFocused={somethingElseFocused}
@@ -1153,11 +1186,12 @@ export function AssetLibrary() {
                     </div>
                   ) : (
                     <div className="asset-library-grid">
-                      {visibleTestScripts.map(({ asset, status }) => (
+                      {visibleTestScripts.map(({ asset, status, acceptsPass }) => (
                         <AssetCard
                           key={asset.id}
                           asset={asset}
                           status={status}
+                          acceptsPass={acceptsPass}
                           isExpanded={expandedAssetId === asset.id}
                           onToggleExpanded={() => toggleExpandedAsset(asset.id)}
                           somethingElseFocused={somethingElseFocused}

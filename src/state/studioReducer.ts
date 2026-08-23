@@ -3,7 +3,7 @@ import { type GameAction, type GameState, createDraftFromAsset, createInitialStu
 import { randomSeed, withRng, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
 import { ALL_TALENT_ROLES, ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
-import { professionForProductionRole, findAssignedPerson } from '../data/helpers';
+import { professionForProductionRole, findAssignedPerson, filterAssignedPeople } from '../data/helpers';
 import { effectiveRoleCapacity, characterForRoleSlot } from '../engine/castRequirements';
 import { splitCastBudgetByImportance } from '../engine/castBudget';
 import { appendStaffingEvent } from './staffingBoard';
@@ -11,6 +11,7 @@ import { personMeetsCharacterGender, personMeetsCharacterAge, personCastingAge }
 import { applyPrepRiskDelta, beginPhotographyFromPrep, computePrepRiskDelta, computeRecommendedPostProductionDays, computeRecommendedPreProductionDays, computeRecommendedShootDays, computeShootEscalation, computeStaticProductionRisk, footageLowerBound, footageUpperBound, rollDayEvent, rollPreProductionDayEvent, resolveEventChoice } from '../engine/production';
 import { computeExecutionResilience } from '../engine/productionExecution';
 import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
+import { RESHOOT_REQUIREMENTS, reshootSurcharge } from '../engine/reshootAvailability';
 import { promoteFilmToIp, ipForSourceFilm, recordFranchiseEntries } from '../engine/intellectualProperty';
 import { generateSequelScript } from '../engine/scriptGenerator';
 import { SEQUEL_DEVELOPMENT_SETUP_DAYS, makePendingSequelDevelopment, settlePendingSequelDevelopments } from '../engine/sequelDevelopment';
@@ -21,7 +22,7 @@ import { computeActorAppeal } from '../engine/castingAppeal';
 import { computeAskingPrice, resolveNegotiation } from '../engine/castingNegotiation';
 import { auditionDurationDays } from '../engine/talentCardPresentation';
 import { writerProfileFromPerson } from '../engine/writers';
-import { computeRewriteOutcome, makePendingRewrite, rewriteDurationDays, rewriteFee, settleAssetRewrites } from '../engine/rewrite';
+import { computeRewriteOutcome, draftAtAssetHead, estimateRewriteDuration, makePendingRewrite, resolveRewriteDuration, rewriteFee, settleAssetRewrites } from '../engine/rewrite';
 import { commissionDurationDays, commissionFee, generateCommissionedScript, makePendingCommission, settlePendingCommissions } from '../engine/commission';
 import { generateCreativeDemands, resolveDemandQualityDelta, acceptedDemandQualityDelta, directorWouldWalk } from '../engine/creativeDemands';
 import { openDirectorPitches, tickDirectorPitches } from '../engine/directorPitches';
@@ -51,7 +52,7 @@ import { computeRelationship, recordPlayerFilmCollaborations, PLAYER_STUDIO_ID }
 import { recordPlayerFilmPairings } from '../engine/pairHistory';
 import { settleRivalMarket, generateRivalStudios } from '../engine/rivalStudios';
 import { settlePreProductionsInProgress, settleProductionsInProgress, type PreProductionCharge } from '../engine/productionsInProgress';
-import { asUpcomingRelease, type ScheduledRelease } from '../engine/scheduledReleases';
+import { playerCalendarPresence, type ScheduledRelease } from '../engine/scheduledReleases';
 import { deriveReleaseWindowFromDay, DAYS_PER_YEAR, firstDayOfYear, yearOf } from '../engine/calendar';
 import { accrueMomentum, computeBoxOfficeBump, computeCeremony, computeStudioAwardDeltas, filmsForAwardsYear } from '../engine/awards';
 import { AWARD_SHOWS, awardShow } from '../data/awardsShows';
@@ -106,7 +107,9 @@ import {
   rivalProductionsInProgress as rivalProductionsOf,
   backgroundedPlayerDrafts,
   scheduledPlayerReleases,
+  announcedPlayerDrafts,
   deriveAssetStatus,
+  assetAcceptsDevelopmentPass,
 } from '../engine/project';
 
 // The canonical forward order of what's left of the wizard, post-greenlight
@@ -521,7 +524,13 @@ function runCalendarSettlement(
     },
     opportunitySettlement.resolvedBids.filter((b) => b.winnerId !== 'player'),
     totalDaysAfter,
-    scheduled.map(asUpcomingRelease),
+    // Locked releases AND outstanding announcements: a claim rivals cannot see
+    // deters nobody, which is the entire point of announcing one. Announced
+    // drafts are deliberately NOT in `scheduled` above - that list is what
+    // settlement resolves as due, and an unfinished film must never be settled.
+    playerCalendarPresence(scheduled, announcedPlayerDrafts(state.projects), (genre) =>
+      genreIdentityFor(state.studio.genreIdentity, genre),
+    ),
     rng,
   );
 
@@ -858,7 +867,36 @@ function rollScheduledPressTourIncidents(scheduled: ScheduledRelease[], rng: Ran
 // then. Box office revenue is the one thing that now lands gradually
 // instead, credited week by week as a film's run actually plays out (see
 // runCalendarSettlement above and docs/DESIGN.md 5.19).
+/**
+ * Holds the pre-photography invariant after every action: a project that hasn't
+ * started shooting sits at its Asset's CURRENT head screenplay, so a development
+ * pass that lands mid-project reaches the draft that was created from an older
+ * head (engine/rewrite.ts:draftAtAssetHead).
+ *
+ * Applied here, once, rather than at each of the ~10 assembleProjects call sites
+ * a settled pass could surface through - the invariant is a property of the
+ * state, not of any one action, and doing it in one place means no future
+ * calendar-advancing case can forget it. Idempotent and reference-preserving, so
+ * an action that moved no script returns the identical state object.
+ */
+function withDraftsAtAssetHead(state: GameState): GameState {
+  const assets = state.studio.assets;
+  let moved = false;
+  const projects = state.projects.map((project) => {
+    if (project.kind !== 'player-in-progress') return project;
+    const draft = draftAtAssetHead(project.draft, assets);
+    if (draft === project.draft) return project;
+    moved = true;
+    return { ...project, draft };
+  });
+  return moved ? { ...state, projects } : state;
+}
+
 export function studioReducer(state: GameState, action: GameAction): GameState {
+  return withDraftsAtAssetHead(applyGameAction(state, action));
+}
+
+function applyGameAction(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     // A real-time background tick (App.tsx), separate from every other
     // calendar advance - those are all tied to a specific player action
@@ -1056,9 +1094,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'CREATE_PROJECT_FROM_ASSET': {
       const asset = state.studio.assets.find((a) => a.id === action.assetId);
       if (!asset || deriveAssetStatus(asset, state.projects).status === 'in-development') return state;
-      // Can't start a Project while a Rewrite/Polish is mid-flight - the head
-      // Script would shift under the draft when the pass lands (Phase 3).
-      if (asset.pendingRewrite) return state;
+      // A Rewrite/Polish mid-flight no longer bars this. The head Script DOES
+      // shift under the draft when the pass lands - that is now the intended
+      // behaviour, not the hazard it was read as (draftAtAssetHead syncs it, and
+      // the reducer wrapper below applies that every action). Letting a project's
+      // commitments and a moving script coexist is the whole point: see
+      // docs/DESIGN_REVIEW_project_clocks_and_script_openness.md section 1.1.
       const draft = createDraftFromAsset(asset, defaultTalentTargetPrices(), state.totalDays);
       return {
         ...state,
@@ -1120,20 +1161,37 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     case 'REWRITE_ASSET': {
       const asset = state.studio.assets.find((a) => a.id === action.assetId);
       if (!asset) return state;
-      if (deriveAssetStatus(asset, state.projects).status === 'in-development') return state;
-      if (asset.pendingRewrite) return state; // one pass at a time
+      // Both the "one pass at a time" rule and the (now much narrower) project
+      // bar live in one predicate: only photography freezes the screenplay, so a
+      // project still in development or in prep can take a pass.
+      if (!assetAcceptsDevelopmentPass(asset, state.projects)) return state;
       const writer = state.talentPool.Writer.find((w) => w.id === action.writerId);
       const profile = writer ? writerProfileFromPerson(writer) : null;
       const career = writer ? getWriterCareer(writer) : null;
       if (!writer || !profile || !career) return state;
 
-      const readyOnDay = state.totalDays + rewriteDurationDays(action.kind, asset.script);
+      // Both rolls happen here, once, and are stored: the craft outcome as
+      // before, and now how long the pass ACTUALLY takes. Development time used
+      // to be exactly knowable, which is most of why waiting was free - you
+      // could time a pass to the day and slot it between commitments. The
+      // player sees the range (estimateRewriteDuration) before choosing; this
+      // resolves it with its named causes, and reloading cannot re-roll it.
+      // Bailing out below leaves state - and so the seed - untouched, so a
+      // retry resolves identically.
+      const { result: rolled, nextSeed } = withRng(state.rngSeed, (rng) => ({
+        craftChanges: computeRewriteOutcome(profile, asset.script, action.kind, rng),
+        duration: resolveRewriteDuration(writer.reputation.reliability, writer.identity.name, asset.script, action.kind, rng),
+      }));
+      const { craftChanges } = rolled;
+
+      // The writer is booked for the pass's real length, not its scheduled one -
+      // an overrunning pass holds them (and the studio's plans) longer.
+      const readyOnDay = state.totalDays + rolled.duration.days;
       const commitment = { projectId: asset.id, role: 'Writer' as const, startDay: state.totalDays, endDay: readyOnDay };
       if (!isPersonAvailableForCommitment(writer, commitment)) return state;
       const fee = rewriteFee(career.typicalSalary, action.kind);
       if (state.studio.cash < fee) return state;
-
-      const { result: craftChanges, nextSeed } = withRng(state.rngSeed, (rng) => computeRewriteOutcome(profile, asset.script, action.kind, rng));
+      const estimate = estimateRewriteDuration(writer.reputation.reliability, asset.script, action.kind);
       const commissionedEvent: DevelopmentEvent = {
         day: state.totalDays,
         kind: action.kind,
@@ -1142,7 +1200,12 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       };
       const updatedAsset: Asset = {
         ...asset,
-        pendingRewrite: makePendingRewrite(writer.id, action.kind, state.totalDays, readyOnDay, craftChanges, fee),
+        pendingRewrite: makePendingRewrite(writer.id, action.kind, state.totalDays, readyOnDay, craftChanges, fee, {
+          // Just the range - the factor breakdown is a presentation concern,
+          // recomputed on demand rather than stored (Principle 8).
+          estimatedDays: { low: estimate.low, high: estimate.high },
+          summary: rolled.duration.summary,
+        }),
         developmentHistory: [...(asset.developmentHistory ?? []), commissionedEvent],
       };
       return {
@@ -2060,6 +2123,11 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
         development: null,
         greenlitOnDay: state.totalDays,
         shootStartsOnDay: deferred ? shootStartsOnDay : undefined,
+        // The date the studio is now committed to (types/index.ts:committedStartDay):
+        // prep begins at shootStartsOnDay and photography follows it. Frozen here
+        // deliberately - it is the promise cast, crew and facilities lock around,
+        // so it must NOT track the real start as prep events push that about.
+        committedStartDay: shootStartsOnDay + preProductionDays,
         preProduction: { status: deferred ? 'scheduled' : 'in-progress', recommendedDays: preProductionDays, daysElapsed: 0, events: [], runningCost: 0, pendingChoice: null },
       };
 
@@ -2598,17 +2666,76 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
       // unlocked (testScreeningResolved false) and a follow-up screening
       // surfaces once postProductionEditingUntilDay is reached
       // (checkTestScreeningReadiness), giving the player another decision.
+      // Can the cast actually come back? Additional photography needs the
+      // principals physically present, and by post-production they have long
+      // since contracted elsewhere - rivals book from the same pool. The
+      // authoritative guard (engine/reshootAvailability.ts); the decision card
+      // disables the option and names who is unavailable, but as everywhere
+      // else in this reducer the UI is only the first line of defence. Read
+      // against the LIVE pool and today, not the snapshot taken when the
+      // screening was generated, because who is free moves while the player
+      // deliberates.
+      // A null surcharge means at least one required principal cannot be moved
+      // at any price - the option is refused outright. A positive one is the
+      // cost of buying everyone out of their other job, charged on top of the
+      // option's own rolled cost. Read against the LIVE pool and today, not the
+      // snapshot taken when the screening was generated, because who is free
+      // moves while the player deliberates.
+      const buyOutCost = reshootSurcharge(target, state.talentPool, state.totalDays, action.choiceId);
+      if (buyOutCost === null) return state;
+
       const { result: rolled, nextSeed } = withRng(state.rngSeed, (rng) => resolveEventChoice(pendingChoice, action.choiceId, rng));
 
-      if (state.studio.cash < rolled.costDelta) return state;
+      const totalCost = rolled.costDelta + buyOutCost;
+      if (state.studio.cash < totalCost) return state;
+
+      // Additional photography OCCUPIES the principals it recalls. Without this
+      // they were charged for and then left free in the pool, so a rival could
+      // book them the following day while they were supposedly on this film's
+      // set. Booked for the option's own filming window, on this project.
+      const recall = RESHOOT_REQUIREMENTS[action.choiceId];
+      let poolAfterRecall = state.talentPool;
+      if (recall) {
+        for (const role of recall.roles) {
+          const profession = professionForProductionRole(role);
+          const ids = new Set(filterAssignedPeople(target.talent, role).map((p) => p.id));
+          poolAfterRecall = {
+            ...poolAfterRecall,
+            [profession]: poolAfterRecall[profession].map((person) =>
+              ids.has(person.id)
+                ? withCommitment(person, {
+                    projectId: target.id,
+                    role,
+                    startDay: state.totalDays,
+                    endDay: state.totalDays + recall.filmingDays,
+                  })
+                : person,
+            ),
+          };
+        }
+      }
 
       return {
         ...state,
         rngSeed: nextSeed,
-        studio: recordCashChange(state.studio, state.totalDays, -rolled.costDelta, 'production', `Post-production editing — "${target.title}"`),
+        talentPool: poolAfterRecall,
+        studio: recordCashChange(
+          state.studio,
+          state.totalDays,
+          -totalCost,
+          'production',
+          buyOutCost > 0
+            ? `Post-production editing — "${target.title}" (incl. cast buy-out)`
+            : `Post-production editing — "${target.title}"`,
+        ),
         projects: replaceDraft(state.projects, {
           ...target,
-          postProductionEvents: [...target.postProductionEvents, rolled],
+          // The buy-out is folded into the recorded event's own costDelta, not
+          // just the cash ledger: engine/releaseFilm.ts sums these into the
+          // film's postProductionInterventionCost, so leaving it out would make
+          // the finished film's reported total cost understate what was
+          // actually spent on it.
+          postProductionEvents: [...target.postProductionEvents, { ...rolled, costDelta: totalCost }],
           postProductionEditingUntilDay: state.totalDays + rolled.delayDaysDelta,
           // This recut window runs from today to the day it finishes.
           postProductionEditingStartedDay: state.totalDays,
@@ -2703,6 +2830,23 @@ export function studioReducer(state: GameState, action: GameAction): GameState {
     // only ever fires/resolves for a still-player-in-progress draft, so
     // releasing before it resolved would silently orphan the pending
     // choice).
+    // A public claim on a date, not a booking - see the action's own note. No
+    // cost and no commitment yet: what will eventually make moving expensive is
+    // the campaign committed against the date (section 9.4), which does not
+    // exist yet. Allowed at any point before the film is actually scheduled,
+    // and freely changed.
+    case 'ANNOUNCE_RELEASE_DATE': {
+      const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!d) return state;
+      // Never in the past, and never before the film could physically exist -
+      // an announcement rivals cannot believe is not worth making.
+      if (action.releaseDay !== null && action.releaseDay <= state.totalDays) return state;
+      return {
+        ...state,
+        projects: replaceDraft(state.projects, { ...d, announcedReleaseDay: action.releaseDay ?? undefined }),
+      };
+    }
+
     case 'SCHEDULE_RELEASE': {
       const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
       if (

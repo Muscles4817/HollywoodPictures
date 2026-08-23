@@ -1,6 +1,6 @@
-import type { FilmDraft } from '../types';
+import type { FilmDraft, Genre, ProductionScale, ScriptScale } from '../types';
 import { computeProductionBudgetCost } from './cost';
-import { computePlayerReleaseStrength, type UpcomingRelease } from './releaseCrowding';
+import { computePlayerReleaseStrength, computeRivalReleaseStrength, type UpcomingRelease } from './releaseCrowding';
 
 export interface ScheduledRelease {
   draft: FilmDraft;
@@ -35,4 +35,85 @@ export function asUpcomingRelease(s: ScheduledRelease): UpcomingRelease {
       s.draft.marketingChoices!.studioGenreIdentity ?? 0,
     ),
   };
+}
+
+/**
+ * An ANNOUNCED-but-unfinished project as it appears on rivals' calendars - the
+ * claim they can see and steer around (section 9.1 of the project-clocks doc).
+ * Null when the project has announced nothing, or is too early to read.
+ *
+ * Its strength deliberately carries NO marketing term: a studio that has merely
+ * named a date has not bought a campaign yet, and rivals can only weigh what is
+ * actually visible - the production's scale and the studio's standing in that
+ * genre. So a bare announcement is a weak claim that a confident rival will
+ * happily open against.
+ *
+ * That is the intended staging rather than a gap. Once a campaign is committed
+ * against the date, the same film reads far stronger and the claim starts
+ * genuinely deterring - which is what makes committing marketing early a real
+ * decision rather than bookkeeping.
+ */
+export function announcedAsUpcomingRelease(draft: FilmDraft, genreIdentity: number): UpcomingRelease | null {
+  if (draft.announcedReleaseDay === undefined || !draft.genre || !draft.targetAudience) return null;
+  return {
+    releaseDay: draft.announcedReleaseDay,
+    genre: draft.genre,
+    targetAudience: draft.targetAudience,
+    strength: announcedReleaseStrength(draft, genreIdentity),
+  };
+}
+
+/**
+ * How strong an announced film looks to a rival reading the calendar.
+ *
+ * Deliberately tolerant of an unplanned project. A date is announced BEFORE
+ * greenlight - that is the whole point of the feature - and `productionChoices`
+ * is null until Production Planning, so requiring it made every announcement
+ * made in the window this exists for invisible to rivals. (It was: the tests
+ * missed it because their fixture draft is fully planned.)
+ *
+ * So the reading falls back to what is actually knowable at each stage:
+ *  - planned:   the real production budget, as a scheduled release is read.
+ *  - unplanned: the screenplay's own SCALE, which is what a trade announcement
+ *               conveys before a budget exists ("an epic", "a small drama").
+ *
+ * No marketing term either way until a campaign is actually committed - a
+ * studio that has merely named a date has not bought one, and rivals can only
+ * weigh what is visible.
+ */
+function announcedReleaseStrength(draft: FilmDraft, genreIdentity: number): number {
+  const marketingSpend = draft.marketingChoices?.marketingSpend ?? 0;
+  if (draft.productionChoices) {
+    return computePlayerReleaseStrength(marketingSpend, computeProductionBudgetCost(draft.productionChoices), genreIdentity);
+  }
+  return computeRivalReleaseStrength(marketingSpend, productionScaleForScript(draft.script), genreIdentity);
+}
+
+/** The nearest ProductionScale to a screenplay's own ambition - what an announcement conveys before a budget exists. */
+const SCRIPT_SCALE_AS_PRODUCTION: Record<ScriptScale, ProductionScale> = {
+  Intimate: 'Small',
+  Medium: 'Medium',
+  Epic: 'Big',
+};
+
+function productionScaleForScript(script: FilmDraft['script']): ProductionScale {
+  return script ? SCRIPT_SCALE_AS_PRODUCTION[script.scale] : 'Medium';
+}
+
+/**
+ * Everything of the player's that rivals can see on the calendar: locked
+ * releases plus outstanding announcements. Deliberately separate from the
+ * `scheduled` list settlement resolves against - an announced film is not due
+ * for release and must never be settled as one; it is only a presence rivals
+ * weigh when picking their own day.
+ */
+export function playerCalendarPresence(
+  scheduled: ScheduledRelease[],
+  announcedDrafts: FilmDraft[],
+  genreIdentityFor: (genre: Genre) => number,
+): UpcomingRelease[] {
+  const announced = announcedDrafts
+    .map((draft) => announcedAsUpcomingRelease(draft, draft.genre ? genreIdentityFor(draft.genre) : 0))
+    .filter((u): u is UpcomingRelease => u !== null);
+  return [...scheduled.map(asUpcomingRelease), ...announced];
 }

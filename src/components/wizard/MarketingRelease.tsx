@@ -4,7 +4,8 @@ import { MARKETING_SPEND_RANGE, RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONU
 import { pluckDescriptions } from '../../data/describe';
 import { computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../../engine/cost';
 import { formatGameDateWithMonth, formatGameMonthYear, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from '../../engine/calendar';
-import { computeCompetitiveCrowding, type UpcomingRelease } from '../../engine/releaseCrowding';
+import { computeCompetitiveCrowding, computePlayerReleaseStrength, crowdingBandKey, describeCrowdingBand, type UpcomingRelease } from '../../engine/releaseCrowding';
+import { genreIdentityFor } from '../../engine/studioIdentity';
 import { asUpcomingRelease } from '../../engine/scheduledReleases';
 import { rivalAsUpcomingRelease } from '../../engine/rivalStudios';
 import { scheduledPlayerReleases, rivalProductionsInProgress } from '../../engine/project';
@@ -15,6 +16,7 @@ import { Money, formatMoney } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
+import { reshootChoiceConstraints } from '../../engine/reshootAvailability';
 import { deriveFocusedDraft, deriveUpcomingReleaseEntries } from '../../state/selectors';
 import {
   CAMPAIGN_ANGLE_LABEL,
@@ -152,10 +154,9 @@ function rolloutReading(weeks: number, multiplier: number): { label: string; det
   };
 }
 
+/** Reads the shared engine band (engine/releaseCrowding.ts) so this screen and the pre-greenlight announcement card can never disagree about what a window looks like. */
 function crowdingReading(score: number): { label: string; className: string } {
-  if (score < 0.15) return { label: 'Clear window', className: 'month-cell__crowding--clear' };
-  if (score < 0.4) return { label: 'Some competition', className: 'month-cell__crowding--moderate' };
-  return { label: 'Crowded', className: 'month-cell__crowding--high' };
+  return { label: describeCrowdingBand(score), className: `month-cell__crowding--${crowdingBandKey(score)}` };
 }
 
 export function MarketingRelease() {
@@ -234,9 +235,31 @@ export function MarketingRelease() {
     [state.projects],
   );
 
+  // This film's own strength in the matchup, computed exactly as
+  // engine/marketSettlement.ts does at settlement. Without it the preview would
+  // use the candidate-blind weight of 1 while settlement used the real matchup -
+  // and since a weak film feels MORE than neutral crowding, the preview would
+  // promise a clearer window than settlement delivers, which is precisely what
+  // the note above forbids.
+  const ownStrength = useMemo(
+    () =>
+      draft.productionChoices && draft.marketingChoices
+        ? computePlayerReleaseStrength(
+            draft.marketingChoices.marketingSpend,
+            computeProductionBudgetCost(draft.productionChoices),
+            draft.marketingChoices.studioGenreIdentity ?? genreIdentityFor(state.studio.genreIdentity, draft.genre!),
+          )
+        : undefined,
+    [draft.productionChoices, draft.marketingChoices, draft.genre, state.studio.genreIdentity],
+  );
+
   function crowdingFor(candidateReleaseDay: number): number {
     if (!draft.genre || !draft.targetAudience) return 0;
-    return computeCompetitiveCrowding({ releaseDay: candidateReleaseDay, genre: draft.genre, targetAudience: draft.targetAudience }, knownUpcoming);
+    return computeCompetitiveCrowding(
+      { releaseDay: candidateReleaseDay, genre: draft.genre, targetAudience: draft.targetAudience },
+      knownUpcoming,
+      ownStrength,
+    );
   }
 
   function slatedCountFor(y: number, m: number): number {
@@ -474,6 +497,7 @@ export function MarketingRelease() {
             totalDays={state.totalDays}
             pausedMessage="You can't schedule a release until you respond to the test screening."
             showChoiceCosts
+            choiceConstraints={reshootChoiceConstraints(draft, state.talentPool, state.totalDays)}
             onChoose={(choiceId) => dispatch({ type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId, productionId: draft.id })}
           />
         </div>

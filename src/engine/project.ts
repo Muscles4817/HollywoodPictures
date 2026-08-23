@@ -208,6 +208,18 @@ export function scheduledPlayerReleases(projects: Project[]): Array<{ draft: Fil
   });
 }
 
+/**
+ * Every in-progress player draft carrying an outstanding release announcement -
+ * the claims rivals can see. Excludes anything already `scheduled`, whose real
+ * booking is read from the project itself (scheduledPlayerReleases above), so
+ * no film is ever counted on the calendar twice.
+ */
+export function announcedPlayerDrafts(projects: Project[]): FilmDraft[] {
+  return projects.flatMap((p) =>
+    p.kind === 'player-in-progress' && p.draft.announcedReleaseDay !== undefined ? [p.draft] : [],
+  );
+}
+
 // --- Development pipeline (docs/DESIGN_REVIEW_development_pipeline.md) ---
 
 /** Which Asset a Project was developed from, regardless of which kind it's currently in - null for a rival production (rivals don't go through the Asset pipeline in this MVP) or a released film with no recorded asset (an old save, or a rival's). */
@@ -224,6 +236,34 @@ export type AssetStatus =
   | { status: 'available' }
   | { status: 'in-development'; projectId: string }
   | { status: 'used'; projectIds: string[] };
+
+/**
+ * Can a development pass (Rewrite/Polish) still be commissioned against this
+ * Asset? Only two things close the door:
+ *
+ *  - a pass is already running (one at a time, unchanged), or
+ *  - the screenplay has been FROZEN by a project that is past the point of
+ *    changing it - photography has begun, the film is scheduled, or it has
+ *    already been released.
+ *
+ * Note what is deliberately NOT disqualifying: an active project that hasn't
+ * started shooting. A project in development or in prep is still working from
+ * its Asset's current head draft, so a pass may run against it and land on it
+ * (engine/rewrite.ts:draftAtAssetHead). That coexistence is the point - see
+ * docs/DESIGN_REVIEW_project_clocks_and_script_openness.md section 1.1: while
+ * the rewrite lever and the commitment machinery lived in disjoint phases,
+ * development happened in the one phase where nothing could be lost, and so
+ * waiting was strictly dominant.
+ *
+ * Changing a screenplay once the camera is rolling is Script Openness (that
+ * doc, section 3.4) and is deliberately out of scope here.
+ */
+export function assetAcceptsDevelopmentPass(asset: Asset, projects: Project[]): boolean {
+  if (asset.pendingRewrite) return false;
+  return projects
+    .filter((p) => assetIdOfProject(p) === asset.id)
+    .every((p) => p.kind === 'player-in-progress' && p.draft.photography === null);
+}
 
 /**
  * Derived purely from whether any Project currently references this Asset -

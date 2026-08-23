@@ -1,6 +1,7 @@
 import type { Genre } from '../types';
 import { SCRIPT_TITLE_WORDS, type GenreTitleBank } from '../data/scriptWords';
-import { TALENT_FIRST_NAMES, TALENT_LAST_NAMES } from '../data/talentNames';
+import { TITLE_NAME_REGION_WEIGHTS } from '../data/talentNames';
+import { drawCoherentName, drawSurname } from './nameGenerator';
 import { pick, type RandomFn } from './random';
 
 // Structural title templates, weighted to roughly match the real-film title
@@ -39,7 +40,7 @@ const TEMPLATES: readonly TitleTemplate[] = [
   },
   { shape: 'subtitle', weight: 8, build: (b, r) => `${pick(r, b.singles)}: ${pick(r, b.adjectives)} ${pick(r, b.nouns)}` },
   { shape: 'prepositional', weight: 6, build: (b, r) => `${pick(r, PREPOSITIONS)} ${pick(r, b.nouns)}` },
-  { shape: 'possessive', weight: 5, build: (b, r) => `${pick(r, TALENT_LAST_NAMES)}'s ${pick(r, b.nouns)}` },
+  { shape: 'possessive', weight: 5, build: (b, r) => `${drawSurname(r, TITLE_NAME_REGION_WEIGHTS, 'title')}'s ${pick(r, b.nouns)}` },
   {
     shape: 'a-adj-noun',
     weight: 4,
@@ -57,7 +58,7 @@ const TEMPLATES: readonly TitleTemplate[] = [
       return `${first} and ${second}`;
     },
   },
-  { shape: 'proper-name', weight: 4, build: (_b, r) => `${pick(r, TALENT_FIRST_NAMES)} ${pick(r, TALENT_LAST_NAMES)}` },
+  { shape: 'proper-name', weight: 4, build: (_b, r) => { const n = drawCoherentName(r, 'title', TITLE_NAME_REGION_WEIGHTS, 'title'); return `${n.first} ${n.last}`; } },
 ];
 
 const TOTAL_WEIGHT = TEMPLATES.reduce((sum, t) => sum + t.weight, 0);

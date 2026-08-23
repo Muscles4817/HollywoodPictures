@@ -3,6 +3,7 @@ import { Button } from './Button';
 import { formatMoney } from './Money';
 import { ActivityCard } from './ActivityCard';
 import { OnSetDecisionCard } from './OnSetDecisionCard';
+import { reshootChoiceConstraints } from '../../engine/reshootAvailability';
 import { backgroundedPlayerDrafts, deriveInboxItems, isParkedActionable } from '../../engine/project';
 import { derivePostProductionStatus, describePostProductionWait } from '../../engine/postProductionStatus';
 import { highestBid } from '../../engine/opportunities';
@@ -174,6 +175,7 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
                       totalDays={state.totalDays}
                       pausedMessage="Post-production can't wrap until you respond to the test screening."
                       showChoiceCosts
+                      choiceConstraints={reshootChoiceConstraints(production, state.talentPool, state.totalDays)}
                       onChoose={(choiceId) => dispatch({ type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId, productionId: production.id })}
                     />
                   </div>

@@ -85,14 +85,20 @@ describe('reckless production is genuinely dangerous', () => {
     const perfHit = computeExecutionProfile({ events: [ev(-16, 'performances')], shootingRatio: 1, talent: withReliability(talent(), 20), productionChoices: choices });
     expect(perfHit.performanceCapture).toBeLessThan(0.85);
     expect(perfHit.postExecution).toBe(1); // untouched - typed routing
-    const drop = quality([]) - quality(CATASTROPHIC, { talent: withReliability(talent(), 20) });
+    // Both sides hold script craft AND talent fixed, so the only thing that
+    // differs between them is the shoot history - which is what this test is
+    // about. Previously the clean side used the fixture's own talent while the
+    // ruined side used a reliability-20 version of it, so the measured "drop"
+    // silently mixed the catastrophe with a talent change.
+    const cast = withReliability(talent(), 20);
+    const drop = quality([], { scriptCraft: 70, talent: cast }) - quality(CATASTROPHIC, { scriptCraft: 70, talent: cast });
     // Ten quality points is the design FLOOR for "materially damaged" (~a fifth
     // of this fixture's clean score), so the gate is >=, not >. It used to read
     // > 10 only because the fixture happened to sit at 11 - which made it fire
     // on any harmless drift in the fixture's own baseline rather than on the
     // execution model getting soft, which is the thing it exists to catch.
-    expect(drop).toBeGreaterThanOrEqual(10); // a catastrophic shoot sheds real quality
-  });
+    // Measured across craft 50-92 here, the drop is 10-12 throughout.
+    expect(drop).toBeGreaterThanOrEqual(10);  });
 
   it('(8) an excellent project can be materially damaged by a catastrophic shoot', () => {
     const excellentClean = quality([], { scriptCraft: 92 });

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRng } from './random';
 import { generateScriptOptions } from './scriptGenerator';
-import { computeRewriteOutcome, makePendingRewrite, rewriteAxisRoom, rewriteDurationDays, rewriteFee, settleAssetRewrites } from './rewrite';
+import { computeRewriteOutcome, estimateRewriteDuration, makePendingRewrite, resolveRewriteDuration, rewriteAxisRoom, rewriteDurationDays, rewriteFee, settleAssetRewrites } from './rewrite';
 import type { Asset, Genre, Script, WriterCreativeProfile } from '../types';
 
 const FLAT_GENRE: Record<Genre, number> = { Action: 50, Comedy: 50, Drama: 50, Horror: 50, Romance: 50, 'Sci-Fi': 50, Fantasy: 50, Thriller: 50 };
@@ -113,5 +113,54 @@ describe('settleAssetRewrites', () => {
     const plain: Asset = { id: 'a2', script: scriptWith({}), provenance: 'Founding', acquisitionCost: 0, acquiredOnDay: 1 };
     const [after] = settleAssetRewrites([plain], 999);
     expect(after).toBe(plain);
+  });
+});
+
+// Development time used to be exactly knowable, which is most of why waiting
+// was free - a pass could be timed to the day and slotted between commitments.
+// docs/DESIGN_REVIEW_project_clocks_and_script_openness.md section 4.2.
+describe('rewrite duration - an estimate with named causes', () => {
+  const script = (complexity: number): Script => scriptWith({ complexity });
+
+  it('bounds the estimate by the scheduled length below, and names every contributor', () => {
+    const s = script(50);
+    const estimate = estimateRewriteDuration(70, s, 'rewrite');
+    // A pass comes in on schedule or late, never early - the low end is the honest optimistic case.
+    expect(estimate.low).toBe(rewriteDurationDays('rewrite', s));
+    expect(estimate.high).toBeGreaterThan(estimate.low);
+    // Nothing in the range is unexplained: the factors account for the whole span.
+    const named = estimate.factors.reduce((sum, f) => sum + f.days, 0);
+    expect(named).toBe(estimate.high);
+  });
+
+  it('narrows the range for a reliable writer and widens it for an unreliable one', () => {
+    const s = script(50);
+    const dependable = estimateRewriteDuration(95, s, 'rewrite');
+    const volatile = estimateRewriteDuration(10, s, 'rewrite');
+    expect(dependable.low).toBe(volatile.low); // same scheduled pass
+    expect(dependable.high).toBeLessThan(volatile.high); // who you hire is part of how long it takes
+  });
+
+  it('resolves within its own estimate, and always explains where it landed', () => {
+    const s = script(80);
+    const estimate = estimateRewriteDuration(40, s, 'rewrite');
+    for (let seed = 0; seed < 60; seed++) {
+      const outcome = resolveRewriteDuration(40, 'Dana Vance', s, 'rewrite', createRng(seed));
+      expect(outcome.days).toBeGreaterThanOrEqual(estimate.low);
+      expect(outcome.days).toBeLessThanOrEqual(estimate.high);
+      // Principle 3/4: an overrun is never an unexplained slip - the days that
+      // went over are exactly the days the named causes account for.
+      const overrun = outcome.days - estimate.low;
+      expect(outcome.causes.reduce((sum, c) => sum + c.days, 0)).toBe(overrun);
+      expect(outcome.summary).not.toBe('');
+      if (overrun === 0) expect(outcome.causes).toHaveLength(0);
+    }
+  });
+
+  it('is deterministic for a given seed - a reload cannot shop for a shorter pass', () => {
+    const s = script(60);
+    const first = resolveRewriteDuration(30, 'Dana Vance', s, 'polish', createRng(4242));
+    const second = resolveRewriteDuration(30, 'Dana Vance', s, 'polish', createRng(4242));
+    expect(second).toEqual(first);
   });
 });
