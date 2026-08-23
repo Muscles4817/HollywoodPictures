@@ -231,15 +231,15 @@ prerequisites; without them the later steps amplify a signal that is not there.
 
 1. **Per-axis actor read.** ✅ **Done.** See §4.1 for what shipped and what it
    measured — including an important correction to the diagnosis in §2.1.
-2. **Ambition vs delivery gap.** Give a finished film *realised* properties
+2. **Remove the averages in the quality blend.** ✅ **Done** — and it was
+   reordered ahead of the ambition gap for a measured reason. See §4.2.
+3. **Ambition vs delivery gap.** Give a finished film *realised* properties
    distinct from its screenplay's *potential* ones, and scale execution's effect
-   by how far the plan reached. This is the determinism fix. One analysis
-   measured a safe package at critic SD 1.44 across 240 shoots and a risky one at
-   **12.83** — the asymmetry Principle 1 asks for, emerging from structure rather
-   than a variance knob.
-3. **Remove the three averages.** Structure as a gate rather than a summand;
-   post-production as a multiplicative factor; peak and weakest-link order
-   statistics in place of departmental means.
+   by how far the plan reached. One analysis measured a safe package at critic SD
+   1.44 across 240 shoots and a risky one at **12.83** — the asymmetry Principle 1
+   asks for, emerging from structure rather than a variance knob. Still to do,
+   along with the script-side composition (structure as a gate rather than a
+   summand).
 4. **Inverted terms.** Originality, genre conformity, franchise recognition, and
    fame-over-craft read with opposite signs between the two constituencies. The
    cheapest available decorrelation — mostly negating fields that already exist.
@@ -319,7 +319,91 @@ convert a wider input into a wider output. It is a prerequisite, not a fix, and
 the measurement above is the evidence for that claim rather than an assertion of
 it.
 
-### 4.2 Target correlation
+### 4.2 Step 2 as built — and why the order changed
+
+**The premise of the original step 2 was wrong, and measuring it said so.** It
+assumed execution was failing to reach the departments. It is not. On one fixed
+plan across 240 execution seeds:
+
+```
+performanceCapture   SD 0.075   range 0.796 – 1.160
+postExecution        SD 0.104   range 0.647 – 1.140
+coverageRatio        SD 0.083   range 0.612 – 1.104
+scriptExecution      SD 0.011   range 0.952 – 1.048   ← the one that barely moves
+        ↓
+executedActing       SD 4.79    range 51.0 – 74.2
+executedPostProduction SD 5.74  range 35.6 – 62.7
+        ↓  weighted mean of four departments
+qualityScore         SD 1.54    range 55 – 63
+```
+
+Two departments swing 23–27 points across shoots and the blend delivers 8. Three
+losses compound: each department carries only its own weight, the K-chain shrinks
+the ratios again, and **averaging swings that are independent of each other
+actively cancels them**. Ambition-scaling would widen `executedActing` further,
+but 4.79 → 8 SD would still only give a quality SD near 2.5. It is provably
+wasted until the composition transmits.
+
+**What shipped.** The blend keeps the weighted mean as its *centre* and adds the
+two order statistics a mean throws away — how bad the worst department is, and
+how good the best one is — and post-production leaves the sum to become a
+multiplicative realisation factor rather than a near-constant quarter of it.
+
+Both shaping terms are one-sided and the three-component core sits higher than
+the four-component mean, so both are re-levelled by **measured** constants
+(`QUALITY_SHAPE_RECENTRE`, `QUALITY_COMPOSITION_LEVEL`) rather than guessed ones.
+That discipline is the lesson from the failed attempt in
+`DESIGN_box_office_engine_map.md` §11, where a geometric mean dropped the wide
+median from $117M to $57M and bought no variance.
+
+**Measured.** Fixed plan, 240 execution seeds:
+
+| | before | after |
+|---|--:|--:|
+| `qualityScore` SD | 1.54 | **2.33** |
+| `criticScore` SD | 1.18 | **1.86** |
+| `audienceScore` SD | 0.79 | **1.20** |
+
+Whole slate, 394 films over four 4-year runs — median preserved, as required:
+
+| | before | after |
+|---|--:|--:|
+| `qualityScore` mean / SD | 52.5 / 6.6 | 51.9 / 6.58 |
+| `criticScore` SD / range | 7.7 / 35–72 | 7.14 / **31–74** |
+| `audienceScore` mean / SD | 62.9 / 6.5 | 62.7 / 6.45 |
+
+**Where the gain comes from.** Not from uniform damage — an
+all-departments-down shoot moved the fixture film 15.2 points under the old
+blend and 17.2 under this one, a marginal gain. It comes from **dispersed**
+damage, which is what a real shoot produces and what a mean cannot see: one
+department craters while the others hold.
+
+**What constrained the magnitude.** The ratified real-film anchors pushed back,
+and were respected rather than widened. At `QUALITY_WEAKEST_LINK = 0.6` the
+Inception recreation drifted to critic 83 against a band ceiling of 82 (real
+Metacritic 74), and Suicide Squad's return multiple fell from 0.944 to 0.832
+against a floor of 0.85. The constants were moderated to 0.35 / 0.20 until both
+passed with margin, at the cost of roughly a fifth of the variance gain.
+
+That tension is real and worth naming: **the Suicide Squad anchor protects a big
+commercial film from being sunk by weak craft, which is exactly what a
+weakest-link term does.** Its own comment anticipates re-tightening once the
+box-office top-tail work restores big-film legs; the weakest-link weight can be
+raised at the same time.
+
+**What this does not fix.** The `boxOfficeVariance` diagnostic moved from CV
+0.010 to 0.012 — still far from its target bands. The coupling is real and
+measurable (over 240 seeds of the fixed plan, `corr(qualityScore, gross) = 0.63`),
+so gross variance is limited by reception variance still being small in absolute
+terms, not by a broken link. Reception needs to grow several times further, which
+is what the remaining steps are for.
+
+**Incidental finding.** No rival studio greenlights a `Big`-scale production in
+2,000 simulated days, so the variance diagnostic silently falls back to a Medium
+plan. Worth investigating separately — it also means the top of the production
+scale is untested.
+
+### 4.3 Target correlation
 
 The four analyses predicted critic–audience correlations of 0.48, 0.64, 0.73 and
 0.78. Real-world is ≈0.70–0.75. Treat **0.70–0.75** as the target and note that

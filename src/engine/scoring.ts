@@ -436,6 +436,76 @@ const FOOTAGE_DIRECTION_WEIGHT = 0.4;
 const FOOTAGE_ACTING_WEIGHT = 0.3;
 const FOOTAGE_PRODUCTION_WEIGHT = 0.3;
 
+// --- Composition: dispersion, not just level ------------------------------
+//
+// The blend below used to be a plain convex combination of four departments.
+// That is the single largest reason the finished film is near-deterministic
+// (docs/DESIGN_REVIEW_reception_model.md). Measured on one fixed plan across
+// 240 execution seeds, the shoot swings the departments hard - executedActing
+// SD 4.8 over a 23-point range, executedPostProduction SD 5.7 over 27 points -
+// and the weighted mean turned that into a qualityScore SD of 1.5. Three
+// separate losses: each department carries only its own weight, the K-chain
+// shrinks the ratios again, and averaging swings that are independent of each
+// other actively cancels them.
+//
+// A mean also cannot tell two genuinely different films apart. Departments at
+// {62, 62, 62} and {40, 84, 62} average identically; the first is forgettably
+// competent and the second is "brilliant script, gutted on set." Those are the
+// two films the game most needs to distinguish.
+//
+// So the blend keeps the mean as its CENTRE and adds the two order statistics a
+// mean throws away: how bad the worst department is, and how good the best one
+// is. Weakest-link is deliberately the stronger of the two - films fail more
+// legibly than they succeed, and it keeps ambition honest (reaching for a peak
+// in one department while letting another slip is a net loss).
+const QUALITY_WEAKEST_LINK = 0.35;
+const QUALITY_PEAK_CARRY = 0.2;
+// Both terms above are one-sided and the weakest-link is the larger, so applying
+// them to a typical film costs it points. That is a LEVEL change, not the
+// spread change we want, and an earlier attempt at reshaping this blend
+// (docs/DESIGN_box_office_engine_map.md §11, a geometric mean) failed exactly
+// this way - it dropped the wide median from $117M to $57M and bought no
+// variance. So the expected net cost at the population's typical internal
+// dispersion is added straight back, leaving the shaping spread-only at the
+// centre. MEASURED as the median (shaped - core) over a simulated slate with
+// the recentre at zero, not guessed - re-derive it if the K-chain or the
+// department weights are retuned.
+const QUALITY_SHAPE_RECENTRE = 1.4;
+
+// Dropping post-production out of the weighted sum raises what remains: it was
+// systematically the lowest component (effective post-production runs ~37 on a
+// typical film against a ~59 three-component core), so averaging against it was
+// dragging every film down. Re-levelled here so the blend's median matches the
+// four-component mean it replaces, and the whole change stays SPREAD-ONLY.
+//
+// Preserving the median is not cosmetic. audienceScore feeds a convex
+// word-of-mouth multiplier (engine/audienceSimulationStep.ts,
+// RECEPTION_EXPONENT = 2), so a few points of drift here fans the entire
+// box-office distribution out and invalidates every gate in
+// docs/DESIGN_box_office_calibration_targets.md. Widening reception is wanted
+// eventually - but as its own deliberate, jointly-recalibrated change, not as a
+// side effect of this one.
+const QUALITY_COMPOSITION_LEVEL = -7.0;
+
+// Post-Production leaves the weighted sum entirely and becomes a multiplicative
+// realisation factor on everything else. Two reasons. It is a near-constant -
+// computePostProductionScore is `55 + at most 13` - so as a quarter of a convex
+// combination it functioned as a divisor, dragging every film toward its own
+// narrow band. And the dependency chain already half-believes this: an editor
+// cannot cut footage that was never shot (K_FOOTAGE_TO_EDITING, editCoverageCeiling).
+// Going the rest of the way makes the edit realise or squander the footage
+// rather than averaging against it, which is also what lets execution's
+// postExecution multiplier reach the film instead of being diluted by weight.
+const POST_REALISATION_FLOOR = 0.72;
+const POST_REALISATION_SATURATION = 100;
+/** The effective post-production score a typical film lands on - measured, and the point at which the realisation factor is exactly 1. Above it the edit realises more than the footage promised; below it, less. */
+const POST_REALISATION_REFERENCE = 37;
+
+/** A soft multiplicative gate: `floor` at 0, rising linearly to 1 at `saturation`. */
+function realisationGate(value: number, floor: number, saturation: number): number {
+  return floor + (1 - floor) * clamp(value / saturation, 0, 1);
+}
+
 /**
  * Final Quality Score: no longer six independently-weighted departments -
  * Script sets the film's potential, Direction determines how much of it
@@ -574,16 +644,24 @@ export function computeQualityBreakdown(
   const effActing = 100 * actingRatio;
   const effPostProduction = 100 * postProductionRatio;
 
+  // Three components, not four - post-production realises them rather than
+  // averaging against them (see POST_REALISATION_FLOOR above).
   const weights = computeQualityWeights(genre);
-  const qualityScore = clamp(
-    executedScript * weights.script +
-      effDirection * weights.direction +
-      effActing * weights.acting +
-      effPostProduction * weights.postProduction +
-      developmentQualityDelta,
-    0,
-    100,
-  );
+  const componentWeightTotal = weights.script + weights.direction + weights.acting;
+  const core =
+    (executedScript * weights.script + effDirection * weights.direction + effActing * weights.acting) / componentWeightTotal;
+
+  const components = [executedScript, effDirection, effActing];
+  const weakest = Math.min(...components);
+  const peak = Math.max(...components);
+  const shaped =
+    core - QUALITY_WEAKEST_LINK * Math.max(0, core - weakest) + QUALITY_PEAK_CARRY * Math.max(0, peak - core) + QUALITY_SHAPE_RECENTRE;
+
+  const postRealisation =
+    realisationGate(effPostProduction, POST_REALISATION_FLOOR, POST_REALISATION_SATURATION) /
+    realisationGate(POST_REALISATION_REFERENCE, POST_REALISATION_FLOOR, POST_REALISATION_SATURATION);
+
+  const qualityScore = clamp(shaped * postRealisation + QUALITY_COMPOSITION_LEVEL + developmentQualityDelta, 0, 100);
 
   return { scriptScore, directionScore, actingScore, productionScore, productionDesignScore, postProductionScore, eventsScore, qualityScore };
 }
