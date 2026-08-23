@@ -15,7 +15,7 @@ The agreed sequence for making script quality a judgment rather than a readout:
 | — | Price scripts off their earning ceiling; complexity out of the quality star; role demands read the script | **landed** (PR #170) |
 | 1 | Script generation carries real, evaluable content | not started |
 | **2** | **Coverage — quality becomes somebody's opinion** | **this document** |
-| 3 | Multiple signal sources (writer track record, rival interest, attachments) | not started |
+| 3 | Multiple signal sources (writer track record, rival interest, attachments) + writer deals (§7.1) | not started |
 | 4 | Talent pushback in prep drives targeted rewrites | not started |
 | 5 | Inbound pitches — creatives come to you with projects | not started |
 
@@ -148,25 +148,106 @@ consequences, all wanted:
 with their archetype bias applied. This is the headline, as it is on real
 coverage — the axis stars are the supporting detail.
 
-## 6. Readers are staff you hire
+## 6. The Story Department (facility)
 
-Readers come off the existing staffing board (`state/staffingBoard.ts`).
+Coverage needs a home. Readers parked loose on the staffing board work, but they
+give the player nothing to *invest in* — and reading capacity, which is the real
+scarcity this phase creates (§6.3), has nowhere to be upgraded from.
 
-| Role | Acuity | Cost | Throughput |
+So Phase 2 ships a third studio facility: the **Story Department**.
+
+### 6.1 Why this is realistic, and why it is not a writers room
+
+The instinct to be careful here is right, but it applies to the wrong thing.
+
+**A writers *room* would be an anachronism.** That is a television institution.
+`01` §3.3 notes personal-exclusivity deals are "the norm in **television**, where
+a showrunner's time is the asset." Film studios have never run rooms, and the
+spec deliberately does not add one.
+
+**A story *department* is one of the oldest departments in the business, and its
+readers are staff.** From `02` §5.1:
+
+| Reader | Where | Pay | Volume |
 | --- | --- | --- | --- |
-| Freelance reader | ~30 | per-script fee | slow |
-| Story editor | ~55 | salaried | a few scripts/week |
-| Head of development | ~80 | salaried, expensive | rate-limited |
+| **Staff story analyst** | Major studios and networks; in the US organised under an IATSE story analysts local | Salaried, with a weekly script quota | 8–15 scripts/week |
+| Freelance reader | Studios, prodcos, financiers, festivals | $40–75 per script | As many as they can stand |
+| Assistant / intern | Every agency and prodco in town | Salary or nothing | Weekends and evenings |
 
-Every one of them has taste bias regardless of acuity — acuity narrows the
-noise, it does not remove the bias. **There is no reader who tells the truth.**
+Salaried, quota'd, unionised. Housing that in a facility is not a liberty; it is
+a payroll department the industry has run for a century.
 
-Throughput is the real constraint: you cannot read the whole market, so *what to
-spend a read on* is itself a decision. That is the layer's second game.
+`02` §5.1 also makes the third row worth modelling eventually: "a very large
+share of the industry's first-pass judgement is exercised by 24-year-olds reading
+at 11pm after a twelve-hour desk day." That is the cheapest, worst-acuity reader
+tier, and it is the *default* one a studio with no department is stuck with.
 
-**OPEN:** should the player see a reader's `acuity` when hiring, or infer it?
-Proposal: see a CV (credits, years, where they trained), not the number — the
-same fog, applied one level up.
+**Writers themselves stay free agents** — see §7.1, where the real instruments
+for tying a writer to a studio live. Nobody in this facility writes anything.
+
+### 6.2 Shape — the established facility pattern
+
+Identical in shape to the two facilities that already exist, so this is a well-
+worn path rather than a new concept:
+
+```ts
+interface StoryDepartment {
+  tier: number;              // reading capacity — data/storyDepartment.ts
+  sourcingTier?: number;     // independent upgrade track (§6.3)
+  analystIds: string[];      // hired analysts, by id; Person records live in the pool
+}
+// Studio.storyDepartment?: StoryDepartment | null   — absent/null == not unlocked
+```
+
+- `UNLOCK_STORY_DEPARTMENT`, `UPGRADE_STORY_DEPARTMENT`, `HIRE_STORY_ANALYST`
+  reducer actions, mirroring `UNLOCK_PRODUCTION_OFFICE` / `UPGRADE_…` /
+  the bench-hire action at `state/studioReducer.ts:1199+`.
+- Tier → weekly coverage capacity, the way
+  `data/producers.ts:OFFICE_BENCH_CAPACITY_BY_TIER` governs the producer bench.
+- Presence == unlocked, via a milestone. Read defensively, no migration pass.
+
+**OPEN:** unlock via milestone (as both existing facilities do) or purchasable
+from day one? Proposal: **purchasable from day one at tier 1**, because §12's
+first risk is a player fogged out of the market with no affordable signal. A
+studio should never be *unable* to buy a read.
+
+### 6.3 Three functions, in the order they should be built
+
+1. **Reading capacity** (tier). Scripts covered per week. The binding constraint:
+   you cannot read the whole market, so *what to spend a read on* becomes a real
+   decision. Without a department you fall back to the assistant tier — one slow,
+   low-acuity read at a time.
+2. **Read quality.** Better analysts to hire onto the bench. Upgrades narrow
+   noise; they **never** remove taste bias (§5). There is no reader who tells the
+   truth, at any tier. Game-side, three populations mirroring `02` §5.1's:
+
+   | Who | Acuity | Cost | Throughput |
+   | --- | --- | --- | --- |
+   | Assistant read (no department) | ~25 | free | one at a time, slow |
+   | Freelance reader | ~40 | per-script fee | as many as you'll pay for |
+   | Staff story analyst | ~55–80 by hire | salaried | a weekly quota, set by tier |
+
+   The free assistant read is the floor that keeps a broke studio in the game
+   (§12), and it is deliberately bad enough to be worth upgrading away from.
+3. **Sourcing / access** (`sourcingTier`, the independent second track — exactly
+   how `productionOffice.marketResearchTier` sits alongside its bench). `01` §3.4:
+   a pod's real product is "*access to material before the market*." Higher
+   sourcing means seeing the slate earlier than rivals do. **This is Phase 3
+   content** — the track exists in the type from the start so it has somewhere to
+   land, but ships inert.
+
+### 6.4 Keeping it distinct from Market Research
+
+The Production Office already sells information via `marketResearchTier`. Two
+"buy information" facilities will blur unless the split is stated and held:
+
+| | Question it answers | Bought from |
+| --- | --- | --- |
+| **Market Research** | Will an audience turn up for this? | Production Office |
+| **Story Department** | Is the script any good? | Story Department |
+
+Audience-side versus script-side. A coverage should never mention box office; a
+market research report should never grade dialogue.
 
 ## 7. Multiple reads and triangulation
 
@@ -176,6 +257,22 @@ as confidence; a split is information in itself.
 
 Cap at 3 coverages per script — past that the UI gets noisy and the marginal
 information is small.
+
+### 7.1 Writers stay free agents — deals, not desks
+
+For completeness, since the Story Department raises the question and the answer
+shapes Phase 3: a studio genuinely *can* tie a writer to it, but through term
+deals rather than employment. `01` §3.3 gives two real instruments:
+
+| Instrument | What it buys | Cost |
+| --- | --- | --- |
+| **First-look** | *Submission* exclusivity — the writer still works elsewhere, but you see it first | Overhead, funded development |
+| **Overall** | *Personal* exclusivity — "the principal cannot work for anyone else in the covered field for the term" | Materially more |
+
+This is better than employment as a mechanic, because a deal has a term, a
+price, an opportunity cost, and it **denies a writer to your rivals** — none of
+which a salaried desk does. It is **Phase 3**, not this one; recorded here only
+so the facility is not built assuming it will house writers.
 
 ## 8. UI
 
@@ -220,14 +317,18 @@ over" a real but fallible signal, and creates mistakes the player can exploit.
 ## 11. Files
 
 **New:** `engine/coverage.ts`, `engine/coveragePresentation.ts`,
-`data/readers.ts`, plus tests.
+`engine/storyDepartment.ts`, `data/readers.ts`, `data/storyDepartment.ts`,
+`components/StoryDepartmentCard.tsx` (modelled on `ProductionOfficeCard.tsx`),
+plus tests.
 
-**Changed:** `types/index.ts` (Coverage, ReaderProfile, `Studio.coverages`);
-`state/studioReducer.ts` (`COMMISSION_COVERAGE`); `state/staffingBoard.ts`
-(reader roles); `engine/scriptGenerator.ts` (price off the market read);
-`engine/rivalStudios.ts`; `components/common/ScriptDetails.tsx`,
-`FilmDetailModal.tsx`, `AssetLibrary.tsx`, `OpportunityMarket.tsx`;
-`engine/conceptStrength.ts` consumers. `SAVE_KEY` bump.
+**Changed:** `types/index.ts` (Coverage, ReaderProfile, StoryDepartment,
+`Studio.storyDepartment`, `Studio.coverages`); `state/studioReducer.ts`
+(`COMMISSION_COVERAGE`, `UNLOCK_/UPGRADE_STORY_DEPARTMENT`,
+`HIRE_STORY_ANALYST`); `state/gameState.ts`; `engine/scriptGenerator.ts` (price
+off the market read); `engine/rivalStudios.ts`;
+`components/common/ScriptDetails.tsx`, `FilmDetailModal.tsx`,
+`AssetLibrary.tsx`, `OpportunityMarket.tsx`; `engine/conceptStrength.ts`
+consumers. `SAVE_KEY` bump.
 
 ## 12. Risks
 
@@ -238,6 +339,8 @@ over" a real but fallible signal, and creates mistakes the player can exploit.
 | Feels arbitrary rather than uncertain | Post-release revelation (§9) is shipped in the same phase, not later |
 | UI noise from many coverages | Cap at 3; verdict is the headline, axes are detail |
 | Diagnostics and dev inspectors need truth | Unchanged — per CLAUDE.md they read raw numbers; only player surfaces fog |
+| Story Department blurs with Market Research | The audience-side / script-side split in §6.4, held in both directions |
+| A facility with nothing to do | Build the coverage engine first; the department is its home, not the layer itself (§15) |
 
 ## 13. Acceptance criteria
 
@@ -249,9 +352,29 @@ over" a real but fallible signal, and creates mistakes the player can exploit.
 5. Post-release shows truth plus every coverage written.
 6. A rival studio's acquisition decisions run off perceived, not true, value.
 7. Price correlates with true craft but does not determine it.
+8. A studio with no Story Department can still obtain coverage — slowly, at the
+   worst acuity — and is never locked out of reading.
+9. Department tier changes weekly coverage capacity and nothing else; analyst
+   quality changes acuity and never removes taste bias.
 
 ## 14. Explicitly out of scope
 
 Talent pushback in prep (Phase 4), targeted rewrites (Phase 4), inbound pitches
-(Phase 5), and improved script prose (Phase 1). Rewrites keep working exactly as
-they do today.
+(Phase 5), improved script prose (Phase 1), and writer deals plus the sourcing
+track (Phase 3, §6.3/§7.1 — `sourcingTier` ships inert). Rewrites keep working
+exactly as they do today. **No writers room, in this phase or any later one.**
+
+## 15. Build order
+
+The facility is the wrapper, not the layer. Built first, it is a building with
+nothing to do.
+
+1. `engine/coverage.ts` — the perception model, pure, with its tests.
+2. Price off the market read (§4.1) — closes the oracle before the fog goes up.
+3. Player surfaces read from `Coverage` instead of `Script` (§3, §8).
+4. Story Department facility as coverage's home and upgrade path (§6).
+5. Post-release revelation (§9).
+6. Rivals onto perceived value (§10).
+
+Steps 1–3 are the phase's spine; a slip in 4–6 is survivable, a slip in 2 is
+not — it would ship the fog with the answer still printed on the price tag.
