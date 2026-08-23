@@ -102,6 +102,37 @@ change.
 
 ---
 
+## Scale, and where the overloaded words are
+
+The library is roughly **235,000 words**. Documents run 9,000–21,000 words
+each; the spread tracks how much real machinery each subject has, not its
+importance. `14-glossary.md` (500+ entries) is the fastest way in when you
+know the term, and each document's own section list is the fastest way in when
+you know the topic.
+
+Film vocabulary reuses words heavily, and the glossary enumerates the senses
+where it does. The ones that bite most often:
+
+| Word | Senses |
+|---|---|
+| **Turnaround** | Rest between wrap and next call · repositioning camera for the reverse · a studio releasing a project to another buyer |
+| **Coverage** | The angles shot for a scene · a reader's written assessment of a script |
+| **Package** | Agency package · elements · insurance package · VFX bid package · editorial turnover package |
+| **Multiple** | Legs (gross ÷ opening) · duplicate costumes and props · break-even multiples |
+| **Buyer** | Art-department buyer · exhibitor film buyer · territory buyer |
+| **Scale** | Guild minimum · sliding-scale rental terms · the physical size of an effect |
+| **Slate** | A studio's portfolio · the clapperboard |
+| **Grade** | Colour grading · a CinemaScore letter |
+
+Two places where the *library itself* is loose rather than the industry, worth
+tightening if either area gets worked on: **definite recommend** is used for a
+test-screening card metric in `07` §9.3 and an exit-poll metric in `16` §7.3
+without the two being distinguished outside `16` §1.1; and **exit polling and
+aggregate scores** are covered in both `09` §8 and `16` §4/§7 with different
+framings and no cross-reference.
+
+---
+
 ## Maintaining it
 
 - Keep the real/game separation absolute. If a game consideration needs
@@ -112,3 +143,10 @@ change.
   "directional" framing.
 - Add to `14-glossary.md` whenever a new term enters a document, with the
   cross-reference.
+- Cross-references are `` `NN` §X `` and point at numbered sections, so
+  **do not renumber an existing section** — append new ones instead. A
+  reference checker lives in the session scratchpad; regenerate it by parsing
+  every `` `NN` §X `` and asserting the target document has that heading.
+- Documents carry craft profiles (see above). When you add a process, add all
+  four parts — a process described without its skill axis is the thing this
+  library exists to avoid.
