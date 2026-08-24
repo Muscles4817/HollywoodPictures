@@ -34,7 +34,7 @@ import { drawCoherentName } from './nameGenerator';
 import { generatePremise } from './premiseGenerator';
 import { deriveCommercialProfile, type CommercialInputs, type CommercialProfile } from './commercialProfile';
 import { scriptShapedCast } from './characterDemands';
-import { type RandomFn, clamp, combineWeights, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick } from './random';
+import { type RandomFn, clamp, combineWeights, hashUnit, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick } from './random';
 
 // Script ids must be unique across the whole save's lifetime - an Asset, its
 // revisions, every Project and Film that froze a snapshot, and the IP layer
@@ -269,16 +269,6 @@ const CASTING_GENDER_ANY_CHANCE: Partial<Record<CharacterArchetype, number>> = {
   LoveInterest: 0.05,
 };
 const DEFAULT_ANY_CHANCE = 0.18;
-
-/** A stable 0-1 hash of a string (FNV-1a) - used to derive castingGender below without drawing from the shared RandomFn stream. */
-function hashUnit(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0) / 4294967296;
-}
 
 // Deliberately derived from the character's own (already-generated) name
 // rather than a fresh rng() draw: assigning gender must NOT advance the
@@ -756,7 +746,7 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
     effectsStrategy,
     effectsAmbition,
     productionRequirements,
-    synopsis: generatePremise(genre, storyType, primarySetting, flavorTones[0] ?? null, usedSynopses, rng),
+    synopsis: generatePremise(genre, storyType, primarySetting, flavorTones[0] ?? null, title, usedSynopses, rng),
     requiredLeads,
     requiredSupporting,
     intendedAudience,
