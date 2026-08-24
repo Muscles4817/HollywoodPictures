@@ -845,8 +845,10 @@ export interface Script {
   effectsAmbition: NormalizedScalar;
   productionRequirements: ProductionRequirements;
   // A one-sentence log-line generated from genre + tone flavor
-  // (engine/premiseGenerator.ts, data/premises.ts) - presentation only,
-  // doesn't feed any scoring, same as title.
+  // (engine/premiseGenerator.ts, data/premises.ts). The string itself is
+  // presentation only and feeds no scoring, same as title - but the Premise it
+  // came from is no longer inert: its `leads` floors requiredLeads below, and so
+  // reaches the cast and a screenplay's price (data/premises.ts:Premise.leads).
   synopsis: string;
   // How many named Lead/Supporting roles this script actually has - a
   // buddy-cop script calls for two leads, an ensemble drama might want a
