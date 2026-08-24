@@ -116,6 +116,13 @@ export function startIndex(hash: number, total: number, preferredCount: number):
   return preferredCount + Math.floor(((hash - PREFERRED_SHARE) / (1 - PREFERRED_SHARE)) * widerCount);
 }
 
+export interface SelectedPremise {
+  /** The rendered log-line, for Script.synopsis. */
+  text: string;
+  /** The entry it came from, so the generator can read what the log-line promises (see Premise.leads). */
+  premise: Premise;
+}
+
 /**
  * Builds a script's one-sentence synopsis, conditioned on its genre, Story
  * Type, Setting and flavor tone (see selectPool). `usedSynopses` is the set
@@ -125,17 +132,10 @@ export function startIndex(hash: number, total: number, preferredCount: number):
  * log-line twice the way titles already avoid doing. Only when the whole pool
  * is exhausted does it fall back to repeating.
  *
- * The starting entry is HASHED from `title` plus the chosen pool, not drawn -
- * see the note in the body for why, and for why the one rng draw it still takes
- * is deliberately thrown away.
+ * The starting entry is HASHED from `title` plus the chosen pool rather than
+ * drawn, so this costs no rng draw at all - which is what lets the caller choose
+ * a log-line before it builds the cast (see the note in the body).
  */
-export interface SelectedPremise {
-  /** The rendered log-line, for Script.synopsis. */
-  text: string;
-  /** The entry it came from, so the generator can read what the log-line promises (see Premise.leads). */
-  premise: Premise;
-}
-
 export function generatePremise(
   genre: Genre,
   storyType: StoryType,

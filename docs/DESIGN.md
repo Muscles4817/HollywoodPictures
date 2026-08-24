@@ -861,11 +861,17 @@ Every script gets a one-sentence log-line (`Script.synopsis`), shown in
 italics under the title on the Develop screen. This is deliberately built
 the same way as the Results screen's Studio Report (5.10-adjacent, see
 `engine/storyReport.ts`): a curated bank of pre-written sentences,
-conditionally selected from real data, with randomness only in *which*
-phrasing gets used - not a compositional slot-filler ("A {protagonist} must
+conditionally selected from real data - not a compositional slot-filler ("A {protagonist} must
 stop {antagonist} before {stakes}"), which was considered and rejected
 because freely recombining independently-written fragments risks nonsense
 pairings that a hand-written sentence never would.
+
+NOTE this section describes selection as it was first built. Two things have
+changed since: a log-line is now HASHED from the script's title plus its pool
+rather than drawn from the rng stream, and the most specific bank LEADS a
+two-tier pool rather than being the whole of it (a Story Type bank of five was
+previously the only thing such a script could ever draw from, which left most of
+the corpus unreachable). See `engine/premiseGenerator.ts` for both.
 
 The selection key is genre plus whichever tone (if any) got a flavor boost
 during tone-profile generation (5.11) - `generateToneProfile` now returns
@@ -874,7 +880,7 @@ doesn't have to re-derive "was this flavored" from the finished numbers.
 An Action script that rolled a comedy flavor boost pulls from
 `PREMISE_BANKS.Action.comedy` instead of `PREMISE_BANKS.Action.straight`,
 so a buddy-cop-flavored action script reads like one. Every genre's
-`straight` bucket now has 9 entries, and 18 of the 48 possible genre/flavor
+`straight` bucket now has 25 entries, and 18 of the 48 possible genre/flavor
 combinations are authored (2-3 per genre, the pairings common enough to be
 worth writing - e.g. Action+comedy/suspense/drama, Fantasy+romance/comedy),
 each with 5-6 entries; anything without an authored bucket falls back to
@@ -883,7 +889,7 @@ already taken with the script title word banks (5.11) - fill in more if
 repetition is still noticeable in play, rather than trying to cover every
 combination up front.
 
-169 hand-written entries surfaced their own lesson worth recording: several
+the hand-written entries (342 as of the premise work) surfaced their own lesson worth recording: several
 early entries reused `{antagonist}` twice in one sentence, or built a
 sentence around a long descriptive antagonist phrase (`"a king who keeps
 declaring wars without checking with him first"`) the way one would around
@@ -898,9 +904,18 @@ capitalization) that all still passed - worth remembering that the
 generator producing *valid* output isn't the same as producing *readable*
 output.
 
-**This is presentation only, on purpose.** `Script.synopsis` feeds nothing
-in `engine/scoring.ts` and nothing in `engine/compatibility.ts` - the same
-boundary `title` already sits behind. The alternative (turning protagonist/
+**This was presentation only, and no longer entirely is.** `Script.synopsis`
+still feeds nothing in `engine/scoring.ts` and nothing in
+`engine/compatibility.ts`, so the rejection below stands unchanged. But the
+log-line is no longer inert: a `Premise` can declare how many people it is
+ABOUT (`data/premises.ts:Premise.leads`), and that sets a floor on
+`requiredLeads` - which reaches `cast`, and through the Leads' own traits reaches
+`commercialProfile` and so a screenplay's price. The boundary that has moved is
+"the concept may constrain the script built from it"; the boundary that has NOT
+moved is "the synopsis is a second scoring system", which remains rejected for
+the reasons below. Selection is also no longer random: a log-line is hashed from
+the script's title and its pool (`engine/premiseGenerator.ts`), so it is a
+property of the script rather than of where generation had got to. The alternative (turning protagonist/
 antagonist archetypes into a second, parallel "does this actor suit this
 character" scoring system) was considered and explicitly rejected: casting
 already has one clean, unified answer to "does this person suit this

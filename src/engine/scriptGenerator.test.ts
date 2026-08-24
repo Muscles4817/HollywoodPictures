@@ -330,35 +330,76 @@ describe('a script never contradicts what its own log-line promises', () => {
     expect(checked).toBeGreaterThan(100);
   });
 
-  it('has a leads count on every log-line whose text names more than one person', () => {
-    // Data integrity, and learned the hard way: the first pass at tagging these
-    // matched single-quoted entries only, so five log-lines whose protagonist
-    // contains an apostrophe ("two feuding brothers who inherited their father's
-    // security company") stayed untagged and kept shipping with one Lead. The
-    // strict test above cannot catch that - it reads the leads field, so an
-    // untagged entry is simply invisible to it. This reads the PROSE.
-    const plural = /^(two|three|four|twin|a pair of|a getaway crew|a crew of)\b/i;
+  it('has a leads count on every log-line the author conjugated for more than one person', () => {
+    // This guard replaced one that could not fail. The first version matched
+    // protagonists starting with "two"/"three"/"four"/"twin" - a list fitted to
+    // the entries already tagged, so it returned green by construction while 14
+    // untagged multi-protagonist log-lines went on being cast with one Lead
+    // (measured at 59.2%, indistinguishable from the bug this stage set out to
+    // fix). Two of its seven alternatives matched nothing in the corpus at all.
+    //
+    // The signal used instead is the data author's own VERB CONJUGATION. render()
+    // substitutes {protagonist} into synopsis, so an entry written
+    // "{protagonist} have" or "{protagonist} spend" is unambiguously about
+    // several people - that is a fact about the text rather than a guess about
+    // the noun phrase, and it cannot be fitted to the answer.
+    //
+    // It does NOT catch every case: "a ski instructor and the hopeless beginner
+    // she is assigned" is a two-hander written in the singular, and no machine
+    // check distinguishes that from "a wizard stripped of his title and his
+    // magic". Those were tagged by reading them. This guard is the floor, not
+    // the ceiling.
+    const PLURAL_VERBS = [
+      'have', 'are', 'were', 'spend', 'run', 'sprint', 'settle', 'film', 'keep', 'stand', 'meet',
+      'strip', 'carry', 'write', 'share', 'discover', 'find', 'learn', 'try', 'fight', 'take',
+      'make', 'get', 'go', 'come', 'do', 'watch', 'start', 'survive', 'pull', 'plan', 'realize',
+    ];
+    const pluralOpening = new RegExp(`^\\{protagonist\\}\\s+(${PLURAL_VERBS.join('|')})\\b`);
     const untagged: string[] = [];
     const check = (entries: Premise[]) => {
-      for (const p of entries) if (plural.test(p.protagonist) && !p.leads) untagged.push(p.protagonist);
+      for (const p of entries) if (pluralOpening.test(p.synopsis) && !p.leads) untagged.push(p.protagonist);
     };
     for (const bank of Object.values(PREMISE_BANKS)) for (const entries of Object.values(bank)) check(entries as Premise[]);
     for (const entries of Object.values(STORY_TYPE_PREMISES)) check(entries as Premise[]);
-    expect(untagged, `log-lines about several people with no leads count: ${untagged.join(' | ')}`).toEqual([]);
+    expect(untagged, `conjugated for several people but carrying no leads count: ${untagged.join(' | ')}`).toEqual([]);
+  });
+
+  it('keeps every leads count inside the range the generator assumes', () => {
+    // >= 1 because Math.max no longer carries a literal 1, and <= 3 because the
+    // cap is documented convention with nothing else enforcing it: a `leads: 5`
+    // typo would otherwise sail through and demand a five-Lead cast.
+    const check = (entries: Premise[]) => {
+      for (const p of entries) {
+        if (p.leads === undefined) continue;
+        expect(p.leads, p.protagonist).toBeGreaterThanOrEqual(1);
+        expect(p.leads, p.protagonist).toBeLessThanOrEqual(3);
+      }
+    };
+    for (const bank of Object.values(PREMISE_BANKS)) for (const entries of Object.values(bank)) check(entries as Premise[]);
+    for (const entries of Object.values(STORY_TYPE_PREMISES)) check(entries as Premise[]);
   });
 
   it('leaves the roll free to go above the floor - the log-line constrains, it does not dictate', () => {
-    // Soft binding: a two-hander log-line in an Epic can still carry a third
-    // lead. If the premise were overwriting rather than flooring, every one of
-    // these would sit at exactly its promised count.
-    const counts = new Set<number>();
+    // Measured PER FLOOR. The previous version pooled requiredLeads across
+    // log-lines promising 2 and log-lines promising 3, so an overwrite still
+    // produced {2, 3} and passed - verified by mutation, it could not fail.
+    // Counting scripts that land strictly ABOVE their own floor is the property
+    // that actually distinguishes a floor from an assignment.
+    const aboveFloor = new Map<number, number>();
+    const seen = new Map<number, number>();
     for (const genre of GENRES) {
       for (let seed = 1; seed <= 60; seed++) {
         for (const script of generateScriptOptions(genre, createRng(seed), 12)) {
-          if (pluralSynopses.has(script.synopsis)) counts.add(script.requiredLeads);
+          const promised = pluralSynopses.get(script.synopsis);
+          if (promised === undefined) continue;
+          seen.set(promised, (seen.get(promised) ?? 0) + 1);
+          if (script.requiredLeads > promised) aboveFloor.set(promised, (aboveFloor.get(promised) ?? 0) + 1);
         }
       }
     }
-    expect(counts.size).toBeGreaterThan(1);
+    expect(seen.size).toBeGreaterThan(1); // both floors actually occur
+    for (const [floor, count] of seen) {
+      expect(aboveFloor.get(floor) ?? 0, `no script with a floor of ${floor} (of ${count}) exceeded it`).toBeGreaterThan(0);
+    }
   });
 });
