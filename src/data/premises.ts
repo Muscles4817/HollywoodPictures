@@ -1,9 +1,12 @@
 import type { Genre, SettingArchetype, StoryType, Tone } from '../types';
 
 // One-sentence log-lines used to generate a script's synopsis
-// (engine/premiseGenerator.ts). Presentation only - protagonist/antagonist
-// here are flavor text, not new mechanical fields; nothing about scoring
-// reads this file. `synopsis` is the full sentence, with {protagonist} and
+// (engine/premiseGenerator.ts). Mostly presentation - protagonist/antagonist
+// are flavor text and nothing about scoring reads this file - with ONE
+// exception: `leads` below is a real mechanical field, floor-ing
+// Script.requiredLeads and so reaching the cast, the commercial profile, and a
+// screenplay's price. Anything else added here should stay flavor unless it is
+// documented as deliberately crossing that line the way `leads` is. `synopsis` is the full sentence, with {protagonist} and
 // (optionally) {antagonist} substituted in - matching the curated,
 // conditionally-selected-then-randomly-phrased pattern already used by
 // data/storyBeats.ts and data/reviewBlurbs.ts, rather than a compositional
@@ -1061,7 +1064,7 @@ const ADDITIONAL_STRAIGHT: Record<Genre, Premise[]> = {
   Romance: [
     { leads: 2, protagonist: 'two rivals forced to plan their best friends\' wedding together', antagonist: null, synopsis: '{protagonist} spend months at each other\'s throats over seating charts and slowly forget why they were ever enemies.' },
     { protagonist: 'a big-city architect sent to save a small-town bakery from demolition', antagonist: null, synopsis: '{protagonist} arrives to tear the place down and falls for everything - and everyone - she was sent to replace.', settings: ['SmallTown'] },
-    { leads: 2, protagonist: 'a widowed single father and the tutor he hires for his daughter', antagonist: null, synopsis: '{protagonist} let someone back into a house that has been quiet for years, and is not ready for what it opens up.' },
+    { leads: 2, protagonist: 'a widowed single father and the tutor he hires for his daughter', antagonist: null, synopsis: '{protagonist} let someone back into a house that has been quiet for years, and are not ready for what it opens up.' },
     { leads: 2, protagonist: 'two strangers who keep getting each other\'s mail', antagonist: null, synopsis: '{protagonist} fall for the person on the page long before either works up the nerve to knock.' },
     { leads: 2, protagonist: 'a chef and the food critic who once ruined her', antagonist: null, synopsis: '{protagonist} are thrown together on one impossible project and discover the fight was never really about the food.' },
     { protagonist: 'a wedding photographer who has stopped believing in any of it', antagonist: null, synopsis: '{protagonist} shoots one more ceremony and meets the one person who makes her want to be in front of the camera again.' },
@@ -1086,7 +1089,7 @@ const ADDITIONAL_STRAIGHT: Record<Genre, Premise[]> = {
     { protagonist: 'a synthetic caretaker who begins to suspect she is more than her programming', antagonist: 'the makers who will recall her the moment they find out', synopsis: '{protagonist} has to decide what she is before {antagonist} decides it for her.' },
     { leads: 3, protagonist: 'a salvage crew that boards a ship missing for forty years', antagonist: 'whatever kept the crew from ever calling for help', synopsis: '{protagonist} strip the wreck for parts until {antagonist} makes it clear the ship was never actually empty.', settings: ['SpacecraftOrStation'] },
     { protagonist: 'a scientist who wakes each morning one day further out of sync with the world', antagonist: 'the experiment that came loose inside her own timeline', synopsis: '{protagonist} races to undo {antagonist} before she drifts somewhere no one can follow.' },
-    { protagonist: 'a rig worker on a mining platform above a gas giant', antagonist: 'the thing the drills brought up from below the clouds', synopsis: '{protagonist} and a skeleton crew fight to survive {antagonist} with a rescue days that might as well be years away.', settings: ['SpacecraftOrStation'] },
+    { leads: 2, protagonist: 'a rig worker on a mining platform above a gas giant', antagonist: 'the thing the drills brought up from below the clouds', synopsis: '{protagonist} and a skeleton crew fight to survive {antagonist} with a rescue days that might as well be years away.', settings: ['SpacecraftOrStation'] },
     { protagonist: 'a border agent at a checkpoint between two versions of the same city', antagonist: 'the people crossing over who are not supposed to exist', synopsis: '{protagonist} lets one traveler through and unravels the wall {antagonist} depends on.', settings: ['FuturisticCity'] },
     { protagonist: 'a pilot ferrying refugees off a drowning coastal world', antagonist: 'the blockade deciding who is worth saving', synopsis: '{protagonist} makes one last run past {antagonist} with more lives aboard than the ship was built to hold.' },
     { protagonist: 'an archivist guarding the last uncensored record of history', antagonist: 'the regime rewriting everything the archive contradicts', synopsis: '{protagonist} has to get the truth out of the vault before {antagonist} makes it never have happened.' },
@@ -1202,7 +1205,7 @@ export const STORY_TYPE_PREMISES: Partial<Record<StoryType, Premise[]>> = {
   Musical: [
     { protagonist: 'a small-town singer who bets everything on one shot at the big stage', antagonist: 'the industry that chews up voices like hers', synopsis: '{protagonist} chases the spotlight and learns what {antagonist} really charges for it.' },
     { leads: 2, protagonist: 'two performers who fall in love while competing for the same part', antagonist: 'the ambition neither is willing to give up', synopsis: '{protagonist} have to choose between the duet and the solo as {antagonist} pulls them apart.' },
-    { protagonist: 'a burned-out music teacher and the class nobody believed in', antagonist: 'a school ready to cut the program for good', synopsis: '{protagonist} builds one last show to prove {antagonist} wrong before the curtain falls for good.', settings: ['SchoolOrUniversity'] },
+    { leads: 2, protagonist: 'a burned-out music teacher and the class nobody believed in', antagonist: 'a school ready to cut the program for good', synopsis: '{protagonist} build one last show to prove {antagonist} wrong before the curtain falls for good.', settings: ['SchoolOrUniversity'] },
     { protagonist: 'a street musician discovered on the worst night of his life', antagonist: 'the fame that arrives faster than he can handle it', synopsis: '{protagonist} rides a sudden rise toward a reckoning with {antagonist}.' },
     { leads: 2, protagonist: 'a fading star and the young talent hired to replace her', antagonist: 'time, and an audience that has already moved on', synopsis: '{protagonist} pass the stage to a successor while making one last peace with {antagonist}.' },
   ],

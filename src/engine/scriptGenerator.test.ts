@@ -294,7 +294,7 @@ describe('estimateScriptCost', () => {
 });
 
 describe('a script never contradicts what its own log-line promises', () => {
-  // 61 log-lines in the banks are about a pair or an ensemble ("two
+  // 63 log-lines in the banks are about a pair or an ensemble ("two
   // mismatched cops on their worst partnership yet", "three estranged siblings",
   // "a getaway crew"). requiredLeads used to be rolled with no knowledge of
   // them, so those scripts shipped with a single Lead role about half the time.
@@ -344,7 +344,8 @@ describe('a script never contradicts what its own log-line promises', () => {
     // 2. COLLECTIVE HEAD. "a family", "a group of roommates", "a community
     //    theater troupe" - several people whatever the verb agreement says,
     //    since a collective noun takes a singular verb in American usage. This
-    //    is the class the conjugation rule structurally cannot see.
+    //    is the class the conjugation rule structurally cannot see. Unlike (1)
+    //    this one IS a word list, with the staleness that implies - see it.
     //
     // Neither catches a two-hander written in the singular ("a ski instructor and
     // the hopeless beginner she is assigned" reads exactly like "a wizard
@@ -357,13 +358,26 @@ describe('a script never contradicts what its own log-line promises', () => {
     // conjugation test inconclusive rather than positive.
     const ADVERB = /^(never|only|just|still|already|\w+ly)$/;
     const INCONCLUSIVE = /^(must|can|cannot|can't|will|won't|would|could|should|may|might|and|or|both)$/;
-    const COLLECTIVE = /^(family|group|crew|troupe|team|band|unit|trio|couple|squad|gang|coven|household|roommates|siblings|brothers|sisters|partners)$/i;
+    // Irregular pasts end in neither -ed nor -s, so the rule below would read them
+    // as plural. They carry no number either, so they join the inconclusive set.
+    const IRREGULAR_PAST = /^(had|went|was|were|took|saw|made|kept|told|gave|wrote|ran|found|left|held|met|lost|won|paid|sold|built|knew|grew|drew|flew|fell|broke|spoke|chose|rose|drove|struck|swore)$/;
+    // This half is an ALLOWLIST and cannot be derived the way conjugation can -
+    // there is no rule of English that makes "troupe" collective and "teacher"
+    // not. It will go stale as the corpus grows, which is the round-2 failure
+    // mode relocated from verbs to nouns; the honest mitigation is that it is
+    // cheap to extend and that the conjugation rule covers everything else.
+    const COLLECTIVE = /^(family|group|crew|troupe|team|band|unit|trio|couple|squad|gang|coven|household|roommates|siblings|brothers|sisters|partners|class|brood|ensemble|cast|choir|orchestra|congregation|jury|posse|platoon|clan|tribe|quartet|duo|cohort)$/i;
 
     const hasPluralSubject = (p: Premise): boolean => {
       // Collective noun heading the subject - checked on the head of the noun
       // phrase, so "a washed-up coach handed the worst team in the league" (about
       // the coach) does not trip it.
-      const head = p.protagonist.replace(/^(a|an|the)\s+/i, '').split(/\s+/).slice(0, 3);
+      // The head stops at a relative pronoun: in "a shepherd whose flock leads
+      // him", the flock modifies the shepherd rather than heading the subject.
+      const subjectWords = p.protagonist.replace(/^(a|an|the)\s+/i, '').split(/\s+/);
+      const relative = subjectWords.findIndex((w) => /^(who|whose|that|which|whom)$/i.test(w));
+      const head = subjectWords.slice(0, relative === -1 ? 3 : Math.min(relative, 3));
+
       if (head.some((w) => COLLECTIVE.test(w.replace(/[^a-z]/gi, ''))) && !/member/i.test(p.protagonist)) return true;
 
       const after = p.synopsis.match(/^\{protagonist\}\s+(.*)$/);
@@ -372,7 +386,13 @@ describe('a script never contradicts what its own log-line promises', () => {
       const verb = words.find((w) => w.length > 0 && !ADVERB.test(w));
       // Past tense carries no number in English - "he wanted" and "they wanted"
       // are identical - so it says nothing either way.
-      if (!verb || INCONCLUSIVE.test(verb) || verb.endsWith('ed')) return false;
+      if (!verb || INCONCLUSIVE.test(verb) || verb.endsWith('ed') || IRREGULAR_PAST.test(verb)) return false;
+      // A verb whose STEM ends in -s takes -es in the third person ("pass" ->
+      // "passes"), so ending in -ss is positive evidence of a plural subject
+      // rather than the singular the bare -s rule would read it as. Without this,
+      // "a fading star and the young talent hired to replace her pass the stage"
+      // is invisible - and it is one of the entries this stage tagged.
+      if (verb.endsWith('ss')) return true;
       return verb.length > 1 && !verb.endsWith('s');
     };
 
