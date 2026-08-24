@@ -118,6 +118,13 @@ export function selectPool(
   const keptPreferred = preferred.filter(fits);
   const keptRest = rest.filter(fits);
   const kept = [...keptPreferred, ...keptRest];
+  // keptPreferred can be empty - in ~0.9% of concept combinations the entire
+  // specific tier is ensemble entries (Action/Sports/SmallTown's tier is one
+  // setting-tagged three-hander), so a single-Lead sequel there loses its tier
+  // and draws flat across the wide bank instead of getting the 60% pull toward
+  // its Story Type. Safe - startIndex's preferredCount <= 0 branch handles it -
+  // but it is a quiet loss of specificity. Falling back to the untagged Story
+  // Type bank as the preferred tier would preserve the bias if that ever matters.
   // A pool with nothing small enough falls back to unfiltered rather than
   // returning empty - better a log-line that overstates its cast than no
   // log-line at all. Cannot currently happen (every pool holds single-subject
