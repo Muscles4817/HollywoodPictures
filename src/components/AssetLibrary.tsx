@@ -8,16 +8,17 @@ import {
   CheckboxFilterDropdown,
   type CheckboxFilterOption,
 } from './common/CheckboxFilterDropdown';
-import { assetAcceptsDevelopmentPass, deriveAssetStatus, type AssetStatus } from '../engine/project';
+import { activeDraftForAsset, assetAcceptsDevelopmentPass, deriveAssetStatus, type AssetStatus } from '../engine/project';
 import { describeProductionComplexity } from '../engine/scriptPresentation';
 import type { GameAction } from '../state/gameState';
-import type { Asset, Genre, Person } from '../types';
+import type { Asset, FilmDraft, Genre, Person } from '../types';
 import './AssetLibrary.css';
 import { StarRating } from './common/StarRating';
 import { deriveBookedUntil, getWriterCareer, isPersonAvailableForCommitment, isPersonAvailableOnDay } from '../engine/person';
 import { writerProfileFromPerson } from '../engine/writers';
 import { describeWriter, describeRewriteProjection, describeCommissionProjection } from '../engine/writerPresentation';
 import { estimateRewriteDuration, rewriteFee, type RewriteKind } from '../engine/rewrite';
+import { describeDeliveryStanding, estimateDelivery, standingWorsens } from '../engine/deliveryEstimate';
 import { commissionDurationBounds, commissionFee, commissionProgress, commissionedOnDay, isRecentlyCommissioned } from '../engine/commission';
 import { canComfortablyAfford } from '../engine/affordability';
 import { GENRES } from '../data/genres';
@@ -81,7 +82,7 @@ function scoreToStars(value: number, max = 100): number {
   return Math.max(0, Math.min(5, Math.round((value / max) * 10) / 2));
 }
 
-type AssetWithStatus = { asset: Asset; status: AssetStatus; acceptsPass: boolean };
+type AssetWithStatus = { asset: Asset; status: AssetStatus; acceptsPass: boolean; activeDraft: FilmDraft | null };
 
 interface AssetControls {
   statusFilter: AssetStatusFilter;
@@ -170,6 +171,13 @@ interface RewritePanelProps {
   writers: Person[];
   totalDays: number;
   cash: number;
+  /**
+   * The live project this Asset is feeding, when there is one. A pass costs
+   * days, and days are only expensive once something is waiting on them - see
+   * engine/deliveryEstimate.ts. Absent for an Asset with no project yet, where
+   * a rewrite genuinely costs nothing but money.
+   */
+  activeDraft: FilmDraft | null;
   dispatch: Dispatch<GameAction>;
   onClose: () => void;
 }
@@ -181,7 +189,7 @@ interface RewritePanelProps {
  * the concrete fee and duration exposed (the two things a business decision
  * genuinely needs).
  */
-function RewritePanel({ asset, writers, totalDays, cash, dispatch, onClose }: RewritePanelProps) {
+function RewritePanel({ asset, writers, totalDays, cash, activeDraft, dispatch, onClose }: RewritePanelProps) {
   const [kind, setKind] = useState<RewriteKind>('polish');
   const [writerId, setWriterId] = useState<string>('');
 
@@ -220,6 +228,25 @@ function RewritePanel({ asset, writers, totalDays, cash, dispatch, onClose }: Re
   const description = writer ? describeWriter(writer) : null;
   const projection = profile ? describeRewriteProjection(profile, asset.script, kind) : null;
   const canCommission = writer !== null && cash >= fee;
+
+  // The release clock, brought back to the development decision (section 9 of
+  // docs/DESIGN_REVIEW_project_clocks_and_script_openness.md). Priced at the
+  // WORST case, because that is the version of this bet that hurts: a pass that
+  // overruns is exactly the one that takes the date away. Only shown once a date
+  // has actually been claimed - before then a rewrite really does cost only money.
+  const delivery = useMemo(() => {
+    if (!activeDraft || activeDraft.announcedReleaseDay === undefined) return null;
+    const before = estimateDelivery(activeDraft, totalDays);
+    const worstCase = estimate?.high ?? null;
+    const after = worstCase === null ? null : estimateDelivery(activeDraft, totalDays, totalDays + worstCase);
+    return {
+      announcedDay: activeDraft.announcedReleaseDay,
+      before,
+      after,
+      worsens: after !== null && standingWorsens(before, after),
+      provisional: before.provisional,
+    };
+  }, [activeDraft, totalDays, estimate?.high]);
 
   return (
     <div className="asset-library-card__rewrite-panel stack" style={{ gap: 8, marginTop: 8 }}>
@@ -275,6 +302,39 @@ function RewritePanel({ asset, writers, totalDays, cash, dispatch, onClose }: Re
             </li>
           ))}
         </ul>
+      )}
+
+      {delivery && (
+        <div
+          className="stack"
+          style={{
+            gap: 2,
+            marginTop: 2,
+            paddingTop: 6,
+            borderTop: '1px solid var(--border)',
+            fontSize: '0.85em',
+          }}
+        >
+          <div className="row-between">
+            <span className="stat-label">Announced release</span>
+            <strong>{formatGameDateWithMonth(delivery.announcedDay)}</strong>
+          </div>
+          <div className="row-between">
+            <span className="stat-label">As things stand</span>
+            <strong>{describeDeliveryStanding(delivery.before)}</strong>
+          </div>
+          <div className="row-between">
+            <span className="stat-label">If this pass runs long</span>
+            <strong style={{ color: delivery.worsens ? 'var(--red)' : undefined }}>
+              {delivery.after ? describeDeliveryStanding(delivery.after) : 'Choose a writer'}
+            </strong>
+          </div>
+          {delivery.provisional && (
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9em' }}>
+              Projected against an assumed production plan — the shoot hasn&apos;t been planned yet.
+            </p>
+          )}
+        </div>
       )}
 
       <div className="row" style={{ gap: 8 }}>
@@ -494,6 +554,8 @@ function CommissionPanel({ writers, totalDays, cash, dispatch, onClose }: Commis
 interface AssetCardProps {
   asset: Asset;
   status: AssetStatus;
+  /** The live project against this Asset, if any - see RewritePanelProps.activeDraft. */
+  activeDraft: FilmDraft | null;
   /** engine/project.ts:assetAcceptsDevelopmentPass - a project in development or prep no longer bars a pass, only photography does. */
   acceptsPass: boolean;
   isExpanded: boolean;
@@ -508,6 +570,7 @@ interface AssetCardProps {
 function AssetCard({
   asset,
   status,
+  activeDraft,
   acceptsPass,
   isExpanded,
   onToggleExpanded,
@@ -698,6 +761,7 @@ function AssetCard({
               writers={writers}
               totalDays={totalDays}
               cash={cash}
+              activeDraft={activeDraft}
               dispatch={dispatch}
               onClose={() => setShowRewrite(false)}
             />
@@ -746,6 +810,7 @@ export function AssetLibrary() {
           asset,
           status: deriveAssetStatus(asset, state.projects),
           acceptsPass: assetAcceptsDevelopmentPass(asset, state.projects),
+          activeDraft: activeDraftForAsset(state.projects, asset.id),
         })),
     [state.projects, state.studio.assets],
   );
@@ -758,6 +823,7 @@ export function AssetLibrary() {
           asset,
           status: deriveAssetStatus(asset, state.projects),
           acceptsPass: assetAcceptsDevelopmentPass(asset, state.projects),
+          activeDraft: activeDraftForAsset(state.projects, asset.id),
         }))
         .sort((left, right) =>
           left.asset.script.title.localeCompare(right.asset.script.title),
@@ -1110,12 +1176,13 @@ export function AssetLibrary() {
                 </div>
               ) : (
                 <div className="asset-library-grid">
-                  {visibleAssets.map(({ asset, status, acceptsPass }) => (
+                  {visibleAssets.map(({ asset, status, acceptsPass, activeDraft }) => (
                     <AssetCard
                       key={asset.id}
                       asset={asset}
                       status={status}
                       acceptsPass={acceptsPass}
+                      activeDraft={activeDraft}
                       isExpanded={expandedAssetId === asset.id}
                       onToggleExpanded={() => toggleExpandedAsset(asset.id)}
                       somethingElseFocused={somethingElseFocused}
@@ -1186,12 +1253,13 @@ export function AssetLibrary() {
                     </div>
                   ) : (
                     <div className="asset-library-grid">
-                      {visibleTestScripts.map(({ asset, status, acceptsPass }) => (
+                      {visibleTestScripts.map(({ asset, status, acceptsPass, activeDraft }) => (
                         <AssetCard
                           key={asset.id}
                           asset={asset}
                           status={status}
                           acceptsPass={acceptsPass}
+                          activeDraft={activeDraft}
                           isExpanded={expandedAssetId === asset.id}
                           onToggleExpanded={() => toggleExpandedAsset(asset.id)}
                           somethingElseFocused={somethingElseFocused}

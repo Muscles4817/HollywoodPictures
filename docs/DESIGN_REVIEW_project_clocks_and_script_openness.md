@@ -849,3 +849,86 @@ season or another contested date. Modelling the destination's cost is what
 produced the numbers above. The conversion between crowding and campaign value
 is deliberately rough: the question it answers is whether the two costs are ever
 comparable, not what their exact ratio is.
+
+### 9.7 Connecting the clock back to development
+
+§9.6 leaves the release clock complete on its own terms: a date can be claimed,
+a campaign can be committed against it, and moving costs real money. But the
+whole reason for building it (§4.8) was to make "one more rewrite" a genuine
+bet — and a bet needs the player to see the stake at the moment they place it.
+Three things were missing.
+
+**1. The estimate.** `engine/deliveryEstimate.ts` projects when a film will
+actually be ready, phase by phase off the draft, using the *same* estimators the
+real pipeline runs (`engine/production.ts`) rather than a parallel guess — so
+the projection cannot drift from what happens. A development pass in flight is
+counted as a step of its own, which is the point: the rewrite shows up in the
+release date. Against an announced date it yields a standing —
+`comfortable` / `tight` / `at-risk` / `missed` — named rather than numeric, per
+the house rule.
+
+It deliberately estimates *before* Production Planning too, assuming the plan
+the script's own scale implies and flagging the result `provisional`. A date
+announced pre-greenlight is exactly the window this feature exists for; refusing
+to estimate there would have silenced the warning in the only case that needs
+it. (This is the same failure mode a code review caught in
+`announcedAsUpcomingRelease` — bailing on a null `productionChoices` made every
+pre-greenlight announcement invisible to rivals.)
+
+**2. The stake, shown at the decision.** The Rewrite panel in the Asset Library
+now prices a pass against the film's own claim: what the date looks like as
+things stand, and what it looks like if this pass runs long. Priced at the
+*worst* case, because that is the version of the bet that hurts — a pass that
+overruns is exactly the one that takes the date away.
+
+**3. Teeth.** Without this the warning warned about nothing.
+`ANNOUNCE_RELEASE_DATE` already charged the campaign write-off when the player
+moved a date deliberately, but nothing charged the player who simply blew
+through the date they named, never re-announced, and opened late with the
+campaign whole. `SCHEDULE_RELEASE` now applies the same write-off whenever the
+film opens on a day other than the one its campaign was bought against. It is
+charged rather than blocking: refusing to release a finished film over a
+shortfall would be a trap, and the studio can run its cash negative.
+
+**Still open.** A lapsed announcement stays on rivals' calendars past its own
+day — the claim goes stale rather than expiring. Cheap to fix, but it needs a
+hook in the daily settlement that owns player drafts, and every `ADVANCE_*`
+handler would need it; recorded here rather than bolted on.
+
+### 9.8 UI/UX review of the release calendar
+
+Asked to check that the production process hangs together, the calendar surfaces
+turned out to disagree with each other about the one thing they all display.
+
+**Finding 1 — the planning board used a headcount, and it was wrong.**
+`ReleaseCalendar.tsx` read competition as *how many titles share a calendar
+month* (2 → "Some competition", 4 → "Crowded"), while the Marketing & Release
+screen and the pre-greenlight announcement card both read
+`engine/releaseCrowding.ts`. So the screen the player plans on could call a
+month clear that settlement treats as a brawl — and, worse, it could not see
+counterprogramming at all: five films in five different genres read as
+"Crowded" when none of them is fighting any of the others.
+
+Fixed by giving every `CalendarEntry` its own `strength` (from the same
+converters settlement uses) and reading each entry's real crowding against the
+rest of the board. A month's band is now the worst fight it contains. The three
+levels and the CSS were always the right shape; only the basis underneath was
+wrong. The per-card `N competing` chip — same defect, per card — became that
+film's own window reading.
+
+**Finding 2 — the player could not see their own claim.**
+`deriveUpcomingReleaseEntries` emitted only *locked* player releases. Rivals
+have always weighed outstanding announcements
+(`playerCalendarPresence`), so the one party who had to plan around the claim was
+the only one who could not see it. Announcements now appear on the board, marked
+`isClaim` and labelled "Announced — not yet locked".
+
+**Finding 3 — the two date-picking screens had drifted.** The announcement card
+weighed the studio's *own* other outstanding claims; Marketing & Release did
+not. A studio could book two of its own films into the same window and be warned
+about it on one screen only. Both now read `deriveKnownCalendar`.
+
+**Not changed.** The calendar remains read-only ("Opening the project from here
+is coming soon"), and its month grouping is still a month bucket while crowding
+runs on a 45-day window — an approximation, but now an approximation of the real
+computation rather than a different model.

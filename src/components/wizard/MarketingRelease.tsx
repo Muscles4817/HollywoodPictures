@@ -6,9 +6,6 @@ import { computeMarketingCost, computeProductionBudgetCost, computeTalentCost } 
 import { formatGameDateWithMonth, formatGameMonthYear, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from '../../engine/calendar';
 import { computeCompetitiveCrowding, computePlayerReleaseStrength, crowdingBandKey, describeCrowdingBand, type UpcomingRelease } from '../../engine/releaseCrowding';
 import { genreIdentityFor } from '../../engine/studioIdentity';
-import { asUpcomingRelease } from '../../engine/scheduledReleases';
-import { rivalAsUpcomingRelease } from '../../engine/rivalStudios';
-import { scheduledPlayerReleases, rivalProductionsInProgress } from '../../engine/project';
 import { ChoiceGroup } from '../common/ChoiceGroup';
 import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
@@ -17,7 +14,7 @@ import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { reshootChoiceConstraints } from '../../engine/reshootAvailability';
-import { deriveFocusedDraft, deriveUpcomingReleaseEntries } from '../../state/selectors';
+import { deriveFocusedDraft, deriveKnownCalendar, deriveUpcomingReleaseEntries } from '../../state/selectors';
 import {
   CAMPAIGN_ANGLE_LABEL,
   CAMPAIGN_ANGLE_PROFILES,
@@ -230,9 +227,14 @@ export function MarketingRelease() {
   // state/studioReducer.ts:SCHEDULE_RELEASE and engine/rivalStudios.ts use
   // for the real box-office penalty, so this preview can never promise a
   // clearer window than settlement actually delivers.
+  // Shared with the pre-greenlight announcement card
+  // (state/selectors.ts:deriveKnownCalendar) - the two screens that pick a date
+  // had drifted, with only the announcement card weighing the studio's OWN
+  // outstanding claims, so a studio could book two of its films into the same
+  // window and be warned about it on one screen only.
   const knownUpcoming = useMemo<UpcomingRelease[]>(
-    () => [...scheduledPlayerReleases(state.projects).map(asUpcomingRelease), ...rivalProductionsInProgress(state.projects).map(rivalAsUpcomingRelease)],
-    [state.projects],
+    () => deriveKnownCalendar(state.projects, state.studio.genreIdentity ?? {}, draft.id),
+    [state.projects, state.studio.genreIdentity, draft.id],
   );
 
   // This film's own strength in the matchup, computed exactly as

@@ -208,6 +208,12 @@ export function scheduledPlayerReleases(projects: Project[]): Array<{ draft: Fil
   });
 }
 
+/** The live player draft feeding this Asset, if any - what a development pass would be holding up. */
+export function activeDraftForAsset(projects: Project[], assetId: string): FilmDraft | null {
+  const own = projects.find((p) => p.kind === 'player-in-progress' && p.draft.assetId === assetId);
+  return own && own.kind === 'player-in-progress' ? own.draft : null;
+}
+
 /**
  * Every in-progress player draft carrying an outstanding release announcement -
  * the claims rivals can see. Excludes anything already `scheduled`, whose real

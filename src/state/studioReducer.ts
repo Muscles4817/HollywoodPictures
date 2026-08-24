@@ -3014,6 +3014,20 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         },
       };
 
+      // Opening on a day other than the one the campaign was bought against is
+      // the release clock biting back (section 9 of
+      // docs/DESIGN_REVIEW_project_clocks_and_script_openness.md). ANNOUNCE_RELEASE_DATE
+      // already charges this when the player moves the date deliberately; without the
+      // same charge here a studio could simply blow through the date it named, never
+      // re-announce, and open late with the campaign whole - which would make the
+      // development-side warning (engine/deliveryEstimate.ts) a warning about nothing.
+      // Charged rather than blocking: refusing to release a finished film over a
+      // shortfall would be a trap, and the studio can run its cash negative.
+      const slipWriteOff =
+        d.campaignCommitment !== undefined && releaseDay !== d.announcedReleaseDay
+          ? campaignWriteOff(d.campaignCommitment, totalDaysAfter)
+          : 0;
+
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
         // scheduledOverride includes the release being created right here -
         // not yet reflected in state.projects at dispatch time, so
@@ -3038,7 +3052,15 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         collaborations: result.settlement.collaborations,
         talentPairings: result.settlement.talentPairings,
         ...clearTransientView(),
-        studio: result.settlement.studio,
+        studio: slipWriteOff > 0
+          ? recordCashChange(
+              result.settlement.studio,
+              totalDaysAfter,
+              -slipWriteOff,
+              'marketing',
+              `Released off its announced date — campaign written off on "${d.title}"`,
+            )
+          : result.settlement.studio,
         projects: assembleProjects({
           playerDrafts: result.productionsInProgress,
           scheduled: result.settlement.stillScheduled,

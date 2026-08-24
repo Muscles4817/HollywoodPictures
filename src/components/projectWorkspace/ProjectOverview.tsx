@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { deriveFocusedDraft, deriveGreenlightCommitment } from '../../state/selectors';
+import { deriveFocusedDraft, deriveGreenlightCommitment, deriveKnownCalendar } from '../../state/selectors';
 import { deriveProjectReadiness } from '../../engine/projectReadiness';
 import { TARGET_AUDIENCES, AUDIENCE_PROFILES } from '../../data/audiences';
 import { pluckDescriptions } from '../../data/describe';
@@ -17,9 +17,7 @@ import { describeCreativeDemand, describeDemandCompetence, describeDirectorPatie
 import { computeRelationship, NO_RELATIONSHIP, PLAYER_STUDIO_ID } from '../../engine/relationships';
 import type { DevelopmentReadinessBand } from '../../engine/projectReadiness';
 import { computeCompetitiveCrowding, crowdingBandKey, describeCrowdingBand, type UpcomingRelease } from '../../engine/releaseCrowding';
-import { announcedAsUpcomingRelease, asUpcomingRelease } from '../../engine/scheduledReleases';
-import { announcedPlayerDrafts, rivalProductionsInProgress, scheduledPlayerReleases } from '../../engine/project';
-import { rivalAsUpcomingRelease } from '../../engine/rivalStudios';
+import { announcedAsUpcomingRelease } from '../../engine/scheduledReleases';
 import { genreIdentityFor } from '../../engine/studioIdentity';
 import { formatGameDateWithMonth, formatGameMonthYear, monthYearOf, totalDaysForMonth } from '../../engine/calendar';
 import { describeCampaignWriteOff } from '../../engine/campaignCommitment';
@@ -76,17 +74,12 @@ function ReleaseAnnouncementCard() {
   const { state, dispatch } = useStudio();
   const draft = deriveFocusedDraft(state)!;
 
+  // Locked releases, rivals in production, and the player's own OTHER
+  // announcements - never this film against itself. Shared with the Marketing &
+  // Release screen (state/selectors.ts:deriveKnownCalendar) so the two screens
+  // that pick a date read the same calendar.
   const known = useMemo<UpcomingRelease[]>(
-    () => [
-      ...scheduledPlayerReleases(state.projects).map(asUpcomingRelease),
-      ...rivalProductionsInProgress(state.projects).map(rivalAsUpcomingRelease),
-      // Other announcements of the player's own crowd this one too - but never
-      // this film against itself.
-      ...announcedPlayerDrafts(state.projects)
-        .filter((d) => d.id !== draft.id)
-        .map((d) => announcedAsUpcomingRelease(d, d.genre ? genreIdentityFor(state.studio.genreIdentity, d.genre) : 0))
-        .filter((u): u is UpcomingRelease => u !== null),
-    ],
+    () => deriveKnownCalendar(state.projects, state.studio.genreIdentity ?? {}, draft.id),
     [state.projects, state.studio.genreIdentity, draft.id],
   );
 

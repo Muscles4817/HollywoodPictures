@@ -5,6 +5,9 @@ import { asPlayerDraft, findProject, announcedPlayerDrafts } from '../engine/pro
 import { announcedAsUpcomingRelease, playerCalendarPresence } from '../engine/scheduledReleases';
 import { chooseReleaseDay } from '../engine/rivalStudios';
 import type { UpcomingRelease } from '../engine/releaseCrowding';
+import { deriveKnownCalendar, deriveUpcomingReleaseEntries } from './selectors';
+import { computeMarketingCost } from '../engine/cost';
+import { pressTourCost } from '../engine/pressTour';
 import type { GameState } from './gameState';
 
 const focused = (s: GameState) => asPlayerDraft(findProject(s.projects, s.focusedProjectId))!;
@@ -235,5 +238,102 @@ describe('moving a date the campaign was booked against', () => {
     const s = withCampaign(27, 30, 40_000_000);
     const broke: GameState = { ...s, studio: { ...s.studio, cash: 1_000 } };
     expect(studioReducer(broke, { type: 'ANNOUNCE_RELEASE_DATE', releaseDay: broke.totalDays + 400 })).toBe(broke);
+  });
+});
+
+describe('opening on a day other than the announced one', () => {
+  // The other half of the write-off. Without this a studio could name a date,
+  // quietly blow through it, never re-announce, and open late with the campaign
+  // whole - which would make the development-side warning
+  // (engine/deliveryEstimate.ts) a warning about nothing.
+  const withCampaign = (seed: number, offset: number, amount = 20_000_000) => {
+    const base = buildStateWithReadyDraft(seed);
+    const s = studioReducer(base, { type: 'ANNOUNCE_RELEASE_DATE', releaseDay: base.totalDays + offset });
+    return studioReducer(s, { type: 'COMMIT_CAMPAIGN', amount });
+  };
+
+  const writeOffIn = (s: GameState) =>
+    (s.studio.cashLedger ?? [])
+      .filter((entry) => entry.reason.includes('announced date'))
+      .reduce((sum, entry) => sum - entry.amount, 0);
+
+  const writeOffCharged = (s: GameState) =>
+    writeOffIn(studioReducer(s, { type: 'SCHEDULE_RELEASE', releaseDay: s.totalDays + 40 }));
+
+  it('charges the write-off when the film slips past the date it claimed', () => {
+    expect(writeOffCharged(withCampaign(30, 20))).toBeGreaterThan(0);
+  });
+
+  it('charges nothing when the film opens exactly on the date it claimed', () => {
+    const s = withCampaign(31, 40);
+    const onTime = studioReducer(s, { type: 'SCHEDULE_RELEASE', releaseDay: focused(s).announcedReleaseDay! });
+    expect((onTime.studio.cashLedger ?? []).some((entry) => entry.reason.includes('announced date'))).toBe(false);
+  });
+
+  it('charges nothing when no campaign was ever booked against the date', () => {
+    const base = buildStateWithReadyDraft(32);
+    const announced = studioReducer(base, { type: 'ANNOUNCE_RELEASE_DATE', releaseDay: base.totalDays + 300 });
+    expect(writeOffCharged(announced)).toBe(0);
+  });
+
+  it('still lets the film out when the studio cannot cover the write-off', () => {
+    // Refusing to release a finished film over a shortfall would be a trap, so
+    // unlike the campaign charge (which SCHEDULE_RELEASE does gate on) the
+    // write-off is taken on top and the studio runs its cash down. Cash is set
+    // to exactly the campaign SCHEDULE_RELEASE demands, so the only thing that
+    // could push the release out of reach is the write-off itself.
+    const s = withCampaign(33, 20, 60_000_000);
+    const d = focused(s);
+    const affordable = computeMarketingCost(d.marketingChoices!) + pressTourCost(d.talent, d.marketingChoices!.pressTourCast);
+    const tight: GameState = { ...s, studio: { ...s.studio, cash: affordable } };
+    const after = studioReducer(tight, { type: 'SCHEDULE_RELEASE', releaseDay: tight.totalDays + 40 });
+    expect(after).not.toBe(tight);
+    expect(writeOffIn(after)).toBeGreaterThan(0);
+  });
+});
+
+
+describe('what the PLAYER can see of their own claim', () => {
+  // Rivals have always weighed an outstanding announcement
+  // (engine/scheduledReleases.ts:playerCalendarPresence). The player could not:
+  // the planning board only showed films whose release was already locked, so
+  // the one party who had to plan around the claim was the one who could not
+  // see it.
+  const announced = (seed: number, offset = 400) => {
+    const base = buildStateWithReadyDraft(seed);
+    return studioReducer(base, { type: 'ANNOUNCE_RELEASE_DATE', releaseDay: base.totalDays + offset });
+  };
+
+  const entriesOf = (s: GameState) =>
+    deriveUpcomingReleaseEntries(s.projects, s.rivalStudios, s.studio.name, s.totalDays, s.studio.genreIdentity ?? {});
+
+  it('puts an outstanding announcement on the planning board, marked as a claim', () => {
+    const s = announced(40);
+    const mine = entriesOf(s).filter((entry) => entry.isPlayer);
+    expect(mine).toHaveLength(1);
+    expect(mine[0].isClaim).toBe(true);
+    expect(mine[0].releaseDay).toBe(focused(s).announcedReleaseDay);
+    // It must carry a real strength, or the board's crowding read is blind to it.
+    expect(mine[0].strength).toBeGreaterThan(0);
+  });
+
+  it('shows nothing of a project that has announced nothing', () => {
+    expect(entriesOf(buildStateWithReadyDraft(41)).filter((entry) => entry.isPlayer)).toHaveLength(0);
+  });
+
+  it('gives every entry the strength the crowding computation needs', () => {
+    const s = announced(42);
+    for (const entry of entriesOf(s)) expect(entry.strength).toBeGreaterThan(0);
+  });
+});
+
+describe('deriveKnownCalendar', () => {
+  it('never lets a film crowd itself', () => {
+    const base = buildStateWithReadyDraft(43);
+    const s = studioReducer(base, { type: 'ANNOUNCE_RELEASE_DATE', releaseDay: base.totalDays + 300 });
+    const draftId = focused(s).id;
+    expect(deriveKnownCalendar(s.projects, s.studio.genreIdentity ?? {}, draftId)).toHaveLength(0);
+    // ...but it is genuinely on the calendar for anything else choosing a date.
+    expect(deriveKnownCalendar(s.projects, s.studio.genreIdentity ?? {})).toHaveLength(1);
   });
 });

@@ -20,8 +20,11 @@ import { deriveStudioMilestones, type MilestoneFacts, type StudioMilestone } fro
 import { GENRE_PROFILES } from '../data/genres';
 import { AWARD_CATEGORY_LABEL } from '../data/awards';
 import { productionRequirementTags } from '../engine/scriptPresentation';
-import { asFilm, asPlayerDraft, asScheduled, asRivalProduction, findProject, projectId } from '../engine/project';
-import { rivalReleaseIsAnnounced } from '../engine/rivalStudios';
+import { announcedPlayerDrafts, asFilm, asPlayerDraft, asScheduled, asRivalProduction, findProject, projectId, rivalProductionsInProgress, scheduledPlayerReleases } from '../engine/project';
+import { rivalAsUpcomingRelease, rivalReleaseIsAnnounced } from '../engine/rivalStudios';
+import { announcedAsUpcomingRelease, asUpcomingRelease } from '../engine/scheduledReleases';
+import type { UpcomingRelease } from '../engine/releaseCrowding';
+import { genreIdentityFor } from '../engine/studioIdentity';
 import type { GameState } from './gameState';
 
 /**
@@ -1179,6 +1182,24 @@ export interface CalendarEntry {
   stars: string[];
   /** Director name, shown once the film is announced. */
   director?: string;
+  /**
+   * An ANNOUNCED claim rather than a locked release - the player has named a
+   * date but the film is not finished and nothing is booked against it. The
+   * date can still move (at the cost of whatever campaign is committed against
+   * it, engine/campaignCommitment.ts). Rivals have always been able to see
+   * these (engine/scheduledReleases.ts:playerCalendarPresence); the player
+   * could not, which left their own claim missing from the board they plan on.
+   */
+  isClaim: boolean;
+  /**
+   * This entry's competitive strength on the calendar, on the same 0-1 scale
+   * every crowding caller uses (engine/releaseCrowding.ts). Carried here so a
+   * display surface can compute the REAL crowding a film faces instead of
+   * counting how many titles happen to share a calendar month - a count cannot
+   * see genre, audience, scale or counterprogramming, so it disagreed with the
+   * reading the release screens (and settlement) actually use.
+   */
+  strength: number;
 }
 
 export const PLAYER_STUDIO_ID = 'player-studio';
@@ -1210,7 +1231,13 @@ function directorName(talent: TalentAssignment[]): string | undefined {
  * has genre/targetAudience set - see state/studioReducer.ts:SCHEDULE_RELEASE's
  * own guard).
  */
-export function deriveUpcomingReleaseEntries(projects: Project[], rivalStudios: RivalStudio[], studioName: string, today: number): CalendarEntry[] {
+export function deriveUpcomingReleaseEntries(
+  projects: Project[],
+  rivalStudios: RivalStudio[],
+  studioName: string,
+  today: number,
+  genreIdentity: Partial<Record<Genre, number>> = {},
+): CalendarEntry[] {
   const rivalNameById = new Map(rivalStudios.map((rival) => [rival.id, rival.name]));
 
   const entries = projects.flatMap((project): CalendarEntry[] => {
@@ -1231,8 +1258,37 @@ export function deriveUpcomingReleaseEntries(projects: Project[], rivalStudios: 
           isPlayer: true,
           // The player always knows their own film's title and cast.
           announced: true,
+          isClaim: false,
           stars: leadActorNames(scheduled.draft.talent),
           director: directorName(scheduled.draft.talent),
+          strength: asUpcomingRelease(scheduled).strength,
+        },
+      ];
+    }
+
+    // The player's own outstanding ANNOUNCEMENT - a date claimed for a film
+    // that is not finished. Rivals have always weighed these; showing them here
+    // is what makes the board the player plans on the same board the rivals
+    // read (see CalendarEntry.isClaim).
+    const draft = asPlayerDraft(project);
+    if (draft && draft.announcedReleaseDay !== undefined && draft.genre && draft.targetAudience) {
+      const asUpcoming = announcedAsUpcomingRelease(draft, genreIdentityFor(genreIdentity, draft.genre));
+      return [
+        {
+          id: draft.id,
+          title: draft.title || 'Untitled Film',
+          genre: draft.genre,
+          targetAudience: draft.targetAudience,
+          scale: draft.script ? releaseScaleFromScript(draft.script.scale) : 'Medium',
+          releaseDay: draft.announcedReleaseDay,
+          studioId: PLAYER_STUDIO_ID,
+          studioName,
+          isPlayer: true,
+          announced: true,
+          isClaim: true,
+          stars: leadActorNames(draft.talent),
+          director: directorName(draft.talent),
+          strength: asUpcoming?.strength ?? 0,
         },
       ];
     }
@@ -1255,8 +1311,10 @@ export function deriveUpcomingReleaseEntries(projects: Project[], rivalStudios: 
           studioName: rivalNameById.get(production.rivalStudioId) ?? 'A Rival Studio',
           isPlayer: false,
           announced,
+          isClaim: false,
           stars: announced ? leadActorNames(production.talent) : [],
           director: announced ? directorName(production.talent) : undefined,
+          strength: rivalAsUpcomingRelease(production).strength,
         },
       ];
     }
@@ -1265,4 +1323,37 @@ export function deriveUpcomingReleaseEntries(projects: Project[], rivalStudios: 
   });
 
   return entries.sort((a, b) => a.releaseDay - b.releaseDay);
+}
+
+
+/**
+ * Everything on the calendar that could crowd a release the player is choosing
+ * a date for: their own locked releases, their own OTHER outstanding
+ * announcements, and every rival production in progress - each converted by the
+ * same function settlement uses, so a preview can never promise a clearer
+ * window than the market delivers.
+ *
+ * `excludeDraftId` keeps a film from crowding itself, which is the only reason
+ * a caller ever needs to name a draft here.
+ *
+ * Shared because the two screens that pick a date had drifted: the pre-greenlight
+ * announcement card weighed the player's own other claims and the Marketing &
+ * Release screen did not, so a studio could book two of its own films into the
+ * same window and be warned about it on one screen only.
+ */
+export function deriveKnownCalendar(
+  projects: Project[],
+  genreIdentity: Partial<Record<Genre, number>>,
+  excludeDraftId?: string,
+): UpcomingRelease[] {
+  return [
+    ...scheduledPlayerReleases(projects)
+      .filter((s) => s.draft.id !== excludeDraftId)
+      .map(asUpcomingRelease),
+    ...rivalProductionsInProgress(projects).map(rivalAsUpcomingRelease),
+    ...announcedPlayerDrafts(projects)
+      .filter((d) => d.id !== excludeDraftId)
+      .map((d) => announcedAsUpcomingRelease(d, d.genre ? genreIdentityFor(genreIdentity, d.genre) : 0))
+      .filter((u): u is UpcomingRelease => u !== null),
+  ];
 }
