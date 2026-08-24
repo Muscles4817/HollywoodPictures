@@ -1,6 +1,6 @@
 import type { Genre, SettingArchetype, StoryType, Tone } from '../types';
 import { PREMISE_BANKS, STORY_TYPE_PREMISES, type Premise } from '../data/premises';
-import { hashUnit, type RandomFn } from './random';
+import { hashUnit } from './random';
 
 function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -129,6 +129,13 @@ export function startIndex(hash: number, total: number, preferredCount: number):
  * see the note in the body for why, and for why the one rng draw it still takes
  * is deliberately thrown away.
  */
+export interface SelectedPremise {
+  /** The rendered log-line, for Script.synopsis. */
+  text: string;
+  /** The entry it came from, so the generator can read what the log-line promises (see Premise.leads). */
+  premise: Premise;
+}
+
 export function generatePremise(
   genre: Genre,
   storyType: StoryType,
@@ -136,8 +143,7 @@ export function generatePremise(
   flavorTone: Tone | null,
   title: string,
   usedSynopses: Set<string>,
-  rng: RandomFn,
-): string {
+): SelectedPremise {
   const { key, entries, preferredCount } = selectPool(genre, storyType, setting, flavorTone);
 
   // The starting index is HASHED from the script's own title plus the pool it
@@ -169,22 +175,21 @@ export function generatePremise(
   // de-duplicates - and there, keying stops one recurring title dragging the
   // same offset through every pool it ever lands in.
   //
-  // The rng draw below is retained, and its value deliberately discarded, purely
-  // so this change is provably stream-neutral: every later draw in generation
-  // lands exactly where it did before, so the only thing that can differ in the
-  // whole suite is which log-line a script carries. It is dead weight the moment
-  // premise selection actually moves, and should be deleted then.
-  rng();
+  // (The draw this used to take and discard, to prove the hash change moved
+  // nothing, is gone - selection has now actually moved, which is what it was
+  // holding the door open for.)
   const start = startIndex(hashUnit(`${title}|${key}`), entries.length, preferredCount);
 
   for (let i = 0; i < entries.length; i++) {
-    const text = render(entries[(start + i) % entries.length]);
+    const premise = entries[(start + i) % entries.length];
+    const text = render(premise);
     if (!usedSynopses.has(text)) {
       usedSynopses.add(text);
-      return text;
+      return { text, premise };
     }
   }
-  const text = render(entries[start]);
+  const premise = entries[start];
+  const text = render(premise);
   usedSynopses.add(text);
-  return text;
+  return { text, premise };
 }

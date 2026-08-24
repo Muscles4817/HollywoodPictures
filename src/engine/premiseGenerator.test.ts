@@ -5,7 +5,7 @@ import { GENRES } from '../data/genres';
 import { STORY_TYPES } from '../data/storyTypes';
 import { SETTING_ARCHETYPES } from '../data/settings';
 import { TONES } from '../data/tones';
-import { createRng, hashUnit } from './random';
+import { hashUnit } from './random';
 
 function rendered(premises: { protagonist: string; synopsis: string; antagonist: string | null }[]): Set<string> {
   return new Set(
@@ -30,7 +30,7 @@ describe('generatePremise - concept-aware selection', () => {
       const draws = 200;
       let fromHeist = 0;
       for (let n = 1; n <= draws; n++) {
-        const s = generatePremise(genre, 'Heist', 'ContemporaryCity', null, `Title ${n}`, new Set(), createRng(1));
+        const s = generatePremise(genre, 'Heist', 'ContemporaryCity', null, `Title ${n}`, new Set()).text;
         if (heistLoglines.has(s)) fromHeist += 1;
         else expect(genreLoglines.has(s), `${genre} title ${n} came from neither bank: ${s}`).toBe(true);
       }
@@ -43,7 +43,7 @@ describe('generatePremise - concept-aware selection', () => {
 
   it("falls back to the genre pool for an 'Original' story type", () => {
     const genrePool = rendered(PREMISE_BANKS.Drama.straight!);
-    const s = generatePremise('Drama', 'Original', 'SmallTown', null, 'The Quiet Year', new Set(), createRng(3));
+    const s = generatePremise('Drama', 'Original', 'SmallTown', null, 'The Quiet Year', new Set()).text;
     expect(genrePool.has(s)).toBe(true);
   });
 
@@ -53,7 +53,7 @@ describe('generatePremise - concept-aware selection', () => {
     const draws = 200;
     let tagged = 0;
     for (let n = 1; n <= draws; n++) {
-      const s = generatePremise('Sci-Fi', 'Original', 'SpacecraftOrStation', null, `Orbit ${n}`, new Set(), createRng(1));
+      const s = generatePremise('Sci-Fi', 'Original', 'SpacecraftOrStation', null, `Orbit ${n}`, new Set()).text;
       if (spacecraftTagged.has(s)) tagged += 1;
     }
     // Same reason as the Heist case: a setting-narrowed bank can hold a single
@@ -69,7 +69,7 @@ describe('generatePremise - concept-aware selection', () => {
     const produced: string[] = [];
     for (let i = 0; i < poolSize; i++) {
       // 'Any' setting won't match any tag, so the whole straight pool is in play.
-      produced.push(generatePremise('Horror', 'Original', 'Other', null, `Nightfall ${i}`, used, createRng(1)));
+      produced.push(generatePremise('Horror', 'Original', 'Other', null, `Nightfall ${i}`, used).text);
     }
     // No genre-'Other'-tagged horror entries exist, so the full straight pool is
     // available and every draw should be distinct until it's used up.
@@ -78,21 +78,19 @@ describe('generatePremise - concept-aware selection', () => {
 });
 
 describe('generatePremise - hashed selection', () => {
-  it('gives the same script the same log-line however the rng has been advanced', () => {
-    // The point of hashing: which log-line a script gets is a property of the
-    // script, not of where generation happened to be in the stream. A premise
-    // that moved when an unrelated draw was added upstream could never be
-    // selected any earlier than it is today.
-    const drift = createRng(7);
-    for (let i = 0; i < 13; i++) drift();
-    const a = generatePremise('Action', 'Original', 'ContemporaryCity', null, 'Cold Harbour', new Set(), createRng(1));
-    const b = generatePremise('Action', 'Original', 'ContemporaryCity', null, 'Cold Harbour', new Set(), drift);
+  it('gives the same script the same log-line, taking no draw at all to do it', () => {
+    // Stronger than it was: selection used to take one draw and discard it, to
+    // prove the hash change moved nothing. Selection has now actually moved
+    // earlier in generation, so the draw is gone and generatePremise no longer
+    // accepts an rng - there is nothing left for stream position to perturb.
+    const a = generatePremise('Action', 'Original', 'ContemporaryCity', null, 'Cold Harbour', new Set()).text;
+    const b = generatePremise('Action', 'Original', 'ContemporaryCity', null, 'Cold Harbour', new Set()).text;
     expect(b).toBe(a);
   });
 
   it('gives different scripts different log-lines', () => {
     const titles = Array.from({ length: 25 }, (_, i) => `Feature ${i}`);
-    const produced = titles.map((t) => generatePremise('Action', 'Original', 'ContemporaryCity', null, t, new Set(), createRng(1)));
+    const produced = titles.map((t) => generatePremise('Action', 'Original', 'ContemporaryCity', null, t, new Set()).text);
     // Distinct titles must spread across the pool rather than clustering on one
     // entry - a hash that bunched would be worse than the draw it replaced.
     // Measured at 19 of 25 for a pool of 25 (uniform expectation ~16); the floor
@@ -121,8 +119,8 @@ describe('generatePremise - hashed selection', () => {
       const index = startIndex(hashUnit(`${title}|${pool.key}`), pool.entries.length, pool.preferredCount);
       const expected = [...rendered([pool.entries[index]])][0];
       const actual = pool.key.startsWith('story:Heist')
-        ? generatePremise('Action', 'Heist', 'ContemporaryCity', null, title, new Set(), createRng(1))
-        : generatePremise('Sci-Fi', 'Original', 'SpacecraftOrStation', null, title, new Set(), createRng(1));
+        ? generatePremise('Action', 'Heist', 'ContemporaryCity', null, title, new Set()).text
+        : generatePremise('Sci-Fi', 'Original', 'SpacecraftOrStation', null, title, new Set()).text;
       expect(actual, `pool ${pool.key}`).toBe(expected);
     }
   });
@@ -145,16 +143,6 @@ describe('generatePremise - hashed selection', () => {
     expect(pool.entries).toHaveLength(PREMISE_BANKS.Horror.straight!.length);
   });
 
-  it('consumes exactly one draw, so this stage cannot move anything downstream', () => {
-    // Pins the deliberately-discarded draw described in generatePremise. When
-    // premise selection actually moves, this test is what should be deleted
-    // alongside it - not quietly re-baselined.
-    const counted = createRng(5);
-    let draws = 0;
-    const counting = () => { draws += 1; return counted(); };
-    generatePremise('Drama', 'Original', 'SmallTown', null, 'Anything', new Set(), counting);
-    expect(draws).toBe(1);
-  });
 });
 
 describe('selectPool - reachability', () => {

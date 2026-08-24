@@ -7,6 +7,7 @@
 // independently-rolled numbers that happen to share a type.
 import { describe, it, expect } from 'vitest';
 import { generateScriptOptions, estimateScriptCost } from './scriptGenerator';
+import { PREMISE_BANKS, STORY_TYPE_PREMISES, type Premise } from '../data/premises';
 import { createRng } from './random';
 import { GENRES } from '../data/genres';
 import { SCRIPT_ARCHETYPES } from '../data/scriptArchetypes';
@@ -288,5 +289,76 @@ describe('estimateScriptCost', () => {
       originality: 30, structure: 30, dialogue: 30, characters: 30,
     });
     expect(brilliantAndNarrow).toBeLessThan(roughAndBroad);
+  });
+});
+
+describe('a script never contradicts what its own log-line promises', () => {
+  // Thirty log-lines in the banks are about a pair or an ensemble ("two
+  // mismatched cops on their worst partnership yet", "three estranged siblings",
+  // "a getaway crew"). requiredLeads used to be rolled with no knowledge of
+  // them, so those scripts shipped with a single Lead role about half the time.
+  const pluralSynopses = new Map<string, number>();
+  const collect = (entries: Premise[]) => {
+    for (const p of entries) {
+      if (!p.leads || p.leads < 2) continue;
+      pluralSynopses.set(
+        p.synopsis
+          .replaceAll('{protagonist}', p.protagonist.charAt(0).toUpperCase() + p.protagonist.slice(1))
+          .replaceAll('{antagonist}', p.antagonist ?? ''),
+        p.leads,
+      );
+    }
+  };
+  for (const bank of Object.values(PREMISE_BANKS)) for (const entries of Object.values(bank)) collect(entries as Premise[]);
+  for (const entries of Object.values(STORY_TYPE_PREMISES)) collect(entries as Premise[]);
+
+  it('gives every ensemble log-line at least as many leads as it names', () => {
+    expect(pluralSynopses.size).toBeGreaterThan(20);
+    let checked = 0;
+    for (const genre of GENRES) {
+      for (let seed = 1; seed <= 40; seed++) {
+        for (const script of generateScriptOptions(genre, createRng(seed), 12)) {
+          const promised = pluralSynopses.get(script.synopsis);
+          if (promised === undefined) continue;
+          checked += 1;
+          expect(script.requiredLeads, `"${script.synopsis.slice(0, 50)}" got ${script.requiredLeads} leads`).toBeGreaterThanOrEqual(promised);
+        }
+      }
+    }
+    // Guards the guard: if selection ever stopped reaching these log-lines the
+    // assertion above would pass vacuously.
+    expect(checked).toBeGreaterThan(100);
+  });
+
+  it('has a leads count on every log-line whose text names more than one person', () => {
+    // Data integrity, and learned the hard way: the first pass at tagging these
+    // matched single-quoted entries only, so five log-lines whose protagonist
+    // contains an apostrophe ("two feuding brothers who inherited their father's
+    // security company") stayed untagged and kept shipping with one Lead. The
+    // strict test above cannot catch that - it reads the leads field, so an
+    // untagged entry is simply invisible to it. This reads the PROSE.
+    const plural = /^(two|three|four|twin|a pair of|a getaway crew|a crew of)\b/i;
+    const untagged: string[] = [];
+    const check = (entries: Premise[]) => {
+      for (const p of entries) if (plural.test(p.protagonist) && !p.leads) untagged.push(p.protagonist);
+    };
+    for (const bank of Object.values(PREMISE_BANKS)) for (const entries of Object.values(bank)) check(entries as Premise[]);
+    for (const entries of Object.values(STORY_TYPE_PREMISES)) check(entries as Premise[]);
+    expect(untagged, `log-lines about several people with no leads count: ${untagged.join(' | ')}`).toEqual([]);
+  });
+
+  it('leaves the roll free to go above the floor - the log-line constrains, it does not dictate', () => {
+    // Soft binding: a two-hander log-line in an Epic can still carry a third
+    // lead. If the premise were overwriting rather than flooring, every one of
+    // these would sit at exactly its promised count.
+    const counts = new Set<number>();
+    for (const genre of GENRES) {
+      for (let seed = 1; seed <= 60; seed++) {
+        for (const script of generateScriptOptions(genre, createRng(seed), 12)) {
+          if (pluralSynopses.has(script.synopsis)) counts.add(script.requiredLeads);
+        }
+      }
+    }
+    expect(counts.size).toBeGreaterThan(1);
   });
 });
