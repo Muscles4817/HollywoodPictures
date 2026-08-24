@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { generatePremise, selectPool } from './premiseGenerator';
-import { PREMISE_BANKS, STORY_TYPE_PREMISES } from '../data/premises';
-import { createRng } from './random';
+import { generatePremise, selectPool, startIndex } from './premiseGenerator';
+import { PREMISE_BANKS, STORY_TYPE_PREMISES, type Premise } from '../data/premises';
+import { GENRES } from '../data/genres';
+import { STORY_TYPES } from '../data/storyTypes';
+import { SETTING_ARCHETYPES } from '../data/settings';
+import { TONES } from '../data/tones';
+import { createRng, hashUnit } from './random';
 
 function rendered(premises: { protagonist: string; synopsis: string; antagonist: string | null }[]): Set<string> {
   return new Set(
@@ -98,9 +102,6 @@ describe('generatePremise - hashed selection', () => {
   });
 
   it('keys the hash on both tiers of the pool, not just the specific one', () => {
-    // Asserted on the pool itself rather than inferred from rendered text: two
-    // pools with disjoint content differ at ANY index, so a text-level check
-    // passes even with the key removed from the hash entirely.
     const heist = selectPool('Action', 'Heist', 'ContemporaryCity', null);
     const drama = selectPool('Drama', 'Heist', 'ContemporaryCity', null);
     // Same specific tier, different bank behind it - the key must separate them,
@@ -108,6 +109,22 @@ describe('generatePremise - hashed selection', () => {
     expect(heist.key).not.toBe(drama.key);
     expect(heist.key).toContain('story:Heist');
     expect(drama.key).toContain('story:Heist');
+  });
+
+  it('actually feeds that key into the hash', () => {
+    // Comparing two keys proves the key is well-formed, not that anything reads
+    // it - that version of this test stays green with `|${key}` deleted from the
+    // hash entirely. This reconstructs the index the key produces and asserts
+    // the entry at it, which does not.
+    const title = 'The Take';
+    for (const pool of [selectPool('Action', 'Heist', 'ContemporaryCity', null), selectPool('Sci-Fi', 'Original', 'SpacecraftOrStation', null)]) {
+      const index = startIndex(hashUnit(`${title}|${pool.key}`), pool.entries.length, pool.preferredCount);
+      const expected = [...rendered([pool.entries[index]])][0];
+      const actual = pool.key.startsWith('story:Heist')
+        ? generatePremise('Action', 'Heist', 'ContemporaryCity', null, title, new Set(), createRng(1))
+        : generatePremise('Sci-Fi', 'Original', 'SpacecraftOrStation', null, title, new Set(), createRng(1));
+      expect(actual, `pool ${pool.key}`).toBe(expected);
+    }
   });
 
   it('puts the specific tier first and counts it, so selection can bias toward it', () => {
@@ -137,5 +154,72 @@ describe('generatePremise - hashed selection', () => {
     const counting = () => { draws += 1; return counted(); };
     generatePremise('Drama', 'Original', 'SmallTown', null, 'Anything', new Set(), counting);
     expect(draws).toBe(1);
+  });
+});
+
+describe('selectPool - reachability', () => {
+  it('puts every authored log-line into some pool, so nothing is written and never reachable', () => {
+    // The quiet failure of a tiered pool is an entry that exists, sits in a bank,
+    // and can never be selected because the tier in front always wins. Checked
+    // here at the pool level rather than by sampling generated scripts: sampling
+    // passes even under strict priority, because a slate's collision walk
+    // eventually mops up entries the hash never points at.
+    const authored = new Set<Premise>();
+    for (const bank of Object.values(PREMISE_BANKS)) {
+      for (const entries of Object.values(bank)) for (const p of entries as Premise[]) authored.add(p);
+    }
+    for (const entries of Object.values(STORY_TYPE_PREMISES)) for (const p of entries as Premise[]) authored.add(p);
+
+    const reachable = new Set<Premise>();
+    for (const genre of GENRES) {
+      for (const storyType of STORY_TYPES) {
+        for (const setting of SETTING_ARCHETYPES) {
+          for (const tone of [...TONES, null]) {
+            const pool = selectPool(genre, storyType, setting, tone);
+            for (const p of pool.entries) reachable.add(p);
+            // A pool must also never repeat an entry, or one log-line would hold
+            // two slots of the hash space and read as the pool's favourite.
+            expect(new Set(pool.entries).size, `duplicate in ${pool.key}`).toBe(pool.entries.length);
+            expect(pool.entries.length, `empty pool ${pool.key}`).toBeGreaterThan(0);
+            expect(pool.preferredCount).toBeLessThanOrEqual(pool.entries.length);
+          }
+        }
+      }
+    }
+    expect(reachable.size).toBe(authored.size);
+  });
+});
+
+describe('startIndex - the two-tier hash split', () => {
+  // The statistical brackets above pass a mutation that makes the tail of every
+  // tiered pool unreachable (returning `0 + ...` instead of `preferredCount + ...`
+  // still lands inside the bracket while killing the wide tier's front). These
+  // pin the boundaries directly, so that class of slip fails the normal suite
+  // rather than only the opt-in diagnostic.
+  const SHARE = 0.6; // premiseGenerator.ts:PREFERRED_SHARE
+  const EPS = 1e-9;
+
+  it('spends exactly the preferred share on the preferred tier', () => {
+    expect(startIndex(0, 30, 5)).toBe(0);
+    expect(startIndex(SHARE - EPS, 30, 5)).toBe(4); // last preferred entry
+    expect(startIndex(SHARE, 30, 5)).toBe(5); // first wide entry
+    expect(startIndex(1 - EPS, 30, 5)).toBe(29); // last wide entry
+  });
+
+  it('never returns an index outside the pool, at either boundary or either extreme', () => {
+    for (const [total, preferredCount] of [[1, 0], [1, 1], [25, 0], [25, 25], [30, 1], [30, 29], [6, 5]] as const) {
+      for (const hash of [0, SHARE - EPS, SHARE, 1 - EPS]) {
+        const index = startIndex(hash, total, preferredCount);
+        expect(index, `total=${total} pc=${preferredCount} hash=${hash}`).toBeGreaterThanOrEqual(0);
+        expect(index, `total=${total} pc=${preferredCount} hash=${hash}`).toBeLessThan(total);
+      }
+    }
+  });
+
+  it('falls back to a flat spread when there is no tier split to make', () => {
+    // No specific tier, or a specific tier that is the whole pool: the split has
+    // nothing to say and the hash should scale across everything evenly.
+    expect(startIndex(0.5, 10, 0)).toBe(5);
+    expect(startIndex(0.5, 10, 10)).toBe(5);
   });
 });

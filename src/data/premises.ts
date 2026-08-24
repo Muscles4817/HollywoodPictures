@@ -14,10 +14,12 @@ export interface Premise {
   synopsis: string;
   /**
    * Optional: Setting Archetypes this log-line especially suits. When a
-   * script's own setting matches, the premise generator narrows to the
-   * tagged entries (engine/premiseGenerator.ts:selectPool) - a light "nudge
-   * by setting" so a Spacecraft or Medieval concept leans toward log-lines
-   * written for it. Untagged entries are eligible for any setting.
+   * script's own setting matches, the tagged entries LEAD the pool rather than
+   * being the whole of it (engine/premiseGenerator.ts:selectPool) - they take
+   * the specific tier and so about 60% of selections, with the rest of the bank
+   * behind them. That weighting replaced a hard narrowing, which trapped a
+   * script whose setting had a single tagged entry into that one sentence
+   * forever. Untagged entries are eligible for any setting.
    */
   settings?: SettingArchetype[];
 }
@@ -1106,11 +1108,16 @@ for (const genre of Object.keys(ADDITIONAL_STRAIGHT) as Genre[]) {
 // --- Story-type log-lines (script-generation variety, rec #2) -------------
 // Keyed by Story Type rather than genre. A specific hook (a Heist, a Sports
 // story, a Biography) is the strongest concept signal a script carries, so
-// when a generated script has one, its synopsis is drawn from here instead of
-// the genre pool (engine/premiseGenerator.ts:selectPool) - a heist reads like
-// a heist whatever genre it sits in. Written to stay genre-neutral for that
-// reason. 'Original' (the common case) has no entry and falls through to the
-// genre/tone banks above. Setting tags nudge selection the same way.
+// when a generated script has one, this bank LEADS its pool (engine/
+// premiseGenerator.ts:selectPool) - taking about 60% of selections, with the
+// genre's own bank behind it - so a heist usually reads like a heist whatever
+// genre it sits in. Written to stay genre-neutral for that reason.
+//
+// Leads rather than replaces, since these banks hold five entries each: when
+// they were the whole pool, a player commissioning heists met the same five
+// sentences for an entire playthrough. 'Original' (the common case) has no
+// entry here at all, so the genre/tone banks above simply are its pool. Setting
+// tags weight entries within a bank the same way.
 export const STORY_TYPE_PREMISES: Partial<Record<StoryType, Premise[]>> = {
   Heist: [
     { protagonist: 'a retired thief assembling one last crew for an impossible score', antagonist: 'the former partner who now runs security for the target', synopsis: '{protagonist} has to get in, get out, and get past {antagonist} - the one person who knows exactly how she works.' },

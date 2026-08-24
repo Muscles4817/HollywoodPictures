@@ -71,13 +71,24 @@ export function selectPool(genre: Genre, storyType: StoryType, setting: SettingA
   const storyBank = storyType !== 'Original' ? STORY_TYPE_PREMISES[storyType] : undefined;
   const hasStoryBank = Boolean(storyBank && storyBank.length > 0);
 
-  // A Story Type bank can itself be setting-narrowed; a genre bank contributes
-  // only its setting-tagged entries to the specific tier, since the rest of it
-  // is already the wider tier.
+  // Where the specific tier comes from, in order: a Story Type bank's own
+  // setting-tagged entries, else the whole Story Type bank, else the genre
+  // bank's setting-tagged entries. Note the genre bank contributes NOTHING to
+  // the specific tier once a Story Type bank exists - the Story Type is the
+  // stronger hook, and the genre bank is already the tier behind.
   const storyTier = hasStoryBank ? storyBank! : [];
   const settingTagged = taggedForSetting(hasStoryBank ? storyTier : wider, setting);
   const preferred = settingTagged.length > 0 ? settingTagged : storyTier;
 
+  // Two tiers, not three, deliberately. When a Story Type bank HAS setting-tagged
+  // entries, the untagged remainder of that bank falls back into the wide tier
+  // alongside the genre's general lines rather than sitting in a middle tier of
+  // its own - so a War script set in a Modern Warzone puts its warzone-tagged war
+  // lines up front and its remaining war line in with everything else. A third
+  // tier (tagged story -> untagged story -> genre) is the natural shape if that
+  // ever reads wrong; it costs one more count and one more stretch of the hash.
+  // Measured own-bank share is 0.57-0.63 per Story Type as it stands, so the
+  // flattening is not currently costing specificity.
   const behind = hasStoryBank ? [...storyTier, ...wider] : wider;
   const rest = behind.filter((p) => !preferred.includes(p));
 
@@ -98,7 +109,7 @@ export function selectPool(genre: Genre, storyType: StoryType, setting: SettingA
  * hash across everything) is what keeps the bias honest - within a tier the
  * distribution stays flat, so no single log-line becomes the favourite.
  */
-function startIndex(hash: number, total: number, preferredCount: number): number {
+export function startIndex(hash: number, total: number, preferredCount: number): number {
   if (preferredCount <= 0 || preferredCount >= total) return Math.floor(hash * total);
   if (hash < PREFERRED_SHARE) return Math.floor((hash / PREFERRED_SHARE) * preferredCount);
   const widerCount = total - preferredCount;
