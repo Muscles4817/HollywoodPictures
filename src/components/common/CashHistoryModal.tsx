@@ -16,6 +16,7 @@ const CATEGORY_LABEL: Record<CashLedgerCategory, string> = {
   producer: 'Producers',
   awards: 'Awards',
   awardsCampaign: 'Awards campaign',
+  marketing: 'Campaign written off',
   homeEntertainment: 'Home entertainment',
   licensing: 'TV & streaming',
   merchandising: 'Merchandising',

@@ -163,3 +163,77 @@ describe('an announcement made before the project is planned', () => {
     expect(epic.strength).toBeGreaterThan(intimate.strength);
   });
 });
+
+describe('committing a campaign against the date', () => {
+  const announced = (seed: number, offset = 400) => {
+    const base = buildStateWithReadyDraft(seed);
+    return studioReducer(base, { type: 'ANNOUNCE_RELEASE_DATE', releaseDay: base.totalDays + offset });
+  };
+
+  it('books a campaign without moving cash - media is paid close to air', () => {
+    const s = announced(20);
+    const after = studioReducer(s, { type: 'COMMIT_CAMPAIGN', amount: 8_000_000 });
+    expect(focused(after).campaignCommitment?.amount).toBe(8_000_000);
+    expect(after.studio.cash).toBe(s.studio.cash); // charged at release, with the rest of marketing
+  });
+
+  it('refuses a campaign with no date to point at', () => {
+    const base = buildStateWithReadyDraft(21);
+    expect(studioReducer(base, { type: 'COMMIT_CAMPAIGN', amount: 5_000_000 })).toBe(base);
+  });
+
+  it('makes the claim read stronger to rivals than a bare announcement', () => {
+    // The staging that makes committing early a decision rather than
+    // bookkeeping: a named date deters nobody, a funded one does.
+    const s = announced(22);
+    const bare = announcedAsUpcomingRelease(focused(s), 0)!;
+    const funded = announcedAsUpcomingRelease(focused(studioReducer(s, { type: 'COMMIT_CAMPAIGN', amount: 40_000_000 })), 0)!;
+    expect(funded.strength).toBeGreaterThan(bare.strength);
+  });
+});
+
+describe('moving a date the campaign was booked against', () => {
+  const withCampaign = (seed: number, offset: number, amount = 20_000_000) => {
+    const base = buildStateWithReadyDraft(seed);
+    const s = studioReducer(base, { type: 'ANNOUNCE_RELEASE_DATE', releaseDay: base.totalDays + offset });
+    return studioReducer(s, { type: 'COMMIT_CAMPAIGN', amount });
+  };
+
+  it('charges the write-off in cash, so the shuffle is visible', () => {
+    const s = withCampaign(23, 300);
+    const moved = studioReducer(s, { type: 'ANNOUNCE_RELEASE_DATE', releaseDay: s.totalDays + 500 });
+    const spent = s.studio.cash - moved.studio.cash;
+    expect(spent).toBeGreaterThan(0);
+    // The campaign is re-pointed at the new date, not abandoned.
+    const commitment = focused(moved).campaignCommitment!;
+    expect(commitment.forReleaseDay).toBe(s.totalDays + 500);
+    expect(commitment.amount).toBeLessThan(20_000_000);
+    expect(commitment.writtenOff).toBe(spent);
+  });
+
+  it('costs far more to move a date that is nearly here', () => {
+    const near = withCampaign(24, 30);
+    const far = withCampaign(24, 400);
+    const cost = (s: GameState) => s.studio.cash - studioReducer(s, { type: 'ANNOUNCE_RELEASE_DATE', releaseDay: s.totalDays + 600 }).studio.cash;
+    expect(cost(near)).toBeGreaterThan(cost(far) * 3);
+  });
+
+  it('costs nothing to re-announce the same day, or to move with no campaign booked', () => {
+    const s = withCampaign(25, 300);
+    const same = studioReducer(s, { type: 'ANNOUNCE_RELEASE_DATE', releaseDay: focused(s).announcedReleaseDay! });
+    expect(same.studio.cash).toBe(s.studio.cash);
+
+    const base = buildStateWithReadyDraft(26);
+    const uncommitted = studioReducer(base, { type: 'ANNOUNCE_RELEASE_DATE', releaseDay: base.totalDays + 300 });
+    const moved = studioReducer(uncommitted, { type: 'ANNOUNCE_RELEASE_DATE', releaseDay: base.totalDays + 500 });
+    expect(moved.studio.cash).toBe(uncommitted.studio.cash);
+  });
+
+  it('refuses the move when the studio cannot cover the write-off', () => {
+    // The bind the whole phase is for: the date is wrong, and you cannot afford
+    // to be right about it.
+    const s = withCampaign(27, 30, 40_000_000);
+    const broke: GameState = { ...s, studio: { ...s.studio, cash: 1_000 } };
+    expect(studioReducer(broke, { type: 'ANNOUNCE_RELEASE_DATE', releaseDay: broke.totalDays + 400 })).toBe(broke);
+  });
+});

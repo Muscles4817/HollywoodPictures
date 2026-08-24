@@ -1330,6 +1330,18 @@ export interface DistributorOffer {
 export type MarketingChannel = 'trailers' | 'tv' | 'digital' | 'press';
 export type CampaignAngle = 'spectacle' | 'story' | 'mystery' | 'starPower' | 'faithful';
 
+/** A marketing campaign booked against an announced release date - see FilmDraft.campaignCommitment. */
+export interface CampaignCommitment {
+  /** The campaign booked. Charged at release with the rest of marketing, never here. */
+  amount: Money;
+  /** When it was committed - for the development log and the player-facing account. */
+  committedOnDay: GameDay;
+  /** The release day it was bought against. Moving away from this is what triggers the write-off. */
+  forReleaseDay: GameDay;
+  /** Cash already lost to previous moves, carried so the player can see what date-shuffling has cost. */
+  writtenOff?: Money;
+}
+
 export interface MarketingChoices {
   // A continuous currency amount, not a fixed tier - what a given level of
   // exposure costs doesn't change based on how cheap or expensive the film
@@ -2306,6 +2318,12 @@ export type CashLedgerCategory =
   | 'producer'
   | 'awards'
   | 'awardsCampaign'
+  // A release campaign written off by moving the date it was booked against
+  // (engine/campaignCommitment.ts). Marketing is otherwise charged in one go at
+  // release and never reaches the ledger, so this is the only marketing money
+  // the activity view sees - which is apt, since it is the only marketing money
+  // that bought nothing.
+  | 'marketing'
   // Post-theatrical income windows (engine/ancillary.ts, the ancillary-revenue
   // model). A film's afterlife pays into cash through these categories over the
   // months/years after its run, so film income is finally visible in the
@@ -2789,6 +2807,24 @@ export interface FilmDraft {
    * final booking made once the film is finished - see Project's own union.
    */
   announcedReleaseDay?: GameDay;
+  /**
+   * A marketing campaign committed against `announcedReleaseDay`
+   * (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md section 9.4).
+   *
+   * A BOOKING, not a payment: media is committed months ahead - trailer
+   * placement, upfronts, partner and licensing tie-ins with long lead times -
+   * and paid closer to air, which is why the campaign is charged at release with
+   * the rest of marketing and not here. What committing buys now is that the
+   * claim reads as FUNDED rather than as a bare date, and rivals weigh it
+   * accordingly.
+   *
+   * And what it costs is the freedom to move. Moving the date writes off a share
+   * of the commitment, rising as the date nears and the buys become
+   * unrecoverable (engine/campaignCommitment.ts). That write-off is the
+   * incommensurable cost the whole phase is built around: not the date itself,
+   * but the money already pointed at it.
+   */
+  campaignCommitment?: CampaignCommitment;
   // The live pre-production run (Greenlight -> Principal Photography), or null
   // before greenlight. Non-null with status 'in-progress'/'awaiting-choice'
   // means prep is underway; 'finished' means it's the persisted record the shoot

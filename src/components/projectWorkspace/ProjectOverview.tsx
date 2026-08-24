@@ -22,9 +22,19 @@ import { announcedPlayerDrafts, rivalProductionsInProgress, scheduledPlayerRelea
 import { rivalAsUpcomingRelease } from '../../engine/rivalStudios';
 import { genreIdentityFor } from '../../engine/studioIdentity';
 import { formatGameDateWithMonth, formatGameMonthYear, monthYearOf, totalDaysForMonth } from '../../engine/calendar';
+import { describeCampaignWriteOff } from '../../engine/campaignCommitment';
+import { MARKETING_SPEND_RANGE } from '../../data/release';
 import type { ProjectWorkspaceSection } from '../../types';
 
 const AUDIENCE_DESCRIPTIONS = pluckDescriptions(AUDIENCE_PROFILES);
+
+/** A few campaign sizes to book against a date, spanning the marketing range. */
+const CAMPAIGN_STEPS = [
+  Math.round(MARKETING_SPEND_RANGE.min * 4),
+  Math.round(MARKETING_SPEND_RANGE.max * 0.1),
+  Math.round(MARKETING_SPEND_RANGE.max * 0.35),
+  Math.round(MARKETING_SPEND_RANGE.max * 0.7),
+];
 
 const SECTION_LABELS: Record<ProjectWorkspaceSection, string> = {
   overview: 'Overview',
@@ -108,6 +118,10 @@ function ReleaseAnnouncementCard() {
   }, [state.totalDays]);
 
   const announced = draft.announcedReleaseDay;
+  const commitment = draft.campaignCommitment;
+  // What moving would cost right now - shown BEFORE the player picks another
+  // month, not after, since that price is the whole decision (Principle 3).
+  const writeOffNote = describeCampaignWriteOff(commitment, state.totalDays);
   const crowdingFor = (day: number) =>
     draft.genre && draft.targetAudience
       ? computeCompetitiveCrowding({ releaseDay: day, genre: draft.genre, targetAudience: draft.targetAudience }, known, ownStrength)
@@ -145,6 +159,37 @@ function ReleaseAnnouncementCard() {
         <p style={{ margin: 0, fontSize: '0.85em' }}>
           No date announced. The film keeps full flexibility and takes whatever the calendar leaves it.
         </p>
+      )}
+
+      {announced !== undefined && (
+        <div className="stack" style={{ gap: 6, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+          <div className="row-between">
+            <span className="stat-label">Campaign committed against this date</span>
+            <strong>{commitment ? <Money amount={commitment.amount} /> : 'None'}</strong>
+          </div>
+          <p style={{ margin: 0, fontSize: '0.8em', color: 'var(--text-muted)' }}>
+            Booking a campaign costs nothing now — media is paid close to air — but it is what makes the
+            claim read as funded rather than as a bare date, and rivals weigh it accordingly.
+            {writeOffNote ? ` ${writeOffNote}` : ''}
+          </p>
+          {commitment?.writtenOff ? (
+            <p style={{ margin: 0, fontSize: '0.8em', color: 'var(--tint-red-ink)' }}>
+              Moving this film has already written off <Money amount={commitment.writtenOff} />.
+            </p>
+          ) : null}
+          <div className="row" style={{ gap: 6 }}>
+            {CAMPAIGN_STEPS.map((amount) => (
+              <Button
+                key={amount}
+                className="btn-sm"
+                variant={commitment?.amount === amount ? 'primary' : undefined}
+                onClick={() => dispatch({ type: 'COMMIT_CAMPAIGN', amount })}
+              >
+                <Money amount={amount} />
+              </Button>
+            ))}
+          </div>
+        </div>
       )}
 
       <div className="release-month-grid">

@@ -667,8 +667,17 @@ are worth doing even if the rest slips.
 4. ~~**Recalibrate rival release scheduling**~~ **Done** - see §9.5c. Delay is
    now priced, so a film weighs a better window against the cost of reaching it
    instead of vacating on any non-zero crowding.
-5. **Commit marketing against the date early**, as a real sunk cost.
-6. **Allow moving, priced at the campaign write-off.**
+5. ~~**Commit marketing against the date early.**~~ **Done** - `COMMIT_CAMPAIGN`
+   books a campaign against the announced date. A BOOKING, not a payment: media
+   is paid close to air, so the cash is still charged at release with the rest
+   of marketing. What committing buys now is that the claim reads as FUNDED to
+   rivals (`announcedReleaseStrength`) rather than as a bare date.
+6. ~~**Allow moving, priced at the campaign write-off.**~~ **Done** -
+   `engine/campaignCommitment.ts`. Moving writes off a share of the commitment,
+   flat at 15% outside the buying window and rising to effectively all of it on
+   the eve of release. Charged in cash at the move so the shuffle is visible,
+   and the surviving remainder is re-pointed at the new date rather than
+   abandoned. Repeated shuffling compounds.
 
 ### 9.5a Measured result of steps 1-2
 
@@ -807,3 +816,36 @@ And the §4.7 test should be re-run afterwards: the release clock is what §4.8
 predicted would finally make "one more rewrite" a genuine bet, so
 `developmentDominance.diagnostic` should move too. If it does not, the diagnosis
 in §4.8 was wrong and needs revisiting rather than patching.
+
+### 9.6a Measured: the decision surface
+
+`src/engine/holdOrMove.diagnostic.test.ts` sweeps the space the decision lives
+in - how close the date is, how large the committed campaign, and how strong the
+colliding rival - and asks which option is cheaper at each point.
+
+```text
+HOLD better in 20/60 (33%)      MOVE better in 40/60 (67%)
+
+  30d out:  HOLD everywhere          - the write-off is brutal, you are committed
+ 120d out:  flips on rival strength  - hold a 0.3 threat, move for a 0.6
+ 300d out:  MOVE everywhere          - nothing is placed yet, flexibility is free
+```
+
+**The acceptance test is met, in a specific and legible shape.** It is not a
+coin flip - a 50/50 split would mean the inputs did not matter. It is decisive
+at the extremes, which is correct (a date you have not bought against is cheap
+to abandon; one you have is not), and genuinely contested in the middle band,
+where the answer turns on how big the threat actually is. Two rational players
+at 120 days facing rivals of different strength make different calls.
+
+It also relocates the real decision. The interesting choice is not only at the
+collision but at COMMITMENT: buying a campaign early deters rivals and costs you
+the freedom to dodge. That is the incommensurable trade §2 asks for.
+
+**A caveat on this harness, disclosed rather than buried.** Its first run read
+87% MOVE, because it modelled moving as landing somewhere free. That is not the
+game's situation - good windows are scarce, and a move is usually into a weaker
+season or another contested date. Modelling the destination's cost is what
+produced the numbers above. The conversion between crowding and campaign value
+is deliberately rough: the question it answers is whether the two costs are ever
+comparable, not what their exact ratio is.
