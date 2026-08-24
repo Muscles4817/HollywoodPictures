@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { generatePremise } from './premiseGenerator';
 import { PREMISE_BANKS, STORY_TYPE_PREMISES } from '../data/premises';
-import { createRng } from './random';
+import { createRng, hashUnit } from './random';
 
 function rendered(premises: { protagonist: string; synopsis: string; antagonist: string | null }[]): Set<string> {
   return new Set(
@@ -78,15 +78,30 @@ describe('generatePremise - hashed selection', () => {
     const produced = titles.map((t) => generatePremise('Action', 'Original', 'ContemporaryCity', null, t, new Set(), createRng(1)));
     // Distinct titles must spread across the pool rather than clustering on one
     // entry - a hash that bunched would be worse than the draw it replaced.
-    expect(new Set(produced).size).toBeGreaterThan(5);
+    // Measured at 19 of 25 for a pool of 25 (uniform expectation ~16); the floor
+    // is set near that rather than at a token value, so a hash that started
+    // clustering would actually trip it.
+    expect(new Set(produced).size).toBeGreaterThanOrEqual(12);
   });
 
-  it('keys on the pool as well as the title, so the same title in different pools can differ', () => {
-    // Titles collide often across a long playthrough; two scripts sharing one
-    // must not be forced onto the same index of whatever pool they land in.
-    const heist = generatePremise('Action', 'Heist', 'ContemporaryCity', null, 'The Take', new Set(), createRng(1));
-    const original = generatePremise('Action', 'Original', 'ContemporaryCity', null, 'The Take', new Set(), createRng(1));
-    expect(heist).not.toBe(original);
+  it('keys the hash on the pool as well as the title', () => {
+    // Asserted against the index the key actually produces, not merely that two
+    // pools give different text - two pools with disjoint content differ at ANY
+    // index, so a looser check passes even with the pool key removed from the
+    // hash entirely (verified: it survives that mutation, which is why this test
+    // reconstructs the index instead).
+    //
+    // A repeat title landing in a different pool must be free to sit at a
+    // different offset within it; keying on the pool is what allows that.
+    const title = 'The Take';
+    const cases = [
+      { key: 'story:Heist', entries: STORY_TYPE_PREMISES.Heist!, call: () => generatePremise('Action', 'Heist', 'ContemporaryCity', null, title, new Set(), createRng(1)) },
+      { key: 'Action:straight', entries: PREMISE_BANKS.Action.straight!, call: () => generatePremise('Action', 'Original', 'ContemporaryCity', null, title, new Set(), createRng(1)) },
+    ];
+    for (const { key, entries, call } of cases) {
+      const index = Math.floor(hashUnit(`${title}|${key}`) * entries.length);
+      expect(call(), `pool ${key}`).toBe([...rendered([entries[index]])][0]);
+    }
   });
 
   it('consumes exactly one draw, so this stage cannot move anything downstream', () => {

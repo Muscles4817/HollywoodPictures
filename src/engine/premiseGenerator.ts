@@ -12,10 +12,16 @@ function render(premise: Premise): string {
     .replaceAll('{antagonist}', premise.antagonist ?? '');
 }
 
+interface PremisePool {
+  /** Identifies WHICH pool was chosen, so a premise hash can be keyed to it - see generatePremise. */
+  key: string;
+  entries: Premise[];
+}
+
 /**
  * Which log-line pool a script draws from - concept-aware, and entirely
- * deterministic (no rng), so premise selection still consumes exactly one
- * random draw regardless of concept or de-duplication (see generatePremise).
+ * deterministic (no rng): the pool is a function of the concept alone, which is
+ * what lets generatePremise hash against it instead of drawing.
  *
  * Priority:
  * 1. A specific Story Type (Heist, Sports, Biography, ...) is the strongest
@@ -29,12 +35,6 @@ function render(premise: Premise): string {
  *    Spacecraft sci-fi or a Medieval fantasy leans toward log-lines written
  *    for it, without needing a bespoke pool per setting.
  */
-interface PremisePool {
-  /** Identifies WHICH pool was chosen, so a premise hash can be keyed to it - see generatePremise. */
-  key: string;
-  entries: Premise[];
-}
-
 function selectPool(genre: Genre, storyType: StoryType, setting: SettingArchetype, flavorTone: Tone | null): PremisePool {
   const genreBank = PREMISE_BANKS[genre];
   const storyBank = storyType !== 'Original' ? STORY_TYPE_PREMISES[storyType] : undefined;
@@ -56,9 +56,11 @@ function selectPool(genre: Genre, storyType: StoryType, setting: SettingArchetyp
  * it, and a collision walks forward through the pool (deterministically, no
  * extra rng) to the next unused entry, so one slate doesn't show the same
  * log-line twice the way titles already avoid doing. Only when the whole pool
- * is exhausted does it fall back to repeating. Consumes exactly one rng draw
- * (the start index), keeping every downstream seeded sequence identical to a
- * plain single pick.
+ * is exhausted does it fall back to repeating.
+ *
+ * The starting entry is HASHED from `title` plus the chosen pool, not drawn -
+ * see the note in the body for why, and for why the one rng draw it still takes
+ * is deliberately thrown away.
  */
 export function generatePremise(
   genre: Genre,
@@ -81,12 +83,24 @@ export function generatePremise(
   // the cast and the production requirements it implies), and a positional draw
   // cannot move without shifting every draw after it.
   //
-  // Keyed on the pool as well as the title because titles collide often - the
-  // same title in a different pool must not land on the same index - and salted
-  // with the title rather than the script id, because ids are Date.now() plus
-  // Math.random() (scriptGenerator.ts:newScriptId, deliberately: they are
+  // Salted with the title rather than the script id: ids are Date.now() plus
+  // Math.random() (scriptGenerator.ts:newScriptId, deliberately - they are
   // identity, not a replayable outcome), so hashing one would hand back a
-  // different synopsis on every run of the same seed.
+  // different synopsis on every run of the same seed, which is worse than the
+  // draw it replaces. Note the title is itself drawn from the stream by
+  // uniqueTitle, so a synopsis is not wholly stream-independent - but the title
+  // is a PARAMETER of generateScript, fixed before its body runs, which is the
+  // property that actually matters here: selection can move anywhere inside
+  // generation without shifting a single draw.
+  //
+  // Keyed on the pool as well as the title so a repeat title landing in a
+  // different pool is free to sit at a different offset within it. Worth being
+  // precise about why, since the obvious reason is wrong: uniqueTitle makes
+  // in-slate title collisions impossible (measured at zero across 12,000
+  // slates), and usedSynopses is per-slate, so it never sees the case. What
+  // repeats is titles ACROSS slates over a playthrough, where nothing
+  // de-duplicates - and there, keying stops one recurring title dragging the
+  // same offset through every pool it ever lands in.
   //
   // The rng draw below is retained, and its value deliberately discarded, purely
   // so this change is provably stream-neutral: every later draw in generation

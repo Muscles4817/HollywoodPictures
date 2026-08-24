@@ -120,10 +120,20 @@ export function combineWeights<K extends string>(keys: readonly K[], sources: Ar
  * Math.random() - hands you a value that changes between runs of the same seed,
  * which is worse than a draw.
  *
- * NOTE there is a second, quantised variant in engine/personality.ts (`% 100000
- * / 100000`). It is deliberately NOT folded in here: the two produce different
- * values, so sharing one would silently move every personality in the game for
- * no benefit.
+ * NOTE this is one of six copies of the same FNV-1a core in the engine, and it
+ * is deliberately NOT the one true version - they differ in the tail, so folding
+ * any of them together would silently move live values for no benefit:
+ *
+ *   engine/actingModel.ts:stableUnit              `% 100000 / 100000`  (exported)
+ *   engine/personality.ts:hashUnit                `% 100000 / 100000`
+ *   engine/castingPresentation.ts:stablePick      `% options.length`
+ *   engine/castPerformancePresentation.ts:stablePick  `% options.length`
+ *   engine/distribution.ts:seedFromId             raw `h >>> 0`
+ *
+ * actingModel's is the one to be most careful with: it is exported, it is
+ * byte-identical to personality's, and it feeds derived craft - so it has the
+ * widest blast radius of the six despite looking like a local helper. If anyone
+ * does consolidate these one day, that is the one to do last and measure.
  */
 export function hashUnit(s: string): number {
   let h = 2166136261;
