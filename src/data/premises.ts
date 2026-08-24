@@ -231,7 +231,7 @@ export const PREMISE_BANKS: Record<Genre, Partial<Record<Tone | 'straight', Prem
         synopsis: '{protagonist} watches the entire client roster collide at once, and none of the dogs are the problem.',
       },
       {
-        protagonist: 'a family that has never once agreed on anything',
+        leads: 3, protagonist: 'a family that has never once agreed on anything',
         antagonist: null,
         synopsis: '{protagonist} is forced into one holiday under one roof, and the roof does not survive it.',
       },
@@ -268,7 +268,7 @@ export const PREMISE_BANKS: Record<Genre, Partial<Record<Tone | 'straight', Prem
         synopsis: '{protagonist} has forty-eight hours to pull off the wedding of the century before {antagonist} shows up and ruins the seating chart permanently.',
       },
       {
-        protagonist: 'a community theater troupe rehearsing a heist play',
+        leads: 3, protagonist: 'a community theater troupe rehearsing a heist play',
         antagonist: 'the actual criminals who think it is a real one',
         synopsis: '{protagonist} accidentally out-plans {antagonist} without ever realizing the stakes were real.',
       },
@@ -469,7 +469,7 @@ export const PREMISE_BANKS: Record<Genre, Partial<Record<Tone | 'straight', Prem
         synopsis: '{protagonist} finds out exactly why {antagonist} was left off every official record.',
       },
       {
-        protagonist: 'a family moving into a house with a very specific rule about the basement',
+        leads: 3, protagonist: 'a family moving into a house with a very specific rule about the basement',
         antagonist: 'the thing that rule was written to keep down there',
         synopsis: '{protagonist} breaks the one rule within a week, and {antagonist} notices immediately.',
       },
@@ -489,7 +489,7 @@ export const PREMISE_BANKS: Record<Genre, Partial<Record<Tone | 'straight', Prem
         synopsis: '{protagonist} finds out exactly why the reserve closes when it does.',
       },
       {
-        protagonist: 'a family who inherited a lake house nobody in the family will explain',
+        leads: 3, protagonist: 'a family who inherited a lake house nobody in the family will explain',
         antagonist: 'whatever the lake has been keeping quiet about for generations',
         synopsis: '{protagonist} spends one summer learning exactly why no one in the family ever visited.',
       },
@@ -501,7 +501,7 @@ export const PREMISE_BANKS: Record<Genre, Partial<Record<Tone | 'straight', Prem
         synopsis: '{protagonist} tries to close the deal anyway, and {antagonist} is not going to make that easy.',
       },
       {
-        protagonist: 'a group of roommates who summoned something at a party and forgot about it',
+        leads: 3, protagonist: 'a group of roommates who summoned something at a party and forgot about it',
         antagonist: 'the demon still living in their kitchen',
         synopsis: '{protagonist} would like {antagonist} to leave, but it turns out it is on the lease now, technically.',
       },
@@ -599,7 +599,7 @@ export const PREMISE_BANKS: Record<Genre, Partial<Record<Tone | 'straight', Prem
       {
         leads: 2, protagonist: 'a ski instructor and the hopeless beginner she is assigned for the whole season',
         antagonist: null,
-        synopsis: '{protagonist} spends the whole winter insisting the lessons are strictly professional.',
+        synopsis: '{protagonist} spend the whole winter insisting the lessons are strictly professional.',
       },
     ],
     comedy: [
@@ -1061,18 +1061,18 @@ const ADDITIONAL_STRAIGHT: Record<Genre, Premise[]> = {
   Romance: [
     { leads: 2, protagonist: 'two rivals forced to plan their best friends\' wedding together', antagonist: null, synopsis: '{protagonist} spend months at each other\'s throats over seating charts and slowly forget why they were ever enemies.' },
     { protagonist: 'a big-city architect sent to save a small-town bakery from demolition', antagonist: null, synopsis: '{protagonist} arrives to tear the place down and falls for everything - and everyone - she was sent to replace.', settings: ['SmallTown'] },
-    { leads: 2, protagonist: 'a widowed single father and the tutor he hires for his daughter', antagonist: null, synopsis: '{protagonist} lets someone back into a house that has been quiet for years, and is not ready for what it opens up.' },
+    { leads: 2, protagonist: 'a widowed single father and the tutor he hires for his daughter', antagonist: null, synopsis: '{protagonist} let someone back into a house that has been quiet for years, and is not ready for what it opens up.' },
     { leads: 2, protagonist: 'two strangers who keep getting each other\'s mail', antagonist: null, synopsis: '{protagonist} fall for the person on the page long before either works up the nerve to knock.' },
     { leads: 2, protagonist: 'a chef and the food critic who once ruined her', antagonist: null, synopsis: '{protagonist} are thrown together on one impossible project and discover the fight was never really about the food.' },
     { protagonist: 'a wedding photographer who has stopped believing in any of it', antagonist: null, synopsis: '{protagonist} shoots one more ceremony and meets the one person who makes her want to be in front of the camera again.' },
     { leads: 2, protagonist: 'two former sweethearts reunited as reluctant co-workers', antagonist: null, synopsis: '{protagonist} pick up an argument they abandoned a decade ago and find out neither ever finished it.' },
     { leads: 2, protagonist: 'a marine biologist and the fisherman whose livelihood her research threatens', antagonist: null, synopsis: '{protagonist} stand on opposite sides of a dying harbor and fall for each other anyway.', settings: ['SmallTown'] },
     { protagonist: 'a homebody set up on a blind date that goes gloriously, disastrously wrong', antagonist: null, synopsis: '{protagonist} writes the night off as a catastrophe and cannot stop thinking about it for weeks.' },
-    { leads: 2, protagonist: 'a touring musician and the innkeeper who puts him up for one snowed-in night', antagonist: null, synopsis: '{protagonist} has a bus to catch in the morning and every reason, by dawn, to miss it.' },
+    { leads: 2, protagonist: 'a touring musician and the innkeeper who puts him up for one snowed-in night', antagonist: null, synopsis: '{protagonist} have a bus to catch in the morning and every reason, by dawn, to miss it.' },
     { leads: 2, protagonist: 'two competing florists on the same wedding-season street', antagonist: null, synopsis: '{protagonist} sabotage each other all season and realize far too late they were the perfect match all along.' },
     { protagonist: 'a heartbroken novelist who moves to a coast to disappear', antagonist: null, synopsis: '{protagonist} sets out to be alone and meets the one person who makes solitude feel like a mistake.' },
     { protagonist: 'a pragmatic wedding planner who falls for the groom\'s skeptical brother', antagonist: null, synopsis: '{protagonist} has one wedding to survive without admitting the only person she wants is standing beside the aisle.' },
-    { leads: 2, protagonist: 'a nurse and the patient she is not supposed to get attached to', antagonist: null, synopsis: '{protagonist} breaks every rule she has ever kept for a chance that might not last past the ward.' },
+    { leads: 2, protagonist: 'a nurse and the patient she is not supposed to get attached to', antagonist: null, synopsis: '{protagonist} break every rule they have ever kept for a chance that might not last past the ward.' },
     { leads: 2, protagonist: 'two people who agree to be each other\'s fake date for one family event', antagonist: null, synopsis: '{protagonist} rehearse a relationship so convincingly that they forget which parts were pretend.' },
     { leads: 2, protagonist: 'a returning soldier and the pen pal who wrote to him through the worst of it', antagonist: null, synopsis: '{protagonist} finally meet in person and have to see whether the letters told the whole truth.' },
   ],
@@ -1159,7 +1159,7 @@ export const STORY_TYPE_PREMISES: Partial<Record<StoryType, Premise[]>> = {
   ],
   Crime: [
     { protagonist: 'a low-level driver climbing fast through a crumbling crime family', antagonist: 'the boss who mistakes ambition for loyalty', synopsis: '{protagonist} rises through the ranks until the only way up runs straight through {antagonist}.' },
-    { leads: 2, protagonist: 'a detective and the informant she cannot afford to trust or lose', antagonist: 'the organization they are both trying to survive', synopsis: '{protagonist} works an impossible case from the inside while {antagonist} tightens the net on them both.' },
+    { leads: 2, protagonist: 'a detective and the informant she cannot afford to trust or lose', antagonist: 'the organization they are both trying to survive', synopsis: '{protagonist} work an impossible case from the inside while {antagonist} tightens the net on them both.' },
     { leads: 2, protagonist: 'two brothers on opposite sides of the same investigation', antagonist: 'the empire that made one and is hunted by the other', synopsis: '{protagonist} are pulled toward a reckoning neither wants as {antagonist} forces the choice.' },
     { protagonist: 'a fixer who cleans up after the city\'s worst, until one job he cannot bury', antagonist: 'the client whose mess is finally too big to hide', synopsis: '{protagonist} has to decide whether to protect {antagonist} or finally save himself.', settings: ['ContemporaryCity'] },
     { protagonist: 'a shopkeeper who refuses to pay the neighborhood\'s protection', antagonist: 'the crew that runs the block', synopsis: '{protagonist} draws a line on his own doorstep and turns one storefront into a stand against {antagonist}.' },
@@ -1204,7 +1204,7 @@ export const STORY_TYPE_PREMISES: Partial<Record<StoryType, Premise[]>> = {
     { leads: 2, protagonist: 'two performers who fall in love while competing for the same part', antagonist: 'the ambition neither is willing to give up', synopsis: '{protagonist} have to choose between the duet and the solo as {antagonist} pulls them apart.' },
     { protagonist: 'a burned-out music teacher and the class nobody believed in', antagonist: 'a school ready to cut the program for good', synopsis: '{protagonist} builds one last show to prove {antagonist} wrong before the curtain falls for good.', settings: ['SchoolOrUniversity'] },
     { protagonist: 'a street musician discovered on the worst night of his life', antagonist: 'the fame that arrives faster than he can handle it', synopsis: '{protagonist} rides a sudden rise toward a reckoning with {antagonist}.' },
-    { leads: 2, protagonist: 'a fading star and the young talent hired to replace her', antagonist: 'time, and an audience that has already moved on', synopsis: '{protagonist} passes the stage to a successor while making one last peace with {antagonist}.' },
+    { leads: 2, protagonist: 'a fading star and the young talent hired to replace her', antagonist: 'time, and an audience that has already moved on', synopsis: '{protagonist} pass the stage to a successor while making one last peace with {antagonist}.' },
   ],
   ComingOfAge: [
     { protagonist: 'a teenager spending one last summer with friends before everything scatters', antagonist: null, synopsis: '{protagonist} chases a perfect final season, knowing none of them will be the same by the time it ends.', settings: ['SmallTown', 'SuburbanCommunity'] },

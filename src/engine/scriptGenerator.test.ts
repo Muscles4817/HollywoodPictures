@@ -7,6 +7,7 @@
 // independently-rolled numbers that happen to share a type.
 import { describe, it, expect } from 'vitest';
 import { generateScriptOptions, estimateScriptCost } from './scriptGenerator';
+import { render } from './premiseGenerator';
 import { PREMISE_BANKS, STORY_TYPE_PREMISES, type Premise } from '../data/premises';
 import { createRng } from './random';
 import { GENRES } from '../data/genres';
@@ -293,7 +294,7 @@ describe('estimateScriptCost', () => {
 });
 
 describe('a script never contradicts what its own log-line promises', () => {
-  // Thirty log-lines in the banks are about a pair or an ensemble ("two
+  // 61 log-lines in the banks are about a pair or an ensemble ("two
   // mismatched cops on their worst partnership yet", "three estranged siblings",
   // "a getaway crew"). requiredLeads used to be rolled with no knowledge of
   // them, so those scripts shipped with a single Lead role about half the time.
@@ -301,12 +302,7 @@ describe('a script never contradicts what its own log-line promises', () => {
   const collect = (entries: Premise[]) => {
     for (const p of entries) {
       if (!p.leads || p.leads < 2) continue;
-      pluralSynopses.set(
-        p.synopsis
-          .replaceAll('{protagonist}', p.protagonist.charAt(0).toUpperCase() + p.protagonist.slice(1))
-          .replaceAll('{antagonist}', p.antagonist ?? ''),
-        p.leads,
-      );
+      pluralSynopses.set(render(p), p.leads);
     }
   };
   for (const bank of Object.values(PREMISE_BANKS)) for (const entries of Object.values(bank)) collect(entries as Premise[]);
@@ -330,42 +326,68 @@ describe('a script never contradicts what its own log-line promises', () => {
     expect(checked).toBeGreaterThan(100);
   });
 
-  it('has a leads count on every log-line the author conjugated for more than one person', () => {
-    // This guard replaced one that could not fail. The first version matched
-    // protagonists starting with "two"/"three"/"four"/"twin" - a list fitted to
-    // the entries already tagged, so it returned green by construction while 14
-    // untagged multi-protagonist log-lines went on being cast with one Lead
-    // (measured at 59.2%, indistinguishable from the bug this stage set out to
-    // fix). Two of its seven alternatives matched nothing in the corpus at all.
+  it('has a leads count on every log-line whose own text gives it more than one subject', () => {
+    // Third version of this guard. The first matched protagonists starting with
+    // "two"/"three"/"four"/"twin" - a list fitted to the entries already tagged,
+    // so it returned green by construction over a live 59% miscast. The second
+    // keyed off an ALLOWLIST of plural verbs, which was better (it could fail)
+    // but still imagination rather than derivation: 15 of its 32 verbs matched
+    // nothing in the corpus, 8 real plural verbs were missing, and it was blind
+    // to every collective-noun ensemble, leaving five untagged at the same 59%.
     //
-    // The signal used instead is the data author's own VERB CONJUGATION. render()
-    // substitutes {protagonist} into synopsis, so an entry written
-    // "{protagonist} have" or "{protagonist} spend" is unambiguously about
-    // several people - that is a fact about the text rather than a guess about
-    // the noun phrase, and it cannot be fitted to the answer.
+    // Two signals now, both derived from the text rather than guessed:
     //
-    // It does NOT catch every case: "a ski instructor and the hopeless beginner
-    // she is assigned" is a two-hander written in the singular, and no machine
-    // check distinguishes that from "a wizard stripped of his title and his
-    // magic". Those were tagged by reading them. This guard is the floor, not
-    // the ceiling.
-    const PLURAL_VERBS = [
-      'have', 'are', 'were', 'spend', 'run', 'sprint', 'settle', 'film', 'keep', 'stand', 'meet',
-      'strip', 'carry', 'write', 'share', 'discover', 'find', 'learn', 'try', 'fight', 'take',
-      'make', 'get', 'go', 'come', 'do', 'watch', 'start', 'survive', 'pull', 'plan', 'realize',
-    ];
-    const pluralOpening = new RegExp(`^\\{protagonist\\}\\s+(${PLURAL_VERBS.join('|')})\\b`);
+    // 1. CONJUGATION. English marks a third-person singular verb with a trailing
+    //    -s. "{protagonist} spends" is one person; "{protagonist} spend" is
+    //    several. That is a rule about the language, not a list of words, so it
+    //    cannot go stale as the corpus grows.
+    // 2. COLLECTIVE HEAD. "a family", "a group of roommates", "a community
+    //    theater troupe" - several people whatever the verb agreement says,
+    //    since a collective noun takes a singular verb in American usage. This
+    //    is the class the conjugation rule structurally cannot see.
+    //
+    // Neither catches a two-hander written in the singular ("a ski instructor and
+    // the hopeless beginner she is assigned" reads exactly like "a wizard
+    // stripped of his title and his magic"). Those are tagged by reading them.
+    // This guard is the floor, not the ceiling - but the floor is now derived.
+    // An adverb can be stepped over ("{protagonist} finally meet"); a modal or a
+    // conjunction cannot. After "must" or "can't" every verb is bare whatever the
+    // subject's number, and "{protagonist} and a skeleton crew fight" is a
+    // compound subject whose lead count is a judgement - both make the
+    // conjugation test inconclusive rather than positive.
+    const ADVERB = /^(never|only|just|still|already|\w+ly)$/;
+    const INCONCLUSIVE = /^(must|can|cannot|can't|will|won't|would|could|should|may|might|and|or|both)$/;
+    const COLLECTIVE = /^(family|group|crew|troupe|team|band|unit|trio|couple|squad|gang|coven|household|roommates|siblings|brothers|sisters|partners)$/i;
+
+    const hasPluralSubject = (p: Premise): boolean => {
+      // Collective noun heading the subject - checked on the head of the noun
+      // phrase, so "a washed-up coach handed the worst team in the league" (about
+      // the coach) does not trip it.
+      const head = p.protagonist.replace(/^(a|an|the)\s+/i, '').split(/\s+/).slice(0, 3);
+      if (head.some((w) => COLLECTIVE.test(w.replace(/[^a-z]/gi, ''))) && !/member/i.test(p.protagonist)) return true;
+
+      const after = p.synopsis.match(/^\{protagonist\}\s+(.*)$/);
+      if (!after) return false;
+      const words = after[1].split(/\s+/).map((w) => w.replace(/[^a-z']/gi, '').toLowerCase());
+      const verb = words.find((w) => w.length > 0 && !ADVERB.test(w));
+      // Past tense carries no number in English - "he wanted" and "they wanted"
+      // are identical - so it says nothing either way.
+      if (!verb || INCONCLUSIVE.test(verb) || verb.endsWith('ed')) return false;
+      return verb.length > 1 && !verb.endsWith('s');
+    };
+
     const untagged: string[] = [];
     const check = (entries: Premise[]) => {
-      for (const p of entries) if (pluralOpening.test(p.synopsis) && !p.leads) untagged.push(p.protagonist);
+      for (const p of entries) if (hasPluralSubject(p) && !p.leads) untagged.push(p.protagonist);
     };
     for (const bank of Object.values(PREMISE_BANKS)) for (const entries of Object.values(bank)) check(entries as Premise[]);
     for (const entries of Object.values(STORY_TYPE_PREMISES)) check(entries as Premise[]);
-    expect(untagged, `conjugated for several people but carrying no leads count: ${untagged.join(' | ')}`).toEqual([]);
+    expect(untagged, `several subjects but no leads count: ${untagged.join(' | ')}`).toEqual([]);
   });
 
   it('keeps every leads count inside the range the generator assumes', () => {
-    // >= 1 because Math.max no longer carries a literal 1, and <= 3 because the
+    // >= 1 mirrors the literal 1 in Math.max, so a `leads: 0` typo is caught at
+    // the data rather than only being absorbed there; <= 3 because the
     // cap is documented convention with nothing else enforcing it: a `leads: 5`
     // typo would otherwise sail through and demand a five-Lead cast.
     const check = (entries: Premise[]) => {

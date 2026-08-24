@@ -889,7 +889,7 @@ already taken with the script title word banks (5.11) - fill in more if
 repetition is still noticeable in play, rather than trying to cover every
 combination up front.
 
-the hand-written entries (342 as of the premise work) surfaced their own lesson worth recording: several
+The hand-written entries (342 as of the premise work) surfaced their own lesson worth recording: several
 early entries reused `{antagonist}` twice in one sentence, or built a
 sentence around a long descriptive antagonist phrase (`"a king who keeps
 declaring wars without checking with him first"`) the way one would around

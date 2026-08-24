@@ -655,7 +655,7 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   // What it informs, for now, is how many people the script is about. That was
   // rolled entirely independently of the log-line, so a screenplay whose own
   // synopsis read "two mismatched cops on their worst partnership yet" shipped
-  // with a single Lead role about half the time - 56 log-lines in the banks name
+  // with a single Lead role about half the time - 61 log-lines in the banks name
   // a pair or an ensemble, and none of them could say so.
   const selectedPremise = generatePremise(genre, storyType, primarySetting, flavorTones[0] ?? null, title, usedSynopses);
 
@@ -685,12 +685,13 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
     // script lands, so an Epic ensemble is still an Epic ensemble - the concept
     // only stops the cast contradicting what the synopsis already promised.
     //
-    // Two honest caveats. The floor DOMINATES in practice: ~87% of scripts with a
+    // Two honest caveats, both measured over 24,000 generated scripts rather
+    // than estimated. The floor DOMINATES in practice: 86.8% of scripts with a
     // floor of 2 land exactly on it, so "soft" is real but the headroom is
     // narrow. And it overrides a very low castSizeMultiplier rather than scaling
     // with it - Documentary (0.15, "little to no conventional dramatic cast")
     // could only ever produce one Lead before, and now produces two or three for
-    // about 12% of its scripts, because a documentary whose log-line is about two
+    // 19.3% of its scripts, because a documentary whose log-line is about two
     // people does need both on screen. That is a deliberate trade, not an
     // oversight: if it ever reads wrong, scale the floor by castMultiplier here.
     const promisedLeads = selectedPremise.premise.leads ?? 1;

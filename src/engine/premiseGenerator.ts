@@ -6,7 +6,8 @@ function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function render(premise: Premise): string {
+/** A Premise's log-line with its protagonist and antagonist substituted in - exported so tests read entries exactly as the game renders them, rather than each keeping its own copy of this. */
+export function render(premise: Premise): string {
   return premise.synopsis
     .replaceAll('{protagonist}', capitalize(premise.protagonist))
     .replaceAll('{antagonist}', premise.antagonist ?? '');
@@ -58,7 +59,7 @@ function taggedForSetting(pool: Premise[], setting: SettingArchetype): Premise[]
  * ever receive - so the great majority of generated scripts drew from a small
  * fraction of the 342 written, and a player commissioning heists saw the same
  * five sentences for a whole playthrough. Measured over 24,000 generated
- * scripts, tiering lifts the effective pool from 60.9 to 147.4 without a word
+ * scripts, tiering lifts the effective pool from 60.9 to ~148 without a word
  * of new content. It costs a little specificity per script and buys back most
  * of the corpus.
  */
