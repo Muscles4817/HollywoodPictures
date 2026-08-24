@@ -11,7 +11,7 @@ import type { Asset, CharacterAgeBand, FilmDraft, MarketingChoices, PhotographyS
 import { createDraftFromAsset, createInitialStudio, type GameState } from './gameState';
 import { generateScriptOptions } from '../engine/scriptGenerator';
 import { generateTalentCandidates, generateTalentPool } from '../engine/talentGenerator';
-import { withRng, type RandomFn } from '../engine/random';
+import { createRng, randInt, withRng, type RandomFn } from '../engine/random';
 import { asPlayerDraft, findProject, playerDraftToProject } from '../engine/project';
 import { footageLowerBound } from '../engine/production';
 import { studioReducer } from './studioReducer';
@@ -89,10 +89,27 @@ export function buildReadyAsset(rng: RandomFn): Asset {
  * generation only - pass the same seed twice for an identical draft.
  */
 export function buildReadyDraft(rng: RandomFn, marketingOverrides: Partial<MarketingChoices> = {}): FilmDraft {
+  // The talent stream's seed is drawn BEFORE the script is generated, and the
+  // talent then comes off that child stream rather than the caller's own.
+  //
+  // Script generation and talent generation used to share one rng, which made
+  // this fixture an amplifier: any change to how many draws a script costs -
+  // adding a rolled field, reordering two picks, selecting a premise
+  // differently - silently re-rolled the director and both actors of every
+  // fixture built here, and 40 test files build from it. One honest change to
+  // the generator surfaced as a dozen unrelated failures in box office,
+  // casting and execution suites, which buries the real regression in noise.
+  //
+  // Drawing the child seed first breaks that coupling in the only direction
+  // that matters: talent now depends on the caller's seed alone, so it is
+  // stable across every future change to script generation. (The reverse
+  // coupling is deliberately kept - scripts still draw from the caller's
+  // stream - because nothing downstream re-rolls talent mid-fixture.)
+  const talentRng = createRng(randInt(rng, 0, 2_147_483_646));
   const asset = buildReadyAsset(rng);
-  const director = generateTalentCandidates('Director', rng, 1)[0];
-  const lead = generateTalentCandidates('Actor', rng, 1)[0];
-  const support = generateTalentCandidates('Actor', rng, 1)[0];
+  const director = generateTalentCandidates('Director', talentRng, 1)[0];
+  const lead = generateTalentCandidates('Actor', talentRng, 1)[0];
+  const support = generateTalentCandidates('Actor', talentRng, 1)[0];
 
   return {
     ...createDraftFromAsset(asset, {}, 1),
