@@ -63,7 +63,18 @@ function taggedForSetting(pool: Premise[], setting: SettingArchetype): Premise[]
  * of new content. It costs a little specificity per script and buys back most
  * of the corpus.
  */
-export function selectPool(genre: Genre, storyType: StoryType, setting: SettingArchetype, flavorTone: Tone | null): PremisePool {
+export function selectPool(
+  genre: Genre,
+  storyType: StoryType,
+  setting: SettingArchetype,
+  flavorTone: Tone | null,
+  // When the caller already knows how many Leads the script will have and cannot
+  // change it - a sequel, whose cast is inherited from its IP - log-lines about
+  // MORE people than that are excluded outright. Everywhere else this is
+  // undefined and the pool is unfiltered, because everywhere else the cast is
+  // still free to grow to fit the concept.
+  maxLeads?: number,
+): PremisePool {
   const genreBank = PREMISE_BANKS[genre];
   const flavorBank = flavorTone ? genreBank[flavorTone] : undefined;
   const wider = (flavorBank ?? genreBank.straight)!;
@@ -98,7 +109,28 @@ export function selectPool(genre: Genre, storyType: StoryType, setting: SettingA
     ? `${settingTagged.length > 0 ? `${specificKey}+${setting}` : specificKey}|${widerKey}`
     : widerKey;
 
-  return { key, entries: [...preferred, ...rest], preferredCount: preferred.length };
+  if (maxLeads === undefined) return { key, entries: [...preferred, ...rest], preferredCount: preferred.length };
+
+  // Filtering has to preserve the tier split, so each tier is filtered
+  // separately and preferredCount recounted - dropping entries from a flat
+  // concatenation would silently shift the boundary the hash reads against.
+  const fits = (p: Premise) => (p.leads ?? 1) <= maxLeads;
+  const keptPreferred = preferred.filter(fits);
+  const keptRest = rest.filter(fits);
+  const kept = [...keptPreferred, ...keptRest];
+  // keptPreferred can be empty - in ~0.9% of concept combinations the entire
+  // specific tier is ensemble entries (Action/Sports/SmallTown's tier is one
+  // setting-tagged three-hander), so a single-Lead sequel there loses its tier
+  // and draws flat across the wide bank instead of getting the 60% pull toward
+  // its Story Type. Safe - startIndex's preferredCount <= 0 branch handles it -
+  // but it is a quiet loss of specificity. Falling back to the untagged Story
+  // Type bank as the preferred tier would preserve the bias if that ever matters.
+  // A pool with nothing small enough falls back to unfiltered rather than
+  // returning empty - better a log-line that overstates its cast than no
+  // log-line at all. Cannot currently happen (every pool holds single-subject
+  // entries), which is why it is a guard rather than a branch worth tuning.
+  if (kept.length === 0) return { key, entries: [...preferred, ...rest], preferredCount: preferred.length };
+  return { key: `${key}|<=${maxLeads}`, entries: kept, preferredCount: keptPreferred.length };
 }
 
 /**
@@ -144,8 +176,10 @@ export function generatePremise(
   flavorTone: Tone | null,
   title: string,
   usedSynopses: Set<string>,
+  /** A hard ceiling on how many people the log-line may be about - see selectPool. */
+  maxLeads?: number,
 ): SelectedPremise {
-  const { key, entries, preferredCount } = selectPool(genre, storyType, setting, flavorTone);
+  const { key, entries, preferredCount } = selectPool(genre, storyType, setting, flavorTone, maxLeads);
 
   // The starting index is HASHED from the script's own title plus the pool it
   // landed in, rather than drawn from the rng.

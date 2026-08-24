@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { generateSequelScript } from './scriptGenerator';
+import { generateSequelScript, generateScriptOptions } from './scriptGenerator';
+import { render } from './premiseGenerator';
+import { PREMISE_BANKS, STORY_TYPE_PREMISES, type Premise } from '../data/premises';
+import { GENRES } from '../data/genres';
 import { deriveMarketability } from './commercialProfile';
 import { createRng } from './random';
 import type { CharacterTraitProfile, IntellectualProperty, IpCharacter } from '../types';
@@ -82,5 +85,57 @@ describe('generateSequelScript', () => {
     // deriveMarketability is recognition-dominated, so an 85-recognition franchise
     // entry lands high regardless of its rolled concept stats.
     expect(deriveMarketability(sequel)).toBeGreaterThan(60);
+  });
+});
+
+describe('a sequel never contradicts its own inherited cast', () => {
+  // The reverse of the constraint everywhere else. A normal script grows its cast
+  // to fit its concept; a sequel cannot, because its Leads are specific returning
+  // characters. So the log-line has to give way instead - ensemble entries are
+  // filtered out of the pool before selection rather than picked and ignored.
+  const promised = new Map<string, number>();
+  const collect = (entries: Premise[]) => { for (const p of entries) if (p.leads) promised.set(render(p), p.leads); };
+  for (const bank of Object.values(PREMISE_BANKS)) for (const entries of Object.values(bank)) collect(entries as Premise[]);
+  for (const entries of Object.values(STORY_TYPE_PREMISES)) collect(entries as Premise[]);
+
+  /** An IP whose cast holds exactly `leadCount` Leads plus one Supporting. */
+  function ipWith(leadCount: number): IntellectualProperty {
+    const characters = Array.from({ length: leadCount + 1 }, (_, i) => ({
+      ...ipChar(`Char ${i}`, i < leadCount ? 'Lead' : 'Supporting'),
+      id: `ipc-${i}`,
+    }));
+    return { ...ip(80, 1), characters };
+  }
+
+  it('is never handed a log-line about more people than it has Leads', () => {
+    for (const leadCount of [1, 2]) {
+      let checked = 0;
+      for (const genre of GENRES) {
+        for (let seed = 1; seed <= 60; seed++) {
+          const sequel = generateSequelScript(ipWith(leadCount), genre, createRng(seed));
+          expect(sequel.requiredLeads).toBe(leadCount);
+          const names = promised.get(sequel.synopsis);
+          if (names !== undefined) {
+            checked += 1;
+            expect(names, `${genre} seed ${seed}: "${sequel.synopsis.slice(0, 50)}" needs ${names} leads, cast has ${leadCount}`)
+              .toBeLessThanOrEqual(leadCount);
+          }
+        }
+      }
+      // A two-Lead sequel should still REACH two-person log-lines - the ceiling
+      // filters what is too big, it does not ban ensembles outright. If this ever
+      // reads zero for leadCount 2 the filter has become a blanket exclusion.
+      if (leadCount === 2) expect(checked).toBeGreaterThan(0);
+    }
+  });
+
+  it('leaves ordinary generation unfiltered - the ceiling is a sequel-only constraint', () => {
+    // Same IP shape, but generated as a normal script: ensemble log-lines must
+    // still be reachable, or the sequel fix has leaked into the general path.
+    const ensembleSeen = GENRES.some((genre) =>
+      Array.from({ length: 40 }, (_, i) => generateScriptOptions(genre, createRng(i + 1), 12))
+        .flat()
+        .some((s) => (promised.get(s.synopsis) ?? 1) > 1));
+    expect(ensembleSeen).toBe(true);
   });
 });

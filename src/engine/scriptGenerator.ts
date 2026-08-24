@@ -647,6 +647,12 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   const effectsStrategy = generateEffectsStrategy(productionRequirements, rng);
   const effectsAmbition = generateEffectsAmbition(productionRequirements, complexity, rng);
 
+  // A sequel stars its returning characters - inherit the cast rather than roll a
+  // fresh one (script-local ids assigned from this script's id, per the cast-id
+  // convention). Falls back to a generated cast if the IP lifted no Lead.
+  const returning = sequelSeed?.returningCharacters ?? [];
+  const inheritedLeads = returning.filter((c) => c.prominence === 'Lead').length;
+
   // The log-line is chosen HERE, before the cast, rather than at the end where it
   // used to sit - which is the whole point of having made selection cost no draw
   // (engine/premiseGenerator.ts). A concept can now inform the script built from
@@ -657,12 +663,23 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   // synopsis read "two mismatched cops on their worst partnership yet" shipped
   // with a single Lead role about half the time - 63 log-lines in the banks name
   // a pair or an ensemble, and none of them could say so.
-  const selectedPremise = generatePremise(genre, storyType, primarySetting, flavorTones[0] ?? null, title, usedSynopses);
-
-  // A sequel stars its returning characters - inherit the cast rather than roll a
-  // fresh one (script-local ids assigned from this script's id, per the cast-id
-  // convention). Falls back to a generated cast if the IP lifted no Lead.
-  const returning = sequelSeed?.returningCharacters ?? [];
+  //
+  // A sequel's cast is the one thing about it that is NOT negotiable, so the
+  // constraint runs the other way round here: the log-line is chosen to fit the
+  // cast instead of the cast being floored by the log-line.
+  //
+  // Everywhere else, a concept that wants two people gets two Leads. A sequel
+  // starring one returning character cannot grow a second - the character does
+  // not exist - so before this it simply contradicted itself: measured, EVERY
+  // sequel handed an ensemble log-line kept its one Lead and shipped a synopsis
+  // about two people. Passing the inherited count as a ceiling filters those
+  // log-lines out of the pool entirely rather than letting one be picked and
+  // then ignored.
+  //
+  const selectedPremise = generatePremise(
+    genre, storyType, primarySetting, flavorTones[0] ?? null, title, usedSynopses,
+    inheritedLeads > 0 ? inheritedLeads : undefined,
+  );
   let requiredLeads: number;
   let requiredSupporting: number;
   let cast: ScriptCharacter[];

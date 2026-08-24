@@ -211,3 +211,50 @@ describe('startIndex - the two-tier hash split', () => {
     expect(startIndex(0.5, 10, 10)).toBe(5);
   });
 });
+
+describe('selectPool - the lead ceiling', () => {
+  // The hazard the filtering code names is the one nothing else can see. A
+  // stale preferredCount produces no over-promised log-line, so the sequel guard
+  // stays green while PREFERRED_SHARE's 60% quietly points at wide-tier entries
+  // instead of the concept-specific ones - verified: replacing
+  // keptPreferred.length with preferred.length passes the entire suite. Given
+  // how many rounds of this work shipped a guard that could not fail, this is
+  // the last invisible spot, so it gets an assertion of its own.
+  const fits = (p: Premise, maxLeads: number) => (p.leads ?? 1) <= maxLeads;
+
+  it('keeps the tier boundary honest after filtering', () => {
+    let sawFiltering = false;
+    for (const genre of GENRES) {
+      for (const storyType of STORY_TYPES) {
+        for (const setting of SETTING_ARCHETYPES) {
+          for (const maxLeads of [1, 2, 3]) {
+            const pool = selectPool(genre, storyType, setting, null, maxLeads);
+            const unfiltered = selectPool(genre, storyType, setting, null);
+            const trueTier = new Set(unfiltered.entries.slice(0, unfiltered.preferredCount));
+            const leading = pool.entries.slice(0, pool.preferredCount);
+
+            // Checked against the UNFILTERED tier, not against the ceiling.
+            // Asserting only that the leading run satisfies the ceiling is
+            // useless - every surviving entry does, wide tier included - so a
+            // stale boundary sails through it. Verified: that weaker assertion
+            // passes under the exact mutation this test exists to catch.
+            expect(leading.every((p) => trueTier.has(p)), `${pool.key}: wide-tier entry inside the preferred run`).toBe(true);
+            expect(pool.preferredCount, `${pool.key}: preferred count`).toBe([...trueTier].filter((p) => fits(p, maxLeads)).length);
+            expect(pool.entries.every((p) => fits(p, maxLeads)), `${pool.key}: entry breaks the ceiling`).toBe(true);
+            if (unfiltered.entries.length !== pool.entries.length) sawFiltering = true;
+          }
+        }
+      }
+    }
+    // Non-vacuity: if the ceiling ever stopped excluding anything, every
+    // assertion above would hold trivially.
+    expect(sawFiltering).toBe(true);
+  });
+
+  it('leaves the pool untouched when no ceiling is given', () => {
+    const open = selectPool('Action', 'Heist', 'ContemporaryCity', null);
+    const ceiled = selectPool('Action', 'Heist', 'ContemporaryCity', null, 1);
+    expect(ceiled.entries.length).toBeLessThan(open.entries.length);
+    expect(open.entries.some((p) => (p.leads ?? 1) > 1)).toBe(true);
+  });
+});
