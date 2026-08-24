@@ -103,6 +103,37 @@ export function combineWeights<K extends string>(keys: readonly K[], sources: Ar
   return result;
 }
 
+/**
+ * A seed for a stream that runs alongside this one, taking exactly ONE draw
+ * from the parent - the shared idiom for "this work needs its own stream".
+ *
+ * Its purpose is insulation. Two pieces of generation drawing from one stream
+ * are coupled: change how many draws the first one takes and the second one's
+ * results move, however unrelated they are. Forking a seed for the second BEFORE
+ * running the first breaks that coupling in the direction that matters - the
+ * second depends on the parent seed alone, and no longer on the first's
+ * appetite. (See state/testFixtures.ts for the case this was extracted from.)
+ *
+ * Same range as withRng's own trailing draw below, deliberately: one spelling of
+ * "draw a seed", not three.
+ *
+ * Caveat worth knowing before leaning on the word "independent": mulberry32
+ * advances its state by a CONSTANT (createRng above), so every seed walks the
+ * same cycle at a different phase. A forked stream is therefore a random offset
+ * into the parent's own sequence rather than a genuinely separate generator.
+ * Over the few thousand draws any one of these streams takes, the chance of
+ * overlapping the parent is negligible (~1e-6), but this is not the primitive to
+ * reach for if you ever need real statistical independence.
+ */
+export function forkSeed(rng: RandomFn): number {
+  return randInt(rng, 1, 2 ** 31 - 1);
+}
+
+/** A child stream from `forkSeed` - see its note for what "child" does and does not mean here. */
+export function forkRng(rng: RandomFn): RandomFn {
+  return createRng(forkSeed(rng));
+}
+
 /** Runs `fn` with a deterministic RNG seeded from `seed`, returning the advanced seed to store back. */
 export function withRng<T>(seed: number, fn: (rng: RandomFn) => T): { result: T; nextSeed: number } {
   const rng = createRng(seed);
