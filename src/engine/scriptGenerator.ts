@@ -647,6 +647,18 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   const effectsStrategy = generateEffectsStrategy(productionRequirements, rng);
   const effectsAmbition = generateEffectsAmbition(productionRequirements, complexity, rng);
 
+  // The log-line is chosen HERE, before the cast, rather than at the end where it
+  // used to sit - which is the whole point of having made selection cost no draw
+  // (engine/premiseGenerator.ts). A concept can now inform the script built from
+  // it instead of being decoration applied afterwards.
+  //
+  // What it informs, for now, is how many people the script is about. That was
+  // rolled entirely independently of the log-line, so a screenplay whose own
+  // synopsis read "two mismatched cops on their worst partnership yet" shipped
+  // with a single Lead role about half the time - 63 log-lines in the banks name
+  // a pair or an ensemble, and none of them could say so.
+  const selectedPremise = generatePremise(genre, storyType, primarySetting, flavorTones[0] ?? null, title, usedSynopses);
+
   // A sequel stars its returning characters - inherit the cast rather than roll a
   // fresh one (script-local ids assigned from this script's id, per the cast-id
   // convention). Falls back to a generated cast if the IP lifted no Lead.
@@ -668,7 +680,22 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
     requiredSupporting = cast.filter((c) => c.prominence === 'Supporting').length;
   } else {
     const castMultiplier = storyProfile.castSizeMultiplier * scaleProfile.castMultiplier;
-    requiredLeads = Math.max(1, Math.round(pick(rng, LEAD_COUNT_WEIGHTS) * castMultiplier));
+    // SOFT binding, deliberately: the log-line raises the floor, it does not set
+    // the number. Production Scale and Story Type still decide how far above it a
+    // script lands, so an Epic ensemble is still an Epic ensemble - the concept
+    // only stops the cast contradicting what the synopsis already promised.
+    //
+    // Two honest caveats, both measured over 24,000 generated scripts rather
+    // than estimated. The floor DOMINATES in practice: 86.6% of scripts with a
+    // floor of 2 land exactly on it, so "soft" is real but the headroom is
+    // narrow. And it overrides a very low castSizeMultiplier rather than scaling
+    // with it - Documentary (0.15, "little to no conventional dramatic cast")
+    // could only ever produce one Lead before, and now produces two or three for
+    // 19.6% of its scripts, because a documentary whose log-line is about two
+    // people does need both on screen. That is a deliberate trade, not an
+    // oversight: if it ever reads wrong, scale the floor by castMultiplier here.
+    const promisedLeads = selectedPremise.premise.leads ?? 1;
+    requiredLeads = Math.max(1, promisedLeads, Math.round(pick(rng, LEAD_COUNT_WEIGHTS) * castMultiplier));
     requiredSupporting = Math.max(0, Math.round(pick(rng, SUPPORTING_COUNT_WEIGHTS) * castMultiplier));
     // Re-read every fresh role's performance demands against the screenplay it's
     // actually in, rather than leaving it on its character archetype's fixed
@@ -746,7 +773,7 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
     effectsStrategy,
     effectsAmbition,
     productionRequirements,
-    synopsis: generatePremise(genre, storyType, primarySetting, flavorTones[0] ?? null, title, usedSynopses, rng),
+    synopsis: selectedPremise.text,
     requiredLeads,
     requiredSupporting,
     intendedAudience,

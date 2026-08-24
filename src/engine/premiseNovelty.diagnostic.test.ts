@@ -15,6 +15,7 @@
 // than a gate on numbers that are still being tuned.
 import { describe, it, expect } from 'vitest';
 import { generateScriptOptions } from './scriptGenerator';
+import { render } from './premiseGenerator';
 import { createRng } from './random';
 import { PREMISE_BANKS, STORY_TYPE_PREMISES, type Premise } from '../data/premises';
 import type { Genre } from '../types';
@@ -32,9 +33,7 @@ function authoredCorpusSize(): number {
   const texts = new Set<string>();
   const add = (entries: Premise[]) => {
     for (const p of entries) {
-      texts.add(p.synopsis
-        .replaceAll('{protagonist}', p.protagonist.charAt(0).toUpperCase() + p.protagonist.slice(1))
-        .replaceAll('{antagonist}', p.antagonist ?? ''));
+      texts.add(render(p));
     }
   };
   for (const bank of Object.values(PREMISE_BANKS)) for (const entries of Object.values(bank)) add(entries as Premise[]);

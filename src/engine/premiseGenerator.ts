@@ -1,12 +1,13 @@
 import type { Genre, SettingArchetype, StoryType, Tone } from '../types';
 import { PREMISE_BANKS, STORY_TYPE_PREMISES, type Premise } from '../data/premises';
-import { hashUnit, type RandomFn } from './random';
+import { hashUnit } from './random';
 
 function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function render(premise: Premise): string {
+/** A Premise's log-line with its protagonist and antagonist substituted in - exported so tests read entries exactly as the game renders them, rather than each keeping its own copy of this. */
+export function render(premise: Premise): string {
   return premise.synopsis
     .replaceAll('{protagonist}', capitalize(premise.protagonist))
     .replaceAll('{antagonist}', premise.antagonist ?? '');
@@ -58,7 +59,7 @@ function taggedForSetting(pool: Premise[], setting: SettingArchetype): Premise[]
  * ever receive - so the great majority of generated scripts drew from a small
  * fraction of the 342 written, and a player commissioning heists saw the same
  * five sentences for a whole playthrough. Measured over 24,000 generated
- * scripts, tiering lifts the effective pool from 60.9 to 147.4 without a word
+ * scripts, tiering lifts the effective pool from 60.9 to ~148 without a word
  * of new content. It costs a little specificity per script and buys back most
  * of the corpus.
  */
@@ -116,6 +117,13 @@ export function startIndex(hash: number, total: number, preferredCount: number):
   return preferredCount + Math.floor(((hash - PREFERRED_SHARE) / (1 - PREFERRED_SHARE)) * widerCount);
 }
 
+export interface SelectedPremise {
+  /** The rendered log-line, for Script.synopsis. */
+  text: string;
+  /** The entry it came from, so the generator can read what the log-line promises (see Premise.leads). */
+  premise: Premise;
+}
+
 /**
  * Builds a script's one-sentence synopsis, conditioned on its genre, Story
  * Type, Setting and flavor tone (see selectPool). `usedSynopses` is the set
@@ -125,9 +133,9 @@ export function startIndex(hash: number, total: number, preferredCount: number):
  * log-line twice the way titles already avoid doing. Only when the whole pool
  * is exhausted does it fall back to repeating.
  *
- * The starting entry is HASHED from `title` plus the chosen pool, not drawn -
- * see the note in the body for why, and for why the one rng draw it still takes
- * is deliberately thrown away.
+ * The starting entry is HASHED from `title` plus the chosen pool rather than
+ * drawn, so this costs no rng draw at all - which is what lets the caller choose
+ * a log-line before it builds the cast (see the note in the body).
  */
 export function generatePremise(
   genre: Genre,
@@ -136,8 +144,7 @@ export function generatePremise(
   flavorTone: Tone | null,
   title: string,
   usedSynopses: Set<string>,
-  rng: RandomFn,
-): string {
+): SelectedPremise {
   const { key, entries, preferredCount } = selectPool(genre, storyType, setting, flavorTone);
 
   // The starting index is HASHED from the script's own title plus the pool it
@@ -169,22 +176,21 @@ export function generatePremise(
   // de-duplicates - and there, keying stops one recurring title dragging the
   // same offset through every pool it ever lands in.
   //
-  // The rng draw below is retained, and its value deliberately discarded, purely
-  // so this change is provably stream-neutral: every later draw in generation
-  // lands exactly where it did before, so the only thing that can differ in the
-  // whole suite is which log-line a script carries. It is dead weight the moment
-  // premise selection actually moves, and should be deleted then.
-  rng();
+  // (The draw this used to take and discard, to prove the hash change moved
+  // nothing, is gone - selection has now actually moved, which is what it was
+  // holding the door open for.)
   const start = startIndex(hashUnit(`${title}|${key}`), entries.length, preferredCount);
 
   for (let i = 0; i < entries.length; i++) {
-    const text = render(entries[(start + i) % entries.length]);
+    const premise = entries[(start + i) % entries.length];
+    const text = render(premise);
     if (!usedSynopses.has(text)) {
       usedSynopses.add(text);
-      return text;
+      return { text, premise };
     }
   }
-  const text = render(entries[start]);
+  const premise = entries[start];
+  const text = render(premise);
   usedSynopses.add(text);
-  return text;
+  return { text, premise };
 }
