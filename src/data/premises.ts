@@ -27,15 +27,14 @@ export interface Premise {
    * ensemble log-lines were cast with too few leads; now none are, on the normal
    * generation path).
    *
-   * SEQUELS ARE THE EXCEPTION, and deliberately so. A sequel inherits its cast
-   * from the IP (engine/scriptGenerator.ts, the returning-cast branch) and never
-   * consults this field, so a one-Lead franchise handed an ensemble log-line
-   * keeps its one Lead and contradicts its own synopsis. The inherited cast is
-   * the stronger claim - a sequel starring one returning character IS about that
-   * character - but the contradiction is real and visible in the prose. The fix
-   * is to prefer a log-line whose leads match the inherited cast rather than to
-   * bend the cast, which is premise selection reading the cast instead of the
-   * other way round, and is left for the stage that gives premises more to say.
+   * SEQUELS RUN THE CONSTRAINT THE OTHER WAY. A sequel inherits its cast from
+   * the IP and cannot grow a second Lead - the character does not exist - so
+   * there the log-line is chosen to fit the cast rather than the cast being
+   * floored by the log-line: the inherited Lead count is passed to selectPool as
+   * a ceiling and ensemble entries are filtered out of the pool before anything
+   * is picked. Before that, every sequel handed an ensemble log-line kept its one
+   * Lead and shipped a synopsis about two people (measured at 20.6% of all
+   * single-Lead sequels; now none).
    *
    * Capped at 3 by convention even where the prose names more - "four friends
    * who take a wrong turn" is a slasher, and a group beyond three is expressed
