@@ -1,6 +1,6 @@
 import type { Genre, SettingArchetype, StoryType, Tone } from '../types';
 import { PREMISE_BANKS, STORY_TYPE_PREMISES, type Premise } from '../data/premises';
-import { randInt, type RandomFn } from './random';
+import { hashUnit, type RandomFn } from './random';
 
 function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -29,12 +29,24 @@ function render(premise: Premise): string {
  *    Spacecraft sci-fi or a Medieval fantasy leans toward log-lines written
  *    for it, without needing a bespoke pool per setting.
  */
-function selectPool(genre: Genre, storyType: StoryType, setting: SettingArchetype, flavorTone: Tone | null): Premise[] {
+interface PremisePool {
+  /** Identifies WHICH pool was chosen, so a premise hash can be keyed to it - see generatePremise. */
+  key: string;
+  entries: Premise[];
+}
+
+function selectPool(genre: Genre, storyType: StoryType, setting: SettingArchetype, flavorTone: Tone | null): PremisePool {
   const genreBank = PREMISE_BANKS[genre];
   const storyBank = storyType !== 'Original' ? STORY_TYPE_PREMISES[storyType] : undefined;
-  const base = (storyBank && storyBank.length > 0 ? storyBank : (flavorTone && genreBank[flavorTone]) || genreBank.straight)!;
+  const usingStoryBank = Boolean(storyBank && storyBank.length > 0);
+  const flavorBank = flavorTone ? genreBank[flavorTone] : undefined;
+  const base = (usingStoryBank ? storyBank : flavorBank || genreBank.straight)!;
+  const baseKey = usingStoryBank ? `story:${storyType}` : `${genre}:${flavorBank ? flavorTone : 'straight'}`;
+
   const settingMatched = base.filter((p) => p.settings?.includes(setting));
-  return settingMatched.length > 0 ? settingMatched : base;
+  return settingMatched.length > 0
+    ? { key: `${baseKey}+${setting}`, entries: settingMatched }
+    : { key: baseKey, entries: base };
 }
 
 /**
@@ -53,19 +65,45 @@ export function generatePremise(
   storyType: StoryType,
   setting: SettingArchetype,
   flavorTone: Tone | null,
+  title: string,
   usedSynopses: Set<string>,
   rng: RandomFn,
 ): string {
-  const pool = selectPool(genre, storyType, setting, flavorTone);
-  const start = randInt(rng, 0, pool.length - 1);
-  for (let i = 0; i < pool.length; i++) {
-    const text = render(pool[(start + i) % pool.length]);
+  const { key, entries } = selectPool(genre, storyType, setting, flavorTone);
+
+  // The starting index is HASHED from the script's own title plus the pool it
+  // landed in, rather than drawn from the rng.
+  //
+  // Which log-line a script gets is now a property of that script rather than of
+  // its position in the generation stream, and picking one costs no draw. That
+  // is what makes it movable: the work that follows needs premise selection to
+  // happen EARLIER than it does today (early enough for the concept to inform
+  // the cast and the production requirements it implies), and a positional draw
+  // cannot move without shifting every draw after it.
+  //
+  // Keyed on the pool as well as the title because titles collide often - the
+  // same title in a different pool must not land on the same index - and salted
+  // with the title rather than the script id, because ids are Date.now() plus
+  // Math.random() (scriptGenerator.ts:newScriptId, deliberately: they are
+  // identity, not a replayable outcome), so hashing one would hand back a
+  // different synopsis on every run of the same seed.
+  //
+  // The rng draw below is retained, and its value deliberately discarded, purely
+  // so this change is provably stream-neutral: every later draw in generation
+  // lands exactly where it did before, so the only thing that can differ in the
+  // whole suite is which log-line a script carries. It is dead weight the moment
+  // premise selection actually moves, and should be deleted then.
+  rng();
+  const start = Math.floor(hashUnit(`${title}|${key}`) * entries.length);
+
+  for (let i = 0; i < entries.length; i++) {
+    const text = render(entries[(start + i) % entries.length]);
     if (!usedSynopses.has(text)) {
       usedSynopses.add(text);
       return text;
     }
   }
-  const text = render(pool[start]);
+  const text = render(entries[start]);
   usedSynopses.add(text);
   return text;
 }

@@ -104,6 +104,37 @@ export function combineWeights<K extends string>(keys: readonly K[], sources: Ar
 }
 
 /**
+ * A stable 0-1 value hashed from a string (FNV-1a), for choices that must be
+ * deterministic WITHOUT consuming a draw.
+ *
+ * The distinction matters more than it looks. Anything derived from the shared
+ * RandomFn is positional: it depends on how many draws happened before it, so
+ * adding or removing a draw anywhere upstream moves it. Anything derived from
+ * this depends only on the string, so it is stable under exactly the kind of
+ * churn forkSeed above exists to contain - and it can be computed at any point
+ * in a function without changing where every later draw lands.
+ *
+ * Feed it something already deterministic for the same seed (a generated title,
+ * a character's name). Feeding it a value that is not itself seed-reproducible -
+ * scriptGenerator.ts's newScriptId, for instance, which is Date.now() plus
+ * Math.random() - hands you a value that changes between runs of the same seed,
+ * which is worse than a draw.
+ *
+ * NOTE there is a second, quantised variant in engine/personality.ts (`% 100000
+ * / 100000`). It is deliberately NOT folded in here: the two produce different
+ * values, so sharing one would silently move every personality in the game for
+ * no benefit.
+ */
+export function hashUnit(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 4294967296;
+}
+
+/**
  * A seed for a stream that runs alongside this one, taking exactly ONE draw
  * from the parent - the shared idiom for "this work needs its own stream".
  *
