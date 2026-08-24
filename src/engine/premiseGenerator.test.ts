@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { generatePremise } from './premiseGenerator';
+import { generatePremise, selectPool } from './premiseGenerator';
 import { PREMISE_BANKS, STORY_TYPE_PREMISES } from '../data/premises';
-import { createRng, hashUnit } from './random';
+import { createRng } from './random';
 
 function rendered(premises: { protagonist: string; synopsis: string; antagonist: string | null }[]): Set<string> {
   return new Set(
@@ -14,18 +14,26 @@ function rendered(premises: { protagonist: string; synopsis: string; antagonist:
 }
 
 describe('generatePremise - concept-aware selection', () => {
-  it("draws from the Story Type's own pool when the script has a real hook (a heist reads like a heist)", () => {
+  it("usually draws from the Story Type's own pool, and from the genre's wider bank when it doesn't", () => {
     const heistLoglines = rendered(STORY_TYPE_PREMISES.Heist!);
-    // Every genre pairs with a Heist here; the log-line must come from the
-    // Heist pool regardless of genre, not the genre's own bank.
+    // The contract changed deliberately: a Heist bank holds five log-lines, and
+    // under the old "most specific wins outright" those five were the ONLY ones
+    // a heist could ever get. It now leads a wider pool rather than being the
+    // whole of it - so a heist still mostly reads like a heist, but a player
+    // commissioning heists all game is no longer shown the same five sentences.
     for (const genre of ['Action', 'Comedy', 'Thriller', 'Drama'] as const) {
-      let drewFromHeist = false;
-      for (let n = 1; n <= 20; n++) {
+      const genreLoglines = rendered(PREMISE_BANKS[genre].straight!);
+      const draws = 200;
+      let fromHeist = 0;
+      for (let n = 1; n <= draws; n++) {
         const s = generatePremise(genre, 'Heist', 'ContemporaryCity', null, `Title ${n}`, new Set(), createRng(1));
-        if (heistLoglines.has(s)) drewFromHeist = true;
-        expect(heistLoglines.has(s), `${genre} title ${n}: ${s}`).toBe(true);
+        if (heistLoglines.has(s)) fromHeist += 1;
+        else expect(genreLoglines.has(s), `${genre} title ${n} came from neither bank: ${s}`).toBe(true);
       }
-      expect(drewFromHeist).toBe(true);
+      // Bracketed either side of PREFERRED_SHARE: too low and the Story Type has
+      // stopped mattering, too high and the widening has stopped working.
+      expect(fromHeist / draws, `${genre} heist share`).toBeGreaterThan(0.45);
+      expect(fromHeist / draws, `${genre} heist share`).toBeLessThan(0.8);
     }
   });
 
@@ -35,15 +43,20 @@ describe('generatePremise - concept-aware selection', () => {
     expect(genrePool.has(s)).toBe(true);
   });
 
-  it('nudges toward setting-tagged log-lines when the setting matches', () => {
-    // Sci-Fi straight has entries tagged for SpacecraftOrStation; a Spacecraft
-    // script should only ever draw one of those (the setting narrows the pool).
+  it('leans toward setting-tagged log-lines when the setting matches', () => {
     const spacecraftTagged = rendered(PREMISE_BANKS['Sci-Fi'].straight!.filter((p) => p.settings?.includes('SpacecraftOrStation')));
     expect(spacecraftTagged.size).toBeGreaterThan(0);
-    for (let n = 1; n <= 20; n++) {
+    const draws = 200;
+    let tagged = 0;
+    for (let n = 1; n <= draws; n++) {
       const s = generatePremise('Sci-Fi', 'Original', 'SpacecraftOrStation', null, `Orbit ${n}`, new Set(), createRng(1));
-      expect(spacecraftTagged.has(s), `title ${n}: ${s}`).toBe(true);
+      if (spacecraftTagged.has(s)) tagged += 1;
     }
+    // Same reason as the Heist case: a setting-narrowed bank can hold a single
+    // entry, and gating on it meant every Spacecraft sci-fi in a playthrough
+    // shared one sentence.
+    expect(tagged / draws).toBeGreaterThan(0.45);
+    expect(tagged / draws).toBeLessThan(0.8);
   });
 
   it('avoids repeats against the used set until the pool is exhausted', () => {
@@ -84,24 +97,35 @@ describe('generatePremise - hashed selection', () => {
     expect(new Set(produced).size).toBeGreaterThanOrEqual(12);
   });
 
-  it('keys the hash on the pool as well as the title', () => {
-    // Asserted against the index the key actually produces, not merely that two
-    // pools give different text - two pools with disjoint content differ at ANY
-    // index, so a looser check passes even with the pool key removed from the
-    // hash entirely (verified: it survives that mutation, which is why this test
-    // reconstructs the index instead).
-    //
-    // A repeat title landing in a different pool must be free to sit at a
-    // different offset within it; keying on the pool is what allows that.
-    const title = 'The Take';
-    const cases = [
-      { key: 'story:Heist', entries: STORY_TYPE_PREMISES.Heist!, call: () => generatePremise('Action', 'Heist', 'ContemporaryCity', null, title, new Set(), createRng(1)) },
-      { key: 'Action:straight', entries: PREMISE_BANKS.Action.straight!, call: () => generatePremise('Action', 'Original', 'ContemporaryCity', null, title, new Set(), createRng(1)) },
-    ];
-    for (const { key, entries, call } of cases) {
-      const index = Math.floor(hashUnit(`${title}|${key}`) * entries.length);
-      expect(call(), `pool ${key}`).toBe([...rendered([entries[index]])][0]);
+  it('keys the hash on both tiers of the pool, not just the specific one', () => {
+    // Asserted on the pool itself rather than inferred from rendered text: two
+    // pools with disjoint content differ at ANY index, so a text-level check
+    // passes even with the key removed from the hash entirely.
+    const heist = selectPool('Action', 'Heist', 'ContemporaryCity', null);
+    const drama = selectPool('Drama', 'Heist', 'ContemporaryCity', null);
+    // Same specific tier, different bank behind it - the key must separate them,
+    // or one recurring title would drag the same offset through both.
+    expect(heist.key).not.toBe(drama.key);
+    expect(heist.key).toContain('story:Heist');
+    expect(drama.key).toContain('story:Heist');
+  });
+
+  it('puts the specific tier first and counts it, so selection can bias toward it', () => {
+    const pool = selectPool('Action', 'Heist', 'ContemporaryCity', null);
+    const heistLoglines = rendered(STORY_TYPE_PREMISES.Heist!);
+    expect(pool.preferredCount).toBe(STORY_TYPE_PREMISES.Heist!.length);
+    expect(pool.entries.length).toBeGreaterThan(pool.preferredCount);
+    for (const entry of pool.entries.slice(0, pool.preferredCount)) {
+      expect(heistLoglines.has([...rendered([entry])][0])).toBe(true);
     }
+  });
+
+  it('has no specific tier when the concept has nothing specific about it', () => {
+    // An Original story type in a setting nothing is tagged for: the genre's
+    // bank simply is the pool, and selection falls back to a flat hash.
+    const pool = selectPool('Horror', 'Original', 'Other', null);
+    expect(pool.preferredCount).toBe(0);
+    expect(pool.entries).toHaveLength(PREMISE_BANKS.Horror.straight!.length);
   });
 
   it('consumes exactly one draw, so this stage cannot move anything downstream', () => {
