@@ -932,3 +932,53 @@ about it on one screen only. Both now read `deriveKnownCalendar`.
 is coming soon"), and its month grouping is still a month bucket while crowding
 runs on a 45-day window — an approximation, but now an approximation of the real
 computation rather than a different model.
+
+### 9.9 Measured: does the §4.7 acceptance test finally move?
+
+§9.6 said the §4.7 harness should be re-run once the release clock existed, and
+that if it did not move, the §4.8 diagnosis was wrong. Re-running it unchanged
+gives the same reading as before:
+
+```text
+  Waits that cost a top-3 target        0%
+```
+
+**That is not evidence the diagnosis was wrong — it is evidence the instrument
+cannot see the change.** The harness measures one thing: whether a rival books
+an actor out from under you while a pass is in flight. It has no announced date,
+no committed campaign, nothing pointed at a day. It was built to measure the
+clock §4.8 concluded was the *wrong* clock, so of course replacing that clock
+does not move it.
+
+So the harness was given a second arm rather than being reinterpreted. Same
+seeds, same *real* measured pass length, but now also asked what that wait does
+to a date the studio has already claimed and bought a £20m campaign against:
+
+```text
+What the SAME wait costs a claimed release date
+
+  200d of slack   changed standing   0%   went to 'missed'   0%   cost to move  £3.0m
+   90d of slack   changed standing  10%   went to 'missed'   0%   cost to move £14.2m
+   45d of slack   changed standing 100%   went to 'missed'  10%   cost to move £19.3m
+   20d of slack   changed standing 100%   went to 'missed' 100%   cost to move £20.0m
+```
+
+**The decision surface is real, and it is a gradient rather than a coin flip.**
+Passes run 30–40 days, which is why the standing flips deterministically once
+slack drops below ~45 days: at that point the arithmetic is not in doubt, only
+the price is. What actually varies across the whole range is the *cost*, and it
+varies by nearly 7× — from £3.0m when nothing has been placed yet to the entire
+campaign on the eve of the date.
+
+That relocates the disagreement, in the same way §9.6a did. Two rational players
+at 200 days of slack both take the rewrite; two at 20 days both refuse. The
+genuine argument is in the middle, and it is not "will this cost me?" but "is
+this improvement worth £14m?" — which is exactly the incommensurable trade §2
+asks for, and something the talent clock could never produce because talent is
+substitutable and money is not.
+
+**What is still true from §4.8.** The talent arm still reads 0%, and that is a
+real finding, not noise: a wait genuinely costs nothing in package terms. The
+two arms are reported side by side rather than one superseding the other,
+because they are answering the same question with different instruments and the
+disagreement between them *is* the result.
