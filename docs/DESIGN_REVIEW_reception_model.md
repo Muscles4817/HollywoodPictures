@@ -537,28 +537,46 @@ of wide films lost money (target 45–55%); 0.19 is the balance.
 
 | Metric | Session start | Now | Target |
 |---|--:|--:|---|
-| `wideMedianGrossM` | 74.1 | 82.4 | 90–130 |
-| `wideMeanGrossM` | 139.2 | 155.0 | 170–230 |
-| `wideOver100Pct` | 44.4 ✅ | 46.5 ✅ | 40–50 |
-| `wideOver500Pct` | 2.8 | **5.7 ✅** | 5–8 |
-| `wideOver1000Pct` | 0.0 | 0.2 | 1–2 |
-| `top10SharePct` | 31.7 | 32.8 | 40–50 |
-| `bombPct` | 11.6 ✅ | 12.6 ✅ | 10–20 |
-| `lossPct` | 43.2 | 38.7 | 25–35 |
-| `majorPct` | 8.1 | **11.1 ✅** | 10–20 |
-| `blockbusterPct` | 0.9 | **1.8 ✅** | 1–6 |
-| **Passing** | **8 of 17** | **10 of 17** | |
+| `wideMedianGrossM` | 74.1 | **99.3 ✅** | 90–130 |
+| `wideMeanGrossM` | 139.2 | **173.9 ✅** | 170–230 |
+| `wideOver100Pct` | 44.4 ✅ | 49.8 ✅ | 40–50 |
+| `wideOver500Pct` | 2.8 | **6.5 ✅** | 5–8 |
+| `wideOver1000Pct` | 0.0 | 0.8 | 1–2 |
+| `top10SharePct` | 31.7 | 33.3 | 40–50 |
+| `wideUnprofitablePct` | 44.6 | 43.5 | 45–55 |
+| `bombPct` | 11.6 ✅ | 13.7 ✅ | 10–20 |
+| `lossPct` | 43.2 | 42.9 | 25–35 |
+| `majorPct` | 8.1 | 9.9 | 10–20 |
+| `blockbusterPct` | 0.9 | **1.1 ✅** | 1–6 |
+| **Passing** | **8 of 17** | **11 of 17** | |
 
-The first films ever to cross $1B now exist. `wideOver500Pct`, `majorPct` and
-`blockbusterPct` all came into band.
+Median and mean wide gross both came into band, and films crossing $1B exist for
+the first time. Four of the six remaining failures are marginal —
+`wideUnprofitablePct` 43.5 against a floor of 45, `wideOver1000Pct` 0.8 against
+1, `majorPct` 9.9 against 10.
 
-**Still failing, and why.** The median and mean remain low, `top10SharePct` is
-short, and `limitedOpeningMultiple` (13.1) is still measuring the 20-week
-`MAX_SIMULATION_WEEKS` cap rather than any behaviour — 100% of limited runs hit
-it, which no amount of reception work will fix. The remaining scale gap needs the
-funnel itself: word of mouth produces under 1% interest growth in 86% of
-film-weeks, and post-release awareness is capped near 5% of TAA by construction
-(`BOX_OFFICE_BRIEFING.md` §8.4). Those are the next levers, not reception.
+**Outcome variance**, fixed plan across 240 execution seeds: CV **0.010 → 0.151**,
+with `modestly under` into band (23.3%, target 22–38) and `as expected` falling
+from 100% to 75.4%.
+
+**The clearest remaining gap is UPSIDE variance.** `modestly over` and `breakout`
+are both still 0%. The composition deliberately weights weakest-link above
+peak-carry, and the post-production realisation factor damps its upside, so a
+shoot can hurt a film far more than it can help one. That asymmetry is right in
+kind and currently too strong in degree — it is the next piece of work.
+
+**Also still open:** `top10SharePct`, and `limitedOpeningMultiple` (13.5), which
+is still measuring the 20-week `MAX_SIMULATION_WEEKS` cap rather than any
+behaviour — 100% of limited runs hit it, and no reception or scale work will fix
+that. The remaining concentration gap needs the funnel: word of mouth produces
+under 1% interest growth in 86% of film-weeks, and post-release awareness is
+capped near 5% of TAA by construction (`BOX_OFFICE_BRIEFING.md` §8.4).
+
+**One label came back to life.** `Masterpiece` requires `qualityScore ≥ 85 &&
+criticScore ≥ 88 && audienceScore ≥ 75`, and §2.2 recorded it as mathematically
+unreachable — the measured maxima were 66, 71 and 72. The Inception recreation
+now earns it. Score compression had silently deleted the top of the outcome
+vocabulary; widening reception restored it.
 
 ### 4.5 Target correlation
 
