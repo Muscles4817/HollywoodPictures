@@ -26,7 +26,7 @@ export interface UpcomingRelease {
 // First-draft, tunable (see engine/calendar.ts:MONTH_RELEASE_WINDOWS's own
 // note - this whole feature's numeric constants want a balance pass after
 // playtesting).
-const CROWDING_WINDOW_DAYS = 45;
+export const CROWDING_WINDOW_DAYS = 45;
 
 // A competing release in the same Genre is treated as full-strength
 // competition; a different genre still competes for some of the same
@@ -83,6 +83,115 @@ export function computeCrowdingPressure(
 
     return sum + proximity * (genreOverlap + audienceBonus) * other.strength * matchupWeight(candidateStrength, other.strength);
   }, 0);
+}
+
+// --- Naming the competition -------------------------------------------------
+//
+// The band alone ("Crowded") says how much, never who. That matters because the
+// model is RELATIVE: matchupWeight decides whether this film is the one being
+// pushed out or the one doing the pushing, so two identically-"Crowded" dates
+// can be a tentpole you cannot beat and three mid-size films you can
+// counterprogram straight past - opposite decisions behind one word.
+//
+// Everything below is already computed inside computeCrowdingPressure's own
+// reduce and then thrown away. None of this is a new rule; it is the same
+// arithmetic with the breakdown kept.
+
+/** How this film measures up to one competitor, from matchupWeight's own share-of-strength. */
+export type CrowdingMatchup = 'outmatched' | 'even' | 'dominant';
+
+// matchupWeight returns 0 (we displace them entirely) to 2 (they displace us
+// twice over), with 1 the evenly-matched case. These split it where the
+// player's decision actually changes.
+const OUTMATCHED_AT = 1.15;
+const DOMINANT_BELOW = 0.85;
+
+export interface CrowdingContributor {
+  /** Index into the `known` array this was computed from - the caller zips its own identity back on. */
+  index: number;
+  release: UpcomingRelease;
+  /** Raw pressure this one competitor contributes. */
+  pressure: number;
+  /** Its share of the total pressure, 0-1 - what makes one competitor "the reason" for a band. */
+  share: number;
+  matchup: CrowdingMatchup;
+  sameGenre: boolean;
+  sameAudience: boolean;
+  daysApart: number;
+}
+
+export interface CrowdingExplanation {
+  crowding: number;
+  pressure: number;
+  /** Every competitor with a non-zero contribution, strongest first. */
+  contributors: CrowdingContributor[];
+  /**
+   * True when NOTHING could be known this far ahead - the whole crowding window
+   * sits past the furthest release anyone has scheduled or begun.
+   *
+   * This is the difference between an empty frame and an empty map, and it is
+   * not decoration: measured over two simulated in-game years, the furthest
+   * knowable rival release sat 356 days out while the announcement grid offers
+   * eighteen months and more. Every month past that read "Clear window" with
+   * exactly the confidence of a month whose field is genuinely surveyed, which
+   * pushed the player toward distant dates on evidence that does not exist.
+   */
+  beyondKnownField: boolean;
+}
+
+/** The furthest day anyone has a release on the board. Past this, crowding is silence rather than good news. */
+export function crowdingHorizon(known: UpcomingRelease[]): number | null {
+  return known.length === 0 ? null : Math.max(...known.map((k) => k.releaseDay));
+}
+
+/**
+ * Whether a candidate day's whole competitive window sits past everything
+ * knowable. Uses the same CROWDING_WINDOW_DAYS the pressure sum does, so the
+ * question is exactly "could any competitor have counted here?" rather than a
+ * separate rule of thumb.
+ */
+export function beyondKnownField(day: number, known: UpcomingRelease[]): boolean {
+  const horizon = crowdingHorizon(known);
+  return horizon === null || day - CROWDING_WINDOW_DAYS > horizon;
+}
+
+/** The crowding on a candidate day, plus who is causing it and how this film measures up to each of them. */
+export function explainCrowding(
+  candidate: Omit<UpcomingRelease, 'strength'>,
+  known: UpcomingRelease[],
+  candidateStrength?: number,
+): CrowdingExplanation {
+  const contributors: CrowdingContributor[] = [];
+  known.forEach((other, index) => {
+    const daysApart = Math.abs(candidate.releaseDay - other.releaseDay);
+    const proximity = Math.max(0, 1 - daysApart / CROWDING_WINDOW_DAYS);
+    if (proximity === 0) return;
+    const sameGenre = candidate.genre === other.genre;
+    const sameAudience = candidate.targetAudience === other.targetAudience;
+    const weight = matchupWeight(candidateStrength, other.strength);
+    const pressure =
+      proximity * ((sameGenre ? GENRE_MATCH_WEIGHT : GENRE_MISMATCH_WEIGHT) + (sameAudience ? AUDIENCE_MATCH_BONUS : 0)) * other.strength * weight;
+    if (pressure <= 0) return;
+    contributors.push({
+      index,
+      release: other,
+      pressure,
+      share: 0, // filled in below, once the total is known
+      matchup: weight >= OUTMATCHED_AT ? 'outmatched' : weight <= DOMINANT_BELOW ? 'dominant' : 'even',
+      sameGenre,
+      sameAudience,
+      daysApart,
+    });
+  });
+
+  const pressure = contributors.reduce((sum, c) => sum + c.pressure, 0);
+  contributors.sort((a, b) => b.pressure - a.pressure);
+  return {
+    crowding: crowdingFromPressure(pressure),
+    pressure,
+    contributors: pressure > 0 ? contributors.map((c) => ({ ...c, share: c.pressure / pressure })) : contributors,
+    beyondKnownField: beyondKnownField(candidate.releaseDay, known),
+  };
 }
 
 /** Pressure below this passes through untouched - the ordinary range, left exactly as calibrated. */

@@ -5,7 +5,7 @@ import { asPlayerDraft, findProject, announcedPlayerDrafts } from '../engine/pro
 import { announcedAsUpcomingRelease, playerCalendarPresence } from '../engine/scheduledReleases';
 import { chooseReleaseDay } from '../engine/rivalStudios';
 import type { UpcomingRelease } from '../engine/releaseCrowding';
-import { deriveKnownCalendar, deriveUpcomingReleaseEntries } from './selectors';
+import { deriveKnownCalendar, deriveKnownField, deriveUpcomingReleaseEntries } from './selectors';
 import { computeMarketingCost } from '../engine/cost';
 import { pressTourCost } from '../engine/pressTour';
 import type { GameState } from './gameState';
@@ -335,5 +335,40 @@ describe('deriveKnownCalendar', () => {
     expect(deriveKnownCalendar(s.projects, s.studio.genreIdentity ?? {}, draftId)).toHaveLength(0);
     // ...but it is genuinely on the calendar for anything else choosing a date.
     expect(deriveKnownCalendar(s.projects, s.studio.genreIdentity ?? {})).toHaveLength(1);
+  });
+});
+
+
+describe('deriveKnownField - who the competition is', () => {
+  // The band alone says how much, never who. And who matters because the model
+  // is relative: whether this film is pushed out or does the pushing turns on
+  // the specific competitor.
+  const announced = (seed: number, offset = 400) => {
+    const base = buildStateWithReadyDraft(seed);
+    return studioReducer(base, { type: 'ANNOUNCE_RELEASE_DATE', releaseDay: base.totalDays + offset });
+  };
+
+  it('always names the studio\'s own films - you know your own slate', () => {
+    const s = announced(50);
+    const own = deriveKnownField(s.projects, s.studio.genreIdentity ?? {}, {
+      today: s.totalDays, rivalStudios: s.rivalStudios, studioName: s.studio.name,
+    });
+    expect(own).toHaveLength(1);
+    expect(own[0].who).toMatchObject({ named: true, isOwn: true });
+    expect(own[0].who.label).toBe(focused(s).title);
+  });
+
+  it('carries exactly what deriveKnownCalendar weighs, in the same order', () => {
+    // explainCrowding hands back contributor INDEXES, so the two lists drifting
+    // apart would silently attach the wrong name to the wrong competitor.
+    const s = announced(51);
+    const field = deriveKnownField(s.projects, s.studio.genreIdentity ?? {});
+    const weighed = deriveKnownCalendar(s.projects, s.studio.genreIdentity ?? {});
+    expect(field.map((c) => c.upcoming)).toEqual(weighed);
+  });
+
+  it('honours the same exclusion, so a film never names itself as its own rival', () => {
+    const s = announced(52);
+    expect(deriveKnownField(s.projects, s.studio.genreIdentity ?? {}, undefined, focused(s).id)).toHaveLength(0);
   });
 });

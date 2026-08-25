@@ -2677,6 +2677,30 @@ textarea, input, select {
   color: var(--tint-red-ink);
 }
 
+/* The named competition behind a band. One line per film, so the player can see
+   whether "Crowded" is one picture they cannot beat or three they can
+   counterprogram past - opposite decisions the band alone cannot tell apart. */
+.date-reading__field {
+  margin: 2px 0 0;
+  padding-left: 16px;
+  font-size: 0.9em;
+  color: var(--text-muted);
+  /* Prose, not a label/value pair, so it gets a prose measure rather than the
+     tighter one the readings above it use - at 32rem each competitor wrapped
+     onto two lines and the list stopped scanning as a list. */
+  max-width: 46rem;
+}
+
+.date-reading__field li + li {
+  margin-top: 1px;
+}
+
+/* The ones that would push this film out of its own window, rather than the
+   other way round. */
+.date-reading__field--threat {
+  color: var(--tint-red-ink);
+}
+
 .release-month-cell {
   display: flex;
   flex-direction: column;

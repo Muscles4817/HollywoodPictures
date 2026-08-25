@@ -24,7 +24,14 @@ import { RELEASE_WINDOW_BASE_MULTIPLIER, RELEASE_WINDOW_GENRE_BONUS } from '../d
 import { CAMPAIGN_FULL_ROLLOUT_WEEKS } from '../data/marketing';
 import { campaignRolloutWeeks } from './marketing';
 import type { DeliveryEstimate } from './deliveryEstimate';
-import { computeCompetitiveCrowding, crowdingBandKey, type CrowdingBand, type UpcomingRelease } from './releaseCrowding';
+import {
+  crowdingBandKey,
+  describeCrowdingBand,
+  explainCrowding,
+  type CrowdingContributor,
+  type CrowdingBand,
+  type UpcomingRelease,
+} from './releaseCrowding';
 
 // --- Season -----------------------------------------------------------------
 
@@ -158,6 +165,10 @@ export interface ReleaseDateReading {
   crowdingBand: CrowdingBand;
   /** The raw crowding score, for a caller that needs to rank days rather than label one. */
   crowding: number;
+  /** Who is causing the crowding, strongest first - see engine/releaseCrowding.ts:explainCrowding. */
+  contributors: CrowdingContributor[];
+  /** True when nothing could be known this far ahead: the zero is silence, not good news. */
+  beyondKnownField: boolean;
 }
 
 /**
@@ -175,7 +186,7 @@ export function readReleaseDate(
   known: UpcomingRelease[],
   candidateStrength?: number,
 ): ReleaseDateReading {
-  const crowding = computeCompetitiveCrowding({ releaseDay: day, ...candidate }, known, candidateStrength);
+  const field = explainCrowding({ releaseDay: day, ...candidate }, known, candidateStrength);
   return {
     day,
     window: deriveReleaseWindowFromDay(day),
@@ -186,9 +197,73 @@ export function readReleaseDate(
     // the campaign it does get is a rush.
     runway: campaignRunwayBand(estimate.readyOnDay, day),
     season: seasonBandFor(day, genre),
-    crowdingBand: crowdingBandKey(crowding),
-    crowding,
+    crowdingBand: crowdingBandKey(field.crowding),
+    crowding: field.crowding,
+    contributors: field.contributors,
+    beyondKnownField: field.beyondKnownField,
   };
+}
+
+// --- Naming the field -------------------------------------------------------
+
+/** What a caller needs to know to NAME one competitor - see state/selectors.ts:CompetitorIdentity. */
+export interface CompetitorLabel {
+  label: string;
+  studioName: string;
+  named: boolean;
+  isOwn: boolean;
+}
+
+/**
+ * The field's headline. Distinguishes an empty frame from an empty map: a date
+ * past everything anyone has scheduled scores zero crowding, but that zero is
+ * the absence of information rather than the absence of competition, and saying
+ * "Clear window" there lends it a confidence the evidence cannot support.
+ */
+export function describeField(reading: Pick<ReleaseDateReading, 'crowding' | 'beyondKnownField'>): string {
+  return reading.beyondKnownField ? 'Nothing known yet' : describeCrowdingBand(reading.crowding);
+}
+
+/** Why a date past the known horizon reads the way it does - the sentence behind "Nothing known yet". */
+export const UNKNOWN_FIELD_NOTE =
+  'No studio has scheduled anything this far ahead, so there is nothing to read here yet — an empty calendar rather than a clear one. Expect company by the time it arrives.';
+
+const MATCHUP_PHRASE: Record<CrowdingContributor['matchup'], string> = {
+  outmatched: 'the stronger picture',
+  even: 'an even match',
+  dominant: 'the smaller picture',
+};
+
+function overlapPhrase(c: CrowdingContributor): string {
+  if (c.sameGenre && c.sameAudience) return 'same genre, same audience';
+  if (c.sameGenre) return 'same genre';
+  if (c.sameAudience) return 'same audience';
+  return 'a different film for a different crowd';
+}
+
+function timingPhrase(daysApart: number): string {
+  if (daysApart <= 3) return 'opening alongside you';
+  const weeks = Math.round(daysApart / 7);
+  return weeks <= 1 ? 'about a week away' : `about ${weeks} weeks away`;
+}
+
+/**
+ * One competitor, in a sentence: who they are (at whatever fidelity the calendar
+ * permits), what makes them expensive, and whether this film is the one being
+ * pushed out or the one doing the pushing.
+ *
+ * `who` is taken as a plain shape rather than importing state/selectors.ts -
+ * engine stays free of the state layer, and CompetitorIdentity matches it
+ * structurally.
+ */
+export function describeCompetitor(c: CrowdingContributor, who: CompetitorLabel): string {
+  const head = who.isOwn
+    ? `Your own ${who.label}`
+    : who.named
+      ? `${who.label} (${who.studioName})`
+      : `${who.studioName} — ${who.label}`;
+  const matchup = who.isOwn ? 'your own two films splitting the same crowd' : MATCHUP_PHRASE[c.matchup];
+  return `${head} — ${overlapPhrase(c)}, ${timingPhrase(c.daysApart)}, ${matchup}`;
 }
 
 /**

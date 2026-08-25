@@ -1097,3 +1097,65 @@ it here would be a global change smuggled in under a local pass. Same for
 `.campaign-runway__head` on the Marketing screen, which stretches its label and
 value the full card width exactly as §9.11(2) describes — it predates this work.
 Both are recorded rather than quietly fixed.
+
+### 9.12 Naming the competition — and what asking that exposed
+
+§9.10 fixed three of the four axes at the point of decision and left the fourth,
+the field, as a bare band: "Crowded", "Some competition", "Clear window". That is
+a number wearing a word, and it is the wrong shape for this particular model.
+
+**Crowding is relative, and a band hides that.** `matchupWeight` decides whether
+a film is the one being pushed out or the one doing the pushing, from the two
+strengths involved. So two identically-"Crowded" dates can be a tentpole this
+picture cannot beat and three mid-size films it can open straight past —
+opposite decisions behind one word. `explainCrowding` keeps the per-competitor
+breakdown that `computeCrowdingPressure`'s own `reduce` already computed and
+then discarded. No new rule; the same arithmetic, not thrown away.
+
+**The fog of war stays, and does real work.** A rival's title and cast are under
+wraps until its marketing rollout begins, about a month before release
+(`rivalReleaseIsAnnounced`). So what can be said varies with horizon, and that
+variation *is* the feature:
+
+```text
+~30 days out    Ironbound (Meridian Pictures) — same genre, same audience,
+                opening alongside you, the stronger picture
+~300 days out   Sony Pictures — a medium Action picture — same genre,
+                opening alongside you, an even match
+```
+
+Identity is kept out of `UpcomingRelease`, which is deliberately "just what
+`computeCompetitiveCrowding` needs to weigh it" and has no business carrying
+display names into settlement. `explainCrowding` returns each contributor's
+**index**, and `deriveKnownField` supplies a parallel identity list the caller
+zips back on by position — with a test asserting the two lists cannot drift,
+since drift would silently attach the wrong name to the wrong film.
+
+#### The bug the question exposed
+
+Asking "who is the competition?" is also asking "is there any?", and measuring
+that turned up a defect in §9.10. After two simulated in-game years:
+
+```text
+day 731: 27 rival productions in flight
+  within  30d:  3 known
+  within 180d: 14 known
+  within 365d: 27 known
+  within 730d: 27 known      <- no new information
+  furthest known release: 356 days out
+```
+
+**Nothing is knowable past roughly 356 days** — the films that will open there
+have not been greenlit yet. But the announcement grid offers eighteen months and
+more, and painted every month past that horizon "Clear window", with exactly the
+confidence of a month whose field is genuinely surveyed.
+
+That is an empty *map* presented as an empty *frame*, and it pushed the player
+toward distant dates on evidence that does not exist — the precise opposite of
+what §9.10 was for. `beyondKnownField` now separates the two: a date whose whole
+crowding window sits past the furthest scheduled release reads "Nothing known
+yet", with a sentence saying why. The threshold is not a new constant — it is
+`CROWDING_WINDOW_DAYS` against the calendar's own furthest entry, so the question
+asked is exactly "could any competitor have counted here?"
+
+This was worth doing on its own account, independent of naming anything.

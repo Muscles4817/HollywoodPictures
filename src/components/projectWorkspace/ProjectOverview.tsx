@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { deriveFocusedDraft, deriveGreenlightCommitment, deriveKnownCalendar } from '../../state/selectors';
+import { deriveFocusedDraft, deriveGreenlightCommitment, deriveKnownField } from '../../state/selectors';
 import { deriveProjectReadiness } from '../../engine/projectReadiness';
 import { TARGET_AUDIENCES, AUDIENCE_PROFILES } from '../../data/audiences';
 import { pluckDescriptions } from '../../data/describe';
@@ -16,16 +16,19 @@ import { GreenlightConfirmation } from './GreenlightConfirmation';
 import { describeCreativeDemand, describeDemandCompetence, describeDirectorPatience } from '../../engine/creativeDemands';
 import { computeRelationship, NO_RELATIONSHIP, PLAYER_STUDIO_ID } from '../../engine/relationships';
 import type { DevelopmentReadinessBand } from '../../engine/projectReadiness';
-import { describeCrowdingBand, type UpcomingRelease } from '../../engine/releaseCrowding';
+import type { UpcomingRelease } from '../../engine/releaseCrowding';
 import { estimateDelivery } from '../../engine/deliveryEstimate';
 import {
   describeCampaignRunwayBand,
+  describeCompetitor,
   describeDeliveryVerdict,
+  describeField,
   describeReleaseDateConcern,
   describeSeason,
   describeSeasonBand,
   earliestUnrushedDay,
   readReleaseDate,
+  UNKNOWN_FIELD_NOTE,
   type ReleaseDateReading,
 } from '../../engine/releaseDateReading';
 import { announcedAsUpcomingRelease } from '../../engine/scheduledReleases';
@@ -44,6 +47,9 @@ const CAMPAIGN_STEPS = [
   Math.round(MARKETING_SPEND_RANGE.max * 0.35),
   Math.round(MARKETING_SPEND_RANGE.max * 0.7),
 ];
+
+/** How many competitors to name before falling back to a count - past three the list stops being a read and starts being a table. */
+const NAMED_COMPETITORS = 3;
 
 /** How many months the announcement grid offers at minimum, and how far past a comfortable date it always reaches. */
 const MIN_ANNOUNCEMENT_MONTHS = 18;
@@ -97,10 +103,21 @@ function ReleaseAnnouncementCard() {
   // announcements - never this film against itself. Shared with the Marketing &
   // Release screen (state/selectors.ts:deriveKnownCalendar) so the two screens
   // that pick a date read the same calendar.
-  const known = useMemo<UpcomingRelease[]>(
-    () => deriveKnownCalendar(state.projects, state.studio.genreIdentity ?? {}, draft.id),
-    [state.projects, state.studio.genreIdentity, draft.id],
+  // Carries who each competitor is as well as what it weighs, so a contested
+  // date can name the films causing it (state/selectors.ts:deriveKnownField) -
+  // at whatever fidelity the calendar permits, since a rival's title and cast
+  // stay under wraps until its own campaign begins.
+  const field = useMemo(
+    () =>
+      deriveKnownField(
+        state.projects,
+        state.studio.genreIdentity ?? {},
+        { today: state.totalDays, rivalStudios: state.rivalStudios, studioName: state.studio.name },
+        draft.id,
+      ),
+    [state.projects, state.studio.genreIdentity, state.totalDays, state.rivalStudios, state.studio.name, draft.id],
   );
+  const known = useMemo<UpcomingRelease[]>(() => field.map((c) => c.upcoming), [field]);
 
   // This film's own strength in the matchup. It must never be undefined: that
   // falls back to matchupWeight's candidate-blind weight of 1, while settlement
@@ -238,9 +255,30 @@ function ReleaseAnnouncementCard() {
                 </div>
                 <div className="date-reading__row">
                   <span className="stat-label">The field</span>
-                  <strong>{describeCrowdingBand(reading.crowding)}</strong>
+                  <strong>{describeField(reading)}</strong>
                 </div>
                 <p className="date-reading__note">{describeSeason(announced, draft.genre)}.</p>
+                {/* Who, not just how much. The crowding model is relative - whether
+                    this film is pushed out or does the pushing turns on the specific
+                    competitor - so the band alone cannot tell one unbeatable tentpole
+                    apart from three films you can counterprogram past. */}
+                {reading.beyondKnownField ? (
+                  <p className="date-reading__note">{UNKNOWN_FIELD_NOTE}</p>
+                ) : reading.contributors.length > 0 ? (
+                  <ul className="date-reading__field">
+                    {reading.contributors.slice(0, NAMED_COMPETITORS).map((c) => (
+                      <li key={`${c.index}`} className={c.matchup === 'outmatched' ? 'date-reading__field--threat' : undefined}>
+                        {describeCompetitor(c, field[c.index].who)}
+                      </li>
+                    ))}
+                    {reading.contributors.length > NAMED_COMPETITORS && (
+                      <li>
+                        and {reading.contributors.length - NAMED_COMPETITORS} other
+                        {reading.contributors.length - NAMED_COMPETITORS === 1 ? '' : 's'} in the same window
+                      </li>
+                    )}
+                  </ul>
+                ) : null}
                 {concern && <p className="date-reading__note date-reading__note--bad">{concern}</p>}
               </div>
             );
@@ -326,8 +364,13 @@ function ReleaseAnnouncementCard() {
                   <span className={`release-month-cell__season${unreachable ? '' : ` release-month-cell__season--${reading.season}`}`}>
                     {describeSeasonBand(reading.season)}
                   </span>
-                  <span className={`release-month-cell__crowding${unreachable ? '' : ` release-month-cell__crowding--${reading.crowdingBand}`}`}>
-                    {describeCrowdingBand(reading.crowding)}
+                  <span
+                    className={
+                      `release-month-cell__crowding` +
+                      `${unreachable || reading.beyondKnownField ? '' : ` release-month-cell__crowding--${reading.crowdingBand}`}`
+                    }
+                  >
+                    {describeField(reading)}
                   </span>
                 </>
               )}

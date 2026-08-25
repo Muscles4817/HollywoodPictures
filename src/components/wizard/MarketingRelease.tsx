@@ -4,7 +4,7 @@ import { MARKETING_SPEND_RANGE, RELEASE_TYPE_PROFILES } from '../../data/release
 import { pluckDescriptions } from '../../data/describe';
 import { computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../../engine/cost';
 import { formatGameDateWithMonth, formatGameMonthYear, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from '../../engine/calendar';
-import { computeCompetitiveCrowding, computePlayerReleaseStrength, crowdingBandKey, describeCrowdingBand, type UpcomingRelease } from '../../engine/releaseCrowding';
+import { computeCompetitiveCrowding, computePlayerReleaseStrength, crowdingBandKey, describeCrowdingBand, explainCrowding, type UpcomingRelease } from '../../engine/releaseCrowding';
 import { genreIdentityFor } from '../../engine/studioIdentity';
 import { ChoiceGroup } from '../common/ChoiceGroup';
 import { RangeSlider } from '../common/RangeSlider';
@@ -14,13 +14,15 @@ import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { reshootChoiceConstraints } from '../../engine/reshootAvailability';
-import { deriveFocusedDraft, deriveKnownCalendar, deriveUpcomingReleaseEntries } from '../../state/selectors';
+import { deriveFocusedDraft, deriveKnownField, deriveUpcomingReleaseEntries } from '../../state/selectors';
 import {
   campaignRunwayBand,
   describeCampaignRunwayBand,
+  describeCompetitor,
   describeSeason,
   describeSeasonBand,
   seasonBandFor,
+  UNKNOWN_FIELD_NOTE,
 } from '../../engine/releaseDateReading';
 import { campaignWriteOff } from '../../engine/campaignCommitment';
 import {
@@ -159,6 +161,9 @@ function rolloutReading(weeks: number, multiplier: number): { label: string; det
   };
 }
 
+/** How many competitors to name before falling back to a count - matches the announcement card. */
+const NAMED_COMPETITORS = 3;
+
 /** Reads the shared engine band (engine/releaseCrowding.ts) so this screen and the pre-greenlight announcement card can never disagree about what a window looks like. */
 function crowdingReading(score: number): { label: string; className: string } {
   return { label: describeCrowdingBand(score), className: `month-cell__crowding--${crowdingBandKey(score)}` };
@@ -240,10 +245,19 @@ export function MarketingRelease() {
   // had drifted, with only the announcement card weighing the studio's OWN
   // outstanding claims, so a studio could book two of its films into the same
   // window and be warned about it on one screen only.
-  const knownUpcoming = useMemo<UpcomingRelease[]>(
-    () => deriveKnownCalendar(state.projects, state.studio.genreIdentity ?? {}, draft.id),
-    [state.projects, state.studio.genreIdentity, draft.id],
+  // Carries who each competitor is alongside what it weighs, so the selected
+  // date can name the films it is up against rather than only score them.
+  const field = useMemo(
+    () =>
+      deriveKnownField(
+        state.projects,
+        state.studio.genreIdentity ?? {},
+        { today: state.totalDays, rivalStudios: state.rivalStudios, studioName: state.studio.name },
+        draft.id,
+      ),
+    [state.projects, state.studio.genreIdentity, state.totalDays, state.rivalStudios, state.studio.name, draft.id],
   );
+  const knownUpcoming = useMemo<UpcomingRelease[]>(() => field.map((c) => c.upcoming), [field]);
 
   // This film's own strength in the matchup, computed exactly as
   // engine/marketSettlement.ts does at settlement. Without it the preview would
@@ -407,7 +421,15 @@ export function MarketingRelease() {
   const releaseTypeProfile = RELEASE_TYPE_PROFILES[choices.releaseType];
   const weakMarketingWarning =
     releaseTypeProfile.needsMarketing && !onDistributorDeal && choices.marketingSpend <= MARKETING_SPEND_RANGE.min * 3;
-  const selectedCrowding = crowdingFor(releaseDay);
+  const selectedField =
+    draft.genre && draft.targetAudience
+      ? explainCrowding(
+          { releaseDay, genre: draft.genre, targetAudience: draft.targetAudience },
+          knownUpcoming,
+          ownStrength,
+        )
+      : null;
+  const selectedCrowding = selectedField?.crowding ?? 0;
   const selectedCrowdingReading = crowdingReading(selectedCrowding);
 
   // A live tracking readout: what the current channel mix + campaign angle
@@ -859,8 +881,35 @@ export function MarketingRelease() {
           {holdMonths === 0
             ? 'As soon as post-production is ready - the earliest possible month.'
             : `Held ${holdMonths} month${holdMonths === 1 ? '' : 's'} past the earliest possible date.`}{' '}
-          <span className={selectedCrowdingReading.className}>{selectedCrowdingReading.label}</span> for this exact date.
+          {selectedField?.beyondKnownField ? (
+            <span>Nothing known yet for this exact date.</span>
+          ) : (
+            <>
+              <span className={selectedCrowdingReading.className}>{selectedCrowdingReading.label}</span> for this exact date.
+            </>
+          )}
         </p>
+
+        {/* Who is actually in the window, not just how full it is. The matchup is
+            relative, so the same band can mean a picture this film cannot beat or
+            several it can open straight past. */}
+        {selectedField?.beyondKnownField ? (
+          <p className="choice-description" style={{ margin: 0 }}>{UNKNOWN_FIELD_NOTE}</p>
+        ) : selectedField && selectedField.contributors.length > 0 ? (
+          <ul className="date-reading__field">
+            {selectedField.contributors.slice(0, NAMED_COMPETITORS).map((c) => (
+              <li key={c.index} className={c.matchup === 'outmatched' ? 'date-reading__field--threat' : undefined}>
+                {describeCompetitor(c, field[c.index].who)}
+              </li>
+            ))}
+            {selectedField.contributors.length > NAMED_COMPETITORS && (
+              <li>
+                and {selectedField.contributors.length - NAMED_COMPETITORS} other
+                {selectedField.contributors.length - NAMED_COMPETITORS === 1 ? '' : 's'} in the same window
+              </li>
+            )}
+          </ul>
+        ) : null}
 
         {(() => {
           const reading = rolloutReading(rolloutWeeks, rolloutMultiplier);

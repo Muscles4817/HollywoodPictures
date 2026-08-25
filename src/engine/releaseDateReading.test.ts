@@ -12,10 +12,13 @@ import {
   describeSeasonBand,
   deliveryVerdictFor,
   earliestUnrushedDay,
+  describeCompetitor,
+  describeField,
   readReleaseDate,
   seasonBandFor,
   seasonalDesirability,
 } from './releaseDateReading';
+import type { CrowdingContributor } from './releaseCrowding';
 import type { FilmDraft, Genre } from '../types';
 
 const TODAY = 400;
@@ -176,5 +179,66 @@ describe('describeReleaseDateConcern', () => {
     if (clean.season !== 'weak' && clean.crowdingBand !== 'high') {
       expect(describeReleaseDateConcern(clean, draft.genre!)).toBeNull();
     }
+  });
+});
+
+describe('describeField', () => {
+  const base = { crowding: 0 };
+
+  it('separates an empty frame from an empty map', () => {
+    // Both score zero. Only one of them is good news.
+    expect(describeField({ ...base, beyondKnownField: false })).toBe('Clear window');
+    expect(describeField({ ...base, beyondKnownField: true })).toBe('Nothing known yet');
+  });
+
+  it('reads a surveyed, contested date by its band', () => {
+    expect(describeField({ crowding: 0.6, beyondKnownField: false })).toBe('Crowded');
+  });
+});
+
+describe('describeCompetitor', () => {
+  const contributor = (over: Partial<CrowdingContributor> = {}): CrowdingContributor => ({
+    index: 0,
+    release: { releaseDay: 200, genre: 'Action', targetAudience: 'Mass Market', strength: 0.8 },
+    pressure: 1, share: 1, matchup: 'outmatched', sameGenre: true, sameAudience: true, daysApart: 0,
+    ...over,
+  });
+
+  it('names a rival whose campaign has begun, and says what makes it expensive', () => {
+    const text = describeCompetitor(contributor(), {
+      label: 'Ironbound', studioName: 'Meridian Pictures', named: true, isOwn: false,
+    });
+    expect(text).toContain('Ironbound (Meridian Pictures)');
+    expect(text).toContain('same genre, same audience');
+    expect(text).toContain('opening alongside you');
+    expect(text).toContain('the stronger picture');
+  });
+
+  it('keeps an unannounced rival under wraps, describing it rather than naming it', () => {
+    // The fog of war stays: title and cast are not public until the rival's
+    // campaign begins, so this far out only the shape of the thing is knowable.
+    const text = describeCompetitor(contributor({ daysApart: 21 }), {
+      label: 'a big Sci-Fi picture', studioName: 'Meridian Pictures', named: false, isOwn: false,
+    });
+    expect(text).toContain('Meridian Pictures — a big Sci-Fi picture');
+    expect(text).not.toContain('(');
+    expect(text).toContain('about 3 weeks away');
+  });
+
+  it('calls the player\'s own collision what it is', () => {
+    const text = describeCompetitor(contributor(), {
+      label: 'Nightfall', studioName: 'Silver Reel', named: true, isOwn: true,
+    });
+    expect(text).toContain('Your own Nightfall');
+    expect(text).toContain('your own two films splitting the same crowd');
+  });
+
+  it('says when a competitor is not really competing', () => {
+    const text = describeCompetitor(
+      contributor({ sameGenre: false, sameAudience: false, matchup: 'dominant', daysApart: 30 }),
+      { label: 'Beach Day', studioName: 'Kestrel', named: true, isOwn: false },
+    );
+    expect(text).toContain('a different film for a different crowd');
+    expect(text).toContain('the smaller picture');
   });
 });

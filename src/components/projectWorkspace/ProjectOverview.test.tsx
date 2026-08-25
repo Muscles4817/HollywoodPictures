@@ -224,6 +224,28 @@ describe('ProjectOverview - the release-date card surfaces what should decide th
     expect(reachable.some((c) => c.querySelector('.release-month-cell__season'))).toBe(true);
   });
 
+  it('says an empty calendar is unknown, never clear', () => {
+    // This fixture has no rivals at all, so nothing is knowable on any date. A
+    // zero crowding score there is the absence of information, not the absence
+    // of competition - measured over two simulated in-game years, nothing is
+    // knowable past ~356 days while this grid offers eighteen months and more.
+    const { container } = renderCard(37);
+    const cells = [...container.querySelectorAll('.release-month-cell')];
+    expect(cells.length).toBeGreaterThan(0);
+    for (const cell of cells) {
+      expect(cell.querySelector('.release-month-cell__crowding')).toHaveTextContent('Nothing known yet');
+    }
+    expect(container.querySelectorAll('.release-month-cell__crowding--clear')).toHaveLength(0);
+  });
+
+  it('explains what "nothing known yet" means once such a date is claimed', () => {
+    const { container } = renderCard(38);
+    fireEvent.click(container.querySelector('.release-month-cell') as HTMLButtonElement);
+    expect(screen.getByText(/No studio has scheduled anything this far ahead/)).toBeInTheDocument();
+    // ...and names no competitor, because there is none to name.
+    expect(container.querySelector('.date-reading__field')).toBeNull();
+  });
+
   it('warns in words once a date is claimed, naming the worst problem with it', () => {
     const { container } = renderCard(34);
     // Claim the first month offered - the one the film has no chance of making.
