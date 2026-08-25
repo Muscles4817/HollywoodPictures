@@ -12,7 +12,7 @@
 // re-opening the same slot yields the same field. That also means a bake-off
 // can't be re-rolled for a better pitch - its only cost is the calendar time
 // spent waiting, which is real under the game's clock.
-import type { DirectorPitchProcess, FilmDraft, GameDay, Money, Person, ScheduledPitch, Script, Studio } from '../types';
+import type { DirectorPitch, DirectorPitchProcess, FilmDraft, GameDay, Money, Person, ScheduledPitch, Script, Studio } from '../types';
 import { computeDirectorAppeal } from './directorAppeal';
 import { computeAcceptanceThreshold } from './castingAppeal';
 import { generateDirectorPitch } from './directorPitch';
@@ -90,6 +90,17 @@ export function openDirectorPitches(
     dueDay: totalDays + PITCH_MIN_DELAY_DAYS + Math.floor(stableUnit(`${director.id}|due|${script.id}`) * PITCH_DELAY_SPREAD_DAYS),
   }));
   return { openedOnDay: totalDays, advertisedFee, pending, submitted: [] };
+}
+
+/**
+ * The pitches on this draft that have landed but the player hasn't read yet -
+ * the Inbox's "the pitches are in" beat (components/common/Inbox.tsx). Opening
+ * the bake-off panel marks them seen (ACKNOWLEDGE_DIRECTOR_PITCHES), so this
+ * pings once per arrival rather than nagging until the round is decided - the
+ * same read-state contract screen tests and casting applicants already use.
+ */
+export function directorPitchesAwaitingReview(draft: FilmDraft): DirectorPitch[] {
+  return (draft.directorPitches?.submitted ?? []).filter((pitch) => !pitch.acknowledged);
 }
 
 /**

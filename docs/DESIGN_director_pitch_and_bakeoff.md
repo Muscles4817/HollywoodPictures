@@ -213,6 +213,19 @@ time-costed selection: invite pitches, compare them, pick one (or none).
    "several accept the same slot → pick one, disappoint the others" shape the
    casting doc's Phase 6 already commits to for actors — here it is native.
 
+**Shipped (notification)** — against
+`docs/DESIGN_notification_contract.md`, whose §0 uses this feature as its
+worked example of a correct simulation nobody was told about: pitches land on
+their own due-days during the
+background tick, so step 3 needs somewhere to *tell* the player a round has come
+in — otherwise the only way to find out is to reopen the Director drawer on the
+off-chance. `engine/project.ts:deriveInboxItems` carries a `directorPitches`
+category (`engine/directorPitches.ts:directorPitchesAwaitingReview`), and the
+Inbox card routes straight into the bake-off panel (`REVIEW_DIRECTOR_PITCHES` →
+`GameState.castCrewFocus`). It is read-state driven, like the casting doc's own
+beats: `DirectorPitch.acknowledged` is set when the panel is opened, so the card
+pings once per arrival rather than nagging until the round is decided.
+
 ### 3.2 Who sharpens your read
 
 Mirror the Casting Director's role on the actor side (it changes *information

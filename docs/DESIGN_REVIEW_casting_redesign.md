@@ -340,6 +340,19 @@ a distinguishing "Reached out to you directly" tag in `CastingDrawer.tsx`
 and called out by name in `Inbox.tsx`, rather than folded silently into the
 same generic "new applicants" line Phase C already shipped.
 
+**Shipped (notification behaviour)** — against
+`docs/DESIGN_notification_contract.md`: the Inbox beat is one card *per
+Character*, not per project — it names the role, lists each new candidate and
+which door they came through, and routes into that Character's own drawer
+(`REVIEW_CASTING_CALL` → `GameState.castCrewFocus`), since the decision it is
+about is per-Character. It is read-state driven:
+`CastingApplicant.acknowledged` is set when that Character's drawer opens
+(`castingCallsAwaitingReview` counts only unseen applicants), so a card pings
+once per genuinely new arrival instead of repeating an identical message until
+somebody is finally cast. Because it clears on *read* rather than on *casting*,
+it is also shown for the currently-focused project — the drawer it points at is
+not on screen just because the project is.
+
 ---
 
 ## 7. Explaining appeal - natural-language reasons, not raw numbers

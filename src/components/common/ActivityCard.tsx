@@ -33,6 +33,13 @@ export function ActivityCard({
         <span className="dashboard-activity-eyebrow">{activity.eyebrow}</span>
         <strong>{activity.title}</strong>
         <p>{activity.detail}</p>
+        {activity.bullets && activity.bullets.length > 0 && (
+          <ul className="dashboard-activity-bullets">
+            {activity.bullets.map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+          </ul>
+        )}
         {action?.note && <p className="dashboard-activity-note">{action.note}</p>}
       </div>
       {action?.onClick && (

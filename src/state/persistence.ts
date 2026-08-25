@@ -414,7 +414,13 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   FilmDraft gained an optional directorPitches (an open pitch round) and
 //   selectedDirectorPitch (the winning pitch, frozen for downstream bets), and a
 //   new DirectorPitch/DirectorPitchProcess shape. Additive/optional; same policy.
-const SAVE_KEY = 'hollywood-pictures-save-v87';
+// v87 -> v88 (Inbox read-state for the Cast & Crew beats): CastingApplicant and
+//   DirectorPitch each gained an optional acknowledged flag (has the player SEEN
+//   this arrival), and GameState gained an optional castCrewFocus (a one-render
+//   deep-link into a specific Cast & Crew drawer). Additive/optional - an
+//   unflagged applicant/pitch simply reads as unseen and pings once; same
+//   pre-launch policy (no migration).
+const SAVE_KEY = 'hollywood-pictures-save-v88';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
