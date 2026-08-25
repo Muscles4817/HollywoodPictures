@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { MANDATORY_TALENT_ROLES, OPTIONAL_TALENT_ROLES } from '../../data/talentGeneration';
 import { TALENT_PRESENTATION, type RoleCategory } from '../../data/talentPresentation';
@@ -471,6 +471,27 @@ export function HireTalent() {
   // drives Director/crew's unchanged RoleHiringDrawer flow) since Open
   // Casting is scoped to one specific Character, not a whole role.
   const [openCharacter, setOpenCharacter] = useState<{ character: ScriptCharacter; role: 'Lead Actor' | 'Supporting Actor' } | null>(null);
+
+  // A deep-link from the Inbox (types/index.ts:CastCrewFocus) - "new applicants
+  // for Mercedes", "the director pitches are in" - opens the drawer the
+  // notification was actually about, instead of leaving the player to find it.
+  // Consumed immediately (CLEAR_CAST_CREW_FOCUS) so closing the drawer can't
+  // re-open it on the next render.
+  const castCrewFocus = state.castCrewFocus ?? null;
+  useEffect(() => {
+    if (!castCrewFocus) return;
+    if (castCrewFocus.kind === 'director-pitches') {
+      // RoleHiringDrawer opens on its bake-off panel by itself whenever a round
+      // is live (its own `directorMode` default), so pointing at the role is
+      // enough - no second piece of routing state for the drawer's inner tab.
+      setOpenRole('Director');
+    } else {
+      const character = draft.script?.cast.find((c) => c.id === castCrewFocus.characterId);
+      const role = character?.prominence === 'Lead' ? ('Lead Actor' as const) : ('Supporting Actor' as const);
+      if (character) setOpenCharacter({ character, role });
+    }
+    dispatch({ type: 'CLEAR_CAST_CREW_FOCUS' });
+  }, [castCrewFocus, draft.script, dispatch]);
 
   function talentsForRole(role: ProductionRole): Person[] {
     return draft.talent.filter((a) => a.role === role).map((a) => a.person);

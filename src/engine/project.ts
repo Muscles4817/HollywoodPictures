@@ -1,5 +1,6 @@
-import type { Asset, AuditionRecord, CastingCall, Film, FilmDraft, Project, RivalProductionInProgress } from '../types';
+import type { Asset, AuditionRecord, CastingCall, DirectorPitch, Film, FilmDraft, Project, RivalProductionInProgress } from '../types';
 import { castingCallsAwaitingReview } from './castingCalls';
+import { directorPitchesAwaitingReview } from './directorPitches';
 
 /**
  * The one stable identity a Project carries for its entire life, regardless
@@ -118,7 +119,10 @@ export interface InboxItems {
   awaitingChoice: FilmDraft[];
   wrapped: FilmDraft[];
   parked: FilmDraft[];
+  /** Still-in-Development drafts with UNSEEN casting applicants waiting, and exactly which calls those are - the Inbox renders one card per call (per Character), because "new applicants for Mercedes" is what the player can actually act on, and the card routes straight into that Character's casting drawer. */
   casting: Array<{ production: FilmDraft; calls: CastingCall[] }>;
+  /** Drafts with landed-but-unread director pitches - the bake-off's "the pitches are in" beat (engine/directorPitches.ts:directorPitchesAwaitingReview). Cleared per-pitch once the player opens the bake-off panel, the same read-state contract auditionsReady uses. */
+  directorPitches: Array<{ production: FilmDraft; pitches: DirectorPitch[] }>;
   /** Drafts with completed-but-unacknowledged screen tests - the "an audition came back" beat. Completion is derived from the day (readyOnDay vs. totalDays); acknowledged clears it once the player has seen the result. Empty unless deriveInboxItems is given the current totalDays. */
   auditionsReady: Array<{ production: FilmDraft; auditions: AuditionRecord[] }>;
   /** Scheduled (not-yet-released) films with a fired-but-unanswered press-tour incident awaiting a response (the interactive layer). Sourced from 'scheduled' projects, which backgroundedPlayerDrafts deliberately excludes. */
@@ -146,6 +150,22 @@ export function isParkedActionable(p: FilmDraft): boolean {
 
 export function deriveInboxItems(projects: Project[], excludeId: string | null, totalDays: number = Number.NEGATIVE_INFINITY): InboxItems {
   const productions = backgroundedPlayerDrafts(projects, excludeId);
+  // The three Cast & Crew beats below (new applicants, landed director pitches,
+  // completed screen tests) deliberately include the FOCUSED draft too, unlike
+  // every other category here. They're read-state driven - each clears when the
+  // player opens the drawer it's about (ACKNOWLEDGE_CASTING_APPLICANTS /
+  // ACKNOWLEDGE_DIRECTOR_PITCHES / ACKNOWLEDGE_AUDITIONS) - so they can't nag,
+  // and the thing they point at is a drawer that ISN'T on screen just because
+  // the project is: being inside a project you're casting is exactly when
+  // "someone new applied for the villain" is worth knowing. The older
+  // categories stay excluded because each of those routes to the very screen
+  // the focused project is already showing.
+  // ...and only while the project is genuinely still pre-Greenlight: Cast &
+  // Crew (and so the drawer these cards route to) is only reachable before
+  // preProduction starts, so surfacing one for a greenlit film would be a card
+  // whose button had nowhere to go. `!photography` alone isn't that test - a
+  // greenlit film waiting on prep hasn't started shooting either.
+  const castingDrafts = backgroundedPlayerDrafts(projects, null).filter((p) => !p.photography && !p.preProduction);
   return {
     // Post-Production Redesign, Phase B - a pending test screening surfaces
     // here too, alongside an on-set pendingChoice, even for a project that
@@ -156,15 +176,21 @@ export function deriveInboxItems(projects: Project[], excludeId: string | null, 
     awaitingChoice: productions.filter((p) => p.photography?.status === 'awaiting-choice' || p.testScreeningPendingChoice),
     wrapped: productions.filter((p) => p.photography?.status === 'finished' && !p.testScreeningPendingChoice && !p.postProductionChoices),
     parked: productions.filter((p) => p.photography?.status === 'finished' && !p.testScreeningPendingChoice && p.postProductionChoices),
-    casting: productions
-      .filter((p) => !p.photography)
+    casting: castingDrafts
       .map((p) => ({ production: p, calls: castingCallsAwaitingReview(p) }))
       .filter((c) => c.calls.length > 0),
+    // Director bake-off (docs/DESIGN_director_pitch_and_bakeoff.md Phase B2) -
+    // pitches land on their own due-days during the background tick, so without
+    // this the player had no way to learn a round had come in short of
+    // reopening the Director drawer and looking. Same still-in-Development
+    // scope as `casting`: a bake-off can only be open before the shoot.
+    directorPitches: castingDrafts
+      .map((p) => ({ production: p, pitches: directorPitchesAwaitingReview(p) }))
+      .filter((entry) => entry.pitches.length > 0),
     // Screen tests that have come back but the player hasn't looked at yet. Only
     // ever populated once the caller passes the current day (the default sentinel
     // means "nothing is ready" for the many callers that don't care about time).
-    auditionsReady: productions
-      .filter((p) => !p.photography)
+    auditionsReady: castingDrafts
       .map((p) => ({ production: p, auditions: (p.auditions ?? []).filter((a) => totalDays >= a.readyOnDay && !a.acknowledged) }))
       .filter((c) => c.auditions.length > 0),
     pressTourIncidents: scheduledPlayerReleases(projects)
@@ -192,7 +218,10 @@ export function inboxBadgeCount(projects: Project[], excludeId: string | null, t
     items.awaitingChoice.length +
     items.wrapped.length +
     items.parked.filter(isParkedActionable).length +
-    items.casting.length +
+    // One badge point per casting CALL, not per production - each is its own
+    // Inbox card now, routing to its own Character's drawer.
+    items.casting.reduce((sum, entry) => sum + entry.calls.length, 0) +
+    items.directorPitches.length +
     items.auditionsReady.length +
     items.pressTourIncidents.length +
     items.nowPlaying.length +

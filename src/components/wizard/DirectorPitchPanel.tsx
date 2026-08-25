@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { deriveFocusedDraft } from '../../state/selectors';
 import { describePitch, type PitchPosture } from '../../engine/directorPitch';
@@ -28,6 +29,14 @@ interface DirectorPitchPanelProps {
 export function DirectorPitchPanel({ advertisedFee }: DirectorPitchPanelProps) {
   const { state, dispatch } = useStudio();
   const draft = deriveFocusedDraft(state);
+  // This panel being on screen IS the player reading whatever has landed, so
+  // the Inbox's "the pitches are in" beat clears here - the same read-state
+  // contract screen tests and casting applicants use, so a round that's been
+  // looked at stops lighting the badge without being decided.
+  const unreadPitches = (draft?.directorPitches?.submitted ?? []).some((pitch) => !pitch.acknowledged);
+  useEffect(() => {
+    if (unreadPitches) dispatch({ type: 'ACKNOWLEDGE_DIRECTOR_PITCHES' });
+  }, [unreadPitches, dispatch]);
   if (!draft || !draft.script) return null;
 
   const process = draft.directorPitches;

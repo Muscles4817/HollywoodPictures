@@ -5,12 +5,62 @@ import { ActivityCard } from './ActivityCard';
 import { OnSetDecisionCard } from './OnSetDecisionCard';
 import { reshootChoiceConstraints } from '../../engine/reshootAvailability';
 import { backgroundedPlayerDrafts, deriveInboxItems, isParkedActionable } from '../../engine/project';
+import { unseenApplicants } from '../../engine/castingCalls';
 import { derivePostProductionStatus, describePostProductionWait } from '../../engine/postProductionStatus';
 import { highestBid } from '../../engine/opportunities';
 import { responsesForPolarity } from '../../engine/pressTourMoments';
 import { unacknowledgedAwardHighlights } from '../../state/selectors';
 import type { ActivityAction } from '../../state/studioActivity';
-import type { BidNotification, FilmDraft } from '../../types';
+import type { AuditionRecord, BidNotification, CastingApplicant, FilmDraft, Person } from '../../types';
+
+/** Shown in place of a routing button while the player is mid-wizard on something else - the same rule RESUME_PROJECT itself enforces (state/studioReducer.ts). */
+const BUSY_NOTE = "Finish or leave what you're currently working on before picking this back up.";
+
+/** How many applicants a card lists by name before summarising the rest - enough to recognise a beat, short enough to stay a notification rather than a second casting screen. */
+const MAX_LISTED_APPLICANTS = 4;
+
+/** "Mercedes · Supporting role" - what the card is about, since a per-Character card's title is the role, not the film (the film is in the eyebrow). */
+function characterHeading(characterName: string | undefined, role: 'Lead Actor' | 'Supporting Actor'): string {
+  const roleLabel = role === 'Lead Actor' ? 'Lead role' : 'Supporting role';
+  return characterName ? `${characterName} · ${roleLabel}` : roleLabel;
+}
+
+/** One readable line per new candidate, saying which door they came through - an InterestedTalent arrival sought the studio out (design review section 6), an Open Casting applicant answered the call. */
+function applicantLines(applicants: CastingApplicant[]): string[] {
+  const lines = applicants
+    .slice(0, MAX_LISTED_APPLICANTS)
+    .map((applicant) =>
+      applicant.channel === 'InterestedTalent'
+        ? `${applicant.person.identity.name} — approached you directly, interested in the part`
+        : `${applicant.person.identity.name} — answered your open casting call`,
+    );
+  const remaining = applicants.length - lines.length;
+  return remaining > 0 ? [...lines, `…and ${remaining} more`] : lines;
+}
+
+/** Ready screen tests regrouped per Character, so each role's read gets its own card (and its own route into that role's drawer) instead of one card lumping several roles together. */
+function groupAuditionsByCharacter(
+  production: FilmDraft,
+  auditions: AuditionRecord[],
+  actorPool: Person[] = [],
+): Array<{ production: FilmDraft; characterId: string; characterName: string | undefined; role: 'Lead Actor' | 'Supporting Actor'; actorNames: string[] }> {
+  const byCharacter = new Map<string, AuditionRecord[]>();
+  for (const audition of auditions) {
+    byCharacter.set(audition.characterId, [...(byCharacter.get(audition.characterId) ?? []), audition]);
+  }
+  return [...byCharacter.entries()].map(([characterId, records]) => ({
+    production,
+    characterId,
+    characterName: production.script?.cast.find((c) => c.id === characterId)?.name,
+    role: records[0].role,
+    actorNames: records.map(
+      (record) =>
+        production.talent.find((t) => t.person.id === record.personId)?.person.identity.name
+        ?? actorPool.find((p) => p.id === record.personId)?.identity.name
+        ?? 'A candidate',
+    ),
+  }));
+}
 
 interface InboxProps {
   open: boolean;
@@ -48,15 +98,27 @@ interface InboxProps {
  *    Development project (no photography yet) with new casting applicants
  *    waiting on a Character that isn't cast yet
  *    (engine/castingCalls.ts:castingCallsAwaitingReview) - both Open Casting
- *    responses and InterestedTalent arrivals (the latter called out by name,
- *    section 6). Read-only here -
- *    resolving it means going back into Cast & Crew, not something the
- *    Inbox itself can do, since casting decisions are per-Character (see
- *    components/wizard/CastingDrawer.tsx), not a single yes/no this list
- *    can surface directly. Only the focused draft's own applicants are
- *    invisible while it's showing on its own screen already - the same
- *    "the currently-focused project never needs a second, redundant entry
- *    here" rule the other three kinds already follow.
+ *    responses and InterestedTalent arrivals. One card per Character, not
+ *    per project: the decision is per-Character (see
+ *    components/wizard/CastingDrawer.tsx), so the card names the role, lists
+ *    who's new, and routes straight into that Character's drawer
+ *    (REVIEW_CASTING_CALL) rather than dropping the player on the project's
+ *    Overview to hunt for it.
+ *  - 'directorPitches' (docs/DESIGN_director_pitch_and_bakeoff.md Phase B2) -
+ *    an open bake-off whose pitches have landed. They arrive on their own
+ *    due-days during the background tick, so this is the only place the
+ *    player finds out a round has come in; it routes into the Director
+ *    drawer's bake-off panel (REVIEW_DIRECTOR_PITCHES).
+ *  - 'auditionsReady' - completed screen tests, likewise one card per
+ *    Character and routing into that Character's drawer.
+ * Those last three are read-state driven: each clears when the player opens
+ * the drawer it points at, not when the underlying casting decision is finally
+ * made, so a card pings once per genuinely new arrival instead of repeating an
+ * identical message forever. That's also why they're the only categories shown
+ * for the CURRENTLY-FOCUSED project too (see engine/project.ts:deriveInboxItems)
+ * - they can't nag, and the drawer they point at isn't on screen just because
+ * the project is. Every other category stays hidden for the focused project,
+ * since each of those routes to the screen it's already showing.
  * Both wrapped and parked items are only actionable while the player isn't
  * already mid-wizard on something else (state.focusedProjectId !== null),
  * so this can never silently take over unrelated in-progress work. Opening
@@ -70,12 +132,14 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
 
   // Inbox is mounted globally, including mid-wizard while something is
   // focused (unlike Dashboard, where RETURN_TO_DASHBOARD guarantees
-  // focusedProjectId is null) - deriveInboxItems excludes that focused one
-  // internally, so it's never shown here a second time: its own screen
-  // (ProductionRun.tsx/MarketingRelease.tsx) is where it belongs, not the
-  // Inbox. The exact same derivation Header.tsx's badge count reads
-  // (engine/project.ts:inboxBadgeCount), so the two can never drift apart.
-  const { awaitingChoice, wrapped, parked, casting, auditionsReady, pressTourIncidents, nowPlaying, boxOfficeFinished } = deriveInboxItems(state.projects, state.focusedProjectId, state.totalDays);
+  // focusedProjectId is null) - deriveInboxItems drops that focused project
+  // from every category whose card would only route to the screen already
+  // showing it (ProductionRun.tsx/MarketingRelease.tsx is where those belong,
+  // not the Inbox), and keeps it for the three read-state Cast & Crew beats,
+  // which point at drawers that aren't on screen. The exact same derivation
+  // Header.tsx's badge count reads (engine/project.ts:inboxBadgeCount), so the
+  // two can never drift apart.
+  const { awaitingChoice, wrapped, parked, casting, directorPitches, auditionsReady, pressTourIncidents, nowPlaying, boxOfficeFinished } = deriveInboxItems(state.projects, state.focusedProjectId, state.totalDays);
   // Recently-resolved award ceremonies the player hasn't clicked through yet
   // (state/selectors.ts) - awards settle silently in the background tick, so
   // this is the Inbox's "Awards night" catch-up beat.
@@ -104,13 +168,33 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
     onClose();
   };
 
+  // Every routing action also closes the Inbox: it's a full-screen overlay, so
+  // leaving it up would leave the player staring at the very list they just
+  // clicked out of, with the screen they asked for hidden behind it.
+  const routed = (run: () => void) => () => {
+    run();
+    onClose();
+  };
   // A backgrounded shoot can only be resumed while nothing else is focused
   // (the same rule the cards always followed) - otherwise the card shows a
   // note in place of the button rather than silently taking over other work.
   const resumeAction = (production: FilmDraft, label: string): ActivityAction =>
     state.focusedProjectId
-      ? { label, note: "Finish or leave what you're currently working on before picking this back up." }
-      : { label, onClick: () => dispatch({ type: 'RESUME_PROJECT', projectId: production.id }) };
+      ? { label, note: BUSY_NOTE }
+      : { label, onClick: routed(() => dispatch({ type: 'RESUME_PROJECT', projectId: production.id })) };
+
+  /**
+   * A card that routes into one specific Cast & Crew drawer rather than merely
+   * into the project (REVIEW_CASTING_CALL / REVIEW_DIRECTOR_PITCHES) - "take me
+   * to the thing this message is about." Blocked only by a DIFFERENT project
+   * being focused (the reducer enforces the same rule): these beats now surface
+   * for the focused project too, and jumping to a drawer within the project
+   * you're already in is exactly what the card is for.
+   */
+  const reviewAction = (productionId: string, label: string, run: () => void): ActivityAction =>
+    state.focusedProjectId && state.focusedProjectId !== productionId
+      ? { label, note: BUSY_NOTE }
+      : { label, onClick: routed(run) };
 
   // Two groups, per the unified-inbox design: "Needs you" is everything
   // waiting on the player (a decision, a shoot to pick back up, a live outbid),
@@ -118,8 +202,21 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
   // knowing about (box office, awards, settled bids). The interactive on-set /
   // test-screening / press-tour cards stay bespoke (they resolve in place);
   // everything else routes to its system-of-record via a shared ActivityCard.
+  // One card per casting CALL and per audition CHARACTER, not per production -
+  // "new applicants for Mercedes" and "Bruno's screen test is in" are separate
+  // things to act on, and each routes to its own drawer.
+  const castingCards = casting.flatMap(({ production, calls }) => calls.map((call) => ({ production, call })));
+  const auditionCards = auditionsReady.flatMap(({ production, auditions }) => groupAuditionsByCharacter(production, auditions, state.talentPool.Actor));
   const needsYouCount =
-    awaitingChoice.length + pressTourIncidents.length + wrapped.length + parked.length + casting.length + auditionsReady.length + nowPlaying.length + attentionBids.length;
+    awaitingChoice.length +
+    pressTourIncidents.length +
+    wrapped.length +
+    parked.length +
+    castingCards.length +
+    directorPitches.length +
+    auditionCards.length +
+    nowPlaying.length +
+    attentionBids.length;
   const updatesCount = boxOfficeFinished.length + awardHighlights.length + updateBids.length;
   const nothingAtAll = needsYouCount === 0 && updatesCount === 0;
 
@@ -265,61 +362,93 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
               );
             })}
 
-            {casting.map(({ production, calls }) => {
-              // Phase D (docs/DESIGN_REVIEW_casting_redesign.md section 6) - an
-              // InterestedTalent applicant reached out on their own, unprompted,
-              // rather than answering an Open Casting call - called out by name.
-              const interestedNames = calls
-                .flatMap((call) => call.applicants.filter((a) => a.channel === 'InterestedTalent'))
-                .map((a) => a.person.identity.name);
-              const roles = calls
-                .map((call) => production.script?.cast.find((c) => c.id === call.characterId)?.name ?? 'a role')
-                .join(', ');
-              const detail = `New casting applicants waiting on ${roles}.${interestedNames.length > 0 ? ` ${interestedNames.join(', ')} reached out directly, interested in joining.` : ''}`;
+            {castingCards.map(({ production, call }) => {
+              // One card per Character with unseen applicants (Casting Redesign,
+              // Phase C/D). Named by the role it's about, with each new applicant
+              // on its own line - "new applicants on three roles" in one run-on
+              // sentence was unreadable, and unactionable besides: the card now
+              // routes straight into THIS Character's casting drawer
+              // (REVIEW_CASTING_CALL) rather than dropping the player on the
+              // project's Overview to find it themselves.
+              const character = production.script?.cast.find((c) => c.id === call.characterId);
+              const fresh = unseenApplicants(call);
               return (
                 <ActivityCard
-                  key={production.id}
+                  key={`${production.id}-casting-${call.id}`}
                   activity={{
-                    id: `${production.id}-casting`,
+                    id: `${production.id}-casting-${call.id}`,
                     tone: 'neutral',
                     category: 'attention',
-                    eyebrow: 'Casting',
-                    title: production.title || 'Untitled Film',
-                    detail,
+                    eyebrow: `Casting · ${production.title || 'Untitled Film'}`,
+                    title: characterHeading(character?.name, call.role),
+                    detail:
+                      fresh.length === 1
+                        ? 'One new candidate is waiting on this role.'
+                        : `${fresh.length} new candidates are waiting on this role.`,
+                    bullets: applicantLines(fresh),
                   }}
-                  action={resumeAction(production, 'Continue Casting')}
+                  action={reviewAction(production.id, 'Review candidates', () =>
+                    dispatch({ type: 'REVIEW_CASTING_CALL', projectId: production.id, characterId: call.characterId }),
+                  )}
                 />
               );
             })}
 
-            {auditionsReady.map(({ production, auditions }) => {
-              // "Your screen tests came back." Named by character, and by actor
-              // when it's just one or two - a concrete, diegetic beat rather than
-              // a silent card update the player would only find by reopening the
-              // drawer (casting QOL). Resolving it routes back into casting; the
-              // read is acknowledged when the character's drawer opens.
-              const names = auditions
-                .map((a) => {
-                  const character = production.script?.cast.find((c) => c.id === a.characterId)?.name ?? 'a role';
-                  const actor = production.talent.find((t) => t.person.id === a.personId)?.person.identity.name
-                    ?? [...state.talentPool.Actor].find((p) => p.id === a.personId)?.identity.name;
-                  return actor ? `${actor} (${character})` : character;
-                });
-              const detail = auditions.length === 1
-                ? `The screen test is in — ${names[0]}. You've now got a confident read on the part.`
-                : `${auditions.length} screen tests are in — ${names.join(', ')}. You've now got a confident read on each.`;
+            {directorPitches.map(({ production, pitches }) => {
+              // Director bake-off (docs/DESIGN_director_pitch_and_bakeoff.md
+              // Phase B2). Pitches land on their own due-days during the
+              // background tick, so without this card a round could come in
+              // and sit there unread - the player had no way to find out short
+              // of reopening the Director drawer on the off-chance.
+              const stillComing = production.directorPitches?.pending.length ?? 0;
+              const names = pitches
+                .map((pitch) => state.talentPool.Director.find((d) => d.id === pitch.directorId)?.identity.name)
+                .filter((name): name is string => name !== undefined);
               return (
                 <ActivityCard
-                  key={`${production.id}-auditions`}
+                  key={`${production.id}-director-pitches`}
                   activity={{
-                    id: `${production.id}-auditions`,
+                    id: `${production.id}-director-pitches`,
                     tone: 'positive',
                     category: 'attention',
-                    eyebrow: 'Screen test',
-                    title: production.title || 'Untitled Film',
-                    detail,
+                    eyebrow: `Director bake-off · ${production.title || 'Untitled Film'}`,
+                    title: pitches.length === 1 ? 'A director pitch is in' : `${pitches.length} director pitches are in`,
+                    detail: stillComing > 0
+                      ? `Read their take on the film and pick one — or wait, ${stillComing} more ${stillComing === 1 ? 'is' : 'are'} still being prepared.`
+                      : 'Read their take on the film and pick one, or pass on the round.',
+                    bullets: names,
                   }}
-                  action={resumeAction(production, 'See the Read')}
+                  action={reviewAction(production.id, 'Read the pitches', () =>
+                    dispatch({ type: 'REVIEW_DIRECTOR_PITCHES', projectId: production.id }),
+                  )}
+                />
+              );
+            })}
+
+            {auditionCards.map(({ production, characterId, characterName, role, actorNames }) => {
+              // "Your screen test came back." Named by character, with the actors
+              // listed - a concrete, diegetic beat rather than a silent card
+              // update the player would only find by reopening the drawer
+              // (casting QOL). Routes into that Character's own drawer, which is
+              // also what marks the read acknowledged.
+              return (
+                <ActivityCard
+                  key={`${production.id}-auditions-${characterId}`}
+                  activity={{
+                    id: `${production.id}-auditions-${characterId}`,
+                    tone: 'positive',
+                    category: 'attention',
+                    eyebrow: `Screen test · ${production.title || 'Untitled Film'}`,
+                    title: characterHeading(characterName, role),
+                    detail:
+                      actorNames.length === 1
+                        ? "The screen test is in — you've now got a confident read on the part."
+                        : `${actorNames.length} screen tests are in — you've now got a confident read on each.`,
+                    bullets: actorNames,
+                  }}
+                  action={reviewAction(production.id, 'See the read', () =>
+                    dispatch({ type: 'REVIEW_CASTING_CALL', projectId: production.id, characterId }),
+                  )}
                 />
               );
             })}

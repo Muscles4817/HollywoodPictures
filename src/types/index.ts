@@ -1247,6 +1247,15 @@ export interface DirectorPitch {
   previewedDemands: CreativeDemand[];
   /** How hard the director backs their vision, 0-1 (ego and hands-on-ness). High conviction on a good fit is a high ceiling; on a bad fit, a low floor. */
   conviction: number;
+  /**
+   * Whether the player has actually SEEN this pitch since it landed (opened the
+   * bake-off panel). Same read-state contract as AuditionRecord.acknowledged and
+   * CastingApplicant.acknowledged - a pitch arriving on its due-day is an Inbox
+   * beat that pings once and clears when the player looks, not one that nags
+   * until the round is decided. Absent/false until seen; never set on a pitch as
+   * generated (engine/directorPitch.ts), only on the stored copy.
+   */
+  acknowledged?: boolean;
 }
 
 /** A director scheduled to submit a pitch on a future day - the "arrives on a due-day" model auditions already use (Phase B2). */
@@ -2655,6 +2664,14 @@ export interface CastingApplicant {
   person: Person;
   appliedOnDay: GameDay;
   channel: CastingChannel;
+  /**
+   * Whether the player has actually SEEN this applicant (opened the
+   * character's casting drawer since they applied). The same read-state
+   * contract AuditionRecord.acknowledged uses: the Inbox pings once per new
+   * arrival and stops once the player has looked, rather than nagging with an
+   * identical message until somebody is finally cast. Absent/false until seen.
+   */
+  acknowledged?: boolean;
 }
 
 export interface CastingCall {
@@ -3129,6 +3146,23 @@ export type WizardStep =
 // 'cast-and-crew', reusing components/wizard/HireTalent.tsx wholesale) -
 // deferred to a later phase per PRODUCER_WORKSPACE_DESIGN.md's own phasing.
 export type ProjectWorkspaceSection = 'overview' | 'cast-and-crew' | 'production' | 'producers' | 'finance';
+
+/**
+ * A deep-link INTO the Cast & Crew section, so a notification can land the
+ * player on the exact thing it was about rather than merely on the project.
+ * Cast & Crew's two review surfaces (the per-Character casting drawer,
+ * components/wizard/CastingDrawer.tsx, and the Director bake-off panel inside
+ * RoleHiringDrawer) are local component state, so the routing request is held
+ * here on GameState for one render and consumed by components/wizard/HireTalent.tsx,
+ * which opens the matching drawer and clears it (CLEAR_CAST_CREW_FOCUS). Any
+ * navigation clears it too (state/studioReducer.ts:clearTransientView), so a
+ * request never survives to re-open a drawer the player has moved on from.
+ */
+export type CastCrewFocus =
+  /** Open this Character's casting drawer - "new applicants for the villain". */
+  | { kind: 'character'; characterId: string }
+  /** Open the Director role's drawer on its bake-off panel - "pitches are in". */
+  | { kind: 'director-pitches' };
 
 // 'workspace' is the single screen a pre-greenlight project lives on now -
 // which of its sections is showing is GameState.projectWorkspaceSection,

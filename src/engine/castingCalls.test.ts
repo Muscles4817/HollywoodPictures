@@ -2,7 +2,7 @@
 // sections 1-2) - no dedicated test coverage existed for this file before
 // it was added.
 import { describe, it, expect } from 'vitest';
-import { openCastingCall, findOrOpenCastingCall, castingCallsAwaitingReview, generateCastingApplicants, generateInterestedTalent, tickCastingCalls, forecastOpenCasting, WEEK_LENGTH_DAYS } from './castingCalls';
+import { openCastingCall, findOrOpenCastingCall, castingCallsAwaitingReview, unseenApplicants, generateCastingApplicants, generateInterestedTalent, tickCastingCalls, forecastOpenCasting, WEEK_LENGTH_DAYS } from './castingCalls';
 import { computeActorAppeal, resolveOfferResponse } from './castingAppeal';
 import { createDraftFromAsset } from '../state/gameState';
 import { generateScriptOptions } from './scriptGenerator';
@@ -447,6 +447,26 @@ describe('castingCallsAwaitingReview', () => {
     const call = openCastingCall(character.id, 'Lead Actor', 1);
     const withCall = { ...draft, castingCalls: [call] };
     expect(castingCallsAwaitingReview(withCall)).toEqual([]);
+  });
+
+  it('excludes a call whose applicants have all been SEEN - reviewed is not the same as cast', () => {
+    const draft = draftFor(14);
+    const character = leadCharacter(draft.script!);
+    const [applicant] = actorPool(14, 1);
+    const call = {
+      ...openCastingCall(character.id, 'Lead Actor', 1),
+      applicants: [{ person: applicant, appliedOnDay: 1, channel: 'OpenCasting' as const, acknowledged: true }],
+    };
+    const withCall = { ...draft, castingCalls: [call] };
+    expect(unseenApplicants(call)).toEqual([]);
+    expect(castingCallsAwaitingReview(withCall)).toEqual([]);
+
+    // A fresh arrival alongside the seen one makes it news again - and only the
+    // new person counts as unseen.
+    const [, newcomer] = actorPool(14, 2);
+    const withNewcomer = { ...call, applicants: [...call.applicants, { person: newcomer, appliedOnDay: 8, channel: 'OpenCasting' as const }] };
+    expect(unseenApplicants(withNewcomer)).toHaveLength(1);
+    expect(castingCallsAwaitingReview({ ...draft, castingCalls: [withNewcomer] })).toEqual([withNewcomer]);
   });
 
   it('excludes calls whose Character is already cast, even with applicants waiting', () => {

@@ -38,6 +38,15 @@ export interface StudioActivity {
   eyebrow: string;
   title: string;
   detail: string;
+  /**
+   * Optional supporting lines, rendered as a short list under `detail` rather
+   * than crammed into it. For a beat that is genuinely several things at once -
+   * "new applicants on three different roles" - one run-on sentence is unreadable
+   * and, worse, unactionable: the list keeps each item legible and lets the card
+   * name what it's actually about. Keep it to a handful of short lines; anything
+   * longer belongs on the surface the card routes to.
+   */
+  bullets?: string[];
 }
 
 /**
