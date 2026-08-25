@@ -356,21 +356,54 @@ That discipline is the lesson from the failed attempt in
 `DESIGN_box_office_engine_map.md` §11, where a geometric mean dropped the wide
 median from $117M to $57M and bought no variance.
 
-**Measured.** Fixed plan, 240 execution seeds:
+**Measured — department sensitivity**, points of `qualityScore` per 10 points of
+one department. This is the direct answer to "do the departments actually matter":
+
+| Department | before | after |
+|---|--:|--:|
+| Acting | 1.85 | **3.61** |
+| Script | 3.26 | **3.62** |
+| Post-production | 1.87 | 0.94 up / **1.73** down (asymmetric by design) |
+| All three, −15 points | −9.95 | **−12.61** |
+
+**Fixed plan, 240 execution seeds:**
 
 | | before | after |
 |---|--:|--:|
-| `qualityScore` SD | 1.54 | **2.33** |
-| `criticScore` SD | 1.18 | **1.86** |
-| `audienceScore` SD | 0.79 | **1.20** |
+| `qualityScore` SD | 1.54 | **2.70** |
+| `criticScore` SD | 1.18 | **2.10** |
+| `audienceScore` SD | 0.79 | **1.37** |
 
-Whole slate, 394 films over four 4-year runs — median preserved, as required:
+**Whole slate, 397 films over four 4-year runs** — median preserved, as required:
 
 | | before | after |
 |---|--:|--:|
-| `qualityScore` mean / SD | 52.5 / 6.6 | 51.9 / 6.58 |
-| `criticScore` SD / range | 7.7 / 35–72 | 7.14 / **31–74** |
-| `audienceScore` mean / SD | 62.9 / 6.5 | 62.7 / 6.45 |
+| `qualityScore` mean / SD | 52.5 / 6.6 | 51.2 / **7.14** |
+| `criticScore` SD / range | 7.7 / 35–72 | 7.55 / **33–77** |
+| `audienceScore` mean / SD | 62.9 / 6.5 | 62.1 / **6.78** |
+
+**Read this honestly: the slate distribution barely moved.** `criticScore` SD is
+7.55 against a real-world target of ~17 (§3.1). What improved is *transmission* —
+a fixed plan's outcome spread is up ~1.75×, and acting's influence on the
+finished film roughly doubled. Slate spread comes from films differing from each
+other, and the departments feeding the blend are themselves still narrow
+(`actingScore` SD 5.9, `postProductionScore` SD 4.0). A composition can only
+transmit the signal it is handed. Closing the 7.5 → 17 gap is the job of the
+reception layer (§4 steps 4–6), which adds *new* variance sources rather than
+transmitting existing ones.
+
+Two things had to be got right along the way, both found by measuring rather
+than reasoning:
+
+- **The post-production gate must span the range post ACTUALLY occupies.** The
+  first draft saturated it at 100 when effective post-production lives around
+  25–50, leaving the factor nearly flat over the live range. That *halved*
+  post's influence (1.87 → 0.99 points per 10) when the entire point was to stop
+  it being a near-constant.
+- **The gate must be asymmetric.** A bad edit squanders footage far more easily
+  than a good one improves on it — which the dependency chain already asserts in
+  words. Without damping the upside, a strong edit inflated the top: the
+  Inception recreation reached critic 86 against a ratified ceiling of 82.
 
 **Where the gain comes from.** Not from uniform damage — an
 all-departments-down shoot moved the fixture film 15.2 points under the old

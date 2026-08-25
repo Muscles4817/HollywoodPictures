@@ -58,6 +58,17 @@ describe('quality composition', () => {
     expect(strongFilmDrop).toBeGreaterThan(weakFilmDrop);
   });
 
+  it('lets a bad edit squander footage far more than a good one can improve on it', () => {
+    // The asymmetry the dependency chain already asserts in words ("an editor
+    // cannot cut footage that was never shot"). Without it a strong edit
+    // inflates the top of the distribution - the Inception recreation reached
+    // critic 86 against a ratified band ceiling of 82.
+    const neutral = quality(execution());
+    const gained = quality(execution({ postExecution: 1.14 })) - neutral;
+    const lost = neutral - quality(execution({ postExecution: 0.86 }));
+    expect(lost).toBeGreaterThan(gained * 1.5);
+  });
+
   it('transmits a shoot that ruined ONE department, which a mean would average away', () => {
     // Where the change actually pays. Uniform damage is the case a weighted
     // mean already handled: an all-departments-down profile moved this film

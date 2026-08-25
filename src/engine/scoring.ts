@@ -496,14 +496,38 @@ const QUALITY_COMPOSITION_LEVEL = -7.0;
 // Going the rest of the way makes the edit realise or squander the footage
 // rather than averaging against it, which is also what lets execution's
 // postExecution multiplier reach the film instead of being diluted by weight.
-const POST_REALISATION_FLOOR = 0.72;
-const POST_REALISATION_SATURATION = 100;
+const POST_REALISATION_FLOOR = 0.62;
+const POST_REALISATION_SATURATION = 62;
 /** The effective post-production score a typical film lands on - measured, and the point at which the realisation factor is exactly 1. Above it the edit realises more than the footage promised; below it, less. */
 const POST_REALISATION_REFERENCE = 37;
+
+// The gate spans its full width across the range effective post-production
+// ACTUALLY occupies (roughly 25-50 after the footage chain), not across a
+// nominal 0-100. Saturating at 100 was the first draft and it was wrong: it left
+// the realisation factor almost flat over the live range, so making
+// post-production multiplicative HALVED its influence on the finished film
+// (1.87 points of qualityScore per 10 points of department, down to 0.99) when
+// the whole point was to stop it being a near-constant. Measured, not guessed.
+// The gate is deliberately ASYMMETRIC about its reference. An edit can squander
+// footage far more easily than it can improve on it - the codebase already says
+// so (editCoverageCeiling, K_FOOTAGE_TO_EDITING: "an editor cannot cut footage
+// that was never shot"), so the downside runs at full slope and the upside is
+// damped. Without this, a film with a strong edit inflates: the Inception
+// recreation reached critic 86 against a band ceiling of 82 (real Metacritic
+// 74) before the damping went in.
+const POST_UPSIDE_DAMPING = 0.45;
 
 /** A soft multiplicative gate: `floor` at 0, rising linearly to 1 at `saturation`. */
 function realisationGate(value: number, floor: number, saturation: number): number {
   return floor + (1 - floor) * clamp(value / saturation, 0, 1);
+}
+
+/** How much the edit realises or squanders the footage, 1 at the reference. Full slope below it, damped above. */
+function postRealisationFactor(effectivePostProduction: number): number {
+  const raw = realisationGate(effectivePostProduction, POST_REALISATION_FLOOR, POST_REALISATION_SATURATION);
+  const reference = realisationGate(POST_REALISATION_REFERENCE, POST_REALISATION_FLOOR, POST_REALISATION_SATURATION);
+  const ratio = raw / reference;
+  return ratio >= 1 ? 1 + POST_UPSIDE_DAMPING * (ratio - 1) : ratio;
 }
 
 /**
@@ -657,9 +681,7 @@ export function computeQualityBreakdown(
   const shaped =
     core - QUALITY_WEAKEST_LINK * Math.max(0, core - weakest) + QUALITY_PEAK_CARRY * Math.max(0, peak - core) + QUALITY_SHAPE_RECENTRE;
 
-  const postRealisation =
-    realisationGate(effPostProduction, POST_REALISATION_FLOOR, POST_REALISATION_SATURATION) /
-    realisationGate(POST_REALISATION_REFERENCE, POST_REALISATION_FLOOR, POST_REALISATION_SATURATION);
+  const postRealisation = postRealisationFactor(effPostProduction);
 
   const qualityScore = clamp(shaped * postRealisation + QUALITY_COMPOSITION_LEVEL + developmentQualityDelta, 0, 100);
 
