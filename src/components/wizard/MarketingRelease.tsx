@@ -4,7 +4,7 @@ import { MARKETING_SPEND_RANGE, RELEASE_TYPE_PROFILES } from '../../data/release
 import { pluckDescriptions } from '../../data/describe';
 import { computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../../engine/cost';
 import { formatGameDateWithMonth, formatGameMonthYear, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from '../../engine/calendar';
-import { computeCompetitiveCrowding, computePlayerReleaseStrength, crowdingBandKey, describeCrowdingBand, explainCrowding, type UpcomingRelease } from '../../engine/releaseCrowding';
+import { computePlayerReleaseStrength, crowdingBandKey, describeCrowdingBand, explainCrowding, type UpcomingRelease } from '../../engine/releaseCrowding';
 import { genreIdentityFor } from '../../engine/studioIdentity';
 import { ChoiceGroup } from '../common/ChoiceGroup';
 import { RangeSlider } from '../common/RangeSlider';
@@ -14,12 +14,13 @@ import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { reshootChoiceConstraints } from '../../engine/reshootAvailability';
-import { deriveFocusedDraft, deriveKnownField, deriveUpcomingReleaseEntries } from '../../state/selectors';
+import { deriveFocusedDraft, deriveKnownField, deriveRivalHorizon, deriveUpcomingReleaseEntries } from '../../state/selectors';
 import {
   campaignRunwayBand,
   describeCampaignRunwayBand,
   describeCompetitor,
   describeSeason,
+  describeField,
   describeSeasonBand,
   seasonBandFor,
   UNKNOWN_FIELD_NOTE,
@@ -258,6 +259,8 @@ export function MarketingRelease() {
     [state.projects, state.studio.genreIdentity, state.totalDays, state.rivalStudios, state.studio.name, draft.id],
   );
   const knownUpcoming = useMemo<UpcomingRelease[]>(() => field.map((c) => c.upcoming), [field]);
+  // Never extended by this studio's own claims - see deriveRivalHorizon.
+  const rivalHorizon = useMemo(() => deriveRivalHorizon(field), [field]);
 
   // This film's own strength in the matchup, computed exactly as
   // engine/marketSettlement.ts does at settlement. Without it the preview would
@@ -277,12 +280,18 @@ export function MarketingRelease() {
     [draft.productionChoices, draft.marketingChoices, draft.genre, state.studio.genreIdentity],
   );
 
-  function crowdingFor(candidateReleaseDay: number): number {
-    if (!draft.genre || !draft.targetAudience) return 0;
-    return computeCompetitiveCrowding(
+  // The one crowding read this screen uses, everywhere. The month grid used to
+  // score cells with a bare band while the line beneath it went through
+  // describeField, so a cell past the industry's known horizon said "Clear
+  // window" directly above a summary saying "Nothing known yet" about the very
+  // same date.
+  function fieldFor(candidateReleaseDay: number) {
+    if (!draft.genre || !draft.targetAudience) return null;
+    return explainCrowding(
       { releaseDay: candidateReleaseDay, genre: draft.genre, targetAudience: draft.targetAudience },
       knownUpcoming,
       ownStrength,
+      rivalHorizon,
     );
   }
 
@@ -421,14 +430,7 @@ export function MarketingRelease() {
   const releaseTypeProfile = RELEASE_TYPE_PROFILES[choices.releaseType];
   const weakMarketingWarning =
     releaseTypeProfile.needsMarketing && !onDistributorDeal && choices.marketingSpend <= MARKETING_SPEND_RANGE.min * 3;
-  const selectedField =
-    draft.genre && draft.targetAudience
-      ? explainCrowding(
-          { releaseDay, genre: draft.genre, targetAudience: draft.targetAudience },
-          knownUpcoming,
-          ownStrength,
-        )
-      : null;
+  const selectedField = fieldFor(releaseDay);
   const selectedCrowding = selectedField?.crowding ?? 0;
   const selectedCrowdingReading = crowdingReading(selectedCrowding);
 
@@ -810,7 +812,15 @@ export function MarketingRelease() {
             never quote a cheaper move than settlement takes. */}
         {draft.announcedReleaseDay !== undefined && (() => {
           const chargedOn = Math.max(state.totalDays, draft.postProductionFinalReadyDay ?? state.totalDays);
-          const onAnnouncedDate = releaseDay === draft.announcedReleaseDay;
+          // SCHEDULE_RELEASE clamps the picked day up to the day the film is
+          // actually ready before comparing it to the announcement, so the
+          // preview has to clamp identically. It did not, and the gap was real:
+          // announcing a month's 1st and finishing post later that same month
+          // made this read "keeps the campaign whole" while settlement charged
+          // the full write-off - the announced date being already past is the
+          // most expensive case there is.
+          const scheduledDay = Math.max(Math.round(releaseDay), chargedOn);
+          const onAnnouncedDate = scheduledDay === draft.announcedReleaseDay;
           const cost = campaignWriteOff(draft.campaignCommitment, chargedOn);
           return (
             <p
@@ -821,9 +831,9 @@ export function MarketingRelease() {
               {onAnnouncedDate
                 ? 'Opening on it keeps whatever campaign is booked against it whole.'
                 : cost > 0
-                  ? `Opening in ${formatGameMonthYear(releaseDay)} instead costs ${formatMoney(cost)} — ` +
+                  ? `Opening in ${formatGameMonthYear(scheduledDay)} instead costs ${formatMoney(cost)} — ` +
                     'the placements bought against the announced date cannot follow the film to a new one.'
-                  : `Opening in ${formatGameMonthYear(releaseDay)} instead costs nothing: no campaign was ever booked against the announced date.`}
+                  : `Opening in ${formatGameMonthYear(scheduledDay)} instead costs nothing: no campaign was ever booked against the announced date.`}
             </p>
           );
         })()}
@@ -831,8 +841,8 @@ export function MarketingRelease() {
         <div className="month-grid">
           {candidateMonths.map(({ year: y, monthIndex: m, releaseDay: candidateDay }) => {
             const window = deriveReleaseWindowFromDay(candidateDay);
-            const crowding = crowdingFor(candidateDay);
-            const reading = crowdingReading(crowding);
+            const cellField = fieldFor(candidateDay);
+            const reading = crowdingReading(cellField?.crowding ?? 0);
             const slated = slatedCountFor(y, m);
             const isSelected = y === year && m === monthIndex;
             // The two things the grid used to leave to the meter below it: how
@@ -868,7 +878,9 @@ export function MarketingRelease() {
                     {describeCampaignRunwayBand(runway)}
                   </span>
                 )}
-                <span className={`month-cell__crowding ${reading.className}`}>{reading.label}</span>
+                <span className={`month-cell__crowding${cellField?.beyondKnownField ? '' : ` ${reading.className}`}`}>
+                  {cellField ? describeField(cellField) : reading.label}
+                </span>
                 {slated > 0 && (
                   <span className="month-cell__slated">{slated} other release{slated === 1 ? '' : 's'}</span>
                 )}

@@ -23,7 +23,7 @@ import { productionRequirementTags } from '../engine/scriptPresentation';
 import { announcedPlayerDrafts, asFilm, asPlayerDraft, asScheduled, asRivalProduction, findProject, projectId, rivalProductionsInProgress, scheduledPlayerReleases } from '../engine/project';
 import { rivalAsUpcomingRelease, rivalReleaseIsAnnounced } from '../engine/rivalStudios';
 import { announcedAsUpcomingRelease, asUpcomingRelease } from '../engine/scheduledReleases';
-import type { UpcomingRelease } from '../engine/releaseCrowding';
+import { crowdingHorizon, type UpcomingRelease } from '../engine/releaseCrowding';
 import { genreIdentityFor } from '../engine/studioIdentity';
 import type { GameState } from './gameState';
 
@@ -1373,6 +1373,20 @@ export interface CompetitorIdentity {
 export interface KnownCompetitor {
   upcoming: UpcomingRelease;
   who: CompetitorIdentity;
+}
+
+/**
+ * How far the REST of the industry's slate reaches - the horizon past which a
+ * zero crowding score is silence rather than good news
+ * (engine/releaseCrowding.ts:beyondKnownField).
+ *
+ * Deliberately excludes the studio's own films. Its own announcement three
+ * years out says nothing about who else will open then, and counting it let one
+ * long-range self-announcement restore a confident "Clear window" across every
+ * month before it, on no rival information at all.
+ */
+export function deriveRivalHorizon(field: KnownCompetitor[]): number | null {
+  return crowdingHorizon(field.filter((c) => !c.who.isOwn).map((c) => c.upcoming));
 }
 
 /**

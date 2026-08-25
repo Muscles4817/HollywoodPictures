@@ -254,22 +254,34 @@ describe('explainCrowding', () => {
 });
 
 describe('beyondKnownField', () => {
-  const known: UpcomingRelease[] = [
-    { releaseDay: 300, genre: 'Action', targetAudience: 'Mass Market', strength: 0.5 },
-  ];
+  const horizon = 300;
 
   it('separates an empty frame from an empty map', () => {
     // A date whose whole window sits past everything anyone has scheduled scores
     // zero crowding - but that zero is silence, not good news. Measured over two
     // simulated in-game years, nothing was knowable past ~356 days while the
     // announcement grid offers eighteen months and more.
-    expect(beyondKnownField(200, known)).toBe(false);          // inside the surveyed range
-    expect(beyondKnownField(300 + CROWDING_WINDOW_DAYS, known)).toBe(false); // window still touches it
-    expect(beyondKnownField(300 + CROWDING_WINDOW_DAYS + 1, known)).toBe(true);
+    expect(beyondKnownField(200, horizon)).toBe(false);                         // inside the surveyed range
+    expect(beyondKnownField(300 + CROWDING_WINDOW_DAYS, horizon)).toBe(false);  // window still touches it
+    expect(beyondKnownField(300 + CROWDING_WINDOW_DAYS + 1, horizon)).toBe(true);
   });
 
   it('treats a calendar with nothing on it as unknowable, not clear', () => {
-    expect(beyondKnownField(10, [])).toBe(true);
+    expect(beyondKnownField(10, null)).toBe(true);
     expect(crowdingHorizon([])).toBeNull();
+  });
+
+  it('is not silenced by the asking studio\'s own long-range announcement', () => {
+    // The player's own films sit in the same `known` list the pressure sum reads,
+    // so deriving the horizon from all of it let one self-announcement three
+    // years out restore a confident "Clear window" across every month before it -
+    // on no rival information at all. The horizon is the rest of the industry's
+    // slate, passed in separately.
+    const rivals: UpcomingRelease[] = [{ releaseDay: 300, genre: 'Action', targetAudience: 'Mass Market', strength: 0.5 }];
+    const withOwnClaim: UpcomingRelease[] = [...rivals, { releaseDay: 1200, genre: 'Drama', targetAudience: 'Critics', strength: 0.4 }];
+    const candidate = { releaseDay: 700, genre: 'Action' as const, targetAudience: 'Mass Market' as const };
+
+    expect(explainCrowding(candidate, withOwnClaim, 0.5).beyondKnownField).toBe(false); // the naive reading
+    expect(explainCrowding(candidate, withOwnClaim, 0.5, crowdingHorizon(rivals)).beyondKnownField).toBe(true);
   });
 });

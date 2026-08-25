@@ -7,6 +7,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { buildStateWithReadyDraft } from '../../state/testFixtures';
 import { asPlayerDraft, findProject } from '../../engine/project';
+import { monthYearOf, totalDaysForMonth } from '../../engine/calendar';
 import type { GameState } from '../../state/gameState';
 import type { Person, PersonPersonality, TalentAssignment } from '../../types';
 
@@ -239,6 +240,24 @@ describe('MarketingRelease - affordability gate', () => {
   });
 });
 
+describe('MarketingRelease - the month grid and the line beneath it agree', () => {
+  it('reads a date past the industry\'s known slate as unknown on BOTH, never clear on one', () => {
+    // The grid scored cells with a bare band while the summary went through
+    // describeField, so a cell past the known horizon could say "Clear window"
+    // directly above a line saying "Nothing known yet" about the same date.
+    // This fixture has no rivals at all, so every month is past the horizon.
+    mockState = stateWithScreening(true);
+    const { container } = render(<MarketingRelease />);
+    const cells = [...container.querySelectorAll('.month-cell')];
+    expect(cells.length).toBeGreaterThan(0);
+    for (const cell of cells) {
+      expect(cell.querySelector('.month-cell__crowding')).toHaveTextContent('Nothing known yet');
+    }
+    expect(container.querySelectorAll('.month-cell__crowding--clear')).toHaveLength(0);
+    expect(screen.getByText(/Nothing known yet for this exact date/)).toBeInTheDocument();
+  });
+});
+
 describe('MarketingRelease - what the month grid says about each date', () => {
   // The grid used to say two things about a month: its window name, with a ★ if
   // the genre got any bonus at all, and how crowded it was. How good the season
@@ -307,6 +326,39 @@ describe('MarketingRelease - the cost of leaving an announced date', () => {
     mockState = stateWithAnnouncement(null);
     render(<MarketingRelease />);
     expect(screen.getByText(/costs nothing: no campaign was ever booked/)).toBeInTheDocument();
+  });
+
+  it('does not call an opening "on time" when the film is not ready until later that month', () => {
+    // SCHEDULE_RELEASE clamps the picked day up to the day the film is actually
+    // ready before comparing it to the announcement. The preview did not, so
+    // announcing a month's 1st and finishing post later that same month read
+    // "keeps the campaign whole" while settlement charged the FULL write-off -
+    // the announced date being already past is the most expensive case there is.
+    const base = stateWithScreening(true);
+    const draft = asPlayerDraft(findProject(base.projects, base.focusedProjectId))!;
+    // Post finishes mid-month, and the announcement sits on exactly the 1st of
+    // that month - which is the day the picker offers, so an unclamped
+    // comparison reads them as equal while the reducer never can.
+    const readyOn = base.totalDays + 40;
+    const { year, monthIndex } = monthYearOf(readyOn);
+    const announcedReleaseDay = totalDaysForMonth(year, monthIndex);
+    expect(announcedReleaseDay).toBeLessThan(readyOn);
+    mockState = {
+      ...base,
+      projects: [{
+        kind: 'player-in-progress',
+        draft: {
+          ...draft,
+          postProductionFinalReadyDay: readyOn,
+          postProductionScreeningReadyDay: readyOn,
+          announcedReleaseDay,
+          campaignCommitment: { amount: 20_000_000, committedOnDay: base.totalDays, forReleaseDay: announcedReleaseDay },
+        },
+      }],
+    } as GameState;
+    render(<MarketingRelease />);
+    expect(screen.queryByText(/keeps whatever campaign is booked against it whole/)).not.toBeInTheDocument();
+    expect(screen.getByText(/cannot follow the film to a new one/)).toBeInTheDocument();
   });
 
   it('says nothing at all when no date was announced', () => {

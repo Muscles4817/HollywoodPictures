@@ -185,8 +185,10 @@ export function readReleaseDate(
   candidate: Omit<UpcomingRelease, 'strength' | 'releaseDay'>,
   known: UpcomingRelease[],
   candidateStrength?: number,
+  /** How far the REST of the industry's slate reaches - see engine/releaseCrowding.ts:beyondKnownField. */
+  horizon?: number | null,
 ): ReleaseDateReading {
-  const field = explainCrowding({ releaseDay: day, ...candidate }, known, candidateStrength);
+  const field = explainCrowding({ releaseDay: day, ...candidate }, known, candidateStrength, horizon);
   return {
     day,
     window: deriveReleaseWindowFromDay(day),

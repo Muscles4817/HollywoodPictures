@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { deriveFocusedDraft, deriveGreenlightCommitment, deriveKnownField } from '../../state/selectors';
+import { deriveFocusedDraft, deriveGreenlightCommitment, deriveKnownField, deriveRivalHorizon } from '../../state/selectors';
 import { deriveProjectReadiness } from '../../engine/projectReadiness';
 import { TARGET_AUDIENCES, AUDIENCE_PROFILES } from '../../data/audiences';
 import { pluckDescriptions } from '../../data/describe';
@@ -118,6 +118,9 @@ function ReleaseAnnouncementCard() {
     [state.projects, state.studio.genreIdentity, state.totalDays, state.rivalStudios, state.studio.name, draft.id],
   );
   const known = useMemo<UpcomingRelease[]>(() => field.map((c) => c.upcoming), [field]);
+  // How far the REST of the industry's slate reaches - never extended by this
+  // studio's own claims, which survey nothing.
+  const rivalHorizon = useMemo(() => deriveRivalHorizon(field), [field]);
 
   // This film's own strength in the matchup. It must never be undefined: that
   // falls back to matchupWeight's candidate-blind weight of 1, while settlement
@@ -181,6 +184,7 @@ function ReleaseAnnouncementCard() {
           { genre: draft.genre, targetAudience: draft.targetAudience },
           known,
           ownStrength,
+          rivalHorizon,
         )
       : null;
 

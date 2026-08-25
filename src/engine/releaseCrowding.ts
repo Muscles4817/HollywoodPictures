@@ -139,7 +139,18 @@ export interface CrowdingExplanation {
   beyondKnownField: boolean;
 }
 
-/** The furthest day anyone has a release on the board. Past this, crowding is silence rather than good news. */
+/**
+ * The furthest day the board reaches. Past this, crowding is silence rather than
+ * good news.
+ *
+ * Callers should pass only what tells them about the MARKET - other studios'
+ * slates. A studio's own announcement three years out says nothing whatsoever
+ * about who else will be opening then, so counting it would push the horizon out
+ * and quietly restore the confident "Clear window" this exists to prevent. That
+ * is not hypothetical: the player's own films are in the same `known` list the
+ * pressure sum reads, so the naive version silenced itself the moment the player
+ * announced anything long-range.
+ */
 export function crowdingHorizon(known: UpcomingRelease[]): number | null {
   return known.length === 0 ? null : Math.max(...known.map((k) => k.releaseDay));
 }
@@ -149,9 +160,14 @@ export function crowdingHorizon(known: UpcomingRelease[]): number | null {
  * knowable. Uses the same CROWDING_WINDOW_DAYS the pressure sum does, so the
  * question is exactly "could any competitor have counted here?" rather than a
  * separate rule of thumb.
+ *
+ * `horizon` is passed in rather than derived from `known` because the two lists
+ * are not the same question: `known` is everything that would crowd this date
+ * (the studio's own films included - two of your own films do split a crowd),
+ * while the horizon is how far the OTHER studios' slate reaches. See
+ * crowdingHorizon above.
  */
-export function beyondKnownField(day: number, known: UpcomingRelease[]): boolean {
-  const horizon = crowdingHorizon(known);
+export function beyondKnownField(day: number, horizon: number | null): boolean {
   return horizon === null || day - CROWDING_WINDOW_DAYS > horizon;
 }
 
@@ -160,6 +176,8 @@ export function explainCrowding(
   candidate: Omit<UpcomingRelease, 'strength'>,
   known: UpcomingRelease[],
   candidateStrength?: number,
+  /** How far the rest of the industry's slate reaches - see beyondKnownField. Defaults to the whole board, which is only right when `known` holds no films of the asking studio's own. */
+  horizon: number | null = crowdingHorizon(known),
 ): CrowdingExplanation {
   const contributors: CrowdingContributor[] = [];
   known.forEach((other, index) => {
@@ -190,7 +208,7 @@ export function explainCrowding(
     crowding: crowdingFromPressure(pressure),
     pressure,
     contributors: pressure > 0 ? contributors.map((c) => ({ ...c, share: c.pressure / pressure })) : contributors,
-    beyondKnownField: beyondKnownField(candidate.releaseDay, known),
+    beyondKnownField: beyondKnownField(candidate.releaseDay, horizon),
   };
 }
 
