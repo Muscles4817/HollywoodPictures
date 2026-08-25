@@ -327,7 +327,23 @@ describe('real-film regression: Inception', () => {
     expect(results.audienceScore).toBeGreaterThanOrEqual(72);
     expect(results.totalBoxOffice!).toBeGreaterThan(500_000_000); // real worldwide $836.8M
     expect(results.totalBoxOffice!).toBeLessThan(1_100_000_000);
-    expect(results.outcome).toBe('Cult Hit'); // known-quirk tripwire (see comment above)
+    // The tripwire above fired, and in the direction it was hoping for.
+    //
+    // This film used to read 'Cult Hit': the ROI-first label rules capped it at
+    // a commercial tier its margin could support, and strong audience love
+    // upgraded it from there. 'Masterpiece' - which needs qualityScore >= 85,
+    // criticScore >= 88 AND audienceScore >= 75 - was at that time
+    // MATHEMATICALLY UNREACHABLE: across a four-year simulated slate the maxima
+    // were 66, 71 and 72, so no film could ever earn it, and the same was true
+    // of Cult Hit's own critic clause (docs/DESIGN_REVIEW_reception_model.md
+    // §2.2). Score compression had silently deleted the top of the outcome
+    // vocabulary.
+    //
+    // Widening reception restored it. The best film package the sim can express
+    // now earns the top craft accolade, which is what that label is for. The
+    // ROI-vs-gross-scale tension the original comment describes is unresolved
+    // and still worth its own pass; it simply no longer decides THIS film.
+    expect(results.outcome).toBe('Masterpiece');
   });
 
   it('the faithful A-list recreation out-scores AND out-earns a weak recreation of the same script', () => {

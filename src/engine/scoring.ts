@@ -517,7 +517,7 @@ const POST_REALISATION_REFERENCE = 37;
 // damped. Without this, a film with a strong edit inflates: the Inception
 // recreation reached critic 86 against a band ceiling of 82 (real Metacritic
 // 74) before the damping went in.
-const POST_UPSIDE_DAMPING = 0.45;
+const POST_UPSIDE_DAMPING = 0.82;
 
 /** A soft multiplicative gate: `floor` at 0, rising linearly to 1 at `saturation`. */
 function realisationGate(value: number, floor: number, saturation: number): number {
