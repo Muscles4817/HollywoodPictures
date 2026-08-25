@@ -209,6 +209,21 @@ describe('ProjectOverview - the release-date card surfaces what should decide th
     expect(container.querySelectorAll('.release-month-cell__season--prime').length).toBeGreaterThan(0);
   });
 
+  it('does not let an unreachable month advertise a prime season', () => {
+    // A struck-through cell was still shouting "Prime season" in bold green,
+    // pulling the eye toward a date the film cannot make. Below the verdict,
+    // every reading on such a cell is moot and goes quiet.
+    const { container } = renderCard(36, 'Action');
+    for (const cell of container.querySelectorAll('.release-month-cell--unreachable')) {
+      expect(cell.querySelector('.release-month-cell__season--prime')).toBeNull();
+    }
+    // ...while a month the film CAN make still reads its season normally.
+    const reachable = [...container.querySelectorAll('.release-month-cell')]
+      .filter((c) => !c.classList.contains('release-month-cell--unreachable'));
+    expect(reachable.length).toBeGreaterThan(0);
+    expect(reachable.some((c) => c.querySelector('.release-month-cell__season'))).toBe(true);
+  });
+
   it('warns in words once a date is claimed, naming the worst problem with it', () => {
     const { container } = renderCard(34);
     // Claim the first month offered - the one the film has no chance of making.

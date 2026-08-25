@@ -836,9 +836,16 @@ export function MarketingRelease() {
                 {season && (
                   <span className={`month-cell__season month-cell__season--${season}`}>{describeSeasonBand(season)}</span>
                 )}
-                <span className={`month-cell__runway month-cell__runway--${runway}`}>
-                  {describeCampaignRunwayBand(runway)}
-                </span>
+                {/* Only when it is NOT a full rollout. Runway grows monotonically
+                    with distance from the earliest month, so on a 36-month grid
+                    this line said "Full campaign rollout" on ~34 cells - a line
+                    that reads the same everywhere teaches nothing. Surfacing the
+                    exception is the whole value of it. */}
+                {runway !== 'full' && (
+                  <span className={`month-cell__runway month-cell__runway--${runway}`}>
+                    {describeCampaignRunwayBand(runway)}
+                  </span>
+                )}
                 <span className={`month-cell__crowding ${reading.className}`}>{reading.label}</span>
                 {slated > 0 && (
                   <span className="month-cell__slated">{slated} other release{slated === 1 ? '' : 's'}</span>

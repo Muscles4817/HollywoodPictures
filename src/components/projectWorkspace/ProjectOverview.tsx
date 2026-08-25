@@ -189,17 +189,17 @@ function ReleaseAnnouncementCard() {
           grid rather than discovered after it. Without these the grid offered
           eighteen months and said nothing about which of them the film could
           actually make. */}
-      <div className="stack" style={{ gap: 2, fontSize: '0.85em' }}>
-        <div className="row-between">
+      <div className="date-reading">
+        <div className="date-reading__row">
           <span className="stat-label">Projected finished</span>
           <strong>{formatGameDateWithMonth(delivery.readyOnDay)}</strong>
         </div>
-        <div className="row-between">
+        <div className="date-reading__row">
           <span className="stat-label">Earliest date with a full campaign</span>
           <strong>{formatGameDateWithMonth(unrushedFrom)}</strong>
         </div>
         {delivery.remaining.length > 0 && (
-          <p style={{ margin: 0, fontSize: '0.9em', color: 'var(--text-muted)' }}>
+          <p className="date-reading__note">
             Still ahead: {delivery.remaining.map((step) => `${step.label} (${step.days} days)`).join(' · ')}.
             {delivery.provisional ? ' Projected against an assumed production plan — the shoot has not been planned yet.' : ''}
           </p>
@@ -221,31 +221,27 @@ function ReleaseAnnouncementCard() {
             if (!reading || !draft.genre) return null;
             const concern = describeReleaseDateConcern(reading, draft.genre);
             return (
-              <div className="stack" style={{ gap: 2, fontSize: '0.85em' }}>
-                <div className="row-between">
+              <div className="date-reading">
+                <div className="date-reading__row">
                   <span className="stat-label">Can the film make it</span>
                   <strong className={reading.delivery === 'impossible' ? 'release-date-reading--bad' : undefined}>
                     {describeDeliveryVerdict(reading.delivery)}
                   </strong>
                 </div>
-                <div className="row-between">
+                <div className="date-reading__row">
                   <span className="stat-label">Campaign runway</span>
                   <strong>{describeCampaignRunwayBand(reading.runway)}</strong>
                 </div>
-                <div className="row-between">
+                <div className="date-reading__row">
                   <span className="stat-label">Season</span>
                   <strong>{describeSeasonBand(reading.season)}</strong>
                 </div>
-                <div className="row-between">
+                <div className="date-reading__row">
                   <span className="stat-label">The field</span>
                   <strong>{describeCrowdingBand(reading.crowding)}</strong>
                 </div>
-                <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9em' }}>
-                  {describeSeason(announced, draft.genre)}.
-                </p>
-                {concern && (
-                  <p style={{ margin: 0, color: 'var(--tint-red-ink)', fontSize: '0.9em' }}>{concern}</p>
-                )}
+                <p className="date-reading__note">{describeSeason(announced, draft.genre)}.</p>
+                {concern && <p className="date-reading__note date-reading__note--bad">{concern}</p>}
               </div>
             );
           })()}
@@ -258,9 +254,14 @@ function ReleaseAnnouncementCard() {
 
       {announced !== undefined && (
         <div className="stack" style={{ gap: 6, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
-          <div className="row-between">
-            <span className="stat-label">Campaign committed against this date</span>
-            <strong>{commitment ? <Money amount={commitment.amount} /> : 'None'}</strong>
+          {/* Same reading block as the readings above it - it is the same kind of
+              label/value pair, and left as a .row-between it was the one row
+              still wrapping into a floating value on a phone. */}
+          <div className="date-reading">
+            <div className="date-reading__row">
+              <span className="stat-label">Campaign committed against this date</span>
+              <strong>{commitment ? <Money amount={commitment.amount} /> : 'None'}</strong>
+            </div>
           </div>
           <p style={{ margin: 0, fontSize: '0.8em', color: 'var(--text-muted)' }}>
             Booking a campaign costs nothing now — media is paid close to air — but it is what makes the
@@ -316,10 +317,16 @@ function ReleaseAnnouncementCard() {
                         ? 'No campaign time'
                         : describeDeliveryVerdict(reading.delivery)}
                   </span>
-                  <span className={`release-month-cell__season release-month-cell__season--${reading.season}`}>
+                  {/* On a month the film cannot make, everything below the
+                      verdict is moot - so the band colours are dropped rather
+                      than painted over, and a struck-through cell stops
+                      advertising a prime season in green. Expressed in the
+                      markup, not as a CSS descendant override, so the intent is
+                      visible where the decision is made. */}
+                  <span className={`release-month-cell__season${unreachable ? '' : ` release-month-cell__season--${reading.season}`}`}>
                     {describeSeasonBand(reading.season)}
                   </span>
-                  <span className={`release-month-cell__crowding release-month-cell__crowding--${reading.crowdingBand}`}>
+                  <span className={`release-month-cell__crowding${unreachable ? '' : ` release-month-cell__crowding--${reading.crowdingBand}`}`}>
                     {describeCrowdingBand(reading.crowding)}
                   </span>
                 </>

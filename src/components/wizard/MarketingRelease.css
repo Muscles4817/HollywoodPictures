@@ -300,3 +300,17 @@
   font-size: 0.85em;
   color: var(--text-muted);
 }
+
+/* Lift the month grid's own scroll cap where a nested scroll box inside a
+   scrolling page is a swipe trap rather than a convenience. Measured: at 390px
+   the grid is 1500px of content in a 420px box, at 768px 935px - while desktop
+   sits just over the cap and is genuinely better bounded. Coarse pointers as
+   well as narrow viewports, since a touch laptop at a wide viewport captures
+   swipes exactly the way a phone does. Matches .release-month-grid's own
+   override in index.css - the two date pickers behave the same way. */
+@media (max-width: 900px), (pointer: coarse) {
+  .month-grid {
+    max-height: none;
+    overflow-y: visible;
+  }
+}

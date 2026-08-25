@@ -2632,9 +2632,49 @@ textarea, input, select {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 6px;
   /* The grid runs to a year past the first comfortable date, so a slow epic can
-     push it well past eighteen months - scroll rather than swallow the page. */
+     push it well past eighteen months - scroll rather than swallow the page.
+     Lifted on narrow and touch viewports below: measured at 390px the grid is
+     744px of content inside this 420px box while desktop never reaches the cap
+     at all, so the nested scroller only ever bit where it is worst - a scroll
+     box inside a scrolling page, swiped with a thumb. */
   max-height: 420px;
   overflow-y: auto;
+}
+
+/* Label/value readings about a candidate date. Two failures the same block had
+   at opposite ends of the range, both measured in a real browser:
+   at 1440px "Projected finished" sat ~1200px from "Year 1, August 5" with
+   nothing between them, and at 390px the pair wrapped with .row-between's 12px
+   gap, so the value floated free of the label it belonged to. Capping the
+   measure fixes the first; going deliberately two-line (tight, no gap) rather
+   than accidentally wrapped fixes the second. */
+.date-reading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85em;
+  /* Tight enough that the eye crosses from label to value in one movement. The
+     longest label here ("Earliest date with a full campaign") plus its date
+     lands around 26rem, so this leaves a gutter without opening a canyon -
+     measured at 1440px, where the uncapped block put ~1200px between the two. */
+  max-width: 32rem;
+}
+
+.date-reading__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.date-reading__note {
+  margin: 0;
+  font-size: 0.9em;
+  color: var(--text-muted);
+}
+
+.date-reading__note--bad {
+  color: var(--tint-red-ink);
 }
 
 .release-month-cell {
@@ -2703,6 +2743,52 @@ textarea, input, select {
   text-decoration: line-through;
 }
 
+
 /* Used by the announced-date breakdown above the grid, where a verdict has to
    read as a warning without a band class of its own. */
 .release-date-reading--bad { color: var(--tint-red-ink); }
+/* --- Release-date pickers: responsive pass -------------------------------
+   Measured in a real browser at 390 / 768 / 1440px rather than guessed, and
+   both grids failed in the same direction. Kept at the end of the file for the
+   same reason the 900px block above states: a responsive override has to be
+   able to out-order the rule it is overriding, and nothing after this point can
+   take that away from it. */
+
+/* The nested scroll box only ever engaged on the viewport it hurts. Measured:
+   at 1440px the announcement grid is 219px tall and never reaches the 420px
+   cap; at 390px it is 744px, and the Marketing grid is 2148px - five screens of
+   scroll box inside a scrolling page, driven by a thumb. So the cap is lifted
+   wherever it would actually bite, and the page scrolls the way the whole rest
+   of the app does. Coarse pointers as well as narrow viewports: a touch laptop
+   at a wide viewport has the same swipe-capture problem a phone does. */
+@media (max-width: 900px), (pointer: coarse) {
+  .release-month-grid {
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
+/* .month-grid's own cap lives in components/wizard/MarketingRelease.css, which
+   loads after this file - so its override has to live there too, or it loses at
+   equal specificity. */
+
+@media (max-width: 640px) {
+  /* Label above value, tight, rather than a wrapped flex row that left the
+     value floating a 12px gap below the label it belonged to. */
+  .date-reading__row {
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .date-reading__row .stat-label {
+    display: block;
+  }
+
+  /* The window name and the season band say overlapping things ("Summer" /
+     "Prime season"), and the band is the one that says how much it is worth.
+     On a phone, where every line costs a fifth of the visible grid, the band
+     wins and the name goes. */
+  .month-cell__window {
+    display: none;
+  }
+}

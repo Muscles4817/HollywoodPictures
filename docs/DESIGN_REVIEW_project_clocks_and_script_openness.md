@@ -1050,3 +1050,50 @@ choice is labelled, priced and left available, because a studio announcing a dat
 it cannot make is the behaviour this whole phase exists to model — the player
 should be able to do it knowingly, which is precisely what they could not do
 before.
+
+### 9.11 UX pass: what a real browser said about §9.10
+
+The release-date work was built and tested in jsdom, which renders no CSS. So it
+was measured for the first time in an actual browser — Chromium at 390px (phone,
+touch), 768px (tablet, touch) and 1440px (desktop) — with the app's real save
+seeded into `localStorage`. Four defects, all invisible to the existing tests.
+
+**1. The nested scroll box only ever engaged where it hurts.** Both month grids
+cap at `max-height: 420px`. Measured: the announcement grid is 219px at 1440px
+and never reaches the cap; at 390px it is 744px, and the Marketing grid is
+2148px — five screens of scroll box inside a scrolling page, driven by a thumb.
+The cap was doing nothing on the viewport it was written for and swallowing
+swipes on the one it was not. Lifted below 900px and on any coarse pointer (a
+touch laptop at a wide viewport captures swipes exactly as a phone does); kept
+on desktop, where the Marketing grid genuinely runs past it and a bounded grid
+under a mouse wheel is a convenience rather than a trap.
+
+**2. The label/value readings failed at both ends of the range.** At 1440px
+`.row-between` stretched "Projected finished" to roughly 1200px from "Year 1,
+August 5" — too far to cross in one eye movement. At 390px the same rows wrapped
+with a 12px row gap, so the value floated free of the label it belonged to. Both
+are the same rule failing in opposite directions. A dedicated `.date-reading`
+block caps the measure at 32rem and, below 640px, goes deliberately two-line and
+tight instead of accidentally wrapped.
+
+**3. A month the film cannot make was advertising a prime season.** June–August
+Year 1 rendered struck through and dimmed — and "Prime season" in bold green,
+pulling the eye toward exactly the dates the verdict had just ruled out. Below
+the verdict every reading on an unreachable cell is moot, so the band colours are
+now dropped in the markup rather than painted over by a CSS descendant
+override — the intent is visible where the decision is made, and it is testable.
+
+**4. A line that said the same thing on 34 of 36 cells.** Campaign runway grows
+monotonically with distance from the earliest month, so "Full campaign rollout"
+appeared on almost every cell of the Marketing grid. A caption that never varies
+teaches nothing; the exception is the entire value. The marker now appears only
+when the runway is *not* full — which also took the phone cell from 109px to
+90px, and the grid from 2148px to 1500px.
+
+**Not changed, and worth naming.** `.btn-sm` measures 33–34px under a coarse
+pointer, below the usual 44px touch guideline. That is the app's existing
+convention across every screen, not something this work introduced, so changing
+it here would be a global change smuggled in under a local pass. Same for
+`.campaign-runway__head` on the Marketing screen, which stretches its label and
+value the full card width exactly as §9.11(2) describes — it predates this work.
+Both are recorded rather than quietly fixed.

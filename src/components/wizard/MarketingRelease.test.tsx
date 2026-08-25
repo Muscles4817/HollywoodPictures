@@ -244,24 +244,35 @@ describe('MarketingRelease - what the month grid says about each date', () => {
   // the genre got any bonus at all, and how crowded it was. How good the season
   // actually was, and whether opening there left the campaign any runway, were
   // both left to a meter that only ever described the month already selected.
-  it('reads the season and the campaign runway on every month, not just the selected one', () => {
+  it('reads the season on every month, not just the selected one', () => {
     mockState = stateWithScreening(true);
     const { container } = render(<MarketingRelease />);
     const cells = container.querySelectorAll('.month-cell');
     expect(cells.length).toBeGreaterThan(1);
     expect(container.querySelectorAll('.month-cell__season')).toHaveLength(cells.length);
-    expect(container.querySelectorAll('.month-cell__runway')).toHaveLength(cells.length);
   });
 
-  it('marks the earliest months as rushing the campaign, and later ones as a full rollout', () => {
+  it('flags only the months that rush the campaign, not the many that do not', () => {
+    // Runway grows monotonically with distance from the earliest month, so a
+    // line on every cell read "Full campaign rollout" on almost all of them - a
+    // line that says the same thing everywhere teaches nothing. The exception is
+    // the whole value, so the marker appears only where there is one.
     mockState = stateWithScreening(true);
     const { container } = render(<MarketingRelease />);
+    const cells = [...container.querySelectorAll('.month-cell')];
+
     // The first month offered is the one post-production finishes in - opening
-    // there gives the campaign no room at all.
-    const first = container.querySelector('.month-cell')!;
-    expect(first.querySelector('.month-cell__runway')!).toHaveTextContent(/No campaign runway|Rushed campaign/);
-    // And somewhere in the offered range a date exists that does not rush it.
-    expect(container.querySelectorAll('.month-cell__runway--full').length).toBeGreaterThan(0);
+    // there gives the campaign no room at all, and that is worth saying.
+    expect(cells[0].querySelector('.month-cell__runway')!).toHaveTextContent(/No campaign runway|Rushed campaign/);
+
+    // The far end of the range clears a full rollout, and says nothing about it.
+    expect(cells.at(-1)!.querySelector('.month-cell__runway')).toBeNull();
+
+    // So the marker is a minority of the grid, never a caption on all of it.
+    const flagged = container.querySelectorAll('.month-cell__runway').length;
+    expect(flagged).toBeGreaterThan(0);
+    expect(flagged).toBeLessThan(cells.length / 2);
+    expect(container.querySelectorAll('.month-cell__runway--full')).toHaveLength(0);
   });
 });
 
