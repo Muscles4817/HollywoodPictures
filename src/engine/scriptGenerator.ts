@@ -860,5 +860,11 @@ export function generateSequelScript(ip: IntellectualProperty, genre: Genre, rng
     franchiseRecognition: ip.recognition,
   };
   const title = sequelTitle(ip.name, ip.filmIds.length + 1);
+  // Deliberately its own empty set rather than the save's ledger. Measured over
+  // a ten-year reducer run with a real rival roster, the first sequel of any kind
+  // appears after day 730, by which point the ledger already holds 333 of the
+  // corpus's 342 entries - so there is almost nothing left for it to protect, and
+  // threading it here would mean plumbing the ledger through the IP and rival
+  // paths for a window that barely exists. Revisit if sequels ever arrive early.
   return generateScript(genre, rng, title, new Set<string>(), undefined, NEUTRAL_GENERATION, seed);
 }

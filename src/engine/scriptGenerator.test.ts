@@ -465,9 +465,10 @@ describe('the save-wide log-line ledger', () => {
     for (const genre of ['Drama', 'Action'] as const) {
       const withLedger = new Set(drawMany(genre, 80, new Set<string>()));
       const without = new Set(drawMany(genre, 80));
-      // Measured at 69 distinct vs 46 over 80 Drama draws - a ratio of exactly
-      // 1.5, so the threshold sits below it rather than on it. A ledger that
-      // stopped working would collapse this to ~1.0.
+      // Drama measures 69 distinct vs 46 (1.50) and Action 74 vs 54 (1.37), so
+      // the binding case is Action and the threshold sits below IT rather than
+      // below the comfortable one. A ledger that stopped working collapses this
+      // to ~1.0.
       expect(withLedger.size, genre).toBeGreaterThan(without.size * 1.3);
     }
   });

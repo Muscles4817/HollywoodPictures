@@ -110,9 +110,15 @@ export interface GameState {
    * Stored as the rendered sentences rather than indices because the same
    * premise is reachable through more than one pool (a Story Type entry also
    * sits in the wider genre tier for other concepts), so a per-pool index would
-   * let the same sentence return by another route. At 342 entries that is ~40KB
-   * of save; if the corpus grows past a few thousand, give Premise a stable id
-   * and store those instead.
+   * let the same sentence return by another route. Measured at 61KB of save once
+   * the ledger fills - 0.6% of a ten-year save - and it saturates at the corpus
+   * size, around in-game year 3. Past a few thousand entries, give Premise a
+   * stable id and store those instead.
+   *
+   * Note what saturation means: once every log-line is recorded, each draw walks
+   * its pool, finds nothing free, and falls back to the hash pick - which is
+   * exactly the pre-ledger behaviour. The benefit is real and its horizon is
+   * about two in-game years, not forever.
    *
    * Optional and read defensively (`?? []`), the same shape productionOffice and
    * distributionArm use: absent means a save from before this existed, or any of

@@ -134,7 +134,16 @@ describe.skipIf(!diagnosticEnabled)('premise novelty diagnostic', () => {
     for (const years of [1, 3, 10]) {
       const off = simulateSave(1, years);
       const on = simulateSave(1, years, new Set<string>());
-      lines.push(`${String(years).padStart(2)}y  drawn ${String(off.draws).padStart(4)}  |  distinct ${String(off.distinct).padStart(3)} -> ${String(on.distinct).padStart(3)}  |  first repeat at draw ${String(off.firstRepeatAt).padStart(3)} -> ${on.firstRepeatAt}`);
+      // Both draw counts are printed, because they DIFFER: the ledger changes
+      // which log-line a script gets, that sets requiredLeads, and the cast size
+      // shifts the rng stream - so the two runs generate slightly different
+      // numbers of scripts over the same number of weeks. Printing one count
+      // beside both distinct figures produced "235 distinct of 232 drawn".
+      lines.push(
+        `${String(years).padStart(2)}y  ` +
+        `off: ${String(off.distinct).padStart(3)}/${String(off.draws).padStart(4)} distinct, first repeat @${String(off.firstRepeatAt).padStart(3)}  |  ` +
+        `on: ${String(on.distinct).padStart(3)}/${String(on.draws).padStart(4)} distinct, first repeat @${on.firstRepeatAt}`,
+      );
     }
     console.log(lines.join('\n'));
     expect(true).toBe(true);
