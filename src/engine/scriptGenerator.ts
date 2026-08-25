@@ -30,11 +30,11 @@ import { STORY_TYPES, STORY_TYPE_PROFILES, type StoryTypeProfile } from '../data
 import { SETTING_ARCHETYPES, SETTING_ARCHETYPE_PROFILES, type SettingProfile } from '../data/settings';
 import { CHARACTER_ARCHETYPES, CHARACTER_ARCHETYPE_PROFILES } from '../data/characterArchetypes';
 import { SCRIPT_SCALES, SCRIPT_SCALE_PROFILES, type ScriptScaleProfile } from '../data/scale';
-import { TALENT_FIRST_NAMES, TALENT_LAST_NAMES } from '../data/talentNames';
+import { drawCoherentName } from './nameGenerator';
 import { generatePremise } from './premiseGenerator';
 import { deriveCommercialProfile, type CommercialInputs, type CommercialProfile } from './commercialProfile';
 import { scriptShapedCast } from './characterDemands';
-import { type RandomFn, clamp, combineWeights, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick } from './random';
+import { type RandomFn, clamp, combineWeights, hashUnit, normalizeWeights, pick, pickMany, randFloat, randInt, weightedPick } from './random';
 
 // Script ids must be unique across the whole save's lifetime - an Asset, its
 // revisions, every Project and Film that froze a snapshot, and the IP layer
@@ -270,16 +270,6 @@ const CASTING_GENDER_ANY_CHANCE: Partial<Record<CharacterArchetype, number>> = {
 };
 const DEFAULT_ANY_CHANCE = 0.18;
 
-/** A stable 0-1 hash of a string (FNV-1a) - used to derive castingGender below without drawing from the shared RandomFn stream. */
-function hashUnit(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0) / 4294967296;
-}
-
 // Deliberately derived from the character's own (already-generated) name
 // rather than a fresh rng() draw: assigning gender must NOT advance the
 // shared generation stream, or every seeded sequence downstream (rival
@@ -355,7 +345,16 @@ function generateCharacter(id: string, prominence: CharacterProminence, genre: G
     characterArchetypeWeightsForProminence(prominence),
   ]);
   const archetype = weightedPick(rng, CHARACTER_ARCHETYPES, weights);
-  const name = `${pick(rng, TALENT_FIRST_NAMES)} ${pick(rng, TALENT_LAST_NAMES)}`;
+  // Coherent, like a person's - a character called "Duke Suzuki" is exactly as
+  // wrong as a person called that. Two draws, as this always took.
+  //
+  // Salted with archetype+prominence, NOT `id`: the id descends from the script
+  // id, which is deliberately minted outside the seeded stream (see newScriptId),
+  // so salting with it made the same seed produce different names on a second
+  // call - which three determinism tests caught. Archetype and prominence are
+  // both themselves drawn from this rng, so they are stable within a seeded run.
+  const drawn = drawCoherentName(rng, `${archetype}|${prominence}`);
+  const name = `${drawn.first} ${drawn.last}`;
   return {
     id,
     name,
@@ -652,6 +651,35 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
   // fresh one (script-local ids assigned from this script's id, per the cast-id
   // convention). Falls back to a generated cast if the IP lifted no Lead.
   const returning = sequelSeed?.returningCharacters ?? [];
+  const inheritedLeads = returning.filter((c) => c.prominence === 'Lead').length;
+
+  // The log-line is chosen HERE, before the cast, rather than at the end where it
+  // used to sit - which is the whole point of having made selection cost no draw
+  // (engine/premiseGenerator.ts). A concept can now inform the script built from
+  // it instead of being decoration applied afterwards.
+  //
+  // What it informs, for now, is how many people the script is about. That was
+  // rolled entirely independently of the log-line, so a screenplay whose own
+  // synopsis read "two mismatched cops on their worst partnership yet" shipped
+  // with a single Lead role about half the time - 63 log-lines in the banks name
+  // a pair or an ensemble, and none of them could say so.
+  //
+  // A sequel's cast is the one thing about it that is NOT negotiable, so the
+  // constraint runs the other way round here: the log-line is chosen to fit the
+  // cast instead of the cast being floored by the log-line.
+  //
+  // Everywhere else, a concept that wants two people gets two Leads. A sequel
+  // starring one returning character cannot grow a second - the character does
+  // not exist - so before this it simply contradicted itself: measured, EVERY
+  // sequel handed an ensemble log-line kept its one Lead and shipped a synopsis
+  // about two people. Passing the inherited count as a ceiling filters those
+  // log-lines out of the pool entirely rather than letting one be picked and
+  // then ignored.
+  //
+  const selectedPremise = generatePremise(
+    genre, storyType, primarySetting, flavorTones[0] ?? null, title, usedSynopses,
+    inheritedLeads > 0 ? inheritedLeads : undefined,
+  );
   let requiredLeads: number;
   let requiredSupporting: number;
   let cast: ScriptCharacter[];
@@ -669,7 +697,22 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
     requiredSupporting = cast.filter((c) => c.prominence === 'Supporting').length;
   } else {
     const castMultiplier = storyProfile.castSizeMultiplier * scaleProfile.castMultiplier;
-    requiredLeads = Math.max(1, Math.round(pick(rng, LEAD_COUNT_WEIGHTS) * castMultiplier));
+    // SOFT binding, deliberately: the log-line raises the floor, it does not set
+    // the number. Production Scale and Story Type still decide how far above it a
+    // script lands, so an Epic ensemble is still an Epic ensemble - the concept
+    // only stops the cast contradicting what the synopsis already promised.
+    //
+    // Two honest caveats, both measured over 24,000 generated scripts rather
+    // than estimated. The floor DOMINATES in practice: 86.6% of scripts with a
+    // floor of 2 land exactly on it, so "soft" is real but the headroom is
+    // narrow. And it overrides a very low castSizeMultiplier rather than scaling
+    // with it - Documentary (0.15, "little to no conventional dramatic cast")
+    // could only ever produce one Lead before, and now produces two or three for
+    // 19.6% of its scripts, because a documentary whose log-line is about two
+    // people does need both on screen. That is a deliberate trade, not an
+    // oversight: if it ever reads wrong, scale the floor by castMultiplier here.
+    const promisedLeads = selectedPremise.premise.leads ?? 1;
+    requiredLeads = Math.max(1, promisedLeads, Math.round(pick(rng, LEAD_COUNT_WEIGHTS) * castMultiplier));
     requiredSupporting = Math.max(0, Math.round(pick(rng, SUPPORTING_COUNT_WEIGHTS) * castMultiplier));
     // Re-read every fresh role's performance demands against the screenplay it's
     // actually in, rather than leaving it on its character archetype's fixed
@@ -747,7 +790,7 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
     effectsStrategy,
     effectsAmbition,
     productionRequirements,
-    synopsis: generatePremise(genre, storyType, primarySetting, flavorTones[0] ?? null, usedSynopses, rng),
+    synopsis: selectedPremise.text,
     requiredLeads,
     requiredSupporting,
     intendedAudience,
@@ -757,9 +800,29 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
 }
 
 /** Generates a slate of script options for the player to choose from. When `author` is supplied every script in the slate is shaped by that writer (Phase 2); omitted, generation is exactly as before. `profile` biases the concept/execution distributions per acquisition source (Phase 3b); omitted, it's neutral (the reliable commission/baseline shape). */
-export function generateScriptOptions(genre: Genre, rng: RandomFn, count = 12, author?: WriterCreativeProfile, profile: GenerationProfile = NEUTRAL_GENERATION): Script[] {
+export function generateScriptOptions(
+  genre: Genre,
+  rng: RandomFn,
+  count = 12,
+  author?: WriterCreativeProfile,
+  profile: GenerationProfile = NEUTRAL_GENERATION,
+  /**
+   * Log-lines this SAVE has already handed out, mutated as more are taken.
+   *
+   * Omitted (every test, and every call before this existed) it is per-call, so
+   * the de-duplication only ever protects a multi-script slate from repeating
+   * itself. That made it inert in the real game, because every production caller
+   * asks for exactly one script - a fresh empty set, one draw, thrown away. A
+   * save simulation measured the consequence: the first repeated log-line
+   * arrived at draw 19, and a player's first year showed 235 log-lines drawn
+   * from only 139 distinct ones.
+   *
+   * Passed in from GameState, the same set spans the whole playthrough and a
+   * log-line cannot come back until its pool is genuinely exhausted.
+   */
+  usedSynopses: Set<string> = new Set<string>(),
+): Script[] {
   const usedTitles = new Set<string>();
-  const usedSynopses = new Set<string>();
   return Array.from({ length: count }, () => generateScript(genre, rng, uniqueTitle(genre, rng, usedTitles), usedSynopses, author, profile));
 }
 
@@ -797,5 +860,11 @@ export function generateSequelScript(ip: IntellectualProperty, genre: Genre, rng
     franchiseRecognition: ip.recognition,
   };
   const title = sequelTitle(ip.name, ip.filmIds.length + 1);
+  // Deliberately its own empty set rather than the save's ledger. Measured over
+  // a ten-year reducer run with a real rival roster, the first sequel of any kind
+  // appears after day 730, by which point the ledger already holds 333 of the
+  // corpus's 342 entries - so there is almost nothing left for it to protect, and
+  // threading it here would mean plumbing the ledger through the IP and rival
+  // paths for a window that barely exists. Revisit if sequels ever arrive early.
   return generateScript(genre, rng, title, new Set<string>(), undefined, NEUTRAL_GENERATION, seed);
 }

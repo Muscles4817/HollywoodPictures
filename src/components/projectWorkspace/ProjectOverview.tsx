@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { deriveFocusedDraft, deriveGreenlightCommitment } from '../../state/selectors';
+import { deriveFocusedDraft, deriveGreenlightCommitment, deriveKnownCalendar } from '../../state/selectors';
 import { deriveProjectReadiness } from '../../engine/projectReadiness';
 import { TARGET_AUDIENCES, AUDIENCE_PROFILES } from '../../data/audiences';
 import { pluckDescriptions } from '../../data/describe';
@@ -16,9 +16,23 @@ import { GreenlightConfirmation } from './GreenlightConfirmation';
 import { describeCreativeDemand, describeDemandCompetence, describeDirectorPatience } from '../../engine/creativeDemands';
 import { computeRelationship, NO_RELATIONSHIP, PLAYER_STUDIO_ID } from '../../engine/relationships';
 import type { DevelopmentReadinessBand } from '../../engine/projectReadiness';
+import { computeCompetitiveCrowding, crowdingBandKey, describeCrowdingBand, type UpcomingRelease } from '../../engine/releaseCrowding';
+import { announcedAsUpcomingRelease } from '../../engine/scheduledReleases';
+import { genreIdentityFor } from '../../engine/studioIdentity';
+import { formatGameDateWithMonth, formatGameMonthYear, monthYearOf, totalDaysForMonth } from '../../engine/calendar';
+import { describeCampaignWriteOff } from '../../engine/campaignCommitment';
+import { MARKETING_SPEND_RANGE } from '../../data/release';
 import type { ProjectWorkspaceSection } from '../../types';
 
 const AUDIENCE_DESCRIPTIONS = pluckDescriptions(AUDIENCE_PROFILES);
+
+/** A few campaign sizes to book against a date, spanning the marketing range. */
+const CAMPAIGN_STEPS = [
+  Math.round(MARKETING_SPEND_RANGE.min * 4),
+  Math.round(MARKETING_SPEND_RANGE.max * 0.1),
+  Math.round(MARKETING_SPEND_RANGE.max * 0.35),
+  Math.round(MARKETING_SPEND_RANGE.max * 0.7),
+];
 
 const SECTION_LABELS: Record<ProjectWorkspaceSection, string> = {
   overview: 'Overview',
@@ -46,6 +60,154 @@ const BAND_LABELS: Record<DevelopmentReadinessBand, string> = {
  * either, so this page can never disagree with the workspace nav's status
  * indicators or the Finance tab's own numbers.
  */
+/**
+ * Claiming a release date, well before the film exists (section 9 of
+ * docs/DESIGN_REVIEW_project_clocks_and_script_openness.md).
+ *
+ * This is an ANNOUNCEMENT, not a booking. Nothing stops a rival opening the same
+ * day; what the claim does is put the date where they can see it, so they can
+ * decide whether to steer around it. The crowding reading shown here is the same
+ * computation settlement will use, including this film's own strength in the
+ * matchup, so a window can never look clearer here than it turns out to be.
+ */
+function ReleaseAnnouncementCard() {
+  const { state, dispatch } = useStudio();
+  const draft = deriveFocusedDraft(state)!;
+
+  // Locked releases, rivals in production, and the player's own OTHER
+  // announcements - never this film against itself. Shared with the Marketing &
+  // Release screen (state/selectors.ts:deriveKnownCalendar) so the two screens
+  // that pick a date read the same calendar.
+  const known = useMemo<UpcomingRelease[]>(
+    () => deriveKnownCalendar(state.projects, state.studio.genreIdentity ?? {}, draft.id),
+    [state.projects, state.studio.genreIdentity, draft.id],
+  );
+
+  // This film's own strength in the matchup. It must never be undefined: that
+  // falls back to matchupWeight's candidate-blind weight of 1, while settlement
+  // uses the real matchup - and since a weak film feels MORE than neutral
+  // crowding, the grid would read "Some competition" for a day that settles as
+  // "Crowded". Reading it off the same announced-release conversion rivals see
+  // keeps the card and the settlement in step, including before the project is
+  // planned (see announcedReleaseStrength).
+  const ownStrength = useMemo(() => {
+    if (!draft.genre) return undefined;
+    const identity = genreIdentityFor(state.studio.genreIdentity, draft.genre);
+    // Read against a placeholder day so a project that has not announced yet
+    // still gets a strength - the reading is independent of the day.
+    const asUpcoming = announcedAsUpcomingRelease({ ...draft, announcedReleaseDay: draft.announcedReleaseDay ?? 1 }, identity);
+    return asUpcoming?.strength;
+  }, [draft, state.studio.genreIdentity]);
+
+  // A year of months from next month on - a claim on a past or current month is
+  // not a claim anyone can believe.
+  const months = useMemo(() => {
+    const { year, monthIndex } = monthYearOf(state.totalDays);
+    return Array.from({ length: 18 }, (_, i) => {
+      const m = (monthIndex + 1 + i) % 12;
+      const y = year + Math.floor((monthIndex + 1 + i) / 12);
+      return { year: y, monthIndex: m, day: totalDaysForMonth(y, m) };
+    });
+  }, [state.totalDays]);
+
+  const announced = draft.announcedReleaseDay;
+  const commitment = draft.campaignCommitment;
+  // What moving would cost right now - shown BEFORE the player picks another
+  // month, not after, since that price is the whole decision (Principle 3).
+  const writeOffNote = describeCampaignWriteOff(commitment, state.totalDays);
+  const crowdingFor = (day: number) =>
+    draft.genre && draft.targetAudience
+      ? computeCompetitiveCrowding({ releaseDay: day, genre: draft.genre, targetAudience: draft.targetAudience }, known, ownStrength)
+      : 0;
+
+  return (
+    <div className="card stack">
+      <h3 style={{ margin: 0 }}>Release Date</h3>
+      <p style={{ margin: 0, fontSize: '0.85em', color: 'var(--text-muted)' }}>
+        Announcing a date stakes a public claim on it. It reserves nothing — a rival can still open
+        against you — but it puts the date where they can see it, and the stronger your picture looks,
+        the more likely they are to move.
+      </p>
+
+      {draft.committedStartDay !== undefined && (
+        <p style={{ margin: 0, fontSize: '0.85em' }}>
+          Photography committed to begin <strong>{formatGameDateWithMonth(draft.committedStartDay)}</strong>
+          {announced !== undefined && (
+            <> — <strong>{Math.max(0, announced - draft.committedStartDay)}</strong> days between the camera rolling and the date you have claimed.</>
+          )}
+        </p>
+      )}
+
+      {announced !== undefined ? (
+        <div className="row-between">
+          <span>
+            Announced for <strong>{formatGameMonthYear(announced)}</strong> ·{' '}
+            <span style={{ color: 'var(--text-muted)' }}>{describeCrowdingBand(crowdingFor(announced))}</span>
+          </span>
+          <Button className="btn-sm" onClick={() => dispatch({ type: 'ANNOUNCE_RELEASE_DATE', releaseDay: null })}>
+            Withdraw
+          </Button>
+        </div>
+      ) : (
+        <p style={{ margin: 0, fontSize: '0.85em' }}>
+          No date announced. The film keeps full flexibility and takes whatever the calendar leaves it.
+        </p>
+      )}
+
+      {announced !== undefined && (
+        <div className="stack" style={{ gap: 6, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+          <div className="row-between">
+            <span className="stat-label">Campaign committed against this date</span>
+            <strong>{commitment ? <Money amount={commitment.amount} /> : 'None'}</strong>
+          </div>
+          <p style={{ margin: 0, fontSize: '0.8em', color: 'var(--text-muted)' }}>
+            Booking a campaign costs nothing now — media is paid close to air — but it is what makes the
+            claim read as funded rather than as a bare date, and rivals weigh it accordingly.
+            {writeOffNote ? ` ${writeOffNote}` : ''}
+          </p>
+          {commitment?.writtenOff ? (
+            <p style={{ margin: 0, fontSize: '0.8em', color: 'var(--tint-red-ink)' }}>
+              Moving this film has already written off <Money amount={commitment.writtenOff} />.
+            </p>
+          ) : null}
+          <div className="row" style={{ gap: 6 }}>
+            {CAMPAIGN_STEPS.map((amount) => (
+              <Button
+                key={amount}
+                className="btn-sm"
+                variant={commitment?.amount === amount ? 'primary' : undefined}
+                onClick={() => dispatch({ type: 'COMMIT_CAMPAIGN', amount })}
+              >
+                <Money amount={amount} />
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="release-month-grid">
+        {months.map((m) => {
+          const crowding = crowdingFor(m.day);
+          const isAnnounced = announced !== undefined && monthYearOf(announced).monthIndex === m.monthIndex && monthYearOf(announced).year === m.year;
+          return (
+            <button
+              key={`${m.year}-${m.monthIndex}`}
+              type="button"
+              className={`release-month-cell${isAnnounced ? ' release-month-cell--claimed' : ''}`}
+              onClick={() => dispatch({ type: 'ANNOUNCE_RELEASE_DATE', releaseDay: m.day })}
+            >
+              <span className="release-month-cell__label">{formatGameMonthYear(m.day)}</span>
+              <span className={`release-month-cell__crowding release-month-cell__crowding--${crowdingBandKey(crowding)}`}>
+                {describeCrowdingBand(crowding)}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function ProjectOverview() {
   const { state, dispatch } = useStudio();
   const draft = deriveFocusedDraft(state)!;
@@ -81,6 +243,8 @@ export function ProjectOverview() {
           style={{ maxWidth: 360 }}
         />
       </div>
+
+      <ReleaseAnnouncementCard />
 
       <div className="card stack">
         <div className="card-title">{script.title}</div>

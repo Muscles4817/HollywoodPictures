@@ -1,8 +1,10 @@
 // Shared test-only fixtures for Milestone 5's integration tests
 // (docs/DESIGN.md 5.34) - not matched by vitest.config.ts's
-// `src/**/*.test.ts` include, so this is never itself run as a suite, only
-// imported by state/studioReducer.test.ts, engine/boxOfficeRun.test.ts and
-// state/persistence.test.ts. Builds a fully release-ready FilmDraft/GameState
+// `src/**/*.test.ts` include, so this file is never itself run as a suite -
+// its own tests live next door in testFixtures.test.ts. Imported by ~64 test
+// files, which is why the rng discipline below matters so much: anything these
+// builders couple together, they couple together for most of the suite.
+// Builds a fully release-ready FilmDraft/GameState
 // without going through the whole wizard's own reducer actions - those are
 // already exercised elsewhere; this milestone's tests are about box office
 // settlement, not wizard-flow correctness, so a draft assembled directly is
@@ -11,7 +13,7 @@ import type { Asset, CharacterAgeBand, FilmDraft, MarketingChoices, PhotographyS
 import { createDraftFromAsset, createInitialStudio, type GameState } from './gameState';
 import { generateScriptOptions } from '../engine/scriptGenerator';
 import { generateTalentCandidates, generateTalentPool } from '../engine/talentGenerator';
-import { withRng, type RandomFn } from '../engine/random';
+import { createRng, forkRng, forkSeed, type RandomFn } from '../engine/random';
 import { asPlayerDraft, findProject, playerDraftToProject } from '../engine/project';
 import { footageLowerBound } from '../engine/production';
 import { studioReducer } from './studioReducer';
@@ -89,10 +91,27 @@ export function buildReadyAsset(rng: RandomFn): Asset {
  * generation only - pass the same seed twice for an identical draft.
  */
 export function buildReadyDraft(rng: RandomFn, marketingOverrides: Partial<MarketingChoices> = {}): FilmDraft {
+  // THE RNG DISCIPLINE FOR THIS FILE, stated once here and pointed at from the
+  // other builders: anything that must not move when script generation changes
+  // takes its seed from the caller's stream BEFORE the script is generated.
+  //
+  // Script and talent used to share one stream, so a change to how many draws a
+  // script costs re-rolled the director and both actors of every draft built
+  // here - across ~64 test files. Measured, the cost of that coupling is real
+  // but narrower than it looks: a pure draw-count change to script generation
+  // moved two execution/calibration suites before this discipline and none
+  // after. It buys nothing at all for changes that alter script CONTENT (a
+  // different premise, a different rolled field) - those move the fixtures'
+  // scripts, and their downstream results, whatever we do about streams. The
+  // point is only to stop unrelated churn masquerading as a regression.
+  //
+  // The reverse coupling is deliberately kept - scripts still draw from the
+  // caller's own stream - because nothing downstream re-rolls talent mid-fixture.
+  const talentRng = forkRng(rng);
   const asset = buildReadyAsset(rng);
-  const director = generateTalentCandidates('Director', rng, 1)[0];
-  const lead = generateTalentCandidates('Actor', rng, 1)[0];
-  const support = generateTalentCandidates('Actor', rng, 1)[0];
+  const director = generateTalentCandidates('Director', talentRng, 1)[0];
+  const lead = generateTalentCandidates('Actor', talentRng, 1)[0];
+  const support = generateTalentCandidates('Actor', talentRng, 1)[0];
 
   return {
     ...createDraftFromAsset(asset, {}, 1),
@@ -120,12 +139,26 @@ export function buildReadyDraft(rng: RandomFn, marketingOverrides: Partial<Marke
 
 /** A GameState with a fresh studio (its Asset library already containing the draft's own originating Asset) and a release-ready draft loaded (and focused) - ready to dispatch RELEASE_FILM against. */
 export function buildStateWithReadyDraft(seed: number, marketingOverrides: Partial<MarketingChoices> = {}): GameState {
-  const { result, nextSeed } = withRng(seed, (rng) => {
-    const studio = createInitialStudio(50_000_000);
-    const talentPool = generateTalentPool(rng);
-    const draft = buildReadyDraft(rng, marketingOverrides);
-    return { studio, talentPool, draft };
-  });
+  // Same discipline as buildReadyDraft above, and for the larger half of the
+  // fixture surface: the ORDER of these four lines is the whole point.
+  //
+  // The talent pool is generated first and the state's own downstream seed is
+  // forked second, both before the script exists. That seed is what every later
+  // reducer roll runs on - pre-production events, on-set choices, the test
+  // screening, the box office - so if it were taken after script generation
+  // (which is exactly what withRng's trailing nextSeed does, since it draws once
+  // fn has returned) then a one-draw change inside the script generator would
+  // silently re-run every simulated shoot in the suite. That is the same
+  // amplifier buildReadyDraft just removed, and it reaches further: ~36 files
+  // enter through here.
+  //
+  // withRng is deliberately not used for that reason. Don't reorder these.
+  const rng = createRng(seed);
+  const studio = createInitialStudio(50_000_000);
+  const talentPool = generateTalentPool(rng);
+  const downstreamSeed = forkSeed(rng);
+  const draft = buildReadyDraft(rng, marketingOverrides);
+  const result = { studio, talentPool, draft };
   return {
     // A full Distribution Arm so the fixture's default Wide release self-
     // distributes (keeping the standard box-office share these box-office
@@ -136,7 +169,7 @@ export function buildStateWithReadyDraft(seed: number, marketingOverrides: Parti
     projects: [playerDraftToProject(result.draft)],
     focusedProjectId: result.draft.id,
     projectWorkspaceSection: 'overview',
-    rngSeed: nextSeed,
+    rngSeed: downstreamSeed,
     totalDays: 1,
     talentPool: result.talentPool,
     rivalStudios: [],

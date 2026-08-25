@@ -845,8 +845,10 @@ export interface Script {
   effectsAmbition: NormalizedScalar;
   productionRequirements: ProductionRequirements;
   // A one-sentence log-line generated from genre + tone flavor
-  // (engine/premiseGenerator.ts, data/premises.ts) - presentation only,
-  // doesn't feed any scoring, same as title.
+  // (engine/premiseGenerator.ts, data/premises.ts). The string itself is
+  // presentation only and feeds no scoring, same as title - but the Premise it
+  // came from is no longer inert: its `leads` floors requiredLeads below, and so
+  // reaches the cast and a screenplay's price (data/premises.ts:Premise.leads).
   synopsis: string;
   // How many named Lead/Supporting roles this script actually has - a
   // buddy-cop script calls for two leads, an ensemble drama might want a
@@ -1329,6 +1331,18 @@ export interface DistributorOffer {
 // without yet touching the live marketingSpend field or its consumers.
 export type MarketingChannel = 'trailers' | 'tv' | 'digital' | 'press';
 export type CampaignAngle = 'spectacle' | 'story' | 'mystery' | 'starPower' | 'faithful';
+
+/** A marketing campaign booked against an announced release date - see FilmDraft.campaignCommitment. */
+export interface CampaignCommitment {
+  /** The campaign booked. Charged at release with the rest of marketing, never here. */
+  amount: Money;
+  /** When it was committed - for the development log and the player-facing account. */
+  committedOnDay: GameDay;
+  /** The release day it was bought against. Moving away from this is what triggers the write-off. */
+  forReleaseDay: GameDay;
+  /** Cash already lost to previous moves, carried so the player can see what date-shuffling has cost. */
+  writtenOff?: Money;
+}
 
 export interface MarketingChoices {
   // A continuous currency amount, not a fixed tier - what a given level of
@@ -2104,7 +2118,14 @@ export interface Asset {
    * and stored here so completion is deterministic - the pass lands on
    * `readyOnDay`, settled lazily off the calendar (engine/rewrite.ts:settleAssetRewrites),
    * the same "finishes on day N" shape FilmDraft.postProductionEditingUntilDay
-   * already uses. While set, the Asset can't start a Project or a second pass.
+   * already uses. While set, the Asset can't take a SECOND pass.
+   *
+   * It CAN, however, have a live Project against it: a pass and a project's
+   * commitments deliberately coexist now, up until photography begins
+   * (engine/project.ts:assetAcceptsDevelopmentPass). That coexistence is the
+   * whole point - development used to happen only in the one phase of the game
+   * where nothing could be lost, which is why waiting was strictly dominant.
+   * See docs/DESIGN_REVIEW_project_clocks_and_script_openness.md section 1.1.
    */
   pendingRewrite?: PendingRewrite;
 }
@@ -2126,6 +2147,21 @@ export interface PendingRewrite {
   craftChanges: Partial<ScriptCraft>;
   /** The fee already charged at commission - recorded for the completion development-log entry, not re-charged. */
   fee: Money;
+  /**
+   * The range the player was shown when they committed
+   * (engine/rewrite.ts:estimateRewriteDuration). Kept so the completion log can
+   * set what was promised against what happened, and so a pass in flight can
+   * still be reasoned about. Absent on a pass commissioned before estimates
+   * existed - display reads it defensively.
+   */
+  estimatedDays?: { low: GameDay; high: GameDay };
+  /**
+   * Why the pass landed on `readyOnDay` - the named causes of any overrun,
+   * resolved once at commission (engine/rewrite.ts:resolveRewriteDuration) and
+   * recorded so an overrun is never an invisible dice roll. Reads "delivered on
+   * schedule" when nothing went long.
+   */
+  durationSummary?: string;
 }
 
 // A rival studio's overall scale - governs both how big the films it makes
@@ -2284,6 +2320,12 @@ export type CashLedgerCategory =
   | 'producer'
   | 'awards'
   | 'awardsCampaign'
+  // A release campaign written off by moving the date it was booked against
+  // (engine/campaignCommitment.ts). Marketing is otherwise charged in one go at
+  // release and never reaches the ledger, so this is the only marketing money
+  // the activity view sees - which is apt, since it is the only marketing money
+  // that bought nothing.
+  | 'marketing'
   // Post-theatrical income windows (engine/ancillary.ts, the ancillary-revenue
   // model). A film's afterlife pays into cash through these categories over the
   // months/years after its run, so film income is finally visible in the
@@ -2735,6 +2777,56 @@ export interface FilmDraft {
   // is held in development until this day; absent/equal to greenlitOnDay means it
   // started immediately (the common case).
   shootStartsOnDay?: number;
+  // The day principal photography was COMMITTED to begin, frozen at Greenlight
+  // (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md section 3.1) -
+  // `shootStartsOnDay` (or greenlight day) plus the prep run's recommended
+  // length. This is the studio's *promise*, not a live estimate: cast, crew and
+  // facilities lock around it, so it deliberately does NOT move when prep events
+  // push the real start about. The gap between it and what actually happens is
+  // the pressure the phase exists to create - a development pass still running
+  // as it approaches is the decision the player has to make.
+  //
+  // Stored rather than derived (an exception to Principle 8 that proves it): a
+  // commitment is an intrinsic fact about the project - a date that was promised -
+  // not a strength computed from other values, and the whole point is that
+  // reality can diverge from it. Absent before greenlight; the pre-greenlight
+  // intent is the freely-movable target start (`plannedStartOffsetDays`).
+  committedStartDay?: GameDay;
+  /**
+   * The release day this project has been ANNOUNCED for - a public territorial
+   * claim, not a reservation (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
+   * section 9.1). Nothing in the industry allocates dates, and nothing here
+   * prevents a rival opening the same day; what an announcement does is let
+   * everyone else see the claim and decide whether to steer around it.
+   *
+   * Set well before greenlight and freely re-announced (moving is always
+   * allowed - what it costs is the campaign committed against the old date).
+   * Absent means the project has made no claim at all, which is a real and
+   * common choice: an undated film keeps maximum flexibility and simply takes
+   * whatever the calendar leaves it.
+   *
+   * Distinct from a `scheduled` project's own releaseDay, which is the real,
+   * final booking made once the film is finished - see Project's own union.
+   */
+  announcedReleaseDay?: GameDay;
+  /**
+   * A marketing campaign committed against `announcedReleaseDay`
+   * (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md section 9.4).
+   *
+   * A BOOKING, not a payment: media is committed months ahead - trailer
+   * placement, upfronts, partner and licensing tie-ins with long lead times -
+   * and paid closer to air, which is why the campaign is charged at release with
+   * the rest of marketing and not here. What committing buys now is that the
+   * claim reads as FUNDED rather than as a bare date, and rivals weigh it
+   * accordingly.
+   *
+   * And what it costs is the freedom to move. Moving the date writes off a share
+   * of the commitment, rising as the date nears and the buys become
+   * unrecoverable (engine/campaignCommitment.ts). That write-off is the
+   * incommensurable cost the whole phase is built around: not the date itself,
+   * but the money already pointed at it.
+   */
+  campaignCommitment?: CampaignCommitment;
   // The live pre-production run (Greenlight -> Principal Photography), or null
   // before greenlight. Non-null with status 'in-progress'/'awaiting-choice'
   // means prep is underway; 'finished' means it's the persisted record the shoot

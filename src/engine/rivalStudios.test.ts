@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateRivalStudios, settleRivalMarket, releaseTypeForScale, type RivalMarketUpdate } from './rivalStudios';
+import { generateRivalStudios, settleRivalMarket, releaseTypeForScale, chooseReleaseDay, type RivalMarketUpdate } from './rivalStudios';
 import { createRng } from './random';
 import { settleTheatricalMarket } from './marketSettlement';
 import { generateTalentPool } from './talentGenerator';
@@ -152,22 +152,27 @@ describe('settleRivalMarket - shared-calendar awareness (roadmap Phase 7.4)', ()
     expect(afterResolve.rivalProductionsInProgress.length).toBeGreaterThan(0);
   });
 
-  it("a rival's naive release day nudges away from a day the player already occupies with a genre/audience-matching release, landing later", () => {
-    const { market, totalDays } = freshMarket(3);
-    const { afterResolve: withoutPlayer } = withRng(5, (rng) => bidThenResolve(market, totalDays, 8, 8, [], rng)).result;
-    const naive = withoutPlayer.rivalProductionsInProgress[0];
-    expect(naive).toBeDefined();
+  it("a rival's naive release day nudges away from a day already occupied by a genre/audience-matching release, and only ever later", () => {
+    // Asserted against chooseReleaseDay directly rather than through two market
+    // settlements: adding a player release changes what every rival does, so a
+    // "same seed, one variable" comparison across two full settlements is not
+    // sound - the whole stream diverges, not just the day under test.
+    const naiveDay = 200;
+    const candidate = { genre: 'Action' as const, targetAudience: 'Mass Market' as const };
+    const undisturbed = chooseReleaseDay(naiveDay, candidate, [], 1);
 
-    // Re-run the exact same rng seed, but now with the player occupying
-    // that exact naive day with a release that fully matches this rival's
-    // own genre/audience (guaranteeing full-weight crowding, not diluted
-    // by a mismatch) - the rival's own day should move, deterministically.
-    const matchingCompetitor: UpcomingRelease = { releaseDay: naive!.releaseDay, genre: naive!.genre, targetAudience: naive!.targetAudience, strength: 1 };
-    const { afterResolve: withPlayer } = withRng(5, (rng) => bidThenResolve(market, totalDays, 8, 8, [matchingCompetitor], rng)).result;
-    const nudgedDay = withPlayer.rivalProductionsInProgress[0]?.releaseDay;
-    expect(nudgedDay).toBeDefined();
-    expect(nudgedDay).not.toBe(naive!.releaseDay);
-    expect(nudgedDay!).toBeGreaterThan(naive!.releaseDay);
+    // A full-weight competitor: same genre and audience, parked on the exact day.
+    const blocked = chooseReleaseDay(
+      naiveDay,
+      candidate,
+      [{ releaseDay: undisturbed, genre: candidate.genre, targetAudience: candidate.targetAudience, strength: 1 }],
+      1,
+    );
+    expect(blocked).not.toBe(undisturbed);
+    // A film can delay to reach a better frame but can never release before its
+    // own production wraps, so the search only ever runs forward.
+    expect(blocked).toBeGreaterThan(undisturbed);
+    expect(blocked).toBeGreaterThanOrEqual(naiveDay);
   });
 
   // Post-Production Redesign, Phase C (docs/DESIGN_REVIEW_post_production_redesign.md

@@ -7,6 +7,7 @@ import { getDirectorCareer } from './person';
 import { effectiveRoleCapacity } from './castRequirements';
 import { computeTalentCost, computeProductionBudgetCost } from './cost';
 import { applyPrepRiskDelta, computeStaticProductionRisk } from './production';
+import { deriveScriptExposure } from './scriptExposure';
 import { computePitchExecutionRiskDelta } from './directorPitch';
 import { hasUnresolvedBlockingDemand } from './creativeDemands';
 import { overallSpendT } from './productionDials';
@@ -27,7 +28,8 @@ export type ProjectReadinessWarningCode =
   | 'optional-vfx-supervisor-missing'
   | 'high-production-risk'
   | 'setting-underfunded'
-  | 'cast-before-director';
+  | 'cast-before-director'
+  | 'script-concern';
 
 export interface ProjectReadinessIssue {
   code: ProjectReadinessIssueCode | ProjectReadinessWarningCode;
@@ -93,6 +95,12 @@ const HIGH_PRODUCTION_RISK_THRESHOLD = 65;
 // player should retain full control") - underfunding an ambitious setting
 // is a real, allowed choice, just one the player should see coming.
 const SETTING_UNDERFUNDED_GAP = 0.35;
+
+// How exposed the screenplay's worst axis has to be before it is worth raising
+// at greenlight - above the bar scriptExposure.ts itself uses for "worth
+// naming at all", so the warning marks a genuine concern rather than every
+// imperfect draft.
+const REPORTABLE_SCRIPT_CONCERN = 0.25;
 
 /**
  * The single source of truth for whether a pre-greenlight project is
@@ -187,6 +195,16 @@ export function deriveProjectReadiness(draft: FilmDraft, studioCash: number): Pr
     const avgRisk = (risk.moraleRisk + risk.safetyRisk + risk.technicalComplexity + risk.budgetRisk) / 4;
     if (avgRisk >= HIGH_PRODUCTION_RISK_THRESHOLD) {
       warnings.push({ code: 'high-production-risk', message: 'This plan carries substantial production risk - review the risk profile before greenlighting.' });
+    }
+
+    // The screenplay's own named concerns (engine/scriptExposure.ts, Phase 5).
+    // Never a blocker - greenlighting a script you know is thin is a real,
+    // allowed choice, exactly like underfunding an ambitious setting below. It
+    // is the choice this phase exists to make available; the player just has to
+    // see it coming (SIMULATION_PHILOSOPHY.md Principle 3).
+    const worstExposure = deriveScriptExposure(draft.script)[0];
+    if (worstExposure && worstExposure.severity >= REPORTABLE_SCRIPT_CONCERN) {
+      warnings.push({ code: 'script-concern', message: `${worstExposure.cause}.` });
     }
 
     const settingProfile = SETTING_ARCHETYPE_PROFILES[draft.script.primarySetting];

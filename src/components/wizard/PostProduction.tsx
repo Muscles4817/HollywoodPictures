@@ -7,6 +7,7 @@ import { Button } from '../common/Button';
 import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
+import { reshootChoiceConstraints } from '../../engine/reshootAvailability';
 import { deriveFocusedDraft } from '../../state/selectors';
 import { formatGameDateWithMonth } from '../../engine/calendar';
 import { derivePostProductionStatus, describePostProductionWait, type PostProductionStatus } from '../../engine/postProductionStatus';
@@ -119,6 +120,7 @@ export function PostProduction() {
           totalDays={state.totalDays}
           pausedMessage="Marketing can't begin until you respond to the test screening."
           showChoiceCosts
+          choiceConstraints={reshootChoiceConstraints(draft, state.talentPool, state.totalDays)}
           onChoose={(choiceId) => dispatch({ type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId, productionId: draft.id })}
         />
       )}

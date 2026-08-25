@@ -1,6 +1,6 @@
 import type { Opportunity, OpportunityBid, MarketSource, Person, ProductionScale, Script } from '../types';
 import { GENRES } from '../data/genres';
-import { generateScriptOptions, type GenerationProfile } from './scriptGenerator';
+import { generateScriptOptions, type GenerationProfile, NEUTRAL_GENERATION } from './scriptGenerator';
 import { pickGenreForAffinity, selectWriterForSource, writerProfileFromPerson } from './writers';
 import { pick, randInt, type RandomFn } from './random';
 
@@ -86,10 +86,10 @@ function finishOpportunity(totalDays: number, rng: RandomFn, source: MarketSourc
  * engine/writers.ts), then a genre from that writer's own affinity, then a
  * screenplay shaped by them.
  */
-function generateOpportunity(totalDays: number, rng: RandomFn, writers: Person[]): Opportunity {
+function generateOpportunity(totalDays: number, rng: RandomFn, writers: Person[], usedSynopses: Set<string>): Opportunity {
   if (writers.length === 0) {
     const genre = pick(rng, GENRES);
-    const script = generateScriptOptions(genre, rng, 1)[0];
+    const script = generateScriptOptions(genre, rng, 1, undefined, NEUTRAL_GENERATION, usedSynopses)[0];
     const source = pick(rng, OPPORTUNITY_SOURCES);
     return finishOpportunity(totalDays, rng, source, script, undefined);
   }
@@ -101,7 +101,7 @@ function generateOpportunity(totalDays: number, rng: RandomFn, writers: Person[]
   // The source's generation profile biases the concept/execution distributions on
   // top of the author - this is what makes a Spec a lottery and an Agent Package a
   // safe, polished buy (Phase 3b).
-  const script = generateScriptOptions(genre, rng, 1, profile ?? undefined, SOURCE_GENERATION_PROFILE[source])[0];
+  const script = generateScriptOptions(genre, rng, 1, profile ?? undefined, SOURCE_GENERATION_PROFILE[source], usedSynopses)[0];
   return finishOpportunity(totalDays, rng, source, script, writer?.id);
 }
 
@@ -170,6 +170,8 @@ export function settleOpportunities(
   // test that exercises settlement logic in isolation) get the byte-identical
   // legacy un-authored generation, preserving determinism.
   writers: Person[] = [],
+  /** Log-lines this save has already shown - see generateScriptOptions. Defaults to a fresh set so every existing caller keeps its previous behaviour exactly. */
+  usedSynopses: Set<string> = new Set<string>(),
 ): OpportunitySettlement {
   const active = opportunities.filter((o) => o.expiresOnDay > totalDays);
   if (nextGenerationCheckDay > totalDays) {
@@ -188,7 +190,7 @@ export function settleOpportunities(
   }
 
   const batchSize = randInt(rng, ...BATCH_SIZE);
-  const newOnes = Array.from({ length: batchSize }, () => generateOpportunity(totalDays, rng, writers));
+  const newOnes = Array.from({ length: batchSize }, () => generateOpportunity(totalDays, rng, writers, usedSynopses));
   return {
     opportunities: [...stillOpen, ...newOnes],
     nextGenerationCheckDay: totalDays + WEEK_LENGTH_DAYS,

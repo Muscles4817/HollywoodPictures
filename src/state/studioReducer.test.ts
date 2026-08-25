@@ -16,6 +16,8 @@ import { STAGE_DURATIONS } from '../data/schedule';
 import { MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { professionForProductionRole } from '../data/helpers';
 import type { GameState } from './gameState';
+import type { Person } from '../types';
+import { reshootSurcharge } from '../engine/reshootAvailability';
 
 /** Dispatches ADVANCE_DAY n times, threading state through - the same real-time background tick App.tsx fires, just driven directly instead of through a timer. */
 function advanceDays(state: GameState, n: number): GameState {
@@ -754,6 +756,23 @@ describe('GREENLIGHT_PROJECT - enters the live pre-production phase', () => {
     expect(draftAfter.preProduction?.daysElapsed).toBe(0);
     expect(draftAfter.preProduction?.recommendedDays).toBe(expectedPrepDays);
     expect(draftAfter.shootStartsOnDay).toBeUndefined(); // free cast -> starts immediately
+    // The committed photography start (Phase 5, docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
+    // section 3.1): prep begins today, photography follows it.
+    expect(draftAfter.committedStartDay).toBe(s.totalDays + expectedPrepDays);
+  });
+
+  it('freezes the committed start rather than tracking the real one as prep runs long', () => {
+    const s = stateReadyToGreenlight(214);
+    const greenlit = studioReducer(s, { type: 'GREENLIGHT_PROJECT' });
+    const committed = asPlayerDraft(findProject(greenlit.projects, greenlit.focusedProjectId))!.committedStartDay;
+    expect(committed).toBeDefined();
+
+    // Whatever prep does to the real schedule, the promise the package locked
+    // around does not move - the gap between them is the pressure this phase
+    // exists to create, so it must stay measurable.
+    let after = greenlit;
+    for (let i = 0; i < 5; i++) after = studioReducer(after, { type: 'ADVANCE_PREPRODUCTION_DAY' });
+    expect(asPlayerDraft(findProject(after.projects, after.focusedProjectId))!.committedStartDay).toBe(committed);
   });
 
   // Deferred Start: inject an OTHER-project booking on one cast member of a
@@ -1051,6 +1070,102 @@ describe('Test Screening (Post-Production Redesign, Phase C - iterative screenin
     expect(draft.testScreeningResolved).toBe(true);
     expect(draft.testScreeningPendingChoice).toBeNull();
     void pending;
+  });
+
+  /**
+   * Put `lead` into the LIVE Actor pool carrying an other-project booking.
+   * Inserted rather than mapped: this fixture hires from freshly-generated
+   * candidates that were never pool members, so mapping over the pool would
+   * silently match nobody. engine/reshootAvailability.ts falls back to the
+   * draft's own snapshot for anyone absent from the pool, which is exactly why
+   * the booking has to land in the pool to be seen.
+   */
+  function withLeadBooked(state: GameState, lead: Person, startDay: number, endDay: number): GameState {
+    const booked: Person = {
+      ...lead,
+      availability: { commitments: [{ projectId: 'rival-film', role: 'Lead Actor', startDay, endDay }] },
+    };
+    return {
+      ...state,
+      talentPool: {
+        ...state.talentPool,
+        Actor: [booked, ...state.talentPool.Actor.filter((p) => p.id !== lead.id)],
+      },
+    };
+  }
+
+  // Cast availability (engine/reshootAvailability.ts): a reshoot needs the
+  // principals physically present, and by post-production they have contracted
+  // elsewhere. The reducer is the authoritative guard - the decision card only
+  // disables the button.
+  it('refuses a reshoot outright when a principal is shooting elsewhere, and still allows the recut', () => {
+    const { state, readyDay } = stateJustFinishedPhotography(320);
+    const atReadyDay = advanceDays(state, readyDay - state.totalDays);
+    const draft = asPlayerDraft(findProject(atReadyDay.projects, atReadyDay.focusedProjectId))!;
+    const lead = draft.talent.find((a) => a.role === 'Lead Actor')!.person;
+
+    // Book the lead on a rival picture straddling today, in the LIVE pool.
+    const booked = withLeadBooked(atReadyDay, lead, atReadyDay.totalDays - 10, atReadyDay.totalDays + 120);
+
+    for (const choiceId of ['pickups', 'major-reshoots']) {
+      expect(studioReducer(booked, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId, productionId: booked.focusedProjectId! })).toBe(booked);
+    }
+
+    // The edit is the real studio response when photography is closed, so it
+    // must remain open - otherwise the screening becomes a dead end.
+    const recut = studioReducer(booked, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 're-edit', productionId: booked.focusedProjectId! });
+    expect(recut).not.toBe(booked);
+    expect(asPlayerDraft(findProject(recut.projects, recut.focusedProjectId))!.postProductionEvents).toHaveLength(1);
+  });
+
+  it('buys a nearly-free principal out, charging the premium on top and recording it on the film', () => {
+    const { state, readyDay } = stateJustFinishedPhotography(322);
+    const atReadyDay = advanceDays(state, readyDay - state.totalDays);
+    const draft = asPlayerDraft(findProject(atReadyDay.projects, atReadyDay.focusedProjectId))!;
+    const lead = draft.talent.find((a) => a.role === 'Lead Actor')!.person;
+
+    // A few days left on the other job - close enough to buy out.
+    const nearlyFree = withLeadBooked(atReadyDay, lead, atReadyDay.totalDays - 40, atReadyDay.totalDays + 4);
+    const surcharge = reshootSurcharge(draft, nearlyFree.talentPool, nearlyFree.totalDays, 'pickups');
+    expect(surcharge).not.toBeNull();
+    expect(surcharge!).toBeGreaterThan(0);
+
+    const after = studioReducer(nearlyFree, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'pickups', productionId: nearlyFree.focusedProjectId! });
+    expect(after).not.toBe(nearlyFree);
+
+    const event = asPlayerDraft(findProject(after.projects, after.focusedProjectId))!.postProductionEvents[0];
+    // The buy-out rides on the event's own costDelta, not just the ledger -
+    // engine/releaseFilm.ts sums these into the film's total cost, so leaving it
+    // off would understate what the film actually cost.
+    expect(event.costDelta).toBeGreaterThanOrEqual(surcharge!);
+    expect(nearlyFree.studio.cash - after.studio.cash).toBe(event.costDelta);
+  });
+
+  it('will not buy out a principal whose other production is too deep to move', () => {
+    const { state, readyDay } = stateJustFinishedPhotography(323);
+    const atReadyDay = advanceDays(state, readyDay - state.totalDays);
+    const draft = asPlayerDraft(findProject(atReadyDay.projects, atReadyDay.focusedProjectId))!;
+    const lead = draft.talent.find((a) => a.role === 'Lead Actor')!.person;
+
+    // Months still to run - no amount of money moves them, so the refusal
+    // stands however rich the studio is. This is what stops the constraint
+    // collapsing back into a price.
+    const deep = withLeadBooked(atReadyDay, lead, atReadyDay.totalDays - 5, atReadyDay.totalDays + 150);
+    const rich: GameState = { ...deep, studio: { ...deep.studio, cash: 5_000_000_000 } };
+    expect(reshootSurcharge(draft, rich.talentPool, rich.totalDays, 'pickups')).toBeNull();
+    expect(studioReducer(rich, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'pickups', productionId: rich.focusedProjectId! })).toBe(rich);
+  });
+
+  it('allows the same reshoot once that other job has finished', () => {
+    const { state, readyDay } = stateJustFinishedPhotography(321);
+    const atReadyDay = advanceDays(state, readyDay - state.totalDays);
+    const draft = asPlayerDraft(findProject(atReadyDay.projects, atReadyDay.focusedProjectId))!;
+    const lead = draft.talent.find((a) => a.role === 'Lead Actor')!.person;
+    // A booking that ended before today holds nobody up.
+    const freed = withLeadBooked(atReadyDay, lead, atReadyDay.totalDays - 200, atReadyDay.totalDays - 1);
+    const after = studioReducer(freed, { type: 'RESOLVE_TEST_SCREENING_CHOICE', choiceId: 'pickups', productionId: freed.focusedProjectId! });
+    expect(after).not.toBe(freed);
+    expect(asPlayerDraft(findProject(after.projects, after.focusedProjectId))!.postProductionEvents).toHaveLength(1);
   });
 
   it('Release As-Is: no cost, no delay, no editing event recorded, locks the cut immediately', () => {

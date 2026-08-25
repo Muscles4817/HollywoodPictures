@@ -47,7 +47,17 @@ describe('settleTheatricalMarket - player release resolution (roadmap Phase 7.2)
     const { result: exact } = withRng(5, (rng) => settleTheatricalMarket([], [{ draft: draftA, releaseDay: 40 }], [], [], 40, 50, rng));
     const { result: overshoot } = withRng(5, (rng) => settleTheatricalMarket([], [{ draft: draftB, releaseDay: 40 }], [], [], 90, 50, rng));
     expect(overshoot.settledFilms[0].releasedOnDay).toBe(40); // the scheduled day, not the day the jump actually landed on
-    expect(overshoot.settledFilms[0].results).toEqual(exact.settledFilms[0].results);
+    // Everything DETERMINED AT RELEASE must match. The run-completion fields are
+    // deliberately excluded: the overshooting film is 50 days into its box-office
+    // run rather than 0, so if that run has finished it carries final takings, a
+    // final outcome and its brand/prestige settlement, while the exact-landing
+    // film's are all still null. That is correct behaviour, not a discrepancy -
+    // the test only ever meant the release-day computation itself is identical.
+    const atRelease = (r: typeof exact.settledFilms[0]['results']) => {
+      const { outcome, brandChange, prestigeChange, profit, studioRevenue, totalBoxOffice, ...rest } = r;
+      return rest;
+    };
+    expect(atRelease(overshoot.settledFilms[0].results)).toEqual(atRelease(exact.settledFilms[0].results));
   });
 
   it('resolves several due releases in the same pass, each keeping its own id', () => {

@@ -25,7 +25,8 @@ import {
 } from '../data/producers';
 import { GENERATED_TALENT_DB } from '../data/talentDatabases';
 import { MARQUEE_PERSONALITIES } from '../data/marqueePersonalities';
-import { TALENT_FIRST_NAMES, TALENT_LAST_NAMES } from '../data/talentNames';
+import { TALENT_LAST_NAMES } from '../data/talentNames';
+import { drawCoherentName, nameVariant, nationalityFor, regionWeightsForRole } from './nameGenerator';
 import { TONES } from '../data/tones';
 import { ACTING_STYLE_AXES } from '../data/actingStyle';
 import { CREW_CAREER_KEY } from './person';
@@ -65,26 +66,17 @@ const MIDDLE_INITIAL_CHANCE = 0.22;
 const DOUBLE_BARRELLED_CHANCE = 0.05;
 const INITIALS = 'ABCDEFGHIJKLMNOPRSTVW'.split('');
 
-/** FNV-1a. A cheap, well-mixed, dependency-free hash - deterministic across runs and platforms. */
-function hashString(text: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i += 1) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
-}
-
-/** A stable 0-1 value for one person and one decision, independent of the shared rng. */
-function nameVariant(seed: string, salt: number): number {
-  return hashString(`${seed}#${salt}`) / 0x100000000;
-}
-
-function randomName(rng: RandomFn, salt: string): string {
+function randomName(rng: RandomFn, salt: string, role?: TalentProfession): string {
   // Exactly two draws from the shared sequence, as before. Everything below is
   // derived, not drawn.
-  const first = pick(rng, TALENT_FIRST_NAMES);
-  const last = pick(rng, TALENT_LAST_NAMES);
+  //
+  // The first draw carries the region (see firstNamePoolFor); the second reads
+  // that region's own surnames rather than the whole pool, so the two halves
+  // agree. Both are still one `pick` each - `pick` costs one rng() call whatever
+  // the array length - so the draw COUNT is untouched and no downstream seeded
+  // sequence shifts. That constraint is the one this file's note above is
+  // emphatic about, and it is deliberately preserved here.
+  const { first, last } = drawCoherentName(rng, salt, regionWeightsForRole(role), role ?? '*');
 
   // `salt` distinguishes two people who happened to draw the same base name, so
   // they do not receive identical embellishment - which is what keeps the
@@ -465,14 +457,14 @@ function generateTalent(role: TalentProfession, rng: RandomFn, t: number): Perso
   // per-person seed are available to buildPersonality below. buildPersonality is
   // a pure HASH derivation that consumes no rng, so the generation stream stays
   // byte-identical - the sharp edge from docs/DESIGN_REVIEW_acting_model.md §15.
-  const name = randomName(rng, `${role}|${t}`);
+  const name = randomName(rng, `${role}|${t}`, role);
   const gender = generateGender(rng);
   const dateOfBirth = generateDateOfBirth(rng);
   const personalitySeed = `${role}:${fame}:${reliability}:${ego}:${salary}:${dateOfBirth.year}.${dateOfBirth.month}.${dateOfBirth.day}`;
 
   return {
     id: `talent-${nextTalentId++}`,
-    identity: { name, gender, dateOfBirth, appearanceTags: [] },
+    identity: { name, gender, dateOfBirth, nationality: nationalityFor(name), appearanceTags: [] },
     // The six formerly-flat axes now cohere into a real archetype (see
     // engine/personality.ts) so engine/personTraits.ts can actually fire;
     // professionalism (= reliability) and ego are carried through unchanged.
@@ -633,7 +625,7 @@ function generateProducer(rng: RandomFn, t: number): Person {
 
   return {
     id: `producer-${nextTalentId++}`,
-    identity: { name, gender, dateOfBirth, appearanceTags: [] },
+    identity: { name, gender, dateOfBirth, nationality: nationalityFor(name), appearanceTags: [] },
     personality: buildPersonality(
       {
         professionalism: reliability,

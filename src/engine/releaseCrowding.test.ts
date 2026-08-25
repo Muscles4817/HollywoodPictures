@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeCompetitiveCrowding, computeRivalReleaseStrength, computePlayerReleaseStrength, type UpcomingRelease } from './releaseCrowding';
+import { computeCompetitiveCrowding, computeRivalReleaseStrength, computePlayerReleaseStrength, type UpcomingRelease, crowdingFromPressure } from './releaseCrowding';
 
 function competitor(overrides: Partial<UpcomingRelease> = {}): UpcomingRelease {
   return { releaseDay: 100, genre: 'Action', targetAudience: 'Mass Market', strength: 1, ...overrides };
@@ -136,5 +136,56 @@ describe('studio identity as competitor territory - rivals steer around a strong
     const crowdingVsBare = computeCompetitiveCrowding(challenger, [incumbentBare], challengerStrength);
     const crowdingVsOnBrand = computeCompetitiveCrowding(challenger, [incumbentOnBrand], challengerStrength);
     expect(crowdingVsOnBrand).toBeGreaterThan(crowdingVsBare);
+  });
+});
+
+// Section 9.2 of docs/DESIGN_REVIEW_project_clocks_and_script_openness.md: the
+// old hard clamp at 1 threw away every distinction above it, flattening a
+// merely-contested day and a ruinous one into the same number - and swallowing
+// most of what matchupWeight was contributing.
+describe('crowdingFromPressure - a soft ceiling, not a clamp', () => {
+  it('leaves the ordinary range exactly as it was', () => {
+    // Everything below the knee passes through untouched, so the existing
+    // calibration of normal days is not disturbed at all.
+    for (const p of [0, 0.1, 0.25, 0.5, 0.69]) expect(crowdingFromPressure(p)).toBeCloseTo(p, 10);
+  });
+
+  it('approaches total loss without overshooting it', () => {
+    // Across every pressure a real calendar produces, crowding stays strictly
+    // below total loss - there is always some screen access left. Far past that
+    // (pressure 20+, which no calendar reaches) the exponential underflows to
+    // exactly 1, which is the correct limit rather than a bug.
+    for (const p of [1, 2, 4, 6]) {
+      expect(crowdingFromPressure(p)).toBeLessThan(1);
+      expect(crowdingFromPressure(p)).toBeGreaterThan(0.7);
+    }
+    for (const p of [20, 100]) expect(crowdingFromPressure(p)).toBeLessThanOrEqual(1);
+  });
+
+  it('is strictly monotonic, so no two pressures collapse to one crowding', () => {
+    // The property the hard clamp broke, and the reason a strong film could not
+    // feel a collision differently from a weak one.
+    let previous = -1;
+    for (let p = 0; p <= 6; p += 0.05) {
+      const crowding = crowdingFromPressure(p);
+      expect(crowding).toBeGreaterThan(previous);
+      previous = crowding;
+    }
+  });
+
+  it('clamps negative pressure to zero', () => {
+    expect(crowdingFromPressure(-1)).toBe(0);
+  });
+});
+
+describe('the player feels their own strength in a collision', () => {
+  it('lets a strong release shrug off a competitor that would crush a weak one', () => {
+    const rival: UpcomingRelease = { releaseDay: 100, genre: 'Action', targetAudience: 'Mass Market', strength: 0.8 };
+    const candidate = { releaseDay: 100, genre: 'Action' as const, targetAudience: 'Mass Market' as const };
+    const weak = computeCompetitiveCrowding(candidate, [rival], 0.15);
+    const strong = computeCompetitiveCrowding(candidate, [rival], 0.95);
+    expect(strong).toBeLessThan(weak);
+    // Both still hurt - a collision is a collision - but not equally.
+    expect(strong).toBeGreaterThan(0.3);
   });
 });

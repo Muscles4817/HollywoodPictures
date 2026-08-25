@@ -103,6 +103,78 @@ export function combineWeights<K extends string>(keys: readonly K[], sources: Ar
   return result;
 }
 
+/**
+ * A stable 0-1 value hashed from a string (FNV-1a), for choices that must be
+ * deterministic WITHOUT consuming a draw.
+ *
+ * The distinction matters more than it looks. Anything derived from the shared
+ * RandomFn is positional: it depends on how many draws happened before it, so
+ * adding or removing a draw anywhere upstream moves it. Anything derived from
+ * this depends only on the string, so it is stable under exactly the kind of
+ * churn forkSeed above exists to contain - and it can be computed at any point
+ * in a function without changing where every later draw lands.
+ *
+ * Feed it something already deterministic for the same seed (a generated title,
+ * a character's name). Feeding it a value that is not itself seed-reproducible -
+ * scriptGenerator.ts's newScriptId, for instance, which is Date.now() plus
+ * Math.random() - hands you a value that changes between runs of the same seed,
+ * which is worse than a draw.
+ *
+ * NOTE this is one of six copies of the same FNV-1a core in the engine, and it
+ * is deliberately NOT the one true version - they differ in the tail, so folding
+ * any of them together would silently move live values for no benefit:
+ *
+ *   engine/actingModel.ts:stableUnit              `% 100000 / 100000`  (exported)
+ *   engine/personality.ts:hashUnit                `% 100000 / 100000`
+ *   engine/castingPresentation.ts:stablePick      `% options.length`
+ *   engine/castPerformancePresentation.ts:stablePick  `% options.length`
+ *   engine/distribution.ts:seedFromId             raw `h >>> 0`
+ *
+ * actingModel's is the one to be most careful with: it is exported, it is
+ * byte-identical to personality's, and it feeds derived craft - so it has the
+ * widest blast radius of the six despite looking like a local helper. If anyone
+ * does consolidate these one day, that is the one to do last and measure.
+ */
+export function hashUnit(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 4294967296;
+}
+
+/**
+ * A seed for a stream that runs alongside this one, taking exactly ONE draw
+ * from the parent - the shared idiom for "this work needs its own stream".
+ *
+ * Its purpose is insulation. Two pieces of generation drawing from one stream
+ * are coupled: change how many draws the first one takes and the second one's
+ * results move, however unrelated they are. Forking a seed for the second BEFORE
+ * running the first breaks that coupling in the direction that matters - the
+ * second depends on the parent seed alone, and no longer on the first's
+ * appetite. (See state/testFixtures.ts for the case this was extracted from.)
+ *
+ * Same range as withRng's own trailing draw below, deliberately: one spelling of
+ * "draw a seed", not three.
+ *
+ * Caveat worth knowing before leaning on the word "independent": mulberry32
+ * advances its state by a CONSTANT (createRng above), so every seed walks the
+ * same cycle at a different phase. A forked stream is therefore a random offset
+ * into the parent's own sequence rather than a genuinely separate generator.
+ * Over the few thousand draws any one of these streams takes, the chance of
+ * overlapping the parent is negligible (~1e-6), but this is not the primitive to
+ * reach for if you ever need real statistical independence.
+ */
+export function forkSeed(rng: RandomFn): number {
+  return randInt(rng, 1, 2 ** 31 - 1);
+}
+
+/** A child stream from `forkSeed` - see its note for what "child" does and does not mean here. */
+export function forkRng(rng: RandomFn): RandomFn {
+  return createRng(forkSeed(rng));
+}
+
 /** Runs `fn` with a deterministic RNG seeded from `seed`, returning the advanced seed to store back. */
 export function withRng<T>(seed: number, fn: (rng: RandomFn) => T): { result: T; nextSeed: number } {
   const rng = createRng(seed);

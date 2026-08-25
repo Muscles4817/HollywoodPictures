@@ -37,6 +37,10 @@ describe('generateTestScreeningPendingChoice', () => {
   });
 
   it('Major Reshoots costs and can delay more than Pickups, which costs and can delay more than Re-edit', () => {
+    // No budget pinning: the ordering now holds BY CONSTRUCTION, because each
+    // option is strictly the previous one plus more work (engine/testScreening.ts:
+    // reshootCostRange). It used to depend on the fixture being a big enough
+    // film, since re-edit was flat while the others scaled with the shoot.
     const draft = draftWithEditor(5, 50);
     const pending = withRng(6, (rng) => generateTestScreeningPendingChoice(draft, rng)).result;
     const reEdit = pending.choices.find((c) => c.id === 're-edit')!;
@@ -46,6 +50,44 @@ describe('generateTestScreeningPendingChoice', () => {
     expect(pickups.costRange[1]).toBeLessThan(reshoots.costRange[0]);
     expect(reEdit.delayDaysRange[1]).toBeLessThan(pickups.delayDaysRange[0]);
     expect(pickups.delayDaysRange[1]).toBeLessThan(reshoots.delayDaysRange[0]);
+  });
+
+  it('keeps that cost ordering at every budget level, including the small films that used to invert it', () => {
+    for (const shootingBudgetAmount of [200_000, 1_000_000, 8_000_000, 40_000_000, 75_000_000]) {
+      const base = draftWithEditor(11, 50);
+      const draft = { ...base, productionChoices: { ...base.productionChoices!, shootingBudgetAmount } };
+      const pending = withRng(12, (rng) => generateTestScreeningPendingChoice(draft, rng)).result;
+      const cost = (id: string) => pending.choices.find((c) => c.id === id)!.costRange;
+      expect(cost('re-edit')[1]).toBeLessThan(cost('pickups')[0]);
+      expect(cost('pickups')[1]).toBeLessThan(cost('major-reshoots')[0]);
+    }
+  });
+
+  it('prices a recut off the cutting room and the VFX it disturbs, not the shooting budget', () => {
+    const base = draftWithEditor(13, 50);
+    const lean = { ...base, productionChoices: { ...base.productionChoices!, vfxAmount: 5_000 } };
+    const effectsLed = { ...base, productionChoices: { ...base.productionChoices!, vfxAmount: 60_000_000 } };
+    const reEditCostOf = (draft: FilmDraft) =>
+      withRng(14, (rng) => generateTestScreeningPendingChoice(draft, rng)).result.choices.find((c) => c.id === 're-edit')!.costRange[0];
+
+    // A recut on an effects-led film puts finished shots back in play; on a
+    // VFX-free one it is pure editorial. Same shoot, very different recut.
+    expect(reEditCostOf(effectsLed)).toBeGreaterThan(reEditCostOf(lean) * 5);
+
+    // ...and the shooting budget alone does not move it at all.
+    const richShoot = { ...lean, productionChoices: { ...lean.productionChoices, shootingBudgetAmount: 70_000_000 } };
+    expect(reEditCostOf(richShoot)).toBe(reEditCostOf(lean));
+  });
+
+  it('costs more to recut the later you leave it, as more of the finish is locked', () => {
+    // Integration debt in another department: the price of a change is set by
+    // how much already-committed work it destroys.
+    const base = draftWithEditor(15, 50);
+    const draft = { ...base, productionChoices: { ...base.productionChoices!, vfxAmount: 30_000_000 } };
+    const at = (round: number) =>
+      withRng(16, (rng) => generateTestScreeningPendingChoice(draft, rng, round)).result.choices.find((c) => c.id === 're-edit')!.costRange[0];
+    expect(at(1)).toBeGreaterThan(at(0));
+    expect(at(2)).toBeGreaterThan(at(1));
   });
 
   it('reshoot cost tracks the film: a bigger shooting budget (pricier shoot days) costs more to reshoot', () => {

@@ -7,6 +7,8 @@
 // independently-rolled numbers that happen to share a type.
 import { describe, it, expect } from 'vitest';
 import { generateScriptOptions, estimateScriptCost } from './scriptGenerator';
+import { render } from './premiseGenerator';
+import { PREMISE_BANKS, STORY_TYPE_PREMISES, type Premise } from '../data/premises';
 import { createRng } from './random';
 import { GENRES } from '../data/genres';
 import { SCRIPT_ARCHETYPES } from '../data/scriptArchetypes';
@@ -288,5 +290,207 @@ describe('estimateScriptCost', () => {
       originality: 30, structure: 30, dialogue: 30, characters: 30,
     });
     expect(brilliantAndNarrow).toBeLessThan(roughAndBroad);
+  });
+});
+
+describe('a script never contradicts what its own log-line promises', () => {
+  // 63 log-lines in the banks are about a pair or an ensemble ("two
+  // mismatched cops on their worst partnership yet", "three estranged siblings",
+  // "a getaway crew"). requiredLeads used to be rolled with no knowledge of
+  // them, so those scripts shipped with a single Lead role about half the time.
+  const pluralSynopses = new Map<string, number>();
+  const collect = (entries: Premise[]) => {
+    for (const p of entries) {
+      if (!p.leads || p.leads < 2) continue;
+      pluralSynopses.set(render(p), p.leads);
+    }
+  };
+  for (const bank of Object.values(PREMISE_BANKS)) for (const entries of Object.values(bank)) collect(entries as Premise[]);
+  for (const entries of Object.values(STORY_TYPE_PREMISES)) collect(entries as Premise[]);
+
+  it('gives every ensemble log-line at least as many leads as it names', () => {
+    expect(pluralSynopses.size).toBeGreaterThan(20);
+    let checked = 0;
+    for (const genre of GENRES) {
+      for (let seed = 1; seed <= 40; seed++) {
+        for (const script of generateScriptOptions(genre, createRng(seed), 12)) {
+          const promised = pluralSynopses.get(script.synopsis);
+          if (promised === undefined) continue;
+          checked += 1;
+          expect(script.requiredLeads, `"${script.synopsis.slice(0, 50)}" got ${script.requiredLeads} leads`).toBeGreaterThanOrEqual(promised);
+        }
+      }
+    }
+    // Guards the guard: if selection ever stopped reaching these log-lines the
+    // assertion above would pass vacuously.
+    expect(checked).toBeGreaterThan(100);
+  });
+
+  it('has a leads count on every log-line whose own text gives it more than one subject', () => {
+    // Third version of this guard. The first matched protagonists starting with
+    // "two"/"three"/"four"/"twin" - a list fitted to the entries already tagged,
+    // so it returned green by construction over a live 59% miscast. The second
+    // keyed off an ALLOWLIST of plural verbs, which was better (it could fail)
+    // but still imagination rather than derivation: 15 of its 32 verbs matched
+    // nothing in the corpus, 8 real plural verbs were missing, and it was blind
+    // to every collective-noun ensemble, leaving five untagged at the same 59%.
+    //
+    // Two signals now, both derived from the text rather than guessed:
+    //
+    // 1. CONJUGATION. English marks a third-person singular verb with a trailing
+    //    -s. "{protagonist} spends" is one person; "{protagonist} spend" is
+    //    several. That is a rule about the language, not a list of words, so it
+    //    cannot go stale as the corpus grows.
+    // 2. COLLECTIVE HEAD. "a family", "a group of roommates", "a community
+    //    theater troupe" - several people whatever the verb agreement says,
+    //    since a collective noun takes a singular verb in American usage. This
+    //    is the class the conjugation rule structurally cannot see. Unlike (1)
+    //    this one IS a word list, with the staleness that implies - see it.
+    //
+    // Neither catches a two-hander written in the singular ("a ski instructor and
+    // the hopeless beginner she is assigned" reads exactly like "a wizard
+    // stripped of his title and his magic"). Those are tagged by reading them.
+    // This guard is the floor, not the ceiling - but the floor is now derived.
+    // An adverb can be stepped over ("{protagonist} finally meet"); a modal or a
+    // conjunction cannot. After "must" or "can't" every verb is bare whatever the
+    // subject's number, and "{protagonist} and a skeleton crew fight" is a
+    // compound subject whose lead count is a judgement - both make the
+    // conjugation test inconclusive rather than positive.
+    const ADVERB = /^(never|only|just|still|already|\w+ly)$/;
+    const INCONCLUSIVE = /^(must|can|cannot|can't|will|won't|would|could|should|may|might|and|or|both)$/;
+    // Irregular pasts end in neither -ed nor -s, so the rule below would read them
+    // as plural. They carry no number either, so they join the inconclusive set.
+    const IRREGULAR_PAST = /^(had|went|was|were|took|saw|made|kept|told|gave|wrote|ran|found|left|held|met|lost|won|paid|sold|built|knew|grew|drew|flew|fell|broke|spoke|chose|rose|drove|struck|swore)$/;
+    // This half is an ALLOWLIST and cannot be derived the way conjugation can -
+    // there is no rule of English that makes "troupe" collective and "teacher"
+    // not. It will go stale as the corpus grows, which is the round-2 failure
+    // mode relocated from verbs to nouns; the honest mitigation is that it is
+    // cheap to extend and that the conjugation rule covers everything else.
+    const COLLECTIVE = /^(family|group|crew|troupe|team|band|unit|trio|couple|squad|gang|coven|household|roommates|siblings|brothers|sisters|partners|class|brood|ensemble|cast|choir|orchestra|congregation|jury|posse|platoon|clan|tribe|quartet|duo|cohort)$/i;
+
+    const hasPluralSubject = (p: Premise): boolean => {
+      // Collective noun heading the subject - checked on the head of the noun
+      // phrase, so "a washed-up coach handed the worst team in the league" (about
+      // the coach) does not trip it.
+      // The head stops at a relative pronoun: in "a shepherd whose flock leads
+      // him", the flock modifies the shepherd rather than heading the subject.
+      const subjectWords = p.protagonist.replace(/^(a|an|the)\s+/i, '').split(/\s+/);
+      const relative = subjectWords.findIndex((w) => /^(who|whose|that|which|whom)$/i.test(w));
+      const head = subjectWords.slice(0, relative === -1 ? 3 : Math.min(relative, 3));
+
+      if (head.some((w) => COLLECTIVE.test(w.replace(/[^a-z]/gi, ''))) && !/member/i.test(p.protagonist)) return true;
+
+      const after = p.synopsis.match(/^\{protagonist\}\s+(.*)$/);
+      if (!after) return false;
+      const words = after[1].split(/\s+/).map((w) => w.replace(/[^a-z']/gi, '').toLowerCase());
+      const verb = words.find((w) => w.length > 0 && !ADVERB.test(w));
+      // Past tense carries no number in English - "he wanted" and "they wanted"
+      // are identical - so it says nothing either way.
+      if (!verb || INCONCLUSIVE.test(verb) || verb.endsWith('ed') || IRREGULAR_PAST.test(verb)) return false;
+      // A verb whose STEM ends in -s takes -es in the third person ("pass" ->
+      // "passes"), so ending in -ss is positive evidence of a plural subject
+      // rather than the singular the bare -s rule would read it as. Without this,
+      // "a fading star and the young talent hired to replace her pass the stage"
+      // is invisible - and it is one of the entries this stage tagged.
+      if (verb.endsWith('ss')) return true;
+      return verb.length > 1 && !verb.endsWith('s');
+    };
+
+    const untagged: string[] = [];
+    const check = (entries: Premise[]) => {
+      for (const p of entries) if (hasPluralSubject(p) && !p.leads) untagged.push(p.protagonist);
+    };
+    for (const bank of Object.values(PREMISE_BANKS)) for (const entries of Object.values(bank)) check(entries as Premise[]);
+    for (const entries of Object.values(STORY_TYPE_PREMISES)) check(entries as Premise[]);
+    expect(untagged, `several subjects but no leads count: ${untagged.join(' | ')}`).toEqual([]);
+  });
+
+  it('keeps every leads count inside the range the generator assumes', () => {
+    // >= 1 mirrors the literal 1 in Math.max, so a `leads: 0` typo is caught at
+    // the data rather than only being absorbed there; <= 3 because the
+    // cap is documented convention with nothing else enforcing it: a `leads: 5`
+    // typo would otherwise sail through and demand a five-Lead cast.
+    const check = (entries: Premise[]) => {
+      for (const p of entries) {
+        if (p.leads === undefined) continue;
+        expect(p.leads, p.protagonist).toBeGreaterThanOrEqual(1);
+        expect(p.leads, p.protagonist).toBeLessThanOrEqual(3);
+      }
+    };
+    for (const bank of Object.values(PREMISE_BANKS)) for (const entries of Object.values(bank)) check(entries as Premise[]);
+    for (const entries of Object.values(STORY_TYPE_PREMISES)) check(entries as Premise[]);
+  });
+
+  it('leaves the roll free to go above the floor - the log-line constrains, it does not dictate', () => {
+    // Measured PER FLOOR. The previous version pooled requiredLeads across
+    // log-lines promising 2 and log-lines promising 3, so an overwrite still
+    // produced {2, 3} and passed - verified by mutation, it could not fail.
+    // Counting scripts that land strictly ABOVE their own floor is the property
+    // that actually distinguishes a floor from an assignment.
+    const aboveFloor = new Map<number, number>();
+    const seen = new Map<number, number>();
+    for (const genre of GENRES) {
+      for (let seed = 1; seed <= 60; seed++) {
+        for (const script of generateScriptOptions(genre, createRng(seed), 12)) {
+          const promised = pluralSynopses.get(script.synopsis);
+          if (promised === undefined) continue;
+          seen.set(promised, (seen.get(promised) ?? 0) + 1);
+          if (script.requiredLeads > promised) aboveFloor.set(promised, (aboveFloor.get(promised) ?? 0) + 1);
+        }
+      }
+    }
+    expect(seen.size).toBeGreaterThan(1); // both floors actually occur
+    for (const [floor, count] of seen) {
+      expect(aboveFloor.get(floor) ?? 0, `no script with a floor of ${floor} (of ${count}) exceeded it`).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('the save-wide log-line ledger', () => {
+  const drawMany = (genre: 'Drama' | 'Action', count: number, ledger?: Set<string>) => {
+    const rng = createRng(11);
+    return Array.from({ length: count }, () => generateScriptOptions(genre, rng, 1, undefined, undefined, ledger)[0].synopsis);
+  };
+
+  it('holds off repeating far longer than generation does on its own', () => {
+    // The de-duplication always existed; it was just per-call, and every
+    // production caller asks for one script - so it protected nothing. Measured
+    // over a simulated playthrough: the first repeat arrived at draw 19 and a
+    // player's first year drew 235 log-lines from 139 distinct ones.
+    //
+    // Compared against the unledgered run rather than asserted absolutely: a
+    // ledger cannot make repetition impossible, because once a concept's own
+    // pool is exhausted generatePremise falls back to repeating by design. What
+    // it can do is push that a long way out, and that is the claim.
+    for (const genre of ['Drama', 'Action'] as const) {
+      const withLedger = new Set(drawMany(genre, 80, new Set<string>()));
+      const without = new Set(drawMany(genre, 80));
+      // Drama measures 69 distinct vs 46 (1.50) and Action 74 vs 54 (1.37), so
+      // the binding case is Action and the threshold sits below IT rather than
+      // below the comfortable one. A ledger that stopped working collapses this
+      // to ~1.0.
+      expect(withLedger.size, genre).toBeGreaterThan(without.size * 1.3);
+    }
+  });
+
+  it('gives a run of draws no repeat at all until its pool runs dry', () => {
+    // 40 is comfortably inside the shallowest single-genre depth measured (first
+    // repeat at draw 58 for Drama, 66 for Action), so this fails if the ledger
+    // stops being honoured rather than merely getting shallower.
+    const seen = drawMany('Drama', 40, new Set<string>());
+    expect(new Set(seen).size).toBe(seen.length);
+  });
+
+  it('repeats freely without one, which is what the default preserves', () => {
+    // Non-vacuity for both tests above, and the guarantee every existing caller
+    // depends on: omitting the argument must behave exactly as before.
+    const seen = drawMany('Drama', 40);
+    expect(new Set(seen).size).toBeLessThan(seen.length);
+  });
+
+  it('records what it hands out, so the caller can persist it', () => {
+    const ledger = new Set<string>();
+    const script = generateScriptOptions('Action', createRng(3), 1, undefined, undefined, ledger)[0];
+    expect(ledger.has(script.synopsis)).toBe(true);
   });
 });

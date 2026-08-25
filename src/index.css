@@ -790,9 +790,49 @@ button {
   transition: border-color 0.12s, box-shadow 0.12s;
 }
 
-.event-choice-button:hover {
+.event-choice-button:hover:not(:disabled) {
   border-color: var(--primary);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+/* An option the film genuinely cannot take right now - a reshoot whose cast is
+   already on someone else's set (engine/reshootAvailability.ts). Deliberately
+   still shown and still readable rather than hidden: the player needs to see
+   that it is off the table, and why. */
+.event-choice-button--blocked {
+  cursor: not-allowed;
+  opacity: 0.65;
+  background: var(--tint-neutral-bg);
+}
+
+.event-choice-blocked-badge {
+  font-size: 0.7em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.event-choice-surcharge-badge {
+  font-size: 0.7em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--tint-gold-ink);
+  color: var(--tint-gold-ink);
+  white-space: nowrap;
+}
+
+.event-choice-blocked-reason {
+  font-size: 0.8em;
+  font-style: italic;
+  color: var(--text-muted);
 }
 
 .event-choice-label-row {
@@ -2582,3 +2622,47 @@ textarea, input, select {
 .staffing-stage--evaluating { background: var(--tint-violet-bg); color: var(--tint-violet-ink); }
 .staffing-stage--negotiating { background: var(--tint-warm-bg); color: var(--tint-warm-ink); }
 .staffing-stage--attached { background: var(--tint-green-bg); color: var(--tint-green-ink); }
+/* Pre-greenlight release-date claim (components/projectWorkspace/ProjectOverview.tsx).
+   A claim, not a booking - see docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
+   section 9.1. */
+.release-month-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 6px;
+}
+
+.release-month-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.12s;
+}
+
+.release-month-cell:hover {
+  border-color: var(--primary);
+}
+
+.release-month-cell--claimed {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(36, 81, 201, 0.15);
+}
+
+.release-month-cell__label {
+  font-weight: 600;
+  font-size: 0.85em;
+}
+
+.release-month-cell__crowding {
+  font-size: 0.75em;
+  color: var(--text-muted);
+}
+
+.release-month-cell__crowding--clear { color: var(--tint-green-ink); }
+.release-month-cell__crowding--moderate { color: var(--tint-gold-ink); }
+.release-month-cell__crowding--high { color: var(--tint-red-ink); }

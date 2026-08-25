@@ -11,7 +11,6 @@ industry works** — the pipeline, the crafts, the money, the careers. It
 deliberately says nothing about this game (except `15-game-mapping.md`, which
 maps the two). Read it instead of re-researching filmmaking each session; do
 not put game-design arguments in it.
-
 ## Product stage: PRE-LAUNCH — save compatibility is out of scope
 
 This game is **pre-launch**. There is a single playtester who restarts for each
@@ -51,6 +50,27 @@ Opt-in analysis harnesses (skipped in the normal suite):
 AI_STATS_DIAGNOSTIC=1  npx vitest run src/engine/aiStudioStats.diagnostic.test.ts --disable-console-intercept
 PROD_EXEC_DIAGNOSTIC=1 npx vitest run src/engine/productionExecution.diagnostic.test.ts --disable-console-intercept
 RIVAL_DIAGNOSTIC=1     npx vitest run src/engine/rivalStudios.diagnostic.test.ts
+```
+
+Phase 5 acceptance-test harness (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
+§4.7 — is another rewrite still strictly correct?):
+
+```bash
+DEV_DOMINANCE_DIAGNOSTIC=1 npx vitest run src/engine/developmentDominance.diagnostic.test.ts --disable-console-intercept
+```
+
+Hold-or-move harness (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
+§9.6a — is holding a contested date ever the right call?):
+
+```bash
+HOLD_OR_MOVE_DIAGNOSTIC=1 npx vitest run src/engine/holdOrMove.diagnostic.test.ts --disable-console-intercept
+```
+
+Release-calendar harness (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
+§9.2 — does the release date actually matter?):
+
+```bash
+CROWDING_DIAGNOSTIC=1 npx vitest run src/engine/releaseCrowding.diagnostic.test.ts --disable-console-intercept
 ```
 
 Box-office calibration gates (encode the targets in

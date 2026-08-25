@@ -7,7 +7,7 @@
 // state/studioReducer.ts:RESOLVE_TEST_SCREENING_CHOICE and
 // components/common/OnSetDecisionCard.tsx need no test-screening-specific
 // branching at all.
-import type { EventChoiceTemplate, EventSeverity, FilmDraft, PendingEventChoice } from '../types';
+import type { EventChoiceTemplate, EventSeverity, FilmDraft, PendingEventChoice, ProductionRole } from '../types';
 import { computeQualityBreakdown, combineProductionEvents } from './scoring';
 import { pickDepartmentBlurb } from './reviews';
 import { DEFAULT_POST_PRODUCTION_CHOICES } from '../data/postProduction';
@@ -15,6 +15,7 @@ import { findAssignedPerson, filterAssignedPeople } from '../data/helpers';
 import { getTypicalSalaryForRole } from './person';
 import { computeDailyShootBurn } from './cost';
 import { talentSkillScore, prepareChoicesForInvolvedTalent } from './production';
+import { RESHOOT_REQUIREMENTS } from './reshootAvailability';
 import type { RandomFn } from './random';
 
 // Mirrors engine/reviews.ts's own CRITICISM_THRESHOLD - "the weakest
@@ -62,19 +63,78 @@ const REVERT_TO_ORIGINAL_CHOICE: EventChoiceTemplate = {
   delayDaysRange: [0, 0],
 };
 
+// --- What a recut actually costs -------------------------------------------
+// See docs/domain/07-postproduction.md for how post money really behaves; this
+// follows. In short, a re-edit is priced as two things, and neither of them is
+// a share of the shooting budget:
+//
+//   1. KEEPING THE CUTTING ROOM OPEN. The unit is editorial weeks - the editor,
+//      one to three assistants, the suite, storage and post-supervisor time. The
+//      editor's own fee is the honest anchor for all of it, since the room's
+//      cost is essentially the cost of the people in it.
+//   2. WHAT THE NEW CUT INVALIDATES. A recut puts finished downstream work back
+//      in play: VFX shots get re-timed, recut, dropped or newly ordered (and
+//      vendors bill per shot, per version), music re-conforms, sound re-conforms
+//      and re-mixes, the DI re-grades. On a VFX-led film this dwarfs the
+//      editorial cost; on a Drama it rounds to nothing.
+//
+// The second term is integration debt in another department
+// (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md section 3.6): the
+// price of a change is set by how much already-committed work it destroys. That
+// is also why it grows with each screening round - the later you recut, the more
+// of the finish is already locked.
+//
+// This replaces a flat 150k-350k, which was cheap for a tentpole and ruinous for
+// a small film, and which could make the "cheap option" cost MORE than pickups.
+
+/** The editorial crew and room for the extra weeks, as a share of the Editor's own per-film fee. */
+const RE_EDIT_EDITORIAL_SHARE = 0.22;
+/** Assistants, suite, storage and post-supervisor time, as a multiple of the editor's own share. */
+const CUTTING_ROOM_MULTIPLIER = 2.2;
+/** There is always a room and a crew, however small the film. */
+const MIN_CUTTING_ROOM_COST = 20_000;
+/** Share of the VFX budget a recut puts back in play at the first screening. */
+const VFX_REWORK_SHARE = 0.025;
+/** Each further round finds more of the finish locked, so the same recut invalidates more. */
+const REWORK_LATENESS_PER_ROUND = 0.35;
+const MAX_REWORK_LATENESS = 2;
+
+/** A +/-15% range around a derived estimate - what every option here is quoted as. */
+function costRange(estimate: number): [number, number] {
+  return [Math.round(estimate * 0.85), Math.round(estimate * 1.15)];
+}
+
+/**
+ * The cost of reopening the cutting room and re-finishing what the new cut
+ * disturbs. EVERY option on this screening pays it - see reshootCostRange:
+ * you cannot shoot pickups and then not cut them in.
+ */
+function reEditCost(draft: FilmDraft, round: number): number {
+  const editor = findAssignedPerson(draft.talent, 'Editor');
+  const editorFee = editor ? getTypicalSalaryForRole(editor, 'Editor') : 0;
+  const cuttingRoom = Math.max(MIN_CUTTING_ROOM_COST, editorFee * RE_EDIT_EDITORIAL_SHARE * CUTTING_ROOM_MULTIPLIER);
+  const lateness = Math.min(MAX_REWORK_LATENESS, 1 + round * REWORK_LATENESS_PER_ROUND);
+  const rework = (draft.productionChoices?.vfxAmount ?? 0) * VFX_REWORK_SHARE * lateness;
+  return cuttingRoom + rework;
+}
+
 // A focused editorial pass chasing the audience's specific notes - the
 // cheap, fast, reliable option. Narrow ranges (little downside, modest
-// upside) so it's a safe default rather than a trap.
-const RE_EDIT_CHOICE: EventChoiceTemplate = {
-  id: 're-edit',
-  label: 'Re-edit',
-  description: "A focused editorial pass chasing the test audience's notes - low cost, short delay, a reliable if modest improvement.",
-  costRange: [150_000, 350_000],
-  qualityRange: [3, 9],
-  buzzRange: [0, 1],
-  delayDaysRange: [3, 8],
-  skillSensitive: true,
-};
+// upside) so it's a safe default rather than a trap. "Cheap" is now relative
+// to the film: on an effects-led picture even a pure recut carries real
+// re-finishing cost, which is the trade this option is meant to pose.
+function reEditChoice(draft: FilmDraft, round: number): EventChoiceTemplate {
+  return {
+    id: 're-edit',
+    label: 'Re-edit',
+    description: "A focused editorial pass chasing the test audience's notes - the cutting room reopens and whatever the new cut disturbs has to be re-finished, for a short delay and a reliable if modest improvement.",
+    costRange: costRange(reEditCost(draft, round)),
+    qualityRange: [3, 9],
+    buzzRange: [0, 1],
+    delayDaysRange: [3, 8],
+    skillSensitive: true,
+  };
+}
 
 // A round of additional filming costs what a stretch of the actual shoot cost:
 // the film's own daily shoot burn (engine/cost.ts:computeDailyShootBurn) for the
@@ -87,34 +147,50 @@ const RE_EDIT_CHOICE: EventChoiceTemplate = {
 // longer stretch - so major reshoots cost decisively more, both in shoot days and
 // in the far bigger recall. Rates are the fraction of a person's per-film salary
 // their short-notice recall costs.
-const PICKUPS = { filmingDays: 4, recallRate: 0.1, roles: ['Lead Actor'] as const };
-const MAJOR_RESHOOTS = { filmingDays: 16, recallRate: 0.25, roles: ['Lead Actor', 'Supporting Actor', 'Director'] as const };
+// Roles and filming days come from RESHOOT_REQUIREMENTS so the option that
+// PRICES a reshoot and the check for whether the cast can actually turn up for
+// one can never disagree about what it involves (engine/reshootAvailability.ts).
+// `recallRate` is the fraction of a person's per-film salary their short-notice
+// recall costs, and lives here because it is purely a cost concern.
+const PICKUPS = { ...RESHOOT_REQUIREMENTS.pickups, recallRate: 0.1 };
+const MAJOR_RESHOOTS = { ...RESHOOT_REQUIREMENTS['major-reshoots'], recallRate: 0.25 };
 
 /** The cost of recalling the given roles' principals for a reshoot - a rush-premium fraction of their per-film salaries. */
-function talentRecallCost(draft: FilmDraft, roles: readonly ('Lead Actor' | 'Supporting Actor' | 'Director')[], rate: number): number {
+function talentRecallCost(draft: FilmDraft, roles: readonly ProductionRole[], rate: number): number {
   return roles
     .flatMap((role) => filterAssignedPeople(draft.talent, role).map((p) => getTypicalSalaryForRole(p, role)))
     .reduce((sum, salary) => sum + salary * rate, 0);
 }
 
-/** A ±15% cost range around the derived estimate: the film's own shoot-day burn × filming days + talent recall. */
-function reshootCostRange(draft: FilmDraft, spec: typeof PICKUPS | typeof MAJOR_RESHOOTS): [number, number] {
+/**
+ * A round of additional photography costs the shoot-day burn and the recall -
+ * PLUS the full cost of a re-edit, because new footage has to be cut in and
+ * everything downstream of the cut re-finished. That is not a surcharge, it is
+ * the actual sequence of work: you cannot shoot pickups and then not edit.
+ *
+ * It also makes the option ordering hold BY CONSTRUCTION rather than by tuning.
+ * Re-edit < Pickups < Major Reshoots is now true at every budget level, because
+ * each option is strictly the previous one plus more work. The old model priced
+ * reshoots as photography ALONE against a flat re-edit, so on a small enough
+ * film the "cheap option" was genuinely the dearest.
+ */
+function reshootCostRange(draft: FilmDraft, spec: typeof PICKUPS | typeof MAJOR_RESHOOTS, round: number): [number, number] {
   const dailyBurn = draft.photography && draft.productionChoices
     ? computeDailyShootBurn(draft.productionChoices.shootingBudgetAmount, draft.photography.recommendedDays)
     : 0;
-  const estimate = dailyBurn * spec.filmingDays + talentRecallCost(draft, spec.roles, spec.recallRate);
-  return [Math.round(estimate * 0.85), Math.round(estimate * 1.15)];
+  const photography = dailyBurn * spec.filmingDays + talentRecallCost(draft, spec.roles, spec.recallRate);
+  return costRange(reEditCost(draft, round) + photography);
 }
 
 // A short, targeted round of additional filming - real money and real time,
 // wider outcome range than Re-edit since it's genuinely new footage. Cost tracks
 // the film's own shoot-day burn for a few filming days plus recalling the leads.
-function pickupsChoice(draft: FilmDraft): EventChoiceTemplate {
+function pickupsChoice(draft: FilmDraft, round: number): EventChoiceTemplate {
   return {
     id: 'pickups',
     label: 'Pickups',
-    description: 'A short, targeted round of additional filming to shore up the weakest material - priced off your own shoot and the cost of recalling the leads, for a wider range of possible improvement.',
-    costRange: reshootCostRange(draft, PICKUPS),
+    description: 'A short, targeted round of additional filming to shore up the weakest material - your own shoot-day rate, recalling the leads, and cutting the new footage in, for a wider range of possible improvement.',
+    costRange: reshootCostRange(draft, PICKUPS, round),
     qualityRange: [1, 15],
     buzzRange: [1, 4],
     delayDaysRange: [10, 20],
@@ -126,12 +202,12 @@ function pickupsChoice(draft: FilmDraft): EventChoiceTemplate {
 // choice with real downside risk (a troubled reshoot can make things worse),
 // so affording it is never automatically correct. A major reworking recalls the
 // director and the whole principal cast over many more filming days.
-function majorReshootsChoice(draft: FilmDraft): EventChoiceTemplate {
+function majorReshootsChoice(draft: FilmDraft, round: number): EventChoiceTemplate {
   return {
     id: 'major-reshoots',
     label: 'Major Reshoots',
-    description: 'A significant reworking of the film - many filming days at your own shoot-day rate and recalling the director and full principal cast, for the widest range of outcomes, including the risk of making things worse.',
-    costRange: reshootCostRange(draft, MAJOR_RESHOOTS),
+    description: 'A significant reworking of the film - many filming days at your own shoot-day rate, recalling the director and full principal cast, and re-cutting and re-finishing around all of it, for the widest range of outcomes, including the risk of making things worse.',
+    costRange: reshootCostRange(draft, MAJOR_RESHOOTS, round),
     qualityRange: [-6, 22],
     buzzRange: [-3, 7],
     delayDaysRange: [25, 45],
@@ -209,8 +285,8 @@ export function generateTestScreeningPendingChoice(draft: FilmDraft, rng: Random
   // First screening: accept, or one of the three editing rounds. Every later
   // screening also offers reverting to the original cut.
   const templates: EventChoiceTemplate[] = round === 0
-    ? [acceptCutChoice(round), RE_EDIT_CHOICE, pickupsChoice(draft), majorReshootsChoice(draft)]
-    : [acceptCutChoice(round), RE_EDIT_CHOICE, pickupsChoice(draft), majorReshootsChoice(draft), REVERT_TO_ORIGINAL_CHOICE];
+    ? [acceptCutChoice(round), reEditChoice(draft, round), pickupsChoice(draft, round), majorReshootsChoice(draft, round)]
+    : [acceptCutChoice(round), reEditChoice(draft, round), pickupsChoice(draft, round), majorReshootsChoice(draft, round), REVERT_TO_ORIGINAL_CHOICE];
 
   const editor = findAssignedPerson(draft.talent, 'Editor');
   const editorSkill = talentSkillScore(editor, 'Editor', draft.script ?? null);
