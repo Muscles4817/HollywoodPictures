@@ -23,7 +23,7 @@ import { productionRequirementTags } from '../engine/scriptPresentation';
 import { announcedPlayerDrafts, asFilm, asPlayerDraft, asScheduled, asRivalProduction, findProject, projectId, rivalProductionsInProgress, scheduledPlayerReleases } from '../engine/project';
 import { rivalAsUpcomingRelease, rivalReleaseIsAnnounced } from '../engine/rivalStudios';
 import { announcedAsUpcomingRelease, asUpcomingRelease } from '../engine/scheduledReleases';
-import type { UpcomingRelease } from '../engine/releaseCrowding';
+import { crowdingHorizon, type UpcomingRelease } from '../engine/releaseCrowding';
 import { genreIdentityFor } from '../engine/studioIdentity';
 import type { GameState } from './gameState';
 
@@ -1346,14 +1346,98 @@ export function deriveKnownCalendar(
   genreIdentity: Partial<Record<Genre, number>>,
   excludeDraftId?: string,
 ): UpcomingRelease[] {
+  return deriveKnownField(projects, genreIdentity, undefined, excludeDraftId).map((c) => c.upcoming);
+}
+
+/**
+ * Who a competitor is, at whatever fidelity the calendar actually permits.
+ *
+ * The fog of war is real and stays: a rival's title and cast are under wraps
+ * until its marketing rollout begins, about a month before release
+ * (engine/rivalStudios.ts:rivalReleaseIsAnnounced). Before that a studio knows
+ * only scale, genre, studio and timing - so a date three hundred days out can
+ * be told "a Major is setting up a big Sci-Fi picture" and nothing more, while
+ * one three weeks out can be named outright. That difference is the feature,
+ * not a limitation of it.
+ */
+export interface CompetitorIdentity {
+  /** What to call it - a real title once public, otherwise what a trade announcement would convey. */
+  label: string;
+  studioName: string;
+  /** Whether the real title and cast are public yet. False => `label` is a description, not a name. */
+  named: boolean;
+  /** One of the player's own films. You always know your own slate. */
+  isOwn: boolean;
+}
+
+export interface KnownCompetitor {
+  upcoming: UpcomingRelease;
+  who: CompetitorIdentity;
+}
+
+/**
+ * How far the REST of the industry's slate reaches - the horizon past which a
+ * zero crowding score is silence rather than good news
+ * (engine/releaseCrowding.ts:beyondKnownField).
+ *
+ * Deliberately excludes the studio's own films. Its own announcement three
+ * years out says nothing about who else will open then, and counting it let one
+ * long-range self-announcement restore a confident "Clear window" across every
+ * month before it, on no rival information at all.
+ */
+export function deriveRivalHorizon(field: KnownCompetitor[]): number | null {
+  return crowdingHorizon(field.filter((c) => !c.who.isOwn).map((c) => c.upcoming));
+}
+
+/**
+ * The same calendar `deriveKnownCalendar` weighs, carrying who each entry is.
+ *
+ * Kept separate from `UpcomingRelease` on purpose: that type is deliberately
+ * "just what computeCompetitiveCrowding needs to weigh it," and settlement has
+ * no business carrying display names. The crowding breakdown
+ * (engine/releaseCrowding.ts:explainCrowding) hands back the INDEX of each
+ * contributor, so a caller zips its own identities back on by position.
+ *
+ * `rivalNameById` and `today` are optional so the weigh-only caller above needs
+ * neither; without them every rival reads as an unnamed production, which is
+ * exactly what a caller that never displays them should see.
+ */
+export function deriveKnownField(
+  projects: Project[],
+  genreIdentity: Partial<Record<Genre, number>>,
+  context?: { today: number; rivalStudios: RivalStudio[]; studioName: string },
+  excludeDraftId?: string,
+): KnownCompetitor[] {
+  const rivalNameById = new Map((context?.rivalStudios ?? []).map((r) => [r.id, r.name]));
+  const ownStudio = context?.studioName ?? 'Your studio';
+
   return [
     ...scheduledPlayerReleases(projects)
       .filter((s) => s.draft.id !== excludeDraftId)
-      .map(asUpcomingRelease),
-    ...rivalProductionsInProgress(projects).map(rivalAsUpcomingRelease),
+      .map((s) => ({
+        upcoming: asUpcomingRelease(s),
+        who: { label: s.draft.title || 'Untitled Film', studioName: ownStudio, named: true, isOwn: true },
+      })),
+    ...rivalProductionsInProgress(projects).map((p) => {
+      const named = context !== undefined && rivalReleaseIsAnnounced(p, context.today);
+      return {
+        upcoming: rivalAsUpcomingRelease(p),
+        who: {
+          // Under wraps, what a trade announcement conveys: how big, and what kind.
+          label: named ? p.script.title : `a ${p.scale.toLowerCase()} ${p.genre} picture`,
+          studioName: rivalNameById.get(p.rivalStudioId) ?? 'A rival studio',
+          named,
+          isOwn: false,
+        },
+      };
+    }),
     ...announcedPlayerDrafts(projects)
       .filter((d) => d.id !== excludeDraftId)
-      .map((d) => announcedAsUpcomingRelease(d, d.genre ? genreIdentityFor(genreIdentity, d.genre) : 0))
-      .filter((u): u is UpcomingRelease => u !== null),
+      .flatMap((d) => {
+        const upcoming = announcedAsUpcomingRelease(d, d.genre ? genreIdentityFor(genreIdentity, d.genre) : 0);
+        return upcoming
+          ? [{ upcoming, who: { label: d.title || 'Untitled Film', studioName: ownStudio, named: true, isOwn: true } }]
+          : [];
+      }),
   ];
 }

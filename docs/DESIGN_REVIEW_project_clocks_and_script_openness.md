@@ -867,13 +867,22 @@ release date. Against an announced date it yields a standing —
 `comfortable` / `tight` / `at-risk` / `missed` — named rather than numeric, per
 the house rule.
 
-It deliberately estimates *before* Production Planning too, assuming the plan
-the script's own scale implies and flagging the result `provisional`. A date
-announced pre-greenlight is exactly the window this feature exists for; refusing
-to estimate there would have silenced the warning in the only case that needs
-it. (This is the same failure mode a code review caught in
-`announcedAsUpcomingRelease` — bailing on a null `productionChoices` made every
-pre-greenlight announcement invisible to rivals.)
+It deliberately estimates *before* Production Planning too, assuming a plan and
+flagging the result `provisional`. A date announced pre-greenlight is exactly the
+window this feature exists for; refusing to estimate there would have silenced
+the warning in the only case that needs it. (This is the same failure mode a code
+review caught in `announcedAsUpcomingRelease` — bailing on a null
+`productionChoices` made every pre-greenlight announcement invisible to rivals.)
+
+The assumed plan is the **screenplay's own recommendation**, run through the same
+adapter `SET_PRODUCTION_PLAN` uses. The first version guessed effects ambition
+from the script's *scale*, and measurement caught it: an Epic Action projected
+256 days of post against 75 for the same script read off its own
+`effectsStrategy`/`effectsAmbition`. Scale says how big the cast and locations
+are, not how effects-led the film is, and post is dominated by VFX — so a scale
+guess told an Epic period drama its post ran the better part of a year, and would
+have marked reachable dates unreachable. Replacing silence with a systematically
+pessimistic lie is not an improvement.
 
 **2. The stake, shown at the decision.** The Rewrite panel in the Asset Library
 now prices a pass against the film's own claim: what the date looks like as
@@ -982,3 +991,171 @@ real finding, not noise: a wait genuinely costs nothing in package terms. The
 two arms are reported side by side rather than one superseding the other,
 because they are answering the same question with different instruments and the
 disagreement between them *is* the result.
+
+### 9.10 The release-date decision, made legible
+
+The clock now bites (§9.7) and the calendar now tells the truth about
+competition (§9.8), but the screens that *offer* a date still asked the player to
+choose from eighteen months while telling them one thing about those months. A
+studio could claim a date two months out for a film that had not begun
+pre-production, and nothing on screen said a word about it. The decision was
+real; the information was not.
+
+**What actually decides a release date**, and where each was:
+
+| | Announcement card (pre-greenlight) | Marketing & Release (scheduling) |
+|---|---|---|
+| Can the film be finished by then | **absent** | enforced by a clamp, never explained |
+| Campaign runway | **absent** | meter, selected month only |
+| Season, for this genre | **absent** | window name + a ★ |
+| Who else is opening | crowding band | crowding band + slated count |
+
+`engine/releaseDateReading.ts` supplies all four as named bands, each derived from
+the system that actually applies it — `engine/production.ts` for delivery,
+`data/release.ts` for the seasonal multipliers, `engine/marketing.ts` for campaign
+momentum, `engine/releaseCrowding.ts` for the field. Nothing in it is a new rule.
+It is the existing rules, made legible at the moment of choosing.
+
+**Two dates now headline the announcement card** before the grid rather than
+being discovered after it: when the film is projected finished, and the first
+date that does not shorten its own campaign (`readyOnDay` + a full rollout).
+Underneath, what is still ahead, phase by phase.
+
+**Every month cell reads on three axes** — delivery, season, field — and a month
+the film cannot be finished by is dimmed and struck through. It stays
+**clickable**: announcing a date you will miss is the whole premise of the
+feature (§9.1), so it is marked, never forbidden. Claiming one produces a full
+breakdown plus the single sentence naming the worst problem with it, ordered by
+what would actually sink the release — a film that does not exist beats a rushed
+campaign beats a contested date beats a dead season.
+
+**And the grid now always offers a date the film can make.** It was a fixed
+eighteen months from next month on; an effects-led epic can need most of two
+years between here and a finished print, which would have left every cell struck
+through and no real choice on the screen at all. It now runs to at least a year
+past the first comfortable date.
+
+**One formula, shared.** `seasonalDesirability` moved out of
+`engine/rivalStudios.ts`, where it was private, into this module. The seasons the
+AI chases are now provably the ones the player's screen recommends.
+
+**And the price of moving is shown before the move.** Since §9.7, opening on a day
+other than the one a campaign was bought against writes that campaign off — but
+Marketing & Release did not mention it, so the charge was discovered in the cash
+ledger afterwards. It now states the announced date, whether the selected month
+is it, and what leaving it costs.
+
+**Still not enforced, deliberately.** No date is blocked. Every unreachable
+choice is labelled, priced and left available, because a studio announcing a date
+it cannot make is the behaviour this whole phase exists to model — the player
+should be able to do it knowingly, which is precisely what they could not do
+before.
+
+### 9.11 UX pass: what a real browser said about §9.10
+
+The release-date work was built and tested in jsdom, which renders no CSS. So it
+was measured for the first time in an actual browser — Chromium at 390px (phone,
+touch), 768px (tablet, touch) and 1440px (desktop) — with the app's real save
+seeded into `localStorage`. Four defects, all invisible to the existing tests.
+
+**1. The nested scroll box only ever engaged where it hurts.** Both month grids
+cap at `max-height: 420px`. Measured: the announcement grid is 219px at 1440px
+and never reaches the cap; at 390px it is 744px, and the Marketing grid is
+2148px — five screens of scroll box inside a scrolling page, driven by a thumb.
+The cap was doing nothing on the viewport it was written for and swallowing
+swipes on the one it was not. Lifted below 900px and on any coarse pointer (a
+touch laptop at a wide viewport captures swipes exactly as a phone does); kept
+on desktop, where the Marketing grid genuinely runs past it and a bounded grid
+under a mouse wheel is a convenience rather than a trap.
+
+**2. The label/value readings failed at both ends of the range.** At 1440px
+`.row-between` stretched "Projected finished" to roughly 1200px from "Year 1,
+August 5" — too far to cross in one eye movement. At 390px the same rows wrapped
+with a 12px row gap, so the value floated free of the label it belonged to. Both
+are the same rule failing in opposite directions. A dedicated `.date-reading`
+block caps the measure at 32rem and, below 640px, goes deliberately two-line and
+tight instead of accidentally wrapped.
+
+**3. A month the film cannot make was advertising a prime season.** June–August
+Year 1 rendered struck through and dimmed — and "Prime season" in bold green,
+pulling the eye toward exactly the dates the verdict had just ruled out. Below
+the verdict every reading on an unreachable cell is moot, so the band colours are
+now dropped in the markup rather than painted over by a CSS descendant
+override — the intent is visible where the decision is made, and it is testable.
+
+**4. A line that said the same thing on 34 of 36 cells.** Campaign runway grows
+monotonically with distance from the earliest month, so "Full campaign rollout"
+appeared on almost every cell of the Marketing grid. A caption that never varies
+teaches nothing; the exception is the entire value. The marker now appears only
+when the runway is *not* full — which also took the phone cell from 109px to
+90px, and the grid from 2148px to 1500px.
+
+**Not changed, and worth naming.** `.btn-sm` measures 33–34px under a coarse
+pointer, below the usual 44px touch guideline. That is the app's existing
+convention across every screen, not something this work introduced, so changing
+it here would be a global change smuggled in under a local pass. Same for
+`.campaign-runway__head` on the Marketing screen, which stretches its label and
+value the full card width exactly as §9.11(2) describes — it predates this work.
+Both are recorded rather than quietly fixed.
+
+### 9.12 Naming the competition — and what asking that exposed
+
+§9.10 fixed three of the four axes at the point of decision and left the fourth,
+the field, as a bare band: "Crowded", "Some competition", "Clear window". That is
+a number wearing a word, and it is the wrong shape for this particular model.
+
+**Crowding is relative, and a band hides that.** `matchupWeight` decides whether
+a film is the one being pushed out or the one doing the pushing, from the two
+strengths involved. So two identically-"Crowded" dates can be a tentpole this
+picture cannot beat and three mid-size films it can open straight past —
+opposite decisions behind one word. `explainCrowding` keeps the per-competitor
+breakdown that `computeCrowdingPressure`'s own `reduce` already computed and
+then discarded. No new rule; the same arithmetic, not thrown away.
+
+**The fog of war stays, and does real work.** A rival's title and cast are under
+wraps until its marketing rollout begins, about a month before release
+(`rivalReleaseIsAnnounced`). So what can be said varies with horizon, and that
+variation *is* the feature:
+
+```text
+~30 days out    Ironbound (Meridian Pictures) — same genre, same audience,
+                opening alongside you, the stronger picture
+~300 days out   Sony Pictures — a medium Action picture — same genre,
+                opening alongside you, an even match
+```
+
+Identity is kept out of `UpcomingRelease`, which is deliberately "just what
+`computeCompetitiveCrowding` needs to weigh it" and has no business carrying
+display names into settlement. `explainCrowding` returns each contributor's
+**index**, and `deriveKnownField` supplies a parallel identity list the caller
+zips back on by position — with a test asserting the two lists cannot drift,
+since drift would silently attach the wrong name to the wrong film.
+
+#### The bug the question exposed
+
+Asking "who is the competition?" is also asking "is there any?", and measuring
+that turned up a defect in §9.10. After two simulated in-game years:
+
+```text
+day 731: 27 rival productions in flight
+  within  30d:  3 known
+  within 180d: 14 known
+  within 365d: 27 known
+  within 730d: 27 known      <- no new information
+  furthest known release: 356 days out
+```
+
+**Nothing is knowable past roughly 356 days** — the films that will open there
+have not been greenlit yet. But the announcement grid offers eighteen months and
+more, and painted every month past that horizon "Clear window", with exactly the
+confidence of a month whose field is genuinely surveyed.
+
+That is an empty *map* presented as an empty *frame*, and it pushed the player
+toward distant dates on evidence that does not exist — the precise opposite of
+what §9.10 was for. `beyondKnownField` now separates the two: a date whose whole
+crowding window sits past the furthest scheduled release reads "Nothing known
+yet", with a sentence saying why. The threshold is not a new constant — it is
+`CROWDING_WINDOW_DAYS` against the calendar's own furthest entry, so the question
+asked is exactly "could any competitor have counted here?"
+
+This was worth doing on its own account, independent of naming anything.

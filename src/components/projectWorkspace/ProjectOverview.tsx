@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { deriveFocusedDraft, deriveGreenlightCommitment, deriveKnownCalendar } from '../../state/selectors';
+import { deriveFocusedDraft, deriveGreenlightCommitment, deriveKnownField, deriveRivalHorizon } from '../../state/selectors';
 import { deriveProjectReadiness } from '../../engine/projectReadiness';
 import { TARGET_AUDIENCES, AUDIENCE_PROFILES } from '../../data/audiences';
 import { pluckDescriptions } from '../../data/describe';
@@ -16,7 +16,21 @@ import { GreenlightConfirmation } from './GreenlightConfirmation';
 import { describeCreativeDemand, describeDemandCompetence, describeDirectorPatience } from '../../engine/creativeDemands';
 import { computeRelationship, NO_RELATIONSHIP, PLAYER_STUDIO_ID } from '../../engine/relationships';
 import type { DevelopmentReadinessBand } from '../../engine/projectReadiness';
-import { computeCompetitiveCrowding, crowdingBandKey, describeCrowdingBand, type UpcomingRelease } from '../../engine/releaseCrowding';
+import type { UpcomingRelease } from '../../engine/releaseCrowding';
+import { estimateDelivery } from '../../engine/deliveryEstimate';
+import {
+  describeCampaignRunwayBand,
+  describeCompetitor,
+  describeDeliveryVerdict,
+  describeField,
+  describeReleaseDateConcern,
+  describeSeason,
+  describeSeasonBand,
+  earliestUnrushedDay,
+  readReleaseDate,
+  UNKNOWN_FIELD_NOTE,
+  type ReleaseDateReading,
+} from '../../engine/releaseDateReading';
 import { announcedAsUpcomingRelease } from '../../engine/scheduledReleases';
 import { genreIdentityFor } from '../../engine/studioIdentity';
 import { formatGameDateWithMonth, formatGameMonthYear, monthYearOf, totalDaysForMonth } from '../../engine/calendar';
@@ -33,6 +47,13 @@ const CAMPAIGN_STEPS = [
   Math.round(MARKETING_SPEND_RANGE.max * 0.35),
   Math.round(MARKETING_SPEND_RANGE.max * 0.7),
 ];
+
+/** How many competitors to name before falling back to a count - past three the list stops being a read and starts being a table. */
+const NAMED_COMPETITORS = 3;
+
+/** How many months the announcement grid offers at minimum, and how far past a comfortable date it always reaches. */
+const MIN_ANNOUNCEMENT_MONTHS = 18;
+const MONTHS_OFFERED_PAST_READY = 12;
 
 const SECTION_LABELS: Record<ProjectWorkspaceSection, string> = {
   overview: 'Overview',
@@ -66,9 +87,13 @@ const BAND_LABELS: Record<DevelopmentReadinessBand, string> = {
  *
  * This is an ANNOUNCEMENT, not a booking. Nothing stops a rival opening the same
  * day; what the claim does is put the date where they can see it, so they can
- * decide whether to steer around it. The crowding reading shown here is the same
- * computation settlement will use, including this film's own strength in the
- * matchup, so a window can never look clearer here than it turns out to be.
+ * decide whether to steer around it.
+ *
+ * Every reading shown here - whether the film can be finished by a date, what
+ * runway the campaign gets, what the season is worth to this genre, and who else
+ * is opening - is the same computation settlement will use
+ * (engine/releaseDateReading.ts), including this film's own strength in the
+ * crowding matchup. So a date can never look better here than it turns out to be.
  */
 function ReleaseAnnouncementCard() {
   const { state, dispatch } = useStudio();
@@ -78,10 +103,24 @@ function ReleaseAnnouncementCard() {
   // announcements - never this film against itself. Shared with the Marketing &
   // Release screen (state/selectors.ts:deriveKnownCalendar) so the two screens
   // that pick a date read the same calendar.
-  const known = useMemo<UpcomingRelease[]>(
-    () => deriveKnownCalendar(state.projects, state.studio.genreIdentity ?? {}, draft.id),
-    [state.projects, state.studio.genreIdentity, draft.id],
+  // Carries who each competitor is as well as what it weighs, so a contested
+  // date can name the films causing it (state/selectors.ts:deriveKnownField) -
+  // at whatever fidelity the calendar permits, since a rival's title and cast
+  // stay under wraps until its own campaign begins.
+  const field = useMemo(
+    () =>
+      deriveKnownField(
+        state.projects,
+        state.studio.genreIdentity ?? {},
+        { today: state.totalDays, rivalStudios: state.rivalStudios, studioName: state.studio.name },
+        draft.id,
+      ),
+    [state.projects, state.studio.genreIdentity, state.totalDays, state.rivalStudios, state.studio.name, draft.id],
   );
+  const known = useMemo<UpcomingRelease[]>(() => field.map((c) => c.upcoming), [field]);
+  // How far the REST of the industry's slate reaches - never extended by this
+  // studio's own claims, which survey nothing.
+  const rivalHorizon = useMemo(() => deriveRivalHorizon(field), [field]);
 
   // This film's own strength in the matchup. It must never be undefined: that
   // falls back to matchupWeight's candidate-blind weight of 1, while settlement
@@ -99,26 +138,55 @@ function ReleaseAnnouncementCard() {
     return asUpcoming?.strength;
   }, [draft, state.studio.genreIdentity]);
 
-  // A year of months from next month on - a claim on a past or current month is
-  // not a claim anyone can believe.
+  // When this film is projected to actually exist. Computed once for the whole
+  // grid: it does not depend on which month is being considered, so running the
+  // production projection once per cell would be the same answer many times over.
+  const delivery = useMemo(() => estimateDelivery(draft, state.totalDays), [draft, state.totalDays]);
+  const unrushedFrom = earliestUnrushedDay(delivery.readyOnDay);
+
+  // Months from next month on - a claim on a past or current month is not a
+  // claim anyone can believe.
+  //
+  // Eighteen months normally, but always far enough to clear the film's own
+  // schedule with room to spare: an effects-led epic can need most of two years
+  // between here and a finished print, and a grid whose every cell was struck
+  // through as unreachable would offer the player no real choice at all.
   const months = useMemo(() => {
     const { year, monthIndex } = monthYearOf(state.totalDays);
-    return Array.from({ length: 18 }, (_, i) => {
+    const monthsToClear =
+      (monthYearOf(unrushedFrom).year - year) * 12 + (monthYearOf(unrushedFrom).monthIndex - monthIndex);
+    const count = Math.max(MIN_ANNOUNCEMENT_MONTHS, monthsToClear + MONTHS_OFFERED_PAST_READY);
+    return Array.from({ length: count }, (_, i) => {
       const m = (monthIndex + 1 + i) % 12;
       const y = year + Math.floor((monthIndex + 1 + i) / 12);
       return { year: y, monthIndex: m, day: totalDaysForMonth(y, m) };
     });
-  }, [state.totalDays]);
+  }, [state.totalDays, unrushedFrom]);
 
   const announced = draft.announcedReleaseDay;
   const commitment = draft.campaignCommitment;
   // What moving would cost right now - shown BEFORE the player picks another
   // month, not after, since that price is the whole decision (Principle 3).
   const writeOffNote = describeCampaignWriteOff(commitment, state.totalDays);
-  const crowdingFor = (day: number) =>
+
+  // Every candidate month read across all four axes that should decide the
+  // choice - can the film be finished, does the campaign get runway, is the
+  // season any good for this genre, and who else is opening
+  // (engine/releaseDateReading.ts). The grid previously showed only the last of
+  // these, which is how a date two months out for an unstarted production could
+  // look like a perfectly reasonable claim.
+  const readingFor = (day: number): ReleaseDateReading | null =>
     draft.genre && draft.targetAudience
-      ? computeCompetitiveCrowding({ releaseDay: day, genre: draft.genre, targetAudience: draft.targetAudience }, known, ownStrength)
-      : 0;
+      ? readReleaseDate(
+          day,
+          delivery,
+          draft.genre,
+          { genre: draft.genre, targetAudience: draft.targetAudience },
+          known,
+          ownStrength,
+          rivalHorizon,
+        )
+      : null;
 
   return (
     <div className="card stack">
@@ -138,15 +206,87 @@ function ReleaseAnnouncementCard() {
         </p>
       )}
 
+      {/* The two dates every claim should be measured against, stated before the
+          grid rather than discovered after it. Without these the grid offered
+          eighteen months and said nothing about which of them the film could
+          actually make. */}
+      <div className="date-reading">
+        <div className="date-reading__row">
+          <span className="stat-label">Projected finished</span>
+          <strong>{formatGameDateWithMonth(delivery.readyOnDay)}</strong>
+        </div>
+        <div className="date-reading__row">
+          <span className="stat-label">Earliest date with a full campaign</span>
+          <strong>{formatGameDateWithMonth(unrushedFrom)}</strong>
+        </div>
+        {delivery.remaining.length > 0 && (
+          <p className="date-reading__note">
+            Still ahead: {delivery.remaining.map((step) => `${step.label} (${step.days} days)`).join(' · ')}.
+            {delivery.provisional ? ' Projected against an assumed production plan — the shoot has not been planned yet.' : ''}
+          </p>
+        )}
+      </div>
+
       {announced !== undefined ? (
-        <div className="row-between">
-          <span>
-            Announced for <strong>{formatGameMonthYear(announced)}</strong> ·{' '}
-            <span style={{ color: 'var(--text-muted)' }}>{describeCrowdingBand(crowdingFor(announced))}</span>
-          </span>
-          <Button className="btn-sm" onClick={() => dispatch({ type: 'ANNOUNCE_RELEASE_DATE', releaseDay: null })}>
-            Withdraw
-          </Button>
+        <div className="stack" style={{ gap: 4 }}>
+          <div className="row-between">
+            <span>
+              Announced for <strong>{formatGameMonthYear(announced)}</strong>
+            </span>
+            <Button className="btn-sm" onClick={() => dispatch({ type: 'ANNOUNCE_RELEASE_DATE', releaseDay: null })}>
+              Withdraw
+            </Button>
+          </div>
+          {(() => {
+            const reading = readingFor(announced);
+            if (!reading || !draft.genre) return null;
+            const concern = describeReleaseDateConcern(reading, draft.genre);
+            return (
+              <div className="date-reading">
+                <div className="date-reading__row">
+                  <span className="stat-label">Can the film make it</span>
+                  <strong className={reading.delivery === 'impossible' ? 'release-date-reading--bad' : undefined}>
+                    {describeDeliveryVerdict(reading.delivery)}
+                  </strong>
+                </div>
+                <div className="date-reading__row">
+                  <span className="stat-label">Campaign runway</span>
+                  <strong>{describeCampaignRunwayBand(reading.runway)}</strong>
+                </div>
+                <div className="date-reading__row">
+                  <span className="stat-label">Season</span>
+                  <strong>{describeSeasonBand(reading.season)}</strong>
+                </div>
+                <div className="date-reading__row">
+                  <span className="stat-label">The field</span>
+                  <strong>{describeField(reading)}</strong>
+                </div>
+                <p className="date-reading__note">{describeSeason(announced, draft.genre)}.</p>
+                {/* Who, not just how much. The crowding model is relative - whether
+                    this film is pushed out or does the pushing turns on the specific
+                    competitor - so the band alone cannot tell one unbeatable tentpole
+                    apart from three films you can counterprogram past. */}
+                {reading.beyondKnownField ? (
+                  <p className="date-reading__note">{UNKNOWN_FIELD_NOTE}</p>
+                ) : reading.contributors.length > 0 ? (
+                  <ul className="date-reading__field">
+                    {reading.contributors.slice(0, NAMED_COMPETITORS).map((c) => (
+                      <li key={`${c.index}`} className={c.matchup === 'outmatched' ? 'date-reading__field--threat' : undefined}>
+                        {describeCompetitor(c, field[c.index].who)}
+                      </li>
+                    ))}
+                    {reading.contributors.length > NAMED_COMPETITORS && (
+                      <li>
+                        and {reading.contributors.length - NAMED_COMPETITORS} other
+                        {reading.contributors.length - NAMED_COMPETITORS === 1 ? '' : 's'} in the same window
+                      </li>
+                    )}
+                  </ul>
+                ) : null}
+                {concern && <p className="date-reading__note date-reading__note--bad">{concern}</p>}
+              </div>
+            );
+          })()}
         </div>
       ) : (
         <p style={{ margin: 0, fontSize: '0.85em' }}>
@@ -156,9 +296,14 @@ function ReleaseAnnouncementCard() {
 
       {announced !== undefined && (
         <div className="stack" style={{ gap: 6, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
-          <div className="row-between">
-            <span className="stat-label">Campaign committed against this date</span>
-            <strong>{commitment ? <Money amount={commitment.amount} /> : 'None'}</strong>
+          {/* Same reading block as the readings above it - it is the same kind of
+              label/value pair, and left as a .row-between it was the one row
+              still wrapping into a floating value on a phone. */}
+          <div className="date-reading">
+            <div className="date-reading__row">
+              <span className="stat-label">Campaign committed against this date</span>
+              <strong>{commitment ? <Money amount={commitment.amount} /> : 'None'}</strong>
+            </div>
           </div>
           <p style={{ margin: 0, fontSize: '0.8em', color: 'var(--text-muted)' }}>
             Booking a campaign costs nothing now — media is paid close to air — but it is what makes the
@@ -187,19 +332,52 @@ function ReleaseAnnouncementCard() {
 
       <div className="release-month-grid">
         {months.map((m) => {
-          const crowding = crowdingFor(m.day);
+          const reading = readingFor(m.day);
           const isAnnounced = announced !== undefined && monthYearOf(announced).monthIndex === m.monthIndex && monthYearOf(announced).year === m.year;
+          // A month the film cannot be finished by is still CLICKABLE - studios
+          // announce dates they miss, and that is the whole premise of the
+          // feature (section 9.1). It is marked, not forbidden.
+          const unreachable = reading?.delivery === 'impossible';
           return (
             <button
               key={`${m.year}-${m.monthIndex}`}
               type="button"
-              className={`release-month-cell${isAnnounced ? ' release-month-cell--claimed' : ''}`}
+              className={
+                `release-month-cell${isAnnounced ? ' release-month-cell--claimed' : ''}` +
+                `${unreachable ? ' release-month-cell--unreachable' : ''}`
+              }
               onClick={() => dispatch({ type: 'ANNOUNCE_RELEASE_DATE', releaseDay: m.day })}
+              title={reading && draft.genre ? (describeReleaseDateConcern(reading, draft.genre) ?? describeSeason(m.day, draft.genre)) : undefined}
             >
               <span className="release-month-cell__label">{formatGameMonthYear(m.day)}</span>
-              <span className={`release-month-cell__crowding release-month-cell__crowding--${crowdingBandKey(crowding)}`}>
-                {describeCrowdingBand(crowding)}
-              </span>
+              {reading && (
+                <>
+                  <span className={`release-month-cell__delivery release-month-cell__delivery--${reading.delivery}`}>
+                    {unreachable
+                      ? 'Not finished'
+                      : reading.runway === 'none' || reading.runway === 'rushed'
+                        ? 'No campaign time'
+                        : describeDeliveryVerdict(reading.delivery)}
+                  </span>
+                  {/* On a month the film cannot make, everything below the
+                      verdict is moot - so the band colours are dropped rather
+                      than painted over, and a struck-through cell stops
+                      advertising a prime season in green. Expressed in the
+                      markup, not as a CSS descendant override, so the intent is
+                      visible where the decision is made. */}
+                  <span className={`release-month-cell__season${unreachable ? '' : ` release-month-cell__season--${reading.season}`}`}>
+                    {describeSeasonBand(reading.season)}
+                  </span>
+                  <span
+                    className={
+                      `release-month-cell__crowding` +
+                      `${unreachable || reading.beyondKnownField ? '' : ` release-month-cell__crowding--${reading.crowdingBand}`}`
+                    }
+                  >
+                    {describeField(reading)}
+                  </span>
+                </>
+              )}
             </button>
           );
         })}

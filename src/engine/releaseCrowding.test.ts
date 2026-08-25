@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { computeCompetitiveCrowding, computeRivalReleaseStrength, computePlayerReleaseStrength, type UpcomingRelease, crowdingFromPressure } from './releaseCrowding';
+import {
+  beyondKnownField,
+  computeCompetitiveCrowding,
+  computeRivalReleaseStrength,
+  computePlayerReleaseStrength,
+  crowdingFromPressure,
+  crowdingHorizon,
+  explainCrowding,
+  CROWDING_WINDOW_DAYS,
+  type UpcomingRelease,
+} from './releaseCrowding';
 
 function competitor(overrides: Partial<UpcomingRelease> = {}): UpcomingRelease {
   return { releaseDay: 100, genre: 'Action', targetAudience: 'Mass Market', strength: 1, ...overrides };
@@ -187,5 +197,91 @@ describe('the player feels their own strength in a collision', () => {
     expect(strong).toBeLessThan(weak);
     // Both still hurt - a collision is a collision - but not equally.
     expect(strong).toBeGreaterThan(0.3);
+  });
+});
+
+describe('explainCrowding', () => {
+  const candidate = { releaseDay: 200, genre: 'Action' as const, targetAudience: 'Mass Market' as const };
+  const known: UpcomingRelease[] = [
+    { releaseDay: 200, genre: 'Action', targetAudience: 'Mass Market', strength: 0.9 }, // head-on, strong
+    { releaseDay: 210, genre: 'Action', targetAudience: 'Teens', strength: 0.4 },       // near, same genre
+    { releaseDay: 235, genre: 'Comedy', targetAudience: 'Families', strength: 0.5 },    // far, counterprogrammed
+    { releaseDay: 400, genre: 'Action', targetAudience: 'Mass Market', strength: 1.0 }, // outside the window
+  ];
+
+  it('agrees exactly with the score it explains', () => {
+    // The invariant that makes the breakdown worth showing at all: if these can
+    // drift, the named cause stops being the cause.
+    for (const strength of [undefined, 0.2, 0.5, 0.95]) {
+      expect(explainCrowding(candidate, known, strength).crowding).toBe(
+        computeCompetitiveCrowding(candidate, known, strength),
+      );
+    }
+  });
+
+  it('drops competitors outside the window entirely, and ranks the rest by what they actually cost', () => {
+    const { contributors } = explainCrowding(candidate, known, 0.5);
+    expect(contributors.map((c) => c.index)).toEqual([0, 1, 2]); // the day-400 film never counts
+    expect(contributors[0].share).toBeGreaterThan(contributors[1].share);
+    expect(contributors.reduce((sum, c) => sum + c.share, 0)).toBeCloseTo(1, 6);
+  });
+
+  it('reads the matchup from relative strength, not absolute size', () => {
+    // The same 0.9-strength competitor, seen by a weak film and by a strong one.
+    const asWeak = explainCrowding(candidate, known, 0.1).contributors.find((c) => c.index === 0)!;
+    const asStrong = explainCrowding(candidate, known, 0.99).contributors.find((c) => c.index === 0)!;
+    expect(asWeak.matchup).toBe('outmatched');
+    // Not 'dominant': matchupWeight is a share of combined strength, so a film
+    // capped at 1.0 can never dominate a 0.9 - the best it reaches is a fair
+    // fight. That ceiling is the point; being big does not make a rival vanish.
+    expect(asStrong.matchup).toBe('even');
+    expect(asStrong.pressure).toBeLessThan(asWeak.pressure);
+  });
+
+  it('lets a strong film dominate a genuinely small one', () => {
+    const small = explainCrowding(candidate, known, 0.99).contributors.find((c) => c.index === 1)!;
+    expect(small.matchup).toBe('dominant');
+  });
+
+  it('names the overlap that makes a competitor expensive', () => {
+    const { contributors } = explainCrowding(candidate, known, 0.5);
+    const headOn = contributors.find((c) => c.index === 0)!;
+    expect(headOn).toMatchObject({ sameGenre: true, sameAudience: true, daysApart: 0 });
+    const counterprogrammed = contributors.find((c) => c.index === 2)!;
+    expect(counterprogrammed).toMatchObject({ sameGenre: false, sameAudience: false });
+    expect(counterprogrammed.pressure).toBeLessThan(headOn.pressure);
+  });
+});
+
+describe('beyondKnownField', () => {
+  const horizon = 300;
+
+  it('separates an empty frame from an empty map', () => {
+    // A date whose whole window sits past everything anyone has scheduled scores
+    // zero crowding - but that zero is silence, not good news. Measured over two
+    // simulated in-game years, nothing was knowable past ~356 days while the
+    // announcement grid offers eighteen months and more.
+    expect(beyondKnownField(200, horizon)).toBe(false);                         // inside the surveyed range
+    expect(beyondKnownField(300 + CROWDING_WINDOW_DAYS, horizon)).toBe(false);  // window still touches it
+    expect(beyondKnownField(300 + CROWDING_WINDOW_DAYS + 1, horizon)).toBe(true);
+  });
+
+  it('treats a calendar with nothing on it as unknowable, not clear', () => {
+    expect(beyondKnownField(10, null)).toBe(true);
+    expect(crowdingHorizon([])).toBeNull();
+  });
+
+  it('is not silenced by the asking studio\'s own long-range announcement', () => {
+    // The player's own films sit in the same `known` list the pressure sum reads,
+    // so deriving the horizon from all of it let one self-announcement three
+    // years out restore a confident "Clear window" across every month before it -
+    // on no rival information at all. The horizon is the rest of the industry's
+    // slate, passed in separately.
+    const rivals: UpcomingRelease[] = [{ releaseDay: 300, genre: 'Action', targetAudience: 'Mass Market', strength: 0.5 }];
+    const withOwnClaim: UpcomingRelease[] = [...rivals, { releaseDay: 1200, genre: 'Drama', targetAudience: 'Critics', strength: 0.4 }];
+    const candidate = { releaseDay: 700, genre: 'Action' as const, targetAudience: 'Mass Market' as const };
+
+    expect(explainCrowding(candidate, withOwnClaim, 0.5).beyondKnownField).toBe(false); // the naive reading
+    expect(explainCrowding(candidate, withOwnClaim, 0.5, crowdingHorizon(rivals)).beyondKnownField).toBe(true);
   });
 });

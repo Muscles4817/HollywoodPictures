@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { MARKETING_SPEND_RANGE, RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS } from '../../data/release';
+import { MARKETING_SPEND_RANGE, RELEASE_TYPE_PROFILES } from '../../data/release';
 import { pluckDescriptions } from '../../data/describe';
 import { computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../../engine/cost';
 import { formatGameDateWithMonth, formatGameMonthYear, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from '../../engine/calendar';
-import { computeCompetitiveCrowding, computePlayerReleaseStrength, crowdingBandKey, describeCrowdingBand, type UpcomingRelease } from '../../engine/releaseCrowding';
+import { computePlayerReleaseStrength, crowdingBandKey, describeCrowdingBand, explainCrowding, type UpcomingRelease } from '../../engine/releaseCrowding';
 import { genreIdentityFor } from '../../engine/studioIdentity';
 import { ChoiceGroup } from '../common/ChoiceGroup';
 import { RangeSlider } from '../common/RangeSlider';
@@ -14,7 +14,18 @@ import { WizardHeader } from '../common/WizardHeader';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { reshootChoiceConstraints } from '../../engine/reshootAvailability';
-import { deriveFocusedDraft, deriveKnownCalendar, deriveUpcomingReleaseEntries } from '../../state/selectors';
+import { deriveFocusedDraft, deriveKnownField, deriveRivalHorizon, deriveUpcomingReleaseEntries } from '../../state/selectors';
+import {
+  campaignRunwayBand,
+  describeCampaignRunwayBand,
+  describeCompetitor,
+  describeSeason,
+  describeField,
+  describeSeasonBand,
+  seasonBandFor,
+  UNKNOWN_FIELD_NOTE,
+} from '../../engine/releaseDateReading';
+import { campaignWriteOff } from '../../engine/campaignCommitment';
 import {
   CAMPAIGN_ANGLE_LABEL,
   CAMPAIGN_ANGLE_PROFILES,
@@ -151,6 +162,9 @@ function rolloutReading(weeks: number, multiplier: number): { label: string; det
   };
 }
 
+/** How many competitors to name before falling back to a count - matches the announcement card. */
+const NAMED_COMPETITORS = 3;
+
 /** Reads the shared engine band (engine/releaseCrowding.ts) so this screen and the pre-greenlight announcement card can never disagree about what a window looks like. */
 function crowdingReading(score: number): { label: string; className: string } {
   return { label: describeCrowdingBand(score), className: `month-cell__crowding--${crowdingBandKey(score)}` };
@@ -232,10 +246,21 @@ export function MarketingRelease() {
   // had drifted, with only the announcement card weighing the studio's OWN
   // outstanding claims, so a studio could book two of its films into the same
   // window and be warned about it on one screen only.
-  const knownUpcoming = useMemo<UpcomingRelease[]>(
-    () => deriveKnownCalendar(state.projects, state.studio.genreIdentity ?? {}, draft.id),
-    [state.projects, state.studio.genreIdentity, draft.id],
+  // Carries who each competitor is alongside what it weighs, so the selected
+  // date can name the films it is up against rather than only score them.
+  const field = useMemo(
+    () =>
+      deriveKnownField(
+        state.projects,
+        state.studio.genreIdentity ?? {},
+        { today: state.totalDays, rivalStudios: state.rivalStudios, studioName: state.studio.name },
+        draft.id,
+      ),
+    [state.projects, state.studio.genreIdentity, state.totalDays, state.rivalStudios, state.studio.name, draft.id],
   );
+  const knownUpcoming = useMemo<UpcomingRelease[]>(() => field.map((c) => c.upcoming), [field]);
+  // Never extended by this studio's own claims - see deriveRivalHorizon.
+  const rivalHorizon = useMemo(() => deriveRivalHorizon(field), [field]);
 
   // This film's own strength in the matchup, computed exactly as
   // engine/marketSettlement.ts does at settlement. Without it the preview would
@@ -255,12 +280,18 @@ export function MarketingRelease() {
     [draft.productionChoices, draft.marketingChoices, draft.genre, state.studio.genreIdentity],
   );
 
-  function crowdingFor(candidateReleaseDay: number): number {
-    if (!draft.genre || !draft.targetAudience) return 0;
-    return computeCompetitiveCrowding(
+  // The one crowding read this screen uses, everywhere. The month grid used to
+  // score cells with a bare band while the line beneath it went through
+  // describeField, so a cell past the industry's known horizon said "Clear
+  // window" directly above a summary saying "Nothing known yet" about the very
+  // same date.
+  function fieldFor(candidateReleaseDay: number) {
+    if (!draft.genre || !draft.targetAudience) return null;
+    return explainCrowding(
       { releaseDay: candidateReleaseDay, genre: draft.genre, targetAudience: draft.targetAudience },
       knownUpcoming,
       ownStrength,
+      rivalHorizon,
     );
   }
 
@@ -399,8 +430,8 @@ export function MarketingRelease() {
   const releaseTypeProfile = RELEASE_TYPE_PROFILES[choices.releaseType];
   const weakMarketingWarning =
     releaseTypeProfile.needsMarketing && !onDistributorDeal && choices.marketingSpend <= MARKETING_SPEND_RANGE.min * 3;
-  const genreBonus = draft.genre ? RELEASE_WINDOW_GENRE_BONUS[releaseWindow][draft.genre] : undefined;
-  const selectedCrowding = crowdingFor(releaseDay);
+  const selectedField = fieldFor(releaseDay);
+  const selectedCrowding = selectedField?.crowding ?? 0;
   const selectedCrowdingReading = crowdingReading(selectedCrowding);
 
   // A live tracking readout: what the current channel mix + campaign angle
@@ -761,23 +792,67 @@ export function MarketingRelease() {
       <div className="card stack">
         <div className="row-between">
           <h3 style={{ margin: 0 }}>Release Date</h3>
-          <span style={{ fontSize: '0.95em', fontWeight: 700, color: 'var(--primary)' }}>{formatGameMonthYear(releaseDay)}</span>
+          <span style={{ fontSize: '0.95em', fontWeight: 700, color: 'var(--primary)' }}>
+            {formatGameMonthYear(releaseDay)} · {releaseWindow}
+          </span>
         </div>
 
         <p className="choice-description" style={{ margin: 0 }}>
-          Release Window is set automatically from the month you pick below - {releaseWindow}
-          {genreBonus && genreBonus > 1 ? `, a strong window for ${draft.genre}` : ''}. The competitive picture can
-          still shift before this date actually arrives - other studios can schedule into it in the meantime.
+          {draft.genre ? `${describeSeason(releaseDay, draft.genre)}. ` : ''}
+          The earliest month offered is the one post-production finishes in — hold past it and the campaign gains
+          runway, but the competitive picture can still shift before the date arrives, since other studios can
+          schedule into it in the meantime.
         </p>
+
+        {/* Opening on a day other than the one the campaign was bought against
+            writes that campaign off (state/studioReducer.ts:SCHEDULE_RELEASE).
+            Shown BEFORE the month is picked, not discovered in the cash ledger
+            afterwards - the price is the decision (Principle 3). Priced off
+            exactly the day the reducer will charge it on, so the preview can
+            never quote a cheaper move than settlement takes. */}
+        {draft.announcedReleaseDay !== undefined && (() => {
+          const chargedOn = Math.max(state.totalDays, draft.postProductionFinalReadyDay ?? state.totalDays);
+          // SCHEDULE_RELEASE clamps the picked day up to the day the film is
+          // actually ready before comparing it to the announcement, so the
+          // preview has to clamp identically. It did not, and the gap was real:
+          // announcing a month's 1st and finishing post later that same month
+          // made this read "keeps the campaign whole" while settlement charged
+          // the full write-off - the announced date being already past is the
+          // most expensive case there is.
+          const scheduledDay = Math.max(Math.round(releaseDay), chargedOn);
+          const onAnnouncedDate = scheduledDay === draft.announcedReleaseDay;
+          const cost = campaignWriteOff(draft.campaignCommitment, chargedOn);
+          return (
+            <p
+              className="choice-description"
+              style={{ margin: 0, color: onAnnouncedDate || cost === 0 ? undefined : 'var(--red)' }}
+            >
+              You announced <strong>{formatGameMonthYear(draft.announcedReleaseDay)}</strong>.{' '}
+              {onAnnouncedDate
+                ? 'Opening on it keeps whatever campaign is booked against it whole.'
+                : cost > 0
+                  ? `Opening in ${formatGameMonthYear(scheduledDay)} instead costs ${formatMoney(cost)} — ` +
+                    'the placements bought against the announced date cannot follow the film to a new one.'
+                  : `Opening in ${formatGameMonthYear(scheduledDay)} instead costs nothing: no campaign was ever booked against the announced date.`}
+            </p>
+          );
+        })()}
 
         <div className="month-grid">
           {candidateMonths.map(({ year: y, monthIndex: m, releaseDay: candidateDay }) => {
             const window = deriveReleaseWindowFromDay(candidateDay);
-            const bonus = draft.genre ? RELEASE_WINDOW_GENRE_BONUS[window][draft.genre] : undefined;
-            const crowding = crowdingFor(candidateDay);
-            const reading = crowdingReading(crowding);
+            const cellField = fieldFor(candidateDay);
+            const reading = crowdingReading(cellField?.crowding ?? 0);
             const slated = slatedCountFor(y, m);
             const isSelected = y === year && m === monthIndex;
+            // The two things the grid used to leave to the meter below it: how
+            // good this season actually is for THIS genre (a ★ said "there is a
+            // bonus", not how much it is worth), and whether opening here leaves
+            // the campaign any runway at all. Both read the same bands the
+            // pre-greenlight announcement card shows
+            // (engine/releaseDateReading.ts), so the two screens agree.
+            const season = draft.genre ? seasonBandFor(candidateDay, draft.genre) : null;
+            const runway = campaignRunwayBand(minReleaseDay, candidateDay);
             return (
               <button
                 key={`${y}-${m}`}
@@ -789,11 +864,23 @@ export function MarketingRelease() {
                 }}
               >
                 <strong className="month-cell__label">{MONTH_NAMES[m]} Year {y}</strong>
-                <span className="month-cell__window">
-                  {window}
-                  {bonus && bonus > 1 ? ' ★' : ''}
+                <span className="month-cell__window">{window}</span>
+                {season && (
+                  <span className={`month-cell__season month-cell__season--${season}`}>{describeSeasonBand(season)}</span>
+                )}
+                {/* Only when it is NOT a full rollout. Runway grows monotonically
+                    with distance from the earliest month, so on a 36-month grid
+                    this line said "Full campaign rollout" on ~34 cells - a line
+                    that reads the same everywhere teaches nothing. Surfacing the
+                    exception is the whole value of it. */}
+                {runway !== 'full' && (
+                  <span className={`month-cell__runway month-cell__runway--${runway}`}>
+                    {describeCampaignRunwayBand(runway)}
+                  </span>
+                )}
+                <span className={`month-cell__crowding${cellField?.beyondKnownField ? '' : ` ${reading.className}`}`}>
+                  {cellField ? describeField(cellField) : reading.label}
                 </span>
-                <span className={`month-cell__crowding ${reading.className}`}>{reading.label}</span>
                 {slated > 0 && (
                   <span className="month-cell__slated">{slated} other release{slated === 1 ? '' : 's'}</span>
                 )}
@@ -806,8 +893,35 @@ export function MarketingRelease() {
           {holdMonths === 0
             ? 'As soon as post-production is ready - the earliest possible month.'
             : `Held ${holdMonths} month${holdMonths === 1 ? '' : 's'} past the earliest possible date.`}{' '}
-          <span className={selectedCrowdingReading.className}>{selectedCrowdingReading.label}</span> for this exact date.
+          {selectedField?.beyondKnownField ? (
+            <span>Nothing known yet for this exact date.</span>
+          ) : (
+            <>
+              <span className={selectedCrowdingReading.className}>{selectedCrowdingReading.label}</span> for this exact date.
+            </>
+          )}
         </p>
+
+        {/* Who is actually in the window, not just how full it is. The matchup is
+            relative, so the same band can mean a picture this film cannot beat or
+            several it can open straight past. */}
+        {selectedField?.beyondKnownField ? (
+          <p className="choice-description" style={{ margin: 0 }}>{UNKNOWN_FIELD_NOTE}</p>
+        ) : selectedField && selectedField.contributors.length > 0 ? (
+          <ul className="date-reading__field">
+            {selectedField.contributors.slice(0, NAMED_COMPETITORS).map((c) => (
+              <li key={c.index} className={c.matchup === 'outmatched' ? 'date-reading__field--threat' : undefined}>
+                {describeCompetitor(c, field[c.index].who)}
+              </li>
+            ))}
+            {selectedField.contributors.length > NAMED_COMPETITORS && (
+              <li>
+                and {selectedField.contributors.length - NAMED_COMPETITORS} other
+                {selectedField.contributors.length - NAMED_COMPETITORS === 1 ? '' : 's'} in the same window
+              </li>
+            )}
+          </ul>
+        ) : null}
 
         {(() => {
           const reading = rolloutReading(rolloutWeeks, rolloutMultiplier);
