@@ -75,6 +75,30 @@ describe('estimateDelivery', () => {
   it('is not provisional once the production has actually been planned', () => {
     expect(estimateDelivery(inDevelopment(), TODAY).provisional).toBe(false);
   });
+
+  it('assumes the SCRIPT\'s own recommended plan, not a guess from its scale', () => {
+    // Post-production is dominated by VFX, and scale says how big the cast and
+    // the locations are - not how effects-led the film is. Guessing effects from
+    // scale told an Epic period drama its post ran the better part of a year.
+    // Two scripts of the same scale with different effects recommendations must
+    // therefore project different post-production lengths.
+    const base = buildReadyDraft(createRng(11));
+    const script = base.script!;
+    const unplanned = (effectsAmbition: number): FilmDraft => ({
+      ...base,
+      preProduction: null,
+      photography: null,
+      postProductionFinalReadyDay: null,
+      postProductionScreeningReadyDay: null,
+      testScreeningResolved: false,
+      productionChoices: null,
+      script: { ...script, effectsAmbition, effectsStrategy: { practical: 0.2, digital: 0.8 } },
+    });
+    const postOf = (draft: FilmDraft) =>
+      estimateDelivery(draft, TODAY).remaining.find((step) => step.label === 'Post-production')!.days;
+
+    expect(postOf(unplanned(0.9))).toBeGreaterThan(postOf(unplanned(0.1)));
+  });
 });
 
 describe('deliveryStanding', () => {

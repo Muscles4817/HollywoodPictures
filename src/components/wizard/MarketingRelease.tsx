@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { MARKETING_SPEND_RANGE, RELEASE_TYPE_PROFILES, RELEASE_WINDOW_GENRE_BONUS } from '../../data/release';
+import { MARKETING_SPEND_RANGE, RELEASE_TYPE_PROFILES } from '../../data/release';
 import { pluckDescriptions } from '../../data/describe';
 import { computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from '../../engine/cost';
 import { formatGameDateWithMonth, formatGameMonthYear, monthYearOf, totalDaysForMonth, deriveReleaseWindowFromDay, MONTH_NAMES } from '../../engine/calendar';
@@ -15,6 +15,14 @@ import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { reshootChoiceConstraints } from '../../engine/reshootAvailability';
 import { deriveFocusedDraft, deriveKnownCalendar, deriveUpcomingReleaseEntries } from '../../state/selectors';
+import {
+  campaignRunwayBand,
+  describeCampaignRunwayBand,
+  describeSeason,
+  describeSeasonBand,
+  seasonBandFor,
+} from '../../engine/releaseDateReading';
+import { campaignWriteOff } from '../../engine/campaignCommitment';
 import {
   CAMPAIGN_ANGLE_LABEL,
   CAMPAIGN_ANGLE_PROFILES,
@@ -399,7 +407,6 @@ export function MarketingRelease() {
   const releaseTypeProfile = RELEASE_TYPE_PROFILES[choices.releaseType];
   const weakMarketingWarning =
     releaseTypeProfile.needsMarketing && !onDistributorDeal && choices.marketingSpend <= MARKETING_SPEND_RANGE.min * 3;
-  const genreBonus = draft.genre ? RELEASE_WINDOW_GENRE_BONUS[releaseWindow][draft.genre] : undefined;
   const selectedCrowding = crowdingFor(releaseDay);
   const selectedCrowdingReading = crowdingReading(selectedCrowding);
 
@@ -761,23 +768,59 @@ export function MarketingRelease() {
       <div className="card stack">
         <div className="row-between">
           <h3 style={{ margin: 0 }}>Release Date</h3>
-          <span style={{ fontSize: '0.95em', fontWeight: 700, color: 'var(--primary)' }}>{formatGameMonthYear(releaseDay)}</span>
+          <span style={{ fontSize: '0.95em', fontWeight: 700, color: 'var(--primary)' }}>
+            {formatGameMonthYear(releaseDay)} · {releaseWindow}
+          </span>
         </div>
 
         <p className="choice-description" style={{ margin: 0 }}>
-          Release Window is set automatically from the month you pick below - {releaseWindow}
-          {genreBonus && genreBonus > 1 ? `, a strong window for ${draft.genre}` : ''}. The competitive picture can
-          still shift before this date actually arrives - other studios can schedule into it in the meantime.
+          {draft.genre ? `${describeSeason(releaseDay, draft.genre)}. ` : ''}
+          The earliest month offered is the one post-production finishes in — hold past it and the campaign gains
+          runway, but the competitive picture can still shift before the date arrives, since other studios can
+          schedule into it in the meantime.
         </p>
+
+        {/* Opening on a day other than the one the campaign was bought against
+            writes that campaign off (state/studioReducer.ts:SCHEDULE_RELEASE).
+            Shown BEFORE the month is picked, not discovered in the cash ledger
+            afterwards - the price is the decision (Principle 3). Priced off
+            exactly the day the reducer will charge it on, so the preview can
+            never quote a cheaper move than settlement takes. */}
+        {draft.announcedReleaseDay !== undefined && (() => {
+          const chargedOn = Math.max(state.totalDays, draft.postProductionFinalReadyDay ?? state.totalDays);
+          const onAnnouncedDate = releaseDay === draft.announcedReleaseDay;
+          const cost = campaignWriteOff(draft.campaignCommitment, chargedOn);
+          return (
+            <p
+              className="choice-description"
+              style={{ margin: 0, color: onAnnouncedDate || cost === 0 ? undefined : 'var(--red)' }}
+            >
+              You announced <strong>{formatGameMonthYear(draft.announcedReleaseDay)}</strong>.{' '}
+              {onAnnouncedDate
+                ? 'Opening on it keeps whatever campaign is booked against it whole.'
+                : cost > 0
+                  ? `Opening in ${formatGameMonthYear(releaseDay)} instead costs ${formatMoney(cost)} — ` +
+                    'the placements bought against the announced date cannot follow the film to a new one.'
+                  : `Opening in ${formatGameMonthYear(releaseDay)} instead costs nothing: no campaign was ever booked against the announced date.`}
+            </p>
+          );
+        })()}
 
         <div className="month-grid">
           {candidateMonths.map(({ year: y, monthIndex: m, releaseDay: candidateDay }) => {
             const window = deriveReleaseWindowFromDay(candidateDay);
-            const bonus = draft.genre ? RELEASE_WINDOW_GENRE_BONUS[window][draft.genre] : undefined;
             const crowding = crowdingFor(candidateDay);
             const reading = crowdingReading(crowding);
             const slated = slatedCountFor(y, m);
             const isSelected = y === year && m === monthIndex;
+            // The two things the grid used to leave to the meter below it: how
+            // good this season actually is for THIS genre (a ★ said "there is a
+            // bonus", not how much it is worth), and whether opening here leaves
+            // the campaign any runway at all. Both read the same bands the
+            // pre-greenlight announcement card shows
+            // (engine/releaseDateReading.ts), so the two screens agree.
+            const season = draft.genre ? seasonBandFor(candidateDay, draft.genre) : null;
+            const runway = campaignRunwayBand(minReleaseDay, candidateDay);
             return (
               <button
                 key={`${y}-${m}`}
@@ -789,9 +832,12 @@ export function MarketingRelease() {
                 }}
               >
                 <strong className="month-cell__label">{MONTH_NAMES[m]} Year {y}</strong>
-                <span className="month-cell__window">
-                  {window}
-                  {bonus && bonus > 1 ? ' ★' : ''}
+                <span className="month-cell__window">{window}</span>
+                {season && (
+                  <span className={`month-cell__season month-cell__season--${season}`}>{describeSeasonBand(season)}</span>
+                )}
+                <span className={`month-cell__runway month-cell__runway--${runway}`}>
+                  {describeCampaignRunwayBand(runway)}
                 </span>
                 <span className={`month-cell__crowding ${reading.className}`}>{reading.label}</span>
                 {slated > 0 && (

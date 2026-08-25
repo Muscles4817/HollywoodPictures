@@ -2627,8 +2627,14 @@ textarea, input, select {
    section 9.1. */
 .release-month-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  /* Wide enough for the longest band label a cell can carry ("Some competition")
+     without wrapping mid-phrase - the cell now reads on three axes, not one. */
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 6px;
+  /* The grid runs to a year past the first comfortable date, so a slow epic can
+     push it well past eighteen months - scroll rather than swallow the page. */
+  max-height: 420px;
+  overflow-y: auto;
 }
 
 .release-month-cell {
@@ -2666,3 +2672,37 @@ textarea, input, select {
 .release-month-cell__crowding--clear { color: var(--tint-green-ink); }
 .release-month-cell__crowding--moderate { color: var(--tint-gold-ink); }
 .release-month-cell__crowding--high { color: var(--tint-red-ink); }
+
+/* The three other things that should decide a date (engine/releaseDateReading.ts):
+   whether the film can be finished by then, whether the campaign gets any
+   runway, and whether the season favours this genre. A month the film cannot
+   make stays clickable - studios announce dates they miss, which is the whole
+   premise - but it is dimmed and struck so it can never be picked by accident. */
+.release-month-cell__delivery,
+.release-month-cell__season {
+  font-size: 0.75em;
+  color: var(--text-muted);
+}
+
+.release-month-cell__delivery--impossible { color: var(--tint-red-ink); font-weight: 600; }
+.release-month-cell__delivery--no-margin { color: var(--tint-red-ink); }
+.release-month-cell__delivery--tight { color: var(--tint-gold-ink); }
+.release-month-cell__delivery--comfortable { color: var(--tint-green-ink); }
+
+.release-month-cell__season--weak { color: var(--tint-red-ink); }
+.release-month-cell__season--ordinary { color: var(--text-muted); }
+.release-month-cell__season--strong { color: var(--tint-gold-ink); }
+.release-month-cell__season--prime { color: var(--tint-green-ink); font-weight: 600; }
+
+.release-month-cell--unreachable {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+.release-month-cell--unreachable .release-month-cell__label {
+  text-decoration: line-through;
+}
+
+/* Used by the announced-date breakdown above the grid, where a verdict has to
+   read as a warning without a band class of its own. */
+.release-date-reading--bad { color: var(--tint-red-ink); }

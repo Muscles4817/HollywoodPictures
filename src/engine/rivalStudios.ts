@@ -1,6 +1,5 @@
 import type {
   Film,
-  Genre,
   MarketingChoices,
   Opportunity,
   Person,
@@ -31,9 +30,13 @@ import { logAmount } from './interpolate';
 import { GENRE_PROFILES } from '../data/genres';
 import { SHOOTING_BUDGET_RANGE, ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../data/production';
 import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../data/postProduction';
-import { RELEASE_TYPE_PROFILES, MARKETING_SPEND_RANGE, RELEASE_WINDOW_BASE_MULTIPLIER, RELEASE_WINDOW_GENRE_BONUS } from '../data/release';
+import { RELEASE_TYPE_PROFILES, MARKETING_SPEND_RANGE } from '../data/release';
 import { clamp, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn } from './random';
 import { deriveReleaseWindowFromDay } from './calendar';
+// The seasonal read the AI scores days with is the same one the player's own
+// date pickers show (engine/releaseDateReading.ts) - one formula, so the frames
+// the AI chases are exactly the frames the player is told are good.
+import { seasonalDesirability } from './releaseDateReading';
 import { computeCompetitiveCrowding, computeRivalReleaseStrength, type UpcomingRelease } from './releaseCrowding';
 import { genreIdentityFor } from './studioIdentity';
 import { generateSequelScript } from './scriptGenerator';
@@ -435,12 +438,6 @@ const SCHEDULING_STEP_DAYS = 7;
 // nudge of a counterprogrammed competitor about 10 - under the weekly step, so
 // a mismatched rival stays put. See engine/releaseCrowding.diagnostic.test.ts.
 const SCHEDULING_DELAY_COST_PER_DAY = 0.004;
-
-/** A day's seasonal box-office desirability for a genre - the same window/genre multipliers the box office itself reads (data/release.ts), so the AI targets exactly the frames that actually pay off. */
-function seasonalDesirability(day: number, genre: Genre): number {
-  const window = deriveReleaseWindowFromDay(day);
-  return RELEASE_WINDOW_BASE_MULTIPLIER[window] * (RELEASE_WINDOW_GENRE_BONUS[window][genre] ?? 1);
-}
 
 /**
  * Picks the release day maximising seasonal desirability net of *relative*

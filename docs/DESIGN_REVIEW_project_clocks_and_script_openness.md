@@ -867,13 +867,22 @@ release date. Against an announced date it yields a standing —
 `comfortable` / `tight` / `at-risk` / `missed` — named rather than numeric, per
 the house rule.
 
-It deliberately estimates *before* Production Planning too, assuming the plan
-the script's own scale implies and flagging the result `provisional`. A date
-announced pre-greenlight is exactly the window this feature exists for; refusing
-to estimate there would have silenced the warning in the only case that needs
-it. (This is the same failure mode a code review caught in
-`announcedAsUpcomingRelease` — bailing on a null `productionChoices` made every
-pre-greenlight announcement invisible to rivals.)
+It deliberately estimates *before* Production Planning too, assuming a plan and
+flagging the result `provisional`. A date announced pre-greenlight is exactly the
+window this feature exists for; refusing to estimate there would have silenced
+the warning in the only case that needs it. (This is the same failure mode a code
+review caught in `announcedAsUpcomingRelease` — bailing on a null
+`productionChoices` made every pre-greenlight announcement invisible to rivals.)
+
+The assumed plan is the **screenplay's own recommendation**, run through the same
+adapter `SET_PRODUCTION_PLAN` uses. The first version guessed effects ambition
+from the script's *scale*, and measurement caught it: an Epic Action projected
+256 days of post against 75 for the same script read off its own
+`effectsStrategy`/`effectsAmbition`. Scale says how big the cast and locations
+are, not how effects-led the film is, and post is dominated by VFX — so a scale
+guess told an Epic period drama its post ran the better part of a year, and would
+have marked reachable dates unreachable. Replacing silence with a systematically
+pessimistic lie is not an improvement.
 
 **2. The stake, shown at the decision.** The Rewrite panel in the Asset Library
 now prices a pass against the film's own claim: what the date looks like as
@@ -982,3 +991,62 @@ real finding, not noise: a wait genuinely costs nothing in package terms. The
 two arms are reported side by side rather than one superseding the other,
 because they are answering the same question with different instruments and the
 disagreement between them *is* the result.
+
+### 9.10 The release-date decision, made legible
+
+The clock now bites (§9.7) and the calendar now tells the truth about
+competition (§9.8), but the screens that *offer* a date still asked the player to
+choose from eighteen months while telling them one thing about those months. A
+studio could claim a date two months out for a film that had not begun
+pre-production, and nothing on screen said a word about it. The decision was
+real; the information was not.
+
+**What actually decides a release date**, and where each was:
+
+| | Announcement card (pre-greenlight) | Marketing & Release (scheduling) |
+|---|---|---|
+| Can the film be finished by then | **absent** | enforced by a clamp, never explained |
+| Campaign runway | **absent** | meter, selected month only |
+| Season, for this genre | **absent** | window name + a ★ |
+| Who else is opening | crowding band | crowding band + slated count |
+
+`engine/releaseDateReading.ts` supplies all four as named bands, each derived from
+the system that actually applies it — `engine/production.ts` for delivery,
+`data/release.ts` for the seasonal multipliers, `engine/marketing.ts` for campaign
+momentum, `engine/releaseCrowding.ts` for the field. Nothing in it is a new rule.
+It is the existing rules, made legible at the moment of choosing.
+
+**Two dates now headline the announcement card** before the grid rather than
+being discovered after it: when the film is projected finished, and the first
+date that does not shorten its own campaign (`readyOnDay` + a full rollout).
+Underneath, what is still ahead, phase by phase.
+
+**Every month cell reads on three axes** — delivery, season, field — and a month
+the film cannot be finished by is dimmed and struck through. It stays
+**clickable**: announcing a date you will miss is the whole premise of the
+feature (§9.1), so it is marked, never forbidden. Claiming one produces a full
+breakdown plus the single sentence naming the worst problem with it, ordered by
+what would actually sink the release — a film that does not exist beats a rushed
+campaign beats a contested date beats a dead season.
+
+**And the grid now always offers a date the film can make.** It was a fixed
+eighteen months from next month on; an effects-led epic can need most of two
+years between here and a finished print, which would have left every cell struck
+through and no real choice on the screen at all. It now runs to at least a year
+past the first comfortable date.
+
+**One formula, shared.** `seasonalDesirability` moved out of
+`engine/rivalStudios.ts`, where it was private, into this module. The seasons the
+AI chases are now provably the ones the player's screen recommends.
+
+**And the price of moving is shown before the move.** Since §9.7, opening on a day
+other than the one a campaign was bought against writes that campaign off — but
+Marketing & Release did not mention it, so the charge was discovered in the cash
+ledger afterwards. It now states the announced date, whether the selected month
+is it, and what leaving it costs.
+
+**Still not enforced, deliberately.** No date is blocked. Every unreachable
+choice is labelled, priced and left available, because a studio announcing a date
+it cannot make is the behaviour this whole phase exists to model — the player
+should be able to do it knowingly, which is precisely what they could not do
+before.

@@ -15,7 +15,7 @@
 // builds that Asset/Project directly via CREATE_PROJECT_FROM_ASSET rather
 // than the old START_NEW_FILM/SET_GENRE/SELECT_SCRIPT sequence.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { StudioProvider } from '../../state/StudioContext';
 import { ProjectOverview } from './ProjectOverview';
 import { studioReducer } from '../../state/studioReducer';
@@ -144,5 +144,81 @@ describe('ProjectOverview - presentation polish pass (docs/DESIGN.md)', () => {
     expect(ARCHETYPE_LABELS.CrowdPleaser).toBe('Crowd-Pleaser');
     expect(ARCHETYPE_LABELS.OriginalVision).toBe('Original Vision');
     expect(ARCHETYPE_LABELS.GenreFormula).toBe('Genre Formula');
+  });
+});
+
+describe('ProjectOverview - the release-date card surfaces what should decide the date', () => {
+  // The card used to offer eighteen months and say one thing about them (how
+  // crowded they were), so a studio could claim a date two months out for a
+  // film that had not begun pre-production with nothing on screen saying a
+  // word about it. Every axis that actually decides the choice is now named:
+  // whether the film can be finished, whether the campaign gets runway, what
+  // the season is worth to this genre, and who else is opening.
+  function renderCard(seed: number, genre: Genre = 'Action') {
+    const state = stateWithFocusedAssetDraft(seed, genre);
+    saveState(state);
+    return render(
+      <StudioProvider>
+        <ProjectOverview />
+      </StudioProvider>,
+    );
+  }
+
+  it('states when the film is projected finished, and the first date with a full campaign', () => {
+    renderCard(30);
+    expect(screen.getByText('Projected finished')).toBeInTheDocument();
+    expect(screen.getByText('Earliest date with a full campaign')).toBeInTheDocument();
+    // And what is still ahead of it, so the projection is explained rather than asserted.
+    expect(screen.getByText(/Still ahead:/)).toBeInTheDocument();
+  });
+
+  it('marks the months the film cannot possibly be finished by', () => {
+    const { container } = renderCard(31);
+    const unreachable = container.querySelectorAll('.release-month-cell--unreachable');
+    // A project that has not begun pre-production cannot make a date a couple
+    // of months out - so the near months must be marked, and the far ones not.
+    expect(unreachable.length).toBeGreaterThan(0);
+    expect(unreachable.length).toBeLessThan(container.querySelectorAll('.release-month-cell').length);
+    for (const cell of unreachable) expect(cell).toHaveTextContent('Not finished');
+  });
+
+  it('does not forbid an unreachable date - studios announce dates they miss', () => {
+    // Announcing a date the film will not make is the whole premise of the
+    // feature (design review section 9.1). It is marked, never disabled.
+    const { container } = renderCard(32);
+    for (const cell of container.querySelectorAll('.release-month-cell--unreachable')) {
+      expect(cell).not.toBeDisabled();
+    }
+  });
+
+  it('always offers months the film can actually make', () => {
+    // A grid whose every cell was struck through as unreachable would offer no
+    // real choice at all - and an effects-led epic can need the better part of
+    // two years between here and a finished print.
+    const { container } = renderCard(35, 'Sci-Fi');
+    const cells = container.querySelectorAll('.release-month-cell');
+    const unreachable = container.querySelectorAll('.release-month-cell--unreachable');
+    expect(cells.length - unreachable.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it('reads the season for this genre on every month, not just a bonus star', () => {
+    const { container } = renderCard(33, 'Horror');
+    const seasons = container.querySelectorAll('.release-month-cell__season');
+    expect(seasons.length).toBe(container.querySelectorAll('.release-month-cell').length);
+    // Eighteen months must contain at least one Halloween, the prime frame for Horror.
+    expect(container.querySelectorAll('.release-month-cell__season--prime').length).toBeGreaterThan(0);
+  });
+
+  it('warns in words once a date is claimed, naming the worst problem with it', () => {
+    const { container } = renderCard(34);
+    // Claim the first month offered - the one the film has no chance of making.
+    const firstMonth = container.querySelector('.release-month-cell') as HTMLButtonElement;
+    fireEvent.click(firstMonth);
+
+    expect(screen.getByText('Can the film make it')).toBeInTheDocument();
+    expect(screen.getByText('Campaign runway')).toBeInTheDocument();
+    expect(screen.getByText('Season')).toBeInTheDocument();
+    expect(screen.getByText('The field')).toBeInTheDocument();
+    expect(screen.getByText(/will not be finished by this date/)).toBeInTheDocument();
   });
 });

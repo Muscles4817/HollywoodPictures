@@ -62,6 +62,24 @@
   color: var(--text-muted);
 }
 
+/* The season and campaign-runway reads (engine/releaseDateReading.ts) - the two
+   things the grid used to leave to the meter below it. Same bands as the
+   pre-greenlight announcement card, so the two date pickers agree. */
+.month-cell__season,
+.month-cell__runway {
+  font-size: 0.75em;
+}
+
+.month-cell__season--weak { color: var(--red); }
+.month-cell__season--ordinary { color: var(--text-muted); }
+.month-cell__season--strong { color: var(--text); }
+.month-cell__season--prime { color: var(--green); font-weight: 600; }
+
+.month-cell__runway--none,
+.month-cell__runway--rushed { color: var(--red); }
+.month-cell__runway--building { color: var(--text-muted); }
+.month-cell__runway--full { color: var(--green); }
+
 /* Per-channel audience-fit hint shown under each channel slider. */
 .channel-fit {
   font-size: 0.78em;

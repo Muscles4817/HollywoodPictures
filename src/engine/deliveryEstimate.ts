@@ -20,31 +20,37 @@ import {
   computeRecommendedPreProductionDays,
   computeRecommendedShootDays,
 } from './production';
+import { adaptRecommendationsToProductionChoices } from './productionChoicesAdapter';
+import { SHOOTING_BUDGET_RANGE } from '../data/production';
 import { logAmount } from './interpolate';
-import {
-  ENVIRONMENT_BUDGET_RANGE,
-  PRACTICAL_EFFECTS_RANGE,
-  SHOOTING_BUDGET_RANGE,
-  VFX_RANGE,
-} from '../data/production';
 
 // Before Production Planning there are no dials to read, but this is exactly
 // when "one more rewrite" is most tempting - so refusing to estimate would
-// silence the warning in the case that needs it most. Instead assume the plan
-// the script implies: ambition scaled to the script's own scale, standard
-// runtime. Flagged `provisional` so the UI can say the estimate is a projection
-// off an unmade plan rather than a schedule.
-const NOMINAL_AMBITION_T: Record<Script['scale'], number> = { Intimate: 0.25, Medium: 0.45, Epic: 0.7 };
+// silence the warning in the case that needs it most.
+//
+// The assumed plan is the screenplay's OWN recommendation, run through the same
+// adapter SET_PRODUCTION_PLAN uses (engine/productionChoicesAdapter.ts). That is
+// deliberately not a guess from the script's scale: scale says how big the cast
+// and the locations are, not how effects-led the film is, and post-production is
+// dominated by VFX - so a scale guess would tell an Epic period drama its post
+// runs a year. The script already carries what the planning screen would pre-fill;
+// reading it is both more honest and the thing the player is most likely to do.
+//
+// The shooting budget is the one term with no recommendation behind it, and it
+// does not reach any of the three schedule estimators, so it is set mid-range
+// purely to produce a well-formed ProductionChoices.
+const NOMINAL_SHOOTING_BUDGET_T = 0.5;
+/** Unexposed on Plan Production and defaulted there too - see the adapter's own note. */
+const NOMINAL_RUNTIME_INTENSITY = 0.5;
 
 function nominalPlan(script: Script): ProductionChoices {
-  const t = NOMINAL_AMBITION_T[script.scale];
-  return {
-    shootingBudgetAmount: logAmount(t, SHOOTING_BUDGET_RANGE),
-    setQualityAmount: logAmount(t, ENVIRONMENT_BUDGET_RANGE),
-    practicalEffectsAmount: logAmount(t, PRACTICAL_EFFECTS_RANGE),
-    vfxAmount: logAmount(t, VFX_RANGE),
-    runtimeIntensity: 0.5,
-  };
+  return adaptRecommendationsToProductionChoices(
+    script.environmentAmbition,
+    script.effectsStrategy,
+    script.effectsAmbition,
+    logAmount(NOMINAL_SHOOTING_BUDGET_T, SHOOTING_BUDGET_RANGE),
+    NOMINAL_RUNTIME_INTENSITY,
+  );
 }
 
 export interface DeliveryEstimate {
