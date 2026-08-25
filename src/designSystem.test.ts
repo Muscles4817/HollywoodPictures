@@ -1,0 +1,122 @@
+/// <reference types="node" />
+import { describe, expect, it } from 'vitest';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+
+/**
+ * The design system's rules, made mechanical.
+ *
+ * `docs/ART_DIRECTION.md` states its palette and corner discipline as prose,
+ * and prose does not survive fourteen screens of implementation - `--radius`
+ * spent months claiming the hard-corners decision was "reversible in one
+ * place rather than 78 components" while 94 sites hardcoded a pixel value
+ * against 36 that used the token. These tests are the move `ec14e43` made
+ * for the data corpus, applied to the stylesheet: a rule review has to
+ * remember becomes one the suite enforces.
+ *
+ * Sources are read off disk rather than through `import.meta.glob(?raw)`,
+ * which silently returns empty strings here - Vite's CSS transform wins over
+ * the raw query, so a glob-based version of this file passed by scanning
+ * nothing. The node types are pulled in by the reference above rather than
+ * by widening tsconfig.app.json's `types`, so app source stays free of node
+ * globals; this file is the only one that touches the filesystem.
+ */
+
+const SRC = new URL('.', import.meta.url).pathname;
+
+function read(ext: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (entry.endsWith(ext)) out['./' + full.slice(SRC.length)] = readFileSync(full, 'utf8');
+    }
+  };
+  walk(SRC);
+  return out;
+}
+
+const CSS = read('.css');
+const TSX = read('.tsx');
+
+const HEX = /#[0-9a-fA-F]{3,8}\b/;
+
+/**
+ * The one stylesheet allowed its own colours: PremiereReveal's genre posters
+ * are the SPECTACLE register (ART_DIRECTION.md 2.2) and the contrast with the
+ * desk palette is the entire point, which the file itself says in a comment.
+ * Its poster also keeps a soft corner - a poster is an object, not a data
+ * surface. Adding a second entry here should require the same argument.
+ */
+const SPECTACLE = './components/wizard/PremiereReveal.css';
+
+function offenders(files: Record<string, string>, test: (line: string) => string | null): string[] {
+  const found: string[] = [];
+  for (const [path, source] of Object.entries(files)) {
+    if (path === SPECTACLE) continue;
+    source.split('\n').forEach((line, i) => {
+      const hit = test(line);
+      if (hit !== null) found.push(`${path}:${i + 1}  ${hit}`);
+    });
+  }
+  return found;
+}
+
+describe('colour lives in the token layer', () => {
+  it('defines every colour in index.css, or in a declared SPECTACLE sheet', () => {
+    const sheets = Object.fromEntries(Object.entries(CSS).filter(([p]) => p !== './index.css'));
+    expect(offenders(sheets, (line) => line.match(HEX)?.[0] ?? null)).toEqual([]);
+  });
+
+  it('never hardcodes a colour in a component, not even as a var() fallback', () => {
+    // A `var(--token, #hex)` fallback is worse than a bare hex, because it
+    // looks themed and silently is not. Three of them named tokens that had
+    // never existed at all - --warn, --positive and --negative - so the
+    // light-theme colour they hardcoded rendered on the dark theme too.
+    const components = Object.fromEntries(Object.entries(TSX).filter(([p]) => !p.includes('.test.')));
+    expect(offenders(components, (line) => line.match(HEX)?.[0] ?? null)).toEqual([]);
+  });
+
+  it('resolves every var() a stylesheet asks for', () => {
+    // The fault bfd2bb8 found: --surface and --accent were referenced across
+    // two stylesheets and defined nowhere, so every fallback fired and the
+    // Dashboard ignored the chosen theme entirely. Definitions are collected
+    // from every sheet, since component files legitimately scope their own
+    // locals; what this catches is a name referenced somewhere and defined
+    // nowhere.
+    const defined = new Set<string>();
+    for (const source of Object.values(CSS)) {
+      for (const m of source.matchAll(/(--[a-z0-9-]+)\s*:/g)) defined.add(m[1]);
+    }
+    const missing = new Set<string>();
+    for (const source of Object.values(CSS)) {
+      for (const m of source.matchAll(/var\(\s*(--[a-z0-9-]+)/g)) {
+        if (!defined.has(m[1])) missing.add(m[1]);
+      }
+    }
+    expect([...missing].sort()).toEqual([]);
+  });
+});
+
+describe('corners route through the radius tokens', () => {
+  it('never hardcodes a border-radius', () => {
+    // --radius for surfaces, --radius-pill for the badge family. `50%` is a
+    // circle - a shape rather than a softened corner - and `inherit` defers
+    // to whichever of the two an ancestor set.
+    const ALLOWED = /^(var\(--radius\)( var\(--radius\))?( 0)*|var\(--radius-pill\)|50%|inherit|0)$/;
+    const found = offenders(CSS, (line) => {
+      for (const m of line.matchAll(/border-radius:\s*([^;]+)/g)) {
+        const value = m[1].trim();
+        if (!ALLOWED.test(value)) return value;
+      }
+      return null;
+    });
+    expect(found).toEqual([]);
+  });
+
+  it('keeps both radius tokens defined', () => {
+    expect(CSS['./index.css']).toMatch(/^\s*--radius:/m);
+    expect(CSS['./index.css']).toMatch(/^\s*--radius-pill:/m);
+  });
+});

@@ -67,7 +67,7 @@ export function GreenlightConfirmation({ onClose }: { onClose: () => void }) {
         </div>
 
         {deferred && (
-          <p style={{ margin: 0, padding: '8px 10px', borderRadius: 6, background: 'color-mix(in srgb, var(--amber, #b8860b) 12%, transparent)', fontSize: '0.9em' }}>
+          <p style={{ margin: 0, padding: '8px 10px', borderRadius: 'var(--radius)', background: 'color-mix(in srgb, var(--amber) 12%, transparent)', fontSize: '0.9em' }}>
             A cast member you waited for is booked until <strong>{formatGameDateWithMonth(shootStartsOnDay)}</strong>, so
             the shoot begins then. The film is greenlit now, but waits in development until it can start.
           </p>

@@ -1,6 +1,6 @@
 # Visual Redesign Roadmap
 
-Status: **planning only — no code written for phases 1–6 yet.** Turns
+Status: **Phase 0 landed; phases 1–6 are planning only.** Turns
 `ART_DIRECTION.md` and the nine mockup takes in `docs/design/mockups/` into an
 ordered sequence of reviewable steps.
 
@@ -172,9 +172,37 @@ phase to pull forward — it is the only one where that is free.
 Each phase states: what, why now, files, how we know it landed, what would make
 it wrong.
 
-### Phase 0 — Close the doc/code gap, and make the rules mechanical
+### Phase 0 — Close the doc/code gap, and make the rules mechanical [DONE]
 
 Small, and it makes every later phase cheaper to review.
+
+**Landed.** All three items, plus two faults found on the way:
+
+- `--radius-pill` added alongside `--radius`; all 94 hardcoded radii swept onto
+  one or the other (plus 3 inline `borderRadius` in TSX). One deliberate
+  exception remains: PremiereReveal's poster, which is a SPECTACLE object.
+- Bars, tracks and meters took `--radius` rather than the pill, on §5's own
+  "a value needs no hue" argument extended to shape. The Dashboard's KPI meter
+  fill also moved from its categorical hue to the neutral `--bar`; the card's
+  3px left rule keeps the hue, because that is the frame.
+- **Three undefined tokens whose hardcoded fallbacks were always firing** —
+  `--warn`, `--positive` and `--negative` were referenced in
+  `ProductionPlanning.tsx` and `ProductionExecutionSummary.tsx` and defined
+  nowhere, so a light-theme colour rendered on the dark theme. Exactly the
+  fault `bfd2bb8` fixed for `--surface`/`--accent`, three instances it missed.
+  Repointed at `--amber`, `--green` and `--red`.
+- **One more white-on-accent** in `AssetLibrary.tsx` (`color: '#fff'` over
+  `--accent`, near-unreadable on dark, where `--accent` is a light blue).
+  `bfd2bb8` caught two of these; this was the third. Now `--on-accent`.
+- Four dead indirections (`--compare-rail-width`, `--dashboard-accent`,
+  `--dev`, `--success-bg`) collapsed to what already rendered, except the
+  rail width, which names a real knob and is now defined at the 320px take 09
+  settled on.
+- `src/designSystem.test.ts` enforces all of it — five assertions, each
+  mutation-tested by injecting its violation and confirming the failure.
+
+Verified: 2,499 tests pass, build clean, lint warnings unchanged at 26, and
+all six render states (1440/900/640 × light/dark) inspected in a real browser.
 
 **What:**
 
@@ -443,3 +471,5 @@ the same line:
 | 2026-08-25 | Roadmap drafted. Sequencing principle: the frame before the rooms — the chassis precedes all per-screen work because it is the only phase that changes information architecture. |
 | 2026-08-25 | The mockups are a specification, not a source: every phase lands through the token layer, per `bfd2bb8`'s method. |
 | 2026-08-25 | SPECTACLE (Phase 4) identified as the only phase independent of the chassis, and therefore the only one that can be pulled forward for early visible payoff. |
+| 2026-08-25 | Phase 0 landed. Corners route through two tokens; colour and corner rules are enforced by `designSystem.test.ts` rather than by review. |
+| 2026-08-25 | Bars take the surface radius and the neutral `--bar`: the "a value needs no hue" argument governs shape as well as colour. Categorical hue stays on the frame. |

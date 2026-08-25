@@ -61,9 +61,9 @@ const DEFAULT_RUNTIME_INTENSITY = 0.5;
 // Production Redesign, Sets facet — the designer's live confidence read,
 // rendered in character as the conversation's qualitative forecast.
 const CONFIDENCE_PRESENTATION: Record<DesignerConfidence, { label: string; color: string }> = {
-  confident: { label: 'Confident we can deliver this', color: 'var(--green, #2e7d32)' },
+  confident: { label: 'Confident we can deliver this', color: 'var(--green)' },
   workable: { label: 'We can work with this', color: 'var(--text-muted)' },
-  'a-stretch': { label: 'This is a stretch — no promises', color: 'var(--warn, #b8860b)' },
+  'a-stretch': { label: 'This is a stretch — no promises', color: 'var(--amber)' },
   'set-up-to-fail': { label: "We're set up to fail here", color: 'var(--danger)' },
 };
 
@@ -452,7 +452,7 @@ export function ProductionPlanning() {
     { label: 'Technical', value: staticRisk.technicalComplexity },
     { label: 'Budget', value: staticRisk.budgetRisk },
   ];
-  const riskTone = (v: number) => (v >= 66 ? 'var(--red)' : v >= 40 ? 'var(--amber, #b8860b)' : 'var(--green, #2e7d32)');
+  const riskTone = (v: number) => (v >= 66 ? 'var(--red)' : v >= 40 ? 'var(--amber)' : 'var(--green)');
 
   const identity = synthesizeProductionIdentity(script, envBreakdown, fxBreakdown);
   const biggestTension = findBiggestTension([
@@ -700,13 +700,13 @@ export function ProductionPlanning() {
         )}
         <ScoreBar label="Safety Risk" value={staticRisk.safetyRisk} />
         {safetyReduction > 0 && (
-          <p style={{ margin: '-4px 0 0', fontSize: '0.82em', color: 'var(--green, #2e7d32)' }}>
+          <p style={{ margin: '-4px 0 0', fontSize: '0.82em', color: 'var(--green)' }}>
             ↓ {safetyReduction} lower thanks to your <Money amount={contingencyReserveAmount} /> Contingency Reserve.
           </p>
         )}
         <ScoreBar label="Technical Complexity" value={staticRisk.technicalComplexity} />
         {technicalReduction > 0 && (
-          <p style={{ margin: '-4px 0 0', fontSize: '0.82em', color: 'var(--green, #2e7d32)' }}>
+          <p style={{ margin: '-4px 0 0', fontSize: '0.82em', color: 'var(--green)' }}>
             ↓ {technicalReduction} lower thanks to your Contingency Reserve.
           </p>
         )}

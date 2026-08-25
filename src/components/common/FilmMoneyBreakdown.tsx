@@ -220,7 +220,7 @@ function AncillaryTimeline({ film, ancillary }: { film: Film; ancillary: FilmAnc
   return (
     <div className="stack" style={{ gap: 6, marginTop: 12 }}>
       <div style={{ fontSize: '0.8em', color: 'var(--text-muted)' }}>Lifetime revenue by window</div>
-      <div style={{ display: 'flex', width: '100%', height: 22, borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', width: '100%', height: 22, borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)' }}>
         {segments.map((s) => {
           const meta = TIMELINE_WINDOW_META[s.key];
           const settledPct = s.total > 0 ? (s.settled / s.total) * 100 : 0;
@@ -239,7 +239,7 @@ function AncillaryTimeline({ film, ancillary }: { film: Film; ancillary: FilmAnc
           const meta = TIMELINE_WINDOW_META[s.key];
           return (
             <span key={s.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.78em', color: 'var(--text-muted)' }}>
-              <span style={{ width: 9, height: 9, borderRadius: 2, background: meta.color, display: 'inline-block' }} />
+              <span style={{ width: 9, height: 9, borderRadius: 'var(--radius)', background: meta.color, display: 'inline-block' }} />
               {meta.label} <Money amount={s.total} />
             </span>
           );
