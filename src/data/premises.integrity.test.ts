@@ -11,7 +11,8 @@
 // field that drifts at scale. Two are NOT, and say so where they live: the
 // length limit is a chosen ratchet rather than a measured constraint, and the
 // subject/leads check reads English well enough to be wrong. Both are scoped
-// down to where they can be trusted. Every OTHER check here is mechanical, and
+// down to where they can be trusted - as is the total-entry floor, which has
+// slack in it by choice. Every OTHER check here is mechanical, and
 // that distinction is the point - a suite that claimed uniform rigour it did
 // not have would be trusted uniformly, which is exactly the failure it exists
 // to prevent.
@@ -45,9 +46,16 @@ describe('premise corpus integrity', () => {
     // to undefined without a word.
     expect(ENTRIES.length).toBeGreaterThan(300);
 
+    // No check here can see a genre's `straight` bucket go empty, and pretending
+    // otherwise would be worse than the gap. premises.ts:1137 merges
+    // ADDITIONAL_STRAIGHT into every genre at module load, so by the time this
+    // runs each genre has a populated `straight` whatever the literal above it
+    // said - which also made an earlier "genre with no tones at all" branch here
+    // unreachable code presenting coverage it did not have. Deleting a genre's
+    // hand-written straight entries is therefore silent. Catching that needs
+    // ADDITIONAL_STRAIGHT exported and checked separately.
     const empty: string[] = [];
     for (const [genre, bank] of Object.entries(PREMISE_BANKS)) {
-      if (Object.keys(bank).length === 0) empty.push(`${genre}: no tones at all`);
       for (const [tone, entries] of Object.entries(bank)) {
         if (!entries || (entries as Premise[]).length === 0) empty.push(`${genre}.${tone}`);
       }
@@ -105,7 +113,7 @@ describe('premise corpus integrity', () => {
     // entries, where a stray U+00A0 is exactly the kind of thing that arrives.
     // Alternation rather than a character class: a class holding \u200c and
     // \u200d side by side reads as a joiner sequence to the linter.
-    const INVISIBLE = /\u00a0|\t|\n|\r|\u200b|\u200c|\u200d|\ufeff|\u2060/;
+    const INVISIBLE = /\u00a0|\t|\n|\r|\u200b|\u200c|\u200d|\ufeff|\u2060|\u2028|\u2029|\u00ad/;
     const problems: string[] = [];
     for (const { where, premise } of ENTRIES) {
       for (const [field, value] of [['protagonist', premise.protagonist], ['synopsis', premise.synopsis], ['antagonist', premise.antagonist ?? '']] as const) {
@@ -178,84 +186,74 @@ describe('premise corpus integrity', () => {
     );
   });
 
-  it('conjugates and counts a numbered subject correctly', () => {
+  it('counts a numbered subject correctly', () => {
     // SCOPE, and the scope is the whole correctness of this check.
     //
     // It fires only on subjects opening with a number word - "two rival
-    // auctioneers", "three siblings". That is the one plural signal in English
-    // that cannot be misread, and it covers the real entries that matter.
+    // auctioneers", "three siblings" - and it asserts ONE thing: that the number
+    // agrees with the leads count beside it. No grammar. No verbs.
     //
-    // An earlier version also tried to detect compound subjects ("a bakery owner
-    // and the health inspector") by looking for an "and" with no preposition
-    // before it. It was wrong three times running: first flagging collective
-    // nouns taking correct singular verbs, then coordinated objects ("a former
-    // court wizard stripped OF his title and his magic"), then - after the
-    // preposition guard - ordinary prose where the object simply had no
-    // preposition in it ("a widow who sold her house AND her business"). Telling
-    // an author their good log-line is ungrammatical is worse than saying
-    // nothing, because they will edit the good log-line. That heuristic is gone
-    // rather than iterated a fourth time.
+    // Two grammar heuristics have been cut from this check, both after they
+    // accused ordinary English of being broken:
     //
-    // Nothing is lost by dropping it. scriptGenerator.test.ts:329 already carries
-    // a far better plural-subject parser for the "several subjects, no leads
-    // count" direction, and :408 already bounds the range. This check earns its
-    // place on the one thing neither does: that a number word AGREES with the
-    // count beside it, which catches "two X" declaring 3 leads - the too-high
-    // direction, otherwise unchecked on the only mechanically load-bearing field
-    // in the file.
-    const NUMBERS: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, twin: 2, both: 2 };
-
-    // A skip-list, and deliberately generous. Over-including a word here means a
-    // silent miss; under-including it means accusing an adverb of being a badly
-    // conjugated verb. Only one of those is recoverable, so this list errs long -
-    // and the -s adverbs are here precisely because the rule below would
-    // otherwise read "always" as a third-person singular.
-    const ADVERB = /^(never|only|just|still|already|always|often|sometimes|soon|then|now|once|again|each|both|together|first|instead|also|even|finally|eventually|immediately|later|suddenly|somehow|nearly|almost|barely|hardly|perhaps|besides|afterwards|nowadays|\w+ly)$/;
-
-    // English forms the third-person singular by adding -s, so a verb already
-    // ending in a sibilant takes -es instead: "focus" -> "focuses", "pass" ->
-    // "passes", "canvas" -> "canvases". A bare verb ending in -ss/-us/-as/-is/-os
-    // is therefore NOT a singular form, whatever the trailing s suggests - which
-    // is what made "two accountants FOCUS on one transaction" read as an error.
-    // The four irregulars below are the exception: they are conclusively singular
-    // despite the ending, and "two accountants IS" is exactly the fault worth
-    // catching. Past tenses and modals need no special case at all - none of them
-    // ends in -s, so the rule passes them over on its own.
-    const CONCLUSIVELY_SINGULAR = /^(is|has|does|was)$/;
-    const SIBILANT_STEM = /(ss|us|as|is|os)$/;
-    const readsSingular = (verb: string): boolean =>
-      CONCLUSIVELY_SINGULAR.test(verb) || (verb.endsWith('s') && !SIBILANT_STEM.test(verb));
+    // 1. Compound-subject detection ("a bakery owner AND the health inspector").
+    //    Wrong three times - collective nouns taking correct singular verbs, then
+    //    coordinated objects ("stripped OF his title and his magic"), then
+    //    objects with no preposition at all ("sold her house AND her business").
+    // 2. Verb agreement. It read the first non-adverb token as the verb, but the
+    //    scan ADVANCED past skipped tokens rather than stopping, so putting
+    //    \w+ly in the adverb list - which skips the real verbs "supply", "rally",
+    //    "apply", "imply" - handed the accusation to the following noun: "two
+    //    arms brokers SUPPLY arms to both sides" was reported as "arms is
+    //    singular". A comment above it asserted that over-including an adverb was
+    //    a safe silent miss. That was backwards, and it was the justification for
+    //    the list being long.
+    //
+    // Four wrong versions in the same place is the answer. Detecting English
+    // subject-verb agreement with regular expressions is not a thing this file
+    // can do correctly, and a validator that tells an author their good log-line
+    // is broken is worse than no validator during a corpus expansion, because the
+    // author edits the good log-line.
+    //
+    // What is lost, stated plainly rather than waved away: a compound or numbered
+    // subject written with a singular verb and no leads count is now caught by
+    // nothing - not here, and not by scriptGenerator.test.ts:329, whose own
+    // comment says it cannot see that class. All 12 compound-subject entries
+    // currently in the corpus already carry leads: 2, so the gap is entirely
+    // forward-looking. That is a real gap in exactly the population this file
+    // exists to guard, and closing it needs a parser, not another regex.
+    //
+    // What remains earns its place: scriptGenerator.test.ts:329 checks that a
+    // multi-subject log-line HAS a count, but nothing anywhere checks that the
+    // count is the RIGHT one. "two rival auctioneers" declaring 3 leads is the
+    // too-high direction on the only mechanically load-bearing field here.
+    const NUMBERS: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, twin: 2, twins: 2, both: 2 };
 
     const problems: string[] = [];
     for (const { where, premise } of ENTRIES) {
-      const opener = premise.protagonist.trim().toLowerCase().match(/^([a-z]+)\b/);
+      // Anchored on a following SPACE, not a word boundary. "two-bit hustler" and
+      // "twin-engine bush pilot" are one person each, and \b happily matched the
+      // hyphen - so much for the number word being the one plural signal in
+      // English that cannot be misread.
+      const opener = premise.protagonist.trim().toLowerCase().match(/^([a-z]+)\s/);
       const promised = opener ? NUMBERS[opener[1]] : undefined;
       if (promised === undefined) continue;
 
-      // The count assertion runs on its own, gated on nothing. An earlier version
-      // sat it below the verb analysis, so a subject opening "two rival
-      // auctioneers MUST decide" skipped the verb as inconclusive and skipped the
-      // count with it - for a check that never needed a verb in the first place.
       const declared = premise.leads;
       const expected = Math.min(promised, 3); // capped: the generator tops out at 3 leads.
       if (declared === undefined) problems.push(`${where}: "${premise.protagonist.slice(0, 50)}" names ${promised} but declares no leads count`);
       else if (declared !== expected) problems.push(`${where}: "${premise.protagonist.slice(0, 50)}" names ${promised} but declares ${declared} leads`);
-
-      const after = premise.synopsis.match(/^\{protagonist\}\s+(.*)$/);
-      if (!after) continue;
-      const verb = after[1]
-        .split(/\s+/)
-        .map((w) => w.replace(/[^a-z']/gi, '').toLowerCase())
-        .find((w) => w.length > 1 && !ADVERB.test(w));
-      if (verb && readsSingular(verb)) problems.push(`${where}: "${premise.protagonist.slice(0, 50)}" is plural but "${verb}" is singular`);
     }
     fail(problems, 'entries disagree with their own numbered subject');
   });
 
   it('keeps every declared leads count an integer the generator can use', () => {
-    // Mirrors scriptGenerator.test.ts:408 at the data layer rather than through a
-    // generated script, so a `leads: 0` or `leads: 2.5` typo names the entry that
-    // has it instead of surfacing as a downstream cast-count oddity.
+    // scriptGenerator.test.ts:408 already bounds this, and already reads the banks
+    // directly - so the earlier claim here that this one worked "at the data layer
+    // rather than through a generated script" described a difference that does not
+    // exist. The actual delta is Number.isInteger: :408 catches `leads: 0` but lets
+    // `leads: 2.5` through, and a fractional count reaches Math.max in the
+    // generator and produces a cast size no one asked for.
     fail(
       ENTRIES.filter(({ premise }) => premise.leads !== undefined && (!Number.isInteger(premise.leads) || premise.leads < 1 || premise.leads > 3)).map(
         ({ where, premise }) => `${where}: leads = ${premise.leads}`,
