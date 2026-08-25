@@ -180,7 +180,7 @@ export const PREMISE_BANKS: Record<Genre, Partial<Record<Tone | 'straight', Prem
     drama: [
       {
         protagonist: 'a veteran struggling to reintegrate after one tour too many',
-        antagonist: "the war he can't leave behind, playing out in his own neighborhood",
+        antagonist: null,
         synopsis: "{protagonist} finds himself fighting the same battle at home that he swore he'd left overseas.",
       },
       {
@@ -190,12 +190,12 @@ export const PREMISE_BANKS: Record<Genre, Partial<Record<Tone | 'straight', Prem
       },
       {
         protagonist: "a boxer fighting one last bout to pay for his brother's surgery",
-        antagonist: "the debt that's already decided how this fight ends",
+        antagonist: null,
         synopsis: "{protagonist} has to win a fight that everyone but him has already been paid to lose.",
       },
       {
         protagonist: "a firefighter carrying the guilt of a rescue that went wrong years ago",
-        antagonist: "a wildfire bearing down on the same town he couldn't save the first time",
+        antagonist: null,
         synopsis: '{protagonist} gets one more chance to be the person he used to believe he was.',
       },
       {
@@ -482,17 +482,17 @@ export const PREMISE_BANKS: Record<Genre, Partial<Record<Tone | 'straight', Prem
       },
       {
         protagonist: 'a hospice caretaker assigned to a patient the agency will not discuss',
-        antagonist: 'whatever is keeping that patient alive far longer than it should',
+        antagonist: null,
         synopsis: '{protagonist} realizes too late why no one else would take this assignment.',
       },
       {
         protagonist: 'a park ranger doing one last patrol before the reserve closes for winter',
-        antagonist: "something that has been using the closed season to come out of hiding",
+        antagonist: null,
         synopsis: '{protagonist} finds out exactly why the reserve closes when it does.',
       },
       {
         leads: 3, protagonist: 'a family who inherited a lake house nobody in the family will explain',
-        antagonist: 'whatever the lake has been keeping quiet about for generations',
+        antagonist: null,
         synopsis: '{protagonist} spends one summer learning exactly why no one in the family ever visited.',
       },
     ],
@@ -519,7 +519,7 @@ export const PREMISE_BANKS: Record<Genre, Partial<Record<Tone | 'straight', Prem
       },
       {
         protagonist: 'a paranormal investigator who has never actually found anything real until now',
-        antagonist: 'the first genuine haunting of her entire career',
+        antagonist: null,
         synopsis: "{protagonist} finally gets the proof she's always wanted, and immediately regrets every part of this.",
       },
       {
@@ -531,7 +531,7 @@ export const PREMISE_BANKS: Record<Genre, Partial<Record<Tone | 'straight', Prem
     drama: [
       {
         protagonist: "a mother whose grief refuses to let her son's room stay empty",
-        antagonist: 'whatever has started answering when she talks to it',
+        antagonist: null,
         synopsis: "{protagonist} has to decide how much of her son is really still there, and how much she's willing to believe.",
       },
       {
@@ -541,17 +541,17 @@ export const PREMISE_BANKS: Record<Genre, Partial<Record<Tone | 'straight', Prem
       },
       {
         protagonist: "a widower who moved into his late wife's family home to be closer to her memory",
-        antagonist: 'whatever that family never told him lives in the walls',
+        antagonist: null,
         synopsis: "{protagonist} realizes his grief isn't the only thing keeping him in that house.",
       },
       {
         protagonist: 'a survivor of a house fire that took her whole family, moving back to rebuild',
-        antagonist: 'what did not burn, and never left',
+        antagonist: null,
         synopsis: "{protagonist} has to face what's still waiting in the one place she swore she'd never return to.",
       },
       {
         protagonist: "a son caring for a father whose dementia keeps describing someone who isn't there",
-        antagonist: "the increasingly real possibility that his father isn't imagining it",
+        antagonist: null,
         synopsis: '{protagonist} starts to realize his father was trying to warn him the whole time.',
       },
     ],
@@ -860,7 +860,7 @@ export const PREMISE_BANKS: Record<Genre, Partial<Record<Tone | 'straight', Prem
       },
       {
         protagonist: 'a reluctant chosen one who would really rather someone else save the kingdom this time',
-        antagonist: 'a prophecy that refuses to consider any other candidate',
+        antagonist: null,
         synopsis: '{protagonist} spends the whole quest trying to hand the sword off to literally anyone else.',
       },
       {
@@ -870,7 +870,7 @@ export const PREMISE_BANKS: Record<Genre, Partial<Record<Tone | 'straight', Prem
       },
       {
         protagonist: 'a fairy godmother running dangerously low on actual magic this season',
-        antagonist: 'a client list that has no idea how thin the magic has gotten',
+        antagonist: null,
         synopsis: '{protagonist} has to fake one more happily-ever-after before anyone notices the wand is basically empty.',
       },
     ],
