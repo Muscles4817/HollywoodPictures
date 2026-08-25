@@ -9,6 +9,11 @@ starts.
 Guiding question throughout: *"I have been away for six in-game weeks. Help me
 understand what changed"* — not *"Tell me which productions are blocked."*
 
+> **Building something now?** This document is the *argument*. The short
+> checklist to apply while implementing is `docs/DESIGN_notification_contract.md`,
+> which distils §1.2 (derived vs. stored), §4 (lifecycle), §5 (pause) and §7
+> (route, don't duplicate) into obligations you can tick off.
+
 ---
 
 ## 0. TL;DR
