@@ -307,6 +307,21 @@ A few worked implications, to make the principles concrete:
 
 ---
 
+## A note on clamps
+
+Principle 1 asks for variance that comes out of the model rather than being
+sprayed on. There is a quieter version of the same failure: a formula that
+produces values outside its own range and is capped back into it.
+
+A clamp that binds destroys distinctions. Every input above the cap becomes the
+same output, so whatever those inputs were carrying — a marketing decision, a
+matchup, a genuinely ruinous collision as against a merely contested one — is
+gone, and gone invisibly, because the code reads like a safety check.
+
+Both failures this codebase has measured had the same shape and the same fix:
+say what saturates, and let it approach its ceiling instead of hitting it. See
+`docs/CODE_QUALITY.md`.
+
 ## Non-goals
 
 - **Not "increase AI variance."** Wider distributions are a _consequence_ of

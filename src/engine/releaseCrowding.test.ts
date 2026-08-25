@@ -285,3 +285,58 @@ describe('beyondKnownField', () => {
     expect(explainCrowding(candidate, withOwnClaim, 0.5, crowdingHorizon(rivals)).beyondKnownField).toBe(true);
   });
 });
+
+
+describe('release strength: identity lifts headroom rather than being capped on top', () => {
+  const BUDGET = 200_000_000;
+  const SPENDS = [150_000_000, 75_000_000, 37_500_000, 15_000_000, 4_500_000, 1_000_000];
+
+  it('leaves every un-branded film reading exactly as it did', () => {
+    // The base weights already sum to 1, so identity 0 needs no bound at all -
+    // which is most films and all of the existing calibration.
+    const expected = [1, 0.95, 0.899, 0.832, 0.745, 0.635];
+    SPENDS.forEach((spend, i) => {
+      expect(computePlayerReleaseStrength(spend, BUDGET, 0)).toBeCloseTo(expected[i], 3);
+    });
+  });
+
+  it('keeps the marketing signal alive at full identity, where the cap used to eat it', () => {
+    // Measured against the old additive form: the three terms summed to a
+    // possible 1.170 against a ceiling of 1.0, so a maxed-identity studio could
+    // cut marketing from £150M to £15M - tenfold - and read 1.000 throughout.
+    // Six spends collapsed to three distinct strengths; they are six again.
+    const strengths = SPENDS.map((spend) => computePlayerReleaseStrength(spend, BUDGET, 100).toFixed(4));
+    expect(new Set(strengths).size).toBe(SPENDS.length);
+    // ...and strictly decreasing, never flat.
+    for (let i = 1; i < SPENDS.length; i++) {
+      expect(computePlayerReleaseStrength(SPENDS[i], BUDGET, 100)).toBeLessThan(
+        computePlayerReleaseStrength(SPENDS[i - 1], BUDGET, 100),
+      );
+    }
+  });
+
+  it('stops a mid-size film reading as strong as a tentpole just for being on-brand', () => {
+    const mid = computePlayerReleaseStrength(30_000_000, 40_000_000, 100);
+    const tentpole = computePlayerReleaseStrength(150_000_000, 200_000_000, 100);
+    expect(mid).toBeLessThan(tentpole);
+    expect(tentpole).toBeCloseTo(1, 3);
+  });
+
+  it('never exceeds full strength, and never needs a clamp to say so', () => {
+    for (const identity of [0, 25, 50, 75, 100]) {
+      for (const spend of SPENDS) {
+        const s = computePlayerReleaseStrength(spend, BUDGET, identity);
+        expect(s).toBeGreaterThanOrEqual(0);
+        expect(s).toBeLessThanOrEqual(1);
+      }
+      expect(computeRivalReleaseStrength(150_000_000, 'Big', identity)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('still makes identity worth having - more so where there is room to grow', () => {
+    const gain = (spend: number, budget: number) =>
+      computePlayerReleaseStrength(spend, budget, 100) - computePlayerReleaseStrength(spend, budget, 0);
+    expect(gain(30_000_000, 40_000_000)).toBeGreaterThan(0);
+    expect(gain(30_000_000, 40_000_000)).toBeGreaterThan(gain(150_000_000, BUDGET));
+  });
+});

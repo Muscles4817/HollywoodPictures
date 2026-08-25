@@ -99,5 +99,12 @@ BOX_OFFICE_TRACE=1 npx vitest run src/engine/boxOfficeBriefingTrace.diagnostic.t
   rebalanceable from `data/`.
 - Rebalance by editing `data/` and the tunable constants at the top of the
   relevant engine module, not by threading magic numbers through logic.
+- **Don't cap a formula you haven't fixed.** A clamp that actually *binds* is a
+  modelling decision wearing a safety check's clothes: every input above the cap
+  collapses to the same output, and whatever they were carrying is destroyed
+  silently. Before writing `Math.min(1, ...)`, read `docs/CODE_QUALITY.md` — it
+  has the three kinds of clamp, the "does it bind?" test, the measured case
+  where a cap ate a tenfold marketing decision, and the saturating shapes to
+  reach for instead (`engine/bounded.ts`).
 - Player-facing presentation is qualitative (stars, prose, named causes), never
   raw internal stat values. Dev inspectors and tests may read raw numbers.

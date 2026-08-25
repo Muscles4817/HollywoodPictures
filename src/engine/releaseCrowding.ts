@@ -1,5 +1,6 @@
 import type { Film, Genre, ProductionScale, TargetAudience } from '../types';
 import { logT, type Range } from './interpolate';
+import { liftTowardCeiling, statAsUnit, unit, type Unit } from './bounded';
 import { MARKETING_SPEND_RANGE } from '../data/release';
 import { computeRunningFilmStrength } from './audienceSimulationStep';
 
@@ -288,26 +289,44 @@ const PRODUCTION_BUDGET_STRENGTH_RANGE: Range = { min: 100_000, max: 200_000_000
 // a studio releasing in a genre it's known for reads as a stronger presence on
 // the calendar, so the relative-strength matchup (matchupWeight above) steers
 // rivals away from its home turf - the "majors defend their territories, everyone
-// else survives in the quiet pockets around them" behaviour. Boost-only and
-// modest, on the same 0-1 scale as the marketing/scale terms; the outer clamp
-// keeps a maxed-identity release from ever exceeding full strength.
+// else survives in the quiet pockets around them" behaviour.
+//
+// Applied as a share of the headroom left above the base reading, NOT added on
+// top of it. The additive version summed to a possible 1.170 against a ceiling
+// of 1.0 and relied on an outer clamp to hold the line, which measured badly:
+// for a maxed-identity studio with a large budget, marketing spend could fall
+// from £150M to £15M - a tenfold cut - and the strength read 1.000 at every
+// point, because the clamp had eaten the entire marketing term. A mid-size film
+// at full identity read exactly as strong as a tentpole. See
+// docs/CODE_QUALITY.md; this is the worked example in it.
+//
+// The headroom form (engine/bounded.ts:liftTowardCeiling) needs no clamp, is
+// strictly monotonic - so no two inputs ever collapse to the same strength
+// again - and leaves identity 0 reading EXACTLY as it did before, which is
+// most films and all of the existing calibration. It also says something
+// truer: being known for a genre buys visibility a film does not already have,
+// so it is worth more to a modest picture than to one already unmissable.
 const IDENTITY_STRENGTH_BOOST = 0.2;
 
-function identityStrengthLift(genreIdentity: number): number {
-  return IDENTITY_STRENGTH_BOOST * (Math.max(0, Math.min(100, genreIdentity)) / 100);
+/** The base reading, before identity: two weights that already sum to 1, so it cannot leave [0, 1] on its own. */
+const MARKETING_STRENGTH_WEIGHT = 0.7;
+const PRODUCTION_STRENGTH_WEIGHT = 0.3;
+
+function releaseStrength(marketingSpend: number, productionFraction: number, genreIdentity: number): Unit {
+  const base = unit(
+    MARKETING_STRENGTH_WEIGHT * marketingStrengthFraction(marketingSpend) + PRODUCTION_STRENGTH_WEIGHT * productionFraction,
+  );
+  return liftTowardCeiling(base, unit(IDENTITY_STRENGTH_BOOST * statAsUnit(genreIdentity)));
 }
 
 /** A not-yet-released rival production's rough competitive strength - engine/rivalStudios.ts has no simulated box office for it yet to rank by, so this stands in for one. `genreIdentity` (0-100, the releasing studio's identity in this genre) lifts an on-brand release's presence; 0 (default) is the pre-identity behaviour. */
-export function computeRivalReleaseStrength(marketingSpend: number, scale: ProductionScale, genreIdentity = 0): number {
-  return Math.max(0, Math.min(1, 0.7 * marketingStrengthFraction(marketingSpend) + 0.3 * SCALE_STRENGTH[scale] + identityStrengthLift(genreIdentity)));
+export function computeRivalReleaseStrength(marketingSpend: number, scale: ProductionScale, genreIdentity = 0): Unit {
+  return releaseStrength(marketingSpend, SCALE_STRENGTH[scale], genreIdentity);
 }
 
 /** A player's own scheduled draft's rough competitive strength - the same shape as computeRivalReleaseStrength, substituting production budget (players have no ProductionScale) for scale. `genreIdentity` lifts an on-brand release the same way. */
-export function computePlayerReleaseStrength(marketingSpend: number, productionBudgetCost: number, genreIdentity = 0): number {
-  return Math.max(
-    0,
-    Math.min(1, 0.7 * marketingStrengthFraction(marketingSpend) + 0.3 * logT(productionBudgetCost, PRODUCTION_BUDGET_STRENGTH_RANGE) + identityStrengthLift(genreIdentity)),
-  );
+export function computePlayerReleaseStrength(marketingSpend: number, productionBudgetCost: number, genreIdentity = 0): Unit {
+  return releaseStrength(marketingSpend, logT(productionBudgetCost, PRODUCTION_BUDGET_STRENGTH_RANGE), genreIdentity);
 }
 
 /**
