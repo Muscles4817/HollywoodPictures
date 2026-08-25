@@ -59,6 +59,13 @@ Phase 5 acceptance-test harness (docs/DESIGN_REVIEW_project_clocks_and_script_op
 DEV_DOMINANCE_DIAGNOSTIC=1 npx vitest run src/engine/developmentDominance.diagnostic.test.ts --disable-console-intercept
 ```
 
+Hold-or-move harness (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
+§9.6a — is holding a contested date ever the right call?):
+
+```bash
+HOLD_OR_MOVE_DIAGNOSTIC=1 npx vitest run src/engine/holdOrMove.diagnostic.test.ts --disable-console-intercept
+```
+
 Release-calendar harness (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
 §9.2 — does the release date actually matter?):
 

@@ -664,12 +664,20 @@ are worth doing even if the rest slips.
    of clamping. Strictly monotonic, so no two pressures collapse to one crowding.
 3. ~~**Announce the date before greenlight**, and let rivals see it.~~ **Done** -
    see §9.5b, including the rival-scheduling limitation it exposed.
-4. **Recalibrate rival release scheduling** so a film weighs sitting in a
-   contested prime window against fleeing it, instead of vacating on any
-   non-zero crowding. **Promoted ahead of the rest by §9.5b:** until this lands,
-   rivals never collide with the player and steps 5-6 have no dilemma to price.
-5. **Commit marketing against the date early**, as a real sunk cost.
-6. **Allow moving, priced at the campaign write-off.**
+4. ~~**Recalibrate rival release scheduling**~~ **Done** - see §9.5c. Delay is
+   now priced, so a film weighs a better window against the cost of reaching it
+   instead of vacating on any non-zero crowding.
+5. ~~**Commit marketing against the date early.**~~ **Done** - `COMMIT_CAMPAIGN`
+   books a campaign against the announced date. A BOOKING, not a payment: media
+   is paid close to air, so the cash is still charged at release with the rest
+   of marketing. What committing buys now is that the claim reads as FUNDED to
+   rivals (`announcedReleaseStrength`) rather than as a bare date.
+6. ~~**Allow moving, priced at the campaign write-off.**~~ **Done** -
+   `engine/campaignCommitment.ts`. Moving writes off a share of the commitment,
+   flat at 15% outside the buying window and rising to effectively all of it on
+   the eve of release. Charged in cash at the move so the shuffle is visible,
+   and the surviving remainder is re-pointed at the new date rather than
+   abandoned. Repeated shuffling compounds.
 
 ### 9.5a Measured result of steps 1-2
 
@@ -745,13 +753,56 @@ clear window**, because a rival that steps aside leaves the whole 45 days. That
 is a real and worthwhile mechanic on its own, and it is why announcing is worth
 doing at all.
 
-Getting the risk half requires a rival-scheduling calibration - the tolerance for
-sitting in a contested prime window rather than fleeing it - which is AI release
-strategy and belongs with `docs/DESIGN_REVIEW_ai_studio_behavior.md` rather than
-being changed silently inside an announcement feature. It is a prerequisite for
-steps 4-5 to mean anything, and should be done before them. The behaviour is
-pinned by a test (`releaseAnnouncement.test.ts`) so the day it changes, the
-change is visible rather than accidental.
+Getting the risk half required a rival-scheduling calibration - see §9.5c, now
+done.
+
+### 9.5c Rival scheduling: delay was free (fixed)
+
+The cause of §9.5b was not the crowding weight. It was that **the score charged
+nothing for waiting**:
+
+```text
+score = seasonalDesirability(day) - 0.6 * crowding
+```
+
+Seasonal desirability is nearly flat from one week to the next, so any non-zero
+crowding made stepping forward strictly better, and the cheapest way to shed
+crowding entirely is one step past `CROWDING_WINDOW_DAYS`. Hence ~49 days, every
+time, whatever the threat.
+
+A production cannot actually wait for nothing: capital is tied up, the negative
+accrues interest, crew and facilities are on hold, and marketing lead-times have
+been bought against a date. `SCHEDULING_DELAY_COST_PER_DAY` prices that, so the
+search weighs a better window against the cost of reaching it rather than taking
+any improvement however small. Calibrated against the crowding term: shedding a
+full crowd justifies ~150 days, a half crowd ~75, and a counterprogrammed rival's
+0.15-weighted nudge ~10 - under the weekly step, so a mismatched rival stays put.
+
+Measured, same harness:
+
+```text
+                          BEFORE            AFTER
+same-audience, strong     +49 days          +49 days   (still clears the window)
+same-audience, weak       +49 days           +0 days   (opens against it)
+counterprogrammed         +49 days           +0 days   (shares the weekend)
+
+rival response to a player claim, 483 matchups:
+  holds the contested window     0%  ->  70%
+  flees clear                  100%  ->  30%
+  holds its exact date           0%  ->  34%
+```
+
+Both consequences §9.5b named are now present: **counterprogramming happens**,
+and **rivals collide with the player**, so §9.4's hold-or-move dilemma can
+finally arise. Calendar density is unchanged (20-25 rival releases over ~400
+days), so the slate did not thin out as a side effect.
+
+**What this did NOT move:** `developmentDominance.diagnostic` still reports 0-10%
+of waits costing a wanted actor - no better than before, and inside the noise of
+a rare event counted over 60 runs on a shifted stream. That is the expected
+result. This step fixes how a rival RESPONDS to a claim; what makes the date
+matter to a *production* decision is steps 5-6, which commit something early
+enough to lose. Nothing here touches talent windows.
 
 ### 9.6 Acceptance test
 
@@ -765,3 +816,169 @@ And the §4.7 test should be re-run afterwards: the release clock is what §4.8
 predicted would finally make "one more rewrite" a genuine bet, so
 `developmentDominance.diagnostic` should move too. If it does not, the diagnosis
 in §4.8 was wrong and needs revisiting rather than patching.
+
+### 9.6a Measured: the decision surface
+
+`src/engine/holdOrMove.diagnostic.test.ts` sweeps the space the decision lives
+in - how close the date is, how large the committed campaign, and how strong the
+colliding rival - and asks which option is cheaper at each point.
+
+```text
+HOLD better in 20/60 (33%)      MOVE better in 40/60 (67%)
+
+  30d out:  HOLD everywhere          - the write-off is brutal, you are committed
+ 120d out:  flips on rival strength  - hold a 0.3 threat, move for a 0.6
+ 300d out:  MOVE everywhere          - nothing is placed yet, flexibility is free
+```
+
+**The acceptance test is met, in a specific and legible shape.** It is not a
+coin flip - a 50/50 split would mean the inputs did not matter. It is decisive
+at the extremes, which is correct (a date you have not bought against is cheap
+to abandon; one you have is not), and genuinely contested in the middle band,
+where the answer turns on how big the threat actually is. Two rational players
+at 120 days facing rivals of different strength make different calls.
+
+It also relocates the real decision. The interesting choice is not only at the
+collision but at COMMITMENT: buying a campaign early deters rivals and costs you
+the freedom to dodge. That is the incommensurable trade §2 asks for.
+
+**A caveat on this harness, disclosed rather than buried.** Its first run read
+87% MOVE, because it modelled moving as landing somewhere free. That is not the
+game's situation - good windows are scarce, and a move is usually into a weaker
+season or another contested date. Modelling the destination's cost is what
+produced the numbers above. The conversion between crowding and campaign value
+is deliberately rough: the question it answers is whether the two costs are ever
+comparable, not what their exact ratio is.
+
+### 9.7 Connecting the clock back to development
+
+§9.6 leaves the release clock complete on its own terms: a date can be claimed,
+a campaign can be committed against it, and moving costs real money. But the
+whole reason for building it (§4.8) was to make "one more rewrite" a genuine
+bet — and a bet needs the player to see the stake at the moment they place it.
+Three things were missing.
+
+**1. The estimate.** `engine/deliveryEstimate.ts` projects when a film will
+actually be ready, phase by phase off the draft, using the *same* estimators the
+real pipeline runs (`engine/production.ts`) rather than a parallel guess — so
+the projection cannot drift from what happens. A development pass in flight is
+counted as a step of its own, which is the point: the rewrite shows up in the
+release date. Against an announced date it yields a standing —
+`comfortable` / `tight` / `at-risk` / `missed` — named rather than numeric, per
+the house rule.
+
+It deliberately estimates *before* Production Planning too, assuming the plan
+the script's own scale implies and flagging the result `provisional`. A date
+announced pre-greenlight is exactly the window this feature exists for; refusing
+to estimate there would have silenced the warning in the only case that needs
+it. (This is the same failure mode a code review caught in
+`announcedAsUpcomingRelease` — bailing on a null `productionChoices` made every
+pre-greenlight announcement invisible to rivals.)
+
+**2. The stake, shown at the decision.** The Rewrite panel in the Asset Library
+now prices a pass against the film's own claim: what the date looks like as
+things stand, and what it looks like if this pass runs long. Priced at the
+*worst* case, because that is the version of the bet that hurts — a pass that
+overruns is exactly the one that takes the date away.
+
+**3. Teeth.** Without this the warning warned about nothing.
+`ANNOUNCE_RELEASE_DATE` already charged the campaign write-off when the player
+moved a date deliberately, but nothing charged the player who simply blew
+through the date they named, never re-announced, and opened late with the
+campaign whole. `SCHEDULE_RELEASE` now applies the same write-off whenever the
+film opens on a day other than the one its campaign was bought against. It is
+charged rather than blocking: refusing to release a finished film over a
+shortfall would be a trap, and the studio can run its cash negative.
+
+**Still open.** A lapsed announcement stays on rivals' calendars past its own
+day — the claim goes stale rather than expiring. Cheap to fix, but it needs a
+hook in the daily settlement that owns player drafts, and every `ADVANCE_*`
+handler would need it; recorded here rather than bolted on.
+
+### 9.8 UI/UX review of the release calendar
+
+Asked to check that the production process hangs together, the calendar surfaces
+turned out to disagree with each other about the one thing they all display.
+
+**Finding 1 — the planning board used a headcount, and it was wrong.**
+`ReleaseCalendar.tsx` read competition as *how many titles share a calendar
+month* (2 → "Some competition", 4 → "Crowded"), while the Marketing & Release
+screen and the pre-greenlight announcement card both read
+`engine/releaseCrowding.ts`. So the screen the player plans on could call a
+month clear that settlement treats as a brawl — and, worse, it could not see
+counterprogramming at all: five films in five different genres read as
+"Crowded" when none of them is fighting any of the others.
+
+Fixed by giving every `CalendarEntry` its own `strength` (from the same
+converters settlement uses) and reading each entry's real crowding against the
+rest of the board. A month's band is now the worst fight it contains. The three
+levels and the CSS were always the right shape; only the basis underneath was
+wrong. The per-card `N competing` chip — same defect, per card — became that
+film's own window reading.
+
+**Finding 2 — the player could not see their own claim.**
+`deriveUpcomingReleaseEntries` emitted only *locked* player releases. Rivals
+have always weighed outstanding announcements
+(`playerCalendarPresence`), so the one party who had to plan around the claim was
+the only one who could not see it. Announcements now appear on the board, marked
+`isClaim` and labelled "Announced — not yet locked".
+
+**Finding 3 — the two date-picking screens had drifted.** The announcement card
+weighed the studio's *own* other outstanding claims; Marketing & Release did
+not. A studio could book two of its own films into the same window and be warned
+about it on one screen only. Both now read `deriveKnownCalendar`.
+
+**Not changed.** The calendar remains read-only ("Opening the project from here
+is coming soon"), and its month grouping is still a month bucket while crowding
+runs on a 45-day window — an approximation, but now an approximation of the real
+computation rather than a different model.
+
+### 9.9 Measured: does the §4.7 acceptance test finally move?
+
+§9.6 said the §4.7 harness should be re-run once the release clock existed, and
+that if it did not move, the §4.8 diagnosis was wrong. Re-running it unchanged
+gives the same reading as before:
+
+```text
+  Waits that cost a top-3 target        0%
+```
+
+**That is not evidence the diagnosis was wrong — it is evidence the instrument
+cannot see the change.** The harness measures one thing: whether a rival books
+an actor out from under you while a pass is in flight. It has no announced date,
+no committed campaign, nothing pointed at a day. It was built to measure the
+clock §4.8 concluded was the *wrong* clock, so of course replacing that clock
+does not move it.
+
+So the harness was given a second arm rather than being reinterpreted. Same
+seeds, same *real* measured pass length, but now also asked what that wait does
+to a date the studio has already claimed and bought a £20m campaign against:
+
+```text
+What the SAME wait costs a claimed release date
+
+  200d of slack   changed standing   0%   went to 'missed'   0%   cost to move  £3.0m
+   90d of slack   changed standing  10%   went to 'missed'   0%   cost to move £14.2m
+   45d of slack   changed standing 100%   went to 'missed'  10%   cost to move £19.3m
+   20d of slack   changed standing 100%   went to 'missed' 100%   cost to move £20.0m
+```
+
+**The decision surface is real, and it is a gradient rather than a coin flip.**
+Passes run 30–40 days, which is why the standing flips deterministically once
+slack drops below ~45 days: at that point the arithmetic is not in doubt, only
+the price is. What actually varies across the whole range is the *cost*, and it
+varies by nearly 7× — from £3.0m when nothing has been placed yet to the entire
+campaign on the eve of the date.
+
+That relocates the disagreement, in the same way §9.6a did. Two rational players
+at 200 days of slack both take the rewrite; two at 20 days both refuse. The
+genuine argument is in the middle, and it is not "will this cost me?" but "is
+this improvement worth £14m?" — which is exactly the incommensurable trade §2
+asks for, and something the talent clock could never produce because talent is
+substitutable and money is not.
+
+**What is still true from §4.8.** The talent arm still reads 0%, and that is a
+real finding, not noise: a wait genuinely costs nothing in package terms. The
+two arms are reported side by side rather than one superseding the other,
+because they are answering the same question with different instruments and the
+disagreement between them *is* the result.

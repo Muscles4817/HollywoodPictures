@@ -12,6 +12,7 @@ import { applyPrepRiskDelta, beginPhotographyFromPrep, computePrepRiskDelta, com
 import { computeExecutionResilience } from '../engine/productionExecution';
 import { generateTestScreeningPendingChoice, ACCEPT_CUT_CHOICE_ID, REVERT_TO_ORIGINAL_CHOICE_ID } from '../engine/testScreening';
 import { RESHOOT_REQUIREMENTS, reshootSurcharge } from '../engine/reshootAvailability';
+import { campaignWriteOff, commitmentAfterMove } from '../engine/campaignCommitment';
 import { promoteFilmToIp, ipForSourceFilm, recordFranchiseEntries } from '../engine/intellectualProperty';
 import { generateSequelScript } from '../engine/scriptGenerator';
 import { SEQUEL_DEVELOPMENT_SETUP_DAYS, makePendingSequelDevelopment, settlePendingSequelDevelopments } from '../engine/sequelDevelopment';
@@ -2841,9 +2842,55 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       // Never in the past, and never before the film could physically exist -
       // an announcement rivals cannot believe is not worth making.
       if (action.releaseDay !== null && action.releaseDay <= state.totalDays) return state;
+
+      // Moving off a date a campaign was booked against writes off the share of
+      // it that cannot follow (engine/campaignCommitment.ts). Charged in cash
+      // here rather than silently reducing the campaign, so the player sees what
+      // the shuffle cost. Re-announcing the SAME day is not a move.
+      const moving = d.campaignCommitment !== undefined && action.releaseDay !== d.announcedReleaseDay;
+      const writeOff = moving ? campaignWriteOff(d.campaignCommitment, state.totalDays) : 0;
+      if (writeOff > state.studio.cash) return state;
+
+      const nextCommitment =
+        moving && action.releaseDay !== null
+          ? commitmentAfterMove(d.campaignCommitment!, action.releaseDay, state.totalDays)
+          : moving
+            ? undefined // withdrawing the date entirely abandons the campaign with it
+            : d.campaignCommitment;
+
       return {
         ...state,
-        projects: replaceDraft(state.projects, { ...d, announcedReleaseDay: action.releaseDay ?? undefined }),
+        studio: writeOff > 0
+          ? recordCashChange(state.studio, state.totalDays, -writeOff, 'marketing', `Release date moved — campaign written off on "${d.title}"`)
+          : state.studio,
+        projects: replaceDraft(state.projects, {
+          ...d,
+          announcedReleaseDay: action.releaseDay ?? undefined,
+          campaignCommitment: nextCommitment,
+        }),
+      };
+    }
+
+    // Book a campaign against the announced date. No cash moves - media is paid
+    // close to air, so the campaign is charged at release with the rest of
+    // marketing. Requires a date to point at: a campaign with nothing to open
+    // against is not a commitment, it is just a number.
+    case 'COMMIT_CAMPAIGN': {
+      const d = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!d || d.announcedReleaseDay === undefined) return state;
+      const amount = Math.max(0, Math.round(action.amount));
+      if (amount <= 0) return state;
+      return {
+        ...state,
+        projects: replaceDraft(state.projects, {
+          ...d,
+          campaignCommitment: {
+            amount,
+            committedOnDay: d.campaignCommitment?.committedOnDay ?? state.totalDays,
+            forReleaseDay: d.announcedReleaseDay,
+            writtenOff: d.campaignCommitment?.writtenOff,
+          },
+        }),
       };
     }
 
@@ -2967,6 +3014,20 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         },
       };
 
+      // Opening on a day other than the one the campaign was bought against is
+      // the release clock biting back (section 9 of
+      // docs/DESIGN_REVIEW_project_clocks_and_script_openness.md). ANNOUNCE_RELEASE_DATE
+      // already charges this when the player moves the date deliberately; without the
+      // same charge here a studio could simply blow through the date it named, never
+      // re-announce, and open late with the campaign whole - which would make the
+      // development-side warning (engine/deliveryEstimate.ts) a warning about nothing.
+      // Charged rather than blocking: refusing to release a finished film over a
+      // shortfall would be a trap, and the studio can run its cash negative.
+      const slipWriteOff =
+        d.campaignCommitment !== undefined && releaseDay !== d.announcedReleaseDay
+          ? campaignWriteOff(d.campaignCommitment, totalDaysAfter)
+          : 0;
+
       const { result, nextSeed } = withRng(state.rngSeed, (rng) => {
         // scheduledOverride includes the release being created right here -
         // not yet reflected in state.projects at dispatch time, so
@@ -2991,7 +3052,15 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         collaborations: result.settlement.collaborations,
         talentPairings: result.settlement.talentPairings,
         ...clearTransientView(),
-        studio: result.settlement.studio,
+        studio: slipWriteOff > 0
+          ? recordCashChange(
+              result.settlement.studio,
+              totalDaysAfter,
+              -slipWriteOff,
+              'marketing',
+              `Released off its announced date — campaign written off on "${d.title}"`,
+            )
+          : result.settlement.studio,
         projects: assembleProjects({
           playerDrafts: result.productionsInProgress,
           scheduled: result.settlement.stillScheduled,

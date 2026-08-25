@@ -25,19 +25,19 @@ const rivalStudio: RivalStudio = {
   nextSpawnCheckDay: 1,
 };
 
-function rivalProduction(releaseDay: number): RivalProductionInProgress {
+function rivalProduction(releaseDay: number, counterprogrammed = false): RivalProductionInProgress {
   const { result: draft } = withRng(200, (rng) => buildReadyDraft(rng));
   return {
     id: 'rival-prod',
     rivalStudioId: 'rival-studio-0',
     scale: 'Medium',
-    genre: draft.genre!,
+    genre: counterprogrammed ? 'Comedy' : draft.genre!,
     script: draft.script!,
     talent: draft.talent,
     productionChoices: draft.productionChoices!,
     postProductionChoices: draft.postProductionChoices!,
     marketingChoices: draft.marketingChoices!,
-    targetAudience: draft.targetAudience!,
+    targetAudience: counterprogrammed ? 'Families' : draft.targetAudience!,
     releaseDay,
   };
 }
@@ -59,10 +59,10 @@ function playerScheduled(releaseDay: number): Project {
  * 40 minus the ~30-day lead ≈ day 10), so the rival is still under wraps and
  * its title/cast are masked. Pass a later `today` to see it announced.
  */
-function stateSameMonth(today = 5): GameState {
+function stateSameMonth(today = 5, counterprogrammed = false): GameState {
   return {
     studio: { ...createInitialStudio(10_000_000), name: 'My Studio' },
-    projects: [playerScheduled(40), { kind: 'rival-in-progress', production: rivalProduction(40) }],
+    projects: [playerScheduled(40), { kind: 'rival-in-progress', production: rivalProduction(40, counterprogrammed) }],
     rivalStudios: [rivalStudio],
     totalDays: today,
   } as unknown as GameState;
@@ -114,17 +114,38 @@ describe('ReleaseCalendar - player vs rival differentiation', () => {
 });
 
 describe('ReleaseCalendar - month sections and competition', () => {
-  it('renders one month section for releases sharing a month, with a release count and competition read', () => {
+  it('renders one month section per month, with the count of what is in it', () => {
     mockState = stateSameMonth();
     const { container } = render(<ReleaseCalendar />);
     // Exactly one month section - empty months are never rendered.
     const monthTitles = container.querySelectorAll('.release-month__title');
     expect(monthTitles).toHaveLength(1);
     expect(monthTitles[0].textContent).toMatch(/·\s*Year/);
+    expect(container.querySelector('.release-month__meta')!).toHaveTextContent('2 releases');
+  });
+
+  it('reads a head-on collision as crowded', () => {
+    // Two Action films for the same audience, opening the same day.
+    mockState = stateSameMonth();
+    const { container } = render(<ReleaseCalendar />);
+    expect(container.querySelector('.release-month__meta')!).toHaveTextContent('Crowded');
+  });
+
+  it('reads two counterprogrammed films in the same month as a clear window for both', () => {
+    // The whole reason the competition read is no longer a headcount: the same
+    // two releases, in the same month, are not fighting each other at all once
+    // they are aimed at different genres and different audiences. A count
+    // cannot see that and called this month "Some competition"; the real
+    // crowding computation - the one settlement uses - calls it clear.
+    mockState = stateSameMonth(5, true);
+    const { container } = render(<ReleaseCalendar />);
     const meta = container.querySelector('.release-month__meta')!;
     expect(meta).toHaveTextContent('2 releases');
-    // Two releases in a month reads as "Some competition".
-    expect(meta).toHaveTextContent('Some competition');
+    expect(meta).toHaveTextContent('Clear window');
+    // And every card in it agrees - neither film is the one being pushed out.
+    const cards = container.querySelectorAll('.release-card');
+    expect(cards).toHaveLength(2);
+    for (const card of cards) expect(card).toHaveTextContent('Clear window');
   });
 });
 

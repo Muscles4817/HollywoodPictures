@@ -77,12 +77,14 @@ export function announcedAsUpcomingRelease(draft: FilmDraft, genreIdentity: numb
  *  - unplanned: the screenplay's own SCALE, which is what a trade announcement
  *               conveys before a budget exists ("an epic", "a small drama").
  *
- * No marketing term either way until a campaign is actually committed - a
- * studio that has merely named a date has not bought one, and rivals can only
- * weigh what is visible.
+ * The marketing term reads the COMMITTED campaign, not an intention: a studio
+ * that has merely named a date has bought nothing, and rivals weigh what is
+ * visible. Booking a campaign against the date is what turns a bare claim into
+ * one worth steering around - which is the whole reason committing early is a
+ * decision rather than bookkeeping (section 9.4).
  */
 function announcedReleaseStrength(draft: FilmDraft, genreIdentity: number): number {
-  const marketingSpend = draft.marketingChoices?.marketingSpend ?? 0;
+  const marketingSpend = draft.campaignCommitment?.amount ?? draft.marketingChoices?.marketingSpend ?? 0;
   if (draft.productionChoices) {
     return computePlayerReleaseStrength(marketingSpend, computeProductionBudgetCost(draft.productionChoices), genreIdentity);
   }

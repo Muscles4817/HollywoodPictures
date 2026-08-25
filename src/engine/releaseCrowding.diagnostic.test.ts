@@ -15,7 +15,7 @@
  */
 import { describe, it } from 'vitest';
 import { withRng, type RandomFn } from './random';
-import { generateRivalStudios, settleRivalMarket, rivalAsUpcomingRelease, type RivalMarketUpdate } from './rivalStudios';
+import { chooseReleaseDay, generateRivalStudios, settleRivalMarket, rivalAsUpcomingRelease, type RivalMarketUpdate } from './rivalStudios';
 import { settleTheatricalMarket } from './marketSettlement';
 import { settleOpportunities } from './opportunities';
 import { generateTalentPool } from './talentGenerator';
@@ -130,6 +130,32 @@ describe.skipIf(!diagnosticEnabled)('release crowding diagnostic', () => {
     const atClamp = vals.filter((v) => v >= 0.999).length / vals.length;
     console.log(`  strength ${strength.toFixed(2)}:  raw ${rm.toFixed(2)}  ->  crowding ${m.toFixed(3)}   availability kept ${((1 - 0.5 * m) * 100).toFixed(1)}%   saturated ${(atClamp * 100).toFixed(0)}%`);
   }
+
+  // THE ACCEPTANCE QUESTION for the rival-scheduling calibration: does a rival
+  // ever actually open against a player's claimed date? Before delay was priced
+  // in, the answer was never - any competitor at all made a rival flee the whole
+  // 45-day window, so no studio ever had to decide whether to hold a contested
+  // date. Measured by putting a player claim on each rival's own naive day and
+  // asking what the rival then does with it.
+  let held = 0;
+  let fled = 0;
+  const shifts: number[] = [];
+  for (const snapshot of snapshots) {
+    for (const u of snapshot) {
+      for (const [claimGenre, claimStrength] of [[u.genre, 0.9], [u.genre, 0.15], ['Romance', 0.9]] as const) {
+        const cand = { genre: u.genre, targetAudience: u.targetAudience };
+        const undisturbed = chooseReleaseDay(u.releaseDay, cand, [], 0.55);
+        const claim = { releaseDay: undisturbed, genre: claimGenre as typeof u.genre, targetAudience: u.targetAudience, strength: claimStrength };
+        const withClaim = chooseReleaseDay(u.releaseDay, cand, [claim], 0.55);
+        shifts.push(withClaim - undisturbed);
+        if (withClaim - undisturbed < 45) held += 1; else fled += 1;
+      }
+    }
+  }
+  const meanShift = shifts.reduce((a, b) => a + b, 0) / shifts.length;
+  console.log(`\nrival response to a player claim (${shifts.length} matchups):`);
+  console.log(`  holds the contested window: ${((held / shifts.length) * 100).toFixed(0)}%   flees clear: ${((fled / shifts.length) * 100).toFixed(0)}%`);
+  console.log(`  mean shift ${meanShift.toFixed(1)} days   held-at-zero ${((shifts.filter((d) => d === 0).length / shifts.length) * 100).toFixed(0)}%`);
 
   headOn.sort((a, b) => a - b);
   const q = (p: number) => (headOn.length ? headOn[Math.floor((headOn.length - 1) * p)] : 0);

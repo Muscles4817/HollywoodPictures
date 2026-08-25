@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
-import { deriveFocusedDraft, deriveGreenlightCommitment } from '../../state/selectors';
+import { deriveFocusedDraft, deriveGreenlightCommitment, deriveKnownCalendar } from '../../state/selectors';
 import { deriveProjectReadiness } from '../../engine/projectReadiness';
 import { TARGET_AUDIENCES, AUDIENCE_PROFILES } from '../../data/audiences';
 import { pluckDescriptions } from '../../data/describe';
@@ -17,14 +17,22 @@ import { describeCreativeDemand, describeDemandCompetence, describeDirectorPatie
 import { computeRelationship, NO_RELATIONSHIP, PLAYER_STUDIO_ID } from '../../engine/relationships';
 import type { DevelopmentReadinessBand } from '../../engine/projectReadiness';
 import { computeCompetitiveCrowding, crowdingBandKey, describeCrowdingBand, type UpcomingRelease } from '../../engine/releaseCrowding';
-import { announcedAsUpcomingRelease, asUpcomingRelease } from '../../engine/scheduledReleases';
-import { announcedPlayerDrafts, rivalProductionsInProgress, scheduledPlayerReleases } from '../../engine/project';
-import { rivalAsUpcomingRelease } from '../../engine/rivalStudios';
+import { announcedAsUpcomingRelease } from '../../engine/scheduledReleases';
 import { genreIdentityFor } from '../../engine/studioIdentity';
 import { formatGameDateWithMonth, formatGameMonthYear, monthYearOf, totalDaysForMonth } from '../../engine/calendar';
+import { describeCampaignWriteOff } from '../../engine/campaignCommitment';
+import { MARKETING_SPEND_RANGE } from '../../data/release';
 import type { ProjectWorkspaceSection } from '../../types';
 
 const AUDIENCE_DESCRIPTIONS = pluckDescriptions(AUDIENCE_PROFILES);
+
+/** A few campaign sizes to book against a date, spanning the marketing range. */
+const CAMPAIGN_STEPS = [
+  Math.round(MARKETING_SPEND_RANGE.min * 4),
+  Math.round(MARKETING_SPEND_RANGE.max * 0.1),
+  Math.round(MARKETING_SPEND_RANGE.max * 0.35),
+  Math.round(MARKETING_SPEND_RANGE.max * 0.7),
+];
 
 const SECTION_LABELS: Record<ProjectWorkspaceSection, string> = {
   overview: 'Overview',
@@ -66,17 +74,12 @@ function ReleaseAnnouncementCard() {
   const { state, dispatch } = useStudio();
   const draft = deriveFocusedDraft(state)!;
 
+  // Locked releases, rivals in production, and the player's own OTHER
+  // announcements - never this film against itself. Shared with the Marketing &
+  // Release screen (state/selectors.ts:deriveKnownCalendar) so the two screens
+  // that pick a date read the same calendar.
   const known = useMemo<UpcomingRelease[]>(
-    () => [
-      ...scheduledPlayerReleases(state.projects).map(asUpcomingRelease),
-      ...rivalProductionsInProgress(state.projects).map(rivalAsUpcomingRelease),
-      // Other announcements of the player's own crowd this one too - but never
-      // this film against itself.
-      ...announcedPlayerDrafts(state.projects)
-        .filter((d) => d.id !== draft.id)
-        .map((d) => announcedAsUpcomingRelease(d, d.genre ? genreIdentityFor(state.studio.genreIdentity, d.genre) : 0))
-        .filter((u): u is UpcomingRelease => u !== null),
-    ],
+    () => deriveKnownCalendar(state.projects, state.studio.genreIdentity ?? {}, draft.id),
     [state.projects, state.studio.genreIdentity, draft.id],
   );
 
@@ -108,6 +111,10 @@ function ReleaseAnnouncementCard() {
   }, [state.totalDays]);
 
   const announced = draft.announcedReleaseDay;
+  const commitment = draft.campaignCommitment;
+  // What moving would cost right now - shown BEFORE the player picks another
+  // month, not after, since that price is the whole decision (Principle 3).
+  const writeOffNote = describeCampaignWriteOff(commitment, state.totalDays);
   const crowdingFor = (day: number) =>
     draft.genre && draft.targetAudience
       ? computeCompetitiveCrowding({ releaseDay: day, genre: draft.genre, targetAudience: draft.targetAudience }, known, ownStrength)
@@ -145,6 +152,37 @@ function ReleaseAnnouncementCard() {
         <p style={{ margin: 0, fontSize: '0.85em' }}>
           No date announced. The film keeps full flexibility and takes whatever the calendar leaves it.
         </p>
+      )}
+
+      {announced !== undefined && (
+        <div className="stack" style={{ gap: 6, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+          <div className="row-between">
+            <span className="stat-label">Campaign committed against this date</span>
+            <strong>{commitment ? <Money amount={commitment.amount} /> : 'None'}</strong>
+          </div>
+          <p style={{ margin: 0, fontSize: '0.8em', color: 'var(--text-muted)' }}>
+            Booking a campaign costs nothing now — media is paid close to air — but it is what makes the
+            claim read as funded rather than as a bare date, and rivals weigh it accordingly.
+            {writeOffNote ? ` ${writeOffNote}` : ''}
+          </p>
+          {commitment?.writtenOff ? (
+            <p style={{ margin: 0, fontSize: '0.8em', color: 'var(--tint-red-ink)' }}>
+              Moving this film has already written off <Money amount={commitment.writtenOff} />.
+            </p>
+          ) : null}
+          <div className="row" style={{ gap: 6 }}>
+            {CAMPAIGN_STEPS.map((amount) => (
+              <Button
+                key={amount}
+                className="btn-sm"
+                variant={commitment?.amount === amount ? 'primary' : undefined}
+                onClick={() => dispatch({ type: 'COMMIT_CAMPAIGN', amount })}
+              >
+                <Money amount={amount} />
+              </Button>
+            ))}
+          </div>
+        </div>
       )}
 
       <div className="release-month-grid">

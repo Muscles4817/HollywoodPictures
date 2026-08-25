@@ -8,8 +8,9 @@ import {
 } from '../engine/calendar';
 import { CheckboxFilterDropdown, type CheckboxFilterOption } from './common/CheckboxFilterDropdown';
 import { deriveUpcomingReleaseEntries, PLAYER_STUDIO_ID, type CalendarEntry, type ReleaseScale } from '../state/selectors';
+import { computeCompetitiveCrowding, crowdingBandKey, describeCrowdingBand, type CrowdingBand, type UpcomingRelease } from '../engine/releaseCrowding';
 import { useReconciledFilterSelection } from '../hooks/useReconciledFilterSelection';
-import type { ReleaseWindow } from '../types';
+import type { Genre, ReleaseWindow, TargetAudience } from '../types';
 import './ReleaseCalendar.css';
 
 interface CalendarMonthGroup {
@@ -17,19 +18,56 @@ interface CalendarMonthGroup {
   entries: CalendarEntry[];
 }
 
-// How many releases sharing a month reads as a crowded window. Deliberately a
-// simple count for now (#5 in the design brief - "prepare the UI"); the same
-// thresholds are the single hook a real crowding score can replace later
-// without touching the layout.
-const SOME_COMPETITION_AT = 2;
-const CROWDED_AT = 4;
-
+// This board used to read competition as a COUNT of titles sharing a calendar
+// month. That disagreed with every other surface in the game: the Marketing &
+// Release screen and the pre-greenlight announcement card both read
+// engine/releaseCrowding.ts, which weighs genre, audience, each film's strength
+// and the 45-day window either side of a date. So the screen the player plans on
+// could call a month "Clear" that settlement treats as a brawl - and, worse, it
+// could not see counterprogramming at all: five films in five different genres
+// read as "Crowded" when in truth none of them is fighting any of the others.
+//
+// So the count is gone. Each entry now carries its own strength
+// (state/selectors.ts:CalendarEntry) and the reading below is the same
+// computation settlement uses. Only the CSS class names are kept - the layout
+// and its three levels were always the right shape, it was the basis underneath
+// that was wrong.
 type CompetitionLevel = 'clear' | 'some' | 'crowded';
 
-function competitionFor(releaseCount: number): { level: CompetitionLevel; label: string } {
-  if (releaseCount >= CROWDED_AT) return { level: 'crowded', label: 'Crowded' };
-  if (releaseCount >= SOME_COMPETITION_AT) return { level: 'some', label: 'Some competition' };
-  return { level: 'clear', label: 'Clear window' };
+const COMPETITION_CLASS: Record<CrowdingBand, CompetitionLevel> = {
+  clear: 'clear',
+  moderate: 'some',
+  high: 'crowded',
+};
+
+function competitionFor(crowding: number): { level: CompetitionLevel; label: string } {
+  return { level: COMPETITION_CLASS[crowdingBandKey(crowding)], label: describeCrowdingBand(crowding) };
+}
+
+/**
+ * The crowding each entry on the board actually faces - itself as the candidate,
+ * every other upcoming release as competition, including its own strength in the
+ * matchup so a small film in a big film's window reads as the one being pushed
+ * out rather than the other way round.
+ *
+ * The genre/audience casts are the ones CalendarEntry's own doc comment
+ * sanctions: every entry is sourced from a real draft or rival production, never
+ * the placeholder '-' fallback.
+ */
+function crowdingByEntryId(entries: CalendarEntry[]): Map<string, number> {
+  const asUpcoming = (entry: CalendarEntry): UpcomingRelease => ({
+    releaseDay: entry.releaseDay,
+    genre: entry.genre as Genre,
+    targetAudience: entry.targetAudience as TargetAudience,
+    strength: entry.strength,
+  });
+  const all = entries.map(asUpcoming);
+  return new Map(
+    entries.map((entry, index) => [
+      entry.id,
+      computeCompetitiveCrowding(all[index], all.filter((_, i) => i !== index), entry.strength),
+    ]),
+  );
 }
 
 const SCALE_ORDER: ReleaseScale[] = ['Small', 'Medium', 'Large'];
@@ -63,9 +101,14 @@ export function ReleaseCalendar() {
   const closeFilters = () => setOpenFilterId(null);
 
   const entries = useMemo(
-    () => deriveUpcomingReleaseEntries(state.projects, state.rivalStudios, state.studio.name, today),
-    [state.projects, state.rivalStudios, state.studio.name, today],
+    () => deriveUpcomingReleaseEntries(state.projects, state.rivalStudios, state.studio.name, today, state.studio.genreIdentity ?? {}),
+    [state.projects, state.rivalStudios, state.studio.name, today, state.studio.genreIdentity],
   );
+
+  // The real crowding each entry faces, computed once off the UNFILTERED slate -
+  // hiding a rival behind a filter must never make the fight they are in
+  // disappear.
+  const crowdingById = useMemo(() => crowdingByEntryId(entries), [entries]);
 
   // --- Filter option lists -------------------------------------------------
 
@@ -161,19 +204,21 @@ export function ReleaseCalendar() {
 
   // --- Competition read, from the *unfiltered* slate ----------------------
   // Filtering out rivals shouldn't make a genuinely crowded month look clear,
-  // so the per-month competition and "N competing" reads always come from the
-  // full landscape, not the filtered view.
+  // so the per-month competition read always comes from the full landscape, not
+  // the filtered view. A month's band is the worst fight it contains: a month
+  // holding one head-on collision is a contested month even if everything else
+  // that month is counterprogrammed against it.
   const monthStats = useMemo(() => {
-    const map = new Map<string, { total: number; rivals: number }>();
+    const map = new Map<string, { total: number; worstCrowding: number }>();
     for (const entry of entries) {
       const key = formatGameMonthYear(entry.releaseDay);
-      const stat = map.get(key) ?? { total: 0, rivals: 0 };
+      const stat = map.get(key) ?? { total: 0, worstCrowding: 0 };
       stat.total += 1;
-      if (!entry.isPlayer) stat.rivals += 1;
+      stat.worstCrowding = Math.max(stat.worstCrowding, crowdingById.get(entry.id) ?? 0);
       map.set(key, stat);
     }
     return map;
-  }, [entries]);
+  }, [entries, crowdingById]);
 
   // --- Sidebar: next player release ---------------------------------------
   const nextPlayerRelease = useMemo(() => {
@@ -190,16 +235,19 @@ export function ReleaseCalendar() {
     const largeThisYear = entries.filter(
       (entry) => entry.scale === 'Large' && monthYearOf(entry.releaseDay).year === currentYear,
     ).length;
-    const activeMonths = monthStats.size;
-    const avgPerMonth = activeMonths === 0 ? 0 : entries.length / activeMonths;
+    // The average fight a film on this calendar is actually in - not an average
+    // headcount per month, which said nothing about whether any of those films
+    // were competing for the same audience.
+    const avgCrowding =
+      entries.length === 0 ? null : entries.reduce((sum, e) => sum + (crowdingById.get(e.id) ?? 0), 0) / entries.length;
     return {
       playerCount,
       rivalCount,
       largeThisYear,
       currentYear,
-      avgCompetition: activeMonths === 0 ? null : competitionFor(Math.round(avgPerMonth)).label,
+      avgCompetition: avgCrowding === null ? null : competitionFor(avgCrowding).label,
     };
-  }, [entries, monthStats, today]);
+  }, [entries, crowdingById, today]);
 
   // --- Sidebar: next occurrence of each tracked release window ------------
   const upcomingEvents = useMemo(() => {
@@ -234,10 +282,12 @@ export function ReleaseCalendar() {
       <h1 style={{ margin: 0 }}>Release Calendar</h1>
 
       <p className="choice-description" style={{ margin: 0 }}>
-        Every release still to come — your own scheduled films and what every rival studio currently has in the
-        works, grouped by expected release month. A rival keeps a film under wraps while it&apos;s shooting; once its
-        marketing campaign begins (about a month out), the real title and cast are announced. Until then only its
-        scale, genre, studio and timing are known.
+        Every release still to come — your own locked films and outstanding date announcements, and what every rival
+        studio currently has in the works, grouped by expected release month. A rival keeps a film under wraps while
+        it&apos;s shooting; once its marketing campaign begins (about a month out), the real title and cast are
+        announced. Until then only its scale, genre, studio and timing are known. Each film&apos;s window reads how
+        contested its own date is — who else is opening near it, for the same audience, and how it measures up to
+        them — so a busy month full of different films can still be a clear window for all of them.
       </p>
 
       {/* --- Filter toolbar --- */}
@@ -326,8 +376,8 @@ export function ReleaseCalendar() {
               </div>
             ) : (
               entriesByMonth.map((group) => {
-                const stat = monthStats.get(group.monthYear) ?? { total: group.entries.length, rivals: 0 };
-                const competition = competitionFor(stat.total);
+                const stat = monthStats.get(group.monthYear) ?? { total: group.entries.length, worstCrowding: 0 };
+                const competition = competitionFor(stat.worstCrowding);
                 const [month, yearLabel] = group.monthYear.split(' Year ');
                 return (
                   <section className="release-month" key={group.monthYear}>
@@ -345,21 +395,16 @@ export function ReleaseCalendar() {
                     </header>
 
                     <div className="release-month__grid">
-                      {group.entries.map((entry) => {
-                        const rivalsThatMonth = entry.isPlayer
-                          ? stat.rivals
-                          : Math.max(0, stat.total - 1);
-                        return (
-                          <ReleaseCard
-                            key={entry.id}
-                            entry={entry}
-                            daysUntil={Math.max(0, entry.releaseDay - today)}
-                            competingCount={rivalsThatMonth}
-                            expanded={expandedId === entry.id}
-                            onToggle={() => toggleExpanded(entry.id)}
-                          />
-                        );
-                      })}
+                      {group.entries.map((entry) => (
+                        <ReleaseCard
+                          key={entry.id}
+                          entry={entry}
+                          daysUntil={Math.max(0, entry.releaseDay - today)}
+                          crowding={crowdingById.get(entry.id) ?? 0}
+                          expanded={expandedId === entry.id}
+                          onToggle={() => toggleExpanded(entry.id)}
+                        />
+                      ))}
                     </div>
                   </section>
                 );
@@ -378,11 +423,13 @@ export function ReleaseCalendar() {
                   </div>
                   <div className="next-release__label">
                     until <strong>{nextPlayerRelease.title}</strong> · {formatGameMonthYear(nextPlayerRelease.releaseDay)}
+                    {nextPlayerRelease.isClaim ? ' · announced, not locked' : ''}
                   </div>
                 </>
               ) : (
                 <p className="sidebar-empty" style={{ margin: 0 }}>
-                  You have nothing scheduled. Finish a film and lock a release date to see it here.
+                  You have nothing on the calendar. Announce a date for a film in development, or finish one and lock
+                  its release, to see it here.
                 </p>
               )}
             </div>
@@ -435,12 +482,14 @@ export function ReleaseCalendar() {
 interface ReleaseCardProps {
   entry: CalendarEntry;
   daysUntil: number;
-  competingCount: number;
+  /** How contested THIS film's own date is (engine/releaseCrowding.ts), not how many titles share its month. */
+  crowding: number;
   expanded: boolean;
   onToggle: () => void;
 }
 
-function ReleaseCard({ entry, daysUntil, competingCount, expanded, onToggle }: ReleaseCardProps) {
+function ReleaseCard({ entry, daysUntil, crowding, expanded, onToggle }: ReleaseCardProps) {
+  const competition = competitionFor(crowding);
   const scaleClass = `chip chip--scale chip--scale-${entry.scale.toLowerCase()}`;
   const timing = daysUntil === 0 ? 'Today' : `in ${daysUntil} day${daysUntil === 1 ? '' : 's'}`;
 
@@ -456,7 +505,7 @@ function ReleaseCard({ entry, daysUntil, competingCount, expanded, onToggle }: R
         <span className={`release-card__title${entry.isPlayer ? '' : ' release-card__title--rival'}`}>
           {entry.title}
         </span>
-        {entry.isPlayer && <span className="badge-player">Your Film</span>}
+        {entry.isPlayer && <span className="badge-player">{entry.isClaim ? 'Announced' : 'Your Film'}</span>}
       </div>
 
       <div className="release-card__badges">
@@ -479,11 +528,12 @@ function ReleaseCard({ entry, daysUntil, competingCount, expanded, onToggle }: R
 
       <div className="release-card__badges">
         <span className="release-card__timing">{timing}</span>
-        {competingCount > 0 && (
-          <span className="competition competition--some" title="Other releases sharing this month">
-            {competingCount} competing
-          </span>
-        )}
+        <span
+          className={`competition competition--${competition.level}`}
+          title="How contested this film's own date is - films close to it competing for the same audience, weighed against its own strength"
+        >
+          {competition.label}
+        </span>
       </div>
 
       {expanded && (
@@ -512,10 +562,21 @@ function ReleaseCard({ entry, daysUntil, competingCount, expanded, onToggle }: R
           <dd>{entry.targetAudience}</dd>
           <dt>Expected</dt>
           <dd>{formatGameMonthYear(entry.releaseDay)}</dd>
+          <dt>Its window</dt>
+          <dd>{competition.label}</dd>
           {!entry.isPlayer && !entry.announced && (
             <>
               <dt>Status</dt>
               <dd>In production — the studio hasn&apos;t announced its title or cast yet.</dd>
+            </>
+          )}
+          {entry.isClaim && (
+            <>
+              <dt>Status</dt>
+              <dd>
+                Announced, not locked — the film is still in production. Moving this date writes off whatever
+                campaign is committed against it.
+              </dd>
             </>
           )}
         </dl>

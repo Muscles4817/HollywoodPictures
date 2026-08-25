@@ -497,6 +497,11 @@ export type GameAction =
   // at any point before the film is actually scheduled, including well before
   // greenlight; `releaseDay: null` withdraws the claim entirely.
   | { type: 'ANNOUNCE_RELEASE_DATE'; releaseDay: number | null }
+  // Book a marketing campaign against the announced date. A commitment, not a
+  // payment - the cash is charged at release with the rest of marketing. What it
+  // buys now is that the claim reads as funded; what it costs is the freedom to
+  // move (engine/campaignCommitment.ts).
+  | { type: 'COMMIT_CAMPAIGN'; amount: number }
   | { type: 'SCHEDULE_RELEASE'; releaseDay: number }
   | { type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS'; filmId: string }
   | { type: 'VIEW_PREMIERE'; filmId: string }

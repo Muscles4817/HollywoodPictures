@@ -412,6 +412,29 @@ const SCHEDULING_CROWD_WEIGHT = 0.6;
 // Only step weekly through the search window - releases land on weekend frames,
 // and a 1-day granularity would spend ~7x the compute for no behavioural gain.
 const SCHEDULING_STEP_DAYS = 7;
+// What a day of delay costs, in the same units as seasonal desirability.
+//
+// Without this, DELAYING IS FREE: the score was seasonal desirability minus
+// crowding, and seasonal desirability is nearly flat from one week to the next,
+// so ANY non-zero crowding made stepping forward strictly better - and the
+// cheapest way to shed crowding entirely is one step past CROWDING_WINDOW_DAYS.
+// Every rival therefore fled ~49 days from any competitor at all, by exactly the
+// same distance whether the threat was strong, weak, or chasing a completely
+// different audience. Two things the design needs died there: counterprogramming
+// never happened, and a rival never collided with anyone, so no studio ever had
+// to decide whether to hold a contested date.
+//
+// A production cannot actually wait for nothing. Capital is tied up, the
+// negative accrues interest, crew and facilities are on hold, and marketing
+// lead-times have been bought against a date. Pricing that makes the search
+// weigh a better window against the cost of reaching it, rather than taking any
+// improvement however small.
+//
+// Calibrated against the crowding term: at 0.004/day, shedding a FULL crowd
+// (0.6) justifies about 150 days, a half crowd about 75, and the 0.15-weighted
+// nudge of a counterprogrammed competitor about 10 - under the weekly step, so
+// a mismatched rival stays put. See engine/releaseCrowding.diagnostic.test.ts.
+const SCHEDULING_DELAY_COST_PER_DAY = 0.004;
 
 /** A day's seasonal box-office desirability for a genre - the same window/genre multipliers the box office itself reads (data/release.ts), so the AI targets exactly the frames that actually pay off. */
 function seasonalDesirability(day: number, genre: Genre): number {
@@ -443,7 +466,10 @@ export function chooseReleaseDay(
   let bestScore = -Infinity;
   for (let day = naiveDay; day <= naiveDay + MAX_RELEASE_SHIFT_DAYS; day += SCHEDULING_STEP_DAYS) {
     const crowd = computeCompetitiveCrowding({ releaseDay: day, ...candidate }, known, candidateStrength);
-    const score = seasonalDesirability(day, candidate.genre) - SCHEDULING_CROWD_WEIGHT * crowd;
+    const score =
+      seasonalDesirability(day, candidate.genre) -
+      SCHEDULING_CROWD_WEIGHT * crowd -
+      SCHEDULING_DELAY_COST_PER_DAY * (day - naiveDay);
     // Strictly-greater keeps the earliest day among ties, so a film never delays
     // longer than an actual score improvement justifies.
     if (score > bestScore + 1e-9) {
