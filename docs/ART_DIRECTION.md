@@ -6,6 +6,11 @@ feel* like, and — just as importantly — what it must never look like. It exi
 so those decisions are made once and enforced everywhere, instead of being
 re-litigated screen by screen.
 
+The build order that turns this document into code — and the measured gap
+between the two — lives in `DESIGN_REVIEW_visual_redesign_roadmap.md`. This
+document decides *what* the game looks like; that one decides *what order we
+build it in*. Where they disagree, this document wins.
+
 Sections marked **[DECIDED]** are settled and load-bearing. Sections marked
 **[PROPOSED]** are drafts awaiting a look at something rendered. Sections marked
 **[OPEN]** are unanswered questions. Anything can move between the three; nothing
