@@ -16,7 +16,7 @@
 import { describe, it, expect } from 'vitest';
 import { generateScriptOptions } from './scriptGenerator';
 import { render } from './premiseGenerator';
-import { createRng } from './random';
+import { createRng, randInt, pick } from './random';
 import { PREMISE_BANKS, STORY_TYPE_PREMISES, type Premise } from '../data/premises';
 import type { Genre } from '../types';
 
@@ -65,6 +65,31 @@ function sample(): { counts: Map<string, number>; total: number; slateDistinct: 
   return { counts, total, slateDistinct };
 }
 
+/**
+ * One playthrough's worth of draws, in the shape the game actually makes them:
+ * a weekly batch of 3-6, each a single-script call with its own genre off the
+ * shared stream (engine/opportunities.ts). Slate-level variety says nothing
+ * about this - the game never generates a slate - so repetition ACROSS weeks is
+ * the thing a player actually experiences and the only way to see it is to
+ * simulate the sequence.
+ */
+function simulateSave(seed: number, years: number, ledger?: Set<string>) {
+  const rng = createRng(seed);
+  const order: string[] = [];
+  for (let week = 0; week < Math.round((years * 365) / 7); week++) {
+    for (let i = 0, batch = randInt(rng, 3, 6); i < batch; i++) {
+      order.push(generateScriptOptions(pick(rng, GENRES), rng, 1, undefined, undefined, ledger)[0].synopsis);
+    }
+  }
+  const met = new Set<string>();
+  let firstRepeatAt = -1;
+  for (const [i, syn] of order.entries()) {
+    if (met.has(syn) && firstRepeatAt === -1) firstRepeatAt = i + 1;
+    met.add(syn);
+  }
+  return { draws: order.length, distinct: met.size, firstRepeatAt };
+}
+
 describe.skipIf(!diagnosticEnabled)('premise novelty diagnostic', () => {
   // Sampled once: 24,000 scripts is slow enough to matter, and it guarantees the
   // report and the two assertions are describing the same run rather than three.
@@ -102,6 +127,17 @@ describe.skipIf(!diagnosticEnabled)('premise novelty diagnostic', () => {
     // reachability guard is the pool-level one in premiseGenerator.test.ts. This
     // is the end-to-end backstop behind it.
     expect(counts.size).toBe(authoredCorpusSize());
+  });
+
+  it('reports what a playthrough actually meets, with and without the save ledger', () => {
+    const lines: string[] = ['\n=== ACROSS A SAVE (weekly batches, as the game draws them) ===\n'];
+    for (const years of [1, 3, 10]) {
+      const off = simulateSave(1, years);
+      const on = simulateSave(1, years, new Set<string>());
+      lines.push(`${String(years).padStart(2)}y  drawn ${String(off.draws).padStart(4)}  |  distinct ${String(off.distinct).padStart(3)} -> ${String(on.distinct).padStart(3)}  |  first repeat at draw ${String(off.firstRepeatAt).padStart(3)} -> ${on.firstRepeatAt}`);
+    }
+    console.log(lines.join('\n'));
+    expect(true).toBe(true);
   });
 
   it('keeps the effective pool well clear of the strict-priority baseline of 61', () => {

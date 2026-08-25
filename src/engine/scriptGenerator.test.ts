@@ -445,3 +445,51 @@ describe('a script never contradicts what its own log-line promises', () => {
     }
   });
 });
+
+describe('the save-wide log-line ledger', () => {
+  const drawMany = (genre: 'Drama' | 'Action', count: number, ledger?: Set<string>) => {
+    const rng = createRng(11);
+    return Array.from({ length: count }, () => generateScriptOptions(genre, rng, 1, undefined, undefined, ledger)[0].synopsis);
+  };
+
+  it('holds off repeating far longer than generation does on its own', () => {
+    // The de-duplication always existed; it was just per-call, and every
+    // production caller asks for one script - so it protected nothing. Measured
+    // over a simulated playthrough: the first repeat arrived at draw 19 and a
+    // player's first year drew 235 log-lines from 139 distinct ones.
+    //
+    // Compared against the unledgered run rather than asserted absolutely: a
+    // ledger cannot make repetition impossible, because once a concept's own
+    // pool is exhausted generatePremise falls back to repeating by design. What
+    // it can do is push that a long way out, and that is the claim.
+    for (const genre of ['Drama', 'Action'] as const) {
+      const withLedger = new Set(drawMany(genre, 80, new Set<string>()));
+      const without = new Set(drawMany(genre, 80));
+      // Measured at 69 distinct vs 46 over 80 Drama draws - a ratio of exactly
+      // 1.5, so the threshold sits below it rather than on it. A ledger that
+      // stopped working would collapse this to ~1.0.
+      expect(withLedger.size, genre).toBeGreaterThan(without.size * 1.3);
+    }
+  });
+
+  it('gives a run of draws no repeat at all until its pool runs dry', () => {
+    // 40 is comfortably inside the shallowest single-genre depth measured (first
+    // repeat at draw 58 for Drama, 66 for Action), so this fails if the ledger
+    // stops being honoured rather than merely getting shallower.
+    const seen = drawMany('Drama', 40, new Set<string>());
+    expect(new Set(seen).size).toBe(seen.length);
+  });
+
+  it('repeats freely without one, which is what the default preserves', () => {
+    // Non-vacuity for both tests above, and the guarantee every existing caller
+    // depends on: omitting the argument must behave exactly as before.
+    const seen = drawMany('Drama', 40);
+    expect(new Set(seen).size).toBeLessThan(seen.length);
+  });
+
+  it('records what it hands out, so the caller can persist it', () => {
+    const ledger = new Set<string>();
+    const script = generateScriptOptions('Action', createRng(3), 1, undefined, undefined, ledger)[0];
+    expect(ledger.has(script.synopsis)).toBe(true);
+  });
+});

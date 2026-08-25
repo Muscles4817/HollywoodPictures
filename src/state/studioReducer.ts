@@ -365,6 +365,8 @@ export interface CalendarSettlementResult {
   talentPool: Record<TalentProfession, Person[]>;
   opportunities: Opportunity[];
   nextOpportunityCheckDay: number;
+  /** GameState.usedSynopses after this pass - the market's fresh batch adds whatever log-lines it handed out. */
+  usedSynopses: string[];
   stillScheduled: ScheduledRelease[];
   rivalProductionsInProgress: RivalProductionInProgress[];
   /** Every player film settled this call (already-running and newly-released alike) - feed straight into assembleProjects' playerFilms. */
@@ -451,7 +453,12 @@ function runCalendarSettlement(
     state.stuntTeamPool ?? [],
   );
 
-  const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng, state.talentPool.Writer);
+  // The set is built from the save, MUTATED by whatever the weekly batch
+  // generates, and written back below - the same borrow-and-mutate the title
+  // and synopsis sets inside one slate already use, just spanning a playthrough
+  // instead of a single call.
+  const usedSynopses = new Set(state.usedSynopses ?? []);
+  const opportunitySettlement = settleOpportunities(state.opportunities, state.nextOpportunityCheckDay, totalDaysAfter, rng, state.talentPool.Writer, usedSynopses);
   const opportunityWins = applyOpportunityWins(state.studio, opportunitySettlement.resolvedBids, opportunitySettlement.opportunities, totalDaysAfter);
 
   // Development Department settlement, both lazy off the calendar like
@@ -561,6 +568,7 @@ function runCalendarSettlement(
     talentPool: applyTalentReputationDeltas(rivalMarket.talentPool, marketSettlement.playerTalentReputationDeltas),
     opportunities: rivalMarket.opportunities,
     nextOpportunityCheckDay: opportunitySettlement.nextGenerationCheckDay,
+    usedSynopses: [...usedSynopses],
     stillScheduled: marketSettlement.stillScheduled,
     rivalProductionsInProgress: rivalMarket.rivalProductionsInProgress,
     playerFilms: playerFilmsAfterAncillary,
@@ -986,6 +994,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         talentPool: result.settlement.talentPool,
         opportunities: result.settlement.opportunities,
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
+        usedSynopses: result.settlement.usedSynopses,
         bidNotifications: result.settlement.bidNotifications,
         collaborations: result.settlement.collaborations,
         talentPairings: result.settlement.talentPairings,
@@ -1237,7 +1246,11 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
 
       // Generate the screenplay now, under the game RNG (deterministic
       // thereafter), so its own complexity can set the delivery date.
-      const { result: script, nextSeed } = withRng(state.rngSeed, (rng) => generateCommissionedScript(writer, action.genre, rng));
+      // Commissions draw from the same save-wide ledger as the market, so a
+      // screenplay you paid a writer for cannot arrive carrying a log-line the
+      // market already showed you last month.
+      const commissionUsed = new Set(state.usedSynopses ?? []);
+      const { result: script, nextSeed } = withRng(state.rngSeed, (rng) => generateCommissionedScript(writer, action.genre, rng, commissionUsed));
       if (!script) return state;
       const readyOnDay = state.totalDays + commissionDurationDays(script);
       const commitment = { projectId: `commission-${script.id}`, role: 'Writer' as const, startDay: state.totalDays, endDay: readyOnDay };
@@ -1245,6 +1258,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
 
       return {
         ...state,
+        usedSynopses: [...commissionUsed],
         rngSeed: nextSeed,
         studio: {
           ...recordCashChange(state.studio, state.totalDays, -fee, 'commission', `Commissioned ${action.genre} screenplay — ${writer.identity.name}`),
@@ -1475,6 +1489,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         talentPool: result.settlement.talentPool,
         opportunities: result.settlement.opportunities,
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
+        usedSynopses: result.settlement.usedSynopses,
         bidNotifications: result.settlement.bidNotifications,
         collaborations: result.settlement.collaborations,
         talentPairings: result.settlement.talentPairings,
@@ -2178,6 +2193,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         talentPool: result.settlement.talentPool,
         opportunities: result.settlement.opportunities,
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
+        usedSynopses: result.settlement.usedSynopses,
         bidNotifications: result.settlement.bidNotifications,
         collaborations: result.settlement.collaborations,
         talentPairings: result.settlement.talentPairings,
@@ -2231,6 +2247,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
           talentPool: result.settlement.talentPool,
           opportunities: result.settlement.opportunities,
           nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
+          usedSynopses: result.settlement.usedSynopses,
           bidNotifications: result.settlement.bidNotifications,
           collaborations: result.settlement.collaborations,
           talentPairings: result.settlement.talentPairings,
@@ -2273,6 +2290,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         talentPool: settlement.talentPool,
         opportunities: settlement.opportunities,
         nextOpportunityCheckDay: settlement.nextOpportunityCheckDay,
+        usedSynopses: settlement.usedSynopses,
         bidNotifications: settlement.bidNotifications,
         collaborations: settlement.collaborations,
         talentPairings: settlement.talentPairings,
@@ -2350,6 +2368,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         talentPool: settlement.talentPool,
         opportunities: settlement.opportunities,
         nextOpportunityCheckDay: settlement.nextOpportunityCheckDay,
+        usedSynopses: settlement.usedSynopses,
         bidNotifications: settlement.bidNotifications,
         collaborations: settlement.collaborations,
         talentPairings: settlement.talentPairings,
@@ -2452,6 +2471,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
           talentPool: result.settlement.talentPool,
           opportunities: result.settlement.opportunities,
           nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
+          usedSynopses: result.settlement.usedSynopses,
           bidNotifications: result.settlement.bidNotifications,
         collaborations: result.settlement.collaborations,
         talentPairings: result.settlement.talentPairings,
@@ -2491,6 +2511,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         talentPool: settlement.talentPool,
         opportunities: settlement.opportunities,
         nextOpportunityCheckDay: settlement.nextOpportunityCheckDay,
+        usedSynopses: settlement.usedSynopses,
         bidNotifications: settlement.bidNotifications,
         collaborations: settlement.collaborations,
         talentPairings: settlement.talentPairings,
@@ -2556,6 +2577,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         talentPool: settlement.talentPool,
         opportunities: settlement.opportunities,
         nextOpportunityCheckDay: settlement.nextOpportunityCheckDay,
+        usedSynopses: settlement.usedSynopses,
         bidNotifications: settlement.bidNotifications,
         collaborations: settlement.collaborations,
         talentPairings: settlement.talentPairings,
@@ -2987,6 +3009,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         talentPool: result.settlement.talentPool,
         opportunities: result.settlement.opportunities,
         nextOpportunityCheckDay: result.settlement.nextOpportunityCheckDay,
+        usedSynopses: result.settlement.usedSynopses,
         bidNotifications: result.settlement.bidNotifications,
         collaborations: result.settlement.collaborations,
         talentPairings: result.settlement.talentPairings,

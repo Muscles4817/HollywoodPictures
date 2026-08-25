@@ -800,9 +800,29 @@ function generateScript(genre: Genre, rng: RandomFn, title: string, usedSynopses
 }
 
 /** Generates a slate of script options for the player to choose from. When `author` is supplied every script in the slate is shaped by that writer (Phase 2); omitted, generation is exactly as before. `profile` biases the concept/execution distributions per acquisition source (Phase 3b); omitted, it's neutral (the reliable commission/baseline shape). */
-export function generateScriptOptions(genre: Genre, rng: RandomFn, count = 12, author?: WriterCreativeProfile, profile: GenerationProfile = NEUTRAL_GENERATION): Script[] {
+export function generateScriptOptions(
+  genre: Genre,
+  rng: RandomFn,
+  count = 12,
+  author?: WriterCreativeProfile,
+  profile: GenerationProfile = NEUTRAL_GENERATION,
+  /**
+   * Log-lines this SAVE has already handed out, mutated as more are taken.
+   *
+   * Omitted (every test, and every call before this existed) it is per-call, so
+   * the de-duplication only ever protects a multi-script slate from repeating
+   * itself. That made it inert in the real game, because every production caller
+   * asks for exactly one script - a fresh empty set, one draw, thrown away. A
+   * save simulation measured the consequence: the first repeated log-line
+   * arrived at draw 19, and a player's first year showed 235 log-lines drawn
+   * from only 139 distinct ones.
+   *
+   * Passed in from GameState, the same set spans the whole playthrough and a
+   * log-line cannot come back until its pool is genuinely exhausted.
+   */
+  usedSynopses: Set<string> = new Set<string>(),
+): Script[] {
   const usedTitles = new Set<string>();
-  const usedSynopses = new Set<string>();
   return Array.from({ length: count }, () => generateScript(genre, rng, uniqueTitle(genre, rng, usedTitles), usedSynopses, author, profile));
 }
 
