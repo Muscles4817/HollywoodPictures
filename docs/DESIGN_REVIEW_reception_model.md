@@ -240,13 +240,14 @@ prerequisites; without them the later steps amplify a signal that is not there.
    asks for, emerging from structure rather than a variance knob. Still to do,
    along with the script-side composition (structure as a gate rather than a
    summand).
-4. **Inverted terms.** Originality, genre conformity, franchise recognition, and
-   fame-over-craft read with opposite signs between the two constituencies. The
-   cheapest available decorrelation — mostly negating fields that already exist.
-5. **Audience semantics.** Turnout weighting (self-selection) and an expectation
-   gap set by buzz and campaign angle. Retires the `simAudienceScore` shadow-score
-   in `releaseFilm.ts:258`, which exists precisely because the reported score
-   cannot currently carry an expectation penalty.
+4. **Inverted terms.** ✅ **Done** — see §4.3. Originality, franchise
+   recognition and genre prestige now read with opposite signs between the two
+   voices, and originality became a two-sided bet on execution.
+5. **Audience semantics.** Self-selection ✅ done (§4.3). Still to do: the
+   expectation gap set by buzz and campaign angle, which would retire the
+   `simAudienceScore` shadow-score in `releaseFilm.ts:258` — that exists
+   precisely because the reported score cannot currently carry an expectation
+   penalty.
 6. **Calibration anchor tables.** Put the target distribution shape in `data/` as
    a piecewise-linear anchor table (the `MARKETING_SPEND_ANCHORS` pattern), so
    re-shaping reception is a data edit rather than an emergent accident.
@@ -436,7 +437,76 @@ is what the remaining steps are for.
 plan. Worth investigating separately — it also means the top of the production
 scale is untested.
 
-### 4.3 Target correlation
+### 4.3 Step 3 as built — the reception layer
+
+**This is the step that moves the headline number.** Both scores were affine in
+`qualityScore` (weights 0.78 and 0.50), which made them near-collinear by
+construction and as narrow as the blend feeding them. They are now built the way
+`computeBuzzScore` already is — an anchor plus **signed deviations** from named
+reference points, each read at a real gain.
+
+The extra spread does not come from amplifying `qualityScore`. It comes from
+reading high-variance values the engine already computes and previously ignored.
+Measured across a slate:
+
+| Input | SD | previously read by reception |
+|---|--:|---|
+| `script.originality` | **20.2** | flat `+0.14` on critic only |
+| `script.franchiseRecognition` | **24.9** (bimodal) | not at all |
+| `script.complexity` | 17.5 | not at all |
+| target-audience market size | 18.8 | not at all |
+| `qualityScore` | 7.1 | 0.78 / 0.50 |
+
+**Four terms now carry opposite signs between the voices** — originality,
+franchise recognition, genre prestige, and the writing-vs-spectacle tilt — plus
+self-selection, which only the audience reads. Originality became a **two-sided
+bet**: `gain × ambition × executionRealised`, so a distinctive film that came off
+is a major work and one that did not is a pretension. The old flat
+`+originality × 0.14` paid out regardless, which made critical esteem buyable —
+structurally the same defect the buzz model already fixed for marketing spend.
+
+**Measured, whole slate:**
+
+| | before | after | real-world |
+|---|--:|--:|--:|
+| `criticScore` mean / SD | 55.2 / **7.55** | 57.2 / **11.42** | ≈56 / 17 |
+| `criticScore` p5 → p95 | — | 37 → 76 (range 23–81) | |
+| `audienceScore` mean / SD | 62.1 / **6.78** | 62.0 / **10.95** | ≈63 / 15–18 |
+| `corr(critic, audience)` | ~0.9 by construction | **0.51** | ≈0.70–0.75 |
+| mean \|critic − audience\| | ~5 | **9.4** | ≈10–13 |
+
+**Box-office variance:** the fixed-plan `boxOfficeVariance` diagnostic moved from
+CV **0.012 → 0.035**, roughly 3×, and 0.010 before any of this work.
+
+**What the ratified anchors cost.** The Inception recreation has near-maximal
+inputs (originality 90, complexity 95, A-list cast, $100M marketing) and its
+ratified band is 68–82, anchored on the real Metacritic of 74. Any well-formed
+anchor-plus-deviation model puts a film with those inputs far higher — it reached
+95 unbounded. Two things follow:
+
+- The top is bounded by `CRITIC_CEILING = 85`, reachable only asymptotically.
+  That is why only ~1% of films clear 80 where reality has ~10%, and it is the
+  single largest reason `criticScore` SD is 11.4 rather than the ~17 target.
+- The bound was chosen over weakening `CRITIC_QUALITY_GAIN`, which was held at
+  the old effective 0.78 deliberately: lowering it fixed the outlier but silently
+  undid §4.2's execution transmission (fixed-plan critic SD fell to 1.57). The
+  knee sits at 76, above where ordinary and good films land, so compression only
+  touches genuine outliers.
+
+**That anchor should be revisited.** It was calibrated against the old formula,
+which happened to land Inception at 80–82 for unrelated reasons. Until it is,
+it caps the top of the whole distribution.
+
+**What this does not fix.** The whole-year distribution gates are still mostly
+red, and `wideMedianGrossM` moved the wrong way (74.1 → 61.3) while
+`top10SharePct` (31.7 → 33.9), `wideOver500Pct` (2.8 → 3.5), `bombPct` and
+`lossPct` all improved. That is the coupling this document has flagged
+throughout: **reception widening and box-office recalibration are one piece of
+work**, and only the reception half is done. `RECEPTION_PIVOT` and
+`conversionPacingBaseline` were swept against the old narrow distribution and
+now need re-fitting against this one.
+
+### 4.4 Target correlation
 
 The four analyses predicted critic–audience correlations of 0.48, 0.64, 0.73 and
 0.78. Real-world is ≈0.70–0.75. Treat **0.70–0.75** as the target and note that

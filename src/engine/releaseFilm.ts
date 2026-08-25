@@ -221,7 +221,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     input.personDrivenCraft ?? false, // player films realise DP/Composer/Editor craft; rivals keep the flat model
     input.developmentQualityDelta ?? 0, // accepted creative demands' net swing (Phase 2b)
   );
-  const criticScore = computeCriticScore(quality, script, input.postProductionChoices);
+  const criticScore = computeCriticScore(quality, script, input.postProductionChoices, input.genre);
   const audienceScore = computeAudienceScore(
     quality,
     script,
@@ -229,6 +229,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     input.genre,
     input.productionChoices,
     input.postProductionChoices,
+    input.targetAudience,
   );
   // Marketing campaign (docs/DESIGN_REVIEW_marketing_campaign.md): the channel
   // mix rolls up into an audience-weighted effective reach; the angle boosts
