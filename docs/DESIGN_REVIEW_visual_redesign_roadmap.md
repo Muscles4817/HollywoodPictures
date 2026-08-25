@@ -8,6 +8,12 @@ ordered sequence of reviewable steps.
 *what order we build it in, and how we know each step landed*. When the two
 disagree, ART_DIRECTION wins and this file is wrong.
 
+A rendered summary — the measured findings, the build order and the open
+decisions, drawn in the game's own DESK register — is published at
+https://claude.ai/code/artifact/a3ef19e9-0692-4e19-b311-3d5c6bac44dc
+(same convention as the mockup takes). This file stays the authority; that
+page is the readable view of it.
+
 ---
 
 ## 1. Where this actually stands
