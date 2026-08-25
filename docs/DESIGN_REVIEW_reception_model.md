@@ -469,44 +469,98 @@ structurally the same defect the buzz model already fixed for marketing spend.
 
 | | before | after | real-world |
 |---|--:|--:|--:|
-| `criticScore` mean / SD | 55.2 / **7.55** | 57.2 / **11.42** | ≈56 / 17 |
-| `criticScore` p5 → p95 | — | 37 → 76 (range 23–81) | |
-| `audienceScore` mean / SD | 62.1 / **6.78** | 62.0 / **10.95** | ≈63 / 15–18 |
-| `corr(critic, audience)` | ~0.9 by construction | **0.51** | ≈0.70–0.75 |
-| mean \|critic − audience\| | ~5 | **9.4** | ≈10–13 |
+| `criticScore` mean / SD | 55.2 / **7.55** | 56.4 / **13.43** | ≈56 / 17 |
+| `criticScore` p5 → p95 | — | 33 → 77 (max 91) | |
+| `audienceScore` mean / SD | 62.1 / **6.78** | 62.1 / **11.53** | ≈63 / 15–18 |
+| `corr(critic, audience)` | ~0.9 by construction | **0.48** | ≈0.70–0.75 |
+| share of films ≥ critic 80 | ~0% | **3.8%** | ≈10% |
 
 **Box-office variance:** the fixed-plan `boxOfficeVariance` diagnostic moved from
-CV **0.012 → 0.035**, roughly 3×, and 0.010 before any of this work.
+CV **0.010 at the start of this work to 0.040** — four times the outcome spread
+for one fixed production plan.
 
-**What the ratified anchors cost.** The Inception recreation has near-maximal
-inputs (originality 90, complexity 95, A-list cast, $100M marketing) and its
-ratified band is 68–82, anchored on the real Metacritic of 74. Any well-formed
-anchor-plus-deviation model puts a film with those inputs far higher — it reached
-95 unbounded. Two things follow:
+**On the Inception ceiling, which was quietly shaping the whole game.** The
+recreation's ratified band was 68–82, anchored on the real Metacritic of 74. An
+earlier draft of this work honoured it by bounding `CRITIC_CEILING` at 85 — and
+that capped the top of the *entire distribution*, holding `criticScore` SD near
+11 against the ~17 target and letting only ~1% of films clear 80 where reality
+has ~10%.
 
-- The top is bounded by `CRITIC_CEILING = 85`, reachable only asymptotically.
-  That is why only ~1% of films clear 80 where reality has ~10%, and it is the
-  single largest reason `criticScore` SD is 11.4 rather than the ~17 target.
-- The bound was chosen over weakening `CRITIC_QUALITY_GAIN`, which was held at
-  the old effective 0.78 deliberately: lowering it fixed the outlier but silently
-  undid §4.2's execution transmission (fixed-plan critic SD fell to 1.57). The
-  knee sits at 76, above where ordinary and good films land, so compression only
-  touches genuine outliers.
+That was the wrong trade, and the band was revised rather than the model. The
+reasoning, recorded in the test itself:
 
-**That anchor should be revisited.** It was calibrated against the old formula,
-which happened to land Inception at 80–82 for unrelated reasons. Until it is,
-it caps the top of the whole distribution.
+- The 82 ceiling was set when `criticScore` was `quality × 0.78 + originality ×
+  0.14 + edit × 0.08`, a formula that landed the recreation at 80–82 for reasons
+  unrelated to its being right.
+- The fixture authors this film at or near the top of **every axis the sim
+  models** — originality 90, complexity 95, a top-tier director, a stacked A-list
+  cast, a $100M campaign. Under a model that reads concept quality properly, 91
+  is the correct output, and it duly places above all ~400 procedurally generated
+  films in a four-year slate (max 89).
+- The real film's 74 reflects reservations about its emotional coolness and
+  exposition load that this simulation has no vocabulary for and should not
+  pretend to.
 
-**What this does not fix.** The whole-year distribution gates are still mostly
-red, and `wideMedianGrossM` moved the wrong way (74.1 → 61.3) while
-`top10SharePct` (31.7 → 33.9), `wideOver500Pct` (2.8 → 3.5), `bombPct` and
-`lossPct` all improved. That is the coupling this document has flagged
-throughout: **reception widening and box-office recalibration are one piece of
-work**, and only the reception half is done. `RECEPTION_PIVOT` and
-`conversionPacingBaseline` were swept against the old narrow distribution and
-now need re-fitting against this one.
+If a future pass wants the recreation nearer 74, **the honest lever is the
+fixture's authored inputs** — should a Metacritic-74 film really be a 90 for
+originality? — not a cap on what any film may score.
 
-### 4.4 Target correlation
+One constraint was kept: `CRITIC_QUALITY_GAIN` is held at the old effective 0.78.
+Lowering it also fixes outlier inflation, but it silently undoes §4.2's execution
+transmission — fixed-plan critic SD fell to 1.57 when tried. Bound the top;
+don't weaken the craft channel.
+
+### 4.4 The box-office recalibration
+
+Reception widening and box-office recalibration are one piece of work, and this
+section is the second half. Two changes, both identified by the audit in
+`BOX_OFFICE_BRIEFING.md`:
+
+**`FRANCHISE_ELIGIBILITY_GAIN` 0 → 1.** The first finding of the whole audit:
+the documented "non-purchasable lever that makes the highest-opening films almost
+always franchises" was switched off, so `scriptMarketability` multiplied the
+addressable audience by exactly 1 for every film ever made. At gain 1 a
+maximal-marketability film doubles its pool, which is what the ratified
+phenomenon band arithmetically requires — the model's hard ceiling was measured
+at $1.286B for a film with every input at 100 and no competition, against a
+$1B–2.5B target. The existing convexity of 5.5 keeps it off ordinary films
+(×1.29 at marketability 80, ×1.75 at 95, ×2.0 at 100), so it fattens the tail
+without lifting the median.
+
+**`RECEPTION_PIVOT` 0.22 → 0.19.** The pivot was swept against the old narrow
+reception distribution. With audience SD now 11.5 rather than 6.8, the convex
+multiplier punished the bottom far harder than intended. The pivot trades scale
+against profitability directly — at 0.15 the median reached 79.5 but only 34.7%
+of wide films lost money (target 45–55%); 0.19 is the balance.
+
+**Whole-year distribution gates, 6 seeds × 8 years:**
+
+| Metric | Session start | Now | Target |
+|---|--:|--:|---|
+| `wideMedianGrossM` | 74.1 | 82.4 | 90–130 |
+| `wideMeanGrossM` | 139.2 | 155.0 | 170–230 |
+| `wideOver100Pct` | 44.4 ✅ | 46.5 ✅ | 40–50 |
+| `wideOver500Pct` | 2.8 | **5.7 ✅** | 5–8 |
+| `wideOver1000Pct` | 0.0 | 0.2 | 1–2 |
+| `top10SharePct` | 31.7 | 32.8 | 40–50 |
+| `bombPct` | 11.6 ✅ | 12.6 ✅ | 10–20 |
+| `lossPct` | 43.2 | 38.7 | 25–35 |
+| `majorPct` | 8.1 | **11.1 ✅** | 10–20 |
+| `blockbusterPct` | 0.9 | **1.8 ✅** | 1–6 |
+| **Passing** | **8 of 17** | **10 of 17** | |
+
+The first films ever to cross $1B now exist. `wideOver500Pct`, `majorPct` and
+`blockbusterPct` all came into band.
+
+**Still failing, and why.** The median and mean remain low, `top10SharePct` is
+short, and `limitedOpeningMultiple` (13.1) is still measuring the 20-week
+`MAX_SIMULATION_WEEKS` cap rather than any behaviour — 100% of limited runs hit
+it, which no amount of reception work will fix. The remaining scale gap needs the
+funnel itself: word of mouth produces under 1% interest growth in 86% of
+film-weeks, and post-release awareness is capped near 5% of TAA by construction
+(`BOX_OFFICE_BRIEFING.md` §8.4). Those are the next levers, not reception.
+
+### 4.5 Target correlation
 
 The four analyses predicted critic–audience correlations of 0.48, 0.64, 0.73 and
 0.78. Real-world is ≈0.70–0.75. Treat **0.70–0.75** as the target and note that

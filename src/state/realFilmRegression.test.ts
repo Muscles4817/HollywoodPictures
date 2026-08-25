@@ -298,8 +298,32 @@ describe('real-film regression: Inception', () => {
     // updated - it's the tripwire for that follow-up, not a claim it's ideal.
     const results = releaseAndSettle(buildRecreationState(101, INCEPTION, 400_000_000, realTalent(INCEPTION)));
 
+    // The band is deliberately wide at the top, and the reason is worth stating
+    // because the old ceiling of 82 was quietly shaping the whole game.
+    //
+    // It was set when criticScore was `qualityScore * 0.78 + originality * 0.14
+    // + edit * 0.08`, a formula that happened to land this recreation at 80-82.
+    // Once reception was rebuilt to read concept quality properly
+    // (docs/DESIGN_REVIEW_reception_model.md §4.3), the same inputs produced 91
+    // - and honouring the old ceiling meant capping the ENTIRE distribution's
+    // top, which is what held criticScore's spread near 11 against a real-world
+    // figure of ~17.
+    //
+    // 91 is the correct output for these inputs. The fixture authors this film
+    // at or near the top of every axis the sim models - originality 90,
+    // complexity 95, a top-tier director, a stacked A-list cast, a $100M
+    // campaign - and it duly scores above all ~400 procedurally generated films
+    // in a four-year slate (whose max is 89). The real film's Metacritic 74
+    // reflects reservations about its emotional coolness and exposition load
+    // that this simulation has no vocabulary for and should not pretend to.
+    //
+    // What this assertion is FOR is unchanged: the recreation must read as a
+    // well-regarded film, not a flop and not an accident. If a future pass
+    // wants it nearer 74, the honest lever is the fixture's authored inputs
+    // (should a Metacritic-74 film really be a 90 for originality?), not a cap
+    // on what any film may score.
     expect(results.criticScore).toBeGreaterThanOrEqual(68);
-    expect(results.criticScore).toBeLessThanOrEqual(82); // real Metacritic 74, in-band
+    expect(results.criticScore).toBeLessThanOrEqual(94);
     expect(results.audienceScore).toBeGreaterThanOrEqual(72);
     expect(results.totalBoxOffice!).toBeGreaterThan(500_000_000); // real worldwide $836.8M
     expect(results.totalBoxOffice!).toBeLessThan(1_100_000_000);

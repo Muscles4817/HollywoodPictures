@@ -201,7 +201,22 @@ const BASE_ADDRESSABLE_POPULATION = 200_000_000;
 // seam (deriveMarketability -> scriptMarketability -> this multiplier) is wired
 // and ready; the franchise system flips GAIN on and tunes it against
 // boxOfficeDistribution.diagnostic. Until then this is a byte-for-byte no-op.
-const FRANCHISE_ELIGIBILITY_GAIN = 0;
+// Enabled. This term is the documented "non-purchasable lever that makes the
+// highest-opening films almost always franchises", and it sat at 0 - so
+// scriptMarketability multiplied the addressable audience by exactly 1 for
+// every film ever made, and the whole channel was inert (see
+// docs/BOX_OFFICE_BRIEFING.md, the first finding of the box-office audit).
+//
+// At 1.0 a maximal-marketability film doubles its addressable pool. That is the
+// figure the ratified phenomenon target requires and it is arithmetic, not
+// taste: the model's hard ceiling was measured at $1.286B for a film with every
+// input at 100 and no competition, against a $1B-2.5B phenomenon band. Doubling
+// TAA is what makes the top of that band reachable at all.
+//
+// The convexity above keeps it off ordinary films - at marketability 80 the
+// multiplier is 1.29, at 95 it is 1.75, at 100 it is 2.0 - so this fattens the
+// top tail without dragging the median up with it.
+const FRANCHISE_ELIGIBILITY_GAIN = 1;
 const FRANCHISE_ELIGIBILITY_CONVEXITY = 5.5;
 
 function franchiseEligibilityMultiplier(marketability: number): number {

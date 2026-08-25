@@ -761,13 +761,13 @@ const CRITIC_ANCHOR = 58;
 // times qualityScore's own variance.
 const CRITIC_QUALITY_GAIN = 0.78;
 /** What a maximally distinctive film is worth, in either direction. The single largest critic-exclusive lever, and two-sided by construction. */
-const CRITIC_AMBITION_GAIN = 13;
+const CRITIC_AMBITION_GAIN = 18;
 /** Critics punish the film with nothing to say. Under the old formula a derivative film merely gained fewer points; now it loses them. */
-const CRITIC_DERIVATIVE_COST = 7;
+const CRITIC_DERIVATIVE_COST = 10;
 /** Franchise fatigue. A critic sees every entry; the audience sees the one they like. Bimodal in the population, so it moves the distribution's shape rather than only its mean. */
 const CRITIC_FRANCHISE_FATIGUE = 7;
 /** Critics apply ONE standard across genres rather than grading each on its own terms - which is precisely why action films score badly with them and drama well. */
-const CRITIC_GENRE_PRESTIGE = 0.15;
+const CRITIC_GENRE_PRESTIGE = 0.2;
 /** Critics write about the screenplay and the direction; sets and effects reach them mostly through what those serve. */
 const CRITIC_WRITING_TILT = 0.16;
 const CRITIC_EDIT_GAIN = 0.1;
@@ -776,8 +776,8 @@ const CRITIC_EDIT_GAIN = 0.1;
 // and cost the execution-driven variance the previous step bought.
 const CRITIC_KNEE = 76;
 const CRITIC_KNEE_SCALE = 18;
-/** Reachable only asymptotically, and low because the ratified Inception anchor (real Metacritic 74, band 68-82) caps what a film with near-maximal inputs may score. */
-const CRITIC_CEILING = 85;
+/** Reachable only asymptotically. Set near the top of the real Metacritic scale rather than low: bounding runaway compounding is legitimate, capping the distribution to satisfy one fixture is not. */
+const CRITIC_CEILING = 97;
 
 export function computeCriticScore(
   quality: QualityBreakdown,
@@ -819,7 +819,7 @@ const AUD_FULFILMENT_GAIN = 0.34;
 /** MEASURED mean of computeGenreFitScore across a slate (82.4) - the point at which fulfilment is neutral. It sits high because genre fit is a tone-distance read that rarely goes badly wrong; the SPREAD, not the level, is what matters here. */
 const FULFILMENT_REFERENCE = 82;
 /** A distinctive film that did NOT come off, sold to people who wanted something else. The audience half of the same bet the critic takes - but one-sided: they punish the miss and barely reward the hit. */
-const AUD_ALIENATION = 20;
+const AUD_ALIENATION = 22;
 /** The formula, delivered, is its own pleasure. Exactly where critics apply DERIVATIVE_COST. */
 const AUD_FAMILIARITY = 6;
 /** The mirror of CRITIC_WRITING_TILT: what an audience notices is what is on the screen. */
