@@ -38,10 +38,10 @@ export function commissionDurationBounds(): { min: number; max: number } {
  * makes, minus the market's writer/genre selection (the player made both).
  * Null if the person has no writer career (guarded before this in the reducer).
  */
-export function generateCommissionedScript(writer: Person, genre: Genre, rng: RandomFn): Script | null {
+export function generateCommissionedScript(writer: Person, genre: Genre, rng: RandomFn, usedSynopses: Set<string> = new Set<string>()): Script | null {
   const profile = writerProfileFromPerson(writer);
   if (!profile) return null;
-  return generateScriptOptions(genre, rng, 1, profile)[0];
+  return generateScriptOptions(genre, rng, 1, profile, undefined, usedSynopses)[0];
 }
 
 /** The founding development event of a commissioned Asset. */

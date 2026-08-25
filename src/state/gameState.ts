@@ -99,6 +99,34 @@ export interface GameState {
   /** GameState.totalDays threshold - once reached, the next settlement pass generates a fresh batch of Opportunities (engine/opportunities.ts), the same per-timer pattern RivalStudio.nextSpawnCheckDay already uses. */
   nextOpportunityCheckDay: number;
   /**
+   * Every log-line this save has already handed out, so the market cannot show
+   * one twice until its pool is exhausted (engine/premiseGenerator.ts).
+   *
+   * The de-duplication machinery always existed but was per-call, and every
+   * production caller asks for one script - so it protected nothing. Measured
+   * over a simulated save: the first repeat arrived at draw 19, and a player's
+   * first year drew 235 log-lines from only 139 distinct ones.
+   *
+   * Stored as the rendered sentences rather than indices because the same
+   * premise is reachable through more than one pool (a Story Type entry also
+   * sits in the wider genre tier for other concepts), so a per-pool index would
+   * let the same sentence return by another route. Measured at 61KB of save once
+   * the ledger fills - 0.6% of a ten-year save - and it saturates at the corpus
+   * size, around in-game year 3. Past a few thousand entries, give Premise a
+   * stable id and store those instead.
+   *
+   * Note what saturation means: once every log-line is recorded, each draw walks
+   * its pool, finds nothing free, and falls back to the hash pick - which is
+   * exactly the pre-ledger behaviour. The benefit is real and its horizon is
+   * about two in-game years, not forever.
+   *
+   * Optional and read defensively (`?? []`), the same shape productionOffice and
+   * distributionArm use: absent means a save from before this existed, or any of
+   * the many test fixtures that build a GameState by hand, and an empty ledger
+   * is exactly the old behaviour rather than a broken one.
+   */
+  usedSynopses?: string[];
+  /**
    * Persistent studio<->person working history (types/index.ts:Collaboration) -
    * a flat, world-level list, the same shared-pool shape talentPool/projects
    * use, NOT nested inside Studio or Person (docs/DESIGN_REVIEW_domain_model.md).
