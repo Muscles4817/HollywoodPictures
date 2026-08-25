@@ -21,6 +21,7 @@ import {
   INTERNATIONAL_KEEP_SHARE,
   SELF_DISTRIBUTION_WIDE_CEILING_BY_TIER,
 } from '../data/distribution';
+import { useActionFeedback } from './common/ActionFeedback';
 import './ProductionOfficeCard.css';
 
 /** A percent readout of the Wide screen reach a given self-distribution tier can command. */
@@ -38,6 +39,7 @@ function reachPct(tier: number): number {
 export function DistributionArmCard() {
   const { state, dispatch } = useStudio();
   const { studio } = state;
+  const confirmAction = useActionFeedback();
 
   if (!isDistributionArmUnlocked(studio)) {
     const filmsReleased = playerReleasedFilms(state.projects).length;
@@ -52,7 +54,18 @@ export function DistributionArmCard() {
         <p className="office-milestone">
           Unlock by releasing {DISTRIBUTION_ARM_UNLOCK_FILMS_RELEASED} films ({filmsReleased}/{DISTRIBUTION_ARM_UNLOCK_FILMS_RELEASED}) or reaching Brand {DISTRIBUTION_ARM_UNLOCK_BRAND} ({studio.brand}/{DISTRIBUTION_ARM_UNLOCK_BRAND}).
         </p>
-        <Button variant="primary" disabled={!canUnlock} onClick={() => dispatch({ type: 'UNLOCK_DISTRIBUTION_ARM' })}>
+        <Button
+          variant="primary"
+          disabled={!canUnlock}
+          onClick={() => {
+            dispatch({ type: 'UNLOCK_DISTRIBUTION_ARM' });
+            confirmAction({
+              kicker: 'Facility opened',
+              subject: 'Distribution Arm',
+              detail: 'You can self-distribute Wide releases now — no major takes a cut of your box office.',
+            });
+          }}
+        >
           {canUnlock ? 'Build the Distribution Arm' : 'Milestone not met'}
         </Button>
       </section>
@@ -77,7 +90,15 @@ export function DistributionArmCard() {
           <Button
             className="btn-sm"
             disabled={studio.cash < upgradeCost}
-            onClick={() => dispatch({ type: 'UPGRADE_DISTRIBUTION_ARM' })}
+            onClick={() => {
+              dispatch({ type: 'UPGRADE_DISTRIBUTION_ARM' });
+              confirmAction({
+                kicker: 'Facility upgraded',
+                subject: `Distribution Arm — Tier ${next}`,
+                detail: `Commanding up to ${reachPct(next)}% of screens on a Wide release.`,
+                amount: -upgradeCost,
+              });
+            }}
           >
             Upgrade to Tier {next} ({reachPct(next)}% reach) — <Money amount={upgradeCost} />
           </Button>
@@ -105,6 +126,7 @@ function intlReachPct(tier: number): number {
 function InternationalDistributionSection() {
   const { state, dispatch } = useStudio();
   const { studio } = state;
+  const confirmAction = useActionFeedback();
   const tier = internationalTier(studio);
   const next = nextInternationalTier(studio);
   const upgradeCost = internationalUpgradeCost(studio);
@@ -125,7 +147,15 @@ function InternationalDistributionSection() {
         <Button
           className="btn-sm"
           disabled={studio.cash < upgradeCost}
-          onClick={() => dispatch({ type: 'UPGRADE_INTERNATIONAL_DISTRIBUTION' })}
+          onClick={() => {
+            dispatch({ type: 'UPGRADE_INTERNATIONAL_DISTRIBUTION' });
+            confirmAction({
+              kicker: tier === 0 ? 'Markets opened' : 'Reach extended',
+              subject: `International Distribution — Tier ${next}`,
+              detail: `Reaching ${intlReachPct(next)}% of the international audience.`,
+              amount: -upgradeCost,
+            });
+          }}
         >
           {tier === 0 ? 'Open international' : `Upgrade to Tier ${next}`} ({intlReachPct(next)}% reach) — <Money amount={upgradeCost} />
         </Button>

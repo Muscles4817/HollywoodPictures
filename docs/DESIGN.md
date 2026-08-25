@@ -5471,6 +5471,71 @@ legible without exposing the underlying timer.
 gained two required fields a v30 save's entries don't have; no migration,
 same as every past shape change.
 
+### 5.42 Confirming a committed action (`components/common/ActionFeedback.tsx`, `components/OpportunityMarket.tsx`)
+
+Reported from a phone: *"if I buy a script it just disappears, which isn't
+useful on mobile when I'm deep in the page scrolling and can't see the script
+header or my balance shifting post purchase."*
+
+The audit behind this found one shape repeated across the game rather than a
+bug in one screen. Almost every **commit** action proves itself somewhere the
+player cannot see at the moment they take it:
+
+| Action | What the player sees happen |
+| --- | --- |
+| Acquire a script (Opportunity Market) | The card leaves the grid |
+| Commission a screenplay / a Rewrite or Polish (Asset Library) | The panel closes — identical to Cancel |
+| Buy or upgrade a facility (Dashboard sidebar) | A tier pill changes, above the fold |
+| Hire or fire a producer (modal) | A row moves between two lists |
+| Promote a film to IP (inside the Film dossier) | A panel further up the modal swaps state |
+| Develop a sequel (IP Library) | A button is replaced by a status line |
+
+At a desktop viewport the surrounding page carries enough context that each of
+those reads as a consequence. On a 375px viewport, scrolled deep into a list,
+the only visible result of a tap is that the thing you tapped went away — which
+reads as a dead button, not a purchase. The cash balance, which is the one
+number that would settle it, lives only on the Dashboard.
+
+*Selection* itself was checked too and is fine: shortlist/pin/tab/filter
+toggles all relabel and restyle in place (`aria-pressed`, `.card-selected`,
+`variant="primary"`), which survives a small viewport. The gap is entirely on
+the commit side.
+
+**Two mechanisms, split by whether the object is still on screen.**
+
+- **In-place receipt** — the acquired listing in the Opportunity Market keeps
+  its slot in the grid and becomes a receipt: title, price paid, resulting
+  balance, and `Open Asset Library`. The player is by definition looking at
+  that card (they just tapped it), so the confirmation appears exactly where
+  they are already looking, and nothing below it jumps. Held until dismissed
+  rather than timed out — this screen is scrolled, and a confirmation that
+  expires while the player is still thumbing down the grid is the same silence
+  again. Deliberately gated on the purchase having actually landed (an acquired
+  `Opportunity` becomes an `Asset` under the same id): `ACQUIRE_OPPORTUNITY`
+  no-ops on an expired, contested or unaffordable listing, and a card claiming
+  a purchase the studio never made would be a worse failure than the silence.
+- **Action receipt** (`ActionFeedback.tsx`) — everything else. A small memo
+  slip pinned below the fixed header stating the verb, the subject, the
+  consequence, and the money with the balance it left. Pinned to the *top*, not
+  the bottom: the bottom of the viewport belongs to `.sticky-footer`'s
+  Back/Continue on every wizard screen, and a receipt covering the primary
+  control is a worse bug than the one it fixes. `role="status"` on a region
+  that is always mounted — assistive tech only announces changes to a region
+  that already existed, so a lazily mounted one swallows its own first notice.
+
+The two are not stacked on the same action. An earlier pass fired both on
+acquisition and the result was the same sentence twice on a 375px screen; the
+receipt won, because it also carries the money.
+
+The balance on a slip is read live from studio state at render rather than
+captured in `confirmAction()`: the caller reports from inside its own click
+handler, where React state still holds the *pre*-action cash. `useActionFeedback`
+is a no-op outside its provider rather than a throw, so component tests that
+mount a single screen without the app shell are unaffected.
+
+Verified at 375px in both themes with real screenshots, per the standing rule
+in 5.33 — not reasoned about from the diff.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
