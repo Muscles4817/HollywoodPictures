@@ -4,6 +4,7 @@ import { playerReleasedFilms } from '../engine/project';
 import { formatGameDateWithMonth } from '../engine/calendar';
 import { SETTING_LABELS, CHARACTER_ARCHETYPE_LABELS } from '../data/scriptTagLabels';
 import { Button } from './common/Button';
+import { useActionFeedback } from './common/ActionFeedback';
 import { FilmDetailModal } from './common/FilmDetailModal';
 import { IpDetailModal } from './common/IpDetailModal';
 import type { Film, PendingSequelDevelopment } from '../types';
@@ -19,6 +20,7 @@ import type { Film, PendingSequelDevelopment } from '../types';
  */
 export function IpLibrary() {
   const { state, dispatch } = useStudio();
+  const confirmAction = useActionFeedback();
   const ips = state.studio.intellectualProperties;
   const [selectedIpId, setSelectedIpId] = useState<string | null>(null);
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
@@ -125,7 +127,18 @@ export function IpLibrary() {
                       <p style={{ margin: 0, fontSize: '0.85em', color: 'var(--text-muted)' }}>
                         Commission the next chapter — it carries the world, cast, and audience, and takes time to develop.
                       </p>
-                      <Button onClick={() => dispatch({ type: 'DEVELOP_SEQUEL', ipId: ip.id })}>Develop a sequel</Button>
+                      <Button
+                        onClick={() => {
+                          dispatch({ type: 'DEVELOP_SEQUEL', ipId: ip.id });
+                          confirmAction({
+                            kicker: 'Sequel in development',
+                            subject: ip.name,
+                            detail: 'A screenplay is being written — it lands in your Asset Library when it is delivered.',
+                          });
+                        }}
+                      >
+                        Develop a sequel
+                      </Button>
                     </>
                   )}
                 </div>

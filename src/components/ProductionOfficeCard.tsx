@@ -31,6 +31,7 @@ import {
 } from '../engine/marketResearch';
 import { MARKET_RESEARCH_TIER_LABEL } from '../data/marketResearch';
 import type { Person } from '../types';
+import { useActionFeedback } from './common/ActionFeedback';
 import './ProductionOfficeCard.css';
 
 /**
@@ -42,6 +43,7 @@ import './ProductionOfficeCard.css';
 export function ProductionOfficeCard() {
   const { state, dispatch } = useStudio();
   const { studio } = state;
+  const confirmAction = useActionFeedback();
   const [managing, setManaging] = useState(false);
 
   if (!isOfficeUnlocked(studio)) {
@@ -56,7 +58,18 @@ export function ProductionOfficeCard() {
         <p className="office-milestone">
           Unlock by releasing {OFFICE_UNLOCK_FILMS_RELEASED} films ({filmsReleased}/{OFFICE_UNLOCK_FILMS_RELEASED}) or reaching Brand {OFFICE_UNLOCK_BRAND} ({studio.brand}/{OFFICE_UNLOCK_BRAND}).
         </p>
-        <Button variant="primary" disabled={!canUnlock} onClick={() => dispatch({ type: 'UNLOCK_PRODUCTION_OFFICE' })}>
+        <Button
+          variant="primary"
+          disabled={!canUnlock}
+          onClick={() => {
+            dispatch({ type: 'UNLOCK_PRODUCTION_OFFICE' });
+            confirmAction({
+              kicker: 'Facility opened',
+              subject: 'Production Office',
+              detail: 'You can hire producers onto the bench and attach them to films from a project workspace.',
+            });
+          }}
+        >
           {canUnlock ? 'Open the Production Office' : 'Milestone not met'}
         </Button>
       </section>
@@ -100,7 +113,15 @@ export function ProductionOfficeCard() {
           <Button
             className="btn-sm"
             disabled={studio.cash < upgradeCost}
-            onClick={() => dispatch({ type: 'UPGRADE_PRODUCTION_OFFICE' })}
+            onClick={() => {
+              dispatch({ type: 'UPGRADE_PRODUCTION_OFFICE' });
+              confirmAction({
+                kicker: 'Facility upgraded',
+                subject: `Production Office — Tier ${next}`,
+                detail: 'A bigger bench: more producers on staff at once.',
+                amount: -upgradeCost,
+              });
+            }}
           >
             Upgrade to Tier {next} — <Money amount={upgradeCost} />
           </Button>
@@ -124,6 +145,7 @@ export function ProductionOfficeCard() {
 function MarketResearchSection() {
   const { state, dispatch } = useStudio();
   const { studio } = state;
+  const confirmAction = useActionFeedback();
   const tier = marketResearchTier(studio);
   const next = nextMarketResearchTier(studio);
   const upgradeCost = marketResearchUpgradeCost(studio);
@@ -144,7 +166,15 @@ function MarketResearchSection() {
         <Button
           className="btn-sm"
           disabled={studio.cash < upgradeCost}
-          onClick={() => dispatch({ type: 'UPGRADE_MARKET_RESEARCH' })}
+          onClick={() => {
+            dispatch({ type: 'UPGRADE_MARKET_RESEARCH' });
+            confirmAction({
+              kicker: tier === 0 ? 'Department opened' : 'Department upgraded',
+              subject: `Market Research — ${MARKET_RESEARCH_TIER_LABEL[next]}`,
+              detail: `Opening projections now land within ±${Math.round(bandFractionForTier(next) * 100)}% of the real figure.`,
+              amount: -upgradeCost,
+            });
+          }}
         >
           {tier === 0 ? 'Buy' : 'Upgrade to'} {MARKET_RESEARCH_TIER_LABEL[next]} (±{Math.round(bandFractionForTier(next) * 100)}%) — <Money amount={upgradeCost} />
         </Button>
@@ -171,6 +201,7 @@ function OfficeHeading({ trailing }: { trailing?: ReactNode }) {
 function ProducerHireModal({ onClose }: { onClose: () => void }) {
   const { state, dispatch } = useStudio();
   const { studio } = state;
+  const confirmAction = useActionFeedback();
   const benchIds = benchProducerIds(studio);
   const cap = benchCapacity(studio);
   const benchFull = benchIds.length >= cap;
@@ -201,7 +232,17 @@ function ProducerHireModal({ onClose }: { onClose: () => void }) {
                 key={person.id}
                 person={person}
                 action={
-                  <Button className="btn-sm" onClick={() => dispatch({ type: 'FIRE_PRODUCER', producerId: person.id })}>
+                  <Button
+                    className="btn-sm"
+                    onClick={() => {
+                      dispatch({ type: 'FIRE_PRODUCER', producerId: person.id });
+                      confirmAction({
+                        kicker: 'Let go',
+                        subject: person.identity.name,
+                        detail: 'Off the bench and back in the pool. Their hiring fee is not refunded.',
+                      });
+                    }}
+                  >
                     Fire
                   </Button>
                 }
@@ -225,7 +266,15 @@ function ProducerHireModal({ onClose }: { onClose: () => void }) {
                     className="btn-sm"
                     variant="primary"
                     disabled={disabled}
-                    onClick={() => dispatch({ type: 'HIRE_PRODUCER', producerId: person.id })}
+                    onClick={() => {
+                      dispatch({ type: 'HIRE_PRODUCER', producerId: person.id });
+                      confirmAction({
+                        kicker: 'Hired',
+                        subject: person.identity.name,
+                        detail: 'On your bench. Attach them to a film from its project workspace.',
+                        amount: -fee,
+                      });
+                    }}
                   >
                     {benchFull ? 'Bench full' : !affordable ? 'Too expensive' : <>Hire — <Money amount={fee} /></>}
                   </Button>

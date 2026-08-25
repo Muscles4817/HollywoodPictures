@@ -5,8 +5,9 @@ import { WEEK_LENGTH_DAYS, highestBid } from '../engine/opportunities';
 import { describeWriter } from '../engine/writerPresentation';
 import { describeOpportunityProvenance } from '../engine/opportunityPresentation';
 import { Card } from './common/Card';
+import { useActionFeedback } from './common/ActionFeedback';
 import { Button } from './common/Button';
-import { Money } from './common/Money';
+import { Money, formatMoney } from './common/Money';
 import { ScriptDetails } from './common/ScriptDetails';
 import {
   CheckboxFilterDropdown,
@@ -24,6 +25,23 @@ import {
 import { useReconciledFilterSelection } from '../hooks/useReconciledFilterSelection';
 import type { Opportunity, Script } from '../types';
 import { calculateStarRating } from '../utils/StarRatingConversion';
+
+/**
+ * A script bought during this screen visit, held just long enough to keep its
+ * card in place (see OpportunityMarket's `acquired` state).
+ */
+interface AcquiredSlot {
+  opportunity: Opportunity;
+  /** Where the card sat in the grid when it was bought - the receipt takes the same slot. */
+  index: number;
+  /** What was actually paid, captured at the moment of purchase. */
+  paid: number;
+}
+
+/** One cell of the market grid: a live listing, or a receipt standing in for one. */
+type DisplayEntry =
+  | { kind: 'listing'; opportunity: Opportunity }
+  | { kind: 'acquired'; slot: AcquiredSlot };
 
 interface OpportunityMarketFilters {
   priceBands: Set<string>;
@@ -202,8 +220,83 @@ function matchesScriptRatings(
  * rival market already use - so this screen is a pure read/act view over
  * GameState.opportunities, nothing generated here.
  */
+/**
+ * The card a bought script leaves behind, in the slot its listing occupied.
+ *
+ * Everything the vanished listing used to prove is restated here - the title,
+ * what it cost, what the studio is left holding - plus the one thing the player
+ * most likely wants next. It stays until dismissed rather than fading: this
+ * screen is scrolled, and a confirmation that times out while the player is
+ * still thumbing down the grid is the same silence again.
+ */
+function AcquiredReceiptCard({
+  slot,
+  balance,
+  onOpenLibrary,
+  onDismiss,
+}: {
+  slot: AcquiredSlot;
+  balance: number;
+  onOpenLibrary: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <Card className="opportunity-acquired">
+      <div className="row-between" style={{ marginBottom: 4 }}>
+        <span className="badge badge-stage-InCinemas">Acquired</span>
+        <button
+          type="button"
+          className="opportunity-acquired__dismiss"
+          onClick={onDismiss}
+          aria-label={`Dismiss the receipt for ${slot.opportunity.script.title}`}
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="card-title">{slot.opportunity.script.title}</div>
+
+      <p className="opportunity-acquired__copy">
+        Yours. It has left the market and is sitting in your Asset Library, ready to develop.
+      </p>
+
+      <div className="row-between" style={{ marginTop: 8 }}>
+        <span className="stat-label">Paid</span>
+        <Money amount={slot.paid} />
+      </div>
+
+      <div className="row-between">
+        <span className="stat-label">Balance</span>
+        <Money amount={balance} />
+      </div>
+
+      <Button
+        variant="primary"
+        style={{ marginTop: 8, width: '100%' }}
+        onClick={onOpenLibrary}
+      >
+        Open Asset Library
+      </Button>
+    </Card>
+  );
+}
+
 export function OpportunityMarket() {
   const { state, dispatch } = useStudio();
+  const confirmAction = useActionFeedback();
+
+  /**
+   * Scripts bought on this visit, remembered only so their card can stay put.
+   *
+   * Acquiring removes the Opportunity from state, so the card used to simply
+   * vanish out from under the finger that tapped it - on a phone, scrolled
+   * deep into the grid with neither the page heading nor the cash balance in
+   * view, that is indistinguishable from a dead button. Keeping the slot and
+   * turning it into a receipt means the confirmation appears exactly where the
+   * player is already looking. Purely presentational and deliberately not
+   * persisted: it describes this screen visit, not the studio.
+   */
+  const [acquired, setAcquired] = useState<AcquiredSlot[]>([]);
 
   const [openFilterId, setOpenFilterId] = useState<string | null>(
     null,
@@ -360,6 +453,38 @@ export function OpportunityMarket() {
 
   const daysUntilResolution = Math.max(0, state.nextOpportunityCheckDay - state.totalDays);
 
+  const ownedAssetIds = useMemo(
+    () => new Set(state.studio.assets.map((asset) => asset.id)),
+    [state.studio.assets],
+  );
+
+  // Only ever show a receipt for a purchase that genuinely landed. The reducer
+  // guards ACQUIRE_OPPORTUNITY (expired, already contested, unaffordable) and
+  // no-ops rather than throwing, so an optimistic card could otherwise claim an
+  // acquisition the studio never made - a worse failure than the silence this
+  // whole feature exists to fix. An acquired Opportunity becomes an Asset under
+  // the same id, which is what makes this checkable.
+  const acquiredSlots = useMemo(
+    () => acquired.filter((slot) => ownedAssetIds.has(slot.opportunity.id)),
+    [acquired, ownedAssetIds],
+  );
+
+  // The grid as rendered: live listings, with each receipt spliced back into
+  // the slot its listing occupied when it was bought.
+  const displayEntries = useMemo<DisplayEntry[]>(() => {
+    const entries: DisplayEntry[] = filteredOpportunities.map((opportunity) => ({
+      kind: 'listing',
+      opportunity,
+    }));
+    for (const slot of acquiredSlots) {
+      entries.splice(Math.min(slot.index, entries.length), 0, { kind: 'acquired', slot });
+    }
+    return entries;
+  }, [filteredOpportunities, acquiredSlots]);
+
+  const dismissReceipt = (opportunityId: string) =>
+    setAcquired((current) => current.filter((slot) => slot.opportunity.id !== opportunityId));
+
   return (
     <div className="stack">
       <h1 style={{ margin: 0 }}>
@@ -452,23 +577,41 @@ export function OpportunityMarket() {
         </div>
       )}
 
-      {opportunities.length === 0 ? (
-        <div className="card">
-          <p style={{ margin: 0 }}>
-            Nothing available right now — check back as
-            time passes.
-          </p>
-        </div>
-      ) : filteredOpportunities.length === 0 ? (
-        <div className="card">
-          <p style={{ margin: 0 }}>
-            No opportunities match the selected filters.
-          </p>
-        </div>
+      {/* Keyed off the rendered grid rather than the raw listings: buying the
+          last matching script must not swap its own receipt out for an empty
+          state, which is the exact disappearing act this screen is fixing. */}
+      {displayEntries.length === 0 ? (
+        opportunities.length === 0 ? (
+          <div className="card">
+            <p style={{ margin: 0 }}>
+              Nothing available right now — check back as
+              time passes.
+            </p>
+          </div>
+        ) : (
+          <div className="card">
+            <p style={{ margin: 0 }}>
+              No opportunities match the selected filters.
+            </p>
+          </div>
+        )
       ) : (
         <div className="grid grid-wide">
-          {filteredOpportunities.map(
-            (opportunity) => {
+          {displayEntries.map(
+            (entry, entryIndex) => {
+              if (entry.kind === 'acquired') {
+                return (
+                  <AcquiredReceiptCard
+                    key={`acquired-${entry.slot.opportunity.id}`}
+                    slot={entry.slot}
+                    balance={state.studio.cash}
+                    onOpenLibrary={() => dispatch({ type: 'VIEW_ASSET_LIBRARY' })}
+                    onDismiss={() => dismissReceipt(entry.slot.opportunity.id)}
+                  />
+                );
+              }
+
+              const opportunity = entry.opportunity;
               const affordable =
                 state.studio.cash >=
                 opportunity.acquisitionCost;
@@ -580,13 +723,22 @@ export function OpportunityMarket() {
                             <Button
                               variant="primary"
                               disabled={!bidValid}
-                              onClick={() =>
+                              onClick={() => {
                                 dispatch({
                                   type: 'PLACE_BID',
                                   opportunityId: opportunity.id,
                                   amount: bidAmount,
-                                })
-                              }
+                                });
+                                // No `amount` on the notice on purpose: a bid
+                                // commits nothing until it wins (see the
+                                // reducer's PLACE_BID), and a receipt quoting a
+                                // charge and a new balance here would be a lie.
+                                confirmAction({
+                                  kicker: 'Bid placed',
+                                  subject: opportunity.script.title,
+                                  detail: `You lead at ${formatMoney(bidAmount)}. Nothing is charged unless you win, in ${daysUntilResolution} day${daysUntilResolution === 1 ? '' : 's'}.`,
+                                });
+                              }}
                             >
                               Outbid
                             </Button>
@@ -631,13 +783,28 @@ export function OpportunityMarket() {
                           width: '100%',
                         }}
                         disabled={!affordable}
-                        onClick={() =>
+                        onClick={() => {
                           dispatch({
                             type: 'ACQUIRE_OPPORTUNITY',
                             opportunityId:
                               opportunity.id,
-                          })
-                        }
+                          });
+                          // The receipt in this card's own slot is the whole
+                          // confirmation - no floating notice as well. The
+                          // player is by definition looking at this card (they
+                          // just tapped it), and the receipt already carries
+                          // the title, the price and the new balance. A second,
+                          // near-identical notice over the top of it is noise
+                          // on a 375px viewport, not reassurance.
+                          setAcquired((current) => [
+                            ...current,
+                            {
+                              opportunity,
+                              index: entryIndex,
+                              paid: opportunity.acquisitionCost,
+                            },
+                          ]);
+                        }}
                       >
                         Acquire
                       </Button>

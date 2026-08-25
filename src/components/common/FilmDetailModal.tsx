@@ -20,6 +20,7 @@ import { ProductionExecutionSummary } from './ProductionExecutionSummary';
 import { getCareerForRole, assignmentCost } from '../../engine/person';
 import { useMemo, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
+import { useActionFeedback } from './ActionFeedback';
 import { selectFilmAncillary } from '../../state/selectors';
 import { ipForSourceFilm } from '../../engine/intellectualProperty';
 import { evaluateIpViability } from '../../engine/ipViability';
@@ -317,6 +318,7 @@ function IpAssessmentPanel({ film }: { film: Film }) {
  */
 function FilmIpPanel({ film }: { film: Film }) {
   const { state, dispatch } = useStudio();
+  const confirmAction = useActionFeedback();
   const existing = ipForSourceFilm(state.studio, film.id);
   // Minor roles aren't recognisable IP - only Lead/Supporting characters are
   // offered for promotion (the setting always comes along regardless).
@@ -394,7 +396,17 @@ function FilmIpPanel({ film }: { film: Film }) {
         <Button
           variant="primary"
           disabled={promotable.length > 0 && selected.size === 0}
-          onClick={() => dispatch({ type: 'PROMOTE_FILM_TO_IP', filmId: film.id, characterIds: [...selected], name })}
+          onClick={() => {
+            dispatch({ type: 'PROMOTE_FILM_TO_IP', filmId: film.id, characterIds: [...selected], name });
+            // The panel swaps to its "already promoted" state further up this
+            // modal - easy to miss on a phone, where the button that was tapped
+            // is usually the only thing on screen.
+            confirmAction({
+              kicker: 'Promoted to IP',
+              subject: name,
+              detail: 'In your Intellectual Property library — you can develop sequels from it.',
+            });
+          }}
         >
           Promote to IP
         </Button>

@@ -1,0 +1,132 @@
+/* --- Action receipts (components/common/ActionFeedback.tsx) --------------
+   A committed action, reported back where the player can see it however far
+   down a long list they have scrolled. Pinned below the fixed .app-header
+   rather than to the bottom of the viewport on purpose: the bottom belongs to
+   .sticky-footer's Back/Continue on every wizard screen, and a receipt that
+   covers the primary control is a worse bug than the one it fixes.
+
+   DESK register (docs/ART_DIRECTION.md §2.1) - a memo slip, not a glassy
+   notification: paper stock, hard corners, ruled figures, no glow. */
+.action-feedback {
+  position: fixed;
+  top: calc(var(--header-clearance) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  /* Above .app-header (150) so a receipt is never occluded by chrome or by an
+     open modal (.modal-overlay is 100) - a purchase made from inside a modal
+     still needs to report itself. It clears the header by offset, not by
+     stacking, so nothing actually overlaps. */
+  z-index: 160;
+  width: min(440px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* The strip only ever contains its slips - clicks anywhere else must fall
+     through to the page underneath it. */
+  pointer-events: none;
+}
+
+.action-feedback__slip {
+  pointer-events: auto;
+  background: var(--panel);
+  border: 1px solid var(--border-hard);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--border-hard) 22%, transparent);
+  animation: action-feedback-in 160ms ease-out;
+}
+
+@keyframes action-feedback-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.action-feedback__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.action-feedback__kicker {
+  font-size: 0.72em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.action-feedback__dismiss {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.2em;
+  line-height: 1;
+  /* A dismiss control is the one thing on the slip a player will reach for by
+     accident on a phone - give it a real touch target rather than a 12px glyph. */
+  margin: -8px -8px -8px 0;
+  padding: 8px 10px;
+}
+
+.action-feedback__subject {
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.action-feedback__detail {
+  margin: 2px 0 0;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.action-feedback__figures {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.action-feedback__figure {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.9em;
+}
+
+/* The balance is the half of the receipt the player came for - right-aligned
+   so the two figures read as a ruled statement rather than a sentence. */
+.action-feedback__figure--balance {
+  text-align: right;
+}
+
+.action-feedback__action {
+  margin-top: 8px;
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.action-feedback__action:hover {
+  border-color: var(--primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action-feedback__slip {
+    animation: none;
+  }
+}

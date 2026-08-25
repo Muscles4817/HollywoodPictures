@@ -1046,6 +1046,32 @@ th {
   opacity: 0.8;
 }
 
+/* An Opportunity the player has just bought, standing in for the listing that
+   used to sit here (components/OpportunityMarket.tsx:AcquiredReceiptCard). Held
+   to the same footprint as a live listing so nothing below it jumps when the
+   purchase lands - the reflow was itself part of what made a tap feel like it
+   had gone wrong on a phone. */
+.opportunity-acquired {
+  border-left: 4px solid var(--green);
+}
+
+.opportunity-acquired__copy {
+  margin: 2px 0 0;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.opportunity-acquired__dismiss {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.2em;
+  line-height: 1;
+  margin: -8px -8px -8px 0;
+  padding: 8px 10px;
+}
+
 /* --- Badges --- */
 .badge {
   display: inline-block;

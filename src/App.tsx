@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { StudioProvider, useStudio } from './state/StudioContext';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { ActionFeedbackProvider } from './components/common/ActionFeedback';
 import { Header, type DevTool } from './components/common/Header';
 import { Inbox } from './components/common/Inbox';
 import { Dashboard } from './components/Dashboard';
@@ -472,7 +473,11 @@ function App() {
   return (
     <ErrorBoundary>
       <StudioProvider>
-        <AppShell />
+        {/* Inside StudioProvider: an action receipt quotes the resulting cash
+            balance, which it reads from studio state (see ActionFeedback.tsx). */}
+        <ActionFeedbackProvider>
+          <AppShell />
+        </ActionFeedbackProvider>
       </StudioProvider>
     </ErrorBoundary>
   );

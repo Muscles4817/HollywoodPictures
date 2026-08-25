@@ -12,6 +12,7 @@ import { activeDraftForAsset, assetAcceptsDevelopmentPass, deriveAssetStatus, ty
 import { describeProductionComplexity } from '../engine/scriptPresentation';
 import type { GameAction } from '../state/gameState';
 import type { Asset, FilmDraft, Genre, Person } from '../types';
+import { useActionFeedback } from './common/ActionFeedback';
 import './AssetLibrary.css';
 import { StarRating } from './common/StarRating';
 import { deriveBookedUntil, getWriterCareer, isPersonAvailableForCommitment, isPersonAvailableOnDay } from '../engine/person';
@@ -190,6 +191,7 @@ interface RewritePanelProps {
  * genuinely needs).
  */
 function RewritePanel({ asset, writers, totalDays, cash, activeDraft, dispatch, onClose }: RewritePanelProps) {
+  const confirmAction = useActionFeedback();
   const [kind, setKind] = useState<RewriteKind>('polish');
   const [writerId, setWriterId] = useState<string>('');
 
@@ -343,6 +345,14 @@ function RewritePanel({ asset, writers, totalDays, cash, activeDraft, dispatch, 
           disabled={!canCommission}
           onClick={() => {
             dispatch({ type: 'REWRITE_ASSET', assetId: asset.id, kind, writerId: writer!.id });
+            // The panel closing is the only thing that visibly happens here,
+            // and it looks identical to Cancel. Say what was actually bought.
+            confirmAction({
+              kicker: kind === 'polish' ? 'Polish commissioned' : 'Rewrite commissioned',
+              subject: asset.script.title,
+              detail: `${writer!.identity.name} is on it — about ${estimate?.low ?? 0}–${estimate?.high ?? 0} days. The new draft lands in your Asset Library.`,
+              amount: -fee,
+            });
             onClose();
           }}
         >
@@ -382,6 +392,7 @@ interface CommissionPanelProps {
  * hidden behind the writer's tier/"known for"/projection - only fee and time show.
  */
 function CommissionPanel({ writers, totalDays, cash, dispatch, onClose }: CommissionPanelProps) {
+  const confirmAction = useActionFeedback();
   const [writerId, setWriterId] = useState('');
   const [genre, setGenre] = useState<Genre | ''>('');
   const [search, setSearch] = useState('');
@@ -534,6 +545,12 @@ function CommissionPanel({ writers, totalDays, cash, dispatch, onClose }: Commis
           disabled={!canCommission}
           onClick={() => {
             dispatch({ type: 'COMMISSION_SCREENPLAY', writerId: writer!.id, genre: genre as Genre });
+            confirmAction({
+              kicker: 'Commissioned',
+              subject: `${genre} original — ${writer!.identity.name}`,
+              detail: `Writing now, roughly ${bounds.min}–${bounds.max} days. It arrives as an owned asset when the draft is delivered.`,
+              amount: -fee,
+            });
             onClose();
           }}
         >
