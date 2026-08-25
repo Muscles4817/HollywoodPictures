@@ -252,15 +252,34 @@ The big structural one. Take 09, ported through the token layer.
 **What:**
 
 - **Time becomes the spine.** `Header.tsx`'s clock, transport and speed control
-  move to a permanent vertical (or fixed-edge) spine using the `--spine*` tokens
-  that already exist for it. Prominence is the change, not function.
+  move to a permanent sticky top spine using the `--spine*` tokens that already
+  exist for it. Prominence is the change, not function.
+- **Destinations move to a left rail** — take 08's `190px 1fr` shell, grouped,
+  with the 3px left-border active marker and its ≤900px collapse to a
+  horizontal scroller. **Not** take 09's top tab strip, for a measured reason:
+  09 renders 8 destinations at abbreviated labels ("Talent", "Calendar",
+  "Market", "Stats") and simply omits IP Library and Milestones. The app has
+  about eleven, at full length. `.dests` sets `flex-wrap: wrap`, so eleven real
+  labels wrap to a second row and displace the content beneath. A vertical list
+  scales with N; a horizontal strip does not.
+
+  The two takes only *appear* to conflict here. Take 08 carries the rail and a
+  topbar of KPI facts, and has no clock, transport, slate or palette at all;
+  take 09 carries the time spine, the slate and the palette, and has no rail.
+  The spine is about **time**; the rail is about **destinations**. 09 merged
+  the two jobs into stacked bands and had to trim the destination list to make
+  them fit, which is the trim showing rather than a design decision. Take both.
+- **The slate stays horizontal**, as a strip below the spine. Its cards run
+  ~172px minimum and carry stage and state, so they want the width — and
+  keeping it on a different axis from the rail is what makes "places" and
+  "films in flight" read as two registers rather than one long list.
 - **The attention queue moves beside it, and guards Play.**
   `timeCriticalUnreadBidCount()` and `shouldConfirmResume()` stop being a modal
   confirmation and become a visible item that physically sits in front of the
   Play control. Same predicate, same tests — different surface.
-- **Two axes.** Studio destinations are one register (the 14 `Screen` values);
-  the films in flight are another, each showing the one fact that matters about
-  it. The slate hides on non-project screens.
+- **Two axes.** Studio destinations are one register; the films in flight are
+  another, each showing the one fact that matters about it. The slate hides on
+  non-project screens.
 - **A project becomes a context, not a peer.** This is the load-bearing change
   and the source of most of the risk.
 - **A command palette on Ctrl-K.** 1,487 talents is well past the point where
@@ -479,3 +498,4 @@ the same line:
 | 2026-08-25 | SPECTACLE (Phase 4) identified as the only phase independent of the chassis, and therefore the only one that can be pulled forward for early visible payoff. |
 | 2026-08-25 | Phase 0 landed. Corners route through two tokens; colour and corner rules are enforced by `designSystem.test.ts` rather than by review. |
 | 2026-08-25 | Bars take the surface radius and the neutral `--bar`: the "a value needs no hue" argument governs shape as well as colour. Categorical hue stays on the frame. |
+| 2026-08-25 | Phase 1 takes take 08's left rail for destinations *and* take 09's top spine for time, rather than 09's merged bands. 09's top strip fits only because it was trimmed to 8 abbreviated labels; the app has ~11 at full length. |
