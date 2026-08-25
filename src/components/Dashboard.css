@@ -82,40 +82,27 @@
   color: color-mix(in srgb, var(--dashboard-text-soft) 45%, transparent);
 }
 
-.dashboard-subnav {
+/* The studio footer. All that survives of .dashboard-subnav, which was a row
+   of links to the rest of the game living on exactly one screen - the rail
+   carries those now (components/shell/DestinationRail.tsx). */
+.dashboard-footer {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  overflow-x: auto;
-  padding: 6px;
-  border: 1px solid var(--dashboard-border);
-  border-radius: var(--radius);
-  background: var(--dashboard-panel);
+  justify-content: flex-end;
+  padding-top: 8px;
+  border-top: 1px solid var(--dashboard-border);
 }
 
-.dashboard-subnav button {
-  flex: 0 0 auto;
-  padding: 7px 10px;
+.dashboard-danger-link {
   border: 0;
-  border-radius: var(--radius);
-  background: transparent;
+  background: none;
   color: var(--dashboard-text-soft);
   cursor: pointer;
   font: inherit;
-  font-size: 0.84rem;
-  font-weight: 650;
+  font-size: 0.82rem;
+  padding: 6px 2px;
 }
 
-.dashboard-subnav button:hover {
-  background: color-mix(in srgb, var(--dashboard-panel-raised) 84%, white 4%);
-  color: inherit;
-}
-
-.dashboard-subnav .dashboard-danger-link {
-  margin-left: auto;
-}
-
-.dashboard-subnav .dashboard-danger-link:hover {
+.dashboard-danger-link:hover {
   color: var(--red);
 }
 

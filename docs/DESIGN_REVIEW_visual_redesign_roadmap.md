@@ -1,6 +1,6 @@
 # Visual Redesign Roadmap
 
-Status: **Phase 0 landed; phases 1–6 are planning only.** Turns
+Status: **Phases 0 and 1 landed; phases 2–6 are planning only.** Turns
 `ART_DIRECTION.md` and the nine mockup takes in `docs/design/mockups/` into an
 ordered sequence of reviewable steps.
 
@@ -245,9 +245,38 @@ is wrong, not the code.
 
 ---
 
-### Phase 1 — The chassis
+### Phase 1 — The chassis [DONE]
 
-The big structural one. Take 09, ported through the token layer.
+The big structural one. Take 09's spine and take 08's rail, ported through the
+token layer.
+
+**Landed.** `components/shell/` — `Spine`, `DestinationRail`, `Slate`,
+`CommandPalette`, `Chrome`, and a `destinations.ts` registry that the rail, the
+palette and the active-destination reading all read from, so the three cannot
+drift. `common/Header.tsx` and `common/TimeTickIndicator.tsx` are gone.
+
+Two things the work changed about the plan:
+
+- **The test churn was not there.** This phase warned it would be the main
+  cost. It was not: no test mounts the app shell — every component test renders
+  its component directly, and `App.test.ts` only exercises the pure predicates.
+  All 2,503 tests passed without an edit. The warning was right to be written
+  and wrong on the facts; checking took ten minutes and would have been worth
+  it even if the answer had gone the other way.
+- **`--header-clearance` was a lie, and the chassis made it a worse one.** It
+  was a hand-measured 96px (148px on a phone) for a bar whose own comment
+  admitted it "was only ever measured to fit one row at desktop widths". The
+  chrome now has at least four heights at any width — the slate appears only
+  when something is in flight, the held-clock bar only when a bid is live — so
+  `useChromeHeight.ts` measures it with a `ResizeObserver` and publishes the
+  real value. The constant survives as the first-paint fallback.
+
+Two bugs found by rendering rather than by reasoning: the slate positioned
+itself at a hardcoded `top: 42px` that a wrapped spine invalidated (fixed by
+stacking the three bars inside one fixed `.chrome`), and the chassis stylesheet
+was appended *after* the 640px media query meant to override it, so the palette
+button never hid on a phone — the precise trap `index.css` documents further up
+its own file. Every responsive chassis rule now sits at the end of the file.
 
 **What:**
 
@@ -499,3 +528,5 @@ the same line:
 | 2026-08-25 | Phase 0 landed. Corners route through two tokens; colour and corner rules are enforced by `designSystem.test.ts` rather than by review. |
 | 2026-08-25 | Bars take the surface radius and the neutral `--bar`: the "a value needs no hue" argument governs shape as well as colour. Categorical hue stays on the frame. |
 | 2026-08-25 | Phase 1 takes take 08's left rail for destinations *and* take 09's top spine for time, rather than 09's merged bands. 09's top strip fits only because it was trimmed to 8 abbreviated labels; the app has ~11 at full length. |
+| 2026-08-25 | Phase 1 landed. The predicted test churn did not exist - no test mounts the shell. `--header-clearance` is measured now rather than guessed. |
+| 2026-08-25 | Rival studios are not a rail destination: `VIEW_RIVAL_STUDIO` needs a name and the game has no rivals index, so they stay a detour from the calendar and the competition panel. |

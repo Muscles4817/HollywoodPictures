@@ -114,7 +114,7 @@
   --compare-rail-width: 320px;
 
   /* Single source of truth for how much top clearance #root and
-     .wizard-header-sticky both need to sit below the fixed .app-header bar
+     .wizard-header-sticky both need to sit below the fixed .spine bar
      (components/common/Header.tsx) - one variable so a narrower mobile
      version of that bar (see the phone breakpoint near the end of this
      file) only needs to change in one place and both stay in sync
@@ -195,8 +195,8 @@ body {
 }
 
 #root {
-  /* Top padding clears the fixed .app-header bar, which would otherwise
-     render on top of (and obscure) a screen's opening heading. */
+  /* Top padding clears the fixed spine (and the slate below it), which would
+     otherwise render on top of a screen's opening heading. */
   padding: var(--header-clearance) 20px 80px;
 }
 
@@ -687,42 +687,7 @@ button {
 }
 
 /* --- Time tick indicator (Dashboard pause + tick-progress bar) --- */
-.time-tick-indicator {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
 
-.time-tick-bar-track {
-  width: 90px;
-  height: 8px;
-  background: var(--track-bg);
-  border-radius: var(--radius);
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-}
-
-.time-tick-bar-fill {
-  height: 100%;
-  width: 0%;
-  background: var(--bar);
-  border-radius: var(--radius);
-  animation-name: time-tick-fill;
-  animation-timing-function: linear;
-  animation-fill-mode: forwards;
-}
-
-@keyframes time-tick-fill {
-  from { width: 0%; }
-  to { width: 100%; }
-}
-
-.time-tick-paused-label {
-  font-size: 0.7em;
-  color: var(--text-muted);
-  padding-left: 8px;
-}
 
 .film-history-row {
   cursor: pointer;
@@ -969,7 +934,7 @@ button {
 /* --- Wizard --- */
 .wizard-header-sticky {
   position: sticky;
-  /* Matches #root's top padding so this sticks below the fixed .app-header
+  /* Matches #root's top padding so this sticks below the fixed .spine
      bar instead of scrolling up underneath it. */
   top: var(--header-clearance);
   z-index: 40;
@@ -1257,7 +1222,7 @@ textarea, input, select {
   z-index: 91;
   overflow-y: auto;
   padding: 24px;
-  /* z-index sits below .app-header's fixed bar (150) on purpose - the
+  /* z-index sits below the .spine's fixed bar (150) on purpose - the
      header stays visible above the drawer - but that means its own
      top-of-drawer content (the Close button included) needs the same
      --header-clearance push #root's own top padding already gets, or the
@@ -2285,108 +2250,6 @@ textarea, input, select {
   padding: 12px 16px;
 }
 
-/* --- App header (components/common/Header.tsx) ---
-   A real full-width bar, not floating pills - it grew too much chrome
-   (Inbox, Dashboard shortcut, date, pause/speed control, dev tools, theme
-   toggle) to keep working as independently-positioned corner pieces once
-   all of it needed to be always-visible rather than screen-specific.
-   z-index 150, above every overlay in the app (modal-overlay is 100, the
-   highest otherwise) - this chrome is meant to be reachable literally
-   always, including with a modal or the Hire Talent drawer open. */
-.app-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 150;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px 20px;
-  padding: 10px 20px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
-}
-
-.app-header__group {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-/* A count-in-parentheses inside plain button text is easy to miss at a
-   glance - this reads as a real notification the way an unread-count
-   pill does everywhere else, not just more label text. */
-.app-header__inbox-button {
-  position: relative;
-}
-
-.app-header__inbox-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  border-radius: var(--radius-pill);
-  background: var(--red);
-  /* --panel inverts correctly against --red in both themes; #fff did not. */
-  color: var(--panel);
-  font-size: 0.7em;
-  font-weight: 700;
-  line-height: 18px;
-  text-align: center;
-  box-shadow: 0 0 0 2px var(--panel);
-}
-
-/* The dev-tool switcher sits in the middle, same reasoning as the old
-   .dev-inspector-toggle-fixed placement: it's the least important group,
-   so it gets whatever space the two real ones don't need, and centers in it. */
-.app-header__group--dev {
-  flex: 1;
-  justify-content: center;
-}
-
-.app-header__date-pill {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 2px 12px 2px 2px;
-  font-size: 0.9em;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.app-header__dashboard-button {
-  font-weight: 600;
-}
-
-.app-header__date {
-  padding-left: 8px;
-  border-left: 1px solid var(--border);
-}
-
-/* --- Narrower viewports (tablets and phones): collapse every fixed-plus-
-   1fr layout grid to a single column, and un-stick the rails/panels that
-   only make sense as a sidebar when there's a sidebar's worth of width.
-   Deliberately placed here, at the very end of the file, rather than up
-   near where .dashboard-layout is defined - CSS resolves equal-specificity
-   conflicts by source order, so a media query placed *before* the
-   unconditional rule it's meant to override loses to it every time the
-   query matches, silently. That's exactly what had happened here: this
-   block used to sit earlier in the file, and .dashboard-layout/
-   .dashboard-right-rail (defined later, in the Dashboard layout section)
-   were quietly never collapsing on mobile - the dashboard's Top 10/Rival
-   Studios rail was rendering on top of the main column instead of stacking
-   below it. Found by actually looking at a
-   375px screenshot, not by reasoning about the CSS. Keeping every
-   responsive override down here from now on avoids this class of bug by
-   construction - nothing defined above this point in the file can ever
-   out-order it again. */
 @media (max-width: 900px) {
   .develop-compare-layout,
   .hire-layout,
@@ -2417,18 +2280,14 @@ textarea, input, select {
    one column; everything below is specifically about a narrow phone
    viewport, and only ever adds new rules or shrinks existing chrome inside
    this query - nothing outside it changes, so desktop is untouched). ---
-   .app-header now carries a lot more than it used to (Inbox, Dashboard,
-   date, pause/speed control, dev tools, theme toggle) - it was only ever
-   measured to fit one row at desktop widths. On a phone the dev-tool
-   switcher (developer-only, see components/dev/RecommendationInspector.tsx)
-   is the first thing to give, same reasoning as before: it's never meant
-   to be used from a phone anyway. Everything else shrinks and is allowed
-   to wrap onto a second row (.app-header's own flex-wrap) rather than
-   trying to cram a genuinely wide control surface into one line -
-   --header-clearance grows accordingly so page content still clears it. */
+   The spine is allowed to wrap onto a second row on a phone rather than
+   cramming a genuinely wide control surface into one line, and
+   --header-clearance grows accordingly so page content still clears it.
+   The palette button and the cash readout are the first things to give:
+   Ctrl-K is not a phone gesture, and cash is on the Dashboard anyway. */
 @media (max-width: 640px) {
   :root {
-    --header-clearance: 148px;
+    --header-clearance: 120px;
   }
 
   #root {
@@ -2436,27 +2295,14 @@ textarea, input, select {
     padding-right: 12px;
   }
 
-  .app-header {
-    padding: 8px 12px;
-    gap: 8px 12px;
+  .spine {
+    padding: 7px 12px;
+    gap: 6px 12px;
   }
 
-  .app-header__group--dev {
+  .spine-palette,
+  .spine-cash {
     display: none;
-  }
-
-  .app-header .btn {
-    padding: 6px 10px;
-    font-size: 0.8em;
-  }
-
-  .app-header__date-pill {
-    padding: 2px 8px 2px 2px;
-    font-size: 0.78em;
-  }
-
-  .time-tick-bar-track {
-    width: 50px;
   }
 
   .wizard-step {
@@ -2861,5 +2707,439 @@ textarea, input, select {
      wins and the name goes. */
   .month-cell__window {
     display: none;
+  }
+}
+
+/* ==================================================================
+   THE CHASSIS (components/shell/*; docs/design/mockups/take-09-chassis.html)
+
+   Four things this game's navigation must hold, only one of which a page
+   list can carry: places (the rail), project contexts (the slate), time
+   (the spine) and attention (the queue in the spine, which guards Play).
+
+   The rail comes from take 08 and the spine from take 09. They look like
+   competing answers and are not - 08 has no clock, 09 has no rail. The
+   spine is about time; the rail is about places.
+   ================================================================== */
+
+/* --- The fixed chrome -------------------------------------------------
+   One stacking element holding the spine, the held-clock bar and the slate,
+   so none of them needs to know how tall the others are. Its measured
+   height is published to --header-clearance by useChromeHeight.ts.
+
+   z-index 150, above every overlay (modal-overlay is 100): the clock and
+   the reason it is held must be reachable literally always, including
+   with a modal or a casting drawer open. */
+.chrome {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 150;
+}
+
+/* --- The time spine --------------------------------------------------- */
+.spine {
+  display: flex;
+  align-items: center;
+  gap: 8px 18px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  background: var(--spine);
+  color: var(--spine-ink);
+  border-bottom: 1px solid var(--spine-line);
+}
+
+.spine-brand {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.78rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.spine-clock {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding-left: 16px;
+  border-left: 1px solid var(--spine-line);
+}
+.spine-clock__date { font-size: 0.86rem; }
+.spine-clock__note {
+  font-size: 0.62rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--spine-ink-2);
+}
+
+.spine-transport { display: flex; align-items: center; gap: 3px; }
+
+.tbtn {
+  background: none;
+  border: 1px solid var(--spine-line);
+  border-radius: var(--radius);
+  color: var(--spine-ink-2);
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 6px 9px;
+  cursor: pointer;
+}
+.tbtn:hover { color: var(--spine-ink); border-color: var(--spine-ink-2); }
+.tbtn[aria-pressed='true'] { background: var(--spine-ink); color: var(--spine); border-color: var(--spine-ink); }
+.tbtn:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.tbtn--speed { font-variant-numeric: tabular-nums; }
+
+/* Play, while something time-critical is unanswered. The bar to its left is
+   the point: the guard is a thing standing in the way, visible before the
+   press rather than a dialog arguing after it. */
+.tbtn--guarded {
+  border-color: var(--open);
+  color: var(--open);
+  position: relative;
+  margin-left: 7px;
+}
+.tbtn--guarded::before {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: -1px;
+  bottom: -1px;
+  width: 3px;
+  background: var(--open);
+}
+
+/* Fills over one real tick interval so a slow screen reads as counting down
+   rather than frozen (docs/DESIGN.md 5.22). */
+.spine-tick {
+  display: inline-block;
+  width: 46px;
+  height: 4px;
+  margin-left: 6px;
+  background: var(--spine-line);
+  overflow: hidden;
+}
+.spine-tick__fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--spine-ink-2);
+  animation-name: spine-tick-fill;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes spine-tick-fill { from { width: 0; } to { width: 100%; } }
+
+.spine-palette {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: 1px solid var(--spine-line);
+  border-radius: var(--radius);
+  color: var(--spine-ink-2);
+  font: inherit;
+  font-size: 0.76rem;
+  padding: 5px 10px;
+  cursor: pointer;
+  min-width: 190px;
+}
+.spine-palette:hover { color: var(--spine-ink); border-color: var(--spine-ink-2); }
+.spine-palette:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.spine-palette kbd {
+  font-family: var(--font-typed);
+  font-size: 0.66rem;
+  border: 1px solid var(--spine-line);
+  padding: 1px 5px;
+  margin-left: auto;
+}
+
+.spine-cash { font-size: 0.76rem; color: var(--spine-ink-2); }
+.spine-cash .money { color: var(--spine-ink); }
+
+/* --- The attention queue ---------------------------------------------- */
+.spine-attn { position: relative; margin-left: auto; }
+
+.attn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: 1px solid var(--spine-line);
+  border-radius: var(--radius);
+  color: var(--spine-ink-2);
+  font: inherit;
+  font-size: 0.76rem;
+  padding: 5px 11px;
+  cursor: pointer;
+}
+.attn:hover { color: var(--spine-ink); border-color: var(--spine-ink-2); }
+.attn:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.attn-dot { color: var(--spine-ink-2); font-size: 0.6rem; }
+.attn--critical { border-color: var(--open); color: var(--spine-ink); }
+.attn--critical .attn-dot { color: var(--open); }
+
+.attn-pop {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  z-index: 1;
+  width: min(360px, calc(100vw - 32px));
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border-hard);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+  padding: 14px 15px;
+  display: grid;
+  gap: 11px;
+}
+.attn-pop h3 {
+  margin: 0;
+  font-size: 0.63rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.attn-item { display: grid; gap: 3px; border-left: 3px solid var(--border); padding-left: 11px; }
+.attn-item--critical { border-left-color: var(--open); }
+.attn-what { font-size: 0.9rem; font-weight: 600; }
+.attn-why { font-size: 0.8rem; color: var(--text-muted); }
+.attn-empty { margin: 0; font-size: 0.86rem; color: var(--text-muted); }
+.attn-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* The held-clock bar, in flow under the spine inside .chrome - part of the
+   same instrument rather than a banner floating over the page. */
+.spine-guard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 7px 16px;
+  background: var(--open);
+  color: var(--panel);
+  font-size: 0.84rem;
+}
+.spine-guard__actions { display: flex; gap: 8px; margin-left: auto; }
+.spine-guard .btn { background: var(--panel); color: var(--text); border-color: var(--panel); }
+
+/* --- The slate: films in flight --------------------------------------- */
+.slate {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.slate-label {
+  align-self: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-right: 4px;
+  white-space: nowrap;
+}
+.slate-proj {
+  display: grid;
+  gap: 1px;
+  text-align: left;
+  min-width: 172px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  padding: 6px 11px 7px;
+  cursor: pointer;
+}
+.slate-proj:hover:not(:disabled) { background: var(--surface-2); }
+.slate-proj:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.slate-proj:disabled { opacity: 0.5; cursor: not-allowed; }
+.slate-proj[aria-current='true'] { border-color: var(--border-hard); border-top-color: var(--primary); background: var(--surface-2); }
+.slate-proj__stage {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.slate-proj__title { font-size: 0.88rem; }
+.slate-proj__state { font-size: 0.74rem; color: var(--text-muted); }
+
+/* --- The shell: rail beside the screen -------------------------------- */
+.shell { display: grid; grid-template-columns: 190px minmax(0, 1fr); align-items: start; }
+.shell-main { min-width: 0; padding-top: 4px; }
+
+.rail {
+  position: sticky;
+  top: calc(var(--header-clearance) - 8px);
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  padding: 4px 14px 24px 0;
+  border-right: 1px solid var(--border);
+}
+.rail-group { display: grid; gap: 1px; }
+.rail-group__label {
+  margin: 0 0 4px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.rail-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.87rem;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.rail-item:hover { color: var(--text); background: var(--surface-2); }
+.rail-item:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.rail-item[aria-current='page'] {
+  color: var(--text);
+  font-weight: 600;
+  border-left-color: var(--primary);
+  background: var(--surface-2);
+}
+.rail-group--dev .rail-item { font-size: 0.78rem; color: var(--text-faint); }
+
+/* --- The command palette ---------------------------------------------- */
+.palette-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.42);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 12vh 16px 16px;
+}
+.palette {
+  width: min(620px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--border-hard);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.35);
+  display: grid;
+  gap: 0;
+}
+.palette__input {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  font-size: 1.02rem;
+  padding: 14px 16px;
+}
+.palette__input:focus { outline: none; }
+.palette__list { display: grid; max-height: 52vh; overflow-y: auto; }
+.palette__item {
+  display: grid;
+  grid-template-columns: 66px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: baseline;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-left: 3px solid transparent;
+  color: var(--text);
+  font: inherit;
+  padding: 9px 16px;
+  cursor: pointer;
+}
+.palette__item[aria-current='true'] { background: var(--surface-2); border-left-color: var(--primary); }
+.palette__kind {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.palette__name { font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette__meta { font-size: 0.76rem; color: var(--text-muted); white-space: nowrap; }
+.palette__empty { margin: 0; padding: 18px 16px; color: var(--text-muted); font-size: 0.9rem; }
+
+/* --- Chassis: responsive -----------------------------------------------
+   At the very end of the file, deliberately. index.css resolves
+   equal-specificity conflicts by source order, so a media query placed
+   *before* the unconditional rule it overrides loses silently every time it
+   matches - the trap this file already documents further up, and one the
+   first cut of the chassis walked straight into: the 640px rule hiding
+   `.spine-palette` sat above the block that gives it `display: flex`, so the
+   palette button stayed on screen at phone widths while `.spine-cash`, which
+   sets no display of its own, correctly vanished. Everything responsive about
+   the chassis lives here, after every rule it needs to beat. */
+
+/* Take 08's own collapse: below a sidebar's worth of width the rail stops
+   being a sidebar and becomes a horizontal scroller above the content. A
+   190px column is a third of a phone screen, which is not navigation, it is
+   a wall. */
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rail {
+    position: static;
+    display: flex;
+    gap: 2px;
+    overflow-x: auto;
+    padding: 0 0 8px;
+    margin-bottom: 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* The group headings are a vertical device - they read as labels above a
+     list, and as noise inside a scrolling row. */
+  .rail-group {
+    display: flex;
+    gap: 2px;
+  }
+
+  .rail-group__label {
+    display: none;
+  }
+
+  .rail-item {
+    width: auto;
+    white-space: nowrap;
+    border-left: 0;
+    border-bottom: 3px solid transparent;
+  }
+
+  .rail-item[aria-current='page'] {
+    border-left-color: transparent;
+    border-bottom-color: var(--primary);
+  }
+
+  /* Developer detours are never driven from a narrow viewport, and they are
+     the longest labels in the rail. */
+  .rail-group--dev {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .spine-palette {
+    display: none;
+  }
+
+  .slate-proj {
+    min-width: 148px;
   }
 }

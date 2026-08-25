@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useStudio } from '../state/StudioContext';
-import { collectProjectCards, currentScreenFor, type ProjectCardData, type ProjectStage } from '../state/selectors';
-import { asPlayerDraft, findProject, asFilm } from '../engine/project';
+import { collectProjectCards, type ProjectCardData, type ProjectStage } from '../state/selectors';
+import { findProject, asFilm } from '../engine/project';
+import { projectOpenIntent } from '../state/projectNavigation';
 import { formatGameMonthYear, formatGameDateWithMonth } from '../engine/calendar';
 import { Card } from './common/Card';
 import { Button } from './common/Button';
@@ -79,27 +80,26 @@ export function ProjectsPage() {
 
   const scheduledCard = selectedScheduledId ? cards.find((c) => c.projectId === selectedScheduledId) ?? null : null;
 
+  // The decision itself lives in state/projectNavigation.ts, because the slate
+  // (components/shell/Slate.tsx) has to make exactly the same one. This page
+  // keeps the two overlays, since it owns their state.
   function handleCardClick(card: ProjectCardData) {
-    if (card.stage === 'in-cinemas' || card.stage === 'archived') {
-      const film = asFilm(findProject(state.projects, card.projectId));
-      if (film) setSelectedFilm(film);
-      return;
-    }
-    if (card.stage === 'scheduled') {
-      setSelectedScheduledId(card.projectId);
-      return;
-    }
-    if (card.isFocused) {
-      const draft = asPlayerDraft(findProject(state.projects, card.projectId));
-      if (!draft) return;
-      const screen = currentScreenFor(draft);
-      if (screen === 'workspace') dispatch({ type: 'OPEN_PROJECT_WORKSPACE_SECTION', section: 'overview' });
-      else if (screen === 'pre-production') dispatch({ type: 'GO_TO_PREPRODUCTION' });
-      else dispatch({ type: 'GO_TO_STEP', step: screen });
-      return;
-    }
-    if (!somethingElseFocused) {
-      dispatch({ type: 'RESUME_PROJECT', projectId: card.projectId });
+    const intent = projectOpenIntent(card, state);
+    switch (intent.kind) {
+      case 'dossier': {
+        const film = asFilm(findProject(state.projects, card.projectId));
+        if (film) setSelectedFilm(film);
+        return;
+      }
+      case 'scheduled':
+        setSelectedScheduledId(card.projectId);
+        return;
+      case 'navigate':
+      case 'resume':
+        intent.actions.forEach(dispatch);
+        return;
+      case 'blocked':
+        return;
     }
   }
 

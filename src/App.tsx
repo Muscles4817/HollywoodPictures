@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { StudioProvider, useStudio } from './state/StudioContext';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { ActionFeedbackProvider } from './components/common/ActionFeedback';
-import { Header, type DevTool } from './components/common/Header';
+import { Chrome } from './components/shell/Chrome';
+import { Spine } from './components/shell/Spine';
+import { DestinationRail } from './components/shell/DestinationRail';
+import { Slate } from './components/shell/Slate';
+import { CommandPalette } from './components/shell/CommandPalette';
+import type { DevTool } from './components/shell/devTools';
+import { GameGuide } from './components/common/GameGuide';
 import { Inbox } from './components/common/Inbox';
 import { Dashboard } from './components/Dashboard';
 import { RivalStudioPage } from './components/RivalStudioPage';
@@ -173,6 +179,11 @@ function AppShell() {
   // Recommendation/Outcome Inspector don't touch it at all), never
   // persisted, reachable from any screen via the header.
   const [devTool, setDevTool] = useState<DevTool>('none');
+  // Shell-owned overlays. The palette is the chassis's answer to a roster no
+  // menu can reach; the guide moved off the Dashboard's retired button row and
+  // has to live somewhere global now that the rail can open it from anywhere.
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   // On a genuine first launch (no save existed when the app mounted) offer the
   // same starting-stature choice a Reset gives, so a new player begins how they
   // want instead of silently landing on the legacy default studio. Read once,
@@ -249,6 +260,21 @@ function AppShell() {
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Ctrl-K / Cmd-K opens the command palette from anywhere, including from
+  // inside a text field - unlike spacebar above, which must yield to typing.
+  // The browser's own Ctrl-K (focus the address bar) is worth overriding here:
+  // this is an app, and the shortcut is the near-universal convention for
+  // exactly this control.
+  useEffect(() => {
+    function handlePaletteKey(e: KeyboardEvent) {
+      if (e.key.toLowerCase() !== 'k' || !(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      setPaletteOpen((o) => !o);
+    }
+    window.addEventListener('keydown', handlePaletteKey);
+    return () => window.removeEventListener('keydown', handlePaletteKey);
   }, []);
 
   // Every screen switch (forward or back) starts scrolled to the top - a
@@ -398,17 +424,21 @@ function AppShell() {
 
   return (
     <>
-      <Header
-        paused={paused}
-        onTogglePause={() => requestTogglePauseRef.current()}
-        tickNonce={tickNonce}
-        speedMultiplier={speedMultiplier}
-        onSetSpeedMultiplier={setSpeedMultiplier}
-        inboxOpen={inboxOpen}
-        onToggleInbox={() => (inboxOpen ? setInboxOpen(false) : openInbox())}
-        devTool={devTool}
-        onSetDevTool={setDevTool}
-      />
+      <Chrome>
+        <Spine
+          paused={paused}
+          onTogglePause={() => requestTogglePauseRef.current()}
+          tickNonce={tickNonce}
+          speedMultiplier={speedMultiplier}
+          onSetSpeedMultiplier={setSpeedMultiplier}
+          inboxOpen={inboxOpen}
+          onOpenInbox={() => (inboxOpen ? setInboxOpen(false) : openInbox())}
+          onOpenPalette={() => setPaletteOpen(true)}
+          timeCriticalUnread={timeCriticalUnread}
+          onResumeAnyway={() => setPaused(false)}
+        />
+        <Slate />
+      </Chrome>
       <Inbox
         open={inboxOpen}
         onClose={() => setInboxOpen(false)}
@@ -460,11 +490,22 @@ function AppShell() {
           </div>
         </div>
       )}
-      {devTool === 'recommendation' && <RecommendationInspector />}
-      {devTool === 'outcome' && <OutcomeInspector />}
-      {devTool === 'rival-finances' && <RivalFinancesInspector />}
-      {devTool === 'requirement-profile' && <RequirementProfileInspector />}
-      {devTool === 'none' && renderScreen()}
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      {guideOpen && <GameGuide onBack={() => setGuideOpen(false)} />}
+
+      {/* The chassis: destinations on one edge, the screen beside them. The
+          rail is persistent and never modal (ART_DIRECTION.md §4.3), which is
+          the thing the old Dashboard-only button row could not be. */}
+      <div className="shell">
+        <DestinationRail devTool={devTool} onSetDevTool={setDevTool} onOpenGuide={() => setGuideOpen(true)} />
+        <main className="shell-main">
+          {devTool === 'recommendation' && <RecommendationInspector />}
+          {devTool === 'outcome' && <OutcomeInspector />}
+          {devTool === 'rival-finances' && <RivalFinancesInspector />}
+          {devTool === 'requirement-profile' && <RequirementProfileInspector />}
+          {devTool === 'none' && renderScreen()}
+        </main>
+      </div>
     </>
   );
 }
