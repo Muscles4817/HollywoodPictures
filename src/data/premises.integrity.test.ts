@@ -217,17 +217,25 @@ describe('premise corpus integrity', () => {
     //
     // What is lost, stated plainly rather than waved away: a compound or numbered
     // subject written with a singular verb and no leads count is now caught by
-    // nothing - not here, and not by scriptGenerator.test.ts:329, whose own
-    // comment says it cannot see that class. All 12 compound-subject entries
-    // currently in the corpus already carry leads: 2, so the gap is entirely
-    // forward-looking. That is a real gap in exactly the population this file
+    // nothing - not here, and not by scriptGenerator.test.ts, whose own comment
+    // at :350 says as much ("Neither catches a two-hander written in the
+    // singular"). A review reported that every compound-subject entry in the
+    // corpus already carries a count, so the gap is forward-looking; I could not
+    // reproduce that count cheaply and am not going to assert a number I have not
+    // measured. Either way it is a real gap in exactly the population this file
     // exists to guard, and closing it needs a parser, not another regex.
     //
     // What remains earns its place: scriptGenerator.test.ts:329 checks that a
     // multi-subject log-line HAS a count, but nothing anywhere checks that the
     // count is the RIGHT one. "two rival auctioneers" declaring 3 leads is the
     // too-high direction on the only mechanically load-bearing field here.
-    const NUMBERS: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, twin: 2, twins: 2, both: 2 };
+    // Cardinal numbers and the plural noun only. "twin" and "both" were in here
+    // and are now out: "twin sister of a missing girl" and "both sides of a
+    // feud" are one subject each, and no entry like that exists yet - which is
+    // precisely when to remove it, rather than after it accuses someone's good
+    // log-line. The cost is that "twin thieves who steal the wrong relic" is no
+    // longer checked. A silent miss is the direction this file can afford.
+    const NUMBERS: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, twins: 2 };
 
     const problems: string[] = [];
     for (const { where, premise } of ENTRIES) {
