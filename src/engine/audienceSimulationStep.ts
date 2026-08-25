@@ -186,7 +186,7 @@ const CRITIC_SCORE_WEIGHT = 0.3;
 // coupling to the WOM normalization denominator (maxInterestedAudience), a
 // separate entanglement left to a dedicated crossover-normalization pass. Nor
 // the unprofitable/bomb tail, which is upstream score compression (§7, Root B).
-const RECEPTION_PIVOT = 0.22;
+const RECEPTION_PIVOT = 0.19;
 const RECEPTION_EXPONENT = 2;
 
 /** How much a given reception (critic/audience score, reused verbatim from FilmResults - see AudienceSimulationFixedState) amplifies word of mouth - a pivoted convex curve (audience-weighted over critic): ordinary reception sits in the shallow part (front-loaded, weak legs) while only genuinely strong reception reproduces enough to hold or break out. */

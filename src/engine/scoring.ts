@@ -7,8 +7,10 @@ import type {
   Script,
   ScriptCharacter,
   TalentAssignment,
+  TargetAudience,
 } from '../types';
 import { GENRE_PROFILES } from '../data/genres';
+import { AUDIENCE_PROFILES } from '../data/audiences';
 import { TONES } from '../data/tones';
 import { computeCharacterCompatibility, computeTalentCompatibility } from './compatibility';
 import { ageFitMultiplier } from './casting';
@@ -436,6 +438,100 @@ const FOOTAGE_DIRECTION_WEIGHT = 0.4;
 const FOOTAGE_ACTING_WEIGHT = 0.3;
 const FOOTAGE_PRODUCTION_WEIGHT = 0.3;
 
+// --- Composition: dispersion, not just level ------------------------------
+//
+// The blend below used to be a plain convex combination of four departments.
+// That is the single largest reason the finished film is near-deterministic
+// (docs/DESIGN_REVIEW_reception_model.md). Measured on one fixed plan across
+// 240 execution seeds, the shoot swings the departments hard - executedActing
+// SD 4.8 over a 23-point range, executedPostProduction SD 5.7 over 27 points -
+// and the weighted mean turned that into a qualityScore SD of 1.5. Three
+// separate losses: each department carries only its own weight, the K-chain
+// shrinks the ratios again, and averaging swings that are independent of each
+// other actively cancels them.
+//
+// A mean also cannot tell two genuinely different films apart. Departments at
+// {62, 62, 62} and {40, 84, 62} average identically; the first is forgettably
+// competent and the second is "brilliant script, gutted on set." Those are the
+// two films the game most needs to distinguish.
+//
+// So the blend keeps the mean as its CENTRE and adds the two order statistics a
+// mean throws away: how bad the worst department is, and how good the best one
+// is. Weakest-link is deliberately the stronger of the two - films fail more
+// legibly than they succeed, and it keeps ambition honest (reaching for a peak
+// in one department while letting another slip is a net loss).
+const QUALITY_WEAKEST_LINK = 0.35;
+const QUALITY_PEAK_CARRY = 0.2;
+// Both terms above are one-sided and the weakest-link is the larger, so applying
+// them to a typical film costs it points. That is a LEVEL change, not the
+// spread change we want, and an earlier attempt at reshaping this blend
+// (docs/DESIGN_box_office_engine_map.md §11, a geometric mean) failed exactly
+// this way - it dropped the wide median from $117M to $57M and bought no
+// variance. So the expected net cost at the population's typical internal
+// dispersion is added straight back, leaving the shaping spread-only at the
+// centre. MEASURED as the median (shaped - core) over a simulated slate with
+// the recentre at zero, not guessed - re-derive it if the K-chain or the
+// department weights are retuned.
+const QUALITY_SHAPE_RECENTRE = 1.4;
+
+// Dropping post-production out of the weighted sum raises what remains: it was
+// systematically the lowest component (effective post-production runs ~37 on a
+// typical film against a ~59 three-component core), so averaging against it was
+// dragging every film down. Re-levelled here so the blend's median matches the
+// four-component mean it replaces, and the whole change stays SPREAD-ONLY.
+//
+// Preserving the median is not cosmetic. audienceScore feeds a convex
+// word-of-mouth multiplier (engine/audienceSimulationStep.ts,
+// RECEPTION_EXPONENT = 2), so a few points of drift here fans the entire
+// box-office distribution out and invalidates every gate in
+// docs/DESIGN_box_office_calibration_targets.md. Widening reception is wanted
+// eventually - but as its own deliberate, jointly-recalibrated change, not as a
+// side effect of this one.
+const QUALITY_COMPOSITION_LEVEL = -7.0;
+
+// Post-Production leaves the weighted sum entirely and becomes a multiplicative
+// realisation factor on everything else. Two reasons. It is a near-constant -
+// computePostProductionScore is `55 + at most 13` - so as a quarter of a convex
+// combination it functioned as a divisor, dragging every film toward its own
+// narrow band. And the dependency chain already half-believes this: an editor
+// cannot cut footage that was never shot (K_FOOTAGE_TO_EDITING, editCoverageCeiling).
+// Going the rest of the way makes the edit realise or squander the footage
+// rather than averaging against it, which is also what lets execution's
+// postExecution multiplier reach the film instead of being diluted by weight.
+const POST_REALISATION_FLOOR = 0.62;
+const POST_REALISATION_SATURATION = 62;
+/** The effective post-production score a typical film lands on - measured, and the point at which the realisation factor is exactly 1. Above it the edit realises more than the footage promised; below it, less. */
+const POST_REALISATION_REFERENCE = 37;
+
+// The gate spans its full width across the range effective post-production
+// ACTUALLY occupies (roughly 25-50 after the footage chain), not across a
+// nominal 0-100. Saturating at 100 was the first draft and it was wrong: it left
+// the realisation factor almost flat over the live range, so making
+// post-production multiplicative HALVED its influence on the finished film
+// (1.87 points of qualityScore per 10 points of department, down to 0.99) when
+// the whole point was to stop it being a near-constant. Measured, not guessed.
+// The gate is deliberately ASYMMETRIC about its reference. An edit can squander
+// footage far more easily than it can improve on it - the codebase already says
+// so (editCoverageCeiling, K_FOOTAGE_TO_EDITING: "an editor cannot cut footage
+// that was never shot"), so the downside runs at full slope and the upside is
+// damped. Without this, a film with a strong edit inflates: the Inception
+// recreation reached critic 86 against a band ceiling of 82 (real Metacritic
+// 74) before the damping went in.
+const POST_UPSIDE_DAMPING = 0.82;
+
+/** A soft multiplicative gate: `floor` at 0, rising linearly to 1 at `saturation`. */
+function realisationGate(value: number, floor: number, saturation: number): number {
+  return floor + (1 - floor) * clamp(value / saturation, 0, 1);
+}
+
+/** How much the edit realises or squanders the footage, 1 at the reference. Full slope below it, damped above. */
+function postRealisationFactor(effectivePostProduction: number): number {
+  const raw = realisationGate(effectivePostProduction, POST_REALISATION_FLOOR, POST_REALISATION_SATURATION);
+  const reference = realisationGate(POST_REALISATION_REFERENCE, POST_REALISATION_FLOOR, POST_REALISATION_SATURATION);
+  const ratio = raw / reference;
+  return ratio >= 1 ? 1 + POST_UPSIDE_DAMPING * (ratio - 1) : ratio;
+}
+
 /**
  * Final Quality Score: no longer six independently-weighted departments -
  * Script sets the film's potential, Direction determines how much of it
@@ -574,34 +670,138 @@ export function computeQualityBreakdown(
   const effActing = 100 * actingRatio;
   const effPostProduction = 100 * postProductionRatio;
 
+  // Three components, not four - post-production realises them rather than
+  // averaging against them (see POST_REALISATION_FLOOR above).
   const weights = computeQualityWeights(genre);
-  const qualityScore = clamp(
-    executedScript * weights.script +
-      effDirection * weights.direction +
-      effActing * weights.acting +
-      effPostProduction * weights.postProduction +
-      developmentQualityDelta,
-    0,
-    100,
-  );
+  const componentWeightTotal = weights.script + weights.direction + weights.acting;
+  const core =
+    (executedScript * weights.script + effDirection * weights.direction + effActing * weights.acting) / componentWeightTotal;
+
+  const components = [executedScript, effDirection, effActing];
+  const weakest = Math.min(...components);
+  const peak = Math.max(...components);
+  const shaped =
+    core - QUALITY_WEAKEST_LINK * Math.max(0, core - weakest) + QUALITY_PEAK_CARRY * Math.max(0, peak - core) + QUALITY_SHAPE_RECENTRE;
+
+  const postRealisation = postRealisationFactor(effPostProduction);
+
+  const qualityScore = clamp(shaped * postRealisation + QUALITY_COMPOSITION_LEVEL + developmentQualityDelta, 0, 100);
 
   return { scriptScore, directionScore, actingScore, productionScore, productionDesignScore, postProductionScore, eventsScore, qualityScore };
 }
 
 /** Critic Score: craft-driven - quality, originality, direction, edit style. */
+// --- Reception: two different readings of the same film --------------------
+//
+// Both scores used to be affine in qualityScore (weights 0.78 and 0.50), which
+// made them near-collinear by construction and left them as narrow as the
+// blend feeding them - criticScore SD 7.5 against a real-world figure near 17
+// (docs/DESIGN_REVIEW_reception_model.md §3.1).
+//
+// They are now built the way computeBuzzScore already is, and for the same
+// reason it works: an anchor plus SIGNED DEVIATIONS from named reference
+// points, each read at a real gain. That shape preserves spread where a convex
+// combination destroys it. The extra spread does not come from amplifying
+// qualityScore - it comes from reading high-variance values the engine already
+// computes and previously ignored: originality (SD 20.2 across a slate),
+// franchiseRecognition (SD 24.9, bimodal), and genre popularity.
+//
+// The two voices differ in KIND, not just in weighting. Four terms carry
+// opposite signs between them - originality, genre conformity, franchise
+// recognition and star wattage - because critics judge a film against cinema
+// and audiences judge it against what it promised them. That inversion is the
+// mechanism the old formulation lacked entirely, and it is what lets the
+// critic-adored/audience-rejected film exist at all.
+
+/** The qualityScore of a median film - MEASURED over a simulated slate. Every deviation below is taken from here, so retuning the blend means re-deriving this. */
+const QUALITY_REFERENCE = 51;
+/** The originality of an ordinary film, and the span over which distinctiveness saturates. Measured. */
+const ORIGINALITY_REFERENCE = 71;
+const ORIGINALITY_SPAN = 25;
+/** Ambition only pays ABOVE competence: the average ambitious film is a critical disappointment, not a critical success. */
+const AMBITION_BAR = 6;
+const AMBITION_SPAN = 12;
+const AVG_GENRE_POPULARITY = 60;
+
+/** How far this film's concept sits from an ordinary one, -1 (pure formula) to +1 (wholly its own thing). */
+function conceptDistinctiveness(script: Script): number {
+  return clamp((script.originality - ORIGINALITY_REFERENCE) / ORIGINALITY_SPAN, -1, 1);
+}
+
+/** Whether the film cleared the bar its ambition set, -1 (fell well short) to +1 (comfortably made it). The term that turns originality from a purchase into a bet. */
+function ambitionRealised(qualityScore: number): number {
+  return clamp((qualityScore - QUALITY_REFERENCE - AMBITION_BAR) / AMBITION_SPAN, -1, 1);
+}
+
+/**
+ * Asymptotic soft bound above `knee`, approaching `ceiling` - the same
+ * treatment softCeilBuzz already gives buzz. The ceiling is deliberately below
+ * 100: an anchor-plus-deviation score compounds its terms, and an outlier film
+ * that is strong on every one of them runs away without it. The Inception
+ * recreation reached 95 unbounded against a ratified band of 68-82 (real
+ * Metacritic 74). Bounding the top is the right lever rather than weakening the
+ * quality gain, which would undo execution's reach into the finished film.
+ */
+function softBound(raw: number, knee: number, scale: number, ceiling: number): number {
+  return raw <= knee ? raw : knee + (ceiling - knee) * (1 - Math.exp(-(raw - knee) / scale));
+}
+
+/** Compresses only the top - an exit poll's ceiling. An A and an A+ are not meaningfully different, but the bottom stays open so a betrayal can still reach the floor. */
+function topCompressed(raw: number, knee: number, scale: number): number {
+  return raw <= knee ? raw : knee + (100 - knee) * (1 - Math.exp(-(raw - knee) / scale));
+}
+
+const CRITIC_ANCHOR = 58;
+// Critics are craft-anchored. Held at the effective gain the old formula had,
+// so execution's reach into the finished film (the previous step's whole point)
+// is preserved exactly. Outlier inflation is handled by CRITIC_CEILING below
+// rather than by weakening this, because weakening it would silently undo that
+// work. The spread here is not meant to come from amplifying qualityScore
+// anyway - it comes from the concept terms, which read values with two to three
+// times qualityScore's own variance.
+const CRITIC_QUALITY_GAIN = 0.78;
+/** What a maximally distinctive film is worth, in either direction. The single largest critic-exclusive lever, and two-sided by construction. */
+const CRITIC_AMBITION_GAIN = 18;
+/** Critics punish the film with nothing to say. Under the old formula a derivative film merely gained fewer points; now it loses them. */
+const CRITIC_DERIVATIVE_COST = 10;
+/** Franchise fatigue. A critic sees every entry; the audience sees the one they like. Bimodal in the population, so it moves the distribution's shape rather than only its mean. */
+const CRITIC_FRANCHISE_FATIGUE = 7;
+/** Critics apply ONE standard across genres rather than grading each on its own terms - which is precisely why action films score badly with them and drama well. */
+const CRITIC_GENRE_PRESTIGE = 0.2;
+/** Critics write about the screenplay and the direction; sets and effects reach them mostly through what those serve. */
+const CRITIC_WRITING_TILT = 0.16;
+const CRITIC_EDIT_GAIN = 0.1;
+// The knee sits ABOVE where ordinary and good films land, so compression only
+// touches the genuine outliers. Setting it lower squashed the whole upper half
+// and cost the execution-driven variance the previous step bought.
+const CRITIC_KNEE = 76;
+const CRITIC_KNEE_SCALE = 18;
+/** Reachable only asymptotically. Set near the top of the real Metacritic scale rather than low: bounding runaway compounding is legitimate, capping the distribution to satisfy one fixture is not. */
+const CRITIC_CEILING = 97;
+
 export function computeCriticScore(
   quality: QualityBreakdown,
   script: Script,
   postProductionChoices: PostProductionChoices,
+  genre: Genre,
 ): number {
   const criticalEditScore = briefCriticEditScore(briefFromChoices(postProductionChoices));
+  const distinct = conceptDistinctiveness(script);
+  const realised = ambitionRealised(quality.qualityScore);
 
-  const score =
-    quality.qualityScore * 0.78 +
-    script.originality * 0.14 +
-    criticalEditScore * 0.08;
+  const raw =
+    CRITIC_ANCHOR +
+    (quality.qualityScore - QUALITY_REFERENCE) * CRITIC_QUALITY_GAIN +
+    // The bet. A distinctive film that came off is a major work; one that
+    // didn't is a pretension. Same input, opposite outcomes.
+    CRITIC_AMBITION_GAIN * Math.max(0, distinct) * realised -
+    CRITIC_DERIVATIVE_COST * Math.max(0, -distinct) -
+    CRITIC_FRANCHISE_FATIGUE * (clamp(script.franchiseRecognition ?? 0, 0, 100) / 100) -
+    CRITIC_GENRE_PRESTIGE * (GENRE_PROFILES[genre].popularity - AVG_GENRE_POPULARITY) +
+    CRITIC_WRITING_TILT * (quality.scriptScore - quality.productionScore) +
+    CRITIC_EDIT_GAIN * (criticalEditScore - 50);
 
-  return clamp(score, 0, 100);
+  return clamp(softBound(raw, CRITIC_KNEE, CRITIC_KNEE_SCALE, CRITIC_CEILING), 0, 100);
 }
 
 /**
@@ -611,6 +811,25 @@ export function computeCriticScore(
  * something a bigger ad spend can buy (see computeBuzzScore for where
  * marketing actually belongs).
  */
+const AUDIENCE_ANCHOR = 60;
+/** Audiences are craft-anchored too - a good film is a good film. What differs is everything ELSE they read, not how much the craft itself matters. Dropping this below 1 decorrelated the two voices far past the real-world ~0.7. */
+const AUD_QUALITY_GAIN = 1;
+/** Did the film deliver what its genre promised. The audience's dominant question, and the exact inverse of the critic's conventionality read. */
+const AUD_FULFILMENT_GAIN = 0.34;
+/** MEASURED mean of computeGenreFitScore across a slate (82.4) - the point at which fulfilment is neutral. It sits high because genre fit is a tone-distance read that rarely goes badly wrong; the SPREAD, not the level, is what matters here. */
+const FULFILMENT_REFERENCE = 82;
+/** A distinctive film that did NOT come off, sold to people who wanted something else. The audience half of the same bet the critic takes - but one-sided: they punish the miss and barely reward the hit. */
+const AUD_ALIENATION = 22;
+/** The formula, delivered, is its own pleasure. Exactly where critics apply DERIVATIVE_COST. */
+const AUD_FAMILIARITY = 6;
+/** The mirror of CRITIC_WRITING_TILT: what an audience notices is what is on the screen. */
+const AUD_SPECTACLE_TILT = 0.1;
+/** Self-selection. A narrow film is graded by the crowd that chose it, which is why CinemaScore has almost nothing below a C - and it makes target audience a real trade-off rather than a free reach lever. */
+const AUD_SELF_SELECTION = 6;
+const AUD_EDIT_GAIN = 0.1;
+const AUDIENCE_KNEE = 74;
+const AUDIENCE_KNEE_SCALE = 13;
+
 export function computeAudienceScore(
   quality: QualityBreakdown,
   script: Script,
@@ -618,23 +837,27 @@ export function computeAudienceScore(
   genre: Genre,
   productionChoices: ProductionChoices,
   postProductionChoices: PostProductionChoices,
+  targetAudience: TargetAudience,
 ): number {
-  const genreFulfilment = computeGenreFitScore(
-    script,
-    talent,
-    genre,
-    productionChoices,
-  );
-
+  const genreFulfilment = computeGenreFitScore(script, talent, genre, productionChoices);
   const audienceEditingScore = briefAudienceEditScore(briefFromChoices(postProductionChoices));
+  const distinct = conceptDistinctiveness(script);
+  const realised = ambitionRealised(quality.qualityScore);
+  // 0 for Mass Market, 0.6 for Niche - how far this film was aimed at a crowd
+  // that had to opt in rather than merely show up.
+  const selfSelection = 1 - AUDIENCE_PROFILES[targetAudience].marketSize;
 
-  const score =
-    quality.qualityScore * 0.50 +
-    genreFulfilment * 0.25 +
-    audienceEditingScore * 0.15 +
-    quality.productionScore * 0.10;
+  const raw =
+    AUDIENCE_ANCHOR +
+    (quality.qualityScore - QUALITY_REFERENCE) * AUD_QUALITY_GAIN +
+    AUD_FULFILMENT_GAIN * (genreFulfilment - FULFILMENT_REFERENCE) -
+    AUD_ALIENATION * Math.max(0, distinct) * Math.max(0, -realised) +
+    AUD_FAMILIARITY * Math.max(0, -distinct) +
+    AUD_SPECTACLE_TILT * (quality.productionScore - quality.scriptScore) +
+    AUD_SELF_SELECTION * selfSelection +
+    AUD_EDIT_GAIN * (audienceEditingScore - 50);
 
-  return clamp(score, 0, 100);
+  return clamp(topCompressed(raw, AUDIENCE_KNEE, AUDIENCE_KNEE_SCALE), 0, 100);
 }
 
 /**
