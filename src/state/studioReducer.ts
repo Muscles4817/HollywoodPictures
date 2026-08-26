@@ -963,7 +963,11 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         // exactly the reasons casting calls do. Drawn AFTER casting calls and
         // director pitches and BEFORE the prep/awards/press-tour tail, so no
         // existing system's rng draws shift.
-        const tickBriefs = (d: FilmDraft) => tickStaffingBriefs(d, totalDaysAfter, settlement.talentPool, state.producerPool ?? [], rng);
+        // playerFilms is what a producer's own book is derived from
+        // (engine/producerStables.ts) - read from the settlement, so a film
+        // that released this very tick already counts toward their regulars.
+        const tickBriefs = (d: FilmDraft) =>
+          tickStaffingBriefs(d, totalDaysAfter, settlement.talentPool, state.producerPool ?? [], rng, settlement.playerFilms);
         const tickedFocusedDraft = focusedDraft
           ? checkTestScreeningReadiness(
               tickBriefs(

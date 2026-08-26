@@ -195,3 +195,40 @@ export const BRIEF_AFFINITY_SKILL_BONUS = 12;
 // instinct as the day estimate above: what they tell you is their belief, and
 // belief is only ever as good as they are.
 export const BRIEF_HONEST_READ_SKILL = 55;
+
+// --- Producer Stables (engine/producerStables.ts) ---------------------------
+// "HODs bring teams" (docs/domain/05-departments-and-crew.md) applied to the
+// producer: a line producer arrives with a book of people they trust and keeps
+// going back to them. Stables exist to make a delegated pick feel AUTHORED
+// rather than sampled - and, just as importantly, to give delegation a second
+// way to be wrong: a producer's regular is not necessarily right for this film,
+// and they will still bring them.
+
+// How many people a generated producer already knows. A junior arrives with
+// almost nobody; a seasoned one has a full book.
+export const STABLE_SEED_COUNT: Range = { min: 0, max: 4 };
+
+// How many pictures a seeded regular has already made with them.
+export const STABLE_SEED_FILMS: Range = { min: 1, max: 4 };
+
+// How close a seeded regular sits to the producer's own standing, measured on
+// the shared log-salary scale (0-1). A cheap producer's book is full of cheap
+// people; an ace's regulars are expensive - and both come at a discount, which
+// is what makes WHICH producer you hire matter beyond their skill number.
+export const STABLE_SEED_TIER_TOLERANCE = 0.22;
+
+// At this many shared films a relationship is as strong as it gets - both the
+// preference and the favour rate saturate here.
+export const STABLE_SATURATION_FILMS = 4;
+
+// What a fully-saturated regular adds to their score in the producer's own
+// ranking. Big enough that a producer visibly keeps going back to their people;
+// deliberately NOT big enough to override a genuinely bad fit-and-price case,
+// or the stable would simply become the pick every time.
+export const BRIEF_STABLE_SCORE_BONUS = 0.18;
+
+// The favour rate: what a fully-saturated regular charges, as a multiple of the
+// fee they'd otherwise have quoted this producer. Someone who trusts you takes
+// less - this is the concrete, legible reward for a producer's long service,
+// and it stacks with their skill discount.
+export const STABLE_FEE_FLOOR = 0.82;

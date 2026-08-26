@@ -13,6 +13,8 @@ import {
   type ProducerEffects,
 } from '../../engine/producers';
 import { PRODUCER_SPECIALTY_BLURB, PRODUCER_SPECIALTY_LABEL } from '../../data/producers';
+import { describeStable } from '../../engine/producerStables';
+import { playerReleasedFilms } from '../../engine/project';
 import type { Genre, Person } from '../../types';
 
 /**
@@ -117,8 +119,12 @@ function ProducerAttachRow({
   attached: boolean;
   onToggle: () => void;
 }) {
+  const { state } = useStudio();
   const career = getProducerCareer(person);
   if (!career) return null;
+  // Their book (engine/producerStables.ts): who a Line Producer would actually
+  // come back with if you handed them a crew slot.
+  const stable = describeStable(person, playerReleasedFilms(state.projects), state.talentPool);
   const affinityHit = genre != null && career.genreAffinity.includes(genre);
   // Single-producer effect against this film's genre, so the row's preview
   // already reflects affinity and reliability.
@@ -138,6 +144,9 @@ function ProducerAttachRow({
         <small style={{ color: 'var(--text-muted)' }}>
           Per film <Money amount={producerPerFilmFee(person)} />
         </small>
+        {stable && career.specialty === 'Line' && (
+          <p className="producer-card-stable" style={{ margin: '4px 0 0' }}>Their regulars: {stable}</p>
+        )}
       </div>
       <Button variant={attached ? 'secondary' : 'primary'} onClick={onToggle}>
         {attached ? 'Detach' : 'Attach'}

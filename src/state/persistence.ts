@@ -2,6 +2,7 @@ import type { GameState } from './gameState';
 import { createInitialStudio } from './gameState';
 import { generateRivalStudios } from '../engine/rivalStudios';
 import { generateProducerPool, generateTalentPool } from '../engine/talentGenerator';
+import { seedProducerStables } from '../engine/producerStables';
 import { GENERATED_TALENT_DB } from '../data/talentDatabases';
 import { generateStuntTeamPool } from '../engine/stuntTeams';
 import { randomSeed, withRng } from '../engine/random';
@@ -414,7 +415,7 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   FilmDraft gained an optional directorPitches (an open pitch round) and
 //   selectedDirectorPitch (the winning pitch, frozen for downstream bets), and a
 //   new DirectorPitch/DirectorPitchProcess shape. Additive/optional; same policy.
-const SAVE_KEY = 'hollywood-pictures-save-v88';
+const SAVE_KEY = 'hollywood-pictures-save-v89';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
@@ -431,12 +432,24 @@ export function loadState(): GameState {
     // its talent pool and rival roster, from a genuinely random seed.
     // The generated roster, never a real-people one: an unreadable save must
     // not silently opt the player into real names they never chose.
-    const { result, nextSeed } = withRng(randomSeed(), (rng) => ({
-      talentPool: generateTalentPool(rng, GENERATED_TALENT_DB),
-      rivalStudios: generateRivalStudios(rng),
-      producerPool: generateProducerPool(rng),
-      stuntTeamPool: generateStuntTeamPool(rng),
-    }));
+    const { result, nextSeed } = withRng(randomSeed(), (rng) => {
+      const talentPool = generateTalentPool(rng, GENERATED_TALENT_DB);
+      const rivalStudios = generateRivalStudios(rng);
+      const producerPool = generateProducerPool(rng);
+      const stuntTeamPool = generateStuntTeamPool(rng);
+      return {
+        talentPool,
+        rivalStudios,
+        // Producer Stables - every producer arrives with a book of crew heads
+        // they already trust (engine/producerStables.ts). Drawn DEAD LAST, over
+        // an already-finished pool, so these draws cannot shift what any of the
+        // four generators above produced for a given seed - the same ordering
+        // discipline the ADVANCE_DAY tick already follows for awards and
+        // press-tour rolls.
+        producerPool: seedProducerStables(producerPool, talentPool, rng),
+        stuntTeamPool,
+      };
+    });
     return {
       studio: { ...createInitialStudio(DEFAULT_STARTING_CASH), assets: TEST_SCRIPT_ASSETS },
       screen: 'dashboard',

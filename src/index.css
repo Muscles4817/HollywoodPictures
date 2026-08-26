@@ -2582,6 +2582,7 @@ textarea, input, select {
 .staffing-stunts--stretch .staffing-stunts__read { color: var(--tint-warm-ink); }
 .staffing-stunts--outmatched .staffing-stunts__read { color: var(--red); font-weight: 600; }
 .staffing-stunts__hint { color: var(--text-muted); font-size: 0.85em; font-style: italic; }
+.producer-card-stable { margin: 6px 0 0; font-size: 0.82em; color: var(--text-muted); }
 /* Delegated Staffing (docs/DESIGN_REVIEW_delegated_staffing.md) - the row's
    second verb, and the brief cards that sit under the board. */
 .staffing-board td.staffing-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }

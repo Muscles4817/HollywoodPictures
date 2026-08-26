@@ -32,9 +32,10 @@ import { getCrewCareer, getTypicalSalaryForRole } from './person';
 import { buildStateWithReadyDraft } from '../state/testFixtures';
 import { asPlayerDraft, findProject } from './project';
 import { createRng } from './random';
-import { DELEGABLE_CREW_ROLES } from '../data/producers';
+import { DELEGABLE_CREW_ROLES, STABLE_SATURATION_FILMS } from '../data/producers';
+import { producerStable } from './producerStables';
 import { professionForProductionRole } from '../data/helpers';
-import type { FilmDraft, Person, ProductionRole, TalentProfession } from '../types';
+import type { FilmDraft, Person, ProducerStableEntry, ProductionRole, TalentProfession } from '../types';
 
 const diagnosticEnabled = Boolean(
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.DELEGATION_DIAGNOSTIC,
@@ -43,17 +44,32 @@ const diagnosticEnabled = Boolean(
 const FILMS = 24;
 const ALLOCATION = 6_000_000;
 
-function makeProducer(id: string, skill: number): Person {
+function makeProducer(id: string, skill: number, stable?: ProducerStableEntry[]): Person {
   return {
     id,
     identity: { name: `Producer ${id}`, appearanceTags: [] },
     personality: { professionalism: 60, ambition: 55, loyalty: 50, ego: 30, temperament: 50, pressureHandling: 55, controversy: 18, adaptability: 55 },
     reputation: { fame: 40, prestige: 40, industryRespect: 60, reliability: 80, currentHeat: 40 },
     primaryRole: 'Producer',
-    careers: { producer: { specialty: 'Line', skill, genreAffinity: [], typicalSalary: 300_000 } },
+    careers: { producer: { specialty: 'Line', skill, genreAffinity: [], typicalSalary: 300_000, stable } },
     availability: { commitments: [] },
     traits: [],
   };
+}
+
+/**
+ * A book of four regulars for this role, drawn from the MIDDLE of the field.
+ * Deliberately a stress case rather than the expected one: real seeded stables
+ * track the producer's own pay tier (engine/producerStables.ts:pickPeerFor), so
+ * a top producer's regulars are expensive and good. Holding the book at
+ * mid-field for every skill band isolates the one thing being measured - that a
+ * producer's regulars are people they happen to know, NOT the best head for a
+ * film they have not read - and prices it.
+ */
+function midFieldStable(candidates: { p: Person; fee: number }[], role: ProductionRole): ProducerStableEntry[] {
+  const byFee = [...candidates].sort((a, b) => a.fee - b.fee);
+  const start = Math.max(0, Math.floor(byFee.length / 2) - 2);
+  return byFee.slice(start, start + 4).map((c) => ({ personId: c.p.id, role, films: STABLE_SATURATION_FILMS }));
 }
 
 /** How well this head suits what THIS film asks of their department (0-100). */
@@ -75,10 +91,12 @@ interface Tally {
   /** The worst single fit gap seen - the tail is where the gamble actually lives. */
   worstFitDelta: number;
   matchedBest: number;
+  /** How often the pick came out of the producer's own book. */
+  fromStable: number;
 }
 
 function blank(): Tally {
-  return { samples: 0, emptyHanded: 0, feeDelta: 0, fitDelta: 0, worstFitDelta: 0, matchedBest: 0 };
+  return { samples: 0, emptyHanded: 0, feeDelta: 0, fitDelta: 0, worstFitDelta: 0, matchedBest: 0, fromStable: 0 };
 }
 
 // A spread of producers, because "do I trust THIS one" is the decision the
@@ -97,6 +115,9 @@ describe.skipIf(!diagnosticEnabled)('delegated staffing - is it ever the wrong c
   it('reports cost and fit against hand-staffing the same slot', () => {
     const byRole = new Map<ProductionRole, Tally>(DELEGABLE_CREW_ROLES.map((r) => [r, blank()]));
     const bySkill = new Map<string, Tally>(SKILL_BANDS.map(([label]) => [label, blank()]));
+    // The same producers again, each carrying a book of four regulars for the
+    // role - the A/B that answers what stables actually cost and buy.
+    const byStable = new Map<string, Tally>(SKILL_BANDS.map(([label]) => [label, blank()]));
 
     for (let film = 0; film < FILMS; film++) {
       const base = buildStateWithReadyDraft(1000 + film);
@@ -115,23 +136,34 @@ describe.skipIf(!diagnosticEnabled)('delegated staffing - is it ever the wrong c
         if (affordable.length === 0) continue;
         const handPick = affordable.reduce((a, b) => (b.fit > a.fit ? b : a));
 
+        const book = midFieldStable(affordable, role);
+
         for (const [label, skill] of SKILL_BANDS) {
-          const producer = makeProducer(`p-${skill}`, skill);
-          const pick = producerCandidatePick(producer, role, ALLOCATION, draft, talentPool, base.totalDays, createRng(film * 100 + skill));
-          const tallies = [byRole.get(role)!, bySkill.get(label)!];
-          for (const t of tallies) t.samples++;
-          if (!pick) {
-            for (const t of tallies) t.emptyHanded++;
-            continue;
-          }
-          const person = talentPool[professionForProductionRole(role)].find((p) => p.id === pick.personId)!;
-          const feeDelta = pick.fee - handPick.fee;
-          const fitDelta = fitFor(person, role, draft) - handPick.fit;
-          for (const t of tallies) {
-            t.feeDelta += feeDelta;
-            t.fitDelta += fitDelta;
-            t.worstFitDelta = Math.min(t.worstFitDelta, fitDelta);
-            if (person.id === handPick.p.id) t.matchedBest++;
+          // The same producer, same seed, twice: once a stranger to everyone,
+          // once with four regulars in this craft. Everything else is held
+          // constant, so the difference between the two rows IS the stable.
+          for (const [withBook, tallySet] of [
+            [false, [byRole.get(role)!, bySkill.get(label)!]],
+            [true, [byStable.get(label)!]],
+          ] as ReadonlyArray<readonly [boolean, Tally[]]>) {
+            const producer = makeProducer(`p-${skill}`, skill, withBook ? book : undefined);
+            const pick = producerCandidatePick(producer, role, ALLOCATION, draft, talentPool, base.totalDays, createRng(film * 100 + skill));
+            for (const t of tallySet) t.samples++;
+            if (!pick) {
+              for (const t of tallySet) t.emptyHanded++;
+              continue;
+            }
+            const person = talentPool[professionForProductionRole(role)].find((p) => p.id === pick.personId)!;
+            const feeDelta = pick.fee - handPick.fee;
+            const fitDelta = fitFor(person, role, draft) - handPick.fit;
+            const inBook = producerStable(producer, []).some((e) => e.personId === person.id);
+            for (const t of tallySet) {
+              t.feeDelta += feeDelta;
+              t.fitDelta += fitDelta;
+              t.worstFitDelta = Math.min(t.worstFitDelta, fitDelta);
+              if (person.id === handPick.p.id) t.matchedBest++;
+              if (inBook) t.fromStable++;
+            }
           }
         }
       }
@@ -141,7 +173,7 @@ describe.skipIf(!diagnosticEnabled)('delegated staffing - is it ever the wrong c
       // eslint-disable-next-line no-console
       console.log(`\n${title}`);
       // eslint-disable-next-line no-console
-      console.log('                       n   fee saved   mean fit cost   worst fit cost   found the best pick   empty-handed');
+      console.log('                       n   fee saved   mean fit cost   worst fit cost   found the best pick   from the book');
       for (const [label, t] of rows) {
         const n = t.samples - t.emptyHanded;
         if (n === 0) continue;
@@ -149,7 +181,7 @@ describe.skipIf(!diagnosticEnabled)('delegated staffing - is it ever the wrong c
         console.log(
           `${label.padEnd(20)} ${String(n).padStart(3)}   ${money(-t.feeDelta / n).padStart(9)}   ` +
             `${(t.fitDelta / n).toFixed(1).padStart(13)}   ${t.worstFitDelta.toFixed(1).padStart(14)}   ` +
-            `${((t.matchedBest / n) * 100).toFixed(0).padStart(19)}%   ${String(t.emptyHanded).padStart(12)}`,
+            `${((t.matchedBest / n) * 100).toFixed(0).padStart(19)}%   ${((t.fromStable / n) * 100).toFixed(0).padStart(12)}%`,
         );
       }
     };
@@ -159,7 +191,8 @@ describe.skipIf(!diagnosticEnabled)('delegated staffing - is it ever the wrong c
     // eslint-disable-next-line no-console
     console.log('(positive "fee saved" = delegation is cheaper; negative "fit cost" = delegation is a worse fit)');
     report('By role', new Map([...byRole].map(([r, t]) => [r as string, t])));
-    report('By producer skill', bySkill);
+    report('By producer skill (no book - a stranger to everyone)', bySkill);
+    report('By producer skill (four regulars in this craft)', byStable);
 
     const all = [...byRole.values()].reduce(
       (acc, t) => ({
@@ -181,5 +214,15 @@ describe.skipIf(!diagnosticEnabled)('delegated staffing - is it ever the wrong c
     // being a decision and the tuning has to move.
     expect(all.fee).toBeLessThan(0); // cheaper
     expect(all.fit).toBeLessThan(0); // a worse fit
+
+    // And what a book does to that trade, which is the whole point of stables:
+    // a producer with regulars gets you a better price AND a worse fit than the
+    // same producer without them. If a book ever became a pure upgrade, it
+    // would quietly make delegation dominant - lower STABLE_FEE_FLOOR's
+    // generosity or BRIEF_STABLE_SCORE_BONUS if this fires.
+    const sum = (rows: Map<string, Tally>, key: 'feeDelta' | 'fitDelta') =>
+      [...rows.values()].reduce((acc, t) => acc + t[key], 0);
+    expect(sum(byStable, 'feeDelta')).toBeLessThan(sum(bySkill, 'feeDelta')); // cheaper still
+    expect(sum(byStable, 'fitDelta')).toBeLessThan(sum(bySkill, 'fitDelta')); // and a worse fit still
   });
 });

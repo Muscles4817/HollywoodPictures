@@ -3,6 +3,7 @@ import { useStudio } from '../state/StudioContext';
 import { Button } from './common/Button';
 import { Money } from './common/Money';
 import { playerReleasedFilms } from '../engine/project';
+import { describeStable } from '../engine/producerStables';
 import {
   benchCapacity,
   benchProducerIds,
@@ -289,8 +290,13 @@ function ProducerHireModal({ onClose }: { onClose: () => void }) {
 }
 
 function ProducerCard({ person, action }: { person: Person; action: ReactNode }) {
+  const { state } = useStudio();
   const career = getProducerCareer(person);
   if (!career) return null;
+  // Who they bring with them (engine/producerStables.ts) - the thing that makes
+  // two producers of the same skill genuinely different hires, since their
+  // regulars work for them at a favour rate.
+  const stable = describeStable(person, playerReleasedFilms(state.projects), state.talentPool);
   return (
     <div className="producer-card">
       <div className="producer-card-body">
@@ -304,6 +310,7 @@ function ProducerCard({ person, action }: { person: Person; action: ReactNode })
           {career.genreAffinity.length > 0 && <span className="producer-card-affinity">♦ {career.genreAffinity.join(', ')}</span>}
           <span>Per film <Money amount={producerPerFilmFee(person)} /></span>
         </div>
+        {stable && <p className="producer-card-stable">Brings with them: {stable}</p>}
       </div>
       <div className="producer-card-action">{action}</div>
     </div>

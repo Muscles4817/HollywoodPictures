@@ -12,6 +12,7 @@
 //   - `canDelegateRole` enforces MAX_BRIEFS_PER_ROLE, so vetoing is never a
 //     free reroll.
 import type {
+  Film,
   FilmDraft,
   GameDay,
   Genre,
@@ -19,6 +20,7 @@ import type {
   Person,
   PersonId,
   ProducerCareer,
+  ProducerStableEntry,
   ProductionRole,
   StaffingBrief,
   Studio,
@@ -34,6 +36,7 @@ import {
   BRIEF_FIT_WEIGHT,
   BRIEF_HONEST_READ_SKILL,
   BRIEF_PRICE_PENALTY,
+  BRIEF_STABLE_SCORE_BONUS,
   BRIEF_MAX_OVERRUN,
   BRIEF_SPEED_BY_SKILL,
   BRIEF_VALUE_WEIGHT,
@@ -46,6 +49,7 @@ import { availableCandidatesForRole, getCrewCareer, getTypicalSalaryForRole } fr
 import { crewSpecialtyCapability, describeStandoutSpecialty, isSpecialtyDepartment, specialtyDepartmentForRole, specialtyWeightedCapability } from './crewSpecialty';
 import { deriveDepartmentWorkloadsForScript } from './departmentWorkload';
 import { deriveDefaultStrategy } from './executionStrategy';
+import { describeStableBond, producerStable, stableFeeMultiplier, stableStrength } from './producerStables';
 import type { RandomFn } from './random';
 import { clamp, randInt } from './random';
 import { logT, type Range } from './interpolate';
@@ -278,8 +282,20 @@ function fitScore(person: Person, role: ProductionRole, draft: FilmDraft): numbe
   return specialtyWeightedCapability(caps, workload.contributions, overallSkill).skill;
 }
 
-function pitchFor(person: Person, role: ProductionRole, fee: Money, allocation: Money, career: ProducerCareer, genre: Genre | null): string[] {
+function pitchFor(
+  person: Person,
+  role: ProductionRole,
+  fee: Money,
+  allocation: Money,
+  career: ProducerCareer,
+  genre: Genre | null,
+  bond: ProducerStableEntry | null,
+): string[] {
   const pitch: string[] = [];
+  // The bond leads: it is why THIS name, and it is what makes the pick read as
+  // a person's choice rather than a sample.
+  const bondLine = describeStableBond(bond);
+  if (bondLine) pitch.push(bondLine);
   const under = allocation - fee;
   if (under > 0) pitch.push(`£${Math.round(under / 1000).toLocaleString()}k under what you gave me.`);
   else pitch.push(`Right at the number you gave me.`);
@@ -315,14 +331,25 @@ export function producerCandidatePick(
   talentPool: TalentPool,
   today: GameDay,
   rng: RandomFn,
+  playerFilms: readonly Film[] = [],
 ): NonNullable<StaffingBrief['candidate']> | null {
   const career = getProducerCareer(producer);
   if (!career) return null;
   const skill = effectiveSkill(career, draft.genre);
   const discount = lerp(BRIEF_FEE_DISCOUNT_BY_SKILL, skill / 100);
+  // Their book (engine/producerStables.ts) - who they already trust, and what
+  // those people charge them. Read once; every candidate below checks against it.
+  const bonds = new Map(producerStable(producer, playerFilms).map((e) => [`${e.personId}::${e.role}`, e]));
+  const bondFor = (personId: string) => bonds.get(`${personId}::${role}`) ?? null;
 
   const affordable = eligibleBriefCandidates(draft, talentPool, role, today)
-    .map((person) => ({ person, fee: Math.round(getTypicalSalaryForRole(person, role) * discount) }))
+    .map((person) => {
+      const bond = bondFor(person.id);
+      // The favour rate stacks with the skill discount: a regular of a good
+      // producer is the cheapest this game gets.
+      const fee = Math.round(getTypicalSalaryForRole(person, role) * discount * stableFeeMultiplier(bond));
+      return { person, fee, bond };
+    })
     .filter((c) => c.fee <= allocation);
   if (affordable.length === 0) return null;
 
@@ -338,7 +365,13 @@ export function producerCandidatePick(
       const quality = (getCrewCareer(c.person, role as Parameters<typeof getCrewCareer>[1])?.skill ?? 50) / 100;
       const price = clamp(logT(c.fee, salaryRange), 0, 1);
       const fit = fitScore(c.person, role, draft) / 100;
-      return { ...c, score: BRIEF_VALUE_WEIGHT * (quality - BRIEF_PRICE_PENALTY * price) + BRIEF_FIT_WEIGHT * fit };
+      // Familiarity is a thumb on the scale, not a trump card: enough that a
+      // producer visibly keeps going back to their people, never enough to
+      // carry someone whose price and fit both argue against them. This is
+      // also the mechanic's second way to be WRONG - their regular is not
+      // necessarily right for this film, and they will still bring them.
+      const familiarity = BRIEF_STABLE_SCORE_BONUS * stableStrength(c.bond?.films ?? 0);
+      return { ...c, score: BRIEF_VALUE_WEIGHT * (quality - BRIEF_PRICE_PENALTY * price) + BRIEF_FIT_WEIGHT * fit + familiarity };
     })
     .sort((a, b) => b.score - a.score);
 
@@ -347,7 +380,7 @@ export function producerCandidatePick(
   return {
     personId: chosen.person.id,
     fee: chosen.fee,
-    pitch: pitchFor(chosen.person, role, chosen.fee, allocation, career, draft.genre),
+    pitch: pitchFor(chosen.person, role, chosen.fee, allocation, career, draft.genre, chosen.bond),
   };
 }
 
@@ -368,6 +401,7 @@ export function tickStaffingBriefs(
   talentPool: TalentPool,
   producerPool: Person[],
   rng: RandomFn,
+  playerFilms: readonly Film[] = [],
 ): FilmDraft {
   const briefs = draftBriefs(draft);
   if (briefs.length === 0) return draft;
@@ -387,7 +421,7 @@ export function tickStaffingBriefs(
       return { ...brief, status: 'declined' as const };
     }
     changed = true;
-    const candidate = producerCandidatePick(producer, brief.role, brief.allocation, draft, talentPool, totalDays, rng);
+    const candidate = producerCandidatePick(producer, brief.role, brief.allocation, draft, talentPool, totalDays, rng, playerFilms);
     return { ...brief, status: 'returned' as const, candidate: candidate ?? undefined };
   });
 

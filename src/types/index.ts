@@ -490,6 +490,28 @@ export interface ProducerCareer {
   skill: number; // 1-100, scales the boost magnitude via lerp (engine/producers.ts)
   genreAffinity: Genre[]; // genres where this producer's boost is amplified (amplify-only, never a penalty)
   typicalSalary: Money; // the per-film fee
+  /**
+   * Producer Stables (docs/DESIGN_REVIEW_delegated_staffing.md §10) - the crew
+   * heads this producer already had in their book when the player met them.
+   * IMMUTABLE seed data, set once at generation: the working history they
+   * accumulate DURING the game is derived from released films instead, never
+   * stored (engine/producerStables.ts:producerStable). Absent = they arrived
+   * with nobody, which is a legitimate state for a junior.
+   */
+  stable?: ProducerStableEntry[];
+}
+
+/**
+ * One person in a producer's book. `films` is how many pictures they have made
+ * together - for a SEEDED entry that is history predating the game; for the
+ * derived part it is a count of the player's own released films that carried
+ * both of them. Read the two together via engine/producerStables.ts.
+ */
+export interface ProducerStableEntry {
+  personId: PersonId;
+  /** What they do for this producer - a person is in the book for one craft. */
+  role: ProductionRole;
+  films: number;
 }
 
 // A Stunt Team — the head of the Practical Effects facet

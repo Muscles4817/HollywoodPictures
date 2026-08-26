@@ -1,7 +1,7 @@
 # Design Review: Delegated Staffing — Handing a Crew Slot to Your Line Producer
 
-Status: **Phase 1 built** (§11 records what shipped and where it differs from
-this brief). The first mechanic where an attached Producer *does something*
+Status: **Phase 1 + producer stables built** (§11 records Phase 1 as shipped;
+§12 records stables). The first mechanic where an attached Producer *does something*
 rather than multiplying something. Adds a timed brief-and-return loop to the
 existing Cast & Crew staffing board for the five crew-head roles. No new
 currency, no new lifecycle vocabulary, no change to how anyone is hired or
@@ -422,12 +422,12 @@ the harness is how we find out before the playtester does.
 
 ## 10. What this deliberately sets up, and does not build
 
-- **Producer stables.** A producer who keeps bringing you the same DP — the
-  domain's own "HODs bring teams" (`docs/domain/05-departments-and-crew.md`:
-  "Hiring a gaffer effectively hires their best boy"). The substrate exists
-  (`engine/relationships.ts`, `engine/pairHistory.ts`); wiring a producer's own collaboration history into `producerCandidatePick`
-  is a self-contained follow-up that would make picks feel authored rather
-  than sampled. This is the single highest-value next increment.
+- ~~**Producer stables.**~~ **Built — see §12.** A producer who keeps bringing
+  you the same DP — the domain's own "HODs bring teams"
+  (`docs/domain/05-departments-and-crew.md`: "Hiring a gaffer effectively hires
+  their best boy"). The original note assumed this would mean storing a
+  producer's collaboration history alongside `engine/relationships.ts`; it
+  turned out to be better derived. §12 records what shipped and why.
 - **Creative Producer → cast shortlists.** A different verb for a different
   archetype: three names for one character, weighted toward *fit* and over
   budget, feeding the existing shortlist rather than the hire. Only worth
@@ -542,9 +542,120 @@ trusting a good one is merely a small, priced concession.
 
 ### 11.5 Still true, still not built
 
-Everything in §9 and §10 stands unchanged. The nearest next increment remains
-**producer stables** (§10) — routing `engine/relationships.ts` and
-`engine/pairHistory.ts` into `producerCandidatePick` so a producer keeps bringing
-you their people, which would make picks feel authored rather than sampled. The
-harness is already in place to check it does not quietly turn delegation into
-the dominant play.
+Everything in §9 stands unchanged — the workspace clock, the single-film ceiling
+on how much delegation can matter, and unlimited concurrent briefs per producer
+are all exactly as described. Of §10, **producer stables shipped** (§12); the
+Creative Producer's cast shortlists, the postmortem beat, and the deliberate
+refusal to let delegation feed back into producer effects all still stand.
+
+---
+
+## 12. Producer stables (built)
+
+### 12.1 What it is
+
+Every producer arrives with a **book**: crew heads they already trust. When you
+hand them a slot, they lean toward their people — and their people work for them
+at a favour rate.
+
+That's the whole feature, and it does two jobs at once. It makes a delegated
+pick read as *a person making a choice* rather than a function sampling a pool
+(the "authored, not sampled" goal §10 set). And it gives delegation a **second
+way to be wrong**: a producer's regular is not necessarily right for *this*
+film, and they will bring them anyway.
+
+### 12.2 The storage decision
+
+A stable is **half stored, half derived**, and the split is the interesting part.
+
+- **The seeded half** (`ProducerCareer.stable`) is history from before you met
+  them. Nothing in the game can derive it, so it is generated once and never
+  written again.
+- **The grown half is not stored at all.** A released film that carried both
+  this producer and this crew head *is* the record that they worked together —
+  `Film.attachedProducerIds` × `Film.talent`, read on demand.
+
+§10 assumed this would need wiring into `engine/relationships.ts` and a write at
+release. It doesn't, and shouldn't: `runCalendarSettlement` is consumed at six
+different reducer sites, so a stored stable would have meant six write points, an
+idempotency guard at each (a released film is re-seen every settlement pass), and
+two sources of truth for one fact. Deriving it costs one function and cannot
+double-count by construction — the same "derive from what's already true"
+instinct `computeRelationship` and `attachmentMomentum` already follow.
+
+The one thing this rules out is a producer remembering someone from a film they
+were on for *another* studio, since only the player's films are in evidence.
+Correct for now, and the shape doesn't fight a change later.
+
+### 12.3 What a book does
+
+| | Effect | Why |
+| --- | --- | --- |
+| **Preference** | `BRIEF_STABLE_SCORE_BONUS`, saturating at 4 shared films | They keep going back to their people |
+| **Favour rate** | Regulars charge down to `STABLE_FEE_FLOOR` (0.82×), stacking with the skill discount | Someone who trusts you takes less |
+| **Pitch** | The bond leads the pitch — *"One of my regulars — 4 pictures and counting."* | It is *why this name* |
+| **Skill / fit** | **Nothing.** | A regular is exactly as good as they are |
+
+That last row is the load-bearing one. A book changes *who gets found* and *what
+they cost* — never how good they are. So a stable is an asset and a liability in
+the same motion.
+
+**Whom they know tracks what they cost.** Seeded regulars are drawn near the
+producer's own pay tier on the shared log-salary scale, so a junior's book is
+full of cheap people and an ace's is full of expensive ones — both at a
+discount. That is what makes *which* producer you hire a different question from
+how skilled they are.
+
+### 12.4 What the harness says
+
+The diagnostic now runs every producer twice — once a stranger to everyone, once
+carrying four regulars in the craft — same seeds, everything else held constant,
+so the difference between the two tables *is* the stable:
+
+```
+By producer skill (no book - a stranger to everyone)
+                     n   fee saved   mean fit cost   worst fit cost   from the book
+poor (20)          120      £0.37M            -6.5            -30.3              0%
+top  (95)          120      £0.63M            -2.9             -9.6              0%
+
+By producer skill (four regulars in this craft)
+poor (20)          120      £0.50M           -10.4            -47.0             18%
+fair (45)          120      £0.78M            -9.9            -47.1             22%
+good (70)          120      £0.99M          -12.5            -47.5             35%
+top  (95)          120      £1.10M           -12.9            -46.0             42%
+```
+
+Read it as the design's own claim in measurement:
+
+- **A book is real money.** £0.63M → £1.10M saved for a top producer.
+- **A book costs real fit.** −2.9 → −12.9 points, and the worst case roughly
+  **doubles**, from −10 to −46. That is the liability, and it is large.
+- **A better producer leans on their book harder** (18% → 42% of picks). They
+  trust their people more, which reads correctly and compounds both effects.
+
+Both directions are now asserted, not merely reported: a book must make
+delegation *cheaper* **and** *worse-fitting*. If a stable ever became a pure
+upgrade it would quietly restore the dominance the whole design exists to
+prevent, and the harness fails instead.
+
+Note the harness holds every book at **mid-field** regardless of producer skill.
+That is a deliberate stress case isolating "regulars aren't chosen for this
+film"; real seeded books are tier-matched, so a top producer's regulars are
+expensive and good, and the true fit cost is gentler than the table's top row.
+
+### 12.5 Where the player sees it
+
+On the producer card in the Production Office (*"Brings with them: Ana Reyes
+(Cinematographer, 3) · …"*) and on the attach row in the Producer Workspace for
+Line Producers (*"Their regulars: …"*). Visible **before you hire them** and
+before you hand anything over — which is what keeps the liability legible rather
+than a trap, per Principle 3.
+
+### 12.6 Files
+
+`engine/producerStables.ts` (pure: seed, derive, favour rate, prose),
+tunables in `data/producers.ts`, seeding called from `state/persistence.ts`
+(drawn dead last, so it cannot shift any existing generation for a given seed),
+read by `engine/staffingBriefs.ts:producerCandidatePick`, shown in
+`ProductionOfficeCard.tsx` and `projectWorkspace/ProjectProducers.tsx`.
+Tests: `engine/producerStables.test.ts` (26). Save key `v89`.
