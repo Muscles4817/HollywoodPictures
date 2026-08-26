@@ -559,7 +559,58 @@ the first time. Four of the six remaining failures are marginal —
 with `modestly under` into band (23.3%, target 22–38) and `as expected` falling
 from 100% to 75.4%.
 
-**The clearest remaining gap is UPSIDE variance.** `modestly over` and `breakout`
+### 4.5 Upside variance — an attempt that failed, and why
+
+**The clearest remaining gap is UPSIDE variance.** `modestly over` (1.15×+) and
+`breakout` (1.6×+) are both 0%. Two mechanisms were tried and both reverted; the
+reasons are worth keeping, because they rule out the obvious approaches.
+
+**What the data says.** One fixed plan, 240 execution seeds, by decile of how
+well the shoot went:
+
+| | overall | perf | post | quality | audience | activation | crossover used | gross ratio |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| worst decile | −0.314 | 0.935 | 0.616 | 45.2 | 60.0 | 22.8% | 37.8% | **0.690** |
+| median | −0.075 | 1.044 | 0.938 | 53.5 | 68.3 | 32.2% | 79.9% | 0.995 |
+| best decile | +0.061 | 1.095 | 1.090 | 57.3 | 72.2 | 33.9% | **85.8%** | **1.076** |
+
+The asymmetry compounds — 2× at the execution multipliers, 2.2× at
+`qualityScore`, **3.8× at gross**. The best shoot in 240 reaches 1.094×, so the
+1.15× band cannot be entered by any shoot however well it goes.
+
+**The cause is not the composition.** Quality already responds well (a 14-point
+spread across deciles). The cause is that **the median shoot already sits close
+to the film's ceiling** — 32% of its addressable audience activated, 80% of its
+crossover capacity consumed — while the downside is free. Interest ceilings bind
+from above; nothing binds from below.
+
+**Attempt 1 — let exceptional reception earn crossover capacity.** The obvious
+fix, and it worked directionally (best-decile ratio 1.041 → 1.089, max 1.142).
+It also **violated four ratified invariants**, most seriously the runaway guard
+in `audienceSimulationRegressionMatrix.test.ts`: a strong-WOM film's reproduction
+ratio reached **0.997 against a required <0.9**, i.e. word of mouth became very
+nearly self-sustaining. That guard exists precisely to prevent the loop this
+change was opening. Also broke "criticScore never dominates crossover capacity",
+the crossover throttle from Milestone 12, and a sleeper-hit monotonicity case.
+
+**Attempt 2 — rebalance the execution conversion asymmetry** from 3.75:1 to 2:1
+(`pos` 0.0072 → 0.0135 on performance, with ceilings raised in step). This made
+execution matter more to the finished film — best-decile quality 57.3 → 61.1,
+audience 72.2 → 77.2 — but **lifted the median rather than widening the spread**.
+Fixed-plan CV fell 0.151 → 0.132 and the whole-year gates went 11/17 → 9/17, with
+`wideOver100Pct` (53.4), `wideOver500Pct` (9.5) and `wideUnprofitablePct` (35.7)
+all leaving band. Reverted as a net regression.
+
+**What that leaves.** Upside variance needs a mechanism that widens the *gap*
+between the median and the best shoot **without lifting either** — which means
+moving the median film further from its ceiling, not raising the ceiling. That is
+a funnel and scale question, not a variance one, and it is the same root cause as
+`top10SharePct`: word of mouth produces under 1% interest growth in 86% of
+film-weeks, and post-release awareness is capped near 5% of TAA by construction
+(`BOX_OFFICE_BRIEFING.md` §8.4). Until the median film has room above it, no
+amount of execution or reception work can produce a breakout.
+
+**Superseded note.** `modestly over` and `breakout`
 are both still 0%. The composition deliberately weights weakest-link above
 peak-carry, and the post-production realisation factor damps its upside, so a
 shoot can hurt a film far more than it can help one. That asymmetry is right in
