@@ -494,8 +494,8 @@ function AppShell() {
       {guideOpen && <GameGuide onBack={() => setGuideOpen(false)} />}
 
       {/* The chassis: destinations on one edge, the screen beside them. The
-          rail is persistent and never modal (ART_DIRECTION.md §4.3), which is
-          the thing the old Dashboard-only button row could not be. */}
+          rail is persistent and never modal, which is the thing the old
+          Dashboard-only button row could not be. */}
       <div className="shell">
         <DestinationRail devTool={devTool} onSetDevTool={setDevTool} onOpenGuide={() => setGuideOpen(true)} />
         <main className="shell-main">

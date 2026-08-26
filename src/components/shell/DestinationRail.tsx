@@ -10,10 +10,11 @@ interface DestinationRailProps {
 }
 
 /**
- * Persistent global navigation on one edge - ART_DIRECTION.md §4, principle 3,
- * which until now the game did not satisfy: seven of these screens were
- * reachable only from a button row on the Dashboard, so "go to the Talent
- * Database" meant "go to the Dashboard first".
+ * Persistent global navigation, on one edge and never modal. The problem it
+ * solves is this game's own: seven of these screens were reachable only from a
+ * button row on the Dashboard, so "go to the Talent Database" meant "go to the
+ * Dashboard first". (ART_DIRECTION.md §4 notes HP2 doing the same thing, as a
+ * reference rather than a rule.)
  *
  * A left rail rather than take 09's top tab strip, for a measured reason. That
  * strip renders eight destinations at abbreviated labels ("Talent",

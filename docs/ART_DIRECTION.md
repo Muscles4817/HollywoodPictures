@@ -101,22 +101,36 @@ This resolves the apparent tension between "atmospheric, evocative screens" and
 
 ---
 
-## 4. Structural principles inherited from Hollywood Pictures 2 [DECIDED]
+## 4. What Hollywood Pictures 2 gets right [REFERENCE]
 
-Read directly off HP2's own screens. These are structural, not stylistic — they
-survive the change of era.
+**Status note.** This section used to be headed "Structural principles inherited
+from Hollywood Pictures 2 [DECIDED]", as a numbered list that later sections
+then cited as authority ("tabs violate §4's principles 1 and 2"). That was an
+overreach: HP2 is a game the designer likes and has pointed at, and liking
+something in a reference is not the same as adopting it as a rule for this game.
+Nothing below is binding. It is here because it is a useful *explanation* of why
+HP2's screens work, which is worth having written down when arguing about ours —
+and an argument for a change here has to stand on its own merits, about this
+game, with HP2 as at most corroboration.
 
-1. **One screen = one complete task, every slot visible at once.** HP2's film
-   package screen carries title, genre, epoch, 11 attribute sliders, cast slots,
-   director, co-producer, stunt team, FX, music, camera and make-up, plus shoot
-   dates — on one screen. No wizard, nothing hidden behind Next. The player can see
-   the whole shape of the decision.
-2. **Empty slots are visible and shaped.** Blank rows show the holes before they are
-   filled. The screen tells you what "done" looks like.
-3. **Persistent global nav on one edge** — always available, never modal.
-4. **Ornament on the frame, plain data inside** (see §2.3).
-5. **Ambient backdrop behind the functional panel** — never underneath the text.
-6. **A dialogue bar where the game speaks to the player in character.**
+Read off HP2's own screens:
+
+- **Its package screen shows everything at once.** Title, genre, epoch, 11
+  attribute sliders, cast slots, director, co-producer, stunt team, FX, music,
+  camera, make-up, shoot dates — one screen, no wizard, nothing behind Next. The
+  player can see the whole shape of the decision before making any part of it.
+- **Its empty slots are visible and shaped.** Blank rows show the holes before
+  they are filled, so the screen itself says what "done" looks like.
+- **Its global nav sits on one edge**, always available, never modal.
+- **Its ornament is on the frame and its data is plain** — the observation §2.3
+  is built on, and the one thing here that *is* a decided rule for this game,
+  because it is stated as such in §2.3 on its own grounds.
+- **Its backdrop sits behind the functional panel**, never underneath text.
+- **It has a dialogue bar** where the game speaks to the player in character.
+
+Which of these this game wants is a question per screen, not a policy. Some are
+already contradicted deliberately: the game has no ambient backdrop anywhere
+today, and no in-character dialogue bar, and neither absence is a defect.
 
 ---
 
@@ -269,9 +283,11 @@ forward sequence like `WizardStep`." The Producer Workspace redesign did the har
 half of this work already.
 
 What remains is that those five sections are still presented as **tabs**
-(`ProjectWorkspace.tsx` wraps a `Nav`), and tabs still violate §4's principles 1 and
-2: the player cannot see every slot at once, so they can neither read the shape of
-the decision nor see where the holes are.
+(`ProjectWorkspace.tsx` wraps a `Nav`), and tabs cost the player something real:
+they cannot see every slot at once, so they can neither read the shape of the
+decision nor see where the holes are. You have to open Cast & Crew to find out
+you have no composer. §4 notes HP2 avoiding the same cost, which is
+corroboration rather than the reason.
 
 **Assembly should become one sheet.**
 
@@ -319,8 +335,8 @@ This also converges with the strongest idea from the design conversation — *"a
 folder is opened for the production sheet and it fills in as you build your cast and
 crew, writing their names in."* That idea **is** the one-sheet: a production sheet on
 studio letterhead, blank ruled lines where a role is unfilled, names appearing as
-they are hired. It is §4's principles 1 and 2, the existing drawers, and the DESK
-register at full strength, all at once.
+they are hired. It is the visible-slots argument above, the existing drawers, and
+the DESK register at full strength, all at once.
 
 ### 8.5 Known risks
 
@@ -450,6 +466,7 @@ pairing into §5), which is why this list is shorter than the decision log.
 | 2026-08-22 | "Ornament on the frame, plain data inside" adopted as the binding rule. |
 | 2026-08-22 | Place-as-backdrop adopted; place-as-navigation rejected. |
 | 2026-08-22 | Six structural principles inherited from Hollywood Pictures 2. |
+| 2026-08-25 | §4 demoted from DECIDED to REFERENCE, reversing the line above. Pointing at something admired in another game is not adopting it as a rule here; sections that cited "§4's principles" as authority now make their own case. |
 | 2026-08-22 | Cost tiering adopted; Tier 3 rejected by default. |
 | 2026-08-22 | Hollywood Sign and Walk of Fame star ruled out on trademark grounds. |
 | 2026-08-22 | Assembly/execution split (§8): assembly becomes one sheet, execution stays a chronology. |

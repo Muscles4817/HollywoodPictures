@@ -47,7 +47,8 @@ and 13 inline styles in TSX. Nothing else.
   Time lives in a top bar rather than a spine.
 - **The one sheet** (§8.4). `ProjectWorkspace.tsx` is a 40-line shell that
   renders one of five tab bodies. The player still cannot see every slot at once,
-  which is §4's principles 1 and 2 unfulfilled.
+  so they can neither read the shape of the decision nor see where the holes
+  are.
 - **The readiness meter.** `engine/projectReadiness.ts` already computes
   per-section status; the UI spends it on a one-character glyph beside a tab
   label.
@@ -100,7 +101,10 @@ onto the registers, not onto a light/dark choice.
 ### 2.2 How far does package assembly go as one sheet?
 
 **Recommendation: all five sections, with the deep decisions in drawers.**
-§8.3's count holds — 16–18 slots against HP2's 20+. The two heaviest sections
+The count is ~19–20 slots (ten roles plus title, audience, production plan,
+stunt team, execution strategy, budget split, producers, release date, campaign
+and creative demands) — above §8.3's 16–18 estimate, and at the top of what one
+screen holds rather than comfortably inside it. The two heaviest sections
 (`HireTalent` 665 lines, `ProductionPlanning` 744) do not need rewriting; they
 need to become drawer contents behind sheet rows, which is the pattern
 `CastingDrawer` (1,156) and `RoleHiringDrawer` (578) already implement.
