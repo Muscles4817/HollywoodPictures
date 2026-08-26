@@ -66,6 +66,13 @@ Hold-or-move harness (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
 HOLD_OR_MOVE_DIAGNOSTIC=1 npx vitest run src/engine/holdOrMove.diagnostic.test.ts --disable-console-intercept
 ```
 
+Delegated-staffing harness (docs/DESIGN_REVIEW_delegated_staffing.md §8 — is
+handing a crew slot to your Line Producer ever the wrong call?):
+
+```bash
+DELEGATION_DIAGNOSTIC=1 npx vitest run src/engine/delegatedStaffing.diagnostic.test.ts --disable-console-intercept
+```
+
 Release-calendar harness (docs/DESIGN_REVIEW_project_clocks_and_script_openness.md
 §9.2 — does the release date actually matter?):
 

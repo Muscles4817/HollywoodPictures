@@ -24,6 +24,7 @@ import { CastingDrawer } from './CastingDrawer';
 import { findAssignedPerson } from '../../data/helpers';
 import { getCareerForRole, getDirectorCareer, getTypicalSalaryForRole, assignmentCost } from '../../engine/person';
 import { deriveStaffingBoard, STAFFING_STAGE_LABELS, type StaffingRow } from '../../state/staffingBoard';
+import { StaffingBriefsPanel, delegableProducerFor } from './StaffingBriefs';
 import { deriveDefaultStrategy, relevantStrategyAxes, STRATEGY_AXIS_META, type ExecutionStrategy } from '../../engine/executionStrategy';
 import { deriveDirectorApproachFit, deriveCrewCollaborationReads } from '../../engine/collaborationEdges';
 import { formatGameDateWithMonth } from '../../engine/calendar';
@@ -58,6 +59,13 @@ function tileHeadline(person: Person, role: ProductionRole, category: RoleCatego
 // Workstream II systems populate them, never mocked here.
 function progressSummary(row: StaffingRow): string {
   if (row.stage === 'attached') return `✓ ${row.attached.join(', ')}`;
+  // Delegated Staffing - a brief out or back reports on the same lifecycle as
+  // any other search (docs/DESIGN_REVIEW_delegated_staffing.md).
+  if (row.brief) {
+    const { brief, daysRemaining } = row.brief;
+    if (brief.status === 'returned') return 'a name waiting on you';
+    return daysRemaining > 0 ? `out looking · ~${daysRemaining}d` : 'out looking · overdue';
+  }
   if (row.stage === 'negotiating') {
     return `Offer out${row.counts.counters > 0 ? ` - ${row.counts.counters} counter${row.counts.counters === 1 ? '' : 's'}` : ''}`;
   }
@@ -189,6 +197,8 @@ function StaffingBoardSection({
   const board = deriveStaffingBoard(draft, state.totalDays, state.stuntTeamPool);
   const plannedStartDay = state.totalDays + board.plannedStartOffsetDays;
   const charById = new Map((draft.script?.cast ?? []).map((c) => [c.id, c] as const));
+  // Which row's "hand it over" confirm panel is open, if any (Delegated Staffing).
+  const [briefingRole, setBriefingRole] = useState<ProductionRole | null>(null);
 
   const openRow = (row: StaffingRow) => {
     if (row.characterId) {
@@ -244,7 +254,10 @@ function StaffingBoardSection({
                   {row.budget.locked ? '🔒' : '🔓'}
                 </button>
               </td>
-              <td><Button className="btn-sm" onClick={() => openRow(row)}>Open</Button></td>
+              <td className="staffing-actions">
+                <Button className="btn-sm" onClick={() => openRow(row)}>Open</Button>
+                <DelegateButton draft={draft} row={row} onBrief={setBriefingRole} />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -253,9 +266,41 @@ function StaffingBoardSection({
         </tfoot>
       </table>
       {board.stunts && <StuntsPanel stunts={board.stunts} />}
+      <StaffingBriefsPanel draft={draft} briefingRole={briefingRole} onBrief={setBriefingRole} />
       <CrewCollaborationPanel draft={draft} />
       <p className="staffing-board__note">Every role's staffing at a glance - open any to search, audition, negotiate or hire. Lock a budget to keep its share when the rest rebalance. Department heads show how this film's demands suit them, and how your creative leads get on; workload reads will surface here as those systems come online.</p>
     </div>
+  );
+}
+
+// Delegated Staffing - the row's second verb. Only appears when an attached
+// Line Producer could genuinely take this slot right now (the same predicate
+// the reducer guards with, so the button and the guard can never disagree), and
+// turns into the withdrawal once one is out.
+function DelegateButton({
+  draft,
+  row,
+  onBrief,
+}: {
+  draft: FilmDraft;
+  row: StaffingRow;
+  onBrief: (role: ProductionRole | null) => void;
+}) {
+  const { state, dispatch } = useStudio();
+  if (row.brief?.brief.status === 'out') {
+    return (
+      <Button className="btn-sm" onClick={() => dispatch({ type: 'WITHDRAW_STAFFING_BRIEF', briefId: row.brief!.brief.id })}>
+        Pull
+      </Button>
+    );
+  }
+  if (row.brief) return null; // back with a name - the card below is the decision
+  const producer = delegableProducerFor(draft, state, row.role);
+  if (!producer) return null;
+  return (
+    <Button className="btn-sm" onClick={() => onBrief(row.role)}>
+      Hand to {producer.identity.name.split(' ')[0]}
+    </Button>
   );
 }
 

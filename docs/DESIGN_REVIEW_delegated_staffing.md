@@ -1,10 +1,11 @@
 # Design Review: Delegated Staffing — Handing a Crew Slot to Your Line Producer
 
-Status: **Proposed** (design locked, unbuilt). The first mechanic where an
-attached Producer *does something* rather than multiplying something. Adds a
-timed brief-and-return loop to the existing Cast & Crew staffing board for the
-five crew-head roles. No new currency, no new lifecycle vocabulary, no change
-to how anyone is hired or charged.
+Status: **Phase 1 built** (§11 records what shipped and where it differs from
+this brief). The first mechanic where an attached Producer *does something*
+rather than multiplying something. Adds a timed brief-and-return loop to the
+existing Cast & Crew staffing board for the five crew-head roles. No new
+currency, no new lifecycle vocabulary, no change to how anyone is hired or
+charged.
 
 ---
 
@@ -438,3 +439,112 @@ the harness is how we find out before the playtester does.
 - **Delegation affecting producer effects.** Deliberately not built: a producer
   who staffed a department does *not* get a bonus on it. The temptation is
   obvious and it would quietly restore strict dominance.
+
+---
+
+## 11. As built (Phase 1)
+
+### 11.1 Where it lives
+
+| Piece | File |
+| --- | --- |
+| Tunables (every number) | `data/producers.ts`, "Delegated Staffing" block |
+| Pure logic | `engine/staffingBriefs.ts` |
+| State shape | `types/index.ts:StaffingBrief`, `FilmDraft.staffingBriefs` |
+| Actions | `ISSUE_STAFFING_BRIEF`, `ACCEPT_BRIEF_CANDIDATE`, `REJECT_BRIEF_CANDIDATE`, `WITHDRAW_STAFFING_BRIEF` |
+| Daily tick | `studioReducer.ts:ADVANCE_DAY`, immediately after `tickDirectorPitches` |
+| Board integration | `state/staffingBoard.ts` (`StaffingRow.brief`), `wizard/HireTalent.tsx` |
+| Player surface | `wizard/StaffingBriefs.tsx` |
+| Inbox | `engine/project.ts:deriveInboxItems().briefsReturned`, `common/Inbox.tsx` |
+| Tests | `engine/staffingBriefs.test.ts` (30), `state/staffingBriefs.reducer.test.ts` (17) |
+| Harness | `engine/delegatedStaffing.diagnostic.test.ts` |
+
+Save key bumped to `v88`; no migration, per the pre-launch policy in `CLAUDE.md`.
+
+### 11.2 The one substantive change to the design
+
+**§5.1 said the producer ranks candidates on "skill per pound". That is wrong,
+and the harness caught it on its first run.** Fees span orders of magnitude
+where skill spans 1–100, so a literal ratio is arithmetically just `1/fee`: the
+producer came back with the cheapest warm body in the pool every single time —
+a head with fit 42 when the player could have hired a fit-100 head from the same
+allocation. Measured over 480 samples:
+
+```
+role                  delegated fee   hand fee    fit delta
+Cinematographer            £0.03M      £2.26M        -57.0
+Composer                   £0.02M      £3.09M        -57.5
+```
+
+That is not "delegation is a trade". It is delegation being strictly *worse* —
+which fails the design from the opposite direction, because nobody would ever
+accept the pick. A decision only exists when neither option dominates.
+
+The fix (`data/producers.ts:BRIEF_PRICE_PENALTY`) prices quality against the
+**log** position of a fee within the role's own salary range — the scale
+salaries are actually distributed on, and the one `engine/interpolate.ts:logT`
+already exists to express. A Line Producer then believes *each step up the price
+scale has to be paid for in quality*, which is both what they'd actually say and
+what produces a real trade.
+
+This is exactly what §8 asked the harness to exist for, and it is worth
+recording that it earned its keep before the feature ever reached a player.
+
+### 11.3 What the harness now reports
+
+`DELEGATION_DIAGNOSTIC=1`, 24 films × 5 roles × 4 producer skill bands:
+
+```
+By producer skill      n   fee saved   mean fit cost   worst fit cost   found the best pick
+poor (20)            120      £0.37M            -6.5            -30.3                    5%
+fair (45)            120      £0.34M            -4.5            -22.0                   10%
+good (70)            120      £0.48M            -3.4            -16.8                   21%
+top (95)             120      £0.63M            -2.9             -9.6                   13%
+
+Overall: delegation saves £0.46M a slot and costs 4.3 points of department fit,
+landing the fit-optimal head 12% of the time.
+```
+
+Both halves of the trade hold, and the by-skill table is the design's own claim
+(§5.2) showing up in measurement rather than in prose: a better producer saves
+*more* money **and** costs *less* fit **and** has a far shorter tail — a poor
+one's worst pick is 30 points off the best available head, a top one's is 10.
+Trusting a cheap producer with a demanding department is a genuine gamble;
+trusting a good one is merely a small, priced concession.
+
+### 11.4 Where the implementation differs from §7
+
+- **Four statuses, not four states plus a flag.** `out | returned | accepted |
+  declined`. The brief's separate `withdrawn`/`closed` states collapsed into
+  `declined`: the cap is derived by *counting* briefs on a role
+  (`briefsRemainingForRole`), so a "closed" status would be a second source of
+  truth for the same fact. A withdrawn brief and a vetoed one are the same
+  thing to every reader — a brief that ended without a hire — and both count.
+- **The candidate is picked at return, not at issue.** The *schedule* is
+  committed at issue (the true `dueOnDay` is rolled once and stored, per
+  Principle 2), but the name is drawn against the pool as it stands when they
+  come back. Rolling it at issue would have meant a three-week search returning
+  someone the world had moved on from, and a second reconciliation path at
+  accept-time. One roll either way; this one is both simpler and truer.
+- **The board row carries the search; the decision lives under it.** The row
+  gained the "Hand to …" button and reports the brief on the existing
+  `searching`/`candidates` stages as designed. The accept/veto card renders in
+  a panel below the board rather than inside the hiring drawer — delegation is
+  the *alternative* to opening that drawer, not a mode within it, and this way
+  the drawer is untouched by the feature.
+- **`quoteBrief` is rng-free.** The confirm panel renders the producer's read
+  and estimate live as the player edits the allocation, so the quote had to be
+  a pure function of state. Only `issueBrief` and the tick draw.
+- **Coming back empty-handed is a real outcome.** If nothing in the pool comes
+  in at the allocation, the brief returns with no candidate — the days are still
+  spent. Not in the original brief; it fell out of the money being the whole
+  instruction, and it is the sharpest lesson the mechanic teaches.
+
+### 11.5 Still true, still not built
+
+Everything in §9 and §10 stands unchanged. The nearest next increment remains
+**producer stables** (§10) — routing `engine/relationships.ts` and
+`engine/pairHistory.ts` into `producerCandidatePick` so a producer keeps bringing
+you their people, which would make picks feel authored rather than sampled. The
+harness is already in place to check it does not quietly turn delegation into
+the dominant play.

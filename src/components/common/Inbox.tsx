@@ -75,7 +75,7 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
   // (ProductionRun.tsx/MarketingRelease.tsx) is where it belongs, not the
   // Inbox. The exact same derivation Header.tsx's badge count reads
   // (engine/project.ts:inboxBadgeCount), so the two can never drift apart.
-  const { awaitingChoice, wrapped, parked, casting, auditionsReady, pressTourIncidents, nowPlaying, boxOfficeFinished } = deriveInboxItems(state.projects, state.focusedProjectId, state.totalDays);
+  const { awaitingChoice, wrapped, parked, casting, auditionsReady, briefsReturned, pressTourIncidents, nowPlaying, boxOfficeFinished } = deriveInboxItems(state.projects, state.focusedProjectId, state.totalDays);
   // Recently-resolved award ceremonies the player hasn't clicked through yet
   // (state/selectors.ts) - awards settle silently in the background tick, so
   // this is the Inbox's "Awards night" catch-up beat.
@@ -119,7 +119,7 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
   // test-screening / press-tour cards stay bespoke (they resolve in place);
   // everything else routes to its system-of-record via a shared ActivityCard.
   const needsYouCount =
-    awaitingChoice.length + pressTourIncidents.length + wrapped.length + parked.length + casting.length + auditionsReady.length + nowPlaying.length + attentionBids.length;
+    awaitingChoice.length + pressTourIncidents.length + wrapped.length + parked.length + casting.length + auditionsReady.length + briefsReturned.length + nowPlaying.length + attentionBids.length;
   const updatesCount = boxOfficeFinished.length + awardHighlights.length + updateBids.length;
   const nothingAtAll = needsYouCount === 0 && updatesCount === 0;
 
@@ -288,6 +288,32 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
                     detail,
                   }}
                   action={resumeAction(production, 'Continue Casting')}
+                />
+              );
+            })}
+
+            {briefsReturned.map(({ production, briefs }) => {
+              // Delegated Staffing - a Line Producer is standing in the doorway
+              // with a name (docs/DESIGN_REVIEW_delegated_staffing.md). The
+              // decision itself is per-slot and lives on the Cast & Crew board,
+              // so this routes there rather than trying to answer it here - the
+              // same reasoning the 'casting' card above follows.
+              const names = briefs.map((b) => {
+                const producer = (state.producerPool ?? []).find((p) => p.id === b.producerId)?.identity.name ?? 'Your producer';
+                return b.candidate ? `${producer} has a ${b.role.toLowerCase()}` : `${producer} came back empty-handed on ${b.role.toLowerCase()}`;
+              });
+              return (
+                <ActivityCard
+                  key={`${production.id}-briefs`}
+                  activity={{
+                    id: `${production.id}-briefs`,
+                    tone: 'neutral',
+                    category: 'attention',
+                    eyebrow: 'Producer',
+                    title: production.title || 'Untitled Film',
+                    detail: `${names.join('. ')}. Waiting on your yes or no.`,
+                  }}
+                  action={resumeAction(production, 'See who they found')}
                 />
               );
             })}

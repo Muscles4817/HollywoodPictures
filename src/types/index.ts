@@ -2629,7 +2629,7 @@ export interface AuditionRecord {
 // Phase 2b - one meaningful staffing event for the Cast & Crew activity feed.
 // `kind` drives how the feed renders it; `subject` is the character name or role
 // it concerns; `personName`/`amount`/`note` fill in the specifics.
-export type StaffingEventKind = 'attached' | 'countered' | 'rejected' | 'audition' | 'dropped' | 'budget';
+export type StaffingEventKind = 'attached' | 'countered' | 'rejected' | 'audition' | 'dropped' | 'budget' | 'brief';
 export interface StaffingEvent {
   day: GameDay;
   kind: StaffingEventKind;
@@ -2637,6 +2637,67 @@ export interface StaffingEvent {
   personName?: string;
   amount?: Money;
   note?: string;
+}
+
+// --- Delegated Staffing (docs/DESIGN_REVIEW_delegated_staffing.md) ----------
+//
+// A crew slot handed to an attached Line Producer, who searches for real
+// calendar days and comes back with ONE name to accept or veto. The first
+// mechanic where a Producer *acts* rather than multiplying a number.
+//
+// Deliberately a per-draft record rather than anything on the Producer: being
+// "out looking for this film's DP" is a film<->producer relationship, the same
+// reasoning that puts the bench on Studio.productionOffice rather than on the
+// Person (docs/DESIGN_REVIEW_production_office.md §2).
+
+export type StaffingBriefStatus =
+  /** Out searching - the row reads 'searching' on the staffing board. */
+  | 'out'
+  /** Back with a candidate awaiting the player's accept/veto - reads 'candidates'. */
+  | 'returned'
+  /** The player took their pick; the hire is an ordinary hire. */
+  | 'accepted'
+  /** The player vetoed it, or pulled the brief. The days are spent either way. */
+  | 'declined';
+
+export interface StaffingBrief {
+  /** Stable per-brief id, so the UI and the reducer can address one directly. */
+  id: string;
+  /** One of data/producers.ts:DELEGABLE_CREW_ROLES. */
+  role: ProductionRole;
+  /** The producer who took it - must have been attached to this draft at issue. */
+  producerId: PersonId;
+  /** The budget handed over, snapshotted at issue: this IS the brief. */
+  allocation: Money;
+  issuedOnDay: GameDay;
+  /**
+   * What the producer TOLD the player it would take. Their belief, not the
+   * truth - honesty scales with their skill (data/producers.ts:
+   * BRIEF_ESTIMATE_OPTIMISM), so a cheap producer's quote is cheerful.
+   */
+  estimatedDays: number;
+  /**
+   * When they'll actually be back. Rolled ONCE at issue from their reliability
+   * and stored, never re-rolled per tick - the schedule is committed the moment
+   * you hand it over, and re-reading the record always yields the same history
+   * (docs/SIMULATION_PHILOSOPHY.md Principle 2).
+   */
+  dueOnDay: GameDay;
+  status: StaffingBriefStatus;
+  /**
+   * Set when the brief returns. The candidate is picked at RETURN (against the
+   * pool as it is then), not at issue, so a long search never comes back with a
+   * stale name; once stored it is never re-rolled. `pitch` is the producer's
+   * own reasons, already presentation-ready.
+   */
+  candidate?: { personId: PersonId; fee: Money; pitch: string[] };
+  /**
+   * 1 for the first brief on this role, 2 for the second. At
+   * data/producers.ts:MAX_BRIEFS_PER_ROLE the producer stops taking briefs on
+   * this slot for this film - the rule that stops veto-rerolling. The role
+   * stays hand-hireable forever.
+   */
+  briefsUsed: number;
 }
 
 // --- Casting Redesign, Phase B (docs/DESIGN_REVIEW_casting_redesign.md
@@ -2729,6 +2790,14 @@ export interface FilmDraft {
    * Appended by the relevant reducers; read as `[]` when absent (older drafts).
    */
   staffingLog?: StaffingEvent[];
+  /**
+   * Delegated Staffing (docs/DESIGN_REVIEW_delegated_staffing.md) - crew slots
+   * handed to an attached Line Producer, live and finished. Every brief ever
+   * issued on this draft stays here: the finished ones are what enforce the
+   * per-role cap, and they are the record of who chose each delegated hire.
+   * Read as `[]` when absent (older drafts).
+   */
+  staffingBriefs?: StaffingBrief[];
   /**
    * Workstream II, Layer 2 - the producer's chosen Execution Strategy methods
    * (how the film's requirements are realised). Partial: only axes the player has

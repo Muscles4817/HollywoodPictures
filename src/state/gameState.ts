@@ -329,6 +329,15 @@ export type GameAction =
   | { type: 'FIRE_PRODUCER'; producerId: string }
   | { type: 'ATTACH_PRODUCER'; producerId: string }
   | { type: 'DETACH_PRODUCER'; producerId: string }
+  // Delegated Staffing (docs/DESIGN_REVIEW_delegated_staffing.md) - hand one
+  // crew slot to an attached Line Producer, and answer what they bring back.
+  // ISSUE takes the allocation explicitly (the confirm panel lets the player
+  // adjust it before committing); it is snapshotted onto the brief, since the
+  // brief IS that number. ACCEPT/REJECT/WITHDRAW address one brief by id.
+  | { type: 'ISSUE_STAFFING_BRIEF'; role: ProductionRole; producerId: string; allocation: number }
+  | { type: 'ACCEPT_BRIEF_CANDIDATE'; briefId: string }
+  | { type: 'REJECT_BRIEF_CANDIDATE'; briefId: string }
+  | { type: 'WITHDRAW_STAFFING_BRIEF'; briefId: string }
   // Attach/clear the Stunt Team for the focused film (docs/DESIGN_REVIEW_production_redesign.md §5.2).
   // One team per film; stuntTeamId: null clears it. Charged (per-film fee) only at RELEASE_FILM.
   | { type: 'SET_STUNT_TEAM'; stuntTeamId: string | null }

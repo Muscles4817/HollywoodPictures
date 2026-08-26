@@ -2,7 +2,7 @@
 // (docs/DESIGN_REVIEW_production_office.md). Pure numbers - the logic that
 // reads them lives in engine/producers.ts, generation in
 // engine/talentGenerator.ts. Rebalance here without touching either.
-import type { ProducerSpecialty } from '../types';
+import type { ProducerSpecialty, ProductionRole } from '../types';
 import type { Range } from '../engine/interpolate';
 
 export const PRODUCER_SPECIALTIES: readonly ProducerSpecialty[] = ['Line', 'Creative', 'Executive', 'Fixer'];
@@ -96,3 +96,102 @@ export const OFFICE_UPGRADE_COST_BY_TIER: Record<number, number> = { 2: 1_500_00
 // Unlock is earned, not bought: either enough films shipped OR enough Brand.
 export const OFFICE_UNLOCK_FILMS_RELEASED = 3;
 export const OFFICE_UNLOCK_BRAND = 40;
+
+// --- Delegated Staffing (engine/staffingBriefs.ts) --------------------------
+// Tuning for handing a crew slot to an attached Line Producer
+// (docs/DESIGN_REVIEW_delegated_staffing.md). Every number here exists to keep
+// delegation a TRADE - it must never be the strictly better play. Rebalance
+// here; engine/staffingBriefs.ts reads them and holds no numbers of its own.
+
+// The five crew heads a Line Producer can be handed. Deliberately excludes
+// Director and both actor slots (too consequential to delegate, and the deepest
+// existing loops), Writer (development's territory, not staffing), and Casting
+// Director (the instrument of the later cast-side delegation, not a target of
+// this one). See the review's §2.
+export const DELEGABLE_CREW_ROLES: readonly ProductionRole[] = [
+  'Cinematographer',
+  'Editor',
+  'Composer',
+  'Production Designer',
+  'VFX Supervisor',
+];
+
+// How many briefs one producer will take on a single role of a single film.
+// THE load-bearing number of the whole mechanic: without a cap, delegate ->
+// veto -> repeat is a free reroll and delegation dominates hand-staffing for
+// any player willing to fast-forward. Every issued brief counts, including one
+// the player withdrew - otherwise withdraw-and-reissue is the same loophole
+// wearing a hat.
+export const MAX_BRIEFS_PER_ROLE = 2;
+
+// Base search length in days, before the producer's own speed is applied. The
+// scarcer/more specialised the department, the longer the look.
+export const BRIEF_BASE_DAYS: Record<string, number> = {
+  Cinematographer: 12,
+  Editor: 9,
+  Composer: 8,
+  'Production Designer': 13,
+  'VFX Supervisor': 14,
+};
+export const BRIEF_BASE_DAYS_FALLBACK = 10;
+
+// Skill scales how fast they work: at skill 1 a search takes this multiple of
+// the base, at skill 100 that one. A good producer is roughly twice as quick as
+// a poor one - noticeable against a shoot date, not decisive on its own.
+export const BRIEF_SPEED_BY_SKILL: Range = { min: 1.35, max: 0.7 };
+
+// Reliability decides whether they come back when they SAID they would. At
+// reliability 1 the search can overrun by up to this fraction; at 100, never.
+// Rolled once at issue and stored, so the history is a deterministic read
+// (SIMULATION_PHILOSOPHY Principle 2) rather than a per-tick coin flip.
+export const BRIEF_MAX_OVERRUN = 0.6;
+
+// How honest their day estimate is. At skill 1 they quote this fraction of the
+// time they'll actually need (cheerful optimism); at 100 they quote it straight.
+// Combined with the overrun above, a cheap unreliable producer promises two
+// weeks and delivers in five.
+export const BRIEF_ESTIMATE_OPTIMISM: Range = { min: 0.7, max: 1 };
+
+// The pick. A Line Producer ranks candidates on VALUE - how good someone is
+// against what they cost - and under-weights how well that person suits this
+// film's specific department demands (engine/crewSpecialty.ts computes that
+// fit; they discount it). These weights are the most important balance lever
+// after the brief cap: raise the fit weight and delegation stops being a gamble
+// on demanding departments.
+export const BRIEF_VALUE_WEIGHT = 0.75;
+export const BRIEF_FIT_WEIGHT = 0.25;
+
+// How hard the price side of "value" bites, per unit of LOG-scaled position
+// within the role's own salary range (engine/interpolate.ts:logT, the same
+// log scale every other salary read in the game uses). Deliberately not
+// skill-per-pound: fees span orders of magnitude where skill spans 1-100, so a
+// literal ratio is just 1/fee and a producer would come back with the cheapest
+// warm body every time - measured, and rejected, by the DELEGATION_DIAGNOSTIC
+// harness. This says instead "each step up the price scale has to be paid for
+// in quality", which is what a line producer actually believes. Higher = they
+// scrape harder; at 0 they simply hire the best person the money allows and
+// delegation stops costing you anything.
+export const BRIEF_PRICE_PENALTY = 0.55;
+
+// Skill narrows the field they choose from. A high-skill producer picks from a
+// tight top slice of their own ranking; a poor one is erratic across a wide
+// one - so skill sets the SPREAD of the outcome, not just its mean
+// (SIMULATION_PHILOSOPHY Principle 1). Uniform within the slice.
+export const BRIEF_CANDIDATE_SLICE: Range = { min: 12, max: 2 };
+
+// What they get the deal for, as a multiple of the candidate's standing fee.
+// Coming in under the allocation is a Line Producer's whole professional
+// identity and the concrete thing delegation buys you; it is paid for by the
+// fit risk above, never by being free.
+export const BRIEF_FEE_DISCOUNT_BY_SKILL: Range = { min: 1, max: 0.86 };
+
+// Genre affinity is amplify-only here, exactly as it is for producer effects:
+// a producer working in a world they know reads as this much more skilled for
+// the pick, the pace and the estimate. Never a penalty for its absence.
+export const BRIEF_AFFINITY_SKILL_BONUS = 12;
+
+// Below this skill the producer's read of an allocation ("what will that buy
+// you?") comes back one band rosier than the pool actually supports. Same
+// instinct as the day estimate above: what they tell you is their belief, and
+// belief is only ever as good as they are.
+export const BRIEF_HONEST_READ_SKILL = 55;

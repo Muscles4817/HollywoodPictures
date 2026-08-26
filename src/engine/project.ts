@@ -1,5 +1,6 @@
-import type { Asset, AuditionRecord, CastingCall, Film, FilmDraft, Project, RivalProductionInProgress } from '../types';
+import type { Asset, AuditionRecord, CastingCall, Film, FilmDraft, Project, RivalProductionInProgress, StaffingBrief } from '../types';
 import { castingCallsAwaitingReview } from './castingCalls';
+import { returnedBriefs } from './staffingBriefs';
 
 /**
  * The one stable identity a Project carries for its entire life, regardless
@@ -121,6 +122,8 @@ export interface InboxItems {
   casting: Array<{ production: FilmDraft; calls: CastingCall[] }>;
   /** Drafts with completed-but-unacknowledged screen tests - the "an audition came back" beat. Completion is derived from the day (readyOnDay vs. totalDays); acknowledged clears it once the player has seen the result. Empty unless deriveInboxItems is given the current totalDays. */
   auditionsReady: Array<{ production: FilmDraft; auditions: AuditionRecord[] }>;
+  /** Drafts where a delegated crew brief has come back and is waiting on an accept/veto (docs/DESIGN_REVIEW_delegated_staffing.md). Genuinely actionable - the producer is holding a name, and every day the player leaves it is a day of the shoot's run-up spent. */
+  briefsReturned: Array<{ production: FilmDraft; briefs: StaffingBrief[] }>;
   /** Scheduled (not-yet-released) films with a fired-but-unanswered press-tour incident awaiting a response (the interactive layer). Sourced from 'scheduled' projects, which backgroundedPlayerDrafts deliberately excludes. */
   pressTourIncidents: FilmDraft[];
   /** The player's own films that have opened but whose Premiere Reveal the player hasn't watched yet (Film.boxOfficeRun.premiereSeen === false) - a background-settled scheduled release never lands on the results screen, so this is where the "now playing, watch the premiere" moment surfaces instead. */
@@ -167,6 +170,12 @@ export function deriveInboxItems(projects: Project[], excludeId: string | null, 
       .filter((p) => !p.photography)
       .map((p) => ({ production: p, auditions: (p.auditions ?? []).filter((a) => totalDays >= a.readyOnDay && !a.acknowledged) }))
       .filter((c) => c.auditions.length > 0),
+    // A Line Producer standing in the doorway with a name. Same shape as
+    // casting/auditionsReady: only drafts still in development can have one.
+    briefsReturned: productions
+      .filter((p) => !p.photography)
+      .map((p) => ({ production: p, briefs: returnedBriefs(p) }))
+      .filter((c) => c.briefs.length > 0),
     pressTourIncidents: scheduledPlayerReleases(projects)
       .map((s) => s.draft)
       .filter((d) => d.pressTourIncident),
@@ -194,6 +203,7 @@ export function inboxBadgeCount(projects: Project[], excludeId: string | null, t
     items.parked.filter(isParkedActionable).length +
     items.casting.length +
     items.auditionsReady.length +
+    items.briefsReturned.length +
     items.pressTourIncidents.length +
     items.nowPlaying.length +
     items.boxOfficeFinished.length

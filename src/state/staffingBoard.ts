@@ -5,7 +5,7 @@
 // compatibility, department workload/problems) can hang new sections off the
 // same rows without reshaping the hub. Extension points are left explicitly
 // undefined here rather than mocked with placeholder data.
-import type { FilmDraft, GameDay, ProductionRole, Money, StaffingEvent } from '../types';
+import type { FilmDraft, GameDay, ProductionRole, Money, StaffingEvent, StaffingBrief } from '../types';
 import { MANDATORY_TALENT_ROLES, OPTIONAL_TALENT_ROLES } from '../data/talentGeneration';
 import { TALENT_PRESENTATION, type RoleCategory } from '../data/talentPresentation';
 import { effectiveRoleCapacity } from '../engine/castRequirements';
@@ -20,6 +20,7 @@ import { deriveDefaultStrategy } from '../engine/executionStrategy';
 import { crewSpecialtyCapability, specialtyWeightedCapability, isSpecialtyDepartment } from '../engine/crewSpecialty';
 import type { StuntTeam } from '../types';
 import { assignmentCost } from '../engine/person';
+import { briefsRemainingForRole, liveBriefForRole } from '../engine/staffingBriefs';
 
 // The shared staffing lifecycle every role moves through. Crew skip the middle
 // stages (they're an instant hire), but they report the SAME vocabulary, so the
@@ -73,6 +74,23 @@ export interface StaffingRow {
   suitability?: CrewFitRead;
   compatibility?: unknown;
   workload?: unknown;
+  /**
+   * Delegated Staffing - the live brief on this row, if a Line Producer is out
+   * looking for it (docs/DESIGN_REVIEW_delegated_staffing.md). Deliberately
+   * needs NO new StaffingStage: a brief that is out reads 'searching' and one
+   * that has come back reads 'candidates', which is exactly what those stages
+   * already mean.
+   */
+  brief?: StaffingBriefRead;
+}
+
+/** What a row needs to say about its brief - the record plus the two derived reads the UI wants. */
+export interface StaffingBriefRead {
+  brief: StaffingBrief;
+  /** Days until they said they'd be back; negative once they're overdue. */
+  daysRemaining: number;
+  /** Briefs still available on this role after this one (the veto cap). */
+  briefsRemaining: number;
 }
 
 // Which staffing rows map to a modelled Layer-3 department (the crew fit-read
@@ -238,19 +256,28 @@ export function deriveStaffingBoard(draft: FilmDraft, totalDays: GameDay, stuntT
     const committed = attachedAssignments.reduce((sum, a) => sum + assignmentCost(a), 0);
     const attached = attachedAssignments.map((a) => a.person.identity.name);
     const warnings: StaffingWarning[] = committed > planned && committed > 0 ? ['over-budget'] : [];
+    // A live brief drives both the stage and the search flag, so a delegated
+    // slot reports on exactly the same lifecycle as a hand-staffed one.
+    const live = liveBriefForRole(draft, role);
+    const brief: StaffingBriefRead | undefined = live
+      ? { brief: live, daysRemaining: live.issuedOnDay + live.estimatedDays - totalDays, briefsRemaining: briefsRemainingForRole(draft, role) }
+      : undefined;
+    const crewStage: StaffingStage =
+      attached.length > 0 ? 'attached' : live?.status === 'returned' ? 'candidates' : live ? 'searching' : 'unstaffed';
     rows.push({
       key: role,
       label: role,
       role,
       category,
       optional: OPTIONAL_TALENT_ROLES.includes(role),
-      stage: attached.length > 0 ? 'attached' : 'unstaffed',
+      stage: crewStage,
       attached,
-      activeSearch: false,
+      activeSearch: live?.status === 'out',
       counts: NO_COUNTS,
       warnings,
       budget: { planned, committed, remaining: Math.max(0, planned - committed), locked: locked.has(role) },
       suitability: crewSuitability(role, draft.talent, workloads),
+      brief,
     });
   }
 

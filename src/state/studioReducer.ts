@@ -1,4 +1,4 @@
-import type { Asset, AwardShowId, AwardsState, BackendDeal, BidNotification, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, RoleNegotiation, StaffingEvent, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
+import type { Asset, AwardShowId, AwardsState, BackendDeal, BidNotification, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, RoleNegotiation, StaffingBrief, StaffingEvent, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
@@ -27,6 +27,7 @@ import { computeRewriteOutcome, draftAtAssetHead, estimateRewriteDuration, makeP
 import { commissionDurationDays, commissionFee, generateCommissionedScript, makePendingCommission, settlePendingCommissions } from '../engine/commission';
 import { generateCreativeDemands, resolveDemandQualityDelta, acceptedDemandQualityDelta, directorWouldWalk } from '../engine/creativeDemands';
 import { openDirectorPitches, tickDirectorPitches } from '../engine/directorPitches';
+import { briefsRemainingForRole, canDelegateRole, issueBrief, tickStaffingBriefs, withdrawBriefs } from '../engine/staffingBriefs';
 import { computePitchExecutionRiskDelta } from '../engine/directorPitch';
 import {
   momentPolarity,
@@ -901,6 +902,25 @@ function withDraftsAtAssetHead(state: GameState): GameState {
   return moved ? { ...state, projects } : state;
 }
 
+/**
+ * Pure identity for one staffing brief - never a gameplay outcome, so it does
+ * not need to be replay-deterministic (same reasoning as
+ * gameState.ts:generateDraftId, and the same reason it avoids crypto.randomUUID).
+ */
+function generateBriefId(): string {
+  return `brief-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Set one brief's status, leaving every other brief on the draft untouched. */
+function setBriefStatus(draft: FilmDraft, briefId: string, status: StaffingBrief['status']): StaffingBrief[] {
+  return (draft.staffingBriefs ?? []).map((b) => (b.id === briefId ? { ...b, status } : b));
+}
+
+/** The producer's name for a staffing-log line, or undefined if they've since been fired. */
+function producerName(state: GameState, brief: StaffingBrief): string | undefined {
+  return (state.producerPool ?? []).find((p) => p.id === brief.producerId)?.identity.name;
+}
+
 export function studioReducer(state: GameState, action: GameAction): GameState {
   return withDraftsAtAssetHead(applyGameAction(state, action));
 }
@@ -937,12 +957,21 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         // Director bake-off (Phase B2) - pitches land on the same daily beat as
         // casting calls, gated behind each pending pitch's stored due-day.
         // Deterministic (no rng), and a no-op unless a round is open.
+        // Delegated Staffing (docs/DESIGN_REVIEW_delegated_staffing.md) - a
+        // Line Producer out looking for a crew head comes back on the same
+        // daily beat, for the focused draft and every backgrounded one, for
+        // exactly the reasons casting calls do. Drawn AFTER casting calls and
+        // director pitches and BEFORE the prep/awards/press-tour tail, so no
+        // existing system's rng draws shift.
+        const tickBriefs = (d: FilmDraft) => tickStaffingBriefs(d, totalDaysAfter, settlement.talentPool, state.producerPool ?? [], rng);
         const tickedFocusedDraft = focusedDraft
           ? checkTestScreeningReadiness(
-              tickDirectorPitches(
-                tickCastingCalls(focusedDraft, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng, relationshipOf),
-                totalDaysAfter,
-                settlement.talentPool.Director,
+              tickBriefs(
+                tickDirectorPitches(
+                  tickCastingCalls(focusedDraft, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng, relationshipOf),
+                  totalDaysAfter,
+                  settlement.talentPool.Director,
+                ),
               ),
               totalDaysAfter,
               rng,
@@ -950,10 +979,12 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
           : null;
         const tickedProductionsInProgress = productionsInProgress.map((d) =>
           checkTestScreeningReadiness(
-            tickDirectorPitches(
-              tickCastingCalls(d, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng, relationshipOf),
-              totalDaysAfter,
-              settlement.talentPool.Director,
+            tickBriefs(
+              tickDirectorPitches(
+                tickCastingCalls(d, totalDaysAfter, settlement.studio, settlement.talentPool.Actor, rng, relationshipOf),
+                totalDaysAfter,
+                settlement.talentPool.Director,
+              ),
             ),
             totalDaysAfter,
             rng,
@@ -1369,12 +1400,14 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       let nextProjects = state.projects;
       for (const project of state.projects) {
         const draft = asPlayerDraft(project);
-        if (draft && (draft.attachedProducerIds ?? []).includes(action.producerId)) {
-          nextProjects = replaceDraft(nextProjects, {
-            ...draft,
-            attachedProducerIds: (draft.attachedProducerIds ?? []).filter((pid) => pid !== action.producerId),
-          });
-        }
+        if (!draft) continue;
+        // Any crew slot they were out looking for goes with them - a fired
+        // producer brings nothing back (engine/staffingBriefs.ts).
+        const withoutBriefs = withdrawBriefs(draft, (b) => b.producerId === action.producerId);
+        const detached = (withoutBriefs.attachedProducerIds ?? []).includes(action.producerId)
+          ? { ...withoutBriefs, attachedProducerIds: (withoutBriefs.attachedProducerIds ?? []).filter((pid) => pid !== action.producerId) }
+          : withoutBriefs;
+        if (detached !== draft) nextProjects = replaceDraft(nextProjects, detached);
       }
       return {
         ...state,
@@ -1400,7 +1433,110 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       if (!focusedDraft) return state;
       const attached = focusedDraft.attachedProducerIds ?? [];
       if (!attached.includes(action.producerId)) return state;
-      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, attachedProducerIds: attached.filter((pid) => pid !== action.producerId) }) };
+      // Detaching pulls whatever they were out looking for: delegation is
+      // something an ATTACHED producer does for this film, so it cannot
+      // outlive the attachment.
+      const withoutBriefs = withdrawBriefs(focusedDraft, (b) => b.producerId === action.producerId);
+      return { ...state, projects: replaceDraft(state.projects, { ...withoutBriefs, attachedProducerIds: attached.filter((pid) => pid !== action.producerId) }) };
+    }
+
+    // --- Delegated Staffing ------------------------------------------------
+    // docs/DESIGN_REVIEW_delegated_staffing.md. Hand one crew slot to an
+    // attached Line Producer; days later they come back with one name to
+    // accept or veto. Every legality question is answered by the one predicate
+    // engine/staffingBriefs.ts:canDelegateRole, so this guard and the button
+    // that dispatches it can never disagree.
+
+    case 'ISSUE_STAFFING_BRIEF': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const producerPool = state.producerPool ?? [];
+      if (!canDelegateRole(focusedDraft, state.studio, producerPool, action.role, action.producerId)) return state;
+      const producer = producerPool.find((p) => p.id === action.producerId);
+      if (!producer) return state;
+      const allocation = Math.max(0, Math.round(action.allocation));
+      // The true return day is rolled here, once, and stored - handing the slot
+      // over commits the schedule (SIMULATION_PHILOSOPHY Principle 2).
+      const { result: brief, nextSeed } = withRng(state.rngSeed, (rng) =>
+        issueBrief(generateBriefId(), producer, action.role, allocation, focusedDraft, state.talentPool, state.totalDays, rng),
+      );
+      const withBrief: FilmDraft = { ...focusedDraft, staffingBriefs: [...(focusedDraft.staffingBriefs ?? []), brief] };
+      const logged = appendStaffingEvent(withBrief, {
+        day: state.totalDays,
+        kind: 'brief',
+        subject: action.role,
+        personName: producer.identity.name,
+        note: `out looking — back in about ${brief.estimatedDays} days`,
+      });
+      return { ...state, rngSeed: nextSeed, projects: replaceDraft(state.projects, logged) };
+    }
+
+    // Take their pick. Routes to exactly the same shape a hand-made hire
+    // produces - a TalentAssignment with the negotiated fee as agreedSalary,
+    // charged at Greenlight like every other hire (engine/cost.ts) - so nothing
+    // downstream needs to know the slot was delegated.
+    case 'ACCEPT_BRIEF_CANDIDATE': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const brief = (focusedDraft.staffingBriefs ?? []).find((b) => b.id === action.briefId);
+      if (!brief || brief.status !== 'returned' || !brief.candidate) return state;
+      if (focusedDraft.talent.some((a) => a.role === brief.role)) return state; // filled by hand while they were out
+      const candidate = brief.candidate;
+      const person = (state.talentPool[professionForProductionRole(brief.role)] ?? []).find((p) => p.id === candidate.personId);
+      if (!person) return state;
+      // The same defensive guard SET_TALENT_FOR_ROLE keeps: never the same
+      // person in two roles on one film.
+      if (focusedDraft.talent.some((a) => a.person.id === person.id)) return state;
+      const talent: TalentAssignment[] = [
+        ...focusedDraft.talent.filter((a) => a.role !== brief.role),
+        { role: brief.role, person, agreedSalary: candidate.fee },
+      ];
+      const hired: FilmDraft = { ...focusedDraft, talent, staffingBriefs: setBriefStatus(focusedDraft, brief.id, 'accepted') };
+      const logged = appendStaffingEvent(hired, {
+        day: state.totalDays,
+        kind: 'attached',
+        subject: brief.role,
+        personName: person.identity.name,
+        amount: candidate.fee,
+      });
+      return { ...state, projects: replaceDraft(state.projects, logged) };
+    }
+
+    // Veto. The days are gone and the brief is spent - this is the rule that
+    // stops delegate -> veto -> repeat being a free reroll (MAX_BRIEFS_PER_ROLE).
+    case 'REJECT_BRIEF_CANDIDATE': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const brief = (focusedDraft.staffingBriefs ?? []).find((b) => b.id === action.briefId);
+      if (!brief || brief.status !== 'returned') return state;
+      const declined: FilmDraft = { ...focusedDraft, staffingBriefs: setBriefStatus(focusedDraft, brief.id, 'declined') };
+      const remaining = briefsRemainingForRole(declined, brief.role);
+      const logged = appendStaffingEvent(declined, {
+        day: state.totalDays,
+        kind: 'brief',
+        subject: brief.role,
+        personName: producerName(state, brief),
+        note: remaining > 0 ? 'passed on their pick' : "passed — they won't take another brief on this slot",
+      });
+      return { ...state, projects: replaceDraft(state.projects, logged) };
+    }
+
+    // Pull a brief that is still out. Counts against the cap exactly as a veto
+    // does, so withdraw-and-reissue is not the same loophole wearing a hat.
+    case 'WITHDRAW_STAFFING_BRIEF': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      const brief = (focusedDraft.staffingBriefs ?? []).find((b) => b.id === action.briefId);
+      if (!brief || (brief.status !== 'out' && brief.status !== 'returned')) return state;
+      const withdrawn: FilmDraft = { ...focusedDraft, staffingBriefs: setBriefStatus(focusedDraft, brief.id, 'declined') };
+      const logged = appendStaffingEvent(withdrawn, {
+        day: state.totalDays,
+        kind: 'brief',
+        subject: brief.role,
+        personName: producerName(state, brief),
+        note: 'brief withdrawn',
+      });
+      return { ...state, projects: replaceDraft(state.projects, logged) };
     }
 
     case 'SET_STUNT_TEAM': {
@@ -2129,7 +2265,13 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       }
 
       const greenlitDraft: FilmDraft = {
-        ...focusedDraft,
+        // Any crew brief still out is pulled here: the package freezes at
+        // Greenlight, and a producer cannot come back with a name for a film
+        // that has already started prep. Greenlighting with a crew slot still
+        // empty is an already-modelled, already-warned state
+        // (engine/projectReadiness.ts), so this closes the brief rather than
+        // blocking the greenlight.
+        ...withdrawBriefs(focusedDraft, () => true),
         // Development is over: the package is frozen and the project hands off
         // to the live pre-production run (see DevelopmentState / PreProductionState).
         // Freeze the net quality swing from the director's accepted creative
