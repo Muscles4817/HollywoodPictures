@@ -249,3 +249,77 @@
     grid-column: 1 / -1;
   }
 }
+
+/* --- The desk's read, and the lens -------------------------------------
+   One line of the game's own voice, and the toggle that turns the form from
+   "who is in each slot" to "how they sit with everybody else". */
+.sheet-voice {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 0 2px;
+}
+
+.sheet-voice__line {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text);
+  max-width: 62ch;
+}
+
+.sheet-lens {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sheet-lens input { cursor: pointer; }
+.sheet-lens:hover { color: var(--text); }
+
+/* Under the lens a note is a reading rather than a printed caption, so it
+   takes the ink weight of something the game worked out rather than the
+   grey of something the form always said. */
+.sheet-row__note--lens {
+  color: var(--text-muted);
+}
+
+.sheet-row--open .sheet-row__note--lens {
+  color: var(--open);
+}
+
+/* --- The stamp ---------------------------------------------------------
+   The one ornament the sheet allows itself, and only because it sits on the
+   paper rather than on any figure the player has to read. */
+.sheet-stamp {
+  justify-self: start;
+  margin: 4px 0 0;
+  padding: 7px 18px;
+  border: 3px solid var(--green);
+  color: var(--green);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  transform: rotate(-2.5deg);
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-stamp { transform: none; }
+}
+
+@media (max-width: 640px) {
+  .sheet-voice {
+    flex-direction: column;
+    gap: 10px;
+  }
+}

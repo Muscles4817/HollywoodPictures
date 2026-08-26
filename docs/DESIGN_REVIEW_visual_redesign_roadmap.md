@@ -1,6 +1,6 @@
 # Visual Redesign Roadmap
 
-Status: **Phases 0, 1 and 2 landed; phases 3–6 are planning only.** Turns
+Status: **Phases 0–3 landed; phases 4–6 are planning only.** Turns
 `ART_DIRECTION.md` and the nine mockup takes in `docs/design/mockups/` into an
 ordered sequence of reviewable steps.
 
@@ -433,7 +433,42 @@ specifically).
 
 ---
 
-### Phase 3 — What an empty slot says
+### Phase 3 — What an empty slot says [DONE]
+
+**Landed.** Three readings of an absence, on every open slot, behind a
+"Read the relationships" toggle on the sheet: what holding it open costs, how
+many chemistry pairings cannot be read until it is filled, and — once a date is
+claimed — when it has to be filled to keep that date. Plus the reading of a
+presence, the desk's one line of voice, and the stamp on a finished form.
+
+The phase's own test was that no reading may need new simulation, and none did:
+`TALENT_PRESENTATION` already had the copy, `deliveryEstimate` already had the
+slack, and `creativeTension`/`pairHistory` already had the pairings. The
+derivation lives with the sheet rather than in a new module.
+
+**The lens is take 06 in the form's own language.** That take drew the package
+as index cards joined by coloured thread; on a document, threads are ornament
+on a data surface, which §2.3 rules out. What survives is the half that was
+load-bearing — "a tension report reads the web in words".
+
+Three things the work found:
+
+- **A hand-written mirror of the engine's pairing rules would have drifted.**
+  `partnersFor()` restates `creativeTension.ts`'s rules, so the test does not
+  trust it: it fills each open slot with a borrowed person and diffs
+  `keyCreativePairs()` before and after. The reading is provably the engine's.
+- **Rewording authored copy broke it.** The first cut forced each role's hook
+  into a "No one ..." sentence, which produced *"No one optional - only matters
+  for effects-heavy films"* — the hooks are not all verb phrases. They are now
+  quoted verbatim, with a test.
+- **The voice contradicted the meter.** It said "6 of 13 lines filled" beside a
+  meter reading "6 of 21 set", because the voice counted only required slots.
+  The voice now states no count at all: the meter owns the arithmetic, and a
+  second scoreboard that can disagree with the first is worse than none.
+
+**Not done, and deliberately:** take 08's right-hand side panels. They are a
+per-screen layout question rather than part of this reading, and the sheet's
+horizontal budget is already the tightest in the app.
 
 The phase with the most *game* value in the whole roadmap, and the easiest to
 mistake for polish.
@@ -582,3 +617,6 @@ the same line:
 | 2026-08-25 | Rival studios are not a rail destination: `VIEW_RIVAL_STUDIO` needs a name and the game has no rivals index, so they stay a detour from the calendar and the competition panel. |
 | 2026-08-25 | Phase 2 landed. The sheet is the workspace's landing view; the five sections stay reachable, because they are the depth rather than a rival map. |
 | 2026-08-25 | The sheet's contents are a pure derivation with an agreement test against `deriveProjectReadiness` - the two must never tell the player different stories about whether a package is done. |
+| 2026-08-25 | Phase 3 landed. The relationship engines now reach the sheet, not just the hiring drawers. |
+| 2026-08-25 | The relationship lens is words, not threads: a web drawn over a form is ornament on a data surface, which §2.3 forbids. Take 06's tension report survives; its corkboard does not. |
+| 2026-08-25 | The desk's voice states no counts. The readiness meter owns the arithmetic, and two scoreboards that can disagree are worse than one. |

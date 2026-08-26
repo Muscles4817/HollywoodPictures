@@ -2,7 +2,10 @@ import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES } from '../data/talentGenerati
 import { assignmentCost } from './person';
 import { characterForRoleSlot } from './castRequirements';
 import { CHARACTER_ARCHETYPE_LABELS } from '../data/scriptTagLabels';
-import type { FilmDraft, ProductionRole, ProjectWorkspaceSection, ScriptCharacter } from '../types';
+import { TALENT_PRESENTATION } from '../data/talentPresentation';
+import { estimateDelivery } from './deliveryEstimate';
+import { effectivePairChemistry, pairHistory } from './pairHistory';
+import type { FilmDraft, Person, ProductionRole, ProjectWorkspaceSection, ScriptCharacter, TalentPairing } from '../types';
 
 /**
  * The production sheet's contents, derived rather than laid out.
@@ -243,4 +246,168 @@ export function summariseSheet(groups: SheetGroup[]): { set: number; open: numbe
     optional: slots.filter((s) => s.state === 'optional').length,
     total: slots.length,
   };
+}
+
+/* ------------------------------------------------------------------------
+   WHAT AN EMPTY SLOT SAYS
+
+   A blank line on the form is the least informative thing on the sheet, and
+   it is also where the whole simulation is hiding. Compatibility, pair
+   history, creative tension and director appeal are surfaced only inside the
+   two hiring drawers - the player sees them at the instant they hire someone
+   and never again, so the package's relational shape is invisible on the very
+   screen meant to be its map.
+
+   Three readings of one absence, all derived from what the engines already
+   return rather than from anything new:
+
+     · what holding it open costs
+     · which relationships cannot be read until it is filled
+     · when it has to be filled to keep the date the film has claimed
+
+   And one reading of a presence, which is the same problem from the other
+   side: a filled slot says who is in it and nothing about how they sit with
+   everybody else already attached.
+   ------------------------------------------------------------------------ */
+
+/** Whose chemistry a given role is read against - mirrors engine/creativeTension.ts's own pairing rules exactly. */
+function partnersFor(role: ProductionRole, draft: FilmDraft): Person[] {
+  const of = (r: ProductionRole) => draft.talent.filter((a) => a.role === r).map((a) => a.person);
+  const principals = [...of('Lead Actor'), ...of('Supporting Actor')];
+  const director = of('Director')[0];
+
+  switch (role) {
+    // performancePairs: the director against each principal. craftPairs: the
+    // director against their editor and cinematographer.
+    case 'Director':
+      return [...principals, ...of('Editor'), ...of('Cinematographer')];
+    // performancePairs: this actor against the director, and against every
+    // other principal already cast.
+    case 'Lead Actor':
+    case 'Supporting Actor':
+      return [...(director ? [director] : []), ...principals];
+    // craftPairs: only against the director.
+    case 'Editor':
+    case 'Cinematographer':
+      return director ? [director] : [];
+    default:
+      return [];
+  }
+}
+
+export interface SlotReading {
+  /** What holding this slot open costs, in words. Null when it costs nothing. */
+  blocks: string | null;
+  /** How many chemistry pairings cannot be read at all until somebody is in this slot. */
+  unreadablePairs: number;
+  /** The last day this can be filled without the announced date slipping. Null when no date is claimed. */
+  offerNeededBy: number | null;
+}
+
+export function readOpenSlot(slot: SheetSlot, draft: FilmDraft, today: number): SlotReading | null {
+  if (slot.state === 'set') return null;
+
+  const mandatory = slot.state === 'open';
+  // An optional slot blocks nothing, so what it "costs" is simply the thing
+  // that role does, quoted verbatim from the copy the hiring drawer already
+  // shows. Deliberately not reworded into an absence ("No one ...") - the
+  // hooks are not all verb phrases, and transforming them produced sentences
+  // like "No one optional - only matters for effects-heavy films".
+  const blocks = slot.role
+    ? mandatory
+      ? 'Holds the shoot'
+      : TALENT_PRESENTATION[slot.role].hook
+    : mandatory
+      ? 'Holds the greenlight'
+      : null;
+
+  // An optional slot never holds the shoot, so it never has a deadline of its
+  // own - only the mandatory ones burn the film's slack by staying open.
+  const estimate = mandatory ? estimateDelivery(draft, today) : null;
+  const offerNeededBy = estimate?.slackDays != null && estimate.slackDays > 0 ? today + estimate.slackDays : null;
+
+  return {
+    blocks,
+    unreadablePairs: slot.role ? partnersFor(slot.role, draft).length : 0,
+    offerNeededBy,
+  };
+}
+
+export interface FilledSlotReading {
+  /** How this person sits with the people already attached, in words. Null when there is nothing worth saying. */
+  chemistry: string | null;
+  /** How many of their pairings on this film they have a real track record on. */
+  provenPairings: number;
+}
+
+export function readFilledSlot(slot: SheetSlot, draft: FilmDraft, pairings: TalentPairing[]): FilledSlotReading | null {
+  if (slot.state !== 'set' || !slot.role) return null;
+  const person = draft.talent.find(
+    (a) => a.role === slot.role && (slot.characterId ? a.characterId === slot.characterId : true) && a.person.identity.name === slot.occupant,
+  )?.person;
+  if (!person) return null;
+
+  const partners = partnersFor(slot.role, draft).filter((p) => p.id !== person.id);
+  if (partners.length === 0) return { chemistry: null, provenPairings: 0 };
+
+  const histories = partners.map((partner) => pairHistory(pairings, person.id, partner.id)).filter((h): h is NonNullable<typeof h> => h !== null);
+  const worst = partners.reduce<{ partner: Person; value: number } | null>((acc, partner) => {
+    const value = effectivePairChemistry(person, partner, pairings);
+    return acc === null || value < acc.value ? { partner, value } : acc;
+  }, null);
+  const best = partners.reduce<{ partner: Person; value: number } | null>((acc, partner) => {
+    const value = effectivePairChemistry(person, partner, pairings);
+    return acc === null || value > acc.value ? { partner, value } : acc;
+  }, null);
+
+  // Qualitative, and named rather than numeric (CLAUDE.md): the player is told
+  // who the relationship is with and which way it runs, never the scalar.
+  let chemistry: string | null = null;
+  if (worst && worst.value <= -CHEMISTRY_NOTE_THRESHOLD) chemistry = `Friction with ${worst.partner.identity.name}`;
+  else if (best && best.value >= CHEMISTRY_NOTE_THRESHOLD) chemistry = `Works well with ${best.partner.identity.name}`;
+
+  return { chemistry, provenPairings: histories.length };
+}
+
+/** Below this, a pairing is ordinary enough not to be worth a line on the form. */
+const CHEMISTRY_NOTE_THRESHOLD = 0.35;
+
+/* ------------------------------------------------------------------------
+   THE DESK'S READ
+
+   One line, in the game's own voice, about where this package actually
+   stands - take 04's trade-paper narration rationed to a single sentence.
+   Rationed is the whole point: a paper that editorialises on every row is
+   noise, and one that says nothing is a spreadsheet.
+
+   Derived, never authored per-project: it reads the same slots the form does,
+   so it cannot say the package is cast while the form shows six blank lines.
+   ------------------------------------------------------------------------ */
+
+export function deskRead(draft: FilmDraft, groups: SheetGroup[]): string {
+  const slots = groups.flatMap((g) => g.slots);
+  const openOf = (label: string) => slots.some((s) => s.label === label && s.state === 'open');
+  const filled = (role: ProductionRole) => draft.talent.some((a) => a.role === role);
+  const principals = draft.talent.filter((a) => a.role === 'Lead Actor' || a.role === 'Supporting Actor').length;
+  const { set, open } = summariseSheet(groups);
+
+  if (set === 0) return 'A screenplay and a blank call sheet. Nothing is attached and nothing is spent.';
+  if (open === 0) return 'Every line on this sheet is filled. What happens next is a signature.';
+
+  // The two cases where the package is lopsided in a way worth naming - a
+  // director with nobody to point at, or a cast with nobody directing them.
+  if (filled('Director') && principals === 0) return 'A director signed to a picture with no one in it yet.';
+  if (principals > 0 && openOf('Director')) return 'A cast assembling around a chair nobody is sitting in.';
+
+  // Deliberately no counts from here on. The readiness meter directly above
+  // already owns the arithmetic, and the first cut had the voice saying "6 of
+  // 13 lines filled" while the meter said "6 of 21 set" - two different
+  // denominators, because the voice was counting only required slots. A
+  // second scoreboard that can contradict the first is worse than no
+  // scoreboard; the voice's job is the reading, not the tally.
+  if (draft.announcedReleaseDay !== undefined) {
+    return 'A date is claimed and the sheet is not finished. The calendar will not wait.';
+  }
+  if (open <= 2) return 'Nearly there. A short list of blanks stands between this and a signature.';
+  return 'The picture is taking shape. Nothing is promised yet, and nothing is spent.';
 }
