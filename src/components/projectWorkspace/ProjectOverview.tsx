@@ -56,6 +56,7 @@ const MIN_ANNOUNCEMENT_MONTHS = 18;
 const MONTHS_OFFERED_PAST_READY = 12;
 
 const SECTION_LABELS: Record<ProjectWorkspaceSection, string> = {
+  sheet: 'The Sheet',
   overview: 'Overview',
   'cast-and-crew': 'Cast & Crew',
   production: 'Production',

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { MANDATORY_TALENT_ROLES, OPTIONAL_TALENT_ROLES } from '../../data/talentGeneration';
 import { TALENT_PRESENTATION, type RoleCategory } from '../../data/talentPresentation';
@@ -471,6 +471,23 @@ export function HireTalent() {
   // drives Director/crew's unchanged RoleHiringDrawer flow) since Open
   // Casting is scoped to one specific Character, not a whole role.
   const [openCharacter, setOpenCharacter] = useState<{ character: ScriptCharacter; role: 'Lead Actor' | 'Supporting Actor' } | null>(null);
+
+  // The production sheet asked for one specific slot's drawer
+  // (state/gameState.ts:WorkspaceRoleFocus). Clicking "Composer" on the sheet
+  // should land on the composer's drawer, not on this section for the player
+  // to find the row they just clicked. One-shot: consumed and cleared, so it
+  // never reopens on a later visit.
+  const roleFocus = state.workspaceRoleFocus;
+  useEffect(() => {
+    if (!roleFocus) return;
+    const character = roleFocus.characterId ? draft.script?.cast.find((c) => c.id === roleFocus.characterId) : undefined;
+    if (character && (roleFocus.role === 'Lead Actor' || roleFocus.role === 'Supporting Actor')) {
+      setOpenCharacter({ character, role: roleFocus.role });
+    } else {
+      setOpenRole(roleFocus.role);
+    }
+    dispatch({ type: 'CLEAR_WORKSPACE_ROLE_FOCUS' });
+  }, [roleFocus, draft.script, dispatch]);
 
   function talentsForRole(role: ProductionRole): Person[] {
     return draft.talent.filter((a) => a.role === role).map((a) => a.person);

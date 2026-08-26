@@ -3128,7 +3128,17 @@ export type WizardStep =
 // exist as independent sections yet (Phase 1 keeps them combined under
 // 'cast-and-crew', reusing components/wizard/HireTalent.tsx wholesale) -
 // deferred to a later phase per PRODUCER_WORKSPACE_DESIGN.md's own phasing.
-export type ProjectWorkspaceSection = 'overview' | 'cast-and-crew' | 'production' | 'producers' | 'finance';
+export type ProjectWorkspaceSection = 'sheet' | 'overview' | 'cast-and-crew' | 'production' | 'producers' | 'finance';
+
+/**
+ * One slot on the production sheet, named well enough for the destination
+ * section to open its drawer. `characterId` narrows a cast slot to the
+ * specific written character; crew roles have only the role.
+ */
+export interface WorkspaceRoleFocus {
+  role: ProductionRole;
+  characterId?: string;
+}
 
 // 'workspace' is the single screen a pre-greenlight project lives on now -
 // which of its sections is showing is GameState.projectWorkspaceSection,

@@ -1,6 +1,6 @@
 # Visual Redesign Roadmap
 
-Status: **Phases 0 and 1 landed; phases 2–6 are planning only.** Turns
+Status: **Phases 0, 1 and 2 landed; phases 3–6 are planning only.** Turns
 `ART_DIRECTION.md` and the nine mockup takes in `docs/design/mockups/` into an
 ordered sequence of reviewable steps.
 
@@ -350,9 +350,55 @@ horizontal space that the sheet in Phase 2 no longer fits at 1280px.
 
 ---
 
-### Phase 2 — The one sheet
+### Phase 2 — The one sheet [DONE]
 
 §8.4: the sheet is the map, the drawer is the depth.
+
+**Landed.** `engine/productionSheet.ts` derives the slot list; the sheet is the
+workspace's landing view, with `PackageReadinessMeter` as its headline.
+Clicking a slot routes to the section that owns it *and* opens that slot's
+drawer, via a one-shot `WorkspaceRoleFocus` on
+`OPEN_PROJECT_WORKSPACE_SECTION` — clicking "Composer" lands on the composer's
+drawer rather than dropping the player on Cast & Crew to find the row again.
+
+Deliberately kept: the five sections stay reachable from the nav. They are
+where the deep decisions live, and a sheet that could only be entered one slot
+at a time would be its own kind of tab.
+
+What the work changed about the plan:
+
+- **The slot count was 16–18 in the doc, ~19–20 by my count, and renders as 21**
+  on a real script — cast slots are per written character, so a script with
+  three leads and three supporting parts opens six casting slots, not two.
+  The sheet is genuinely at the top of what one screen holds.
+- **The sheet's content is derived, not laid out.** What counts as a slot and
+  what counts as filled is a rule about the game, so it is a pure function with
+  its own tests, and one of those tests asserts the sheet and
+  `deriveProjectReadiness` can never tell the player different stories.
+- **Two-column pairing is data, not CSS.** The groups are wildly uneven — four
+  slots above the line against ten below — and a plain two-column grid
+  row-aligns them, leaving a column of dead paper under the short one. Each
+  group names its column.
+
+Three bugs the work found:
+
+- **The sheet disagreed with readiness about who was cast.** Assignments made
+  before slot binding (and every rival/legacy one) carry no `characterId`, and
+  the documented reader behaviour is to fall back to the positional mapping in
+  `engine/castRequirements.ts`. Without it the sheet showed an empty slot for
+  somebody actually hired. Caught by the agreement test, not by looking.
+- **A test premise, not the code.** `buildReadyDraft` is *plan-and-finance*
+  ready, not fully cast — it still carries three blockers. An assertion that a
+  "ready" draft has no open slots was wrong about the fixture; the sheet and
+  the engine had agreed all along.
+- **Raw enums in player-facing text.** The first cut printed `TragicVillain`
+  and `LoveInterest` straight out of the archetype enum, which CLAUDE.md rules
+  out. `CHARACTER_ARCHETYPE_LABELS` already existed and is what every other
+  screen uses; a test now fails on any camelCase in a cast slot's note.
+
+Test churn was real this time, unlike Phase 1: five assertions across two files
+pinned the workspace's landing section to `overview`. All five are behaviour
+that genuinely changed.
 
 **What:** `ProjectWorkspace`'s five tabs become one production sheet showing
 every slot and its state — empty, filled, who occupies it, what it cost.
@@ -534,3 +580,5 @@ the same line:
 | 2026-08-25 | Phase 1 takes take 08's left rail for destinations *and* take 09's top spine for time, rather than 09's merged bands. 09's top strip fits only because it was trimmed to 8 abbreviated labels; the app has ~11 at full length. |
 | 2026-08-25 | Phase 1 landed. The predicted test churn did not exist - no test mounts the shell. `--header-clearance` is measured now rather than guessed. |
 | 2026-08-25 | Rival studios are not a rail destination: `VIEW_RIVAL_STUDIO` needs a name and the game has no rivals index, so they stay a detour from the calendar and the competition panel. |
+| 2026-08-25 | Phase 2 landed. The sheet is the workspace's landing view; the five sections stay reachable, because they are the depth rather than a rival map. |
+| 2026-08-25 | The sheet's contents are a pure derivation with an agreement test against `deriveProjectReadiness` - the two must never tell the player different stories about whether a package is done. |

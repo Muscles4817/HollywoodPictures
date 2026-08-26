@@ -1114,7 +1114,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         screen: 'workspace',
-        projectWorkspaceSection: 'overview',
+        projectWorkspaceSection: 'sheet',
         projects: [...state.projects, playerDraftToProject(draft)],
         focusedProjectId: draft.id,
         ...clearTransientView(),
@@ -1432,8 +1432,22 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       // greenlitOnDay is the canonical "past the workspace" marker (photography
       // alone no longer covers it, since prep now precedes the shoot).
       if (!focusedDraft || focusedDraft.greenlitOnDay !== null) return state;
-      return { ...state, screen: 'workspace', projectWorkspaceSection: action.section, ...clearTransientView() };
+      return {
+        ...state,
+        screen: 'workspace',
+        projectWorkspaceSection: action.section,
+        // Absent when the player used the section nav rather than the sheet, in
+        // which case any stale focus must still be dropped - otherwise a drawer
+        // reopens on a later, unrelated visit.
+        workspaceRoleFocus: action.roleFocus ?? null,
+        ...clearTransientView(),
+      };
     }
+
+    // The destination section has opened the drawer the sheet asked for; the
+    // request is spent.
+    case 'CLEAR_WORKSPACE_ROLE_FOCUS':
+      return state.workspaceRoleFocus ? { ...state, workspaceRoleFocus: null } : state;
 
     // The one explicit "delete this for real" action for a still-owned
     // Asset's Project attempt (see GameAction's own doc comment). Whatever's
@@ -2811,7 +2825,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         ...state,
         screen,
         focusedProjectId: action.projectId,
-        ...(screen === 'workspace' ? { projectWorkspaceSection: 'overview' as ProjectWorkspaceSection } : {}),
+        ...(screen === 'workspace' ? { projectWorkspaceSection: 'sheet' as ProjectWorkspaceSection } : {}),
         ...clearTransientView(),
       };
     }
@@ -3166,7 +3180,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         screen: 'dashboard',
         projects: [],
         focusedProjectId: null,
-        projectWorkspaceSection: 'overview',
+        projectWorkspaceSection: 'sheet',
         rngSeed: nextSeed,
         totalDays: 1,
         talentPool: result.talentPool,
@@ -3338,7 +3352,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       const viewedRivalStillExists =
         action.viewingRivalStudioName === null || state.rivalStudios.some((r) => r.name === action.viewingRivalStudioName);
       if (!focusedStillExists || !viewedProductionStillExists || !viewedRivalStillExists) {
-        return { ...state, screen: 'dashboard', focusedProjectId: null, projectWorkspaceSection: 'overview', ...clearTransientView() };
+        return { ...state, screen: 'dashboard', focusedProjectId: null, projectWorkspaceSection: 'sheet', ...clearTransientView() };
       }
       return {
         ...state,

@@ -5,6 +5,7 @@ import { Button } from '../common/Button';
 import type { ProjectWorkspaceSection } from '../../types';
 
 const SECTION_LABELS: Record<ProjectWorkspaceSection, string> = {
+  sheet: 'The Sheet',
   overview: 'Overview',
   'cast-and-crew': 'Cast & Crew',
   production: 'Production',
@@ -38,7 +39,9 @@ export function ProjectWorkspaceNav({ active }: { active: ProjectWorkspaceSectio
   const statusFor = (section: ProjectWorkspaceSection): SectionReadiness['status'] | null => {
     // Overview is the landing page and Producers is always optional (attaching
     // never blocks Greenlight), so neither carries a readiness glyph.
-    if (section === 'overview' || section === 'producers') return null;
+    // The sheet carries its own readiness meter and Overview is the landing
+    // summary, so neither needs a glyph; Producers is always optional.
+    if (section === 'sheet' || section === 'overview' || section === 'producers') return null;
     if (section === 'cast-and-crew') return readiness.sections.castAndCrew.status;
     if (section === 'production') return readiness.sections.production.status;
     return readiness.sections.finance.status;

@@ -27,6 +27,7 @@ import type {
   ProductionRole,
   TargetAudience,
   WizardStep,
+  WorkspaceRoleFocus,
 } from '../types';
 import type { BackendOffer } from '../engine/backend';
 
@@ -50,6 +51,12 @@ export interface GameState {
   focusedProjectId: string | null;
   // Which Producer Workspace tab is showing while `screen` is 'workspace'
   // (PRODUCER_WORKSPACE_DESIGN.md) - non-nullable, defaults to 'overview'.
+  /**
+   * A one-shot request from the production sheet: "open this slot's drawer".
+   * Navigation state rather than game state - it is consumed on arrival and
+   * cleared, and never means anything on a reload.
+   */
+  workspaceRoleFocus?: WorkspaceRoleFocus | null;
   // Set only by OPEN_PROJECT_WORKSPACE_SECTION, which - unlike GO_TO_STEP -
   // charges no calendar time, making navigation between sections genuinely
   // free. Meaningless while `screen` isn't 'workspace', same as
@@ -344,7 +351,16 @@ export type GameAction =
   // nothing, since none of them commit anything on their own. A no-op if
   // nothing's focused or the focused project is past Greenlight (already
   // has `photography`) - see state/studioReducer.ts.
-  | { type: 'OPEN_PROJECT_WORKSPACE_SECTION'; section: ProjectWorkspaceSection }
+  /**
+   * `roleFocus` is the production sheet asking the destination section to open
+   * one specific slot's drawer rather than just showing the section - clicking
+   * "Composer" on the sheet should land on the composer's own drawer, not on
+   * Cast & Crew for the player to find the row again. Consumed and cleared by
+   * whichever section owns that drawer.
+   */
+  | { type: 'OPEN_PROJECT_WORKSPACE_SECTION'; section: ProjectWorkspaceSection; roleFocus?: WorkspaceRoleFocus }
+  /** Clears `workspaceRoleFocus` once the destination section has acted on it. */
+  | { type: 'CLEAR_WORKSPACE_ROLE_FOCUS' }
   // The one explicit "delete this for real" action for a still-owned
   // Asset's Project attempt - the Asset itself is never touched (see
   // engine/project.ts:deriveAssetStatus, which derives "available again"

@@ -39,7 +39,7 @@ export function projectOpenIntent(card: ProjectCardData, state: GameState): Proj
     const draft = asPlayerDraft(findProject(state.projects, card.projectId));
     if (!draft) return { kind: 'blocked' };
     const screen = currentScreenFor(draft);
-    if (screen === 'workspace') return { kind: 'navigate', actions: [{ type: 'OPEN_PROJECT_WORKSPACE_SECTION', section: 'overview' }] };
+    if (screen === 'workspace') return { kind: 'navigate', actions: [{ type: 'OPEN_PROJECT_WORKSPACE_SECTION', section: 'sheet' }] };
     if (screen === 'pre-production') return { kind: 'navigate', actions: [{ type: 'GO_TO_PREPRODUCTION' }] };
     return { kind: 'navigate', actions: [{ type: 'GO_TO_STEP', step: screen }] };
   }
