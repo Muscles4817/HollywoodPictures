@@ -1,4 +1,20 @@
+/* The box-office reveal - the emotional peak of the loop, and the game's
+   fullest use of the SPECTACLE register (docs/ART_DIRECTION.md 2.2).
+
+   Its one neon is cyan, the marquee primary: this is the moment the picture
+   opens. The reveal carries its own verdict-toned glow on ::before rather
+   than the register's generic one, because a triumph and a flop should not
+   look the same; index.css keeps the shared halation on ::after so the two
+   coexist.
+
+   The boundary that matters: everything BELOW this band on the same screen -
+   the financials, the cast performances, the execution summary - stays in the
+   desk register. A reveal is a moment; the numbers underneath it are numbers
+   the player reads, and 2.3 forbids putting glow behind those. */
+
 .premiere-reveal {
+  /* This band's one accent (index.css: --spec-neon). Named exactly once. */
+  --spec-neon: var(--neon-cyan);
   position: relative;
   gap: 24px;
   overflow: hidden;

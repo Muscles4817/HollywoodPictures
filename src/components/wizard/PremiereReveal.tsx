@@ -89,7 +89,7 @@ export function PremiereReveal({
   const itemClass = (atStep: number) => `premiere-reveal__item ${shown(atStep) ? 'premiere-reveal__item--in' : ''}`;
 
   return (
-    <div className={`premiere-reveal card premiere-reveal--${verdict.tone}`}>
+    <div className={`premiere-reveal spectacle card premiere-reveal--${verdict.tone}`}>
       {revealing && (
         <button type="button" className="premiere-reveal__skip" onClick={() => setStep(totalSteps)}>
           Skip

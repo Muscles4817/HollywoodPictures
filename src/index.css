@@ -66,6 +66,38 @@
   --meter-open: #c2185b;
   --meter-opt: #c9c4b8;
 
+  /* ---- SPECTACLE (docs/ART_DIRECTION.md 2.2, 5.1) ---------------------
+     The event register, and the only place in the game allowed glow, bloom
+     or a hard gradient. Rationed to three screens - the box-office reveal,
+     awards night, and the campaign - because it hits hard precisely by
+     being rare.
+
+     The named neons below are NOT for direct use. A SPECTACLE screen picks
+     exactly one and assigns it to --spec-neon at its own root; everything
+     inside it reads --spec-neon and never the name. That is 11's "no more
+     than one neon accent per SPECTACLE screen" made structural instead of
+     remembered, and designSystem.test.ts enforces it.
+
+     Dark in both themes on purpose. A marquee at noon is a marquee with the
+     lights off; the contrast with the desk is the entire point. */
+  --spec-ground: #08080b;
+  --spec-panel: #121118;
+  --spec-ink: #f2efe6;
+  --spec-ink-2: #9b9689;
+  --spec-line: #2a2833;
+  --spec-bulb: #ffd98a;
+
+  /* The one accent a SPECTACLE screen gets. Defaults to the marquee primary
+     so a screen that forgets to choose still renders correctly rather than
+     falling back to nothing; every real screen overrides it at its own root. */
+  --spec-neon: #29d8e0;
+
+  /* Assignable to --spec-neon, one per screen. Never read directly. */
+  --neon-cyan: #29d8e0;
+  --neon-magenta: #f0559e;
+  --neon-red: #ff2a2a;
+  --neon-blue: #2e5bff;
+
   /* ---- The time spine (docs/design/mockups/take-09-chassis.html) ------ */
   --spine: #211f1a;
   --spine-ink: #ede9df;
@@ -3141,5 +3173,171 @@ textarea, input, select {
 
   .slate-proj {
     min-width: 148px;
+  }
+}
+
+/* ==================================================================
+   THE SPECTACLE REGISTER (docs/ART_DIRECTION.md §2.2)
+
+   The only place allowed glow, bloom or a hard gradient. Everything is
+   scoped under .spectacle so none of it can leak onto a surface the
+   player reads numbers off - §2.3's rule, which the desk depends on
+   absolutely.
+
+   SPECTACLE is a MOMENT, not a screen. §6's inventory assigns whole
+   screens to the register, and that does not survive contact with what
+   is on them: the box-office screen is a reveal followed by financial
+   analysis, awards night is a ceremony wrapped around campaign
+   management, and the campaign screen is 978 lines of decisions. Putting
+   glow behind any of those tables is exactly what §2.3 forbids. So the
+   register is a band - the reveal, the ceremony, the poster - and the
+   desk resumes underneath it.
+
+   Each band sets --spec-neon once and never names a neon again. One
+   accent per band, structurally. */
+
+/* Full-bleed: the moment breaks out of the desk's gutters. */
+.spectacle {
+  margin-left: -20px;
+  margin-right: -20px;
+  padding: 46px 20px 42px;
+  background: var(--spec-ground);
+  color: var(--spec-ink);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Halation - permitted here and nowhere else (§11), and on the frame rather
+   than on any figure. Deliberately ::after: a band may bring its own bespoke
+   glow on ::before (PremiereReveal's is toned by the film's verdict, which is
+   better than anything generic), and the two must not fight over one
+   pseudo-element. */
+.spectacle::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--spec-neon) 14%, transparent), transparent 62%),
+    radial-gradient(90% 60% at 50% 100%, color-mix(in srgb, var(--spec-bulb) 7%, transparent), transparent 70%);
+}
+
+.spectacle > * {
+  position: relative;
+}
+
+.spectacle-wrap {
+  max-width: 940px;
+  margin: 0 auto;
+  display: grid;
+  gap: 26px;
+}
+
+/* ---- Type -------------------------------------------------------------- */
+.spectacle-eyebrow {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: var(--spec-neon);
+  text-align: center;
+}
+
+.spectacle-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.1rem, 6.5vw, 4rem);
+  line-height: 0.95;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  text-align: center;
+  text-wrap: balance;
+  /* The halation an 80s lens puts around a practical light. */
+  text-shadow: 0 0 26px color-mix(in srgb, var(--spec-neon) 42%, transparent);
+}
+
+.spectacle-sub {
+  margin: 0;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--spec-ink-2);
+}
+
+/* ---- The marquee frame ------------------------------------------------- */
+.spectacle-marquee {
+  border: 1px solid var(--spec-line);
+  background: color-mix(in srgb, var(--spec-panel) 88%, transparent);
+  padding: 34px 28px 30px;
+  display: grid;
+  gap: 14px;
+  /* The bulb run along a marquee's top and bottom edges. */
+  box-shadow:
+    inset 0 3px 0 var(--spec-bulb),
+    inset 0 -3px 0 var(--spec-bulb),
+    0 22px 60px rgba(0, 0, 0, 0.5);
+}
+
+/* ---- Figures ----------------------------------------------------------- */
+.spectacle-figure {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+}
+
+.spectacle-figure__value {
+  font-family: var(--font-typed);
+  font-weight: 700;
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--spec-ink);
+}
+
+.spectacle-figure__label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--spec-ink-2);
+}
+
+.spectacle-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 22px;
+  border-top: 1px solid var(--spec-line);
+  padding-top: 22px;
+}
+
+/* ---- The way out -------------------------------------------------------
+   Every SPECTACLE screen carries its own, because dropping the chassis took
+   away the only one they had. An event should end on its own terms anyway. */
+.spectacle-exit {
+  justify-self: center;
+  background: none;
+  border: 1px solid var(--spec-line);
+  border-radius: var(--radius);
+  color: var(--spec-ink-2);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 11px 26px;
+  cursor: pointer;
+}
+.spectacle-exit:hover { color: var(--spec-ink); border-color: var(--spec-neon); }
+.spectacle-exit:focus-visible { outline: 2px solid var(--spec-neon); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .spectacle {
+    margin-left: -12px;
+    margin-right: -12px;
+    padding: 32px 14px 30px;
   }
 }

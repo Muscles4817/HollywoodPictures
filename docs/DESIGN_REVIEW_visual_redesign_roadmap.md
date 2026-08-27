@@ -1,6 +1,6 @@
 # Visual Redesign Roadmap
 
-Status: **Phases 0–3 landed; phases 4–6 are planning only.** Turns
+Status: **Phases 0–3 landed and merged; Phase 4 in progress; 5–6 planning only.** Turns
 `ART_DIRECTION.md` and the nine mockup takes in `docs/design/mockups/` into an
 ordered sequence of reviewable steps.
 
@@ -505,7 +505,35 @@ if one isn't, that is a simulation question and belongs in a different document.
 
 ---
 
-### Phase 4 — SPECTACLE
+### Phase 4 — SPECTACLE [IN PROGRESS]
+
+**Landed so far:** the register's token block (§5.1's palette, dark in both
+themes), the shared band styling, and the box-office reveal — the emotional
+peak of the loop, and the piece §6 rates highest.
+
+Two findings changed the phase's shape:
+
+- **SPECTACLE is a moment, not a screen.** §6's inventory assigns whole
+  screens to the register, and that does not survive contact with what is on
+  them: the box-office screen is a reveal followed by financial analysis,
+  awards night is a ceremony wrapped around campaign management, and the
+  campaign screen is 978 lines of decisions. Putting glow behind any of those
+  tables is exactly what §2.3 forbids. The register is a **band** — the
+  reveal, the ceremony, the poster — and the desk resumes underneath it. This
+  also retires "these screens drop the spine": `ReleaseResults` has no buttons
+  at all and relied on the chassis to leave, so dropping it would strand the
+  player mid-screen.
+- **The poster wall of saves (§7) is not buildable.** It presumes a
+  multi-save feature; `MainMenu` takes `hasSave: boolean` and the game has one
+  save slot. That is a game feature, not a visual one, and belongs in a
+  different document.
+
+**One neon per band, structurally.** The named neons (`--neon-cyan` and the
+rest) are assignable to `--spec-neon` and never read directly, so a band
+physically cannot wear two — §11's rule made mechanical rather than
+remembered, enforced by `designSystem.test.ts`. The reveal's is cyan.
+
+**Still to do:** the awards ceremony band and the campaign's poster moment.
 
 Cheap, Tier 1, high payoff, and **independent of Phases 1–3**. Pull it forward
 if visible progress is wanted early; that is free here and nowhere else.
