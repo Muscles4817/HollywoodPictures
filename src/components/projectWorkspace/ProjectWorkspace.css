@@ -15,3 +15,311 @@
 .workspace-nav-status-incomplete {
   color: var(--text-muted);
 }
+
+/* ==================================================================
+   THE PRODUCTION SHEET (ProductionSheet.tsx)
+
+   A form on studio letterhead: printed labels, ruled lines, and names
+   written in where a slot is filled. The type split does the work - the
+   game's own structure wears the grotesque, anything the player chose
+   wears the typewriter - so a filled slot reads as *typed onto* the form
+   rather than as more of the form.
+
+   Nothing here is ornamented. This is a surface a player reads twenty
+   values off, which is exactly what ART_DIRECTION.md §2.3 rules out
+   decorating.
+   ================================================================== */
+
+.sheet {
+  display: grid;
+  gap: 18px;
+}
+
+/* --- Readiness meter --------------------------------------------------- */
+.sheet-meter {
+  display: grid;
+  gap: 9px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.sheet-meter__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.sheet-meter__title {
+  margin: 0;
+  font-size: 0.63rem;
+  font-weight: 700;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.sheet-meter__read {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+.sheet-meter__read b {
+  color: var(--text);
+  font-family: var(--font-typed);
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet-meter__bar {
+  display: flex;
+  gap: 2px;
+  height: 13px;
+}
+
+.sheet-meter__bar .seg {
+  flex: 1 1 0;
+  min-width: 3px;
+}
+
+/* Status, not category. "Set" is neutral because done needs no colour; the one
+   attention hue is reserved for what is open; "not required" is hatched, so
+   identity never rests on hue alone. */
+.seg--set { background: var(--meter-set); }
+.seg--open { background: var(--meter-open); }
+.seg--opt {
+  background: repeating-linear-gradient(135deg, var(--meter-opt) 0 4px, transparent 4px 8px);
+  border: 1px solid var(--meter-opt);
+}
+
+.sheet-meter__key {
+  display: flex;
+  gap: 17px;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.63rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.sheet-meter__key li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sheet-meter__key .seg {
+  width: 13px;
+  height: 9px;
+  display: inline-block;
+}
+
+.sheet-meter__blockers {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+/* --- The form ---------------------------------------------------------- */
+.sheet-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 26px;
+  align-items: start;
+}
+
+.sheet-col {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+  min-width: 0;
+}
+
+.sheet-group {
+  min-width: 0;
+}
+
+.sheet-group__title {
+  margin: 0 0 2px;
+  padding-bottom: 5px;
+  font-size: 0.63rem;
+  font-weight: 700;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 2px solid var(--border-hard);
+}
+
+.sheet-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One printed line of the form. The grid is fixed so labels, names and figures
+   align down the column - a form whose rules do not line up stops reading as a
+   form. */
+.sheet-row {
+  display: grid;
+  grid-template-columns: minmax(0, 8.5rem) minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  align-items: baseline;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  color: var(--text);
+  font: inherit;
+  padding: 7px 8px 7px 9px;
+  cursor: pointer;
+}
+
+.sheet-row:hover { background: var(--surface-2); }
+.sheet-row:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+
+.sheet-row__label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.sheet-row__occupant {
+  font-size: 0.9rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* An empty slot is a ruled line waiting to be written on - the form showing
+   the hole, rather than the row simply being absent. */
+.sheet-row__occupant--blank::after {
+  content: '';
+  display: block;
+  height: 0;
+  border-bottom: 1px dashed var(--text-faint);
+  margin-bottom: 0.42em;
+}
+
+.sheet-row__cost {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet-row__note {
+  grid-column: 2 / -1;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+
+/* A slot that still needs a decision carries the one attention hue, on its
+   edge - the frame, not the data. */
+.sheet-row--open { border-left-color: var(--open); }
+.sheet-row--open .sheet-row__label { color: var(--text); font-weight: 600; }
+.sheet-row--optional .sheet-row__label { color: var(--text-faint); }
+
+/* Stacked, not scaled: the form's columns are what make it legible, and a
+   squeezed three-column row is worse than an honest stack. */
+@media (max-width: 900px) {
+  .sheet-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .sheet-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .sheet-row__label {
+    grid-column: 1 / -1;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .sheet-row__note {
+    grid-column: 1 / -1;
+  }
+}
+
+/* --- The desk's read, and the lens -------------------------------------
+   One line of the game's own voice, and the toggle that turns the form from
+   "who is in each slot" to "how they sit with everybody else". */
+.sheet-voice {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 0 2px;
+}
+
+.sheet-voice__line {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text);
+  max-width: 62ch;
+}
+
+.sheet-lens {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sheet-lens input { cursor: pointer; }
+.sheet-lens:hover { color: var(--text); }
+
+/* Under the lens a note is a reading rather than a printed caption, so it
+   takes the ink weight of something the game worked out rather than the
+   grey of something the form always said. */
+.sheet-row__note--lens {
+  color: var(--text-muted);
+}
+
+.sheet-row--open .sheet-row__note--lens {
+  color: var(--open);
+}
+
+/* --- The stamp ---------------------------------------------------------
+   The one ornament the sheet allows itself, and only because it sits on the
+   paper rather than on any figure the player has to read. */
+.sheet-stamp {
+  justify-self: start;
+  margin: 4px 0 0;
+  padding: 7px 18px;
+  border: 3px solid var(--green);
+  color: var(--green);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  transform: rotate(-2.5deg);
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-stamp { transform: none; }
+}
+
+@media (max-width: 640px) {
+  .sheet-voice {
+    flex-direction: column;
+    gap: 10px;
+  }
+}

@@ -420,7 +420,12 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   deep-link into a specific Cast & Crew drawer). Additive/optional - an
 //   unflagged applicant/pitch simply reads as unseen and pings once; same
 //   pre-launch policy (no migration).
-const SAVE_KEY = 'hollywood-pictures-save-v88';
+// v88 -> v89 (the production sheet): ProjectWorkspaceSection gained 'sheet',
+//   which is now where the workspace lands, and CastCrewFocus gained a
+//   { kind: 'role' } case so the sheet can open a crew slot's drawer through
+//   the same deep-link the Inbox uses. Both branches independently bumped to
+//   v88; this is the merge of the two. Additive; same pre-launch policy.
+const SAVE_KEY = 'hollywood-pictures-save-v89';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

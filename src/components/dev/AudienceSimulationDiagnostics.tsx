@@ -51,7 +51,7 @@ function WeeklyDiagnosticsView({
           5.34 - see engine/boxOfficeRun.ts:AVERAGE_TICKET_PRICE).
         </p>
         {note && (
-          <p style={{ margin: '4px 0 0', color: 'var(--amber, #b8860b)' }}>{note}</p>
+          <p style={{ margin: '4px 0 0', color: 'var(--amber)' }}>{note}</p>
         )}
       </div>
 

@@ -356,7 +356,14 @@ export type GameAction =
   // nothing, since none of them commit anything on their own. A no-op if
   // nothing's focused or the focused project is past Greenlight (already
   // has `photography`) - see state/studioReducer.ts.
-  | { type: 'OPEN_PROJECT_WORKSPACE_SECTION'; section: ProjectWorkspaceSection }
+  /**
+   * `castCrewFocus` is the production sheet asking the destination section to
+   * open one specific slot's drawer rather than just showing the section -
+   * clicking "Composer" on the sheet should land on the composer's own drawer,
+   * not on Cast & Crew for the player to find the row again. The same one-render
+   * deep-link the Inbox's review actions use, and cleared the same way.
+   */
+  | { type: 'OPEN_PROJECT_WORKSPACE_SECTION'; section: ProjectWorkspaceSection; castCrewFocus?: CastCrewFocus }
   // The one explicit "delete this for real" action for a still-owned
   // Asset's Project attempt - the Asset itself is never touched (see
   // engine/project.ts:deriveAssetStatus, which derives "available again"

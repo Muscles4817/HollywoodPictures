@@ -76,7 +76,7 @@ export function PreProductionRun() {
   // qualitative for the player (the sim's own presentation rule), read live.
   const prepDelta = computePrepRiskDelta(prep);
   const readiness = prepDelta <= -6 ? 'Ahead of the game' : prepDelta >= 6 ? 'Behind and scrambling' : 'On track';
-  const readinessColor = prepDelta <= -6 ? 'var(--green, #2e7d32)' : prepDelta >= 6 ? 'var(--danger)' : 'var(--text-muted)';
+  const readinessColor = prepDelta <= -6 ? 'var(--green)' : prepDelta >= 6 ? 'var(--danger)' : 'var(--text-muted)';
 
   function handleFastForward() {
     for (let i = 0; i < daysLeft; i++) dispatch({ type: 'ADVANCE_PREPRODUCTION_DAY' });

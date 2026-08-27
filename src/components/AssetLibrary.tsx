@@ -624,7 +624,7 @@ function AssetCard({
               </span>
               <span className="badge">{(asset.marketSource ?? asset.provenance)}</span>
               {isRecentlyCommissioned(asset, totalDays) ? (
-                <span className="badge" style={{ background: 'var(--accent, #4a90d9)', color: '#fff' }}>Just delivered</span>
+                <span className="badge" style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}>Just delivered</span>
               ) : commissionedOnDay(asset) !== null ? (
                 <span className="badge">Commissioned</span>
               ) : null}

@@ -3145,7 +3145,7 @@ export type WizardStep =
 // exist as independent sections yet (Phase 1 keeps them combined under
 // 'cast-and-crew', reusing components/wizard/HireTalent.tsx wholesale) -
 // deferred to a later phase per PRODUCER_WORKSPACE_DESIGN.md's own phasing.
-export type ProjectWorkspaceSection = 'overview' | 'cast-and-crew' | 'production' | 'producers' | 'finance';
+export type ProjectWorkspaceSection = 'sheet' | 'overview' | 'cast-and-crew' | 'production' | 'producers' | 'finance';
 
 /**
  * A deep-link INTO the Cast & Crew section, so a notification can land the
@@ -3162,7 +3162,19 @@ export type CastCrewFocus =
   /** Open this Character's casting drawer - "new applicants for the villain". */
   | { kind: 'character'; characterId: string }
   /** Open the Director role's drawer on its bake-off panel - "pitches are in". */
-  | { kind: 'director-pitches' };
+  | { kind: 'director-pitches' }
+  /**
+   * Open this role's hiring drawer - the production sheet
+   * (components/projectWorkspace/ProductionSheet.tsx) asking for the slot the
+   * player just clicked, so "Composer" lands on the composer's drawer rather
+   * than on Cast & Crew for them to find the row again.
+   *
+   * This case arrived from the other direction: the sheet and the Inbox each
+   * grew a deep-link into the same drawers independently. Two routing fields
+   * doing one job is exactly the drift that produces "which of these do I
+   * use?", so the sheet's was folded into this one rather than kept beside it.
+   */
+  | { kind: 'role'; role: ProductionRole };
 
 // 'workspace' is the single screen a pre-greenlight project lives on now -
 // which of its sections is showing is GameState.projectWorkspaceSection,

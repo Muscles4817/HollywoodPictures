@@ -69,7 +69,9 @@ function walkFilmThroughWizard(state: GameState): GameState {
 
   s = studioReducer(s, { type: 'CREATE_PROJECT_FROM_ASSET', assetId: asset.id });
   expect(s.screen).toBe('workspace');
-  expect(s.projectWorkspaceSection).toBe('overview');
+  // The production sheet is the workspace's landing view - the map you see
+  // before choosing which slot to go and work on.
+  expect(s.projectWorkspaceSection).toBe('sheet');
   expect(s.focusedProjectId).not.toBeNull();
   expect(deriveFocusedDraft(s)!.script).not.toBeNull();
 

@@ -472,9 +472,11 @@ export function HireTalent() {
   // Casting is scoped to one specific Character, not a whole role.
   const [openCharacter, setOpenCharacter] = useState<{ character: ScriptCharacter; role: 'Lead Actor' | 'Supporting Actor' } | null>(null);
 
-  // A deep-link from the Inbox (types/index.ts:CastCrewFocus) - "new applicants
-  // for Mercedes", "the director pitches are in" - opens the drawer the
-  // notification was actually about, instead of leaving the player to find it.
+  // A one-render deep-link into a specific drawer (types/index.ts:CastCrewFocus),
+  // from either of the two places that point at one: the Inbox ("new applicants
+  // for Mercedes", "the director pitches are in") and the production sheet
+  // (clicking the slot that still needs somebody). Both wanted the same thing
+  // and grew it separately; this is the one mechanism they share now.
   // Consumed immediately (CLEAR_CAST_CREW_FOCUS) so closing the drawer can't
   // re-open it on the next render.
   const castCrewFocus = state.castCrewFocus ?? null;
@@ -485,6 +487,8 @@ export function HireTalent() {
       // is live (its own `directorMode` default), so pointing at the role is
       // enough - no second piece of routing state for the drawer's inner tab.
       setOpenRole('Director');
+    } else if (castCrewFocus.kind === 'role') {
+      setOpenRole(castCrewFocus.role);
     } else {
       const character = draft.script?.cast.find((c) => c.id === castCrewFocus.characterId);
       const role = character?.prominence === 'Lead' ? ('Lead Actor' as const) : ('Supporting Actor' as const);

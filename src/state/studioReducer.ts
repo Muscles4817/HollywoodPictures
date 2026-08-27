@@ -1142,7 +1142,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         screen: 'workspace',
-        projectWorkspaceSection: 'overview',
+        projectWorkspaceSection: 'sheet',
         projects: [...state.projects, playerDraftToProject(draft)],
         focusedProjectId: draft.id,
         ...clearTransientView(),
@@ -1460,7 +1460,15 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       // greenlitOnDay is the canonical "past the workspace" marker (photography
       // alone no longer covers it, since prep now precedes the shoot).
       if (!focusedDraft || focusedDraft.greenlitOnDay !== null) return state;
-      return { ...state, screen: 'workspace', projectWorkspaceSection: action.section, ...clearTransientView() };
+      return {
+        ...state,
+        screen: 'workspace',
+        projectWorkspaceSection: action.section,
+        // clearTransientView() drops any stale deep-link, which is right when
+        // the player used the section nav; the override then re-arms it for the
+        // one case that navigated *in order to* open a drawer.
+        ...clearTransientView({ castCrewFocus: action.castCrewFocus ?? null }),
+      };
     }
 
     // The one explicit "delete this for real" action for a still-owned
@@ -2883,7 +2891,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         ...state,
         screen,
         focusedProjectId: action.projectId,
-        ...(screen === 'workspace' ? { projectWorkspaceSection: 'overview' as ProjectWorkspaceSection } : {}),
+        ...(screen === 'workspace' ? { projectWorkspaceSection: 'sheet' as ProjectWorkspaceSection } : {}),
         ...clearTransientView(),
       };
     }
@@ -3238,7 +3246,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         screen: 'dashboard',
         projects: [],
         focusedProjectId: null,
-        projectWorkspaceSection: 'overview',
+        projectWorkspaceSection: 'sheet',
         rngSeed: nextSeed,
         totalDays: 1,
         talentPool: result.talentPool,
@@ -3410,7 +3418,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       const viewedRivalStillExists =
         action.viewingRivalStudioName === null || state.rivalStudios.some((r) => r.name === action.viewingRivalStudioName);
       if (!focusedStillExists || !viewedProductionStillExists || !viewedRivalStillExists) {
-        return { ...state, screen: 'dashboard', focusedProjectId: null, projectWorkspaceSection: 'overview', ...clearTransientView() };
+        return { ...state, screen: 'dashboard', focusedProjectId: null, projectWorkspaceSection: 'sheet', ...clearTransientView() };
       }
       return {
         ...state,

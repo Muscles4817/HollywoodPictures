@@ -5,7 +5,6 @@ import { formatGameDateWithMonth, formatGameMonthYear } from '../engine/calendar
 import { Button } from './common/Button';
 import { StatTile } from './common/StatTile';
 import { Money } from './common/Money';
-import { GameGuide } from './common/GameGuide';
 import { BoxOfficeChart } from './common/BoxOfficeChart';
 import { FilmDetailModal } from './common/FilmDetailModal';
 import { ReputationHistoryModal } from './common/ReputationHistoryModal';
@@ -46,7 +45,6 @@ export function commandCentreEmptyState(hasActiveWork: boolean, hasReleasedFilms
 export function Dashboard() {
   const { state, dispatch } = useStudio();
   const { studio } = state;
-  const [showGuide, setShowGuide] = useState(false);
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
   const [showReputationHistory, setShowReputationHistory] = useState(false);
   const [showCashHistory, setShowCashHistory] = useState(false);
@@ -352,9 +350,6 @@ export function Dashboard() {
 
   // Rendered after every hook has run - keeping this above the useMemo above
   // made it a conditional hook call (react-hooks/rules-of-hooks).
-  if (showGuide) {
-    return <GameGuide onBack={() => setShowGuide(false)} />;
-  }
 
   return (
     <div className="dashboard-page">
@@ -417,18 +412,6 @@ export function Dashboard() {
           </Button>
         </div>
       </section>
-
-      <nav className="dashboard-subnav" aria-label="Studio navigation">
-        <button type="button" onClick={() => dispatch({ type: 'VIEW_ASSET_LIBRARY' })}>Asset Library</button>
-        <button type="button" onClick={() => dispatch({ type: 'VIEW_RELEASE_CALENDAR' })}>Release Calendar</button>
-        <button type="button" onClick={() => dispatch({ type: 'VIEW_STATS' })}>Studio Stats</button>
-        <button type="button" onClick={() => dispatch({ type: 'VIEW_TALENT_DATABASE' })}>Talent Database</button>
-        <button type="button" onClick={() => dispatch({ type: 'VIEW_IP_LIBRARY' })}>Intellectual Property</button>
-        <button type="button" onClick={() => dispatch({ type: 'VIEW_MILESTONES' })}>Milestones</button>
-        <button type="button" onClick={() => dispatch({ type: 'VIEW_AWARDS' })}>Awards</button>
-        <button type="button" onClick={() => setShowGuide(true)}>How It Works</button>
-        <button type="button" className="dashboard-danger-link" onClick={() => setShowResetPicker(true)}>Reset Studio</button>
-      </nav>
 
       <section className="dashboard-metrics" aria-label="Studio overview">
         <button
@@ -845,6 +828,16 @@ export function Dashboard() {
           </section>
         </aside>
       </div>
+
+      {/* Reset is destructive and studio-scoped, so it sits at the foot of the
+          studio's own screen rather than in the rail - the one thing from the
+          retired subnav that should not become reachable in one click from
+          everywhere. */}
+      <footer className="dashboard-footer">
+        <button type="button" className="dashboard-danger-link" onClick={() => setShowResetPicker(true)}>
+          Reset Studio
+        </button>
+      </footer>
     </div>
   );
 }

@@ -10,7 +10,7 @@ const COMPACT_CAUSE_COUNT = 2;
 
 function Cause({ cause }: { cause: ProductionExecutionCause }) {
   return (
-    <li style={{ color: cause.direction === 'positive' ? 'var(--positive, #2e7d32)' : 'var(--negative, #c62828)' }}>
+    <li style={{ color: cause.direction === 'positive' ? 'var(--green)' : 'var(--red)' }}>
       <span aria-hidden="true">{cause.direction === 'positive' ? '▲ ' : '▼ '}</span>
       <span style={{ color: 'var(--text, inherit)' }}>{cause.text}</span>
     </li>
@@ -56,7 +56,7 @@ export function ProductionExecutionSummary({ outcome }: { outcome: ProductionExe
                 <p className="choice-description" style={{ margin: 0 }}>Mitigation</p>
                 <ul className="stack" style={{ margin: 0, paddingLeft: '1.1rem' }}>
                   {outcome.mitigation.map((line, i) => (
-                    <li key={i} style={{ color: 'var(--positive, #2e7d32)' }}>
+                    <li key={i} style={{ color: 'var(--green)' }}>
                       <span aria-hidden="true">✓ </span>
                       <span style={{ color: 'var(--text, inherit)' }}>{line}</span>
                     </li>

@@ -6,6 +6,11 @@ feel* like, and — just as importantly — what it must never look like. It exi
 so those decisions are made once and enforced everywhere, instead of being
 re-litigated screen by screen.
 
+The build order that turns this document into code — and the measured gap
+between the two — lives in `DESIGN_REVIEW_visual_redesign_roadmap.md`. This
+document decides *what* the game looks like; that one decides *what order we
+build it in*. Where they disagree, this document wins.
+
 Sections marked **[DECIDED]** are settled and load-bearing. Sections marked
 **[PROPOSED]** are drafts awaiting a look at something rendered. Sections marked
 **[OPEN]** are unanswered questions. Anything can move between the three; nothing
@@ -96,33 +101,75 @@ This resolves the apparent tension between "atmospheric, evocative screens" and
 
 ---
 
-## 4. Structural principles inherited from Hollywood Pictures 2 [DECIDED]
+## 4. What Hollywood Pictures 2 gets right [REFERENCE]
 
-Read directly off HP2's own screens. These are structural, not stylistic — they
-survive the change of era.
+**Status note.** This section used to be headed "Structural principles inherited
+from Hollywood Pictures 2 [DECIDED]", as a numbered list that later sections
+then cited as authority ("tabs violate §4's principles 1 and 2"). That was an
+overreach: HP2 is a game the designer likes and has pointed at, and liking
+something in a reference is not the same as adopting it as a rule for this game.
+Nothing below is binding. It is here because it is a useful *explanation* of why
+HP2's screens work, which is worth having written down when arguing about ours —
+and an argument for a change here has to stand on its own merits, about this
+game, with HP2 as at most corroboration.
 
-1. **One screen = one complete task, every slot visible at once.** HP2's film
-   package screen carries title, genre, epoch, 11 attribute sliders, cast slots,
-   director, co-producer, stunt team, FX, music, camera and make-up, plus shoot
-   dates — on one screen. No wizard, nothing hidden behind Next. The player can see
-   the whole shape of the decision.
-2. **Empty slots are visible and shaped.** Blank rows show the holes before they are
-   filled. The screen tells you what "done" looks like.
-3. **Persistent global nav on one edge** — always available, never modal.
-4. **Ornament on the frame, plain data inside** (see §2.3).
-5. **Ambient backdrop behind the functional panel** — never underneath the text.
-6. **A dialogue bar where the game speaks to the player in character.**
+Read off HP2's own screens:
+
+- **Its package screen shows everything at once.** Title, genre, epoch, 11
+  attribute sliders, cast slots, director, co-producer, stunt team, FX, music,
+  camera, make-up, shoot dates — one screen, no wizard, nothing behind Next. The
+  player can see the whole shape of the decision before making any part of it.
+- **Its empty slots are visible and shaped.** Blank rows show the holes before
+  they are filled, so the screen itself says what "done" looks like.
+- **Its global nav sits on one edge**, always available, never modal.
+- **Its ornament is on the frame and its data is plain** — the observation §2.3
+  is built on, and the one thing here that *is* a decided rule for this game,
+  because it is stated as such in §2.3 on its own grounds.
+- **Its backdrop sits behind the functional panel**, never underneath text.
+- **It has a dialogue bar** where the game speaks to the player in character.
+
+Which of these this game wants is a question per screen, not a policy. Some are
+already contradicted deliberately: the game has no ambient backdrop anywhere
+today, and no in-character dialogue bar, and neither absence is a defect.
 
 ---
 
-## 5. Palette [PROPOSED — unvalidated until rendered]
+## 5. Palette [DECIDED]
 
 Derived from reference: a modern retro marquee (cyan/magenta/bulb), the Studio City
 Bookstar blade sign (red/blue neon, star motif, white letterboard), and a 1995
 Cinemark lobby (hot red, green neon, purple, checkerboard, gold-framed lightboxes).
 
-**These hex values are a starting proposal only.** They are unvalidated until seen
-rendered at real density, and are expected to change.
+**Shipped and rendered** (`bfd2bb8`, `65173bd`). The tables below are the
+*reference derivation* — the reasoning that produced the palette. The values
+actually in force are the custom properties at the top of `src/index.css`, which
+are the single authority; they drifted from these tables on contact with real
+density, which is what the tables were always for.
+
+Two rules came out of rendering it, and both are load-bearing:
+
+- **The accent is rationed to state.** Focus rings, the active step, links. It
+  never fills a surface. Filling every primary button with it is precisely what
+  made the first pass shout at forty data points.
+- **A value needs no hue.** Bars, meters and tracks take a neutral `--bar`
+  rather than the accent, because a bar shows a quantity and hue would be
+  decoration on a data surface (§2.3).
+
+### 5.0 Corners [DECIDED]
+
+Hard corners throughout, with **one** sanctioned exception: the badge family
+(badges, chips, tags, state pills) keeps the full round, because there the shape
+*is* the token rather than a softened corner. Two tokens carry this — `--radius`
+for surfaces and `--radius-pill` for that family — and nothing else may hardcode
+a radius.
+
+Bars, tracks and meters take `--radius`, not the pill: §5's "a value needs no
+hue" argument applies unchanged to shape, so a rounded cap on a data surface is
+ornament under §2.3.
+
+Whether even the badge family should go square is still live. It is now a
+one-line change to `--radius-pill` rather than a 45-site sweep, so it can be
+answered by looking at it.
 
 ### 5.1 SPECTACLE palette
 
@@ -147,7 +194,7 @@ rendered at real density, and are expected to change.
 | Rule line | `#B3AC9A` | printed rule |
 | Accent red | `#B0242C` | trade-paper headline red |
 
-### 5.3 The film-stock question [OPEN]
+### 5.3 The film-stock question [DECIDED]
 
 The two era references pull in opposite directions, and this needs resolving:
 
@@ -156,11 +203,20 @@ The two era references pull in opposite directions, and this needs resolving:
 - **90s stock:** peak analogue — high contrast, dense saturation, *deep* blacks,
   hard directional light, ultra-sharp glass. Crisp, physical.
 
-**Proposed resolution:** they map cleanly onto the two registers rather than
-competing. SPECTACLE takes the 80s treatment — halation, bloom, grain, lifted blacks
-— because atmosphere is the point. DESK takes the 90s treatment — hard contrast,
-deep blacks, sharp edges, no bloom — because legibility is the point. Both eras get
-used; neither fights the other.
+**Resolution:** they map cleanly onto the two registers rather than competing.
+SPECTACLE takes the 80s treatment — halation, bloom, grain, lifted blacks —
+because atmosphere is the point. DESK takes the 90s treatment — hard contrast,
+deep blacks, sharp edges, no bloom — because legibility is the point. Both eras
+get used; neither fights the other.
+
+This also settles the light-vs-dark question §12 used to carry, which was really
+this question wearing different clothes. **DESK is theme-agnostic and both themes
+are first-class** — take 07 established that a *system*, rather than an imitated
+paper object, is the only treatment that can carry a dark theme at all, and both
+token sets ship. **SPECTACLE is dark-only**: `MainMenu.css` grounds itself on
+`--spine` in both themes, which is correct and should stay that way. Newsprint
+and the darkened exec office were never a choice between two art directions; they
+are the light and dark settings of one.
 
 ---
 
@@ -227,9 +283,11 @@ forward sequence like `WizardStep`." The Producer Workspace redesign did the har
 half of this work already.
 
 What remains is that those five sections are still presented as **tabs**
-(`ProjectWorkspace.tsx` wraps a `Nav`), and tabs still violate §4's principles 1 and
-2: the player cannot see every slot at once, so they can neither read the shape of
-the decision nor see where the holes are.
+(`ProjectWorkspace.tsx` wraps a `Nav`), and tabs cost the player something real:
+they cannot see every slot at once, so they can neither read the shape of the
+decision nor see where the holes are. You have to open Cast & Crew to find out
+you have no composer. §4 notes HP2 avoiding the same cost, which is
+corroboration rather than the reason.
 
 **Assembly should become one sheet.**
 
@@ -277,8 +335,8 @@ This also converges with the strongest idea from the design conversation — *"a
 folder is opened for the production sheet and it fills in as you build your cast and
 crew, writing their names in."* That idea **is** the one-sheet: a production sheet on
 studio letterhead, blank ruled lines where a role is unfilled, names appearing as
-they are hired. It is §4's principles 1 and 2, the existing drawers, and the DESK
-register at full strength, all at once.
+they are hired. It is the visible-slots argument above, the existing drawers, and
+the DESK register at full strength, all at once.
 
 ### 8.5 Known risks
 
@@ -371,19 +429,31 @@ Stated as flatly as `SIMULATION_PHILOSOPHY.md` states its own.
 - **No lens flare, bloom or halation in the DESK register.** Ever.
 - **No more than one neon accent per SPECTACLE screen.**
 - **No spatial diorama.** This is a database sim; the interface is the game.
+- **No colour outside the token layer**, in a stylesheet or a component — not
+  even as a `var(--token, #hex)` fallback, which is worse than a bare hex
+  because it looks themed and silently is not.
+- **No hardcoded corner radius.** `--radius` or `--radius-pill`, nothing else.
+
+The last two are enforced by `src/designSystem.test.ts` rather than by review.
+Three of this document's rules had quietly stopped being true before anyone
+noticed — see the roadmap's §1.3 — and prose does not survive fourteen screens
+of implementation. A rule worth stating is worth a test where one is possible.
 
 ---
 
 ## 12. Open questions
 
-- **§5.3** Does the DESK register live on newsprint (light) or in a darkened exec
-  office (dark)? Both are era-true, and both token sets already exist in
-  `src/index.css`.
+Answered questions move into the section they belong to rather than lingering
+here. Two did on 2026-08-25 (the light/dark question into §5.3, the typeface
+pairing into §5), which is why this list is shorter than the decision log.
+
+- **§5.0** Should the badge family go square too, or is the pill a real
+  exception? A one-line change to `--radius-pill`; needs looking at, not
+  arguing about.
 - **§8** Package assembly as one sheet — how far, and what stays sequential?
-- Typeface pairing: display face, UI face, and a tabular-figures numeric face. Not
-  yet chosen.
+  Roadmap Phase 2 proposes: all five sections, deep decisions in drawers.
 - Does the studio-logo feature need a logo *builder*, given the poster wall makes
-  logos highly visible?
+  logos highly visible? Cheaper to answer once Phase 4 has rendered the wall.
 
 ---
 
@@ -396,7 +466,14 @@ Stated as flatly as `SIMULATION_PHILOSOPHY.md` states its own.
 | 2026-08-22 | "Ornament on the frame, plain data inside" adopted as the binding rule. |
 | 2026-08-22 | Place-as-backdrop adopted; place-as-navigation rejected. |
 | 2026-08-22 | Six structural principles inherited from Hollywood Pictures 2. |
+| 2026-08-25 | §4 demoted from DECIDED to REFERENCE, reversing the line above. Pointing at something admired in another game is not adopting it as a rule here; sections that cited "§4's principles" as authority now make their own case. |
 | 2026-08-22 | Cost tiering adopted; Tier 3 rejected by default. |
 | 2026-08-22 | Hollywood Sign and Walk of Fame star ruled out on trademark grounds. |
 | 2026-08-22 | Assembly/execution split (§8): assembly becomes one sheet, execution stays a chronology. |
 | 2026-08-23 | §10's real-people blocker resolved structurally: the roster is selectable, the default generates everybody, and a real-people roster can only be reached by explicit choice. |
+| 2026-08-25 | §5 palette moved to DECIDED — shipped and rendered. `src/index.css` is the authority; the tables are the reference derivation that produced it. |
+| 2026-08-25 | The accent is rationed to state and never fills a surface; bars take a neutral `--bar`, because a value needs no hue. |
+| 2026-08-25 | §5.0: hard corners throughout, with the badge family as the one sanctioned exception. Bars take the surface radius, since the no-hue argument applies to shape. |
+| 2026-08-25 | §5.3 closed, and with it §12's light/dark question: DESK is theme-agnostic with both themes first-class; SPECTACLE is dark-only. |
+| 2026-08-25 | Typeface pairing settled: Schibsted Grotesk (the game's structure), Anybody (display), Courier Prime (anything the player chose). The last split is load-bearing — typography encodes structure vs. decision. |
+| 2026-08-25 | §11's colour and corner rules made mechanical in `src/designSystem.test.ts`, after three stated rules were found to have quietly stopped being true. |

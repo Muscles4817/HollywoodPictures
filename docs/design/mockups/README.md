@@ -136,20 +136,23 @@ Further work should iterate on 08 rather than adding a ninth direction. The next
 from the individual moves marked Keep below, rather than a fifth fresh
 direction.
 
-## Verdicts
+## Verdicts [RETIRED]
 
-_To be filled in as takes are reviewed. Record what was liked and disliked per
-take, not just which one won — the point of the cycle is to isolate the
-individual moves worth keeping._
+_This section used to carry an empty per-take Keep/Reject table. It is retired
+rather than filled in, because the decision it existed to track has already been
+made elsewhere in this file._
 
-| # | Keep | Reject |
-|---|---|---|
-| 01 | | |
-| 02 | | |
-| 03 | | |
-| 04 | | |
-| 05 | | |
-| 06 | | |
-| 07 | | |
-| 08 | | |
-| 09 | | |
+The table's purpose was to isolate the individual moves worth keeping from each
+take, so that a hybrid could be assembled from moves rather than by picking a
+winner. **Take 08's synthesis table does exactly that** — it names the move kept
+from each of 01–07, with the reasoning. Take 09 then answered the prior question
+(what frame the moves sit in), and *Candidate directions not yet built* recorded
+the standing decision: iterate on 08, do not add a tenth direction.
+
+So the per-take verdicts are recorded; they just live in the synthesis table and
+in *Verdicts so far*, which is where they are actually useful. An empty table
+below them read as outstanding work on a question that was closed.
+
+What is genuinely still open is **per-page detail beyond the project screen** —
+noted in *Verdicts so far*, and sequenced as Phase 5 of
+`docs/DESIGN_REVIEW_visual_redesign_roadmap.md`.

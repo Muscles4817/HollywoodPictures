@@ -287,7 +287,8 @@ describe('leaving and resuming a Project before Greenlight', () => {
     const resumed = studioReducer(left, { type: 'RESUME_PROJECT', projectId });
     expect(resumed.focusedProjectId).toBe(projectId);
     expect(resumed.screen).toBe('workspace');
-    expect(resumed.projectWorkspaceSection).toBe('overview');
+    // Resuming re-enters on the sheet, the same landing view a new project gets.
+    expect(resumed.projectWorkspaceSection).toBe('sheet');
     expect(asPlayerDraft(findProject(resumed.projects, projectId))?.title).toBe('Resumable Picture');
   });
 });

@@ -10,7 +10,7 @@
   font-size: 0.85rem;
   padding: 4px 12px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--text);
   text-decoration: none;
   background: var(--bg);
