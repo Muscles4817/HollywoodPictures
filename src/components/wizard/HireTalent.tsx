@@ -472,22 +472,30 @@ export function HireTalent() {
   // Casting is scoped to one specific Character, not a whole role.
   const [openCharacter, setOpenCharacter] = useState<{ character: ScriptCharacter; role: 'Lead Actor' | 'Supporting Actor' } | null>(null);
 
-  // The production sheet asked for one specific slot's drawer
-  // (state/gameState.ts:WorkspaceRoleFocus). Clicking "Composer" on the sheet
-  // should land on the composer's drawer, not on this section for the player
-  // to find the row they just clicked. One-shot: consumed and cleared, so it
-  // never reopens on a later visit.
-  const roleFocus = state.workspaceRoleFocus;
+  // A one-render deep-link into a specific drawer (types/index.ts:CastCrewFocus),
+  // from either of the two places that point at one: the Inbox ("new applicants
+  // for Mercedes", "the director pitches are in") and the production sheet
+  // (clicking the slot that still needs somebody). Both wanted the same thing
+  // and grew it separately; this is the one mechanism they share now.
+  // Consumed immediately (CLEAR_CAST_CREW_FOCUS) so closing the drawer can't
+  // re-open it on the next render.
+  const castCrewFocus = state.castCrewFocus ?? null;
   useEffect(() => {
-    if (!roleFocus) return;
-    const character = roleFocus.characterId ? draft.script?.cast.find((c) => c.id === roleFocus.characterId) : undefined;
-    if (character && (roleFocus.role === 'Lead Actor' || roleFocus.role === 'Supporting Actor')) {
-      setOpenCharacter({ character, role: roleFocus.role });
+    if (!castCrewFocus) return;
+    if (castCrewFocus.kind === 'director-pitches') {
+      // RoleHiringDrawer opens on its bake-off panel by itself whenever a round
+      // is live (its own `directorMode` default), so pointing at the role is
+      // enough - no second piece of routing state for the drawer's inner tab.
+      setOpenRole('Director');
+    } else if (castCrewFocus.kind === 'role') {
+      setOpenRole(castCrewFocus.role);
     } else {
-      setOpenRole(roleFocus.role);
+      const character = draft.script?.cast.find((c) => c.id === castCrewFocus.characterId);
+      const role = character?.prominence === 'Lead' ? ('Lead Actor' as const) : ('Supporting Actor' as const);
+      if (character) setOpenCharacter({ character, role });
     }
-    dispatch({ type: 'CLEAR_WORKSPACE_ROLE_FOCUS' });
-  }, [roleFocus, draft.script, dispatch]);
+    dispatch({ type: 'CLEAR_CAST_CREW_FOCUS' });
+  }, [castCrewFocus, draft.script, dispatch]);
 
   function talentsForRole(role: ProductionRole): Person[] {
     return draft.talent.filter((a) => a.role === role).map((a) => a.person);

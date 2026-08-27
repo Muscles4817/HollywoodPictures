@@ -136,3 +136,109 @@ describe('Inbox - press tour incident (interactive)', () => {
     expect(screen.getByText(/Nothing needs your attention/)).toBeInTheDocument();
   });
 });
+
+// The three Cast & Crew beats: each is per-Character (or per-round), lists what
+// actually arrived, and routes into the exact drawer it's about rather than
+// dropping the player on the project's Overview to hunt for it.
+function person(id: string, name: string) {
+  return { id, identity: { name, appearanceTags: [], gender: 'Female' } } as unknown as never;
+}
+
+function castingState(): GameState {
+  const draft = {
+    id: 'casting-film',
+    title: 'Night Shift',
+    photography: null,
+    talent: [],
+    auditions: [],
+    script: { cast: [{ id: 'char-lead', name: 'Mercedes', prominence: 'Lead' }] },
+    castingCalls: [
+      {
+        id: 'call-1',
+        characterId: 'char-lead',
+        role: 'Lead Actor',
+        applicants: [
+          { person: person('a1', 'Rosa Vance'), appliedOnDay: 8, channel: 'OpenCasting' },
+          { person: person('a2', 'Dana Pike'), appliedOnDay: 8, channel: 'InterestedTalent' },
+        ],
+      },
+    ],
+  } as unknown as FilmDraft;
+  return {
+    projects: [playerDraftToProject(draft)],
+    focusedProjectId: null,
+    totalDays: 10,
+    talentPool: { Actor: [], Director: [] },
+    opportunities: [],
+    bidNotifications: [],
+  } as unknown as GameState;
+}
+
+describe('Inbox - casting applicants', () => {
+  it('names the role, lists who came in and how, and routes into that Character\'s drawer', () => {
+    dispatch.mockClear();
+    const onClose = vi.fn();
+    mockState = castingState();
+    render(<Inbox open onClose={onClose} />);
+
+    // The card is about the role, not just the film.
+    expect(screen.getByText('Mercedes · Lead role')).toBeInTheDocument();
+    expect(screen.getByText(/2 new candidates/i)).toBeInTheDocument();
+    // Each candidate on their own line, saying which door they came through.
+    expect(screen.getByText(/Rosa Vance — answered your open casting call/)).toBeInTheDocument();
+    expect(screen.getByText(/Dana Pike — approached you directly/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review candidates' }));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'REVIEW_CASTING_CALL', projectId: 'casting-film', characterId: 'char-lead' });
+    // ...and the overlay gets out of the way, rather than covering the screen
+    // it just routed to.
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('offers a note instead of the button while a DIFFERENT project is focused', () => {
+    mockState = { ...castingState(), focusedProjectId: 'some-other-film' };
+    render(<Inbox open onClose={() => {}} />);
+    expect(screen.queryByRole('button', { name: 'Review candidates' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Finish or leave what you're currently working on/)).toBeInTheDocument();
+  });
+});
+
+describe('Inbox - director bake-off', () => {
+  it('announces landed pitches by name and routes into the bake-off panel', () => {
+    dispatch.mockClear();
+    const onClose = vi.fn();
+    const draft = {
+      id: 'pitch-film',
+      title: 'Cold Harbour',
+      photography: null,
+      talent: [],
+      auditions: [],
+      script: { cast: [] },
+      castingCalls: [],
+      directorPitches: {
+        openedOnDay: 1,
+        advertisedFee: 1_000_000,
+        pending: [{ directorId: 'd9', dueDay: 40 }],
+        submitted: [{ directorId: 'd1' }, { directorId: 'd2' }],
+      },
+    } as unknown as FilmDraft;
+    mockState = {
+      projects: [playerDraftToProject(draft)],
+      focusedProjectId: null,
+      totalDays: 30,
+      talentPool: { Actor: [], Director: [person('d1', 'Imre Solt'), person('d2', 'Bex Farrow')] },
+      opportunities: [],
+      bidNotifications: [],
+    } as unknown as GameState;
+    render(<Inbox open onClose={onClose} />);
+
+    expect(screen.getByText('2 director pitches are in')).toBeInTheDocument();
+    expect(screen.getByText(/1 more is still being prepared/)).toBeInTheDocument();
+    expect(screen.getByText('Imre Solt')).toBeInTheDocument();
+    expect(screen.getByText('Bex Farrow')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Read the pitches' }));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'REVIEW_DIRECTOR_PITCHES', projectId: 'pitch-film' });
+    expect(onClose).toHaveBeenCalled();
+  });
+});

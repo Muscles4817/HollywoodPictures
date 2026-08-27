@@ -6,7 +6,7 @@
 // was due three weeks ago still only produces one fresh batch the next
 // time it's checked, exactly like settleOpportunities's own behavior, not
 // three retroactive ones).
-import type { FilmDraft, GameDay, Money, Person, Script, ScriptCharacter, Studio, TalentAssignment } from '../types';
+import type { CastingApplicant, FilmDraft, GameDay, Money, Person, Script, ScriptCharacter, Studio, TalentAssignment } from '../types';
 import { ROLE_GENERATION_PROFILES } from '../data/talentGeneration';
 import { professionForProductionRole, findAssignedPerson } from '../data/helpers';
 import { getCrewCareer } from './person';
@@ -323,12 +323,17 @@ export function isCharacterCast(draft: FilmDraft, character: ScriptCharacter, ro
   return slotIndex >= 0 && slotIndex < unbound.length;
 }
 
-/** Every open call on this draft that has at least one applicant waiting and whose Character isn't cast yet - what components/common/Inbox.tsx surfaces as "new casting options" for a backgrounded production the player isn't currently looking at. */
+/** The applicants on this call the player hasn't seen yet - what makes a call "new" rather than merely open. Opening the Character's casting drawer marks them seen (ACKNOWLEDGE_CASTING_APPLICANTS), so the Inbox beat below pings once per fresh arrival instead of repeating an identical message every time the player looks away without casting anybody. */
+export function unseenApplicants(call: FilmDraft['castingCalls'][number]): CastingApplicant[] {
+  return call.applicants.filter((a) => !a.acknowledged);
+}
+
+/** Every open call on this draft with at least one UNSEEN applicant waiting and whose Character isn't cast yet - what components/common/Inbox.tsx surfaces as "new casting options" for a backgrounded production the player isn't currently looking at. Seen-but-uncast applicants deliberately drop out: they're still there in the drawer, they're just not news any more. */
 export function castingCallsAwaitingReview(draft: FilmDraft): FilmDraft['castingCalls'] {
   if (!draft.script) return [];
   const script = draft.script;
   return draft.castingCalls.filter((call) => {
-    if (call.applicants.length === 0) return false;
+    if (unseenApplicants(call).length === 0) return false;
     const character = script.cast.find((c) => c.id === call.characterId);
     return character !== undefined && !isCharacterCast(draft, character, call.role);
   });

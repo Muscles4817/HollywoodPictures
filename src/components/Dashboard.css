@@ -335,6 +335,25 @@
   line-height: 1.45;
 }
 
+/* StudioActivity.bullets - the supporting lines a card breaks out instead of
+   running them together in `detail` (e.g. one line per role with new casting
+   applicants). Same muted type as the detail paragraph, just enumerated. */
+.dashboard-activity-bullets {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  color: var(--dashboard-text-soft);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.dashboard-activity-bullets li {
+  margin: 0;
+}
+
+.dashboard-activity-bullets li + li {
+  margin-top: 2px;
+}
+
 /* An action that's temporarily unavailable renders as a muted note in place of
    the button (e.g. the Inbox's "finish what you're working on first"). */
 .dashboard-activity-note {

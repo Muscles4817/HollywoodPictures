@@ -16,6 +16,7 @@ import {
 import { studioReducer } from '../state/studioReducer';
 import { buildStateWithReadyDraft, buildReadyDraft, buildReadyAsset } from '../state/testFixtures';
 import { openCastingCall } from './castingCalls';
+import { generateDirectorPitch } from './directorPitch';
 import { generateTestScreeningPendingChoice } from './testScreening';
 import { withRng } from './random';
 import type { Film, FilmDraft, RivalProductionInProgress } from '../types';
@@ -115,11 +116,93 @@ describe('deriveInboxItems / inboxBadgeCount', () => {
     expect(inboxBadgeCount(projects, null)).toBe(1);
   });
 
-  it('excludes the currently-focused draft, same as every other category', () => {
+  // Deliberately UNLIKE the other categories (wrapped/parked/awaiting-choice),
+  // which route to the very screen a focused project is already showing. The
+  // casting beat points at a per-Character drawer that isn't on screen just
+  // because the project is, and it clears on read rather than on casting
+  // somebody - so hiding it while the player is inside the project only meant
+  // the message vanished and then came back unchanged.
+  it('still surfaces the focused draft, since the beat clears on read rather than on focus', () => {
     const draft = draftWithPendingCastingApplicant(2, 'draft-focused');
     const projects = [playerDraftToProject(draft)];
-    expect(deriveInboxItems(projects, draft.id).casting).toEqual([]);
-    expect(inboxBadgeCount(projects, draft.id)).toBe(0);
+    expect(deriveInboxItems(projects, draft.id).casting).toHaveLength(1);
+    expect(inboxBadgeCount(projects, draft.id)).toBe(1);
+  });
+
+  it('drops a call once its applicants have been seen, and pings again when a new one arrives', () => {
+    const draft = draftWithPendingCastingApplicant(7, 'draft-seen');
+    const seen: FilmDraft = {
+      ...draft,
+      castingCalls: draft.castingCalls.map((call) => ({
+        ...call,
+        applicants: call.applicants.map((a) => ({ ...a, acknowledged: true })),
+      })),
+    };
+    expect(deriveInboxItems([playerDraftToProject(seen)], null).casting).toEqual([]);
+    expect(inboxBadgeCount([playerDraftToProject(seen)], null)).toBe(0);
+
+    // A fresh applicant next week is news again.
+    const newArrival = { ...seen.castingCalls[0].applicants[0], acknowledged: undefined, appliedOnDay: 8 };
+    const pinging: FilmDraft = {
+      ...seen,
+      castingCalls: [{ ...seen.castingCalls[0], applicants: [...seen.castingCalls[0].applicants, newArrival] }],
+    };
+    expect(deriveInboxItems([playerDraftToProject(pinging)], null).casting).toHaveLength(1);
+  });
+
+  it('counts one badge point per casting CALL, since each is its own card routing to its own Character', () => {
+    const draft = draftWithPendingCastingApplicant(8, 'draft-two-calls');
+    const applicant = draft.castingCalls[0].applicants[0];
+    const supporting = draft.script!.cast.find((c) => c.prominence === 'Supporting')!;
+    const secondCall = {
+      ...openCastingCall(supporting.id, 'Supporting Actor', 1),
+      applicants: [{ person: applicant.person, appliedOnDay: 1, channel: 'OpenCasting' as const }],
+    };
+    const projects = [playerDraftToProject({ ...draft, castingCalls: [...draft.castingCalls, secondCall] })];
+    expect(deriveInboxItems(projects, null).casting).toHaveLength(1); // one production...
+    expect(deriveInboxItems(projects, null).casting[0].calls).toHaveLength(2); // ...two roles waiting
+    expect(inboxBadgeCount(projects, null)).toBe(2);
+  });
+
+  // The bake-off's pitches land on their own due-days during the background
+  // tick - before this category existed there was no notification at all, so a
+  // whole round could come in and sit unread.
+  function draftWithLandedPitch(seed: number, id: string, opts: { acknowledged?: boolean } = {}): FilmDraft {
+    const asset = withRng(seed, (rng) => buildReadyAsset(rng)).result;
+    const base = withRng(seed, (rng) => buildReadyDraft(rng)).result;
+    const director = base.talent.find((a) => a.role === 'Director')!.person;
+    const pitch = { ...generateDirectorPitch(director, asset.script), acknowledged: opts.acknowledged };
+    return {
+      ...base,
+      id,
+      script: asset.script,
+      talent: [],
+      photography: null,
+      directorPitches: { openedOnDay: 1, advertisedFee: 1_000_000, pending: [], submitted: [pitch] },
+    };
+  }
+
+  // A greenlit film has no reachable Cast & Crew section (its screen is
+  // pre-production/production), so a card routing there would have nowhere to
+  // go - these beats stop once prep starts, even though photography hasn't.
+  it('stops surfacing casting beats once the project is greenlit and in prep', () => {
+    const draft = draftWithPendingCastingApplicant(10, 'draft-prepping');
+    const greenlit: FilmDraft = { ...draft, preProduction: { status: 'scheduled' } as FilmDraft['preProduction'] };
+    const projects = [playerDraftToProject(greenlit)];
+    expect(deriveInboxItems(projects, null).casting).toEqual([]);
+    expect(inboxBadgeCount(projects, null)).toBe(0);
+  });
+
+  it('surfaces a landed director pitch until the player has read it', () => {
+    const projects = [playerDraftToProject(draftWithLandedPitch(9, 'draft-pitch'))];
+    const items = deriveInboxItems(projects, null);
+    expect(items.directorPitches).toHaveLength(1);
+    expect(items.directorPitches[0].pitches).toHaveLength(1);
+    expect(inboxBadgeCount(projects, null)).toBe(1);
+
+    const read = [playerDraftToProject(draftWithLandedPitch(9, 'draft-pitch', { acknowledged: true }))];
+    expect(deriveInboxItems(read, null).directorPitches).toEqual([]);
+    expect(inboxBadgeCount(read, null)).toBe(0);
   });
 
   function draftWithAudition(seed: number, id: string, opts: { readyOnDay?: number; acknowledged?: boolean } = {}): FilmDraft {
@@ -155,7 +238,8 @@ describe('deriveInboxItems / inboxBadgeCount', () => {
       items.awaitingChoice.length +
       items.wrapped.length +
       items.parked.filter(isParkedActionable).length +
-      items.casting.length +
+      items.casting.reduce((sum, entry) => sum + entry.calls.length, 0) +
+      items.directorPitches.length +
       items.pressTourIncidents.length +
       items.nowPlaying.length;
     expect(inboxBadgeCount(projects, null)).toBe(total);

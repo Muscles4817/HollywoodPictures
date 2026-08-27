@@ -414,7 +414,18 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   FilmDraft gained an optional directorPitches (an open pitch round) and
 //   selectedDirectorPitch (the winning pitch, frozen for downstream bets), and a
 //   new DirectorPitch/DirectorPitchProcess shape. Additive/optional; same policy.
-const SAVE_KEY = 'hollywood-pictures-save-v88';
+// v87 -> v88 (Inbox read-state for the Cast & Crew beats): CastingApplicant and
+//   DirectorPitch each gained an optional acknowledged flag (has the player SEEN
+//   this arrival), and GameState gained an optional castCrewFocus (a one-render
+//   deep-link into a specific Cast & Crew drawer). Additive/optional - an
+//   unflagged applicant/pitch simply reads as unseen and pings once; same
+//   pre-launch policy (no migration).
+// v88 -> v89 (the production sheet): ProjectWorkspaceSection gained 'sheet',
+//   which is now where the workspace lands, and CastCrewFocus gained a
+//   { kind: 'role' } case so the sheet can open a crew slot's drawer through
+//   the same deep-link the Inbox uses. Both branches independently bumped to
+//   v88; this is the merge of the two. Additive; same pre-launch policy.
+const SAVE_KEY = 'hollywood-pictures-save-v89';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;
@@ -442,7 +453,7 @@ export function loadState(): GameState {
       screen: 'dashboard',
       projects: [],
       focusedProjectId: null,
-      projectWorkspaceSection: 'sheet',
+      projectWorkspaceSection: 'overview',
       rngSeed: nextSeed,
       totalDays: 1,
       talentPool: result.talentPool,

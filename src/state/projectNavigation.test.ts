@@ -49,3 +49,52 @@ describe('projectOpenIntent', () => {
     if (intent.kind === 'resume') expect(intent.actions).toEqual([{ type: 'RESUME_PROJECT', projectId: 'picked-up' }]);
   });
 });
+
+/**
+ * A focused project that has NOT been greenlit - the only state in which the
+ * workspace (and so its deep-links) exists at all. `buildStateWithReadyDraft`
+ * greenlights its draft, so asking it to open a workspace section is correctly
+ * refused.
+ */
+function preGreenlightState(seed: number) {
+  const base = buildStateWithReadyDraft(seed);
+  return {
+    ...base,
+    projects: base.projects.map((p) =>
+      p.kind === 'player-in-progress' && p.draft.id === base.focusedProjectId
+        ? { ...p, draft: { ...p.draft, greenlitOnDay: null } }
+        : p,
+    ),
+  };
+}
+
+describe('the sheet and the Inbox share one deep-link', () => {
+  it('carries the sheet\'s requested drawer through the navigation, and drops a stale one', () => {
+    // The production sheet and the Inbox each grew a way to say "open that
+    // drawer" independently, and the merge folded the sheet's into the
+    // Inbox's CastCrewFocus rather than keeping two fields for one job.
+    // OPEN_PROJECT_WORKSPACE_SECTION clears transient view state, so the
+    // request has to survive precisely the navigation that carries it.
+    const state = preGreenlightState(1);
+
+    const asked = studioReducer(state, {
+      type: 'OPEN_PROJECT_WORKSPACE_SECTION',
+      section: 'cast-and-crew',
+      castCrewFocus: { kind: 'role', role: 'Composer' },
+    });
+    expect(asked.castCrewFocus).toEqual({ kind: 'role', role: 'Composer' });
+
+    // Using the section nav afterwards must not re-open it.
+    const plain = studioReducer(asked, { type: 'OPEN_PROJECT_WORKSPACE_SECTION', section: 'production' });
+    expect(plain.castCrewFocus).toBeNull();
+  });
+
+  it('consumes the request once the section has acted on it', () => {
+    const asked = studioReducer(preGreenlightState(2), {
+      type: 'OPEN_PROJECT_WORKSPACE_SECTION',
+      section: 'cast-and-crew',
+      castCrewFocus: { kind: 'character', characterId: 'whoever' },
+    });
+    expect(studioReducer(asked, { type: 'CLEAR_CAST_CREW_FOCUS' }).castCrewFocus).toBeNull();
+  });
+});

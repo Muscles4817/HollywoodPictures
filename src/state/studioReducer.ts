@@ -1,4 +1,4 @@
-import type { Asset, AwardShowId, AwardsState, BackendDeal, BidNotification, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, RoleNegotiation, StaffingEvent, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
+import type { Asset, AwardShowId, AwardsState, BackendDeal, BidNotification, CastCrewFocus, Collaboration, DevelopmentEvent, Film, FilmDraft, Opportunity, PendingEventChoice, Person, ProductionChoices, ProductionEvent, ProductionRole, Project, ProjectWorkspaceSection, RivalProductionInProgress, RivalStudio, RoleNegotiation, StaffingEvent, Studio, TalentAssignment, TalentPairing, TalentProfession, WizardStep } from '../types';
 import { type GameAction, type GameState, createDraftFromAsset, createInitialStudio } from './gameState';
 import { randomSeed, withRng, type RandomFn } from '../engine/random';
 import { logAmount } from '../engine/interpolate';
@@ -143,9 +143,37 @@ const WIZARD_STEP_ORDER: WizardStep[] = [
  * among the ones that used to leave it untouched.
  */
 function clearTransientView(
-  overrides: Partial<Pick<GameState, 'viewingRivalStudioName' | 'viewingProductionId'>> = {},
-): Pick<GameState, 'viewingRivalStudioName' | 'viewingProductionId'> {
-  return { viewingRivalStudioName: null, viewingProductionId: null, ...overrides };
+  overrides: Partial<Pick<GameState, 'viewingRivalStudioName' | 'viewingProductionId' | 'castCrewFocus'>> = {},
+): Pick<GameState, 'viewingRivalStudioName' | 'viewingProductionId' | 'castCrewFocus'> {
+  // castCrewFocus is a one-render request to open a specific Cast & Crew drawer
+  // (types/index.ts:CastCrewFocus). Navigating anywhere abandons it, exactly like
+  // the two view ids above - a deep-link the player has moved past must never
+  // pop a drawer open later.
+  return { viewingRivalStudioName: null, viewingProductionId: null, castCrewFocus: null, ...overrides };
+}
+
+/**
+ * The shared body of the Inbox's two "take me to it" review actions
+ * (REVIEW_CASTING_CALL / REVIEW_DIRECTOR_PITCHES): focus the project, land on
+ * its Cast & Crew section, and leave a one-render deep-link
+ * (GameState.castCrewFocus) for components/wizard/HireTalent.tsx to open the
+ * matching drawer with. Refuses while a DIFFERENT project is focused - the same
+ * "never silently take over unrelated in-progress work" guard RESUME_PROJECT
+ * enforces - and refuses for anything past pre-Greenlight, where Cast & Crew
+ * (and so the drawer being pointed at) no longer exists.
+ */
+function focusForCastCrewReview(state: GameState, projectId: string, focus: CastCrewFocus): GameState {
+  if (state.focusedProjectId && state.focusedProjectId !== projectId) return state;
+  const draft = asPlayerDraft(findProject(state.projects, projectId));
+  if (!draft || currentScreenFor(draft) !== 'workspace') return state;
+  return {
+    ...state,
+    screen: 'workspace',
+    focusedProjectId: projectId,
+    projectWorkspaceSection: 'cast-and-crew',
+    ...clearTransientView(),
+    castCrewFocus: focus,
+  };
 }
 
 /** Seeds every role's target price at the midpoint of its own salary range. */
@@ -1436,18 +1464,12 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
         ...state,
         screen: 'workspace',
         projectWorkspaceSection: action.section,
-        // Absent when the player used the section nav rather than the sheet, in
-        // which case any stale focus must still be dropped - otherwise a drawer
-        // reopens on a later, unrelated visit.
-        workspaceRoleFocus: action.roleFocus ?? null,
-        ...clearTransientView(),
+        // clearTransientView() drops any stale deep-link, which is right when
+        // the player used the section nav; the override then re-arms it for the
+        // one case that navigated *in order to* open a drawer.
+        ...clearTransientView({ castCrewFocus: action.castCrewFocus ?? null }),
       };
     }
-
-    // The destination section has opened the drawer the sheet asked for; the
-    // request is spent.
-    case 'CLEAR_WORKSPACE_ROLE_FOCUS':
-      return state.workspaceRoleFocus ? { ...state, workspaceRoleFocus: null } : state;
 
     // The one explicit "delete this for real" action for a still-owned
     // Asset's Project attempt (see GameAction's own doc comment). Whatever's
@@ -1942,6 +1964,50 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       if (!changed) return state;
       return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, auditions: next }) };
     }
+
+    // Casting QOL (the "it keeps telling me the same thing" fix) - opening a
+    // Character's casting drawer IS the player reviewing whoever's applied, so
+    // mark those applicants seen. castingCallsAwaitingReview only counts unseen
+    // ones, so the Inbox card and badge clear on review rather than nagging
+    // until somebody is finally cast. No characterId = the whole draft.
+    case 'ACKNOWLEDGE_CASTING_APPLICANTS': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      if (!focusedDraft) return state;
+      let changed = false;
+      const calls = focusedDraft.castingCalls.map((call) => {
+        if (action.characterId != null && call.characterId !== action.characterId) return call;
+        if (call.applicants.every((a) => a.acknowledged)) return call;
+        changed = true;
+        return { ...call, applicants: call.applicants.map((a) => (a.acknowledged ? a : { ...a, acknowledged: true })) };
+      });
+      if (!changed) return state;
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, castingCalls: calls }) };
+    }
+
+    // The bake-off counterpart: the pitch panel is on screen, so every pitch
+    // that has landed has now been read. Clears the "pitches are in" Inbox beat
+    // without touching the round itself - the player still picks or passes.
+    case 'ACKNOWLEDGE_DIRECTOR_PITCHES': {
+      const focusedDraft = asPlayerDraft(findProject(state.projects, state.focusedProjectId));
+      const process = focusedDraft?.directorPitches;
+      if (!focusedDraft || !process) return state;
+      if (process.submitted.every((p) => p.acknowledged)) return state;
+      const submitted = process.submitted.map((p) => (p.acknowledged ? p : { ...p, acknowledged: true }));
+      return { ...state, projects: replaceDraft(state.projects, { ...focusedDraft, directorPitches: { ...process, submitted } }) };
+    }
+
+    // Inbox -> the exact drawer the notification was about. Both cases share
+    // focusForCastCrewReview below: focus the project if nothing else is (the
+    // same guard RESUME_PROJECT enforces), land on Cast & Crew, and leave the
+    // deep-link for components/wizard/HireTalent.tsx to consume.
+    case 'REVIEW_CASTING_CALL':
+      return focusForCastCrewReview(state, action.projectId, { kind: 'character', characterId: action.characterId });
+
+    case 'REVIEW_DIRECTOR_PITCHES':
+      return focusForCastCrewReview(state, action.projectId, { kind: 'director-pitches' });
+
+    case 'CLEAR_CAST_CREW_FOCUS':
+      return state.castCrewFocus ? { ...state, castCrewFocus: null } : state;
 
     // Casting Redesign, Phase 6 - push (or reset) the planned shoot start so a
     // booked actor can be waited for. A later start only ever frees actors up

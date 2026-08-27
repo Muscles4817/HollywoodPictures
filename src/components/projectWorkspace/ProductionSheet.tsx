@@ -12,7 +12,6 @@ import {
 import { formatGameDateWithMonth } from '../../engine/calendar';
 import { Money } from '../common/Money';
 import { PackageReadinessMeter } from './PackageReadinessMeter';
-import type { ProductionRole } from '../../types';
 
 /**
  * The production sheet: every slot on this package, visible at once.
@@ -48,7 +47,11 @@ export function ProductionSheet() {
     dispatch({
       type: 'OPEN_PROJECT_WORKSPACE_SECTION',
       section: slot.section,
-      roleFocus: slot.role ? { role: slot.role as ProductionRole, characterId: slot.characterId } : undefined,
+      castCrewFocus: slot.characterId
+        ? { kind: 'character', characterId: slot.characterId }
+        : slot.role
+          ? { kind: 'role', role: slot.role }
+          : undefined,
     });
   }
 

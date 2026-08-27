@@ -558,6 +558,18 @@ export function CastingDrawer({ character, role, onClose }: CastingDrawerProps) 
     if (hasUnseenAudition) dispatch({ type: 'ACKNOWLEDGE_AUDITIONS', characterId: character.id });
   }, [hasUnseenAudition, character.id, dispatch]);
 
+  // Same contract for whoever has APPLIED for this Character: the drawer being
+  // open is the player reviewing the field, so the "new applicants" Inbox beat
+  // clears here rather than nagging with an identical message until somebody is
+  // finally cast (engine/castingCalls.ts:castingCallsAwaitingReview counts only
+  // unseen applicants). New arrivals next week ping again, as they should.
+  const hasUnseenApplicant = draft.castingCalls.some(
+    (c) => c.characterId === character.id && c.applicants.some((a) => !a.acknowledged),
+  );
+  useEffect(() => {
+    if (hasUnseenApplicant) dispatch({ type: 'ACKNOWLEDGE_CASTING_APPLICANTS', characterId: character.id });
+  }, [hasUnseenApplicant, character.id, dispatch]);
+
   // Any change to what's shown or how it's ordered resets Direct Approach to the
   // first page - otherwise a stale page index lands the player on an empty grid.
   useEffect(() => {

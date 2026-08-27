@@ -101,3 +101,11 @@ BOX_OFFICE_TRACE=1 npx vitest run src/engine/boxOfficeBriefingTrace.diagnostic.t
   relevant engine module, not by threading magic numbers through logic.
 - Player-facing presentation is qualitative (stars, prose, named causes), never
   raw internal stat values. Dev inspectors and tests may read raw numbers.
+- **Anything that resolves on the background tick owes the player a
+  notification.** If a feature can change state while the player isn't looking
+  at it — something lands on a due-day, someone arrives unprompted, a timed
+  process finishes — it isn't done until the player can find out, act on it in
+  one click, and have the message stop. Work through
+  `docs/DESIGN_notification_contract.md` (a short checklist) before calling such
+  a feature complete; a correct simulation nobody is told about has not shipped.
+  This has been missed three times, which is why the checklist exists.

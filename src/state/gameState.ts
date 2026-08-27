@@ -19,6 +19,7 @@ import type {
   Person,
   Project,
   ProjectWorkspaceSection,
+  CastCrewFocus,
   RivalStudio,
   Screen,
   Studio,
@@ -27,7 +28,6 @@ import type {
   ProductionRole,
   TargetAudience,
   WizardStep,
-  WorkspaceRoleFocus,
 } from '../types';
 import type { BackendOffer } from '../engine/backend';
 
@@ -51,18 +51,23 @@ export interface GameState {
   focusedProjectId: string | null;
   // Which Producer Workspace tab is showing while `screen` is 'workspace'
   // (PRODUCER_WORKSPACE_DESIGN.md) - non-nullable, defaults to 'overview'.
-  /**
-   * A one-shot request from the production sheet: "open this slot's drawer".
-   * Navigation state rather than game state - it is consumed on arrival and
-   * cleared, and never means anything on a reload.
-   */
-  workspaceRoleFocus?: WorkspaceRoleFocus | null;
   // Set only by OPEN_PROJECT_WORKSPACE_SECTION, which - unlike GO_TO_STEP -
   // charges no calendar time, making navigation between sections genuinely
   // free. Meaningless while `screen` isn't 'workspace', same as
   // viewingRivalStudioName/viewingProductionId below are meaningless outside
   // their own screens - just stale rather than actively read.
   projectWorkspaceSection: ProjectWorkspaceSection;
+  /**
+   * A one-shot deep-link INTO Cast & Crew (types/index.ts:CastCrewFocus) - which
+   * drawer the section should open with. Set by the Inbox's review actions
+   * (REVIEW_CASTING_CALL / REVIEW_DIRECTOR_PITCHES) so a notification about one
+   * Character's applicants (or a landed bake-off) lands the player on that exact
+   * drawer instead of the workspace Overview; consumed and cleared by
+   * components/wizard/HireTalent.tsx (CLEAR_CAST_CREW_FOCUS). Null/absent
+   * normally, and cleared by any navigation, so it can never re-open a drawer
+   * the player has moved on from.
+   */
+  castCrewFocus?: CastCrewFocus | null;
   rngSeed: number;
   /** Days elapsed since day 1 - the single source of truth for the in-game calendar (see engine/calendar.ts), world-level rather than studio-scoped since rival studios and the player share it. */
   totalDays: number;
@@ -352,15 +357,13 @@ export type GameAction =
   // nothing's focused or the focused project is past Greenlight (already
   // has `photography`) - see state/studioReducer.ts.
   /**
-   * `roleFocus` is the production sheet asking the destination section to open
-   * one specific slot's drawer rather than just showing the section - clicking
-   * "Composer" on the sheet should land on the composer's own drawer, not on
-   * Cast & Crew for the player to find the row again. Consumed and cleared by
-   * whichever section owns that drawer.
+   * `castCrewFocus` is the production sheet asking the destination section to
+   * open one specific slot's drawer rather than just showing the section -
+   * clicking "Composer" on the sheet should land on the composer's own drawer,
+   * not on Cast & Crew for the player to find the row again. The same one-render
+   * deep-link the Inbox's review actions use, and cleared the same way.
    */
-  | { type: 'OPEN_PROJECT_WORKSPACE_SECTION'; section: ProjectWorkspaceSection; roleFocus?: WorkspaceRoleFocus }
-  /** Clears `workspaceRoleFocus` once the destination section has acted on it. */
-  | { type: 'CLEAR_WORKSPACE_ROLE_FOCUS' }
+  | { type: 'OPEN_PROJECT_WORKSPACE_SECTION'; section: ProjectWorkspaceSection; castCrewFocus?: CastCrewFocus }
   // The one explicit "delete this for real" action for a still-owned
   // Asset's Project attempt - the Asset itself is never touched (see
   // engine/project.ts:deriveAssetStatus, which derives "available again"
@@ -434,6 +437,30 @@ export type GameAction =
   // audition came back" Inbox beat pings exactly once. Omit characterId to
   // acknowledge every ready audition on the focused draft.
   | { type: 'ACKNOWLEDGE_AUDITIONS'; characterId?: string }
+  // Casting QOL - mark the applicants on one Character's casting call as SEEN
+  // (fired when that Character's casting drawer opens), so the "new applicants"
+  // Inbox beat pings once per fresh arrival instead of repeating an identical
+  // message every time the player leaves without casting anybody. Omit
+  // characterId to acknowledge every call on the focused draft.
+  | { type: 'ACKNOWLEDGE_CASTING_APPLICANTS'; characterId?: string }
+  // Director bake-off - mark every landed pitch on the focused draft as SEEN
+  // (fired when the bake-off panel renders), the pitch counterpart of
+  // ACKNOWLEDGE_AUDITIONS above.
+  | { type: 'ACKNOWLEDGE_DIRECTOR_PITCHES' }
+  // Inbox -> the exact casting drawer a notification was about: focuses the
+  // project (if nothing else is), opens its Cast & Crew section, and asks it to
+  // open this Character's drawer (GameState.castCrewFocus). A no-op while a
+  // DIFFERENT project is focused, same rule RESUME_PROJECT follows - the Inbox
+  // shows a "finish what you're doing first" note in that case rather than
+  // offering the button.
+  | { type: 'REVIEW_CASTING_CALL'; projectId: string; characterId: string }
+  // Inbox -> the Director bake-off panel for this project, on exactly the same
+  // terms as REVIEW_CASTING_CALL above.
+  | { type: 'REVIEW_DIRECTOR_PITCHES'; projectId: string }
+  // Consumes the pending Cast & Crew deep-link once the section has acted on it
+  // (components/wizard/HireTalent.tsx), so re-rendering can't re-open a drawer
+  // the player has since closed.
+  | { type: 'CLEAR_CAST_CREW_FOCUS' }
   // Casting Redesign, Phase 6 - push (or reset) the focused draft's planned
   // shoot start, so a booked actor can be waited for. offsetDays is measured
   // from today; clamped to >= 0. Waiting for someone sets it to free them up.
