@@ -285,6 +285,9 @@ function AppShell() {
   // photography day ticking doesn't change state.screen).
   useEffect(() => {
     window.scrollTo(0, 0);
+    // The guide is a document, not a mode: picking a destination from the rail
+    // should leave it, exactly as it leaves any other screen.
+    setGuideOpen(false);
   }, [state.screen]);
 
   // Makes the browser's own Back/Forward buttons move through the game's
@@ -491,7 +494,6 @@ function AppShell() {
         </div>
       )}
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
-      {guideOpen && <GameGuide onBack={() => setGuideOpen(false)} />}
 
       {/* The chassis: destinations on one edge, the screen beside them. The
           rail is persistent and never modal, which is the thing the old
@@ -499,11 +501,17 @@ function AppShell() {
       <div className="shell">
         <DestinationRail devTool={devTool} onSetDevTool={setDevTool} onOpenGuide={() => setGuideOpen(true)} />
         <main className="shell-main">
-          {devTool === 'recommendation' && <RecommendationInspector />}
-          {devTool === 'outcome' && <OutcomeInspector />}
-          {devTool === 'rival-finances' && <RivalFinancesInspector />}
-          {devTool === 'requirement-profile' && <RequirementProfileInspector />}
-          {devTool === 'none' && renderScreen()}
+          {/* The guide replaces the screen rather than floating over it: it is a
+              long document with no overlay styling of its own, and rendering it
+              as a sibling of the shell stacked it on top of a fully-rendered
+              screen. Inside the shell it keeps the rail, so leaving it is a
+              normal navigation rather than a trapped Back button. */}
+          {guideOpen && <GameGuide onBack={() => setGuideOpen(false)} />}
+          {!guideOpen && devTool === 'recommendation' && <RecommendationInspector />}
+          {!guideOpen && devTool === 'outcome' && <OutcomeInspector />}
+          {!guideOpen && devTool === 'rival-finances' && <RivalFinancesInspector />}
+          {!guideOpen && devTool === 'requirement-profile' && <RequirementProfileInspector />}
+          {!guideOpen && devTool === 'none' && renderScreen()}
         </main>
       </div>
     </>

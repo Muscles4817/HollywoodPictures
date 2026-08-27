@@ -49,6 +49,11 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   }, [open]);
 
   const items = useMemo<PaletteItem[]>(() => {
+    // Closed is the normal state, and this component is always mounted and
+    // subscribed to the studio - so without this guard the whole roster is
+    // re-indexed on every tick of the clock, for nobody.
+    if (!open) return [];
+
     const destinations: PaletteItem[] = DESTINATIONS.map((d) => ({
       id: `dest:${d.id}`,
       kind: 'Go to',
@@ -84,7 +89,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     );
 
     return [...destinations, ...projects, ...talent];
-  }, [state]);
+  }, [open, state]);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();

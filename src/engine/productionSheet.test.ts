@@ -231,3 +231,86 @@ describe('optional slots read as prose, not as mangled copy', () => {
     }
   });
 });
+
+describe('regressions found in review', () => {
+  it('places a mixed bound/unbound cast the same way the scoring engine does', () => {
+    // The first cut indexed the positional fallback over only the *unbound*
+    // hires, while engine/scoring.ts indexes over every assignment in the
+    // role. With one bound and one unbound lead, the unbound one was mapped
+    // onto the already-bound character and orphaned - so the sheet showed a
+    // required slot open while readiness called the cast complete.
+    const draft = readyDraft();
+    const leads = (draft.script?.cast ?? []).filter((c) => c.prominence === 'Lead');
+    expect(leads.length).toBeGreaterThanOrEqual(2);
+
+    const anyActor = draft.talent.find((a) => a.role === 'Lead Actor')!;
+    const second = { ...anyActor, person: { ...anyActor.person, id: 'second-lead' } };
+    const mixed = {
+      ...draft,
+      talent: [
+        // Bound to the SECOND character, so a naive positional pass would put
+        // the unbound hire on top of it.
+        { ...anyActor, characterId: leads[1].id },
+        { ...second, characterId: undefined },
+      ],
+    };
+
+    const castSlots = deriveProductionSheet(mixed)
+      .flatMap((g) => g.slots)
+      .filter((s) => s.role === 'Lead Actor');
+    const filled = castSlots.filter((s) => s.state === 'set');
+    // Two distinct hires must occupy two distinct characters - never one.
+    expect(filled).toHaveLength(2);
+    expect(new Set(filled.map((s) => s.id)).size).toBe(2);
+  });
+
+  it('does not call the title a blocker, because readiness does not either', () => {
+    // A cleared title used to read as an open slot, so the meter said "still
+    // open" beside the "Ready for greenlight" stamp.
+    const draft = { ...readyDraft(), title: '' };
+    const title = deriveProductionSheet(draft).flatMap((g) => g.slots).find((s) => s.id === 'title')!;
+    expect(title.state).toBe('optional');
+
+    const readiness = deriveProjectReadiness(draft, 100_000_000);
+    expect(readiness.blockers.some((b) => /title/i.test(b.message))).toBe(false);
+  });
+
+  it('keeps the sheet and readiness agreeing even with the title cleared', () => {
+    const draft = { ...readyDraft(), title: '' };
+    const readiness = deriveProjectReadiness(draft, 100_000_000);
+    expect(readiness.ready).toBe(summariseSheet(deriveProductionSheet(draft)).open === 0);
+  });
+});
+
+describe('cast placement never loses or invents a hire', () => {
+  it('places exactly as many cast slots as there are hires, for any mix of bindings', () => {
+    const draft = readyDraft();
+    const leads = (draft.script?.cast ?? []).filter((c) => c.prominence === 'Lead');
+    const actor = draft.talent.find((a) => a.role === 'Lead Actor')!;
+    // Distinct names as well as ids: `occupant` is the name, so clones sharing
+    // one would collapse in the uniqueness check below and hide a real collision.
+    const make = (i: number, characterId?: string) => ({
+      ...actor,
+      characterId,
+      person: { ...actor.person, id: `lead-${i}`, identity: { ...actor.person.identity, name: `Lead Number ${i}` } },
+    });
+
+    const mixes = [
+      // fully unbound
+      leads.map((_, i) => make(i)),
+      // fully bound
+      leads.map((c, i) => make(i, c.id)),
+      // mixed, bindings out of order
+      [make(0, leads[leads.length - 1].id), make(1), make(2)].slice(0, leads.length),
+    ];
+
+    for (const talent of mixes) {
+      const withCast = { ...draft, talent: [...draft.talent.filter((a) => a.role !== 'Lead Actor'), ...talent] };
+      const filled = deriveProductionSheet(withCast)
+        .flatMap((g) => g.slots)
+        .filter((s) => s.role === 'Lead Actor' && s.state === 'set');
+      expect(filled).toHaveLength(talent.length);
+      expect(new Set(filled.map((s) => s.occupant)).size).toBe(talent.length);
+    }
+  });
+});

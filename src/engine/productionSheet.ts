@@ -1,11 +1,10 @@
 import { ALL_TALENT_ROLES, MANDATORY_TALENT_ROLES } from '../data/talentGeneration';
 import { assignmentCost } from './person';
-import { characterForRoleSlot } from './castRequirements';
 import { CHARACTER_ARCHETYPE_LABELS } from '../data/scriptTagLabels';
 import { TALENT_PRESENTATION } from '../data/talentPresentation';
 import { estimateDelivery } from './deliveryEstimate';
 import { effectivePairChemistry, pairHistory } from './pairHistory';
-import type { FilmDraft, Person, ProductionRole, ProjectWorkspaceSection, ScriptCharacter, TalentPairing } from '../types';
+import type { FilmDraft, Person, ProductionRole, ProjectWorkspaceSection, ScriptCharacter, TalentAssignment, TalentPairing } from '../types';
 
 /**
  * The production sheet's contents, derived rather than laid out.
@@ -89,23 +88,36 @@ function castingSlots(draft: FilmDraft, role: 'Lead Actor' | 'Supporting Actor')
     }));
   }
 
-  // Assignments made before slot binding (and rival/legacy ones) carry no
-  // characterId, and the documented reader behaviour is to fall back to the
-  // positional mapping - Script.cast guarantees Lead-then-Supporting order, so
-  // the nth hire in a role is the nth character of that prominence
-  // (engine/castRequirements.ts). Without this the sheet shows an empty slot
-  // for somebody who is actually cast, and disagrees with readiness, which
-  // counts hires against the required number rather than against bindings.
-  const unbound = draft.talent.filter((a) => a.role === role && a.characterId === undefined);
-  const positional = new Map<string, (typeof unbound)[number]>();
-  unbound.forEach((assignment, index) => {
-    const character = draft.script ? characterForRoleSlot(draft.script, role, index) : null;
-    if (character) positional.set(character.id, assignment);
+  // Who occupies each character's slot. Explicit bindings are placed first,
+  // then anybody unbound fills the characters that are still free, in order.
+  //
+  // For a fully-bound cast and for a fully-unbound one this is exactly what
+  // engine/scoring.ts:characterForAssignment computes - the two cases that
+  // actually occur. (Unbound, `free` is every character of that prominence in
+  // Script.cast order, so filling it in order is castRequirements.ts's
+  // positional mapping written out; there is no need to call it.) It deliberately differs in the MIXED case, which is
+  // genuinely ambiguous: scoring indexes the positional fallback over every
+  // assignment in the role, so an unbound hire can land on a character a
+  // binding has already claimed, and one of the two is lost. A sheet cannot
+  // reproduce that, because losing a hire means printing a blank line for
+  // somebody who is cast - and readiness counts hires rather than bindings, so
+  // the form would then contradict the meter beside it. Placing bindings
+  // first never orphans anybody and never invents a hire.
+  const inRole = draft.talent.filter((a) => a.role === role);
+  const occupants = new Map<string, TalentAssignment>();
+  for (const assignment of inRole) {
+    if (!assignment.characterId) continue;
+    const bound = draft.script?.cast.find((c) => c.id === assignment.characterId);
+    if (bound) occupants.set(bound.id, assignment);
+  }
+  const free = characters.filter((c) => !occupants.has(c.id));
+  inRole.filter((a) => !a.characterId || !occupants.has(a.characterId)).forEach((assignment, index) => {
+    const character = free[index];
+    if (character) occupants.set(character.id, assignment);
   });
 
   return characters.map((character) => {
-    const hired =
-      draft.talent.find((a) => a.role === role && a.characterId === character.id) ?? positional.get(character.id);
+    const hired = occupants.get(character.id);
     return {
       id: `character:${character.id}`,
       label: character.name,
@@ -171,9 +183,14 @@ export function deriveProductionSheet(draft: FilmDraft): SheetGroup[] {
 
   const plan: SheetSlot[] = [
     {
+      // Optional, not open: engine/projectReadiness.ts has no title blocker, so
+      // a film can be greenlit under its script's own name. Marking it required
+      // put "1 slot still open" on the meter beside a "Ready for greenlight"
+      // stamp, with Greenlight enabled - three statements contradicting each
+      // other on one screen.
       id: 'title',
       label: 'Title',
-      state: draft.title.trim() ? 'set' : 'open',
+      state: draft.title.trim() ? 'set' : 'optional',
       occupant: draft.title.trim() || null,
       cost: null,
       note: draft.title.trim() ? null : 'Still using the script’s own name',
