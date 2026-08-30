@@ -24,8 +24,11 @@ export function AwardsNight() {
   const highlights = unacknowledgedAwardHighlights(state);
   if (highlights.length === 0) return null;
 
-  // The most recent ceremony is the event; any older unacknowledged one is
-  // dismissed alongside it rather than queueing a second red carpet.
+  // The most recent ceremony is the event. Older unacknowledged ones are
+  // deliberately left alone: two shows can resolve inside the same 14-day
+  // window, and dismissing one the player was never shown is exactly the
+  // failure docs/DESIGN_notification_contract.md exists to prevent. The next
+  // one takes its turn as this one is cleared.
   const latest = [...highlights].sort((a, b) => b.day - a.day)[0];
   const { showName, year, wins, nominations, payout, prestigeDelta, brandDelta } = latest;
 
@@ -72,7 +75,7 @@ export function AwardsNight() {
         <button
           type="button"
           className="spectacle-exit"
-          onClick={() => highlights.forEach((h) => dispatch({ type: 'ACKNOWLEDGE_AWARD_CEREMONY', ceremonyId: h.id }))}
+          onClick={() => dispatch({ type: 'ACKNOWLEDGE_AWARD_CEREMONY', ceremonyId: latest.id })}
         >
           Back to the desk
         </button>

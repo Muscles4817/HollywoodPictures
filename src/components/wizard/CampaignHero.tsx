@@ -14,6 +14,9 @@ import type { FilmDraft } from '../../types';
  *
  * Its one neon is magenta, the marquee secondary. It carries no controls on
  * purpose: a hero that also asks for a decision is a decision surface.
+ *
+ * The title is the screen's `h1`: this band replaced the plain "Marketing &
+ * Release" heading, and a page with no h1 is a page with no name.
  */
 export function CampaignHero({ draft }: { draft: FilmDraft }) {
   const title = draft.title || draft.script?.title || 'Untitled Film';
@@ -25,7 +28,7 @@ export function CampaignHero({ draft }: { draft: FilmDraft }) {
         <GenrePoster title={title} genre={genre} size="large" />
         <div className="campaign-hero__billing">
           <p className="spectacle-eyebrow campaign-hero__eyebrow">Now selling</p>
-          <h2 className="spectacle-title campaign-hero__title">{title}</h2>
+          <h1 className="spectacle-title campaign-hero__title">{title}</h1>
           <p className="spectacle-sub campaign-hero__sub">
             {genre}
             {draft.announcedReleaseDay !== undefined

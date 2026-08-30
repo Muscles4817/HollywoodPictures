@@ -23,8 +23,6 @@ function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 }
 
-/** Slug for the genre-tinted poster gradient (see PremiereReveal.css [data-genre]). */
-/** Initials for the poster's decorative monogram - the first letter of the first two words. */
 /**
  * The "premiere" moment a film debuts - the cinematic climax of making it.
  * A genre-tinted poster and the film's overall verdict anchor the top; the

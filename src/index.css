@@ -3006,7 +3006,13 @@ textarea, input, select {
 
 /* --- The shell: rail beside the screen -------------------------------- */
 .shell { display: grid; grid-template-columns: 190px minmax(0, 1fr); align-items: start; }
-.shell-main { min-width: 0; padding-top: 4px; }
+.shell-main {
+  min-width: 0;
+  padding-top: 4px;
+  /* The rail occupies what would otherwise be this column's left gutter, so a
+     band inside it must not bleed left. */
+  --band-bleed-left: 0px;
+}
 
 .rail {
   position: sticky;
@@ -3125,6 +3131,12 @@ textarea, input, select {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* No rail beside the content any more - it is a scroller above it - so the
+     left gutter is real again and a band may bleed into it. */
+  .shell-main {
+    --band-bleed-left: 20px;
+  }
+
   .rail {
     position: static;
     display: flex;
@@ -3196,15 +3208,36 @@ textarea, input, select {
    Each band sets --spec-neon once and never names a neon again. One
    accent per band, structurally. */
 
-/* Full-bleed: the moment breaks out of the desk's gutters. */
 .spectacle {
-  margin-left: -20px;
+  /* Full-bleed, but only into gutters that actually exist. #root's 20px
+     padding is on the *outside* of the shell, so inside .shell-main there is
+     no left gutter to bleed into - the rail is there instead, and a symmetric
+     -20px painted 20px of it over. .shell-main narrows this to 0; see the
+     shell rules below. */
+  margin-left: calc(-1 * var(--band-bleed-left, 20px));
   margin-right: -20px;
   padding: 46px 20px 42px;
   background: var(--spec-ground);
   color: var(--spec-ink);
   position: relative;
   overflow: hidden;
+
+  /* A band inverts the ground, so it has to invert the tokens its children
+     read as well. Without this every desk-styled descendant keeps painting
+     with desk values: the reveal's own labels came out #57534a on #08080b,
+     about 2.7:1, which is below the legibility floor and which I looked
+     straight at in a screenshot without seeing. Remapping here means any
+     desk component dropped into a band is legible by construction rather
+     than by each one remembering. */
+  --text: var(--spec-ink);
+  --text-muted: var(--spec-ink-2);
+  --text-faint: var(--spec-ink-2);
+  --border: var(--spec-line);
+  --border-hard: var(--spec-line);
+  --panel: var(--spec-panel);
+  --surface: var(--spec-panel);
+  --surface-2: var(--spec-panel);
+  --bg: var(--spec-ground);
 }
 
 /* Halation - permitted here and nowhere else (§11), and on the frame rather
@@ -3343,8 +3376,11 @@ textarea, input, select {
 .spectacle-exit:focus-visible { outline: 2px solid var(--spec-neon); outline-offset: 2px; }
 
 @media (max-width: 640px) {
+  .shell-main {
+    --band-bleed-left: 12px;
+  }
+
   .spectacle {
-    margin-left: -12px;
     margin-right: -12px;
     padding: 32px 14px 30px;
   }
