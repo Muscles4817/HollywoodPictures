@@ -359,6 +359,13 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     scriptCrossoverPotential: commercialProfile.crossoverPotential,
     scriptMarketability: deriveMarketability(script),
     scriptSpectacle: script.toneProfile.spectacle,
+    // The money actually on screen - what the audience can see, not what the
+    // film cost to staff. Drives the event-scale channel
+    // (audienceSimulationInputs.ts:computeEventScale). Deliberately the raw
+    // choice-driven figure rather than the producer-adjusted
+    // `productionBudgetCost` charged above: a producer who brings the same
+    // spectacle in cheaper has changed the bill, not the screen.
+    productionBudgetCost: computeProductionBudgetCost(input.productionChoices),
     scriptIntendedAudience: script.intendedAudience,
     targetAudience: input.targetAudience,
     genre: input.genre,

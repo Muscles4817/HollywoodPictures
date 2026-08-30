@@ -28,7 +28,7 @@ import type { Genre, ReleaseType, ReleaseWindow, TargetAudience } from '../types
 import { AUDIENCE_PROFILES } from '../data/audiences';
 import { GENRE_PROFILES } from '../data/genres';
 import { RELEASE_WINDOW_BASE_MULTIPLIER, RELEASE_WINDOW_GENRE_BONUS, MARKETING_SPEND_RANGE } from '../data/release';
-import { logT, interpolateScale, type ScaleAnchor } from './interpolate';
+import { logT, interpolateScale, type Range, type ScaleAnchor } from './interpolate';
 import { createAudienceSimulationFixedState, type AudienceSimulationFixedState } from './audienceSimulation';
 
 function clamp(value: number, min: number, max: number): number {
@@ -104,6 +104,16 @@ export interface ReleaseSimulationInputs {
   scriptCrossoverPotential: number;
   /** Script.toneProfile.spectacle, 1-100 - "must see this in cinemas" event value, one of crossoverCapacityFraction's inputs (see computeCrossoverCapacityFraction below). A low-spectacle film (a character comedy, a small drama) can still cross over on concept/reception alone, just without spectacle's contribution. */
   scriptSpectacle: number;
+  /**
+   * engine/cost.ts:computeProductionBudgetCost - the money actually put ON
+   * SCREEN (set quality + practical effects + VFX, runtime-scaled), not the
+   * all-in production cost. Drives the event-scale channel: see
+   * computeEventScale below for why this is the film's own budget and not its
+   * total cost, and why it exists at all. Defaults to 0 for callers that don't
+   * supply it (the live pre-schedule projection, the reporting harness, older
+   * paths) - at 0 the channel is a byte-for-byte no-op.
+   */
+  productionBudgetCost?: number;
   /**
    * engine/commercialProfile.ts:deriveMarketability, 0-100 - the franchise/IP
    * "pre-sold demand" that expands ELIGIBILITY (how many are pre-disposed to want
@@ -223,10 +233,88 @@ function franchiseEligibilityMultiplier(marketability: number): number {
   return 1 + FRANCHISE_ELIGIBILITY_GAIN * Math.pow(clamp(marketability, 0, 100) / 100, FRANCHISE_ELIGIBILITY_CONVEXITY);
 }
 
-function computeTotalAddressableAudience(genre: Genre, targetAudience: TargetAudience, marketability = 0): number {
+// --- Event scale: what a big production actually buys -----------------------
+//
+// Measured gap, not a hunch (docs/DESIGN_REVIEW_reception_model.md, and the
+// box-office audit's second finding): a film's audience CEILING was built
+// entirely from its genre, its target audience, its marketability and its
+// script, and not at all from how big a production it was. Over six seeds x
+// eight in-game years the median maxInterestedAudience of a >$80M wide release
+// was 44.0M against 41.3M for a $25-80M one - a 6% larger room for three times
+// the money - and big films were already 71% of the way through it. There was
+// nowhere for the extra spend to go, which is exactly why they cleared a median
+// 0.86x while mid-budget films cleared 1.74x and no film over $80M ever became
+// a blockbuster.
+//
+// What is missing is the thing that makes a tentpole a tentpole in the real
+// market: a $200M production is an EVENT, and events are attended by people who
+// would never turn out for the genre. That is not marketing (marketing buys
+// awareness of a pool, never the pool itself - see
+// FRANCHISE_ELIGIBILITY_GAIN's own note); it is what is on the screen.
+//
+// So the driver is computeProductionBudgetCost - set quality, practical
+// effects and VFX, the money the audience can SEE - never the all-in cost,
+// which is mostly salaries. A $130M star vehicle is not an event; a $130M
+// creature feature is.
+//
+// Gated by the script's own spectacle intent, the same "was the intent
+// realised" shape engine/scoring.ts:postRealisationFactor uses: money on screen
+// only reads as event scale when the film was trying to be one. A spectacle
+// script shot for nothing is a B-movie; a chamber drama shot for a fortune is
+// an expensive chamber drama, not a tentpole. SPECTACLE_GATE_FLOOR keeps the
+// gate from ever zeroing a genuinely huge production out entirely.
+const SCALE_ON_SCREEN_RANGE: Range = { min: 3_000_000, max: 200_000_000 };
+const SPECTACLE_GATE_FLOOR = 0.3;
+
+/** How much of an "event" this film's realised production actually is, 0-1. Fixed at release and completely independent of reception - it is the size of the room, never how many people turn up in it. */
+export function computeEventScale(productionBudgetCost: number, scriptSpectacle: number): number {
+  const onScreen = logT(Math.max(0, productionBudgetCost), SCALE_ON_SCREEN_RANGE);
+  const spectacleGate = SPECTACLE_GATE_FLOOR + (1 - SPECTACLE_GATE_FLOOR) * clamp(scriptSpectacle / 100, 0, 1);
+  return clamp(onScreen * spectacleGate, 0, 1);
+}
+
+// Both lifts below are convex in eventScale for the same reason
+// FRANCHISE_ELIGIBILITY_CONVEXITY is: the ordinary film must not move. At the
+// measured medians (on-screen budget $1.2M small / $10.2M mid / $38.4M big,
+// spectacle 37/74/74) eventScale is 0.02 / 0.38 / 0.60, so a small film's
+// multipliers are 1.00 and a mid-budget one's are a few percent, while the
+// genuine tentpole and the once-a-year phenomenon get the whole effect.
+
+// Eligibility: an event widens who is in the market for this AT ALL. Deliberately
+// the smaller of the two lifts - this half is unconditional, applying to a
+// terrible tentpole exactly as much as a great one, so it buys a big opening and
+// nothing else. (That asymmetry is the point: a bad event film now opens huge
+// against a huge budget and collapses, which is what a real bomb looks like.)
+const EVENT_ELIGIBILITY_GAIN = 1;
+const EVENT_ELIGIBILITY_CONVEXITY = 3;
+
+// Crossover: an event is what people outside the natural audience turn out for
+// WHEN THEY HEAR IT IS GOOD. The larger lift, and the discriminating one -
+// capacity is only ever a ceiling, and engine/audienceSimulationStep.ts's
+// crossover step still requires real word of mouth to realise any of it. A
+// badly-received tentpole gets a bigger empty room; a well-received one gets the
+// billion-scale top end the calibration targets ask for and the model could not
+// previously reach (measured hard ceiling $1.286B against a $1B-2.5B band).
+//
+// Reception-independent by construction, which is what distinguishes this from
+// the reverted crossover-capacity-on-reception experiment (PR #187): that one
+// fed the WOM loop back into its own ceiling and ran away; this one is fixed at
+// release from money already spent.
+const EVENT_CROSSOVER_GAIN = 2;
+const EVENT_CROSSOVER_CONVEXITY = 3;
+
+function eventEligibilityMultiplier(eventScale: number): number {
+  return 1 + EVENT_ELIGIBILITY_GAIN * Math.pow(eventScale, EVENT_ELIGIBILITY_CONVEXITY);
+}
+
+function eventCrossoverMultiplier(eventScale: number): number {
+  return 1 + EVENT_CROSSOVER_GAIN * Math.pow(eventScale, EVENT_CROSSOVER_CONVEXITY);
+}
+
+function computeTotalAddressableAudience(genre: Genre, targetAudience: TargetAudience, marketability = 0, eventScale = 0): number {
   const marketSize = AUDIENCE_PROFILES[targetAudience].marketSize;
   const popularity = GENRE_PROFILES[genre].popularity / 100;
-  return BASE_ADDRESSABLE_POPULATION * marketSize * popularity * franchiseEligibilityMultiplier(marketability);
+  return BASE_ADDRESSABLE_POPULATION * marketSize * popularity * franchiseEligibilityMultiplier(marketability) * eventEligibilityMultiplier(eventScale);
 }
 
 // --- Base interest fraction & crossover capacity ---------------------------
@@ -388,10 +476,16 @@ function computeCrossoverCapacityFraction(
   criticScore: number,
   genre: Genre,
   targetAudience: TargetAudience,
+  eventScale = 0,
 ): number {
   const conceptStrength = computeCrossoverConceptStrength(scriptCrossoverPotential, scriptSpectacle, criticScore);
   const accessibility = computeCrossoverAccessibility(genre, targetAudience);
-  return clamp(CROSSOVER_CAPACITY_CEILING * conceptStrength * accessibility, 0, CROSSOVER_CAPACITY_CEILING);
+  // The event lift multiplies the whole capacity rather than joining
+  // conceptStrength's weighted sum, so a film with no event scale keeps exactly
+  // the capacity it had before this channel existed - the weights below stayed
+  // untouched precisely so nothing small could lose ground to make room.
+  const eventLift = eventCrossoverMultiplier(eventScale);
+  return clamp(CROSSOVER_CAPACITY_CEILING * conceptStrength * accessibility * eventLift, 0, CROSSOVER_CAPACITY_CEILING * eventLift);
 }
 
 // --- Marketing efficiency ---------------------------------------------------
@@ -845,14 +939,25 @@ function computeExternalWeeklyAwarenessRate(marketingEfficiency: number): number
  * called from anywhere in the live game (see module header).
  */
 export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInputs): AudienceSimulationFixedState {
-  const totalAddressableAudience = computeTotalAddressableAudience(inputs.genre, inputs.targetAudience, inputs.scriptMarketability ?? 0);
+  const eventScale = computeEventScale(inputs.productionBudgetCost ?? 0, inputs.scriptSpectacle);
+  const totalAddressableAudience = computeTotalAddressableAudience(inputs.genre, inputs.targetAudience, inputs.scriptMarketability ?? 0, eventScale);
   const baseInterestFraction = computeBaseInterestFraction(inputs.scriptAccessibility, inputs.scriptHookStrength, inputs.targetAudience, inputs.scriptIntendedAudience);
-  const crossoverCapacityFraction = computeCrossoverCapacityFraction(
-    inputs.scriptCrossoverPotential,
-    inputs.scriptSpectacle,
-    inputs.criticScore,
-    inputs.genre,
-    inputs.targetAudience,
+  // Bounded against the base pool's own share, not just its own ceiling: the
+  // two together are "everyone who could ever be interested," and
+  // createAudienceSimulationFixedState rejects a pair summing past the whole
+  // addressable audience. Only reachable at the very top of the event lift
+  // (a maximal-accessibility script on a maximal-scale production), and there
+  // the right answer genuinely is "the entire addressable audience is in play."
+  const crossoverCapacityFraction = Math.min(
+    computeCrossoverCapacityFraction(
+      inputs.scriptCrossoverPotential,
+      inputs.scriptSpectacle,
+      inputs.criticScore,
+      inputs.genre,
+      inputs.targetAudience,
+      eventScale,
+    ),
+    1 - baseInterestFraction,
   );
   // Brand-only efficiency is stored on the fixed state (below) so the dev
   // inspector's brand inverse stays exact; the *effective* efficiency - lifted

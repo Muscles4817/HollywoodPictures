@@ -644,7 +644,7 @@ const MAX_WEEKLY_EXPANSION_POINTS = 0.12;
 // only saturating (alongside age decay) at genuinely severe, near-maximal
 // crowding. First-draft, tunable alongside every other constant in this
 // file.
-const COMPETITIVE_PRESSURE_WEIGHT = 0.05;
+const COMPETITIVE_PRESSURE_WEIGHT = 0.08;
 
 // Attention competition (docs/DESIGN_box_office_calibration_targets.md §6a, the
 // "audience competition" level, distinct from the exhibition-access level
