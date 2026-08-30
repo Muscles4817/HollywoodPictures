@@ -26,7 +26,13 @@ import type { Script } from '../../types';
  * script-slate grid, back when a fresh script was picked inside the wizard
  * itself - that picking now happens once, at Opportunity acquisition.
  */
-export function ScriptDetails({ script }: { script: Script }) {
+/**
+ * `showCost` exists for the Opportunity Market, where the price is not a
+ * detail among details - it is the decision, and belongs in the listing's own
+ * masthead where three of them can be compared. Every other caller shows it
+ * here, unchanged.
+ */
+export function ScriptDetails({ script, showCost = true }: { script: Script; showCost?: boolean }) {
   const archetypeProfile = SCRIPT_ARCHETYPE_PROFILES[script.archetype];
   const storyProfile = STORY_TYPE_PROFILES[script.storyType];
   const settingProfile = SETTING_ARCHETYPE_PROFILES[script.primarySetting];
@@ -43,7 +49,7 @@ export function ScriptDetails({ script }: { script: Script }) {
       <p style={{ margin: '0 0 6px', fontSize: '0.85em', color: 'var(--text-muted)' }}>
         {archetypeProfile.description} {script.storyType !== 'Original' && storyProfile.description} {settingProfile.description}
       </p>
-      <div className="card-subtitle">Screenplay Cost: <Money amount={script.cost} /></div>
+      {showCost && <div className="card-subtitle">Screenplay Cost: <Money amount={script.cost} /></div>}
       <p style={{ margin: '0 0 6px', fontSize: '0.85em' }}>{describeCostDrivers(script)}</p>
       <p style={{ margin: '0 0 6px', fontSize: '0.85em' }}>{describeCommercialAppeal(script)}</p>
       <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '6px 0' }}>
