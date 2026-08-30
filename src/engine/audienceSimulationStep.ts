@@ -822,10 +822,8 @@ export function advanceOneWeekWithDiagnostics(
   const womInfluence = womInfluenceOverride ?? computeCurrentWomInfluence(fixed, weeks, weeks.length);
 
   // Step 4: word of mouth spreads awareness further.
-  // const awareCount = applyWomAwarenessGrowth(fixed, awareAfterExternal, womInfluence);
-  // const newlyAwareFromWom = awareCount - awareAfterExternal;
-  const awareCount = awareAfterExternal;
-  const newlyAwareFromWom = 0;
+  const awareCount = applyWomAwarenessGrowth(fixed, awareAfterExternal, womInfluence);
+  const newlyAwareFromWom = awareCount - awareAfterExternal;
 
   // Step 5: word of mouth convinces aware-but-undecided people within the natural audience.
   const deltaInterestNatural = deriveWomNaturalInterestGrowth(fixed, awareCount, totalEverInterested, womInfluence);
