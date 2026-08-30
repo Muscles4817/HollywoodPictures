@@ -2,6 +2,7 @@ import { useStudio } from '../state/StudioContext';
 import { collectFilmStats } from '../state/selectors';
 import { computeStudioAwardDeltas } from '../engine/awards';
 import { Button } from './common/Button';
+import { AwardsNight } from './AwardsNight';
 import { Money } from './common/Money';
 import { ALL_AWARD_CATEGORIES, AWARD_CATEGORY_LABEL } from '../data/awards';
 import { awardShow } from '../data/awardsShows';
@@ -36,6 +37,11 @@ export function AwardsPage() {
 
   return (
     <div className="stack awards-page">
+      {/* The event, when there is one - see AwardsNight.tsx. Above the page's
+          own heading on purpose: a ceremony that has just landed is the reason
+          the player is here, and the record underneath it can wait. */}
+      <AwardsNight />
+
       <div className="row-between">
         <h1 style={{ margin: 0 }}>Awards Season</h1>
         <Button onClick={() => dispatch({ type: 'RETURN_TO_DASHBOARD' })}>Back to Dashboard</Button>

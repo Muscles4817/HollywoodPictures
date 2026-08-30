@@ -1,0 +1,64 @@
+/* The generated one-sheet (GenrePoster.tsx) - the game's one piece of key
+   art, shared by the box-office reveal and the campaign screen.
+
+   These gradients are the SPECTACLE register (docs/ART_DIRECTION.md 2.2):
+   deliberately saturated, deliberately outside the DESK token palette. This
+   file is the single declared exception in designSystem.test.ts, and it earns
+   it by being key art rather than interface - do not fold them into the desk
+   tints, and do not add a second exception without the same argument. */
+
+.genre-poster {
+  flex: 0 0 auto;
+  width: 150px;
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 14px;
+  color: #fff;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  /* Fallback gradient; each genre overrides the two stops below. */
+  background: linear-gradient(160deg, #3a4a63, #1c2536);
+}
+
+.genre-poster__mono {
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1;
+  opacity: 0.22;
+  letter-spacing: -0.04em;
+}
+
+.genre-poster__genre {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.85;
+}
+
+/* The genre posters are the SPECTACLE register (docs/ART_DIRECTION.md §2.2):
+   deliberately saturated, deliberately outside the DESK token palette. Do not
+   fold these into the desk tints - the contrast with the rest of the app is
+   the point. */
+.genre-poster[data-genre='action'] { background: linear-gradient(160deg, #b5361f, #2a0f0a); }
+.genre-poster[data-genre='comedy'] { background: linear-gradient(160deg, #e0a92c, #7a4a12); }
+.genre-poster[data-genre='drama'] { background: linear-gradient(160deg, #3f5a86, #161d2c); }
+.genre-poster[data-genre='horror'] { background: linear-gradient(160deg, #4a1030, #0c0710); }
+.genre-poster[data-genre='romance'] { background: linear-gradient(160deg, #c65a86, #4a1330); }
+.genre-poster[data-genre='sci-fi'] { background: linear-gradient(160deg, #1f8a94, #0a2230); }
+.genre-poster[data-genre='fantasy'] { background: linear-gradient(160deg, #6a3fa0, #1a1236); }
+.genre-poster[data-genre='thriller'] { background: linear-gradient(160deg, #2c3e50, #0a0e14); }
+
+
+/* The campaign screen shows the picture larger: there, the poster IS the
+   subject rather than an illustration beside a headline. */
+.genre-poster--large {
+  width: 210px;
+}

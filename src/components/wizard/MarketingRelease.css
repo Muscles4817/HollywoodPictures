@@ -314,3 +314,49 @@
     overflow-y: visible;
   }
 }
+
+/* The campaign band's one accent is magenta, the marquee secondary
+   (index.css: --spec-neon). Named exactly once, per ART_DIRECTION.md §11.
+   Everything else on this screen - spend, channels, distributor, release
+   type - is decisions, and stays in the desk register. */
+.campaign-hero {
+  --spec-neon: var(--neon-magenta);
+}
+
+.campaign-hero__wrap {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 30px;
+}
+
+/* Billing-block alignment: the poster is the object, the type sits beside it
+   rather than centred under it the way a standalone band's does. */
+.campaign-hero__eyebrow,
+.campaign-hero__title,
+.campaign-hero__sub {
+  text-align: left;
+}
+
+.campaign-hero__title {
+  font-size: clamp(1.7rem, 4.4vw, 2.9rem);
+}
+
+.campaign-hero__billing {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .campaign-hero__wrap {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 20px;
+  }
+
+  .campaign-hero__eyebrow,
+  .campaign-hero__title,
+  .campaign-hero__sub {
+    text-align: center;
+  }
+}

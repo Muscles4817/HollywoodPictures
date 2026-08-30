@@ -11,6 +11,7 @@ import { RangeSlider } from '../common/RangeSlider';
 import { Button } from '../common/Button';
 import { Money, formatMoney } from '../common/Money';
 import { WizardHeader } from '../common/WizardHeader';
+import { CampaignHero } from './CampaignHero';
 import { ScriptSummaryCard } from '../common/ScriptSummaryCard';
 import { OnSetDecisionCard } from '../common/OnSetDecisionCard';
 import { reshootChoiceConstraints } from '../../engine/reshootAvailability';
@@ -514,7 +515,9 @@ export function MarketingRelease() {
   return (
     <div className="stack">
       <WizardHeader current="marketing" />
-      <h1>Marketing &amp; Release</h1>
+      {/* The event on this screen is the picture being sold; everything below
+          is decisions, and stays in the desk register (CampaignHero.tsx). */}
+      <CampaignHero draft={draft} />
       {draft.script && <ScriptSummaryCard script={draft.script} />}
 
       {!screeningResolved && pendingScreening && (

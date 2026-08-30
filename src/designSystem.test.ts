@@ -43,13 +43,13 @@ const TSX = read('.tsx');
 const HEX = /#[0-9a-fA-F]{3,8}\b/;
 
 /**
- * The one stylesheet allowed its own colours: PremiereReveal's genre posters
- * are the SPECTACLE register (ART_DIRECTION.md 2.2) and the contrast with the
- * desk palette is the entire point, which the file itself says in a comment.
- * Its poster also keeps a soft corner - a poster is an object, not a data
- * surface. Adding a second entry here should require the same argument.
+ * The one stylesheet allowed its own colours: the generated one-sheet's genre
+ * gradients are the SPECTACLE register (ART_DIRECTION.md 2.2) and the contrast
+ * with the desk palette is the entire point, which the file itself says in a
+ * comment. The poster also keeps a soft corner - a poster is an object, not a
+ * data surface. Adding a second entry here should require the same argument.
  */
-const SPECTACLE = './components/wizard/PremiereReveal.css';
+const SPECTACLE = './components/common/GenrePoster.css';
 
 function offenders(files: Record<string, string>, test: (line: string) => string | null): string[] {
   const found: string[] = [];
@@ -118,5 +118,49 @@ describe('corners route through the radius tokens', () => {
   it('keeps both radius tokens defined', () => {
     expect(CSS['./index.css']).toMatch(/^\s*--radius:/m);
     expect(CSS['./index.css']).toMatch(/^\s*--radius-pill:/m);
+  });
+});
+
+describe('SPECTACLE keeps to one accent per screen', () => {
+  // ART_DIRECTION.md §11: "No more than one neon accent per SPECTACLE screen."
+  // Structural rather than remembered: the named neons are assignable to
+  // --spec-neon and never read directly, so a screen physically cannot wear
+  // two. This test is what stops that convention decaying into a palette.
+  const NAMED_NEONS = /var\(\s*(--neon-[a-z]+)/g;
+  const ASSIGNMENT = /--spec-neon:\s*var\(\s*--neon-[a-z]+\s*\)/g;
+
+  it('never reads a named neon except to assign the screen its one accent', () => {
+    const offenders: string[] = [];
+    for (const [path, source] of Object.entries(CSS)) {
+      source.split('\n').forEach((line, i) => {
+        if (!NAMED_NEONS.test(line)) return;
+        NAMED_NEONS.lastIndex = 0;
+        // The only legal reading of a named neon is the assignment itself.
+        if (!/--spec-neon:/.test(line) && !/^\s*--neon-[a-z]+:/.test(line)) {
+          offenders.push(`${path}:${i + 1}  ${line.trim()}`);
+        }
+      });
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('gives each SPECTACLE screen at most one accent', () => {
+    for (const [path, source] of Object.entries(CSS)) {
+      const assignments = [...source.matchAll(ASSIGNMENT)];
+      // One per screen root; a stylesheet carrying two screens may hold two,
+      // but never two on the same selector - which is what this catches, since
+      // a second assignment in the same rule block would be a duplicate
+      // declaration on one root.
+      const perSelector = new Map<string, number>();
+      let selector = '';
+      source.split('\n').forEach((line) => {
+        if (line.includes('{')) selector = line.split('{')[0].trim() || selector;
+        if (/--spec-neon:\s*var\(/.test(line)) perSelector.set(selector, (perSelector.get(selector) ?? 0) + 1);
+      });
+      for (const [sel, count] of perSelector) {
+        expect(`${path} ${sel}: ${count}`).toBe(`${path} ${sel}: 1`);
+      }
+      expect(assignments.length).toBeLessThanOrEqual(8);
+    }
   });
 });

@@ -1,4 +1,20 @@
+/* The box-office reveal - the emotional peak of the loop, and the game's
+   fullest use of the SPECTACLE register (docs/ART_DIRECTION.md 2.2).
+
+   Its one neon is cyan, the marquee primary: this is the moment the picture
+   opens. The reveal carries its own verdict-toned glow on ::before rather
+   than the register's generic one, because a triumph and a flop should not
+   look the same; index.css keeps the shared halation on ::after so the two
+   coexist.
+
+   The boundary that matters: everything BELOW this band on the same screen -
+   the financials, the cast performances, the execution summary - stays in the
+   desk register. A reveal is a moment; the numbers underneath it are numbers
+   the player reads, and 2.3 forbids putting glow behind those. */
+
 .premiere-reveal {
+  /* This band's one accent (index.css: --spec-neon). Named exactly once. */
+  --spec-neon: var(--neon-cyan);
   position: relative;
   gap: 24px;
   overflow: hidden;
@@ -94,57 +110,6 @@
   font-weight: 600;
 }
 
-/* --- Generated poster tile --------------------------------------------- */
-
-.premiere-poster {
-  flex: 0 0 auto;
-  width: 150px;
-  aspect-ratio: 2 / 3;
-  border-radius: 10px;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  gap: 4px;
-  padding: 14px;
-  color: #fff;
-  overflow: hidden;
-  position: relative;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  /* Fallback gradient; each genre overrides the two stops below. */
-  background: linear-gradient(160deg, #3a4a63, #1c2536);
-}
-
-.premiere-poster__mono {
-  position: absolute;
-  top: 6px;
-  right: 12px;
-  font-size: 2.6rem;
-  font-weight: 800;
-  line-height: 1;
-  opacity: 0.22;
-  letter-spacing: -0.04em;
-}
-
-.premiere-poster__genre {
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  opacity: 0.85;
-}
-
-/* The genre posters are the SPECTACLE register (docs/ART_DIRECTION.md §2.2):
-   deliberately saturated, deliberately outside the DESK token palette. Do not
-   fold these into the desk tints - the contrast with the rest of the app is
-   the point. */
-.premiere-poster[data-genre='action'] { background: linear-gradient(160deg, #b5361f, #2a0f0a); }
-.premiere-poster[data-genre='comedy'] { background: linear-gradient(160deg, #e0a92c, #7a4a12); }
-.premiere-poster[data-genre='drama'] { background: linear-gradient(160deg, #3f5a86, #161d2c); }
-.premiere-poster[data-genre='horror'] { background: linear-gradient(160deg, #4a1030, #0c0710); }
-.premiere-poster[data-genre='romance'] { background: linear-gradient(160deg, #c65a86, #4a1330); }
-.premiere-poster[data-genre='sci-fi'] { background: linear-gradient(160deg, #1f8a94, #0a2230); }
-.premiere-poster[data-genre='fantasy'] { background: linear-gradient(160deg, #6a3fa0, #1a1236); }
-.premiere-poster[data-genre='thriller'] { background: linear-gradient(160deg, #2c3e50, #0a0e14); }
-
 /* --- Reviews columns ---------------------------------------------------- */
 
 .premiere-reveal__columns {
@@ -209,7 +174,7 @@
     gap: 16px;
   }
 
-  .premiere-poster {
+  .genre-poster {
     width: 104px;
   }
 
