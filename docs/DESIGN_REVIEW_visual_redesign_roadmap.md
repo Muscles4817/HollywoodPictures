@@ -1,6 +1,6 @@
 # Visual Redesign Roadmap
 
-Status: **Phases 0–3 landed and merged; Phase 4 in progress; 5–6 planning only.** Turns
+Status: **Phases 0–4 landed (0–3 merged); phases 5–6 are planning only.** Turns
 `ART_DIRECTION.md` and the nine mockup takes in `docs/design/mockups/` into an
 ordered sequence of reviewable steps.
 
@@ -505,11 +505,12 @@ if one isn't, that is a simulation question and belongs in a different document.
 
 ---
 
-### Phase 4 — SPECTACLE [IN PROGRESS]
+### Phase 4 — SPECTACLE [DONE]
 
-**Landed so far:** the register's token block (§5.1's palette, dark in both
-themes), the shared band styling, and the box-office reveal — the emotional
-peak of the loop, and the piece §6 rates highest.
+**Landed:** the register's token block (§5.1's palette, dark in both themes),
+the shared band styling, and all three bands — the box-office reveal (cyan,
+the marquee primary), awards night (red, for the carpet), and the campaign's
+one-sheet (magenta, the marquee secondary).
 
 Two findings changed the phase's shape:
 
@@ -533,7 +534,27 @@ rest) are assignable to `--spec-neon` and never read directly, so a band
 physically cannot wear two — §11's rule made mechanical rather than
 remembered, enforced by `designSystem.test.ts`. The reveal's is cyan.
 
-**Still to do:** the awards ceremony band and the campaign's poster moment.
+**Where each band sits, and why there:**
+
+| Band | Screen | The moment |
+|---|---|---|
+| Box-office reveal | Results | The opening numbers, before the financials |
+| Awards night | Awards | A ceremony that has landed and not been seen — it appears only then, and acknowledging it returns the page to the desk |
+| The one-sheet | Marketing | The picture being sold, above the decisions about selling it |
+
+Awards night doubles as the notification contract's "act on it in one click
+and have the message stop": acknowledging is what stops the spine's attention
+badge counting it.
+
+**A reuse the phase forced.** The generated genre poster was private to
+`PremiereReveal`, and the campaign wanted the same object — "the campaign is
+the poster". Extracted to `common/GenrePoster.tsx`, which also *narrowed* the
+design-system allowlist: the 19 saturated hex values are now in a file that is
+unambiguously key art, and `PremiereReveal.css` became token-clean.
+
+Two bugs found by rendering: the ceremony eyebrow printed the studio year as a
+bare number ("Awards Night · 1"), and a nine-figure prize at `clamp(…, 3rem)`
+overran its grid column and printed straight through the figure beside it.
 
 Cheap, Tier 1, high payoff, and **independent of Phases 1–3**. Pull it forward
 if visible progress is wanted early; that is free here and nowhere else.

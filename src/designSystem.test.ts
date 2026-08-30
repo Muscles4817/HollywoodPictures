@@ -43,13 +43,13 @@ const TSX = read('.tsx');
 const HEX = /#[0-9a-fA-F]{3,8}\b/;
 
 /**
- * The one stylesheet allowed its own colours: PremiereReveal's genre posters
- * are the SPECTACLE register (ART_DIRECTION.md 2.2) and the contrast with the
- * desk palette is the entire point, which the file itself says in a comment.
- * Its poster also keeps a soft corner - a poster is an object, not a data
- * surface. Adding a second entry here should require the same argument.
+ * The one stylesheet allowed its own colours: the generated one-sheet's genre
+ * gradients are the SPECTACLE register (ART_DIRECTION.md 2.2) and the contrast
+ * with the desk palette is the entire point, which the file itself says in a
+ * comment. The poster also keeps a soft corner - a poster is an object, not a
+ * data surface. Adding a second entry here should require the same argument.
  */
-const SPECTACLE = './components/wizard/PremiereReveal.css';
+const SPECTACLE = './components/common/GenrePoster.css';
 
 function offenders(files: Record<string, string>, test: (line: string) => string | null): string[] {
   const found: string[] = [];

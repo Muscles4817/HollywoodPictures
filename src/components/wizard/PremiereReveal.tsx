@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { StarRating } from '../common/StarRating';
+import { GenrePoster } from '../common/GenrePoster';
 import { Money } from '../common/Money';
 import { deriveVerdict } from '../../engine/premiereReport';
 import type { OutcomeLabel, ReviewQuote } from '../../types';
@@ -23,18 +24,7 @@ function prefersReducedMotion(): boolean {
 }
 
 /** Slug for the genre-tinted poster gradient (see PremiereReveal.css [data-genre]). */
-function genreSlug(genre: string): string {
-  return genre.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z-]/g, '');
-}
-
 /** Initials for the poster's decorative monogram - the first letter of the first two words. */
-function monogram(title: string): string {
-  const words = title.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return '★';
-  const letters = (words.length === 1 ? [words[0]] : [words[0], words[1]]).map((w) => w[0]?.toUpperCase() ?? '');
-  return letters.join('');
-}
-
 /**
  * The "premiere" moment a film debuts - the cinematic climax of making it.
  * A genre-tinted poster and the film's overall verdict anchor the top; the
@@ -97,10 +87,7 @@ export function PremiereReveal({
       )}
 
       <div className={`premiere-hero ${itemClass(1)}`}>
-        <div className="premiere-poster" data-genre={genreSlug(genre)} aria-hidden="true">
-          <span className="premiere-poster__mono">{monogram(title)}</span>
-          <span className="premiere-poster__genre">{genre}</span>
-        </div>
+        <GenrePoster title={title} genre={genre} />
         <div className="premiere-hero__headline">
           <p className="premiere-hero__eyebrow">Now Playing &middot; {genre}</p>
           <h1 className="premiere-hero__title">{title}</h1>

@@ -3287,15 +3287,23 @@ textarea, input, select {
   display: grid;
   gap: 4px;
   justify-items: center;
+  min-width: 0;
+  text-align: center;
 }
 
 .spectacle-figure__value {
   font-family: var(--font-typed);
   font-weight: 700;
-  font-size: clamp(1.8rem, 5vw, 3rem);
+  /* Sized to the widest thing a figure actually holds - a nine-figure prize in
+     tabular Courier - rather than to the shortest. At 3rem a money value
+     overran its grid column and printed straight through the figure beside it.
+     Big enough to be the event's headline; not so big it collides. */
+  font-size: clamp(1.3rem, 2.5vw, 2.1rem);
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
   color: var(--spec-ink);
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .spectacle-figure__label {
@@ -3308,7 +3316,7 @@ textarea, input, select {
 
 .spectacle-figures {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
   gap: 22px;
   border-top: 1px solid var(--spec-line);
   padding-top: 22px;
