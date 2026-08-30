@@ -1,6 +1,6 @@
 # Visual Redesign Roadmap
 
-Status: **Phases 0–4 landed (0–3 merged); phases 5–6 are planning only.** Turns
+Status: **Phases 0–4 merged; Phase 5 in progress; Phase 6 planning only.** Turns
 `ART_DIRECTION.md` and the nine mockup takes in `docs/design/mockups/` into an
 ordered sequence of reviewable steps.
 
@@ -582,7 +582,36 @@ and it is the rule the whole two-register system rests on.
 
 ---
 
-### Phase 5 — The DESK long tail
+### Phase 5 — The DESK long tail [IN PROGRESS]
+
+**The phase is not what the table below assumed.** It was written expecting
+nine per-screen passes, with "five screens have no dedicated stylesheet" as
+the notable fact. Rendered, those five are fine — they inherited the palette
+and read correctly, exactly as the roadmap guessed they might. Having no
+stylesheet turns out not to be a defect.
+
+What is actually wrong is systematic rather than per-screen, and the survey
+found it by scanning rendered screens rather than reading files:
+
+**Numeric table columns did not line up.** The base `th, td` rule gives every
+cell `text-align: left` in the grotesque, so a column of figures neither
+stacked by place value nor read as figures — against §2.1's "tabular figures
+everywhere", on the four player-facing tables (Studio Stats' four tabs, the
+Dashboard's Studio History, and a rival's filmography). A `.num` column
+treatment fixes it: right-aligned, tabular, in the typed register, marked on
+the column rather than the value because numeric-ness is a property of the
+column.
+
+**Header and cell have to move together**, or the heading stops sitting over
+what it names. That drifted while being written — StatsPage reached 19 marked
+headers against 16 marked cells — so `designSystem.test.ts` now asserts
+parity per table-bearing file, mutation-tested.
+
+Dates are deliberately not numeric: "12 March Year 1" is prose, not a column
+of digits.
+
+**Still to do:** a per-screen density and rule-weight pass, judged screen by
+screen rather than mechanically.
 
 Nine screens. This is where an estimate blows out if it is treated as one phase,
 so it is a **checklist with a per-screen definition of done**, not a phase.

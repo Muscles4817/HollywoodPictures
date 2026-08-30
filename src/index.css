@@ -1046,6 +1046,34 @@ th {
   font-size: 0.85em;
 }
 
+/* A numeric column. The DESK register asks for "tabular figures everywhere"
+   (ART_DIRECTION.md §2.1), and the base th/td above gives every cell
+   text-align: left in the grotesque - so a column of figures neither lines up
+   nor reads as figures. Marking the column rather than the value, because
+   numeric-ness is a property of the column: the header has to move with the
+   cells or it stops pointing at them.
+
+   Right-aligned so digits stack by place value, tabular so they stack by
+   column, and in the typed register because a figure is a value rather than
+   a label - the same split Money already makes everywhere else. */
+th.num,
+td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+td.num {
+  font-family: var(--font-typed);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Money already carries the typed face; inside a numeric cell it only needs
+   to stop being a inline-block that fights the alignment. */
+td.num .money {
+  font-weight: 700;
+}
+
 /* --- Market Filters --- */
 .market-filters {
   display: flex;

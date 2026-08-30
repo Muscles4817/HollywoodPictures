@@ -164,3 +164,33 @@ describe('SPECTACLE keeps to one accent per screen', () => {
     }
   });
 });
+
+describe('numeric table columns line up', () => {
+  // The DESK register asks for "tabular figures everywhere" (ART_DIRECTION.md
+  // §2.1), and the base `th, td` rule left-aligns every cell in the grotesque -
+  // so a column of figures neither lined up nor read as figures. `.num` fixes
+  // that per column.
+  //
+  // The failure mode this guards is subtler than a missing class: a header
+  // marked numeric whose cells are not (or the reverse) right-aligns one and
+  // not the other, so the heading stops sitting over the column it names. That
+  // happened while writing this - StatsPage ended up with 19 marked headers
+  // against 16 marked cells.
+  const TSX_SOURCES = Object.entries(TSX).filter(([p]) => !p.includes('.test.') && !p.includes('/dev/'));
+
+  it('marks the same number of headers and cells in every table-bearing screen', () => {
+    const mismatched: string[] = [];
+    for (const [path, source] of TSX_SOURCES) {
+      if (!source.includes('<table')) continue;
+      const headers = (source.match(/<th className="num"/g) ?? []).length;
+      const cells = (source.match(/<td className="num"/g) ?? []).length;
+      if (headers !== cells) mismatched.push(`${path}  ${headers} headers vs ${cells} cells`);
+    }
+    expect(mismatched).toEqual([]);
+  });
+
+  it('defines the numeric column treatment it depends on', () => {
+    expect(CSS['./index.css']).toMatch(/th\.num,\s*\n\s*td\.num \{/);
+    expect(CSS['./index.css']).toMatch(/font-variant-numeric: tabular-nums/);
+  });
+});
