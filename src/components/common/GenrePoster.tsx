@@ -1,4 +1,5 @@
 import './GenrePoster.css';
+import { titleMonogram } from '../../utils/monogram';
 
 /**
  * The game's one piece of key art: a generated one-sheet for a film, built
@@ -14,13 +15,6 @@ function genrePosterSlug(genre: string): string {
   return genre.toLowerCase().replace(/[^a-z]+/g, '-');
 }
 
-/** Up to two initials from the title, skipping the articles a title starts with. */
-function titleMonogram(title: string): string {
-  const words = title.split(/\s+/).filter((w) => w && !/^(the|a|an|of|and)$/i.test(w));
-  // A star rather than nothing: an untitled draft, or one called only "The",
-  // leaves no initials, and a blank poster reads as a rendering fault.
-  return words.slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('') || '★';
-}
 
 export function GenrePoster({ title, genre, size = 'regular' }: { title: string; genre: string; size?: 'regular' | 'large' }) {
   return (

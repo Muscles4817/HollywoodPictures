@@ -1,6 +1,6 @@
 # Visual Redesign Roadmap
 
-Status: **Phases 0–4 merged; Phase 5 in progress; Phase 6 planning only.** Turns
+Status: **Phases 0–5 merged; Phase 6 in progress.** Turns
 `ART_DIRECTION.md` and the nine mockup takes in `docs/design/mockups/` into an
 ordered sequence of reviewable steps.
 
@@ -666,10 +666,43 @@ figures where columns align; the validator from Phase 0 stays green.
 
 ### Phase 6 — Portraits and studio identity
 
-Deferred deliberately. §9.1 ranks the options and picks **framing devices
-instead of faces** — monograms or silhouettes inside an era-appropriate frame,
-so the absence reads as a style choice. That is Tier 1 and it can wait until the
-frame it sits in exists.
+**First pass landed 2026-08-31.** Two of the three items; the third turned out
+to be a bad idea and is recorded as such rather than built.
+
+**The frame, not the face** (`common/PersonFrame.tsx`). §9.1 is now DECIDED, and
+argued there on this game's terms rather than adopted from its own ranking: the
+agency 8x10 is an object a casting desk in this era already holds, so borrowing
+its shape costs a border and a letter, and a silhouette was rejected because it
+is a claim about a face the game does not have. **Where it goes was the harder
+half.** It is on the person page, which otherwise opens with a heading and then
+bars. It is deliberately *not* on the Talent Database's list rows — a 60-row
+scanning table whose leftmost column is already the name, where a plate per row
+buys an anchor nobody needs and costs the row height that makes it scannable —
+and not on the hiring drawers' candidate cards or the sheet's rows, which are
+dense decision surfaces where §2.3 keeps the data plain.
+
+**The letterhead** (`.studio-letterhead`, keyed off
+`engine/studioStanding.ts:studioTier`). §9's "progression shown in Tier 1": the
+studio's own stationery gets grander as it grows. Independent is a bare name;
+Established closes it with a rule; Major sets it in the display face inside a
+double rule. Each step adds exactly one thing that can be pointed at — the face
+swap is held back for Major because the studio name measured 335px in *both*
+faces, so spending it at Established would have been a change nobody could see.
+The tier is the release count and nothing else, reusing the rule the Dashboard's
+kicker already had: a richer measure would be a second scoreboard beside the
+standing summary, and the decision log below already says why that is worse.
+
+**Not built, on purpose:** §9's "the trade paper moving your studio above the
+fold". The trade panel is a box-office ranking; reordering it to flatter the
+player would make the chart lie. It already marks the player's films where they
+actually place.
+
+**Still open:** the spine wordmark was considered for the same tiering and left
+alone — it is already the display face at 800 weight and 0.2em tracking, so
+there is nothing grander to escalate it to without putting a rule box in
+permanent chrome. §12's logo-*builder* question is also still open; the poster
+wall exists now, but the studio's mark appears nowhere on a poster, which is
+probably the thing to settle first.
 
 Also here: §9's "progression shown in Tier 1, not Tier 3" — grander letterhead,
 a changed nameplate, the trade paper moving your studio above the fold. And
@@ -723,3 +756,6 @@ the same line:
 | 2026-08-25 | Phase 3 landed. The relationship engines now reach the sheet, not just the hiring drawers. |
 | 2026-08-25 | The relationship lens is words, not threads: a web drawn over a form is ornament on a data surface, which §2.3 forbids. Take 06's tension report survives; its corkboard does not. |
 | 2026-08-25 | The desk's voice states no counts. The readiness meter owns the arithmetic, and two scoreboards that can disagree are worse than one. |
+| 2026-08-31 | Phase 5's density passes were re-run against a populated fixture (`state/renderFixtures.ts`). Both findings — a talent list laying out 2,490 rows, and currency figures breaking after the sign — were invisible to the empty fixture, which is why the first pass found nothing. |
+| 2026-08-31 | Phase 6 first pass landed. The frame goes where a page is *about* a person, never on a scanning table or a decision surface — a plate on every row of a 60-row table costs the density that makes the table work. |
+| 2026-08-31 | Studio progression is weight, rule and face — never hue. A size is not a state, so the accent stays out of the letterhead, and `designSystem.test.ts` enforces it rather than review remembering it. |

@@ -1,0 +1,66 @@
+/* The agency 8x10 with nothing printed on it - see PersonFrame.tsx for why it
+   is a frame rather than a face.
+
+   Entirely DESK register and entirely token-driven: this is a filing object on
+   a desk, not key art, so unlike GenrePoster it takes no exception to the
+   palette. Hard corners per ART_DIRECTION §5.0. */
+.person-frame {
+  flex: 0 0 auto;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  width: 64px;
+  /* The 8x10 proportion, which is what makes the shape read as a headshot
+     rather than as a generic tile. */
+  aspect-ratio: 4 / 5;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.person-frame__mono {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 12%;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  /* Muted rather than ink: it is a watermark standing in for an image, and
+     reading it as loudly as the name beside it would be a lie about how much
+     it says. */
+  color: var(--text-muted);
+}
+
+.person-frame__slug {
+  position: relative;
+  width: 100%;
+  padding: 3px 5px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text-muted);
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.person-frame--large {
+  width: 104px;
+}
+
+.person-frame--large .person-frame__mono {
+  font-size: 2.6rem;
+}
+
+.person-frame--large .person-frame__slug {
+  padding: 5px 7px;
+  font-size: 0.62rem;
+}

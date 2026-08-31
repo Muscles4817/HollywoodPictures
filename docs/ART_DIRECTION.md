@@ -367,7 +367,24 @@ identically in a bullet list and differ by orders of magnitude in cost.
 desk nameplate, the trade paper moving your studio above the fold — same feeling,
 near-zero cost.
 
-### 9.1 The portrait problem [PROPOSED]
+**Built 2026-08-31 as the letterhead** (`.studio-letterhead`, three steps keyed
+off `engine/studioStanding.ts:studioTier`): Independent is a bare name,
+Established closes it with a rule, Major sets it in the display face inside a
+double rule. Each step adds one thing that can be pointed at — measured, the
+studio name sets to the same 335px in both the UI and display faces, so a face
+swap at Established would have been invisible and the face is held back for
+Major, where it lands with the rule box.
+
+Colour is not one of the steps, and `designSystem.test.ts` enforces that: a
+studio's size is not a state, so a gold nameplate at Major would be exactly the
+surface-filling the accent rationing exists to stop.
+
+The third item on that line — the trade paper moving your studio above the fold
+— was **not** built, and should not be: the trade panel is a box-office ranking,
+and reordering it to favour the player would make the chart lie. It already
+marks the player's own films where they place.
+
+### 9.1 The portrait problem [DECIDED]
 
 1,487 talent records. Ranked options:
 
@@ -379,6 +396,22 @@ near-zero cost.
 3. Generated portraits — consistency across 1,487 is hard, and licensing and player
    reaction are both live issues.
 4. Commissioned illustration — not viable at this count.
+
+**Decided 2026-08-31, on this game's own terms rather than by the ranking
+above.** The object a casting desk in this era actually holds is an agency
+8x10 — hard border, ground, a name strip along the bottom — so the frame
+costs a border and a letter and makes the missing face read as a filing
+convention rather than an image that failed to load. Option 2 was rejected
+on the same reasoning that picks option 1: a silhouette is a claim about a
+face, and the game has no face to make a claim about. `PersonFrame` is
+therefore honestly a card and not a person, and its monogram is not pretending
+to encode anything the name beside it does not already say.
+
+**Where it goes is part of the decision.** The person page, which otherwise
+opens with a heading and then bars. *Not* the Talent Database's list rows (a
+scanning table whose leftmost column is already the name), and *not* the
+hiring drawers' candidate cards or the production sheet's rows — both are
+dense decision surfaces, where §2.3 keeps the data plain.
 
 ---
 
@@ -477,3 +510,5 @@ pairing into §5), which is why this list is shorter than the decision log.
 | 2026-08-25 | §5.3 closed, and with it §12's light/dark question: DESK is theme-agnostic with both themes first-class; SPECTACLE is dark-only. |
 | 2026-08-25 | Typeface pairing settled: Schibsted Grotesk (the game's structure), Anybody (display), Courier Prime (anything the player chose). The last split is load-bearing — typography encodes structure vs. decision. |
 | 2026-08-25 | §11's colour and corner rules made mechanical in `src/designSystem.test.ts`, after three stated rules were found to have quietly stopped being true. |
+| 2026-08-31 | §9.1 moved to DECIDED: a frame, not a face. The agency 8x10 is an object this desk already holds, and a silhouette would be a claim about a face the game does not have. Placement is part of the decision — the person page, not the scanning table or the decision surfaces. |
+| 2026-08-31 | §9's Tier 1 progression built as the letterhead. Each tier adds one visible thing, and never hue: a studio's size is not a state, so the accent stays out of it — enforced rather than remembered. |
