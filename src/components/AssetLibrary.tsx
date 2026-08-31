@@ -976,7 +976,7 @@ export function AssetLibrary() {
         </p>
       </div>
 
-      <p className="choice-description" style={{ margin: 0 }}>
+      <p className="standing-note">
         Browse acquired screenplays, compare their creative and production
         profiles, and choose what your studio should develop next. Assets remain
         yours permanently, even when a pre-greenlight project is abandoned.

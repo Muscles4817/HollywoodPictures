@@ -43,6 +43,25 @@ const TSX = read('.tsx');
 const HEX = /#[0-9a-fA-F]{3,8}\b/;
 
 /**
+ * A colour written as rgb()/rgba()/hsl() rather than as hex. The first cut of
+ * this file only looked for `#`, and eleven hardcoded hues were sitting in
+ * rgba() the whole time - a blue focus ring, a green status badge, grey
+ * borders and tracks - mostly in AssetLibrary.css, left over from when that
+ * screen rendered on a hardcoded dark panel.
+ *
+ * Black-alpha is exempt: a drop shadow or a scrim is genuinely not a palette
+ * decision, and it reads correctly on either theme.
+ *
+ * White-alpha is NOT exempt, which is the asymmetry worth explaining. It is a
+ * perfectly good way to draw borders and surfaces on a panel you know is dark,
+ * and it is never right in an app with two themes - AssetLibrary drew every
+ * border and inset surface with it, which resolved to white-on-bone the moment
+ * that screen joined the theme system in bfd2bb8. Any hue is out for the
+ * ordinary reason.
+ */
+const NON_TOKEN_COLOUR = /(?:rgba?|hsla?)\(\s*(?!0\s*,\s*0\s*,\s*0\s*[,)])[0-9]/;
+
+/**
  * The one stylesheet allowed its own colours: the generated one-sheet's genre
  * gradients are the SPECTACLE register (ART_DIRECTION.md 2.2) and the contrast
  * with the desk palette is the entire point, which the file itself says in a
@@ -66,7 +85,7 @@ function offenders(files: Record<string, string>, test: (line: string) => string
 describe('colour lives in the token layer', () => {
   it('defines every colour in index.css, or in a declared SPECTACLE sheet', () => {
     const sheets = Object.fromEntries(Object.entries(CSS).filter(([p]) => p !== './index.css'));
-    expect(offenders(sheets, (line) => line.match(HEX)?.[0] ?? null)).toEqual([]);
+    expect(offenders(sheets, (line) => line.match(HEX)?.[0] ?? line.match(NON_TOKEN_COLOUR)?.[0] ?? null)).toEqual([]);
   });
 
   it('never hardcodes a colour in a component, not even as a var() fallback', () => {
@@ -75,7 +94,7 @@ describe('colour lives in the token layer', () => {
     // never existed at all - --warn, --positive and --negative - so the
     // light-theme colour they hardcoded rendered on the dark theme too.
     const components = Object.fromEntries(Object.entries(TSX).filter(([p]) => !p.includes('.test.')));
-    expect(offenders(components, (line) => line.match(HEX)?.[0] ?? null)).toEqual([]);
+    expect(offenders(components, (line) => line.match(HEX)?.[0] ?? line.match(NON_TOKEN_COLOUR)?.[0] ?? null)).toEqual([]);
   });
 
   it('resolves every var() a stylesheet asks for', () => {
@@ -162,5 +181,35 @@ describe('SPECTACLE keeps to one accent per screen', () => {
       }
       expect(assignments.length).toBeLessThanOrEqual(8);
     }
+  });
+});
+
+describe('numeric table columns line up', () => {
+  // The DESK register asks for "tabular figures everywhere" (ART_DIRECTION.md
+  // §2.1), and the base `th, td` rule left-aligns every cell in the grotesque -
+  // so a column of figures neither lined up nor read as figures. `.num` fixes
+  // that per column.
+  //
+  // The failure mode this guards is subtler than a missing class: a header
+  // marked numeric whose cells are not (or the reverse) right-aligns one and
+  // not the other, so the heading stops sitting over the column it names. That
+  // happened while writing this - StatsPage ended up with 19 marked headers
+  // against 16 marked cells.
+  const TSX_SOURCES = Object.entries(TSX).filter(([p]) => !p.includes('.test.') && !p.includes('/dev/'));
+
+  it('marks the same number of headers and cells in every table-bearing screen', () => {
+    const mismatched: string[] = [];
+    for (const [path, source] of TSX_SOURCES) {
+      if (!source.includes('<table')) continue;
+      const headers = (source.match(/<th className="num"/g) ?? []).length;
+      const cells = (source.match(/<td className="num"/g) ?? []).length;
+      if (headers !== cells) mismatched.push(`${path}  ${headers} headers vs ${cells} cells`);
+    }
+    expect(mismatched).toEqual([]);
+  });
+
+  it('defines the numeric column treatment it depends on', () => {
+    expect(CSS['./index.css']).toMatch(/th\.num,\s*\n\s*td\.num \{/);
+    expect(CSS['./index.css']).toMatch(/font-variant-numeric: tabular-nums/);
   });
 });

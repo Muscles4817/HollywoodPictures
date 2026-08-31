@@ -693,11 +693,11 @@ export function Dashboard() {
                       <th>Title</th>
                       <th>Genre</th>
                       <th>Released</th>
-                      <th>Total Cost</th>
-                      <th>Box Office</th>
-                      <th>Critic Score</th>
+                      <th className="num">Total Cost</th>
+                      <th className="num">Box Office</th>
+                      <th className="num">Critic Score</th>
                       <th>Outcome</th>
-                      <th>Profit / Loss</th>
+                      <th className="num">Profit / Loss</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -708,13 +708,13 @@ export function Dashboard() {
                           <td><strong>{film.title}</strong></td>
                           <td>{film.genre}</td>
                           <td>{formatGameDateWithMonth(film.releasedOnDay)}</td>
-                          <td><Money amount={film.results.totalCost} /></td>
-                          <td>
+                          <td className="num"><Money amount={film.results.totalCost} /></td>
+                          <td className="num">
                             {running
                               ? <span className="dashboard-muted"><Money amount={film.boxOfficeRun.cumulativeGross} /> so far</span>
                               : <Money amount={film.results.totalBoxOffice ?? 0} />}
                           </td>
-                          <td>{film.results.criticScore}</td>
+                          <td className="num">{film.results.criticScore}</td>
                           <td>
                             {running || !film.results.outcome
                               ? <span className="badge">In Theaters</span>
@@ -724,7 +724,7 @@ export function Dashboard() {
                                 </span>
                               )}
                           </td>
-                          <td>
+                          <td className="num">
                             {running || film.results.profit === null
                               ? <span className="dashboard-muted">Pending</span>
                               : <Money amount={film.results.profit} signColor showSign />}

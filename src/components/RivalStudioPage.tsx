@@ -124,8 +124,8 @@ export function RivalStudioPage() {
                   <th>Title</th>
                   <th>Genre</th>
                   <th>Released</th>
-                  <th>Box Office</th>
-                  <th>Critic Score</th>
+                  <th className="num">Box Office</th>
+                  <th className="num">Critic Score</th>
                   <th>Outcome</th>
                 </tr>
               </thead>
@@ -137,14 +137,14 @@ export function RivalStudioPage() {
                       <td>{film.title}</td>
                       <td>{film.genre}</td>
                       <td>{formatGameDateWithMonth(film.releasedOnDay)}</td>
-                      <td>
+                      <td className="num">
                         {running ? (
                           <span style={{ color: 'var(--text-muted)' }}><Money amount={film.boxOfficeRun.cumulativeGross} /> so far</span>
                         ) : (
                           <Money amount={film.results.totalBoxOffice ?? 0} />
                         )}
                       </td>
-                      <td>{film.results.criticScore}</td>
+                      <td className="num">{film.results.criticScore}</td>
                       <td>
                         {running || !film.results.outcome ? (
                           <span className="badge">In Theaters</span>

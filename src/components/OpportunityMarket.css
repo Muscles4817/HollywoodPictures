@@ -1,0 +1,82 @@
+/* The Opportunity Market as trade classifieds (docs/ART_DIRECTION.md §6).
+ *
+ * A classified ad has four parts and they are always in the same order: what
+ * kind of notice it is, the headline, the terms, and the price. The screen had
+ * all four and ranked none of them - the price sat mid-paragraph in the same
+ * size as the prose around it, on the one screen where price is the decision,
+ * and ten identically-weighted pills per card meant none of them read as more
+ * important than any other.
+ *
+ * Nothing here is ornament: every rule is a divider doing a job a gap was
+ * doing worse, and the register stays DESK throughout (§2.3).
+ */
+
+/* --- The notice line --------------------------------------------------- */
+.classified-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 9px;
+}
+
+.classified-kind,
+.classified-expiry {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* The one thing on this line worth marking, and it is marked by weight rather
+   than by another colour - the accent is rationed to state (65173bd). */
+.classified-new {
+  color: var(--text);
+}
+
+/* --- The headline ------------------------------------------------------ */
+.classified-title {
+  margin: 0 0 2px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.32rem;
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+/* --- The price ---------------------------------------------------------
+   Hoisted out of the prose. On a market screen this is the column the player
+   scans down, so it is a figure on its own line with its own rules above and
+   below - which is also what makes three cards comparable side by side. */
+.classified-price {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 0 12px;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.classified-price__label {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.classified-price__value {
+  font-size: 1.12rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.classified-price__value .money {
+  font-weight: 700;
+}

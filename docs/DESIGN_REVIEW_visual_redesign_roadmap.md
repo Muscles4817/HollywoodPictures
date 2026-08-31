@@ -1,6 +1,6 @@
 # Visual Redesign Roadmap
 
-Status: **Phases 0–4 landed (0–3 merged); phases 5–6 are planning only.** Turns
+Status: **Phases 0–4 merged; Phase 5 in progress; Phase 6 planning only.** Turns
 `ART_DIRECTION.md` and the nine mockup takes in `docs/design/mockups/` into an
 ordered sequence of reviewable steps.
 
@@ -582,7 +582,61 @@ and it is the rule the whole two-register system rests on.
 
 ---
 
-### Phase 5 — The DESK long tail
+### Phase 5 — The DESK long tail [IN PROGRESS]
+
+**The phase is not what the table below assumed.** It was written expecting
+nine per-screen passes, with "five screens have no dedicated stylesheet" as
+the notable fact. Rendered, those five are fine — they inherited the palette
+and read correctly, exactly as the roadmap guessed they might. Having no
+stylesheet turns out not to be a defect.
+
+What is actually wrong is systematic rather than per-screen, and the survey
+found it by scanning rendered screens rather than reading files:
+
+**Numeric table columns did not line up.** The base `th, td` rule gives every
+cell `text-align: left` in the grotesque, so a column of figures neither
+stacked by place value nor read as figures — against §2.1's "tabular figures
+everywhere", on the four player-facing tables (Studio Stats' four tabs, the
+Dashboard's Studio History, and a rival's filmography). A `.num` column
+treatment fixes it: right-aligned, tabular, in the typed register, marked on
+the column rather than the value because numeric-ness is a property of the
+column.
+
+**Header and cell have to move together**, or the heading stops sitting over
+what it names. That drifted while being written — StatsPage reached 19 marked
+headers against 16 marked cells — so `designSystem.test.ts` now asserts
+parity per table-bearing file, mutation-tested.
+
+Dates are deliberately not numeric: "12 March Year 1" is prose, not a column
+of digits.
+
+**The per-screen pass turned up three more systematic faults, not nine local
+ones.** Working through the screens one at a time kept finding the same thing
+in a new place, which is the signal that the fix belongs in the token layer
+rather than on the screen:
+
+- **The market was not classified-shaped.** The price — the one figure a market
+  screen exists to compare — sat mid-paragraph at body size, at three different
+  heights across three cards. Ten identically-weighted pills per card meant
+  none read as more important. Now: a notice line, a headline, and the price on
+  its own ruled line.
+- **Twenty hardcoded colours were hiding from the design-system check**, which
+  only ever looked for `#hex`. Eleven hues, five `hsl()` chart colours that
+  never re-toned in dark mode, and white-alpha borders left over from when the
+  Asset Library rendered on a dark panel. The check now bans any hue and any
+  white-alpha and allows black-alpha — a scrim reads on either theme; a
+  white-alpha border is a dark-UI idiom and is never right in a dual-theme app.
+- **Standing copy wore the treatment built for contextual notes.** Every screen
+  opened with a permanent tutorial paragraph, tinted and accent-ruled, which
+  made it the loudest thing above content sitting in plain bone — and spent the
+  rationed accent on furniture. `.standing-note` is a standfirst; the tint and
+  the accent stay with `.choice-description`, which answers a choice.
+
+**Still to do:** the four small screens (Projects, IP, Milestones, Rivals) were
+inspected and need nothing — they inherited the palette and read correctly. A
+density pass on the Dashboard and Talent Database is the remaining judgement
+work, and both are better done against a save with more in it than the test
+fixture has.
 
 Nine screens. This is where an estimate blows out if it is treated as one phase,
 so it is a **checklist with a per-screen definition of done**, not a phase.
