@@ -351,6 +351,12 @@ and encode ratified targets.** We tune against the framework, never by feel.
 > re-deriving against the whole P&L before anything else is tuned to them. See
 > `DESIGN_REVIEW_scale_and_competition.md` §4b.2 and
 > `engine/boxOfficeByBudgetTier.diagnostic.test.ts`, which reports both P&Ls.
+>
+> **A drafted replacement for §3 and §5 is in
+> `DESIGN_box_office_calibration_targets_v2_draft.md`**, derived from the
+> 12-film studio slate in `docs/domain/11-money-accounting-and-participations.md`
+> §5.4. It is unratified; §1, §2, §4 and §6 of this document are unaffected by
+> it and stand.
 
 The most consequential judgment calls (everything else follows from these):
 
