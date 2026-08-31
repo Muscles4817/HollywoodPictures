@@ -952,7 +952,30 @@ button {
   font-weight: 700;
 }
 
-/* --- Choice descriptions --- */
+/* --- Standing copy ------------------------------------------------------
+   Text that is always there and describes rather than responds: a screen's
+   standfirst under its headline, or a caption under a panel heading.
+
+   It used to wear .choice-description, which fills with --info-bg and rules
+   with the accent - correct for a note that answers a choice the player just
+   made, and wrong here. A permanent paragraph, tinted and accent-ruled, was
+   the loudest thing on screens whose actual content sat below it in plain
+   bone, and it spent the rationed accent (65173bd) on furniture.
+
+   A trade paper sets standing copy as a standfirst: smaller than body, quiet,
+   directly under the headline, no box. So does this. */
+.standing-note {
+  margin: 0;
+  max-width: 68ch;
+  font-size: 0.88em;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* --- Choice descriptions ---
+   A note that ANSWERS something the player just did - hovering an option,
+   picking a tier. Transient and worth marking, which is why it keeps the fill
+   and the accent rule that standing copy above gives up. */
 .choice-description {
   margin: 0;
   padding: 8px 12px;

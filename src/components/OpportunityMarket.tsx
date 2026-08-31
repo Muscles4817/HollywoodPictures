@@ -492,10 +492,7 @@ export function OpportunityMarket() {
         Opportunity Market
       </h1>
 
-      <p
-        className="choice-description"
-        style={{ margin: 0 }}
-      >
+      <p className="standing-note">
         Screenplays and pitches available to acquire — a fresh batch
         posts every week, and rival studios shop here too. Acquiring
         an uncontested one charges its price immediately and adds it

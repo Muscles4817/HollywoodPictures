@@ -449,7 +449,7 @@ function PersonDetail({ person, totalDays, credits, award, performance, relation
       {performance && performance.filmCount > 0 && (
         <section className="td-panel">
           <h2>Performance</h2>
-          <p className="choice-description" style={{ marginTop: 0 }}>
+          <p className="standing-note">
             Averaged across {performance.filmCount} released film{performance.filmCount === 1 ? '' : 's'} in your world.
           </p>
           <div className="td-stat-grid">
@@ -469,7 +469,7 @@ function PersonDetail({ person, totalDays, credits, award, performance, relation
       {award && award.nominations > 0 && (
         <section className="td-panel">
           <h2>Awards</h2>
-          <p className="choice-description" style={{ marginTop: 0 }}>
+          <p className="standing-note">
             {award.wins > 0 ? `${award.wins} win${award.wins === 1 ? '' : 's'} · ` : ''}
             {award.nominations} nomination{award.nominations === 1 ? '' : 's'} across every awards show to date.
           </p>

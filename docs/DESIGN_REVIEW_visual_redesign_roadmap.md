@@ -610,8 +610,33 @@ parity per table-bearing file, mutation-tested.
 Dates are deliberately not numeric: "12 March Year 1" is prose, not a column
 of digits.
 
-**Still to do:** a per-screen density and rule-weight pass, judged screen by
-screen rather than mechanically.
+**The per-screen pass turned up three more systematic faults, not nine local
+ones.** Working through the screens one at a time kept finding the same thing
+in a new place, which is the signal that the fix belongs in the token layer
+rather than on the screen:
+
+- **The market was not classified-shaped.** The price — the one figure a market
+  screen exists to compare — sat mid-paragraph at body size, at three different
+  heights across three cards. Ten identically-weighted pills per card meant
+  none read as more important. Now: a notice line, a headline, and the price on
+  its own ruled line.
+- **Twenty hardcoded colours were hiding from the design-system check**, which
+  only ever looked for `#hex`. Eleven hues, five `hsl()` chart colours that
+  never re-toned in dark mode, and white-alpha borders left over from when the
+  Asset Library rendered on a dark panel. The check now bans any hue and any
+  white-alpha and allows black-alpha — a scrim reads on either theme; a
+  white-alpha border is a dark-UI idiom and is never right in a dual-theme app.
+- **Standing copy wore the treatment built for contextual notes.** Every screen
+  opened with a permanent tutorial paragraph, tinted and accent-ruled, which
+  made it the loudest thing above content sitting in plain bone — and spent the
+  rationed accent on furniture. `.standing-note` is a standfirst; the tint and
+  the accent stay with `.choice-description`, which answers a choice.
+
+**Still to do:** the four small screens (Projects, IP, Milestones, Rivals) were
+inspected and need nothing — they inherited the palette and read correctly. A
+density pass on the Dashboard and Talent Database is the remaining judgement
+work, and both are better done against a save with more in it than the test
+fixture has.
 
 Nine screens. This is where an estimate blows out if it is treated as one phase,
 so it is a **checklist with a per-screen definition of done**, not a phase.
