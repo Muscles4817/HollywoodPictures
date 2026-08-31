@@ -29,6 +29,24 @@ function saturate(spend: number): number {
 }
 
 /**
+ * The same channel mix at a different total size - every channel scaled by the
+ * same factor, so the studio's own allocation is preserved exactly.
+ *
+ * Used when a Wide release is forced up to its structural minimum campaign
+ * (data/release.ts:MINIMUM_CAMPAIGN_SPEND): the studio is made to buy a wide
+ * campaign, and buys it the way it was already buying - more of the same
+ * channels, not a different plan. Scaling never changes which channel is
+ * dominant, so audience fit and the per-channel saturation curve both still
+ * apply exactly as they did.
+ */
+export function scaleChannelSpend(channelSpend: ChannelSpend, factor: number): ChannelSpend {
+  if (factor === 1) return channelSpend;
+  const scaled = {} as ChannelSpend;
+  for (const channel of MARKETING_CHANNELS) scaled[channel] = Math.max(0, channelSpend[channel] ?? 0) * factor;
+  return scaled;
+}
+
+/**
  * The audience-aware "effective marketing reach" a channel mix produces for a
  * film aimed at `targetAudience`. Each channel saturates on its own (so
  * concentrating everything in one channel diminishes) and is weighted by how

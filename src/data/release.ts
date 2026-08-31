@@ -71,6 +71,52 @@ export const RELEASE_TYPE_PROFILES: Record<ReleaseType, ReleaseTypeProfile> = {
 // the range gatekeeps itself by cost, no artificial rule needed.
 export const MARKETING_SPEND_RANGE: Range = { min: 10_000, max: 150_000_000 };
 
+/**
+ * The minimum campaign a release type structurally requires, whatever the
+ * studio would rather spend.
+ *
+ * Only Wide has one, and the reason is that its floor is not a strategic
+ * choice - docs/domain/09-marketing-and-distribution.md section 1.3, "What sets
+ * the floor and the ceiling": to open wide you must buy enough national reach
+ * to get the target audience to ~85-90% awareness, produce a full asset package
+ * (teaser, trailer, 8-20 TV spots, dozens of digital cutdowns, 20-60 art
+ * variants), and support an exhibitor circuit that gives you 3,500 locations
+ * and "quietly notices when it isn't" advertised. None of that scales down with
+ * how cheap the film was.
+ *
+ * The real bands that section gives, US-domestic: platform/specialty $2-15M,
+ * wide independent $15-30M, studio mid-budget wide $30-60M, tentpole
+ * $100-200M+ global. Measured against them the game's rival slate was low
+ * everywhere and, worse, scaled the wrong way - P&A ran at 0.10x the negative
+ * cost for a sub-$25M wide release, 0.44x for a mid-budget one and 0.65x for a
+ * tentpole, when the real ratio is roughly flat (the domain doc's own
+ * greenlight rule of thumb is 0.8x negative cost domestic, and a tentpole's
+ * global marketing "often approximates the negative cost"). 47% of the game's
+ * Wide releases were marketed for under $5M and a quarter for under $1M, which
+ * is not a wide release at all.
+ *
+ * Set at the BOTTOM of the wide-independent band rather than the middle of the
+ * studio one, deliberately: this figure is a single worldwide number in a model
+ * with no domestic/international P&A split, and it is a hard floor applied to
+ * every Wide release including the cheapest, so it should be the least any wide
+ * release could conceivably open on and not the average.
+ *
+ * Limited and Festival First have no floor. A platform release genuinely can
+ * start on very little and buy its campaign out of its own early returns, which
+ * is the whole point of platforming - and it is what a film too cheap to fund a
+ * wide campaign should be doing instead.
+ */
+export const MINIMUM_CAMPAIGN_SPEND: Record<ReleaseType, number> = {
+  Wide: 18_000_000,
+  Limited: 0,
+  'Festival First': 0,
+};
+
+/** What this release will actually cost to market - the studio's chosen spend, or the release type's structural floor if that is higher. See MINIMUM_CAMPAIGN_SPEND. */
+export function campaignSpendFor(releaseType: ReleaseType, marketingSpend: number): number {
+  return Math.max(marketingSpend, MINIMUM_CAMPAIGN_SPEND[releaseType]);
+}
+
 export const MARKETING_SPEND_ANCHORS: ScaleAnchor<'buzzContribution'>[] = [
   { t: 0, values: { buzzContribution: 0 }, description: 'Essentially no marketing - whatever word of mouth happens on its own.' },
   { t: 0.25, values: { buzzContribution: 15 }, description: 'A modest local campaign - some posters, some social media.' },

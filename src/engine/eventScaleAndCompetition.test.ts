@@ -99,6 +99,7 @@ describe('market presence - competitors measured against the market, not themsel
       interestedRemaining: 0,
       cumulativeTicketsSold: perWeek * (i + 1),
       availabilityFraction: 1,
+      cumulativeCrossoverRealized: 0,
     }));
   }
 

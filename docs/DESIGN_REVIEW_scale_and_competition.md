@@ -179,6 +179,95 @@ to the denominator.
 
 ---
 
+## 4b. The cost side: P&A, and the P&L nobody was measuring
+
+Prompted by "just compare a mid-budget film's costs to a real one." Two findings,
+the second much larger than the first.
+
+### 4b.1 Marketing was too low, and scaled backwards
+
+Measured medians, tiered by NEGATIVE cost (production only - what "a $40M film"
+means everywhere in the industry):
+
+| tier | negative | on screen | P&A | **P&A ÷ negative** |
+|---|--:|--:|--:|--:|
+| small | $8.5M | $1.1M (13%) | $0.8M | **0.10** |
+| mid | $28.4M | $9.6M (34%) | $12.6M | **0.44** |
+| big | $82.8M | $38.4M (46%) | $54.0M | **0.65** |
+
+The negative's internal split is fine - 34% on screen and 43% on cast and crew
+is close to a real below-the-line/above-the-line breakdown. P&A was not.
+`docs/domain/09-marketing-and-distribution.md` §1 gives US-domestic bands of
+$15-30M for a wide independent, $30-60M for a studio mid-budget wide and
+$100-200M+ global for a tentpole, with a greenlight rule of thumb of **0.8x
+negative cost** and a tentpole's global marketing "often approximating the
+negative cost". So the real ratio is roughly FLAT; the model's climbed with
+budget, and was 2-20x low at every tier. **47% of Wide releases were marketed
+for under $5M and a quarter for under $1M**, which is not a wide release.
+
+§1.3 is explicit that the floor is *structural, not strategic*: national reach to
+~85-90% awareness, a full asset package, and an exhibitor circuit that "quietly
+notices" when its 3,500 locations are not advertised. None of it scales down with
+how cheap the film was.
+
+So `MINIMUM_CAMPAIGN_SPEND` (`data/release.ts`): a Wide release is raised to a
+real campaign whatever the studio would rather spend, and - having been made to
+buy it - gets what it bought, the chosen channel mix scaled up rather than a
+cost with no reach behind it. Limited and Festival First have no floor, because
+platforming on very little is precisely what a film too cheap to open wide
+should do instead.
+
+It works. P&A/negative lands at 1.39 / 0.71 / 0.66, all three inside the bands
+the domain doc supports, and the tier return spread - the whole "mid-budget
+films print money while tentpoles die" complaint, as one number - falls to
+**1.47x**, inside its target.
+
+### 4b.2 Every profitability target was asserted against half the P&L
+
+`FilmResults.profit` is `studioRevenue - totalCost`, and `studioRevenue` is
+**theatrical rentals only**. But the game also pays post-theatrical revenue:
+`state/ancillarySettlement.ts` schedules it to the player over game time and
+credits it to rivals as a lump. It is live, not staged - the "Stage 1 / INERT"
+header on `engine/ancillary.ts` is stale, and `DESIGN_REVIEW_studio_financial_model.md`
+records stages 1-6 as landed.
+
+Measured, post-theatrical revenue is **110% of theatrical rentals** across the
+field (79% for a small film, 100% for a tentpole) - which is not itself
+implausible; home entertainment plus TV/streaming plus merchandising genuinely
+is comparable to theatrical rentals for a modern studio film.
+
+The consequence is that every band in
+`boxOfficeDistribution.diagnostic.test.ts` - `wideUnprofitablePct`, `bombPct`,
+`lossPct`, all of §5 - has been asserted against roughly half the revenue a film
+actually earns, and every calibration pass that chased those targets was tuning
+the wrong number. On the whole P&L the market is about twice as profitable as
+the targets intend:
+
+| tier | return (theatrical only) | return (whole P&L) | unprofitable (whole P&L) |
+|---|--:|--:|--:|
+| small | 2.02x | **3.31x** | 13% |
+| mid | 1.51x | **2.92x** | 14% |
+| big | 1.03x | **2.25x** | 25% |
+
+against a ratified 45-55% unprofitable.
+
+This also explains the P&A finding rather than merely accompanying it. The
+model's compressed P&A was an unwitting compensation for a revenue stream the
+gates could not see: with theatrical-only accounting, realistic marketing costs
+make every film a loser, so marketing quietly shrank until the numbers worked.
+The revenue was there the whole time; only the measurement was missing.
+
+`boxOfficeByBudgetTier.diagnostic.test.ts` now reports both P&Ls side by side,
+every run, so the two cannot drift apart again.
+
+**What this does not do is fix it.** The aggregate targets in
+`DESIGN_box_office_calibration_targets.md` §5 need re-deriving against the whole
+P&L before anything is tuned to them, and that is a ratification decision, not
+an implementation one. Until then the aggregate harness's profitability bands
+should be read as measuring theatrical performance, not profitability.
+
+---
+
 ## 5. What is still wrong
 
 Four gates still fail, and they are honest failures rather than near-misses:
@@ -209,6 +298,7 @@ The audience curve may now be defensible and the **cost** curve too shallow.
 
 ```bash
 BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeDistribution.diagnostic.test.ts --disable-console-intercept
+BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeByBudgetTier.diagnostic.test.ts --disable-console-intercept
 npx vitest run src/engine/audienceSimulationRegressionMatrix.test.ts   # the runaway guard
 npx vitest run src/engine/eventScaleAndCompetition.test.ts             # the contracts this pass added
 ```

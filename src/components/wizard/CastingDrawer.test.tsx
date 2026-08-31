@@ -181,10 +181,17 @@ describe('CastingDrawer - discovery controls', () => {
       // candidate's own salary decides affordability against the £8M cash: the
       // £3M pick sits comfortably within the operating reserve, the £9M one can't
       // even be covered (engine/affordability.ts).
+      //
+      // Released Limited, not the fixture's default Wide, because a Wide release
+      // no longer HAS a zero-marketing case: opening wide commits the studio to a
+      // real campaign whatever it would rather spend
+      // (data/release.ts:MINIMUM_CAMPAIGN_SPEND), which would put both candidates
+      // over budget and stop this testing what it means to test. Platforming a
+      // film with no campaign is exactly the choice that floor leaves open.
       const draft = draftWithActors(rng, 5_000_000, {
         productionChoices: { shootingBudgetAmount: 0, setQualityAmount: 0, practicalEffectsAmount: 0, vfxAmount: 0, runtimeIntensity: 0 },
       });
-      draft.marketingChoices = { ...draft.marketingChoices!, marketingSpend: 0 };
+      draft.marketingChoices = { ...draft.marketingChoices!, marketingSpend: 0, releaseType: 'Limited' };
       return wrapState(studio, talentPool, draft);
     }).result;
     renderDrawer(state);

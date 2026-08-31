@@ -15,8 +15,9 @@ import { computeAudienceScore, computeBuzzScore, computeCriticScore, computeQual
 import { computeExecutionProfile, summarizeExecution } from './productionExecution';
 import { computeEventsCostDelta, computeMarketingCost, computeProductionBudgetCost, computeTalentCost } from './cost';
 import { deriveAudienceSimulationFixedState, type SupportedReleaseType } from './audienceSimulationInputs';
-import { campaignAngleEffect, effectiveMarketingReach, NEUTRAL_ANGLE_EFFECT } from './marketing';
+import { campaignAngleEffect, effectiveMarketingReach, scaleChannelSpend, NEUTRAL_ANGLE_EFFECT } from './marketing';
 import { CAMPAIGN_ANGLE_PROFILES, LEGS_AUDIENCE_POINTS } from '../data/marketing';
+import { campaignSpendFor } from '../data/release';
 import type { CampaignAngle } from '../types';
 import { deriveCommercialProfile, deriveMarketability } from './commercialProfile';
 import { advanceOneWeek } from './audienceSimulationStep';
@@ -237,9 +238,20 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
   // Both fall back to neutral (the flat marketingSpend, no angle) when no
   // campaign is built - rivals and pre-overhaul saves - so behaviour is
   // unchanged there.
+  //
+  // A Wide release is forced up to a real campaign
+  // (data/release.ts:MINIMUM_CAMPAIGN_SPEND) - and having been made to buy it,
+  // it gets what it bought. The channel MIX the studio chose is preserved and
+  // scaled up to the floor, so a forced campaign is still the campaign this
+  // studio would have run, just at the size a wide opening structurally
+  // requires. Without this the floor would be a pure tax, which is exactly the
+  // failure mode it exists to model the opposite of: the money buys awareness.
+  const chosenSpend = input.marketingChoices.marketingSpend;
+  const flooredSpend = campaignSpendFor(input.marketingChoices.releaseType, chosenSpend);
+  const campaignScale = chosenSpend > 0 ? flooredSpend / chosenSpend : 1;
   const baseMarketingReach = input.marketingChoices.channelSpend
-    ? effectiveMarketingReach(input.marketingChoices.channelSpend, input.targetAudience)
-    : input.marketingChoices.marketingSpend;
+    ? effectiveMarketingReach(scaleChannelSpend(input.marketingChoices.channelSpend, campaignScale), input.targetAudience)
+    : flooredSpend;
   // Marketing rollout (docs/DESIGN_REVIEW_marketing_rollout.md): a campaign
   // given runway to build lands harder. The multiplier (>= 1, resolved by the
   // caller from the frozen campaignStartDay -> releaseDay runway) lifts the
