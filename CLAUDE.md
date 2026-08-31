@@ -83,6 +83,15 @@ BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/buzzCalibration.diagnostic.tes
 BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeVariance.diagnostic.test.ts --disable-console-intercept      # §4 endogenous outcome variance
 ```
 
+Populated save dump (for looking at screens with real content in them, rather
+than at the empty states an unpopulated fixture renders):
+
+```bash
+DUMP_FIXTURE=1 DUMP_PATH=/tmp/pop.json npx vitest run \
+  src/state/renderFixtures.diagnostic.test.ts --disable-console-intercept
+# then inject the file as localStorage['hollywood-pictures-save-v89']
+```
+
 Observational (not an assertion suite) — dumps two simulated in-game years of
 the theatrical market as JSON, the source data behind `docs/BOX_OFFICE_BRIEFING.md`:
 

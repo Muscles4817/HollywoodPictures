@@ -15,6 +15,26 @@ describe('buildPopulatedStudio', () => {
     expect(playerReleasedFilms(state.projects).length).toBeGreaterThanOrEqual(3);
   });
 
+  it('has unfinished work, not just a back catalogue', () => {
+    // The Release Calendar and the slate are about what has not happened yet.
+    // A fixture of purely finished films renders both as empty states, which is
+    // the fault this file exists to stop repeating.
+    expect(state.projects.filter((p) => p.kind === 'scheduled').length).toBeGreaterThan(0);
+    expect(state.projects.filter((p) => p.kind === 'player-in-progress').length).toBeGreaterThan(0);
+  });
+
+  it('has unmade screenplays, so the library shows more than one status', () => {
+    const filmed = new Set(
+      state.projects.flatMap((p) => (p.kind === 'released' ? [p.film.assetId] : [])),
+    );
+    expect(state.studio.assets.some((a) => !filmed.has(a.id))).toBe(true);
+  });
+
+  it('has a market and a competition to render', () => {
+    expect(state.opportunities.length).toBeGreaterThan(0);
+    expect(state.projects.some((p) => p.kind === 'rival-in-progress')).toBe(true);
+  });
+
   it('has rival studios, which the unit fixture deliberately does not', () => {
     expect(state.rivalStudios.length).toBeGreaterThan(0);
   });

@@ -39,6 +39,12 @@ export interface PopulatedStudioOptions {
   releasedFilms?: number;
   /** Days to run on after the last release, so rivals and the market fill in. */
   settleDays?: number;
+  /** Films dated but not yet out - what the Release Calendar is a calendar of. */
+  scheduledFilms?: number;
+  /** Packaged films still in the shop, so the slate is not just a back catalogue. */
+  inProgressFilms?: number;
+  /** Unmade screenplays sitting in the library, over and above the ones filmed. */
+  spareAssets?: number;
 }
 
 /** A fresh studio of the shape `loadState` generates, minus the localStorage. */
@@ -74,27 +80,37 @@ function freshStudioState(seed: number): GameState {
   } as GameState;
 }
 
+/** Drop a packaged draft into the slate, focused, with its screenplay owned. */
+function addDraft(state: GameState, draft: ReturnType<typeof buildReadyDraft>): GameState {
+  return {
+    ...state,
+    projects: [...state.projects, playerDraftToProject(draft)],
+    focusedProjectId: draft.id,
+    studio: {
+      ...state.studio,
+      assets: [
+        ...state.studio.assets,
+        { id: draft.assetId, script: draft.script!, provenance: 'Founding', acquisitionCost: draft.script!.cost, acquiredOnDay: state.totalDays },
+      ],
+    },
+  };
+}
+
 export function buildPopulatedStudio(seed: number, options: PopulatedStudioOptions = {}): GameState {
-  const { releasedFilms = 4, settleDays = 40 } = options;
+  const {
+    releasedFilms = 4,
+    settleDays = 40,
+    scheduledFilms = 2,
+    inProgressFilms = 2,
+    spareAssets = 4,
+  } = options;
   const rng = createRng(seed + 7919);
   let state = freshStudioState(seed);
 
   for (let i = 0; i < releasedFilms; i++) {
     // A fully packaged draft, dropped in focused and sent straight out - the
     // point is the finished record, not the route it took to get there.
-    const draft = buildReadyDraft(rng);
-    state = {
-      ...state,
-      projects: [...state.projects, playerDraftToProject(draft)],
-      focusedProjectId: draft.id,
-      studio: {
-        ...state.studio,
-        assets: [
-          ...state.studio.assets,
-          { id: draft.assetId, script: draft.script!, provenance: 'Founding', acquisitionCost: draft.script!.cost, acquiredOnDay: state.totalDays },
-        ],
-      },
-    };
+    state = addDraft(state, buildReadyDraft(rng));
     state = studioReducer(state, { type: 'SCHEDULE_RELEASE', releaseDay: state.totalDays });
     // Long enough for the run to settle and for the next film to open on a
     // different date rather than all of them stacking on one week.
@@ -102,5 +118,38 @@ export function buildPopulatedStudio(seed: number, options: PopulatedStudioOptio
   }
 
   for (let d = 0; d < settleDays; d++) state = studioReducer(state, { type: 'ADVANCE_DAY' });
-  return { ...state, screen: 'dashboard', focusedProjectId: null };
+
+  // Everything above is a back catalogue. A studio that has only ever finished
+  // things has an empty Release Calendar and an empty slate, which is most of
+  // what these screens are for - so the last thing added is unfinished work,
+  // after the clock has stopped advancing and can no longer consume it.
+  for (let i = 0; i < scheduledFilms; i++) {
+    state = addDraft(state, buildReadyDraft(rng));
+    // Spread across the season rather than stacked on one week, so the calendar
+    // has more than one occupied date to lay out.
+    state = studioReducer(state, { type: 'SCHEDULE_RELEASE', releaseDay: state.totalDays + 45 + i * 70 });
+  }
+  for (let i = 0; i < inProgressFilms; i++) {
+    state = addDraft(state, buildReadyDraft(rng));
+  }
+
+  // Screenplays owned and unmade - an Asset Library whose entries are all
+  // already filmed only ever shows one of its three status tabs.
+  const shelf = Array.from({ length: spareAssets }, (_, i) => {
+    const draft = buildReadyDraft(rng);
+    return {
+      id: `shelf-asset-${i}`,
+      script: draft.script!,
+      provenance: 'Acquired' as const,
+      acquisitionCost: draft.script!.cost,
+      acquiredOnDay: Math.max(1, state.totalDays - 30 * (i + 1)),
+    };
+  });
+
+  return {
+    ...state,
+    screen: 'dashboard',
+    focusedProjectId: null,
+    studio: { ...state.studio, assets: [...state.studio.assets, ...shelf] },
+  };
 }
