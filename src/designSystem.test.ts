@@ -212,4 +212,13 @@ describe('numeric table columns line up', () => {
     expect(CSS['./index.css']).toMatch(/th\.num,\s*\n\s*td\.num \{/);
     expect(CSS['./index.css']).toMatch(/font-variant-numeric: tabular-nums/);
   });
+
+  // Right-aligning a column does nothing if the figure itself comes apart. The
+  // browser will break a line after the sign, so "-£30,265,414" in a column
+  // narrow enough to need it renders "-" on one line and the digits on the
+  // next - measured on the Dashboard filmography, all four profit figures.
+  // A currency figure is one word.
+  it('keeps a currency figure on one line', () => {
+    expect(CSS['./index.css']).toMatch(/\.money \{[^}]*white-space: nowrap/);
+  });
 });

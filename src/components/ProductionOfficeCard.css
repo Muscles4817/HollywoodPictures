@@ -75,11 +75,16 @@
   color: var(--text-muted);
 }
 
+/* "Fully expanded - the widest reach a studio can command." Was --primary,
+   which is this app's interactive blue: a whole sentence of it, not clickable,
+   inside a panel whose other blue things are buttons and links. It reads as a
+   link that does nothing. It is a finished state, so it is stated plainly and
+   the weight does the marking. */
 .office-research-maxed {
   margin: 0;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--text);
 }
 
 /* --- Hire modal --- */

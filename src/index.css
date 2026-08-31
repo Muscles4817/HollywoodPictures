@@ -165,6 +165,18 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* A currency figure is one word, and the browser disagrees: it will break a
+   line after the sign, so "-£30,265,414" in a column narrow enough to need it
+   renders as a lone "-" above the number. Measured on the Dashboard's own
+   filmography with a real back catalogue - all four profit figures split, and
+   a figures column whose signs sit on a different line from their digits does
+   not stack by place value at all, which was the entire point of th.num/td.num
+   below. Only .money, not the whole typed register: a typed FILM TITLE is
+   allowed to wrap, and often has to. */
+.money {
+  white-space: nowrap;
+}
+
 :root[data-theme='dark'] {
   color-scheme: dark;
   --bg: #16151a;
