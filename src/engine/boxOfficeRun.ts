@@ -141,7 +141,7 @@ export function filmMarketBreakdown(film: Film): FilmMarketBreakdown {
 // now that live settlement needs the exact same conversion - both
 // engine/releaseFilm.ts (FilmResults.openingWeekend) and this file's own
 // weekly settlement read it from here, so there's one number, not two.
-export const AVERAGE_TICKET_PRICE = 11;
+export const AVERAGE_TICKET_PRICE = 6.5;
 
 // Week 1 is due immediately on release (releasedOnDay === currentTotalDays
 // gives 0 elapsed weeks + 1), so the same settlement path that handles

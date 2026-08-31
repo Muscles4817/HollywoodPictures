@@ -209,10 +209,17 @@ describe('settleBoxOfficeForAllFilms - distributor P&A recoup', () => {
     expect(withRecoup.filmsReleased[0].boxOfficeRun.cumulativeGross).toBe(noRecoup.filmsReleased[0].boxOfficeRun.cumulativeGross);
     // studioRevenue on the finished film nets the recoup too. The finished-film
     // gross credit is rounded once off the cumulative markets, whereas baseCredit
-    // sums the per-week rounded credits, so the two can differ by a single unit
-    // of rounding - allow that ±1 rather than asserting exact equality.
+    // sums the per-week rounded credits, so the two differ by accumulated
+    // rounding rather than matching exactly. The tolerance was ±1 when
+    // AVERAGE_TICKET_PRICE was the integer 11; it is now 6.5 (a worldwide blend
+    // rather than the US figure - see engine/boxOfficeRun.ts), so each week's
+    // admissions-to-money conversion can round by up to half a unit and a
+    // multi-week run accumulates several. Still a rounding tolerance, not a
+    // behavioural one: this asserts the recoup is withheld exactly once.
     const grossCredit = baseCredit; // domestic-only, so the two match up to rounding
-    expect(Math.abs((withRecoup.filmsReleased[0].results.studioRevenue ?? 0) - (grossCredit - recoup))).toBeLessThanOrEqual(1);
+    expect(Math.abs((withRecoup.filmsReleased[0].results.studioRevenue ?? 0) - (grossCredit - recoup))).toBeLessThanOrEqual(
+      withRecoup.filmsReleased[0].boxOfficeRun.weeks.length,
+    );
   });
 
   it('recoup off the top settles identically in one big jump as week by week (reconstructable)', () => {

@@ -72,6 +72,12 @@ function baseInputs(overrides: Partial<ReleaseSimulationInputs> = {}): ReleaseSi
     competitiveCrowding: 0,
     criticScore: 55,
     audienceScore: 58,
+    // The money on screen. Added when production scale became an input to a
+    // film's audience ceiling (audienceSimulationInputs.ts:computeEventScale);
+    // omitting it models a film with NOTHING on screen, which is the wrong
+    // neutral for a set of ordinary wide-release scenarios. $8M is the measured
+    // median on-screen budget of a wide release in the $25-80M band.
+    productionBudgetCost: 8_000_000,
     ...overrides,
   };
 }
@@ -106,6 +112,11 @@ const HUGE_OPENING_EXCEPTIONAL: ReleaseSimulationInputs = baseInputs({
   // just reception/marketing/accessibility; without this, real diagnostic
   // saturation landed at ~76%, short of the bar.
   directorFame: 95, leadFame: 98, studioBrand: 95, scriptHookStrength: 95, scriptSpectacle: 95,
+  // Every lever aligned now includes the production itself. A film at this end of
+  // reception, marketing, fame and accessibility is not made for $8M of visible
+  // production, and inheriting that default left the biggest film the model can
+  // express with no event scale at all.
+  productionBudgetCost: 180_000_000,
 });
 
 const CRITICALLY_ACCLAIMED_NICHE: ReleaseSimulationInputs = baseInputs({
@@ -467,7 +478,7 @@ describe('sweep: no excessive clustering around the middle - a varied set of rea
       // HUGE_OPENING_EXCEPTIONAL's own Milestone 12 recalibration; the top
       // tier needs every lever aligned to anchor the spread's upper end,
       // the same real-diagnostic finding behind that scenario's own fix.
-      baseInputs({ targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market', genre: 'Action', releaseType: 'Wide', buzzScore: 98, marketingSpend: 150_000_000, directorFame: 95, leadFame: 98, studioBrand: 95, scriptHookStrength: 95, scriptSpectacle: 95, scriptAccessibility: 90, scriptCrossoverPotential: 75, criticScore: 93, audienceScore: 97 }),
+      baseInputs({ targetAudience: 'Mass Market', scriptIntendedAudience: 'Mass Market', genre: 'Action', releaseType: 'Wide', buzzScore: 98, marketingSpend: 150_000_000, directorFame: 95, leadFame: 98, studioBrand: 95, scriptHookStrength: 95, scriptSpectacle: 95, scriptAccessibility: 90, scriptCrossoverPotential: 75, criticScore: 93, audienceScore: 97, productionBudgetCost: 180_000_000 }),
     ];
     const totals = scenarios.map((s) => run(s).totalGross);
     const min = Math.min(...totals);

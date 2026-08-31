@@ -1,6 +1,11 @@
-# Box Office Calibration Targets v2 — DRAFT, awaiting ratification
+# Box Office Calibration Targets v2 — RATIFIED
 
-Status: **draft, nothing here is ratified.** This document proposes replacements
+Status: **ratified and implemented.** See §9 for what landed, what is in band, and
+the two derivation errors found and corrected during implementation.
+
+Original preamble follows.
+
+Status (as drafted): **draft, nothing here is ratified.** This document proposes replacements
 for the profitability and whole-year bands in
 `DESIGN_box_office_calibration_targets.md` §3 and §5, and adds per-tier targets
 that document had no equivalent of. It changes no code. Edit the numbers here
@@ -245,3 +250,95 @@ Roughly in dependency order. None of it is started.
 6. **Top-10 share down to 34–44%** (§6).
 7. **Tier return spread ≤1.8×** as a standing invariant — the "no budget class is
    simply the wrong thing to make" rule.
+
+
+---
+
+## 9. Implementation outcome
+
+Implemented in dependency order per §7. Full suite green (2,565 passing); the
+ratified regression matrix that guards the word-of-mouth runaway stays 62/62.
+
+### 9.1 Two derivation errors in this document, found and corrected
+
+**The break-even multiples in §4 are THEATRICAL, not whole-P&L.** They were
+sourced from worked cases whose arithmetic balances to zero on rentals alone -
+`docs/domain/11` §6.1 case A's $8M negative with $25M of distribution expense
+breaks even at $68M worldwide (68 × 0.485 − 25 − 8 = 0.0), case B's $45M with
+$66M at $230M (230 × 0.483 − 66 − 45 = 0.1) - but filed here under a whole-P&L
+heading. Measured on the whole P&L the same films appear to break even near 5×
+and 3.5×, so the band would have been wrong by that entire factor. The numbers
+stand; the basis label was wrong, and the harness measures theatrical.
+
+**§4's small-tier gross band [7, 13] is unsatisfiable alongside its own 40-55%
+unprofitable band.** It was extrapolated from a single reference film - the
+slate's $15M horror at 12.3× - which `docs/domain/11` §5.4 explicitly calls "the
+best return on capital on any slate", i.e. a winner, not a median. At the
+ratified P&A ratio and revenue shares a small film breaks even at ~4.7× on the
+whole P&L, so a median of 7-13× caps the tier at roughly 20% unprofitable.
+Re-derived as **[4.5, 7]** - the median sits near its own break-even, which is
+what the unprofitable band actually asserts, leaving the reference winner in the
+upper tail where it belongs. mid and big were checked the same way and are
+internally consistent.
+
+### 9.2 What landed
+
+| | Before | After | Band |
+|---|--:|--:|--:|
+| Post-theatrical ÷ rentals | 109% | **38%** | 35-55 ✅ |
+| Rentals ÷ WW gross | 41.3% | **45.4%** | 44-49 ✅ |
+| P&A ÷ negative, small | 0.10 | **1.84** | 1.5-2.5 ✅ |
+| P&A ÷ negative, mid | 0.44 | **1.39** | 1.0-1.5 ✅ |
+| P&A ÷ negative, big | 0.65 | **1.02** | 0.8-1.1 ✅ |
+| Median return, small | — | **1.26×** | 1.1-2.4 ✅ |
+| Median return, mid | — | **1.36×** | 0.95-1.35 (0.01 over) |
+| Median return, big | — | **1.12×** | 1.0-1.45 ✅ |
+| **Tier return spread** | **2.02×** | **1.21×** | ≤1.8 ✅ |
+| Wide unprofitable | 15.8% | **40.5%** | 40-52 ✅ |
+| Top-10 annual share | 32.2% | **39.5%** | 34-44 ✅ |
+
+Aggregate harness 13/17 against the ratified bands, from 11/17 against the old
+ones on the wrong P&L.
+
+Two changes beyond §7's list, both forced by measurement and both evidenced:
+
+- **Rival capital ×1.5** (Major $390M → $600M). P&A roughly tripled, so a
+  tentpole's all-in cost went from ~$135M to ~$260M while the reserve behind it
+  did not move, and films over $80M of negative cost fell from 53 to 25 across
+  the harness - the affordability gate quietly deleting the top of the market.
+  The same pairing the previous cost-side pass documented.
+- **AVERAGE_TICKET_PRICE $11 → $6.50.** The model applied a US ticket price
+  (`docs/domain/10` §7: "Ticket price in the US averages around $11") to a
+  *worldwide* admissions count, against a 200M-person worldwide addressable
+  pool. That chapter's own market table says the high-admission markets are the
+  low-price ones - Mexico "very high admissions on low ticket prices", India
+  "vast admissions on very low ticket prices, so gross understates reach" - so
+  the blend has to sit well below the US figure. $6.50 keeps it above a pure
+  global average, since Hollywood films over-index on higher-price markets.
+
+### 9.3 What did not land, and the reason
+
+`breakevenPct` (10.8 vs 18-30), `modestPct` (32.0 vs 18-30) and `majorPct`
+(16.1 vs 4-10) are all one finding: the return distribution has the right
+**median** and the right **tails** but too thin a **middle**. §3's "fat middle,
+thin tails" shape is a variance property, and the obvious lever for it is
+blocked by a structural coupling worth recording:
+
+**`maxInterestedAudience` is both the audience ceiling and the word-of-mouth
+normalisation denominator.** Any change to the base interest fraction therefore
+rescales `womInfluence` and destabilises the reproduction loop. Measured
+directly: with everything else held, cutting `BASE_INTEREST_CEILING` 0.45 → 0.22
+put the tier bands almost perfectly in range (mid at 4.68× gross/negative and a
+1.24× median return, both centre-band) and simultaneously tripped the runaway
+guard at a 1.29 reproduction ratio, with the *ordinary* film losing its legs
+while the *phenomenon* self-sustained - the loop's ability to tell them apart
+gone. Restoring the base restored the guard; no rebalancing of the four response
+sensitivities recovered both ends at once.
+
+So the audience level cannot be set independently of the word-of-mouth loop
+while those two share a denominator. Decoupling them is the next pass, and it is
+the same `womNormalisationPool` change trialled and reverted earlier
+(`DESIGN_REVIEW_scale_and_competition.md` §4) - reverted then because
+normalising against the natural audience alone lifted the bottom of the market,
+which is a tractable problem, and worth revisiting now that there is a concrete
+reason to.

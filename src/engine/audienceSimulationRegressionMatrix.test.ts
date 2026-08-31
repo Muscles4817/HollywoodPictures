@@ -50,6 +50,12 @@ function inputs(overrides: Partial<ReleaseSimulationInputs> = {}): ReleaseSimula
     competitiveCrowding: 0,
     criticScore: 60,
     audienceScore: 60,
+    // The money on screen. Added when production scale became an input to a
+    // film's audience ceiling (audienceSimulationInputs.ts:computeEventScale);
+    // omitting it models a film with NOTHING on screen, which is the wrong
+    // neutral for a matrix of ordinary wide releases. $8M is the measured median
+    // on-screen budget of a wide release in the $25-80M band.
+    productionBudgetCost: 8_000_000,
     ...overrides,
   };
 }
@@ -153,6 +159,13 @@ const RARE_PHENOMENON = inputs({
   // attendance is possible" requirement) - 85/90/85 clears all three bars
   // (£1.26B, 82.1% saturation, a genuine 2-week growth streak) together.
   directorFame: 85, leadFame: 90, studioBrand: 85, scriptHookStrength: 85, scriptSpectacle: 85,
+  // A once-in-a-generation phenomenon is a once-in-a-generation PRODUCTION. This
+  // fixture predates computeEventScale and inherited the default above, which
+  // modelled the biggest film the model can express as having $8M on screen -
+  // and the scenario duly fell to $720M, short of its own >$1B bar, the moment
+  // scale started buying audience. $160M of visible production is what a film at
+  // this end of every other axis actually costs.
+  productionBudgetCost: 160_000_000,
 });
 const WELL_LIKED_NICHE = inputs({
   audienceScore: 88, criticScore: 88, buzzScore: 20, scriptAccessibility: 20, scriptCrossoverPotential: 20,

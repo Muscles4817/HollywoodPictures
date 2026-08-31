@@ -285,7 +285,7 @@ export function computeEventScale(productionBudgetCost: number, scriptSpectacle:
 // terrible tentpole exactly as much as a great one, so it buys a big opening and
 // nothing else. (That asymmetry is the point: a bad event film now opens huge
 // against a huge budget and collapses, which is what a real bomb looks like.)
-const EVENT_ELIGIBILITY_GAIN = 1;
+const EVENT_ELIGIBILITY_GAIN = 2;
 const EVENT_ELIGIBILITY_CONVEXITY = 3;
 
 // Crossover: an event is what people outside the natural audience turn out for
@@ -300,7 +300,7 @@ const EVENT_ELIGIBILITY_CONVEXITY = 3;
 // the reverted crossover-capacity-on-reception experiment (PR #187): that one
 // fed the WOM loop back into its own ceiling and ran away; this one is fixed at
 // release from money already spent.
-const EVENT_CROSSOVER_GAIN = 2;
+const EVENT_CROSSOVER_GAIN = 3.4;
 const EVENT_CROSSOVER_CONVEXITY = 3;
 
 function eventEligibilityMultiplier(eventScale: number): number {

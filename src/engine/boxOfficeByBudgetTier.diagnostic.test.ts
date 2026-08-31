@@ -68,10 +68,56 @@ const tierOf = (negativeCost: number): Tier => TIER_BOUNDS.find((t) => negativeC
 // ratio that climbs with budget - as the model's did, 0.10 / 0.44 / 0.65 - has
 // the economics backwards.
 const PANDA_OVER_NEGATIVE: Record<Tier, [number, number]> = {
-  small: [0.6, 1.6],
-  mid: [0.6, 1.3],
-  big: [0.6, 1.2],
+  small: [1.5, 2.5],
+  mid: [1.0, 1.5],
+  big: [0.8, 1.1],
 };
+
+// Median worldwide gross as a multiple of negative cost. Reference: the 12-film
+// slate's own tiers - 12.3x for the $15M horror, 3.1x median across the six
+// $25-80M films, 3.9x across the five over $80M.
+const GROSS_OVER_NEGATIVE: Record<Tier, [number, number]> = {
+  // Corrected from the ratified [7, 13] during implementation, because that band
+  // and the small tier's own 40-55% unprofitable band cannot both hold. [7, 13]
+  // was extrapolated from a single reference film - the slate's $15M horror at
+  // 12.3x - which docs/domain/11 §5.4 explicitly calls "the best return on
+  // capital on any slate", i.e. a winner, not a median. At the ratified P&A ratio
+  // and revenue shares a small film breaks even (whole P&L) at ~4.7x, so a band
+  // of [7, 13] puts the MEDIAN film at 1.5-2.8x break-even, which caps the tier
+  // at roughly 20% unprofitable. Re-derived as "the median sits near its own
+  // break-even", which is what the unprofitable band actually asserts, with room
+  // above for the reference winner to sit in the upper tail where it belongs.
+  // mid and big were checked the same way and are internally consistent.
+  small: [4.5, 7],
+  mid: [3, 5],
+  big: [3.5, 5.5],
+};
+
+// The gross multiple at which a tier's median film breaks even THEATRICALLY -
+// rentals covering negative cost plus P&A, before any post-theatrical revenue.
+// The shape docs/domain/11 §6.1 makes explicit and the model had backwards in
+// magnitude at every tier: it FALLS as budgets rise, because the P&A floor does
+// not scale down.
+//
+// Theatrical, not whole-P&L, and the distinction is load-bearing. The ratified
+// figures (~8.5x micro, ~5.1x mid, ~4.0x tentpole) come from worked cases whose
+// arithmetic balances to zero on rentals alone: case A's $8M negative with $25M
+// of distribution expense breaks even at $68M worldwide (68 x 0.485 - 25 - 8 =
+// 0.0), case B's $45M with $66M at $230M (230 x 0.483 - 66 - 45 = 0.1). Measured
+// against the whole P&L instead, the same films would appear to break even
+// around 5x and 3.5x, and the band would be wrong by that whole factor. The v2
+// targets document sourced these correctly but filed them under a whole-P&L
+// heading; corrected there too.
+const BREAKEVEN_MULTIPLE: Record<Tier, [number, number]> = {
+  small: [7, 10],
+  mid: [4.5, 6],
+  big: [3.5, 4.5],
+};
+
+// §5 revenue-side ratios, over the whole field. Both were outside any defensible
+// real range when v2 was drafted.
+const RENTALS_OVER_GROSS_PCT: [number, number] = [44, 49];
+const POST_THEATRICAL_OVER_RENTALS_PCT: [number, number] = [35, 55];
 
 // Median return on the WHOLE P&L (theatrical rentals + post-theatrical), against
 // all-in cost. The aggregate harness's ratified 45-55% unprofitable implies a
@@ -79,9 +125,9 @@ const PANDA_OVER_NEGATIVE: Record<Tier, [number, number]> = {
 // far from that: the point of this band is that the tiers land in the SAME
 // neighbourhood, not that any particular one is rich.
 const MEDIAN_RETURN_ALL_IN: Record<Tier, [number, number]> = {
-  small: [0.9, 1.8],
-  mid: [0.9, 1.8],
-  big: [0.9, 1.8],
+  small: [1.1, 2.4],
+  mid: [0.95, 1.35],
+  big: [1.0, 1.45],
 };
 
 // The complaint itself, as one number: how far the best-performing tier's median
@@ -89,14 +135,14 @@ const MEDIAN_RETURN_ALL_IN: Record<Tier, [number, number]> = {
 // higher ceiling on ROI, tentpoles the higher floor on gross - but a market
 // where one tier earns twice what another does is one where a whole budget class
 // is simply the wrong thing to make.
-const MAX_TIER_RETURN_SPREAD = 1.6;
+const MAX_TIER_RETURN_SPREAD = 1.8;
 
 // Share of a tier's films failing to recoup, on the whole P&L. Directionally the
 // aggregate 45-55%, widened per tier because tier counts are smaller.
 const UNPROFITABLE_PCT: Record<Tier, [number, number]> = {
-  small: [40, 60],
-  mid: [35, 55],
-  big: [35, 55],
+  small: [40, 55],
+  mid: [40, 55],
+  big: [35, 50],
 };
 
 const YEARS = 8;
@@ -235,6 +281,23 @@ describe.skipIf(!enabled)('box office profitability by budget tier', () => {
       if (!inBand(unprofitable, UNPROFITABLE_PCT[tier])) {
         failures.push(`${tier} unprofitable%: ${unprofitable.toFixed(0)} not in [${UNPROFITABLE_PCT[tier]}]`);
       }
+      const grossMultiple = median(rows.map((r) => r.gross / Math.max(1, r.negativeCost)));
+      if (!inBand(grossMultiple, GROSS_OVER_NEGATIVE[tier])) {
+        failures.push(`${tier} median gross/negative: ${grossMultiple.toFixed(2)}x not in [${GROSS_OVER_NEGATIVE[tier]}]`);
+      }
+      // Where this tier's median film would have broken even theatrically: scale
+      // its gross until rentals alone equal all-in cost. Rentals are proportional
+      // to gross, so this is a single division.
+      const breakeven = median(
+        rows.map((r) => {
+          const rentalsPerGross = r.theatricalRevenue / Math.max(1, r.gross);
+          return rentalsPerGross > 0 ? r.allInCost / rentalsPerGross / Math.max(1, r.negativeCost) : 0;
+        }),
+      );
+      if (!inBand(breakeven, BREAKEVEN_MULTIPLE[tier])) {
+        failures.push(`${tier} theatrical break-even gross/negative: ${breakeven.toFixed(2)}x not in [${BREAKEVEN_MULTIPLE[tier]}]`);
+      }
+      lines.push(`      ${tier}: gross/neg ${grossMultiple.toFixed(2)}x, breaks even theatrically at ${breakeven.toFixed(2)}x`);
     }
 
     const returns = Object.values(medianReturnByTier).filter((v): v is number => v !== undefined && v > 0);
@@ -246,14 +309,18 @@ describe.skipIf(!enabled)('box office profitability by budget tier', () => {
       }
     }
 
-    // Not an assertion - the standing reminder of which P&L is which.
+    // §5 revenue-side ratios - the arithmetic cause of any break-even gap above.
     const theatrical = all.reduce((s, r) => s + r.theatricalRevenue, 0);
     const ancillary = all.reduce((s, r) => s + r.ancillaryRevenue, 0);
+    const grossTotal = all.reduce((s, r) => s + r.gross, 0);
+    const rentalsPct = (100 * theatrical) / Math.max(1, grossTotal);
+    const postPct = (100 * ancillary) / Math.max(1, theatrical);
     lines.push(
-      `\n  post-theatrical revenue is ${(100 * ancillary / Math.max(1, theatrical)).toFixed(0)}% of theatrical rentals across the whole field.`,
-      '  FilmResults.profit counts NONE of it (state/ancillarySettlement.ts pays it separately), so',
-      '  every band in boxOfficeDistribution.diagnostic.test.ts is asserted against the left column.',
+      `\n  theatrical rentals ÷ WW gross: ${rentalsPct.toFixed(1)}%   [${RENTALS_OVER_GROSS_PCT}]`,
+      `  post-theatrical ÷ theatrical rentals: ${postPct.toFixed(0)}%   [${POST_THEATRICAL_OVER_RENTALS_PCT}]`,
     );
+    if (!inBand(rentalsPct, RENTALS_OVER_GROSS_PCT)) failures.push(`rentals/gross: ${rentalsPct.toFixed(1)}% not in [${RENTALS_OVER_GROSS_PCT}]`);
+    if (!inBand(postPct, POST_THEATRICAL_OVER_RENTALS_PCT)) failures.push(`post-theatrical/rentals: ${postPct.toFixed(0)}% not in [${POST_THEATRICAL_OVER_RENTALS_PCT}]`);
 
     console.log(lines.join('\n'));
     expect(failures, `\n${failures.join('\n')}\n`).toEqual([]);

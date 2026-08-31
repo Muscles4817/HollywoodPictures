@@ -30,7 +30,7 @@ import { logAmount } from './interpolate';
 import { GENRE_PROFILES } from '../data/genres';
 import { SHOOTING_BUDGET_RANGE, ENVIRONMENT_BUDGET_RANGE, PRACTICAL_EFFECTS_RANGE, VFX_RANGE } from '../data/production';
 import { EDIT_STYLE_PROFILES, MUSIC_FOCUS_PROFILES, FINAL_CUT_FOCUS_PROFILES } from '../data/postProduction';
-import { RELEASE_TYPE_PROFILES, MARKETING_SPEND_RANGE } from '../data/release';
+import { RELEASE_TYPE_PROFILES, MARKETING_SPEND_RANGE, campaignSpendFor } from '../data/release';
 import { clamp, pick, pickMany, randFloat, randInt, weightedPick, type RandomFn } from './random';
 import { deriveReleaseWindowFromDay } from './calendar';
 // The seasonal read the AI scores days with is the same one the player's own
@@ -114,6 +114,69 @@ const SCALE_SPEND_RANGE: Record<ProductionScale, [number, number]> = {
   Medium: [0.32, 0.65],
   Big: [0.75, 1.0],
 };
+
+// How a rival budgets its campaign: as a rule on the film's own negative cost,
+// not as an independent taste. docs/domain/09-marketing-and-distribution.md §1.1
+// is explicit that this is how the real number starts life - the greenlight
+// placeholder is "a slate-average number by budget tier; often literally a rule
+// (e.g. 0.8x negative cost domestic)" - and §1 gives the shape it has to end up
+// in: roughly FLAT as a share of the negative (1.00x slate-wide in the worked
+// 12-film slate, docs/domain/11 §5.4), rising for cheap films because the floor
+// does not scale down.
+//
+// The AI used to pick marketingSpendT from scale and genre alone, with no
+// reference to what the film cost, and the result had the economics backwards -
+// P&A ran at 0.10x the negative for a small wide release and 0.65x for a
+// tentpole, when the real ratio runs ~2.0x and ~0.9x respectively
+// (docs/DESIGN_box_office_calibration_targets_v2_draft.md §4, ratified).
+//
+// spendPlan.marketingSpendT is kept, but demoted from the LEVEL to the
+// APPETITE: it still carries the tier and genre adjustments (a Major markets
+// aggressively, an Indie conservatively, a spectacle genre justifies a broader
+// campaign), now as a multiplier around the rule rather than as the rule.
+// data/release.ts:campaignSpendFor then floors the result for a Wide release,
+// which is what produces the ratio's rise at the cheap end.
+// The share DECLINES with budget, and that is the whole point of modelling it as
+// a rule rather than a flat fraction. The reference slate runs 2.00x the negative
+// on its $15M horror, a 1.27x median across the six films between $25M and $80M,
+// and 0.93x across the five above $80M - because the floor a wide opening
+// demands is the same for all of them, so it is a bigger multiple of a smaller
+// film. A flat rule reproduces the tentpole and starves everything below it,
+// which is what the first draft of this did (measured 1.8 / 1.1 / 1.2 against a
+// reference 2.0 / 1.27 / 0.93 - the middle of the market under-costed).
+//
+// Fitted through the reference points as a power law in the negative cost:
+// 2.0x at $15M and 0.80x at $200M gives an exponent of -0.354, which puts $40M
+// at 1.41x and $110M at 0.99x against reference values of 1.27x and 0.95x.
+//
+// REFERENCE_SHARE is then 1.66 rather than 2.0 because the appetite term does
+// not average to 1: marketingSpendT's own distribution centres near 0.9, so the
+// median appetite is ~1.24, and the rule has to be set so the PRODUCT lands on
+// the reference. Measured, that puts the three tiers at 2.06 / 1.39 / 0.93.
+const PANDA_REFERENCE_NEGATIVE = 15_000_000;
+const PANDA_REFERENCE_SHARE = 1.7;
+const PANDA_SCALE_EXPONENT = -0.354;
+const PANDA_APPETITE = { min: 0.7, max: 1.3 };
+
+/** What share of its negative cost a film of this size spends on P&A, before the studio's own appetite. */
+function pandaShareOfNegative(negativeCost: number): number {
+  return PANDA_REFERENCE_SHARE * Math.pow(Math.max(1_000_000, negativeCost) / PANDA_REFERENCE_NEGATIVE, PANDA_SCALE_EXPONENT);
+}
+
+/**
+ * A rival's planned campaign spend: the P&A rule on its own negative cost, scaled
+ * by its appetite, floored by its release type.
+ *
+ * The rule sets a target campaign COST; the spend is that divided back through
+ * the release type's own cost multiplier, so a Wide release's 1.2x support
+ * premium does not silently inflate the ratio the rule is trying to hit.
+ */
+function rivalMarketingSpend(negativeCost: number, marketingSpendT: number, releaseType: MarketingChoices['releaseType']): number {
+  const appetite = PANDA_APPETITE.min + (PANDA_APPETITE.max - PANDA_APPETITE.min) * clamp(marketingSpendT, 0, 1);
+  const targetCost = negativeCost * pandaShareOfNegative(negativeCost) * appetite;
+  const planned = targetCost / RELEASE_TYPE_PROFILES[releaseType].costMultiplier;
+  return clamp(campaignSpendFor(releaseType, planned), MARKETING_SPEND_RANGE.min, MARKETING_SPEND_RANGE.max);
+}
 
 // Budget realism (docs/DESIGN_box_office_engine_map.md §11, "the unprofitable tail
 // is a COST-side problem"). Every rival production's whole spend plan is nudged up
@@ -371,10 +434,22 @@ const INITIAL_ROSTER_TIERS: StudioTier[] = [
 // power-law economy where a studio's hits carry the reserve it needs to keep
 // funding an expensive, riskier slate. Headroom, not a throughput lever (see the
 // note above the values). docs/DESIGN_box_office_engine_map.md §11.
+//
+// Raised ×1.8 again (Major 390M→700M) alongside the ratified whole-P&L
+// recalibration, for exactly the reason the ×1.5 above documents and by the same
+// measurement. P&A roughly tripled in that pass (a Wide release now funds a real
+// campaign, and a rival budgets it as a rule on its own negative cost rather than
+// independently of it), so a tentpole's all-in cost went from ~$135M to ~$260M
+// while the reserve behind it did not move: the wide-release count held, but
+// films over $80M of negative cost fell from 53 to 25 across the 6x8yr harness -
+// the affordability gate quietly deleting the top of the market. For scale, the
+// representative studio slate this calibration is anchored on
+// (docs/domain/11-money-accounting-and-participations.md §5.4) deploys $2.2B
+// across twelve films in a year.
 const STARTING_CASH_BY_TIER: Record<StudioTier, number> = {
-  Indie: 9_000_000,
-  'Mid-Size': 60_000_000,
-  Major: 390_000_000,
+  Indie: 16_000_000,
+  'Mid-Size': 110_000_000,
+  Major: 600_000_000,
 };
 
 // Flavor, not balance - a Major studio has already been making films for
@@ -870,7 +945,13 @@ function startRivalProductionFromWonScript(
   // whether it contests a prime window or retreats to a quiet one - see
   // chooseReleaseDay. Marketing spend is resolved here (rather than only inside
   // marketingChoices below) so it can feed both that strength and the campaign.
-  const marketingSpend = logAmount(spendPlan.marketingSpendT, MARKETING_SPEND_RANGE);
+  // Release type is resolved here rather than inline below because the campaign
+  // budget now depends on it: only a Wide release carries a structural floor
+  // (data/release.ts:MINIMUM_CAMPAIGN_SPEND).
+  const releaseType = releaseTypeForScale(scale, rng);
+  const plannedNegative =
+    computeTalentCost(talent) + computeProductionBudgetCost(productionChoices) + productionChoices.shootingBudgetAmount;
+  const marketingSpend = rivalMarketingSpend(plannedNegative, spendPlan.marketingSpendT, releaseType);
   // The rival's identity in this genre lifts its own release strength, so a
   // studio contesting its home turf schedules more confidently against a crowded
   // window (and, once released, defends that turf against others - see
@@ -886,7 +967,7 @@ function startRivalProductionFromWonScript(
   };
   const marketingChoices: MarketingChoices = {
     marketingSpend,
-    releaseType: releaseTypeForScale(scale, rng),
+    releaseType,
     releaseWindow: deriveReleaseWindowFromDay(releaseDay),
     // Rivals are established majors with full overseas distribution - freeze
     // full international reach so their grosses aren't nerfed by the gate.

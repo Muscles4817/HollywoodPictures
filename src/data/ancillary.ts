@@ -2,10 +2,12 @@
 // home entertainment & digital, television/streaming licensing, merchandising,
 // and the long-tail catalogue. See docs/DESIGN_REVIEW_studio_financial_model.md.
 //
-// This is Stage 1 of that design: the numbers below feed a *derived, inert*
-// profile (engine/ancillary.ts) that computes a film's post-theatrical potential
-// on demand from attributes it already carries - no cash is credited, no state
-// is stored. Rebalancing the whole system is meant to happen here and in the
+// The numbers below feed a derived profile (engine/ancillary.ts) that computes a
+// film's post-theatrical potential on demand from attributes it already carries.
+// The profile itself credits no cash and stores no state, but the revenue is
+// real and paid - state/ancillarySettlement.ts materialises it into dated
+// payouts for the player and credits a rival's afterlife as a lump.
+// Rebalancing the whole system is meant to happen here and in the
 // constants at the top of engine/ancillary.ts, never by threading magic numbers
 // through logic (CLAUDE.md "Conventions worth keeping").
 import type { Genre } from '../types';
@@ -44,12 +46,31 @@ export const GENRE_ANCILLARY: Record<Genre, GenreAncillaryProfile> = {
  * differentiating; keep these low so the median film's afterlife stays modest
  * and only the right films print (the §3.7 calibration invariant). catalogue is
  * a *per-surviving-year* rate, not a one-shot.
+ *
+ * All four scaled by 0.41 against the ratified whole-P&L calibration
+ * (docs/DESIGN_box_office_calibration_targets_v2_draft.md §5). These rates were
+ * calibrated once before, against per-archetype ratios chosen by judgment; the
+ * measured result was post-theatrical revenue worth **109% of theatrical
+ * rentals** across the field, where the real figure from the four worked studio
+ * P&Ls in docs/domain/11-money-accounting-and-participations.md §6.1 is 32-50%
+ * (0.37 micro-budget horror, 0.45 mid-budget comedy, 0.73 prestige - flagged
+ * there as "unusually high" - and 0.32 animated family, 0.52 counting consumer
+ * products). Home entertainment alone was running at 50% of rentals and
+ * licensing at another 42%, when in reality the two TOGETHER are most of the
+ * downstream.
+ *
+ * Scaled UNIFORMLY on purpose: it is the level that was wrong, not the shape.
+ * The genre and attribute multipliers keep every relative difference they had,
+ * which is what the ratified target requires ("a flat rate would itself be
+ * wrong" - family and animation genuinely do earn a larger downstream share).
  */
+const POST_THEATRICAL_RECALIBRATION = 0.41;
+
 export const WINDOW_BASE_RATES = {
-  homeEntertainment: 0.125,
-  licensing: 0.15,
-  merchandising: 0.017,
-  catalogueAnnual: 0.007,
+  homeEntertainment: 0.125 * POST_THEATRICAL_RECALIBRATION,
+  licensing: 0.15 * POST_THEATRICAL_RECALIBRATION,
+  merchandising: 0.017 * POST_THEATRICAL_RECALIBRATION,
+  catalogueAnnual: 0.007 * POST_THEATRICAL_RECALIBRATION,
 } as const;
 
 /**

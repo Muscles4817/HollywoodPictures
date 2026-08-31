@@ -4,12 +4,33 @@ import { deriveBackendOffers, buildBackendLiabilities } from './backend';
 import { STUDIO_BOX_OFFICE_SHARE } from './boxOfficeRun';
 import type { Person } from '../types';
 
-// Stage 6 calibration (docs/DESIGN_REVIEW_studio_financial_model.md §3.7). Encodes
-// the whole-lifetime ancillary bands the data in data/ancillary.ts is tuned to,
-// as ratios of lifetime ancillary to theatrical rentals (0.42 * gross), across a
-// spread of representative films. These are a regression fence around the
-// calibration - a data change that moves an archetype out of band should trip
-// here, on purpose.
+// Encodes the whole-lifetime ancillary bands the data in data/ancillary.ts is
+// tuned to, as ratios of lifetime ancillary to theatrical rentals, across a
+// spread of representative films. A regression fence around the calibration - a
+// data change that moves an archetype out of band should trip here, on purpose.
+//
+// Every band below was restated against the ratified whole-P&L calibration
+// (docs/DESIGN_box_office_calibration_targets_v2_draft.md §5), which puts
+// post-theatrical revenue at 35-55% of theatrical rentals field-wide. The
+// original §3.7 bands (blockbuster 1.8-2.5x, broad hit 1.0-1.6x, typical
+// 0.45-1.0x, prestige 0.4-0.65x) were chosen by judgment before any real
+// reference was to hand, and measured 109% of rentals across the field. The four
+// worked studio P&Ls in docs/domain/11-money-accounting-and-participations.md
+// §6.1 put the real figure at 0.37 (micro-budget horror), 0.45 (mid-budget
+// comedy), 0.73 (prestige, flagged there as "unusually high share: TV and
+// library") and 0.32 rising to 0.52 counting consumer products (animated
+// family), with §5.2's greenlight model at 0.50.
+//
+// Two things about that reference are worth stating, because the bands below
+// only correct one of them. The LEVEL was 2-3x too high, and is now right. The
+// ORDERING is still the model's own: it ranks a merch-franchise blockbuster
+// highest and a prestige drama lowest, where the reference cases run the other
+// way round - a prestige film's downstream is a larger multiple of a small
+// theatrical take, and a blockbuster's is a smaller multiple of a huge one.
+// Correcting that is a reshaping of the multiplier weights, not a rescale, and
+// was deliberately NOT smuggled into a pass whose ratified mandate was the
+// aggregate ratio ("a flat rate would itself be wrong" - the genre variation is
+// meant to survive). It is the open question filed against §5.
 
 type Archetype = { name: string; attrs: AncillaryAttributes; gross: number };
 
@@ -33,32 +54,37 @@ function lifetime(a: Archetype): number {
 }
 
 describe('ancillary calibration — §3.7 lifetime bands', () => {
-  it('a merch-franchise blockbuster clears well above its theatrical rentals', () => {
-    // The headline fix: a big film that can look like a theatrical loss is
-    // comfortably profitable over its life.
-    expect(ratio(BLOCKBUSTER)).toBeGreaterThanOrEqual(1.8);
-    expect(ratio(BLOCKBUSTER)).toBeLessThanOrEqual(2.5);
+  it('a merch-franchise blockbuster earns the largest downstream share on the slate', () => {
+    // Still the model's top archetype, but no longer at "clears well above its
+    // theatrical rentals": docs/domain/11 §6.1D's animated family franchise -
+    // the closest real analogue - earns 0.32x its rentals downstream, 0.52x
+    // counting consumer products, and it is described there as a large success.
+    expect(ratio(BLOCKBUSTER)).toBeGreaterThanOrEqual(0.7);
+    expect(ratio(BLOCKBUSTER)).toBeLessThanOrEqual(1.05);
   });
 
-  it('a broad four-quadrant hit lands around theatrical rentals, well below the blockbuster', () => {
-    expect(ratio(BROAD_HIT)).toBeGreaterThanOrEqual(1.0);
-    expect(ratio(BROAD_HIT)).toBeLessThanOrEqual(1.6);
+  it('a broad four-quadrant hit lands around half its theatrical rentals, well below the blockbuster', () => {
+    expect(ratio(BROAD_HIT)).toBeGreaterThanOrEqual(0.38);
+    expect(ratio(BROAD_HIT)).toBeLessThanOrEqual(0.66);
   });
 
   it('keeps the median film modest — the afterlife is a fraction of theatrical', () => {
-    expect(ratio(TYPICAL)).toBeGreaterThanOrEqual(0.45);
-    expect(ratio(TYPICAL)).toBeLessThanOrEqual(1.0);
+    expect(ratio(TYPICAL)).toBeGreaterThanOrEqual(0.18);
+    expect(ratio(TYPICAL)).toBeLessThanOrEqual(0.41);
   });
 
   it('makes a prestige drama earn downstream but modestly — no merch, licensing + tail', () => {
-    expect(ratio(DRAMA)).toBeGreaterThanOrEqual(0.4);
-    expect(ratio(DRAMA)).toBeLessThanOrEqual(0.65);
+    expect(ratio(DRAMA)).toBeGreaterThanOrEqual(0.16);
+    expect(ratio(DRAMA)).toBeLessThanOrEqual(0.28);
   });
 
   it('never lets ancillary rescue a flop — the absolute afterlife stays negligible', () => {
-    // A $35M film returns ~$14.7M in rentals; its whole afterlife is a few $M,
-    // nowhere near enough to turn a real production+marketing loss around.
-    expect(lifetime(FLOP)).toBeLessThan(15_000_000);
+    // A $35M film returns ~$16M in rentals; its whole afterlife is a few $M,
+    // nowhere near enough to turn a real production+marketing loss around. Now
+    // ~$2.5M rather than ~$6M, the whole system having been scaled to the
+    // ratified post-theatrical ratio - the invariant this asserts is unchanged
+    // and further from the line than it was.
+    expect(lifetime(FLOP)).toBeLessThan(6_000_000);
     expect(ratio(FLOP)).toBeLessThan(ratio(TYPICAL));
   });
 

@@ -107,7 +107,7 @@ export const MARKETING_SPEND_RANGE: Range = { min: 10_000, max: 150_000_000 };
  * wide campaign should be doing instead.
  */
 export const MINIMUM_CAMPAIGN_SPEND: Record<ReleaseType, number> = {
-  Wide: 18_000_000,
+  Wide: 22_000_000,
   Limited: 0,
   'Festival First': 0,
 };
