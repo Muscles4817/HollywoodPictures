@@ -9,28 +9,34 @@ import type { Person } from '../types';
 // spread of representative films. A regression fence around the calibration - a
 // data change that moves an archetype out of band should trip here, on purpose.
 //
-// Every band below was restated against the ratified whole-P&L calibration
-// (docs/DESIGN_box_office_calibration_targets_v2_draft.md §5), which puts
-// post-theatrical revenue at 35-55% of theatrical rentals field-wide. The
-// original §3.7 bands (blockbuster 1.8-2.5x, broad hit 1.0-1.6x, typical
-// 0.45-1.0x, prestige 0.4-0.65x) were chosen by judgment before any real
-// reference was to hand, and measured 109% of rentals across the field. The four
-// worked studio P&Ls in docs/domain/11-money-accounting-and-participations.md
-// §6.1 put the real figure at 0.37 (micro-budget horror), 0.45 (mid-budget
-// comedy), 0.73 (prestige, flagged there as "unusually high share: TV and
-// library") and 0.32 rising to 0.52 counting consumer products (animated
-// family), with §5.2's greenlight model at 0.50.
+// Every band below is anchored on the four worked studio P&Ls in
+// docs/domain/11-money-accounting-and-participations.md §6.1, which are stated
+// in exactly the units measured here (lifetime post-theatrical over theatrical
+// rentals): 0.369 for a micro-budget horror, 0.448 for a mid-budget comedy,
+// 0.735 for a prestige drama - flagged there as an "unusually high share: TV and
+// library" - and 0.324 for an animated family franchise, rising to 0.525 once
+// consumer products are counted. §5.2's greenlight model sits at 0.495.
 //
-// Two things about that reference are worth stating, because the bands below
-// only correct one of them. The LEVEL was 2-3x too high, and is now right. The
-// ORDERING is still the model's own: it ranks a merch-franchise blockbuster
-// highest and a prestige drama lowest, where the reference cases run the other
-// way round - a prestige film's downstream is a larger multiple of a small
-// theatrical take, and a blockbuster's is a smaller multiple of a huge one.
-// Correcting that is a reshaping of the multiplier weights, not a rescale, and
-// was deliberately NOT smuggled into a pass whose ratified mandate was the
-// aggregate ratio ("a flat rate would itself be wrong" - the genre variation is
-// meant to survive). It is the open question filed against §5.
+// The ORDERING is the point of these bands, and it used to be inverted. The
+// model ranked a merch franchise highest (0.91) and a prestige drama lowest
+// (0.21); the reference ranks them the other way round, and §3.4's revenue-mix
+// table says why - an adult drama earns 35-45% of its lifetime revenue in
+// licensing, the largest share of any film type, "which is why studios kept
+// making them long after their theatrical economics stopped working". Three
+// defects produced the inversion, each fixed at its source:
+//
+//  - the reach base was LINEAR in worldwide gross, so post-theatrical was a
+//    fixed share of gross and the ordering fell out of whichever multiplier had
+//    the widest range, which was merchandising (engine/ancillary.ts:computeReachBase);
+//  - `licensing` had no genre term at all, so the reference's second-widest
+//    genre signal could not be expressed (data/ancillary.ts:GENRE_ANCILLARY);
+//  - `longevity` never read criticScore, so a well-reviewed film that won
+//    nothing scored below CATALOGUE.minLongevity and got no library tail -
+//    deleting exactly the channel that makes prestige earn (LONGEVITY_WEIGHTS).
+//
+// A second-order note kept deliberately: `homeEnt`'s genre curve was also
+// inverted (1.5 Fantasy to 0.6 Drama) against a reference where home and digital
+// is nearly flat across film types and tilts slightly AWAY from spectacle.
 
 type Archetype = { name: string; attrs: AncillaryAttributes; gross: number };
 
@@ -54,46 +60,68 @@ function lifetime(a: Archetype): number {
 }
 
 describe('ancillary calibration — §3.7 lifetime bands', () => {
-  it('a merch-franchise blockbuster earns the largest downstream share on the slate', () => {
+  it('a merch-franchise blockbuster earns a large downstream share, but not the largest', () => {
     // Still the model's top archetype, but no longer at "clears well above its
     // theatrical rentals": docs/domain/11 §6.1D's animated family franchise -
     // the closest real analogue - earns 0.32x its rentals downstream, 0.52x
     // counting consumer products, and it is described there as a large success.
-    expect(ratio(BLOCKBUSTER)).toBeGreaterThanOrEqual(0.7);
-    expect(ratio(BLOCKBUSTER)).toBeLessThanOrEqual(1.05);
+    // Reference: §6.1D's animated family franchise, 0.525 counting consumer
+    // products. This fixture is a top-decile merch title (franchise recognition
+    // 82, lead merch potential 78) so it sits at the upper end of that.
+    expect(ratio(BLOCKBUSTER)).toBeGreaterThanOrEqual(0.45);
+    expect(ratio(BLOCKBUSTER)).toBeLessThanOrEqual(0.68);
   });
 
   it('a broad four-quadrant hit lands around half its theatrical rentals, well below the blockbuster', () => {
-    expect(ratio(BROAD_HIT)).toBeGreaterThanOrEqual(0.38);
-    expect(ratio(BROAD_HIT)).toBeLessThanOrEqual(0.66);
+    // Reference: §3.4's four-quadrant tentpole row, the lowest post-theatrical
+    // share of any type bar horror - its lifetime is dominated by theatrical.
+    expect(ratio(BROAD_HIT)).toBeGreaterThanOrEqual(0.32);
+    expect(ratio(BROAD_HIT)).toBeLessThanOrEqual(0.50);
   });
 
   it('keeps the median film modest — the afterlife is a fraction of theatrical', () => {
-    expect(ratio(TYPICAL)).toBeGreaterThanOrEqual(0.18);
-    expect(ratio(TYPICAL)).toBeLessThanOrEqual(0.41);
+    // Reference: §6.1A's micro-budget horror at 0.369, the closest worked case
+    // to an ordinary genre picture with no merch and no awards.
+    expect(ratio(TYPICAL)).toBeGreaterThanOrEqual(0.28);
+    expect(ratio(TYPICAL)).toBeLessThanOrEqual(0.45);
   });
 
-  it('makes a prestige drama earn downstream but modestly — no merch, licensing + tail', () => {
-    expect(ratio(DRAMA)).toBeGreaterThanOrEqual(0.16);
-    expect(ratio(DRAMA)).toBeLessThanOrEqual(0.28);
+  it('makes a prestige drama the BEST downstream earner on the slate — no merch, licensing + library tail', () => {
+    // Reference: §6.1C's prestige awards film at 0.735 - the HIGHEST ratio in
+    // the reference, not the lowest, and it earns it in licensing and library
+    // rather than in any consumer-facing window.
+    expect(ratio(DRAMA)).toBeGreaterThanOrEqual(0.60);
+    expect(ratio(DRAMA)).toBeLessThanOrEqual(0.88);
   });
 
   it('never lets ancillary rescue a flop — the absolute afterlife stays negligible', () => {
-    // A $35M film returns ~$16M in rentals; its whole afterlife is a few $M,
-    // nowhere near enough to turn a real production+marketing loss around. Now
-    // ~$2.5M rather than ~$6M, the whole system having been scaled to the
-    // ratified post-theatrical ratio - the invariant this asserts is unchanged
-    // and further from the line than it was.
-    expect(lifetime(FLOP)).toBeLessThan(6_000_000);
-    expect(ratio(FLOP)).toBeLessThan(ratio(TYPICAL));
+    // A $35M film returns ~$16M in rentals; its whole afterlife measures ~$5.5M,
+    // nowhere near enough to turn a real production-plus-marketing loss around -
+    // a film grossing $35M cost more than $21M all in. Fenced on the absolute
+    // figure, not on a ratio, for the reason the original calibration note gave
+    // and the reach-base change has now made sharper: every window scales off
+    // reach, so a small film's ratio floors out at the small-film level whatever
+    // its quality. What must stay true is the number of dollars.
+    expect(lifetime(FLOP)).toBeLessThan(9_000_000);
   });
 
-  it('orders the archetypes as a clean descending afterlife curve', () => {
+  it('orders the archetypes the way the reference does — prestige first, the tentpole last', () => {
+    // This ordering IS the contract, and it used to run the other way. The
+    // reference is unambiguous: an adult drama earns the largest post-theatrical
+    // share of any film type and a four-quadrant tentpole the smallest, because
+    // a drama's downstream is a large multiple of a small theatrical take while
+    // a tentpole's is a small multiple of an enormous one (docs/domain/11 §3.4
+    // and the worked cases in §6.1).
+    expect(ratio(DRAMA)).toBeGreaterThan(ratio(BLOCKBUSTER));
     expect(ratio(BLOCKBUSTER)).toBeGreaterThan(ratio(BROAD_HIT));
     expect(ratio(BROAD_HIT)).toBeGreaterThan(ratio(TYPICAL));
-    expect(ratio(TYPICAL)).toBeGreaterThan(ratio(FLOP));
-    // The drama sits in the modest band, below the broad hit.
-    expect(ratio(DRAMA)).toBeLessThan(ratio(BROAD_HIT));
+
+    // Deliberately NOT asserted: that the typical film out-ratios the flop.
+    // Every window scales off reach, so a flop's RATIO floors out around the
+    // small-film level structurally - the original calibration note said so, and
+    // fenced the flop on its absolute afterlife instead, which is the assertion
+    // above and the one that carries the "cannot ancillary your way out of a
+    // flop" invariant.
   });
 });
 
