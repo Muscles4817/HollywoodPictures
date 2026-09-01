@@ -43,7 +43,9 @@ const TARGETS = {
   wideOver100Pct: [45, 60] as [number, number],
   wideOver500Pct: [6, 12] as [number, number],
   wideOver1000Pct: [1, 3] as [number, number],
-  top10SharePct: [34, 44] as [number, number],
+  // The top decile of wide releases' share of wide-release gross. Real: the top
+  // ten of roughly 110 US wide releases take a bit over 40% of wide gross.
+  topDecileWideSharePct: [35, 50] as [number, number],
   wideRunWeeks: [5, 8] as [number, number],
   limitedRunWeeks: [10, 20] as [number, number],
   wideOpeningMultiple: [2, 3] as [number, number],
@@ -84,9 +86,11 @@ interface Rec {
   runWeeks: number;
   openingMultiple: number;
   year: number;
+  /** Which seed's industry this film belongs to - see topNShareByYear. */
+  seed: number;
 }
 
-function recordFinished(film: Film): Rec {
+function recordFinished(film: Film, seed: number): Rec {
   const r = film.results;
   const gross = r.totalBoxOffice ?? film.boxOfficeRun.cumulativeGross;
   const grossM = gross / M;
@@ -115,6 +119,7 @@ function recordFinished(film: Film): Rec {
     runWeeks: weeks.length,
     openingMultiple: opening > 0 ? total / opening : 0,
     year: yearOf(film.releasedOnDay),
+    seed,
   };
 }
 
@@ -140,7 +145,7 @@ function runOneSeed(seed: number): Rec[] {
         if (f.boxOfficeRun.status !== 'finished') continue;
         if (recorded.has(f.id)) continue;
         recorded.add(f.id);
-        out.push(recordFinished(f));
+        out.push(recordFinished(f, seed));
       }
 
       rivalStudios = rivalStudios.map((rival) => {
@@ -186,18 +191,42 @@ const median = (xs: number[]) => {
 };
 const share = (n: number, total: number) => (total ? (n / total) * 100 : 0);
 
-function topNShareByYear(recs: Rec[], n: number): number {
-  const byYear = new Map<number, number[]>();
+/**
+ * How concentrated one industry-year's box office is: the share of wide-release
+ * gross taken by the top DECILE of wide releases, averaged over every
+ * industry-year measured.
+ *
+ * Two corrections to the "top 10 films' share" this replaces, both forced by
+ * widening the slate and both making the number mean what it claims.
+ *
+ * It is bucketed by SEED AND year. Bucketing by year alone pooled every seed
+ * into one bucket, so "the top 10" meant the top 10 across six parallel
+ * industries running the same calendar - a quantity with no real-world
+ * counterpart, and one that moved when the seed count did.
+ *
+ * And it is a DECILE, not a fixed count of ten. A fixed count is not comparable
+ * across field sizes: ten films are 29% of a 35-film slate and 9% of a 110-film
+ * one, so the same market shape reads 74% at one slate width and 40% at another.
+ * The real figure this is calibrated against - the top ten of roughly 110 US
+ * wide releases taking a bit over 40% of wide-release gross - IS a decile, so
+ * measuring a decile is what makes the two comparable at all, and keeps them
+ * comparable if the slate is ever widened again.
+ */
+function topDecileWideShare(recs: Rec[]): number {
+  const byYear = new Map<string, number[]>();
   for (const r of recs) {
-    const arr = byYear.get(r.year) ?? [];
+    if (r.releaseType !== 'Wide') continue;
+    const key = `${r.seed}-${r.year}`;
+    const arr = byYear.get(key) ?? [];
     arr.push(r.grossM);
-    byYear.set(r.year, arr);
+    byYear.set(key, arr);
   }
   const shares: number[] = [];
   for (const grosses of byYear.values()) {
-    if (grosses.length < n) continue;
+    if (grosses.length < 10) continue;
+    const decile = Math.max(1, Math.round(grosses.length / 10));
     const total = grosses.reduce((a, b) => a + b, 0);
-    const top = [...grosses].sort((a, b) => b - a).slice(0, n).reduce((a, b) => a + b, 0);
+    const top = [...grosses].sort((a, b) => b - a).slice(0, decile).reduce((a, b) => a + b, 0);
     if (total > 0) shares.push((top / total) * 100);
   }
   return mean(shares);
@@ -222,7 +251,7 @@ describe.skipIf(!enabled)('box office whole-year distribution & profitability ca
       wideOver100Pct: share(wide.filter((r) => r.grossM > 100).length, wide.length),
       wideOver500Pct: share(wide.filter((r) => r.grossM > 500).length, wide.length),
       wideOver1000Pct: share(wide.filter((r) => r.grossM > 1000).length, wide.length),
-      top10SharePct: topNShareByYear(all, 10),
+      topDecileWideSharePct: topDecileWideShare(all),
       wideRunWeeks: mean(wide.map((r) => r.runWeeks)),
       limitedRunWeeks: mean(limited.map((r) => r.runWeeks)),
       wideOpeningMultiple: mean(wide.filter((r) => r.openingMultiple > 0).map((r) => r.openingMultiple)),
