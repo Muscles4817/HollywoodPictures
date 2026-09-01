@@ -297,8 +297,9 @@ internally consistent.
 | Wide unprofitable | 15.8% | **40.5%** | 40-52 ✅ |
 | Top-10 annual share | 32.2% | **39.5%** | 34-44 ✅ |
 
-Aggregate harness 13/17 against the ratified bands, from 11/17 against the old
-ones on the wrong P&L.
+Aggregate harness 12/17 against the ratified bands, from 11/17 against the old
+ones on the wrong P&L. The four still open are `wideOver100Pct` (63.7 against
+45-60) and the three §9.3 discusses.
 
 Two changes beyond §7's list, both forced by measurement and both evidenced:
 
