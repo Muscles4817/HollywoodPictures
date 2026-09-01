@@ -714,11 +714,22 @@ the reservation — the first version of that assertion passed with the height
 deleted, because `line-height` contains the string `height:`, which is what
 mutation-testing it caught.
 
-**§12's logo-builder question is re-scoped rather than answered.** It assumed a
-studio-logo feature (there is none in the code) and a save-selection poster wall
-(a §6 proposal, not a built screen — Phase 4 shipped a different object). The
-live question is upstream: does the studio need a *mark* beyond its name? The
-wordmark now on the one-sheet is the first evidence, and it reads.
+**§12's logo question is answered, conditionally: no mark beyond the name.** It
+was first re-scoped — it assumed a studio-logo feature (there is none in the
+code) and a save-selection poster wall (a §6 proposal, not a built screen; Phase
+4 shipped a different object) — and then closed on the upstream question it
+should have been asking. Three reasons, argued in full at §12: the identity
+already renders on all three surfaces that carry it; "which studio is mine" is
+already answered by state marking rather than identity (`--primary` on the
+player's title in the trade panel, a `Your Film` badge in the calendar), so a
+mark would encode the same fact twice; and an unbounded player-chosen name
+leaves a generated mark nothing but initials, a device this game already spends
+twice.
+
+The condition: if §6's save-selection poster wall is ever built, this reopens.
+That is the one screen where saves appear as equals with no distinguishing
+state — no "yours" badge, because they are all yours — and several of them
+differing only by a name in the same typeface is a weak read.
 
 **Closed, not built:** the spine wordmark was considered for the same tiering and
 left alone — it is already the display face at 800 weight and 0.2em tracking, so
@@ -782,3 +793,4 @@ the same line:
 | 2026-08-31 | Phase 6 first pass landed. The frame goes where a page is *about* a person, never on a scanning table or a decision surface — a plate on every row of a 60-row table costs the density that makes the table work. |
 | 2026-08-31 | Studio progression is weight, rule and face — never hue. A size is not a state, so the accent stays out of the letterhead, and `designSystem.test.ts` enforces it rather than review remembering it. |
 | 2026-08-31 | The one-sheet credits its studio. Placed against a reserved height rather than a rendered one, because the studio name is player-chosen and a layout that only works for the default name is not a layout. |
+| 2026-08-31 | No studio mark beyond the name, conditional on the save-selection poster wall never being built. A mark would re-encode a distinction the game already makes with state, and the only non-initials route to one is a builder. |
