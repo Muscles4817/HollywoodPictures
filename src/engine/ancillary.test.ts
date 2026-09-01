@@ -206,11 +206,24 @@ describe('ancillaryOutlook — qualitative, pre-release', () => {
     const o = ancillaryOutlook(deriveAncillaryMultipliers(OSCAR_DRAMA));
     expect(o.merchandising).toBe('negligible');
     expect(o.headline.toLowerCase()).not.toContain('merchandising');
-    // Its money is downstream: a strong TV & streaming licensing window, named
+    // Its money is downstream: a top-band TV & streaming licensing window, named
     // in the headline, plus a durable (at least moderate) catalogue tail.
-    expect(o.licensing).toBe('strong');
+    //
+    // Reads 'exceptional' rather than 'strong' since licensing gained a genre
+    // term (data/ancillary.ts:GENRE_ANCILLARY) - docs/domain/11 §3.4 puts an
+    // adult drama's licensing at 35-45% of lifetime revenue, the largest share
+    // of any film type, and this fixture is an awarded one on top. Accepting
+    // either keeps the assertion about what it was always about (a drama's money
+    // is in licensing) without pinning the exact adjective; the tier vocabulary
+    // is checked for spread below rather than by this one film.
+    expect(['strong', 'exceptional']).toContain(o.licensing);
     expect(o.headline.toLowerCase()).toContain('tv & streaming');
     expect(['moderate', 'strong', 'exceptional']).toContain(o.catalogue);
+
+    // ...and the band still discriminates: an ordinary mainstream picture, whose
+    // downstream is genuinely unremarkable, must not read the same way.
+    const mainstream = ancillaryOutlook(deriveAncillaryMultipliers(attrs({ genre: 'Action', audienceScore: 62, criticScore: 58, accessibility: 65 })));
+    expect(['negligible', 'limited', 'moderate']).toContain(mainstream.licensing);
   });
 
   it('tells a film with no downstream potential that it lives or dies in cinemas', () => {

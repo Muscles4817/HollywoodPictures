@@ -184,6 +184,10 @@ Note the shape as well as the level: domain/11 §6.1D is explicit that family an
 animation earn a much larger downstream share than live action, so a flat rate
 would itself be wrong.
 
+> **Resolved (§11).** The level was corrected first and the archetype *ordering*
+> filed as an open question; that question is now closed, and the ordering
+> corrected at its three sources.
+
 ---
 
 ## 6. Proposed §3 amendments — whole-year
@@ -428,3 +432,87 @@ never the coupled quantity; the funnel's own shape was.
   does not exist, and a no-op field documented as load-bearing is worse than no
   field. The mechanism above is the durable part; recorded here so the
   denominator is not re-attempted a third time.
+
+
+---
+
+## 11. The archetype ordering — closed
+
+§5 ratified the post-theatrical *level* and deliberately left the *ordering*
+open: the model ranked a merch franchise highest and a prestige drama lowest,
+where `docs/domain/11-money-accounting-and-participations.md` ranks them the
+other way round. Correcting a level is a rescale; correcting an ordering is a
+reshaping, and it was not what §5 asked for. It is now done.
+
+### 11.1 The target
+
+§6.1's four worked P&Ls are stated in exactly the units the model measures —
+lifetime post-theatrical over theatrical rentals — and §3.4's revenue-mix table
+gives the window composition. Both agree on the ordering, and closely on the
+spacing once normalised.
+
+| archetype | reference | before | **after** |
+|---|--:|--:|--:|
+| Prestige drama | 0.735 | 0.214 | **0.759** |
+| Merch franchise | 0.525 | 0.905 | **0.593** |
+| Four-quadrant tentpole | ~0.40 | 0.459 | **0.404** |
+| Typical wide / horror | 0.369 | 0.242 | **0.365** |
+
+Field-wide post-theatrical stays at 38% of rentals, inside the ratified 35-55%
+band, and the "cannot ancillary your way out of a flop" invariant holds on the
+absolute figure it was always fenced on.
+
+### 11.2 Three defects, each fixed at its source
+
+**The reach base was linear in worldwide gross.** Post-theatrical was therefore
+a fixed share of gross, the ratio to rentals was decided entirely by the
+multipliers, and merchandising - the one multiplier with a wide range - dictated
+the ordering. It is now concave (`REACH_BASE.grossExponent`), which is what the
+reference describes: §3.1 prices the premium SVOD window as "a fixed licence
+fee", pay-TV and free-TV as recurring and "small per-run" fees, and §3.3 prices
+library packages on "hours, title recognition, and genre mix rather than on any
+individual film". A film that grossed ten times more gets a bigger licence fee,
+not a tenfold one.
+
+**Licensing had no genre term at all.** §3.4's licensing column is the reference's
+second-widest genre signal after consumer products - 15-20% of lifetime revenue
+for a tentpole or an animated family franchise against 35-45% for an adult drama
+- and the model could not express it. `GENRE_ANCILLARY` gains a `licensing`
+weight. The formula's own weighting was also backwards: it scaled hard on
+accessibility, reading a narrow film as a weak licensing asset, when television
+and library buyers want title recognition and critical standing. Accessibility's
+weight is cut and criticScore's roughly doubled.
+
+**Longevity never read criticScore.** It was dominated by `awards`, so a
+well-reviewed film that won nothing scored below `CATALOGUE.minLongevity` and
+got *no library tail at all* - deleting precisely the channel the reference says
+prestige earns in. `LONGEVITY_WEIGHTS` gains `criticalStanding`, and the floor
+comes down. The reference does not say awards; it says "library value is why
+loss-making prestige films still get made".
+
+A fourth, second-order: `homeEnt`'s genre curve ran 1.5 for Fantasy down to 0.6
+for Drama, against a reference where home and digital is nearly flat across film
+types (10-15% of lifetime for tentpoles and family, 15-20% for horror, comedy
+and prestige) and tilts slightly *away* from spectacle. Corrected.
+
+### 11.3 What it costs
+
+`wideUnprofitablePct` (40.5 -> 36.8) and `lossPct` (31.2 -> 28.3) both fall just
+below their bands, taking the aggregate harness from 12/17 to 10/17.
+
+This is not a tuning slip, it is the correction working. Making downstream
+revenue concave in gross moves post-theatrical money from the biggest films to
+the smallest, which is what the reference says happens - and this game's wide
+slate skews small, so the field gets more profitable at the bottom. The small
+tier's median return rises 1.26x -> 1.43x, still inside its ratified 1.1-2.4
+band; its unprofitable share falls to 31%.
+
+Two ratified statements are in genuine tension here, and it is worth naming
+rather than tuning away: the reference says both that **cheap films earn the
+highest post-theatrical multiple** (§5.4's "the small film is the best return on
+capital") and that **roughly half of wide releases fail to recoup**. Those
+coexist in a real market with a far larger and more varied slate than this one.
+In a field of ~8 wide releases per year skewed small, honouring the first makes
+the second harder. Lowering the post-theatrical level to compensate was tried
+and rejected: it takes the field to 34%, below the ratified floor, and still
+does not recover the bands.

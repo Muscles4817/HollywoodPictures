@@ -41,14 +41,27 @@ import { clamp } from './random';
 
 const AWARDS = { winWeight: 0.25, nominationWeight: 0.05 } as const;
 
+// What gives a film a library life. `criticalStanding` was missing entirely, and
+// its absence is why a prestige drama earned the SMALLEST post-theatrical share
+// on the slate when the reference says it should earn the largest: longevity was
+// dominated by `awards`, so a well-reviewed film that won nothing scored below
+// CATALOGUE.minLongevity and got no catalogue tail at all. The reference does not
+// say awards - it says "library value is why loss-making prestige films still get
+// made" (docs/domain/11-money-accounting-and-participations.md §3), and §3.3
+// prices library packages on "hours, title recognition, and genre mix". A film
+// with a critical reputation has all three whether or not it was nominated.
 const LONGEVITY_WEIGHTS = {
-  awards: 0.4,
-  belovedAudience: 0.25, // share of how far audienceScore clears the "beloved" line (75)
-  franchise: 0.15,
-  genreBias: 0.1,
+  awards: 0.3,
+  criticalStanding: 0.25, // how far criticScore clears the "well-regarded" line (60)
+  belovedAudience: 0.2, // share of how far audienceScore clears the "beloved" line (75)
+  franchise: 0.12,
+  genreBias: 0.13,
   holidayFamily: 0.1,
   cultBonus: 0.15, // additive, on top of the weighted sum
 } as const;
+
+/** The critic line above which a film starts reading as a library title rather than a disposable one. */
+const WELL_REGARDED_CRITIC_FLOOR = 60;
 
 const BELOVED_AUDIENCE_FLOOR = 75; // audienceScore above which a film reads as "beloved"
 const CULT = { originalityFloor: 70, accessibilityCeiling: 45, audienceFloor: 65 } as const;
@@ -168,13 +181,29 @@ export function deriveAncillaryMultipliers(a: AncillaryAttributes): AncillaryMul
     MULT_CLAMP.max,
   );
 
+  // Now genre-weighted, which it never was. docs/domain/11 §3.4's licensing
+  // column is the second-widest genre signal in the reference after consumer
+  // products - 15-20% of lifetime revenue for a four-quadrant tentpole or an
+  // animated family franchise against 35-45% for an adult drama - and the model
+  // had no way to express it, which left the whole ordering resting on
+  // merchandising and on how big the film was.
+  //
+  // Accessibility's weight cut and criticScore's roughly doubled. Licensing is
+  // the TV, streaming and library channel, and the reference is explicit that it
+  // is not an accessibility question: an adult drama earns 35-45% of its lifetime
+  // revenue here (docs/domain/11 §3.4, the largest licensing share of any film
+  // type) precisely because television and library buyers want title recognition
+  // and critical standing, which is exactly what a narrow, well-reviewed film
+  // has. The old weighting read a low-accessibility film as a weak licensing
+  // asset and produced the opposite of the reference ordering.
   const licensing = clamp(
-    (0.5 + 0.7 * access) *
-      (0.55 + 0.8 * aud) *
-      (0.85 + 0.3 * crit) *
+    genre.licensing *
+      (0.75 + 0.3 * access) *
+      (0.6 + 0.7 * aud) *
+      (0.7 + 0.6 * crit) *
       (0.9 + 0.3 * fr) *
       (1 + lift) *
-      (0.95 + 0.1 * prestige),
+      (0.9 + 0.2 * prestige),
     MULT_CLAMP.min,
     MULT_CLAMP.max,
   );
@@ -187,6 +216,7 @@ export function deriveAncillaryMultipliers(a: AncillaryAttributes): AncillaryMul
 
   const longevity = clamp(
     LONGEVITY_WEIGHTS.awards * lift +
+      LONGEVITY_WEIGHTS.criticalStanding * clamp((crit - WELL_REGARDED_CRITIC_FLOOR / 100) / (1 - WELL_REGARDED_CRITIC_FLOOR / 100), 0, 1) +
       LONGEVITY_WEIGHTS.belovedAudience * clamp((aud - BELOVED_AUDIENCE_FLOOR / 100) / (1 - BELOVED_AUDIENCE_FLOOR / 100), 0, 1) +
       LONGEVITY_WEIGHTS.franchise * fr +
       LONGEVITY_WEIGHTS.genreBias * genre.catalogueBias +
@@ -218,9 +248,40 @@ function catalogueFromLongevity(reachBase: number, longevity: number): Ancillary
  * pre-release to get a pure potential read (all dollar figures 0, multipliers
  * still meaningful). Derived on demand, never stored.
  */
+/**
+ * How much post-theatrical value a film's theatrical performance establishes -
+ * CONCAVE in worldwide gross, not proportional to it.
+ *
+ * This is the single largest reason the model had the reference ordering
+ * backwards. A linear reach base makes every window a fixed share of gross, so
+ * post-theatrical revenue as a multiple of theatrical rentals is decided purely
+ * by the genre and attribute multipliers - and merchandising, the one multiplier
+ * with a wide range, then dictates the ordering. Measured, that put a merch
+ * franchise at 0.91x its rentals and a prestige drama at 0.21x, against a
+ * reference of 0.53x and 0.74x respectively (docs/domain/11 §6.1).
+ *
+ * The real windows do not scale with gross. §3.1 prices the premium SVOD window
+ * as "a fixed licence fee", pay-TV and free-TV as recurring and "small per-run"
+ * fees, and §3.3 prices library packages on "hours, title recognition, and genre
+ * mix rather than on any individual film". A film that grossed ten times more
+ * does not get ten times the licence fee; it gets a bigger one. So downstream
+ * value rises with theatrical performance and flattens, which is what makes the
+ * ratio fall as films get bigger - exactly the reference's shape.
+ *
+ * Anchored at REACH_BASE.referenceGross so the median wide release is left where
+ * it was and the field-wide ratio stays inside its ratified 35-55% band
+ * (docs/DESIGN_box_office_calibration_targets_v2_draft.md §5); the exponent
+ * redistributes around that anchor rather than moving the level.
+ */
+function computeReachBase(worldwideGross: number, audienceScore: number): number {
+  const gross = Math.max(0, worldwideGross);
+  const scaled = REACH_BASE.referenceGross * Math.pow(gross / REACH_BASE.referenceGross, REACH_BASE.grossExponent);
+  return scaled * (REACH_BASE.floor + REACH_BASE.audienceLift * (audienceScore / 100));
+}
+
 export function deriveAncillaryProfile(a: AncillaryAttributes, worldwideGross: number): AncillaryProfile {
   const multipliers = deriveAncillaryMultipliers(a);
-  const reachBase = Math.max(0, worldwideGross) * (REACH_BASE.floor + REACH_BASE.audienceLift * (a.audienceScore / 100));
+  const reachBase = computeReachBase(worldwideGross, a.audienceScore);
 
   const homeEntertainment = Math.round(reachBase * WINDOW_BASE_RATES.homeEntertainment * multipliers.homeEntertainment);
   const licensing = Math.round(reachBase * WINDOW_BASE_RATES.licensing * multipliers.licensing);
