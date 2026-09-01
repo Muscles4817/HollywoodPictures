@@ -18,14 +18,14 @@ import type { FilmDraft } from '../../types';
  * The title is the screen's `h1`: this band replaced the plain "Marketing &
  * Release" heading, and a page with no h1 is a page with no name.
  */
-export function CampaignHero({ draft }: { draft: FilmDraft }) {
+export function CampaignHero({ draft, studioName }: { draft: FilmDraft; studioName: string }) {
   const title = draft.title || draft.script?.title || 'Untitled Film';
   const genre = draft.genre ?? 'Drama';
 
   return (
     <section className="spectacle campaign-hero" aria-label="The campaign">
       <div className="spectacle-wrap campaign-hero__wrap">
-        <GenrePoster title={title} genre={genre} size="large" />
+        <GenrePoster title={title} genre={genre} studio={studioName} size="large" />
         <div className="campaign-hero__billing">
           <p className="spectacle-eyebrow campaign-hero__eyebrow">Now selling</p>
           <h1 className="spectacle-title campaign-hero__title">{title}</h1>

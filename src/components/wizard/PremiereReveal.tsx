@@ -9,6 +9,8 @@ import './PremiereReveal.css';
 interface PremiereRevealProps {
   title: string;
   genre: string;
+  /** The releasing studio, for the one-sheet's own credit. */
+  studioName: string;
   outcome: string | null;
   criticScore: number;
   audienceScore: number;
@@ -43,6 +45,7 @@ function prefersReducedMotion(): boolean {
 export function PremiereReveal({
   title,
   genre,
+  studioName,
   outcome,
   criticScore,
   audienceScore,
@@ -85,7 +88,7 @@ export function PremiereReveal({
       )}
 
       <div className={`premiere-hero ${itemClass(1)}`}>
-        <GenrePoster title={title} genre={genre} />
+        <GenrePoster title={title} genre={genre} studio={studioName} />
         <div className="premiere-hero__headline">
           <p className="premiere-hero__eyebrow">Now Playing &middot; {genre}</p>
           <h1 className="premiere-hero__title">{title}</h1>

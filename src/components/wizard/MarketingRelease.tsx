@@ -517,7 +517,7 @@ export function MarketingRelease() {
       <WizardHeader current="marketing" />
       {/* The event on this screen is the picture being sold; everything below
           is decisions, and stays in the desk register (CampaignHero.tsx). */}
-      <CampaignHero draft={draft} />
+      <CampaignHero draft={draft} studioName={state.studio.name} />
       {draft.script && <ScriptSummaryCard script={draft.script} />}
 
       {!screeningResolved && pendingScreening && (

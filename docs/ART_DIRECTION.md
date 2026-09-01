@@ -485,8 +485,20 @@ pairing into §5), which is why this list is shorter than the decision log.
   arguing about.
 - **§8** Package assembly as one sheet — how far, and what stays sequential?
   Roadmap Phase 2 proposes: all five sections, deep decisions in drawers.
-- Does the studio-logo feature need a logo *builder*, given the poster wall makes
-  logos highly visible? Cheaper to answer once Phase 4 has rendered the wall.
+- Does the studio-logo feature need a logo *builder*? **Re-scoped 2026-08-31, not
+  answered.** The question rests on two things that turn out not to exist: there
+  is no studio-logo feature in the code (nothing under `src/` carries a logo of
+  any kind), and the save-selection poster wall in §6 is a proposal rather than
+  a built screen — what Phase 4 shipped is the one-sheet on the campaign and
+  premiere screens, which is a different object.
+
+  What does exist, as of Phase 6, is the studio's **name** on that one-sheet
+  (`GenrePoster`'s credit line, the way a releasing studio is credited above the
+  title art). It reads at both poster sizes and at any name length, which is the
+  first piece of real evidence on this: a wordmark alone carries the studio's
+  identity on key art. So the live question is the upstream one — does the studio
+  need a *mark* at all beyond its name? — and only if that is yes does "builder
+  or not" follow.
 
 ---
 
@@ -512,3 +524,5 @@ pairing into §5), which is why this list is shorter than the decision log.
 | 2026-08-25 | §11's colour and corner rules made mechanical in `src/designSystem.test.ts`, after three stated rules were found to have quietly stopped being true. |
 | 2026-08-31 | §9.1 moved to DECIDED: a frame, not a face. The agency 8x10 is an object this desk already holds, and a silhouette would be a claim about a face the game does not have. Placement is part of the decision — the person page, not the scanning table or the decision surfaces. |
 | 2026-08-31 | §9's Tier 1 progression built as the letterhead. Each tier adds one visible thing, and never hue: a studio's size is not a state, so the accent stays out of it — enforced rather than remembered. |
+| 2026-08-31 | The one-sheet credits the releasing studio. The key art belonged to nobody before this — the player's studio was the one thing it never said. Not the `.typed` register despite the name being player-chosen: the whole object is outside the desk palette, and a courier credit on a one-sheet would be the only part of it pretending to be a form. |
+| 2026-08-31 | §12's logo-builder question re-scoped rather than answered: it assumed a studio-logo feature and a poster wall that do not exist. The wordmark on the one-sheet is the first evidence on the upstream question it should have been asking. |

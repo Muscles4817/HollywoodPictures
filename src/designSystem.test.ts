@@ -250,3 +250,20 @@ describe('studio progression is shown in weight, not hue', () => {
     expect(tiers.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('the one-sheet holds its own layout', () => {
+  // The studio credit sits above the monogram on generated key art, and the
+  // studio name is player-chosen: "Silver Reel Pictures" already wraps to two
+  // lines at the small size, while "Q" takes one. The monogram is placed
+  // against a RESERVED height rather than a rendered one, so the clearance is
+  // the same whatever the player typed - measured at three name lengths across
+  // both sizes. Drop the reservation and the long names collide.
+  it('reserves the credit space instead of letting it grow', () => {
+    const css = CSS['./components/common/GenrePoster.css'];
+    const credit = css.match(/\.genre-poster__studio \{([^}]*)\}/)?.[1] ?? '';
+    // Not just /height:/ - `line-height` contains it, which made the first
+    // version of this assertion pass with the reservation deleted.
+    expect(credit).toMatch(/(?<!line-)height:/);
+    expect(credit).toMatch(/-webkit-line-clamp:\s*2/);
+  });
+});

@@ -360,3 +360,12 @@
     text-align: center;
   }
 }
+
+/* The campaign's one-sheet on a phone. It narrows, but stays the biggest thing
+   on the screen - "the campaign is the poster" (ART_DIRECTION §6) does not
+   survive the poster becoming a thumbnail. */
+@media (max-width: 640px) {
+  .campaign-hero .genre-poster--large {
+    width: 160px;
+  }
+}

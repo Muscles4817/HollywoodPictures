@@ -16,13 +16,23 @@ function genrePosterSlug(genre: string): string {
 }
 
 
-export function GenrePoster({ title, genre, size = 'regular' }: { title: string; genre: string; size?: 'regular' | 'large' }) {
+export function GenrePoster({ title, genre, studio, size = 'regular' }: { title: string; genre: string; studio?: string; size?: 'regular' | 'large' }) {
   return (
     <div
       className={size === 'large' ? 'genre-poster genre-poster--large' : 'genre-poster'}
       data-genre={genrePosterSlug(genre)}
       aria-hidden="true"
     >
+      {/* The studio credit that sits above the title art on a one-sheet of this
+          era. Without it the poster was a picture that belonged to nobody -
+          the player's studio was the one thing the key art never said.
+
+          Deliberately NOT the `.typed` register, even though the name is
+          player-chosen and typed is the desk's rule for exactly that. This is
+          key art: the whole object is outside the desk palette, and a courier
+          studio credit on a one-sheet would be the only thing on it pretending
+          to be a form. */}
+      {studio && <span className="genre-poster__studio">{studio}</span>}
       <span className="genre-poster__mono">{titleMonogram(title)}</span>
       <span className="genre-poster__genre">{genre}</span>
     </div>
