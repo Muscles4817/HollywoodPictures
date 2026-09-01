@@ -485,20 +485,48 @@ pairing into §5), which is why this list is shorter than the decision log.
   arguing about.
 - **§8** Package assembly as one sheet — how far, and what stays sequential?
   Roadmap Phase 2 proposes: all five sections, deep decisions in drawers.
-- Does the studio-logo feature need a logo *builder*? **Re-scoped 2026-08-31, not
-  answered.** The question rests on two things that turn out not to exist: there
-  is no studio-logo feature in the code (nothing under `src/` carries a logo of
-  any kind), and the save-selection poster wall in §6 is a proposal rather than
-  a built screen — what Phase 4 shipped is the one-sheet on the campaign and
-  premiere screens, which is a different object.
+- Does the studio need a *mark* beyond its name? **Answered no, 2026-08-31,
+  conditionally** — which is why it is still here rather than moved into a
+  section: the condition below is live, and if it resolves this reopens.
 
-  What does exist, as of Phase 6, is the studio's **name** on that one-sheet
-  (`GenrePoster`'s credit line, the way a releasing studio is credited above the
-  title art). It reads at both poster sizes and at any name length, which is the
-  first piece of real evidence on this: a wordmark alone carries the studio's
-  identity on key art. So the live question is the upstream one — does the studio
-  need a *mark* at all beyond its name? — and only if that is yes does "builder
-  or not" follow.
+  It stays in this list having replaced the question that used to sit here
+  ("does the studio-logo feature need a logo *builder*?"). That one rested on
+  two things that turn out not to exist: there is no studio-logo feature in the
+  code (nothing under `src/` carries a logo of any kind), and the
+  save-selection poster wall in §6 is a proposal rather than a built screen —
+  what Phase 4 shipped is the one-sheet on the campaign and premiere screens, a
+  different object. "Builder or not" is downstream of whether a mark is wanted
+  at all, so the upstream question is the one worth answering.
+
+  **The reasoning, on this game's own terms:**
+
+  1. *The identity already renders everywhere it appears.* Three surfaces carry
+     it — the spine wordmark, the Dashboard letterhead (§9, now with three
+     grades of grandeur and no device needed), and the one-sheet credit. Each is
+     the name, and each reads. A mark would be a second thing beside the name on
+     all three, and §2.3 puts ornament on the frame rather than next to the
+     data.
+  2. *The problem a mark would solve is already solved by other means.* The real
+     work it would do is "which of these twelve studios is mine", and the game
+     answers that with state marking rather than identity:
+     `.top-grossing-title-player` takes `--primary` in the trade panel, and the
+     release calendar gives the player's own entries a `Your Film` badge and a
+     `release-card--player` variant. A mark on top would encode the same fact a
+     second time, which is the accent-rationing argument (a value needs no hue)
+     pointed at a logo.
+  3. *The cost is not the drawing — it is that the name is player-chosen and
+     unbounded.* A generated mark has nothing to work from but the initials, and
+     the game already uses initials-as-stand-in twice (`PersonFrame`,
+     `GenrePoster`). A third would stop reading as a filing convention and start
+     reading as one idea applied everywhere. The only honest route to a mark
+     that is *not* initials is a builder — a real feature, not a visual pass.
+
+  **The condition that reopens this: §6's save-selection poster wall, if it is
+  ever built.** It is the one screen where several studios appear as equals with
+  no other distinguishing state — no "yours" badge, because they are all yours.
+  Several saves differing only by a name in the same typeface is a genuinely
+  weak read, and there a mark starts earning its keep. Until that screen exists,
+  a mark would be built for a screen that does not.
 
 ---
 
@@ -526,3 +554,4 @@ pairing into §5), which is why this list is shorter than the decision log.
 | 2026-08-31 | §9's Tier 1 progression built as the letterhead. Each tier adds one visible thing, and never hue: a studio's size is not a state, so the accent stays out of it — enforced rather than remembered. |
 | 2026-08-31 | The one-sheet credits the releasing studio. The key art belonged to nobody before this — the player's studio was the one thing it never said. Not the `.typed` register despite the name being player-chosen: the whole object is outside the desk palette, and a courier credit on a one-sheet would be the only part of it pretending to be a form. |
 | 2026-08-31 | §12's logo-builder question re-scoped rather than answered: it assumed a studio-logo feature and a poster wall that do not exist. The wordmark on the one-sheet is the first evidence on the upstream question it should have been asking. |
+| 2026-08-31 | The studio needs no mark beyond its name. Its identity already renders on all three surfaces that carry it; "which studio is mine" is already answered by state marking, not identity; and an unbounded player-chosen name leaves a generated mark nothing but initials, which the game already spends twice. Conditional on §6's save-selection poster wall never being built — that is the one screen where saves appear as equals with no distinguishing state, and it reopens this. |

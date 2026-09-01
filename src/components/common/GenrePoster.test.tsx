@@ -5,8 +5,10 @@ import { GenrePoster } from './GenrePoster';
 
 describe('GenrePoster', () => {
   it('credits the releasing studio on the sheet', () => {
-    // The one thing the key art never said was whose picture it is - see
-    // ART_DIRECTION §12's logo question, which this is the evidence for.
+    // The one thing the key art never said was whose picture it is. This
+    // credit is the evidence ART_DIRECTION §12 closed its studio-mark question
+    // on: a wordmark carries the studio's identity here, so no mark is needed
+    // beyond the name.
     render(<GenrePoster title="Wolcott's Warzone" genre="Action" studio="Silver Reel Pictures" />);
     expect(screen.getByText('Silver Reel Pictures')).toBeInTheDocument();
   });
