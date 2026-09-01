@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { StarRating } from './common/StarRating';
+import { PersonFrame } from './common/PersonFrame';
 import { Money, formatMoney } from './common/Money';
 import { InfoTip } from './common/InfoTip';
 import { describeProductionStyle } from './common/TalentStats';
@@ -412,6 +413,7 @@ function PersonDetail({ person, totalDays, credits, award, performance, relation
       <button type="button" className="td-back" onClick={onBack}>← All talent</button>
 
       <header className="td-detail__header">
+        <PersonFrame person={person} size="large" />
         <div className="td-detail__ident">
           <h1 style={{ margin: 0 }}>{person.identity.name}</h1>
           <p className="td-detail__subtitle">{identityLine}</p>

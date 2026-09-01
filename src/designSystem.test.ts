@@ -222,3 +222,31 @@ describe('numeric table columns line up', () => {
     expect(CSS['./index.css']).toMatch(/\.money \{[^}]*white-space: nowrap/);
   });
 });
+
+describe('studio progression is shown in weight, not hue', () => {
+  // ART_DIRECTION.md §9 asks for progression in Tier 1 - a grander letterhead
+  // rather than an office that redraws itself. The cheap way to fake that is a
+  // gold nameplate at Major, which would be the accent filling a surface: the
+  // rationing rule (65173bd) reserves it for state, and a studio's size is not
+  // a state. So the escalation is allowed rules, faces, spacing and weight,
+  // and nothing that carries colour.
+  const LETTERHEAD = /\.studio-letterhead\[data-tier=[^{]*\{([^}]*)\}/g;
+
+  it('gives the letterhead no colour at any tier', () => {
+    const css = CSS['./components/Dashboard.css'];
+    const coloured: string[] = [];
+    for (const [block, body] of [...css.matchAll(LETTERHEAD)].map((m) => [m[0], m[1]] as const)) {
+      if (/(?:^|[;{\s])(?:color|background|background-color|border-color)\s*:/.test(body)) {
+        coloured.push(block.split('{')[0].trim());
+      }
+    }
+    expect(coloured).toEqual([]);
+  });
+
+  it('actually has tiers to escalate through', () => {
+    // Guards the test above against passing because the selectors were renamed
+    // out from under it and it is now scanning nothing.
+    const tiers = [...CSS['./components/Dashboard.css'].matchAll(LETTERHEAD)];
+    expect(tiers.length).toBeGreaterThanOrEqual(2);
+  });
+});

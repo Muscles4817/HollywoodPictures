@@ -137,6 +137,9 @@
   gap: 16px;
   flex-wrap: wrap;
 }
+/* The plate and the name are one unit - without this the header's
+   space-between pushes the name into the middle of the row. */
+.td-detail__ident { flex: 1 1 auto; min-width: 0; }
 .td-detail__fee { text-align: right; }
 .td-detail__avail { font-size: 0.85em; margin-top: 4px; }
 .td-detail__avail.is-busy { color: var(--red); }

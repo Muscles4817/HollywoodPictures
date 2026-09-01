@@ -35,6 +35,35 @@ export interface StudioStanding {
   body: string;
 }
 
+/**
+ * How grand the studio's own stationery gets - the three steps the letterhead,
+ * the nameplate and the spine wordmark are cut for.
+ *
+ * ART_DIRECTION.md §9: progression is shown in Tier 1, not Tier 3 - a grander
+ * letterhead rather than an office that redraws itself. This is the value that
+ * treatment keys off.
+ *
+ * It is deliberately the release count and nothing else, which is the rule the
+ * Dashboard's kicker already used before this moved here. A richer measure
+ * (brand, prestige, a hit rate) would be a second scoreboard beside the
+ * standing summary below, and two scoreboards that can disagree are worse than
+ * one; the standing summary is where "how is the studio actually doing" is
+ * answered, in words. This only answers "how long have they been at it".
+ */
+export type StudioTier = 'independent' | 'established' | 'major';
+
+export function studioTier(releasedFilmCount: number): StudioTier {
+  if (releasedFilmCount >= 10) return 'major';
+  if (releasedFilmCount >= 4) return 'established';
+  return 'independent';
+}
+
+export const STUDIO_TIER_LABEL: Record<StudioTier, string> = {
+  independent: 'Independent studio',
+  established: 'Established studio',
+  major: 'Major studio',
+};
+
 function band(value: number, bands: { max: number; label: string }[]): string {
   return (bands.find((b) => value < b.max) ?? bands[bands.length - 1]).label;
 }

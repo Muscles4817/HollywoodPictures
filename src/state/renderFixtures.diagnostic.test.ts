@@ -16,7 +16,9 @@ import { buildPopulatedStudio } from './renderFixtures';
 
 describe.runIf(process.env.DUMP_FIXTURE)('populated save dump', () => {
   it('writes a studio with a history to DUMP_PATH', () => {
-    const state = buildPopulatedStudio(Number(process.env.DUMP_SEED ?? 42));
+    const state = buildPopulatedStudio(Number(process.env.DUMP_SEED ?? 42), {
+      ...(process.env.DUMP_RELEASED ? { releasedFilms: Number(process.env.DUMP_RELEASED) } : {}),
+    });
     const path = process.env.DUMP_PATH ?? 'populated-save.json';
     writeFileSync(path, JSON.stringify(state));
 

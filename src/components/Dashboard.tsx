@@ -16,7 +16,7 @@ import { ProductionOfficeCard } from './ProductionOfficeCard';
 import { DistributionArmCard } from './DistributionArmCard';
 import { computeTopGrossingFilms, deriveRecentAwardHighlights, deriveReputationHistory, hasDraftProgress, countActivePlayerProjects, selectUpcomingAncillary } from '../state/selectors';
 import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
-import { synthesizeStudioStanding, type StandingFilm } from '../engine/studioStanding';
+import { synthesizeStudioStanding, studioTier, STUDIO_TIER_LABEL, type StandingFilm } from '../engine/studioStanding';
 import { isRecentlyCommissioned } from '../engine/commission';
 import { campaignRolloutProgress } from '../engine/marketing';
 import { sequelDevelopmentProgress } from '../engine/sequelDevelopment';
@@ -342,11 +342,11 @@ export function Dashboard() {
     return items.slice(0, 5);
   }, [attentionDrafts, prepDecisionDrafts, dispatch, nextRelease, runningFilms, hasActiveWork, hasReleasedFilms, pendingCommissions, pendingSequelDevelopments, justDeliveredCommissions, recentAwardHighlights, state.talentPool.Writer, state.totalDays]);
 
-  const studioTier = playerReleasedFilms.length >= 10
-    ? 'Major studio'
-    : playerReleasedFilms.length >= 4
-      ? 'Established studio'
-      : 'Independent studio';
+  // The letterhead's own grandeur, not just its wording: at Independent the
+  // nameplate is a plain heading; Established rules it; Major gives it the
+  // display face and a double rule. ART_DIRECTION §9's "progression shown in
+  // Tier 1" - the same feeling as an office that redraws itself, for a border.
+  const tier = studioTier(playerReleasedFilms.length);
 
   // Rendered after every hook has run - keeping this above the useMemo above
   // made it a conditional hook call (react-hooks/rules-of-hooks).
@@ -390,8 +390,8 @@ export function Dashboard() {
             </div>
           ) : (
             <div className="dashboard-title-row">
-              <div>
-                <div className="dashboard-kicker">{studioTier}</div>
+              <div className="studio-letterhead" data-tier={tier}>
+                <div className="dashboard-kicker">{STUDIO_TIER_LABEL[tier]}</div>
                 <h1>{studio.name}</h1>
               </div>
               <Button className="btn-sm dashboard-rename" onClick={startEditingName}>Rename</Button>

@@ -661,3 +661,65 @@
     padding: 11px 12px;
   }
 }
+
+/* --- The letterhead ---------------------------------------------------
+   ART_DIRECTION.md §9: "Progression should be shown in Tier 1, not Tier 3."
+   The studio's own stationery gets grander as it grows, which is the same
+   feeling as an office that redraws itself across tiers and costs three
+   borders instead of twenty-odd illustrations.
+
+   Everything here is weight, face, spacing and rules. No hue: the accent
+   marks state (65173bd) and a studio's size is not a state, so a gold
+   nameplate at Major would be exactly the surface-filling the rationing
+   rule exists to stop. A letterhead is a name between rules anyway - that
+   is what makes it read as stationery rather than as a heading. */
+.studio-letterhead {
+  min-width: 0;
+  /* Shrink to the name. The identity block is nearly a thousand pixels wide,
+     and a rule that long under a 340px name reads as a section divider rather
+     than as stationery - the rule has to be the name's own width to be a
+     letterhead at all. */
+  width: max-content;
+  max-width: 100%;
+}
+
+/* Independent: no rules at all. A young company has a name on the door and no
+   stationery, and the first step has to be visible against that.
+
+   Each step adds exactly one thing you can see. The display face is held back
+   for Major rather than spent at Established: measured, "Silver Reel Pictures"
+   sets to the same 335px in both Schibsted Grotesk and Anybody, so a face swap
+   at Established would have been a change nobody could point at. Landing it
+   with the double rule makes the two reinforce instead. */
+/* The meta line ("Year 2 · 4 active projects") sits 10px under this, close
+   enough that without the margin the rule reads as that line's underline
+   rather than as the name's own. */
+.studio-letterhead[data-tier='established'],
+.studio-letterhead[data-tier='major'] {
+  margin-bottom: 8px;
+}
+
+.studio-letterhead[data-tier='established'] {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+.studio-letterhead[data-tier='major'] h1 {
+  font-family: var(--font-display);
+}
+
+.studio-letterhead[data-tier='major'] {
+  border-top: 3px double var(--text);
+  border-bottom: 3px double var(--text);
+  padding: 6px 0;
+}
+
+.studio-letterhead[data-tier='major'] h1 {
+  letter-spacing: 0.01em;
+}
+
+/* The standing line stops being a caption above a heading and becomes the
+   letterhead's own rule-borne line - centred over the name it belongs to. */
+.studio-letterhead[data-tier='major'] .dashboard-kicker {
+  letter-spacing: 0.22em;
+}
