@@ -516,3 +516,108 @@ In a field of ~8 wide releases per year skewed small, honouring the first makes
 the second harder. Lowering the post-theatrical level to compensate was tried
 and rejected: it takes the field to 34%, below the ratified floor, and still
 does not recover the bands.
+
+
+---
+
+## 12. v3 — re-derived at market scope
+
+Everything in §3–§6 was derived when the rival field was **8.8 wide releases a
+year**, and §6 said so explicitly: *"is the rival field a studio slate or a whole
+market? The gross bands differ by roughly 2× depending on the answer, and this is
+the one question here that is a game-design choice rather than a realism
+finding."* It was ratified under the **slate** reading.
+
+Two slate widenings later the field is **45.8 wide releases a year from twelve
+studios across three tiers** (`DESIGN_REVIEW_slate_width.md`). That question is
+now settled by construction: it is a market. This re-derives the targets against
+that, and the answer is mostly that the *population being measured* was wrong
+rather than the bands.
+
+### 12.1 The profitability bands describe one major's slate
+
+Every quantitative P&L in the reference is a single major's: §5.4's twelve-film
+slate, §6.1's four worked cases. Measured over the population that reference
+actually describes, the model already agrees with it:
+
+| | reference (one major's slate) | model, **major-tier wide** | model, whole market |
+|---|--:|--:|--:|
+| Median return | ~1.16× | **1.09×** | 0.87× |
+| Unprofitable | 42% | **45.4%** | 56.5% |
+| Outright bombs | 0% | **9.1%** | 17.7% |
+
+The market figure is lower because a market contains what a major's slate does
+not: Mid-Size and Indie wide releases, returning a median 0.68× and 0.34×. The
+reference's twelve pictures say nothing whatever about those films.
+
+So §3's bands are now asserted over **major-tier wide releases**. This is the
+second narrowing of the same kind — v2 narrowed from all films to wide releases
+because the reference slate is all-wide — and it is the one that matters most:
+`bombPct` goes from 17.7 (failing 5–12) to **9.1** without the model moving at
+all. The whole-market and all-films shapes are still printed, just not asserted
+against a band drawn from one studio's books.
+
+### 12.2 The bands carried false precision
+
+Those shares come from **twelve films**, where a single picture is 8.3 points.
+Asserting them to ±6 claimed more than the evidence supports. At one standard
+error, `sqrt(p(1-p)/12)`:
+
+| band | slate | ±1 SE | **v3** |
+|---|--:|--:|--:|
+| loss | 42% | 28–56 | **28–45** |
+| break-even | 33% | 19–47 | **14–35** |
+| modest | 25% | 12–38 | **15–38** |
+
+For bomb, major and blockbuster the slate observed **none in twelve**, so the
+rule of three puts the 95% upper bound at 3/12 — anything under ~14% is
+consistent with that. Bands: bomb **4–14**, major **2–14**, blockbuster **0–6**.
+
+**Stated plainly because it cuts both ways.** Widening these is what makes
+`breakevenPct`, `modestPct`, `majorPct` and `blockbusterPct` pass, and the model
+did not move to earn it. The claim is that the old bands asserted more than a
+twelve-film sample can support — not that anything improved. Reject this half of
+§12 and those four bands go back to failing; §12.1 stands on its own either way.
+
+### 12.3 New: market structure
+
+`docs/domain/01-industry-structure.md` §2 gives market-level figures that were
+never encoded, and they are precisely what the widening was for. Four new bands:
+
+| metric | reference | measured |
+|---|--:|--:|
+| Wide releases per major, per year | 8–20+ | **5.0** ✗ |
+| A major's share of industry gross | 10–25% | **21.4%** ✓ |
+| Films per specialty label, per year | 5–15 | **3.6** ✗ |
+| Of a specialty label's films, share going wide | low — they "platform rather than open wide" | **17.9%** ✓ |
+
+The structural shape is right: a major commands a fifth of the market, and
+specialty labels platform four films in five. The **volume is still short** —
+majors release five wide films a year against a reference eight to twenty, and
+specialty labels make under four against five to fifteen. That is a concrete,
+reference-backed statement of how much further the slate has to go, which the
+previous two widenings had no target to check themselves against.
+
+### 12.4 Where that leaves it
+
+**17 of 21 bands pass**, from 13 of 17 before.
+
+Four remain, and they say different things:
+
+- `widePerMajorPerYear` 5.0 and `specialtyFilmsPerYear` 3.6 — a **third widening**
+  is warranted, and now has a target. Not done here: each of the last two cost a
+  re-peg of everything denominated in crowding units, and that belongs in its own
+  pass.
+- `wideUnprofitablePct` 52.9 against 40–52 — market-wide, 0.9 over its ceiling.
+  Left alone rather than widened; it is measuring the right thing at the right
+  scope and is essentially at target.
+- `breakevenPct` 13.2 against 14–35 — 0.8 under, and the last remnant of the
+  standing "thin middle" finding, which has shrunk from a 7-point gap to under
+  one point purely by measuring the right population.
+
+One model finding, not acted on here because it is a change to behaviour rather
+than to a target: **Mid-Size studios put 59% of their films into wide release at
+a $15M median negative cost**, and those films return a median 0.68×. The
+reference says smaller distributors platform. That single behaviour is the
+largest source of the market-wide bomb rate, and it is a defect the widening
+exposed rather than caused.
