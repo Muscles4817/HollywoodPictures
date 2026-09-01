@@ -97,9 +97,9 @@ should be set by what the film needs, never by what the studio happens to hold.
 | Ratified aggregate gates | 10/17 | **12/17** |
 
 A major at 4.67 films a year is still short of the reference's 8–20 wide, and
-this is deliberately one step rather than the whole distance: everything
+this was deliberately one step rather than the whole distance: everything
 downstream of slate width had been calibrated at the old density, and §5 is what
-that cost. A second widening is available on the same levers.
+that cost. **§8 is the second step.**
 
 **The calibration got better, not worse.** Four profitability-shape bands that
 had been stuck for the whole recalibration came good at once —
@@ -165,3 +165,75 @@ BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeDistribution.diagnost
 BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeByBudgetTier.diagnostic.test.ts --disable-console-intercept
 npx vitest run src/engine/audienceSimulationRegressionMatrix.test.ts   # the word-of-mouth runaway guard
 ```
+
+
+---
+
+## 8. The second widening
+
+Same two levers, plus the durable fix for §5's first coupling.
+
+**Ceilings and capital again** — Indie 2 → 3, Mid-Size 5 → 9, Major 6 (Medium) +
+3 (Big) → 11 + 4; capital Indie $45M → $110M, Mid-Size $300M → $700M, Major
+$1.2B → $2.2B. The tiers had split their constraints after the first pass:
+majors were capacity-bound (in-flight p90 8 against a ceiling of 9) while Indie
+and Mid-Size were still cash-bound at $2M and $9M. A major's $2.2B is the figure
+the reference's own slate deploys in a year (`docs/domain/11` §5.4).
+
+| | before §2 | after §4 | **after §8** |
+|---|--:|--:|--:|
+| Films per year | 20.3 | 42.0 | **83.8** |
+| ...of which wide | 8.8 | 21.2 | **45.8** |
+| Per Indie | 1.06 | 2.42 | **4.46** |
+| Per Mid-Size | 1.22 | 3.43 | **7.40** |
+| Per Major | 2.78 | 4.67 | **9.09** |
+| Ratified aggregate gates | 10/17 | 12/17 | **13/17** |
+
+A major at 9.09 films a year is inside the reference's 8–20 band, and the
+industry's 45.8 wide releases sit against a real market's ~110 — the right order
+of magnitude for a twelve-studio compression of it.
+
+### 8.1 Density normalisation, instead of a third re-peg
+
+§5 re-pegged the two competition weights when the slate first widened. Doing it
+again did not work, and the reason is worth recording: at 44 wide releases a year
+the crowding *score itself* saturated — p50 0.633, p90 0.999, nearly every window
+reading "maximally crowded" — and a weight can restore the average bite but not
+the spread a saturated score has already thrown away. Median wide gross fell to
+$118M and outright bombs hit 19.4% however the weights were set.
+
+So the normalisation moved into the score, as
+`releaseCrowding.ts:CROWDING_DENSITY_REFERENCE`: the pressure sum is divided by
+how much competition an *ordinary* window holds, which makes the result mean "how
+crowded is this window compared with a normal one" — which is what a 0–1 crowding
+score has always claimed to be, and what its bands and soft knee were calibrated
+against. The two competition weights are back at their original 0.08 / 0.55 and
+stay there. Measured pressure returns to the distribution the model was tuned at:
+mean 0.185 against the original 0.186, p50 0.133 against 0.117, p90 0.423 against
+0.450.
+
+**This is now the one constant that tracks slate width.** Three things are
+expressed in crowding units and moved with it, all of them noted at their own
+definitions: the qualitative bands (`crowdingBandKey`, rebanded so a head-on
+same-genre collision still reads "Crowded"), the AI's date-avoidance weight
+(`SCHEDULING_CROWD_WEIGHT` 0.6 → 2.76, without which rivals stopped steering
+around each other entirely), and `explainCrowding`'s per-contributor figures.
+
+### 8.2 What it did
+
+`topDecileWideSharePct` **passes for the first time** (36.4 against 35–50). That
+is the concentration metric §11.3 of the calibration targets predicted would only
+become meaningful at a realistic field size, and it is the last of the
+whole-year distribution bands to come good.
+
+Four bands remain: `wideUnprofitablePct` 52.9 (0.9 over its ceiling), `bombPct`
+17.7, `breakevenPct` 11.9, `blockbusterPct` 0.5. Three of those are the same
+standing finding — the distribution has the right median and too thin a middle,
+with a bottom tail that is too fat. Per tier, returns run 0.87 / 1.02 / 0.93
+against bands of 1.1–2.4 / 0.95–1.35 / 1.0–1.45: the market at a realistic slate
+width is slightly harsher than the targets want, and mid-budget films are the
+only tier squarely inside theirs.
+
+Post-theatrical revenue reads 34% of rentals against a 35–55% band — just under,
+where it was 38% before. The slate's composition shifted toward the tiers with
+the lowest downstream ratios; nothing about the ancillary model changed.
