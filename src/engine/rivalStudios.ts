@@ -487,9 +487,9 @@ export function studioShareOf(rival: Pick<RivalStudio, 'coFinancedShare'>): numb
 }
 
 const STARTING_CASH_BY_TIER: Record<StudioTier, number> = {
-  Indie: 45_000_000,
-  'Mid-Size': 300_000_000,
-  Major: 1_200_000_000,
+  Indie: 110_000_000,
+  'Mid-Size': 700_000_000,
+  Major: 2_200_000_000,
 };
 
 // Flavor, not balance - a Major studio has already been making films for
@@ -526,7 +526,13 @@ const MAX_RELEASE_SHIFT_DAYS = 120;
 // before it outweighs a prime window's pull - i.e. how out-gunned a film must be
 // before fleeing a good season for a quiet one. Tunable alongside the
 // competition constants in engine/audienceSimulationStep.ts.
-const SCHEDULING_CROWD_WEIGHT = 0.6;
+// Expressed in crowding units, so it moved with them: the crowding score became
+// density-normalised (engine/releaseCrowding.ts:CROWDING_DENSITY_REFERENCE) and
+// this weight is scaled by the same factor, 0.6 -> 2.76, to leave the AI's
+// avoidance behaviour exactly where it was. Without it the crowd term shrank
+// ~4.6x against the seasonality and delay-cost terms it competes with, and
+// rivals stopped steering around each other's dates altogether.
+const SCHEDULING_CROWD_WEIGHT = 2.76;
 // Only step weekly through the search window - releases land on weekend frames,
 // and a 1-day granularity would spend ~7x the compute for no behavioural gain.
 const SCHEDULING_STEP_DAYS = 7;
@@ -654,18 +660,18 @@ export function startableScales(tier: StudioTier, current: RivalProductionInProg
   // concurrency in reality is physical (§13: stages, workshops, post
   // facilities), which is why a ceiling exists at all, not how low it sat.
   if (tier === 'Indie') {
-    return counts.Small < 2 ? ['Small'] : [];
+    return counts.Small < 3 ? ['Small'] : [];
   }
   if (tier === 'Mid-Size') {
     const scales: ProductionScale[] = [];
-    if (counts.Big === 0 && counts.Medium < 5) scales.push('Medium');
+    if (counts.Big === 0 && counts.Medium < 9) scales.push('Medium');
     if (counts.Big === 0 && counts.Medium === 0) scales.push('Big');
     return scales;
   }
   // Major: both pools are independent and run simultaneously.
   const scales: ProductionScale[] = [];
-  if (counts.Medium < 6) scales.push('Medium');
-  if (counts.Big < 3) scales.push('Big');
+  if (counts.Medium < 11) scales.push('Medium');
+  if (counts.Big < 4) scales.push('Big');
   return scales;
 }
 

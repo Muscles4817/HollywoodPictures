@@ -82,7 +82,11 @@ describe('computeCompetitiveCrowding', () => {
     const many = Array.from({ length: 20 }, (_, i) => competitor({ releaseDay: 100 + i, strength: 1 }));
     const score = computeCompetitiveCrowding({ releaseDay: 100, genre: 'Action', targetAudience: 'Mass Market' }, many);
     expect(score).toBeLessThanOrEqual(1);
-    expect(score).toBe(1);
+    // The soft knee approaches 1 asymptotically and never reaches it - this used
+    // to land on exactly 1 only because the un-normalised sum was large enough
+    // for `1 - exp(-x)` to saturate in floating point. The contract is that many
+    // strong competitors stop compounding, not that they hit a specific float.
+    expect(score).toBeCloseTo(1, 5);
   });
 
   it('never returns a negative number', () => {
@@ -195,8 +199,11 @@ describe('the player feels their own strength in a collision', () => {
     const weak = computeCompetitiveCrowding(candidate, [rival], 0.15);
     const strong = computeCompetitiveCrowding(candidate, [rival], 0.95);
     expect(strong).toBeLessThan(weak);
-    // Both still hurt - a collision is a collision - but not equally.
-    expect(strong).toBeGreaterThan(0.3);
+    // Both still hurt - a collision is a collision - but not equally. 0.15 sits
+    // against the density-normalised scale (CROWDING_DENSITY_REFERENCE), where a
+    // head-on same-genre collision reads ~0.24 and the "Crowded" band starts at
+    // 0.2; the strong film here still lands inside it.
+    expect(strong).toBeGreaterThan(0.15);
   });
 });
 

@@ -73,6 +73,34 @@ export function computeCrowdingPressure(
   known: UpcomingRelease[],
   candidateStrength?: number,
 ): number {
+  return rawCrowdingPressure(candidate, known, candidateStrength) / CROWDING_DENSITY_REFERENCE;
+}
+
+// How much competition a NORMAL window holds, in the units the sum below
+// produces. Dividing by it is what makes the result mean "how crowded is this
+// window compared with an ordinary one" rather than "how many films happen to be
+// near me" - which is what a 0-1 crowding score has always claimed to be, and
+// what the bands and the soft knee below are calibrated against.
+//
+// Without it the score scales with how many films the industry makes, and that
+// is not a hypothetical: widening the rival slate from 8.8 wide releases a year
+// to 21.2 took mean pressure from 0.186 to 0.392, and widening it again to 44.0
+// took it to 0.589 with a p50 of 0.633 and a p90 of 0.999 - saturated, every
+// window reading "maximally crowded" and the differences between them flattened
+// away. Re-pegging the two weights in engine/audienceSimulationStep.ts restored
+// the average bite the first time but could not restore that lost spread, which
+// is why this normalisation exists rather than a third re-peg.
+//
+// Calibrated so the current slate reproduces the pressure distribution the model
+// was originally tuned at. It is the ONE constant that tracks slate width; the
+// competition weights are back at their calibrated values and stay there.
+const CROWDING_DENSITY_REFERENCE = 4.6;
+
+function rawCrowdingPressure(
+  candidate: Omit<UpcomingRelease, 'strength'>,
+  known: UpcomingRelease[],
+  candidateStrength?: number,
+): number {
   return known.reduce((sum, other) => {
     const daysApart = Math.abs(candidate.releaseDay - other.releaseDay);
     const proximity = Math.max(0, 1 - daysApart / CROWDING_WINDOW_DAYS);
@@ -187,8 +215,12 @@ export function explainCrowding(
     const sameGenre = candidate.genre === other.genre;
     const sameAudience = candidate.targetAudience === other.targetAudience;
     const weight = matchupWeight(candidateStrength, other.strength);
+    // Density-normalised per contributor, exactly as the sum in
+    // computeCrowdingPressure is, so each contributor's pressure is on the same
+    // scale as the total it is a share of.
     const pressure =
-      proximity * ((sameGenre ? GENRE_MATCH_WEIGHT : GENRE_MISMATCH_WEIGHT) + (sameAudience ? AUDIENCE_MATCH_BONUS : 0)) * other.strength * weight;
+      (proximity * ((sameGenre ? GENRE_MATCH_WEIGHT : GENRE_MISMATCH_WEIGHT) + (sameAudience ? AUDIENCE_MATCH_BONUS : 0)) * other.strength * weight) /
+      CROWDING_DENSITY_REFERENCE;
     if (pressure <= 0) return;
     contributors.push({
       index,
@@ -202,12 +234,17 @@ export function explainCrowding(
     });
   });
 
-  const pressure = contributors.reduce((sum, c) => sum + c.pressure, 0);
+  // The total comes from computeCrowdingPressure rather than from re-summing the
+  // breakdown, so an explanation can never disagree with the score it explains -
+  // summing then normalising and normalising then summing differ in the last
+  // float digit, and this function's whole job is to account for that number.
+  const pressure = computeCrowdingPressure(candidate, known, candidateStrength);
   contributors.sort((a, b) => b.pressure - a.pressure);
+  const contributorTotal = contributors.reduce((sum, c) => sum + c.pressure, 0);
   return {
     crowding: crowdingFromPressure(pressure),
     pressure,
-    contributors: pressure > 0 ? contributors.map((c) => ({ ...c, share: c.pressure / pressure })) : contributors,
+    contributors: contributorTotal > 0 ? contributors.map((c) => ({ ...c, share: c.pressure / contributorTotal })) : contributors,
     beyondKnownField: beyondKnownField(candidate.releaseDay, horizon),
   };
 }
@@ -396,9 +433,17 @@ export function runningFilmAsUpcomingRelease(film: Film): UpcomingRelease | null
  */
 export type CrowdingBand = 'clear' | 'moderate' | 'high';
 
+// Rebanded when the score became density-normalised (CROWDING_DENSITY_REFERENCE):
+// it now measures how crowded a window is RELATIVE to an ordinary one, so the
+// thresholds have to sit against the distribution that produces. Measured over
+// the current slate, per-week pressure runs p50 0.133 and p90 0.423, and a
+// head-on collision - a same-genre, same-audience tentpole on the exact day -
+// scores 0.24. The bands are set so that collision reads "Crowded", an ordinary
+// contested window reads "Some competition", and only a genuinely quiet date
+// reads "Clear window", which is what they said before at the old scale.
 export function crowdingBandKey(score: number): CrowdingBand {
-  if (score < 0.15) return 'clear';
-  if (score < 0.4) return 'moderate';
+  if (score < 0.08) return 'clear';
+  if (score < 0.2) return 'moderate';
   return 'high';
 }
 

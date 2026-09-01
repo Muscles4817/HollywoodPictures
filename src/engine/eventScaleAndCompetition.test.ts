@@ -135,11 +135,21 @@ describe('competition - the strong do the pushing', () => {
     const small = 0.08;
     const pressureOnSmall = computeCompetitiveCrowding(candidate, [window(tentpole)], small);
     const pressureOnTentpole = computeCompetitiveCrowding(candidate, [window(small)], tentpole);
-    expect(pressureOnSmall).toBeGreaterThan(0.5);
-    expect(pressureOnTentpole).toBeLessThan(0.05);
+    // Thresholds sit against the density-normalised scale
+    // (engine/releaseCrowding.ts:CROWDING_DENSITY_REFERENCE), where the score
+    // measures how crowded a window is relative to an ordinary one rather than
+    // how many films happen to be near it. The "Crowded" band starts at 0.2.
+    expect(pressureOnSmall).toBeGreaterThan(0.35);
+    expect(pressureOnTentpole).toBeLessThan(0.02);
+    // What the test is really about: the same collision is an order of magnitude
+    // worse for the small film than for the tentpole.
+    expect(pressureOnSmall / pressureOnTentpole).toBeGreaterThan(10);
   });
 
   it('makes two evenly-matched tentpoles genuinely hurt each other', () => {
-    expect(computeCompetitiveCrowding(candidate, [window(0.85)], 0.85)).toBeGreaterThan(0.5);
+    // A same-genre, same-audience tentpole on the exact day - the worst collision
+    // the model can express - lands comfortably inside the "Crowded" band (0.2+)
+    // on the density-normalised scale.
+    expect(computeCompetitiveCrowding(candidate, [window(0.85)], 0.85)).toBeGreaterThan(0.2);
   });
 });

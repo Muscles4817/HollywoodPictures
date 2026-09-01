@@ -648,12 +648,15 @@ const MAX_WEEKLY_EXPANSION_POINTS = 0.12;
 // how many films the industry MAKES, and were re-pegged (0.08 -> 0.045 and
 // 0.55 -> 0.31) when the rival slate was widened. competitivePressure is a sum
 // over every competitor in a film's window, so it scales with slate density:
-// roughly doubling the number of releases doubled mean pressure, from 0.186 to
-// 0.334, and over-suppressed every film in the market. The relative matchup -
+// roughly doubling the number of releases doubled mean pressure, and
+// over-suppressed every film in the market. Re-pegged twice on the same
+// invariant - weight x mean pressure held constant - as the slate went 8.8 wide
+// releases a year -> 21.2 (weights 0.08/0.55 -> 0.045/0.31, mean pressure 0.186
+// -> 0.392) -> 44.0 (-> 0.03/0.21, mean pressure -> 0.589). The relative matchup -
 // who is pushing whom - is untouched; only the absolute bite per unit of
 // crowding is re-pegged. Widen or narrow the slate again and these must move
 // with it (docs/DESIGN_REVIEW_slate_width.md).
-const COMPETITIVE_PRESSURE_WEIGHT = 0.045;
+const COMPETITIVE_PRESSURE_WEIGHT = 0.08;
 
 // Attention competition (docs/DESIGN_box_office_calibration_targets.md §6a, the
 // "audience competition" level, distinct from the exhibition-access level
@@ -675,7 +678,7 @@ const COMPETITIVE_PRESSURE_WEIGHT = 0.045;
 // cannot amplify the reproduction loop (the funnel-recalibration coupling this
 // whole reorder was meant to avoid). ATTENTION_FLOOR caps the worst-case
 // suppression so even a maximally out-gunned film still sells something.
-const ATTENTION_COMPETITION_WEIGHT = 0.31;
+const ATTENTION_COMPETITION_WEIGHT = 0.55;
 const ATTENTION_FLOOR = 0.25;
 
 export function computeNextAvailability(
