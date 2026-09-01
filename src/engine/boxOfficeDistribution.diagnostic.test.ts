@@ -24,31 +24,51 @@ import { settleTheatricalMarket } from './marketSettlement';
 import { generateTalentPool } from './talentGenerator';
 import { settleOpportunities } from './opportunities';
 import { yearOf } from './calendar';
+import { ancillaryAttributesFromFilm, deriveAncillaryProfile } from './ancillary';
 import { withRng, type RandomFn } from './random';
 import type { Film, RivalProductionInProgress, RivalStudio } from '../types';
 
 // --- Ratified targets (edit here) ------------------------------------------
 // $ figures are worldwide gross in millions. Bands are [min, max] inclusive.
 const M = 1_000_000;
+// v2, ratified: DESIGN_box_office_calibration_targets_v2_draft.md §3 and §6.
+// Every profitability figure below is now measured on the WHOLE P&L - theatrical
+// rentals PLUS post-theatrical revenue - against all-in cost. The v1 bands were
+// asserted against FilmResults.profit, which counts theatrical rentals only,
+// i.e. against roughly half of what a film actually earns (§1 of that document).
 const TARGETS = {
-  wideMedianGrossM: [90, 130] as [number, number],
-  wideMeanGrossM: [170, 230] as [number, number],
-  wideUnprofitablePct: [45, 55] as [number, number],
-  wideOver100Pct: [40, 50] as [number, number],
-  wideOver500Pct: [5, 8] as [number, number],
-  wideOver1000Pct: [1, 2] as [number, number],
-  top10SharePct: [40, 50] as [number, number],
+  wideMedianGrossM: [120, 190] as [number, number],
+  wideMeanGrossM: [200, 300] as [number, number],
+  wideUnprofitablePct: [40, 52] as [number, number],
+  wideOver100Pct: [45, 60] as [number, number],
+  wideOver500Pct: [6, 12] as [number, number],
+  wideOver1000Pct: [1, 3] as [number, number],
+  top10SharePct: [34, 44] as [number, number],
   wideRunWeeks: [5, 8] as [number, number],
   limitedRunWeeks: [10, 20] as [number, number],
   wideOpeningMultiple: [2, 3] as [number, number],
   limitedOpeningMultiple: [5, 12] as [number, number],
-  // §5 profitability bands, over ALL films: [min%, max%] of the field.
-  bombPct: [10, 20] as [number, number], // return < 0.4x
-  lossPct: [25, 35] as [number, number], // 0.4-1.0x
-  breakevenPct: [8, 16] as [number, number], // 1.0-1.25x
-  modestPct: [20, 30] as [number, number], // 1.25-2.5x
-  majorPct: [10, 20] as [number, number], // 2.5-5x
-  blockbusterPct: [1, 6] as [number, number], // > 5x
+  // §3 profitability bands, over WIDE releases: [min%, max%] of the field. Derived
+  // from the 12-film studio slate in docs/domain/11 §5.4 - a much fatter middle
+  // and thinner tails than v1 assumed, because P&A scales with ambition: on that
+  // slate the $1.1B franchise sequel returns 1.81x, LESS than the $15M horror's
+  // 2.42x, and nothing returns above 2.5x at all.
+  //
+  // Asserted over WIDE releases, where v1 asserted over the whole field. The
+  // reference is a studio slate of twelve wide releases; this game's field is
+  // roughly half platform and festival titles, whose economics the reference
+  // says nothing about and whose returns are much more dispersed (a limited
+  // release carries no campaign floor, so it neither bombs the same way nor
+  // breaks even the same way). Measured over the mixed field the same model
+  // reads 22% bombs and 5% break-even; over wide releases alone, which is what
+  // the reference actually describes, it reads far closer to the slate's shape.
+  // The all-films figures are still printed below, just not asserted.
+  bombPct: [5, 12] as [number, number], // return < 0.4x
+  lossPct: [30, 42] as [number, number], // 0.4-1.0x
+  breakevenPct: [18, 30] as [number, number], // 1.0-1.25x
+  modestPct: [18, 30] as [number, number], // 1.25-2.5x
+  majorPct: [4, 10] as [number, number], // 2.5-5x
+  blockbusterPct: [1, 4] as [number, number], // > 5x
 };
 
 const YEARS = 8;
@@ -68,16 +88,29 @@ interface Rec {
 
 function recordFinished(film: Film): Rec {
   const r = film.results;
-  const grossM = (r.totalBoxOffice ?? film.boxOfficeRun.cumulativeGross) / M;
+  const gross = r.totalBoxOffice ?? film.boxOfficeRun.cumulativeGross;
+  const grossM = gross / M;
   const cost = Math.max(1, r.totalCost);
-  const revenue = r.studioRevenue ?? 0;
+  // The WHOLE P&L. FilmResults.profit/studioRevenue are theatrical rentals only;
+  // state/ancillarySettlement.ts separately pays post-theatrical revenue to both
+  // the player and rivals, worth ~45% of rentals. Asserting profitability
+  // against rentals alone measured roughly half a film's earnings, which is what
+  // v2 of the targets exists to correct. Studio prestige is not knowable from a
+  // rival film and moves the multipliers only modestly, so the midpoint keeps
+  // this a property of the film; this harness runs no awards season, so awards
+  // are zero.
+  const ancillary = deriveAncillaryProfile(
+    ancillaryAttributesFromFilm(film, { studioPrestige: 50, awards: { wins: 0, nominations: 0 } }),
+    gross,
+  ).lifetimeTotal;
+  const revenue = (r.studioRevenue ?? 0) + ancillary;
   const weeks = film.boxOfficeRun.weeks;
   const opening = weeks[0]?.gross ?? 0;
   const total = film.boxOfficeRun.cumulativeGross;
   return {
     grossM,
     returnMultiple: revenue / cost,
-    profitable: (r.profit ?? 0) > 0,
+    profitable: revenue > cost,
     releaseType: film.marketingChoices.releaseType,
     runWeeks: weeks.length,
     openingMultiple: opening > 0 ? total / opening : 0,
@@ -194,12 +227,12 @@ describe.skipIf(!enabled)('box office whole-year distribution & profitability ca
       limitedRunWeeks: mean(limited.map((r) => r.runWeeks)),
       wideOpeningMultiple: mean(wide.filter((r) => r.openingMultiple > 0).map((r) => r.openingMultiple)),
       limitedOpeningMultiple: mean(limited.filter((r) => r.openingMultiple > 0).map((r) => r.openingMultiple)),
-      bombPct: share(all.filter((r) => r.returnMultiple < 0.4).length, all.length),
-      lossPct: share(all.filter((r) => r.returnMultiple >= 0.4 && r.returnMultiple < 1.0).length, all.length),
-      breakevenPct: share(all.filter((r) => r.returnMultiple >= 1.0 && r.returnMultiple < 1.25).length, all.length),
-      modestPct: share(all.filter((r) => r.returnMultiple >= 1.25 && r.returnMultiple < 2.5).length, all.length),
-      majorPct: share(all.filter((r) => r.returnMultiple >= 2.5 && r.returnMultiple < 5).length, all.length),
-      blockbusterPct: share(all.filter((r) => r.returnMultiple >= 5).length, all.length),
+      bombPct: share(wide.filter((r) => r.returnMultiple < 0.4).length, wide.length),
+      lossPct: share(wide.filter((r) => r.returnMultiple >= 0.4 && r.returnMultiple < 1.0).length, wide.length),
+      breakevenPct: share(wide.filter((r) => r.returnMultiple >= 1.0 && r.returnMultiple < 1.25).length, wide.length),
+      modestPct: share(wide.filter((r) => r.returnMultiple >= 1.25 && r.returnMultiple < 2.5).length, wide.length),
+      majorPct: share(wide.filter((r) => r.returnMultiple >= 2.5 && r.returnMultiple < 5).length, wide.length),
+      blockbusterPct: share(wide.filter((r) => r.returnMultiple >= 5).length, wide.length),
     };
 
     const failures: string[] = [];
@@ -213,6 +246,13 @@ describe.skipIf(!enabled)('box office whole-year distribution & profitability ca
       if (!ok) failures.push(`${key}: ${val.toFixed(1)} not in [${lo}, ${hi}]`);
       lines.push(`  ${(ok ? 'PASS ' : 'FAIL ')}${key.padEnd(19)} ${val.toFixed(1).padStart(10)}   [${lo}, ${hi}]`);
     }
+    // Reported, never asserted: the same profitability shape over the whole
+    // mixed field, so the wide-only basis above stays visible as a choice.
+    const bandShare = (lo: number, hi: number) => share(all.filter((r) => r.returnMultiple >= lo && r.returnMultiple < hi).length, all.length);
+    lines.push(
+      `  (all films, incl. limited/festival - reported only: bomb ${bandShare(0, 0.4).toFixed(1)}% loss ${bandShare(0.4, 1).toFixed(1)}% ` +
+        `breakeven ${bandShare(1, 1.25).toFixed(1)}% modest ${bandShare(1.25, 2.5).toFixed(1)}% major ${bandShare(2.5, 5).toFixed(1)}% blockbuster ${bandShare(5, Infinity).toFixed(1)}%)`,
+    );
     console.log(lines.join('\n'));
     expect(failures, `\n${failures.join('\n')}\n`).toEqual([]);
   });

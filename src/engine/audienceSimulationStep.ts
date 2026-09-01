@@ -644,7 +644,7 @@ const MAX_WEEKLY_EXPANSION_POINTS = 0.12;
 // only saturating (alongside age decay) at genuinely severe, near-maximal
 // crowding. First-draft, tunable alongside every other constant in this
 // file.
-const COMPETITIVE_PRESSURE_WEIGHT = 0.05;
+const COMPETITIVE_PRESSURE_WEIGHT = 0.08;
 
 // Attention competition (docs/DESIGN_box_office_calibration_targets.md §6a, the
 // "audience competition" level, distinct from the exhibition-access level
@@ -822,10 +822,8 @@ export function advanceOneWeekWithDiagnostics(
   const womInfluence = womInfluenceOverride ?? computeCurrentWomInfluence(fixed, weeks, weeks.length);
 
   // Step 4: word of mouth spreads awareness further.
-  // const awareCount = applyWomAwarenessGrowth(fixed, awareAfterExternal, womInfluence);
-  // const newlyAwareFromWom = awareCount - awareAfterExternal;
-  const awareCount = awareAfterExternal;
-  const newlyAwareFromWom = 0;
+  const awareCount = applyWomAwarenessGrowth(fixed, awareAfterExternal, womInfluence);
+  const newlyAwareFromWom = awareCount - awareAfterExternal;
 
   // Step 5: word of mouth convinces aware-but-undecided people within the natural audience.
   const deltaInterestNatural = deriveWomNaturalInterestGrowth(fixed, awareCount, totalEverInterested, womInfluence);

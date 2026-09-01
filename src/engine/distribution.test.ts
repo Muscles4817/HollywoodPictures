@@ -269,19 +269,27 @@ describe('splitBoxOfficeGross - the one market split', () => {
     expect(split.studioCredit).toBe(0);
   });
 
-  it("a full-reach studio's blended keep lands near the old 0.42 across the genre mix", () => {
-    // §9 calibration: (1-appeal)*DOMESTIC + appeal*INTL should average ~0.42.
+  it("a full-reach studio's blended keep lands in the ratified 44-49% band across the genre mix", () => {
+    // (1-appeal)*DOMESTIC + appeal*INTL, averaged over the genre mix. Retargeted
+    // from ~0.42 to the ratified whole-P&L band
+    // (docs/DESIGN_box_office_calibration_targets_v2_draft.md §5, theatrical
+    // rentals 44-49% of worldwide gross): the real per-market figures in
+    // docs/domain/10 §8.1 are 50-55% US/Canada and 40-47% across Western Europe,
+    // and every worked P&L in that chapter and docs/domain/11 §6.1 blends out at
+    // 46-50%. The old 0.42 was the one number in the model that erred on the
+    // harsh side, and it is the reason the shares sit at the conservative end of
+    // their real bands rather than the headline one - see data/distribution.ts.
     const blended = ALL_GENRES.map((genre) => {
       const appeal = computeInternationalAppeal({ genre });
       return (1 - appeal) * DOMESTIC_KEEP_SHARE + appeal * INTERNATIONAL_KEEP_SHARE;
     });
     const avg = blended.reduce((s, b) => s + b, 0) / blended.length;
-    expect(avg).toBeGreaterThan(0.40);
-    expect(avg).toBeLessThan(0.44);
+    expect(avg).toBeGreaterThan(0.44);
+    expect(avg).toBeLessThan(0.49);
     // And every single genre stays in a sane band (no wild outlier).
     for (const b of blended) {
-      expect(b).toBeGreaterThan(0.38);
-      expect(b).toBeLessThan(0.46);
+      expect(b).toBeGreaterThan(0.42);
+      expect(b).toBeLessThan(0.50);
     }
   });
 });

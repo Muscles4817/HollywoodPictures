@@ -1,7 +1,7 @@
 import type { Film, Genre, ProductionScale, TargetAudience } from '../types';
 import { logT, type Range } from './interpolate';
 import { MARKETING_SPEND_RANGE } from '../data/release';
-import { computeRunningFilmStrength } from './audienceSimulationStep';
+import { deriveWordOfMouthActivity } from './audienceSimulation';
 
 /**
  * One other release already on the shared calendar - either a player's own
@@ -297,6 +297,44 @@ function identityStrengthLift(genreIdentity: number): number {
   return IDENTITY_STRENGTH_BOOST * (Math.max(0, Math.min(100, genreIdentity)) / 100);
 }
 
+// --- The one strength scale -------------------------------------------------
+//
+// All three constructors below answer the SAME question - "how much of the
+// market's attention is this film commanding, 0 (nothing) to 1 (a phenomenon)"
+// - because matchupWeight compares them directly. If they disagreed on units,
+// the matchup would be meaningless, and it did: the two pre-release proxies are
+// log-scaled presence figures with a median near 0.5, while a running film's
+// strength used to be its recent admissions divided by ITS OWN maximum
+// interested audience. That is a saturation figure, not a presence one. It
+// measured how well a film was doing *for its size*, so a $9M indie playing to
+// its whole small crowd out-crowded a live tentpole, and (measured over six
+// seeds x eight in-game years) the correlation between a film's budget and the
+// competitive pressure it actually felt was -0.05: everyone was pushed around
+// exactly as hard as everyone else, and mean pressure across 4,581 settled
+// weeks was 0.056 - an attention factor of 0.988, i.e. nothing.
+//
+// A running film's strength is now measured the same way the other two are
+// predicted: absolute recent admissions, log-scaled against the market. The
+// film's own self-normalised saturation figure still exists and still drives
+// its own word of mouth (engine/audienceSimulationStep.ts:computeRunningFilmStrength)
+// - that one genuinely is about a film's own crowd, and must not become
+// market-relative.
+
+// Where the log runs. Calibrated against measured recency-weighted admissions
+// over the same six-seed sweep: median in-run activity was 0.48M for a wide
+// release under $25M, 5.7M for a $25-80M one and 15.5M for one over $80M, with a
+// p99 of 84M and an observed maximum of 123M. So MIN sits below the smallest
+// real presence (a film below it registers as nothing) and MAX at genuine
+// phenomenon scale, putting those three medians at 0.09 / 0.56 / 0.74 - the same
+// band the marketing/scale proxies already occupy.
+const MARKET_PRESENCE_RANGE: Range = { min: 300_000, max: 60_000_000 };
+
+/** A currently-running film's live share of the market's attention, on the same 0-1 presence scale the two pre-release proxies use. */
+export function computeMarketPresence(weeks: Parameters<typeof deriveWordOfMouthActivity>[0], asOfWeekIndex: number): number {
+  const activity = deriveWordOfMouthActivity(weeks, asOfWeekIndex);
+  return activity <= MARKET_PRESENCE_RANGE.min ? 0 : logT(activity, MARKET_PRESENCE_RANGE);
+}
+
 /** A not-yet-released rival production's rough competitive strength - engine/rivalStudios.ts has no simulated box office for it yet to rank by, so this stands in for one. `genreIdentity` (0-100, the releasing studio's identity in this genre) lifts an on-brand release's presence; 0 (default) is the pre-identity behaviour. */
 export function computeRivalReleaseStrength(marketingSpend: number, scale: ProductionScale, genreIdentity = 0): number {
   return Math.max(0, Math.min(1, 0.7 * marketingStrengthFraction(marketingSpend) + 0.3 * SCALE_STRENGTH[scale] + identityStrengthLift(genreIdentity)));
@@ -317,7 +355,8 @@ export function computePlayerReleaseStrength(marketingSpend: number, productionB
  * production that hasn't opened yet). engine/marketSettlement.ts calls this
  * fresh every settled week for every still-running film, so a film's pull
  * on its competitors' screen access evolves with its *actual* performance
- * instead of a one-time snapshot frozen at release - see
+ * instead of a one-time snapshot frozen at release - see computeMarketPresence
+ * above for the scale it is measured on, and
  * engine/audienceSimulationStep.ts:computeRunningFilmStrength's own doc
  * comment for why this is a derived read of the film's own weekly history,
  * not a new stored field (DESIGN.md 5.34's "Momentum" rejection).
@@ -340,13 +379,13 @@ export function computePlayerReleaseStrength(marketingSpend: number, productionB
  * only concerns itself with a running film's *ongoing* pull on others.
  */
 export function runningFilmAsUpcomingRelease(film: Film): UpcomingRelease | null {
-  const { simWeeks, fixed } = film.boxOfficeRun;
+  const { simWeeks } = film.boxOfficeRun;
   if (simWeeks.length === 0) return null;
   return {
     releaseDay: film.releasedOnDay,
     genre: film.genre,
     targetAudience: film.targetAudience,
-    strength: computeRunningFilmStrength(fixed, simWeeks, simWeeks.length),
+    strength: computeMarketPresence(simWeeks, simWeeks.length),
   };
 }
 

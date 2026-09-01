@@ -209,10 +209,17 @@ describe('settleBoxOfficeForAllFilms - distributor P&A recoup', () => {
     expect(withRecoup.filmsReleased[0].boxOfficeRun.cumulativeGross).toBe(noRecoup.filmsReleased[0].boxOfficeRun.cumulativeGross);
     // studioRevenue on the finished film nets the recoup too. The finished-film
     // gross credit is rounded once off the cumulative markets, whereas baseCredit
-    // sums the per-week rounded credits, so the two can differ by a single unit
-    // of rounding - allow that ±1 rather than asserting exact equality.
+    // sums the per-week rounded credits, so the two differ by accumulated
+    // rounding rather than matching exactly. The tolerance was ±1 when
+    // AVERAGE_TICKET_PRICE was the integer 11; it is now 6.5 (a worldwide blend
+    // rather than the US figure - see engine/boxOfficeRun.ts), so each week's
+    // admissions-to-money conversion can round by up to half a unit and a
+    // multi-week run accumulates several. Still a rounding tolerance, not a
+    // behavioural one: this asserts the recoup is withheld exactly once.
     const grossCredit = baseCredit; // domestic-only, so the two match up to rounding
-    expect(Math.abs((withRecoup.filmsReleased[0].results.studioRevenue ?? 0) - (grossCredit - recoup))).toBeLessThanOrEqual(1);
+    expect(Math.abs((withRecoup.filmsReleased[0].results.studioRevenue ?? 0) - (grossCredit - recoup))).toBeLessThanOrEqual(
+      withRecoup.filmsReleased[0].boxOfficeRun.weeks.length,
+    );
   });
 
   it('recoup off the top settles identically in one big jump as week by week (reconstructable)', () => {
@@ -348,8 +355,20 @@ describe('rival films settle through the exact same function', () => {
 // performance, with real headroom under the clamp for competitivePressure's
 // contraction to actually show through.
 function neutralDemandFixed(overrides: Partial<Parameters<typeof createAudienceSimulationFixedState>[0]> = {}): AudienceSimulationFixedState {
+  //
+  // Sized at a real wide release's scale (a 150M addressable pool, 3M aware at
+  // release) rather than the 5M/100k it was originally written with. Every
+  // figure the weekly step works in is a FRACTION of the addressable pool, so
+  // scaling both by the same 30x leaves this fixture's tuned demandUtilisation -
+  // and every assertion below - byte-for-byte identical. What it changes is the
+  // one quantity that is genuinely absolute: a film's pull on its competitors is
+  // now measured in real admissions against the market
+  // (engine/releaseCrowding.ts:computeMarketPresence) instead of against the
+  // film's own ceiling, and at the old scale these films sold too few tickets to
+  // register on it at all - correctly, a 5M-person release is invisible to the
+  // market, but that made the crowding contract below untestable.
   return createAudienceSimulationFixedState({
-    totalAddressableAudience: 5_000_000,
+    totalAddressableAudience: 150_000_000,
     baseInterestFraction: 0.2,
     marketingEfficiency: 0.5,
     crossoverCapacityFraction: 0,
@@ -357,7 +376,7 @@ function neutralDemandFixed(overrides: Partial<Parameters<typeof createAudienceS
     externalWeeklyAwarenessRate: 0.2,
     criticScore: 75,
     audienceScore: 78,
-    initialAwareCount: 100_000,
+    initialAwareCount: 3_000_000,
     initialAvailabilityFraction: 0.5,
     availabilityBaseWeeklyDecay: 0.02,
     criticLedExpansionWeight: 0,

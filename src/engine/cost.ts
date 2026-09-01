@@ -1,6 +1,6 @@
 import type { MarketingChoices, ProductionChoices, ProductionEvent, TalentAssignment } from '../types';
 import { runtimeCostMultiplier } from './productionDials';
-import { RELEASE_TYPE_PROFILES } from '../data/release';
+import { RELEASE_TYPE_PROFILES, campaignSpendFor } from '../data/release';
 import { assignmentCost } from './person';
 import { pressTourCost } from './pressTour';
 
@@ -58,7 +58,11 @@ export function computeDailyPrepBurn(scale: 'Intimate' | 'Medium' | 'Epic'): num
 /** Marketing spend scaled by how expensive the chosen release type is to support. */
 export function computeMarketingCost(choices: MarketingChoices): number {
   const releaseCostMultiplier = RELEASE_TYPE_PROFILES[choices.releaseType].costMultiplier;
-  return Math.round(choices.marketingSpend * releaseCostMultiplier);
+  // A Wide release cannot be opened for less than a wide campaign costs, whatever
+  // the studio would rather spend (data/release.ts:MINIMUM_CAMPAIGN_SPEND). The
+  // floor is charged AND bought - engine/releaseFilm.ts scales the realised reach
+  // by the same amount - so it is a forced purchase, never a tax.
+  return Math.round(campaignSpendFor(choices.releaseType, choices.marketingSpend) * releaseCostMultiplier);
 }
 
 /**

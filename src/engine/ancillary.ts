@@ -1,13 +1,21 @@
 // Ancillary revenue - a film's post-theatrical life (home entertainment,
 // television/streaming licensing, merchandising, long-tail catalogue).
 //
-// Stage 1 of docs/DESIGN_REVIEW_studio_financial_model.md: this is the DERIVED,
-// INERT layer. Nothing here credits cash or mutates state - it reads a film's
-// existing attributes and computes its ancillary *potential* on demand, exactly
-// the "derive, don't store" pattern deriveCommercialProfile / deriveMarketability
+// This module is the DERIVED layer of docs/DESIGN_REVIEW_studio_financial_model.md:
+// nothing here credits cash or mutates state - it reads a film's existing
+// attributes and computes its ancillary *potential* on demand, exactly the
+// "derive, don't store" pattern deriveCommercialProfile / deriveMarketability
 // already follow (engine/commercialProfile.ts; SIMULATION_PHILOSOPHY Principle 8).
-// Later stages will schedule real payouts from this and pay backend deals out of
-// it; this stage only computes and presents.
+//
+// The revenue itself is REAL and paid - state/ancillarySettlement.ts materialises
+// a finished film's profile into dated payouts for the player and credits a
+// rival's whole afterlife as a lump (that doc's stages 1-6 have all landed).
+// This header used to say "Stage 1 ... INERT ... later stages will schedule real
+// payouts", long after they did, and that stale line cost real work: it is why
+// the box-office calibration harness measures FilmResults.profit (theatrical
+// rentals only) as though it were a film's profit, when post-theatrical revenue
+// is worth ~110% of theatrical rentals on top of it. See
+// docs/DESIGN_REVIEW_scale_and_competition.md section 4b.2.
 //
 // Two layers, deliberately separated:
 //  - MULTIPLIERS are attribute-only, so they are usable BEFORE release (there is

@@ -341,6 +341,23 @@ and encode ratified targets.** We tune against the framework, never by feel.
 
 ## Open decisions to ratify
 
+> **Unratified, and it invalidates the §5 bands as written.** Every
+> profitability target below and in §5 is measured against `FilmResults.profit`,
+> which is **theatrical rentals only**. The game also pays post-theatrical
+> revenue (`state/ancillarySettlement.ts`, live for both the player and rivals),
+> measured at **110% of theatrical rentals** across the field. So "45%
+> unprofitable" has been asserted against roughly half of what a film earns; on
+> the whole P&L the figure is 13-25% by budget tier. These bands need
+> re-deriving against the whole P&L before anything else is tuned to them. See
+> `DESIGN_REVIEW_scale_and_competition.md` §4b.2 and
+> `engine/boxOfficeByBudgetTier.diagnostic.test.ts`, which reports both P&Ls.
+>
+> **A drafted replacement for §3 and §5 is in
+> `DESIGN_box_office_calibration_targets_v2_draft.md`**, derived from the
+> 12-film studio slate in `docs/domain/11-money-accounting-and-participations.md`
+> §5.4. It is unratified; §1, §2, §4 and §6 of this document are unaffected by
+> it and stand.
+
 The most consequential judgment calls (everything else follows from these):
 
 1. **Average wide WW gross** — proposed ~$120M (down from $712M).

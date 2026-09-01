@@ -116,13 +116,22 @@ export const INTERNATIONAL_REACH_BY_TIER: Record<number, number> = { 0: 0, 1: 0.
 /** Cash cost to *reach* each international tier (every tier is bought - unlike the arm's own tier 1, which is the milestone unlock). Requires the base Distribution Arm first. */
 export const INTERNATIONAL_UPGRADE_COST_BY_TIER: Record<number, number> = { 1: 2_500_000, 2: 5_000_000, 3: 10_000_000 };
 
-// Per-market studio keep shares - the old blended worldwide keep (0.42) split
-// into a domestic half that keeps a little more and an international half that
-// keeps less (more middlemen/sales agents abroad). Calibrated so a full-reach
-// studio's blended keep lands near the old 0.42 across the genre-appeal range:
+// Per-market studio keep shares - a domestic half that keeps a little more and
+// an international half that keeps less (more middlemen/sales agents abroad):
 //   blended = (1 - appeal) * DOMESTIC_KEEP_SHARE + appeal * INTERNATIONAL_KEEP_SHARE
-// e.g. appeal 0.38 (Comedy) -> ~0.430, appeal 0.62 (Action) -> ~0.410, the
-// average genre (~0.53 appeal) -> ~0.418. Domestic-heavy films retain slightly
-// more efficiently, international-heavy ones slightly less - intentional.
-export const DOMESTIC_KEEP_SHARE = 0.46;
-export const INTERNATIONAL_KEEP_SHARE = 0.38;
+//
+// Raised from 0.46/0.38 (a ~0.418 blend) against the ratified whole-P&L
+// calibration (docs/DESIGN_box_office_calibration_targets_v2_draft.md §5), which
+// puts theatrical rentals at 44-49% of worldwide gross. The real per-market
+// figures in docs/domain/10-theatrical-release-and-box-office.md §8.1 are 50-55%
+// for US/Canada, 40-47% across the UK/Australia/Western Europe, ~50% Japan and
+// ~25% China, and every worked P&L in §8.2-8.4 and docs/domain/11 §6.1 blends
+// out at 46-50%.
+//
+// Each sits at the CONSERVATIVE end of its real band on purpose: a real
+// distributor also carries "other distribution expenses" - about 7% of rentals
+// in the greenlight model at docs/domain/11 §5.2 - which this game folds
+// nowhere, so the headline share should not be taken at its headline value.
+// At the average genre (~0.53 international appeal) these blend to ~0.458.
+export const DOMESTIC_KEEP_SHARE = 0.5;
+export const INTERNATIONAL_KEEP_SHARE = 0.42;
