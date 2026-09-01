@@ -1,6 +1,6 @@
 # Visual Redesign Roadmap
 
-Status: **Phases 0–3 landed; phases 4–6 are planning only.** Turns
+Status: **Phases 0–5 merged; Phase 6 in progress.** Turns
 `ART_DIRECTION.md` and the nine mockup takes in `docs/design/mockups/` into an
 ordered sequence of reviewable steps.
 
@@ -505,7 +505,56 @@ if one isn't, that is a simulation question and belongs in a different document.
 
 ---
 
-### Phase 4 — SPECTACLE
+### Phase 4 — SPECTACLE [DONE]
+
+**Landed:** the register's token block (§5.1's palette, dark in both themes),
+the shared band styling, and all three bands — the box-office reveal (cyan,
+the marquee primary), awards night (red, for the carpet), and the campaign's
+one-sheet (magenta, the marquee secondary).
+
+Two findings changed the phase's shape:
+
+- **SPECTACLE is a moment, not a screen.** §6's inventory assigns whole
+  screens to the register, and that does not survive contact with what is on
+  them: the box-office screen is a reveal followed by financial analysis,
+  awards night is a ceremony wrapped around campaign management, and the
+  campaign screen is 978 lines of decisions. Putting glow behind any of those
+  tables is exactly what §2.3 forbids. The register is a **band** — the
+  reveal, the ceremony, the poster — and the desk resumes underneath it. This
+  also retires "these screens drop the spine": `ReleaseResults` has no buttons
+  at all and relied on the chassis to leave, so dropping it would strand the
+  player mid-screen.
+- **The poster wall of saves (§7) is not buildable.** It presumes a
+  multi-save feature; `MainMenu` takes `hasSave: boolean` and the game has one
+  save slot. That is a game feature, not a visual one, and belongs in a
+  different document.
+
+**One neon per band, structurally.** The named neons (`--neon-cyan` and the
+rest) are assignable to `--spec-neon` and never read directly, so a band
+physically cannot wear two — §11's rule made mechanical rather than
+remembered, enforced by `designSystem.test.ts`. The reveal's is cyan.
+
+**Where each band sits, and why there:**
+
+| Band | Screen | The moment |
+|---|---|---|
+| Box-office reveal | Results | The opening numbers, before the financials |
+| Awards night | Awards | A ceremony that has landed and not been seen — it appears only then, and acknowledging it returns the page to the desk |
+| The one-sheet | Marketing | The picture being sold, above the decisions about selling it |
+
+Awards night doubles as the notification contract's "act on it in one click
+and have the message stop": acknowledging is what stops the spine's attention
+badge counting it.
+
+**A reuse the phase forced.** The generated genre poster was private to
+`PremiereReveal`, and the campaign wanted the same object — "the campaign is
+the poster". Extracted to `common/GenrePoster.tsx`, which also *narrowed* the
+design-system allowlist: the 19 saturated hex values are now in a file that is
+unambiguously key art, and `PremiereReveal.css` became token-clean.
+
+Two bugs found by rendering: the ceremony eyebrow printed the studio year as a
+bare number ("Awards Night · 1"), and a nine-figure prize at `clamp(…, 3rem)`
+overran its grid column and printed straight through the figure beside it.
 
 Cheap, Tier 1, high payoff, and **independent of Phases 1–3**. Pull it forward
 if visible progress is wanted early; that is free here and nowhere else.
@@ -533,7 +582,61 @@ and it is the rule the whole two-register system rests on.
 
 ---
 
-### Phase 5 — The DESK long tail
+### Phase 5 — The DESK long tail [IN PROGRESS]
+
+**The phase is not what the table below assumed.** It was written expecting
+nine per-screen passes, with "five screens have no dedicated stylesheet" as
+the notable fact. Rendered, those five are fine — they inherited the palette
+and read correctly, exactly as the roadmap guessed they might. Having no
+stylesheet turns out not to be a defect.
+
+What is actually wrong is systematic rather than per-screen, and the survey
+found it by scanning rendered screens rather than reading files:
+
+**Numeric table columns did not line up.** The base `th, td` rule gives every
+cell `text-align: left` in the grotesque, so a column of figures neither
+stacked by place value nor read as figures — against §2.1's "tabular figures
+everywhere", on the four player-facing tables (Studio Stats' four tabs, the
+Dashboard's Studio History, and a rival's filmography). A `.num` column
+treatment fixes it: right-aligned, tabular, in the typed register, marked on
+the column rather than the value because numeric-ness is a property of the
+column.
+
+**Header and cell have to move together**, or the heading stops sitting over
+what it names. That drifted while being written — StatsPage reached 19 marked
+headers against 16 marked cells — so `designSystem.test.ts` now asserts
+parity per table-bearing file, mutation-tested.
+
+Dates are deliberately not numeric: "12 March Year 1" is prose, not a column
+of digits.
+
+**The per-screen pass turned up three more systematic faults, not nine local
+ones.** Working through the screens one at a time kept finding the same thing
+in a new place, which is the signal that the fix belongs in the token layer
+rather than on the screen:
+
+- **The market was not classified-shaped.** The price — the one figure a market
+  screen exists to compare — sat mid-paragraph at body size, at three different
+  heights across three cards. Ten identically-weighted pills per card meant
+  none read as more important. Now: a notice line, a headline, and the price on
+  its own ruled line.
+- **Twenty hardcoded colours were hiding from the design-system check**, which
+  only ever looked for `#hex`. Eleven hues, five `hsl()` chart colours that
+  never re-toned in dark mode, and white-alpha borders left over from when the
+  Asset Library rendered on a dark panel. The check now bans any hue and any
+  white-alpha and allows black-alpha — a scrim reads on either theme; a
+  white-alpha border is a dark-UI idiom and is never right in a dual-theme app.
+- **Standing copy wore the treatment built for contextual notes.** Every screen
+  opened with a permanent tutorial paragraph, tinted and accent-ruled, which
+  made it the loudest thing above content sitting in plain bone — and spent the
+  rationed accent on furniture. `.standing-note` is a standfirst; the tint and
+  the accent stay with `.choice-description`, which answers a choice.
+
+**Still to do:** the four small screens (Projects, IP, Milestones, Rivals) were
+inspected and need nothing — they inherited the palette and read correctly. A
+density pass on the Dashboard and Talent Database is the remaining judgement
+work, and both are better done against a save with more in it than the test
+fixture has.
 
 Nine screens. This is where an estimate blows out if it is treated as one phase,
 so it is a **checklist with a per-screen definition of done**, not a phase.
@@ -563,10 +666,43 @@ figures where columns align; the validator from Phase 0 stays green.
 
 ### Phase 6 — Portraits and studio identity
 
-Deferred deliberately. §9.1 ranks the options and picks **framing devices
-instead of faces** — monograms or silhouettes inside an era-appropriate frame,
-so the absence reads as a style choice. That is Tier 1 and it can wait until the
-frame it sits in exists.
+**First pass landed 2026-08-31.** Two of the three items; the third turned out
+to be a bad idea and is recorded as such rather than built.
+
+**The frame, not the face** (`common/PersonFrame.tsx`). §9.1 is now DECIDED, and
+argued there on this game's terms rather than adopted from its own ranking: the
+agency 8x10 is an object a casting desk in this era already holds, so borrowing
+its shape costs a border and a letter, and a silhouette was rejected because it
+is a claim about a face the game does not have. **Where it goes was the harder
+half.** It is on the person page, which otherwise opens with a heading and then
+bars. It is deliberately *not* on the Talent Database's list rows — a 60-row
+scanning table whose leftmost column is already the name, where a plate per row
+buys an anchor nobody needs and costs the row height that makes it scannable —
+and not on the hiring drawers' candidate cards or the sheet's rows, which are
+dense decision surfaces where §2.3 keeps the data plain.
+
+**The letterhead** (`.studio-letterhead`, keyed off
+`engine/studioStanding.ts:studioTier`). §9's "progression shown in Tier 1": the
+studio's own stationery gets grander as it grows. Independent is a bare name;
+Established closes it with a rule; Major sets it in the display face inside a
+double rule. Each step adds exactly one thing that can be pointed at — the face
+swap is held back for Major because the studio name measured 335px in *both*
+faces, so spending it at Established would have been a change nobody could see.
+The tier is the release count and nothing else, reusing the rule the Dashboard's
+kicker already had: a richer measure would be a second scoreboard beside the
+standing summary, and the decision log below already says why that is worse.
+
+**Not built, on purpose:** §9's "the trade paper moving your studio above the
+fold". The trade panel is a box-office ranking; reordering it to flatter the
+player would make the chart lie. It already marks the player's films where they
+actually place.
+
+**Still open:** the spine wordmark was considered for the same tiering and left
+alone — it is already the display face at 800 weight and 0.2em tracking, so
+there is nothing grander to escalate it to without putting a rule box in
+permanent chrome. §12's logo-*builder* question is also still open; the poster
+wall exists now, but the studio's mark appears nowhere on a poster, which is
+probably the thing to settle first.
 
 Also here: §9's "progression shown in Tier 1, not Tier 3" — grander letterhead,
 a changed nameplate, the trade paper moving your studio above the fold. And
@@ -620,3 +756,6 @@ the same line:
 | 2026-08-25 | Phase 3 landed. The relationship engines now reach the sheet, not just the hiring drawers. |
 | 2026-08-25 | The relationship lens is words, not threads: a web drawn over a form is ornament on a data surface, which §2.3 forbids. Take 06's tension report survives; its corkboard does not. |
 | 2026-08-25 | The desk's voice states no counts. The readiness meter owns the arithmetic, and two scoreboards that can disagree are worse than one. |
+| 2026-08-31 | Phase 5's density passes were re-run against a populated fixture (`state/renderFixtures.ts`). Both findings — a talent list laying out 2,490 rows, and currency figures breaking after the sign — were invisible to the empty fixture, which is why the first pass found nothing. |
+| 2026-08-31 | Phase 6 first pass landed. The frame goes where a page is *about* a person, never on a scanning table or a decision surface — a plate on every row of a 60-row table costs the density that makes the table work. |
+| 2026-08-31 | Studio progression is weight, rule and face — never hue. A size is not a state, so the accent stays out of the letterhead, and `designSystem.test.ts` enforces it rather than review remembering it. |

@@ -78,14 +78,46 @@
 .td-actor-row:hover { background: var(--panel); }
 .td-actor-row__name { font-weight: 600; }
 .td-actor-row__role,
-.td-actor-row__meta,
-.td-actor-row__credits { color: var(--text-muted); font-size: 0.9em; }
+.td-actor-row__meta { color: var(--text-muted); font-size: 0.9em; }
+/* A credit count is a figure, so it gets the same treatment the fee column
+   already has: right-aligned to stack by place value, in the typed register. */
+.td-actor-row__credits {
+  color: var(--text-muted);
+  font-family: var(--font-typed);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.td-list__head > :nth-child(5),
+.td-list__head > :nth-child(6) { text-align: right; }
+.td-actor-row__fee { text-align: right; }
+/* Right-aligning credits puts its digits hard against the left-aligned status
+   beside it, where the 10px grid gap is the whole separation - every other
+   column pair is left-aligned and gets the ragged right edge for free. */
+.td-list__head > :nth-child(6),
+.td-actor-row__credits { padding-right: 10px; }
 .td-actor-row__status.is-busy { color: var(--red); }
-.td-actor-row__status.is-free { color: var(--green); }
+
+/* Continues the list rather than sitting beside it, so it reads as the next
+   row - the thing you were already scrolling towards - and not as a control. */
+.td-list__more {
+  padding: 12px 14px;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.td-list__more:hover { color: var(--text); }
+
+.td-actor-row__unit { display: none; }
 
 @media (max-width: 640px) {
   .td-list__head { display: none; }
   .td-actor-row { grid-template-columns: 1fr auto; grid-auto-rows: min-content; }
+  /* No head row here, so the figure has to name itself again. */
+  .td-actor-row__unit { display: inline; }
 }
 
 /* --- Detail ----------------------------------------------------------- */
@@ -105,6 +137,9 @@
   gap: 16px;
   flex-wrap: wrap;
 }
+/* The plate and the name are one unit - without this the header's
+   space-between pushes the name into the middle of the row. */
+.td-detail__ident { flex: 1 1 auto; min-width: 0; }
 .td-detail__fee { text-align: right; }
 .td-detail__avail { font-size: 0.85em; margin-top: 4px; }
 .td-detail__avail.is-busy { color: var(--red); }

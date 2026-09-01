@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { synthesizeStudioStanding, type StandingFilm } from './studioStanding';
+import { synthesizeStudioStanding, studioTier, STUDIO_TIER_LABEL, type StandingFilm } from './studioStanding';
 
 const hit = (title: string, genre: StandingFilm['genre']): StandingFilm => ({ title, genre, profit: 180_000_000, totalCost: 80_000_000, audienceScore: 78 });
 const flop = (title: string, genre: StandingFilm['genre']): StandingFilm => ({ title, genre, profit: -60_000_000, totalCost: 80_000_000, audienceScore: 38 });
@@ -46,5 +46,25 @@ describe('synthesizeStudioStanding', () => {
     expect(s.body.toLowerCase()).toContain('thriller');
     expect(s.body).toContain('starting to build');
     expect(s.headline).toBe('Established studio'); // not yet a "Thriller studio"
+  });
+});
+
+describe('studioTier', () => {
+  // The value the letterhead's three treatments key off (Dashboard.css,
+  // "The letterhead"), so the boundaries are where a player sees their own
+  // stationery change - worth pinning rather than re-deriving from a ternary.
+  it('steps at four films and at ten', () => {
+    expect(studioTier(0)).toBe('independent');
+    expect(studioTier(3)).toBe('independent');
+    expect(studioTier(4)).toBe('established');
+    expect(studioTier(9)).toBe('established');
+    expect(studioTier(10)).toBe('major');
+    expect(studioTier(40)).toBe('major');
+  });
+
+  it('names every tier it can return', () => {
+    for (const count of [0, 4, 10]) {
+      expect(STUDIO_TIER_LABEL[studioTier(count)]).toBeTruthy();
+    }
   });
 });

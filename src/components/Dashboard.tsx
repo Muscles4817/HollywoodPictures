@@ -16,7 +16,7 @@ import { ProductionOfficeCard } from './ProductionOfficeCard';
 import { DistributionArmCard } from './DistributionArmCard';
 import { computeTopGrossingFilms, deriveRecentAwardHighlights, deriveReputationHistory, hasDraftProgress, countActivePlayerProjects, selectUpcomingAncillary } from '../state/selectors';
 import { asFilm, asPlayerDraft, asScheduled } from '../engine/project';
-import { synthesizeStudioStanding, type StandingFilm } from '../engine/studioStanding';
+import { synthesizeStudioStanding, studioTier, STUDIO_TIER_LABEL, type StandingFilm } from '../engine/studioStanding';
 import { isRecentlyCommissioned } from '../engine/commission';
 import { campaignRolloutProgress } from '../engine/marketing';
 import { sequelDevelopmentProgress } from '../engine/sequelDevelopment';
@@ -342,11 +342,11 @@ export function Dashboard() {
     return items.slice(0, 5);
   }, [attentionDrafts, prepDecisionDrafts, dispatch, nextRelease, runningFilms, hasActiveWork, hasReleasedFilms, pendingCommissions, pendingSequelDevelopments, justDeliveredCommissions, recentAwardHighlights, state.talentPool.Writer, state.totalDays]);
 
-  const studioTier = playerReleasedFilms.length >= 10
-    ? 'Major studio'
-    : playerReleasedFilms.length >= 4
-      ? 'Established studio'
-      : 'Independent studio';
+  // The letterhead's own grandeur, not just its wording: at Independent the
+  // nameplate is a plain heading; Established rules it; Major gives it the
+  // display face and a double rule. ART_DIRECTION §9's "progression shown in
+  // Tier 1" - the same feeling as an office that redraws itself, for a border.
+  const tier = studioTier(playerReleasedFilms.length);
 
   // Rendered after every hook has run - keeping this above the useMemo above
   // made it a conditional hook call (react-hooks/rules-of-hooks).
@@ -390,8 +390,8 @@ export function Dashboard() {
             </div>
           ) : (
             <div className="dashboard-title-row">
-              <div>
-                <div className="dashboard-kicker">{studioTier}</div>
+              <div className="studio-letterhead" data-tier={tier}>
+                <div className="dashboard-kicker">{STUDIO_TIER_LABEL[tier]}</div>
                 <h1>{studio.name}</h1>
               </div>
               <Button className="btn-sm dashboard-rename" onClick={startEditingName}>Rename</Button>
@@ -693,11 +693,11 @@ export function Dashboard() {
                       <th>Title</th>
                       <th>Genre</th>
                       <th>Released</th>
-                      <th>Total Cost</th>
-                      <th>Box Office</th>
-                      <th>Critic Score</th>
+                      <th className="num">Total Cost</th>
+                      <th className="num">Box Office</th>
+                      <th className="num">Critic Score</th>
                       <th>Outcome</th>
-                      <th>Profit / Loss</th>
+                      <th className="num">Profit / Loss</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -708,13 +708,13 @@ export function Dashboard() {
                           <td><strong>{film.title}</strong></td>
                           <td>{film.genre}</td>
                           <td>{formatGameDateWithMonth(film.releasedOnDay)}</td>
-                          <td><Money amount={film.results.totalCost} /></td>
-                          <td>
+                          <td className="num"><Money amount={film.results.totalCost} /></td>
+                          <td className="num">
                             {running
                               ? <span className="dashboard-muted"><Money amount={film.boxOfficeRun.cumulativeGross} /> so far</span>
                               : <Money amount={film.results.totalBoxOffice ?? 0} />}
                           </td>
-                          <td>{film.results.criticScore}</td>
+                          <td className="num">{film.results.criticScore}</td>
                           <td>
                             {running || !film.results.outcome
                               ? <span className="badge">In Theaters</span>
@@ -724,7 +724,7 @@ export function Dashboard() {
                                 </span>
                               )}
                           </td>
-                          <td>
+                          <td className="num">
                             {running || film.results.profit === null
                               ? <span className="dashboard-muted">Pending</span>
                               : <Money amount={film.results.profit} signColor showSign />}

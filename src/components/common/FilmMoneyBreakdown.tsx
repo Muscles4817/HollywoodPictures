@@ -186,13 +186,23 @@ function FilmAfterlife({ film, ancillary }: { film: Film; ancillary: FilmAncilla
   );
 }
 
-/** Label + colour for each revenue window on the lifetime timeline. Theatrical leads (the anchor); the four ancillary windows follow it in the same order as the afterlife lines above. */
+/**
+ * Label + colour for each revenue window on the lifetime timeline. Theatrical
+ * leads (the anchor); the four ancillary windows follow it in the same order as
+ * the afterlife lines above.
+ *
+ * Drawn from index.css's categorical tint ramp rather than from five
+ * hand-picked hues. These were `hsl(...)` literals until the design-system
+ * check learned to look for colours that are not hex - which meant this chart
+ * kept its light-theme hues on the dark theme, where the ramp re-tones. Every
+ * window keeps its own identity; it is now an identity the theme knows about.
+ */
 const TIMELINE_WINDOW_META: Record<string, { label: string; color: string }> = {
-  theatrical: { label: 'Theatrical', color: 'hsl(212 68% 52%)' },
-  homeEntertainment: { label: 'Home ent', color: 'hsl(158 58% 43%)' },
-  licensing: { label: 'TV & streaming', color: 'hsl(276 52% 58%)' },
-  merchandising: { label: 'Merch', color: 'hsl(32 82% 52%)' },
-  catalogue: { label: 'Catalogue', color: 'hsl(220 9% 52%)' },
+  theatrical: { label: 'Theatrical', color: 'var(--tint-blue-ink)' },
+  homeEntertainment: { label: 'Home ent', color: 'var(--tint-green-ink)' },
+  licensing: { label: 'TV & streaming', color: 'var(--tint-violet-ink)' },
+  merchandising: { label: 'Merch', color: 'var(--tint-gold-ink)' },
+  catalogue: { label: 'Catalogue', color: 'var(--tint-neutral-ink)' },
 };
 
 /**

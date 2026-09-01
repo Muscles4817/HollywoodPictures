@@ -251,28 +251,28 @@ function StudioStatsTable({ rows, onSelect }: { rows: StudioStatRow[]; onSelect:
             <thead>
               <tr>
                 <th>Studio</th>
-                <th>Films</th>
-                <th>Avg Critic</th>
-                <th>Avg Audience</th>
-                <th>Avg Quality</th>
-                <th>Total Box Office</th>
-                <th>Total Profit / Loss</th>
-                <th>Hits</th>
-                <th>Flops</th>
+                <th className="num">Films</th>
+                <th className="num">Avg Critic</th>
+                <th className="num">Avg Audience</th>
+                <th className="num">Avg Quality</th>
+                <th className="num">Total Box Office</th>
+                <th className="num">Total Profit / Loss</th>
+                <th className="num">Hits</th>
+                <th className="num">Flops</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={row.studioName} className="film-history-row" onClick={() => onSelect(row)}>
                   <td>{row.studioName}{row.isPlayer ? ' (you)' : ''}</td>
-                  <td>{row.filmCount}</td>
-                  <td>{Math.round(row.avgCriticScore)}</td>
-                  <td>{Math.round(row.avgAudienceScore)}</td>
-                  <td>{Math.round(row.avgQualityScore)}</td>
-                  <td><Money amount={row.totalBoxOffice} /></td>
-                  <td><Money amount={row.totalProfit} signColor showSign /></td>
-                  <td>{row.hitCount}</td>
-                  <td>{row.flopCount}</td>
+                  <td className="num">{row.filmCount}</td>
+                  <td className="num">{Math.round(row.avgCriticScore)}</td>
+                  <td className="num">{Math.round(row.avgAudienceScore)}</td>
+                  <td className="num">{Math.round(row.avgQualityScore)}</td>
+                  <td className="num"><Money amount={row.totalBoxOffice} /></td>
+                  <td className="num"><Money amount={row.totalProfit} signColor showSign /></td>
+                  <td className="num">{row.hitCount}</td>
+                  <td className="num">{row.flopCount}</td>
                 </tr>
               ))}
             </tbody>
@@ -294,28 +294,28 @@ function PersonStatsTable({ rows, onSelect }: { rows: PersonStatRow[]; onSelect:
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Films</th>
-                <th>Avg Critic</th>
-                <th>Avg Audience</th>
-                <th>Avg Quality</th>
-                <th>Total Box Office</th>
-                <th>Total Profit / Loss</th>
-                <th>Hits</th>
-                <th>Flops</th>
+                <th className="num">Films</th>
+                <th className="num">Avg Critic</th>
+                <th className="num">Avg Audience</th>
+                <th className="num">Avg Quality</th>
+                <th className="num">Total Box Office</th>
+                <th className="num">Total Profit / Loss</th>
+                <th className="num">Hits</th>
+                <th className="num">Flops</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id} className="film-history-row" onClick={() => onSelect(row)}>
                   <td>{row.name}</td>
-                  <td>{row.filmCount}</td>
-                  <td>{Math.round(row.avgCriticScore)}</td>
-                  <td>{Math.round(row.avgAudienceScore)}</td>
-                  <td>{Math.round(row.avgQualityScore)}</td>
-                  <td><Money amount={row.totalBoxOffice} /></td>
-                  <td><Money amount={row.totalProfit} signColor showSign /></td>
-                  <td>{row.hitCount}</td>
-                  <td>{row.flopCount}</td>
+                  <td className="num">{row.filmCount}</td>
+                  <td className="num">{Math.round(row.avgCriticScore)}</td>
+                  <td className="num">{Math.round(row.avgAudienceScore)}</td>
+                  <td className="num">{Math.round(row.avgQualityScore)}</td>
+                  <td className="num"><Money amount={row.totalBoxOffice} /></td>
+                  <td className="num"><Money amount={row.totalProfit} signColor showSign /></td>
+                  <td className="num">{row.hitCount}</td>
+                  <td className="num">{row.flopCount}</td>
                 </tr>
               ))}
             </tbody>
@@ -342,11 +342,11 @@ function FilmStatsTable({ rows, onSelect }: { rows: ReturnType<typeof filterAndS
                 <th>Director</th>
                 <th>Lead(s)</th>
                 <th>Released</th>
-                <th>Critic</th>
-                <th>Audience</th>
-                <th>Quality</th>
-                <th>Box Office</th>
-                <th>Profit / Loss</th>
+                <th className="num">Critic</th>
+                <th className="num">Audience</th>
+                <th className="num">Quality</th>
+                <th className="num">Box Office</th>
+                <th className="num">Profit / Loss</th>
                 <th>Outcome</th>
               </tr>
             </thead>
@@ -361,17 +361,17 @@ function FilmStatsTable({ rows, onSelect }: { rows: ReturnType<typeof filterAndS
                     <td>{creditLine(film, 'Director')}</td>
                     <td>{creditLine(film, 'Lead Actor')}</td>
                     <td>{formatGameDateWithMonth(film.releasedOnDay)}</td>
-                    <td>{film.results.criticScore}</td>
-                    <td>{film.results.audienceScore}</td>
-                    <td>{Math.round(film.results.qualityScore)}</td>
-                    <td>
+                    <td className="num">{film.results.criticScore}</td>
+                    <td className="num">{film.results.audienceScore}</td>
+                    <td className="num">{Math.round(film.results.qualityScore)}</td>
+                    <td className="num">
                       {running ? (
                         <span style={{ color: 'var(--text-muted)' }}><Money amount={film.boxOfficeRun.cumulativeGross} /> so far</span>
                       ) : (
                         <Money amount={film.results.totalBoxOffice ?? 0} />
                       )}
                     </td>
-                    <td>
+                    <td className="num">
                       {running || film.results.profit === null ? (
                         <span style={{ color: 'var(--text-muted)' }}>Pending</span>
                       ) : (

@@ -281,7 +281,7 @@ export function ReleaseCalendar() {
     <div className="stack">
       <h1 style={{ margin: 0 }}>Release Calendar</h1>
 
-      <p className="choice-description" style={{ margin: 0 }}>
+      <p className="standing-note">
         Every release still to come — your own locked films and outstanding date announcements, and what every rival
         studio currently has in the works, grouped by expected release month. A rival keeps a film under wraps while
         it&apos;s shooting; once its marketing campaign begins (about a month out), the real title and cast are

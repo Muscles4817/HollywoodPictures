@@ -62,20 +62,90 @@ function renderPage(awardsHistory: AwardsCeremony[] = []) {
   );
 }
 
-describe('TalentDatabase', () => {
-  it('lists all actors and filters by name search', () => {
-    renderPage();
-    expect(screen.getByText('Zara Quinn')).toBeInTheDocument();
-    expect(screen.getByText('Marcus Vale')).toBeInTheDocument();
+/** A pool big enough to page - the three-actor fixture never could be. */
+function renderPageWithManyActors(count: number) {
+  const state = stateWithActors();
+  const template = state.talentPool.Actor[0];
+  saveState({
+    ...state,
+    talentPool: {
+      ...state.talentPool,
+      Actor: Array.from({ length: count }, (_, i) => ({
+        ...template,
+        id: `bulk-actor-${i}`,
+        identity: { ...template.identity, name: `Extra ${i}` },
+      })),
+      // Only actors, so the row count is exactly the number asked for.
+      Director: [], Writer: [], Cinematographer: [], Composer: [],
+      Editor: [], 'VFX Supervisor': [], 'Casting Director': [], 'Production Designer': [],
+    },
+  });
+  render(
+    <StudioProvider>
+      <TalentDatabase />
+    </StudioProvider>,
+  );
+}
 
-    fireEvent.change(screen.getByPlaceholderText('Search by name…'), { target: { value: 'zara' } });
+/**
+ * Find one named person and open them.
+ *
+ * The list shows a window of the pool rather than all ~2,500 of it, so a
+ * particular person is not reliably on screen at the top - search is how you
+ * reach someone, which is what a player does too.
+ */
+function openActor(name: string) {
+  fireEvent.change(screen.getByPlaceholderText('Search by name…'), { target: { value: name } });
+  fireEvent.click(screen.getByText(name));
+}
+
+describe('TalentDatabase', () => {
+  it('filters by name search', () => {
+    renderPage();
+    const search = screen.getByPlaceholderText('Search by name…');
+
+    fireEvent.change(search, { target: { value: 'zara' } });
     expect(screen.getByText('Zara Quinn')).toBeInTheDocument();
     expect(screen.queryByText('Marcus Vale')).not.toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: 'marcus' } });
+    expect(screen.getByText('Marcus Vale')).toBeInTheDocument();
+    expect(screen.queryByText('Zara Quinn')).not.toBeInTheDocument();
+  });
+
+  // A generated world holds ~2,500 people and this list used to lay out every
+  // match: measured at 2,490 rows, 29,930 DOM nodes and a 99,996px page. The
+  // unit fixture above has three actors, which is exactly why nobody saw it.
+  it('lays out a window of the pool, not the whole pool', () => {
+    renderPageWithManyActors(150);
+    expect(document.querySelectorAll('.td-actor-row').length).toBe(60);
+    expect(screen.getByText(/90 still to come/)).toBeInTheDocument();
+  });
+
+  it('extends the window when asked, and says so honestly while it does', () => {
+    renderPageWithManyActors(150);
+    fireEvent.click(screen.getByText(/Show 60 more/));
+    expect(document.querySelectorAll('.td-actor-row').length).toBe(120);
+    fireEvent.click(screen.getByText(/Show 30 more/));
+    expect(document.querySelectorAll('.td-actor-row').length).toBe(150);
+    // Nothing left to ask for, so nothing to click.
+    expect(screen.queryByText(/still to come/)).not.toBeInTheDocument();
+  });
+
+  it('starts the window again when the filters change', () => {
+    renderPageWithManyActors(150);
+    fireEvent.click(screen.getByText(/Show 60 more/));
+    expect(document.querySelectorAll('.td-actor-row').length).toBe(120);
+    // Narrowing then widening must not leave a stale window behind - the count
+    // is about the list you are looking at, and this is a different list.
+    fireEvent.change(screen.getByPlaceholderText('Search by name…'), { target: { value: 'Extra 1' } });
+    fireEvent.change(screen.getByPlaceholderText('Search by name…'), { target: { value: '' } });
+    expect(document.querySelectorAll('.td-actor-row').length).toBe(60);
   });
 
   it('opens an actor to a detail page with public stats and filmography', () => {
     renderPage();
-    fireEvent.click(screen.getByText('Nadia Okafor'));
+    openActor('Nadia Okafor');
     expect(screen.getByRole('heading', { name: 'Nadia Okafor' })).toBeInTheDocument();
     // Person-level Standing, and the career-level "As an Actor" panel (headings
     // now carry a short descriptive note, so match on the leading label).
@@ -89,7 +159,7 @@ describe('TalentDatabase', () => {
 
   it('reveals hidden dev stats (with an explanatory info sign) only after expanding the Dev section', () => {
     renderPage();
-    fireEvent.click(screen.getByText('Marcus Vale'));
+    openActor('Marcus Vale');
 
     // A personality stat only lives in the Dev section - hidden until expanded.
     expect(screen.queryByText('Professionalism')).not.toBeInTheDocument();
@@ -117,7 +187,7 @@ describe('TalentDatabase', () => {
         'best-actor': [{ filmId: 'f1', personId: 'actor-Zara Quinn', awardScore: 90, won: true }],
       }),
     ]);
-    fireEvent.click(screen.getByText('Zara Quinn'));
+    openActor('Zara Quinn');
 
     // Header marquee announces the two Academy wins - the BAFTA win doesn't inflate it.
     expect(screen.getByText(/Two-time Best Actor winner/)).toBeInTheDocument();
@@ -130,7 +200,7 @@ describe('TalentDatabase', () => {
 
   it('shows no marquee or Awards panel for an actor with no nominations', () => {
     renderPage();
-    fireEvent.click(screen.getByText('Marcus Vale'));
+    openActor('Marcus Vale');
     expect(screen.queryByText(/winner/)).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Awards' })).not.toBeInTheDocument();
   });

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useStudio } from '../state/StudioContext';
 import { StarRating } from './common/StarRating';
+import { PersonFrame } from './common/PersonFrame';
 import { Money, formatMoney } from './common/Money';
 import { InfoTip } from './common/InfoTip';
 import { describeProductionStyle } from './common/TalentStats';
@@ -208,6 +209,14 @@ function CareerPanel({ person }: { person: Person }) {
   );
 }
 
+/**
+ * How many rows the list lays out before asking. Roughly two screens' worth at
+ * a desk viewport - enough that the answer to "who is the top-billed actor
+ * available" is on the first page, few enough that the unfiltered pool is not
+ * a hundred thousand pixels tall.
+ */
+const TALENT_PAGE_SIZE = 60;
+
 function TalentRow({ person, totalDays, credits, onOpen }: { person: Person; totalDays: number; credits: number; onOpen: () => void }) {
   const age = getPersonAge(person.identity.dateOfBirth, gameDateFromTotalDays(totalDays));
   const bookedUntil = deriveBookedUntil(person.availability.commitments);
@@ -221,8 +230,17 @@ function TalentRow({ person, totalDays, credits, onOpen }: { person: Person; tot
       </span>
       <span className="td-actor-row__fame"><StarRating value={person.reputation.fame} /></span>
       <span className="td-actor-row__fee"><Money amount={personTypicalFee(person)} /></span>
-      <span className="td-actor-row__credits">{credits} credit{credits === 1 ? '' : 's'}</span>
-      <span className={`td-actor-row__status ${busy ? 'is-busy' : 'is-free'}`}>{busy ? 'Busy' : 'Available'}</span>
+      {/* The column heading already says Credits, so the unit is dropped from
+          the row - 2,000 copies of a word the header states once. It comes back
+          on a phone, where the head row is hidden and a bare "0" names nothing;
+          in the markup rather than a CSS ::after so the plural stays correct. */}
+      <span className="td-actor-row__credits">
+        {credits}<span className="td-actor-row__unit"> credit{credits === 1 ? '' : 's'}</span>
+      </span>
+      {/* Only Busy is marked. Nearly everyone in the pool is free, so colouring
+          the resting state paints the whole column and distinguishes nothing -
+          the exception is what a glance down this column is looking for. */}
+      <span className={`td-actor-row__status${busy ? ' is-busy' : ''}`}>{busy ? 'Busy' : 'Available'}</span>
     </button>
   );
 }
@@ -395,6 +413,7 @@ function PersonDetail({ person, totalDays, credits, award, performance, relation
       <button type="button" className="td-back" onClick={onBack}>← All talent</button>
 
       <header className="td-detail__header">
+        <PersonFrame person={person} size="large" />
         <div className="td-detail__ident">
           <h1 style={{ margin: 0 }}>{person.identity.name}</h1>
           <p className="td-detail__subtitle">{identityLine}</p>
@@ -449,7 +468,7 @@ function PersonDetail({ person, totalDays, credits, award, performance, relation
       {performance && performance.filmCount > 0 && (
         <section className="td-panel">
           <h2>Performance</h2>
-          <p className="choice-description" style={{ marginTop: 0 }}>
+          <p className="standing-note">
             Averaged across {performance.filmCount} released film{performance.filmCount === 1 ? '' : 's'} in your world.
           </p>
           <div className="td-stat-grid">
@@ -469,7 +488,7 @@ function PersonDetail({ person, totalDays, credits, award, performance, relation
       {award && award.nominations > 0 && (
         <section className="td-panel">
           <h2>Awards</h2>
-          <p className="choice-description" style={{ marginTop: 0 }}>
+          <p className="standing-note">
             {award.wins > 0 ? `${award.wins} win${award.wins === 1 ? '' : 's'} · ` : ''}
             {award.nominations} nomination{award.nominations === 1 ? '' : 's'} across every awards show to date.
           </p>
@@ -514,6 +533,7 @@ export function TalentDatabase() {
   const [availability, setAvailability] = useState<AvailabilityFilter>('all');
   const [sort, setSort] = useState<Sort>('fame');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   // Every person across every profession pool, deduped by id (a person is filed
   // under one primaryRole bucket, but dedupe is cheap insurance and matches how
@@ -584,6 +604,25 @@ export function TalentDatabase() {
     });
   }, [talent, profession, gender, availability, search, sort, totalDays]);
 
+  // A generated world holds ~2,500 people, and this list rendered every one of
+  // them that matched: measured at 2,490 rows, 29,930 DOM nodes and a 99,996px
+  // page. That is not a long list, it is a data dump - there is no reading
+  // position in it and no reason for the browser to lay out the ten-thousandth
+  // row nobody will scroll to. The filters above are the real way through the
+  // pool; this just stops the unfiltered case from being a wall.
+  const shown = useMemo(() => visible.slice(0, page * TALENT_PAGE_SIZE), [visible, page]);
+  const remaining = visible.length - shown.length;
+
+  // Any change to what is being listed starts the count again - otherwise
+  // narrowing the filters leaves you scrolled into a page that no longer
+  // exists, and widening them silently keeps showing a stale window.
+  const listKey = `${profession}|${gender}|${availability}|${search}|${sort}`;
+  const [lastKey, setLastKey] = useState(listKey);
+  if (lastKey !== listKey) {
+    setLastKey(listKey);
+    setPage(1);
+  }
+
   if (selected) {
     return (
       <PersonDetail
@@ -602,7 +641,9 @@ export function TalentDatabase() {
     <div className="stack td-database">
       <div>
         <h1 style={{ margin: 0 }}>Talent Database</h1>
-        <p className="td-database__summary">{talent.length} people on record · showing {visible.length}</p>
+        <p className="td-database__summary">
+          {talent.length} people on record · {visible.length} match · showing {shown.length}
+        </p>
       </div>
 
       <section className="td-controls" aria-label="Talent filters">
@@ -649,7 +690,7 @@ export function TalentDatabase() {
           <div className="td-list__head">
             <span>Name</span><span>Role</span><span>Age · Gender</span><span>Fame</span><span>Typical fee</span><span>Credits</span><span>Status</span>
           </div>
-          {visible.map((person) => (
+          {shown.map((person) => (
             <TalentRow
               key={person.id}
               person={person}
@@ -658,6 +699,11 @@ export function TalentDatabase() {
               onOpen={() => setSelectedId(person.id)}
             />
           ))}
+          {remaining > 0 && (
+            <button type="button" className="td-list__more" onClick={() => setPage((p) => p + 1)}>
+              Show {Math.min(remaining, TALENT_PAGE_SIZE)} more · {remaining} still to come
+            </button>
+          )}
         </div>
       )}
     </div>

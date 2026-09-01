@@ -543,7 +543,13 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
                   action={{
                     label: 'View awards',
                     onClick: () => {
-                      dispatch({ type: 'ACKNOWLEDGE_AWARD_CEREMONY', ceremonyId: highlight.id });
+                      // Deliberately does NOT acknowledge here. The Awards page
+                      // shows the ceremony as a SPECTACLE band while it is
+                      // unacknowledged (components/AwardsNight.tsx), and
+                      // acknowledging on the way out of the Inbox meant the one
+                      // path built to take the player to the event was the one
+                      // path on which they never saw it. The band's own "Back
+                      // to the desk" is what marks it seen.
                       dispatch({ type: 'VIEW_AWARDS' });
                       onClose();
                     },

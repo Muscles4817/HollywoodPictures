@@ -25,6 +25,7 @@ import {
 import { useReconciledFilterSelection } from '../hooks/useReconciledFilterSelection';
 import type { Opportunity, Script } from '../types';
 import { calculateStarRating } from '../utils/StarRatingConversion';
+import './OpportunityMarket.css';
 
 /**
  * A script bought during this screen visit, held just long enough to keep its
@@ -491,10 +492,7 @@ export function OpportunityMarket() {
         Opportunity Market
       </h1>
 
-      <p
-        className="choice-description"
-        style={{ margin: 0 }}
-      >
+      <p className="standing-note">
         Screenplays and pitches available to acquire — a fresh batch
         posts every week, and rival studios shop here too. Acquiring
         an uncontested one charges its price immediately and adds it
@@ -630,37 +628,24 @@ export function OpportunityMarket() {
 
               return (
                 <Card key={opportunity.id}>
-                  <div
-                    className="row-between"
-                    style={{ marginBottom: 4 }}
-                  >
-                    <span className="row" style={{ gap: 6 }}>
-                      <span className="badge">
-                        {opportunity.source}
-                      </span>
-                      {isNew && (
-                        <span className="badge badge-stage-InCinemas">
-                          New This Week
-                        </span>
-                      )}
+                  {/* The listing's own metadata - what kind of ad this is and
+                      when it closes. Set as a rule line rather than as pills:
+                      it is not a property of the film, and dressing it like
+                      one put ten identical badges on every card with no way to
+                      tell which mattered. */}
+                  <div className="classified-head">
+                    <span className="classified-kind">
+                      {opportunity.source}
+                      {isNew && <span className="classified-new"> · New this week</span>}
                     </span>
-
-                    <span
-                      style={{
-                        color: 'var(--text-muted)',
-                        fontSize: '0.85em',
-                      }}
-                    >
-                      Expires{' '}
-                      {formatGameDateWithMonth(
-                        opportunity.expiresOnDay,
-                      )}
+                    <span className="classified-expiry">
+                      Closes {formatGameDateWithMonth(opportunity.expiresOnDay)}
                     </span>
                   </div>
 
-                  <div className="card-title">
+                  <h3 className="classified-title">
                     {opportunity.script.title}
-                  </div>
+                  </h3>
 
                   <p style={{ margin: '2px 0 6px', fontSize: '0.82em', fontStyle: 'italic', color: 'var(--text-muted)' }}>
                     {describeOpportunityProvenance(opportunity.source, { writerName: author?.identity.name })}
@@ -680,8 +665,16 @@ export function OpportunityMarket() {
                     </div>
                   )}
 
+                  <div className="classified-price">
+                    <span className="classified-price__label">Screenplay</span>
+                    <span className="classified-price__value">
+                      <Money amount={opportunity.script.cost} />
+                    </span>
+                  </div>
+
                   <ScriptDetails
                     script={opportunity.script}
+                    showCost={false}
                   />
 
                   {leader ? (
