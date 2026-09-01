@@ -94,7 +94,22 @@ export function computeCrowdingPressure(
 // Calibrated so the current slate reproduces the pressure distribution the model
 // was originally tuned at. It is the ONE constant that tracks slate width; the
 // competition weights are back at their calibrated values and stay there.
-const CROWDING_DENSITY_REFERENCE = 4.6;
+//
+// 4.6 -> 5.6 at the THIRD widening (DESIGN_REVIEW_slate_width.md §9). Measured
+// on the live rival market rather than a fixture: mean pressure drifted from
+// 0.334 to 0.503 as the industry widened, so the divisor moves with it and the
+// distribution returns to what everything downstream is calibrated against.
+//
+// Re-derived from the FINAL slate, not the intermediate one. The widening's
+// other half prices a studio's low-budget picture properly
+// (rivalStudios.ts:SCALE_SPEND_RANGE, RIVAL_BUDGET_REALISM), which makes films
+// pricier and therefore fewer, so the density this has to answer to settled
+// below where it first landed - a divisor of 6.9 read 0.273 against the 0.334
+// it is meant to reproduce. That is the discipline this constant needs: derive
+// it from the measured pressure distribution at the end of a change, never from
+// the film count and never mid-change, since what matters is how much
+// competition an ordinary window actually holds.
+const CROWDING_DENSITY_REFERENCE = 5.6;
 
 function rawCrowdingPressure(
   candidate: Omit<UpcomingRelease, 'strength'>,
@@ -435,15 +450,17 @@ export type CrowdingBand = 'clear' | 'moderate' | 'high';
 
 // Rebanded when the score became density-normalised (CROWDING_DENSITY_REFERENCE):
 // it now measures how crowded a window is RELATIVE to an ordinary one, so the
-// thresholds have to sit against the distribution that produces. Measured over
-// the current slate, per-week pressure runs p50 0.133 and p90 0.423, and a
-// head-on collision - a same-genre, same-audience tentpole on the exact day -
-// scores 0.24. The bands are set so that collision reads "Crowded", an ordinary
-// contested window reads "Some competition", and only a genuinely quiet date
-// reads "Clear window", which is what they said before at the old scale.
+// thresholds have to sit against the distribution that produces. The bands are
+// set so that a head-on collision - a same-genre, same-audience tentpole on the
+// exact day - reads "Crowded", an ordinary contested window reads "Some
+// competition", and only a genuinely quiet date reads "Clear window", which is
+// what they said before the normalisation existed.
+//
+// Scaled again by 4.6/5.6 at the third widening, with the density reference
+// itself: the head-on collision that anchors the top band now scores 0.20.
 export function crowdingBandKey(score: number): CrowdingBand {
-  if (score < 0.08) return 'clear';
-  if (score < 0.2) return 'moderate';
+  if (score < 0.066) return 'clear';
+  if (score < 0.164) return 'moderate';
   return 'high';
 }
 

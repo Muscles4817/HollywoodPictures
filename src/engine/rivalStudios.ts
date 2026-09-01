@@ -47,23 +47,66 @@ const MUSIC_FOCI = Object.keys(MUSIC_FOCUS_PROFILES) as PostProductionChoices['m
 const FINAL_CUT_FOCI = Object.keys(FINAL_CUT_FOCUS_PROFILES) as PostProductionChoices['finalCutFocus'][];
 const RELEASE_TYPES = Object.keys(RELEASE_TYPE_PROFILES) as MarketingChoices['releaseType'][];
 
-// How a rival picks its release type - by the film's SCALE, the way a real
-// studio's does, rather than the uniform coin flip this used to be. A
-// Big-budget tentpole goes out Wide (that's what all the spend is for); a Small
-// film is far likelier to platform via a cheaper Limited run or a Festival First
-// prestige play. Some randomness is retained (a rival isn't perfectly
-// predictable), but a blockbuster no longer randomly opens in ten theaters.
-// Weights are relative, not probabilities - weightedPick normalises by their
-// sum (engine/random.ts).
-const RELEASE_TYPE_WEIGHTS_BY_SCALE: Record<ProductionScale, Partial<Record<MarketingChoices['releaseType'], number>>> = {
-  Big: { Wide: 88, Limited: 8, 'Festival First': 4 },
-  Medium: { Wide: 60, Limited: 25, 'Festival First': 15 },
-  Small: { Wide: 22, Limited: 46, 'Festival First': 32 },
+// How a rival picks its release type. Scale is half the story and used to be the
+// whole of it: a Big-budget tentpole goes out Wide (that's what all the spend is
+// for) and no distributor platforms a $200M picture, which is physics rather
+// than strategy. But WHO IS RELEASING IT is the other half, and the model had no
+// term for it - so the same $15M horror film platformed four times in five
+// whoever owned it.
+//
+// docs/domain/01-industry-structure.md is explicit that this is a property of
+// the DISTRIBUTOR:
+//
+//  - §2 on specialty labels: they "release fewer, cheaper films, lean on
+//    festivals and awards, and platform (open small, expand) RATHER THAN OPEN
+//    WIDE". Platforming is the specialty distributor's whole method.
+//  - §2 on a major: "a slate of 10-20 wide releases" - and §2.2.7 itemises that
+//    slate as 2-4 tentpoles, 3-6 mid-budget AND 4-8 LOW-BUDGET films ($5-30M,
+//    "horror, thriller, faith, specialty"). Those cheap films are counted in the
+//    10-20 wide releases. A major owns a worldwide distribution and marketing
+//    network (§2.1) and opens its slate on it; that network is most of what
+//    being a major consists of.
+//  - The exception the reference itself names is the 1-3 awards plays, which go
+//    "often through the specialty label" - i.e. through a different distributor,
+//    which in this model is the Indie tier. What a major keeps in-house and
+//    platforms anyway is the remainder, and it is small.
+//
+// So a major opens nearly everything wide including its cheap films, a specialty
+// label platforms nearly everything including its expensive ones, and a
+// self-distributing mini-major sits between them. Weights are relative, not
+// probabilities - weightedPick normalises by their sum (engine/random.ts).
+type ReleaseTypeWeights = Partial<Record<MarketingChoices['releaseType'], number>>;
+const RELEASE_TYPE_WEIGHTS: Record<StudioTier, Record<ProductionScale, ReleaseTypeWeights>> = {
+  // Specialty label: platforms by method, at every budget it can reach.
+  Indie: {
+    Big: { Wide: 70, Limited: 22, 'Festival First': 8 },
+    Medium: { Wide: 34, Limited: 44, 'Festival First': 22 },
+    Small: { Wide: 14, Limited: 50, 'Festival First': 36 },
+  },
+  // Self-distributing mini-major: real wide releases, a thinner slate, and it
+  // still platforms its awards and genre plays more often than a major does.
+  'Mid-Size': {
+    Big: { Wide: 90, Limited: 7, 'Festival First': 3 },
+    Medium: { Wide: 66, Limited: 22, 'Festival First': 12 },
+    Small: { Wide: 40, Limited: 38, 'Festival First': 22 },
+  },
+  // Major: the slate goes out on its own network. The low-budget end is wide too
+  // - that is what §2.2.7's 4-8 low-budget films are doing inside a 10-20 wide
+  // release slate.
+  Major: {
+    Big: { Wide: 96, Limited: 3, 'Festival First': 1 },
+    Medium: { Wide: 88, Limited: 8, 'Festival First': 4 },
+    Small: { Wide: 76, Limited: 15, 'Festival First': 9 },
+  },
 };
 
-/** A rival's release type, weighted toward what makes sense for the film's scale (see RELEASE_TYPE_WEIGHTS_BY_SCALE). Exported for tests. */
-export function releaseTypeForScale(scale: ProductionScale, rng: RandomFn): MarketingChoices['releaseType'] {
-  return weightedPick(rng, RELEASE_TYPES, RELEASE_TYPE_WEIGHTS_BY_SCALE[scale]);
+/** A rival's release type, weighted by who is distributing it and at what scale (see RELEASE_TYPE_WEIGHTS). Exported for tests. */
+export function releaseTypeForScale(
+  scale: ProductionScale,
+  rng: RandomFn,
+  tier: StudioTier = 'Mid-Size',
+): MarketingChoices['releaseType'] {
+  return weightedPick(rng, RELEASE_TYPES, RELEASE_TYPE_WEIGHTS[tier][scale]);
 }
 
 // A rival never actually runs a post-production/marketing pipeline of its
@@ -117,10 +160,27 @@ export function rivalReleaseIsAnnounced(production: RivalProductionInProgress, t
 // twelve-picture slate (docs/domain/11 §5.4, a $210M tentpole miss) and well
 // above its $150M median for that tier. A budget should be set by what the film
 // needs, never by what the studio happens to have in the bank.
-const SCALE_SPEND_RANGE: Record<ProductionScale, [number, number]> = {
-  Small: [0.08, 0.32],
-  Medium: [0.32, 0.65],
-  Big: [0.5, 0.8],
+//
+// THIRD WIDENING - Small became tier-dependent, because "low-budget" means
+// something different depending on who is making the film, and the model had one
+// number for both. docs/domain/01-industry-structure.md §2.2.7 puts a MAJOR's
+// low-budget slate at $5-30M ("horror, thriller, faith, specialty") and
+// docs/domain/11 §5.4's representative slate prices its cheap film at $15M. A
+// true independent's is a different animal - the model's Indie tier makes films
+// at a $2.5M median, which is right for what it is.
+//
+// The two were the same band, so the moment majors could make cheap films at all
+// they made them at an INDIE's price and then opened them wide on a major's
+// distribution network. Measured: an $8.8M median negative grossing $119M, a
+// 12.1x gross-on-negative where the calibration target is 4.5-7x, and 23% of a
+// major's slate returning 2.5-5x. The reference slate has exactly one such film
+// and calls it "the best return on capital" on the whole slate; the model was
+// making it the median. Pricing a studio's low-budget picture at what §2.2.7
+// says it costs is the fix, not a penalty on cheap films.
+const SCALE_SPEND_RANGE: Record<StudioTier, Record<ProductionScale, [number, number]>> = {
+  Indie: { Small: [0.08, 0.32], Medium: [0.32, 0.65], Big: [0.5, 0.8] },
+  'Mid-Size': { Small: [0.18, 0.42], Medium: [0.32, 0.65], Big: [0.5, 0.8] },
+  Major: { Small: [0.26, 0.48], Medium: [0.32, 0.65], Big: [0.5, 0.8] },
 };
 
 // How a rival budgets its campaign: as a rule on the film's own negative cost,
@@ -204,7 +264,22 @@ function rivalMarketingSpend(negativeCost: number, marketingSpendT: number, rele
 // (STARTING_CASH_BY_TIER ×1.5) so the pricier slate doesn't throttle the rivals'
 // film output. Reaching the full 45-55% unprofitable target is the coordinated
 // budget+capital+crossover+market-size effort the map scopes.
-const RIVAL_BUDGET_REALISM = 0.06;
+//
+// 0.06 -> 0.10 at the third widening, BUT NOT FOR TENTPOLES. The widened slate
+// came out more profitable than the one this was tuned against, and the reason
+// is compositional: the wide pool is now dominated by major-tier films, which
+// carry a major's talent, brand and campaign, so the same budget band buys a
+// better film than it did when wide releases were mostly Mid-Size. Measured,
+// small- and mid-tier wide releases came out 37% and 36% unprofitable against a
+// 40-55% band, which is the gap this lever exists for.
+//
+// Big is deliberately left at 0.06. Lifting it too took big-budget films from
+// 48% to 53% unprofitable (band 35-50) and their median all-in return from 1.02x
+// to 0.96x - past break-even, in the tier that already runs closest to it. That
+// is the same finding SCALE_SPEND_RANGE.Big records from the other direction: a
+// tentpole budget is set by what the picture needs, and inflating it is how the
+// most expensive films stop being able to recoup at all.
+const RIVAL_BUDGET_REALISM: Record<ProductionScale, number> = { Small: 0.10, Medium: 0.10, Big: 0.06 };
 
 // How the production scale nudges a rival's VFX-Supervisor hire probability on
 // top of the genre's own vfxImportance: a Big-scale tentpole staffs a VFX lead
@@ -255,7 +330,7 @@ function deriveRivalSpendPlan(
   script: Script,
   rng: RandomFn,
 ): RivalSpendPlan {
-  const [minSpend, maxSpend] = SCALE_SPEND_RANGE[scale];
+  const [minSpend, maxSpend] = SCALE_SPEND_RANGE[rival.tier][scale];
 
   // One broad ambition roll still exists, but it no longer controls every
   // department identically.
@@ -271,7 +346,7 @@ function deriveRivalSpendPlan(
   };
 
   const adjustedBase = clamp(
-    baseSpendT + tierAdjustment[rival.tier] + RIVAL_BUDGET_REALISM,
+    baseSpendT + tierAdjustment[rival.tier] + RIVAL_BUDGET_REALISM[scale],
     0,
     1,
   );
@@ -526,13 +601,14 @@ const MAX_RELEASE_SHIFT_DAYS = 120;
 // before it outweighs a prime window's pull - i.e. how out-gunned a film must be
 // before fleeing a good season for a quiet one. Tunable alongside the
 // competition constants in engine/audienceSimulationStep.ts.
-// Expressed in crowding units, so it moved with them: the crowding score became
+// Expressed in crowding units, so it moves with them: the crowding score is
 // density-normalised (engine/releaseCrowding.ts:CROWDING_DENSITY_REFERENCE) and
-// this weight is scaled by the same factor, 0.6 -> 2.76, to leave the AI's
-// avoidance behaviour exactly where it was. Without it the crowd term shrank
-// ~4.6x against the seasonality and delay-cost terms it competes with, and
-// rivals stopped steering around each other's dates altogether.
-const SCHEDULING_CROWD_WEIGHT = 2.76;
+// this weight is scaled by the same factor to leave the AI's avoidance behaviour
+// exactly where it was - 0.6 -> 2.76 when that normalisation arrived, and
+// 2.76 -> 4.14 at the third widening when the reference went 4.6 -> 6.9. Without
+// it the crowd term shrinks against the seasonality and delay-cost terms it
+// competes with, and rivals stop steering around each other's dates altogether.
+const SCHEDULING_CROWD_WEIGHT = 3.36;
 // Only step weekly through the search window - releases land on weekend frames,
 // and a 1-day granularity would spend ~7x the compute for no behavioural gain.
 const SCHEDULING_STEP_DAYS = 7;
@@ -659,17 +735,45 @@ export function startableScales(tier: StudioTier, current: RivalProductionInProg
   // 8-18 in flight to sustain that - it had six. The hard constraint on
   // concurrency in reality is physical (§13: stages, workshops, post
   // facilities), which is why a ceiling exists at all, not how low it sat.
+  //
+  // THIRD WIDENING - the low-budget end of a slate, which nobody above Indie
+  // could make. §2.2.7 itemises a major's year as 2-4 tentpoles, 3-6 mid-budget
+  // and 4-8 LOW-BUDGET films ($5-30M: horror, thriller, faith, specialty); the
+  // model's majors made none, only Medium and Big, so roughly half of a real
+  // major's slate simply did not exist. That is also why majors ran cash-poor
+  // while sitting well below their concurrency ceiling (measured: at ceiling 2%
+  // of the time, median cash $71M against a $117M median picture): every film
+  // they could start was an expensive one. Cheap films are how a studio keeps a
+  // slate moving through a thin year, and 4-8 of them is what the reference
+  // says a major has in it.
+  //
+  // Mid-Size gets a smaller version of the same for the same reason - a
+  // self-distributing mini-major's slate is not all mid-budget - and Indie's
+  // Small ceiling goes 3 -> 6, the one tier that was genuinely capacity-bound
+  // (at its ceiling 53% of the time) against a reference specialty label
+  // releasing 5-15 films a year.
+  //
+  // Mid-Size is raised furthest (Small 4 -> 6, Medium 9 -> 12) because the field
+  // was short at the NON-MAJOR end specifically. With majors inside their 8-20
+  // band the market still ran ~69 wide releases a year against a real ~110, and
+  // the missing ones are not more tentpoles: they are the long tail of ordinary
+  // wide releases a mini-major puts out, most of which do not break $100M. A
+  // real mini-major (Lionsgate) releases 12-18 films a year; this tier was
+  // managing 9.5. Widening it is what puts the weak half of the wide-release
+  // distribution back, which is where the gross-shape bands say the gap is.
   if (tier === 'Indie') {
-    return counts.Small < 3 ? ['Small'] : [];
+    return counts.Small < 6 ? ['Small'] : [];
   }
   if (tier === 'Mid-Size') {
     const scales: ProductionScale[] = [];
-    if (counts.Big === 0 && counts.Medium < 9) scales.push('Medium');
+    if (counts.Small < 6) scales.push('Small');
+    if (counts.Big === 0 && counts.Medium < 12) scales.push('Medium');
     if (counts.Big === 0 && counts.Medium === 0) scales.push('Big');
     return scales;
   }
-  // Major: both pools are independent and run simultaneously.
+  // Major: the pools are independent and run simultaneously.
   const scales: ProductionScale[] = [];
+  if (counts.Small < 7) scales.push('Small');
   if (counts.Medium < 11) scales.push('Medium');
   if (counts.Big < 4) scales.push('Big');
   return scales;
@@ -698,7 +802,7 @@ const BID_RAISE_INCREMENT_FRACTION = 0.05;
 
 /** How much a rival is willing to put toward a script bid, for a given scale - see SCRIPT_BUDGET_FRACTION's own doc comment for the reasoning. */
 function scriptBudget(rival: RivalStudio, scale: ProductionScale, rng: RandomFn): number {
-  const spendT = randFloat(rng, ...SCALE_SPEND_RANGE[scale]);
+  const spendT = randFloat(rng, ...SCALE_SPEND_RANGE[rival.tier][scale]);
   return rival.cash * SCRIPT_BUDGET_FRACTION * spendT;
 }
 
@@ -1003,7 +1107,7 @@ function startRivalProductionFromWonScript(
   // Release type is resolved here rather than inline below because the campaign
   // budget now depends on it: only a Wide release carries a structural floor
   // (data/release.ts:MINIMUM_CAMPAIGN_SPEND).
-  const releaseType = releaseTypeForScale(scale, rng);
+  const releaseType = releaseTypeForScale(scale, rng, rival.tier);
   const plannedNegative =
     computeTalentCost(talent) + computeProductionBudgetCost(productionChoices) + productionChoices.shootingBudgetAmount;
   const marketingSpend = rivalMarketingSpend(plannedNegative, spendPlan.marketingSpendT, releaseType);

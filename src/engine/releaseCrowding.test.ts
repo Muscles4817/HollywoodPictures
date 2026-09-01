@@ -4,6 +4,7 @@ import {
   computeCompetitiveCrowding,
   computeRivalReleaseStrength,
   computePlayerReleaseStrength,
+  crowdingBandKey,
   crowdingFromPressure,
   crowdingHorizon,
   explainCrowding,
@@ -85,8 +86,10 @@ describe('computeCompetitiveCrowding', () => {
     // The soft knee approaches 1 asymptotically and never reaches it - this used
     // to land on exactly 1 only because the un-normalised sum was large enough
     // for `1 - exp(-x)` to saturate in floating point. The contract is that many
-    // strong competitors stop compounding, not that they hit a specific float.
-    expect(score).toBeCloseTo(1, 5);
+    // strong competitors stop compounding, not that they hit a specific float,
+    // so the tolerance tracks CROWDING_DENSITY_REFERENCE: a bigger divisor means
+    // the same twenty competitors sit slightly further down the asymptote.
+    expect(score).toBeCloseTo(1, 3);
   });
 
   it('never returns a negative number', () => {
@@ -199,11 +202,15 @@ describe('the player feels their own strength in a collision', () => {
     const weak = computeCompetitiveCrowding(candidate, [rival], 0.15);
     const strong = computeCompetitiveCrowding(candidate, [rival], 0.95);
     expect(strong).toBeLessThan(weak);
-    // Both still hurt - a collision is a collision - but not equally. 0.15 sits
-    // against the density-normalised scale (CROWDING_DENSITY_REFERENCE), where a
-    // head-on same-genre collision reads ~0.24 and the "Crowded" band starts at
-    // 0.2; the strong film here still lands inside it.
-    expect(strong).toBeGreaterThan(0.15);
+    // Both still hurt - a collision is a collision - but not equally. The
+    // threshold sits against the density-normalised scale
+    // (CROWDING_DENSITY_REFERENCE, 6.9 since the third widening), where a head-on
+    // same-genre collision reads ~0.16 and the "Crowded" band starts at 0.133;
+    // the strong film here still lands inside it. Scaled by 4.6/6.9 with the
+    // reference itself - the contract is "a strong film still feels a head-on
+    // collision as Crowded", not a fixed number.
+    expect(strong).toBeGreaterThan(0.1);
+    expect(crowdingBandKey(strong)).toBe('high');
   });
 });
 

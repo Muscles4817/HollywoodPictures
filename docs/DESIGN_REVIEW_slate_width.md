@@ -237,3 +237,196 @@ only tier squarely inside theirs.
 Post-theatrical revenue reads 34% of rentals against a 35–55% band — just under,
 where it was 38% before. The slate's composition shifted toward the tiers with
 the lowest downstream ratios; nothing about the ancillary model changed.
+
+---
+
+## 9. The third widening
+
+The first two widenings raised how many films the industry made. This one raised
+how many it **releases wide**, which is the thing the reference actually
+measures — and the two turned out to be different problems.
+
+Going in, the gap was stated numerically for the first time (calibration targets
+§12.3): majors released 5.0 wide films a year against a reference 8–20, and
+specialty labels made 3.6 against 5–15.
+
+### 9.1 The harness was measuring a poorer industry than the game runs
+
+Before any model change: `state/ancillarySettlement.ts:accrueRivalAncillary`
+credits a rival its film's whole post-theatrical afterlife as a lump, and
+`boxOfficeDistribution.diagnostic.test.ts` — the harness carrying every ratified
+gate — never did. It computed each film's post-theatrical revenue for the
+profitability record and then threw it away instead of crediting it to the
+studio's cash.
+
+That is not cosmetic, because **rival cash is the binding constraint on how many
+films get made** (the affordability gate, `rivalStudios.ts` `cost > rival.cash`).
+§1.1 found and fixed exactly this omission in the rival-behaviour harness; this
+one still had it.
+
+Fixing the measurement alone, with no model change at all, moved the field from
+3113 films to 3786 and the two structural gates from 5.0/3.6 to **6.1/4.1**. It
+also cost four other gates, because a bigger field is harsher — which is the
+coupling §5 documented, arriving on schedule.
+
+Every "before" figure below is measured **after** this fix, so the widening is
+not credited with it.
+
+### 9.2 What was actually binding, per tier
+
+Measured over three seeds × eight years. The tiers were bound by different
+things, which is why one lever was never going to do it:
+
+| tier | films/yr | wide/yr | at ceiling | cash p50 | median cost |
+|---|--:|--:|--:|--:|--:|
+| Indie | 4.02 | 0.80 | **53%** | $45M | $9M |
+| Mid-Size | 6.57 | 4.06 | 32% | $160M | $42M |
+| Major | 6.94 | 4.64 | **2%** | **$71M** | $117M |
+
+Script supply was not the constraint anywhere (14–15 unclaimed opportunities
+sitting on the market throughout). Indie was hard capacity-bound. Major was not
+— it sat at its ceiling 2% of the time while running on $71M against a $117M
+median picture, i.e. **cash-bound**, a $2.2B studio unable to start a film.
+
+### 9.3 Release strategy belongs to the distributor, not just the budget
+
+`RELEASE_TYPE_WEIGHTS_BY_SCALE` chose a release type from the film's scale
+alone, so the same $15M film platformed four times in five whoever owned it.
+`docs/domain/01-industry-structure.md` makes this a property of the
+**distributor**:
+
+- §2, specialty labels: they "release fewer, cheaper films, lean on festivals
+  and awards, and **platform (open small, expand) rather than open wide**".
+- §2, a major: "a slate of **10–20 wide releases**" — and §2.2.7 itemises that
+  slate as 2–4 tentpoles, 3–6 mid-budget **and 4–8 low-budget** films ($5–30M,
+  "horror, thriller, faith, specialty"). Those cheap films are inside the 10–20
+  wide releases. A major owns a worldwide distribution network (§2.1) and opens
+  its slate on it.
+- The exception the reference names itself is the 1–3 awards plays, which go
+  "often through the specialty label" — a different distributor, which in this
+  model is the Indie tier.
+
+So `RELEASE_TYPE_WEIGHTS` is now tier × scale. No distributor platforms a
+tentpole — that is physics, not strategy — but at the cheap end a major opens
+76% wide where a specialty label opens 14%.
+
+### 9.4 A major could not make a cheap film at all
+
+`startableScales` offered a Major only Medium and Big. Roughly half of a real
+major's slate — §2.2.7's 4–8 low-budget films — simply did not exist, and that
+is also *why* majors ran cash-poor below their ceiling: every film they were
+allowed to start was an expensive one.
+
+Ceilings: Indie Small 3 → 6 (the one genuinely capacity-bound tier), Mid-Size
+gains Small (< 6) and Medium 9 → 12, Major gains Small (< 7).
+
+Mid-Size is raised furthest because the field was short at the **non-major** end
+specifically: with majors inside their 8–20 band the market still ran ~62 wide
+releases a year against a real ~110, and the missing ones are not more
+tentpoles — they are the ordinary wide releases a mini-major puts out, most of
+which never break $100M.
+
+### 9.5 "Low-budget" means different things at different studios
+
+The moment majors could make cheap films they made them at an *indie's* price
+and opened them wide on a major's network. Measured: an $8.8M median negative
+grossing **$119M**, a 12.1× gross-on-negative against a 4.5–7× target, and 23%
+of a major's slate returning 2.5–5×. The reference slate (`docs/domain/11` §5.4)
+has exactly one such film and calls it "the best return on capital" on the whole
+slate; the model was making it the median.
+
+The same film class, by distributor, showed the problem cleanly:
+
+| distributor | median negative | median gross |
+|---|--:|--:|
+| Indie | $2.5M | $26M |
+| Mid-Size | $6.2M | $61M |
+| Major | $8.8M | **$119M** |
+
+`SCALE_SPEND_RANGE` is therefore tier-aware at the Small end: §2.2.7 prices a
+major's low-budget picture at $5–30M and §5.4's slate prices its cheap film at
+$15M, while a true independent's is a different animal at a $2.5M median. After
+repricing, a major's cheap film sits at a **$19.4M** median negative. The fix is
+pricing a studio picture at what the reference says it costs, not a penalty on
+cheap films.
+
+`RIVAL_BUDGET_REALISM` went 0.06 → 0.10 for the same reason, **but not for
+tentpoles**. The widened wide-release pool is dominated by major-tier films
+carrying a major's talent, brand and campaign, so the same budget band buys a
+better film than it did; small and mid tiers came out 37% and 36% unprofitable
+against a 40–55% band. Lifting Big too took big-budget films from 48% to 53%
+unprofitable and their median all-in return from 1.02× to 0.96× — past
+break-even, in the tier already closest to it. That trade bought one extra
+whole-year gate and cost the one thing the calibration is most explicitly not
+allowed to produce, so it was not taken.
+
+### 9.6 The density coupling, again — and how to do it right
+
+§8.1 called `CROWDING_DENSITY_REFERENCE` "the ONE constant that tracks slate
+width", and it earned that. Measured on the **live rival market** rather than a
+fixture, mean crowding pressure went 0.334 → 0.503 as the industry widened, so
+the divisor moves with it: **4.6 → 5.6**, with the two things denominated in
+crowding units moving alongside (`SCHEDULING_CROWD_WEIGHT` 2.76 → 3.36,
+`crowdingBandKey` thresholds by the same factor).
+
+One discipline learned here and worth keeping: **re-derive it at the end of a
+change, not in the middle.** Pegged against the intermediate slate the answer
+was 6.9; but §9.5 makes films pricier and therefore fewer, and 6.9 then read
+0.273 — 18% below the distribution everything downstream is calibrated against.
+5.6 reads 0.343 against a target 0.334.
+
+6.9 scored better on the gate count (16/21 against 14/21), and was still wrong:
+two of those gates flip on their third significant figure, and picking a
+divisor because it flips them is precisely the tuning-to-the-test this constant
+was introduced to prevent.
+
+### 9.7 What it did
+
+| | before §2 | §4 | §8 | **§9** |
+|---|--:|--:|--:|--:|
+| Films per Indie | 1.06 | 2.42 | 4.46 | **4.63** |
+| Films per Mid-Size | 1.22 | 3.43 | 7.40 | **9.25** |
+| Films per Major | 2.78 | 4.67 | 9.09 | **8.79** |
+| **Wide per Major** | — | — | 5.0 | **9.9** |
+| Films per specialty label | — | — | 3.6 | **5.1** |
+| Of a specialty label's films, share wide | — | — | 17.9% | **11.5%** |
+
+**Both structural gates pass**, which is what this widening was for:
+`widePerMajorPerYear` 9.9 in 8–20, `specialtyFilmsPerYear` 5.1 in 5–15. The
+market's *shape* is now the reference's: a major releasing ten wide films a year
+off a mixed slate with a real low-budget end, and specialty labels platforming
+nine films in ten.
+
+Against the honest baseline (§9.1) the gate count is unchanged at **14/21**, and
+the trade is worth stating exactly. Gained: `widePerMajorPerYear`,
+`specialtyFilmsPerYear`, `wideMedianGrossM`, `wideUnprofitablePct`. Lost:
+`wideOver100Pct`, `topDecileWideSharePct` (34.6 against a floor of 35),
+`limitedOpeningMultiple` (12.1 against a ceiling of 12), `majorPct` (14.1
+against a ceiling of 14) — three of the four decided in their last digit.
+
+### 9.8 Still open — and one band that is now measuring the wrong thing
+
+`wideOver100Pct` 65.4 against 45–60, `wideOver500Pct` 15.2 against 6–12 and
+`wideOver1000Pct` 3.7 against 1–3 are **percentage** bands, and their implied
+counts are all correct or low:
+
+| band | measured | implied films/yr | real |
+|---|--:|--:|--:|
+| > $100M | 65.4% | 39.0 | 55–70 |
+| > $500M | 15.2% | 9.1 | 10–15 |
+| > $1B | 3.7% | 2.2 | 2–5 |
+
+The model runs **59.7 wide releases a year against a real ~110**, so a share of
+the field reads high while the field itself is short. This is the same
+scale-invariance defect §5 found in `top10SharePct` and fixed by moving to a
+decile, and these three bands have it. They should be re-derived as counts, or
+against the field size they were drawn from — not satisfied by suppressing the
+top of the market, which is where they currently point.
+
+The shortfall is entirely at the non-major end: majors are inside their band, so
+the missing ~50 wide releases a year are the ones a real market gets from the
+many distributors this model compresses into four Mid-Size and four Indie
+studios. A fourth widening is not the lever; a wider **roster** might be.
+
+`breakevenPct` 11.8 against 14–35 is the standing "thin middle" finding,
+unchanged.
