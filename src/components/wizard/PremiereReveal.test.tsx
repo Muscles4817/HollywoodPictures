@@ -23,6 +23,7 @@ const audienceReviews: ReviewQuote[] = [
 function renderReveal() {
   return render(
     <PremiereReveal
+      studioName="Silver Reel Pictures"
       title="The Long Take"
       genre="Drama"
       outcome="Hit"

@@ -666,8 +666,8 @@ figures where columns align; the validator from Phase 0 stays green.
 
 ### Phase 6 — Portraits and studio identity
 
-**First pass landed 2026-08-31.** Two of the three items; the third turned out
-to be a bad idea and is recorded as such rather than built.
+**Landed 2026-08-31.** Two of the three roadmap items built, the third rejected
+with its reasoning, and §12's open question re-scoped.
 
 **The frame, not the face** (`common/PersonFrame.tsx`). §9.1 is now DECIDED, and
 argued there on this game's terms rather than adopted from its own ranking: the
@@ -697,12 +697,34 @@ fold". The trade panel is a box-office ranking; reordering it to flatter the
 player would make the chart lie. It already marks the player's films where they
 actually place.
 
-**Still open:** the spine wordmark was considered for the same tiering and left
-alone — it is already the display face at 800 weight and 0.2em tracking, so
+**The studio on its own key art** (`GenrePoster`'s credit line). The gap the
+first pass flagged: the generated one-sheet showed a title monogram and a genre
+and nothing about whose picture it was, so the key art belonged to nobody. It
+now carries the releasing studio the way a one-sheet of the era does, above the
+title art. Deliberately *not* the `.typed` register, even though the name is
+player-chosen and typed is the desk's rule for exactly that — the whole object
+is outside the desk palette, and a courier studio credit would be the only thing
+on the sheet pretending to be a form.
+
+The name is player-chosen, so it can be one letter or fifty: the credit reserves
+a fixed two-line box and the monogram is placed against the *reservation* rather
+than the rendered height, so clearance is identical whatever was typed. Measured
+at three name lengths across both poster sizes, and `designSystem.test.ts` holds
+the reservation — the first version of that assertion passed with the height
+deleted, because `line-height` contains the string `height:`, which is what
+mutation-testing it caught.
+
+**§12's logo-builder question is re-scoped rather than answered.** It assumed a
+studio-logo feature (there is none in the code) and a save-selection poster wall
+(a §6 proposal, not a built screen — Phase 4 shipped a different object). The
+live question is upstream: does the studio need a *mark* beyond its name? The
+wordmark now on the one-sheet is the first evidence, and it reads.
+
+**Closed, not built:** the spine wordmark was considered for the same tiering and
+left alone — it is already the display face at 800 weight and 0.2em tracking, so
 there is nothing grander to escalate it to without putting a rule box in
-permanent chrome. §12's logo-*builder* question is also still open; the poster
-wall exists now, but the studio's mark appears nowhere on a poster, which is
-probably the thing to settle first.
+permanent chrome. And the plate stays on the one page that is *about* a person;
+hunting for more homes for it would be the phase looking for work.
 
 Also here: §9's "progression shown in Tier 1, not Tier 3" — grander letterhead,
 a changed nameplate, the trade paper moving your studio above the fold. And
@@ -759,3 +781,4 @@ the same line:
 | 2026-08-31 | Phase 5's density passes were re-run against a populated fixture (`state/renderFixtures.ts`). Both findings — a talent list laying out 2,490 rows, and currency figures breaking after the sign — were invisible to the empty fixture, which is why the first pass found nothing. |
 | 2026-08-31 | Phase 6 first pass landed. The frame goes where a page is *about* a person, never on a scanning table or a decision surface — a plate on every row of a 60-row table costs the density that makes the table work. |
 | 2026-08-31 | Studio progression is weight, rule and face — never hue. A size is not a state, so the accent stays out of the letterhead, and `designSystem.test.ts` enforces it rather than review remembering it. |
+| 2026-08-31 | The one-sheet credits its studio. Placed against a reserved height rather than a rendered one, because the studio name is player-chosen and a layout that only works for the default name is not a layout. |

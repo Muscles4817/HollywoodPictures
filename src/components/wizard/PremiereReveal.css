@@ -174,7 +174,13 @@
     gap: 16px;
   }
 
-  .genre-poster {
+  /* Scoped to this hero. As a bare .genre-poster it also caught the campaign
+     screen's poster - a different screen, loading a different stylesheet - and
+     because this file is appended after GenrePoster.css it beat the
+     --large variant's own width, shrinking the campaign's one-sheet to 104px
+     on a phone: narrower there than the small poster is on a desk. Same
+     source-order trap index.css documents about itself. */
+  .premiere-hero .genre-poster {
     width: 104px;
   }
 

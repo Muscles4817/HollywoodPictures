@@ -362,6 +362,7 @@ export function ReleaseResults() {
       <PremiereReveal
         title={film.title}
         genre={film.genre}
+        studioName={state.studio.name}
         outcome={results.outcome}
         criticScore={results.criticScore}
         audienceScore={results.audienceScore}
