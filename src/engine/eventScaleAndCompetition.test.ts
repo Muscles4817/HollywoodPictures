@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeEventScale, deriveAudienceSimulationFixedState, type ReleaseSimulationInputs } from './audienceSimulationInputs';
-import { computeMarketPresence, computeCompetitiveCrowding, computeRivalReleaseStrength, type UpcomingRelease } from './releaseCrowding';
+import { computeMarketPresence, computeCompetitiveCrowding, crowdingBandKey, computeRivalReleaseStrength, type UpcomingRelease } from './releaseCrowding';
 import { maxInterestedAudience, type AudienceSimulationWeekState } from './audienceSimulation';
 import { advanceToWeek } from './audienceSimulationStep';
 
@@ -135,12 +135,15 @@ describe('competition - the strong do the pushing', () => {
     const small = 0.08;
     const pressureOnSmall = computeCompetitiveCrowding(candidate, [window(tentpole)], small);
     const pressureOnTentpole = computeCompetitiveCrowding(candidate, [window(small)], tentpole);
-    // Thresholds sit against the density-normalised scale
-    // (engine/releaseCrowding.ts:CROWDING_DENSITY_REFERENCE), where the score
-    // measures how crowded a window is relative to an ordinary one rather than
-    // how many films happen to be near it. The "Crowded" band starts at 0.2.
-    expect(pressureOnSmall).toBeGreaterThan(0.35);
-    expect(pressureOnTentpole).toBeLessThan(0.02);
+    // Stated in BANDS rather than raw numbers, because the score is
+    // density-normalised (engine/releaseCrowding.ts:CROWDING_DENSITY_REFERENCE)
+    // and that divisor moves whenever the slate widens - it went 4.6 -> 6.9 at
+    // the third widening. What the model promises is that the small film's
+    // window reads Crowded and the tentpole's reads Clear, which is a claim
+    // about the reading and survives the rescaling; a hard-coded 0.35 was a
+    // claim about the divisor.
+    expect(crowdingBandKey(pressureOnSmall)).toBe('high');
+    expect(crowdingBandKey(pressureOnTentpole)).toBe('clear');
     // What the test is really about: the same collision is an order of magnitude
     // worse for the small film than for the tentpole.
     expect(pressureOnSmall / pressureOnTentpole).toBeGreaterThan(10);
@@ -148,8 +151,9 @@ describe('competition - the strong do the pushing', () => {
 
   it('makes two evenly-matched tentpoles genuinely hurt each other', () => {
     // A same-genre, same-audience tentpole on the exact day - the worst collision
-    // the model can express - lands comfortably inside the "Crowded" band (0.2+)
-    // on the density-normalised scale.
-    expect(computeCompetitiveCrowding(candidate, [window(0.85)], 0.85)).toBeGreaterThan(0.2);
+    // the model can express - lands inside the "Crowded" band. Asserted as a band
+    // for the same reason as above: the raw number tracks
+    // CROWDING_DENSITY_REFERENCE, the reading is the contract.
+    expect(crowdingBandKey(computeCompetitiveCrowding(candidate, [window(0.85)], 0.85))).toBe('high');
   });
 });

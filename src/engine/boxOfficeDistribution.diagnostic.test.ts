@@ -19,7 +19,7 @@
  * top so ratifying/adjusting a target is a one-line edit.
  */
 import { describe, it, expect } from 'vitest';
-import { generateRivalStudios, settleRivalMarket, type RivalMarketUpdate } from './rivalStudios';
+import { generateRivalStudios, settleRivalMarket, studioShareOf, type RivalMarketUpdate } from './rivalStudios';
 import { settleTheatricalMarket } from './marketSettlement';
 import { generateTalentPool } from './talentGenerator';
 import { settleOpportunities } from './opportunities';
@@ -168,6 +168,18 @@ function runOneSeed(seed: number): Rec[] {
 
     const recorded = new Set<string>();
     const out: Rec[] = [];
+    /** This tick's post-theatrical credits, by studio name - drained into cash below. */
+    const ancillaryCredit = new Map<string, number>();
+    /** What a finished rival film pays its studio downstream, net of the co-financier's share - accrueRivalAncillary's own arithmetic. */
+    const rivalAncillaryCredit = (film: Film): number => {
+      const rival = rivalStudios.find((r) => r.name === film.releasedBy);
+      const gross = film.results.totalBoxOffice ?? film.boxOfficeRun.cumulativeGross;
+      const profile = deriveAncillaryProfile(
+        ancillaryAttributesFromFilm(film, { studioPrestige: rival?.prestige ?? 20, awards: { wins: 0, nominations: 0 } }),
+        gross,
+      );
+      return profile.lifetimeTotal * studioShareOf(rival ?? {});
+    };
 
     for (let day = 2; day <= HORIZON; day++) {
       const marketSettlement = settleTheatricalMarket(runningFilms, [], productionsInProgress, rivalStudios, day, 20, rng);
@@ -177,20 +189,35 @@ function runOneSeed(seed: number): Rec[] {
         if (f.boxOfficeRun.status !== 'finished') continue;
         if (recorded.has(f.id)) continue;
         recorded.add(f.id);
-        out.push(recordFinished(f, seed, tierByName.get(f.releasedBy) ?? 'Indie'));
+        const tier = tierByName.get(f.releasedBy) ?? 'Indie';
+        out.push(recordFinished(f, seed, tier));
+        // Credit this film's whole post-theatrical afterlife to the studio that
+        // released it, exactly as state/ancillarySettlement.ts:accrueRivalAncillary
+        // does in the real game - a lump at finish, net of the co-financier's
+        // share. Without it this harness ran a materially poorer industry than the
+        // game does: rival cash is the binding constraint on how many films get
+        // made (the affordability gate, rivalStudios.ts `cost > rival.cash`), and
+        // post-theatrical revenue is worth roughly a third of theatrical rentals.
+        // DESIGN_REVIEW_slate_width.md §1.1 found and fixed the same omission in
+        // the rival-behaviour harness; this one still had it, which is why the
+        // market-structure gates measured a smaller field than the game plays.
+        ancillaryCredit.set(f.releasedBy, (ancillaryCredit.get(f.releasedBy) ?? 0) + rivalAncillaryCredit(f));
       }
 
       rivalStudios = rivalStudios.map((rival) => {
         const delta = marketSettlement.rivalDeltas.get(rival.name);
-        if (!delta) return rival;
+        const afterlife = ancillaryCredit.get(rival.name) ?? 0;
+        if (!delta && afterlife === 0) return rival;
+        const credit = (delta?.cashCredit ?? 0) + afterlife;
         return {
           ...rival,
-          cash: rival.cash + delta.cashCredit,
-          brand: Math.max(0, Math.min(100, rival.brand + delta.brandDelta)),
-          prestige: Math.max(0, Math.min(100, rival.prestige + delta.prestigeDelta)),
-          lifetimeRevenue: rival.lifetimeRevenue + delta.cashCredit,
+          cash: rival.cash + credit,
+          brand: Math.max(0, Math.min(100, rival.brand + (delta?.brandDelta ?? 0))),
+          prestige: Math.max(0, Math.min(100, rival.prestige + (delta?.prestigeDelta ?? 0))),
+          lifetimeRevenue: rival.lifetimeRevenue + credit,
         };
       });
+      ancillaryCredit.clear();
 
       const oppSettlement = settleOpportunities(opportunities, nextOpportunityCheckDay, day, rng);
       const rivalBids = oppSettlement.resolvedBids.filter((b) => b.winnerId !== 'player');

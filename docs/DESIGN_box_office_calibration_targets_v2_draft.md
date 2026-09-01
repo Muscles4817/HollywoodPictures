@@ -621,3 +621,55 @@ a $15M median negative cost**, and those films return a median 0.68×. The
 reference says smaller distributors platform. That single behaviour is the
 largest source of the market-wide bomb rate, and it is a defect the widening
 exposed rather than caused.
+
+---
+
+## 13. After the third widening
+
+§12.4 left two structural gates failing with a target attached for the first
+time. Both now pass (`DESIGN_REVIEW_slate_width.md` §9): `widePerMajorPerYear`
+**9.9** in 8–20, `specialtyFilmsPerYear` **5.1** in 5–15.
+
+Two things about the scoreboard, both of which cut against the headline:
+
+**The 17/21 in §12.4 was measured on a harness that under-fed the industry.**
+`boxOfficeDistribution.diagnostic.test.ts` never credited rival studios their
+post-theatrical revenue, which the real game pays and which — through the
+affordability gate — governs how many films get made. Fixing that alone, with no
+model change, took it to **14/21**. That is the honest baseline; the widening
+neither caused nor gets credit for it.
+
+**Against that baseline the count is unchanged at 14/21.** Gained
+`widePerMajorPerYear`, `specialtyFilmsPerYear`, `wideMedianGrossM` and
+`wideUnprofitablePct`; lost `wideOver100Pct`, `topDecileWideSharePct`,
+`limitedOpeningMultiple` and `majorPct`, three of them by less than a point.
+What improved is not the count but the market's *structure*, which is what the
+widening was for.
+
+### 13.1 Three bands are not scale-invariant
+
+`wideOver100Pct`, `wideOver500Pct` and `wideOver1000Pct` are shares of the wide
+field. Their implied counts are correct or low against reality (39.0, 9.1 and
+2.2 films a year against ~55–70, 10–15 and 2–5), and they read as failures only
+because the model's field is **59.7 wide releases a year against a real ~110**,
+which is not the field they were derived against.
+
+This is the defect §11.3 and `DESIGN_REVIEW_slate_width.md` §5 already found and
+fixed once, in `top10SharePct`, by moving to a decile. These three have it too.
+
+**Not re-derived here, deliberately.** Every candidate re-derivation makes a
+currently-failing band pass, which is the direction that should attract the most
+suspicion — §12.2 is on the record about what that costs. The finding is
+recorded so it can be ratified or rejected on its own evidence rather than
+folded into a change that benefits from it.
+
+### 13.2 One model finding closed
+
+§12.4's open finding — Mid-Size putting 59% of its films wide at a $15M median
+negative for a 0.68× return, "the largest single source of the market-wide bomb
+rate" — was half of a larger defect. Release strategy was chosen from the film's
+budget with no term at all for **who was distributing it**, so a specialty label
+and a major treated the same cheap film identically. It is now tier-aware
+(`docs/domain/01` §2 makes platforming a property of the distributor), and a
+specialty label's share going wide fell from 17.9% to 11.5% while a major's
+rose.

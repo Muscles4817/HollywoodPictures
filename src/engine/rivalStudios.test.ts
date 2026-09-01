@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { studioShareOf, generateRivalStudios, settleRivalMarket, releaseTypeForScale, chooseReleaseDay, type RivalMarketUpdate } from './rivalStudios';
 import { createRng } from './random';
+import type { StudioTier } from '../types';
 import { settleTheatricalMarket } from './marketSettlement';
 import { generateTalentPool } from './talentGenerator';
 import { settleOpportunities, type ResolvedBid } from './opportunities';
@@ -299,10 +300,10 @@ describe('settleRivalMarket - AI Studios 2.0 financial constraints', () => {
   });
 });
 
-describe('releaseTypeForScale (rival release strategy follows the film budget)', () => {
-  // RELEASE_TYPES iterate as [Limited, Wide, Festival First]; Big weights are
-  // Limited 8 / Wide 88 / Festival First 4 (total 100), so a fixed rng roll
-  // lands in a known band (see engine/random.ts:weightedPick).
+describe('releaseTypeForScale (rival release strategy follows the film budget AND its distributor)', () => {
+  // RELEASE_TYPES iterate as [Limited, Wide, Festival First]; the default tier's
+  // Big weights are Limited 7 / Wide 90 / Festival First 3 (total 100), so a
+  // fixed rng roll lands in a known band (see engine/random.ts:weightedPick).
   it('sends a Big-budget film Wide on a mid roll - the spend finally has somewhere to go', () => {
     expect(releaseTypeForScale('Big', () => 0.5)).toBe('Wide');
   });
@@ -320,11 +321,42 @@ describe('releaseTypeForScale (rival release strategy follows the film budget)',
     expect(counts['Festival First']).toBeLessThan(120);
   });
 
-  it('leans Small films toward Limited / Festival First rather than Wide', () => {
+  // Who is releasing the film is the other half of the decision, and used to be
+  // absent: the same cheap film platformed four times in five whoever owned it.
+  // docs/domain/01-industry-structure.md §2 makes this a property of the
+  // DISTRIBUTOR - a specialty label "platform(s) (open small, expand) rather than
+  // open wide", while a major's 10-20 wide releases include the 4-8 low-budget
+  // films §2.2.7 itemises on its slate.
+  const drawSmall = (tier: StudioTier) => {
     const rng = createRng(11);
     const counts: Record<string, number> = { Wide: 0, Limited: 0, 'Festival First': 0 };
-    for (let i = 0; i < 1000; i++) counts[releaseTypeForScale('Small', rng)]++;
+    for (let i = 0; i < 1000; i++) counts[releaseTypeForScale('Small', rng, tier)]++;
+    return counts;
+  };
+
+  it('has a specialty label platform its cheap films rather than open them wide', () => {
+    const counts = drawSmall('Indie');
     expect(counts.Wide).toBeLessThan(counts.Limited + counts['Festival First']);
-    expect(counts.Wide).toBeLessThan(350);
+    expect(counts.Wide).toBeLessThan(220);
+  });
+
+  it('has a major open its cheap films wide - that is what its distribution network is for', () => {
+    const counts = drawSmall('Major');
+    expect(counts.Wide).toBeGreaterThan(counts.Limited + counts['Festival First']);
+    expect(counts.Wide).toBeGreaterThan(680);
+  });
+
+  it('puts the same cheap film in a different release strategy depending on who owns it', () => {
+    expect(drawSmall('Major').Wide).toBeGreaterThan(drawSmall('Mid-Size').Wide);
+    expect(drawSmall('Mid-Size').Wide).toBeGreaterThan(drawSmall('Indie').Wide);
+  });
+
+  it('still never platforms a tentpole, whoever is releasing it', () => {
+    for (const tier of ['Indie', 'Mid-Size', 'Major'] as StudioTier[]) {
+      const rng = createRng(3);
+      const counts: Record<string, number> = { Wide: 0, Limited: 0, 'Festival First': 0 };
+      for (let i = 0; i < 1000; i++) counts[releaseTypeForScale('Big', rng, tier)]++;
+      expect(counts.Wide).toBeGreaterThan(counts.Limited + counts['Festival First']);
+    }
   });
 });
