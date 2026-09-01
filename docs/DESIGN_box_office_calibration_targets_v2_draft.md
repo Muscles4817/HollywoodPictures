@@ -316,13 +316,17 @@ Two changes beyond §7's list, both forced by measurement and both evidenced:
   the blend has to sit well below the US figure. $6.50 keeps it above a pure
   global average, since Hollywood films over-index on higher-price markets.
 
-### 9.3 What did not land, and the reason
+### 9.3 What did not land, and the reason (diagnosis SUPERSEDED — see §10)
 
 `breakevenPct` (10.8 vs 18-30), `modestPct` (32.0 vs 18-30) and `majorPct`
 (16.1 vs 4-10) are all one finding: the return distribution has the right
 **median** and the right **tails** but too thin a **middle**. §3's "fat middle,
 thin tails" shape is a variance property, and the obvious lever for it is
 blocked by a structural coupling worth recording:
+
+> The diagnosis below was tested directly in §10 and is **wrong**. The
+> observation is real - moving the audience curve does destabilise the loop -
+> but the denominator is not the cause. Read §10 for the mechanism.
 
 **`maxInterestedAudience` is both the audience ceiling and the word-of-mouth
 normalisation denominator.** Any change to the base interest fraction therefore
@@ -342,3 +346,84 @@ the same `womNormalisationPool` change trialled and reverted earlier
 normalising against the natural audience alone lifted the bottom of the market,
 which is a tractable problem, and worth revisiting now that there is a concrete
 reason to.
+
+
+---
+
+## 10. The decoupling pass — a negative result, and the real mechanism
+
+§9.3 proposed separating the word-of-mouth normalisation denominator from
+`maxInterestedAudience` so the audience curve could be retuned freely. That was
+built, measured, and **reverted**. The hypothesis is wrong, and the experiments
+that disprove it also identify what is actually going on.
+
+### 10.1 What was built
+
+`AudienceSimulationFixedState` gained an optional `womReferenceAudience` - the
+pool word of mouth is measured against - defaulting to `maxInterestedAudience`
+so every existing caller was unaffected. The interest curve became data
+(`InterestCurve`), instantiated twice: `AUDIENCE_INTEREST_CURVE`, free to retune
+for box-office calibration, and `WOM_REFERENCE_CURVE`, frozen at the calibration
+the loop's four response constants were last swept against.
+
+With both curves identical the change is a **proven no-op** - the full suite
+stayed at 2,565 passing, the regression matrix at 62/62.
+
+### 10.2 It does not unlock the curve
+
+Cutting `AUDIENCE_INTEREST_CURVE` to 0.045/0.22 with the denominator frozen:
+the runaway guard no longer trips, but the **ordinary film starves** - its weeks
+2-4 hold falls to 0.33x its opening against a required 0.6x, and its legs to
+1.71x against a required 1.8x - while the phenomenon still self-sustains at a
+1.83 peak reproduction ratio.
+
+Cutting it only moderately, to 0.07/0.38, trips the runaway guard instead, at
+1.15. So moderate cuts run away and deep cuts starve, with no green band
+between: freezing the denominator changed the *sign* of the coupling without
+removing it.
+
+### 10.3 The interest fractions are not a scale lever either
+
+Next hypothesis: the loop is invariant to a *uniform* rescale of the pool, and
+what breaks it is changing the pool's composition. Tested by halving everything
+together - base floor, base ceiling and `CROSSOVER_CAPACITY_CEILING` all x0.5,
+denominator coupled as before. **Still trips**, at a 1.34 reproduction ratio.
+
+### 10.4 What actually drives the loop
+
+Same halving, applied one level up - `BASE_ADDRESSABLE_POPULATION` 200M -> 100M,
+interest fractions untouched. **Every reproduction-ratio and legs assertion in
+the matrix stays green.** The only three failures are pure absolute-size bars
+that a half-sized market must fail by construction: the phenomenon grosses
+$997M against a >$1B floor, and the huge-opening scenario opens to 40.7M
+admissions against a >50M floor.
+
+That isolates it:
+
+**`initialAwareCount` is sized from `totalAddressableAudience` - marketing reach
+and cast fame times the whole population - while the interested pool is a
+*fraction* of that same population. Cutting the interest fraction therefore
+changes the ratio of aware people to interested people, and it is that ratio,
+not the size of either pool, that the reproduction loop runs on.** Scaling the
+population moves awareness and interest together and the loop does not notice.
+
+Which is why every attempt above failed in the way it did. The denominator was
+never the coupled quantity; the funnel's own shape was.
+
+### 10.5 Consequences
+
+- **The safe audience lever is the population, not the interest curve.** It
+  scales admissions with the awareness/interest ratio held fixed.
+- **It buys no new headroom for this calibration, though.** Gross is admissions
+  times price, so population and `AVERAGE_TICKET_PRICE` are the same lever for
+  anything measured in money, and §9.2's price correction already spent it.
+- **So the bands still open in §9.3 are not a level problem.** `breakevenPct`,
+  `modestPct` and `majorPct` describe a distribution with too thin a middle at
+  the right median - a variance property. Compressing outcome variance is a
+  reception-model question, not a box-office one, and it runs against the
+  direction `DESIGN_REVIEW_reception_model.md` deliberately pushed.
+- **The refactor was reverted rather than shipped.** It is a clean abstraction
+  and it cost nothing, but its own comments would have promised an unlock that
+  does not exist, and a no-op field documented as load-bearing is worse than no
+  field. The mechanism above is the durable part; recorded here so the
+  denominator is not re-attempted a third time.
