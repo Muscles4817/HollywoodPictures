@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateRivalStudios, settleRivalMarket, releaseTypeForScale, chooseReleaseDay, type RivalMarketUpdate } from './rivalStudios';
+import { studioShareOf, generateRivalStudios, settleRivalMarket, releaseTypeForScale, chooseReleaseDay, type RivalMarketUpdate } from './rivalStudios';
 import { createRng } from './random';
 import { settleTheatricalMarket } from './marketSettlement';
 import { generateTalentPool } from './talentGenerator';
@@ -276,8 +276,18 @@ describe('settleRivalMarket - AI Studios 2.0 financial constraints', () => {
     // of each newly-settled week's gross times the studio share" test
     // documents, so they can drift by a rounding unit or two per settled
     // week rather than match results.studioRevenue exactly.
+    //
+    // FilmResults.studioRevenue is the whole picture's theatrical take; what
+    // reaches this studio's books is its own share of it, the rest belonging to
+    // the co-financier that funded the same share of the film's cost
+    // (engine/rivalStudios.ts:CO_FINANCED_SHARE_BY_TIER). Brand and prestige are
+    // NOT shared, and still match the film's own figures exactly - a co-financed
+    // hit is entirely this studio's hit in the public eye.
+    const rival = afterSpawn.rivalStudios.find((r) => r.id === started.rivalStudioId)!;
+    const expectedCredit = film!.results.studioRevenue! * studioShareOf(rival);
     expect(delta!.cashCredit).toBeGreaterThan(0);
-    expect(Math.abs(delta!.cashCredit - film!.results.studioRevenue!)).toBeLessThanOrEqual(MAX_SIMULATION_WEEKS);
+    expect(Math.abs(delta!.cashCredit - expectedCredit)).toBeLessThanOrEqual(MAX_SIMULATION_WEEKS);
+    expect(studioShareOf(rival)).toBeLessThan(1); // the share is genuinely in play here
     expect(delta!.brandDelta).toBe(film!.results.brandChange);
     expect(delta!.prestigeDelta).toBe(film!.results.prestigeChange);
 

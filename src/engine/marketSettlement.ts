@@ -6,6 +6,7 @@ import { rollPressTourMoments, pressTourReputationDeltas, windowOutcomeToMoments
 import { computeProducerEffects, producersByIds, totalAttachedPerFilmFees } from './producers';
 import { stuntTeamById, stuntTeamEffectiveSkill, stuntTeamFee } from './stuntTeams';
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta } from './cost';
+import { studioShareOf } from './rivalStudios';
 import { computeCompetitiveCrowding, runningFilmAsUpcomingRelease, type UpcomingRelease, computePlayerReleaseStrength } from './releaseCrowding';
 import { marketingRolloutMultiplier } from './marketing';
 import { resolveRivalProduction, rivalAsUpcomingRelease } from './rivalStudios';
@@ -333,7 +334,14 @@ export function settleTheatricalMarket(
       playerPrestigeDelta += step.prestigeDelta;
       playerGenreIdentityDeltas = mergeGenreDeltas(playerGenreIdentityDeltas, identityDeltas);
     } else {
-      creditRival(rivalDeltas, owner, { cashCredit: step.cashCredit, brandDelta: step.brandDelta, prestigeDelta: step.prestigeDelta, genreIdentityDeltas: identityDeltas });
+      // Only the studio's own share of the receipts reaches its books - the rest
+      // is its co-financier's, which is the other half of the bargain that let it
+      // start the picture for a fraction of the cost
+      // (engine/rivalStudios.ts:CO_FINANCED_SHARE_BY_TIER). Brand, prestige and
+      // genre identity are NOT scaled: those are earned by the film's public
+      // performance, and a co-financed hit is just as much this studio's hit.
+      const ownerShare = studioShareOf(rivalStudios.find((r) => r.name === owner) ?? {});
+      creditRival(rivalDeltas, owner, { cashCredit: step.cashCredit * ownerShare, brandDelta: step.brandDelta, prestigeDelta: step.prestigeDelta, genreIdentityDeltas: identityDeltas });
     }
   }
 

@@ -23,6 +23,7 @@ import {
   type AncillaryAwards,
 } from '../engine/ancillary';
 import { buildBackendLiabilities } from '../engine/backend';
+import { studioShareOf } from '../engine/rivalStudios';
 import { recordCashChange } from '../engine/cashLedger';
 import { AWARDS_PREMIUM_TIMING } from '../data/ancillary';
 
@@ -191,8 +192,12 @@ export function accrueRivalAncillary(
       awards: summariseFilmAwards(awardsHistory, film.id),
     });
     const profile = deriveAncillaryProfile(attrs, film.results.totalBoxOffice!);
-    if (profile.lifetimeTotal > 0) {
-      creditByRival.set(film.releasedBy, (creditByRival.get(film.releasedBy) ?? 0) + profile.lifetimeTotal);
+    // The co-financier's share comes off the afterlife too - §7.1's SPV takes its
+    // percentage of the picture's "defined revenue", not of its theatrical
+    // receipts alone (engine/rivalStudios.ts:CO_FINANCED_SHARE_BY_TIER).
+    const credit = profile.lifetimeTotal * studioShareOf(rival ?? {});
+    if (credit > 0) {
+      creditByRival.set(film.releasedBy, (creditByRival.get(film.releasedBy) ?? 0) + credit);
     }
     return { ...film, boxOfficeRun: { ...film.boxOfficeRun, ancillaryScheduled: true } };
   });

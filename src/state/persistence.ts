@@ -425,7 +425,7 @@ import { TEST_SCRIPT_ASSETS } from '../data/testScripts';
 //   { kind: 'role' } case so the sheet can open a crew slot's drawer through
 //   the same deep-link the Inbox uses. Both branches independently bumped to
 //   v88; this is the merge of the two. Additive; same pre-launch policy.
-const SAVE_KEY = 'hollywood-pictures-save-v90';
+const SAVE_KEY = 'hollywood-pictures-save-v91';
 
 /** Starting cash for a save created with no explicit difficulty choice (first-ever launch). Reset always lets the player pick instead - see Dashboard.tsx:DifficultyPicker. */
 const DEFAULT_STARTING_CASH = 10_000_000;

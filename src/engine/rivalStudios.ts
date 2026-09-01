@@ -109,10 +109,18 @@ export function rivalReleaseIsAnnounced(production: RivalProductionInProgress, t
 // wasn't reaching for them often. Pushes the average Big budget up toward real
 // blockbuster scale without touching Small/Medium. See
 // docs/DESIGN_REVIEW_ai_studio_behavior.md "Reality check".
+// Big's band pulled back from [0.75, 1.0] to [0.6, 0.88]. The old top was safe
+// only because a rival could never afford it: the affordability gate was doing
+// double duty as a budget governor, and the moment studios were capitalised to
+// run a full slate (STARTING_CASH_BY_TIER) the median negative cost of a >$80M
+// picture inflated to $217M - above the biggest film on the reference's whole
+// twelve-picture slate (docs/domain/11 §5.4, a $210M tentpole miss) and well
+// above its $150M median for that tier. A budget should be set by what the film
+// needs, never by what the studio happens to have in the bank.
 const SCALE_SPEND_RANGE: Record<ProductionScale, [number, number]> = {
   Small: [0.08, 0.32],
   Medium: [0.32, 0.65],
-  Big: [0.75, 1.0],
+  Big: [0.5, 0.8],
 };
 
 // How a rival budgets its campaign: as a rule on the film's own negative cost,
@@ -446,10 +454,42 @@ const INITIAL_ROSTER_TIERS: StudioTier[] = [
 // representative studio slate this calibration is anchored on
 // (docs/domain/11-money-accounting-and-participations.md §5.4) deploys $2.2B
 // across twelve films in a year.
+// What share of each picture an outside co-financier funds, by tier
+// (docs/domain/11-money-accounting-and-participations.md §7.1: an SPV "funds an
+// agreed % of the negative cost of each qualifying picture (and often the same %
+// of P&A), and receives the same % of the picture's defined revenue", at a
+// participation rate of 20-50%).
+//
+// Studios do not fund their slates out of pocket, and modelling them as if they
+// did was the binding constraint on how many films this industry made. Measured
+// over three seeds x eight in-game years, the twelve rival studios released 20.3
+// films a year between them - 1.06 for an Indie, 1.22 for a Mid-Size, 2.78 for a
+// Major - against a reference where a single major releases 8-20 wide
+// (docs/domain/01-industry-structure.md §2). Capacity was not the limit: the
+// industry ran at 46% of its own concurrent-production ceiling, with 17
+// unclaimed scripts sitting on the Opportunity Market. Cash was. Every tier
+// ended broke or close to it (median $3M Indie, $23M Mid-Size, $205M Major)
+// against productions costing far more than that.
+//
+// The rate rises as the balance sheet shrinks, which is the real pattern: a
+// major co-finances to de-risk and keeps most of the upside, while an
+// independent finances nearly every picture externally because it has no
+// balance sheet to finance it from.
+const CO_FINANCED_SHARE_BY_TIER: Record<StudioTier, number> = {
+  Indie: 0.5,
+  'Mid-Size': 0.42,
+  Major: 0.32,
+};
+
+/** The fraction of a picture's cost and revenue this studio keeps for itself - the rest is its co-financier's (see CO_FINANCED_SHARE_BY_TIER). */
+export function studioShareOf(rival: Pick<RivalStudio, 'coFinancedShare'>): number {
+  return 1 - clamp(rival.coFinancedShare ?? 0, 0, 0.9);
+}
+
 const STARTING_CASH_BY_TIER: Record<StudioTier, number> = {
-  Indie: 16_000_000,
-  'Mid-Size': 110_000_000,
-  Major: 600_000_000,
+  Indie: 45_000_000,
+  'Mid-Size': 300_000_000,
+  Major: 1_200_000_000,
 };
 
 // Flavor, not balance - a Major studio has already been making films for
@@ -578,6 +618,7 @@ export function generateRivalStudios(rng: RandomFn): RivalStudio[] {
       tier,
       nextSpawnCheckDay: 1 + randInt(rng, 0, SPAWN_CHECK_INTERVAL_DAYS[tier][1]),
       cash: STARTING_CASH_BY_TIER[tier],
+      coFinancedShare: CO_FINANCED_SHARE_BY_TIER[tier],
       brand: STARTING_BRAND_BY_TIER[tier],
       prestige: STARTING_PRESTIGE_BY_TIER[tier],
       lifetimeRevenue: 0,
@@ -604,19 +645,27 @@ function countByScale(productions: RivalProductionInProgress[]): Record<Producti
  */
 export function startableScales(tier: StudioTier, current: RivalProductionInProgress[]): ProductionScale[] {
   const counts = countByScale(current);
+  // Widened across every tier. These ceilings are the design statement of how
+  // many pictures a studio runs at once, and they were set well below what the
+  // reference describes: a major releases 8-20 wide a year
+  // (docs/domain/01-industry-structure.md §2) and a film takes about eleven
+  // months from greenlight to release here, so a major needs something like
+  // 8-18 in flight to sustain that - it had six. The hard constraint on
+  // concurrency in reality is physical (§13: stages, workshops, post
+  // facilities), which is why a ceiling exists at all, not how low it sat.
   if (tier === 'Indie') {
-    return counts.Small === 0 ? ['Small'] : [];
+    return counts.Small < 2 ? ['Small'] : [];
   }
   if (tier === 'Mid-Size') {
     const scales: ProductionScale[] = [];
-    if (counts.Big === 0 && counts.Medium < 3) scales.push('Medium');
+    if (counts.Big === 0 && counts.Medium < 5) scales.push('Medium');
     if (counts.Big === 0 && counts.Medium === 0) scales.push('Big');
     return scales;
   }
   // Major: both pools are independent and run simultaneously.
   const scales: ProductionScale[] = [];
-  if (counts.Medium < 4) scales.push('Medium');
-  if (counts.Big < 2) scales.push('Big');
+  if (counts.Medium < 6) scales.push('Medium');
+  if (counts.Big < 3) scales.push('Big');
   return scales;
 }
 
@@ -981,12 +1030,18 @@ function startRivalProductionFromWonScript(
     campaignStartDay: totalDays + recommendedDays + postProductionDays,
   };
 
-  const cost =
+  // The picture's full cost, then the studio's own share of it: a co-financier
+  // funds the rest and takes the same share of the revenue on the way back
+  // (CO_FINANCED_SHARE_BY_TIER). `cost` returned below is the studio's share,
+  // because that is what it actually commits and what the affordability gate has
+  // to be measured against - the film itself is still made at full size.
+  const fullCost =
     bidAmount +
     computeTalentCost(talent) +
     computeProductionBudgetCost(productionChoices) +
     productionChoices.shootingBudgetAmount +
     computeMarketingCost(marketingChoices);
+  const cost = fullCost * studioShareOf(rival);
   if (cost > rival.cash) return null;
 
   // Per-assignment, not per-role-then-profession: Lead Actor and Supporting

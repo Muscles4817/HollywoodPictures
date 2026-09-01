@@ -644,7 +644,16 @@ const MAX_WEEKLY_EXPANSION_POINTS = 0.12;
 // only saturating (alongside age decay) at genuinely severe, near-maximal
 // crowding. First-draft, tunable alongside every other constant in this
 // file.
-const COMPETITIVE_PRESSURE_WEIGHT = 0.08;
+// NOTE: both this and ATTENTION_COMPETITION_WEIGHT below are calibrated against
+// how many films the industry MAKES, and were re-pegged (0.08 -> 0.045 and
+// 0.55 -> 0.31) when the rival slate was widened. competitivePressure is a sum
+// over every competitor in a film's window, so it scales with slate density:
+// roughly doubling the number of releases doubled mean pressure, from 0.186 to
+// 0.334, and over-suppressed every film in the market. The relative matchup -
+// who is pushing whom - is untouched; only the absolute bite per unit of
+// crowding is re-pegged. Widen or narrow the slate again and these must move
+// with it (docs/DESIGN_REVIEW_slate_width.md).
+const COMPETITIVE_PRESSURE_WEIGHT = 0.045;
 
 // Attention competition (docs/DESIGN_box_office_calibration_targets.md §6a, the
 // "audience competition" level, distinct from the exhibition-access level
@@ -666,7 +675,7 @@ const COMPETITIVE_PRESSURE_WEIGHT = 0.08;
 // cannot amplify the reproduction loop (the funnel-recalibration coupling this
 // whole reorder was meant to avoid). ATTENTION_FLOOR caps the worst-case
 // suppression so even a maximally out-gunned film still sells something.
-const ATTENTION_COMPETITION_WEIGHT = 0.55;
+const ATTENTION_COMPETITION_WEIGHT = 0.31;
 const ATTENTION_FLOOR = 0.25;
 
 export function computeNextAvailability(

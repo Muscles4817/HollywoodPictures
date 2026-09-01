@@ -2205,6 +2205,22 @@ export interface RivalStudio {
   /** Cumulative amount this studio has ever committed to starting productions - debugging/display only, same as lifetimeRevenue. */
   lifetimeExpenditure: number;
   /**
+   * The share of every picture on this studio's slate that an outside
+   * co-financier funds, 0-1 - it pays this fraction of the film's cost and takes
+   * the same fraction of its revenue, theatrical and post-theatrical alike
+   * (docs/domain/11-money-accounting-and-participations.md §7.1, where the SPV
+   * "funds an agreed % of the negative cost of each qualifying picture (and often
+   * the same % of P&A), and receives the same % of the picture's defined
+   * revenue" at a participation rate of 20-50%).
+   *
+   * It is what lets a studio run a slate wider than its own balance sheet, which
+   * is the whole point of the instrument: the studio's economics per pound of
+   * ITS OWN capital are unchanged, it simply gets more films for them. Absent
+   * (older saves, test fixtures) reads as 0 - fully self-funded, the behaviour
+   * before this existed.
+   */
+  coFinancedShare?: number;
+  /**
    * The franchises this rival owns and builds sequels from (Sequels & Franchises
    * stage 3, engine/rivalFranchise.ts) - the rival analogue of the player's
    * Studio.intellectualProperties. Established automatically from the rival's own
