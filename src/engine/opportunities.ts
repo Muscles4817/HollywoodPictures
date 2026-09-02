@@ -60,8 +60,18 @@ const SOURCE_GENERATION_PROFILE: Record<MarketSource, GenerationProfile> = {
  */
 export const WEEK_LENGTH_DAYS = 7;
 
-/** How many opportunities appear in one weekly batch - widened from the old [2, 4] since the pool now also serves AI demand (engine/rivalStudios.ts), not just the player's. */
-const BATCH_SIZE: [number, number] = [3, 6];
+/**
+ * How many opportunities appear in one weekly batch.
+ *
+ * Sized to the demand on the market, and re-sized whenever that demand changes:
+ * [2, 4] when the pool served only the player, [3, 6] once it also served a
+ * twelve-studio AI roster (engine/rivalStudios.ts), and [5, 9] now that roster
+ * is nineteen (INITIAL_ROSTER_TIERS, widened to match the real distributor
+ * population - docs/DESIGN_REVIEW_slate_width.md §10). The mean moves 4.5 -> 7,
+ * the same +58% as the roster, so a studio's chance of finding something it can
+ * both afford and want does not quietly fall every time the field grows.
+ */
+const BATCH_SIZE: [number, number] = [5, 9];
 
 /** Assembles the final Opportunity from an already-generated source/script/author - shared by both the legacy and authored paths so the id/cost/expiry rng draws happen in exactly one place, in the same order. */
 function finishOpportunity(totalDays: number, rng: RandomFn, source: MarketSource, script: Script, writerId: string | undefined): Opportunity {

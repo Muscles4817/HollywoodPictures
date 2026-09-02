@@ -83,13 +83,15 @@ describe('computeCompetitiveCrowding', () => {
     const many = Array.from({ length: 20 }, (_, i) => competitor({ releaseDay: 100 + i, strength: 1 }));
     const score = computeCompetitiveCrowding({ releaseDay: 100, genre: 'Action', targetAudience: 'Mass Market' }, many);
     expect(score).toBeLessThanOrEqual(1);
-    // The soft knee approaches 1 asymptotically and never reaches it - this used
-    // to land on exactly 1 only because the un-normalised sum was large enough
-    // for `1 - exp(-x)` to saturate in floating point. The contract is that many
-    // strong competitors stop compounding, not that they hit a specific float,
-    // so the tolerance tracks CROWDING_DENSITY_REFERENCE: a bigger divisor means
-    // the same twenty competitors sit slightly further down the asymptote.
-    expect(score).toBeCloseTo(1, 3);
+    // The soft knee approaches 1 asymptotically and never reaches it. The
+    // contract is that many strong competitors STOP COMPOUNDING, so state it as
+    // that rather than as a distance from 1: doubling an already-crowded field
+    // barely moves the score. A fixed tolerance here is a claim about
+    // CROWDING_DENSITY_REFERENCE, which moves every time the slate widens.
+    const twiceAsMany = Array.from({ length: 40 }, (_, i) => competitor({ releaseDay: 100 + (i % 20), strength: 1 }));
+    const doubled = computeCompetitiveCrowding({ releaseDay: 100, genre: 'Action', targetAudience: 'Mass Market' }, twiceAsMany);
+    expect(doubled).toBeLessThanOrEqual(1);
+    expect(doubled - score).toBeLessThan(0.01);
   });
 
   it('never returns a negative number', () => {
@@ -202,14 +204,13 @@ describe('the player feels their own strength in a collision', () => {
     const weak = computeCompetitiveCrowding(candidate, [rival], 0.15);
     const strong = computeCompetitiveCrowding(candidate, [rival], 0.95);
     expect(strong).toBeLessThan(weak);
-    // Both still hurt - a collision is a collision - but not equally. The
-    // threshold sits against the density-normalised scale
-    // (CROWDING_DENSITY_REFERENCE, 6.9 since the third widening), where a head-on
-    // same-genre collision reads ~0.16 and the "Crowded" band starts at 0.133;
-    // the strong film here still lands inside it. Scaled by 4.6/6.9 with the
-    // reference itself - the contract is "a strong film still feels a head-on
-    // collision as Crowded", not a fixed number.
-    expect(strong).toBeGreaterThan(0.1);
+    // Both still hurt - a collision is a collision - but not equally. Stated as
+    // a BAND, not a number: the raw score is divided by
+    // CROWDING_DENSITY_REFERENCE, which is re-derived every time the slate
+    // widens (4.6 -> 5.6 -> 10.0 over three passes), so any hard-coded threshold
+    // here is really an assertion about that divisor and breaks on contact with
+    // the next widening - which is exactly what it did, twice. The contract is
+    // "a strong film still reads a head-on collision as Crowded".
     expect(crowdingBandKey(strong)).toBe('high');
   });
 });
