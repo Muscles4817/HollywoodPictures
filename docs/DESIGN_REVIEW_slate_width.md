@@ -430,3 +430,126 @@ studios. A fourth widening is not the lever; a wider **roster** might be.
 
 `breakevenPct` 11.8 against 14–35 is the standing "thin middle" finding,
 unchanged.
+
+---
+
+## 10. Widening the roster
+
+§9.8 ended by saying the next lever was not another widening but a wider
+**roster**: majors were inside their 8–20 band, the market still ran ~60 wide
+releases a year against a real ~110, and the missing ones came from distributors
+that did not exist because the field was four studios per tier.
+
+### 10.1 The roster is not flat, because the real one isn't
+
+`docs/domain/01-industry-structure.md` §2 gives two of the three numbers
+outright:
+
+- **Five majors**, named exactly — Disney, Warner Bros., Universal, Paramount,
+  Sony. The least arbitrary number in the document, so the Major tier is five.
+- **Eight specialty / independent distributors**, also named exactly — A24,
+  Neon, Focus, Searchlight, Bleecker Street, IFC, Magnolia, Sony Pictures
+  Classics. So the Indie tier is eight.
+- **Mid-Size is a judgement call and is flagged as one.** §2's mini-major list
+  (Lionsgate, Amazon MGM, Apple) is three examples under a category heading
+  rather than a census, and two of the three are streamers with "selective
+  theatrical" — not what this tier models. It models a self-distributing
+  distributor below major scale, and a theatrical market has more than three
+  once the specialty labels that routinely open wide are counted. **Six.**
+
+**8 Indie / 6 Mid-Size / 5 Major — nineteen studios**, up from twelve.
+
+### 10.2 Two harness divisors were hard-coded to four
+
+`widePerMajorPerYear`, `specialtyFilmsPerYear` and `majorShareOfGrossPct` all
+divided by a literal `4`. They now read the count off the generated roster.
+Left alone, the widening would have reported a major releasing 25% more wide
+films than it does and a specialty label **twice** as many — the roster change
+would have "passed" two gates by arithmetic.
+
+### 10.3 Adding studios does not by itself add films
+
+The first measurement after the roster change was the instructive one. Total
+wide releases went 59.7 → 68.8, but **wide releases per major fell 9.9 → 7.4**,
+straight through the floor of the band §9 had just brought it inside. Three
+things were throttling the bigger field, each found by measuring rather than
+guessing:
+
+**Script supply had not moved.** The Opportunity Market generated 3–6 titles a
+week — a figure last set when the AI roster arrived. Nineteen studios draw on it
+where twelve did, so it scales with them: **[5, 9]**, the same +58% as the
+roster. Unclaimed titles went 13 → 22 and majors recovered to 9.0 films a year;
+the Indie tier did not move at all, which ruled supply out as *its* constraint
+and was worth knowing.
+
+**The spawn cadence rested on a dead premise.** Its own comment justified the
+tier gap with "an Indie's *single film* takes a while to turn around" — true
+when an Indie ran one production at a time, and false since §9 raised its
+ceiling to six and Mid-Size's to eighteen. Both tiers sat at their ceilings only
+4–6% of the time with scripts going spare: limited by nothing but how rarely
+they looked. Indie 20–40 → **14–28** days, Mid-Size 15–30 → **12–24**.
+
+**§9 raised two ceilings without raising the capital behind them** — the pairing
+every previous capital bump in this file exists to make. An Indie's median cash
+had drained to $22M and a Mid-Size's to $88M, so the affordability gate was
+throttling exactly the tiers whose concurrency had just been raised. Indie
+$110M → **$220M**, Mid-Size $700M → **$1.0B**.
+
+Major's $2.2B is deliberately **not** raised. It is not a headroom figure at
+all — it is the capital the reference slate itself deploys in a year
+(`docs/domain/11` §5.4) — and that anchor is worth more than the films
+loosening it would buy.
+
+Mid-Size is also not scaled by its full ceiling ratio, which would have been
+$1.4B. Cash is meant to be headroom rather than throughput, but it leaks into
+throughput through `scriptBudget` (a fraction of current cash), and at $1.4B a
+Mid-Size sat on a $734M median against a Major's $95M and made **more films
+than a Major** — backwards, and it would have out-bid majors for every script.
+
+### 10.4 What it did
+
+| | §8 | §9 | **§10** |
+|---|--:|--:|--:|
+| Studios | 12 | 12 | **19** |
+| Wide releases a year, whole market | ~46 | 59.7 | **82.5** |
+| Wide per major | 5.0 | 9.9 | **9.4** |
+| Films per specialty label | 3.6 | 5.1 | **5.1** |
+| A major's share of industry gross | 21.4% | 22.1% | **16.8%** |
+| Ratified aggregate gates | 13/17 | 14/21 | **17/21** |
+
+**17 of 21, the best this calibration has been**, with the density constant
+landing exactly on its target (measured pressure 0.334 against a calibrated
+0.334) rather than near it.
+
+Four gates came good with the wider field and no tuning aimed at them:
+`wideOver100Pct` (65.6 → **59.7**), `majorPct` (14.6 → **13.7**), `lossPct` and
+`wideUnprofitablePct`. A market with more distributors in it genuinely does
+spread its outcomes better — the same effect §4 recorded at the first widening,
+and the third time this has been the thing that moved a stuck band.
+
+`majorShareOfGrossPct` fell from 22.1% to 16.8% purely because five majors split
+the market where four did. Still comfortably inside 10–25%.
+
+### 10.5 Still open
+
+`wideOver500Pct` 14.7 against 6–12 and `wideOver1000Pct` 4.9 against 1–3 are the
+two remaining members of §9.8's finding, and the widening has now made the case
+plainer rather than fixed it — their implied counts are **inside** the real
+range and moved further in:
+
+| band | measured | implied films/yr | real |
+|---|--:|--:|--:|
+| > $500M | 14.7% | 12.1 | 10–15 |
+| > $1B | 4.9% | 4.0 | 2–5 |
+
+The field is 82.5 wide releases a year against a real ~110. These two bands
+should be re-derived as counts, or against the field they were drawn from; they
+should not be satisfied by suppressing the top of the market, which is where
+they currently point. `wideOver100Pct` passing at 59.7 while the field is still
+short is the same story from the other side.
+
+`breakevenPct` 11.1 against 14–35 is the standing "thin middle" finding, and is
+now the only failing band that is a genuine statement about the model.
+
+`limitedOpeningMultiple` 12.1 against a ceiling of 12 has been within a tenth of
+its boundary for three passes and is noise.

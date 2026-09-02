@@ -466,23 +466,57 @@ function deriveRivalSpendPlan(
   };
 }
 
-// How often (in days) each studio tier attempts to start a new production,
-// once it has spare capacity - a Major has more going on at once, so it
-// checks more often; an Indie's single film takes a while to turn around.
+// How often (in days) each studio tier attempts to start a new production, once
+// it has spare capacity.
+//
+// The old spread (Indie 20-40, Mid-Size 15-30, Major 10-20) rested on a premise
+// that no longer holds: "a Major has more going on at once, so it checks more
+// often; an Indie's SINGLE FILM takes a while to turn around". An Indie ran one
+// production at a time when that was written. It now runs up to six
+// (startableScales), and a Mid-Size up to eighteen, so the cadence gap was
+// throttling tiers whose concurrency limit had already been raised out from
+// under it - measured, both sat at their ceilings only 4-6% of the time with
+// scripts going unclaimed, i.e. limited by nothing but how rarely they looked.
+//
+// A specialty label releasing 5-15 films a year
+// (docs/domain/01-industry-structure.md §2) is deciding what to make a good deal
+// more often than once a month.
 const SPAWN_CHECK_INTERVAL_DAYS: Record<StudioTier, [number, number]> = {
-  Indie: [20, 40],
-  'Mid-Size': [15, 30],
+  Indie: [14, 28],
+  'Mid-Size': [12, 24],
   Major: [10, 20],
 };
 
-// Doubled from the original six-studio roster (2/2/2) to twelve (4/4/4) so the
-// weekly chart and Opportunity Market are contested by a fuller field of AI
-// competitors - the shared talentPool has comfortable headroom for it (see
-// docs/DESIGN.md 5.24).
+// The roster: 2/2/2 originally, 4/4/4 to contest the weekly chart and the
+// Opportunity Market with a fuller field, and now 8/6/5 - NOT a flat count per
+// tier, because the real distributor population is not flat either.
+//
+// docs/DESIGN_REVIEW_slate_width.md §9.8 is what forces this. Three widenings
+// put a major's own slate inside the reference's 8-20 wide releases a year, and
+// the market was still running ~60 wide releases against a real ~110. The
+// shortfall is not per-studio output any more, it is the number of studios: a
+// real market's wide releases come from many distributors, and four-per-tier
+// compressed that into twelve.
+//
+// docs/domain/01-industry-structure.md §2 gives the shape directly:
+//
+//  - FIVE majors, named exactly ("Walt Disney Studios, Warner Bros., Universal,
+//    Paramount, Sony"). This is the least arbitrary number in the whole
+//    document, so the Major tier is exactly five.
+//  - EIGHT specialty / independent distributors, also named exactly ("A24,
+//    Neon, Focus Features, Searchlight, Bleecker Street, IFC, Magnolia, Sony
+//    Pictures Classics"), so the Indie tier is exactly eight.
+//  - Mid-Size is the judgement call, and is flagged as one. §2's mini-major
+//    list ("Lionsgate, Amazon MGM Studios, Apple Original Films") is three
+//    examples under a category heading rather than a census, and two of the
+//    three are streamers with "selective theatrical" - not what this tier
+//    models. What it models is a self-distributing distributor below major
+//    scale, and a theatrical market has more of those than three once the
+//    specialty labels that routinely open wide are counted. Six.
 const INITIAL_ROSTER_TIERS: StudioTier[] = [
-  'Indie', 'Indie', 'Indie', 'Indie',
-  'Mid-Size', 'Mid-Size', 'Mid-Size', 'Mid-Size',
-  'Major', 'Major', 'Major', 'Major',
+  'Indie', 'Indie', 'Indie', 'Indie', 'Indie', 'Indie', 'Indie', 'Indie',
+  'Mid-Size', 'Mid-Size', 'Mid-Size', 'Mid-Size', 'Mid-Size', 'Mid-Size',
+  'Major', 'Major', 'Major', 'Major', 'Major',
 ];
 
 // Milestone: AI Studios 2.0 - starting cash per tier. Calibrated against a
@@ -561,9 +595,30 @@ export function studioShareOf(rival: Pick<RivalStudio, 'coFinancedShare'>): numb
   return 1 - clamp(rival.coFinancedShare ?? 0, 0, 0.9);
 }
 
+//
+// Indie and Mid-Size raised again with the roster widening, and for a reason the
+// third widening missed: it doubled their CONCURRENCY ceilings (Indie 3 -> 6,
+// Mid-Size 9 -> 18 across both scales) without revisiting the reserve behind
+// them, which is the pairing every raise above exists to make. Measured, both
+// were draining - an Indie's median cash fell to $22M and a Mid-Size's to $88M -
+// so the affordability gate throttled exactly the tiers whose ceilings had just
+// been raised out from under it. Indie 110M -> 220M, Mid-Size 700M -> 1.0B.
+//
+// Mid-Size is NOT scaled by the full ceiling ratio, which would have been 1.4B.
+// Cash is meant to be headroom rather than a throughput lever, but it leaks into
+// throughput through scriptBudget (a fraction of current cash), so a tier
+// holding far more than it spends starts outbidding better-capitalised tiers for
+// scripts. At 1.4B a Mid-Size sat on a $734M median against a Major's $95M and
+// made MORE films than a Major, which is backwards. 1.0B leaves it funded
+// without letting it buy the market.
+//
+// Major is deliberately NOT raised. Its $2.2B is not a headroom figure at all -
+// it is the capital the reference slate itself deploys in a year
+// (docs/domain/11 §5.4), and that anchor is worth more than the extra films
+// loosening it would buy.
 const STARTING_CASH_BY_TIER: Record<StudioTier, number> = {
-  Indie: 110_000_000,
-  'Mid-Size': 700_000_000,
+  Indie: 220_000_000,
+  'Mid-Size': 1_000_000_000,
   Major: 2_200_000_000,
 };
 
@@ -608,7 +663,7 @@ const MAX_RELEASE_SHIFT_DAYS = 120;
 // 2.76 -> 4.14 at the third widening when the reference went 4.6 -> 6.9. Without
 // it the crowd term shrinks against the seasonality and delay-cost terms it
 // competes with, and rivals stop steering around each other's dates altogether.
-const SCHEDULING_CROWD_WEIGHT = 3.36;
+const SCHEDULING_CROWD_WEIGHT = 6.0;
 // Only step weekly through the search window - releases land on weekend frames,
 // and a 1-day granularity would spend ~7x the compute for no behavioural gain.
 const SCHEDULING_STEP_DAYS = 7;

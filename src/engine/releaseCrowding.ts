@@ -109,7 +109,7 @@ export function computeCrowdingPressure(
 // it from the measured pressure distribution at the end of a change, never from
 // the film count and never mid-change, since what matters is how much
 // competition an ordinary window actually holds.
-const CROWDING_DENSITY_REFERENCE = 5.6;
+const CROWDING_DENSITY_REFERENCE = 10.0;
 
 function rawCrowdingPressure(
   candidate: Omit<UpcomingRelease, 'strength'>,
@@ -459,8 +459,8 @@ export type CrowdingBand = 'clear' | 'moderate' | 'high';
 // Scaled again by 4.6/5.6 at the third widening, with the density reference
 // itself: the head-on collision that anchors the top band now scores 0.20.
 export function crowdingBandKey(score: number): CrowdingBand {
-  if (score < 0.066) return 'clear';
-  if (score < 0.164) return 'moderate';
+  if (score < 0.037) return 'clear';
+  if (score < 0.092) return 'moderate';
   return 'high';
 }
 

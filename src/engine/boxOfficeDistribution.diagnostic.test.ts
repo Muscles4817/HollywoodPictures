@@ -299,6 +299,18 @@ describe.skipIf(!enabled)('box office whole-year distribution & profitability ca
   it('lands in the ratified target bands', () => {
     const all: Rec[] = [];
     for (let s = 0; s < SEEDS; s++) all.push(...runOneSeed(4000 + s));
+    // Per-studio rates are divided by the number of studios ACTUALLY in that
+    // tier, read off the generated roster rather than assumed. The roster used
+    // to be a flat four per tier and these divisors were the literal 4; it is
+    // now 8 Indie / 6 Mid-Size / 5 Major (rivalStudios.ts:INITIAL_ROSTER_TIERS,
+    // sized to docs/domain/01 §2's own lists), and a hard-coded 4 would have
+    // quietly reported a major releasing 25% more wide films than it does and a
+    // specialty label twice as many.
+    const rosterByTier = withRng(1, (rng: RandomFn) => generateRivalStudios(rng)).result.reduce(
+      (acc, r) => ({ ...acc, [r.tier]: (acc[r.tier] ?? 0) + 1 }),
+      {} as Record<StudioTier, number>,
+    );
+    const perStudioYears = (tier: StudioTier) => SEEDS * YEARS * rosterByTier[tier];
     const wide = all.filter((r) => r.releaseType === 'Wide');
     const limited = all.filter((r) => r.releaseType === 'Limited');
     // The reference population for the profitability bands: one major's slate.
@@ -320,10 +332,11 @@ describe.skipIf(!enabled)('box office whole-year distribution & profitability ca
       limitedOpeningMultiple: mean(limited.filter((r) => r.openingMultiple > 0).map((r) => r.openingMultiple)),
       // Market structure, per studio and per year - SEEDS x YEARS industry-years,
       // four studios in each tier.
-      widePerMajorPerYear: majorWide.length / (SEEDS * YEARS * 4),
+      widePerMajorPerYear: majorWide.length / perStudioYears('Major'),
       majorShareOfGrossPct:
-        share(major.reduce((sum, r) => sum + r.grossM, 0), all.reduce((sum, r) => sum + r.grossM, 0)) / 4,
-      specialtyFilmsPerYear: all.filter((r) => r.tier === 'Indie').length / (SEEDS * YEARS * 4),
+        share(major.reduce((sum, r) => sum + r.grossM, 0), all.reduce((sum, r) => sum + r.grossM, 0)) /
+        rosterByTier.Major,
+      specialtyFilmsPerYear: all.filter((r) => r.tier === 'Indie').length / perStudioYears('Indie'),
       specialtyWidePct: share(
         all.filter((r) => r.tier === 'Indie' && r.releaseType === 'Wide').length,
         all.filter((r) => r.tier === 'Indie').length,

@@ -6,10 +6,13 @@ import type { StudioTier } from '../types';
 // pool of real-world studios whose real market standing matches that tier, so
 // a Major rival reads like a real major (Warner Bros., Universal), a Mid-Size
 // like a real mini-major (Lionsgate, New Line), and an Indie like a real
-// independent (A24, Neon). Each pool holds more names than any one save's
-// roster needs (the initial roster is 4 per tier - see INITIAL_ROSTER_TIERS),
-// so names still vary from game to game while always being grounded in a real
-// studio.
+// independent (A24, Neon).
+//
+// Each pool holds eight names. The roster is 8 Indie / 6 Mid-Size / 5 Major
+// (INITIAL_ROSTER_TIERS), so Mid-Size and Major still vary from game to game
+// while Indie now draws its whole pool - every specialty name is used every
+// game. That is the deliberate trade for a field the right size; if Indie
+// variety is wanted back, this pool is where to add names, not the roster.
 export const RIVAL_STUDIO_NAMES_BY_TIER: Record<StudioTier, string[]> = {
   Indie: [
     'A24',
