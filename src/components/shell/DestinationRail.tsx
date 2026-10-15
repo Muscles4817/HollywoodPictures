@@ -1,5 +1,4 @@
 import { useStudio } from '../../state/StudioContext';
-import { useTheme } from '../../hooks/useTheme';
 import { DESTINATION_GROUPS, activeDestinationId, destinationsInGroup } from './destinations';
 import type { DevTool } from './devTools';
 
@@ -7,6 +6,7 @@ interface DestinationRailProps {
   devTool: DevTool;
   onSetDevTool: (tool: DevTool) => void;
   onOpenGuide: () => void;
+  onOpenSettings: () => void;
 }
 
 /**
@@ -27,9 +27,8 @@ interface DestinationRailProps {
  * The two takes only appear to disagree: 08 has the rail and no clock; 09 has
  * the spine and no rail. The spine is about *time*, the rail about *places*.
  */
-export function DestinationRail({ devTool, onSetDevTool, onOpenGuide }: DestinationRailProps) {
+export function DestinationRail({ devTool, onSetDevTool, onOpenGuide, onOpenSettings }: DestinationRailProps) {
   const { state, dispatch } = useStudio();
-  const { theme, toggleTheme } = useTheme();
   const active = activeDestinationId(state.screen);
 
   return (
@@ -57,9 +56,7 @@ export function DestinationRail({ devTool, onSetDevTool, onOpenGuide }: Destinat
       <div className="rail-group rail-group--utility">
         <h2 className="rail-group__label">Studio tools</h2>
         <button type="button" className="rail-item" onClick={onOpenGuide}>How it works</button>
-        <button type="button" className="rail-item" onClick={toggleTheme}>
-          {theme === 'dark' ? 'Light theme' : 'Dark theme'}
-        </button>
+        <button type="button" className="rail-item" onClick={onOpenSettings}>Settings</button>
       </div>
 
       {import.meta.env.DEV && (

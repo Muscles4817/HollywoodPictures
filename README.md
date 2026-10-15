@@ -47,6 +47,8 @@ src/
   engine/      Pure functions: scoring, box office, production risk, outcome, reputation
   state/       Reducer + Context that drives the wizard, plus localStorage persistence
   components/  React components - Dashboard and one screen per wizard step
+  audio/       Synthesized sound - the Web Audio engine, effects, and the music loops as data
+  settings/    Player preferences (sound, music, theme) - stored apart from the studio save
 ```
 
 The `engine/` functions take plain data in and return plain data out - no

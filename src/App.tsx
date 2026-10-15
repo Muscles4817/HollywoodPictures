@@ -9,6 +9,9 @@ import { Slate } from './components/shell/Slate';
 import { CommandPalette } from './components/shell/CommandPalette';
 import type { DevTool } from './components/shell/devTools';
 import { GameGuide } from './components/common/GameGuide';
+import { SettingsPage } from './components/SettingsPage';
+import { SettingsProvider } from './settings/SettingsContext';
+import { SoundDirector } from './components/shell/SoundDirector';
 import { Inbox } from './components/common/Inbox';
 import { Dashboard } from './components/Dashboard';
 import { RivalStudioPage } from './components/RivalStudioPage';
@@ -184,6 +187,10 @@ function AppShell() {
   // has to live somewhere global now that the rail can open it from anywhere.
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  // Settings, like the guide, is a page in the shell rather than a destination
+  // in the game's own navigation - opening it from the title screen has no
+  // studio screen to belong to.
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // On a genuine first launch (no save existed when the app mounted) offer the
   // same starting-stature choice a Reset gives, so a new player begins how they
   // want instead of silently landing on the legacy default studio. Read once,
@@ -288,6 +295,7 @@ function AppShell() {
     // The guide is a document, not a mode: picking a destination from the rail
     // should leave it, exactly as it leaves any other screen.
     setGuideOpen(false);
+    setSettingsOpen(false);
   }, [state.screen]);
 
   // Makes the browser's own Back/Forward buttons move through the game's
@@ -352,6 +360,8 @@ function AppShell() {
   // used to be screen-scoped, see docs/DESIGN.md 5.22/5.24 history - the
   // header consolidation superseded it).
   const effectiveTickMs = DAY_TICK_MS / speedMultiplier;
+  // The guide and Settings each take the place of the current screen.
+  const overlayPage = guideOpen || settingsOpen;
 
   // Time keeps passing on its own outside the wizard - the Dashboard and
   // the post-release results screen both just sit there otherwise, with no
@@ -414,19 +424,30 @@ function AppShell() {
   // it behind a modal was always a small lie about what had happened.
   if (showMainMenu) {
     return (
-      <MainMenu
-        hasSave={hasSavedGame()}
-        onContinue={() => setShowMainMenu(false)}
-        onNewGame={(database) => {
-          setPendingDatabase(database);
-          setShowMainMenu(false);
-        }}
-      />
+      <>
+        <SoundDirector onMainMenu paused={paused} timeCriticalUnread={timeCriticalUnread} />
+        {settingsOpen ? (
+          <main className="main-menu-settings">
+            <SettingsPage onBack={() => setSettingsOpen(false)} backLabel="Back to the menu" />
+          </main>
+        ) : (
+          <MainMenu
+            hasSave={hasSavedGame()}
+            onContinue={() => setShowMainMenu(false)}
+            onNewGame={(database) => {
+              setPendingDatabase(database);
+              setShowMainMenu(false);
+            }}
+            onOpenSettings={() => setSettingsOpen(true)}
+          />
+        )}
+      </>
     );
   }
 
   return (
     <>
+      <SoundDirector onMainMenu={false} paused={paused} timeCriticalUnread={timeCriticalUnread} />
       <Chrome>
         <Spine
           paused={paused}
@@ -499,7 +520,18 @@ function AppShell() {
           rail is persistent and never modal, which is the thing the old
           Dashboard-only button row could not be. */}
       <div className="shell">
-        <DestinationRail devTool={devTool} onSetDevTool={setDevTool} onOpenGuide={() => setGuideOpen(true)} />
+        <DestinationRail
+          devTool={devTool}
+          onSetDevTool={setDevTool}
+          onOpenGuide={() => {
+            setSettingsOpen(false);
+            setGuideOpen(true);
+          }}
+          onOpenSettings={() => {
+            setGuideOpen(false);
+            setSettingsOpen(true);
+          }}
+        />
         <main className="shell-main">
           {/* The guide replaces the screen rather than floating over it: it is a
               long document with no overlay styling of its own, and rendering it
@@ -507,11 +539,12 @@ function AppShell() {
               screen. Inside the shell it keeps the rail, so leaving it is a
               normal navigation rather than a trapped Back button. */}
           {guideOpen && <GameGuide onBack={() => setGuideOpen(false)} />}
-          {!guideOpen && devTool === 'recommendation' && <RecommendationInspector />}
-          {!guideOpen && devTool === 'outcome' && <OutcomeInspector />}
-          {!guideOpen && devTool === 'rival-finances' && <RivalFinancesInspector />}
-          {!guideOpen && devTool === 'requirement-profile' && <RequirementProfileInspector />}
-          {!guideOpen && devTool === 'none' && renderScreen()}
+          {settingsOpen && <SettingsPage onBack={() => setSettingsOpen(false)} />}
+          {!overlayPage && devTool === 'recommendation' && <RecommendationInspector />}
+          {!overlayPage && devTool === 'outcome' && <OutcomeInspector />}
+          {!overlayPage && devTool === 'rival-finances' && <RivalFinancesInspector />}
+          {!overlayPage && devTool === 'requirement-profile' && <RequirementProfileInspector />}
+          {!overlayPage && devTool === 'none' && renderScreen()}
         </main>
       </div>
     </>
@@ -521,6 +554,9 @@ function AppShell() {
 function App() {
   return (
     <ErrorBoundary>
+      {/* Above the studio: preferences (and the sound they drive) belong to the
+          device, and the title screen needs them before any studio exists. */}
+      <SettingsProvider>
       <StudioProvider>
         {/* Inside StudioProvider: an action receipt quotes the resulting cash
             balance, which it reads from studio state (see ActionFeedback.tsx). */}
@@ -528,6 +564,7 @@ function App() {
           <AppShell />
         </ActionFeedbackProvider>
       </StudioProvider>
+      </SettingsProvider>
     </ErrorBoundary>
   );
 }

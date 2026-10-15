@@ -5536,6 +5536,43 @@ mount a single screen without the app shell are unaffected.
 Verified at 375px in both themes with real screenshots, per the standing rule
 in 5.33 — not reasoned about from the diff.
 
+### 5.43 Sound, music and Settings (`audio/`, `settings/`, `components/SettingsPage.tsx`, `components/shell/SoundDirector.tsx`)
+
+Every sound is synthesized with the Web Audio API in `audio/audioEngine.ts`;
+there are no audio files. That keeps the bundle unchanged, leaves nothing to
+license, and means any effect can be retuned by editing its numbers. The music
+loops are data in `audio/music.ts` (a chord progression plus step patterns on
+a 16-step bar). `stepEvents()` is pure and unit-tested, and the engine's
+look-ahead scheduler turns its events into notes. Three loops: *Main Title*
+(orchestral, the title screen), *Back Lot* (swung lounge jazz, the default
+in-game loop) and *Night Shoot* (a minor pulse for pre-production through
+post). On "Follow the action" the score picks the loop from the screen
+(`resolveMusicTrack`) and crossfades when it changes.
+
+Browsers refuse audio before a user gesture, so the engine builds nothing
+until `SettingsProvider` unlocks it on the first pointer or key press. Where
+Web Audio is missing (jsdom included) every call is a no-op.
+
+Where the sounds come from:
+- **Button press**: one delegated capture-phase listener in `SettingsProvider`
+  gives every button, radio, tab and link a soft tick, slightly heavier on
+  `.btn-primary`. It has its own toggle, because it is the sound heard most.
+- **Action receipts**: `ActionFeedback.confirmAction()` plays the register when
+  money moved and a lighter confirmation when it didn't. Every committed
+  action makes a sound without any call site having to ask for one.
+- **Inbox arrivals, outbids, pause/resume**: `SoundDirector`. It counts arrivals
+  *without* the spine's focused-project exclusion, because with that exclusion
+  the badge rises when the player navigates away from a project, and a chime
+  for leaving a page would just be noise.
+- **Premiere**: `PremiereReveal` plays a fanfare when the curtain goes up and a
+  hit or flop sting when the opening weekend lands. A skip or reduced motion
+  goes straight to the verdict.
+
+Settings live under their own localStorage key (`hollywood-pictures-settings`),
+apart from the save, the same way the theme always did. The theme moved into
+them, and the rail's theme toggle became the Settings entry. The page is
+reachable from the rail and from the title screen.
+
 ## 6. Cost model (`engine/cost.ts`, `state/selectors.ts`)
 
 Final results break costs into two headline numbers:
