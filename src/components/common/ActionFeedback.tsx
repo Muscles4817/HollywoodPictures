@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { Money } from './Money';
+import { audio } from '../../audio/audioEngine';
 import './ActionFeedback.css';
 
 /**
@@ -82,6 +83,9 @@ export function ActionFeedbackProvider({ children }: { children: ReactNode }) {
   const nextId = useRef(0);
 
   const confirmAction = useCallback((notice: ActionNotice) => {
+    // Every receipt is heard as well as seen: the register when money moved,
+    // a lighter confirmation when it didn't (a bid placed commits nothing yet).
+    audio.play(notice.amount ? 'cash' : 'confirm');
     setNotices((current) => [...current, { ...notice, id: nextId.current++ }].slice(-MAX_VISIBLE));
   }, []);
 

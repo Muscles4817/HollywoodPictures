@@ -19,9 +19,10 @@ interface MainMenuProps {
   hasSave: boolean;
   onContinue: () => void;
   onNewGame: (database: TalentDatabase) => void;
+  onOpenSettings: () => void;
 }
 
-export function MainMenu({ hasSave, onContinue, onNewGame }: MainMenuProps) {
+export function MainMenu({ hasSave, onContinue, onNewGame, onOpenSettings }: MainMenuProps) {
   const [databases, setDatabases] = useState<TalentDatabase[]>(BUILT_IN_TALENT_DATABASES);
   const [selectedId, setSelectedId] = useState(GENERATED_TALENT_DB.id);
   const [importError, setImportError] = useState<string | null>(null);
@@ -85,6 +86,7 @@ export function MainMenu({ hasSave, onContinue, onNewGame }: MainMenuProps) {
           >
             New Studio
           </Button>
+          <Button variant="text" onClick={onOpenSettings}>Settings</Button>
         </div>
 
         <section className="main-menu__section">

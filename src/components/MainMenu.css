@@ -185,3 +185,16 @@
 }
 
 .main-menu__note { color: var(--text-muted); }
+
+/* ---- Settings, opened from the title screen ------------------------------ */
+.main-menu-settings {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 48px 20px 64px;
+  background: var(--bg);
+}
+
+.main-menu-settings .settings-page {
+  width: 100%;
+}

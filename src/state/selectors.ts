@@ -20,7 +20,8 @@ import { deriveStudioMilestones, type MilestoneFacts, type StudioMilestone } fro
 import { GENRE_PROFILES } from '../data/genres';
 import { AWARD_CATEGORY_LABEL } from '../data/awards';
 import { productionRequirementTags } from '../engine/scriptPresentation';
-import { announcedPlayerDrafts, asFilm, asPlayerDraft, asScheduled, asRivalProduction, findProject, projectId, rivalProductionsInProgress, scheduledPlayerReleases } from '../engine/project';
+import { unreadBidCount } from '../engine/bidNotifications';
+import { announcedPlayerDrafts, asFilm, asPlayerDraft, asScheduled, asRivalProduction, findProject, inboxBadgeCount, projectId, rivalProductionsInProgress, scheduledPlayerReleases } from '../engine/project';
 import { rivalAsUpcomingRelease, rivalReleaseIsAnnounced } from '../engine/rivalStudios';
 import { announcedAsUpcomingRelease, asUpcomingRelease } from '../engine/scheduledReleases';
 import { crowdingHorizon, type UpcomingRelease } from '../engine/releaseCrowding';
@@ -517,6 +518,19 @@ export function deriveRecentAwardHighlights(state: GameState, withinDays: number
 export function unacknowledgedAwardHighlights(state: GameState): RecentAwardHighlight[] {
   const acknowledged = new Set(state.acknowledgedAwardCeremonies ?? []);
   return deriveRecentAwardHighlights(state).filter((highlight) => !acknowledged.has(highlight.id));
+}
+
+/**
+ * Everything waiting in the Inbox, as one number: project items needing
+ * attention, unread bid mail, and unacknowledged award highlights. The time
+ * spine shows it; the sound director chimes when it rises.
+ */
+export function attentionBadgeCount(state: GameState): number {
+  return (
+    inboxBadgeCount(state.projects, state.focusedProjectId, state.totalDays) +
+    unreadBidCount(state.bidNotifications ?? []) +
+    unacknowledgedAwardHighlights(state).length
+  );
 }
 
 export type FilmStatSortKey =

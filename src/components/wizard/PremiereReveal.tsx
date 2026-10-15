@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { audio } from '../../audio/audioEngine';
 import { StarRating } from '../common/StarRating';
 import { GenrePoster } from '../common/GenrePoster';
 import { Money } from '../common/Money';
@@ -74,6 +75,21 @@ export function PremiereReveal({
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [step, totalSteps]);
+
+  // The curtain goes up with a fanfare; the opening weekend lands with its
+  // verdict. A skip (or reduced motion) goes straight to the verdict - the
+  // fanfare is for watching, the result is for knowing.
+  const startedFull = useRef(step === 0);
+  useEffect(() => {
+    if (startedFull.current) audio.play('premiere');
+  }, []);
+  const verdictSounded = useRef(false);
+  useEffect(() => {
+    if (step < boxOfficeStep || verdictSounded.current) return;
+    verdictSounded.current = true;
+    if (verdict.tone === 'triumph' || verdict.tone === 'good') audio.play('hit');
+    else if (verdict.tone === 'poor' || verdict.tone === 'disaster') audio.play('flop');
+  }, [step, boxOfficeStep, verdict.tone]);
 
   const revealing = step < totalSteps;
   const shown = (atStep: number) => step >= atStep;

@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStudio } from '../../state/StudioContext';
 import { formatGameDateWithMonth } from '../../engine/calendar';
-import { inboxBadgeCount } from '../../engine/project';
-import { unreadBidCount } from '../../engine/bidNotifications';
-import { unacknowledgedAwardHighlights } from '../../state/selectors';
+import { attentionBadgeCount } from '../../state/selectors';
 import { Money } from '../common/Money';
 import { DAY_TICK_MS, TICK_SPEED_MULTIPLIERS, type TickSpeedMultiplier } from '../../constants';
 
@@ -58,10 +56,7 @@ export function Spine({
   // The same sum the header badge always carried: project items needing
   // attention, unread bid mail, and unacknowledged award highlights - they all
   // live in the one Inbox overlay, so they share one count here.
-  const badgeCount =
-    inboxBadgeCount(state.projects, state.focusedProjectId, state.totalDays) +
-    unreadBidCount(state.bidNotifications ?? []) +
-    unacknowledgedAwardHighlights(state).length;
+  const badgeCount = attentionBadgeCount(state);
 
   const guarded = timeCriticalUnread > 0;
 
