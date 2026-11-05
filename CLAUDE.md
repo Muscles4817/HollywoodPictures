@@ -90,6 +90,17 @@ BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/buzzCalibration.diagnostic.tes
 BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeVariance.diagnostic.test.ts --disable-console-intercept      # §4 endogenous outcome variance
 ```
 
+Why the gates read what they read (docs/DESIGN_REVIEW_box_office_variance_diagnosis.md).
+Observational, same flag; the variance gate stresses ONE plan, so pool several:
+
+```bash
+BOX_OFFICE_DIAGNOSTIC=1 PLAN_SEEDS=7000,7001,7002 N=120 \
+  npx vitest run src/engine/boxOfficeVarianceAnatomy.diagnostic.test.ts --disable-console-intercept
+DUMP_OUT=/tmp/bo.json BOX_OFFICE_DIAGNOSTIC=1 \
+  npx vitest run src/engine/boxOfficeDistribution.diagnostic.test.ts --disable-console-intercept
+node scripts/analyseBoxOfficeDump.mjs /tmp/bo.json   # per-film cuts: S-curve, spend, star power
+```
+
 Populated save dump (for looking at screens with real content in them, rather
 than at the empty states an unpopulated fixture renders):
 

@@ -19,6 +19,9 @@
  * top so ratifying/adjusting a target is a one-line edit.
  */
 import { describe, it, expect } from 'vitest';
+import { writeFileSync } from 'fs';
+import { maxInterestedAudience } from './audienceSimulation';
+import { computeTalentCost } from './cost';
 import { generateRivalStudios, settleRivalMarket, studioShareOf, type RivalMarketUpdate } from './rivalStudios';
 import { settleTheatricalMarket } from './marketSettlement';
 import { generateTalentPool } from './talentGenerator';
@@ -118,6 +121,8 @@ interface Rec {
   seed: number;
   /** The tier of the studio that released it - see the profitability bands' own note on population scope. */
   tier: StudioTier;
+  /** Per-film detail for the DUMP_OUT analysis only - no gate reads it. */
+  detail: Record<string, number | string>;
 }
 
 function recordFinished(film: Film, seed: number, tier: StudioTier): Rec {
@@ -148,6 +153,25 @@ function recordFinished(film: Film, seed: number, tier: StudioTier): Rec {
     releaseType: film.marketingChoices.releaseType,
     runWeeks: weeks.length,
     openingMultiple: opening > 0 ? total / opening : 0,
+    detail: (() => {
+      const fx = film.boxOfficeRun.fixed;
+      const sw = film.boxOfficeRun.simWeeks;
+      const ceil = maxInterestedAudience(fx);
+      const leads = film.talent.filter((t) => t.role === 'Lead Actor');
+      const dir = film.talent.find((t) => t.role === 'Director');
+      const fameOf = (t: { person?: { reputation?: { fame?: number } } } | undefined) => t?.person?.reputation?.fame ?? 0;
+      const talentCost = computeTalentCost(film.talent);
+      return {
+        critic: r.criticScore, aud: r.audienceScore, buzz: r.buzzScore ?? 0, simAud: fx.audienceScore,
+        scale: film.script.scale, genre: film.genre,
+        costM: cost / M, openingM: opening / M, ancM: ancillary / M, rentalsM: (r.studioRevenue ?? 0) / M,
+        soldShare: sw.length ? sw[sw.length - 1].cumulativeTicketsSold / ceil : 0,
+        crossCap: fx.crossoverCapacityFraction, baseInt: fx.baseInterestFraction, tam: fx.totalAddressableAudience,
+        leadFame: leads.length ? leads.reduce((a, t) => a + fameOf(t as never), 0) / leads.length : 0,
+        dirFame: fameOf(dir as never), talentCostM: talentCost / M, mkt: film.marketingChoices.marketingSpend / M,
+        prodBudgetM: ((film.productionChoices as unknown as Record<string, number>).shootingBudgetAmount ?? 0) / M,
+      };
+    })(),
     year: yearOf(film.releasedOnDay),
     seed,
     tier,
@@ -299,6 +323,9 @@ describe.skipIf(!enabled)('box office whole-year distribution & profitability ca
   it('lands in the ratified target bands', () => {
     const all: Rec[] = [];
     for (let s = 0; s < SEEDS; s++) all.push(...runOneSeed(4000 + s));
+    // Per-film dump for offline analysis (scripts/analyseBoxOfficeDump.mjs) -
+    // only when asked for. See docs/DESIGN_REVIEW_box_office_variance_diagnosis.md.
+    if (process.env.DUMP_OUT) writeFileSync(process.env.DUMP_OUT, JSON.stringify(all));
     // Per-studio rates are divided by the number of studios ACTUALLY in that
     // tier, read off the generated roster rather than assumed. The roster used
     // to be a flat four per tier and these divisors were the literal 4; it is
