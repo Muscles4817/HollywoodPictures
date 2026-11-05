@@ -1,6 +1,8 @@
 # Design Review — Talent Chemistry (persistent talent↔person pairings)
 
-Status: **proposed — draft for review.** No code written. This doc argues for
+Status: **Built — Phases 0–4 implemented**, as the phasing section below already
+records (`engine/creativeTension.ts`, `engine/pairHistory.ts`). The "no code
+written" status line was not updated when it shipped. This doc argues for
 *where* the value is and *what shape* the feature should take, so the phasing
 can be committed to before anyone writes an engine module.
 

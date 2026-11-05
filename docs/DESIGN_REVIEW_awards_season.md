@@ -1,6 +1,8 @@
 # Design Review: Awards Season — Giving Prestige a Payoff
 
-Status: **Proposed** (design locked, unbuilt). The flagship **Academy Awards**
+Status: **Built** (`engine/awards.ts`, `data/awards.ts`, `components/AwardsPage.tsx`,
+`components/AwardsNight.tsx`); the precursor shows this section deferred (Globes,
+SAG, BAFTA) have since shipped too. (Status line corrected in a 2026-11-05 docs pass: it still read "Proposed" after the feature shipped. The presence of the code was verified; the design below was not re-audited line by line against it.) The flagship **Academy Awards**
 ceremony, run once a year over the films released that year — the first
 mechanic that actually *reads* the Prestige stat the studio has tracked all
 along. Precursor ceremonies (Globes, BAFTA, guilds) are deferred to a later

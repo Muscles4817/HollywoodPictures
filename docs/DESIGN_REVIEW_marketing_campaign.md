@@ -1,6 +1,7 @@
 # Design Review: Marketing Campaigns — Channels, Audience Fit & Campaign Angle
 
-Status: **Proposed** (design locked, unbuilt). Replaces the single marketing
+Status: **Built** (`engine/marketing.ts`, `engine/pressTour.ts`, wired through
+`engine/releaseFilm.ts`). (Status line corrected in a 2026-11-05 docs pass: it still read "Proposed" after the feature shipped. The presence of the code was verified; the design below was not re-audited line by line against it.) Replaces the single marketing
 spend dial with a real campaign: money split across **channels**, each with an
 **audience fit**, plus a **campaign angle** that governs the opening-vs-legs
 tradeoff. This is the A+B+C scope from the marketing brainstorm; press tours,
