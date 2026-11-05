@@ -40,6 +40,7 @@ import {
   campaignRolloutWeeks,
   distributorChannelAllocation,
   marketingRolloutMultiplier,
+  effectiveRushRunwayWeeks,
   totalMarketingSpend,
   type ChannelSpend,
 } from '../../engine/marketing';
@@ -442,7 +443,7 @@ export function MarketingRelease() {
   // projection the player can compare across choices, not the real jittered
   // draw. Guarded: a draft still missing a piece (or any transient bad input)
   // just hides the readout rather than throwing.
-  const projectedOpening = useMemo(() => {
+  const projection = useMemo(() => {
     if (
       !draft.script || !draft.genre || !draft.targetAudience || !draft.productionChoices ||
       !draft.photography || !draft.postProductionChoices
@@ -453,7 +454,7 @@ export function MarketingRelease() {
       const producerPool = state.producerPool ?? [];
       const attachedIds = draft.attachedProducerIds ?? [];
       const photography = draft.photography;
-      const { results } = computeReleaseResults(
+      const { results, fixed } = computeReleaseResults(
         {
           title: draft.title || 'Untitled',
           genre: draft.genre,
@@ -489,16 +490,23 @@ export function MarketingRelease() {
           // opening climbs as the player holds the release for a longer campaign,
           // exactly as settlement will read it.
           marketingRolloutMultiplier: rolloutMultiplier,
+          // The rushed-release penalty reads the same runway (distributor-
+          // floored), so the projected opening drops for a rushed wide release
+          // exactly as settlement will, and `fixed` says whether it's armed to
+          // collapse (docs/DESIGN_REVIEW_rush_penalty_and_screen_collapse.md).
+          marketingRunwayWeeks: effectiveRushRunwayWeeks(minReleaseDay, releaseDay, onDistributorDeal),
           personDrivenCraft: true, // player film: match settlement's person-driven craft in the projection
         },
         createRng(1),
       );
-      return results.openingWeekend;
+      return { opening: results.openingWeekend, collapseArmed: fixed.screenCollapseArmed === true };
     } catch {
       return null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, choices, selectedCrowding, state.studio.brand, state.producerPool, distributionMethod, distributionDeal.breadth, distributionDeal.keepShare, onDistributorDeal, selectedOffer?.pAndA, rolloutMultiplier]);
+  }, [draft, choices, selectedCrowding, state.studio.brand, state.producerPool, distributionMethod, distributionDeal.breadth, distributionDeal.keepShare, onDistributorDeal, selectedOffer?.pAndA, rolloutMultiplier, minReleaseDay, releaseDay]);
+  const projectedOpening = projection?.opening ?? null;
+  const rushedWideRisk = projection?.collapseArmed === true;
 
   // Tracking-as-a-service (F3): the true projection is never shown as a single
   // number - it's bracketed by a band whose width is set by the studio's Market
@@ -939,6 +947,14 @@ export function MarketingRelease() {
                 <span style={{ width: `${fill}%` }} />
               </div>
               <p className="choice-description" style={{ margin: 0 }}>{reading.detail}</p>
+              {rushedWideRisk && (
+                <p className="campaign-runway__risk" role="alert" style={{ margin: 0 }}>
+                  <strong>Rushing a wide release.</strong> With this little campaign behind it the film will open soft on
+                  thousands of screens - and if the seats sit empty, theatres will pull it within a weekend, taking most of
+                  its box office with them. Hold the release to give the campaign time to build, or take a distributor
+                  deal: a distributor runs its own campaign and won't let it open cold.
+                </p>
+              )}
             </div>
           );
         })()}

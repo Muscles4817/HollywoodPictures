@@ -5629,126 +5629,88 @@ it's written so every number it needs comes from `data/`.
 ## 8. Known limitations / next steps
 
 Things noticed during build/playtest that are worth flagging rather than
-quietly leaving implicit:
+quietly leaving implicit. Re-audited against the code on 2026-11-05: the
+earlier list had gone stale (it still called awards, franchises, studio
+facilities and marketing channels unbuilt), and everything below was checked
+against the source rather than carried forward. The `DESIGN_REVIEW_*`
+documents are the fuller record; their status lines say which are built.
 
-- **Talent persists and now has real scheduling against rivals, but not
-  against the player's own films or any relationships.** `Talent.bookedUntil`
-  (5.24) makes a candidate genuinely unavailable while an AI rival has them
-  cast - but the player's own hires never set it, since only one of the
-  player's own films is ever in production at a time, so there's still
-  nothing for a *player-vs-player* scheduling conflict to conflict with.
-  Loyalty/grudges from repeat collaboration, or fame/stats drifting over
-  time based on how a talent's films performed, remain natural next layers
-  on top of the same persistent roster.
-- **Only Principal Photography's days are genuinely lived through.** Every
-  other stage's calendar cost (5.16, `data/schedule.ts:STAGE_DURATIONS`) is
-  a flat number charged on leaving, not something the player watches happen
-  the way filming now is - Develop always costs exactly 7 days whether the
-  script search was quick or agonizing. Deliberate scope boundary for this
-  pass, not an oversight: Photography was the stage the original request
-  was specifically about, and giving every stage the same live treatment
-  would have been a much larger change than "does time pass, and does
-  filming feel real."
-- **No trait/sub-skill layer under ActingStyle yet.** The five acting-style
-  axes (5.11) are deliberately clean, single-purpose specialists partly so a
-  future trait system has something uncrowded to attach to - narrower
-  buffs/debuffs like dance, guns, swords, singing, or physical attributes
-  that would nudge specific roles rather than a whole axis. Not built yet;
-  noted here so the current axis shapes aren't mistaken for the finished
-  picture.
-- **Candidate sampling is randomized, not exhaustive.** ~100 stratified
-  candidates per role (200 for Lead/Supporting Actor) gives dense coverage,
-  but it's still finite - the
-  single cheapest (or single best) possible hire for a role won't always be
-  in the pool. Unlike before, there's no reroll to fall back on (rerolling a
-  persistent named roster would discard whoever's already been hired
-  elsewhere) - what's in the pool for that save is what's available, for the
-  life of that save. This is deliberate (real casting doesn't offer infinite
-  options either) but worth knowing when reasoning about "why didn't I see
-  anyone under £X".
-- **Marketability score is computed but not fully load-bearing.** It doesn't
-  surface anywhere yet - a clean hook for a future mechanic. (Buzz *used* to
-  be in this bullet too, but as of the box office rebuild below it directly
-  drives Opening Weekend - no longer a cosmetic number.)
-- **Marketing is a single spend dial, not distinct channels.** Trailers,
-  press/interviews, brand collabs etc. would be a thematically richer way to
-  spend a marketing budget than one slider, and came up when this area got
-  rebuilt - deliberately deferred rather than designed alongside the
-  Buzz/Opening/Legs restructure, since that rework was about fixing economic
-  scale, not adding decision-richness. Worth revisiting now that a real Buzz
-  mechanic exists for channels to feed into.
-- **Multi-genre blending is emergent only, not player-directed.** A script's
-  tone profile (5.11) picks up its variety from jitter plus 0-2 randomly
-  rolled flavor-tone boosts, but there's no secondary-genre picker giving the
-  player deliberate control over *which* flavor a script leans into - a
-  natural addition if wanting a specific combination (rather than rolling
-  the slate until one shows up) starts to feel necessary.
-- **requiredLeads/requiredSupporting don't vary by genre.** Every genre
-  draws from the same weighted distribution (`engine/scriptGenerator.ts:LEAD_COUNT_WEIGHTS`/
-  `SUPPORTING_COUNT_WEIGHTS`) - an ensemble-heavy genre and a two-hander
-  genre are equally likely to produce a 3-lead script right now. Genre-flavoring
-  these the way `canonicalTone` and `GENRE_TYPICAL_AUDIENCES` already are
-  would be a natural follow-up.
-- **No awards, franchises, scandals, or physical studio facilities/
-  upgrades.** AI rival studios shipped (5.24); these are the remaining
-  explicitly-out-of-scope items from the original MVP brief, and should
-  still slot in as new `data/` + `engine/` modules without touching the
-  wizard flow. A hireable Producer / upgradeable studio-lot system in
-  particular was discussed but deliberately deferred to its own design pass
-  - its value is easier to pin down now that real competition (5.24) gives
-  "getting to a candidate before a rival does" actual stakes, but the
-  mechanic itself isn't scoped yet.
-- **Prestige (5.39) has real, tested growth mechanics but no consuming
-  formula yet.** Deliberately deferred, not an oversight - the brief that
-  introduced Brand/Prestige explicitly excluded Awards from that pass, and
-  Prestige's most natural first consumer is exactly that: an awards system
-  reading accumulated Prestige as a nomination-likelihood input. Until
-  something reads it, Prestige is honestly just a tracked number the player
-  can watch trend up or down from critical reception alone - real
-  information, just not yet acted on by any mechanic, the same "compute and
-  track now, wire in later" gap `commercialProfile.crossoverPotential` sat
-  in for a full milestone (5.35) before 5.34's Milestone 12 wired it in.
-- **Assets re-entering the market after an AI rival abandons them is still
-  deferred, even after 5.41.** 5.41 shipped rivals competing for scripts in
-  the same `Opportunity` pool the player does (bidding, a real weekly
-  cadence), which is a straight read of 5.39's own deferred item 1 - but
-  items 2-3 (an abandonment-probability model, and a sell-back/re-listing
-  mechanic for an Asset once something's abandoned) are still exactly as
-  un-built as 5.39 originally found them. `resolveRivalProduction` still
-  always resolves a won script to a release; there is still no rival
-  project-abandonment path, and still no `SELL_ASSET` action for anyone,
-  player or rival. See 5.39's own subsection and 5.41 for the full picture.
-- **No postmortem beat connecting named on-set events back to the Results
-  screen.** `draft.events` already carries which specific templates fired
-  during production (5.9), and `storyReport.ts` (5.13) already proved the
-  curated-bank narration pattern for the buzz/reception trajectory - a
-  "the rushed schedule led to reshoots that cost the film its edge" beat
-  built the same way is a natural, separable follow-up, not built alongside
-  the risk-profile rework itself.
-- **No "Creative Freedom" mechanic.** Considered as a sixth production risk
-  dimension (5.9) and cut for having no concrete input - there's no
-  studio-executive/producer-notes system to be constrained *by*. Would need
-  that mechanic to exist first before the risk dimension would mean
-  anything.
-- **Balance is tuned, not proven.** The scenario table in 5.4 was produced by
-  running the real engine (`engine/boxOffice.ts`) against a handful of
-  representative inputs by hand - there's no automated test suite pinning
-  these numbers yet. Worth adding before any serious rebalancing pass, so
-  future tuning doesn't silently break the "expensive bad films flop" promise.
-  The Dashboard's "Export Film History (JSON)" button
-  (`state/exportFilmHistory.ts`) helps here in the meantime - it downloads
-  every released film's full script/cast/choices/results as one JSON file,
-  so a specific confusing result (e.g. "buzz was high, why was opening
-  weekend still small?") can be checked against the actual recorded inputs
-  instead of guessed at from the Results screen alone. The same Dashboard
-  also has a "How It Works" button (`components/common/GameGuide.tsx`) - a
-  plain-language walkthrough of the mechanics for players, deliberately
-  separate from this document rather than a rendering of it, since this
-  document is written for whoever's maintaining the code (raw formulas,
-  file paths, historical postmortems) and would be the wrong thing to hand
-  a player trying to understand why their last film flopped. Kept in sync
-  by hand, not generated from this file - worth remembering to update both
-  when a mechanic changes.
+**Still missing**
+
+- **The box-office model is not yet calibrated to its own targets.** The
+  `BOX_OFFICE_DIAGNOSTIC` gates (`CLAUDE.md`) encode
+  `DESIGN_box_office_calibration_targets.md` and two of the three still fail:
+  too many wide releases return over 500%/1000% and too few land near
+  breakeven, and a fixed plan run across execution seeds breaks out far too
+  often (34% against a 1-12% band) while never landing "significantly under".
+  The gates exist precisely so this is measured, not tuned by feel.
+- **Reception is too predictable.** `DESIGN_REVIEW_reception_model.md`
+  measures critic/audience scores as narrow because the pipeline averages three
+  times in a row, and proposes a direction that is not yet ratified.
+- **Casting is still in-order.** `DESIGN_REVIEW_casting_slot_binding.md`
+  (cast any role in any order) is proposed, not started.
+- **The concept-quality fields are inert.** `hook`, `emotionalPremise` and
+  `franchisePotential` are stored and shown but drive nothing, and Publisher
+  Rights are not real yet - `DESIGN_REVIEW_originality_vs_marketability.md`
+  designs the draw vector that would fix both, unbuilt.
+- **Only some development paths exist.** Commission, rewrite and sequel
+  development are built; the further paths in
+  `DESIGN_REVIEW_development_office_paths.md` are vision capture.
+- **Assets never re-enter the market.** There is still no `SELL_ASSET` for
+  anyone, player or rival, and no rival project-abandonment path:
+  `resolveRivalProduction` always resolves a won script to a release. See 5.39's
+  deferred subsection and 5.41.
+- **No off-set scandals.** Controversy is a personality axis and colours press
+  tours and event wording, but there is no scandal system that can land on a
+  film or a person between productions.
+- **No studio-executive notes, so no "Creative Freedom".** Considered as a
+  production risk dimension (5.9) and cut for having no concrete input; it
+  still has none.
+- **Talent careers don't move with their films.** Fame and heat only change
+  through press-tour moments (`engine/person.ts:withReputationChange`). A
+  person's fame or skill drifting with how their films performed remains a
+  natural next layer on the persistent roster, which already tracks bookings
+  against the player's own films, studio collaborations
+  (`engine/relationships.ts`) and pairing chemistry (`engine/pairHistory.ts`).
+- **No skill sub-layer under acting style.** Narrow buffs (dance, guns, swords,
+  singing, physical attributes) that would nudge specific roles rather than a
+  whole ActingStyle axis are still unbuilt. Scripts do now carry production
+  requirements like `stunts` and `choreography`, which is the demand side such
+  a layer would match against.
+- **Multi-genre blending is emergent, not player-directed.** There is no
+  secondary-genre picker; a script's flavour comes from its tone profile and
+  story type.
+- **The Studio Report has no production postmortem.** It joins a trajectory
+  beat, a critic/audience divergence beat and any press-tour moment
+  (`engine/storyReport.ts`); a beat connecting named on-set events to the
+  result ("the rushed schedule led to reshoots that cost the film its edge") is
+  still a separable follow-up.
+- **The talent pool is finite per save.** The roster is persistent and
+  stratified across the pay/skill range, but finite: the single cheapest (or
+  single best) possible hire for a role won't always exist in a given save.
+  Deliberate - real casting doesn't offer infinite options either.
+
+**Resolved since this list was last written** (kept briefly so the old
+bullets aren't mistaken for open work): awards season, which reads Prestige as
+a nomination nudge (`engine/awards.ts`); sequels and franchises
+(`engine/sequelDevelopment.ts`, `engine/rivalFranchise.ts`, the IP library);
+studio facilities (the Production Office and Distribution Arm) and hireable
+producers; marketing as channels, angle, press tour and a timed rollout,
+including the rushed-release penalty
+(`DESIGN_REVIEW_rush_penalty_and_screen_collapse.md`); Marketability feeding the
+audience simulation's addressable audience; every stage running on real
+due-days rather than flat `STAGE_DURATIONS` charges; cast size varying by story
+type and scale; several projects in flight at once, with talent booked against
+the player's own films; and automated calibration gates replacing the
+hand-run scenario table.
+
+**Worth remembering when changing a mechanic.** The in-game "How It Works"
+guide (`components/common/GameGuide.tsx`) is a plain-language walkthrough
+written for players, deliberately separate from this document and kept in sync
+by hand - update both. The Dashboard's "Export Film History (JSON)"
+(`state/exportFilmHistory.ts`) dumps every released film's recorded inputs and
+results, so a confusing result can be checked against what actually went in.
+
 - **History: the box office formula was rebuilt once already, for being
   badly overpowered.** The original single-stage version (`raw =
   BASE_MARKET_POTENTIAL x <chain of ~10 multipliers>`, `totalBoxOffice` computed
@@ -5808,8 +5770,7 @@ quietly leaving implicit:
   `reviewLegsFactor` uses), then one of several pre-written phrasings for
   that outcome is picked at random - closer to a sports-commentary
   generator than either a fixed template or free text. Built as the first
-  of a planned three "beats" (trajectory now; a named critic/audience
-  highlight and a studio-milestone/budget-framing beat are follow-ups, not
-  yet built) that `generateStoryReport` already joins from an internal
-  `beats: string[]` array for exactly that reason, even though only one
-  beat exists today.
+  of several "beats" that `generateStoryReport` joins from an internal
+  `beats: string[]` array; a critic/audience divergence beat and press-tour
+  moments have since joined it (see "Still missing" above for the
+  production-postmortem beat that hasn't).

@@ -154,6 +154,7 @@ function WeeklyDiagnosticsView({
                   <th>Comp. Pressure</th>
                   <th>Perf. Adj.</th>
                   <th>Next Avail.</th>
+                  <th>Pulled</th>
                   <th>Admissions</th>
                   <th>Gross</th>
                   <th>Cum. Admissions</th>
@@ -181,6 +182,7 @@ function WeeklyDiagnosticsView({
                     <td>{formatPercent(r.competitivePressure)}</td>
                     <td>{r.performanceAdjustment >= 0 ? '+' : ''}{formatPercent(r.performanceAdjustment)}</td>
                     <td>{formatPercent(r.nextAvailabilityFraction)}</td>
+                    <td>{r.screensPulled ? 'yes' : ''}</td>
                     <td>{formatPeople(r.weeklyAdmissions)}</td>
                     <td><Money amount={r.weeklyGross} /></td>
                     <td>{formatPeople(r.cumulativeTicketsSold)}</td>

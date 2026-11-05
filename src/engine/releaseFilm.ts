@@ -150,6 +150,13 @@ export interface ReleaseComputationInput {
    * there. See docs/DESIGN_REVIEW_marketing_rollout.md.
    */
   marketingRolloutMultiplier?: number;
+  /**
+   * Weeks of campaign runway, distributor-floored
+   * (engine/marketing.ts:effectiveRushRunwayWeeks) - arms the rushed-release
+   * penalty and screen collapse (docs/DESIGN_REVIEW_rush_penalty_and_screen_collapse.md).
+   * Absent (rivals, direct-sim tests) = no penalty.
+   */
+  marketingRunwayWeeks?: number;
 }
 
 export interface ReleaseComputationResult {
@@ -388,6 +395,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     // frozen onto marketingChoices at SCHEDULE_RELEASE. Absent for non-Wide,
     // rivals, and the live pre-schedule projection's default path.
     wideAvailabilityCeiling: input.marketingChoices.distributionBreadth,
+    marketingRunwayWeeks: input.marketingRunwayWeeks,
     criticScore,
     audienceScore: simAudienceScore,
   });

@@ -1,6 +1,12 @@
 # Design Review: Unified Studio Inbox
 
-Status: **Proposed (review-only).** This document is a design and architecture
+Status: **Partly built.** Phases 2–4 have shipped in substance: box office and
+awards surface in the Inbox, grouped into "Needs you" / "While you were away",
+and the box-office card clears on read (`components/common/Inbox.tsx`,
+`engine/project.ts:deriveInboxItems`). Phases 0–1 have not: there is no
+`StudioNotification` union, no shared `deriveStudioActivity` selector and no
+`VIEW_FILM_DOSSIER` action. Phase 5 is optional and unbuilt. Original status:
+**Proposed (review-only).** This document is a design and architecture
 review of the current Inbox, an assessment of whether it should evolve into a
 studio-wide "catch-up" surface, and a phased implementation plan. **No code is
 proposed for merge here** — this is the artifact to critique before any work

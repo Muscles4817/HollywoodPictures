@@ -1,6 +1,7 @@
 # Design Review: The Production Office — Hiring and Attaching Producers
 
-Status: **Proposed** (design locked, unbuilt). First upgradeable studio
+Status: **Built** (`engine/producers.ts`, `components/ProductionOfficeCard.tsx`,
+`Studio.productionOffice`). (Status line corrected in a 2026-11-05 docs pass: it still read "Proposed" after the feature shipped. The presence of the code was verified; the design below was not re-audited line by line against it.) First upgradeable studio
 facility. Introduces Producers as a new `Person` career, an employment layer
 on the `Studio`, and a per-film attach decision on the Producer Workspace.
 No change to the film wizard.

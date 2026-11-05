@@ -30,6 +30,7 @@ import { GENRE_PROFILES } from '../data/genres';
 import { RELEASE_WINDOW_BASE_MULTIPLIER, RELEASE_WINDOW_GENRE_BONUS, MARKETING_SPEND_RANGE } from '../data/release';
 import { logT, interpolateScale, type Range, type ScaleAnchor } from './interpolate';
 import { createAudienceSimulationFixedState, type AudienceSimulationFixedState } from './audienceSimulation';
+import { isScreenCollapseArmed, openingRushMultiplier, rushSeverity } from './marketing';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -155,6 +156,15 @@ export interface ReleaseSimulationInputs {
    * release type's own value. Only ever consulted for Wide.
    */
   wideAvailabilityCeiling?: number;
+  /**
+   * Weeks of campaign runway this release got, already floored for a
+   * distributor deal (engine/marketing.ts:effectiveRushRunwayWeeks). Drives the
+   * rushed-release penalty and screen-collapse arming
+   * (docs/DESIGN_REVIEW_rush_penalty_and_screen_collapse.md). Absent = no runway
+   * signal (rivals, direct-sim tests, the neutral projection) - no penalty, never
+   * armed, behaviour identical to before.
+   */
+  marketingRunwayWeeks?: number;
 }
 
 // --- Total addressable audience -------------------------------------------
@@ -979,6 +989,13 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
   const uncrowdedAvailabilityFraction = computeInitialAvailabilityFraction(inputs.releaseType, releaseStrength, inputs.wideAvailabilityCeiling);
   const initialAvailabilityFraction = uncrowdedAvailabilityFraction * (1 - CROWDING_PENALTY_WEIGHT * inputs.competitiveCrowding);
 
+  // Rushed-release penalty: severity scales with how WIDE the release went out
+  // (its uncrowded screen commitment - Limited/Festival platform releases sit at
+  // ~0 and are meant to open quiet) times how much campaign runway it missed.
+  const rush = inputs.marketingRunwayWeeks === undefined
+    ? undefined
+    : rushSeverity(inputs.marketingRunwayWeeks, computeRushBreadth(uncrowdedAvailabilityFraction));
+
   return createAudienceSimulationFixedState({
     totalAddressableAudience,
     baseInterestFraction,
@@ -992,5 +1009,18 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
     initialAvailabilityFraction,
     availabilityBaseWeeklyDecay: distribution.availabilityBaseWeeklyDecay,
     criticLedExpansionWeight: distribution.criticLedExpansionWeight,
+    ...(rush === undefined ? {} : { openingRushMultiplier: openingRushMultiplier(rush), screenCollapseArmed: isScreenCollapseArmed(rush) }),
   });
+}
+
+/**
+ * 0..1 breadth of a release for the rush penalty: 0 at (or below) a Limited
+ * release's platform screen count, 1 at a full Wide commitment. Reads the
+ * uncrowded opening availability, so a Wide release on a narrower distributor
+ * deal (or a weak package) is proportionally less exposed.
+ */
+export function computeRushBreadth(uncrowdedAvailabilityFraction: number): number {
+  const platform = distributionProfile('Limited').initialAvailabilityFraction;
+  const full = distributionProfile('Wide').initialAvailabilityFraction;
+  return Math.min(1, Math.max(0, (uncrowdedAvailabilityFraction - platform) / (full - platform)));
 }

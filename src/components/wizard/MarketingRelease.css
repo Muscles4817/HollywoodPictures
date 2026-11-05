@@ -369,3 +369,19 @@
     width: 160px;
   }
 }
+
+/* Rushed-release risk (docs/DESIGN_REVIEW_rush_penalty_and_screen_collapse.md):
+   only shown when this release is armed to collapse - a self-distributed Wide
+   release with too little campaign runway. */
+.campaign-runway__risk {
+  padding: 0.5rem 0.65rem;
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.campaign-runway__risk strong {
+  color: var(--danger);
+}

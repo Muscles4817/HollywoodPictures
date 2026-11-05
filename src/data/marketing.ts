@@ -115,3 +115,27 @@ export const LEGS_AUDIENCE_POINTS = 30;
 // to hold a film for years).
 export const CAMPAIGN_FULL_ROLLOUT_WEEKS = 8; // runway at which the campaign is in full swing
 export const CAMPAIGN_MOMENTUM_BONUS = 0.18; // +18% realised reach at a full rollout, vs a rushed release
+
+// --- Rushed-release penalty & screen collapse (docs/DESIGN_REVIEW_rush_penalty_and_screen_collapse.md) ---
+// The bonus above rewards runway; this is the other half - what rushing COSTS,
+// and it is release-type-specific. "The opening is bought, the legs are
+// earned": a WIDE release with no campaign behind it opens soft on a huge screen
+// commitment, exhibitors read the empty seats and pull it inside a weekend, and
+// the film never reaches the audience it would otherwise have found. A
+// Limited/Festival platform release is designed to open small and quiet, so the
+// same rush barely touches it. Severity = breadth x missing runway, both 0..1
+// (engine/marketing.ts:rushSeverity); the opening is cut by
+// RUSH_PENALTY_MAX x severity.
+//
+// Armed only by an explicit runway signal (a live player release - rivals and
+// direct-sim tests carry none), so the calibrated neutral path is untouched.
+export const RUSH_PENALTY_MAX = 0.65; // a zero-runway, full-breadth Wide release opens at 0.35x its rolled-out opening
+export const RUSH_PENALTY_FULL_RUNWAY_WEEKS = CAMPAIGN_FULL_ROLLOUT_WEEKS; // runway at which the rush penalty is gone
+// A distributor was already running the campaign - its deal guarantees at least
+// this much effective runway, which keeps severity under the collapse arm below.
+// Rushing is a self-distribution footgun, not a distributor-deal one.
+export const MIN_DISTRIBUTOR_RUNWAY_WEEKS = 4;
+// Severity at or above which a soft opening can trigger terminal screen collapse
+// (engine/audienceSimulationStep.ts). Full-breadth Wide crosses it below ~3.3
+// weeks of runway; a distributor's 4-week floor keeps it at <= 0.25.
+export const SCREEN_COLLAPSE_ARM_SEVERITY = 0.35;

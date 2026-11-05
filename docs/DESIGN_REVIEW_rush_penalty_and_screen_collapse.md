@@ -1,7 +1,7 @@
 # Design Review: Rushed-release penalty & theatrical screen-collapse
 
-Status: **Planned — not yet built.** Captures the research, the diagnostic
-evidence, and the intended design so it can be implemented in its own PR. Extends
+Status: **Built** (save v93). §1–§10 are the design as written; §11 records
+what landed, where it departed from the plan, and the measured numbers. Extends
 the marketing rollout model (`docs/DESIGN_REVIEW_marketing_rollout.md`) and couples
 to the distributor-offer system.
 
@@ -197,3 +197,83 @@ runway is threaded into the projection input.
   wide → deep loss; full-rollout or distributor wide → healthy).
 - `npm test` (core calibration suite stays green — proof the neutral path is
   untouched; only same-day integration tests update), `npm run build`, `npm run lint`.
+
+## 11. What landed
+
+Built as designed: breadth-scaled week-1 penalty, latched terminal screen
+collapse, distributor runway floor, gated on an explicit runway signal.
+
+**Where it lives**
+
+- `data/marketing.ts` — `RUSH_PENALTY_MAX` 0.65, `RUSH_PENALTY_FULL_RUNWAY_WEEKS`
+  (= `CAMPAIGN_FULL_ROLLOUT_WEEKS`, 8), `MIN_DISTRIBUTOR_RUNWAY_WEEKS` 4,
+  `SCREEN_COLLAPSE_ARM_SEVERITY` 0.35.
+- `engine/marketing.ts` — `effectiveRushRunwayWeeks` (the distributor floor),
+  `rushSeverity` = breadth × (1 − runway progress)², the same concave curve as
+  `rolloutMomentum`; `openingRushMultiplier`; `isScreenCollapseArmed`.
+- `engine/audienceSimulationInputs.ts` — `computeRushBreadth` (0 at Limited's
+  platform availability, 1 at a full Wide commitment, read off the *uncrowded*
+  opening availability); sets the two optional fixed-state fields.
+- `engine/audienceSimulationStep.ts` — step 8.6 (week-1 penalty) and
+  `isScreenCollapse` / `collapsedAvailability`, with `THEATRICAL_HOLD_UTILISATION`
+  0.5, `SCREEN_COLLAPSE_TRIGGER_WEEKS` 2, `SCREEN_COLLAPSE_DECAY` 0.8.
+- Threaded through `releaseFilm.ts` (`marketingRunwayWeeks`) from
+  `marketSettlement.ts` and the Marketing screen's projection.
+
+**Departures from the plan**
+
+1. **The distributor floor is applied where the runway is read, not by
+   rewriting `campaignStartDay` in `SCHEDULE_RELEASE`.** Rewriting the start day
+   would also have handed distributor deals 4 weeks of the rollout *bonus* they
+   never earned. `effectiveRushRunwayWeeks` floors only the rush penalty's input.
+2. **The penalty multiplies tickets, not attendance probability.** A strong
+   film's pulled-forward probability can exceed 1 before its clamp, which
+   silently absorbed most of the cut (a 0.35× multiplier landed as ~0.56×).
+3. **Collapse is latched** (`AudienceSimulationWeekState.screensPulled`) and
+   only triggers in the first two weeks. Without the latch a shrinking screen
+   count raises utilisation, the film reads as "selling out", and
+   `computeNextAvailability` re-books it — the opposite of what exhibitors do.
+4. **Arming is a severity threshold, not "any runway signal".** Severity 0.35
+   arms a full-breadth Wide release under ~3.3 weeks of runway. The distributor
+   floor caps severity at 0.25, so a distributor deal can never be armed.
+
+**Measured** (`RUSH_DIAGNOSTIC=1 npx vitest run src/engine/rushPenalty.diagnostic.test.ts --disable-console-intercept`,
+24 films per row, medians, worldwide gross / all-in cost):
+
+| Mid-budget good film | Opening | Gross | Gross/cost | Pulled |
+|---|---|---|---|---|
+| Wide, 8-week rollout | $59.5M | $158.4M | 3.37× | 0/24 |
+| Wide, distributor floor (4 wk) | $52.2M | $149.2M | 3.28× | 0/24 |
+| Wide, 2 weeks | $43.3M | $97.6M | 1.80× | 13/24 |
+| Wide, same-day | $31.5M | $50.5M | 1.08× | 19/24 |
+| Limited, same-day | $5.2M | $65.6M | 1.98× | 0/24 (unchanged) |
+
+Tentpole (good film, ~$146M all-in): $325.7M rolled out vs **$98.2M rushed**
+(0.69× its cost), 23/24 pulled. Through the real reducer (fixture seed 3,
+self-distributed): held 8 weeks **+38%** profit, rushed same-day **−36%** and out
+of theatres after 4 weeks. A rushed film that still fills its seats is *not*
+pulled (seed 23 stays profitable) — quality can still rescue a rush, as the
+sleeper cases in §2 do.
+
+The collapse is a cliff at the arming threshold (3 weeks of runway: kept; 2
+weeks: half pulled), which is why the Marketing screen warns exactly when the
+release is armed rather than on a runway heuristic.
+
+**Calibration untouched.** All three `BOX_OFFICE_DIAGNOSTIC` gates report
+value-for-value the same as before this change: rivals carry no runway signal.
+
+**Player-facing.** The Marketing & Release screen warns when the scheduled
+release is armed (read off the projection's own fixed state, so it can't
+disagree with settlement). A pulled film's existing "run finished" Inbox card
+says theatres pulled it (warning tone, "Pulled from theatres" eyebrow), routes
+to its dossier, and clears on read; the dossier's Financials section explains
+it. The dev audience-sim inspector has a "Pulled" column.
+
+**Test change worth knowing.** `realFilmRegression.test.ts` released its
+recreated tentpoles same-day, self-distributed: exactly the case that now
+collapses. They now release after a full rollout, as the real films did. One
+assertion (Suicide Squad's star vehicle beating its stripped counterpart on
+profit *ratio*) was an ordering of two losses on a 2.7-point margin. The
+existing rollout bonus lifts only the stripped film (the star vehicle's audience
+is already saturated), which flips it, so that line was replaced with an
+explanatory note. The "stars more than double the gross" claim still stands.

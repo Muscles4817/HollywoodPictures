@@ -122,6 +122,20 @@ export interface AudienceSimulationFixedState {
    * smaller version of Limited's audience-driven platform expansion.
    */
   criticLedExpansionWeight: number;
+  /**
+   * Rushed-release penalty (docs/DESIGN_REVIEW_rush_penalty_and_screen_collapse.md):
+   * 0-1 multiplier on week-1 attendance only - a Wide release with no campaign
+   * runway opens soft. Absent = 1 (no penalty): rivals, direct-sim tests and any
+   * release without a runway signal take the calibrated neutral path.
+   */
+  openingRushMultiplier?: number;
+  /**
+   * Whether a soft opening can trigger terminal screen collapse - exhibitors
+   * pulling a rushed Wide release inside a weekend (see
+   * engine/audienceSimulationStep.ts:computeNextAvailability). Absent = false:
+   * availability keeps its asymptotic floor, exactly as before.
+   */
+  screenCollapseArmed?: boolean;
 }
 
 /**
@@ -148,6 +162,7 @@ export function createAudienceSimulationFixedState(input: AudienceSimulationFixe
   assertUnitInterval(input.initialAvailabilityFraction, 'initialAvailabilityFraction');
   assertUnitInterval(input.availabilityBaseWeeklyDecay, 'availabilityBaseWeeklyDecay');
   assertUnitInterval(input.criticLedExpansionWeight, 'criticLedExpansionWeight');
+  if (input.openingRushMultiplier !== undefined) assertUnitInterval(input.openingRushMultiplier, 'openingRushMultiplier');
   if (input.baseInterestFraction + input.crossoverCapacityFraction > 1) {
     throw new Error(
       'AudienceSimulation: baseInterestFraction + crossoverCapacityFraction must not exceed 1 - the base pool plus its maximum crossover expansion cannot exceed the whole addressable audience',
@@ -211,6 +226,14 @@ export interface AudienceSimulationWeekState {
    * capacity ceiling, never the combined one.
    */
   cumulativeCrossoverRealized: number;
+  /**
+   * Screen collapse (docs/DESIGN_REVIEW_rush_penalty_and_screen_collapse.md):
+   * true once exhibitors have started pulling this film - latched, so a film
+   * whose shrinking screen count briefly makes it look "sold out" is never
+   * re-booked. Only ever set on a run whose fixed state is screenCollapseArmed.
+   * Absent = false.
+   */
+  screensPulled?: boolean;
 }
 
 /**

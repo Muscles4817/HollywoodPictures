@@ -112,6 +112,27 @@ describe('Inbox - box office finished (informational catch-up)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'View box office' }));
     expect(dispatch).toHaveBeenCalledWith({ type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS', filmId: 'bo-film' });
     expect(onViewFilmDossier).toHaveBeenCalledWith('bo-film');
+    expect(screen.queryByText(/Pulled from theatres/i)).not.toBeInTheDocument();
+  });
+
+  it('says so when theatres pulled a rushed release, and still routes to the dossier', () => {
+    dispatch.mockClear();
+    const onViewFilmDossier = vi.fn();
+    const base = boxOfficeFinishedState();
+    const project = base.projects[0] as unknown as { film: Film };
+    const pulledFilm = {
+      ...project.film,
+      results: { outcome: 'Flop', totalBoxOffice: 12_000_000 },
+      boxOfficeRun: { ...project.film.boxOfficeRun, simWeeks: [{ week: 1, screensPulled: true }] },
+    } as unknown as Film;
+    mockState = { ...base, projects: [{ kind: 'released', film: pulledFilm } as unknown as Project] } as GameState;
+    render(<Inbox open onClose={() => {}} onViewFilmDossier={onViewFilmDossier} />);
+
+    expect(screen.getByText(/Pulled from theatres/i)).toBeInTheDocument();
+    expect(screen.getByText(/Theatres pulled it after a soft opening/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'View box office' }));
+    expect(dispatch).toHaveBeenCalledWith({ type: 'ACKNOWLEDGE_BOX_OFFICE_RESULTS', filmId: 'bo-film' });
+    expect(onViewFilmDossier).toHaveBeenCalledWith('bo-film');
   });
 });
 

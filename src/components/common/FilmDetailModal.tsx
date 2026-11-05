@@ -5,6 +5,7 @@ import { toneProfileBreakdown } from '../../data/tones';
 import { ARCHETYPE_LABELS, CHARACTER_ARCHETYPE_LABELS, STORY_TYPE_LABELS, SETTING_LABELS, SCALE_LABELS } from '../../data/scriptTagLabels';
 import { productionRequirementTags, describeProductionComplexity, describeSettingImplication, describeCharacterDemands } from '../../engine/scriptPresentation';
 import { readCastPerformances } from '../../engine/castPerformance';
+import { wasPulledFromTheatres } from '../../engine/boxOfficeRun';
 import { describeCastPerformance, castBandLabel, castPerformanceMarker } from '../../engine/castPerformancePresentation';
 import { Button } from './Button';
 import { Money } from './Money';
@@ -164,6 +165,12 @@ function FinancialsSection({ film }: { film: Film }) {
     <div className="card stack">
       <h3 style={{ margin: 0 }}>Financials</h3>
       <FilmMoneyBreakdown film={film} ancillary={selectFilmAncillary(state, film)} />
+      {wasPulledFromTheatres(film) && (
+        <p className="film-pulled-note" style={{ margin: 0, color: 'var(--text-muted)' }}>
+          Pulled from theatres. It opened wide with too little campaign behind it, played to empty seats, and exhibitors cut
+          its screens within a weekend - most of the audience it could have found never got the chance.
+        </p>
+      )}
       {film.boxOfficeRun.weeks.length > 0 && <BoxOfficeChart weeks={film.boxOfficeRun.weeks} />}
     </div>
   );

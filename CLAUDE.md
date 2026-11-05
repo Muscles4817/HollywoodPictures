@@ -73,6 +73,13 @@ Release-calendar harness (docs/DESIGN_REVIEW_project_clocks_and_script_openness.
 CROWDING_DIAGNOSTIC=1 npx vitest run src/engine/releaseCrowding.diagnostic.test.ts --disable-console-intercept
 ```
 
+Rushed-release harness (docs/DESIGN_REVIEW_rush_penalty_and_screen_collapse.md
+§11 — does rushing a wide release collapse it, and only it?):
+
+```bash
+RUSH_DIAGNOSTIC=1 npx vitest run src/engine/rushPenalty.diagnostic.test.ts --disable-console-intercept
+```
+
 Box-office calibration gates (encode the targets in
 `docs/DESIGN_box_office_calibration_targets.md`; **expected to fail** until the
 recalibration work lands — that is their purpose). One shared flag:
@@ -89,7 +96,7 @@ than at the empty states an unpopulated fixture renders):
 ```bash
 DUMP_FIXTURE=1 DUMP_PATH=/tmp/pop.json npx vitest run \
   src/state/renderFixtures.diagnostic.test.ts --disable-console-intercept
-# then inject the file as localStorage['hollywood-pictures-save-v92']
+# then inject the file as localStorage['hollywood-pictures-save-v93']
 ```
 
 Observational (not an assertion suite) — dumps two simulated in-game years of

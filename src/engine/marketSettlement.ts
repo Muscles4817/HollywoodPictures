@@ -8,7 +8,7 @@ import { stuntTeamById, stuntTeamEffectiveSkill, stuntTeamFee } from './stuntTea
 import { computeTalentCost, computeProductionBudgetCost, computeEventsCostDelta } from './cost';
 import { studioShareOf } from './rivalStudios';
 import { computeCompetitiveCrowding, runningFilmAsUpcomingRelease, type UpcomingRelease, computePlayerReleaseStrength } from './releaseCrowding';
-import { marketingRolloutMultiplier } from './marketing';
+import { effectiveRushRunwayWeeks, marketingRolloutMultiplier } from './marketing';
 import { resolveRivalProduction, rivalAsUpcomingRelease } from './rivalStudios';
 import { nextDueFilm, advanceEarliestDueFilmByOneWeek } from './boxOfficeRun';
 import { asUpcomingRelease, type ScheduledRelease } from './scheduledReleases';
@@ -161,6 +161,14 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
   // (SCHEDULE_RELEASE) to this releaseDay. Absent start day (pre-rollout saves)
   // resolves to the neutral 1.
   const rolloutMultiplier = marketingRolloutMultiplier(draft.marketingChoices!.campaignStartDay, releaseDay);
+  // Rushed-release penalty (docs/DESIGN_REVIEW_rush_penalty_and_screen_collapse.md):
+  // the same frozen runway, floored under a distributor deal - a distributor was
+  // already running the campaign, so only a self-distributed rush can collapse.
+  const runwayWeeks = effectiveRushRunwayWeeks(
+    draft.marketingChoices!.campaignStartDay,
+    releaseDay,
+    draft.marketingChoices!.distributionMethod === 'distributor',
+  );
 
   const { results, fixed } = computeReleaseResults(
     {
@@ -185,6 +193,7 @@ function resolvePlayerRelease(draft: FilmDraft, releaseDay: number, studioBrand:
       stuntTeamFee: stuntFee,
       pressTourMoment: { buzzDelta: tourMoments.buzzDelta, storyBeat: tourMoments.storyBeat },
       marketingRolloutMultiplier: rolloutMultiplier,
+      marketingRunwayWeeks: runwayWeeks,
       personDrivenCraft: true, // player film: DP/Composer/Editor realise craft quality (coverage unification)
       developmentQualityDelta: draft.developmentQualityDelta ?? 0, // accepted creative demands (Phase 2b)
       directorToneShift: draft.selectedDirectorPitch?.toneShift, // the director's pitched tonal take (Phase B3)
