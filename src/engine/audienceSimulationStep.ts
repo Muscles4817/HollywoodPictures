@@ -681,6 +681,47 @@ const COMPETITIVE_PRESSURE_WEIGHT = 0.08;
 const ATTENTION_COMPETITION_WEIGHT = 0.55;
 const ATTENTION_FLOOR = 0.25;
 
+// Terminal screen collapse (docs/DESIGN_REVIEW_rush_penalty_and_screen_collapse.md).
+// Ordinary contraction approaches AVAILABILITY_FLOOR asymptotically and never
+// reaches zero, so a film's unserved demand just rolls forward and the whole
+// interested pool drains over the run - there is no distribution risk. For a
+// release whose fixed state is screenCollapseArmed (a genuinely rushed Wide
+// release - see engine/marketing.ts:rushSeverity), a catastrophically empty
+// house in its first SCREEN_COLLAPSE_TRIGGER_WEEKS weeks gets it pulled:
+// availability decays toward zero, admissions follow, the stopping rule ends
+// the run, and the audience still in interestedRemaining is never sold to.
+// Latched (AudienceSimulationWeekState.screensPulled) because a shrinking screen
+// count raises utilisation - without the latch the film would read as selling
+// out and be re-booked, which is not what exhibitors do with a film they've
+// already written off.
+//
+// THEATRICAL_HOLD_UTILISATION is the separator: a rushed Wide release below it
+// is pulled, an ordinary soft Wide release (which never gets armed anyway) and
+// any rushed release that still fills its seats is not. Calibrated against
+// week-1 utilisation of real rushed and rolled-out releases.
+const THEATRICAL_HOLD_UTILISATION = 0.5;
+const SCREEN_COLLAPSE_TRIGGER_WEEKS = 2;
+const SCREEN_COLLAPSE_DECAY = 0.8; // share of remaining screens pulled each week once collapsing
+const SCREEN_COLLAPSE_EXTINCTION = 0.01; // below this the film is out of theatres entirely
+
+/** Whether this week's transition pulls (or keeps pulling) the film's screens - see SCREEN_COLLAPSE_* above. */
+export function isScreenCollapse(
+  fixed: AudienceSimulationFixedState,
+  priorWeek: AudienceSimulationWeekState,
+  weeksLength: number,
+  demandUtilisation: number,
+): boolean {
+  if (!fixed.screenCollapseArmed) return false;
+  if (priorWeek.screensPulled) return true;
+  return weeksLength < SCREEN_COLLAPSE_TRIGGER_WEEKS && demandUtilisation < THEATRICAL_HOLD_UTILISATION;
+}
+
+/** Next week's availability for a film being pulled - decays toward, and then hits, zero. */
+export function collapsedAvailability(currentAvailability: number): number {
+  const next = currentAvailability * (1 - SCREEN_COLLAPSE_DECAY);
+  return next < SCREEN_COLLAPSE_EXTINCTION ? 0 : next;
+}
+
 export function computeNextAvailability(
   fixed: AudienceSimulationFixedState,
   currentAvailability: number,
@@ -778,6 +819,8 @@ export interface WeekDiagnostics {
   nextAvailabilityFraction: number;
   /** The `competitivePressure` argument this week's transition was actually called with (see advanceOneWeekWithDiagnostics) - 0 for a film with no genre/audience/timing-overlapping competition currently active, engine/releaseCrowding.ts:computeCompetitiveCrowding's output otherwise. Recorded here (not just consumed) so components/dev/OutcomeInspector.tsx can show it like every other diagnostic input. */
   competitivePressure: number;
+  /** Rushed-release screen collapse - true once exhibitors are pulling this film (latched; see isScreenCollapse). */
+  screensPulled: boolean;
   weeklyAdmissions: number;
   cumulativeTicketsSold: number;
   /**
@@ -887,8 +930,17 @@ export function advanceOneWeekWithDiagnostics(
   // below never subtracts them out), so this shifts/loses admissions without
   // ever shrinking the interested pool - the WOM-safe redistribution lever.
   const attentionFactor = clamp(1 - ATTENTION_COMPETITION_WEIGHT * competitivePressure, ATTENTION_FLOOR, 1);
-  const ticketsFromExistingPool = sellTicketsThisWeek(priorWeek.interestedRemaining, attendanceProbability * attentionFactor);
-  const ticketsFromNewInterest = sellTicketsThisWeek(newInterestThisWeek, baselineAttendanceProbability * attentionFactor);
+  // Step 8.6: the rushed-release penalty (docs/DESIGN_REVIEW_rush_penalty_and_screen_collapse.md)
+  // - week 1 only. A Wide release with no campaign runway opens soft: "the
+  // opening is bought," and a rushed campaign never bought it. The un-converted
+  // stay interested, exactly like attention competition above - whether they
+  // ever get a ticket is decided by whether the film keeps its screens.
+  const rushFactor = weeks.length === 0 ? (fixed.openingRushMultiplier ?? 1) : 1;
+  // Applied to the tickets, not the probability: a strong film's pulled-forward
+  // probability can exceed 1 before the clamp, which would silently absorb most
+  // of the cut.
+  const ticketsFromExistingPool = sellTicketsThisWeek(priorWeek.interestedRemaining, attendanceProbability * attentionFactor) * rushFactor;
+  const ticketsFromNewInterest = sellTicketsThisWeek(newInterestThisWeek, baselineAttendanceProbability * attentionFactor) * rushFactor;
   const unconstrainedDemand = ticketsFromExistingPool + ticketsFromNewInterest;
 
   // Step 9.5: availability gates unconstrained demand down to what this
@@ -905,7 +957,10 @@ export function advanceOneWeekWithDiagnostics(
   const ticketsThisWeek = Math.min(unconstrainedDemand, maxServiceableDemand);
   const demandUtilisation = computeDemandUtilisation(unconstrainedDemand, maxServiceableDemand);
   const performanceAdjustment = computeAvailabilityPerformanceAdjustment(fixed, demandUtilisation);
-  const nextAvailabilityFraction = computeNextAvailability(fixed, availabilityThisWeek, demandUtilisation, competitivePressure);
+  const screensPulled = isScreenCollapse(fixed, priorWeek, weeks.length, demandUtilisation);
+  const nextAvailabilityFraction = screensPulled
+    ? collapsedAvailability(availabilityThisWeek)
+    : computeNextAvailability(fixed, availabilityThisWeek, demandUtilisation, competitivePressure);
 
   // Defensive final clamp - the step-by-step headroom bounding above should
   // already guarantee these never exceed their ceilings, but floating-point
@@ -925,6 +980,7 @@ export function advanceOneWeekWithDiagnostics(
     cumulativeTicketsSold,
     availabilityFraction: nextAvailabilityFraction,
     cumulativeCrossoverRealized: clampedCumulativeCrossoverRealized,
+    ...(screensPulled ? { screensPulled: true } : {}),
   });
 
   // Diagnostics are read from the *actual* resulting week state (post-clamp)
@@ -955,6 +1011,7 @@ export function advanceOneWeekWithDiagnostics(
     performanceAdjustment,
     nextAvailabilityFraction,
     competitivePressure,
+    screensPulled,
     weeklyAdmissions: next.cumulativeTicketsSold - priorWeek.cumulativeTicketsSold,
     cumulativeTicketsSold: next.cumulativeTicketsSold,
     womReproductionRatio: NaN,

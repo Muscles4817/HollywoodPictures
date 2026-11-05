@@ -80,6 +80,16 @@ function recoupWithheldThisWeek(film: Film, priorWeeks: BoxOfficeWeek[], thisWee
 }
 
 /** Cumulative domestic/international grosses across a run's settled weeks - the final breakdown the results/displays read (sums the per-week fields). */
+/**
+ * Whether exhibitors pulled this film's screens - a rushed Wide release that
+ * opened soft (docs/DESIGN_REVIEW_rush_penalty_and_screen_collapse.md). Read
+ * off the run's own latched sim state, so it's true from the week the
+ * collapse starts for the rest of the film's life.
+ */
+export function wasPulledFromTheatres(film: Pick<Film, 'boxOfficeRun'>): boolean {
+  return film.boxOfficeRun.simWeeks.some((w) => w.screensPulled === true);
+}
+
 export function cumulativeMarketGross(weeks: BoxOfficeWeek[]): { domestic: number; international: number } {
   let domestic = 0;
   let international = 0;

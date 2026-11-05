@@ -182,6 +182,45 @@ describe('MarketingRelease - distributor deal clears self-marketing', () => {
   });
 });
 
+describe('MarketingRelease - rushed wide release warning', () => {
+  function selfWide(distributionMethod: 'self' | 'distributor'): GameState {
+    const base = stateWithScreening(true);
+    const draft = asPlayerDraft(findProject(base.projects, base.focusedProjectId))!;
+    const patched = {
+      ...draft,
+      marketingChoices: {
+        ...draft.marketingChoices!,
+        releaseType: 'Wide' as const,
+        distributionMethod,
+        channelSpend: { trailers: 12_000_000, tv: 8_000_000, digital: 5_000_000, press: 0 },
+        marketingSpend: 25_000_000,
+      },
+    };
+    return { ...base, projects: [{ kind: 'player-in-progress', draft: patched }] } as GameState;
+  }
+
+  it('warns that theatres may pull a self-distributed Wide release scheduled with no campaign runway', () => {
+    mockState = selfWide('self');
+    render(<MarketingRelease />);
+    expect(screen.getByText(/Rushing a wide release\./)).toBeInTheDocument();
+  });
+
+  it('drops the warning once the release is held for a full campaign', () => {
+    mockState = selfWide('self');
+    const { container } = render(<MarketingRelease />);
+    const cells = [...container.querySelectorAll<HTMLButtonElement>('button.month-cell')];
+    // Three months out - well past the full rollout.
+    fireEvent.click(cells[3]);
+    expect(screen.queryByText(/Rushing a wide release\./)).not.toBeInTheDocument();
+  });
+
+  it('never warns under a distributor deal', () => {
+    mockState = selfWide('distributor');
+    render(<MarketingRelease />);
+    expect(screen.queryByText(/Rushing a wide release\./)).not.toBeInTheDocument();
+  });
+});
+
 describe('MarketingRelease - projected opening tracking band', () => {
   it('shows the projection as a range with a baseline note nudging Market Research when the studio has none', () => {
     mockState = stateWithResearch(null); // no office, no research

@@ -164,7 +164,8 @@ const FAQ: FaqCategory[] = [
         q: 'Does when I release change how well my marketing works?',
         a: [
           "Yes. A marketing campaign is a rollout that takes place over the weeks before release - trailers air and re-air, word spreads, anticipation compounds. The gap between scheduling a film and its release day is the campaign's runway, and a longer runway builds more momentum: the same spend reaches further, so your projected opening climbs as you hold the release out.",
-          "Rushing a film straight out the door isn't punished - it just lands at the campaign's baseline reach. Holding it is the lever, and it maxes out after about a two-month rollout. The catch is the usual one: the longer you wait, the more rivals can crowd your window, and the film earns nothing until it opens.",
+          "Holding is the lever, and it maxes out after about a two-month rollout. The catch is the usual one: the longer you wait, the more rivals can crowd your window, and the film earns nothing until it opens.",
+          "But rushing a WIDE release is dangerous. With no campaign behind it the film opens soft on thousands of screens, and if the seats sit empty, theatres pull it within a weekend - most of the audience it could have found never gets the chance. A Limited release is meant to open small and quiet, so rushing one costs little, and a distributor deal runs its own campaign and won't let a film open cold. The Release screen warns you when a date is that risky.",
         ],
       },
     ],

@@ -9,6 +9,10 @@ import {
   CAMPAIGN_FULL_ROLLOUT_WEEKS,
   CAMPAIGN_MOMENTUM_BONUS,
   CHANNEL_AUDIENCE_EFFICIENCY,
+  MIN_DISTRIBUTOR_RUNWAY_WEEKS,
+  RUSH_PENALTY_FULL_RUNWAY_WEEKS,
+  RUSH_PENALTY_MAX,
+  SCREEN_COLLAPSE_ARM_SEVERITY,
   LEGS_PENALTY_SCALE,
   MARKETING_CHANNELS,
   OPENING_HYPE_SCALE,
@@ -148,6 +152,44 @@ export function rolloutMomentum(weeks: number): number {
  * discipline the channel/angle additions use, so callers that don't know a
  * start day get exactly today's behaviour.
  */
+/**
+ * The runway the rush penalty reads (docs/DESIGN_REVIEW_rush_penalty_and_screen_collapse.md):
+ * the real campaign runway, floored at MIN_DISTRIBUTOR_RUNWAY_WEEKS under a
+ * distributor deal (the distributor was already running the campaign). Absent
+ * campaign start day (rivals, the neutral projection path) -> undefined, which
+ * disarms the penalty entirely.
+ */
+export function effectiveRushRunwayWeeks(
+  campaignStartDay: number | undefined,
+  releaseDay: number,
+  onDistributorDeal: boolean,
+): number | undefined {
+  if (campaignStartDay === undefined) return undefined;
+  const weeks = campaignRolloutWeeks(campaignStartDay, releaseDay);
+  return onDistributorDeal ? Math.max(weeks, MIN_DISTRIBUTOR_RUNWAY_WEEKS) : weeks;
+}
+
+/**
+ * 0..1 - how rushed a release is: its breadth (0 = a Limited/Festival platform
+ * opening, 1 = a full Wide) times the share of its campaign runway it never got,
+ * on the same concave curve rolloutMomentum uses (early weeks buy the most).
+ */
+export function rushSeverity(runwayWeeks: number, breadth: number): number {
+  const progress = Math.min(1, Math.max(0, runwayWeeks) / RUSH_PENALTY_FULL_RUNWAY_WEEKS);
+  const missing = (1 - progress) ** 2;
+  return Math.min(1, Math.max(0, breadth)) * missing;
+}
+
+/** The week-1 attendance multiplier a release of this severity opens at (1 = no penalty). */
+export function openingRushMultiplier(severity: number): number {
+  return 1 - RUSH_PENALTY_MAX * severity;
+}
+
+/** Whether a soft opening at this severity can trigger terminal screen collapse. */
+export function isScreenCollapseArmed(severity: number): boolean {
+  return severity >= SCREEN_COLLAPSE_ARM_SEVERITY;
+}
+
 export function marketingRolloutMultiplier(campaignStartDay: number | undefined, releaseDay: number): number {
   if (campaignStartDay === undefined) return 1;
   return rolloutMomentum(campaignRolloutWeeks(campaignStartDay, releaseDay));

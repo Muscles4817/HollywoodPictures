@@ -5,6 +5,7 @@ import { ActivityCard } from './ActivityCard';
 import { OnSetDecisionCard } from './OnSetDecisionCard';
 import { reshootChoiceConstraints } from '../../engine/reshootAvailability';
 import { backgroundedPlayerDrafts, deriveInboxItems, isParkedActionable } from '../../engine/project';
+import { wasPulledFromTheatres } from '../../engine/boxOfficeRun';
 import { unseenApplicants } from '../../engine/castingCalls';
 import { derivePostProductionStatus, describePostProductionWait } from '../../engine/postProductionStatus';
 import { highestBid } from '../../engine/opportunities';
@@ -504,15 +505,21 @@ export function Inbox({ open, onClose, onViewFilmDossier }: InboxProps) {
               // dossier marks it reviewed (ACKNOWLEDGE_BOX_OFFICE_RESULTS), so it
               // stays unread until the player actually looks.
               const outcome = film.results.outcome;
-              const detail = `Its theatrical run is over${outcome ? `, finishing as a ${outcome}` : ''}${film.results.totalBoxOffice != null ? ` at ${formatMoney(film.results.totalBoxOffice)}` : ''}. See how it played out.`;
+              // A rushed release theatres pulled after a soft opening says so -
+              // the run ending weeks early is the news, not just its total.
+              const pulled = wasPulledFromTheatres(film);
+              const ending = pulled
+                ? 'Theatres pulled it after a soft opening - it went out with too little campaign behind it'
+                : 'Its theatrical run is over';
+              const detail = `${ending}${outcome ? `, finishing as a ${outcome}` : ''}${film.results.totalBoxOffice != null ? ` at ${formatMoney(film.results.totalBoxOffice)}` : ''}. See how it played out.`;
               return (
                 <ActivityCard
                   key={`${film.id}-box-office`}
                   activity={{
                     id: `${film.id}-box-office`,
-                    tone: 'neutral',
+                    tone: pulled ? 'warning' : 'neutral',
                     category: 'update',
-                    eyebrow: 'Box office',
+                    eyebrow: pulled ? 'Pulled from theatres' : 'Box office',
                     title: `🎬 ${film.title || 'Untitled Film'}`,
                     detail,
                   }}
