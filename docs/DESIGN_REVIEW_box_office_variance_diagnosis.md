@@ -270,6 +270,52 @@ roughly right (a star adds little to a tentpole), and the Medium and Intimate
 rows are not: that is where a star should earn its fee, and in the model it
 costs return there most.
 
+### 5.3 The controlled sweep: fame barely moves the total
+
+`src/engine/starPower.diagnostic.test.ts` (§7 step 1, done) takes a fixed rival
+plan and changes **only** its lead actors' fame, resolving every variant under
+the same 30 execution seeds. Script, crew, skill, schedule and luck are
+identical across rows. Fame alone, salary and marketing untouched:
+
+| plan | fame 20 → 95: opening | gross | p10 gross |
+|---|--:|--:|--:|
+| 7000 Medium Fantasy | +17% | **+3.5%** | +8% |
+| 7000 Big Action | +4% | **+8%** | +5% |
+| 7000 Small Sci-Fi | +19% | **+4%** | +21% |
+| 7001 Medium Drama | +28% | **+10%** | +19% |
+| 7001 Big Comedy | +15% | **+1%** | +8% |
+| 7001 Small Sci-Fi | +21% | **+3%** | +19% |
+
+The market rate for that move (median Lead Actor fee in a generated pool) goes
+from **$0.1M at fame 20 to $16.3M at fame 95**. On the 7000 Medium film the
+fame-95 lead buys about $10M of extra worldwide gross, roughly half of which the
+studio keeps. Paying market rate for fame lowers return on every plan above
+fame ~60.
+
+So the answer to "underpowered or mispriced" is **underpowered**:
+- Fame feeds three channels: a cast-awareness lift capped at 10% of the
+  addressable audience (`audienceSimulationInputs.ts:computeCastReachFraction`,
+  quadratic in fame, combined independently with marketing's up-to-95% reach),
+  Buzz (`scoring.ts`, +0.5 per point over 50, plus gating more of marketing's
+  Buzz contribution), and distributor offers (player only).
+- **None of them touches the ceiling.** A star brings more people early
+  (opening +4–28%), but they come from the same fixed `maxInterestedAudience`,
+  so most of the gain is the run front-loading, not growing. The total moves
+  1–10%.
+- Fame lifts the **floor** (p10) more than the median, by +5–21%: the direction
+  the domain reference describes ("the floor, not the ceiling"), but far too
+  small to pay for itself.
+
+Where the "matched" variant (marketing cut by the salary difference) could hold
+cost equal, a fame-95 lead roughly breaks even with a fame-20 one. On two plans
+it couldn't, because marketing can't be cut below a wide release's minimum
+campaign, so cost rose instead.
+
+Flagged in passing, not chased: the captured **Big** rival plans return
+0.24–0.25× (e.g. $464M all-in for a ~$200M gross). In the whole-market data,
+Epic-scale releases return 1.83×, so this may be specific to plans captured
+early in a run. Worth a look before Big plans carry weight in any tuning.
+
 ---
 
 ## 6. Decisions needed before any tuning
@@ -300,10 +346,10 @@ towards it.
 
 ## 7. Proposed fix order (for a separate, greenlit pass)
 
-1. **Star sweep** (§5.2): a controlled diagnostic, no model change, to settle
-   whether stars are underpowered or merely mispriced, measured against the
-   domain reference's split (little on tentpoles, a lot on mid-budget films,
-   mostly as a floor).
+1. ~~**Star sweep**~~ **Done (§5.3): underpowered.** Fame moves gross 1–10%
+   because it never touches the ceiling. Fixing that belongs inside step 2: a
+   star's draw should enlarge the reachable audience (most for mid-budget, least
+   for tentpoles, per the domain reference), not just front-load the same one.
 2. **Let the ceiling move.** Make the reachable audience something reception can
    grow, not just fill: strong word of mouth expanding crossover capacity, or
    the addressable audience itself, past its release-day value. This is the lever
