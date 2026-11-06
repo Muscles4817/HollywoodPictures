@@ -2,10 +2,10 @@
  * Calibration harness — OUTCOME VARIANCE (endogenous).
  *
  * Encodes docs/DESIGN_box_office_calibration_targets.md §4: outcomes must not be
- * deterministic. It takes ONE fixed production plan and resolves it many times,
- * letting only the production/execution path vary (engine/rivalExecution.ts -
+ * deterministic. It takes a set of fixed production plans and resolves each many
+ * times, letting only the production/execution path vary (engine/rivalExecution.ts -
  * how the shoot actually went), then settles each to completion and measures the
- * spread of total gross relative to the plan's own median outcome.
+ * spread of total gross relative to each plan's own median outcome, pooled.
  *
  * This deliberately probes variance the ENDOGENOUS way the simulation philosophy
  * demands (Principle 1): the plan is fixed, the *execution* varies, and the box
@@ -35,7 +35,13 @@ const BANDS: { name: string; lo: number; hi: number; target: [number, number] }[
   { name: 'breakout', lo: 1.6, hi: Infinity, target: [1, 12] }, // ~5%
 ];
 
-const RESOLVES = 240;
+// A POPULATION of plans, not one. The gate used to stress a single plan (seed
+// 7000), which turned out to be the most volatile of sixteen measured: it read
+// "34% breakouts" while the pooled population is 77% "as expected"
+// (docs/DESIGN_REVIEW_box_office_variance_diagnosis.md §2). Seed 7000 is kept
+// as the first plan so the old reading is still one of the inputs.
+const PLAN_SEEDS = Array.from({ length: 16 }, (_, i) => 7000 + i);
+const EXECUTIONS_PER_PLAN = 80;
 
 /** Progress the rival market until an in-progress production exists, then return the first one as a fixed plan to stress. */
 function captureOnePlan(seed: number): RivalProductionInProgress {
@@ -98,16 +104,29 @@ const enabled = Boolean(
 );
 
 describe.skipIf(!enabled)('box office outcome variance calibration', () => {
-  it('a fixed plan produces the target spread of outcomes across execution seeds', () => {
-    const plan = captureOnePlan(7000);
-    const grosses: number[] = [];
-    for (let i = 0; i < RESOLVES; i++) grosses.push(grossForResolve(plan, 9000 + i));
-    const med = median(grosses);
-    const ratios = grosses.map((g) => (med > 0 ? g / med : 1));
+  it('fixed plans produce the target spread of outcomes across execution seeds', () => {
+    // Each outcome is measured against its OWN plan's median, then every plan's
+    // ratios are pooled - "how far does execution move a film from what its plan
+    // would typically deliver", across a population of plans.
+    const ratios: number[] = [];
+    const planCvs: number[] = [];
+    const planLines: string[] = [];
+    for (const planSeed of PLAN_SEEDS) {
+      const plan = captureOnePlan(planSeed);
+      const grosses: number[] = [];
+      for (let i = 0; i < EXECUTIONS_PER_PLAN; i++) grosses.push(grossForResolve(plan, 9000 + i));
+      const med = median(grosses);
+      ratios.push(...grosses.map((g) => (med > 0 ? g / med : 1)));
+      const mean = grosses.reduce((a, b) => a + b, 0) / grosses.length;
+      const sd = Math.sqrt(grosses.reduce((a, b) => a + (b - mean) ** 2, 0) / grosses.length);
+      planCvs.push(mean > 0 ? sd / mean : 0);
+      planLines.push(`    plan ${planSeed}: ${plan.scale} ${plan.genre} ${plan.marketingChoices.releaseType}, median $${(med / 1_000_000).toFixed(0)}M, CV ${planCvs[planCvs.length - 1].toFixed(3)}`);
+    }
 
     const failures: string[] = [];
     const lines: string[] = [
-      `\nOUTCOME VARIANCE - plan ${plan.scale} ${plan.genre}, ${RESOLVES} execution seeds, median $${(med / 1_000_000).toFixed(0)}M`,
+      `\nOUTCOME VARIANCE - ${PLAN_SEEDS.length} plans x ${EXECUTIONS_PER_PLAN} execution seeds (${ratios.length} outcomes), each relative to its own plan's median`,
+      ...planLines,
       `  ${'band'.padEnd(22)} ${'share%'.padStart(7)}   target`,
     ];
     for (const b of BANDS) {
@@ -117,10 +136,10 @@ describe.skipIf(!enabled)('box office outcome variance calibration', () => {
       if (!ok) failures.push(`${b.name}: ${share.toFixed(1)}% not in [${b.target[0]}, ${b.target[1]}]`);
       lines.push(`  ${(ok ? 'PASS ' : 'FAIL ')}${b.name.padEnd(17)} ${share.toFixed(1).padStart(7)}   [${b.target[0]}, ${b.target[1]}]`);
     }
-    // Coefficient of variation - the single "is there any spread at all" number.
-    const mean = grosses.reduce((a, b) => a + b, 0) / grosses.length;
-    const sd = Math.sqrt(grosses.reduce((a, b) => a + (b - mean) ** 2, 0) / grosses.length);
-    lines.push(`  coefficient of variation: ${(mean > 0 ? sd / mean : 0).toFixed(3)} (near 0 = deterministic)`);
+    // Coefficient of variation per plan - the single "is there any spread at
+    // all" number. Reported as the median plan's, so one volatile plan can't
+    // speak for the rest (the failure mode the single-plan gate had).
+    lines.push(`  median per-plan coefficient of variation: ${median(planCvs).toFixed(3)} (near 0 = deterministic)`);
     console.log(lines.join('\n'));
     expect(failures, `\n${failures.join('\n')}\n`).toEqual([]);
   });
