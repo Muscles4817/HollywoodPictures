@@ -87,11 +87,11 @@ recalibration work lands — that is their purpose). One shared flag:
 ```bash
 BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeDistribution.diagnostic.test.ts --disable-console-intercept  # §2/§3/§5 whole-year distribution & profitability
 BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/buzzCalibration.diagnostic.test.ts --disable-console-intercept        # §6 buzz bands, fixtures, non-purchasability
-BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeVariance.diagnostic.test.ts --disable-console-intercept      # §4 endogenous outcome variance
+BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/boxOfficeVariance.diagnostic.test.ts --disable-console-intercept      # §4 endogenous outcome variance (16 plans, pooled)
 ```
 
 Why the gates read what they read (docs/DESIGN_REVIEW_box_office_variance_diagnosis.md).
-Observational, same flag; the variance gate stresses ONE plan, so pool several:
+Observational, same flag. The anatomy harness shows what separates a plan's outcomes:
 
 ```bash
 BOX_OFFICE_DIAGNOSTIC=1 PLAN_SEEDS=7000,7001,7002 N=120 \

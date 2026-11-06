@@ -44,8 +44,16 @@ const TARGETS = {
   wideMeanGrossM: [200, 300] as [number, number],
   wideUnprofitablePct: [40, 52] as [number, number],
   wideOver100Pct: [45, 60] as [number, number],
-  wideOver500Pct: [6, 12] as [number, number],
-  wideOver1000Pct: [1, 3] as [number, number],
+  // Counts per industry-year, not shares of the wide field. As shares these
+  // were not scale-invariant: the same number of $500M films reads as a bigger
+  // share of a smaller field, and the model's field (~82 wide releases a year)
+  // is smaller than the real ~110 they were derived against. Ratified as counts
+  // against the real ~10-15 and ~2-5 a year (targets v2/v3 draft §13.1;
+  // docs/DESIGN_REVIEW_box_office_variance_diagnosis.md §4.1, §6). The same
+  // correction §11.3 made for top-10 share by moving to a decile. This made
+  // two failing gates pass without the model moving - recorded, not hidden.
+  wideOver500PerYear: [10, 15] as [number, number],
+  wideOver1000PerYear: [2, 5] as [number, number],
   // The top decile of wide releases' share of wide-release gross. Real: the top
   // ten of roughly 110 US wide releases take a bit over 40% of wide gross.
   topDecileWideSharePct: [35, 50] as [number, number],
@@ -350,8 +358,8 @@ describe.skipIf(!enabled)('box office whole-year distribution & profitability ca
       wideMeanGrossM: mean(wideGross),
       wideUnprofitablePct: share(wide.filter((r) => !r.profitable).length, wide.length),
       wideOver100Pct: share(wide.filter((r) => r.grossM > 100).length, wide.length),
-      wideOver500Pct: share(wide.filter((r) => r.grossM > 500).length, wide.length),
-      wideOver1000Pct: share(wide.filter((r) => r.grossM > 1000).length, wide.length),
+      wideOver500PerYear: wide.filter((r) => r.grossM > 500).length / (SEEDS * YEARS),
+      wideOver1000PerYear: wide.filter((r) => r.grossM > 1000).length / (SEEDS * YEARS),
       topDecileWideSharePct: topDecileWideShare(all),
       wideRunWeeks: mean(wide.map((r) => r.runWeeks)),
       limitedRunWeeks: mean(limited.map((r) => r.runWeeks)),

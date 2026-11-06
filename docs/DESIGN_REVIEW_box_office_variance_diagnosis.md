@@ -274,6 +274,13 @@ costs return there most.
 
 ## 6. Decisions needed before any tuning
 
+**Both ratified (2026-11-06) and applied.** The variance gate now pools plans
+7000–7015 × 80 executions and reads exactly the §2 pooled table: 4 of 5 bands
+failing, 77.0% "as expected", median per-plan coefficient of variation 0.142.
+The distribution gate now counts `wideOver500PerYear` (12.1, target 10–15) and
+`wideOver1000PerYear` (4.1, target 2–5), both passing: 19 of 21, with
+`breakevenPct` and `limitedOpeningMultiple` still failing.
+
 1. **Pool the variance gate across plans** (measurement). Replace the single
    captured plan with ~16 plans × 80 executions, each outcome relative to its own
    plan's median, as §2 measured. This makes the gate *more* failing (77% "as
