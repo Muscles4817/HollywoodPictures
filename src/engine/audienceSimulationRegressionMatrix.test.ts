@@ -250,8 +250,20 @@ describe('regression matrix: 2. strong WOM film', () => {
     expect(summary.peakIndex).toBeLessThan(summary.weeksRun - 1);
   });
 
-  it('does not automatically become a mass-market phenomenon (reproduction ratio stays clearly below replacement)', () => {
-    expect(summary.peakReproductionRatio).toBeLessThan(0.9);
+  it('does not automatically become a mass-market phenomenon (its scale stays far below one)', () => {
+    // This used to assert the peak weekly reproduction ratio stays under 0.9.
+    // With word of mouth set by the expectation gap (data/wordOfMouth.ts) this
+    // film - a modest promise (Buzz 45) that delivers strongly - is the sleeper
+    // the reference describes, and a sleeper's audience grows into weeks two and
+    // three: r > 1 for a week or two is the expected shape
+    // (docs/domain/16 §8.1, "above break-even the audience grows"). What the
+    // assertion was really guarding against is a runaway, and saturation still
+    // ends it: the total is unchanged ($163M with or without the gap) and stays
+    // a small fraction of a genuine phenomenon's.
+    const phenomenon = summarize(RARE_PHENOMENON);
+    expect(summary.totalGross).toBeLessThan(phenomenon.totalGross * 0.2);
+    expect(summary.hitHardCap).toBe(false);
+    expect(summary.peakReproductionRatio).toBeLessThan(2);
   });
 });
 
@@ -325,12 +337,18 @@ describe('regression matrix: 4. rare phenomenon', () => {
     // is a normalization artefact, not the phenomenon being "less special": its
     // dominance lives in TOTAL GROSS (~$1B, ~10x an ordinary film - asserted
     // above), the metric that actually captures scale. What still holds here is
-    // that it stays below true self-sustaining (<1.0, no runaway) while clearly
-    // out-reproducing an ordinary film week-to-week.
-    const ordinaryPeak = summarize(ORDINARY_POSITIVE).peakReproductionRatio;
+    // that it stays below true self-sustaining (<1.0, no runaway).
+    //
+    // It used to also assert it out-reproduces an ordinary-positive film by 1.4x
+    // week to week. With the expectation gap (data/wordOfMouth.ts) that ordinary
+    // film - Buzz 35, delivering 70 - over-delivers on a modest promise and its
+    // weekly ratio rises (0.54 -> 0.68), while the phenomenon (Buzz 95,
+    // delivering 97) meets a sky-high promise and its pool-diluted ratio stays at
+    // 0.78. The per-week comparison was already flagged above as a normalisation
+    // artefact; the scale comparison that matters is the total-gross one.
     expect(summary.peakReproductionRatio).toBeGreaterThan(0.5);
     expect(summary.peakReproductionRatio).toBeLessThan(1.0); // never literally self-sustaining
-    expect(summary.peakReproductionRatio).toBeGreaterThan(ordinaryPeak * 1.4);
+    expect(summary.totalGross).toBeGreaterThan(summarize(ORDINARY_POSITIVE).totalGross * 10);
   });
 });
 

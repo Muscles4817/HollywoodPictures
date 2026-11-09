@@ -50,6 +50,7 @@ import {
   type AudienceSimulationWeekState,
 } from './audienceSimulation';
 import { REVIEW_WAITERS_LOST_SHARE } from '../data/reviewSensitivity';
+import { EXPECTATION_FACTOR_MAX, EXPECTATION_FACTOR_MIN, EXPECTATION_GAP_SPAN, EXPECTATION_GAP_WEIGHT } from '../data/wordOfMouth';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -194,7 +195,20 @@ const RECEPTION_EXPONENT = 2;
 export function computeReceptionResponseMultiplier(fixed: AudienceSimulationFixedState): number {
   const weighted = (fixed.audienceScore * AUDIENCE_SCORE_WEIGHT + fixed.criticScore * CRITIC_SCORE_WEIGHT) / 100;
   const above = clamp((weighted - RECEPTION_PIVOT) / (1 - RECEPTION_PIVOT), 0, 1);
-  return RECEPTION_FLOOR + (1 - RECEPTION_FLOOR) * Math.pow(above, RECEPTION_EXPONENT);
+  const absolute = RECEPTION_FLOOR + (1 - RECEPTION_FLOOR) * Math.pow(above, RECEPTION_EXPONENT);
+  return absolute * computeExpectationGapFactor(fixed);
+}
+
+/**
+ * The expectation gap (docs/domain/16 §8.1, data/wordOfMouth.ts): word of mouth
+ * scaled by how far delivered reception beat or missed what the film's Buzz
+ * promised. 1 when the fixed state carries no promise (expectedReception absent).
+ */
+export function computeExpectationGapFactor(fixed: AudienceSimulationFixedState): number {
+  if (fixed.expectedReception === undefined) return 1;
+  const delivered = fixed.audienceScore * AUDIENCE_SCORE_WEIGHT + fixed.criticScore * CRITIC_SCORE_WEIGHT;
+  const gap = delivered - fixed.expectedReception;
+  return clamp(1 + EXPECTATION_GAP_WEIGHT * (gap / EXPECTATION_GAP_SPAN), EXPECTATION_FACTOR_MIN, EXPECTATION_FACTOR_MAX);
 }
 
 /**

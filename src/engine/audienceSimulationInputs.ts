@@ -40,6 +40,7 @@ import {
   REVIEW_SIGNAL_PIVOT,
   REVIEW_SIGNAL_SPAN,
 } from '../data/reviewSensitivity';
+import { EXPECTED_RECEPTION_BASE, EXPECTED_RECEPTION_PER_BUZZ } from '../data/wordOfMouth';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -1022,7 +1023,13 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
     criticLedExpansionWeight: distribution.criticLedExpansionWeight,
     ...(rush === undefined ? {} : { openingRushMultiplier: openingRushMultiplier(rush), screenCollapseArmed: isScreenCollapseArmed(rush) }),
     openingReviewMultiplier: computeOpeningReviewMultiplier(inputs, eventScale),
+    expectedReception: computeExpectedReception(inputs.buzzScore),
   });
+}
+
+/** The reception a film's Buzz promised (data/wordOfMouth.ts): the bar word of mouth measures delivery against. */
+export function computeExpectedReception(buzzScore: number): number {
+  return clamp(EXPECTED_RECEPTION_BASE + EXPECTED_RECEPTION_PER_BUZZ * clamp(buzzScore, 0, 100), 0, 100);
 }
 
 type ReviewInputs = Pick<ReleaseSimulationInputs, 'genre' | 'targetAudience' | 'scriptFranchiseRecognition' | 'criticScore'>;

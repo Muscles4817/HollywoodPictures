@@ -144,6 +144,14 @@ export interface AudienceSimulationFixedState {
    * pre-sold. Absent = 1.
    */
   openingReviewMultiplier?: number;
+  /**
+   * The reception (0-100, same audience-weighted blend word of mouth reads) this
+   * film's pre-release Buzz promised (data/wordOfMouth.ts). Word of mouth is
+   * scaled by how far the film beat or missed it - the expectation gap
+   * (docs/domain/16 §8.1). Absent = no modulation, word of mouth reads absolute
+   * reception exactly as before.
+   */
+  expectedReception?: number;
 }
 
 /**
@@ -171,6 +179,7 @@ export function createAudienceSimulationFixedState(input: AudienceSimulationFixe
   assertUnitInterval(input.availabilityBaseWeeklyDecay, 'availabilityBaseWeeklyDecay');
   assertUnitInterval(input.criticLedExpansionWeight, 'criticLedExpansionWeight');
   if (input.openingRushMultiplier !== undefined) assertUnitInterval(input.openingRushMultiplier, 'openingRushMultiplier');
+  if (input.expectedReception !== undefined) assertScoreRange(input.expectedReception, 'expectedReception');
   if (input.openingReviewMultiplier !== undefined && !(input.openingReviewMultiplier > 0)) {
     throw new Error(`AudienceSimulation: openingReviewMultiplier must be > 0, got ${input.openingReviewMultiplier}`);
   }

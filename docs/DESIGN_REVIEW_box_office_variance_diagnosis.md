@@ -407,6 +407,49 @@ says reviews barely touch. Fixes 2 and 3 are the levers for it.
   quirk. A run-length rule that isn't relative to the opening would fix both,
   but it touches every film, so it belongs with the calibration of fixes 2–3.
 
+## 9. Fix 2 built: promise vs delivery drives word of mouth
+
+`data/wordOfMouth.ts`, `audienceSimulationInputs.ts:computeExpectedReception`,
+`audienceSimulationStep.ts:computeExpectationGapFactor`. A film's Buzz sets
+the reception it promised. Word of mouth is scaled by how far the delivered
+reception (the same 70/30 audience/critic blend it already reads) beat or
+missed that: ±10% per 10 points, bounded 0.7–1.2×.
+
+**Calibration lesson.** Buzz in the model is saturated (median 80; 38% of
+wide releases at 90–99) and delivered reception is flat at ~60 across every
+Buzz level, so hype carries no information about quality. A first version
+anchored "a maximally hyped film must deliver 74" and taxed the typical film,
+because the typical film *is* hyped. The neutral point now sits at the market
+median (Buzz 80 expects 60.4). The response was also far more sensitive than
+expected: word of mouth's thresholds are squared, so a 1.1× nudge took a
+scenario's peak weekly reproduction ratio from 0.87 to 1.06.
+
+**Measured.** Across the regression scenarios, **totals barely move**. The
+strong-word-of-mouth film goes from $163M to $159M even at a 1.4× setting while
+its peak weekly ratio climbs to 1.5: extra word of mouth only pulls the same
+audience forward, because the film is already selling into its ceiling. The
+one scenario not at its ceiling (ordinary-positive, Buzz 35, delivering 70)
+gains: $67M → $78M at the chosen setting. Gates: variance "as expected"
+76.7% → 75.2%, median per-plan CV 0.142 → 0.161, "significantly under"
+4.7% → 5.5%. Market median wide gross +5% ($147M → $155M), mean barely
+(+$3M). The distribution gate is at 16/21; the newly failing bands are all
+within about a point (`wideOver100Pct` 64.4 vs 60, `lossPct` at its 28 edge,
+`specialtyFilmsPerYear` 4.9 vs 5). They are left for the joint calibration
+of fixes 1–3 rather than nudged one at a time.
+
+**What this shows.** The expectation gap is the right mechanism, and the
+reference supports it, but it can't add audience while the reachable-audience
+ceiling binds. That is fix 3's job (repeat viewing), and the reason the plan
+said to calibrate these together.
+
+**Test changes.** Two regression-matrix assertions used the peak weekly
+reproduction ratio as a proxy for "no runaway". The strong-word-of-mouth film
+(a modest promise, strong delivery) is now the reference's sleeper, and a
+sleeper's audience grows into weeks two and three (r > 1 briefly). They now
+assert what they were guarding: its total stays under 20% of a phenomenon's,
+it doesn't hit the hard cap, and the phenomenon's total is more than 10× an
+ordinary film's.
+
 ## 7. Proposed fix order (for a separate, greenlit pass)
 
 1. ~~**Star sweep**~~ **Done (§5.3): underpowered.** Fame moves gross 1–10%
