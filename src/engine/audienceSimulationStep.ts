@@ -49,6 +49,7 @@ import {
   type AudienceSimulationFixedState,
   type AudienceSimulationWeekState,
 } from './audienceSimulation';
+import { REVIEW_WAITERS_LOST_SHARE } from '../data/reviewSensitivity';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -936,12 +937,24 @@ export function advanceOneWeekWithDiagnostics(
   // stay interested, exactly like attention competition above - whether they
   // ever get a ticket is decided by whether the film keeps its screens.
   const rushFactor = weeks.length === 0 ? (fixed.openingRushMultiplier ?? 1) : 1;
+  // Step 8.7: reviews on the opening (docs/domain/16 §6) - week 1 only, like the
+  // rush penalty. A poorly reviewed film's undecided viewers wait (they stay in
+  // the pool, and whether they ever come is word of mouth's job); a well
+  // reviewed one licenses the marginal viewer now. Never sells more than the
+  // pool holds.
+  const reviewFactor = weeks.length === 0 ? (fixed.openingReviewMultiplier ?? 1) : 1;
   // Applied to the tickets, not the probability: a strong film's pulled-forward
   // probability can exceed 1 before the clamp, which would silently absorb most
   // of the cut.
-  const ticketsFromExistingPool = sellTicketsThisWeek(priorWeek.interestedRemaining, attendanceProbability * attentionFactor) * rushFactor;
-  const ticketsFromNewInterest = sellTicketsThisWeek(newInterestThisWeek, baselineAttendanceProbability * attentionFactor) * rushFactor;
+  const ticketsFromExistingPool = Math.min(priorWeek.interestedRemaining, sellTicketsThisWeek(priorWeek.interestedRemaining, attendanceProbability * attentionFactor) * rushFactor * reviewFactor);
+  const ticketsFromNewInterest = Math.min(newInterestThisWeek, sellTicketsThisWeek(newInterestThisWeek, baselineAttendanceProbability * attentionFactor) * rushFactor * reviewFactor);
   const unconstrainedDemand = ticketsFromExistingPool + ticketsFromNewInterest;
+  // Of the opening viewers a pan held back, a share wait for the home window
+  // and leave the theatrical pool (data/reviewSensitivity.ts:REVIEW_WAITERS_LOST_SHARE).
+  // Zero unless this is week 1 of a film reviewed below the market median.
+  const reviewWaitersLost = reviewFactor < 1 && reviewFactor > 0
+    ? (unconstrainedDemand / reviewFactor - unconstrainedDemand) * REVIEW_WAITERS_LOST_SHARE
+    : 0;
 
   // Step 9.5: availability gates unconstrained demand down to what this
   // film can physically serve this week - see the availability step's own
@@ -968,10 +981,10 @@ export function advanceOneWeekWithDiagnostics(
   // throw over an epsilon-scale rounding error.
   const ceiling = maxInterestedAudience(fixed);
   const clampedAwareCount = clamp(awareCount, 0, fixed.totalAddressableAudience);
-  const interestedRemaining = clamp(interestedBeforeSales - ticketsThisWeek, 0, Math.min(clampedAwareCount, ceiling));
+  const interestedRemaining = clamp(interestedBeforeSales - ticketsThisWeek - reviewWaitersLost, 0, Math.min(clampedAwareCount, ceiling));
   const cumulativeTicketsSold = clamp(priorWeek.cumulativeTicketsSold + ticketsThisWeek, 0, fixed.totalAddressableAudience);
   const crossoverCeiling = fixed.crossoverCapacityFraction * fixed.totalAddressableAudience;
-  const clampedCumulativeCrossoverRealized = clamp(cumulativeCrossoverRealized, 0, crossoverCeiling);
+  const clampedCumulativeCrossoverRealized = clamp(cumulativeCrossoverRealized, 0, Math.min(crossoverCeiling, interestedRemaining + cumulativeTicketsSold));
 
   const next = createAudienceSimulationWeekState(fixed, {
     week: nextWeekNumber,

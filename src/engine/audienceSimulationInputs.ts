@@ -31,6 +31,15 @@ import { RELEASE_WINDOW_BASE_MULTIPLIER, RELEASE_WINDOW_GENRE_BONUS, MARKETING_S
 import { logT, interpolateScale, type Range, type ScaleAnchor } from './interpolate';
 import { createAudienceSimulationFixedState, type AudienceSimulationFixedState } from './audienceSimulation';
 import { isScreenCollapseArmed, openingRushMultiplier, rushSeverity } from './marketing';
+import {
+  AUDIENCE_REVIEW_MULTIPLIER,
+  GENRE_REVIEW_SENSITIVITY,
+  PRESOLD_REVIEW_DAMPING,
+  OPENING_REVIEW_WEIGHT,
+  AWARENESS_REVIEW_WEIGHT,
+  REVIEW_SIGNAL_PIVOT,
+  REVIEW_SIGNAL_SPAN,
+} from '../data/reviewSensitivity';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -165,6 +174,8 @@ export interface ReleaseSimulationInputs {
    * armed, behaviour identical to before.
    */
   marketingRunwayWeeks?: number;
+  /** Script.franchiseRecognition, 0-100 (absent = an original). A pre-sold audience has decided before the reviews land - damps the opening's review sensitivity (data/reviewSensitivity.ts). */
+  scriptFranchiseRecognition?: number;
 }
 
 // --- Total addressable audience -------------------------------------------
@@ -1002,7 +1013,7 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
     marketingEfficiency,
     crossoverCapacityFraction,
     conversionPacingBaseline,
-    externalWeeklyAwarenessRate,
+    externalWeeklyAwarenessRate: clamp(externalWeeklyAwarenessRate * computeReviewAwarenessMultiplier(inputs, eventScale), 0, 1),
     criticScore: inputs.criticScore,
     audienceScore: inputs.audienceScore,
     initialAwareCount,
@@ -1010,7 +1021,31 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
     availabilityBaseWeeklyDecay: distribution.availabilityBaseWeeklyDecay,
     criticLedExpansionWeight: distribution.criticLedExpansionWeight,
     ...(rush === undefined ? {} : { openingRushMultiplier: openingRushMultiplier(rush), screenCollapseArmed: isScreenCollapseArmed(rush) }),
+    openingReviewMultiplier: computeOpeningReviewMultiplier(inputs, eventScale),
   });
+}
+
+type ReviewInputs = Pick<ReleaseSimulationInputs, 'genre' | 'targetAudience' | 'scriptFranchiseRecognition' | 'criticScore'>;
+
+/** How much this film reads its reviews before release pattern decides how - genre x audience, damped when pre-sold. See data/reviewSensitivity.ts for the reference behind each term. */
+export function computeReviewSensitivity(inputs: Omit<ReviewInputs, 'criticScore'>, eventScale: number): number {
+  const preSold = Math.max(clamp((inputs.scriptFranchiseRecognition ?? 0) / 100, 0, 1), clamp(eventScale, 0, 1));
+  return GENRE_REVIEW_SENSITIVITY[inputs.genre] * AUDIENCE_REVIEW_MULTIPLIER[inputs.targetAudience] * (1 - PRESOLD_REVIEW_DAMPING * preSold);
+}
+
+/** -1..+1: how far the reviews sit from the market's median critic score. */
+export function reviewSignal(criticScore: number): number {
+  return clamp((criticScore - REVIEW_SIGNAL_PIVOT) / REVIEW_SIGNAL_SPAN, -1, 1);
+}
+
+/** Wide releases: week-1 attendance multiplier from reviews as permission. 1 for other release types. */
+export function computeOpeningReviewMultiplier(inputs: ReviewInputs & { releaseType: SupportedReleaseType }, eventScale: number): number {
+  return 1 + OPENING_REVIEW_WEIGHT[inputs.releaseType] * computeReviewSensitivity(inputs, eventScale) * reviewSignal(inputs.criticScore);
+}
+
+/** Limited releases: multiplier on the ongoing outside-awareness rate from reviews as awareness. 1 for other release types. */
+export function computeReviewAwarenessMultiplier(inputs: ReviewInputs & { releaseType: SupportedReleaseType }, eventScale: number): number {
+  return 1 + AWARENESS_REVIEW_WEIGHT[inputs.releaseType] * computeReviewSensitivity(inputs, eventScale) * reviewSignal(inputs.criticScore);
 }
 
 /**

@@ -136,6 +136,14 @@ export interface AudienceSimulationFixedState {
    * availability keeps its asymptotic floor, exactly as before.
    */
   screenCollapseArmed?: boolean;
+  /**
+   * Reviews on the opening (docs/domain/16 §6; data/reviewSensitivity.ts):
+   * multiplier on week-1 attendance only, above 1 for a film reviewed better
+   * than the market median, below for worse, scaled by how review-sensitive
+   * this film's genre, audience and release pattern are and damped when it is
+   * pre-sold. Absent = 1.
+   */
+  openingReviewMultiplier?: number;
 }
 
 /**
@@ -163,6 +171,9 @@ export function createAudienceSimulationFixedState(input: AudienceSimulationFixe
   assertUnitInterval(input.availabilityBaseWeeklyDecay, 'availabilityBaseWeeklyDecay');
   assertUnitInterval(input.criticLedExpansionWeight, 'criticLedExpansionWeight');
   if (input.openingRushMultiplier !== undefined) assertUnitInterval(input.openingRushMultiplier, 'openingRushMultiplier');
+  if (input.openingReviewMultiplier !== undefined && !(input.openingReviewMultiplier > 0)) {
+    throw new Error(`AudienceSimulation: openingReviewMultiplier must be > 0, got ${input.openingReviewMultiplier}`);
+  }
   if (input.baseInterestFraction + input.crossoverCapacityFraction > 1) {
     throw new Error(
       'AudienceSimulation: baseInterestFraction + crossoverCapacityFraction must not exceed 1 - the base pool plus its maximum crossover expansion cannot exceed the whole addressable audience',

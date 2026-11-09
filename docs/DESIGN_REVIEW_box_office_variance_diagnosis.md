@@ -344,6 +344,69 @@ towards it.
 
 ---
 
+## 7a. Revised plan, after checking the domain reference (2026-11-09)
+
+The §7 plan below was revised against `docs/domain/10` §4–7, `12` §3 and `16`
+§6–8, which changed two of its three ideas:
+
+1. **Reviews by film type** (replaces §7 step 3). The opening effect depends on
+   genre, audience and release pattern, and pre-sold films barely feel it. For
+   wide releases reviews act as *permission* (week 1); for platform releases
+   they act as *awareness* (all run). **Built**, see §8.
+2. **Promise vs delivery drives word of mouth** (replaces "let the ceiling
+   grow"). The reference: word of mouth's sign is set by the gap between what
+   the campaign promised and what the film delivered, not absolute quality. This
+   is the sleeper-hit mechanism.
+3. **Repeat viewing for exceptional films.** The reference's "difference
+   between a hit and a phenomenon", and the realistic way past the ceiling. The
+   simulation explicitly does not model it yet (`audienceSimulation.ts`).
+4. **Stars as floor plus international value**, gated on whether the film
+   *looks* above average, and only for a small top tier. **Waiting on research**
+   into the decline of star power (a reference section is being drafted for
+   `docs/domain/`).
+
+## 8. Fix 1 built: reviews by film type
+
+`data/reviewSensitivity.ts` and `audienceSimulationInputs.ts`
+(`computeReviewSensitivity`, `computeOpeningReviewMultiplier`,
+`computeReviewAwarenessMultiplier`), applied in `audienceSimulationStep.ts`
+step 8.7.
+- **Sensitivity:** genre (drama 0.25 down to horror 0) × audience (critics- and
+  adult-led films more, teens less) × (1 − 0.8 × pre-sold), where pre-sold is
+  the larger of franchise recognition and event scale.
+- **Signal:** −1..+1 around the market's median wide-release critic score (51,
+  ±20).
+- **Wide:** a week-1 attendance multiplier. Of the viewers a pan holds back,
+  half are lost to the home window; without that a pan only delayed its
+  audience while a rave's bigger opening compounded.
+- **Limited:** the same signal scales the ongoing awareness rate instead, so
+  the sleeper shape survives. Applying it to week 1 erased it and broke the
+  sleeper scenarios.
+- **Festival First:** untouched; it has its own critic gate.
+
+**Measured.** Within the genres the reference says should feel it, wide
+dramas' opening ratio between well-reviewed (critic ≥ 65) and panned (≤ 40)
+films went from 0.47× to 1.05×; the others moved modestly; horror is
+unchanged by construction. The market as a whole barely moved (mean wide gross
+$268.7M → $267.5M). The distribution gate went from 19/21 to 18/21:
+`wideOver100Pct` 60.4 against a ceiling of 60, and `majorPct` 14.5 against 14,
+both by under a point. The variance gate is unchanged (76.7% "as expected"):
+its plans are spectacle-led action, sci-fi and comedy, which the reference
+says reviews barely touch. Fixes 2 and 3 are the levers for it.
+
+**Two findings this surfaced, not acted on here:**
+- **Across the market, critic score is *negatively* correlated with opening**
+  (r −0.30 to −0.46 in every genre before this change): well-reviewed films
+  open at 0.25–0.47× panned ones. That is cross-film: bigger, more expensive
+  films score worse with critics in the model. The reference's link between
+  reviews and box office is weak, not inverted, so this is worth its own look.
+- **The stopping rule rewards a weak opening.** The run ends at 2% of
+  week-1 admissions, so a lower opening runs longer. For a panned film with good
+  audience scores this outweighs the held-back viewers it loses (the unit test
+  had to measure the mechanism directly). The rushed-release work hit the same
+  quirk. A run-length rule that isn't relative to the opening would fix both,
+  but it touches every film, so it belongs with the calibration of fixes 2–3.
+
 ## 7. Proposed fix order (for a separate, greenlit pass)
 
 1. ~~**Star sweep**~~ **Done (§5.3): underpowered.** Fame moves gross 1–10%

@@ -385,6 +385,7 @@ export function computeReleaseResults(input: ReleaseComputationInput, rng: Rando
     // `productionBudgetCost` charged above: a producer who brings the same
     // spectacle in cheaper has changed the bill, not the screen.
     productionBudgetCost: computeProductionBudgetCost(input.productionChoices),
+    scriptFranchiseRecognition: script.franchiseRecognition,
     scriptIntendedAudience: script.intendedAudience,
     targetAudience: input.targetAudience,
     genre: input.genre,
