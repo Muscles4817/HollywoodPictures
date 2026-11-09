@@ -526,6 +526,37 @@ off the plateau. The joint calibration needs, in order:
    level levers rather than the new mechanisms, which are calibrated against
    the reference independently.
 
+### 10.2 The stopping rule, measured: not the culprit (2026-11-09)
+
+§8 and §10.1 named the run-end rule (a run ends when a week sells under 2%
+of opening week) as blunting every downside mechanism, because a weaker
+opening lowers the bar. Measured on the whole market, using the per-film weekly
+series the distribution dump now carries (`weeklyGrossM`), that is **wrong for
+wide releases**:
+
+- The inversion is real but nearly worthless: bottom-quartile openings run 8
+  weeks (median) against 6 for top-quartile, but weeks under $1M hold 0.17%
+  of all wide-release gross. After week 6, a weak opener earns a median of 1.7%
+  of its total. The top tenth (19%) are genuine sleepers, which should keep
+  running.
+- So an absolute "not worth the screens" floor would change almost nothing.
+  The "a pan sells slightly more" effect in §8's unit test comes from the
+  held-back audience buying later in ordinary weeks, not from the tail.
+
+**The rule is not changed.** The real run-length problem it surfaced is in
+**Limited and Festival First releases**: every one of them hits the 20-week
+cap, still taking 31% (Limited) / 43% (Festival) of its peak week, and that
+last week alone is 2.5–3% of its total. They also peak in week 1–2 and then
+decline very slowly, where a real platform release expands, peaks weeks later
+and fades (`docs/domain/09` §7.2, `10` §2.7). That is a decay-shape problem in
+how limited availability and interest evolve, not an end-rule one. It is also
+behind the failing `limitedOpeningMultiple` and `limitedRunWeeks` sitting on
+its upper edge.
+
+Revised order for the joint calibration: (1) execution's reach into reception
+for good plans, the variance lever; (2) the limited/festival run shape;
+(3) the market level.
+
 ## 7. Proposed fix order (for a separate, greenlit pass)
 
 1. ~~**Star sweep**~~ **Done (§5.3): underpowered.** Fame moves gross 1–10%

@@ -176,6 +176,7 @@ function recordFinished(film: Film, seed: number, tier: StudioTier): Rec {
         soldShare: sw.length ? uniqueViewers(sw[sw.length - 1]) / ceil : 0,
         repeatShare: sw.length && sw[sw.length - 1].cumulativeTicketsSold > 0 ? (sw[sw.length - 1].cumulativeRepeatAdmissions ?? 0) / sw[sw.length - 1].cumulativeTicketsSold : 0,
         franchise: film.script.franchiseRecognition ?? 0,
+        weeklyGrossM: film.boxOfficeRun.weeks.map((w) => (w.gross / M).toFixed(3)).join(','),
         audience: film.targetAudience,
         crossCap: fx.crossoverCapacityFraction, baseInt: fx.baseInterestFraction, tam: fx.totalAddressableAudience,
         leadFame: leads.length ? leads.reduce((a, t) => a + fameOf(t as never), 0) / leads.length : 0,
