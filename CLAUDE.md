@@ -100,6 +100,7 @@ DUMP_OUT=/tmp/bo.json BOX_OFFICE_DIAGNOSTIC=1 \
   npx vitest run src/engine/boxOfficeDistribution.diagnostic.test.ts --disable-console-intercept
 node scripts/analyseBoxOfficeDump.mjs /tmp/bo.json   # per-film cuts: S-curve, spend, star power
 BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/starPower.diagnostic.test.ts --disable-console-intercept  # controlled: lead fame only
+BOX_OFFICE_DIAGNOSTIC=1 npx vitest run src/engine/receptionSpread.diagnostic.test.ts --disable-console-intercept  # per-plan spread vs ambition (docs/DESIGN_REVIEW_ambition_and_delivery.md)
 ```
 
 Populated save dump (for looking at screens with real content in them, rather
