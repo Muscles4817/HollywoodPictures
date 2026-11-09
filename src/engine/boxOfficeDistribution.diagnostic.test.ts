@@ -20,7 +20,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { writeFileSync } from 'fs';
-import { maxInterestedAudience } from './audienceSimulation';
+import { maxInterestedAudience, uniqueViewers } from './audienceSimulation';
 import { computeTalentCost } from './cost';
 import { generateRivalStudios, settleRivalMarket, studioShareOf, type RivalMarketUpdate } from './rivalStudios';
 import { settleTheatricalMarket } from './marketSettlement';
@@ -173,7 +173,10 @@ function recordFinished(film: Film, seed: number, tier: StudioTier): Rec {
         critic: r.criticScore, aud: r.audienceScore, buzz: r.buzzScore ?? 0, simAud: fx.audienceScore,
         scale: film.script.scale, genre: film.genre,
         costM: cost / M, openingM: opening / M, ancM: ancillary / M, rentalsM: (r.studioRevenue ?? 0) / M,
-        soldShare: sw.length ? sw[sw.length - 1].cumulativeTicketsSold / ceil : 0,
+        soldShare: sw.length ? uniqueViewers(sw[sw.length - 1]) / ceil : 0,
+        repeatShare: sw.length && sw[sw.length - 1].cumulativeTicketsSold > 0 ? (sw[sw.length - 1].cumulativeRepeatAdmissions ?? 0) / sw[sw.length - 1].cumulativeTicketsSold : 0,
+        franchise: film.script.franchiseRecognition ?? 0,
+        audience: film.targetAudience,
         crossCap: fx.crossoverCapacityFraction, baseInt: fx.baseInterestFraction, tam: fx.totalAddressableAudience,
         leadFame: leads.length ? leads.reduce((a, t) => a + fameOf(t as never), 0) / leads.length : 0,
         dirFame: fameOf(dir as never), talentCostM: talentCost / M, mkt: film.marketingChoices.marketingSpend / M,

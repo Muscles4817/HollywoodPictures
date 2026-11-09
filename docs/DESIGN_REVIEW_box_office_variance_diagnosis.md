@@ -450,6 +450,82 @@ assert what they were guarding: its total stays under 20% of a phenomenon's,
 it doesn't hit the hard cap, and the phenomenon's total is more than 10× an
 ordinary film's.
 
+## 10. Fix 3 built: repeat viewing
+
+`data/repeatViewing.ts`; `audienceSimulationInputs.ts:computeRepeatability`;
+`audienceSimulationStep.ts:computeRepeatViewingRate` and step 8.8. Following
+`docs/domain/10` §16: each week a share of the *previous* week's first-time
+viewers come back once. They take seats, so they count against capacity and a
+film people return to holds its screens. They are never drawn from or returned
+to the interested pool: they are the same people again.
+- **Base rate:** 0.03 for every film.
+- **Extra rate:** up to 0.6 × repeatability × a reception gate. The gate is
+  absolute (people re-watch what they love, whatever they were promised): zero
+  at a delivered blend of 60, full at 88, convex.
+- **Repeatability:** a 0–1 blend of genre (spectacle, density, emotion),
+  audience (families' social obligation, teens' fandom), spectacle lifted by
+  event scale, and franchise fandom.
+
+**People vs tickets.** The simulation had treated tickets sold as distinct
+viewers throughout, and forbade tickets from exceeding the addressable audience
+("repeat viewing is not modeled yet"). Repeat visits are now tracked
+separately (`AudienceSimulationWeekState.cumulativeRepeatAdmissions`, included
+in `cumulativeTicketsSold`). Everything that counts *people* reads
+`uniqueViewers()`: the interest headroom, the crossover subset check, word of
+mouth's activity (people talking, not tickets) and the reproduction ratio.
+Money keeps reading tickets.
+
+**Measured against the reference** (wide releases, 6 seeds × 8 years):
+
+| Film type | Median repeat share | p90 | Reference |
+|---|--:|--:|--:|
+| Ordinary (delivered < 65) | 2.7% | 3.3% | 2–5% |
+| Well-liked franchise | 10.7% | 17.8% | 8–15% |
+| Well-liked family film | 10.7% | 15.9% | 10–20% |
+| Loved (delivered ≥ 82) | 16.0% | 21.9% (max 26.6%) | phenomenon 20–35% |
+
+The model's top 1% by *gross* gets only ~4%. Its biggest grossers are big,
+hyped, middling films rather than loved ones: the same trait as the negative
+critic/opening correlation in §8.
+
+**Gates.** Variance "as expected" 75.2% → 72.0%, median per-plan CV
+0.161 → 0.175, breakouts 3.3% → 4.0%. The market got richer, as three
+revenue-adding fixes would: mean wide gross $270M → $298M (ceiling 300),
+median $155M → $166M. Distribution gate failures now: `wideOver100Pct`,
+`wideOpeningMultiple` (3.0, at its edge), `limitedOpeningMultiple`,
+`specialtyFilmsPerYear`, `lossPct` (25.9 against a floor of 28) and
+`breakevenPct`. Buzz gate unchanged.
+
+**Test changes.** One more per-week reproduction comparison
+(phenomenon vs ordinary) went the way of the two in §9: repeat viewers fill a
+capacity-bound phenomenon's seats, so fewer first-timers fit per week. The
+assertion keeps the total-gross comparison. One test helper counted interest
+plus tickets as "ever interested" and now counts unique viewers.
+
+### 10.1 Where fixes 1–3 leave things, and what the joint calibration has to do
+
+| | before (diagnosis) | after fixes 1–3 | target |
+|---|--:|--:|--:|
+| Variance: "as expected" | 77.0% | 72.0% | 22–38% |
+| Variance: median per-plan CV | 0.142 | 0.175 | — |
+| Distribution gate | 19/21 | 15/21 | 21/21 |
+| Mean wide gross | $268.7M | $298.0M | $200–300M |
+
+The direction is right on variance, but the distance is large. The reason is
+the one §3 found: the plans the variance gate stresses mostly sit on the
+plateau of the reception S-curve, selling 75–90% of their reachable audience
+at a typical execution. Fixes 2 and 3 add upside; little has moved those plans
+off the plateau. The joint calibration needs, in order:
+1. **The stopping rule** (§8 finding): runs end relative to their own opening,
+   which rewards a weak opening and blunts every downside mechanism (the rush
+   penalty, the pan's lost waiters).
+2. **How far execution moves reception for a good plan.** Plateau plans barely
+   vary because their delivered reception barely does.
+   `DESIGN_REVIEW_reception_model.md` is the standing analysis of that.
+3. **The market level**, brought back inside its bands after 1–2, using the
+   level levers rather than the new mechanisms, which are calibrated against
+   the reference independently.
+
 ## 7. Proposed fix order (for a separate, greenlit pass)
 
 1. ~~**Star sweep**~~ **Done (§5.3): underpowered.** Fame moves gross 1–10%

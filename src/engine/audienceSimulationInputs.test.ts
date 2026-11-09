@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { deriveAudienceSimulationFixedState, type ReleaseSimulationInputs } from './audienceSimulationInputs';
 import { advanceToWeek, advanceToWeekWithDiagnostics, MAX_SIMULATION_WEEKS, hasSimulationEnded } from './audienceSimulationStep';
-import { maxInterestedAudience, deriveWeeklyAdmissions, type AudienceSimulationWeekState } from './audienceSimulation';
+import { maxInterestedAudience, deriveWeeklyAdmissions, uniqueViewers, type AudienceSimulationWeekState } from './audienceSimulation';
 
 /**
  * Every constant here (buzz/marketing/reception levels, release types) was
@@ -48,7 +48,8 @@ function totalAdmissions(weeks: AudienceSimulationWeekState[]): number {
 }
 
 function maxEverInterested(weeks: AudienceSimulationWeekState[]): number {
-  return Math.max(0, ...weeks.map((w) => w.interestedRemaining + w.cumulativeTicketsSold));
+  // People, not tickets: repeat visits (docs/domain/10 §16) are the same people again.
+  return Math.max(0, ...weeks.map((w) => w.interestedRemaining + uniqueViewers(w)));
 }
 
 describe('deriveAudienceSimulationFixedState - basic construction', () => {

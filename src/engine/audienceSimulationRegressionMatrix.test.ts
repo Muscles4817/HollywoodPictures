@@ -480,7 +480,15 @@ describe('regression matrix: cross-scenario assertions', () => {
   it('ordinary-positive reception does not outperform exceptional reception on WOM or total scale', () => {
     const ordinary = summarize(ORDINARY_POSITIVE);
     const phenomenon = summarize(RARE_PHENOMENON);
-    expect(phenomenon.peakReproductionRatio).toBeGreaterThan(ordinary.peakReproductionRatio);
+    // This used to also assert the phenomenon's peak weekly reproduction ratio
+    // beats the ordinary film's. Two later mechanisms make that per-week number
+    // the wrong yardstick (it was already called a normalisation artefact in
+    // scenario 4 above): the expectation gap (data/wordOfMouth.ts) lifts the
+    // ordinary film, a modest promise over-delivered; and repeat viewing
+    // (data/repeatViewing.ts) fills a capacity-bound phenomenon's seats with
+    // returning viewers, so fewer first-timers fit per week (0.66 vs 0.68). Word
+    // of mouth's strength still shows where it should: in the totals below.
+    expect(phenomenon.peakReproductionRatio).toBeGreaterThan(0.5);
     // Not legs specifically - a front-loaded phenomenon's opening is
     // already such a large share of its own total that its legs
     // multiplier can legitimately read *lower* than a slow-burn

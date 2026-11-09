@@ -41,6 +41,7 @@ import {
   REVIEW_SIGNAL_SPAN,
 } from '../data/reviewSensitivity';
 import { EXPECTED_RECEPTION_BASE, EXPECTED_RECEPTION_PER_BUZZ } from '../data/wordOfMouth';
+import { AUDIENCE_REPEATABILITY, GENRE_REPEATABILITY, REPEATABILITY_WEIGHTS } from '../data/repeatViewing';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -1024,7 +1025,30 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
     ...(rush === undefined ? {} : { openingRushMultiplier: openingRushMultiplier(rush), screenCollapseArmed: isScreenCollapseArmed(rush) }),
     openingReviewMultiplier: computeOpeningReviewMultiplier(inputs, eventScale),
     expectedReception: computeExpectedReception(inputs.buzzScore),
+    repeatability: computeRepeatability(inputs, eventScale),
   });
+}
+
+/**
+ * 0..1 how repeatable a film is (data/repeatViewing.ts, docs/domain/10 §16.2):
+ * genre (spectacle, density, emotion), audience (family obligation, fandom),
+ * spectacle that rewards a better screen (the script's own spectacle, lifted by
+ * event scale), and fandom from a pre-sold franchise.
+ */
+export function computeRepeatability(
+  inputs: Pick<ReleaseSimulationInputs, 'genre' | 'targetAudience' | 'scriptSpectacle' | 'scriptFranchiseRecognition'>,
+  eventScale: number,
+): number {
+  const spectacle = clamp(inputs.scriptSpectacle / 100, 0, 1) * (0.5 + 0.5 * clamp(eventScale, 0, 1));
+  const fandom = clamp((inputs.scriptFranchiseRecognition ?? 0) / 100, 0, 1);
+  return clamp(
+    REPEATABILITY_WEIGHTS.genre * GENRE_REPEATABILITY[inputs.genre] +
+      REPEATABILITY_WEIGHTS.audience * AUDIENCE_REPEATABILITY[inputs.targetAudience] +
+      REPEATABILITY_WEIGHTS.spectacle * spectacle +
+      REPEATABILITY_WEIGHTS.fandom * fandom,
+    0,
+    1,
+  );
 }
 
 /** The reception a film's Buzz promised (data/wordOfMouth.ts): the bar word of mouth measures delivery against. */
