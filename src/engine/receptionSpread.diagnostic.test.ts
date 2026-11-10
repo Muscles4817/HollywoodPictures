@@ -21,8 +21,8 @@ import { maxInterestedAudience, uniqueViewers } from './audienceSimulation';
 import { withRng, type RandomFn } from './random';
 import { captureOnePlan } from './diagnosticPlans';
 import { computeSetsAmbition } from './setsFacet';
-import { computeVfxAmbition } from './vfxFacet';
-import { computePracticalAmbition } from './practicalFacet';
+import { computeVfxAmbition, computeVfxFacet } from './vfxFacet';
+import { computePracticalAmbition, computePracticalFacet } from './practicalFacet';
 import type { RivalProductionInProgress } from '../types';
 
 const PLAN_SEEDS = (process.env.SPREAD_PLAN_SEEDS ?? Array.from({ length: 16 }, (_, i) => 7000 + i).join(',')).split(',').map(Number);
@@ -99,7 +99,7 @@ describe.skipIf(!enabled)('reception spread vs plan risk', () => {
       lines.push(
         `  ${`${seed} ${plan.scale} ${plan.genre}`.padEnd(22)} ${risk.toFixed(0).padStart(4)} ${String(plan.script.originality).padStart(4)} ${String(plan.script.complexity).padStart(5)} | ` +
           `${sd(col('events')).toFixed(1).padStart(6)} ${row.execSd.toFixed(3).padStart(6)} ${sd(col('production')).toFixed(1).padStart(5)} ${sd(col('acting')).toFixed(1).padStart(4)} ${sd(col('post')).toFixed(1).padStart(5)} ${row.qualSd.toFixed(1).padStart(5)} | ` +
-          `${sd(col('critic')).toFixed(1).padStart(4)} ${row.audSd.toFixed(1).padStart(4)} | ${row.grossCv.toFixed(3).padStart(7)}  ${row.sold.toFixed(2)}  (aud med ${median(col('audience')).toFixed(0)}; ambition sets/vfx/practical ${computeSetsAmbition(plan.script).toFixed(0)}/${computeVfxAmbition(plan.genre, plan.script).toFixed(0)}/${computePracticalAmbition(plan.genre, plan.script).toFixed(0)}, spectacle ${plan.script.toneProfile.spectacle})`,
+          `${sd(col('critic')).toFixed(1).padStart(4)} ${row.audSd.toFixed(1).padStart(4)} | ${row.grossCv.toFixed(3).padStart(7)}  ${row.sold.toFixed(2)}  (aud med ${median(col('audience')).toFixed(0)}; ambition sets/vfx/practical ${computeSetsAmbition(plan.script).toFixed(0)}/${computeVfxAmbition(plan.genre, plan.script).toFixed(0)}/${computePracticalAmbition(plan.genre, plan.script).toFixed(0)}, spectacle ${plan.script.toneProfile.spectacle}; stretch vfx/practical ${computeVfxFacet(plan.productionChoices.vfxAmount, plan.talent, plan.genre, plan.script).stretch.toFixed(2)}/${computePracticalFacet(plan.productionChoices.practicalEffectsAmount, plan.genre, plan.script, 1).stretch.toFixed(2)})`,
       );
     }
     const c = (a: keyof (typeof summary)[0], b: keyof (typeof summary)[0]) => corr(summary.map((s) => s[a]), summary.map((s) => s[b])).toFixed(2);
