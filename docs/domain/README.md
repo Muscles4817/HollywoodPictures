@@ -30,13 +30,14 @@ mechanics, they stop being useful as a baseline. The single exception is
 | 12 | [`12-talent-labor-and-careers.md`](12-talent-labor-and-careers.md) | Representation, quotes, bankability, career arcs, contracts, guild protections, below-the-line careers |
 | 13 | [`13-awards-and-critical-reception.md`](13-awards-and-critical-reception.md) | The Academy, season calendar, precursors, campaigning, how critical standing gates awards |
 | 16 | [`16-critics-reviews-and-word-of-mouth.md`](16-critics-reviews-and-word-of-mouth.md) | Who critics are, embargoes, aggregate-score maths, exit polling, how word of mouth propagates and what sets its sign |
+| 17 | [`17-star-power-and-its-decline.md`](17-star-power-and-its-decline.md) | Star power from the contract era to now, the "death of the movie star" debate, the academic evidence on star effects, recent hits and flops, international and streaming |
 | 14 | [`14-glossary.md`](14-glossary.md) | A–Z of terminology, cross-referenced to the document that explains it |
 | 15 | [`15-game-mapping.md`](15-game-mapping.md) | **The bridge.** What Hollywood Pictures models, abstracts, and omits, area by area |
 
 **Reading order.** 01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 follows a film's own
 chronology and reads as a continuous narrative. 09 → 10 → 11 covers what
-happens after it's finished. 12, 13, and 16 are cross-cutting. 14 and 15 are
-lookup.
+happens after it's finished. 12, 13, 16 and 17 are cross-cutting; 17 is the
+deep dive behind `12` §3 and `10` §6. 14 and 15 are lookup.
 
 ---
 
@@ -73,7 +74,9 @@ enough to cite as fact. Where a figure is contested or has drifted over time,
 that is said.
 
 **Sourcing.** Written from general industry knowledge, not from live research
-against primary sources. Treat it as a well-informed baseline that is worth
+against primary sources. The exception is `17-star-power-and-its-decline.md`,
+which was researched live, tags every claim by evidence strength, and lists its
+sources (with its own caveats on how they were read). Treat it as a well-informed baseline that is worth
 verifying before anything load-bearing depends on a specific number. It is
 also a snapshot: guild agreements, window lengths, and incentive rates all
 change.
@@ -104,7 +107,7 @@ change.
 
 ## Scale, and where the overloaded words are
 
-The library is roughly **235,000 words**. Documents run 9,000–21,000 words
+The library is roughly **245,000 words**. Documents run 7,000–21,000 words
 each; the spread tracks how much real machinery each subject has, not its
 importance. `14-glossary.md` (500+ entries) is the fastest way in when you
 know the term, and each document's own section list is the fastest way in when

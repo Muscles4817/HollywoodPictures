@@ -387,7 +387,7 @@ differently.
 | **Who pays for it** | Studios on wide domestic releases | Independent financiers, sales agents, foreign distributors | Prestige producers, specialty labels, streamers building credibility |
 | **Evidence used** | Prior opening records where the star was the draw, not the IP | Territory-level history; a name that "travels" | Nominations, critical standing, the directors who want to work with them |
 | **Genre-bound?** | Strongly | Very strongly — action and thriller travel; comedy famously does not | Weakly |
-| **Decay rate** | Fast: two under-performing openings is enough | Slow: foreign value persists years after domestic value has gone | Very slow; often *rises* with age |
+| **Decay rate** | Fast: two under-performing openings is enough | Traditionally slow: buyers' estimates kept a name's value years after domestic value had gone. Less true since the mid-2020s, as buyers turned cautious and Hollywood's overseas share fell (`17` §6) | Very slow; often *rises* with age |
 | **Failure mode** | The film opens to the name and collapses in week two | The picture is financed on estimates it can never earn back; the gap loan is exposed | The film gets made and nobody sees it |
 
 A star can be strong in one column and worthless in the others. An action lead
@@ -443,8 +443,14 @@ is the single most important corrective to the idea of "star power" as a scalar.
 
 The industry consensus of the last two decades: **IP outperforms stars** for
 opening weekend on tentpoles, while stars still matter enormously for
-mid-budget films, for international pre-sales, and for getting a film financed
-at all.
+international pre-sales, for streaming, and for getting a film financed at
+all. The consensus used to add mid-budget films to that list. Recent
+theatrical results contradict it: most of the 2024–26 star-led flops are
+mid-budget original vehicles without an event premise, several of them well
+reviewed (`17` §3). The star still gets a mid-budget film *made*; it no longer
+reliably gets it *seen* in a theatre. The academic record is blunter still:
+corrected for stars being cast in more promising films, star effects on
+revenue are small and on profit undetectable (`17` §4).
 
 Two structural facts make bankability strange to model:
 
