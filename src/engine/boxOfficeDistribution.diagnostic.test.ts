@@ -21,6 +21,7 @@
 import { describe, it, expect } from 'vitest';
 import { writeFileSync } from 'fs';
 import { maxInterestedAudience, uniqueViewers } from './audienceSimulation';
+import { replaySettledWeeksWithDiagnostics } from './audienceSimulationStep';
 import { computeTalentCost } from './cost';
 import { generateRivalStudios, settleRivalMarket, studioShareOf, type RivalMarketUpdate } from './rivalStudios';
 import { settleTheatricalMarket } from './marketSettlement';
@@ -177,6 +178,17 @@ function recordFinished(film: Film, seed: number, tier: StudioTier): Rec {
         repeatShare: sw.length && sw[sw.length - 1].cumulativeTicketsSold > 0 ? (sw[sw.length - 1].cumulativeRepeatAdmissions ?? 0) / sw[sw.length - 1].cumulativeTicketsSold : 0,
         franchise: film.script.franchiseRecognition ?? 0,
         weeklyGrossM: film.boxOfficeRun.weeks.map((w) => (w.gross / M).toFixed(3)).join(','),
+        ...(() => {
+          // Week-by-week mechanics (availability, seat utilisation, interest left),
+          // replayed from the settled run's own fixed state and competition - the
+          // run-shape analysis in docs/DESIGN_REVIEW_box_office_variance_diagnosis.md §10.2.
+          const { diagnostics } = replaySettledWeeksWithDiagnostics(fx, film.boxOfficeRun.weeks.map((w) => w.competitivePressure ?? 0));
+          return {
+            availW: diagnostics.map((d) => d.availabilityFraction.toFixed(3)).join(','),
+            utilW: diagnostics.map((d) => d.demandUtilisation.toFixed(2)).join(','),
+            interestW: diagnostics.map((d) => (d.interestedRemaining / ceil).toFixed(3)).join(','),
+          };
+        })(),
         audience: film.targetAudience,
         crossCap: fx.crossoverCapacityFraction, baseInt: fx.baseInterestFraction, tam: fx.totalAddressableAudience,
         leadFame: leads.length ? leads.reduce((a, t) => a + fameOf(t as never), 0) / leads.length : 0,

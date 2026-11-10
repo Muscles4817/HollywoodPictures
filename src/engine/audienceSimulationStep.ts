@@ -52,6 +52,7 @@ import {
   type AudienceSimulationWeekState,
 } from './audienceSimulation';
 import { REVIEW_WAITERS_LOST_SHARE } from '../data/reviewSensitivity';
+import { HOME_WINDOW_WEEKS } from '../data/theatricalWindow';
 import { REPEAT_BASE_RATE, REPEAT_MAX_EXTRA_RATE, REPEAT_RECEPTION_EXPONENT, REPEAT_RECEPTION_FLOOR, REPEAT_RECEPTION_FULL } from '../data/repeatViewing';
 import { EXPECTATION_FACTOR_MAX, EXPECTATION_FACTOR_MIN, EXPECTATION_GAP_SPAN, EXPECTATION_GAP_WEIGHT } from '../data/wordOfMouth';
 
@@ -1029,7 +1030,11 @@ export function advanceOneWeekWithDiagnostics(
   // throw over an epsilon-scale rounding error.
   const ceiling = maxInterestedAudience(fixed);
   const clampedAwareCount = clamp(awareCount, 0, fixed.totalAddressableAudience);
-  const interestedRemaining = clamp(interestedBeforeSales - firstTimeTickets - reviewWaitersLost, 0, Math.min(clampedAwareCount, ceiling));
+  // Past the exclusive theatrical window (data/theatricalWindow.ts), a share of
+  // whoever is still interested waits for the home release instead.
+  const homeWindowWaiters =
+    nextWeekNumber > HOME_WINDOW_WEEKS ? Math.max(0, interestedBeforeSales - firstTimeTickets - reviewWaitersLost) * (fixed.homeWindowAttrition ?? 0) : 0;
+  const interestedRemaining = clamp(interestedBeforeSales - firstTimeTickets - reviewWaitersLost - homeWindowWaiters, 0, Math.min(clampedAwareCount, ceiling));
   const priorUnique = uniqueViewers(priorWeek);
   const uniqueAfter = clamp(priorUnique + firstTimeTickets, 0, fixed.totalAddressableAudience);
   const cumulativeRepeatAdmissions = (priorWeek.cumulativeRepeatAdmissions ?? 0) + repeatTickets;

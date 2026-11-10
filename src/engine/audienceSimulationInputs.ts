@@ -42,6 +42,7 @@ import {
 } from '../data/reviewSensitivity';
 import { EXPECTED_RECEPTION_BASE, EXPECTED_RECEPTION_PER_BUZZ } from '../data/wordOfMouth';
 import { AUDIENCE_REPEATABILITY, GENRE_REPEATABILITY, REPEATABILITY_WEIGHTS } from '../data/repeatViewing';
+import { HOME_WINDOW_WEEKLY_ATTRITION } from '../data/theatricalWindow';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -687,11 +688,17 @@ const DISTRIBUTION_PROFILES: Record<SupportedReleaseType, DistributionProfile> =
     initialAvailabilityFraction: 0.95, availabilityBaseWeeklyDecay: 0.18, criticLedExpansionWeight: 0,
   },
   Limited: {
-    conversionPacingBaseline: 0.06,
-    initialAvailabilityFraction: 0.1, availabilityBaseWeeklyDecay: 0.02, criticLedExpansionWeight: 0,
+    conversionPacingBaseline: 0.12,
+    // Was 0.1, which opened a platform release on more screens than its demand
+    // filled (seats ~27% full in week 1), so no film ever expanded - every one
+    // only contracted. A platform release opens small enough for a good film to
+    // play to full houses and expand on its per-screen average (docs/domain/09
+    // §7.2); a weak one contracts. Pacing is deliberately NOT raised (see the
+    // note above: that amplifies gross through the expansion loop).
+    initialAvailabilityFraction: 0.05, availabilityBaseWeeklyDecay: 0.02, criticLedExpansionWeight: 0,
   },
   'Festival First': {
-    conversionPacingBaseline: 0.05,
+    conversionPacingBaseline: 0.10,
     initialAvailabilityFraction: 0.02, availabilityBaseWeeklyDecay: 0.015, criticLedExpansionWeight: 0.65,
   },
 };
@@ -1026,6 +1033,7 @@ export function deriveAudienceSimulationFixedState(inputs: ReleaseSimulationInpu
     openingReviewMultiplier: computeOpeningReviewMultiplier(inputs, eventScale),
     expectedReception: computeExpectedReception(inputs.buzzScore),
     repeatability: computeRepeatability(inputs, eventScale),
+    homeWindowAttrition: HOME_WINDOW_WEEKLY_ATTRITION,
   });
 }
 
@@ -1079,6 +1087,9 @@ export function computeReviewAwarenessMultiplier(inputs: ReviewInputs & { releas
   return 1 + AWARENESS_REVIEW_WEIGHT[inputs.releaseType] * computeReviewSensitivity(inputs, eventScale) * reviewSignal(inputs.criticScore);
 }
 
+/** The opening screen share below which a release counts as a platform release for the rush penalty (Limited's opening share when the penalty was calibrated). */
+const RUSH_BREADTH_PLATFORM_AVAILABILITY = 0.1;
+
 /**
  * 0..1 breadth of a release for the rush penalty: 0 at (or below) a Limited
  * release's platform screen count, 1 at a full Wide commitment. Reads the
@@ -1086,7 +1097,9 @@ export function computeReviewAwarenessMultiplier(inputs: ReviewInputs & { releas
  * deal (or a weak package) is proportionally less exposed.
  */
 export function computeRushBreadth(uncrowdedAvailabilityFraction: number): number {
-  const platform = distributionProfile('Limited').initialAvailabilityFraction;
+  // Its own reference rather than Limited's opening share, so retuning how
+  // platform releases open never shifts the rush penalty on wide ones.
+  const platform = RUSH_BREADTH_PLATFORM_AVAILABILITY;
   const full = distributionProfile('Wide').initialAvailabilityFraction;
   return Math.min(1, Math.max(0, (uncrowdedAvailabilityFraction - platform) / (full - platform)));
 }

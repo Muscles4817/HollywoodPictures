@@ -160,6 +160,13 @@ export interface AudienceSimulationFixedState {
    * one-ticket-per-person model exactly as before.
    */
   repeatability?: number;
+  /**
+   * Home-window attrition (data/theatricalWindow.ts): once the film is past its
+   * exclusive theatrical window, this share of its remaining interested
+   * audience waits for home release each week. Absent = 0, no window - the run
+   * exactly as before.
+   */
+  homeWindowAttrition?: number;
 }
 
 /**
@@ -189,6 +196,7 @@ export function createAudienceSimulationFixedState(input: AudienceSimulationFixe
   if (input.openingRushMultiplier !== undefined) assertUnitInterval(input.openingRushMultiplier, 'openingRushMultiplier');
   if (input.expectedReception !== undefined) assertScoreRange(input.expectedReception, 'expectedReception');
   if (input.repeatability !== undefined) assertUnitInterval(input.repeatability, 'repeatability');
+  if (input.homeWindowAttrition !== undefined) assertUnitInterval(input.homeWindowAttrition, 'homeWindowAttrition');
   if (input.openingReviewMultiplier !== undefined && !(input.openingReviewMultiplier > 0)) {
     throw new Error(`AudienceSimulation: openingReviewMultiplier must be > 0, got ${input.openingReviewMultiplier}`);
   }

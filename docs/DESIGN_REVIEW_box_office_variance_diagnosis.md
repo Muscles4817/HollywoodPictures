@@ -557,6 +557,83 @@ Revised order for the joint calibration: (1) execution's reach into reception
 for good plans, the variance lever; (2) the limited/festival run shape;
 (3) the market level.
 
+## 11. Step 2 built: the platform run shape (2026-11-10)
+
+**What was wrong.** A week-by-week replay of every Limited and Festival First run
+(the distribution dump now carries per-week availability, seat utilisation and
+interest left):
+- **No release ever went wider.** A film's maximum screen share equalled its
+  opening share (Limited ~0.086, Festival 0.020), even for loved films. Limited
+  opened on more screens than its demand filled (week-1 utilisation 0.27), so
+  screens only contracted.
+- **Nothing ended a run.** The interested audience converted at ~5–6% a week, so
+  every run rode the 20-week cap at a third of its peak.
+
+The reference's platform shape (`docs/domain/09` §7.2, `10` §2.7, §8.5) is the
+opposite: open small, expand on the per-screen average, peak a few weeks in,
+then contract. Most of a film's remaining audience waits for home release once
+the 17–45 day window approaches (`09` §7.4).
+
+**What changed** (`engine/audienceSimulationInputs.ts` DISTRIBUTION_PROFILES,
+`data/theatricalWindow.ts`):
+1. **The home window.** After 6 weeks, 25% of whoever is still interested waits
+   for home release each week. Wide films are drained by then; it ends the
+   limited and festival tails.
+2. **Platform releases open smaller and sell faster.** Limited opens at 0.05 of
+   full screens (was 0.1); pacing Limited 0.06 → 0.12, Festival 0.05 → 0.10.
+
+Steps 1 and 2 had to land together. The window alone cut limited films' median
+gross 46% and left 87–93% of platform releases unprofitable: their money had
+been in the flat 20-week tail. The faster pacing earns it back inside a
+realistic run. The file's earlier warning that raising platform pacing
+"amplifies gross 2–3x through the expansion loop" did not hold with the window
+in place (economics unchanged, below).
+
+The rushed-release penalty kept its own breadth reference (0.1) rather than
+reading Limited's opening share, so retuning platform openings can't shift it.
+
+**Sweep.** Limited opening share at 0.025 / 0.035 / 0.05:
+- 0.025 gave the strongest build, but a 16.9× opening multiple (band 5–12).
+- 0.05 is the one where shape, economics and both limited targets hold.
+
+| Limited releases | before | after |
+|---|--:|--:|
+| Runs hitting the 20-week cap | 100% | **1%** |
+| Median run | 20 wk | 16 wk |
+| Last week as share of peak | 0.31 | **0.01** |
+| Peak week, loved / disliked (p50) | 3 / 1 | **4 / 1** |
+| Max screen share, loved (p90) | 0.090 (never grew) | **0.141** |
+| Opening multiple (gate) | 12.8 ✗ | **9.3 ✓** |
+| Median gross, all / loved | $14.6M / $22.6M | $14.8M / **$41.1M** |
+| Unprofitable / median return | 65% / 0.77× | 64% / 0.78× |
+
+**Not achieved:** expansion following reviews from the opening. Opening
+utilisation is similar for loved and disliked films, because a film's screen
+capacity is anchored to its own awareness: more release-day awareness raises
+capacity with demand. So the loved films' extra expansion comes from word of
+mouth in weeks 2+. Feeding reviews into a platform film's release-day awareness
+was tried and reverted, since it didn't change this. The awareness-anchored
+capacity is the structural reason, and a separate piece of work.
+
+**Gates on this code.**
+- **Variance:** passes (0.426 / 0.084, corr 0.93).
+- **Buzz:** passes.
+- **Distribution:** 16/21. Both limited targets now pass. The misses:
+  - `wideOpeningMultiple` 3.04 vs 3, `specialtyFilmsPerYear` 4.98 vs 5 and
+    `majorPct` 14.7 vs 14, all at an edge;
+  - `wideOver100Pct` 65 vs 60 and `breakevenPct` 11.8 vs 14, the longer-standing
+    pair.
+
+These are the market-level step (§10.2's step 3).
+
+**Test changes.** Three scenario assertions encoded the old shape:
+- Limited platform builds ride the cap.
+- A Festival sleeper's week 10 still matches week 1.
+- An excellent, under-marketed Limited film has a 20× multiple.
+
+They now assert real growth after week 1, runs ending before the cap, and a
+multiple at the top of the Limited band. Save key v97 → v98.
+
 ## 7. Proposed fix order (for a separate, greenlit pass)
 
 1. ~~**Star sweep**~~ **Done (§5.3): underpowered.** Fame moves gross 1–10%

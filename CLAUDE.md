@@ -109,7 +109,7 @@ than at the empty states an unpopulated fixture renders):
 ```bash
 DUMP_FIXTURE=1 DUMP_PATH=/tmp/pop.json npx vitest run \
   src/state/renderFixtures.diagnostic.test.ts --disable-console-intercept
-# then inject the file as localStorage['hollywood-pictures-save-v97']
+# then inject the file as localStorage['hollywood-pictures-save-v98']
 ```
 
 Observational (not an assertion suite) — dumps two simulated in-game years of
